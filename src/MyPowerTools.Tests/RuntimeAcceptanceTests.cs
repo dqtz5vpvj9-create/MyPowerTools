@@ -4,6 +4,7 @@ using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Avalonia.Input;
 using AdbForwarder.MyPowerTools;
 using AndroidTools.MyPowerTools;
 using Grpc.Core;
@@ -268,6 +269,44 @@ Address         Port        Address         Port
     }
 
     [Fact]
+    public void Shell_keyboard_shortcuts_resolve_navigation_and_command_palette_actions()
+    {
+        var focus = ShellKeyboardShortcut.Resolve(Key.K, KeyModifiers.Control);
+        Assert.Equal(ShellKeyboardAction.FocusCommandPalette, focus.Action);
+
+        var search = ShellKeyboardShortcut.Resolve(Key.F, KeyModifiers.Control);
+        Assert.Equal(ShellKeyboardAction.FocusCommandPalette, search.Action);
+
+        var clear = ShellKeyboardShortcut.Resolve(Key.Escape, KeyModifiers.None);
+        Assert.Equal(ShellKeyboardAction.ClearCommandPalette, clear.Action);
+
+        var refresh = ShellKeyboardShortcut.Resolve(Key.F5, KeyModifiers.None);
+        Assert.Equal(ShellKeyboardAction.Refresh, refresh.Action);
+
+        var diagnostics = ShellKeyboardShortcut.Resolve(Key.D7, KeyModifiers.Control);
+        Assert.Equal(ShellKeyboardAction.Navigate, diagnostics.Action);
+        Assert.Equal("Diagnostics", diagnostics.TargetPage);
+
+        var ignored = ShellKeyboardShortcut.Resolve(Key.K, KeyModifiers.Control | KeyModifiers.Shift);
+        Assert.Equal(ShellKeyboardAction.None, ignored.Action);
+    }
+
+    [Fact]
+    public void Shell_ui_colors_are_centralized_in_theme_tokens()
+    {
+        foreach (var file in new[]
+        {
+            Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "MainWindow.cs"),
+            Path.Combine(Root, "src", "MyPowerTools.UI", "Controls", "MptControls.cs")
+        })
+        {
+            var text = File.ReadAllText(file);
+            Assert.DoesNotContain("Brush.Parse(\"#", text, StringComparison.Ordinal);
+            Assert.DoesNotContain("Brushes.White", text, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
     public void Ui_shell_snapshot_writes_key_surface_matrix()
     {
         var output = Path.Combine(Path.GetTempPath(), "mpt-shell-ui-snapshot", Guid.NewGuid().ToString("N"));
@@ -286,6 +325,20 @@ Address         Port        Address         Port
         Assert.Equal(8, manifest["requiredSurfaceCount"]!.GetValue<int>());
         Assert.True(manifest["snapshotCount"]!.GetValue<int>() >= required.Length);
         Assert.Equal(manifest["snapshotCount"]!.GetValue<int>(), manifest["pixelSnapshotCount"]!.GetValue<int>());
+
+        var keyboard = manifest["keyboardNavigation"]!.AsObject();
+        var shortcuts = keyboard["shortcuts"]!.AsArray();
+        var focusStates = keyboard["focusStates"]!.AsArray().Select(item => item!.GetValue<string>()).ToArray();
+        Assert.Contains(shortcuts, item =>
+            item!["keys"]!.GetValue<string>() == "Ctrl+K" &&
+            item["action"]!.GetValue<string>() == "focus-command-palette" &&
+            item["surfaceId"]!.GetValue<string>() == "shell.command-palette");
+        Assert.Contains(shortcuts, item =>
+            item!["keys"]!.GetValue<string>() == "Ctrl+7" &&
+            item["surfaceId"]!.GetValue<string>() == "shell.runtime-diagnostics");
+        Assert.Contains("command-search-focus-visible", focusStates);
+        Assert.Contains("permission-audit-action-focus-visible", focusStates);
+
         foreach (var surfaceId in required)
         {
             Assert.Contains(snapshots, item => item!["surfaceId"]!.GetValue<string>() == surfaceId);
@@ -293,6 +346,20 @@ Address         Port        Address         Port
 
         Assert.Contains(snapshots, item => item!["surfaceId"]!.GetValue<string>() == "shell.package-manager");
         Assert.Contains(snapshots, item => item!["surfaceId"]!.GetValue<string>() == "shell.runtime-diagnostics");
+        var commandPalette = snapshots
+            .First(item => item!["surfaceId"]!.GetValue<string>() == "shell.command-palette")!
+            .AsObject();
+        Assert.Contains(commandPalette["keyboardShortcuts"]!.AsArray(), item => item!.GetValue<string>() == "Ctrl+K");
+        Assert.Contains(commandPalette["focusStates"]!.AsArray(), item => item!.GetValue<string>() == "command-item-focus-visible");
+        Assert.Contains(commandPalette["states"]!.AsArray(), item => item!.GetValue<string>() == "permission-required");
+        var settingsCenter = snapshots
+            .First(item => item!["surfaceId"]!.GetValue<string>() == "shell.settings-center")!
+            .AsObject();
+        Assert.Contains(settingsCenter["states"]!.AsArray(), item => item!.GetValue<string>() == "conflict");
+        var logsViewer = snapshots
+            .First(item => item!["surfaceId"]!.GetValue<string>() == "shell.logs-viewer")!
+            .AsObject();
+        Assert.Contains(logsViewer["states"]!.AsArray(), item => item!.GetValue<string>() == "streaming");
         Assert.Equal(snapshots.Count, Directory.GetFiles(output, "*.snapshot.png").Length);
         Assert.All(snapshots, item =>
         {
@@ -1985,6 +2052,26 @@ cloud_server_protocol: str = "https"
         Assert.Equal("local", androidTools.TrustPolicy);
         Assert.Equal("shared/package.signature.json", androidTools.SignaturePath);
         Assert.Equal(0u, androidTools.TrustIssueCount);
+    }
+
+    [Fact]
+    public async Task HostControl_get_settings_schema_exposes_runtime_schema()
+    {
+        await using var host = new InProcDotNetModuleHost();
+        var runtime = new MptHostRuntime(
+            new PackageReader(),
+            PlatformId.Current(),
+            transportRuntimes: [host]);
+        runtime.Load(Path.Combine(Root, "modules"));
+        var service = new HostControlGrpcService(runtime, new AuditLog(Path.Combine(Path.GetTempPath(), "mpt-hostcontrol-settings-schema-audit", Guid.NewGuid().ToString("N"), "audit.jsonl")));
+
+        var schema = await service.GetSettingsSchema(
+            new HostProto.GetSettingsSchemaRequest { ModuleId = "doubao-agent" },
+            new TestServerCallContext());
+
+        Assert.Equal("doubao-agent", schema.ModuleId);
+        Assert.Contains("plannerBaseUrl", schema.SchemaJson, StringComparison.Ordinal);
+        Assert.Contains("redactSensitiveOutput", schema.SchemaJson, StringComparison.Ordinal);
     }
 
     [Fact]

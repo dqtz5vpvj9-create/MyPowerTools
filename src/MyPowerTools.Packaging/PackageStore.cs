@@ -34,12 +34,12 @@ public sealed class PackageStore
         var backup = target + ".rollback";
         if (Directory.Exists(backup))
         {
-            Directory.Delete(backup, recursive: true);
+            DeleteDirectoryWithRetry(backup);
         }
 
         if (Directory.Exists(target))
         {
-            Directory.Move(target, backup);
+            MoveDirectoryWithRetry(target, backup);
         }
 
         try
@@ -48,7 +48,7 @@ public sealed class PackageStore
             _trust.WriteLocalSignatureHook(target);
             if (Directory.Exists(backup))
             {
-                Directory.Delete(backup, recursive: true);
+                DeleteDirectoryWithRetry(backup);
             }
 
             return new PackageInstallResult(true, definition.Package.Id, target, []);
@@ -57,12 +57,12 @@ public sealed class PackageStore
         {
             if (Directory.Exists(target))
             {
-                Directory.Delete(target, recursive: true);
+                DeleteDirectoryWithRetry(target);
             }
 
             if (Directory.Exists(backup))
             {
-                Directory.Move(backup, target);
+                MoveDirectoryWithRetry(backup, target);
             }
 
             return new PackageInstallResult(false, definition.Package.Id, target, [new ValidationIssue(target, "error", ex.Message)]);
@@ -80,10 +80,10 @@ public sealed class PackageStore
         var rollback = target + ".rollback";
         if (Directory.Exists(rollback))
         {
-            Directory.Delete(rollback, recursive: true);
+            DeleteDirectoryWithRetry(rollback);
         }
 
-        Directory.Move(target, rollback);
+        MoveDirectoryWithRetry(target, rollback);
         return new PackageInstallResult(true, packageId, rollback, []);
     }
 
@@ -98,10 +98,10 @@ public sealed class PackageStore
 
         if (Directory.Exists(target))
         {
-            Directory.Delete(target, recursive: true);
+            DeleteDirectoryWithRetry(target);
         }
 
-        Directory.Move(rollback, target);
+        MoveDirectoryWithRetry(rollback, target);
         return new PackageInstallResult(true, packageId, target, []);
     }
 
@@ -146,6 +146,42 @@ public sealed class PackageStore
             Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
             File.Copy(file, destination, overwrite: true);
         }
+    }
+
+    private static void MoveDirectoryWithRetry(string source, string target)
+    {
+        RunFileSystemOperationWithRetry(() => Directory.Move(source, target), $"move directory '{source}' to '{target}'");
+    }
+
+    private static void DeleteDirectoryWithRetry(string path)
+    {
+        RunFileSystemOperationWithRetry(() => Directory.Delete(path, recursive: true), $"delete directory '{path}'");
+    }
+
+    private static void RunFileSystemOperationWithRetry(Action operation, string description)
+    {
+        const int maxAttempts = 6;
+        for (var attempt = 1; ; attempt++)
+        {
+            try
+            {
+                operation();
+                return;
+            }
+            catch (Exception ex) when (IsTransientFileSystemException(ex) && attempt < maxAttempts)
+            {
+                Thread.Sleep(TimeSpan.FromMilliseconds(50 * attempt));
+            }
+            catch (Exception ex) when (IsTransientFileSystemException(ex))
+            {
+                throw new IOException($"Could not {description} after {maxAttempts} attempts.", ex);
+            }
+        }
+    }
+
+    private static bool IsTransientFileSystemException(Exception ex)
+    {
+        return ex is IOException or UnauthorizedAccessException;
     }
 }
 

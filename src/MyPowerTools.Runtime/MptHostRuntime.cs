@@ -783,6 +783,18 @@ public sealed class MptHostRuntime : IAsyncDisposable
         return _settingsStore.Get(moduleId);
     }
 
+    public async ValueTask<SettingsSchemaDocument> GetSettingsSchemaAsync(string moduleId, CancellationToken cancellationToken)
+    {
+        var module = _packageRegistry.FindModule(moduleId)
+            ?? throw new KeyNotFoundException($"Module '{moduleId}' was not found.");
+        if (!TryGetTransportRuntime(module, out var runtime))
+        {
+            return new SettingsSchemaDocument(moduleId, """{"type":"object","properties":{}}""");
+        }
+
+        return await runtime.GetSettingsSchemaAsync(module, CreateModuleContext(module), cancellationToken);
+    }
+
     public SettingsSnapshotDocument UpdateSettings(SettingsPatch patch)
     {
         EnsureModule(patch.ModuleId);

@@ -1,6 +1,9 @@
+using System.Globalization;
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
 using Avalonia.Threading;
@@ -47,6 +50,7 @@ public sealed class MainWindow : Window
 
         _tokens = TryLoadTokens();
         Content = BuildLayout();
+        KeyDown += OnShellKeyDown;
         _connectionMonitor.StateChanged += (_, snapshot) =>
         {
             Dispatcher.UIThread.Post(async () => await ApplyConnectionSnapshotAsync(snapshot, refreshOnRecovery: true));
@@ -78,7 +82,7 @@ public sealed class MainWindow : Window
         {
             ColumnDefinitions = new ColumnDefinitions("220,*,360"),
             RowDefinitions = new RowDefinitions("64,*,32"),
-            Background = Brush.Parse("#f7f8fb")
+            Background = MptTheme.AppBackground
         };
 
         _navigation.Children.Add(new TextBlock
@@ -129,9 +133,9 @@ public sealed class MainWindow : Window
             Margin = new Thickness(0, 4, 16, 12),
             Padding = new Thickness(14),
             CornerRadius = new CornerRadius(8),
-            BorderBrush = Brush.Parse("#dde2ea"),
+            BorderBrush = MptTheme.Border,
             BorderThickness = new Thickness(1),
-            Background = Brushes.White,
+            Background = MptTheme.CardBackground,
             Child = new DockPanel
             {
                 LastChildFill = true,
@@ -175,6 +179,51 @@ public sealed class MainWindow : Window
         await ShowPageAsync(_currentPage);
         await LoadCommandsAsync(_searchBox.Text ?? "");
         await LoadBrokerAuditAsync();
+    }
+
+    private async void OnShellKeyDown(object? sender, KeyEventArgs e)
+    {
+        var shortcut = ShellKeyboardShortcut.Resolve(e.Key, e.KeyModifiers);
+        if (shortcut.Action == ShellKeyboardAction.None)
+        {
+            return;
+        }
+
+        e.Handled = true;
+        try
+        {
+            await ApplyKeyboardShortcutAsync(shortcut);
+        }
+        catch (Exception ex)
+        {
+            _statusBar.Text = ex.Message;
+        }
+    }
+
+    private async Task ApplyKeyboardShortcutAsync(ShellKeyboardShortcutResult shortcut)
+    {
+        switch (shortcut.Action)
+        {
+            case ShellKeyboardAction.FocusCommandPalette:
+                _searchBox.Focus();
+                _searchBox.SelectAll();
+                _statusBar.Text = "Command Palette focused.";
+                await LoadCommandsAsync(_searchBox.Text ?? "");
+                break;
+            case ShellKeyboardAction.ClearCommandPalette:
+                _searchBox.Text = "";
+                _contentHost.Focus();
+                _statusBar.Text = "Command Palette cleared.";
+                await LoadCommandsAsync("");
+                break;
+            case ShellKeyboardAction.Refresh:
+                await RefreshAsync();
+                _statusBar.Text = $"{_currentPage} refreshed.";
+                break;
+            case ShellKeyboardAction.Navigate when shortcut.TargetPage is not null:
+                await ShowPageAsync(shortcut.TargetPage);
+                break;
+        }
     }
 
     private async Task LoadRunnerStatusAsync()
@@ -421,27 +470,54 @@ public sealed class MainWindow : Window
     {
         editorHost.Children.Clear();
         using var client = HostControlClient.ForDefaultEndpoint();
+        var schema = await client.GetSettingsSchemaAsync(moduleId);
         var snapshot = await client.GetSettingsAsync(moduleId);
-        var editor = new TextBox
-        {
-            AcceptsReturn = true,
-            TextWrapping = TextWrapping.NoWrap,
-            FontFamily = FontFamily.Parse("Consolas"),
-            FontSize = 12,
-            MinHeight = 280,
-            Text = PrettyJson(snapshot.Values)
-        };
+        var values = JsonStructMapper.ToJsonObject(snapshot.Values);
+        var schemaObject = TryParseSettingsSchema(schema.SchemaJson);
+        IReadOnlyList<SettingsFieldEditor> fields = schemaObject is null
+            ? []
+            : BuildSettingsFieldEditors(schemaObject, values);
+        TextBox? rawEditor = null;
+
         var state = new TextBlock
         {
-            Text = $"Revision {snapshot.Revision} · {snapshot.UpdatedAt.ToDateTimeOffset():yyyy-MM-dd HH:mm:ss}",
-            Foreground = Brush.Parse("#586174")
+            Text = $"Revision {snapshot.Revision} · {snapshot.UpdatedAt.ToDateTimeOffset():yyyy-MM-dd HH:mm:ss} · Schema fields {fields.Count}",
+            Foreground = MptTheme.TextSecondary
         };
+        editorHost.Children.Add(state);
+
+        if (fields.Count > 0)
+        {
+            var section = new MptSettingsSection("Settings");
+            foreach (var field in fields)
+            {
+                section.Children.Add(field.View);
+            }
+
+            editorHost.Children.Add(new MptModuleCard(section));
+        }
+        else
+        {
+            rawEditor = new TextBox
+            {
+                AcceptsReturn = true,
+                TextWrapping = TextWrapping.NoWrap,
+                FontFamily = FontFamily.Parse("Consolas"),
+                FontSize = 12,
+                MinHeight = 280,
+                Text = PrettyJson(snapshot.Values)
+            };
+            editorHost.Children.Add(rawEditor);
+        }
+
         var save = new MptActionButton("Save settings");
         save.Click += async (_, _) =>
         {
             try
             {
-                var patch = Struct.Parser.ParseJson(string.IsNullOrWhiteSpace(editor.Text) ? "{}" : editor.Text);
+                var patch = rawEditor is null
+                    ? JsonStructMapper.ToStruct(BuildSettingsPatch(fields))
+                    : Struct.Parser.ParseJson(string.IsNullOrWhiteSpace(rawEditor.Text) ? "{}" : rawEditor.Text);
                 var updated = await client.UpdateSettingsAsync(moduleId, snapshot.Revision, patch);
                 _statusBar.Text = $"{moduleId} settings saved at revision {updated.Revision}";
                 await FillSettingsEditorAsync(moduleId, editorHost);
@@ -456,10 +532,8 @@ public sealed class MainWindow : Window
             }
         };
 
-        editorHost.Children.Add(state);
-        editorHost.Children.Add(editor);
         editorHost.Children.Add(save);
-        _statusBar.Text = $"{moduleId} settings revision {snapshot.Revision}";
+        _statusBar.Text = $"{moduleId} settings revision {snapshot.Revision}, schema fields {fields.Count}";
     }
 
     private async Task LoadLogsPageAsync(string? selectedModuleId = null)
@@ -568,13 +642,13 @@ public sealed class MainWindow : Window
                 {
                     Text = string.Join(", ", package.ModuleIds),
                     TextWrapping = TextWrapping.Wrap,
-                    Foreground = Brush.Parse("#586174")
+                    Foreground = MptTheme.TextSecondary
                 });
                 body.Children.Add(new TextBlock
                 {
                     Text = package.Directory,
                     FontSize = 12,
-                    Foreground = Brush.Parse("#6b7280"),
+                    Foreground = MptTheme.TextMuted,
                     TextTrimming = TextTrimming.CharacterEllipsis
                 });
 
@@ -855,7 +929,7 @@ public sealed class MainWindow : Window
                 {
                     Text = $"{entry.Source} · {entry.TransportKind} · rev {entry.Revision} · {entry.Time.ToDateTimeOffset():yyyy-MM-dd HH:mm:ss}",
                     FontSize = 11,
-                    Foreground = Brush.Parse("#586174"),
+                    Foreground = MptTheme.TextSecondary,
                     TextTrimming = TextTrimming.CharacterEllipsis
                 },
                 new TextBlock
@@ -864,7 +938,7 @@ public sealed class MainWindow : Window
                         ? (string.IsNullOrWhiteSpace(entry.Reason) ? "No reason recorded." : entry.Reason)
                         : $"{(string.IsNullOrWhiteSpace(entry.Reason) ? "No reason recorded." : entry.Reason)} · expires {entry.ExpiresAt.ToDateTimeOffset():yyyy-MM-dd HH:mm:ss}",
                     FontSize = 11,
-                    Foreground = Brush.Parse("#586174"),
+                    Foreground = MptTheme.TextSecondary,
                     TextWrapping = TextWrapping.Wrap
                 }
             }
@@ -901,7 +975,7 @@ public sealed class MainWindow : Window
                 {
                     Text = $"{command.ModuleId} · {command.StartedAt.ToDateTimeOffset():yyyy-MM-dd HH:mm:ss}",
                     FontSize = 12,
-                    Foreground = Brush.Parse("#586174"),
+                    Foreground = MptTheme.TextSecondary,
                     TextTrimming = TextTrimming.CharacterEllipsis
                 }
             }
@@ -958,7 +1032,7 @@ public sealed class MainWindow : Window
                 {
                     Text = "No broker audit entries.",
                     FontSize = 12,
-                    Foreground = Brush.Parse("#586174")
+                    Foreground = MptTheme.TextSecondary
                 });
             }
         }
@@ -969,7 +1043,7 @@ public sealed class MainWindow : Window
             {
                 Text = $"Audit unavailable: {ex.Message}",
                 TextWrapping = TextWrapping.Wrap,
-                Foreground = Brush.Parse("#9a6700"),
+                    Foreground = MptTheme.Warning,
                 FontSize = 12
             });
         }
@@ -983,7 +1057,7 @@ public sealed class MainWindow : Window
         {
             Text = card.Summary,
             TextWrapping = TextWrapping.Wrap,
-            Foreground = Brush.Parse("#586174"),
+            Foreground = MptTheme.TextSecondary,
             MaxHeight = 42
         });
 
@@ -1012,13 +1086,13 @@ public sealed class MainWindow : Window
         {
             Text = module.Summary,
             TextWrapping = TextWrapping.Wrap,
-            Foreground = Brush.Parse("#586174")
+            Foreground = MptTheme.TextSecondary
         });
         panel.Children.Add(new TextBlock
         {
             Text = $"{module.PackageId} · {module.ModuleId}",
             FontSize = 12,
-            Foreground = Brush.Parse("#6b7280")
+            Foreground = MptTheme.TextMuted
         });
         var permissionSummary = module.Permissions.Count == 0
             ? "Permissions: none"
@@ -1028,8 +1102,8 @@ public sealed class MainWindow : Window
             Text = $"{permissionSummary} · Requirements: {module.Requirements.Count}",
             FontSize = 12,
             Foreground = module.Permissions.Any(permission => permission.Level is "broker" or "elevated" or "service")
-                ? Brush.Parse("#9a6700")
-                : Brush.Parse("#6b7280"),
+                ? MptTheme.Warning
+                : MptTheme.TextMuted,
             TextWrapping = TextWrapping.Wrap
         });
 
@@ -1059,7 +1133,7 @@ public sealed class MainWindow : Window
         {
             Text = detail.Summary,
             TextWrapping = TextWrapping.Wrap,
-            Foreground = Brush.Parse("#586174")
+            Foreground = MptTheme.TextSecondary
         });
         panel.Children.Add(BuildMetricRow([
             ("Package", detail.PackageId),
@@ -1123,7 +1197,7 @@ public sealed class MainWindow : Window
         {
             Text = diagnostic.Detail,
             TextWrapping = TextWrapping.Wrap,
-            Foreground = Brush.Parse("#586174")
+            Foreground = MptTheme.TextSecondary
         });
         return new MptModuleCard(panel);
     }
@@ -1157,7 +1231,7 @@ public sealed class MainWindow : Window
         {
             Text = "Permission Required",
             FontWeight = FontWeight.SemiBold,
-            Foreground = Brush.Parse("#9a6700")
+            Foreground = MptTheme.Warning
         });
         rows.Children.Add(DetailLine("Action", actionId));
         rows.Children.Add(DetailLine("Scope", scope));
@@ -1173,9 +1247,9 @@ public sealed class MainWindow : Window
         {
             Padding = new Thickness(12),
             CornerRadius = new CornerRadius(8),
-            BorderBrush = Brush.Parse("#9a6700"),
+            BorderBrush = MptTheme.Warning,
             BorderThickness = new Thickness(1),
-            Background = Brush.Parse("#fff8e6"),
+            Background = MptTheme.WarningBackground,
             Child = rows
         };
     }
@@ -1198,7 +1272,7 @@ public sealed class MainWindow : Window
                 {
                     Text = $"{entry.ModuleId} · {entry.Scope}",
                     FontSize = 12,
-                    Foreground = Brush.Parse("#586174"),
+                    Foreground = MptTheme.TextSecondary,
                     TextTrimming = TextTrimming.CharacterEllipsis
                 }
             }
@@ -1219,7 +1293,7 @@ public sealed class MainWindow : Window
             panel.Children.Add(new TextBlock
             {
                 Text = subtitle,
-                Foreground = Brush.Parse("#586174"),
+                Foreground = MptTheme.TextSecondary,
                 TextWrapping = TextWrapping.Wrap
             });
         }
@@ -1292,13 +1366,196 @@ public sealed class MainWindow : Window
                 Tag = module.ModuleId,
                 Margin = new Thickness(0, 0, 8, 8),
                 MinHeight = 32,
-                BorderBrush = module.ModuleId == selectedModuleId ? Brush.Parse("#2563eb") : Brush.Parse("#dde2ea")
+                BorderBrush = module.ModuleId == selectedModuleId ? MptTheme.Accent : MptTheme.Border
             };
             button.Click += async (_, _) => await handler((string)button.Tag!);
             picker.Children.Add(button);
         }
 
         return picker;
+    }
+
+    private static IReadOnlyList<SettingsFieldEditor> BuildSettingsFieldEditors(JsonObject schema, JsonObject values)
+    {
+        if (!schema.TryGetPropertyValue("properties", out var propertiesNode) ||
+            propertiesNode is not JsonObject properties)
+        {
+            return [];
+        }
+
+        var fields = new List<SettingsFieldEditor>();
+        foreach (var propertyPair in properties.OrderBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase))
+        {
+            if (propertyPair.Value is not JsonObject property)
+            {
+                continue;
+            }
+
+            var key = propertyPair.Key;
+            var label = GetSchemaString(property, "title", key);
+            var description = GetSchemaString(property, "description", "");
+            var type = GetSchemaString(property, "type", "string").ToLowerInvariant();
+            values.TryGetPropertyValue(key, out var currentValue);
+            property.TryGetPropertyValue("default", out var defaultValue);
+            var effectiveValue = currentValue ?? defaultValue;
+
+            Control input;
+            var editorType = type;
+            if (property.TryGetPropertyValue("enum", out var enumNode) && enumNode is JsonArray enumValues)
+            {
+                editorType = "enum";
+                var options = enumValues.Select(NodeToEditorText).Where(value => !string.IsNullOrWhiteSpace(value)).ToArray();
+                var selected = NodeToEditorText(effectiveValue);
+                input = new ComboBox
+                {
+                    ItemsSource = options,
+                    SelectedItem = options.Contains(selected, StringComparer.OrdinalIgnoreCase)
+                        ? selected
+                        : options.FirstOrDefault(),
+                    MinWidth = 260,
+                    MinHeight = 34
+                };
+            }
+            else if (type == "boolean")
+            {
+                input = new CheckBox
+                {
+                    IsChecked = NodeToBool(effectiveValue),
+                    MinHeight = 32
+                };
+            }
+            else
+            {
+                input = new TextBox
+                {
+                    Text = NodeToEditorText(effectiveValue),
+                    MinWidth = 360,
+                    MinHeight = type is "object" or "array" ? 96 : 34,
+                    AcceptsReturn = type is "object" or "array",
+                    TextWrapping = type is "object" or "array" ? TextWrapping.NoWrap : TextWrapping.Wrap,
+                    FontFamily = type is "object" or "array" ? FontFamily.Parse("Consolas") : FontFamily.Default,
+                    FontSize = type is "object" or "array" ? 12 : 14
+                };
+            }
+
+            fields.Add(new SettingsFieldEditor(
+                key,
+                editorType,
+                input,
+                BuildSettingsFieldView(label, key, editorType, description, input)));
+        }
+
+        return fields;
+    }
+
+    private static Control BuildSettingsFieldView(string label, string key, string type, string description, Control input)
+    {
+        var panel = new StackPanel { Spacing = 4 };
+        panel.Children.Add(new TextBlock
+        {
+            Text = label,
+            FontWeight = FontWeight.SemiBold
+        });
+        panel.Children.Add(new TextBlock
+        {
+            Text = string.IsNullOrWhiteSpace(description) ? $"{key} · {type}" : $"{key} · {type} · {description}",
+            FontSize = 12,
+            Foreground = MptTheme.TextSecondary,
+            TextWrapping = TextWrapping.Wrap
+        });
+        panel.Children.Add(input);
+        return panel;
+    }
+
+    private static JsonObject BuildSettingsPatch(IReadOnlyList<SettingsFieldEditor> fields)
+    {
+        var patch = new JsonObject();
+        foreach (var field in fields)
+        {
+            patch[field.Key] = field.Type switch
+            {
+                "boolean" => JsonValue.Create(((CheckBox)field.Input).IsChecked == true),
+                "integer" => JsonValue.Create(ParseLong(((TextBox)field.Input).Text, field.Key)),
+                "number" => JsonValue.Create(ParseDouble(((TextBox)field.Input).Text, field.Key)),
+                "object" => ParseCompositeSetting(((TextBox)field.Input).Text, field.Key, "{}"),
+                "array" => ParseCompositeSetting(((TextBox)field.Input).Text, field.Key, "[]"),
+                "enum" => JsonValue.Create(((ComboBox)field.Input).SelectedItem?.ToString() ?? ""),
+                _ => JsonValue.Create(((TextBox)field.Input).Text ?? "")
+            };
+        }
+
+        return patch;
+    }
+
+    private static JsonObject? TryParseSettingsSchema(string schemaJson)
+    {
+        if (string.IsNullOrWhiteSpace(schemaJson))
+        {
+            return null;
+        }
+
+        try
+        {
+            return JsonNode.Parse(schemaJson) as JsonObject;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    private static string GetSchemaString(JsonObject schema, string key, string fallback)
+    {
+        return schema.TryGetPropertyValue(key, out var node) && node is JsonValue value && value.TryGetValue<string>(out var text)
+            ? text
+            : fallback;
+    }
+
+    private static bool NodeToBool(JsonNode? node)
+    {
+        return node is JsonValue value && value.TryGetValue<bool>(out var result) && result;
+    }
+
+    private static string NodeToEditorText(JsonNode? node)
+    {
+        if (node is null)
+        {
+            return "";
+        }
+
+        if (node is JsonValue value && value.TryGetValue<string>(out var text))
+        {
+            return text;
+        }
+
+        return node.ToJsonString(new JsonSerializerOptions { WriteIndented = node is JsonObject or JsonArray });
+    }
+
+    private static long ParseLong(string? value, string key)
+    {
+        if (long.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var result))
+        {
+            return result;
+        }
+
+        throw new FormatException($"{key} must be an integer.");
+    }
+
+    private static double ParseDouble(string? value, string key)
+    {
+        if (double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var result))
+        {
+            return result;
+        }
+
+        throw new FormatException($"{key} must be a number.");
+    }
+
+    private static JsonNode ParseCompositeSetting(string? value, string key, string emptyValue)
+    {
+        var text = string.IsNullOrWhiteSpace(value) ? emptyValue : value;
+        return JsonNode.Parse(text)
+            ?? throw new FormatException($"{key} must be valid JSON.");
     }
 
     private Button NavButton(string label)
@@ -1318,7 +1575,7 @@ public sealed class MainWindow : Window
     {
         foreach (var pair in _navButtons)
         {
-            pair.Value.BorderBrush = pair.Key == _currentPage ? Brush.Parse("#2563eb") : Brush.Parse("#dde2ea");
+            pair.Value.BorderBrush = pair.Key == _currentPage ? MptTheme.Accent : MptTheme.Border;
         }
     }
 
@@ -1472,6 +1729,8 @@ public sealed class MainWindow : Window
         return modules.Modules.OrderBy(module => module.DisplayName, StringComparer.OrdinalIgnoreCase).FirstOrDefault();
     }
 
+    private sealed record SettingsFieldEditor(string Key, string Type, Control Input, Control View);
+
     private static TextBlock DetailLine(string label, string value)
     {
         return new TextBlock
@@ -1479,7 +1738,7 @@ public sealed class MainWindow : Window
             Text = string.IsNullOrWhiteSpace(value) ? $"{label}: -" : $"{label}: {value}",
             TextWrapping = TextWrapping.Wrap,
             FontSize = 12,
-            Foreground = Brush.Parse("#374151")
+            Foreground = MptTheme.TextPrimary
         };
     }
 

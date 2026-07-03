@@ -211,6 +211,8 @@ public sealed class UiSurfaceGate
                 },
                 ["uses"] = ToJsonArray(surface.Uses),
                 ["states"] = ToJsonArray(surface.States),
+                ["keyboardShortcuts"] = ToJsonArray(ShellKeyboardShortcutsFor(surface.SurfaceId)),
+                ["focusStates"] = ToJsonArray(ShellFocusStatesFor(surface.SurfaceId)),
                 ["sourceSha256"] = sourceSha256,
                 ["pixelSnapshot"] = pixel.FileName,
                 ["pixelSha256"] = pixel.Sha256,
@@ -227,6 +229,9 @@ public sealed class UiSurfaceGate
                 ["moduleId"] = surface.ModuleId,
                 ["kind"] = surface.Kind,
                 ["snapshot"] = snapshotName,
+                ["states"] = ToJsonArray(surface.States),
+                ["keyboardShortcuts"] = ToJsonArray(ShellKeyboardShortcutsFor(surface.SurfaceId)),
+                ["focusStates"] = ToJsonArray(ShellFocusStatesFor(surface.SurfaceId)),
                 ["sourceSha256"] = sourceSha256,
                 ["pixelSnapshot"] = pixel.FileName,
                 ["pixelSha256"] = pixel.Sha256,
@@ -249,6 +254,7 @@ public sealed class UiSurfaceGate
             ["pixelSnapshotCount"] = entries.Count,
             ["requiredSurfaceCount"] = RequiredShellSurfaceIds.Length,
             ["requiredSurfaces"] = ToJsonArray(RequiredShellSurfaceIds),
+            ["keyboardNavigation"] = CreateShellKeyboardNavigationEvidence(),
             ["snapshots"] = entries
         };
         File.WriteAllText(manifestPath, manifest.ToJsonString(JsonOptions));
@@ -331,10 +337,10 @@ public sealed class UiSurfaceGate
         return
         [
             ShellSurface("shell.dashboard", "dashboard", ["MptDashboardCard", "MptMetricGrid", "MptStatusPill", "MptCommandButton"], ["loading", "ready", "degraded", "error"]),
-            ShellSurface("shell.command-palette", "command-palette", ["MptSearchBox", "MptCommandItem", "MptStatusPill", "MptEmptyState"], ["loading", "ready", "empty", "error"]),
-            ShellSurface("shell.settings-center", "settings-center", ["MptSettingsSection", "MptSettingRow", "MptActionBar", "MptErrorView"], ["loading", "ready", "error"]),
+            ShellSurface("shell.command-palette", "command-palette", ["MptSearchBox", "MptCommandItem", "MptStatusPill", "MptEmptyState"], ["loading", "ready", "empty", "permission-required", "error"]),
+            ShellSurface("shell.settings-center", "settings-center", ["MptSettingsSection", "MptSettingRow", "MptActionBar", "MptErrorView"], ["loading", "ready", "conflict", "error"]),
             ShellSurface("shell.module-detail", "module-detail", ["MptModuleHeader", "MptMetricGrid", "MptDiagnosticPanel", "MptActionBar"], ["loading", "ready", "degraded", "error"]),
-            ShellSurface("shell.logs-viewer", "logs-viewer", ["MptLogViewer", "MptSearchBox", "MptEmptyState", "MptErrorView"], ["loading", "ready", "empty", "error"]),
+            ShellSurface("shell.logs-viewer", "logs-viewer", ["MptLogViewer", "MptSearchBox", "MptEmptyState", "MptErrorView"], ["loading", "ready", "streaming", "empty", "error"]),
             ShellSurface("shell.notification-center", "notification-center", ["MptTimeline", "MptStatusPill", "MptEmptyState", "MptActionBar"], ["loading", "ready", "empty", "error"]),
             ShellSurface("shell.permission-prompt", "permission-prompt", ["MptPermissionPrompt", "MptDiagnosticPanel", "MptActionBar", "MptStatusPill"], ["loading", "ready", "permission-required", "error"]),
             ShellSurface("shell.degraded-module", "degraded-module", ["MptModuleHeader", "MptDiagnosticPanel", "MptErrorView", "MptActionBar"], ["loading", "degraded", "error"]),
@@ -361,6 +367,85 @@ public sealed class UiSurfaceGate
             },
             Uses = uses,
             States = states
+        };
+    }
+
+    private static JsonObject CreateShellKeyboardNavigationEvidence()
+    {
+        return new JsonObject
+        {
+            ["schemaVersion"] = "1.0",
+            ["shortcuts"] = new JsonArray
+            {
+                Shortcut("Ctrl+K", "focus-command-palette", "shell.command-palette"),
+                Shortcut("Ctrl+F", "focus-command-palette", "shell.command-palette"),
+                Shortcut("Escape", "clear-command-palette", "shell.command-palette"),
+                Shortcut("F5", "refresh-current-page", "shell.dashboard"),
+                Shortcut("Ctrl+R", "refresh-current-page", "shell.dashboard"),
+                Shortcut("Ctrl+1", "navigate-dashboard", "shell.dashboard"),
+                Shortcut("Ctrl+2", "navigate-modules", "shell.module-detail"),
+                Shortcut("Ctrl+3", "navigate-settings", "shell.settings-center"),
+                Shortcut("Ctrl+4", "navigate-logs", "shell.logs-viewer"),
+                Shortcut("Ctrl+5", "navigate-notifications", "shell.notification-center"),
+                Shortcut("Ctrl+6", "navigate-packages", "shell.package-manager"),
+                Shortcut("Ctrl+7", "navigate-diagnostics", "shell.runtime-diagnostics")
+            },
+            ["focusStates"] = new JsonArray
+            {
+                "navigation-focus-visible",
+                "command-search-focus-visible",
+                "command-item-focus-visible",
+                "content-action-focus-visible",
+                "permission-audit-action-focus-visible",
+                "package-operation-focus-visible",
+                "diagnostics-process-action-focus-visible"
+            }
+        };
+    }
+
+    private static JsonObject Shortcut(string keys, string action, string surfaceId)
+    {
+        return new JsonObject
+        {
+            ["keys"] = keys,
+            ["action"] = action,
+            ["surfaceId"] = surfaceId
+        };
+    }
+
+    private static IReadOnlyList<string> ShellKeyboardShortcutsFor(string surfaceId)
+    {
+        return surfaceId switch
+        {
+            "shell.dashboard" => ["F5", "Ctrl+R", "Ctrl+1"],
+            "shell.command-palette" => ["Ctrl+K", "Ctrl+F", "Escape"],
+            "shell.settings-center" => ["Ctrl+3"],
+            "shell.module-detail" => ["Ctrl+2"],
+            "shell.logs-viewer" => ["Ctrl+4"],
+            "shell.notification-center" => ["Ctrl+5"],
+            "shell.permission-prompt" => ["Ctrl+K", "Escape"],
+            "shell.degraded-module" => ["Ctrl+2", "F5"],
+            "shell.package-manager" => ["Ctrl+6"],
+            "shell.runtime-diagnostics" => ["Ctrl+7", "F5"],
+            _ => []
+        };
+    }
+
+    private static IReadOnlyList<string> ShellFocusStatesFor(string surfaceId)
+    {
+        return surfaceId switch
+        {
+            "shell.dashboard" => ["navigation-focus-visible", "dashboard-card-action-focus-visible", "refresh-focus-visible"],
+            "shell.command-palette" => ["command-search-focus-visible", "command-item-focus-visible", "empty-state-readable"],
+            "shell.settings-center" => ["module-picker-focus-visible", "settings-editor-focus-visible", "save-action-focus-visible"],
+            "shell.module-detail" => ["module-action-focus-visible", "permission-section-readable", "diagnostic-card-focus-visible"],
+            "shell.logs-viewer" => ["module-picker-focus-visible", "log-list-focus-visible", "empty-state-readable"],
+            "shell.notification-center" => ["notification-item-focus-visible", "empty-state-readable"],
+            "shell.permission-prompt" => ["permission-summary-readable", "audit-action-focus-visible", "rollback-details-readable"],
+            "shell.degraded-module" => ["degraded-diagnostic-readable", "retry-action-focus-visible"],
+            "shell.package-manager" => ["package-input-focus-visible", "package-action-focus-visible", "trust-badge-readable"],
+            "shell.runtime-diagnostics" => ["process-action-focus-visible", "policy-history-focus-visible", "metric-tile-readable"],
+            _ => []
         };
     }
 }

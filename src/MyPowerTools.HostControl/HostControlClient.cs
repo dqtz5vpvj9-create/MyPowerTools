@@ -177,6 +177,11 @@ public sealed class HostControlClient : IDisposable
         return await _client.GetSettingsAsync(new HostProto.GetSettingsRequest { ModuleId = moduleId }, cancellationToken: cancellationToken);
     }
 
+    public async Task<HostProto.SettingsSchema> GetSettingsSchemaAsync(string moduleId, CancellationToken cancellationToken = default)
+    {
+        return await _client.GetSettingsSchemaAsync(new HostProto.GetSettingsSchemaRequest { ModuleId = moduleId }, cancellationToken: cancellationToken);
+    }
+
     public async Task<HostProto.SettingsSnapshot> UpdateSettingsAsync(string moduleId, ulong expectedRevision, Struct patch, CancellationToken cancellationToken = default)
     {
         return await _client.UpdateSettingsAsync(new HostProto.UpdateSettingsRequest

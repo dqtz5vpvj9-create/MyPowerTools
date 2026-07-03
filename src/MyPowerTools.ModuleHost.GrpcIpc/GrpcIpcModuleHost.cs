@@ -83,6 +83,13 @@ public sealed class GrpcIpcModuleHost : IAsyncDisposable
             status.EventSeq);
     }
 
+    public async Task<SettingsSchemaDocument> GetSettingsSchemaAsync(string moduleId, CancellationToken cancellationToken)
+    {
+        var client = EnsureClient();
+        var schema = await client.GetSettingsSchemaAsync(new GetSettingsSchemaRequest { ModuleId = moduleId }, cancellationToken: cancellationToken);
+        return new SettingsSchemaDocument(schema.ModuleId, schema.SchemaJson);
+    }
+
     public async Task<IReadOnlyList<MptCommandDescriptor>> ListCommandsAsync(string moduleId, CancellationToken cancellationToken)
     {
         var client = EnsureClient();
@@ -326,6 +333,11 @@ public sealed class GrpcIpcModuleRuntime : IModuleTransportRuntime, IModuleTrans
     public async ValueTask<ModuleStatusSnapshot?> GetStatusAsync(RuntimeModuleRecord module, ModuleContext context, CancellationToken cancellationToken)
     {
         return await ExecuteWithRestartAsync(module, context, host => host.GetStatusAsync(module.Module.Manifest.Id, cancellationToken), cancellationToken);
+    }
+
+    public async ValueTask<SettingsSchemaDocument> GetSettingsSchemaAsync(RuntimeModuleRecord module, ModuleContext context, CancellationToken cancellationToken)
+    {
+        return await ExecuteWithRestartAsync(module, context, host => host.GetSettingsSchemaAsync(module.Module.Manifest.Id, cancellationToken), cancellationToken);
     }
 
     public async ValueTask<IReadOnlyList<MptCommandDescriptor>> ListCommandsAsync(RuntimeModuleRecord module, ModuleContext context, CancellationToken cancellationToken)

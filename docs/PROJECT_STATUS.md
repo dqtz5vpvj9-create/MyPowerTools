@@ -7,17 +7,17 @@ Run date: 2026-07-04.
 | Field | Value |
 |---|---|
 | Project | MyPowerTools |
-| Current phase | P4 Shell UI, design system and visual quality |
-| Last completed phase | P3 Broker, privilege, security and secrets |
-| Next phase | P4 |
+| Current phase | P5 Reliability, observability and runtime policy |
+| Last completed phase | P4 Shell UI, design system and visual quality |
+| Next phase | P5 |
 | SDK | 10.0.301 from `global.json` and `dotnet --version` |
 | Target frameworks | `net10.0` projects across the solution |
 | Production packages | 5: `adb-forwarder`, `android-tools-suite`, `doubao-agent`, `screenease`, `smartbird-thermostat` |
 | Production modules | 7 |
 | Templates | 6 |
-| Tests | 77 passed, 0 failed, 0 skipped |
+| Tests | 80 passed, 0 failed, 0 skipped |
 | Release artifact | `artifacts/release/MyPowerTools-win-x64.zip` |
-| Release SHA256 | `594634C7733FC4CC7A138CD67DF90218F3249C754DE952AF50A795F031292EFA` |
+| Release SHA256 | `2418C0BEF33FE955DB81C677B1C74FE3E0DEC5CCA4D2D14BD1CB5D46B02DFDB0` |
 | Production closure | false |
 
 ## Latest Validation Results
@@ -27,17 +27,19 @@ Run date: 2026-07-04.
 | `dotnet --version` | `10.0.301` |
 | `dotnet restore MyPowerTools.slnx` | Succeeded; all projects were up-to-date. |
 | `dotnet build MyPowerTools.slnx --no-restore` | Succeeded with 0 warnings and 0 errors. |
-| `dotnet test MyPowerTools.slnx --no-build` | Passed 77, failed 0, skipped 0. |
+| `dotnet test MyPowerTools.slnx --no-build` | Passed 80, failed 0, skipped 0. |
 | `dotnet run --project src\MyPowerTools.Cli -- validate modules` | 5 production packages valid. |
 | `dotnet run --no-build --project src\MyPowerTools.Cli -- validate contracts` | 5 packages and 7 modules passed contract validation; AndroidTools runs through `grpc-ipc` powertoold with notifications running, remote commands running, process monitor degraded until a watch list is saved, and ScreenEase exposing 14 commands. |
 | `dotnet run --no-build --project src\MyPowerTools.Cli -- package trust modules --strict` | `signature-hook` trust passed for all 5 production packages after local hash/signature refresh. |
 | `dotnet run --project src\MyPowerTools.Cli -- ui check modules` | UI gate passed. |
+| `dotnet run --project src\MyPowerTools.Cli -- ui snapshot --surface dashboard-card --theme light --size 1366x768 --density normal --out artifacts\ui-snapshots` | Wrote 7 module dashboard-card contract snapshots and 7 PNG pixel snapshots. |
+| `dotnet run --project src\MyPowerTools.Cli -- ui shell-snapshot --theme light --size 1366x768 --density normal --out artifacts\shell-ui-snapshots` | Wrote 10 Shell surface snapshots and 10 PNG pixel snapshots with 12 keyboard shortcut entries, 7 focus state entries, Settings conflict, Command Palette permission-required, and Logs streaming states. |
 | `dotnet run --project src\MyPowerTools.Runner -- --once` | 7 modules indexed; AndroidTools Notifications and Remote Commands run through powertoold, AndroidTools Process Monitor reports its watch-list degraded state, and current expected degraded states remain for Doubao partial services, ScreenEase unsupported DDC/CI monitor hardware, and SmartBird Energy Server/FNB-58 dependencies. |
 | `dotnet run --no-build --project src\MyPowerTools.Cli -- diagnostics` | Reports 5 packages, 7 modules, 81 commands, AndroidTools under `grpc-ipc`, and one shared process pool: `package:android-tools-suite:runtime:powertoold`. |
 | `dotnet run --project src\MyPowerTools.Cli -- run screenease.native-writer.status` | Succeeded with Windows DDC/CI writer probe output; current Generic PnP Monitor returns `GetMonitorCapabilities` unsupported. |
 | `dotnet run --project src\MyPowerTools.Cli -- run screenease.profile.apply` | Succeeded with profile plan and safe default `native-host-required` because hardware writes are disabled unless explicitly requested or configured. |
-| `pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\publish-windows.ps1` | Rebuilt `artifacts/release/MyPowerTools-win-x64.zip` with SHA256 `594634C7733FC4CC7A138CD67DF90218F3249C754DE952AF50A795F031292EFA` and size 171394798 bytes. |
-| `artifacts\release\win-x64\Runner\MyPowerTools.Runner.exe --once --data-root artifacts\release-root-once-data-screenease-writer` | Release Runner indexed 7 modules from the release root and started AndroidTools powertoold from the release package. |
+| `pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\publish-windows.ps1` | Rebuilt `artifacts/release/MyPowerTools-win-x64.zip` with SHA256 `2418C0BEF33FE955DB81C677B1C74FE3E0DEC5CCA4D2D14BD1CB5D46B02DFDB0` and size 171430107 bytes. |
+| `artifacts\release\win-x64\Runner\MyPowerTools.Runner.exe --once --data-root artifacts\release-root-once-data-p4` | Release Runner indexed 7 modules from the release root and started AndroidTools powertoold from the release package. |
 | `artifacts\release\win-x64\Shell\MyPowerTools.Shell.Avalonia.exe --smoke --timeout-ms 30000 --quit-runner` | Release Shell smoke connected to Runner 0.2.0, reported 7 modules, 7 dashboard cards, 81 commands, and requested Runner shutdown. |
 
 ## Current Module State
@@ -54,7 +56,20 @@ Run date: 2026-07-04.
 
 ## Validation Note
 
-Local builds copy module assemblies into `modules/`. When assemblies change, run `dotnet run --no-build --project src\MyPowerTools.Cli\MyPowerTools.Cli.csproj -- package sign-local modules` before trust-sensitive tests or strict package verification. The latest P0 verification was repeated after the signatures matched the build outputs.
+Local builds copy module assemblies into `modules/`. When assemblies change, run `dotnet run --no-build --project src\MyPowerTools.Cli -- package sign-local modules` before trust-sensitive tests or strict package verification. The latest P4 verification was repeated after the signatures matched the build outputs.
+
+## P4 Progress On 2026-07-04
+
+| Area | Evidence |
+|---|---|
+| Shell keyboard navigation | Added `ShellKeyboardShortcut` and MainWindow handling for `Ctrl+K`/`Ctrl+F` command palette focus, `Escape` clear/focus return, `F5`/`Ctrl+R` refresh, and `Ctrl+1..7` primary page navigation. `Shell_keyboard_shortcuts_resolve_navigation_and_command_palette_actions` verifies the mapping. |
+| HostControl settings schema | Added HostControl `GetSettingsSchema`, Runtime transport schema retrieval, and InProc/gRPC/stdio implementations so Shell Settings stays Runner IPC-backed. `HostControl_get_settings_schema_exposes_runtime_schema` verifies Doubao runtime schema exposure. |
+| Schema-rendered Settings page | Shell Settings now renders schema fields as toggles, enum selectors, text fields, and JSON editors for object/array settings, then writes structured settings patches through HostControl revision checks. |
+| Token-governed colors | Added `MptTheme` and replaced Shell/control hardcoded color references with centralized theme tokens. `Shell_ui_colors_are_centralized_in_theme_tokens` prevents direct color literals in MainWindow and MPT controls. |
+| Shell visual matrix | `shell-ui-snapshot-manifest.json` now records keyboard/focus evidence plus Settings conflict, Command Palette permission-required, and Logs streaming states. |
+| Smoke correctness | `scripts/smoke.ps1` now checks native exit codes through `Invoke-Native`, preventing false green output after failed `dotnet` commands. |
+| Package store resilience | `PackageStore` now retries transient Windows directory move/delete failures during install/uninstall/rollback, stabilizing package lifecycle tests and smoke. |
+| P4 closure | P4 internal gates are complete locally: 80 tests pass, UI gate passes, module and Shell snapshots are non-empty with PNG evidence, design colors are centralized, Settings is schema-backed, Shell smoke passes, release Runner/Shell smoke passes, and the Windows zip was rebuilt. |
 
 ## P2 Progress On 2026-07-04
 

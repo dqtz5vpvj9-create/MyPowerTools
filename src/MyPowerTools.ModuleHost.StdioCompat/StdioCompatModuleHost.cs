@@ -27,6 +27,11 @@ public sealed class StdioCompatModuleHost : IModuleTransportRuntime
         return ValueTask.FromResult<IReadOnlyList<MptCommandDescriptor>>([]);
     }
 
+    public ValueTask<SettingsSchemaDocument> GetSettingsSchemaAsync(RuntimeModuleRecord module, ModuleContext context, CancellationToken cancellationToken)
+    {
+        return ValueTask.FromResult(new SettingsSchemaDocument(module.Module.Manifest.Id, """{"type":"object","properties":{}}"""));
+    }
+
     public async ValueTask<CommandExecutionResult> ExecuteCommandAsync(RuntimeModuleRecord module, ModuleContext context, CommandRequest request, CancellationToken cancellationToken)
     {
         return await ExecuteAsync(module.Entrypoint!, request, TimeSpan.FromSeconds(30), cancellationToken);

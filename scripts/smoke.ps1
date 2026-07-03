@@ -3,20 +3,36 @@ $ErrorActionPreference = 'Stop'
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 Set-Location -LiteralPath $RepoRoot
 
-dotnet restore MyPowerTools.slnx
-dotnet build MyPowerTools.slnx --no-restore
-dotnet run --project src\MyPowerTools.Cli -- package sign-local modules
-dotnet test MyPowerTools.slnx --no-build
-dotnet run --project src\MyPowerTools.Cli -- validate modules
-dotnet run --project src\MyPowerTools.Cli -- validate contracts
-dotnet run --project src\MyPowerTools.Cli -- package trust modules --strict
-dotnet run --project src\MyPowerTools.Cli -- ui check modules
-dotnet run --project src\MyPowerTools.Cli -- ui snapshot --surface dashboard-card --theme light --size 1366x768 --density normal --out artifacts\ui-snapshots
-dotnet run --project src\MyPowerTools.Cli -- ui shell-snapshot --theme light --size 1366x768 --density normal --out artifacts\shell-ui-snapshots
-dotnet run --project src\MyPowerTools.Cli -- runner autostart status
-pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\validate-templates.ps1
-dotnet run --project src\MyPowerTools.Runner -- --once
-dotnet run --project src\MyPowerTools.Cli -- doctor
+function Invoke-Native {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string] $FilePath,
+
+        [Parameter(Mandatory = $true)]
+        [string[]] $ArgumentList
+    )
+
+    & $FilePath @ArgumentList
+    $exitCode = $LASTEXITCODE
+    if ($exitCode -ne 0) {
+        throw "$FilePath failed with exit code $exitCode"
+    }
+}
+
+Invoke-Native 'dotnet' @('restore', 'MyPowerTools.slnx')
+Invoke-Native 'dotnet' @('build', 'MyPowerTools.slnx', '--no-restore')
+Invoke-Native 'dotnet' @('run', '--project', 'src\MyPowerTools.Cli', '--', 'package', 'sign-local', 'modules')
+Invoke-Native 'dotnet' @('test', 'MyPowerTools.slnx', '--no-build')
+Invoke-Native 'dotnet' @('run', '--project', 'src\MyPowerTools.Cli', '--', 'validate', 'modules')
+Invoke-Native 'dotnet' @('run', '--project', 'src\MyPowerTools.Cli', '--', 'validate', 'contracts')
+Invoke-Native 'dotnet' @('run', '--project', 'src\MyPowerTools.Cli', '--', 'package', 'trust', 'modules', '--strict')
+Invoke-Native 'dotnet' @('run', '--project', 'src\MyPowerTools.Cli', '--', 'ui', 'check', 'modules')
+Invoke-Native 'dotnet' @('run', '--project', 'src\MyPowerTools.Cli', '--', 'ui', 'snapshot', '--surface', 'dashboard-card', '--theme', 'light', '--size', '1366x768', '--density', 'normal', '--out', 'artifacts\ui-snapshots')
+Invoke-Native 'dotnet' @('run', '--project', 'src\MyPowerTools.Cli', '--', 'ui', 'shell-snapshot', '--theme', 'light', '--size', '1366x768', '--density', 'normal', '--out', 'artifacts\shell-ui-snapshots')
+Invoke-Native 'dotnet' @('run', '--project', 'src\MyPowerTools.Cli', '--', 'runner', 'autostart', 'status')
+Invoke-Native 'pwsh.exe' @('-NoLogo', '-NoProfile', '-NonInteractive', '-File', 'scripts\validate-templates.ps1')
+Invoke-Native 'dotnet' @('run', '--project', 'src\MyPowerTools.Runner', '--', '--once')
+Invoke-Native 'dotnet' @('run', '--project', 'src\MyPowerTools.Cli', '--', 'doctor')
 
 $RunnerExe = Join-Path $RepoRoot 'src\MyPowerTools.Runner\bin\Debug\net10.0\MyPowerTools.Runner.exe'
 $ShellExe = Join-Path $RepoRoot 'src\MyPowerTools.Shell.Avalonia\bin\Debug\net10.0\MyPowerTools.Shell.Avalonia.exe'

@@ -23,6 +23,12 @@ public sealed class InProcDotNetModuleHost : IModuleTransportRuntime, IAsyncDisp
         return await loaded.GetStatusAsync(cancellationToken);
     }
 
+    public async ValueTask<SettingsSchemaDocument> GetSettingsSchemaAsync(RuntimeModuleRecord module, ModuleContext context, CancellationToken cancellationToken)
+    {
+        var loaded = await LoadCachedAsync(module.Module, context, cancellationToken);
+        return await loaded.GetSettingsSchemaAsync(cancellationToken);
+    }
+
     public async ValueTask<IReadOnlyList<MptCommandDescriptor>> ListCommandsAsync(RuntimeModuleRecord module, ModuleContext context, CancellationToken cancellationToken)
     {
         var loaded = await LoadCachedAsync(module.Module, context, cancellationToken);

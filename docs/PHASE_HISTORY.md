@@ -226,3 +226,36 @@ Validation:
 
 Remaining P3 work:
 - None internally. Live elevated helper/service execution requires administrator context or signed helper packaging and remains tracked as external validation.
+
+### P4 Shell UI, Design System And Visual Quality
+
+Status: done.
+
+Actions:
+- Added `ShellKeyboardShortcut` and MainWindow keyboard handling for command palette focus, clear/focus return, page refresh, and primary page navigation.
+- Added HostControl `GetSettingsSchema` plus Runtime transport schema retrieval for InProc, gRPC IPC, and stdio modules.
+- Replaced raw-only Shell Settings editing with schema-rendered controls for booleans, enums, scalar fields, and JSON object/array fields while preserving HostControl revision writes.
+- Added `MptTheme` and replaced direct color literals in Shell/MainWindow and MPT controls with centralized theme tokens.
+- Expanded Shell snapshot metadata with keyboard shortcuts, focus states, Settings conflict, Command Palette permission-required, and Logs streaming state coverage.
+- Made `scripts/smoke.ps1` fail on native command exit codes instead of reporting false success after failed `dotnet` commands.
+- Hardened `PackageStore` install/uninstall/rollback directory move/delete operations with retry for transient Windows file-system access failures.
+- Rebuilt the Windows portable release zip.
+
+Validation:
+- `dotnet build MyPowerTools.slnx --no-restore` succeeded with 0 warnings and 0 errors.
+- `dotnet run --no-build --project src\MyPowerTools.Cli -- package sign-local modules` refreshed hash manifests and local trust hooks for all 5 production packages.
+- `dotnet test MyPowerTools.slnx --no-build` passed 80 tests, 0 failed, 0 skipped.
+- `dotnet run --no-build --project src\MyPowerTools.Cli -- package trust modules --strict` reported `signature-hook` for all 5 production packages.
+- `dotnet run --no-build --project src\MyPowerTools.Cli -- validate modules` passed for 5 production packages.
+- `dotnet run --no-build --project src\MyPowerTools.Cli -- validate contracts` passed for 5 packages and 7 modules.
+- `dotnet run --no-build --project src\MyPowerTools.Cli -- ui check modules` passed.
+- `dotnet run --no-build --project src\MyPowerTools.Cli -- ui snapshot --surface dashboard-card --theme light --size 1366x768 --density normal --out artifacts\ui-snapshots` wrote 7 module snapshots and 7 PNG pixel snapshots.
+- `dotnet run --no-build --project src\MyPowerTools.Cli -- ui shell-snapshot --theme light --size 1366x768 --density normal --out artifacts\shell-ui-snapshots` wrote 10 Shell snapshots and 10 PNG pixel snapshots with 12 shortcut entries and 7 focus states.
+- `dotnet run --no-build --project src\MyPowerTools.Runner -- --once` indexed 7 modules with expected degraded external-dependency states.
+- `pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\smoke.ps1` passed with strict native exit-code handling.
+- `pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\publish-windows.ps1` rebuilt `artifacts\release\MyPowerTools-win-x64.zip` with SHA256 `2418C0BEF33FE955DB81C677B1C74FE3E0DEC5CCA4D2D14BD1CB5D46B02DFDB0` and size 171430107 bytes.
+- `artifacts\release\win-x64\Runner\MyPowerTools.Runner.exe --once --data-root artifacts\release-root-once-data-p4` indexed 7 modules from the release root.
+- Release Shell smoke connected to Runner 0.2.0, reported 7 modules, 7 dashboard cards, 81 commands, requested Runner shutdown, and the release Runner exited.
+
+Remaining P4 work:
+- None internally. Richer module-specific editors beyond schema-rendered Settings and HostControl-backed Detail pages are future feature work.

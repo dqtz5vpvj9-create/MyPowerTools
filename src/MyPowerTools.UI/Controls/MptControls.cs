@@ -13,7 +13,7 @@ public sealed class MptShellWindow : Window
         Height = 760;
         MinWidth = 920;
         MinHeight = 620;
-        Background = Brush.Parse("#f7f8fb");
+        Background = MptTheme.AppBackground;
     }
 }
 
@@ -51,9 +51,9 @@ public sealed class MptModuleCard : Border
         Margin = new Thickness(0, 0, 16, 16);
         Padding = new Thickness(16);
         CornerRadius = new CornerRadius(8);
-        BorderBrush = Brush.Parse("#dde2ea");
+        BorderBrush = MptTheme.Border;
         BorderThickness = new Thickness(1);
-        Background = Brushes.White;
+        Background = MptTheme.CardBackground;
         Child = content;
     }
 }
@@ -62,23 +62,16 @@ public sealed class MptStatusBadge : Border
 {
     public MptStatusBadge(string state)
     {
-        var color = state switch
-        {
-            "running" => "#107c41",
-            "degraded" => "#9a6700",
-            "error" => "#b42318",
-            "permission-required" => "#9a6700",
-            _ => "#4b5563"
-        };
+        var color = MptTheme.StatusBrush(state);
 
         Padding = new Thickness(8, 2);
         CornerRadius = new CornerRadius(999);
-        BorderBrush = Brush.Parse(color);
+        BorderBrush = color;
         BorderThickness = new Thickness(1);
         Child = new TextBlock
         {
             Text = state,
-            Foreground = Brush.Parse(color),
+            Foreground = color,
             FontSize = 12
         };
     }
@@ -96,7 +89,7 @@ public sealed class MptCommandItem : Border
             Children =
             {
                 new TextBlock { Text = title, FontWeight = FontWeight.SemiBold },
-                new TextBlock { Text = subtitle, Foreground = Brush.Parse("#586174"), FontSize = 12 }
+                new TextBlock { Text = subtitle, Foreground = MptTheme.TextSecondary, FontSize = 12 }
             }
         };
     }
@@ -126,7 +119,7 @@ public sealed class MptNotificationItem : Border
     {
         Padding = new Thickness(12);
         CornerRadius = new CornerRadius(8);
-        BorderBrush = Brush.Parse("#dde2ea");
+        BorderBrush = MptTheme.Border;
         BorderThickness = new Thickness(1);
         Child = new StackPanel
         {
@@ -134,7 +127,7 @@ public sealed class MptNotificationItem : Border
             Children =
             {
                 new TextBlock { Text = title, FontWeight = FontWeight.SemiBold },
-                new TextBlock { Text = body, TextWrapping = TextWrapping.Wrap, Foreground = Brush.Parse("#586174") }
+                new TextBlock { Text = body, TextWrapping = TextWrapping.Wrap, Foreground = MptTheme.TextSecondary }
             }
         };
     }
@@ -146,13 +139,13 @@ public sealed class MptMetricTile : Border
     {
         Padding = new Thickness(10);
         CornerRadius = new CornerRadius(8);
-        Background = Brush.Parse("#f7f8fb");
+        Background = MptTheme.AppBackground;
         Child = new StackPanel
         {
             Children =
             {
                 new TextBlock { Text = value, FontWeight = FontWeight.SemiBold },
-                new TextBlock { Text = label, FontSize = 12, Foreground = Brush.Parse("#586174") }
+                new TextBlock { Text = label, FontSize = 12, Foreground = MptTheme.TextSecondary }
             }
         };
     }
@@ -174,7 +167,7 @@ public sealed class MptPermissionPrompt : Border
     {
         Padding = new Thickness(16);
         CornerRadius = new CornerRadius(8);
-        BorderBrush = Brush.Parse("#9a6700");
+        BorderBrush = MptTheme.Warning;
         BorderThickness = new Thickness(1);
         Child = new TextBlock { Text = reason, TextWrapping = TextWrapping.Wrap };
     }
@@ -185,7 +178,7 @@ public sealed class MptEmptyState : TextBlock
     public MptEmptyState(string text)
     {
         Text = text;
-        Foreground = Brush.Parse("#586174");
+        Foreground = MptTheme.TextSecondary;
         HorizontalAlignment = HorizontalAlignment.Center;
         VerticalAlignment = VerticalAlignment.Center;
     }
@@ -197,7 +190,7 @@ public sealed class MptErrorState : Border
     {
         Padding = new Thickness(16);
         CornerRadius = new CornerRadius(8);
-        BorderBrush = Brush.Parse("#b42318");
+        BorderBrush = MptTheme.Danger;
         BorderThickness = new Thickness(1);
         Child = new TextBlock { Text = message, TextWrapping = TextWrapping.Wrap };
     }

@@ -312,6 +312,16 @@ public sealed class HostControlGrpcService : HostProto.HostControl.HostControlBa
         return Task.FromResult(ToProtoSettings(snapshot));
     }
 
+    public override async Task<HostProto.SettingsSchema> GetSettingsSchema(HostProto.GetSettingsSchemaRequest request, ServerCallContext context)
+    {
+        var schema = await _runtime.GetSettingsSchemaAsync(request.ModuleId, context.CancellationToken);
+        return new HostProto.SettingsSchema
+        {
+            ModuleId = schema.ModuleId,
+            SchemaJson = schema.SchemaJson
+        };
+    }
+
     public override Task<HostProto.SettingsSnapshot> UpdateSettings(HostProto.UpdateSettingsRequest request, ServerCallContext context)
     {
         try

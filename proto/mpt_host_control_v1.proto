@@ -26,6 +26,7 @@ service HostControl {
   rpc ExecuteCommand(ExecuteCommandRequest) returns (CommandExecutionResponse);
   rpc ListBrokerAudit(ListBrokerAuditRequest) returns (ListBrokerAuditResponse);
   rpc ListNotifications(ListNotificationsRequest) returns (ListNotificationsResponse);
+  rpc GetSettingsSchema(GetSettingsSchemaRequest) returns (SettingsSchema);
   rpc GetSettings(GetSettingsRequest) returns (SettingsSnapshot);
   rpc UpdateSettings(UpdateSettingsRequest) returns (SettingsSnapshot);
   rpc TailLogs(TailLogsRequest) returns (stream LogEntry);
@@ -403,6 +404,15 @@ message NotificationItem {
 
 message GetSettingsRequest {
   string module_id = 1;
+}
+
+message GetSettingsSchemaRequest {
+  string module_id = 1;
+}
+
+message SettingsSchema {
+  string module_id = 1;
+  string schema_json = 2;
 }
 
 message SettingsSnapshot {

@@ -20,11 +20,9 @@ This file separates true external blockers from internal phase gaps. External bl
 
 | Gap | Phase | Current Evidence | Next Work |
 |---|---|---|---|
-| Shell keyboard and interactive visual diff matrix | P4 | UI gate, module snapshots, and Shell snapshot matrix pass. | Add interactive screenshot diff matrix and keyboard navigation audit. |
-| Module-specific deep editors | P4 | Generic Shell pages cover module status, commands, settings, logs, permissions, packages, and diagnostics. | Add focused editors for AndroidTools, AdbForwarder, ScreenEase, Doubao Agent, and SmartBird. |
 | Broader ModuleSupervisor health policy automation | P5 | Crash recovery, restart throttling, process policy, and diagnostics tests exist. | Expand long-running health policy automation and operational reporting. |
 | MSI/MSIX or package-manager distribution | P6 | Windows portable zip and install/uninstall scripts exist. | Add signed installer or package-manager metadata. |
 
 ## Skipped Tests
 
-None. Latest test run: 77 passed, 0 failed, 0 skipped.
+None. Latest test run: 80 passed, 0 failed, 0 skipped.
