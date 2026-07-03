@@ -65,6 +65,7 @@ This document tracks the objective criteria against repository evidence. It is i
 | Portable app installer scripts exist | `scripts/install-windows.ps1` and `scripts/uninstall-windows.ps1` install the extracted Windows portable app under `%LOCALAPPDATA%\Programs\MyPowerTools`, manage shortcuts, optional autostart, optional Runner launch, and support `-DryRun` for release validation. |
 | Module templates are validated | `templates/` contains `dotnet-inproc-module`, `dotnet-grpc-sidecar-module`, `python-grpc-sidecar-module`, `http-facade-module`, `webview-module`, and `stdio-compat-module`. `scripts/validate-templates.ps1` validates manifests, UI surfaces, .NET builds, and Python syntax. |
 | Windows portable artifact exists | `artifacts/release/MyPowerTools-win-x64.zip` was produced by `scripts/publish-windows.ps1` on 2026-07-03. |
+| Phase ledger exists | `docs/PHASES.md`, `docs/PROJECT_STATUS.md`, `docs/PHASE_HISTORY.md`, `docs/OPEN_BLOCKERS.md`, `docs/EXTERNAL_VALIDATION.md`, and `.codex/project-state.json` now track the active 9-phase objective, latest P0 validation results, first incomplete phase, external validation needs, and production closure state. |
 
 ## Latest Local Verification
 
@@ -75,6 +76,7 @@ Run date: 2026-07-03.
 | `dotnet --version` | `10.0.301` |
 | `dotnet restore MyPowerTools.slnx` | Succeeded; all projects restored or up-to-date. |
 | `dotnet build MyPowerTools.slnx` | Succeeded, 0 warnings, 0 errors. |
+| `dotnet build MyPowerTools.slnx --no-restore` | Succeeded, 0 warnings, 0 errors. |
 | `dotnet test MyPowerTools.slnx --no-build` | Passed 65, failed 0, skipped 0. |
 | `dotnet run --project src\MyPowerTools.Cli -- validate modules` | 5 production packages valid. |
 | `dotnet run --project src\MyPowerTools.Cli -- validate contracts` | 5 production packages and 7 modules passed manifest, dashboard, settings, command, health, and logs contract checks. |

@@ -77,6 +77,7 @@ The active objective is to turn MyPowerTools into a production-grade PowerToys-s
 - Added `HostControlConnectionMonitor` for Shell Runner IPC resilience; MainWindow starts it, shows offline state, and refreshes current Shell data after reconnection. `Shell_connection_monitor_reports_offline_then_restored` verifies the transition.
 - Added typed HostControl package lifecycle operations: install, repair, uninstall, and rollback now call `PackageStore`, reload Runtime after package changes, and surface through Shell Packages actions. Package discovery skips `.rollback` backups so uninstalled packages remain available for rollback without appearing as active modules.
 - Added Shell HostControl event stream consumption: `HostControlClient.SubscribeHostEventsAsync`, `HostControlEventStreamMonitor`, and MainWindow event handling now resume by sequence after faults, skip duplicate replayed events, and refresh affected Shell pages from Runner snapshots. `Shell_event_stream_monitor_resumes_after_fault_and_tracks_seq` verifies the path.
+- Added P0 phase ledger for the active 9-phase objective: `docs/PHASES.md`, `docs/PROJECT_STATUS.md`, `docs/PHASE_HISTORY.md`, `docs/OPEN_BLOCKERS.md`, `docs/EXTERNAL_VALIDATION.md`, and `.codex/project-state.json`.
 
 ## Last Verified State
 
@@ -84,6 +85,7 @@ The active objective is to turn MyPowerTools into a production-grade PowerToys-s
 - Restore: `dotnet restore MyPowerTools.slnx` succeeded.
 - Build: `dotnet build MyPowerTools.slnx` succeeded with 0 warnings and 0 errors.
 - Tests: `dotnet test MyPowerTools.slnx --no-build` passed 65 tests, 0 failed, 0 skipped.
+- Phase state: P0 done, P1 verified done, P2 selected as the next active phase in `.codex/project-state.json`.
 - Module validation: `dotnet run --project src\MyPowerTools.Cli -- validate modules` passed all 5 production packages.
 - Module contract validation: `dotnet run --project src\MyPowerTools.Cli -- validate contracts` passed all 5 production packages and 7 modules.
 - Package trust: `dotnet run --project src\MyPowerTools.Cli -- package trust modules --strict` reports `signature-hook` for all 5 production packages.
