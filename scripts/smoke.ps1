@@ -5,11 +5,14 @@ Set-Location -LiteralPath $RepoRoot
 
 dotnet restore MyPowerTools.slnx
 dotnet build MyPowerTools.slnx --no-restore
+dotnet run --project src\MyPowerTools.Cli -- package sign-local modules
 dotnet test MyPowerTools.slnx --no-build
 dotnet run --project src\MyPowerTools.Cli -- validate modules
 dotnet run --project src\MyPowerTools.Cli -- validate contracts
+dotnet run --project src\MyPowerTools.Cli -- package trust modules --strict
 dotnet run --project src\MyPowerTools.Cli -- ui check modules
 dotnet run --project src\MyPowerTools.Cli -- ui snapshot --surface dashboard-card --theme light --size 1366x768 --density normal --out artifacts\ui-snapshots
+dotnet run --project src\MyPowerTools.Cli -- ui shell-snapshot --theme light --size 1366x768 --density normal --out artifacts\shell-ui-snapshots
 dotnet run --project src\MyPowerTools.Cli -- runner autostart status
 pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\validate-templates.ps1
 dotnet run --project src\MyPowerTools.Runner -- --once

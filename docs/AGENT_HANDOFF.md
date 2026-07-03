@@ -73,13 +73,15 @@ The active objective is to turn MyPowerTools into a production-grade PowerToys-s
 - Added module permission visibility: HostControl `ModuleSummary` and `ModuleDetail` now carry typed permissions and capability requirements, Shell module cards/detail pages render the declarations, CLI `mpt inspect modules` prints capabilities/requires/permissions, and acceptance tests cover HostControl plus CLI visibility.
 - Added local package trust hooks: `PackageTrustVerifier` verifies hash manifests and `shared/package.signature.json`, `mpt package sign-local` writes local trust metadata, `mpt package trust --strict` validates packages, `PackageStore.Install` verifies source packages before copying, and `PackageStore.Repair` re-runs trust verification.
 - Added package trust visibility: Runtime package summaries now include trust state, policy, signature path, and trust issue count; HostControl maps those fields; Shell Packages renders the trust badge and signature path; `HostControl_lists_package_summaries` verifies the IPC contract.
+- Added Shell UI snapshot matrix through `mpt ui shell-snapshot`; it writes a manifest plus PNG snapshots for required Shell surfaces including Dashboard, Command Palette, Settings Center, Module Detail, Logs Viewer, Notification Center, Permission Prompt, and Degraded Module.
+- Added `HostControlConnectionMonitor` for Shell Runner IPC resilience; MainWindow starts it, shows offline state, and refreshes current Shell data after reconnection. `Shell_connection_monitor_reports_offline_then_restored` verifies the transition.
 
 ## Last Verified State
 
 - SDK: `dotnet --version` returns `10.0.301`; `global.json` pins `10.0.301`; all projects target `net10.0`.
 - Restore: `dotnet restore MyPowerTools.slnx` succeeded.
 - Build: `dotnet build MyPowerTools.slnx` succeeded with 0 warnings and 0 errors.
-- Tests: `dotnet test MyPowerTools.slnx --no-build` passed 61 tests, 0 failed, 0 skipped.
+- Tests: `dotnet test MyPowerTools.slnx --no-build` passed 63 tests, 0 failed, 0 skipped.
 - Module validation: `dotnet run --project src\MyPowerTools.Cli -- validate modules` passed all 5 production packages.
 - Module contract validation: `dotnet run --project src\MyPowerTools.Cli -- validate contracts` passed all 5 production packages and 7 modules.
 - Package trust: `dotnet run --project src\MyPowerTools.Cli -- package trust modules --strict` reports `signature-hook` for all 5 production packages.
@@ -88,6 +90,7 @@ The active objective is to turn MyPowerTools into a production-grade PowerToys-s
 - Runtime diagnostics CLI: `dotnet run --project src\MyPowerTools.Cli -- diagnostics` reports Runner `0.2.0`, protocols `1.0`, 5 packages, 7 modules, 67 commands, paths, transports, per-module state, active sidecar process rows, restart policy, policy expiry, and process policy history when a gRPC runtime pool has policy activity.
 - UI gate: `dotnet run --project src\MyPowerTools.Cli -- ui check modules` passed.
 - UI snapshots: `dotnet run --project src\MyPowerTools.Cli -- ui snapshot --surface dashboard-card --theme light --size 1366x768 --density normal --out artifacts\ui-snapshots` wrote 7 contract snapshots and 7 PNG pixel snapshots; first PNG reported 21 unique colors and 876888 non-background pixels.
+- Shell UI snapshots: `dotnet run --project src\MyPowerTools.Cli -- ui shell-snapshot --theme light --size 1366x768 --density normal --out artifacts\shell-ui-snapshots` wrote 10 Shell surface snapshots and 10 PNG pixel snapshots covering 8 required Shell surfaces.
 - Runner autostart: `dotnet run --project src\MyPowerTools.Cli -- runner autostart status` reports the current HKCU Run state through `AutostartBroker`; `dotnet run --project src\MyPowerTools.Cli -- runner autostart enable --dry-run` prints the resolved Runner command without registry writes.
 - Template validation: `pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\validate-templates.ps1` passed for 6 templates.
 - Runner snapshot: `dotnet run --project src\MyPowerTools.Runner -- --once` indexed 7 modules. AdbForwarder, AndroidTools Notifications, AndroidTools Remote Commands, Doubao Agent, ScreenEase, and SmartBird are runnable; AndroidTools Process Monitor is degraded until a watch list is saved; ScreenEase is degraded until its native display writer is available.

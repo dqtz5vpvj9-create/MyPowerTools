@@ -96,6 +96,7 @@ $releaseNotes.Add('- `dotnet run --project src\MyPowerTools.Cli -- ui check modu
 $releaseNotes.Add('- `dotnet run --project src\MyPowerTools.Cli -- module list --include-disabled`')
 $releaseNotes.Add('- `dotnet run --project src\MyPowerTools.Cli -- diagnostics`')
 $releaseNotes.Add('- `dotnet run --project src\MyPowerTools.Cli -- ui snapshot --surface dashboard-card --theme light --size 1366x768 --density normal --out artifacts\ui-snapshots`')
+$releaseNotes.Add('- `dotnet run --project src\MyPowerTools.Cli -- ui shell-snapshot --theme light --size 1366x768 --density normal --out artifacts\shell-ui-snapshots`')
 $releaseNotes.Add('- `dotnet run --project src\MyPowerTools.Cli -- runner autostart status`')
 $releaseNotes.Add('- `dotnet run --project src\MyPowerTools.Cli -- broker secret self-test`')
 $releaseNotes.Add('- `dotnet run --project src\MyPowerTools.Runner -- --once`')

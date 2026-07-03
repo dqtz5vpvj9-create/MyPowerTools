@@ -15,6 +15,7 @@ using MyPowerTools.Packaging;
 using MyPowerTools.Platform.Abstractions;
 using MyPowerTools.Runtime;
 using MyPowerTools.SampleModules.DotNet;
+using MyPowerTools.Shell.Avalonia;
 using MyPowerTools.UI;
 
 namespace MyPowerTools.Tests;
@@ -1527,6 +1528,37 @@ Address         Port        Address         Port
     }
 
     [Fact]
+    public async Task Shell_connection_monitor_reports_offline_then_restored()
+    {
+        var probe = new SequenceHostControlProbe(
+            new InvalidOperationException("pipe is unavailable"),
+            new HostControlConnectionProbeResult("0.2.0", "running"));
+        await using var monitor = new HostControlConnectionMonitor(
+            probe,
+            TimeSpan.FromMilliseconds(10),
+            TimeSpan.FromSeconds(1));
+        var observed = new List<HostControlConnectionSnapshot>();
+        monitor.StateChanged += (_, snapshot) => observed.Add(snapshot);
+
+        var offline = await monitor.CheckOnceAsync();
+        var restored = await monitor.CheckOnceAsync();
+
+        Assert.False(offline.Online);
+        Assert.Equal("offline", offline.State);
+        Assert.Equal(1, offline.ConsecutiveFailures);
+        Assert.Contains("pipe is unavailable", offline.Message, StringComparison.Ordinal);
+        Assert.True(restored.Online);
+        Assert.True(restored.Recovered);
+        Assert.Equal("running", restored.State);
+        Assert.Equal("0.2.0", restored.RunnerVersion);
+        Assert.Equal(0, restored.ConsecutiveFailures);
+        Assert.Collection(
+            observed,
+            first => Assert.False(first.Online),
+            second => Assert.True(second.Recovered));
+    }
+
+    [Fact]
     public async Task HostControl_set_module_enabled_updates_runtime_state()
     {
         var runtime = new MptHostRuntime(
@@ -2311,6 +2343,30 @@ Address         Port        Address         Port
         {
             _commands.Remove(id);
             return Task.FromResult(new BrokerOperationResult(true, "disabled", $"Disabled {id}."));
+        }
+    }
+
+    private sealed class SequenceHostControlProbe : IHostControlConnectionProbe
+    {
+        private readonly Queue<object> _steps;
+
+        public SequenceHostControlProbe(params object[] steps)
+        {
+            _steps = new Queue<object>(steps);
+        }
+
+        public Task<HostControlConnectionProbeResult> PingAsync(CancellationToken cancellationToken)
+        {
+            var step = _steps.Count == 0
+                ? new HostControlConnectionProbeResult("0.2.0", "running")
+                : _steps.Dequeue();
+
+            if (step is Exception ex)
+            {
+                return Task.FromException<HostControlConnectionProbeResult>(ex);
+            }
+
+            return Task.FromResult((HostControlConnectionProbeResult)step);
         }
     }
 

@@ -28,6 +28,7 @@
     <ProjectReference Include="..\MyPowerTools.Runtime\MyPowerTools.Runtime.csproj" />
     <ProjectReference Include="..\MyPowerTools.UI\MyPowerTools.UI.csproj" />
     <ProjectReference Include="..\MyPowerTools.HostControl\MyPowerTools.HostControl.csproj" />
+    <ProjectReference Include="..\MyPowerTools.Shell.Avalonia\MyPowerTools.Shell.Avalonia.csproj" />
     <ProjectReference Include="..\MyPowerTools.ModuleHost.InProcDotNet\MyPowerTools.ModuleHost.InProcDotNet.csproj" />
     <ProjectReference Include="..\MyPowerTools.ModuleHost.GrpcIpc\MyPowerTools.ModuleHost.GrpcIpc.csproj" />
     <ProjectReference Include="..\MyPowerTools.SampleModules.DotNet\MyPowerTools.SampleModules.DotNet.csproj" />

@@ -37,3 +37,5 @@
 - Added typed HostControl module permission and capability requirement fields, Shell module permission sections, CLI `mpt inspect modules` permission output, and acceptance coverage for permission visibility.
 - Added local package trust hooks: package manifests can declare `trust.signature`, `mpt package sign-local` writes `shared/package.signature.json`, `mpt package trust --strict` validates hash/signature metadata, and package install/repair now use the trust verifier.
 - Added package trust visibility to HostControl package summaries and the Shell Packages page, including trust state, policy, signature path, and trust issue count.
+- Added `mpt ui shell-snapshot` for deterministic Shell surface snapshot coverage across Dashboard, Command Palette, Settings, Module Detail, Logs, Notifications, Permission Prompt, Degraded Module, Packages, and Runtime Diagnostics.
+- Added Shell HostControl connection monitoring with offline state tracking and automatic page/command/audit refresh after Runner IPC reconnection.

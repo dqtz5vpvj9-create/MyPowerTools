@@ -3,6 +3,7 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Media;
+using Avalonia.Threading;
 using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
 using MyPowerTools.HostControl;
@@ -31,6 +32,7 @@ public sealed class MainWindow : Window
     private readonly TextBlock _runnerStatus = new();
     private readonly TextBlock _statusBar = new();
     private readonly Dictionary<string, Button> _navButtons = new(StringComparer.OrdinalIgnoreCase);
+    private readonly HostControlConnectionMonitor _connectionMonitor = new(new HostControlRunnerConnectionProbe());
     private readonly DesignTokens _tokens;
     private string _currentPage = DashboardPage;
 
@@ -44,7 +46,16 @@ public sealed class MainWindow : Window
 
         _tokens = TryLoadTokens();
         Content = BuildLayout();
-        Opened += async (_, _) => await RefreshAsync();
+        _connectionMonitor.StateChanged += (_, snapshot) =>
+        {
+            Dispatcher.UIThread.Post(async () => await ApplyConnectionSnapshotAsync(snapshot, refreshOnRecovery: true));
+        };
+        Opened += async (_, _) =>
+        {
+            _connectionMonitor.Start();
+            await RefreshAsync();
+        };
+        Closed += async (_, _) => await _connectionMonitor.DisposeAsync();
     }
 
     private Control BuildLayout()
@@ -154,17 +165,35 @@ public sealed class MainWindow : Window
 
     private async Task LoadRunnerStatusAsync()
     {
-        try
+        var snapshot = await _connectionMonitor.CheckOnceAsync(notify: false);
+        ApplyRunnerStatus(snapshot);
+        if (!snapshot.Online)
         {
-            using var client = HostControlClient.ForDefaultEndpoint();
-            var ping = await client.PingAsync();
-            _runnerStatus.Text = $"Runner {ping.State}";
+            _statusBar.Text = $"Runner offline: {snapshot.Message}";
         }
-        catch (Exception ex)
+    }
+
+    private async Task ApplyConnectionSnapshotAsync(HostControlConnectionSnapshot snapshot, bool refreshOnRecovery)
+    {
+        ApplyRunnerStatus(snapshot);
+        if (!snapshot.Online)
         {
-            _runnerStatus.Text = "Runner offline";
-            _statusBar.Text = ex.Message;
+            _statusBar.Text = $"Runner offline: {snapshot.Message}";
+            return;
         }
+
+        if (snapshot.Recovered && refreshOnRecovery)
+        {
+            _statusBar.Text = "Runner connection restored.";
+            await ShowPageAsync(_currentPage);
+            await LoadCommandsAsync(_searchBox.Text ?? "");
+            await LoadBrokerAuditAsync();
+        }
+    }
+
+    private void ApplyRunnerStatus(HostControlConnectionSnapshot snapshot)
+    {
+        _runnerStatus.Text = snapshot.Online ? $"Runner {snapshot.State}" : "Runner offline";
     }
 
     private async Task ShowPageAsync(string page)
