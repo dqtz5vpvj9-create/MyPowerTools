@@ -238,6 +238,44 @@ Address         Port        Address         Port
     }
 
     [Fact]
+    public async Task Release_metadata_script_writes_update_and_scoop_manifests()
+    {
+        var artifactsRoot = Path.Combine(Path.GetTempPath(), "mpt-release-metadata", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(artifactsRoot);
+        await File.WriteAllTextAsync(Path.Combine(artifactsRoot, "MyPowerTools-win-x64.zip"), "portable zip bytes");
+
+        var result = await RunPwshAsync(
+            "-NoLogo",
+            "-NoProfile",
+            "-NonInteractive",
+            "-File",
+            Path.Combine(Root, "scripts", "release-metadata.ps1"),
+            "-RepoRoot",
+            Root,
+            "-ArtifactsRoot",
+            artifactsRoot,
+            "-Version",
+            "0.2.0");
+        var metadataPath = Path.Combine(artifactsRoot, "release-metadata.json");
+        var scoopPath = Path.Combine(artifactsRoot, "package-managers", "scoop", "mypowertools.json");
+        var metadata = JsonNode.Parse(await File.ReadAllTextAsync(metadataPath))!.AsObject();
+        var scoop = JsonNode.Parse(await File.ReadAllTextAsync(scoopPath))!.AsObject();
+        var artifact = metadata["artifacts"]!.AsArray().Single()!.AsObject();
+        var scoop64 = scoop["architecture"]!["64bit"]!.AsObject();
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.True(File.Exists(metadataPath));
+        Assert.True(File.Exists(scoopPath));
+        Assert.Equal("MyPowerTools", metadata["product"]!.GetValue<string>());
+        Assert.Equal("local-portable", metadata["channel"]!.GetValue<string>());
+        Assert.Equal(64, artifact["sha256"]!.GetValue<string>().Length);
+        Assert.Equal(artifact["sha256"]!.GetValue<string>(), scoop64["hash"]!.GetValue<string>());
+        Assert.StartsWith("file:///", artifact["url"]!.GetValue<string>(), StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("package-managers/scoop/mypowertools.json", metadata["packageManagers"]!["scoop"]!.GetValue<string>());
+        Assert.Equal("mpt", scoop["bin"]!.AsArray()[0]!.AsArray()[1]!.GetValue<string>());
+    }
+
+    [Fact]
     public void Ui_snapshot_writes_contract_manifest()
     {
         var output = Path.Combine(Path.GetTempPath(), "mpt-ui-snapshot", Guid.NewGuid().ToString("N"));
@@ -2643,6 +2681,30 @@ cloud_server_protocol: str = "https"
         }
 
         using var process = Process.Start(psi) ?? throw new InvalidOperationException("Could not start dotnet.");
+        var outputTask = process.StandardOutput.ReadToEndAsync();
+        var errorTask = process.StandardError.ReadToEndAsync();
+        await process.WaitForExitAsync();
+        return (process.ExitCode, await outputTask + await errorTask);
+    }
+
+    private static async Task<(int ExitCode, string Output)> RunPwshAsync(params string[] arguments)
+    {
+        var psi = new ProcessStartInfo
+        {
+            FileName = "pwsh.exe",
+            WorkingDirectory = Root,
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true
+        };
+
+        foreach (var argument in arguments)
+        {
+            psi.ArgumentList.Add(argument);
+        }
+
+        using var process = Process.Start(psi) ?? throw new InvalidOperationException("Could not start pwsh.exe.");
         var outputTask = process.StandardOutput.ReadToEndAsync();
         var errorTask = process.StandardError.ReadToEndAsync();
         await process.WaitForExitAsync();

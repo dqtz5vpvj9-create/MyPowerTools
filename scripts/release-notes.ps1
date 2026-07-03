@@ -11,6 +11,8 @@ $ArtifactsRoot = [System.IO.Path]::GetFullPath($ArtifactsRoot)
 $ChangelogPath = Join-Path $RepoRoot 'CHANGELOG.md'
 $ZipPath = Join-Path $ArtifactsRoot 'MyPowerTools-win-x64.zip'
 $OutputPath = Join-Path $ArtifactsRoot 'RELEASE_NOTES.md'
+$MetadataPath = Join-Path $ArtifactsRoot 'release-metadata.json'
+$ScoopManifestPath = Join-Path $ArtifactsRoot 'package-managers\scoop\mypowertools.json'
 
 New-Item -ItemType Directory -Path $ArtifactsRoot -Force | Out-Null
 
@@ -73,6 +75,13 @@ if ($zipHash) {
     $releaseNotes.Add('- Portable uninstaller script: `uninstall-windows.ps1` inside the zip root')
     $releaseNotes.Add("- SHA256: ``$zipHash``")
     $releaseNotes.Add("- Size: $zipSize bytes")
+    if (Test-Path -LiteralPath $MetadataPath) {
+        $releaseNotes.Add('- Release/update metadata: `artifacts/release/release-metadata.json`')
+    }
+
+    if (Test-Path -LiteralPath $ScoopManifestPath) {
+        $releaseNotes.Add('- Scoop package-manager manifest: `artifacts/release/package-managers/scoop/mypowertools.json`')
+    }
 } else {
     $releaseNotes.Add('- Windows portable zip has not been produced yet.')
 }

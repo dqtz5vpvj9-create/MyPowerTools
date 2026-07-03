@@ -65,5 +65,6 @@ if (Test-Path -LiteralPath $ZipPath) {
 }
 
 Compress-Archive -Path (Join-Path $PublishRoot '*') -DestinationPath $ZipPath
+pwsh.exe -NoLogo -NoProfile -NonInteractive -File (Join-Path $PSScriptRoot 'release-metadata.ps1') -RepoRoot $RepoRoot -ArtifactsRoot $Artifacts
 pwsh.exe -NoLogo -NoProfile -NonInteractive -File (Join-Path $PSScriptRoot 'release-notes.ps1') -RepoRoot $RepoRoot -ArtifactsRoot $Artifacts
 Write-Host $ZipPath
