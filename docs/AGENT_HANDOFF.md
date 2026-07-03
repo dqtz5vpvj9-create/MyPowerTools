@@ -82,14 +82,16 @@ The active objective is to turn MyPowerTools into a production-grade PowerToys-s
 - Added `DoubaoAgent.MyPowerTools` as a production InProc controller module. It checks planner `38102`, tool runtime `38080`, and MCP bridge `38189` separately, exposes per-role health commands, status summary, self-test, log summary, runtime settings schema, and degraded status when only part of the runtime is reachable.
 - Added `SmartBirdThermostat.MyPowerTools` as a production InProc typed facade. It wraps SmartBird HTTP status/events/config/log endpoints, exposes config save, self-test, log summary, bounded event output, ServiceBroker restart request details, runtime settings schema, local path redaction, and degraded Energy Server/FNB-58/ADB diagnostics.
 - Hardened `LogRouter` for concurrent CLI/runtime log writes with per-file in-process locking, read-shared/exclusive writer handles, retry, and blank-line-safe tailing.
+- Added P2 closure acceptance coverage for AndroidTools invalid notification endpoint config, AndroidTools empty process watch-list degradation, and Doubao role-specific partial service outages.
+- Marked P2 complete locally; remaining P2 concerns require external hardware, connected devices, or documented production service APIs and are tracked in `docs/OPEN_BLOCKERS.md` plus `docs/EXTERNAL_VALIDATION.md`.
 
 ## Last Verified State
 
 - SDK: `dotnet --version` returns `10.0.301`; `global.json` pins `10.0.301`; all projects target `net10.0`.
 - Restore: `dotnet restore MyPowerTools.slnx` succeeded.
 - Build: `dotnet build MyPowerTools.slnx` succeeded with 0 warnings and 0 errors.
-- Tests: `dotnet test MyPowerTools.slnx --no-build` passed 71 tests, 0 failed, 0 skipped.
-- Phase state: P0 done, P1 verified done, P2 selected as the next active phase in `.codex/project-state.json`.
+- Tests: `dotnet test MyPowerTools.slnx --no-build` passed 74 tests, 0 failed, 0 skipped.
+- Phase state: P0, P1, and P2 done; P3 selected as the next active phase in `.codex/project-state.json`.
 - Module validation: `dotnet run --project src\MyPowerTools.Cli -- validate modules` passed all 5 production packages.
 - Module contract validation: `dotnet run --project src\MyPowerTools.Cli -- validate contracts` passed all 5 production packages and 7 modules.
 - Package trust: `dotnet run --project src\MyPowerTools.Cli -- package trust modules --strict` reports `signature-hook` for all 5 production packages.
@@ -130,11 +132,11 @@ The active objective is to turn MyPowerTools into a production-grade PowerToys-s
 
 ## Next Highest-Value Work
 
-1. Validate ScreenEase hardware writes against a monitor that supports DDC/CI brightness/color-temperature controls.
-2. Validate SmartBird against real Energy Server and FNB-58 hardware when those services are available.
-3. Validate real Doubao planner/tool/MCP endpoint contracts when production health APIs are available.
-4. Add module-specific deep editors for AndroidTools, AdbForwarder, ScreenEase, Doubao Agent, and SmartBird on top of the generic Shell pages.
-5. Add signed MSI/MSIX or package-manager distribution metadata.
+1. Continue P3 broker, privilege, security, and secrets closure, focusing on elevated helper/service packaging boundaries, broker audit completeness, rollback evidence, and permission-required behavior.
+2. Validate ScreenEase hardware writes against a monitor that supports DDC/CI brightness/color-temperature controls when hardware is available.
+3. Validate SmartBird against real Energy Server and FNB-58 hardware when those services are available.
+4. Validate real Doubao planner/tool/MCP endpoint contracts when production health APIs are available.
+5. Add module-specific deep editors for AndroidTools, AdbForwarder, ScreenEase, Doubao Agent, and SmartBird on top of the generic Shell pages during P4.
 
 ## External Requirements To Verify Later
 

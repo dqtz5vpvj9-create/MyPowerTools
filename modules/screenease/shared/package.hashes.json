@@ -11,43 +11,43 @@
     },
     {
       "Path": "MyPowerTools.Platform.Abstractions.dll",
-      "Sha256": "9aa16c2578487de2c99f9c03b42e1c6f7dbb0a880d5c6e8f54dacb407b81cd90"
+      "Sha256": "57144007893f30c09c836acf2bdd6884e271eb39a6e7abfef7462d9a5272f4ac"
     },
     {
       "Path": "MyPowerTools.Platform.Abstractions.pdb",
-      "Sha256": "91d3bb3f1cfa4dbd7e90c8ddb43e2ff4921e9bc7b242e70b5555d3160d011140"
+      "Sha256": "91e83fb3859674291f3f2ba1aaf0dd56475d53fa5561616333ea0bed99c2cb38"
     },
     {
       "Path": "MyPowerTools.Platform.Linux.dll",
-      "Sha256": "81e665f43b8ca14d50dbf36cc486ba1a49c8777d0d294e4463e6eb268d42356e"
+      "Sha256": "30b5fde1148ac480286917a8a6339229ebb2f8ba4ed21b3fe22b8acd96f5c289"
     },
     {
       "Path": "MyPowerTools.Platform.Linux.pdb",
-      "Sha256": "59dbe6fe8edd7605525c2bad0f34eb3a98e453a296704244f89b18b3cf7418e3"
+      "Sha256": "c6e8dc7a2149cc2baa535230fbaede7f0bb05ae8086c3adfa78904dc5f31586b"
     },
     {
       "Path": "MyPowerTools.Platform.Mac.dll",
-      "Sha256": "adaecd27bec6c7112d2e17cda008aac4054f9a10f4efd6dff7a6a64ec0c555ba"
+      "Sha256": "16be5d7798388ce76bc47cc86a8e43f654f1b87d7ece3050a1b0d5fc5c062a3e"
     },
     {
       "Path": "MyPowerTools.Platform.Mac.pdb",
-      "Sha256": "8e388d1f33cc9cac4fed0a08cf2eeac0b5115e07d4df253bd05e37f558712522"
+      "Sha256": "d8d0196dea5dae8672d8ec27c2f9351c2dac7f00216f96e6d72dd4dfa1f5f321"
     },
     {
       "Path": "MyPowerTools.Platform.Windows.dll",
-      "Sha256": "771fd0fc8f164e7521c20d36c847e0c73c127f6108a6f8fd4d83ae97b213df6e"
+      "Sha256": "86396eb0a164ad6227ba2b6a53a233d59c9f49d992b3fb40aeeee6af383701ca"
     },
     {
       "Path": "MyPowerTools.Platform.Windows.pdb",
-      "Sha256": "f1ff3a344da20d095bb4212b830970d46277e56cdd87ada55ad5526e4691bd48"
+      "Sha256": "e7b44e6efef2ad6b46b843ffdd44183b52f616ad70f48541dbe2df6869bfe761"
     },
     {
       "Path": "ScreenEase.MyPowerTools.dll",
-      "Sha256": "2f058e3c98da4af410b68ccc43e8b88d20c82186935cf58ee74a74f4cb31cc12"
+      "Sha256": "7b367eac5805785e7c98b4e5487af730f173f26a4c19b8405016a4c56cc30832"
     },
     {
       "Path": "ScreenEase.MyPowerTools.pdb",
-      "Sha256": "7462ec62afb56a37c64c641562fb8959038f6ee27b970f859bdd69e10bb96cb1"
+      "Sha256": "a9cdbf976ef31b2031be387c757ff7107b8905a183caf1c916c5278ef697d1e9"
     },
     {
       "Path": "ui/dashboard-card.json",

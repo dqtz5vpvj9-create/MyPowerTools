@@ -5,6 +5,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using AdbForwarder.MyPowerTools;
+using AndroidTools.MyPowerTools;
 using Grpc.Core;
 using Microsoft.Extensions.Hosting;
 using MyPowerTools.HostControl;
@@ -13,6 +14,7 @@ using MyPowerTools.ModuleHost.GrpcIpc;
 using MyPowerTools.ModuleHost.InProcDotNet;
 using MyPowerTools.Packaging;
 using MyPowerTools.Platform.Abstractions;
+using MyPowerTools.Protocol;
 using MyPowerTools.Runtime;
 using MyPowerTools.SampleModules.DotNet;
 using MyPowerTools.Shell.Avalonia;
@@ -1345,6 +1347,102 @@ Address         Port        Address         Port
     }
 
     [Fact]
+    public async Task AndroidTools_notifications_reports_actionable_degraded_state_when_endpoint_config_is_invalid()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "mpt-android-notifications-invalid", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        var configPath = Path.Combine(root, "simple_http_notification_conf.py");
+        await File.WriteAllTextAsync(configPath, """
+cloud_server_ip: str = ""
+cloud_server_port: int = 0
+cloud_server_protocol: str = "https"
+""");
+
+        var previous = Environment.GetEnvironmentVariable("MPT_ANDROIDTOOLS_NOTIFICATION_CONF");
+        Environment.SetEnvironmentVariable("MPT_ANDROIDTOOLS_NOTIFICATION_CONF", configPath);
+        try
+        {
+            var module = new AndroidToolsNotificationsModule();
+            await module.InitializeAsync(
+                CreateModuleContext("android-tools-suite", "android-tools.notifications", "android-notifications-invalid", ["notifications.remote"]),
+                CancellationToken.None);
+
+            var status = await module.GetStatusAsync(CancellationToken.None);
+            var serverCheck = await module.ExecuteCommandAsync(
+                new CommandRequest("android-notifications-server-check", "android-tools.notifications.server.check", new JsonObject()),
+                CancellationToken.None);
+            var inbox = await module.ExecuteCommandAsync(
+                new CommandRequest("android-notifications-inbox", "android-tools.notifications.inbox.summary", new JsonObject()),
+                CancellationToken.None);
+
+            var serverPayload = JsonNode.Parse(serverCheck.Output)!.AsObject();
+            var inboxPayload = JsonNode.Parse(inbox.Output)!.AsObject();
+            var endpoint = inboxPayload["endpoint"]!.AsObject();
+
+            Assert.Equal("degraded", status.State);
+            Assert.Contains(status.Checks, check => check.Id == "notification.config" && !check.Ok && check.Message.Contains("host or port", StringComparison.OrdinalIgnoreCase));
+            Assert.True(serverCheck.Success);
+            Assert.False(serverPayload["found"]!.GetValue<bool>());
+            Assert.Contains("host or port", serverPayload["message"]!.GetValue<string>(), StringComparison.OrdinalIgnoreCase);
+            Assert.True(inbox.Success);
+            Assert.False(endpoint["found"]!.GetValue<bool>());
+            Assert.Contains("legacyHistory", inboxPayload.Select(item => item.Key));
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("MPT_ANDROIDTOOLS_NOTIFICATION_CONF", previous);
+        }
+    }
+
+    [Fact]
+    public async Task AndroidTools_process_monitor_reports_actionable_degraded_state_when_watch_list_is_empty()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "mpt-android-process-empty", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        var processesPath = Path.Combine(root, "processes.json");
+        await File.WriteAllTextAsync(processesPath, "[]");
+
+        var previous = Environment.GetEnvironmentVariable("MPT_ANDROIDTOOLS_PROCESSES");
+        Environment.SetEnvironmentVariable("MPT_ANDROIDTOOLS_PROCESSES", processesPath);
+        try
+        {
+            var module = new AndroidToolsProcessMonitorModule();
+            await module.InitializeAsync(
+                CreateModuleContext("android-tools-suite", "android-tools.process-monitor", "android-process-empty", ["process.monitor"]),
+                CancellationToken.None);
+
+            var status = await module.GetStatusAsync(CancellationToken.None);
+            var watchList = await module.ExecuteCommandAsync(
+                new CommandRequest("android-process-watch-list", "android-tools.process-monitor.watch.list", new JsonObject()),
+                CancellationToken.None);
+            var summary = await module.ExecuteCommandAsync(
+                new CommandRequest("android-process-summary", "android-tools.process-monitor.status.summary", new JsonObject()),
+                CancellationToken.None);
+            var invalidSave = await module.ExecuteCommandAsync(
+                new CommandRequest("android-process-empty-save", "android-tools.process-monitor.watch.save", new JsonObject { ["processes"] = new JsonArray() }),
+                CancellationToken.None);
+
+            var watchPayload = JsonNode.Parse(watchList.Output)!.AsObject();
+            var summaryPayload = JsonNode.Parse(summary.Output)!.AsObject();
+
+            Assert.Equal("degraded", status.State);
+            Assert.Contains(status.Checks, check => check.Id == "process.config" && !check.Ok && check.Message.Contains("empty", StringComparison.OrdinalIgnoreCase));
+            Assert.True(watchList.Success);
+            Assert.Equal("env:MPT_ANDROIDTOOLS_PROCESSES", watchPayload["source"]!.GetValue<string>());
+            Assert.Empty(watchPayload["processes"]!.AsArray());
+            Assert.True(summary.Success);
+            Assert.Empty(summaryPayload["configured"]!.AsArray());
+            Assert.Empty(summaryPayload["states"]!.AsArray());
+            Assert.False(invalidSave.Success);
+            Assert.Equal(MptErrorCodes.ValidationFailed, invalidSave.Error!.Code);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("MPT_ANDROIDTOOLS_PROCESSES", previous);
+        }
+    }
+
+    [Fact]
     public async Task ScreenEase_inproc_module_manages_profiles_and_display_state()
     {
         await using var host = new InProcDotNetModuleHost();
@@ -1505,6 +1603,48 @@ Address         Port        Address         Port
         Assert.Contains("token=****", selfTestPayload["redaction"]!.GetValue<string>());
         Assert.True(logs.Success);
         Assert.True(logsPayload["fileCount"]!.GetValue<int>() >= 1);
+    }
+
+    [Fact]
+    public async Task DoubaoAgent_inproc_module_reports_role_specific_degraded_services()
+    {
+        await using var planner = TestHttpFacadeServer.Start();
+        await using var host = new InProcDotNetModuleHost();
+        var runtime = new MptHostRuntime(
+            new PackageReader(),
+            PlatformId.Current(),
+            RuntimePaths.Create(Path.Combine(Path.GetTempPath(), "mpt-runtime-doubao-agent-partial", Guid.NewGuid().ToString("N"))),
+            [host]);
+        var unavailable = "http://127.0.0.1:1";
+
+        runtime.Load(Path.Combine(Root, "modules"));
+        await runtime.RefreshDynamicCommandsAsync(CancellationToken.None);
+        var args = DoubaoArgs(planner.BaseUrl, unavailable, unavailable);
+        var summary = await runtime.ExecuteCommandAsync(
+            new CommandRequest("doubao-partial-status", "doubao-agent.status.summary", args),
+            CancellationToken.None);
+        var toolHealth = await runtime.ExecuteCommandAsync(
+            new CommandRequest("doubao-tool-degraded", "doubao-agent.tool.health", args),
+            CancellationToken.None);
+
+        var statusPayload = JsonNode.Parse(summary.Output)!.AsObject();
+        var services = statusPayload["services"]!.AsArray().Select(item => item!.AsObject()).ToArray();
+        var toolDetails = toolHealth.Error!.Details!;
+
+        Assert.True(summary.Success);
+        Assert.Equal("degraded", statusPayload["state"]!.GetValue<string>());
+        Assert.Equal(1, statusPayload["runningServices"]!.GetValue<int>());
+        Assert.Equal(3, statusPayload["totalServices"]!.GetValue<int>());
+        Assert.Contains(services, service => service["id"]!.GetValue<string>() == "planner" && service["ok"]!.GetValue<bool>());
+        Assert.Contains(services, service => service["id"]!.GetValue<string>() == "tool" && !service["ok"]!.GetValue<bool>());
+        Assert.Contains(services, service => service["id"]!.GetValue<string>() == "mcp" && !service["ok"]!.GetValue<bool>());
+        Assert.False(toolHealth.Success);
+        Assert.Equal("failed", toolHealth.State);
+        Assert.Equal(MptErrorCodes.RuntimeUnavailable, toolHealth.Error.Code);
+        Assert.True(toolHealth.Error.Retryable);
+        Assert.Equal("tool", toolDetails["id"]!.GetValue<string>());
+        Assert.False(toolDetails["ok"]!.GetValue<bool>());
+        Assert.False(string.IsNullOrWhiteSpace(toolDetails["message"]!.GetValue<string>()));
     }
 
     [Fact]
@@ -2562,6 +2702,21 @@ Address         Port        Address         Port
             Path.Combine(root, "logs"),
             PlatformId.Current().Rid,
             ["display.profile"]);
+    }
+
+    private static ModuleContext CreateModuleContext(string packageId, string moduleId, string name, IReadOnlyList<string> grantedCapabilities)
+    {
+        var root = Path.Combine(Path.GetTempPath(), "mpt-tests", name, Guid.NewGuid().ToString("N"));
+        return new ModuleContext(
+            "test-host",
+            "1.0",
+            packageId,
+            moduleId,
+            Path.Combine(root, "state", "modules", moduleId, "data"),
+            Path.Combine(root, "state", "modules", moduleId, "cache"),
+            Path.Combine(root, "state", "modules", moduleId, "logs"),
+            PlatformId.Current().Rid,
+            grantedCapabilities);
     }
 
     private sealed class RecordingDisplayService : IDisplayService

@@ -7,15 +7,15 @@ Run date: 2026-07-04.
 | Field | Value |
 |---|---|
 | Project | MyPowerTools |
-| Current phase | P2 Module runtime and existing tools production closure |
-| Last completed phase | P1 Foundation and architecture conformance |
-| Next phase | P2 |
+| Current phase | P3 Broker, privilege, security and secrets |
+| Last completed phase | P2 Module runtime and existing tools production closure |
+| Next phase | P3 |
 | SDK | 10.0.301 from `global.json` and `dotnet --version` |
 | Target frameworks | `net10.0` projects across the solution |
 | Production packages | 5: `adb-forwarder`, `android-tools-suite`, `doubao-agent`, `screenease`, `smartbird-thermostat` |
 | Production modules | 7 |
 | Templates | 6 |
-| Tests | 71 passed, 0 failed, 0 skipped |
+| Tests | 74 passed, 0 failed, 0 skipped |
 | Release artifact | `artifacts/release/MyPowerTools-win-x64.zip` |
 | Release SHA256 | `594634C7733FC4CC7A138CD67DF90218F3249C754DE952AF50A795F031292EFA` |
 | Production closure | false |
@@ -27,12 +27,13 @@ Run date: 2026-07-04.
 | `dotnet --version` | `10.0.301` |
 | `dotnet restore MyPowerTools.slnx` | Succeeded; all projects were up-to-date. |
 | `dotnet build MyPowerTools.slnx --no-restore` | Succeeded with 0 warnings and 0 errors. |
-| `dotnet test MyPowerTools.slnx --no-build` | Passed 71, failed 0, skipped 0. |
+| `dotnet test MyPowerTools.slnx --no-build` | Passed 74, failed 0, skipped 0. |
 | `dotnet run --project src\MyPowerTools.Cli -- validate modules` | 5 production packages valid. |
-| `dotnet run --project src\MyPowerTools.Cli -- validate contracts` | 5 packages and 7 modules passed contract validation; AndroidTools runs through `grpc-ipc` powertoold with notifications running, remote commands running, process monitor degraded until a watch list is saved, and ScreenEase exposing 14 commands. |
+| `dotnet run --no-build --project src\MyPowerTools.Cli -- validate contracts` | 5 packages and 7 modules passed contract validation; AndroidTools runs through `grpc-ipc` powertoold with notifications running, remote commands running, process monitor degraded until a watch list is saved, and ScreenEase exposing 14 commands. |
+| `dotnet run --no-build --project src\MyPowerTools.Cli -- package trust modules --strict` | `signature-hook` trust passed for all 5 production packages after local hash/signature refresh. |
 | `dotnet run --project src\MyPowerTools.Cli -- ui check modules` | UI gate passed. |
 | `dotnet run --project src\MyPowerTools.Runner -- --once` | 7 modules indexed; AndroidTools Notifications and Remote Commands run through powertoold, AndroidTools Process Monitor reports its watch-list degraded state, and current expected degraded states remain for Doubao partial services, ScreenEase unsupported DDC/CI monitor hardware, and SmartBird Energy Server/FNB-58 dependencies. |
-| `dotnet run --project src\MyPowerTools.Cli -- diagnostics` | Reports 5 packages, 7 modules, 81 commands, AndroidTools under `grpc-ipc`, and one shared process pool: `package:android-tools-suite:runtime:powertoold`. |
+| `dotnet run --no-build --project src\MyPowerTools.Cli -- diagnostics` | Reports 5 packages, 7 modules, 81 commands, AndroidTools under `grpc-ipc`, and one shared process pool: `package:android-tools-suite:runtime:powertoold`. |
 | `dotnet run --project src\MyPowerTools.Cli -- run screenease.native-writer.status` | Succeeded with Windows DDC/CI writer probe output; current Generic PnP Monitor returns `GetMonitorCapabilities` unsupported. |
 | `dotnet run --project src\MyPowerTools.Cli -- run screenease.profile.apply` | Succeeded with profile plan and safe default `native-host-required` because hardware writes are disabled unless explicitly requested or configured. |
 | `pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\publish-windows.ps1` | Rebuilt `artifacts/release/MyPowerTools-win-x64.zip` with SHA256 `594634C7733FC4CC7A138CD67DF90218F3249C754DE952AF50A795F031292EFA` and size 171394798 bytes. |
@@ -76,3 +77,6 @@ Local builds copy module assemblies into `modules/`. When assemblies change, run
 | ScreenEase Windows writer | `WindowsDisplayService` now probes Dxva2 DDC/CI capabilities, maps brightness percent to monitor range, maps requested Kelvin values to supported hardware color-temperature flags, and applies settings through `IDisplayService.ApplyProfileAsync` when hardware writes are explicitly requested or enabled. |
 | ScreenEase writer safety | `screenease.profile.apply` keeps hardware writes disabled by default and returns `native-host-required`; `screenease.native-writer.configure` enables future hardware applies, and `screenease.native-writer.status` reports current DDC/CI readiness. |
 | ScreenEase acceptance coverage | `ScreenEase_profile_apply_keeps_hardware_write_disabled_by_default`, `ScreenEase_profile_apply_calls_display_writer_when_requested`, and `ScreenEase_native_writer_configure_enables_future_hardware_apply` verify default safety, explicit writer invocation, and persisted enable flow. |
+| AndroidTools degraded coverage | `AndroidTools_notifications_reports_actionable_degraded_state_when_endpoint_config_is_invalid` verifies invalid notification endpoint config reports degraded status and actionable server-check output. `AndroidTools_process_monitor_reports_actionable_degraded_state_when_watch_list_is_empty` verifies empty process watch lists remain degraded, list zero configured processes, and reject empty saves. |
+| Doubao degraded coverage | `DoubaoAgent_inproc_module_reports_role_specific_degraded_services` verifies planner/tool/MCP role separation when only one local service is reachable and failed role health commands return retryable `MPT_RUNTIME_UNAVAILABLE` details. |
+| P2 closure | P2 internal gates are complete locally: 5 packages valid, 7 modules valid, all production modules expose status/commands/UI/settings/logs contracts, missing external services produce degraded states, and 74 tests pass. Remaining P2 items are external validation only. |

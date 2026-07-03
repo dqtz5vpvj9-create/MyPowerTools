@@ -3,11 +3,11 @@
   "Files": [
     {
       "Path": "AndroidTools.MyPowerTools.dll",
-      "Sha256": "6da82a34dcdc8525b46aa093f4d202bc177bc5c5fda7b71b562061dbecebf178"
+      "Sha256": "ac4a878e71f91512aab4190b9f3d09ea1dec1e88d240c32a58abbd76d48cf941"
     },
     {
       "Path": "AndroidTools.MyPowerTools.pdb",
-      "Sha256": "3a052b84066c75e5650e14a74c40f0b23ebefc7f9fdc9d5dc21b40462a928cfb"
+      "Sha256": "000b00b4433b31b20cb8d127aa473690c72e3c5266de790d512269270269ab19"
     },
     {
       "Path": "modules/notifications/commands.index.json",
@@ -107,11 +107,11 @@
     },
     {
       "Path": "windows/x64/AndroidTools.MyPowerTools.dll",
-      "Sha256": "6da82a34dcdc8525b46aa093f4d202bc177bc5c5fda7b71b562061dbecebf178"
+      "Sha256": "ac4a878e71f91512aab4190b9f3d09ea1dec1e88d240c32a58abbd76d48cf941"
     },
     {
       "Path": "windows/x64/AndroidTools.MyPowerTools.pdb",
-      "Sha256": "3a052b84066c75e5650e14a74c40f0b23ebefc7f9fdc9d5dc21b40462a928cfb"
+      "Sha256": "000b00b4433b31b20cb8d127aa473690c72e3c5266de790d512269270269ab19"
     },
     {
       "Path": "windows/x64/Google.Protobuf.dll",
@@ -159,35 +159,35 @@
     },
     {
       "Path": "windows/x64/MyPowerTools.Packaging.dll",
-      "Sha256": "bdd9cf60a0d28a93e51ab8973920c0788a56deab797fb41e11d5244a8b330e85"
+      "Sha256": "602d809e4234ac3950eef65e94a78b0ec45c1f32bd87d824d58edd603af84776"
     },
     {
       "Path": "windows/x64/MyPowerTools.Packaging.pdb",
-      "Sha256": "a32c68415e5fffc87183f23994f18d8f09053c465067d46fe586c4f7b25e2797"
+      "Sha256": "1f78507dfb44d118b0e4360600fd87a8861d4aa3ed497a990f11caded7870af6"
     },
     {
       "Path": "windows/x64/MyPowerTools.Platform.Abstractions.dll",
-      "Sha256": "9aa16c2578487de2c99f9c03b42e1c6f7dbb0a880d5c6e8f54dacb407b81cd90"
+      "Sha256": "57144007893f30c09c836acf2bdd6884e271eb39a6e7abfef7462d9a5272f4ac"
     },
     {
       "Path": "windows/x64/MyPowerTools.Platform.Abstractions.pdb",
-      "Sha256": "91d3bb3f1cfa4dbd7e90c8ddb43e2ff4921e9bc7b242e70b5555d3160d011140"
+      "Sha256": "91e83fb3859674291f3f2ba1aaf0dd56475d53fa5561616333ea0bed99c2cb38"
     },
     {
       "Path": "windows/x64/MyPowerTools.Protocol.dll",
-      "Sha256": "dc9b798d7b347d3e9a7f5b9deafb866f20ed335e7dcc117f0fa3608f56604adb"
+      "Sha256": "ccd27e0ecd22b2e4e90ede2d0a72405992ac3f23acc727dfca50551d5f754905"
     },
     {
       "Path": "windows/x64/MyPowerTools.Protocol.pdb",
-      "Sha256": "798f649c2439cbc2f72b964bffef70b40a1f0909a85c2849662cb936ebc80ed9"
+      "Sha256": "9ce83d3328fc3915d3a9f9c7b486ab373218e33f11026317eb973a8fa0a0f2c3"
     },
     {
       "Path": "windows/x64/MyPowerTools.Runtime.dll",
-      "Sha256": "1124a9fb921d5b9696aae0a87600ea238f6912d044bfaece56b818968ba97f7a"
+      "Sha256": "46e9f10e3bb3ebdb6486d0c409a0361929e83518a2a77ab2a24e8578252c3192"
     },
     {
       "Path": "windows/x64/MyPowerTools.Runtime.pdb",
-      "Sha256": "a1b83d29f1e9a099f41ac3923bfd092462d9d37608fdc75986636bac38cf5b84"
+      "Sha256": "437f7f3cdf0b721a662b83697e13b4fde625c0b1c08b87a7b226aa2ac41eb173"
     },
     {
       "Path": "windows/x64/powertoold.deps.json",
@@ -195,19 +195,19 @@
     },
     {
       "Path": "windows/x64/powertoold.dll",
-      "Sha256": "2091725f2c445e981e879afe58fa81990427535eec93162fb2ff77fb6111d7f2"
+      "Sha256": "486f0d8fa916f52ca44c6a005c7cf8fed284d1213a8ded0ef74fbec72d7aa7d3"
     },
     {
       "Path": "windows/x64/powertoold.exe",
-      "Sha256": "c098a63700eef9fe443cea2ec4fdf3f627b726b8e14a4f2b18a4295049b0369f"
+      "Sha256": "7664438609958cab2bcc0f999761a0d5d5f7f9354d7737359afba783a377db66"
     },
     {
       "Path": "windows/x64/powertoold.pdb",
-      "Sha256": "185746e23526c5d5c491a7e84558bc2e60ec5dde0674510259af7880f8e2db69"
+      "Sha256": "15cc4124452354787c10d8a132bbd364fa94eee3d36e7c85c7ffe74413cb32a7"
     },
     {
       "Path": "windows/x64/powertoold.runtimeconfig.json",
-      "Sha256": "41442586a8262bc96a1c80f82f4d9384c03bfd465d221cbf01fb3563170f9e65"
+      "Sha256": "4699b89914821b4aaa757dc3c03b351529227815650e58c5ed23be88e28d3ae1"
     },
     {
       "Path": "windows/x64/powertoold.staticwebassets.endpoints.json",

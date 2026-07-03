@@ -28,7 +28,7 @@ Validation:
 Decision:
 - P0 is complete.
 - P1 is already verified complete by current architecture evidence and validation.
-- P2 is the next active phase.
+- P2 was selected as the next active phase at that point.
 
 ### P1 Foundation And Architecture Conformance
 
@@ -169,3 +169,32 @@ Remaining P2 work:
 - SmartBird full Energy Server/FNB-58 hardware validation remains external.
 - Real Doubao planner/tool/MCP endpoint contracts need validation against production local services.
 - Android device notification and command end-to-end flows need connected devices/services for external validation.
+
+### P2 Module Runtime And Existing Tools Production Closure
+
+Status: done.
+
+Actions:
+- Added AndroidTools acceptance coverage for invalid notification endpoint config, including degraded status and actionable server-check output.
+- Added AndroidTools Process Monitor acceptance coverage for empty watch-list configuration, degraded state, zero configured processes, and validation failure for empty saves.
+- Added Doubao Agent acceptance coverage for role-specific partial outages when planner is reachable but tool runtime and MCP bridge are unavailable.
+- Refreshed debug production module binaries plus local package hash/signature metadata after the build copied updated assemblies into `modules/`.
+- Reclassified remaining P2 items as external validation because hardware, connected devices, or documented production service APIs are required.
+
+Validation:
+- `dotnet build MyPowerTools.slnx --no-restore` succeeded with 0 warnings and 0 errors.
+- `dotnet run --no-build --project src\MyPowerTools.Cli -- package sign-local modules` refreshed hash manifests and local trust hooks for all 5 production packages.
+- `dotnet test MyPowerTools.slnx --no-build` passed 74 tests, 0 failed, 0 skipped.
+- `dotnet run --no-build --project src\MyPowerTools.Cli -- validate modules` passed for 5 production packages.
+- `dotnet run --no-build --project src\MyPowerTools.Cli -- validate contracts` passed for 5 packages and 7 modules.
+- `dotnet run --no-build --project src\MyPowerTools.Cli -- package trust modules --strict` reported `signature-hook` for all 5 production packages.
+- `dotnet run --no-build --project src\MyPowerTools.Cli -- inspect modules` listed capabilities, requirements, and broker permissions for all production modules.
+- `dotnet run --no-build --project src\MyPowerTools.Cli -- module list --include-disabled` listed all 7 modules.
+- `dotnet run --no-build --project src\MyPowerTools.Runner -- --once` indexed 7 modules and reported expected degraded states for AndroidTools Process Monitor, Doubao Agent, ScreenEase, and SmartBird.
+- `dotnet run --no-build --project src\MyPowerTools.Cli -- diagnostics` reported 5 packages, 7 modules, 81 commands, and the AndroidTools `grpc-ipc` package runtime pool.
+- `dotnet run --no-build --project src\MyPowerTools.Cli -- ui check modules` passed.
+- P2 command probes passed for `adb-forwarder.diagnostics.summary`, `adb-forwarder.portproxy.plan`, `screenease.status.summary`, `doubao-agent.health.check`, and `smartbird-thermostat.status.summary`.
+- `pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\smoke.ps1` passed, including build, sign-local, 74 tests, module validation, contract validation, package trust, UI snapshots, template validation, Runner once, and Shell HostControl smoke with 7 modules, 7 dashboard cards, and 81 commands.
+
+Remaining P2 work:
+- None internally. External validation remains tracked in `docs/OPEN_BLOCKERS.md` and `docs/EXTERNAL_VALIDATION.md`.
