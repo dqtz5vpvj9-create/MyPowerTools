@@ -1,6 +1,6 @@
 # External Validation
 
-Run date: 2026-07-03.
+Run date: 2026-07-04.
 
 The following checks require machine state outside the repository. They remain separate from automated local validation so internal completion is not confused with unavailable hardware, privileges, credentials, or operating systems.
 
@@ -13,6 +13,7 @@ The following checks require machine state outside the repository. They remain s
 | ScreenEase hardware write path | P2, P7 | Display enumeration and profile planning work; hardware writes return `native-host-required`. | Native display writer plus monitor hardware supporting brightness/color-temperature writes. | Apply command changes display state or returns actionable hardware-level diagnostics. |
 | SmartBird full hardware flow | P2 | HTTP health facade reports current local service state. | SmartBird device, FNB-58, Energy Server, and ADB environment. | Status, events, config, and restart commands reflect real hardware/service state. |
 | Android device flows | P2 | AndroidTools modules validate and AdbForwarder diagnostics run. | One or more connected ADB devices and expected local command catalog. | Device discovery, notification polling/streaming, and remote commands operate end-to-end. |
+| Doubao role endpoint validation | P2 | `doubao-agent.status.summary` checks planner, tool runtime, and MCP bridge separately and reports degraded when only part of the runtime is reachable. | Local Doubao planner/tool/MCP services with documented health/status APIs. | Planner, tool runtime, and MCP bridge all report reachable status or a role-specific degraded reason. |
 | macOS native validation | P7 | macOS platform project compiles with degraded providers. | macOS host with .NET SDK 10. | Build, module validation, Runner once, Shell smoke, UDS transport, and degraded providers behave as documented. |
 | Linux native validation | P7 | Linux platform project compiles with degraded providers. | Linux host with .NET SDK 10. | Build, module validation, Runner once, Shell smoke, UDS transport, and degraded providers behave as documented. |
 

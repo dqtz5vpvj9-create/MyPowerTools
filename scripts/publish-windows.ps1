@@ -44,6 +44,7 @@ New-Item -ItemType Directory -Path $PublishRoot -Force | Out-Null
 
 dotnet build src\AdbForwarder.MyPowerTools\AdbForwarder.MyPowerTools.csproj -c Release
 dotnet build src\AndroidTools.MyPowerTools\AndroidTools.MyPowerTools.csproj -c Release
+dotnet build src\DoubaoAgent.MyPowerTools\DoubaoAgent.MyPowerTools.csproj -c Release
 dotnet build src\ScreenEase.MyPowerTools\ScreenEase.MyPowerTools.csproj -c Release
 dotnet run --project src\MyPowerTools.Cli\MyPowerTools.Cli.csproj -- package sign-local modules
 dotnet publish src\MyPowerTools.Runner\MyPowerTools.Runner.csproj -c Release -r win-x64 --self-contained true -o (Join-Path $PublishRoot 'Runner')

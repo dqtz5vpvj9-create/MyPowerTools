@@ -34,7 +34,7 @@ The project is designed for local, long-term use: modules register through manif
 | `android-tools-suite` | `android-tools.notifications`, `android-tools.remote-commands`, `android-tools.process-monitor` | Shared InProc facade, command import, notification diagnostics, process watch scanning. |
 | `adb-forwarder` | `adb-forwarder` | ADB diagnostics, Windows portproxy inspection, brokered apply/revert plan with rollback. |
 | `screenease` | `screenease` | Display enumeration, profile list/plan/apply/save, rules status, native writer pending for hardware changes. |
-| `doubao-agent` | `doubao-agent` | HTTP health facade and Shell surfaces. |
+| `doubao-agent` | `doubao-agent` | InProc controller with planner/tool/MCP health separation, self-test, settings schema, and logs summary. |
 | `smartbird-thermostat` | `smartbird-thermostat` | HTTP health facade and Shell surfaces. |
 
 ## Requirements

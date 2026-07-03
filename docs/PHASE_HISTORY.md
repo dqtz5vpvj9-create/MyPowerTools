@@ -44,3 +44,31 @@ Evidence:
 
 Next:
 - Continue with P2 module production closure.
+
+## 2026-07-04
+
+### P2 Module Runtime And Existing Tools Production Closure
+
+Status: partial, progressed.
+
+Actions:
+- Added `src/DoubaoAgent.MyPowerTools`, a production InProc controller module for `doubao-agent`.
+- Updated `modules/doubao-agent/module.json` with an `inproc-dotnet` entrypoint.
+- Replaced the single HTTP health command with module-backed commands for status summary, all-service health, planner health, tool runtime health, MCP bridge health, self-test, and log summary.
+- Added release packaging support for the Doubao module assembly.
+- Added acceptance coverage for planner/tool/MCP separation, command discovery, self-test redaction, and log summary.
+
+Validation:
+- `dotnet restore MyPowerTools.slnx` succeeded after adding the project.
+- `dotnet build MyPowerTools.slnx --no-restore` succeeded with 0 warnings and 0 errors.
+- `dotnet test MyPowerTools.slnx --no-build` passed 66 tests, 0 failed, 0 skipped.
+- `dotnet run --no-build --project src\MyPowerTools.Cli\MyPowerTools.Cli.csproj -- validate modules` passed for 5 packages.
+- `dotnet run --no-build --project src\MyPowerTools.Cli\MyPowerTools.Cli.csproj -- validate contracts` passed for 5 packages and 7 modules; `doubao-agent` now reports 12 commands and runtime settings schema.
+- `dotnet run --no-build --project src\MyPowerTools.Runner\MyPowerTools.Runner.csproj -- --once` indexed 7 modules and reported `doubao-agent [degraded] 1/3 Doubao runtime service(s) are reachable.`
+- `pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\smoke.ps1` passed and Shell smoke reported 73 commands.
+
+Remaining P2 work:
+- SmartBird config/events/restart typed facade and degraded hardware diagnostics.
+- AndroidTools long-running `powertoold` T2 parity or documented runtime boundary with tests.
+- ScreenEase native display writer validation remains external/native-host work.
+- Real Doubao planner/tool/MCP endpoint contracts need validation against production local services.

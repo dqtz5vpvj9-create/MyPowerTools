@@ -7,6 +7,17 @@
   "moduleSdk": "1.0",
   "entrypoints": [
     {
+      "kind": "inproc-dotnet",
+      "priority": 100,
+      "assembly": "DoubaoAgent.MyPowerTools.dll",
+      "type": "DoubaoAgent.MyPowerTools.DoubaoAgentModule",
+      "platforms": [
+        "windows",
+        "linux",
+        "macos"
+      ]
+    },
+    {
       "kind": "grpc-ipc",
       "priority": 90,
       "command": "doubao-agent-controller",

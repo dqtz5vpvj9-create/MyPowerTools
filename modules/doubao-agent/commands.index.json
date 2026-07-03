@@ -2,16 +2,80 @@
   "schemaVersion": "1.0",
   "commands": [
     {
-      "id": "doubao-agent.health.check",
-      "title": "Check Doubao runtime health",
-      "subtitle": "Queries the controller health endpoint",
+      "id": "doubao-agent.status.summary",
+      "title": "Summarize Doubao runtime status",
+      "subtitle": "Checks planner, tool runtime, and MCP bridge ports",
       "kind": "action",
       "category": "Doubao Agent",
       "timeoutMs": 8000,
       "execution": {
-        "type": "http.request",
-        "method": "GET",
-        "path": "/health"
+        "type": "module.execute"
+      }
+    },
+    {
+      "id": "doubao-agent.health.check",
+      "title": "Check all Doubao runtime services",
+      "subtitle": "Queries planner, tool runtime, and MCP bridge health endpoints",
+      "kind": "action",
+      "category": "Doubao Agent",
+      "timeoutMs": 8000,
+      "execution": {
+        "type": "module.execute"
+      }
+    },
+    {
+      "id": "doubao-agent.planner.health",
+      "title": "Check Doubao planner",
+      "subtitle": "Queries the planner service on port 38102",
+      "kind": "action",
+      "category": "Doubao Agent",
+      "timeoutMs": 8000,
+      "execution": {
+        "type": "module.execute"
+      }
+    },
+    {
+      "id": "doubao-agent.tool.health",
+      "title": "Check Doubao tool runtime",
+      "subtitle": "Queries the tool runtime service on port 38080",
+      "kind": "action",
+      "category": "Doubao Agent",
+      "timeoutMs": 8000,
+      "execution": {
+        "type": "module.execute"
+      }
+    },
+    {
+      "id": "doubao-agent.mcp.health",
+      "title": "Check Doubao MCP bridge",
+      "subtitle": "Queries the MCP bridge service on port 38189",
+      "kind": "action",
+      "category": "Doubao Agent",
+      "timeoutMs": 8000,
+      "execution": {
+        "type": "module.execute"
+      }
+    },
+    {
+      "id": "doubao-agent.self-test",
+      "title": "Run Doubao controller self-test",
+      "subtitle": "Verifies data, cache, logs, settings, and redaction boundaries",
+      "kind": "action",
+      "category": "Doubao Agent",
+      "timeoutMs": 8000,
+      "execution": {
+        "type": "module.execute"
+      }
+    },
+    {
+      "id": "doubao-agent.logs.summary",
+      "title": "Summarize Doubao module logs",
+      "subtitle": "Reports Runner-managed log directory state",
+      "kind": "action",
+      "category": "Doubao Agent",
+      "timeoutMs": 8000,
+      "execution": {
+        "type": "module.execute"
       }
     },
     {

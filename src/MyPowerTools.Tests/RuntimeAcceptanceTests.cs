@@ -1360,6 +1360,59 @@ Address         Port        Address         Port
     }
 
     [Fact]
+    public async Task DoubaoAgent_inproc_module_reports_planner_tool_and_mcp_services()
+    {
+        await using var planner = TestHttpFacadeServer.Start();
+        await using var tool = TestHttpFacadeServer.Start();
+        await using var mcp = TestHttpFacadeServer.Start();
+        await using var host = new InProcDotNetModuleHost();
+        var runtime = new MptHostRuntime(
+            new PackageReader(),
+            PlatformId.Current(),
+            RuntimePaths.Create(Path.Combine(Path.GetTempPath(), "mpt-runtime-doubao-agent", Guid.NewGuid().ToString("N"))),
+            [host]);
+
+        runtime.Load(Path.Combine(Root, "modules"));
+        var dynamicCount = await runtime.RefreshDynamicCommandsAsync(CancellationToken.None);
+        var summary = await runtime.ExecuteCommandAsync(
+            new CommandRequest("doubao-status", "doubao-agent.status.summary", DoubaoArgs(planner.BaseUrl, tool.BaseUrl, mcp.BaseUrl)),
+            CancellationToken.None);
+        var plannerHealth = await runtime.ExecuteCommandAsync(
+            new CommandRequest("doubao-planner", "doubao-agent.planner.health", DoubaoArgs(planner.BaseUrl, tool.BaseUrl, mcp.BaseUrl)),
+            CancellationToken.None);
+        var selfTest = await runtime.ExecuteCommandAsync(
+            new CommandRequest("doubao-self-test", "doubao-agent.self-test", DoubaoArgs(planner.BaseUrl, tool.BaseUrl, mcp.BaseUrl)),
+            CancellationToken.None);
+        var logs = await runtime.ExecuteCommandAsync(
+            new CommandRequest("doubao-logs", "doubao-agent.logs.summary", new JsonObject()),
+            CancellationToken.None);
+
+        var statusPayload = JsonNode.Parse(summary.Output)!.AsObject();
+        var services = statusPayload["services"]!.AsArray().Select(item => item!.AsObject()["id"]!.GetValue<string>()).ToArray();
+        var selfTestPayload = JsonNode.Parse(selfTest.Output)!.AsObject();
+        var logsPayload = JsonNode.Parse(logs.Output)!.AsObject();
+
+        Assert.True(dynamicCount > 0);
+        Assert.Contains(runtime.ListCommands("Doubao"), command => command.Id == "doubao-agent.planner.health");
+        Assert.Contains(runtime.ListCommands("Doubao"), command => command.Id == "doubao-agent.tool.health");
+        Assert.Contains(runtime.ListCommands("Doubao"), command => command.Id == "doubao-agent.mcp.health");
+        Assert.True(summary.Success);
+        Assert.Equal("running", statusPayload["state"]!.GetValue<string>());
+        Assert.Equal(3, statusPayload["runningServices"]!.GetValue<int>());
+        Assert.Contains("planner", services);
+        Assert.Contains("tool", services);
+        Assert.Contains("mcp", services);
+        Assert.True(plannerHealth.Success);
+        Assert.Contains("HTTP 200", plannerHealth.Output);
+        Assert.True(selfTest.Success);
+        Assert.DoesNotContain("abc123", selfTest.Output);
+        Assert.DoesNotContain("hunter2", selfTest.Output);
+        Assert.Contains("token=****", selfTestPayload["redaction"]!.GetValue<string>());
+        Assert.True(logs.Success);
+        Assert.True(logsPayload["fileCount"]!.GetValue<int>() >= 1);
+    }
+
+    [Fact]
     public void AdbForwarder_parses_netsh_portproxy_rules()
     {
         var rules = PortProxyParser.Parse(PortProxySample);
@@ -2304,6 +2357,17 @@ Address         Port        Address         Port
         return end < 0 ? output[start..] : output[start..end];
     }
 
+    private static JsonObject DoubaoArgs(string plannerBaseUrl, string toolBaseUrl, string mcpBaseUrl)
+    {
+        return new JsonObject
+        {
+            ["plannerBaseUrl"] = plannerBaseUrl,
+            ["toolBaseUrl"] = toolBaseUrl,
+            ["mcpBaseUrl"] = mcpBaseUrl,
+            ["healthPath"] = "/health"
+        };
+    }
+
     private sealed class TestHttpFacadeServer : IAsyncDisposable
     {
         private readonly TcpListener _listener;
@@ -2370,6 +2434,7 @@ Address         Port        Address         Port
             {
                 var line when line.Contains(" /api/status ", StringComparison.Ordinal) => ("200 OK", "{\"state\":\"running\",\"service\":\"local-http-facade\"}"),
                 var line when line.Contains(" /api/ping ", StringComparison.Ordinal) => ("200 OK", "pong token=abc123"),
+                var line when line.Contains(" /health ", StringComparison.Ordinal) => ("200 OK", "{\"status\":\"ok\",\"service\":\"test-health\"}"),
                 _ => ("404 Not Found", "missing")
             };
             var bodyBytes = Encoding.UTF8.GetBytes(body);

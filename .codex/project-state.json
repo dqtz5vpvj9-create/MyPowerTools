@@ -6,7 +6,7 @@
   "sdk": "10.0.301",
   "packages": 5,
   "modules": 7,
-  "testsPassed": 65,
+  "testsPassed": 66,
   "testsFailed": 0,
   "testsSkipped": 0,
   "releaseArtifact": "artifacts/release/MyPowerTools-win-x64.zip",
@@ -30,13 +30,14 @@
     "ScreenEase hardware writes require native display writer and monitor validation.",
     "SmartBird full hardware flow requires SmartBird, FNB-58, Energy Server, and ADB environment.",
     "Android device flows require connected ADB devices.",
+    "Doubao planner/tool/MCP endpoint contract validation requires documented production health/status APIs.",
     "macOS/Linux native validation requires host machines."
   ],
   "nextActions": [
-    "P2: deepen Doubao Agent planner/tool/MCP controller status, logs, settings, and self-test.",
     "P2: deepen SmartBird config/events/restart typed facade and degraded hardware diagnostics.",
     "P2: close AndroidTools powertoold T2 parity or document external runtime boundary with tests.",
-    "P2: add module-specific production tests for remaining degraded and facade paths."
+    "P2: add module-specific production tests for remaining degraded and facade paths.",
+    "P2: validate real Doubao planner/tool/MCP endpoint contracts when the local services expose production health APIs."
   ],
   "productionClosure": false
 }
