@@ -17,7 +17,7 @@
         "entrypoints": [
           {
             "kind": "grpc-ipc",
-            "priority": 90,
+            "priority": 100,
             "command": "windows/x64/powertoold.exe",
             "platforms": [
               "windows-x64"
@@ -29,7 +29,7 @@
           },
           {
             "kind": "grpc-ipc",
-            "priority": 90,
+            "priority": 100,
             "command": "linux/x64/powertoold",
             "platforms": [
               "linux-x64"
@@ -41,7 +41,7 @@
           },
           {
             "kind": "grpc-ipc",
-            "priority": 90,
+            "priority": 100,
             "command": "macos/arm64/powertoold",
             "platforms": [
               "macos-arm64"

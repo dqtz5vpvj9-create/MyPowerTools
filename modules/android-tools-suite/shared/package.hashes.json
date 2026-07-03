@@ -3,11 +3,11 @@
   "Files": [
     {
       "Path": "AndroidTools.MyPowerTools.dll",
-      "Sha256": "eb06902aab37ab2d7faf11a780856fb90481fe0b49cedec91227393ba48cf453"
+      "Sha256": "ed74d9cc86d0871d2e73a3d06fd983a0777e299530af859d0584bab160e5b4c1"
     },
     {
       "Path": "AndroidTools.MyPowerTools.pdb",
-      "Sha256": "4ca1b20192280e4432b502e087849933abde5d11a23f654e973b2dad67fdf536"
+      "Sha256": "5a5d1f7bb90cc21cf2805d7af79d651820a2f2d09adf0d484235d85090bd6fa3"
     },
     {
       "Path": "modules/notifications/commands.index.json",
@@ -15,7 +15,7 @@
     },
     {
       "Path": "modules/notifications/module.json",
-      "Sha256": "68f3b7eb936fe8b0d851cd05d454b0c3c651dc737c39b7b7d1ec26fa9866a650"
+      "Sha256": "0f94c5285e625e7f5a5620c86bb5e2319762955c8a925907ce539f93fbc210db"
     },
     {
       "Path": "modules/notifications/settings.schema.json",
@@ -43,7 +43,7 @@
     },
     {
       "Path": "modules/process-monitor/module.json",
-      "Sha256": "bb18f336a8db3e89a562f0962903e664b7cbcaf4eea932c63550e63e8b528512"
+      "Sha256": "9ebabe275d7ecf8b278eabe8589a3eeaf94b5048d9e9a489ee1b85d7329caa09"
     },
     {
       "Path": "modules/process-monitor/settings.schema.json",
@@ -71,7 +71,7 @@
     },
     {
       "Path": "modules/remote-commands/module.json",
-      "Sha256": "712262ecb22cc19765d998345e1b40cf79a183ff8ecd1acd4d036525b546dbea"
+      "Sha256": "300b5f580095ed84f269586ebac8b77be80bfc52e270a282d4ae7a0ca83b7af0"
     },
     {
       "Path": "modules/remote-commands/settings.schema.json",
@@ -95,7 +95,7 @@
     },
     {
       "Path": "package.json",
-      "Sha256": "9dd5d16b51ddc58ff6ca0d18e1f4dc5cda55647130cd1583c78c18576b375f6e"
+      "Sha256": "3d0d21c187395534c057b3473bfbd0ae3547abbe7f6c535f5f40556aff09e5a8"
     },
     {
       "Path": "shared/powertool/commands.yaml",
@@ -104,6 +104,114 @@
     {
       "Path": "shared/powertool/simple_http_notification_conf.py",
       "Sha256": "fe86a90e3164db1aace85a6fdafe73633a9b6b980fa2c80c15b171b8e0567a5a"
+    },
+    {
+      "Path": "windows/x64/AndroidTools.MyPowerTools.dll",
+      "Sha256": "ed74d9cc86d0871d2e73a3d06fd983a0777e299530af859d0584bab160e5b4c1"
+    },
+    {
+      "Path": "windows/x64/AndroidTools.MyPowerTools.pdb",
+      "Sha256": "5a5d1f7bb90cc21cf2805d7af79d651820a2f2d09adf0d484235d85090bd6fa3"
+    },
+    {
+      "Path": "windows/x64/Google.Protobuf.dll",
+      "Sha256": "e0deb31c17ad585eaf844fdca5b19a774594813401cace58d30d5996ba094da2"
+    },
+    {
+      "Path": "windows/x64/Grpc.AspNetCore.Server.ClientFactory.dll",
+      "Sha256": "bc5a8b8cfa0ed3f8a4e655f9881d195d7a496749c9ec8b35455d55050b32f964"
+    },
+    {
+      "Path": "windows/x64/Grpc.AspNetCore.Server.dll",
+      "Sha256": "92877399509a0a2c991c9a8d41c49e051993b622fc6cbf8783e6898e7cadcedd"
+    },
+    {
+      "Path": "windows/x64/Grpc.Core.Api.dll",
+      "Sha256": "5674c1203706b5a261e8bbd3499147d94fc80b5f077bf45f9934ca28a9c8574b"
+    },
+    {
+      "Path": "windows/x64/Grpc.Net.Client.dll",
+      "Sha256": "f884d8444feb888656cbb7de87ee8f53a50811329bb32c6e7a7a81cb1de008ef"
+    },
+    {
+      "Path": "windows/x64/Grpc.Net.ClientFactory.dll",
+      "Sha256": "3702c5ba264d5d3066f92b9473588608a408458b824771d015ad3c3cb7df4bdd"
+    },
+    {
+      "Path": "windows/x64/Grpc.Net.Common.dll",
+      "Sha256": "fdff383bbd8e5015f3c4aaaa7508b769228f33c92ba14fec4e59d35c5d78e6ae"
+    },
+    {
+      "Path": "windows/x64/Humanizer.dll",
+      "Sha256": "2769ed8265b691a5482c72506ed274dc52446fa1641997a8c12c66f5b9263d39"
+    },
+    {
+      "Path": "windows/x64/Json.More.dll",
+      "Sha256": "80b6cd50331fa2ded4fbacdbf80dcedd2b142dee679df227c30299d2a3c3840f"
+    },
+    {
+      "Path": "windows/x64/JsonPointer.Net.dll",
+      "Sha256": "ab3e8236f02d8b5110d0bca4f640b1e8550728facfe740d65e0f4bd158c59f8f"
+    },
+    {
+      "Path": "windows/x64/JsonSchema.Net.dll",
+      "Sha256": "35566501866377862d1fd10ed9a0bbd31717c8c2e531ea83febec42255fd4745"
+    },
+    {
+      "Path": "windows/x64/MyPowerTools.Packaging.dll",
+      "Sha256": "bd5736c2edad66afc0c5247b3ef3f46c2226a88838cf1cb2fcb12ff5b4b62d9b"
+    },
+    {
+      "Path": "windows/x64/MyPowerTools.Packaging.pdb",
+      "Sha256": "de90798520a42a5e145d0e61eb878d5a8d9310fcdae0a82b8a6a15c30f8bf21a"
+    },
+    {
+      "Path": "windows/x64/MyPowerTools.Platform.Abstractions.dll",
+      "Sha256": "45be73f46bff8a1a5cd170cbac020706db5c9a4e87832c03e98eda087122943b"
+    },
+    {
+      "Path": "windows/x64/MyPowerTools.Platform.Abstractions.pdb",
+      "Sha256": "8eab5a2131fe261c187d46a3e40a0fd554c3ed2e3d9831b852bf10952fca0779"
+    },
+    {
+      "Path": "windows/x64/MyPowerTools.Protocol.dll",
+      "Sha256": "cd64e094d2140831f2541f3eb2741dc8803f6799e1537273219beeca55187bcc"
+    },
+    {
+      "Path": "windows/x64/MyPowerTools.Protocol.pdb",
+      "Sha256": "3a57111a9a891a83beb97b3a46b2be1b48edb077dfac7856910ab289d957ef84"
+    },
+    {
+      "Path": "windows/x64/MyPowerTools.Runtime.dll",
+      "Sha256": "274226255ecc3611480f945306c651ca94b4f90d9fb4fa2f8651341957e4958a"
+    },
+    {
+      "Path": "windows/x64/MyPowerTools.Runtime.pdb",
+      "Sha256": "c0eb3e8c8e08934aca58f9e2c828e21d27e9c0fb40c82b98aad0308ef2866416"
+    },
+    {
+      "Path": "windows/x64/powertoold.deps.json",
+      "Sha256": "f61a8d53de926913a436cc9574eee7397caf3610a96503dd7997c5ee31e0d0f0"
+    },
+    {
+      "Path": "windows/x64/powertoold.dll",
+      "Sha256": "bbbdc759977b535796741d1de602a876798ec80424c7f27b9593409f9b9596fe"
+    },
+    {
+      "Path": "windows/x64/powertoold.exe",
+      "Sha256": "6582ffae40c8942976d08bf2129d29c41fe3e33b7e555e3ac99d5923aee5487d"
+    },
+    {
+      "Path": "windows/x64/powertoold.pdb",
+      "Sha256": "0e7e74d51e018b303cce4a0cbe75ae347dca31ed67c59163d49ce4f232a6568a"
+    },
+    {
+      "Path": "windows/x64/powertoold.runtimeconfig.json",
+      "Sha256": "41442586a8262bc96a1c80f82f4d9384c03bfd465d221cbf01fb3563170f9e65"
+    },
+    {
+      "Path": "windows/x64/powertoold.staticwebassets.endpoints.json",
+      "Sha256": "eb6525c892afda953a2560f151f9c5e5bc6e79ef6741d886488ac450262c91e3"
     }
   ]
 }

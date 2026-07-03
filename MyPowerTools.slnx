@@ -2,6 +2,7 @@
   <Folder Name="/src/">
     <Project Path="src/AdbForwarder.MyPowerTools/AdbForwarder.MyPowerTools.csproj" />
     <Project Path="src/AndroidTools.MyPowerTools/AndroidTools.MyPowerTools.csproj" />
+    <Project Path="src/AndroidTools.Powertoold/AndroidTools.Powertoold.csproj" />
     <Project Path="src/DoubaoAgent.MyPowerTools/DoubaoAgent.MyPowerTools.csproj" />
     <Project Path="src/MyPowerTools.Broker/MyPowerTools.Broker.csproj" />
     <Project Path="src/MyPowerTools.Cli/MyPowerTools.Cli.csproj" />

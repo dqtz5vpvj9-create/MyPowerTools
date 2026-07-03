@@ -1,6 +1,8 @@
 using System.Diagnostics;
+using System.Globalization;
 using System.IO.Pipes;
 using System.Net.Sockets;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using Grpc.Core;
 using Grpc.Net.Client;
@@ -47,7 +49,7 @@ public sealed class GrpcIpcModuleHost : IAsyncDisposable
     public async Task InitializeModuleAsync(ModuleContext context, CancellationToken cancellationToken)
     {
         var client = EnsureClient();
-        var response = await client.InitializeAsync(new InitializeRequest
+        var initializeRequest = new InitializeRequest
         {
             HostVersion = context.HostVersion,
             ProtocolVersion = context.ProtocolVersion,
@@ -57,7 +59,10 @@ public sealed class GrpcIpcModuleHost : IAsyncDisposable
             CacheDir = context.CacheDirectory,
             LogDir = context.LogDirectory,
             Platform = context.Platform
-        }, cancellationToken: cancellationToken);
+        };
+        initializeRequest.GrantedCapabilities.AddRange(context.GrantedCapabilities);
+
+        var response = await client.InitializeAsync(initializeRequest, cancellationToken: cancellationToken);
 
         if (!response.Ok)
         {
@@ -101,12 +106,18 @@ public sealed class GrpcIpcModuleHost : IAsyncDisposable
     public async Task<CommandExecutionResult> ExecuteCommandAsync(string moduleId, CommandRequest request, CancellationToken cancellationToken)
     {
         var client = EnsureClient();
-        var response = await client.ExecuteCommandAsync(new ExecuteCommandRequest
+        var grpcRequest = new ExecuteCommandRequest
         {
             ModuleId = moduleId,
             CommandId = request.CommandId,
             InvocationId = request.InvocationId
-        }, cancellationToken: cancellationToken);
+        };
+        foreach (var argument in ToGrpcArgs(request.Args))
+        {
+            grpcRequest.Args[argument.Key] = argument.Value;
+        }
+
+        var response = await client.ExecuteCommandAsync(grpcRequest, cancellationToken: cancellationToken);
 
         return new CommandExecutionResult(
             response.InvocationId,
@@ -115,6 +126,47 @@ public sealed class GrpcIpcModuleHost : IAsyncDisposable
             response.Success,
             response.Output,
             response.Error is null ? null : new MptRuntimeError(response.Error.Code, response.Error.Message, response.Error.Retryable));
+    }
+
+    private static IEnumerable<KeyValuePair<string, string>> ToGrpcArgs(JsonObject args)
+    {
+        foreach (var argument in args)
+        {
+            if (argument.Value is null)
+            {
+                continue;
+            }
+
+            yield return new KeyValuePair<string, string>(argument.Key, JsonValueToString(argument.Value));
+        }
+    }
+
+    private static string JsonValueToString(JsonNode node)
+    {
+        if (node is JsonValue value)
+        {
+            if (value.TryGetValue<string>(out var stringValue))
+            {
+                return stringValue;
+            }
+
+            if (value.TryGetValue<bool>(out var boolValue))
+            {
+                return boolValue ? "true" : "false";
+            }
+
+            if (value.TryGetValue<long>(out var longValue))
+            {
+                return longValue.ToString(CultureInfo.InvariantCulture);
+            }
+
+            if (value.TryGetValue<double>(out var doubleValue))
+            {
+                return doubleValue.ToString(CultureInfo.InvariantCulture);
+            }
+        }
+
+        return node.ToJsonString(new JsonSerializerOptions { WriteIndented = false });
     }
 
     public string Describe(SelectedEntrypoint entrypoint)

@@ -1,0 +1,313 @@
+{
+  "runtimeTarget": {
+    "name": ".NETCoreApp,Version=v10.0",
+    "signature": ""
+  },
+  "compilationOptions": {},
+  "targets": {
+    ".NETCoreApp,Version=v10.0": {
+      "powertoold/1.0.0": {
+        "dependencies": {
+          "AndroidTools.MyPowerTools": "1.0.0",
+          "Grpc.AspNetCore": "2.80.0",
+          "MyPowerTools.Protocol": "1.0.0",
+          "MyPowerTools.Runtime": "1.0.0"
+        },
+        "runtime": {
+          "powertoold.dll": {}
+        }
+      },
+      "Google.Protobuf/3.35.1": {
+        "runtime": {
+          "lib/net5.0/Google.Protobuf.dll": {
+            "assemblyVersion": "3.35.1.0",
+            "fileVersion": "3.35.1.0"
+          }
+        }
+      },
+      "Grpc.AspNetCore/2.80.0": {
+        "dependencies": {
+          "Google.Protobuf": "3.35.1",
+          "Grpc.AspNetCore.Server.ClientFactory": "2.80.0"
+        }
+      },
+      "Grpc.AspNetCore.Server/2.80.0": {
+        "dependencies": {
+          "Grpc.Net.Common": "2.80.0"
+        },
+        "runtime": {
+          "lib/net10.0/Grpc.AspNetCore.Server.dll": {
+            "assemblyVersion": "2.0.0.0",
+            "fileVersion": "2.66.0.0"
+          }
+        }
+      },
+      "Grpc.AspNetCore.Server.ClientFactory/2.80.0": {
+        "dependencies": {
+          "Grpc.AspNetCore.Server": "2.80.0",
+          "Grpc.Net.ClientFactory": "2.80.0"
+        },
+        "runtime": {
+          "lib/net10.0/Grpc.AspNetCore.Server.ClientFactory.dll": {
+            "assemblyVersion": "2.0.0.0",
+            "fileVersion": "2.66.0.0"
+          }
+        }
+      },
+      "Grpc.Core.Api/2.80.0": {
+        "runtime": {
+          "lib/netstandard2.1/Grpc.Core.Api.dll": {
+            "assemblyVersion": "2.0.0.0",
+            "fileVersion": "2.66.0.0"
+          }
+        }
+      },
+      "Grpc.Net.Client/2.80.0": {
+        "dependencies": {
+          "Grpc.Net.Common": "2.80.0"
+        },
+        "runtime": {
+          "lib/net10.0/Grpc.Net.Client.dll": {
+            "assemblyVersion": "2.0.0.0",
+            "fileVersion": "2.66.0.0"
+          }
+        }
+      },
+      "Grpc.Net.ClientFactory/2.80.0": {
+        "dependencies": {
+          "Grpc.Net.Client": "2.80.0"
+        },
+        "runtime": {
+          "lib/net10.0/Grpc.Net.ClientFactory.dll": {
+            "assemblyVersion": "2.0.0.0",
+            "fileVersion": "2.66.0.0"
+          }
+        }
+      },
+      "Grpc.Net.Common/2.80.0": {
+        "dependencies": {
+          "Grpc.Core.Api": "2.80.0"
+        },
+        "runtime": {
+          "lib/net10.0/Grpc.Net.Common.dll": {
+            "assemblyVersion": "2.0.0.0",
+            "fileVersion": "2.66.0.0"
+          }
+        }
+      },
+      "Humanizer.Core/3.0.10": {
+        "runtime": {
+          "lib/net10.0/Humanizer.dll": {
+            "assemblyVersion": "3.0.0.0",
+            "fileVersion": "3.0.10.37104"
+          }
+        }
+      },
+      "Json.More.Net/3.0.1": {
+        "runtime": {
+          "lib/net10.0/Json.More.dll": {
+            "assemblyVersion": "3.0.0.0",
+            "fileVersion": "3.0.1.0"
+          }
+        }
+      },
+      "JsonPointer.Net/7.0.1": {
+        "dependencies": {
+          "Humanizer.Core": "3.0.10",
+          "Json.More.Net": "3.0.1"
+        },
+        "runtime": {
+          "lib/net10.0/JsonPointer.Net.dll": {
+            "assemblyVersion": "7.0.0.0",
+            "fileVersion": "7.0.1.0"
+          }
+        }
+      },
+      "JsonSchema.Net/9.2.2": {
+        "dependencies": {
+          "JsonPointer.Net": "7.0.1"
+        },
+        "runtime": {
+          "lib/net9.0/JsonSchema.Net.dll": {
+            "assemblyVersion": "9.0.0.0",
+            "fileVersion": "9.2.2.0"
+          }
+        }
+      },
+      "AndroidTools.MyPowerTools/1.0.0": {
+        "dependencies": {
+          "MyPowerTools.Protocol": "1.0.0",
+          "MyPowerTools.Runtime": "1.0.0"
+        },
+        "runtime": {
+          "AndroidTools.MyPowerTools.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      },
+      "MyPowerTools.Packaging/1.0.0": {
+        "dependencies": {
+          "JsonSchema.Net": "9.2.2",
+          "MyPowerTools.Platform.Abstractions": "1.0.0",
+          "MyPowerTools.Protocol": "1.0.0"
+        },
+        "runtime": {
+          "MyPowerTools.Packaging.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      },
+      "MyPowerTools.Platform.Abstractions/1.0.0": {
+        "runtime": {
+          "MyPowerTools.Platform.Abstractions.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      },
+      "MyPowerTools.Protocol/1.0.0": {
+        "dependencies": {
+          "Google.Protobuf": "3.35.1",
+          "Grpc.Core.Api": "2.80.0"
+        },
+        "runtime": {
+          "MyPowerTools.Protocol.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      },
+      "MyPowerTools.Runtime/1.0.0": {
+        "dependencies": {
+          "MyPowerTools.Packaging": "1.0.0",
+          "MyPowerTools.Platform.Abstractions": "1.0.0",
+          "MyPowerTools.Protocol": "1.0.0"
+        },
+        "runtime": {
+          "MyPowerTools.Runtime.dll": {
+            "assemblyVersion": "1.0.0.0",
+            "fileVersion": "1.0.0.0"
+          }
+        }
+      }
+    }
+  },
+  "libraries": {
+    "powertoold/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "Google.Protobuf/3.35.1": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-pxtkuXhR8svkvDTQrYew9GZQt6eWhblz/V/WKUFrQgkHYlQPsumJTeF6ppHRJpe6j9ffukkd5lQULiiKaek4xA==",
+      "path": "google.protobuf/3.35.1",
+      "hashPath": "google.protobuf.3.35.1.nupkg.sha512"
+    },
+    "Grpc.AspNetCore/2.80.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-ASbJbdtCUlGiKxe9NsN/QeG1PdibYoN0pEgP9U87cvS6HV0XsT+VdO/g2M6Ri8zZURfX5c7MBTaFVP/YCrC72A==",
+      "path": "grpc.aspnetcore/2.80.0",
+      "hashPath": "grpc.aspnetcore.2.80.0.nupkg.sha512"
+    },
+    "Grpc.AspNetCore.Server/2.80.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-lbK7z1sZP5imPdQ035f/CZ61iIaBWouY6A580E9JNo7vzXYX/Qo+GQtSjOzhP9VFbxk7mtLoMhn/v1fT2U7kTw==",
+      "path": "grpc.aspnetcore.server/2.80.0",
+      "hashPath": "grpc.aspnetcore.server.2.80.0.nupkg.sha512"
+    },
+    "Grpc.AspNetCore.Server.ClientFactory/2.80.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-7JdfxQZv/pO9qU5Ild2mrkzYA7PmVGDKVmWqKVCZNRSDN/RluRN4S4utYgBSwAcYgUBWQDHNb1Ll7wm3BdHfqw==",
+      "path": "grpc.aspnetcore.server.clientfactory/2.80.0",
+      "hashPath": "grpc.aspnetcore.server.clientfactory.2.80.0.nupkg.sha512"
+    },
+    "Grpc.Core.Api/2.80.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-i/8s+MOrYa6n7BmZ5bilcbHk+EMJDQHm2MKLhwGAT+urQqlZ6cpjvSivYvuULjebuX+UKieLYZbLRCmVQxFRkw==",
+      "path": "grpc.core.api/2.80.0",
+      "hashPath": "grpc.core.api.2.80.0.nupkg.sha512"
+    },
+    "Grpc.Net.Client/2.80.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-I1Aa24nTRMHqx0pmQfvthFsOpejquDjiJV6092KBqjw6EEr3wA9CMXlrdkoEgHartOiJrpKyZiQRl7n0NVlfBg==",
+      "path": "grpc.net.client/2.80.0",
+      "hashPath": "grpc.net.client.2.80.0.nupkg.sha512"
+    },
+    "Grpc.Net.ClientFactory/2.80.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-YtY1DWID2phwiGc8qBG7+wf00Do5jE7BkJgCc6nbu5b50OsD89mSd73oCE8fCnUo7IjtDAEYFOYI3NSzgn28gw==",
+      "path": "grpc.net.clientfactory/2.80.0",
+      "hashPath": "grpc.net.clientfactory.2.80.0.nupkg.sha512"
+    },
+    "Grpc.Net.Common/2.80.0": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-E2ERsx+9IXlry4yjBl8btx0XMIKzymGNSvX5jmBS/uSwYyYDoKIDcIREyLqFLvd8vcJdcoRlycpvn9YRXutFpQ==",
+      "path": "grpc.net.common/2.80.0",
+      "hashPath": "grpc.net.common.2.80.0.nupkg.sha512"
+    },
+    "Humanizer.Core/3.0.10": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-yZIhtw8sYuvsONzQbZxWpR60tMWYHXoo0DL6nyOqSFiU5POjBTSEyWFpTQtJEZuy+oqiYTXKXY/Mjx7KnqIQFw==",
+      "path": "humanizer.core/3.0.10",
+      "hashPath": "humanizer.core.3.0.10.nupkg.sha512"
+    },
+    "Json.More.Net/3.0.1": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-fRctF2J2SILYG6wqP21drmeEODmCVkVQ/b3MndDu2fT1swfySyUgq7ePCk+aENGlDcIm05fyfjh9vcuqDEfv3w==",
+      "path": "json.more.net/3.0.1",
+      "hashPath": "json.more.net.3.0.1.nupkg.sha512"
+    },
+    "JsonPointer.Net/7.0.1": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-5C497yxfktYFsqxKG+GUQPsMvBqIjzLkqtDEdMGsnBpl3/OB8DOvTo7LEyRX7AVc1kVVj0IX5zhmLrlbvAYEnw==",
+      "path": "jsonpointer.net/7.0.1",
+      "hashPath": "jsonpointer.net.7.0.1.nupkg.sha512"
+    },
+    "JsonSchema.Net/9.2.2": {
+      "type": "package",
+      "serviceable": true,
+      "sha512": "sha512-S65LahlS1jA1cVshtBx7lnFPbQoTgZ4QdHX8fZ94VwUBlMQ9IvA2bu4ElUdrdu0VrJImMCxs5rpyybcvsrnmRA==",
+      "path": "jsonschema.net/9.2.2",
+      "hashPath": "jsonschema.net.9.2.2.nupkg.sha512"
+    },
+    "AndroidTools.MyPowerTools/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "MyPowerTools.Packaging/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "MyPowerTools.Platform.Abstractions/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "MyPowerTools.Protocol/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    },
+    "MyPowerTools.Runtime/1.0.0": {
+      "type": "project",
+      "serviceable": false,
+      "sha512": ""
+    }
+  }
+}

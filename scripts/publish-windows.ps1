@@ -44,6 +44,7 @@ New-Item -ItemType Directory -Path $PublishRoot -Force | Out-Null
 
 dotnet build src\AdbForwarder.MyPowerTools\AdbForwarder.MyPowerTools.csproj -c Release
 dotnet build src\AndroidTools.MyPowerTools\AndroidTools.MyPowerTools.csproj -c Release
+dotnet build src\AndroidTools.Powertoold\AndroidTools.Powertoold.csproj -c Release
 dotnet build src\DoubaoAgent.MyPowerTools\DoubaoAgent.MyPowerTools.csproj -c Release
 dotnet build src\ScreenEase.MyPowerTools\ScreenEase.MyPowerTools.csproj -c Release
 dotnet build src\SmartBirdThermostat.MyPowerTools\SmartBirdThermostat.MyPowerTools.csproj -c Release

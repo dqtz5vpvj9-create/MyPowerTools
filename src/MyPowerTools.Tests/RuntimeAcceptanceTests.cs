@@ -1273,10 +1273,10 @@ Address         Port        Address         Port
     }
 
     [Fact]
-    public async Task AndroidTools_imports_powertool_commands_and_executes_text_tool()
+    public async Task AndroidTools_powertoold_imports_powertool_commands_and_executes_text_tool()
     {
-        await using var host = new InProcDotNetModuleHost();
-        var runtime = new MptHostRuntime(
+        await using var host = new GrpcIpcModuleRuntime();
+        await using var runtime = new MptHostRuntime(
             new PackageReader(),
             PlatformId.Current(),
             RuntimePaths.Create(Path.Combine(Path.GetTempPath(), "mpt-runtime-android-tools", Guid.NewGuid().ToString("N"))),
@@ -1294,6 +1294,8 @@ Address         Port        Address         Port
             }),
             CancellationToken.None);
         var output = JsonNode.Parse(transform.Output)!.AsObject()["output"]!.GetValue<string>();
+        var diagnostics = runtime.GetRuntimeDiagnostics();
+        var process = Assert.Single(diagnostics.Processes.Where(process => process.TransportKind == "grpc-ipc"));
 
         Assert.True(dynamicCount > 0);
         Assert.Contains(runtime.ListCommands("Remove C++"), command => command.Id == "android-tools.remote-commands.run.remove_comments");
@@ -1302,13 +1304,17 @@ Address         Port        Address         Port
         Assert.True(transform.Success);
         Assert.DoesNotContain("remove me", output);
         Assert.Contains("// keep me", output);
+        Assert.Equal("package:android-tools-suite:runtime:powertoold", process.PoolKey);
+        Assert.Contains("android-tools.notifications", process.ModuleIds);
+        Assert.Contains("android-tools.process-monitor", process.ModuleIds);
+        Assert.Contains("android-tools.remote-commands", process.ModuleIds);
     }
 
     [Fact]
-    public async Task AndroidTools_process_monitor_persists_shared_watch_list()
+    public async Task AndroidTools_powertoold_process_monitor_persists_shared_watch_list()
     {
-        await using var host = new InProcDotNetModuleHost();
-        var runtime = new MptHostRuntime(
+        await using var host = new GrpcIpcModuleRuntime();
+        await using var runtime = new MptHostRuntime(
             new PackageReader(),
             PlatformId.Current(),
             RuntimePaths.Create(Path.Combine(Path.GetTempPath(), "mpt-runtime-android-process", Guid.NewGuid().ToString("N"))),
@@ -1332,6 +1338,9 @@ Address         Port        Address         Port
         Assert.True(summary.Success);
         Assert.Contains("dotnet", configured);
         Assert.Contains("pwsh", configured);
+        Assert.Contains(runtime.GetRuntimeDiagnostics().Processes, process =>
+            process.PoolKey == "package:android-tools-suite:runtime:powertoold" &&
+            process.ModuleIds.Contains("android-tools.process-monitor"));
     }
 
     [Fact]

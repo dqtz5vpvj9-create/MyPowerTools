@@ -39,10 +39,11 @@ The active objective is to turn MyPowerTools into a production-grade PowerToys-s
 - Replaced `mpt ui snapshot` placeholder output with deterministic UI contract and PNG pixel snapshots. The command scans module surfaces and writes a manifest plus per-surface `.snapshot.json` and `.snapshot.png` files containing layout, components, states, theme, density, size, source SHA256, pixel SHA256, dimensions, unique-color counts, and nonblank pixel counts.
 - Added `AndroidTools.MyPowerTools` as a production shared InProc facade for the three AndroidTools modules. It imports packaged powertool `commands.yaml`, generates dynamic Remote Commands, executes migrated text tools, tracks shared command history, imports notification endpoint config, probes the notification server, and persists/scans the Process Monitor watch list.
 - Added package-shared AndroidTools `commands.yaml` and default notification endpoint config so release artifacts do not depend on the legacy source checkout for these defaults.
+- Added `AndroidTools.Powertoold` as the package-shared T2 gRPC IPC sidecar for the three AndroidTools modules, with `package-runtime:100` priority, command argument forwarding through ModuleControl `args`, shared process diagnostics, and release packaging under `modules/android-tools-suite/windows/x64/powertoold.exe`.
 - Added `IDisplayService` to platform abstractions plus Windows monitor enumeration and macOS/Linux degraded providers.
 - Added `ScreenEase.MyPowerTools` as a production InProc module with dynamic status, display enumeration, profile list/plan/apply/save, and rule status commands. Profile apply persists the active profile and returns `native-host-required` for hardware brightness/color-temperature writes until the native display writer is installed.
 - Updated `InProcDotNetModuleHost` to resolve module-local dependency DLLs from the module directory, then updated ScreenEase packaging to copy required platform assemblies.
-- Updated `scripts/publish-windows.ps1` to build AdbForwarder, AndroidTools, and ScreenEase module assemblies, refresh package hashes, and clean `artifacts\release\win-x64` before copying modules into the release zip.
+- Updated `scripts/publish-windows.ps1` to build AdbForwarder, AndroidTools, AndroidTools.Powertoold, and ScreenEase module assemblies, refresh package hashes, and clean `artifacts\release\win-x64` before copying modules into the release zip.
 - Added real static command indexes for Doubao Agent, SmartBird Thermostat, ScreenEase, AdbForwarder, and AndroidTools submodules.
 - Refreshed `shared/package.hashes.json` for all 5 production package roots.
 - Added `scripts/smoke.ps1`, `scripts/publish-windows.ps1`, and `CHANGELOG.md`.
@@ -94,13 +95,13 @@ The active objective is to turn MyPowerTools into a production-grade PowerToys-s
 - Package trust: `dotnet run --project src\MyPowerTools.Cli -- package trust modules --strict` reports `signature-hook` for all 5 production packages.
 - Module state CLI: `dotnet run --project src\MyPowerTools.Cli -- module list --include-disabled` lists all 7 modules with enabled/disabled state.
 - Module inspection CLI: `dotnet run --project src\MyPowerTools.Cli -- inspect modules` lists capabilities, required/optional capability requirements, `apply-portproxy` broker permission, and `restart-service` broker permission.
-- Runtime diagnostics CLI: `dotnet run --project src\MyPowerTools.Cli -- diagnostics` reports Runner `0.2.0`, protocols `1.0`, 5 packages, 7 modules, 79 commands, paths, transports, per-module state, active sidecar process rows, restart policy, policy expiry, and process policy history when a gRPC runtime pool has policy activity.
+- Runtime diagnostics CLI: `dotnet run --project src\MyPowerTools.Cli -- diagnostics` reports Runner `0.2.0`, protocols `1.0`, 5 packages, 7 modules, 79 commands, paths, transports, per-module state, and AndroidTools `grpc-ipc` process pool `package:android-tools-suite:runtime:powertoold` with all three AndroidTools modules.
 - UI gate: `dotnet run --project src\MyPowerTools.Cli -- ui check modules` passed.
 - UI snapshots: `dotnet run --project src\MyPowerTools.Cli -- ui snapshot --surface dashboard-card --theme light --size 1366x768 --density normal --out artifacts\ui-snapshots` wrote 7 contract snapshots and 7 PNG pixel snapshots; first PNG reported 21 unique colors and 876888 non-background pixels.
 - Shell UI snapshots: `dotnet run --project src\MyPowerTools.Cli -- ui shell-snapshot --theme light --size 1366x768 --density normal --out artifacts\shell-ui-snapshots` wrote 10 Shell surface snapshots and 10 PNG pixel snapshots covering 8 required Shell surfaces.
 - Runner autostart: `dotnet run --project src\MyPowerTools.Cli -- runner autostart status` reports the current HKCU Run state through `AutostartBroker`; `dotnet run --project src\MyPowerTools.Cli -- runner autostart enable --dry-run` prints the resolved Runner command without registry writes.
 - Template validation: `pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\validate-templates.ps1` passed for 6 templates.
-- Runner snapshot: `dotnet run --project src\MyPowerTools.Runner -- --once` indexed 7 modules. AdbForwarder, AndroidTools Notifications, and AndroidTools Remote Commands are runnable; Doubao Agent is degraded with 1/3 services reachable; AndroidTools Process Monitor is degraded until a watch list is saved; ScreenEase is degraded until its native display writer is available; SmartBird is degraded until Energy Server and FNB-58 are configured.
+- Runner snapshot: `dotnet run --project src\MyPowerTools.Runner -- --once` indexed 7 modules. AdbForwarder, AndroidTools Notifications, and AndroidTools Remote Commands are runnable; AndroidTools modules use powertoold when the packaged sidecar command exists; Doubao Agent is degraded with 1/3 services reachable; AndroidTools Process Monitor is degraded until a watch list is saved; ScreenEase is degraded until its native display writer is available; SmartBird is degraded until Energy Server and FNB-58 are configured.
 - Command execution:
   - `dotnet run --project src\MyPowerTools.Cli -- run adb-forwarder.diagnostics.summary` returned redacted ADB and Windows portproxy diagnostics.
   - `dotnet run --project src\MyPowerTools.Cli -- run adb-forwarder.portproxy.plan` returned structured current Windows portproxy state, default empty desired mappings, warnings, and no planned changes.
@@ -121,16 +122,16 @@ The active objective is to turn MyPowerTools into a production-grade PowerToys-s
 - Published CLI secret self-test: release `Cli\MyPowerTools.Cli.exe broker secret self-test --module cli.secret-self-test --name self-test-release-codex` passed through Windows Credential Manager, verified round-trip read, deleted the secret, and printed no secret value.
 - Published CLI permission inspection: release `Cli\MyPowerTools.Cli.exe inspect modules` printed module capabilities, required/optional capability requirements, `apply-portproxy`, and `restart-service` broker permissions.
 - Published package trust verification: release `Cli\MyPowerTools.Cli.exe package trust artifacts\release\win-x64\modules --strict` reported `signature-hook` for all 5 production packages.
-- Release artifact: `artifacts/release/MyPowerTools-win-x64.zip` was rebuilt on 2026-07-03; SHA256 `AEF78FD0AC90441B336F5816A944919FF9297D0413EECA3B268F1C511DB5CCFA`; size 169676161 bytes.
+- Release artifact: `artifacts/release/MyPowerTools-win-x64.zip` was rebuilt on 2026-07-04; SHA256 `FC79EEC5976F26ED7CA3F509AD2C070F1981057261BA2B199F33175B99C5D802`; size 171364183 bytes.
 - Release notes: `artifacts/release/RELEASE_NOTES.md` generated with artifact hash, size, verification commands, and external requirements.
 - Portable install dry-run: `pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\install-windows.ps1 -PackageRoot artifacts\release\win-x64 -InstallDir artifacts\install-dryrun -DryRun` succeeded.
 - Portable uninstall dry-run: `pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\uninstall-windows.ps1 -InstallDir artifacts\install-dryrun -DryRun -Force` succeeded.
 
 ## Next Highest-Value Work
 
-1. Continue P2 by closing AndroidTools `powertoold` T2 parity or documenting the runtime boundary with tests.
-2. Implement ScreenEase native display writer for brightness/color-temperature hardware changes and wire it behind `IDisplayService.ApplyProfileAsync`.
-3. Validate SmartBird against real Energy Server and FNB-58 hardware when those services are available.
+1. Implement ScreenEase native display writer for brightness/color-temperature hardware changes and wire it behind `IDisplayService.ApplyProfileAsync`.
+2. Validate SmartBird against real Energy Server and FNB-58 hardware when those services are available.
+3. Validate real Doubao planner/tool/MCP endpoint contracts when production health APIs are available.
 4. Add module-specific deep editors for AndroidTools, AdbForwarder, ScreenEase, Doubao Agent, and SmartBird on top of the generic Shell pages.
 5. Add signed MSI/MSIX or package-manager distribution metadata.
 

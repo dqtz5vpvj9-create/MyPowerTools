@@ -14,7 +14,7 @@
     },
     {
       "kind": "package-runtime",
-      "priority": 90,
+      "priority": 100,
       "runtimeId": "powertoold",
       "service": "android_tools.notifications.v1.NotificationsModule"
     },

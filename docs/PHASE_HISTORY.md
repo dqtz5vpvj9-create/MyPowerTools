@@ -102,3 +102,35 @@ Remaining P2 work:
 - ScreenEase native display writer validation remains external/native-host work.
 - SmartBird full Energy Server/FNB-58 hardware validation remains external.
 - Real Doubao planner/tool/MCP endpoint contracts need validation against production local services.
+
+### P2 Module Runtime And Existing Tools Production Closure
+
+Status: partial, progressed.
+
+Actions:
+- Added `src/AndroidTools.Powertoold`, a production gRPC IPC sidecar for the package-shared AndroidTools runtime.
+- Wired `android-tools.notifications`, `android-tools.remote-commands`, and `android-tools.process-monitor` to prefer `package-runtime:100` while retaining the existing InProc fallback.
+- Updated `GrpcIpcModuleHost` to forward `CommandRequest.Args` through the module protocol `args` map so T2 commands receive text input, booleans, and JSON array payloads.
+- Added AndroidTools powertoold acceptance coverage for imported command execution, C++ comment removal, shared gRPC process diagnostics, and process watch-list persistence.
+- Updated `scripts/publish-windows.ps1` so release packages include `modules/android-tools-suite/windows/x64/powertoold.exe` and its runtime dependencies.
+- Rebuilt the Windows portable release zip.
+
+Validation:
+- `dotnet build MyPowerTools.slnx --no-restore` succeeded with 0 warnings and 0 errors.
+- `dotnet test MyPowerTools.slnx --no-build` passed 68 tests, 0 failed, 0 skipped.
+- `dotnet run --project src\MyPowerTools.Cli -- validate modules` passed for 5 packages.
+- `dotnet run --project src\MyPowerTools.Cli -- validate contracts` passed for 5 packages and 7 modules; AndroidTools notifications and remote commands are running through powertoold, and process monitor reports its watch-list degraded state.
+- `dotnet run --project src\MyPowerTools.Cli -- diagnostics` reported `grpc-ipc` process pool `package:android-tools-suite:runtime:powertoold` with all three AndroidTools modules.
+- `dotnet run --project src\MyPowerTools.Cli -- inspect modules` showed AndroidTools modules with `package-runtime:100`.
+- `dotnet run --project src\MyPowerTools.Cli -- package trust modules --strict` reported `signature-hook` for all 5 production packages.
+- `dotnet run --project src\MyPowerTools.Runner -- --once` indexed 7 modules and reported AndroidTools powertoold-backed states.
+- `pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\publish-windows.ps1` rebuilt `artifacts/release/MyPowerTools-win-x64.zip` with SHA256 `FC79EEC5976F26ED7CA3F509AD2C070F1981057261BA2B199F33175B99C5D802`.
+- `artifacts\release\win-x64\Runner\MyPowerTools.Runner.exe --once --data-root artifacts\release-root-once-data-p2-powertoold` indexed 7 modules from the release root and started AndroidTools powertoold.
+- Release Shell smoke connected to Runner 0.2.0, reported 7 modules, 7 dashboard cards, 79 commands, and requested Runner shutdown.
+- Install and uninstall dry-runs passed for `artifacts\release\win-x64`.
+
+Remaining P2 work:
+- ScreenEase native display writer validation remains external/native-host work.
+- SmartBird full Energy Server/FNB-58 hardware validation remains external.
+- Real Doubao planner/tool/MCP endpoint contracts need validation against production local services.
+- Android device notification and command end-to-end flows need connected devices/services for external validation.
