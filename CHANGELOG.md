@@ -42,3 +42,5 @@
 - Added HostControl package lifecycle operations for install, repair, uninstall, and rollback, wired them into the Shell Packages page, and excluded `.rollback` package backups from active runtime discovery.
 - Added Shell HostControl event stream consumption with sequence resume, duplicate replay filtering, fault reporting, reconnect, and event-driven Shell page refresh.
 - Added Doubao Agent InProc controller module with planner/tool/MCP port health separation, self-test, log summary, runtime settings schema, and degraded status for partial runtime availability.
+- Added SmartBird Thermostat InProc typed facade with HTTP status/events/config/log probes, brokered restart request details, settings schema, bounded event output, local path redaction, and degraded Energy Server/FNB-58/ADB diagnostics.
+- Hardened `LogRouter` concurrent append behavior for parallel CLI/runtime command probes.

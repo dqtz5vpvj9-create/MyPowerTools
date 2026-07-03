@@ -791,6 +791,19 @@ Address         Port        Address         Port
     }
 
     [Fact]
+    public void Log_router_allows_parallel_append_to_same_module_file()
+    {
+        var router = new LogRouter(Path.Combine(Path.GetTempPath(), "mpt-log-parallel-test", Guid.NewGuid().ToString("N")));
+
+        Parallel.For(0, 40, index => router.Append("pkg", "runner", "info", $"message={index}", $"invocation-{index}"));
+
+        var records = router.Tail("runner", 100);
+        Assert.Equal(40, records.Count);
+        Assert.Contains(records, record => record.InvocationId == "invocation-0");
+        Assert.Contains(records, record => record.InvocationId == "invocation-39");
+    }
+
+    [Fact]
     public async Task Inproc_sample_module_executes_command()
     {
         _ = typeof(SampleDotNetModule).Assembly;
@@ -1408,6 +1421,81 @@ Address         Port        Address         Port
         Assert.DoesNotContain("abc123", selfTest.Output);
         Assert.DoesNotContain("hunter2", selfTest.Output);
         Assert.Contains("token=****", selfTestPayload["redaction"]!.GetValue<string>());
+        Assert.True(logs.Success);
+        Assert.True(logsPayload["fileCount"]!.GetValue<int>() >= 1);
+    }
+
+    [Fact]
+    public async Task SmartBird_inproc_module_reports_facade_config_and_hardware_degradation()
+    {
+        await using var server = TestHttpFacadeServer.Start();
+        await using var host = new InProcDotNetModuleHost();
+        var runtime = new MptHostRuntime(
+            new PackageReader(),
+            PlatformId.Current(),
+            RuntimePaths.Create(Path.Combine(Path.GetTempPath(), "mpt-runtime-smartbird", Guid.NewGuid().ToString("N"))),
+            [host]);
+
+        runtime.Load(Path.Combine(Root, "modules"));
+        var dynamicCount = await runtime.RefreshDynamicCommandsAsync(CancellationToken.None);
+        var status = await runtime.ExecuteCommandAsync(
+            new CommandRequest("smartbird-status", "smartbird-thermostat.status.summary", SmartBirdArgs(server.BaseUrl)),
+            CancellationToken.None);
+        var events = await runtime.ExecuteCommandAsync(
+            new CommandRequest("smartbird-events", "smartbird-thermostat.events.list", SmartBirdArgs(server.BaseUrl)),
+            CancellationToken.None);
+        var configSave = await runtime.ExecuteCommandAsync(
+            new CommandRequest("smartbird-config-save", "smartbird-thermostat.config.save", new JsonObject
+            {
+                ["targetTemperatureC"] = 52,
+                ["pollIntervalSeconds"] = 45
+            }),
+            CancellationToken.None);
+        var config = await runtime.ExecuteCommandAsync(
+            new CommandRequest("smartbird-config-get", "smartbird-thermostat.config.get", SmartBirdArgs(server.BaseUrl)),
+            CancellationToken.None);
+        var diagnostics = await runtime.ExecuteCommandAsync(
+            new CommandRequest("smartbird-hardware", "smartbird-thermostat.hardware.diagnostics", SmartBirdArgs(server.BaseUrl)),
+            CancellationToken.None);
+        var restart = await runtime.ExecuteCommandAsync(
+            new CommandRequest("smartbird-restart", "smartbird-thermostat.service.restart", SmartBirdArgs(server.BaseUrl)),
+            CancellationToken.None);
+        var selfTest = await runtime.ExecuteCommandAsync(
+            new CommandRequest("smartbird-self-test", "smartbird-thermostat.self-test", SmartBirdArgs(server.BaseUrl)),
+            CancellationToken.None);
+        var logs = await runtime.ExecuteCommandAsync(
+            new CommandRequest("smartbird-logs", "smartbird-thermostat.logs.summary", SmartBirdArgs(server.BaseUrl)),
+            CancellationToken.None);
+
+        var statusPayload = JsonNode.Parse(status.Output)!.AsObject();
+        var statusChecks = statusPayload["checks"]!.AsArray().Select(item => item!.AsObject()).ToArray();
+        var eventPayload = JsonNode.Parse(events.Output)!.AsObject();
+        var configPayload = JsonNode.Parse(config.Output)!.AsObject();
+        var diagnosticsPayload = JsonNode.Parse(diagnostics.Output)!.AsObject();
+        var restartDetails = restart.Error!.Details!;
+        var logsPayload = JsonNode.Parse(logs.Output)!.AsObject();
+
+        Assert.True(dynamicCount > 0);
+        Assert.Contains(runtime.ListCommands("SmartBird"), command => command.Id == "smartbird-thermostat.events.list");
+        Assert.Contains(runtime.ListCommands("SmartBird"), command => command.Id == "smartbird-thermostat.hardware.diagnostics");
+        Assert.True(status.Success);
+        Assert.Equal("degraded", statusPayload["state"]!.GetValue<string>());
+        Assert.Contains(statusChecks, check => check["id"]!.GetValue<string>() == "smartbird.status" && check["ok"]!.GetValue<bool>());
+        Assert.Contains(statusChecks, check => check["id"]!.GetValue<string>() == "energy-server.status" && check["ok"]!.GetValue<bool>());
+        Assert.Contains(statusChecks, check => check["id"]!.GetValue<string>() == "fnb58.power-meter" && !check["ok"]!.GetValue<bool>());
+        Assert.True(events.Success);
+        Assert.Single(eventPayload["events"]!.AsArray());
+        Assert.True(configSave.Success);
+        Assert.True(config.Success);
+        Assert.Equal(52, configPayload["localConfig"]!.AsObject()["targetTemperatureC"]!.GetValue<double>());
+        Assert.True(diagnostics.Success);
+        Assert.Equal("degraded", diagnosticsPayload["state"]!.GetValue<string>());
+        Assert.False(restart.Success);
+        Assert.Equal("permission-required", restart.State);
+        Assert.Equal("ServiceBroker", restartDetails["broker"]!.GetValue<string>());
+        Assert.True(selfTest.Success);
+        Assert.DoesNotContain("abc123", selfTest.Output);
+        Assert.Contains("token=****", selfTest.Output);
         Assert.True(logs.Success);
         Assert.True(logsPayload["fileCount"]!.GetValue<int>() >= 1);
     }
@@ -2368,6 +2456,17 @@ Address         Port        Address         Port
         };
     }
 
+    private static JsonObject SmartBirdArgs(string baseUrl)
+    {
+        return new JsonObject
+        {
+            ["baseUrl"] = baseUrl,
+            ["energyServerBaseUrl"] = baseUrl,
+            ["adbPath"] = "adb-missing-for-smartbird-test",
+            ["fnb58Port"] = ""
+        };
+    }
+
     private sealed class TestHttpFacadeServer : IAsyncDisposable
     {
         private readonly TcpListener _listener;
@@ -2433,6 +2532,9 @@ Address         Port        Address         Port
             var (status, body) = firstLine switch
             {
                 var line when line.Contains(" /api/status ", StringComparison.Ordinal) => ("200 OK", "{\"state\":\"running\",\"service\":\"local-http-facade\"}"),
+                var line when line.Contains(" /api/events ", StringComparison.Ordinal) => ("200 OK", "{\"events\":[{\"id\":\"evt-1\",\"level\":\"info\",\"message\":\"temperature stable\"}]}"),
+                var line when line.Contains(" /api/logs ", StringComparison.Ordinal) => ("200 OK", "{\"records\":[{\"level\":\"info\",\"message\":\"smartbird log ready\"}]}"),
+                var line when line.Contains(" /api/config ", StringComparison.Ordinal) => ("200 OK", "{\"targetTemperatureC\":45,\"policy\":\"balanced\"}"),
                 var line when line.Contains(" /api/ping ", StringComparison.Ordinal) => ("200 OK", "pong token=abc123"),
                 var line when line.Contains(" /health ", StringComparison.Ordinal) => ("200 OK", "{\"status\":\"ok\",\"service\":\"test-health\"}"),
                 _ => ("404 Not Found", "missing")

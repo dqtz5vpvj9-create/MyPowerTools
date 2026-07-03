@@ -7,6 +7,17 @@
   "moduleSdk": "1.0",
   "entrypoints": [
     {
+      "kind": "inproc-dotnet",
+      "priority": 100,
+      "assembly": "SmartBirdThermostat.MyPowerTools.dll",
+      "type": "SmartBirdThermostat.MyPowerTools.SmartBirdThermostatModule",
+      "platforms": [
+        "windows",
+        "linux",
+        "macos"
+      ]
+    },
+    {
       "kind": "grpc-ipc",
       "priority": 80,
       "command": "smartbird-thermostat-facade",

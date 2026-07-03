@@ -11,7 +11,7 @@ This file separates true external blockers from internal phase gaps. External bl
 | Administrator context or elevated helper for live Windows portproxy writes | P3 | `adb-forwarder.portproxy.apply` correctly returns `permission-required` in normal user context; NetworkBroker tests cover rollback and brokered execution paths. | Administrator token, UAC/helper service packaging, or signed elevated helper. |
 | Private signing material for production package/installer signing | P6 | Local trust hook exists; release uses local signature metadata. | Code-signing/private package signing key or signing service. |
 | Hardware validation for display writes | P2, P7 | ScreenEase reports `native-host-required` for brightness/color-temperature writes while status/profile paths work. | Native display writer and monitor hardware validation environment. |
-| SmartBird hardware/service ecosystem validation | P2 | SmartBird HTTP facade health path exists; deeper hardware paths depend on local SmartBird, FNB-58, Energy Server, and ADB setup. | Connected devices and local services. |
+| SmartBird hardware/service ecosystem validation | P2 | SmartBird InProc typed facade reads HTTP status/events/config/logs, returns brokered restart details, and reports current degraded Energy Server/FNB-58 state. | Connected SmartBird device, FNB-58 meter, Energy Server, and ADB services. |
 | ADB device validation beyond diagnostics | P2 | AdbForwarder diagnostics and AndroidTools facade paths run; device-specific flows depend on local Android devices. | Connected ADB devices and expected local commands. |
 | Doubao planner/tool/MCP endpoint contract validation | P2 | InProc controller checks ports 38102, 38080, and 38189 separately; current local services expose 404 on planner/tool health paths and 200 on MCP. | Running Doubao services with documented production health/status APIs for each role. |
 | Native macOS/Linux runtime validation | P7 | macOS/Linux projects compile with degraded providers; native runtime/smoke validation has not run on those OS hosts. | macOS and Linux validation hosts. |
@@ -21,7 +21,6 @@ This file separates true external blockers from internal phase gaps. External bl
 | Gap | Phase | Current Evidence | Next Work |
 |---|---|---|---|
 | AndroidTools long-running `powertoold` T2 parity | P2 | Current shared InProc facade imports commands, checks notifications, and scans process watch lists. | Add or finish shared gRPC sidecar streaming/polling parity where needed. |
-| SmartBird deeper typed facade coverage | P2 | Current module has HTTP health facade and surfaces. | Add config/events/restart and degraded hardware diagnostics. |
 | Shell keyboard and interactive visual diff matrix | P4 | UI gate, module snapshots, and Shell snapshot matrix pass. | Add interactive screenshot diff matrix and keyboard navigation audit. |
 | Module-specific deep editors | P4 | Generic Shell pages cover module status, commands, settings, logs, permissions, packages, and diagnostics. | Add focused editors for AndroidTools, AdbForwarder, ScreenEase, Doubao Agent, and SmartBird. |
 | Broader ModuleSupervisor health policy automation | P5 | Crash recovery, restart throttling, process policy, and diagnostics tests exist. | Expand long-running health policy automation and operational reporting. |
@@ -29,4 +28,4 @@ This file separates true external blockers from internal phase gaps. External bl
 
 ## Skipped Tests
 
-None. Latest test run: 66 passed, 0 failed, 0 skipped.
+None. Latest test run: 68 passed, 0 failed, 0 skipped.

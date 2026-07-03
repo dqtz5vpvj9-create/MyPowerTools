@@ -3,11 +3,19 @@
   "Files": [
     {
       "Path": "commands.index.json",
-      "Sha256": "d48b5739b0965c47bd0eee043e66ac1f913334ebaf2e30db389b6c4b211cff6d"
+      "Sha256": "64e50d395b97599595dc4ba7d10ada032fa9e9a5069429022171abfff42a177d"
     },
     {
       "Path": "module.json",
-      "Sha256": "8ee0f6e5807c701f0d80c4f6f4e8b7c7402462acd4af173fdd9af868486c4c7a"
+      "Sha256": "d8195e914abf41dbeb460c5c2b33a5c2aa025bb55a2dd54feaccb23c5e0b7d44"
+    },
+    {
+      "Path": "SmartBirdThermostat.MyPowerTools.dll",
+      "Sha256": "b4c3864edf3c13239d003321726d4d15f7e22915505b24de2a6a77bfa5d10ed9"
+    },
+    {
+      "Path": "SmartBirdThermostat.MyPowerTools.pdb",
+      "Sha256": "1c339cff032fdc9439178ee3928fbebcd9b3487c5214f556dc54e41a9072054a"
     },
     {
       "Path": "ui/dashboard-card.json",

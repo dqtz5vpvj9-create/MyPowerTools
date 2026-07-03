@@ -79,37 +79,42 @@ The active objective is to turn MyPowerTools into a production-grade PowerToys-s
 - Added Shell HostControl event stream consumption: `HostControlClient.SubscribeHostEventsAsync`, `HostControlEventStreamMonitor`, and MainWindow event handling now resume by sequence after faults, skip duplicate replayed events, and refresh affected Shell pages from Runner snapshots. `Shell_event_stream_monitor_resumes_after_fault_and_tracks_seq` verifies the path.
 - Added P0 phase ledger for the active 9-phase objective: `docs/PHASES.md`, `docs/PROJECT_STATUS.md`, `docs/PHASE_HISTORY.md`, `docs/OPEN_BLOCKERS.md`, `docs/EXTERNAL_VALIDATION.md`, and `.codex/project-state.json`.
 - Added `DoubaoAgent.MyPowerTools` as a production InProc controller module. It checks planner `38102`, tool runtime `38080`, and MCP bridge `38189` separately, exposes per-role health commands, status summary, self-test, log summary, runtime settings schema, and degraded status when only part of the runtime is reachable.
+- Added `SmartBirdThermostat.MyPowerTools` as a production InProc typed facade. It wraps SmartBird HTTP status/events/config/log endpoints, exposes config save, self-test, log summary, bounded event output, ServiceBroker restart request details, runtime settings schema, local path redaction, and degraded Energy Server/FNB-58/ADB diagnostics.
+- Hardened `LogRouter` for concurrent CLI/runtime log writes with per-file in-process locking, read-shared/exclusive writer handles, retry, and blank-line-safe tailing.
 
 ## Last Verified State
 
 - SDK: `dotnet --version` returns `10.0.301`; `global.json` pins `10.0.301`; all projects target `net10.0`.
 - Restore: `dotnet restore MyPowerTools.slnx` succeeded.
 - Build: `dotnet build MyPowerTools.slnx` succeeded with 0 warnings and 0 errors.
-- Tests: `dotnet test MyPowerTools.slnx --no-build` passed 66 tests, 0 failed, 0 skipped.
+- Tests: `dotnet test MyPowerTools.slnx --no-build` passed 68 tests, 0 failed, 0 skipped.
 - Phase state: P0 done, P1 verified done, P2 selected as the next active phase in `.codex/project-state.json`.
 - Module validation: `dotnet run --project src\MyPowerTools.Cli -- validate modules` passed all 5 production packages.
 - Module contract validation: `dotnet run --project src\MyPowerTools.Cli -- validate contracts` passed all 5 production packages and 7 modules.
 - Package trust: `dotnet run --project src\MyPowerTools.Cli -- package trust modules --strict` reports `signature-hook` for all 5 production packages.
 - Module state CLI: `dotnet run --project src\MyPowerTools.Cli -- module list --include-disabled` lists all 7 modules with enabled/disabled state.
 - Module inspection CLI: `dotnet run --project src\MyPowerTools.Cli -- inspect modules` lists capabilities, required/optional capability requirements, `apply-portproxy` broker permission, and `restart-service` broker permission.
-- Runtime diagnostics CLI: `dotnet run --project src\MyPowerTools.Cli -- diagnostics` reports Runner `0.2.0`, protocols `1.0`, 5 packages, 7 modules, 73 commands, paths, transports, per-module state, active sidecar process rows, restart policy, policy expiry, and process policy history when a gRPC runtime pool has policy activity.
+- Runtime diagnostics CLI: `dotnet run --project src\MyPowerTools.Cli -- diagnostics` reports Runner `0.2.0`, protocols `1.0`, 5 packages, 7 modules, 79 commands, paths, transports, per-module state, active sidecar process rows, restart policy, policy expiry, and process policy history when a gRPC runtime pool has policy activity.
 - UI gate: `dotnet run --project src\MyPowerTools.Cli -- ui check modules` passed.
 - UI snapshots: `dotnet run --project src\MyPowerTools.Cli -- ui snapshot --surface dashboard-card --theme light --size 1366x768 --density normal --out artifacts\ui-snapshots` wrote 7 contract snapshots and 7 PNG pixel snapshots; first PNG reported 21 unique colors and 876888 non-background pixels.
 - Shell UI snapshots: `dotnet run --project src\MyPowerTools.Cli -- ui shell-snapshot --theme light --size 1366x768 --density normal --out artifacts\shell-ui-snapshots` wrote 10 Shell surface snapshots and 10 PNG pixel snapshots covering 8 required Shell surfaces.
 - Runner autostart: `dotnet run --project src\MyPowerTools.Cli -- runner autostart status` reports the current HKCU Run state through `AutostartBroker`; `dotnet run --project src\MyPowerTools.Cli -- runner autostart enable --dry-run` prints the resolved Runner command without registry writes.
 - Template validation: `pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\validate-templates.ps1` passed for 6 templates.
-- Runner snapshot: `dotnet run --project src\MyPowerTools.Runner -- --once` indexed 7 modules. AdbForwarder, AndroidTools Notifications, AndroidTools Remote Commands, and SmartBird are runnable; Doubao Agent is degraded with 1/3 services reachable; AndroidTools Process Monitor is degraded until a watch list is saved; ScreenEase is degraded until its native display writer is available.
+- Runner snapshot: `dotnet run --project src\MyPowerTools.Runner -- --once` indexed 7 modules. AdbForwarder, AndroidTools Notifications, and AndroidTools Remote Commands are runnable; Doubao Agent is degraded with 1/3 services reachable; AndroidTools Process Monitor is degraded until a watch list is saved; ScreenEase is degraded until its native display writer is available; SmartBird is degraded until Energy Server and FNB-58 are configured.
 - Command execution:
   - `dotnet run --project src\MyPowerTools.Cli -- run adb-forwarder.diagnostics.summary` returned redacted ADB and Windows portproxy diagnostics.
   - `dotnet run --project src\MyPowerTools.Cli -- run adb-forwarder.portproxy.plan` returned structured current Windows portproxy state, default empty desired mappings, warnings, and no planned changes.
   - `dotnet run --project src\MyPowerTools.Cli -- run doubao-agent.health.check` returned typed degraded status with 1/3 Doubao services reachable on the current machine.
   - `dotnet run --project src\MyPowerTools.Cli -- run doubao-agent.self-test` returned settings schema availability, redacted `%LOCALAPPDATA%` paths, role endpoints, and token/secret/password redaction proof.
+  - `dotnet run --project src\MyPowerTools.Cli -- run smartbird-thermostat.status.summary` returned SmartBird HTTP status, redacted local paths and ADB device identifiers, and degraded Energy Server/FNB-58 diagnostics.
+  - `dotnet run --project src\MyPowerTools.Cli -- run smartbird-thermostat.events.list` returned latest 25 of 200 events with `truncated=true`.
+  - `dotnet run --project src\MyPowerTools.Cli -- run smartbird-thermostat.service.restart` returned expected `permission-required` ServiceBroker output.
   - `dotnet run --project src\MyPowerTools.Cli -- run screenease.status.summary` returned active profile, 2 detected Windows displays, default profiles/rules, and native host status.
   - `dotnet run --project src\MyPowerTools.Cli -- run screenease.profile.apply` returned a profile application plan plus `native-host-required` hardware writer status.
   - `dotnet run --project src\MyPowerTools.Cli -- run adb-forwarder.portproxy.apply` returned `permission-required`, as expected for brokered network changes. Runtime tests verify detailed `expectedChange` and `rollback` payloads when mappings are supplied.
   - `dotnet run --project src\MyPowerTools.Cli -- broker portproxy list` listed 6 local Windows portproxy rules.
   - `dotnet run --project src\MyPowerTools.Cli -- broker secret self-test --module cli.secret-self-test --name self-test-codex` passed through Windows Credential Manager, verified round-trip read, deleted the secret, and printed no secret value.
-- Smoke: `pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\smoke.ps1` passed; Shell HostControl smoke connected to Runner `0.2.0`, reported 7 modules, 7 dashboard cards, 73 commands, requested Runner shutdown, and the smoke-owned Runner exited cleanly.
+- Smoke: `pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\smoke.ps1` passed; Shell HostControl smoke connected to Runner `0.2.0`, reported 7 modules, 7 dashboard cards, 79 commands, requested Runner shutdown, and the smoke-owned Runner exited cleanly.
 - Published Runner release-root discovery: release `Runner\MyPowerTools.Runner.exe --once --data-root artifacts\release-root-once-data` indexed 7 modules from `artifacts\release\win-x64\modules` without an explicit `--modules` argument.
 - Published Runner/Shell smoke: release `Runner\MyPowerTools.Runner.exe` plus release `Shell\MyPowerTools.Shell.Avalonia.exe --smoke --timeout-ms 30000 --quit-runner` connected to Runner `0.2.0`, reported 7 modules, 7 dashboard cards, 67 commands, requested Runner shutdown, and the release Runner exited cleanly.
 - Published CLI autostart dry-run: release `Cli\MyPowerTools.Cli.exe runner autostart enable --dry-run` resolved the sibling release Runner command.
@@ -123,9 +128,9 @@ The active objective is to turn MyPowerTools into a production-grade PowerToys-s
 
 ## Next Highest-Value Work
 
-1. Continue P2 with SmartBird config/events/restart typed facade and degraded hardware diagnostics.
-2. Close AndroidTools `powertoold` T2 parity or document the runtime boundary with tests.
-3. Implement ScreenEase native display writer for brightness/color-temperature hardware changes and wire it behind `IDisplayService.ApplyProfileAsync`.
+1. Continue P2 by closing AndroidTools `powertoold` T2 parity or documenting the runtime boundary with tests.
+2. Implement ScreenEase native display writer for brightness/color-temperature hardware changes and wire it behind `IDisplayService.ApplyProfileAsync`.
+3. Validate SmartBird against real Energy Server and FNB-58 hardware when those services are available.
 4. Add module-specific deep editors for AndroidTools, AdbForwarder, ScreenEase, Doubao Agent, and SmartBird on top of the generic Shell pages.
 5. Add signed MSI/MSIX or package-manager distribution metadata.
 

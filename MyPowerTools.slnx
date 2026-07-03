@@ -24,5 +24,6 @@
     <Project Path="src/MyPowerTools.Tests/MyPowerTools.Tests.csproj" />
     <Project Path="src/MyPowerTools.UI/MyPowerTools.UI.csproj" />
     <Project Path="src/ScreenEase.MyPowerTools/ScreenEase.MyPowerTools.csproj" />
+    <Project Path="src/SmartBirdThermostat.MyPowerTools/SmartBirdThermostat.MyPowerTools.csproj" />
   </Folder>
 </Solution>
