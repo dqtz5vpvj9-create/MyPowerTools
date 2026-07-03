@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using System.Net.Sockets;
 using System.IO.Pipes;
 using Google.Protobuf.WellKnownTypes;
@@ -196,6 +197,15 @@ public sealed class HostControlClient : IDisposable
         }
 
         return entries;
+    }
+
+    public async IAsyncEnumerable<HostProto.HostEvent> SubscribeHostEventsAsync(ulong lastEventSeq, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        using var call = _client.SubscribeHostEvents(new HostProto.HostEventsRequest { LastEventSeq = lastEventSeq }, cancellationToken: cancellationToken);
+        while (await call.ResponseStream.MoveNext(cancellationToken))
+        {
+            yield return call.ResponseStream.Current;
+        }
     }
 
     public async Task QuitRunnerAsync(CancellationToken cancellationToken = default)

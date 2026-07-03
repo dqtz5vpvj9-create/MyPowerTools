@@ -17,6 +17,7 @@ using MyPowerTools.Runtime;
 using MyPowerTools.SampleModules.DotNet;
 using MyPowerTools.Shell.Avalonia;
 using MyPowerTools.UI;
+using HostProto = MyPowerTools.Protocol.HostControl.V1;
 
 namespace MyPowerTools.Tests;
 
@@ -1559,6 +1560,41 @@ Address         Port        Address         Port
     }
 
     [Fact]
+    public async Task Shell_event_stream_monitor_resumes_after_fault_and_tracks_seq()
+    {
+        var source = new SequenceHostEventSource(
+            [
+                HostEvent(1, "runner", "registry.loaded"),
+                new IOException("event stream dropped")
+            ],
+            [
+                HostEvent(1, "runner", "duplicate"),
+                HostEvent(2, "doubao-agent", "notification.created")
+            ]);
+        await using var monitor = new HostControlEventStreamMonitor(source, TimeSpan.FromMilliseconds(10));
+        var seen = new List<HostProto.HostEvent>();
+        var faults = new List<Exception>();
+        var completed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        monitor.EventReceived += (_, evt) =>
+        {
+            seen.Add(evt);
+            if (seen.Count == 2)
+            {
+                completed.TrySetResult();
+            }
+        };
+        monitor.StreamFaulted += (_, ex) => faults.Add(ex);
+
+        monitor.Start();
+        await completed.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Equal([1UL, 2UL], seen.Select(evt => evt.Seq).ToArray());
+        Assert.Equal(2UL, monitor.LastEventSeq);
+        Assert.Single(faults);
+        Assert.Equal([0UL, 1UL], source.RequestedSeqs.Take(2).ToArray());
+    }
+
+    [Fact]
     public async Task HostControl_package_operations_reload_runtime_store()
     {
         var storeRoot = Path.Combine(Path.GetTempPath(), "mpt-hostcontrol-package-store", Guid.NewGuid().ToString("N"));
@@ -2421,6 +2457,52 @@ Address         Port        Address         Port
 
             return Task.FromResult((HostControlConnectionProbeResult)step);
         }
+    }
+
+    private sealed class SequenceHostEventSource : IHostControlEventSource
+    {
+        private readonly Queue<IReadOnlyList<object>> _subscriptions;
+
+        public SequenceHostEventSource(params IReadOnlyList<object>[] subscriptions)
+        {
+            _subscriptions = new Queue<IReadOnlyList<object>>(subscriptions);
+        }
+
+        public List<ulong> RequestedSeqs { get; } = [];
+
+        public async IAsyncEnumerable<HostProto.HostEvent> SubscribeAsync(
+            ulong lastEventSeq,
+            [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+        {
+            RequestedSeqs.Add(lastEventSeq);
+            if (_subscriptions.Count == 0)
+            {
+                await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
+                yield break;
+            }
+
+            foreach (var step in _subscriptions.Dequeue())
+            {
+                await Task.Yield();
+                if (step is Exception ex)
+                {
+                    throw ex;
+                }
+
+                yield return (HostProto.HostEvent)step;
+            }
+        }
+    }
+
+    private static HostProto.HostEvent HostEvent(ulong seq, string sourceId, string type)
+    {
+        return new HostProto.HostEvent
+        {
+            Seq = seq,
+            SourceId = sourceId,
+            Type = type,
+            Time = Google.Protobuf.WellKnownTypes.Timestamp.FromDateTimeOffset(DateTimeOffset.UtcNow)
+        };
     }
 
     private sealed class TestServerCallContext : ServerCallContext

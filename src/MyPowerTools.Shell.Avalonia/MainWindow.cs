@@ -33,6 +33,7 @@ public sealed class MainWindow : Window
     private readonly TextBlock _statusBar = new();
     private readonly Dictionary<string, Button> _navButtons = new(StringComparer.OrdinalIgnoreCase);
     private readonly HostControlConnectionMonitor _connectionMonitor = new(new HostControlRunnerConnectionProbe());
+    private readonly HostControlEventStreamMonitor _eventStream = new(new HostControlClientEventSource());
     private readonly DesignTokens _tokens;
     private string _currentPage = DashboardPage;
 
@@ -50,12 +51,25 @@ public sealed class MainWindow : Window
         {
             Dispatcher.UIThread.Post(async () => await ApplyConnectionSnapshotAsync(snapshot, refreshOnRecovery: true));
         };
+        _eventStream.EventReceived += (_, evt) =>
+        {
+            Dispatcher.UIThread.Post(async () => await ApplyHostEventAsync(evt));
+        };
+        _eventStream.StreamFaulted += (_, ex) =>
+        {
+            Dispatcher.UIThread.Post(() => _statusBar.Text = $"Host event stream reconnecting: {ex.Message}");
+        };
         Opened += async (_, _) =>
         {
             _connectionMonitor.Start();
+            _eventStream.Start();
             await RefreshAsync();
         };
-        Closed += async (_, _) => await _connectionMonitor.DisposeAsync();
+        Closed += async (_, _) =>
+        {
+            await _eventStream.DisposeAsync();
+            await _connectionMonitor.DisposeAsync();
+        };
     }
 
     private Control BuildLayout()
@@ -194,6 +208,51 @@ public sealed class MainWindow : Window
     private void ApplyRunnerStatus(HostControlConnectionSnapshot snapshot)
     {
         _runnerStatus.Text = snapshot.Online ? $"Runner {snapshot.State}" : "Runner offline";
+    }
+
+    private async Task ApplyHostEventAsync(HostProto.HostEvent evt)
+    {
+        _statusBar.Text = $"Event {evt.Seq}: {evt.Type}";
+        switch (evt.Type)
+        {
+            case "notification.created":
+                if (_currentPage == NotificationsPage)
+                {
+                    await LoadNotificationsPageAsync();
+                }
+                break;
+            case "command.executed":
+                await LoadBrokerAuditAsync();
+                if (_currentPage is DashboardPage or DiagnosticsPage)
+                {
+                    await ShowPageAsync(_currentPage);
+                }
+                break;
+            case "settings.updated":
+                if (_currentPage == SettingsPage)
+                {
+                    await LoadSettingsPageAsync(evt.SourceId);
+                }
+                break;
+            case "module.enabled":
+            case "module.disabled":
+            case "registry.loaded":
+            case "commands.dynamic.refreshed":
+                await LoadCommandsAsync(_searchBox.Text ?? "");
+                if (_currentPage is DashboardPage or ModulesPage or PackagesPage or DiagnosticsPage)
+                {
+                    await ShowPageAsync(_currentPage);
+                }
+                break;
+            case "runtime.process.restart":
+            case "runtime.process.policy":
+            case "runtime.process.policy.expired":
+                if (_currentPage == DiagnosticsPage)
+                {
+                    await LoadDiagnosticsPageAsync();
+                }
+                break;
+        }
     }
 
     private async Task ShowPageAsync(string page)

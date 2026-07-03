@@ -9,6 +9,7 @@ The project is designed for local, long-term use: modules register through manif
 - Runner / Shell split with HostControl gRPC over local IPC.
 - Runner tray integration on Windows with Open Shell and Quit Runner actions, plus explicit degraded tray services on macOS/Linux.
 - Shell smoke mode validates HostControl IPC without opening the interactive Avalonia window.
+- Shell subscribes to the HostControl event stream, resumes by event sequence after stream faults, and refreshes affected pages from Runner snapshots.
 - Typed module protocol and host-control protocol from `proto/`.
 - Transport tiers: static manifests, trusted InProc .NET modules, gRPC IPC sidecars, HTTP facades, and stdio compatibility.
 - Package registry, command index, settings store with revision protection, event bus, notification center, log router, broker audit, package hash manifests, and local package trust hooks.

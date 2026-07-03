@@ -40,3 +40,4 @@
 - Added `mpt ui shell-snapshot` for deterministic Shell surface snapshot coverage across Dashboard, Command Palette, Settings, Module Detail, Logs, Notifications, Permission Prompt, Degraded Module, Packages, and Runtime Diagnostics.
 - Added Shell HostControl connection monitoring with offline state tracking and automatic page/command/audit refresh after Runner IPC reconnection.
 - Added HostControl package lifecycle operations for install, repair, uninstall, and rollback, wired them into the Shell Packages page, and excluded `.rollback` package backups from active runtime discovery.
+- Added Shell HostControl event stream consumption with sequence resume, duplicate replay filtering, fault reporting, reconnect, and event-driven Shell page refresh.
