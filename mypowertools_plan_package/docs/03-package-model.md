@@ -19,7 +19,8 @@ Runtime = 一个 package 内多个 module 可共享的后端进程或进程内�
 │  ├─ assets
 │  ├─ runtimes
 │  ├─ commands.index.json
-│  └─ package.hashes.json
+│  ├─ package.hashes.json
+│  └─ package.signature.json
 ├─ modules
 │  ├─ module-a
 │  │  ├─ module.json
@@ -78,9 +79,32 @@ Host 看到三个工具，底层只启动一个 `powertoold`，并通过 gRPC Na
         ]
       }
     ]
+  },
+  "hashes": "shared/package.hashes.json",
+  "trust": {
+    "policy": "local",
+    "signature": {
+      "path": "shared/package.signature.json",
+      "format": "mpt-signature-v1",
+      "required": false
+    }
   }
 }
 ```
+
+## Integrity And Trust Hook
+
+Every package has a sha256 manifest and a trust hook:
+
+```powershell
+dotnet run --project src\MyPowerTools.Cli -- package hash modules
+dotnet run --project src\MyPowerTools.Cli -- package sign-local modules
+dotnet run --project src\MyPowerTools.Cli -- package trust modules --strict
+```
+
+`package.hashes.json` covers package files and excludes integrity metadata. `package.signature.json` stores the hash-manifest SHA256, local signer metadata, and future algorithm slots for detached signatures such as Ed25519, X.509, or Sigstore. Local packages use `policy: local`; strict verification still requires the signature hook file to exist.
+
+`PackageStore.Install` validates schema, verifies hash/trust state, copies the package, then writes the package-store copy's local signature hook. `repair` re-runs the trust verifier so stale hashes or broken hook metadata surface as actionable package issues.
 
 ## module.json 示例
 

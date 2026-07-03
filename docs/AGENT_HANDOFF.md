@@ -71,15 +71,17 @@ The active objective is to turn MyPowerTools into a production-grade PowerToys-s
 - Added restart-policy maintenance windows: HostControl carries typed `expires_at`, CLI supports `--until` and `--duration-minutes`, Shell Diagnostics adds `Pause 1h`, Runtime expires elapsed policies before normal activity, and `Runtime_expires_grpc_restart_policy_and_recovers_pool` verifies automatic recovery.
 - Added SecretBroker-backed OS secret storage: `SecretReference` validates safe `secret://module/name` references, Windows uses Credential Manager through `WindowsCredentialSecretStore`, tests use `InMemorySecretStore`, macOS/Linux expose degraded `UnsupportedSecretStore`, SecretBroker audits save/read/delete, and CLI exposes `mpt broker secret self-test`.
 - Added module permission visibility: HostControl `ModuleSummary` and `ModuleDetail` now carry typed permissions and capability requirements, Shell module cards/detail pages render the declarations, CLI `mpt inspect modules` prints capabilities/requires/permissions, and acceptance tests cover HostControl plus CLI visibility.
+- Added local package trust hooks: `PackageTrustVerifier` verifies hash manifests and `shared/package.signature.json`, `mpt package sign-local` writes local trust metadata, `mpt package trust --strict` validates packages, `PackageStore.Install` verifies source packages before copying, and `PackageStore.Repair` re-runs trust verification.
 
 ## Last Verified State
 
 - SDK: `dotnet --version` returns `10.0.301`; `global.json` pins `10.0.301`; all projects target `net10.0`.
 - Restore: `dotnet restore MyPowerTools.slnx` succeeded.
 - Build: `dotnet build MyPowerTools.slnx` succeeded with 0 warnings and 0 errors.
-- Tests: `dotnet test MyPowerTools.slnx --no-build` passed 59 tests, 0 failed, 0 skipped.
+- Tests: `dotnet test MyPowerTools.slnx --no-build` passed 61 tests, 0 failed, 0 skipped.
 - Module validation: `dotnet run --project src\MyPowerTools.Cli -- validate modules` passed all 5 production packages.
 - Module contract validation: `dotnet run --project src\MyPowerTools.Cli -- validate contracts` passed all 5 production packages and 7 modules.
+- Package trust: `dotnet run --project src\MyPowerTools.Cli -- package trust modules --strict` reports `signature-hook` for all 5 production packages.
 - Module state CLI: `dotnet run --project src\MyPowerTools.Cli -- module list --include-disabled` lists all 7 modules with enabled/disabled state.
 - Module inspection CLI: `dotnet run --project src\MyPowerTools.Cli -- inspect modules` lists capabilities, required/optional capability requirements, `apply-portproxy` broker permission, and `restart-service` broker permission.
 - Runtime diagnostics CLI: `dotnet run --project src\MyPowerTools.Cli -- diagnostics` reports Runner `0.2.0`, protocols `1.0`, 5 packages, 7 modules, 67 commands, paths, transports, per-module state, active sidecar process rows, restart policy, policy expiry, and process policy history when a gRPC runtime pool has policy activity.
@@ -103,7 +105,8 @@ The active objective is to turn MyPowerTools into a production-grade PowerToys-s
 - Published CLI autostart dry-run: release `Cli\MyPowerTools.Cli.exe runner autostart enable --dry-run` resolved the sibling release Runner command.
 - Published CLI secret self-test: release `Cli\MyPowerTools.Cli.exe broker secret self-test --module cli.secret-self-test --name self-test-release-codex` passed through Windows Credential Manager, verified round-trip read, deleted the secret, and printed no secret value.
 - Published CLI permission inspection: release `Cli\MyPowerTools.Cli.exe inspect modules` printed module capabilities, required/optional capability requirements, `apply-portproxy`, and `restart-service` broker permissions.
-- Release artifact: `artifacts/release/MyPowerTools-win-x64.zip` was rebuilt on 2026-07-03; SHA256 `FB4AB63251B90417A99272070F1288904EE6FAF64FD52FA16B6074CA15E040BA`; size 169424039 bytes.
+- Published package trust verification: release `Cli\MyPowerTools.Cli.exe package trust artifacts\release\win-x64\modules --strict` reported `signature-hook` for all 5 production packages.
+- Release artifact: `artifacts/release/MyPowerTools-win-x64.zip` was rebuilt on 2026-07-03; SHA256 `AEF78FD0AC90441B336F5816A944919FF9297D0413EECA3B268F1C511DB5CCFA`; size 169676161 bytes.
 - Release notes: `artifacts/release/RELEASE_NOTES.md` generated with artifact hash, size, verification commands, and external requirements.
 - Portable install dry-run: `pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\install-windows.ps1 -PackageRoot artifacts\release\win-x64 -InstallDir artifacts\install-dryrun -DryRun` succeeded.
 - Portable uninstall dry-run: `pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\uninstall-windows.ps1 -InstallDir artifacts\install-dryrun -DryRun -Force` succeeded.

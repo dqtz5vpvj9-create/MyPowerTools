@@ -42,6 +42,14 @@ jobs:
         shell: pwsh
         run: dotnet run --project src\MyPowerTools.Cli -- validate contracts
 
+      - name: Refresh Package Trust Hooks
+        shell: pwsh
+        run: dotnet run --project src\MyPowerTools.Cli -- package sign-local modules
+
+      - name: Validate Package Trust
+        shell: pwsh
+        run: dotnet run --project src\MyPowerTools.Cli -- package trust modules --strict
+
       - name: UI Gate
         shell: pwsh
         run: dotnet run --project src\MyPowerTools.Cli -- ui check modules

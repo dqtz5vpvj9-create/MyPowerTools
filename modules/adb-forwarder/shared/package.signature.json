@@ -1,0 +1,17 @@
+{
+  "Format": "mpt-signature-v1",
+  "PackageId": "adb-forwarder",
+  "Version": "0.2.0",
+  "HashManifest": "shared/package.hashes.json",
+  "HashManifestSha256": "850a4e7e77fc7e20192f7f76b79e3c5a9fd025201ec07abe3b56887fb93f936d",
+  "SignatureState": "unsigned-local-trust",
+  "Algorithm": "sha256-manifest-placeholder",
+  "KeyId": "local-development",
+  "Signer": "lixinrui",
+  "CreatedAt": "2026-07-03T14:49:47.9168983+00:00",
+  "FutureAlgorithms": [
+    "ed25519-detached",
+    "x509-rsa-sha256",
+    "sigstore-bundle"
+  ]
+}

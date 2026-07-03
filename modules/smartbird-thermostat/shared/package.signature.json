@@ -1,0 +1,17 @@
+{
+  "Format": "mpt-signature-v1",
+  "PackageId": "smartbird-thermostat",
+  "Version": "0.2.0",
+  "HashManifest": "shared/package.hashes.json",
+  "HashManifestSha256": "b74fc1161c7d5dcae8017a3e36168dc44a0a7741e2de69480e2250e31549fdab",
+  "SignatureState": "unsigned-local-trust",
+  "Algorithm": "sha256-manifest-placeholder",
+  "KeyId": "local-development",
+  "Signer": "lixinrui",
+  "CreatedAt": "2026-07-03T14:49:47.9443035+00:00",
+  "FutureAlgorithms": [
+    "ed25519-detached",
+    "x509-rsa-sha256",
+    "sigstore-bundle"
+  ]
+}

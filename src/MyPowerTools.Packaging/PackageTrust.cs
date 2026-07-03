@@ -27,9 +27,28 @@ public sealed class PackageTrustVerifier
         var signaturePath = ResolveSignatureManifestPath(definition);
         var issues = new List<ValidationIssue>();
 
+        string signatureFullPath;
+        try
+        {
+            _ = ResolvePackagePath(definition.Directory, hashPath);
+            signatureFullPath = ResolvePackagePath(definition.Directory, signaturePath);
+        }
+        catch (Exception ex)
+        {
+            return new PackageTrustReport(
+                definition.Directory,
+                definition.Package.Id,
+                definition.Package.Version,
+                definition.Package.Trust?.Policy ?? "local",
+                "invalid-trust-manifest",
+                hashPath,
+                signaturePath,
+                "none",
+                [new ValidationIssue(definition.Directory, "error", ex.Message)]);
+        }
+
         issues.AddRange(_integrity.VerifyHashManifest(definition.Directory, hashPath));
 
-        var signatureFullPath = ResolvePackagePath(definition.Directory, signaturePath);
         var trustPolicy = string.IsNullOrWhiteSpace(definition.Package.Trust?.Policy)
             ? "local"
             : definition.Package.Trust.Policy;
@@ -76,6 +95,7 @@ public sealed class PackageTrustVerifier
     {
         var definition = _reader.ReadPackageDirectory(packageDirectory);
         var hashPath = ResolveHashManifestPath(definition);
+        _ = ResolvePackagePath(definition.Directory, hashPath);
         var hashFullPath = _integrity.WriteHashManifest(definition.Directory, hashPath);
         var signaturePath = string.IsNullOrWhiteSpace(relativePath)
             ? ResolveSignatureManifestPath(definition)
@@ -94,7 +114,7 @@ public sealed class PackageTrustVerifier
             Algorithm = "sha256-manifest-placeholder",
             KeyId = "local-development",
             Signer = Environment.UserName,
-            CreatedAt = DateTimeOffset.UtcNow,
+            CreatedAt = ReadExistingCreatedAt(signatureFullPath) ?? DateTimeOffset.UtcNow,
             FutureAlgorithms =
             [
                 "ed25519-detached",
@@ -105,6 +125,27 @@ public sealed class PackageTrustVerifier
 
         File.WriteAllText(signatureFullPath, JsonSerializer.Serialize(document, JsonOptions));
         return signatureFullPath;
+    }
+
+    private static DateTimeOffset? ReadExistingCreatedAt(string signatureFullPath)
+    {
+        if (!File.Exists(signatureFullPath))
+        {
+            return null;
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(File.ReadAllText(signatureFullPath));
+            return document.RootElement.TryGetProperty(nameof(PackageSignatureDocument.CreatedAt), out var createdAt) &&
+                createdAt.TryGetDateTimeOffset(out var value)
+                ? value
+                : null;
+        }
+        catch
+        {
+            return null;
+        }
     }
 
     public static string ResolveHashManifestPath(MptPackageDefinition definition)

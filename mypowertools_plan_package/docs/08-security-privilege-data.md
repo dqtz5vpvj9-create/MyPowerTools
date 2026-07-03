@@ -9,7 +9,7 @@ secrets 进入 SecretBroker
 模块声明权限需求
 权限动作留审计日志
 模块数据按 module-id 隔离
-package 更新要验证 schema 和 hash
+package 更新要验证 schema、hash 和 trust hook
 ```
 
 ## 权限等级
@@ -131,6 +131,15 @@ secrets
   ]
 }
 ```
+
+## Package Integrity And Trust
+
+Package integrity uses two files under `shared/`:
+
+- `package.hashes.json` lists sha256 values for package content and excludes integrity metadata.
+- `package.signature.json` is the local trust hook. It records the hash-manifest SHA256, package id, version, local signer metadata, and future detached-signature algorithm slots.
+
+`mpt package sign-local modules` refreshes both files for local development and release packaging. `mpt package trust modules --strict` requires the signature hook to exist and validates that it points at the current hash manifest. `PackageStore.Install` verifies the source package before copying and writes a fresh local trust hook after install.
 
 ## 风险矩阵
 

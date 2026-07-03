@@ -71,6 +71,37 @@
     },
     "hashes": {
       "type": "string"
+    },
+    "trust": {
+      "type": "object",
+      "properties": {
+        "policy": {
+          "type": "string",
+          "enum": [
+            "local",
+            "signed"
+          ]
+        },
+        "signature": {
+          "type": "object",
+          "properties": {
+            "path": {
+              "type": "string"
+            },
+            "format": {
+              "type": "string",
+              "enum": [
+                "mpt-signature-v1"
+              ]
+            },
+            "required": {
+              "type": "boolean"
+            }
+          },
+          "additionalProperties": true
+        }
+      },
+      "additionalProperties": true
     }
   },
   "additionalProperties": true

@@ -11,9 +11,9 @@ The project is designed for local, long-term use: modules register through manif
 - Shell smoke mode validates HostControl IPC without opening the interactive Avalonia window.
 - Typed module protocol and host-control protocol from `proto/`.
 - Transport tiers: static manifests, trusted InProc .NET modules, gRPC IPC sidecars, HTTP facades, and stdio compatibility.
-- Package registry, command index, settings store with revision protection, event bus, notification center, log router, broker audit, and package hash manifests.
+- Package registry, command index, settings store with revision protection, event bus, notification center, log router, broker audit, package hash manifests, and local package trust hooks.
 - Avalonia Shell pages for Dashboard, Modules, Settings, Logs, Notifications, Packages, Diagnostics, command palette, broker permission prompt, and broker audit.
-- CLI commands for validate, inspect, run, diagnostics, module list/enable/disable, package hash, install, uninstall, update, rollback, repair, UI gate, UI snapshots, broker audit, broker portproxy, broker secret self-test, and doctor.
+- CLI commands for validate, inspect, run, diagnostics, module list/enable/disable, package hash, package sign-local, package trust, install, uninstall, update, rollback, repair, UI gate, UI snapshots, broker audit, broker portproxy, broker secret self-test, and doctor.
 - Runner autostart status, enable, and disable flow through `AutostartBroker`, the Windows HKCU Run provider, and broker audit.
 - Module capability requirements and declared permissions are exposed through typed HostControl IPC, visible on Shell module pages, and inspectable through `mpt inspect modules`.
 - SecretBroker stores sensitive values through platform secret stores. Windows uses Credential Manager, tests use an in-memory provider, and macOS/Linux expose compile-ready degraded providers.
@@ -49,6 +49,8 @@ dotnet build MyPowerTools.slnx --no-restore
 dotnet test MyPowerTools.slnx --no-build
 dotnet run --project src\MyPowerTools.Cli -- validate modules
 dotnet run --project src\MyPowerTools.Cli -- validate contracts
+dotnet run --project src\MyPowerTools.Cli -- package sign-local modules
+dotnet run --project src\MyPowerTools.Cli -- package trust modules --strict
 dotnet run --project src\MyPowerTools.Cli -- ui check modules
 dotnet run --project src\MyPowerTools.Cli -- ui snapshot --surface dashboard-card --theme light --size 1366x768 --density normal --out artifacts\ui-snapshots
 dotnet run --project src\MyPowerTools.Cli -- runner autostart status
@@ -153,6 +155,16 @@ dotnet run --project src\MyPowerTools.Cli -- rollback sample-dotnet
 dotnet run --project src\MyPowerTools.Cli -- repair sample-dotnet
 ```
 
+Package integrity and local trust hooks are explicit CLI steps:
+
+```powershell
+dotnet run --project src\MyPowerTools.Cli -- package hash modules
+dotnet run --project src\MyPowerTools.Cli -- package sign-local modules
+dotnet run --project src\MyPowerTools.Cli -- package trust modules --strict
+```
+
+`package sign-local` writes `shared/package.signature.json` with the hash-manifest SHA256 and future algorithm slots. `install` verifies the package hash manifest and trust policy before copying, then writes a local signature hook into the package store.
+
 Production modules are loaded from `modules/` during local development and from the release package in portable builds.
 
 Module enable state is persisted under the runtime data root in `state/modules.enabled.json`. Disabled modules remain visible on the Shell Modules page and `mpt module list --include-disabled`, while Dashboard cards and command palette entries only include enabled modules.
@@ -173,7 +185,8 @@ Module enable state is persisted under the runtime data root in `state/modules.e
 dotnet run --project src\MyPowerTools.Cli -- validate modules
 dotnet run --project src\MyPowerTools.Cli -- validate contracts
 dotnet run --project src\MyPowerTools.Cli -- ui check modules
-dotnet run --project src\MyPowerTools.Cli -- package hash modules
+dotnet run --project src\MyPowerTools.Cli -- package sign-local modules
+dotnet run --project src\MyPowerTools.Cli -- package trust modules --strict
 dotnet run --project src\MyPowerTools.Runner -- --once
 ```
 

@@ -3,11 +3,11 @@
   "Files": [
     {
       "Path": "AndroidTools.MyPowerTools.dll",
-      "Sha256": "67a290a87c20fc829f8ed6c63cb04493b0aa08892512c2c3972b91a903efc769"
+      "Sha256": "36f95444b3376035aa4357bd02980106fa4b0ba7c64aa2a64cd3d38c592b3bb5"
     },
     {
       "Path": "AndroidTools.MyPowerTools.pdb",
-      "Sha256": "99c58d4deee96242a4804a109d2db9dedc3942802b3a932c897240ea8a7e4010"
+      "Sha256": "9d6d641f1727d9db53feeb7504887a5d965a799d743fd105d0a007113565a563"
     },
     {
       "Path": "modules/notifications/commands.index.json",
@@ -95,7 +95,7 @@
     },
     {
       "Path": "package.json",
-      "Sha256": "14f06589b1e088563c977f01bef7738d26e496190092ac7a68a13a2941c78ab0"
+      "Sha256": "9dd5d16b51ddc58ff6ca0d18e1f4dc5cda55647130cd1583c78c18576b375f6e"
     },
     {
       "Path": "shared/powertool/commands.yaml",

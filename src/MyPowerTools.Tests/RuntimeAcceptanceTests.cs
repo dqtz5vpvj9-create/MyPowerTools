@@ -488,7 +488,58 @@ Address         Port        Address         Port
         var repairIssues = store.Repair("sample-dotnet");
 
         Assert.True(result.Success, string.Join(Environment.NewLine, result.Issues.Select(issue => issue.Message)));
+        Assert.True(File.Exists(Path.Combine(result.TargetPath, "shared", "package.signature.json")));
         Assert.Empty(repairIssues);
+    }
+
+    [Fact]
+    public void Package_trust_strict_policy_requires_signature_hook()
+    {
+        var tempRoot = Path.Combine(Path.GetTempPath(), "mpt-package-trust", Guid.NewGuid().ToString("N"));
+        var packageCopy = Path.Combine(tempRoot, "sample-dotnet");
+        CopyDirectory(Path.Combine(Root, "tests", "fixtures", "modules", "sample-dotnet"), packageCopy);
+        var trust = new PackageTrustVerifier();
+
+        var local = trust.Verify(packageCopy, PackageTrustPolicy.LocalDevelopment);
+        var strictBefore = trust.Verify(packageCopy, PackageTrustPolicy.StrictSigned);
+        var signaturePath = trust.WriteLocalSignatureHook(packageCopy);
+        var strictAfter = trust.Verify(packageCopy, PackageTrustPolicy.StrictSigned);
+
+        Assert.True(local.IsTrusted, string.Join(Environment.NewLine, local.Issues.Select(issue => issue.Message)));
+        Assert.Equal("local-trust", local.State);
+        Assert.False(strictBefore.IsTrusted);
+        Assert.Contains(strictBefore.Issues, issue => issue.Severity == "error" && issue.Message.Contains("signature hook", StringComparison.OrdinalIgnoreCase));
+        Assert.True(File.Exists(signaturePath));
+        Assert.True(strictAfter.IsTrusted, string.Join(Environment.NewLine, strictAfter.Issues.Select(issue => issue.Message)));
+        Assert.Equal("signature-hook", strictAfter.State);
+    }
+
+    [Fact]
+    public void Package_trust_rejects_hash_manifest_path_escape()
+    {
+        var tempRoot = Path.Combine(Path.GetTempPath(), "mpt-package-trust-escape", Guid.NewGuid().ToString("N"));
+        var packageCopy = Path.Combine(tempRoot, "sample-dotnet");
+        CopyDirectory(Path.Combine(Root, "tests", "fixtures", "modules", "sample-dotnet"), packageCopy);
+        File.WriteAllText(
+            Path.Combine(packageCopy, "package.json"),
+            """
+            {
+              "schemaVersion": "1.0",
+              "id": "sample-dotnet",
+              "displayName": "Sample .NET Module",
+              "version": "0.2.0",
+              "modules": [
+                "module.json"
+              ],
+              "hashes": "../outside.hashes.json"
+            }
+            """);
+
+        var report = new PackageTrustVerifier().Verify(packageCopy, PackageTrustPolicy.StrictSigned);
+
+        Assert.False(report.IsTrusted);
+        Assert.Equal("invalid-trust-manifest", report.State);
+        Assert.Contains(report.Issues, issue => issue.Message.Contains("escapes package directory", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -584,6 +635,7 @@ Address         Port        Address         Port
         CopyDirectory(Path.Combine(Root, "tests", "fixtures", "modules", "sample-dotnet"), packageCopy);
         var project = Path.Combine(Root, "src", "MyPowerTools.Cli", "MyPowerTools.Cli.csproj");
         var hashPath = Path.Combine(packageCopy, "shared", "package.hashes.json");
+        var signaturePath = Path.Combine(packageCopy, "shared", "package.signature.json");
 
         var inspect = await RunDotnetAsync(
             "run",
@@ -602,6 +654,25 @@ Address         Port        Address         Port
             "hash",
             packageCopy);
 
+        var sign = await RunDotnetAsync(
+            "run",
+            "--project",
+            project,
+            "--",
+            "package",
+            "sign-local",
+            packageCopy);
+
+        var trust = await RunDotnetAsync(
+            "run",
+            "--project",
+            project,
+            "--",
+            "package",
+            "trust",
+            packageCopy,
+            "--strict");
+
         var doctor = await RunDotnetAsync(
             "run",
             "--project",
@@ -618,6 +689,11 @@ Address         Port        Address         Port
         Assert.Contains("package.hashes.json", hash.Output);
         Assert.True(File.Exists(hashPath));
         Assert.Contains("module.json", File.ReadAllText(hashPath));
+        Assert.Equal(0, sign.ExitCode);
+        Assert.Contains("package.signature.json", sign.Output);
+        Assert.True(File.Exists(signaturePath));
+        Assert.Equal(0, trust.ExitCode);
+        Assert.Contains("sample-dotnet: signature-hook", trust.Output);
         Assert.Equal(0, doctor.ExitCode);
         Assert.Contains("packages: 5 checked, errors: 0", doctor.Output);
         Assert.Contains("modules: 7", doctor.Output);

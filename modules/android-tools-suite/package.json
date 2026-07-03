@@ -57,5 +57,13 @@
     "assets": "shared/assets",
     "dataDir": "${MPT_PACKAGE_DATA}/android-tools-suite"
   },
-  "hashes": "shared/package.hashes.json"
+  "hashes": "shared/package.hashes.json",
+  "trust": {
+    "policy": "local",
+    "signature": {
+      "path": "shared/package.signature.json",
+      "format": "mpt-signature-v1",
+      "required": false
+    }
+  }
 }

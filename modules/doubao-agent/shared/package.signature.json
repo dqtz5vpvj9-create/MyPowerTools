@@ -1,0 +1,17 @@
+{
+  "Format": "mpt-signature-v1",
+  "PackageId": "doubao-agent",
+  "Version": "0.2.0",
+  "HashManifest": "shared/package.hashes.json",
+  "HashManifestSha256": "e6e2e995e508b7761cd58b46abfc2ffc10fb7bd9cfc243cab45c698ceecaad1a",
+  "SignatureState": "unsigned-local-trust",
+  "Algorithm": "sha256-manifest-placeholder",
+  "KeyId": "local-development",
+  "Signer": "lixinrui",
+  "CreatedAt": "2026-07-03T14:49:47.9368738+00:00",
+  "FutureAlgorithms": [
+    "ed25519-detached",
+    "x509-rsa-sha256",
+    "sigstore-bundle"
+  ]
+}

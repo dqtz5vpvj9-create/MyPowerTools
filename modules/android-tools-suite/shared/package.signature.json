@@ -1,0 +1,17 @@
+{
+  "Format": "mpt-signature-v1",
+  "PackageId": "android-tools-suite",
+  "Version": "0.2.0",
+  "HashManifest": "shared/package.hashes.json",
+  "HashManifestSha256": "3cb06e1bc130c56ee3a519a286b417592fdcc155471dc2e816a83bebc5ea252a",
+  "SignatureState": "unsigned-local-trust",
+  "Algorithm": "sha256-manifest-placeholder",
+  "KeyId": "local-development",
+  "Signer": "lixinrui",
+  "CreatedAt": "2026-07-03T14:49:47.9340327+00:00",
+  "FutureAlgorithms": [
+    "ed25519-detached",
+    "x509-rsa-sha256",
+    "sigstore-bundle"
+  ]
+}

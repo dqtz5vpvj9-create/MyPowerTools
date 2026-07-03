@@ -4,7 +4,7 @@ public sealed class PackageStore
 {
     private readonly PackageReader _reader = new();
     private readonly SchemaPackageValidator _validator;
-    private readonly PackageIntegrity _integrity = new();
+    private readonly PackageTrustVerifier _trust = new();
 
     public PackageStore(string storeRoot, string schemaDirectory)
     {
@@ -24,6 +24,12 @@ public sealed class PackageStore
             return new PackageInstallResult(false, definition.Package.Id, "", report.Issues);
         }
 
+        var trustReport = _trust.Verify(packageDirectory, PackageTrustPolicy.LocalDevelopment);
+        if (!trustReport.IsTrusted)
+        {
+            return new PackageInstallResult(false, definition.Package.Id, "", trustReport.Issues);
+        }
+
         var target = ResolvePackageTarget(definition.Package.Id);
         var backup = target + ".rollback";
         if (Directory.Exists(backup))
@@ -39,7 +45,7 @@ public sealed class PackageStore
         try
         {
             CopyDirectory(packageDirectory, target);
-            _integrity.WriteHashManifest(target);
+            _trust.WriteLocalSignatureHook(target);
             if (Directory.Exists(backup))
             {
                 Directory.Delete(backup, recursive: true);
@@ -107,16 +113,18 @@ public sealed class PackageStore
             return [new ValidationIssue(target, "error", "Package is not installed.")];
         }
 
-        var definition = _reader.ReadPackageDirectory(target);
-        var hashPath = definition.Package.Hashes ?? Path.Combine("shared", "package.hashes.json");
-        var issues = _integrity.VerifyHashManifest(target, hashPath);
+        var issues = _trust.Verify(target, PackageTrustPolicy.LocalDevelopment).Issues;
         return issues.Count == 0 ? [] : issues;
     }
 
     private string ResolvePackageTarget(string packageId)
     {
         var target = Path.GetFullPath(Path.Combine(StoreRoot, packageId));
-        if (!target.StartsWith(StoreRoot, StringComparison.OrdinalIgnoreCase))
+        var storeRoot = StoreRoot.EndsWith(Path.DirectorySeparatorChar)
+            ? StoreRoot
+            : StoreRoot + Path.DirectorySeparatorChar;
+        if (!target.StartsWith(storeRoot, StringComparison.OrdinalIgnoreCase) &&
+            !string.Equals(target, StoreRoot, StringComparison.OrdinalIgnoreCase))
         {
             throw new InvalidOperationException("Package target escapes store root.");
         }

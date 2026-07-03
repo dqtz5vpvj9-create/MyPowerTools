@@ -1,0 +1,17 @@
+{
+  "Format": "mpt-signature-v1",
+  "PackageId": "screenease",
+  "Version": "0.2.0",
+  "HashManifest": "shared/package.hashes.json",
+  "HashManifestSha256": "6d7d0755426bb6176ee9812cfc9a15855643fbfce370aff3bd7aac5ec9f0931a",
+  "SignatureState": "unsigned-local-trust",
+  "Algorithm": "sha256-manifest-placeholder",
+  "KeyId": "local-development",
+  "Signer": "lixinrui",
+  "CreatedAt": "2026-07-03T14:49:47.9413737+00:00",
+  "FutureAlgorithms": [
+    "ed25519-detached",
+    "x509-rsa-sha256",
+    "sigstore-bundle"
+  ]
+}

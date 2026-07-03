@@ -155,23 +155,64 @@ static int Package(string[] args, string root)
     return subcommand switch
     {
         "hash" => PackageHash(args.Skip(1).ToArray(), root),
+        "sign-local" => PackageSignLocal(args.Skip(1).ToArray(), root),
+        "trust" => PackageTrust(args.Skip(1).ToArray(), root),
         _ => Help()
     };
 }
 
 static int PackageHash(string[] args, string root)
 {
-    var packageDir = args.FirstOrDefault() ?? Path.Combine(root, "modules");
+    var packageDir = GetPositionalArgs(args).FirstOrDefault() ?? Path.Combine(root, "modules");
     var integrity = new PackageIntegrity();
     var reader = new PackageReader();
     var packages = reader.DiscoverPackages(Path.GetFullPath(packageDir));
     foreach (var package in packages)
     {
-        var path = integrity.WriteHashManifest(package.Directory);
+        var path = integrity.WriteHashManifest(package.Directory, PackageTrustVerifier.ResolveHashManifestPath(package));
         Console.WriteLine(path);
     }
 
     return 0;
+}
+
+static int PackageSignLocal(string[] args, string root)
+{
+    var packageDir = GetPositionalArgs(args).FirstOrDefault() ?? Path.Combine(root, "modules");
+    var trust = new PackageTrustVerifier();
+    var reader = new PackageReader();
+    var packages = reader.DiscoverPackages(Path.GetFullPath(packageDir));
+    foreach (var package in packages)
+    {
+        var path = trust.WriteLocalSignatureHook(package.Directory);
+        Console.WriteLine(path);
+    }
+
+    return 0;
+}
+
+static int PackageTrust(string[] args, string root)
+{
+    var packageDir = GetPositionalArgs(args).FirstOrDefault() ?? Path.Combine(root, "modules");
+    var policy = HasFlag(args, "--strict")
+        ? PackageTrustPolicy.StrictSigned
+        : PackageTrustPolicy.LocalDevelopment;
+    var trust = new PackageTrustVerifier();
+    var reader = new PackageReader();
+    var packages = reader.DiscoverPackages(Path.GetFullPath(packageDir));
+    var hasErrors = false;
+    foreach (var package in packages)
+    {
+        var report = trust.Verify(package.Directory, policy);
+        Console.WriteLine($"{report.PackageId}: {report.State} policy={report.Policy} signature={report.SignaturePath}");
+        foreach (var issue in report.Issues)
+        {
+            Console.WriteLine($"  {issue.Severity}: {issue.Path}: {issue.Message}");
+            hasErrors |= issue.Severity == "error";
+        }
+    }
+
+    return hasErrors ? 1 : 0;
 }
 
 static int Install(string[] args, string root)
@@ -879,6 +920,8 @@ static int Help()
     Console.WriteLine("mpt inspect <package-dir>");
     Console.WriteLine("mpt run <command-id>");
     Console.WriteLine("mpt package hash <package-dir>");
+    Console.WriteLine("mpt package sign-local <package-dir>");
+    Console.WriteLine("mpt package trust <package-dir> [--strict]");
     Console.WriteLine("mpt install <package-dir> [--store-root <dir>]");
     Console.WriteLine("mpt uninstall <package-id> [--store-root <dir>]");
     Console.WriteLine("mpt update <package-dir> [--store-root <dir>]");
