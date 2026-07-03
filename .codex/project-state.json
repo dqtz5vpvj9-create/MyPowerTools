@@ -1,12 +1,12 @@
 {
   "project": "MyPowerTools",
-  "currentPhase": "P7",
-  "lastCompletedPhase": "P6",
-  "nextPhase": "P7",
+  "currentPhase": "P8",
+  "lastCompletedPhase": "P7",
+  "nextPhase": "P8",
   "sdk": "10.0.301",
   "packages": 5,
   "modules": 7,
-  "testsPassed": 86,
+  "testsPassed": 88,
   "testsFailed": 0,
   "testsSkipped": 0,
   "releaseArtifact": "artifacts/release/MyPowerTools-win-x64.zip",
@@ -18,11 +18,10 @@
     "P3",
     "P4",
     "P5",
-    "P6"
-  ],
-  "partial": [
+    "P6",
     "P7"
   ],
+  "partial": [],
   "blocked": [],
   "externalValidation": [
     "Elevated portproxy apply/revert requires administrator token or signed elevated helper.",
@@ -34,9 +33,9 @@
     "macOS/Linux native validation requires host machines."
   ],
   "nextActions": [
-    "P7: audit remaining platform abstractions for IHotkeyService and privilege-helper interface coverage.",
-    "P7: verify Unix Domain Socket gRPC IPC end-to-end on native macOS/Linux hosts.",
-    "P7: document and test capability/degraded-state behavior for any remaining platform service surfaces."
+    "P8: audit phase docs and current code for TODO, FIXME, placeholder, stub, fake, coming soon, unsupported, sample-in-production, hardcoded user paths, secrets, and unredacted tokens.",
+    "P8: classify each final audit finding as fixed now, valid degraded external condition, documentation-only, or removed dead code.",
+    "P8: run the full final validation matrix and update production closure evidence."
   ],
   "productionClosure": false
 }

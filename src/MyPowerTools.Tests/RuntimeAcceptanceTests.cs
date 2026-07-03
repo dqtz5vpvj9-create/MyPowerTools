@@ -17,6 +17,7 @@ using MyPowerTools.Packaging;
 using MyPowerTools.Platform.Abstractions;
 using MyPowerTools.Platform.Linux;
 using MyPowerTools.Platform.Mac;
+using MyPowerTools.Platform.Windows;
 using MyPowerTools.Protocol;
 using MyPowerTools.Runtime;
 using MyPowerTools.SampleModules.DotNet;
@@ -1025,6 +1026,74 @@ Address         Port        Address         Port
         Assert.False(linuxNetwork.Success);
         Assert.Equal("unsupported", linuxNetwork.State);
         Assert.NotEmpty(processes);
+    }
+
+    [Fact]
+    public async Task Platform_packs_expose_hotkey_and_privilege_surfaces()
+    {
+        var mac = new MacPlatformPack();
+        var linux = new LinuxPlatformPack();
+
+        var registration = new HotkeyRegistration("command-palette", "Ctrl+Alt+Space", "runner", "Open the command palette.");
+        var request = new PrivilegeRequest(
+            "network.portproxy.apply",
+            "elevated",
+            "Apply a Windows portproxy rule through the broker.",
+            "adb-forwarder",
+            "127.0.0.1:45678",
+            "Add a v4tov4 portproxy rule.",
+            "Remove the v4tov4 portproxy rule.");
+
+        var macHotkey = await mac.Hotkeys.RegisterAsync(registration, CancellationToken.None);
+        var macPrivilege = await mac.Privileges.EvaluateAsync(request, CancellationToken.None);
+        var linuxHotkey = await linux.Hotkeys.RegisterAsync(registration, CancellationToken.None);
+        var linuxPrivilege = await linux.Privileges.EvaluateAsync(request, CancellationToken.None);
+
+        if (OperatingSystem.IsWindows())
+        {
+            var windows = new WindowsPlatformPack();
+            var windowsHotkey = await windows.Hotkeys.RegisterAsync(registration, CancellationToken.None);
+            var windowsPrivilege = await windows.Privileges.EvaluateAsync(request, CancellationToken.None);
+
+            Assert.False(windows.Capabilities.Resolve("hotkey.global").Supported);
+            Assert.True(windows.Capabilities.Resolve("privilege.elevated").Supported);
+            Assert.False(windowsHotkey.Success);
+            Assert.Equal("unsupported", windowsHotkey.State);
+            Assert.True(windowsPrivilege.RequiresBroker);
+            Assert.Equal("permission-required", windowsPrivilege.State);
+            Assert.Contains("Broker", windowsPrivilege.Message, StringComparison.OrdinalIgnoreCase);
+        }
+
+        Assert.False(mac.Capabilities.Resolve("hotkey.global").Supported);
+        Assert.False(mac.Capabilities.Resolve("privilege.elevated").Supported);
+        Assert.Equal("unsupported", macHotkey.State);
+        Assert.Equal("unsupported", macPrivilege.State);
+        Assert.True(macPrivilege.RequiresBroker);
+
+        Assert.False(linux.Capabilities.Resolve("hotkey.global").Supported);
+        Assert.False(linux.Capabilities.Resolve("privilege.elevated").Supported);
+        Assert.Equal("unsupported", linuxHotkey.State);
+        Assert.Equal("unsupported", linuxPrivilege.State);
+        Assert.True(linuxPrivilege.RequiresBroker);
+    }
+
+    [Fact]
+    public async Task Privileged_broker_implements_platform_privilege_contract()
+    {
+        var auditPath = Path.Combine(Path.GetTempPath(), "mpt-privilege-contract", Guid.NewGuid().ToString("N"), "audit.jsonl");
+        var broker = new PrivilegedBroker(new AuditLog(auditPath));
+
+        var decision = await broker.EvaluateAsync(
+            new PrivilegeRequest("service.restart", "serviceUser", "Restart a user service.", "smartbird-thermostat", "SmartBirdService"),
+            CancellationToken.None);
+
+        Assert.True(decision.RequiresBroker);
+        Assert.Equal("permission-required", decision.State);
+        Assert.Equal(MptErrorCodes.PermissionRequired, decision.ErrorCode);
+        Assert.Contains(broker.Audit, entry =>
+            entry.ModuleId == "smartbird-thermostat" &&
+            entry.ActionId == "service.restart" &&
+            entry.RequiresBroker);
     }
 
     [Fact]

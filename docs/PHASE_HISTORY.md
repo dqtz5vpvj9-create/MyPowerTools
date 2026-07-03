@@ -332,7 +332,7 @@ Remaining P6 work:
 
 ### P7 Cross-Platform Capability Packs And Degraded Behavior
 
-Status: partial.
+Status: done.
 
 Actions:
 - Added `ILocalIpc` and `LocalIpcService` to choose Named Pipe endpoints on Windows and Unix Domain Socket paths on macOS/Linux.
@@ -341,18 +341,22 @@ Actions:
 - Updated Windows, macOS, and Linux platform packs to expose `LocalIpc`.
 - Updated macOS/Linux platform packs to expose notification, autostart, service, network, process, display, tray, and secret services with explicit unsupported states where native implementation is pending.
 - Added acceptance coverage for missing required capability -> `unsupported`, missing optional capability -> `degraded`, platform-native IPC endpoint shape, and Mac/Linux degraded provider behavior.
+- Added `IHotkeyService`, `IPrivilegeBroker`, `UnsupportedHotkeyService`, `UnsupportedPrivilegeBroker`, and `BrokerRequiredPrivilegeBroker` to platform abstractions.
+- Updated Windows, macOS, and Linux platform packs to expose hotkey and privilege provider surfaces. Windows hotkey registration is marked pending, Windows privilege evaluation returns broker-required, and macOS/Linux return explicit unsupported states.
+- Updated `PrivilegedBroker` to implement the platform privilege contract.
+- Added acceptance coverage for cross-platform hotkey/privilege provider behavior and `PrivilegedBroker` async contract/audit behavior.
 
 Validation:
 - `dotnet build MyPowerTools.slnx --no-restore` succeeded with 0 warnings and 0 errors.
 - `dotnet run --no-build --project src\MyPowerTools.Cli -- package sign-local modules` refreshed hash manifests and local trust hooks for all 5 production packages.
-- Targeted P7 tests passed: `Platform_capability_registry_marks_missing_required_capability_unsupported`, `Local_ipc_service_selects_platform_native_endpoint_shape`, and `Mac_and_linux_platform_packs_expose_truthful_degraded_services`.
-- `dotnet test MyPowerTools.slnx --no-build` passed 86 tests, 0 failed, 0 skipped.
+- Targeted P7 tests passed: `Platform_capability_registry_marks_missing_required_capability_unsupported`, `Local_ipc_service_selects_platform_native_endpoint_shape`, `Mac_and_linux_platform_packs_expose_truthful_degraded_services`, `Platform_packs_expose_hotkey_and_privilege_surfaces`, and `Privileged_broker_implements_platform_privilege_contract`.
+- `dotnet test MyPowerTools.slnx --no-build` passed 88 tests, 0 failed, 0 skipped.
 - `dotnet run --no-build --project src\MyPowerTools.Cli -- inspect modules` printed module requirements and broker permissions.
 - `dotnet run --no-build --project src\MyPowerTools.Cli -- diagnostics` reported Windows `grpc-ipc` runtime process state and ModuleSupervisor summaries.
 - `dotnet run --no-build --project src\MyPowerTools.Cli -- validate contracts` passed for 5 packages and 7 modules.
 - `dotnet run --no-build --project src\MyPowerTools.Cli -- package trust modules --strict` reported `signature-hook` for all 5 production packages.
-- The first `scripts\smoke.ps1` run hit one transient process-test exit-code failure in `Cli_restarts_runner_grpc_process_pool_over_hostcontrol`; the isolated test immediately passed, and the full smoke rerun passed with 86 tests, validation, UI snapshots, templates, Runner once, and Shell HostControl smoke.
+- `pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\smoke.ps1` passed with build, sign-local, 88 tests, module validation, contract validation, package trust, UI snapshots, template validation, Runner once, and Shell HostControl smoke.
 
 Remaining P7 work:
 - Native macOS/Linux Runner/Shell/UDS smoke requires those OS hosts.
-- Continue the remaining interface audit for hotkey and privilege-helper surface shape.
+- None internally. Native macOS/Linux validation remains external.

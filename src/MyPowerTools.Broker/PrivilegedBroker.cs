@@ -4,7 +4,7 @@ using MyPowerTools.Runtime;
 
 namespace MyPowerTools.Broker;
 
-public sealed class PrivilegedBroker
+public sealed class PrivilegedBroker : IPrivilegeBroker
 {
     private static readonly HashSet<string> BrokeredPermissionLevels = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -32,6 +32,17 @@ public sealed class PrivilegedBroker
         var decision = new BrokerDecision(actionId, requiresBroker, requiresBroker ? MptErrorCodes.PermissionRequired : "", reason);
         _auditLog.Append(new BrokerAuditEntry(Guid.NewGuid().ToString("N"), DateTimeOffset.UtcNow, moduleId, actionId, normalizedLevel, scope, reason, decision.RequiresBroker, "evaluated", ""));
         return decision;
+    }
+
+    public Task<PrivilegeDecision> EvaluateAsync(PrivilegeRequest request, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var decision = Evaluate(request.ActionId, request.PermissionLevel, request.Reason, request.ModuleId, request.Scope);
+        return Task.FromResult(new PrivilegeDecision(
+            decision.RequiresBroker,
+            decision.RequiresBroker ? "permission-required" : "allowed",
+            decision.Reason,
+            decision.ErrorCode));
     }
 }
 

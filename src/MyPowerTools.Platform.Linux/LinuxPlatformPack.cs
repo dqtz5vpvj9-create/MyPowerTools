@@ -30,6 +30,8 @@ public sealed class LinuxPlatformPack
     public IAutostartService Autostart { get; } = new UnsupportedAutostartService("systemd user", "Linux autostart provider compiles; native implementation is pending.");
     public IServiceManager Services { get; } = new UnsupportedServiceManager("systemd", "Linux service provider compiles; native implementation is pending.");
     public INetworkBroker Network { get; } = new UnsupportedNetworkBroker("nftables/iptables", "Linux network broker compiles; native implementation is pending.");
+    public IHotkeyService Hotkeys { get; } = new UnsupportedHotkeyService("X11/Wayland", "Linux global hotkey provider compiles; compositor-specific implementation is pending.");
+    public IPrivilegeBroker Privileges { get; } = new UnsupportedPrivilegeBroker("polkit", "Linux polkit provider compiles; native implementation is pending.");
     public IProcessService Processes { get; } = new ManagedProcessService();
     public ILocalIpc LocalIpc { get; } = new LocalIpcService(Platform);
 }

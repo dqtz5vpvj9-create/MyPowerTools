@@ -102,8 +102,10 @@ src/MyPowerTools.Platform.Linux
 |---|---|
 | Windows IPC | `LocalIpcService` uses Named Pipe endpoints. |
 | macOS/Linux IPC | `LocalIpcService` uses Unix Domain Socket paths. |
-| macOS degraded providers | Notification, autostart, service, network, display, tray, and secret providers return explicit unsupported state/messages; process inspection uses the managed runtime. |
-| Linux degraded providers | Notification, autostart, service, network, display, tray, and secret providers return explicit unsupported state/messages; process inspection uses the managed runtime. |
+| Hotkey providers | `IHotkeyService` exists across platform packs. Windows exposes a truthful pending provider; macOS/Linux return explicit `unsupported` states for Event tap and X11/Wayland providers. |
+| Privilege broker providers | `IPrivilegeBroker` exists across platform packs. Windows returns `permission-required` through a broker-required provider and `PrivilegedBroker` implements the same contract; macOS/Linux return explicit `unsupported` states for privileged helper/polkit providers. |
+| macOS degraded providers | Notification, autostart, service, network, display, tray, hotkey, privilege, and secret providers return explicit unsupported state/messages; process inspection uses the managed runtime. |
+| Linux degraded providers | Notification, autostart, service, network, display, tray, hotkey, privilege, and secret providers return explicit unsupported state/messages; process inspection uses the managed runtime. |
 | Remaining native validation | Native macOS/Linux Runner, Shell, and UDS gRPC smoke require those OS hosts. |
 
 ## 权限动作流程

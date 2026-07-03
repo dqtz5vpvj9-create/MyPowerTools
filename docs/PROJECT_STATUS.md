@@ -7,15 +7,15 @@ Run date: 2026-07-04.
 | Field | Value |
 |---|---|
 | Project | MyPowerTools |
-| Current phase | P7 Cross-platform capability packs and degraded behavior |
-| Last completed phase | P6 Packaging, templates, CLI, install and release |
-| Next phase | P7 |
+| Current phase | P8 Final production closure |
+| Last completed phase | P7 Cross-platform capability packs and degraded behavior |
+| Next phase | P8 |
 | SDK | 10.0.301 from `global.json` and `dotnet --version` |
 | Target frameworks | `net10.0` projects across the solution |
 | Production packages | 5: `adb-forwarder`, `android-tools-suite`, `doubao-agent`, `screenease`, `smartbird-thermostat` |
 | Production modules | 7 |
 | Templates | 6 |
-| Tests | 86 passed, 0 failed, 0 skipped |
+| Tests | 88 passed, 0 failed, 0 skipped |
 | Release artifact | `artifacts/release/MyPowerTools-win-x64.zip` |
 | Release SHA256 | `EAA7E82DCC8B7BA63307360402C68A6764AFCA3870E1703C8FAE0EF5BE1266A4` |
 | Production closure | false |
@@ -27,7 +27,7 @@ Run date: 2026-07-04.
 | `dotnet --version` | `10.0.301` |
 | `dotnet restore MyPowerTools.slnx` | Succeeded; all projects were up-to-date. |
 | `dotnet build MyPowerTools.slnx --no-restore` | Succeeded with 0 warnings and 0 errors. |
-| `dotnet test MyPowerTools.slnx --no-build` | Passed 86, failed 0, skipped 0. |
+| `dotnet test MyPowerTools.slnx --no-build` | Passed 88, failed 0, skipped 0. |
 | `dotnet run --project src\MyPowerTools.Cli -- validate modules` | 5 production packages valid. |
 | `dotnet run --no-build --project src\MyPowerTools.Cli -- validate contracts` | 5 packages and 7 modules passed contract validation; AndroidTools runs through `grpc-ipc` powertoold with notifications running, remote commands running, process monitor degraded until a watch list is saved, and ScreenEase exposing 14 commands. |
 | `dotnet run --no-build --project src\MyPowerTools.Cli -- package trust modules --strict` | `signature-hook` trust passed for all 5 production packages after local hash/signature refresh. |
@@ -53,11 +53,11 @@ Run date: 2026-07-04.
 
 | Area | Evidence |
 |---|---|
-| Platform abstractions | Added `ILocalIpc`, `LocalIpcService`, unsupported provider implementations for notification, autostart, service, network, and process surfaces, plus a managed process inspection service. |
-| macOS/Linux packs | `MacPlatformPack` and `LinuxPlatformPack` now expose local IPC, notification, autostart, service, network, process, display, tray, and secret services. Unsupported providers return explicit `unsupported` state/messages; process inspection uses the managed runtime where supported. |
-| Windows pack | `WindowsPlatformPack` now exposes the same `LocalIpcService`; Windows Runner IPC remains Named Pipe based. |
-| Acceptance coverage | Added tests for required capability failure -> `unsupported`, optional capability failure -> `degraded`, platform-native IPC endpoint shapes, and Mac/Linux degraded service behavior. |
-| P7 validation | Build passed with 0 warnings, 86 tests passed, module inspection still shows requirements and broker permissions, diagnostics still reports Windows `grpc-ipc` runtime process state, contract validation passed, strict package trust passed, and `scripts/smoke.ps1` passed after one transient process-test retry. |
+| Platform abstractions | Added `ILocalIpc`, `LocalIpcService`, `IHotkeyService`, `IPrivilegeBroker`, unsupported provider implementations for notification, autostart, service, network, process, hotkey, and privilege surfaces, plus managed process inspection. |
+| macOS/Linux packs | `MacPlatformPack` and `LinuxPlatformPack` now expose local IPC, notification, autostart, service, network, process, display, tray, secret, hotkey, and privilege services. Unsupported providers return explicit `unsupported` state/messages; process inspection uses the managed runtime where supported. |
+| Windows pack | `WindowsPlatformPack` exposes `LocalIpc`, `Hotkeys`, and `Privileges`; Windows Runner IPC remains Named Pipe based, hotkey registration is truthfully marked pending, and privilege evaluation returns broker-required. |
+| Acceptance coverage | Added tests for required capability failure -> `unsupported`, optional capability failure -> `degraded`, platform-native IPC endpoint shapes, Mac/Linux degraded service behavior, hotkey/privilege provider surfaces, and `PrivilegedBroker` implementing the platform privilege contract. |
+| P7 validation | Build passed with 0 warnings, 88 tests passed, module inspection shows requirements and broker permissions, diagnostics reports Windows `grpc-ipc` runtime process state, contract validation passed, strict package trust passed, and `scripts/smoke.ps1` passed. |
 
 ## P6 Progress On 2026-07-04
 

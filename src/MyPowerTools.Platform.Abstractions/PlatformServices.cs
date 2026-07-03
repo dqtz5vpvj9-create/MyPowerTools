@@ -78,6 +78,17 @@ public sealed record TrayOptions(
     IReadOnlyList<TrayMenuItem> MenuItems);
 public sealed record TrayActionInvocation(string ActionId, DateTimeOffset InvokedAt);
 public sealed record TrayStartResult(bool Success, string State, string Message);
+public sealed record HotkeyRegistration(string Id, string Gesture, string Scope, string Reason);
+public sealed record HotkeyRegistrationResult(bool Success, string State, string Message);
+public sealed record PrivilegeRequest(
+    string ActionId,
+    string PermissionLevel,
+    string Reason,
+    string ModuleId = "host",
+    string Scope = "",
+    string ExpectedChange = "",
+    string Rollback = "");
+public sealed record PrivilegeDecision(bool RequiresBroker, string State, string Message, string ErrorCode = "");
 
 public interface ITrayService : IAsyncDisposable
 {
@@ -112,6 +123,85 @@ public sealed class UnsupportedTrayService : ITrayService
     public ValueTask DisposeAsync()
     {
         return ValueTask.CompletedTask;
+    }
+}
+
+public interface IHotkeyService
+{
+    Task<HotkeyRegistrationResult> RegisterAsync(HotkeyRegistration registration, CancellationToken cancellationToken);
+    Task<HotkeyRegistrationResult> UnregisterAsync(string id, CancellationToken cancellationToken);
+}
+
+public sealed class UnsupportedHotkeyService : IHotkeyService
+{
+    private readonly string _provider;
+    private readonly string _message;
+
+    public UnsupportedHotkeyService(string provider, string message)
+    {
+        _provider = provider;
+        _message = message;
+    }
+
+    public Task<HotkeyRegistrationResult> RegisterAsync(HotkeyRegistration registration, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(new HotkeyRegistrationResult(false, "unsupported", $"{_provider}: {_message}"));
+    }
+
+    public Task<HotkeyRegistrationResult> UnregisterAsync(string id, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(new HotkeyRegistrationResult(false, "unsupported", $"{_provider}: {_message}"));
+    }
+}
+
+public interface IPrivilegeBroker
+{
+    Task<PrivilegeDecision> EvaluateAsync(PrivilegeRequest request, CancellationToken cancellationToken);
+}
+
+public sealed class BrokerRequiredPrivilegeBroker : IPrivilegeBroker
+{
+    private readonly string _provider;
+    private readonly string _message;
+
+    public BrokerRequiredPrivilegeBroker(string provider, string message)
+    {
+        _provider = provider;
+        _message = message;
+    }
+
+    public Task<PrivilegeDecision> EvaluateAsync(PrivilegeRequest request, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(new PrivilegeDecision(
+            true,
+            "permission-required",
+            $"{_provider}: {_message} Action '{request.ActionId}' requires broker handling for {request.PermissionLevel}.",
+            "MPT_PERMISSION_REQUIRED"));
+    }
+}
+
+public sealed class UnsupportedPrivilegeBroker : IPrivilegeBroker
+{
+    private readonly string _provider;
+    private readonly string _message;
+
+    public UnsupportedPrivilegeBroker(string provider, string message)
+    {
+        _provider = provider;
+        _message = message;
+    }
+
+    public Task<PrivilegeDecision> EvaluateAsync(PrivilegeRequest request, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(new PrivilegeDecision(
+            true,
+            "unsupported",
+            $"{_provider}: {_message} Action '{request.ActionId}' cannot be executed on this platform.",
+            "MPT_PLATFORM_UNSUPPORTED"));
     }
 }
 

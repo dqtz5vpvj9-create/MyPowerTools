@@ -88,15 +88,15 @@ The active objective is to turn MyPowerTools into a production-grade PowerToys-s
 - Completed P4 Shell UI closure locally: Shell keyboard shortcuts are modeled and wired, HostControl exposes runtime settings schemas, Shell Settings renders schema-backed controls, Shell/control colors route through `MptTheme`, Shell snapshots include keyboard/focus/state matrix evidence, `scripts/smoke.ps1` checks native exit codes, and PackageStore retries transient Windows directory move/delete operations.
 - Completed P5 reliability and observability closure locally: `ModuleSupervisor` records module health observations, consecutive failures, supervisor state, last observation time, and next actions; RuntimeDiagnostics, HostControl, CLI diagnostics, Shell Diagnostics, and Dashboard alerts expose the data; `mpt runner process pause . --duration-minutes 1` resolves the first active process pool for smoke-friendly policy validation.
 - Completed P6 packaging, templates, CLI, install, and release closure locally: publish now writes release/update metadata and a Scoop package-manager manifest, release notes list both artifacts, tests cover metadata/hash parity, the portable zip passes hygiene checks, and release Runner/Shell/autostart/install/uninstall dry-runs are verified.
-- P7 progress: added `ILocalIpc`, platform-native endpoint selection, Mac/Linux degraded service providers for notification/autostart/service/network/process surfaces, managed process inspection, and tests for required/optional capability resolution plus UDS/Named Pipe endpoint shape.
+- Completed P7 cross-platform capability closure locally: added `ILocalIpc`, platform-native endpoint selection, `IHotkeyService`, `IPrivilegeBroker`, Windows broker-required privilege evaluation, truthful pending hotkey handling, Mac/Linux degraded providers for hotkey/privilege/notification/autostart/service/network/process surfaces, managed process inspection, and tests for required/optional capability resolution, UDS/Named Pipe endpoint shape, and privilege contract behavior.
 
 ## Last Verified State
 
 - SDK: `dotnet --version` returns `10.0.301`; `global.json` pins `10.0.301`; all projects target `net10.0`.
 - Restore: `dotnet restore MyPowerTools.slnx` succeeded.
 - Build: `dotnet build MyPowerTools.slnx` succeeded with 0 warnings and 0 errors.
-- Tests: `dotnet test MyPowerTools.slnx --no-build` passed 86 tests, 0 failed, 0 skipped.
-- Phase state: P0, P1, P2, P3, P4, P5, and P6 done; P7 selected as the next active phase in `.codex/project-state.json`.
+- Tests: `dotnet test MyPowerTools.slnx --no-build` passed 88 tests, 0 failed, 0 skipped.
+- Phase state: P0, P1, P2, P3, P4, P5, P6, and P7 done; P8 selected as the next active phase in `.codex/project-state.json`.
 - Module validation: `dotnet run --project src\MyPowerTools.Cli -- validate modules` passed all 5 production packages.
 - Module contract validation: `dotnet run --project src\MyPowerTools.Cli -- validate contracts` passed all 5 production packages and 7 modules.
 - Package trust: `dotnet run --project src\MyPowerTools.Cli -- package trust modules --strict` reports `signature-hook` for all 5 production packages.
@@ -141,7 +141,7 @@ The active objective is to turn MyPowerTools into a production-grade PowerToys-s
 
 ## Next Highest-Value Work
 
-1. Continue P7 cross-platform capability packs and degraded behavior closure, focusing on remaining hotkey/privilege-helper interface shape, native macOS/Linux runtime validation, and UDS gRPC IPC end-to-end smoke on those hosts.
+1. Start P8 final production closure: audit phase docs, scan for TODO/FIXME/placeholder/fake/unsupported/sample/hardcoded paths/secrets, classify every finding, and run the full final validation matrix.
 2. Validate ScreenEase hardware writes against a monitor that supports DDC/CI brightness/color-temperature controls when hardware is available.
 3. Validate SmartBird against real Energy Server and FNB-58 hardware when those services are available.
 4. Validate real Doubao planner/tool/MCP endpoint contracts when production health APIs are available.

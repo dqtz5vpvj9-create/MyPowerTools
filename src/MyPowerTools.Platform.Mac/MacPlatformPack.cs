@@ -30,6 +30,8 @@ public sealed class MacPlatformPack
     public IAutostartService Autostart { get; } = new UnsupportedAutostartService("launchd agent", "macOS launchd autostart provider compiles; native implementation is pending.");
     public IServiceManager Services { get; } = new UnsupportedServiceManager("launchd", "macOS launchd service provider compiles; native implementation is pending.");
     public INetworkBroker Network { get; } = new UnsupportedNetworkBroker("pfctl", "macOS network broker compiles; native implementation is pending.");
+    public IHotkeyService Hotkeys { get; } = new UnsupportedHotkeyService("Event tap", "macOS global hotkey provider compiles; native implementation is pending.");
+    public IPrivilegeBroker Privileges { get; } = new UnsupportedPrivilegeBroker("privileged helper", "macOS privileged helper provider compiles; native implementation is pending.");
     public IProcessService Processes { get; } = new ManagedProcessService();
     public ILocalIpc LocalIpc { get; } = new LocalIpcService(Platform);
 }
