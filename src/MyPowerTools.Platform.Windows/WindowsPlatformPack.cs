@@ -515,6 +515,8 @@ public sealed class WindowsAutostartService : IAutostartService
 public sealed class WindowsDisplayService : IDisplayService
 {
     private const int MonitorinfofPrimary = 0x00000001;
+    private const uint McCapsBrightness = 0x00000002;
+    private const uint McCapsColorTemperature = 0x00000008;
 
     public Task<IReadOnlyList<DisplaySnapshot>> ListDisplaysAsync(CancellationToken cancellationToken)
     {
@@ -523,7 +525,174 @@ public sealed class WindowsDisplayService : IDisplayService
             return Task.FromResult<IReadOnlyList<DisplaySnapshot>>([]);
         }
 
-        var displays = new List<DisplaySnapshot>();
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult<IReadOnlyList<DisplaySnapshot>>(EnumerateDisplayTargets().Select(target => target.Snapshot).ToArray());
+    }
+
+    public Task<DisplayWriterStatus> GetWriterStatusAsync(CancellationToken cancellationToken)
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return Task.FromResult(new DisplayWriterStatus(false, "unsupported", "Windows display writer is available only on Windows."));
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        try
+        {
+            var targets = EnumerateDisplayTargets();
+            if (targets.Count == 0)
+            {
+                return Task.FromResult(new DisplayWriterStatus(false, "unsupported", "No Windows display targets were detected."));
+            }
+
+            var writable = 0;
+            var probed = 0;
+            var failures = new List<string>();
+            foreach (var target in targets)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                using var physicalMonitors = PhysicalMonitorSet.TryCreate(target.Handle, out var createError);
+                if (physicalMonitors is null)
+                {
+                    failures.Add($"{target.Snapshot.Id}: {createError}");
+                    continue;
+                }
+
+                foreach (var physical in physicalMonitors.Monitors)
+                {
+                    probed++;
+                    if (TryGetCapabilities(physical.Handle, out var capabilities, out _, out var capabilityError) &&
+                        (HasCapability(capabilities, McCapsBrightness) || HasCapability(capabilities, McCapsColorTemperature)))
+                    {
+                        writable++;
+                    }
+                    else if (capabilityError is not null)
+                    {
+                        failures.Add($"{DescribePhysical(target, physical)}: {capabilityError}");
+                    }
+                }
+            }
+
+            if (writable > 0)
+            {
+                return Task.FromResult(new DisplayWriterStatus(true, "ready", $"Windows DDC/CI display writer found {writable} writable physical monitor(s) from {probed} probed monitor(s)."));
+            }
+
+            var detail = failures.Count == 0
+                ? "No physical monitor exposed brightness or color-temperature capability through DDC/CI."
+                : string.Join("; ", failures.Take(4));
+            return Task.FromResult(new DisplayWriterStatus(false, "unsupported", detail));
+        }
+        catch (DllNotFoundException ex)
+        {
+            return Task.FromResult(new DisplayWriterStatus(false, "native-host-required", $"Dxva2.dll is unavailable: {ex.Message}"));
+        }
+        catch (EntryPointNotFoundException ex)
+        {
+            return Task.FromResult(new DisplayWriterStatus(false, "native-host-required", $"Windows monitor configuration entry point is unavailable: {ex.Message}"));
+        }
+        catch (Exception ex) when (ex is Win32Exception or InvalidOperationException)
+        {
+            return Task.FromResult(new DisplayWriterStatus(false, "degraded", ex.Message));
+        }
+    }
+
+    public Task<BrokerOperationResult> ApplyProfileAsync(DisplayProfileIntent intent, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        var validation = ValidateIntent(intent);
+        if (validation is not null)
+        {
+            return Task.FromResult(validation);
+        }
+
+        if (!OperatingSystem.IsWindows())
+        {
+            return Task.FromResult(new BrokerOperationResult(false, "unsupported", "Windows display writer is available only on Windows."));
+        }
+
+        try
+        {
+            var targets = SelectTargets(intent);
+            if (targets.Count == 0)
+            {
+                return Task.FromResult(new BrokerOperationResult(false, "unsupported", $"Display target '{intent.DisplayId}' was not found."));
+            }
+
+            var results = new List<DisplayWriteResult>();
+            foreach (var target in targets)
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                using var physicalMonitors = PhysicalMonitorSet.TryCreate(target.Handle, out var createError);
+                if (physicalMonitors is null)
+                {
+                    results.Add(DisplayWriteResult.Failed(target.Snapshot.Id, createError));
+                    continue;
+                }
+
+                foreach (var physical in physicalMonitors.Monitors)
+                {
+                    results.Add(ApplyToPhysicalMonitor(target, physical, intent));
+                }
+            }
+
+            return Task.FromResult(SummarizeWriteResults(results));
+        }
+        catch (DllNotFoundException ex)
+        {
+            return Task.FromResult(new BrokerOperationResult(false, "native-host-required", $"Dxva2.dll is unavailable: {ex.Message}"));
+        }
+        catch (EntryPointNotFoundException ex)
+        {
+            return Task.FromResult(new BrokerOperationResult(false, "native-host-required", $"Windows monitor configuration entry point is unavailable: {ex.Message}"));
+        }
+        catch (Exception ex) when (ex is Win32Exception or InvalidOperationException)
+        {
+            return Task.FromResult(new BrokerOperationResult(false, "degraded", ex.Message));
+        }
+    }
+
+    private static BrokerOperationResult? ValidateIntent(DisplayProfileIntent intent)
+    {
+        if (string.IsNullOrWhiteSpace(intent.ProfileId))
+        {
+            return new BrokerOperationResult(false, "validation-failed", "profileId is required.");
+        }
+
+        if (intent.Brightness is null && intent.ColorTemperature is null)
+        {
+            return new BrokerOperationResult(false, "validation-failed", "At least one display setting is required.");
+        }
+
+        if (intent.Brightness is < 0 or > 100)
+        {
+            return new BrokerOperationResult(false, "validation-failed", "brightness must be between 0 and 100.");
+        }
+
+        if (intent.ColorTemperature is < 1000 or > 11500)
+        {
+            return new BrokerOperationResult(false, "validation-failed", "colorTemperature must be between 1000 and 11500.");
+        }
+
+        return null;
+    }
+
+    private static IReadOnlyList<LogicalDisplayTarget> SelectTargets(DisplayProfileIntent intent)
+    {
+        var targets = EnumerateDisplayTargets();
+        if (string.IsNullOrWhiteSpace(intent.DisplayId) || string.Equals(intent.DisplayId, "all", StringComparison.OrdinalIgnoreCase))
+        {
+            return targets;
+        }
+
+        return targets
+            .Where(target => string.Equals(target.Snapshot.Id, intent.DisplayId, StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+    }
+
+    private static IReadOnlyList<LogicalDisplayTarget> EnumerateDisplayTargets()
+    {
+        var targets = new List<LogicalDisplayTarget>();
         MonitorEnumProc callback = (monitor, _, _, _) =>
         {
             var info = new MonitorInfoEx();
@@ -536,36 +705,297 @@ public sealed class WindowsDisplayService : IDisplayService
             var width = Math.Abs(info.Monitor.Right - info.Monitor.Left);
             var height = Math.Abs(info.Monitor.Bottom - info.Monitor.Top);
             var primary = (info.Flags & MonitorinfofPrimary) != 0;
-            displays.Add(new DisplaySnapshot(
-                string.IsNullOrWhiteSpace(info.DeviceName) ? $"monitor-{displays.Count + 1}" : info.DeviceName,
-                primary ? "Primary display" : $"Display {displays.Count + 1}",
+            var snapshot = new DisplaySnapshot(
+                string.IsNullOrWhiteSpace(info.DeviceName) ? $"monitor-{targets.Count + 1}" : info.DeviceName,
+                primary ? "Primary display" : $"Display {targets.Count + 1}",
                 "connected",
                 width,
                 height,
                 0,
                 width >= height ? "landscape" : "portrait",
                 primary,
-                $"Bounds {info.Monitor.Left},{info.Monitor.Top} {width}x{height}"));
+                $"Bounds {info.Monitor.Left},{info.Monitor.Top} {width}x{height}");
+            targets.Add(new LogicalDisplayTarget(monitor, snapshot));
             return true;
         };
 
         EnumDisplayMonitors(IntPtr.Zero, IntPtr.Zero, callback, IntPtr.Zero);
-        return Task.FromResult<IReadOnlyList<DisplaySnapshot>>(displays);
+        return targets;
     }
 
-    public Task<BrokerOperationResult> ApplyProfileAsync(DisplayProfileIntent intent, CancellationToken cancellationToken)
+    private static DisplayWriteResult ApplyToPhysicalMonitor(LogicalDisplayTarget target, PhysicalMonitor physical, DisplayProfileIntent intent)
     {
-        var message = "Display brightness and color temperature writes require the ScreenEase native host. The profile intent was validated by the module and can be applied once the native host is available.";
-        return Task.FromResult(new BrokerOperationResult(false, "native-host-required", message));
+        var operations = new List<string>();
+        var failures = new List<string>();
+        if (!TryGetCapabilities(physical.Handle, out var capabilities, out var colorTemperatures, out var capabilityError))
+        {
+            return DisplayWriteResult.Failed(DescribePhysical(target, physical), capabilityError ?? "The monitor did not report DDC/CI capabilities.");
+        }
+
+        if (intent.Brightness is { } brightness)
+        {
+            if (!HasCapability(capabilities, McCapsBrightness))
+            {
+                failures.Add("brightness unsupported");
+            }
+            else if (TrySetBrightness(physical.Handle, brightness, out var brightnessMessage))
+            {
+                operations.Add(brightnessMessage);
+            }
+            else
+            {
+                failures.Add(brightnessMessage);
+            }
+        }
+
+        if (intent.ColorTemperature is { } colorTemperature)
+        {
+            if (!HasCapability(capabilities, McCapsColorTemperature))
+            {
+                failures.Add("color temperature unsupported");
+            }
+            else if (!TryMapColorTemperature(colorTemperature, colorTemperatures, out var mappedTemperature, out var colorTemperatureFlag, out var mapMessage))
+            {
+                failures.Add(mapMessage);
+            }
+            else if (TrySetColorTemperature(physical.Handle, mappedTemperature, colorTemperatureFlag, out var temperatureMessage))
+            {
+                operations.Add(mapMessage == temperatureMessage ? temperatureMessage : $"{mapMessage}; {temperatureMessage}");
+            }
+            else
+            {
+                failures.Add(temperatureMessage);
+            }
+        }
+
+        if (failures.Count > 0)
+        {
+            return operations.Count > 0
+                ? DisplayWriteResult.Partial(DescribePhysical(target, physical), $"{string.Join(", ", operations)}; {string.Join(", ", failures)}")
+                : DisplayWriteResult.Failed(DescribePhysical(target, physical), string.Join(", ", failures));
+        }
+
+        return DisplayWriteResult.Succeeded(DescribePhysical(target, physical), string.Join(", ", operations));
+    }
+
+    private static BrokerOperationResult SummarizeWriteResults(IReadOnlyList<DisplayWriteResult> results)
+    {
+        if (results.Count == 0)
+        {
+            return new BrokerOperationResult(false, "unsupported", "No physical monitor handles were available through Windows DDC/CI.");
+        }
+
+        var successes = results.Count(result => result.State == "success");
+        var partials = results.Count(result => result.State == "partial");
+        var failures = results.Count(result => result.State == "failed");
+        var detail = string.Join("; ", results.Select(result => $"{result.Target}: {result.Message}").Take(6));
+        if (successes == results.Count)
+        {
+            return new BrokerOperationResult(true, "success", $"Applied display profile through Windows DDC/CI on {successes} physical monitor(s). {detail}");
+        }
+
+        if (successes + partials > 0)
+        {
+            return new BrokerOperationResult(false, "partial", $"Applied display profile on {successes + partials} physical monitor(s); {failures} monitor(s) reported full failure and {partials} monitor(s) reported partial limitations. {detail}");
+        }
+
+        return new BrokerOperationResult(false, "unsupported", $"Windows DDC/CI writer could not apply this profile to any physical monitor. {detail}");
+    }
+
+    private static bool TryGetCapabilities(IntPtr physicalMonitor, out uint capabilities, out uint colorTemperatures, out string? error)
+    {
+        capabilities = 0;
+        colorTemperatures = 0;
+        if (GetMonitorCapabilities(physicalMonitor, out capabilities, out colorTemperatures))
+        {
+            error = null;
+            return true;
+        }
+
+        error = $"GetMonitorCapabilities failed: {FormatLastError()}";
+        return false;
+    }
+
+    private static bool TrySetBrightness(IntPtr physicalMonitor, int percent, out string message)
+    {
+        if (!GetMonitorBrightness(physicalMonitor, out var minimum, out _, out var maximum))
+        {
+            message = $"GetMonitorBrightness failed: {FormatLastError()}";
+            return false;
+        }
+
+        if (maximum < minimum)
+        {
+            message = $"brightness range is invalid ({minimum}-{maximum})";
+            return false;
+        }
+
+        var target = minimum + (uint)Math.Round((maximum - minimum) * (Math.Clamp(percent, 0, 100) / 100d));
+        if (!SetMonitorBrightness(physicalMonitor, target))
+        {
+            message = $"SetMonitorBrightness({target}) failed: {FormatLastError()}";
+            return false;
+        }
+
+        message = $"brightness {percent}% ({target}/{minimum}-{maximum})";
+        return true;
+    }
+
+    private static bool TrySetColorTemperature(IntPtr physicalMonitor, McColorTemperature temperature, uint flag, out string message)
+    {
+        if (!SetMonitorColorTemperature(physicalMonitor, temperature))
+        {
+            message = $"SetMonitorColorTemperature({ColorTemperatureKelvin(flag)}K) failed: {FormatLastError()}";
+            return false;
+        }
+
+        message = $"color temperature {ColorTemperatureKelvin(flag)}K";
+        return true;
+    }
+
+    private static bool TryMapColorTemperature(
+        int requestedKelvin,
+        uint supportedFlags,
+        out McColorTemperature temperature,
+        out uint flag,
+        out string message)
+    {
+        var supported = ColorTemperatureOptions
+            .Where(option => HasCapability(supportedFlags, option.Flag))
+            .OrderBy(option => Math.Abs(option.Kelvin - requestedKelvin))
+            .ToArray();
+        if (supported.Length == 0)
+        {
+            temperature = McColorTemperature.Unknown;
+            flag = 0;
+            message = "color temperature unsupported";
+            return false;
+        }
+
+        var selected = supported[0];
+        temperature = selected.Temperature;
+        flag = selected.Flag;
+        message = selected.Kelvin == requestedKelvin
+            ? $"color temperature {selected.Kelvin}K"
+            : $"color temperature mapped from {requestedKelvin}K to supported {selected.Kelvin}K";
+        return true;
+    }
+
+    private static bool HasCapability(uint value, uint flag) => (value & flag) == flag;
+
+    private static int ColorTemperatureKelvin(uint flag)
+    {
+        return ColorTemperatureOptions.First(option => option.Flag == flag).Kelvin;
+    }
+
+    private static string DescribePhysical(LogicalDisplayTarget target, PhysicalMonitor physical)
+    {
+        return string.IsNullOrWhiteSpace(physical.Description)
+            ? target.Snapshot.Id
+            : $"{target.Snapshot.Id}/{physical.Description}";
+    }
+
+    private static string FormatLastError()
+    {
+        var error = Marshal.GetLastWin32Error();
+        return error == 0 ? "unknown Win32 error" : new Win32Exception(error).Message;
     }
 
     private delegate bool MonitorEnumProc(IntPtr monitor, IntPtr hdc, IntPtr rect, IntPtr data);
+
+    private sealed record LogicalDisplayTarget(IntPtr Handle, DisplaySnapshot Snapshot);
+
+    private sealed record ColorTemperatureOption(int Kelvin, uint Flag, McColorTemperature Temperature);
+
+    private sealed record DisplayWriteResult(string Target, string State, string Message)
+    {
+        public static DisplayWriteResult Succeeded(string target, string message) => new(target, "success", message);
+        public static DisplayWriteResult Partial(string target, string message) => new(target, "partial", message);
+        public static DisplayWriteResult Failed(string target, string message) => new(target, "failed", message);
+    }
+
+    private sealed class PhysicalMonitorSet : IDisposable
+    {
+        private PhysicalMonitorSet(PhysicalMonitor[] monitors)
+        {
+            Monitors = monitors;
+        }
+
+        public PhysicalMonitor[] Monitors { get; }
+
+        public static PhysicalMonitorSet? TryCreate(IntPtr logicalMonitor, out string error)
+        {
+            error = "";
+            if (!GetNumberOfPhysicalMonitorsFromHMONITOR(logicalMonitor, out var count) || count == 0)
+            {
+                error = $"GetNumberOfPhysicalMonitorsFromHMONITOR failed: {FormatLastError()}";
+                return null;
+            }
+
+            var monitors = new PhysicalMonitor[count];
+            if (!GetPhysicalMonitorsFromHMONITOR(logicalMonitor, count, monitors))
+            {
+                error = $"GetPhysicalMonitorsFromHMONITOR failed: {FormatLastError()}";
+                return null;
+            }
+
+            return new PhysicalMonitorSet(monitors);
+        }
+
+        public void Dispose()
+        {
+            if (Monitors.Length > 0)
+            {
+                DestroyPhysicalMonitors((uint)Monitors.Length, Monitors);
+            }
+        }
+    }
+
+    private static readonly IReadOnlyList<ColorTemperatureOption> ColorTemperatureOptions =
+    [
+        new(4000, 0x00000001, McColorTemperature.K4000),
+        new(5000, 0x00000002, McColorTemperature.K5000),
+        new(6500, 0x00000004, McColorTemperature.K6500),
+        new(7500, 0x00000008, McColorTemperature.K7500),
+        new(8200, 0x00000010, McColorTemperature.K8200),
+        new(9300, 0x00000020, McColorTemperature.K9300),
+        new(10000, 0x00000040, McColorTemperature.K10000),
+        new(11500, 0x00000080, McColorTemperature.K11500)
+    ];
 
     [DllImport("user32.dll")]
     private static extern bool EnumDisplayMonitors(IntPtr hdc, IntPtr clip, MonitorEnumProc callback, IntPtr data);
 
     [DllImport("user32.dll", CharSet = CharSet.Unicode)]
     private static extern bool GetMonitorInfo(IntPtr monitor, ref MonitorInfoEx info);
+
+    [DllImport("Dxva2.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetNumberOfPhysicalMonitorsFromHMONITOR(IntPtr monitor, out uint numberOfPhysicalMonitors);
+
+    [DllImport("Dxva2.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetPhysicalMonitorsFromHMONITOR(IntPtr monitor, uint physicalMonitorArraySize, [Out] PhysicalMonitor[] physicalMonitorArray);
+
+    [DllImport("Dxva2.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool DestroyPhysicalMonitors(uint physicalMonitorArraySize, [In] PhysicalMonitor[] physicalMonitorArray);
+
+    [DllImport("Dxva2.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetMonitorCapabilities(IntPtr monitor, out uint monitorCapabilities, out uint supportedColorTemperatures);
+
+    [DllImport("Dxva2.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetMonitorBrightness(IntPtr monitor, out uint minimumBrightness, out uint currentBrightness, out uint maximumBrightness);
+
+    [DllImport("Dxva2.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool SetMonitorBrightness(IntPtr monitor, uint newBrightness);
+
+    [DllImport("Dxva2.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool SetMonitorColorTemperature(IntPtr monitor, McColorTemperature colorTemperature);
 
     [StructLayout(LayoutKind.Sequential)]
     private struct Rect
@@ -586,5 +1016,27 @@ public sealed class WindowsDisplayService : IDisplayService
 
         [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 32)]
         public string DeviceName;
+    }
+
+    [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
+    private struct PhysicalMonitor
+    {
+        public IntPtr Handle;
+
+        [MarshalAs(UnmanagedType.ByValTStr, SizeConst = 128)]
+        public string Description;
+    }
+
+    private enum McColorTemperature
+    {
+        Unknown = 0,
+        K4000 = 1,
+        K5000 = 2,
+        K6500 = 3,
+        K7500 = 4,
+        K8200 = 5,
+        K9300 = 6,
+        K10000 = 7,
+        K11500 = 8
     }
 }

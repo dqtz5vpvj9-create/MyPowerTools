@@ -17,6 +17,7 @@ using MyPowerTools.Runtime;
 using MyPowerTools.SampleModules.DotNet;
 using MyPowerTools.Shell.Avalonia;
 using MyPowerTools.UI;
+using ScreenEase.MyPowerTools;
 using HostProto = MyPowerTools.Protocol.HostControl.V1;
 
 namespace MyPowerTools.Tests;
@@ -1382,6 +1383,78 @@ Address         Port        Address         Port
     }
 
     [Fact]
+    public async Task ScreenEase_profile_apply_keeps_hardware_write_disabled_by_default()
+    {
+        var display = new RecordingDisplayService();
+        var module = new ScreenEaseModule(display);
+        await module.InitializeAsync(CreateScreenEaseContext("screenease-default-write"), CancellationToken.None);
+
+        var result = await module.ExecuteCommandAsync(
+            new CommandRequest("screenease-apply-default", "screenease.profile.apply", new JsonObject { ["profileId"] = "night" }),
+            CancellationToken.None);
+        var payload = JsonNode.Parse(result.Output)!.AsObject();
+        var nativeHost = payload["nativeHost"]!.AsObject();
+
+        Assert.True(result.Success);
+        Assert.Empty(display.AppliedIntents);
+        Assert.Equal("night", payload["activeProfileId"]!.GetValue<string>());
+        Assert.Equal("native-host-required", nativeHost["state"]!.GetValue<string>());
+        Assert.False(nativeHost["hardwareWriteRequested"]!.GetValue<bool>());
+    }
+
+    [Fact]
+    public async Task ScreenEase_profile_apply_calls_display_writer_when_requested()
+    {
+        var display = new RecordingDisplayService();
+        var module = new ScreenEaseModule(display);
+        await module.InitializeAsync(CreateScreenEaseContext("screenease-explicit-write"), CancellationToken.None);
+
+        var result = await module.ExecuteCommandAsync(
+            new CommandRequest("screenease-apply-native", "screenease.profile.apply", new JsonObject
+            {
+                ["profileId"] = "night",
+                ["displayId"] = @"\\.\DISPLAY1",
+                ["hardwareWrite"] = true
+            }),
+            CancellationToken.None);
+        var payload = JsonNode.Parse(result.Output)!.AsObject();
+        var nativeHost = payload["nativeHost"]!.AsObject();
+        var intent = Assert.Single(display.AppliedIntents);
+
+        Assert.True(result.Success);
+        Assert.Equal("night", intent.ProfileId);
+        Assert.Equal(@"\\.\DISPLAY1", intent.DisplayId);
+        Assert.Equal(45, intent.Brightness);
+        Assert.Equal(4200, intent.ColorTemperature);
+        Assert.Equal("success", nativeHost["state"]!.GetValue<string>());
+        Assert.True(nativeHost["success"]!.GetValue<bool>());
+        Assert.True(nativeHost["hardwareWriteRequested"]!.GetValue<bool>());
+    }
+
+    [Fact]
+    public async Task ScreenEase_native_writer_configure_enables_future_hardware_apply()
+    {
+        var display = new RecordingDisplayService();
+        var module = new ScreenEaseModule(display);
+        await module.InitializeAsync(CreateScreenEaseContext("screenease-configured-write"), CancellationToken.None);
+
+        var configure = await module.ExecuteCommandAsync(
+            new CommandRequest("screenease-writer-configure", "screenease.native-writer.configure", new JsonObject { ["enabled"] = true }),
+            CancellationToken.None);
+        var apply = await module.ExecuteCommandAsync(
+            new CommandRequest("screenease-apply-configured", "screenease.profile.apply", new JsonObject { ["profileId"] = "focus" }),
+            CancellationToken.None);
+        var configured = JsonNode.Parse(configure.Output)!.AsObject();
+        var applied = JsonNode.Parse(apply.Output)!.AsObject();
+
+        Assert.True(configure.Success);
+        Assert.True(configured["enabled"]!.GetValue<bool>());
+        Assert.True(apply.Success);
+        Assert.Single(display.AppliedIntents);
+        Assert.Equal("success", applied["nativeHost"]!.AsObject()["state"]!.GetValue<string>());
+    }
+
+    [Fact]
     public async Task DoubaoAgent_inproc_module_reports_planner_tool_and_mcp_services()
     {
         await using var planner = TestHttpFacadeServer.Start();
@@ -2474,6 +2547,46 @@ Address         Port        Address         Port
             ["adbPath"] = "adb-missing-for-smartbird-test",
             ["fnb58Port"] = ""
         };
+    }
+
+    private static ModuleContext CreateScreenEaseContext(string name)
+    {
+        var root = Path.Combine(Path.GetTempPath(), "mpt-tests", name, Guid.NewGuid().ToString("N"));
+        return new ModuleContext(
+            "test-host",
+            "1.0",
+            "screenease",
+            "screenease",
+            Path.Combine(root, "data"),
+            Path.Combine(root, "cache"),
+            Path.Combine(root, "logs"),
+            PlatformId.Current().Rid,
+            ["display.profile"]);
+    }
+
+    private sealed class RecordingDisplayService : IDisplayService
+    {
+        public List<DisplayProfileIntent> AppliedIntents { get; } = [];
+
+        public Task<IReadOnlyList<DisplaySnapshot>> ListDisplaysAsync(CancellationToken cancellationToken)
+        {
+            IReadOnlyList<DisplaySnapshot> displays =
+            [
+                new(@"\\.\DISPLAY1", "Test display", "connected", 1920, 1080, 60, "landscape", true, "test display")
+            ];
+            return Task.FromResult(displays);
+        }
+
+        public Task<DisplayWriterStatus> GetWriterStatusAsync(CancellationToken cancellationToken)
+        {
+            return Task.FromResult(new DisplayWriterStatus(true, "ready", "test writer ready"));
+        }
+
+        public Task<BrokerOperationResult> ApplyProfileAsync(DisplayProfileIntent intent, CancellationToken cancellationToken)
+        {
+            AppliedIntents.Add(intent);
+            return Task.FromResult(new BrokerOperationResult(true, "success", $"applied {intent.ProfileId}"));
+        }
     }
 
     private sealed class TestHttpFacadeServer : IAsyncDisposable

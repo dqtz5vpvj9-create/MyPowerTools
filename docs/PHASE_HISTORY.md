@@ -134,3 +134,38 @@ Remaining P2 work:
 - SmartBird full Energy Server/FNB-58 hardware validation remains external.
 - Real Doubao planner/tool/MCP endpoint contracts need validation against production local services.
 - Android device notification and command end-to-end flows need connected devices/services for external validation.
+
+### P2 Module Runtime And Existing Tools Production Closure
+
+Status: partial, progressed.
+
+Actions:
+- Added `DisplayWriterStatus` to `IDisplayService`.
+- Implemented Windows ScreenEase display writer support through Dxva2 DDC/CI capability probing, brightness range mapping, and supported color-temperature mapping.
+- Kept macOS/Linux display providers explicit degraded implementations.
+- Added `screenease.native-writer.status` and `screenease.native-writer.configure` dynamic/static commands.
+- Kept `screenease.profile.apply` safe by default; hardware writes run only when `hardwareWrite=true` is passed or the native writer is configured on.
+- Added ScreenEase acceptance coverage for default no-hardware-write behavior, explicit writer invocation, and persisted writer enable flow.
+- Rebuilt the Windows portable release zip.
+
+Validation:
+- `dotnet build MyPowerTools.slnx --no-restore` succeeded with 0 warnings and 0 errors.
+- `dotnet test MyPowerTools.slnx --no-build` passed 71 tests, 0 failed, 0 skipped after the release module copy was refreshed.
+- `dotnet run --no-build --project src\MyPowerTools.Cli -- validate modules` passed for 5 packages.
+- `dotnet run --no-build --project src\MyPowerTools.Cli -- validate contracts` passed for 5 packages and 7 modules; ScreenEase reports 14 commands.
+- `dotnet run --no-build --project src\MyPowerTools.Cli -- run screenease.status.summary` returned 1 detected Windows display and current DDC/CI writer status.
+- `dotnet run --no-build --project src\MyPowerTools.Cli -- run screenease.native-writer.status` returned an actionable unsupported-monitor `GetMonitorCapabilities` diagnostic for the current Generic PnP Monitor.
+- `dotnet run --no-build --project src\MyPowerTools.Cli -- run screenease.profile.apply` returned the expected safe default `native-host-required` status because hardware writes are disabled unless explicitly requested or configured.
+- `dotnet run --no-build --project src\MyPowerTools.Cli -- diagnostics` reported 81 commands.
+- `dotnet run --no-build --project src\MyPowerTools.Runner -- --once` indexed 7 modules and reported ScreenEase degraded due current DDC/CI hardware support.
+- `dotnet run --no-build --project src\MyPowerTools.Cli -- package trust modules --strict` reported `signature-hook` for all 5 production packages.
+- `pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\publish-windows.ps1` rebuilt `artifacts/release/MyPowerTools-win-x64.zip` with SHA256 `594634C7733FC4CC7A138CD67DF90218F3249C754DE952AF50A795F031292EFA`.
+- `artifacts\release\win-x64\Runner\MyPowerTools.Runner.exe --once --data-root artifacts\release-root-once-data-screenease-writer` indexed 7 modules from the release root.
+- Release Shell smoke connected to Runner 0.2.0, reported 7 modules, 7 dashboard cards, 81 commands, and requested Runner shutdown.
+- Install and uninstall dry-runs passed for `artifacts\release\win-x64`.
+
+Remaining P2 work:
+- ScreenEase hardware write validation on a DDC/CI-capable monitor remains external.
+- SmartBird full Energy Server/FNB-58 hardware validation remains external.
+- Real Doubao planner/tool/MCP endpoint contracts need validation against production local services.
+- Android device notification and command end-to-end flows need connected devices/services for external validation.

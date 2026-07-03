@@ -6,11 +6,11 @@
   "sdk": "10.0.301",
   "packages": 5,
   "modules": 7,
-  "testsPassed": 68,
+  "testsPassed": 71,
   "testsFailed": 0,
   "testsSkipped": 0,
   "releaseArtifact": "artifacts/release/MyPowerTools-win-x64.zip",
-  "releaseSha256": "FC79EEC5976F26ED7CA3F509AD2C070F1981057261BA2B199F33175B99C5D802",
+  "releaseSha256": "594634C7733FC4CC7A138CD67DF90218F3249C754DE952AF50A795F031292EFA",
   "completed": [
     "P0",
     "P1"
@@ -27,14 +27,14 @@
   "externalValidation": [
     "Elevated portproxy apply/revert requires administrator token or signed elevated helper.",
     "Production signing requires private signing material or signing service.",
-    "ScreenEase hardware writes require native display writer and monitor validation.",
+    "ScreenEase hardware writes require validation on a DDC/CI-capable monitor.",
     "SmartBird full hardware validation requires SmartBird, FNB-58, Energy Server, and ADB environment.",
     "AndroidTools device notification/command end-to-end flows require connected ADB devices and notification service state.",
     "Doubao planner/tool/MCP endpoint contract validation requires documented production health/status APIs.",
     "macOS/Linux native validation requires host machines."
   ],
   "nextActions": [
-    "P2: implement ScreenEase native display writer or preserve native-host-required hardware blocker with stronger tests.",
+    "P2: validate ScreenEase hardware writes on a DDC/CI-capable monitor when one is available.",
     "P2: add module-specific production tests for remaining degraded and facade paths.",
     "P2: validate SmartBird Energy Server and FNB-58 hardware dependencies when local services are available.",
     "P2: validate real Doubao planner/tool/MCP endpoint contracts when the local services expose production health APIs."

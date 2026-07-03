@@ -110,7 +110,7 @@ $releaseNotes.Add('- `pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\
 $releaseNotes.Add('')
 $releaseNotes.Add('## External Requirements')
 $releaseNotes.Add('')
-$releaseNotes.Add('- ScreenEase hardware brightness/color-temperature writes require the native display writer.')
+$releaseNotes.Add('- ScreenEase hardware brightness/color-temperature writes use the Windows DDC/CI native writer when explicitly enabled; unsupported monitors return hardware-level diagnostics.')
 $releaseNotes.Add('- NetworkBroker elevated portproxy writes require an elevated helper or administrator token.')
 $releaseNotes.Add('- SmartBird, FNB-58, Energy Server, and ADB hardware paths depend on local devices and services.')
 

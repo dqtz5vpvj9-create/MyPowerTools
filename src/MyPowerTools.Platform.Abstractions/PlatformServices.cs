@@ -65,6 +65,7 @@ public sealed record DisplayProfileIntent(
     int? Brightness,
     int? ColorTemperature,
     string Reason);
+public sealed record DisplayWriterStatus(bool Available, string State, string Message);
 public sealed record TrayMenuItem(
     string Id,
     string Label,
@@ -155,5 +156,6 @@ public interface IProcessService
 public interface IDisplayService
 {
     Task<IReadOnlyList<DisplaySnapshot>> ListDisplaysAsync(CancellationToken cancellationToken);
+    Task<DisplayWriterStatus> GetWriterStatusAsync(CancellationToken cancellationToken);
     Task<BrokerOperationResult> ApplyProfileAsync(DisplayProfileIntent intent, CancellationToken cancellationToken);
 }

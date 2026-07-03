@@ -33,7 +33,7 @@ The project is designed for local, long-term use: modules register through manif
 |---|---|---|
 | `android-tools-suite` | `android-tools.notifications`, `android-tools.remote-commands`, `android-tools.process-monitor` | Shared InProc facade, command import, notification diagnostics, process watch scanning. |
 | `adb-forwarder` | `adb-forwarder` | ADB diagnostics, Windows portproxy inspection, brokered apply/revert plan with rollback. |
-| `screenease` | `screenease` | Display enumeration, profile list/plan/apply/save, rules status, native writer pending for hardware changes. |
+| `screenease` | `screenease` | Display enumeration, profile list/plan/apply/save, rules status, and Windows DDC/CI native writer probing for brightness/color-temperature hardware changes. |
 | `doubao-agent` | `doubao-agent` | InProc controller with planner/tool/MCP health separation, self-test, settings schema, and logs summary. |
 | `smartbird-thermostat` | `smartbird-thermostat` | InProc typed facade for HTTP status, events, config, logs, brokered restart, and degraded hardware diagnostics. |
 
@@ -294,7 +294,7 @@ dotnet run --project src\MyPowerTools.Cli -- broker secret self-test
 
 Expected degraded states:
 
-- ScreenEase hardware writes report `native-host-required` until the native display writer is installed.
+- ScreenEase hardware writes use the Windows DDC/CI native writer when explicitly enabled; monitors without DDC/CI brightness/color-temperature support return actionable hardware diagnostics.
 - AndroidTools Process Monitor reports degraded until a watch list is saved.
 - NetworkBroker portproxy apply requires administrator rights or an elevated helper.
 - macOS/Linux secret providers compile and report unsupported until Keychain/Secret Service implementations are added.

@@ -11,6 +11,7 @@ namespace ScreenEase.MyPowerTools;
 
 public sealed class ScreenEaseModule : IMptModule
 {
+    private readonly IDisplayService? _displayOverride;
     private ModuleContext? _context;
     private ScreenEaseStore? _store;
     private IDisplayService? _display;
@@ -22,6 +23,15 @@ public sealed class ScreenEaseModule : IMptModule
     private ScreenEaseStore Store => _store ?? throw new InvalidOperationException("ScreenEase was not initialized.");
     private IDisplayService Display => _display ?? throw new InvalidOperationException("ScreenEase was not initialized.");
 
+    public ScreenEaseModule()
+    {
+    }
+
+    public ScreenEaseModule(IDisplayService display)
+    {
+        _displayOverride = display;
+    }
+
     public ValueTask<InitializeResult> InitializeAsync(ModuleContext context, CancellationToken cancellationToken)
     {
         _context = context;
@@ -29,7 +39,7 @@ public sealed class ScreenEaseModule : IMptModule
         Directory.CreateDirectory(context.CacheDirectory);
         Directory.CreateDirectory(context.LogDirectory);
         _store = new ScreenEaseStore(Path.Combine(context.DataDirectory, "screenease-state.json"));
-        _display = CreateDisplayService();
+        _display = _displayOverride ?? CreateDisplayService();
         Store.EnsureDefaults();
         return ValueTask.FromResult(new InitializeResult(true, context.ProtocolVersion, ["status", "commands", "settings", "logs", "dashboardCard", "detailPage"]));
     }
@@ -38,20 +48,21 @@ public sealed class ScreenEaseModule : IMptModule
     {
         var state = Store.Load();
         var displays = await Display.ListDisplaysAsync(cancellationToken);
+        var writer = await Display.GetWriterStatusAsync(cancellationToken);
         var usableDisplays = displays.Where(display => display.State != "unsupported").ToArray();
-        var nativeHostReady = state.NativeHost.Enabled && state.NativeHost.Available;
+        var nativeHostReady = state.NativeHost.Enabled && writer.Available;
         var checks = new[]
         {
             new HealthCheckSnapshot("display.enumeration", "Display enumeration", usableDisplays.Length > 0, usableDisplays.Length > 0 ? $"{usableDisplays.Length} display(s) detected." : "No usable display provider was detected."),
             new HealthCheckSnapshot("profile.store", "Profile store", state.Profiles.Count > 0, $"{state.Profiles.Count} profile(s) available; active profile is '{state.ActiveProfileId}'."),
             new HealthCheckSnapshot("rule.store", "Rule store", true, $"{state.Rules.Count} rule(s) configured."),
-            new HealthCheckSnapshot("native-host", "Native display writer", nativeHostReady, nativeHostReady ? "Native display writer is available." : "Brightness and color-temperature writes require the ScreenEase native host.")
+            new HealthCheckSnapshot("native-host", "Native display writer", nativeHostReady, NativeWriterMessage(state.NativeHost, writer))
         };
 
         var moduleState = usableDisplays.Length == 0 ? "degraded" : nativeHostReady ? "running" : "degraded";
         var summary = nativeHostReady
             ? $"Profile '{state.ActiveProfileId}' is active across {usableDisplays.Length} display(s)."
-            : $"Profile '{state.ActiveProfileId}' is managed; hardware writes are waiting for the native display host.";
+            : $"Profile '{state.ActiveProfileId}' is managed; hardware writes are waiting for native display writer readiness.";
         return new ModuleStatusSnapshot(Id, moduleState, summary, DateTimeOffset.UtcNow, checks, 0);
     }
 
@@ -65,7 +76,9 @@ public sealed class ScreenEaseModule : IMptModule
             Command("screenease.profile.plan", "Plan profile application", "Preview display changes for a selected profile"),
             Command("screenease.profile.apply", "Apply ScreenEase profile", "Switch active profile and request hardware apply when native host is ready"),
             Command("screenease.profile.save", "Save ScreenEase profile", "Persist a profile into ScreenEase shared state"),
-            Command("screenease.rules.status", "Show ScreenEase rules", "Inspect schedule and ambient rule status")
+            Command("screenease.rules.status", "Show ScreenEase rules", "Inspect schedule and ambient rule status"),
+            Command("screenease.native-writer.status", "Show ScreenEase native writer status", "Probe Windows DDC/CI display write readiness"),
+            Command("screenease.native-writer.configure", "Configure ScreenEase native writer", "Enable or disable hardware writes for future profile apply commands")
         ];
         return ValueTask.FromResult(commands);
     }
@@ -81,6 +94,8 @@ public sealed class ScreenEaseModule : IMptModule
             "screenease.profile.apply" => await ApplyProfileAsync(request, cancellationToken),
             "screenease.profile.save" => SaveProfile(request),
             "screenease.rules.status" => Succeeded(request, Store.Load().RulesJson().ToJsonString()),
+            "screenease.native-writer.status" => Succeeded(request, (await BuildNativeWriterPayloadAsync(cancellationToken)).ToJsonString()),
+            "screenease.native-writer.configure" => await ConfigureNativeWriterAsync(request, cancellationToken),
             _ => Failed(request, MptErrorCodes.NotFound, $"Command '{request.CommandId}' is not implemented by ScreenEase.")
         };
     }
@@ -122,6 +137,15 @@ public sealed class ScreenEaseModule : IMptModule
                   "condition": { "type": "string" }
                 }
               }
+            },
+            "nativeHost": {
+              "type": "object",
+              "properties": {
+                "enabled": { "type": "boolean", "default": false },
+                "available": { "type": "boolean", "default": false },
+                "state": { "type": "string" },
+                "message": { "type": "string" }
+              }
             }
           }
         }
@@ -158,6 +182,19 @@ public sealed class ScreenEaseModule : IMptModule
                 var parsed = ScreenEaseProfile.FromJson(profile);
                 var validation = parsed.Validate();
                 messages.AddRange(validation);
+            }
+        }
+
+        if (patch.Patch.TryGetPropertyValue("nativeHost", out var nativeHostNode) && nativeHostNode is JsonObject nativeHost &&
+            nativeHost.TryGetPropertyValue("enabled", out var enabledNode) && enabledNode is not null)
+        {
+            try
+            {
+                _ = enabledNode.GetValue<bool>();
+            }
+            catch (InvalidOperationException)
+            {
+                messages.Add("nativeHost.enabled must be a boolean.");
             }
         }
 
@@ -208,21 +245,45 @@ public sealed class ScreenEaseModule : IMptModule
         }
 
         var displays = await Display.ListDisplaysAsync(cancellationToken);
-        state = state with { ActiveProfileId = profile.Id, UpdatedAt = DateTimeOffset.UtcNow };
+        var writer = await Display.GetWriterStatusAsync(cancellationToken);
+        var hardwareWrite = ReadBool(request.Args, "hardwareWrite") ?? state.NativeHost.Enabled;
+        var nativeResult = hardwareWrite
+            ? await Display.ApplyProfileAsync(
+                new DisplayProfileIntent(profile.Id, ReadString(request.Args, "displayId") ?? "all", profile.Brightness, profile.ColorTemperature, "ScreenEase profile apply"),
+                cancellationToken)
+            : new BrokerOperationResult(
+                false,
+                "native-host-required",
+                "Native display writes are disabled. Pass hardwareWrite=true for this command or enable the ScreenEase native writer before applying hardware changes.");
+        state = state with
+        {
+            ActiveProfileId = profile.Id,
+            NativeHost = new ScreenEaseNativeHostState(state.NativeHost.Enabled, writer.Available, nativeResult.Message),
+            UpdatedAt = DateTimeOffset.UtcNow
+        };
         Store.Save(state);
 
-        var nativeResult = await Display.ApplyProfileAsync(
-            new DisplayProfileIntent(profile.Id, ReadString(request.Args, "displayId") ?? "all", profile.Brightness, profile.ColorTemperature, "ScreenEase profile apply"),
-            cancellationToken);
         var payload = BuildPlan(state, profile, displays);
-        payload["nativeHost"] = new JsonObject
-        {
-            ["success"] = nativeResult.Success,
-            ["state"] = nativeResult.State,
-            ["message"] = nativeResult.Message
-        };
+        payload["nativeHost"] = BuildNativeHostJson(state.NativeHost, writer, nativeResult, hardwareWrite);
 
         return Succeeded(request, payload.ToJsonString());
+    }
+
+    private async Task<CommandExecutionResult> ConfigureNativeWriterAsync(CommandRequest request, CancellationToken cancellationToken)
+    {
+        var state = Store.Load();
+        var enabled = ReadBool(request.Args, "enabled") ?? true;
+        var writer = await Display.GetWriterStatusAsync(cancellationToken);
+        state = state with
+        {
+            NativeHost = new ScreenEaseNativeHostState(
+                enabled,
+                writer.Available,
+                enabled ? writer.Message : "Native display writes are disabled by ScreenEase configuration."),
+            UpdatedAt = DateTimeOffset.UtcNow
+        };
+        Store.Save(state);
+        return Succeeded(request, BuildNativeHostJson(state.NativeHost, writer, null, false).ToJsonString());
     }
 
     private CommandExecutionResult SaveProfile(CommandRequest request)
@@ -249,6 +310,7 @@ public sealed class ScreenEaseModule : IMptModule
     {
         var state = Store.Load();
         var displays = await Display.ListDisplaysAsync(cancellationToken);
+        var writer = await Display.GetWriterStatusAsync(cancellationToken);
         return new JsonObject
         {
             ["moduleId"] = Id,
@@ -258,8 +320,46 @@ public sealed class ScreenEaseModule : IMptModule
             ["displays"] = DisplayListJson(displays)["displays"]!.DeepClone(),
             ["profiles"] = state.ProfilesJson()["profiles"]!.DeepClone(),
             ["rules"] = state.RulesJson()["rules"]!.DeepClone(),
-            ["nativeHost"] = state.NativeHost.ToJson()
+            ["nativeHost"] = BuildNativeHostJson(state.NativeHost, writer, null, false)
         };
+    }
+
+    private async Task<JsonObject> BuildNativeWriterPayloadAsync(CancellationToken cancellationToken)
+    {
+        var state = Store.Load();
+        var writer = await Display.GetWriterStatusAsync(cancellationToken);
+        return BuildNativeHostJson(state.NativeHost, writer, null, false);
+    }
+
+    private static JsonObject BuildNativeHostJson(
+        ScreenEaseNativeHostState configured,
+        DisplayWriterStatus writer,
+        BrokerOperationResult? applyResult,
+        bool hardwareWriteRequested)
+    {
+        return new JsonObject
+        {
+            ["enabled"] = configured.Enabled,
+            ["available"] = writer.Available,
+            ["state"] = applyResult?.State ?? writer.State,
+            ["success"] = applyResult?.Success,
+            ["hardwareWriteRequested"] = hardwareWriteRequested,
+            ["message"] = applyResult?.Message ?? NativeWriterMessage(configured, writer)
+        };
+    }
+
+    private static string NativeWriterMessage(ScreenEaseNativeHostState configured, DisplayWriterStatus writer)
+    {
+        if (!configured.Enabled)
+        {
+            return writer.Available
+                ? "Native display writer is detected; hardware writes are disabled until ScreenEase native writer is enabled."
+                : writer.Message;
+        }
+
+        return writer.Available
+            ? writer.Message
+            : $"Native display writer is enabled but unavailable: {writer.Message}";
     }
 
     private static JsonObject BuildPlan(ScreenEaseState state, ScreenEaseProfile profile, IReadOnlyList<DisplaySnapshot> displays)
@@ -342,6 +442,23 @@ public sealed class ScreenEaseModule : IMptModule
         try
         {
             return node.GetValue<string>();
+        }
+        catch (InvalidOperationException)
+        {
+            return null;
+        }
+    }
+
+    private static bool? ReadBool(JsonObject args, string key)
+    {
+        if (!args.TryGetPropertyValue(key, out var node) || node is null)
+        {
+            return null;
+        }
+
+        try
+        {
+            return node.GetValue<bool>();
         }
         catch (InvalidOperationException)
         {
@@ -593,6 +710,7 @@ internal sealed record ScreenEaseNativeHostState(bool Enabled, bool Available, s
         {
             ["enabled"] = Enabled,
             ["available"] = Available,
+            ["state"] = Available ? "ready" : "native-host-required",
             ["message"] = Message
         };
     }

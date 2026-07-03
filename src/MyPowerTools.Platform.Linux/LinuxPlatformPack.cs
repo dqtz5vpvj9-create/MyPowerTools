@@ -46,6 +46,11 @@ public sealed class UnsupportedDisplayService : IDisplayService
         return Task.FromResult(displays);
     }
 
+    public Task<DisplayWriterStatus> GetWriterStatusAsync(CancellationToken cancellationToken)
+    {
+        return Task.FromResult(new DisplayWriterStatus(false, "unsupported", _message));
+    }
+
     public Task<BrokerOperationResult> ApplyProfileAsync(DisplayProfileIntent intent, CancellationToken cancellationToken)
     {
         return Task.FromResult(new BrokerOperationResult(false, "unsupported", _message));

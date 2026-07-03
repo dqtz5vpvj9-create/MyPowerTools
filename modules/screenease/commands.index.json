@@ -21,6 +21,26 @@
       "execution": {
         "type": "host.settings.read"
       }
+    },
+    {
+      "id": "screenease.native-writer.status",
+      "title": "Show ScreenEase native writer status",
+      "subtitle": "Probe Windows DDC/CI display write readiness",
+      "kind": "action",
+      "category": "ScreenEase",
+      "execution": {
+        "type": "module.execute"
+      }
+    },
+    {
+      "id": "screenease.native-writer.configure",
+      "title": "Configure ScreenEase native writer",
+      "subtitle": "Enable or disable hardware writes for future profile apply commands",
+      "kind": "action",
+      "category": "ScreenEase",
+      "execution": {
+        "type": "module.execute"
+      }
     }
   ]
 }
