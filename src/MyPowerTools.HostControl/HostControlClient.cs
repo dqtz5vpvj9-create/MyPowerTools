@@ -76,6 +76,26 @@ public sealed class HostControlClient : IDisposable
         return await _client.ListPackagesAsync(new HostProto.ListPackagesRequest { IncludeDisabled = true }, cancellationToken: cancellationToken);
     }
 
+    public async Task<HostProto.PackageOperationResult> InstallPackageAsync(string sourceDirectory, CancellationToken cancellationToken = default)
+    {
+        return await _client.InstallPackageAsync(new HostProto.InstallPackageRequest { SourceDirectory = sourceDirectory }, cancellationToken: cancellationToken);
+    }
+
+    public async Task<HostProto.PackageOperationResult> RepairPackageAsync(string packageId, CancellationToken cancellationToken = default)
+    {
+        return await _client.RepairPackageAsync(new HostProto.PackageOperationRequest { PackageId = packageId }, cancellationToken: cancellationToken);
+    }
+
+    public async Task<HostProto.PackageOperationResult> UninstallPackageAsync(string packageId, CancellationToken cancellationToken = default)
+    {
+        return await _client.UninstallPackageAsync(new HostProto.PackageOperationRequest { PackageId = packageId }, cancellationToken: cancellationToken);
+    }
+
+    public async Task<HostProto.PackageOperationResult> RollbackPackageAsync(string packageId, CancellationToken cancellationToken = default)
+    {
+        return await _client.RollbackPackageAsync(new HostProto.PackageOperationRequest { PackageId = packageId }, cancellationToken: cancellationToken);
+    }
+
     public async Task<HostProto.RuntimeDiagnostics> GetRuntimeDiagnosticsAsync(CancellationToken cancellationToken = default)
     {
         return await _client.GetRuntimeDiagnosticsAsync(new HostProto.RuntimeDiagnosticsRequest(), cancellationToken: cancellationToken);

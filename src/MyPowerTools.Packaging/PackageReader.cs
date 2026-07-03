@@ -24,6 +24,7 @@ public sealed class PackageReader
         }
 
         return Directory.EnumerateDirectories(rootDirectory)
+            .Where(dir => !Path.GetFileName(dir).EndsWith(".rollback", StringComparison.OrdinalIgnoreCase))
             .Where(dir => File.Exists(Path.Combine(dir, "package.json")) || File.Exists(Path.Combine(dir, "module.json")))
             .OrderBy(Path.GetFileName, StringComparer.OrdinalIgnoreCase)
             .Select(ReadPackageDirectory)

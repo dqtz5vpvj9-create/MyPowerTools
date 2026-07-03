@@ -12,6 +12,10 @@ service HostControl {
   rpc Ping(PingRequest) returns (PingResponse);
   rpc GetDashboardSnapshot(DashboardSnapshotRequest) returns (DashboardSnapshot);
   rpc ListPackages(ListPackagesRequest) returns (ListPackagesResponse);
+  rpc InstallPackage(InstallPackageRequest) returns (PackageOperationResult);
+  rpc RepairPackage(PackageOperationRequest) returns (PackageOperationResult);
+  rpc UninstallPackage(PackageOperationRequest) returns (PackageOperationResult);
+  rpc RollbackPackage(PackageOperationRequest) returns (PackageOperationResult);
   rpc ListModules(ListModulesRequest) returns (ListModulesResponse);
   rpc GetRuntimeDiagnostics(RuntimeDiagnosticsRequest) returns (RuntimeDiagnostics);
   rpc RestartRuntimeProcess(RestartRuntimeProcessRequest) returns (RuntimeProcessRestartResult);
@@ -99,6 +103,31 @@ message PackageSummary {
   string trust_policy = 11;
   string signature_path = 12;
   uint32 trust_issue_count = 13;
+}
+
+message InstallPackageRequest {
+  string source_directory = 1;
+}
+
+message PackageOperationRequest {
+  string package_id = 1;
+}
+
+message PackageOperationResult {
+  bool success = 1;
+  string operation = 2;
+  string package_id = 3;
+  string target_path = 4;
+  string message = 5;
+  repeated PackageIssue issues = 6;
+  uint32 package_count = 7;
+  uint32 module_count = 8;
+}
+
+message PackageIssue {
+  string path = 1;
+  string severity = 2;
+  string message = 3;
 }
 
 message ListModulesRequest {

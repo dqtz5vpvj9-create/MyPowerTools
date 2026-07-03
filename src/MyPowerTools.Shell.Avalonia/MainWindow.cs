@@ -491,6 +491,7 @@ public sealed class MainWindow : Window
             using var client = HostControlClient.ForDefaultEndpoint();
             var response = await client.ListPackagesAsync();
             var list = new StackPanel { Spacing = 12 };
+            list.Children.Add(BuildPackageOperationsPanel());
             foreach (var package in response.Packages.OrderBy(package => package.DisplayName, StringComparer.OrdinalIgnoreCase))
             {
                 var body = new StackPanel { Spacing = 10 };
@@ -537,6 +538,7 @@ public sealed class MainWindow : Window
                     actions.Children.Add(open);
                 }
                 body.Children.Add(actions);
+                body.Children.Add(BuildPackageActionRow(package.PackageId));
                 list.Children.Add(new MptModuleCard(body));
             }
 
@@ -548,6 +550,80 @@ public sealed class MainWindow : Window
             _contentHost.Content = BuildUnavailablePage(PackagesPage, ex.Message);
             _statusBar.Text = ex.Message;
         }
+    }
+
+    private Control BuildPackageOperationsPanel()
+    {
+        var installPath = new TextBox
+        {
+            PlaceholderText = "Package source directory",
+            MinWidth = 360,
+            MinHeight = 34
+        };
+        var install = new MptActionButton("Install");
+        install.Click += async (_, _) => await RunPackageOperationAsync(
+            "install",
+            installPath.Text ?? "",
+            client => client.InstallPackageAsync(installPath.Text ?? ""));
+
+        var rollbackId = new TextBox
+        {
+            PlaceholderText = "Package id",
+            MinWidth = 220,
+            MinHeight = 34
+        };
+        var rollback = new MptActionButton("Rollback");
+        rollback.Click += async (_, _) => await RunPackageOperationAsync(
+            "rollback",
+            rollbackId.Text ?? "",
+            client => client.RollbackPackageAsync(rollbackId.Text ?? ""));
+
+        var installRow = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 8,
+            Children = { installPath, install }
+        };
+        var rollbackRow = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 8,
+            Children = { rollbackId, rollback }
+        };
+
+        return Section("Package Operations", new StackPanel
+        {
+            Spacing = 10,
+            Children = { installRow, rollbackRow }
+        });
+    }
+
+    private Control BuildPackageActionRow(string packageId)
+    {
+        var repair = new MptActionButton("Repair") { Tag = packageId };
+        repair.Click += async (_, _) => await RunPackageOperationAsync(
+            "repair",
+            packageId,
+            client => client.RepairPackageAsync(packageId));
+
+        var uninstall = new MptActionButton("Uninstall") { Tag = packageId };
+        uninstall.Click += async (_, _) => await RunPackageOperationAsync(
+            "uninstall",
+            packageId,
+            client => client.UninstallPackageAsync(packageId));
+
+        var rollback = new MptActionButton("Rollback") { Tag = packageId };
+        rollback.Click += async (_, _) => await RunPackageOperationAsync(
+            "rollback",
+            packageId,
+            client => client.RollbackPackageAsync(packageId));
+
+        return new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 8,
+            Children = { repair, uninstall, rollback }
+        };
     }
 
     private async Task LoadDiagnosticsPageAsync()
@@ -1230,6 +1306,34 @@ public sealed class MainWindow : Window
             {
                 await LoadNotificationsPageAsync();
             }
+        }
+        catch (Exception ex)
+        {
+            _statusBar.Text = ex.Message;
+        }
+    }
+
+    private async Task RunPackageOperationAsync(string operation, string target, Func<HostControlClient, Task<HostProto.PackageOperationResult>> action)
+    {
+        if (string.IsNullOrWhiteSpace(target))
+        {
+            _statusBar.Text = $"{operation}: target is required.";
+            return;
+        }
+
+        try
+        {
+            using var client = HostControlClient.ForDefaultEndpoint();
+            var result = await action(client);
+            var status = $"{result.Operation} {result.PackageId}: {result.Message}";
+            if (result.Issues.Count > 0)
+            {
+                status = $"{result.Operation} {result.PackageId}: {result.Issues[0].Severity}: {result.Issues[0].Message}";
+            }
+
+            await LoadPackagesPageAsync();
+            await LoadCommandsAsync(_searchBox.Text ?? "");
+            _statusBar.Text = status;
         }
         catch (Exception ex)
         {

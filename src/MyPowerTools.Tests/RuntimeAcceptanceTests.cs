@@ -1559,6 +1559,59 @@ Address         Port        Address         Port
     }
 
     [Fact]
+    public async Task HostControl_package_operations_reload_runtime_store()
+    {
+        var storeRoot = Path.Combine(Path.GetTempPath(), "mpt-hostcontrol-package-store", Guid.NewGuid().ToString("N"));
+        var store = new PackageStore(storeRoot, Path.Combine(Root, "schemas"));
+        var runtime = new MptHostRuntime(
+            new PackageReader(),
+            PlatformId.Current(),
+            RuntimePaths.Create(Path.Combine(Path.GetTempPath(), "mpt-hostcontrol-package-store-data", Guid.NewGuid().ToString("N"))));
+        runtime.Load(storeRoot);
+        var service = new HostControlGrpcService(
+            runtime,
+            new AuditLog(Path.Combine(Path.GetTempPath(), "mpt-hostcontrol-package-store-audit", Guid.NewGuid().ToString("N"), "audit.jsonl")),
+            packageStore: store);
+
+        var install = await service.InstallPackage(
+            new MyPowerTools.Protocol.HostControl.V1.InstallPackageRequest
+            {
+                SourceDirectory = Path.Combine(Root, "tests", "fixtures", "modules", "sample-dotnet")
+            },
+            new TestServerCallContext());
+        var repair = await service.RepairPackage(
+            new MyPowerTools.Protocol.HostControl.V1.PackageOperationRequest { PackageId = "sample-dotnet" },
+            new TestServerCallContext());
+        var uninstall = await service.UninstallPackage(
+            new MyPowerTools.Protocol.HostControl.V1.PackageOperationRequest { PackageId = "sample-dotnet" },
+            new TestServerCallContext());
+        var afterUninstall = await service.ListPackages(
+            new MyPowerTools.Protocol.HostControl.V1.ListPackagesRequest { IncludeDisabled = true },
+            new TestServerCallContext());
+        var rollback = await service.RollbackPackage(
+            new MyPowerTools.Protocol.HostControl.V1.PackageOperationRequest { PackageId = "sample-dotnet" },
+            new TestServerCallContext());
+        var afterRollback = await service.ListPackages(
+            new MyPowerTools.Protocol.HostControl.V1.ListPackagesRequest { IncludeDisabled = true },
+            new TestServerCallContext());
+
+        Assert.True(install.Success, install.Message);
+        Assert.Equal("install", install.Operation);
+        Assert.Equal("sample-dotnet", install.PackageId);
+        Assert.Equal(1u, install.PackageCount);
+        Assert.Equal(1u, install.ModuleCount);
+        Assert.True(repair.Success, repair.Message);
+        Assert.Equal("repair", repair.Operation);
+        Assert.Empty(repair.Issues);
+        Assert.True(uninstall.Success, uninstall.Message);
+        Assert.Empty(afterUninstall.Packages);
+        Assert.True(rollback.Success, rollback.Message);
+        var package = Assert.Single(afterRollback.Packages);
+        Assert.Equal("sample-dotnet", package.PackageId);
+        Assert.Equal("signature-hook", package.TrustState);
+    }
+
+    [Fact]
     public async Task HostControl_set_module_enabled_updates_runtime_state()
     {
         var runtime = new MptHostRuntime(

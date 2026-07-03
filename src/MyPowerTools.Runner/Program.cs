@@ -45,6 +45,7 @@ var endpoint = IpcEndpoint.RunnerDefault(platform);
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddGrpc();
 builder.Services.AddSingleton(runtime);
+builder.Services.AddSingleton(new PackageStore(modulesRoot, Path.Combine(root, "schemas")));
 
 builder.WebHost.ConfigureKestrel(options =>
 {

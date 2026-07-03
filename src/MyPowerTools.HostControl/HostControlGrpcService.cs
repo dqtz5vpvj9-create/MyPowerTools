@@ -3,6 +3,7 @@ using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
 using Microsoft.Extensions.Hosting;
 using MyPowerTools.Broker;
+using MyPowerTools.Packaging;
 using MyPowerTools.Protocol;
 using MyPowerTools.Runtime;
 using HostProto = MyPowerTools.Protocol.HostControl.V1;
@@ -14,12 +15,14 @@ public sealed class HostControlGrpcService : HostProto.HostControl.HostControlBa
     private readonly MptHostRuntime _runtime;
     private readonly AuditLog _auditLog;
     private readonly IHostApplicationLifetime? _applicationLifetime;
+    private readonly PackageStore? _packageStore;
 
-    public HostControlGrpcService(MptHostRuntime runtime, AuditLog? auditLog = null, IHostApplicationLifetime? applicationLifetime = null)
+    public HostControlGrpcService(MptHostRuntime runtime, AuditLog? auditLog = null, IHostApplicationLifetime? applicationLifetime = null, PackageStore? packageStore = null)
     {
         _runtime = runtime;
         _auditLog = auditLog ?? new AuditLog(DefaultAuditPath());
         _applicationLifetime = applicationLifetime;
+        _packageStore = packageStore;
     }
 
     public override Task<HostProto.PingResponse> Ping(HostProto.PingRequest request, ServerCallContext context)
@@ -100,6 +103,70 @@ public sealed class HostControlGrpcService : HostProto.HostControl.HostControlBa
         }));
 
         return Task.FromResult(response);
+    }
+
+    public override async Task<HostProto.PackageOperationResult> InstallPackage(HostProto.InstallPackageRequest request, ServerCallContext context)
+    {
+        if (string.IsNullOrWhiteSpace(request.SourceDirectory))
+        {
+            return PackageOperationUnavailable("install", "", "Package source directory is required.");
+        }
+
+        return await RunPackageOperationAsync(
+            "install",
+            () => _packageStore!.Install(Path.GetFullPath(request.SourceDirectory)),
+            reloadRuntime: true,
+            context.CancellationToken);
+    }
+
+    public override async Task<HostProto.PackageOperationResult> RepairPackage(HostProto.PackageOperationRequest request, ServerCallContext context)
+    {
+        if (string.IsNullOrWhiteSpace(request.PackageId))
+        {
+            return PackageOperationUnavailable("repair", "", "Package id is required.");
+        }
+
+        return await RunPackageOperationAsync(
+            "repair",
+            () =>
+            {
+                var issues = _packageStore!.Repair(request.PackageId);
+                return new PackageInstallResult(
+                    !issues.Any(issue => string.Equals(issue.Severity, "error", StringComparison.OrdinalIgnoreCase)),
+                    request.PackageId,
+                    Path.Combine(_packageStore.StoreRoot, request.PackageId),
+                    issues);
+            },
+            reloadRuntime: false,
+            context.CancellationToken);
+    }
+
+    public override async Task<HostProto.PackageOperationResult> UninstallPackage(HostProto.PackageOperationRequest request, ServerCallContext context)
+    {
+        if (string.IsNullOrWhiteSpace(request.PackageId))
+        {
+            return PackageOperationUnavailable("uninstall", "", "Package id is required.");
+        }
+
+        return await RunPackageOperationAsync(
+            "uninstall",
+            () => _packageStore!.Uninstall(request.PackageId),
+            reloadRuntime: true,
+            context.CancellationToken);
+    }
+
+    public override async Task<HostProto.PackageOperationResult> RollbackPackage(HostProto.PackageOperationRequest request, ServerCallContext context)
+    {
+        if (string.IsNullOrWhiteSpace(request.PackageId))
+        {
+            return PackageOperationUnavailable("rollback", "", "Package id is required.");
+        }
+
+        return await RunPackageOperationAsync(
+            "rollback",
+            () => _packageStore!.Rollback(request.PackageId),
+            reloadRuntime: true,
+            context.CancellationToken);
     }
 
     public override Task<HostProto.ListModulesResponse> ListModules(HostProto.ListModulesRequest request, ServerCallContext context)
@@ -315,6 +382,79 @@ public sealed class HostControlGrpcService : HostProto.HostControl.HostControlBa
             Revision = snapshot.Revision,
             Values = JsonStructMapper.ToStruct(snapshot.Values),
             UpdatedAt = Timestamp.FromDateTimeOffset(snapshot.UpdatedAt)
+        };
+    }
+
+    private async Task<HostProto.PackageOperationResult> RunPackageOperationAsync(
+        string operation,
+        Func<PackageInstallResult> action,
+        bool reloadRuntime,
+        CancellationToken cancellationToken)
+    {
+        if (_packageStore is null)
+        {
+            return PackageOperationUnavailable(operation, "", "Package store is not configured for this HostControl service.");
+        }
+
+        try
+        {
+            var result = action();
+            if (result.Success && reloadRuntime)
+            {
+                _runtime.Load(_packageStore.StoreRoot);
+                await _runtime.RefreshDynamicCommandsAsync(cancellationToken);
+            }
+
+            return ToProtoPackageOperation(operation, result);
+        }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            return PackageOperationUnavailable(operation, "", ex.Message);
+        }
+    }
+
+    private HostProto.PackageOperationResult ToProtoPackageOperation(string operation, PackageInstallResult result)
+    {
+        var response = new HostProto.PackageOperationResult
+        {
+            Success = result.Success,
+            Operation = operation,
+            PackageId = result.PackageId,
+            TargetPath = result.TargetPath,
+            Message = result.Success
+                ? $"{operation} completed for {result.PackageId}."
+                : result.Issues.FirstOrDefault()?.Message ?? $"{operation} failed for {result.PackageId}.",
+            PackageCount = (uint)Math.Max(0, _runtime.ListPackages(includeDisabled: true).Count),
+            ModuleCount = (uint)Math.Max(0, _runtime.ListModules(includeDisabled: true).Count)
+        };
+        response.Issues.AddRange(result.Issues.Select(ToProtoPackageIssue));
+        return response;
+    }
+
+    private static HostProto.PackageOperationResult PackageOperationUnavailable(string operation, string packageId, string message)
+    {
+        var response = new HostProto.PackageOperationResult
+        {
+            Success = false,
+            Operation = operation,
+            PackageId = packageId,
+            Message = message
+        };
+        response.Issues.Add(new HostProto.PackageIssue
+        {
+            Severity = "error",
+            Message = message
+        });
+        return response;
+    }
+
+    private static HostProto.PackageIssue ToProtoPackageIssue(ValidationIssue issue)
+    {
+        return new HostProto.PackageIssue
+        {
+            Path = issue.Path,
+            Severity = issue.Severity,
+            Message = issue.Message
         };
     }
 

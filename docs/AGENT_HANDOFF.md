@@ -75,13 +75,14 @@ The active objective is to turn MyPowerTools into a production-grade PowerToys-s
 - Added package trust visibility: Runtime package summaries now include trust state, policy, signature path, and trust issue count; HostControl maps those fields; Shell Packages renders the trust badge and signature path; `HostControl_lists_package_summaries` verifies the IPC contract.
 - Added Shell UI snapshot matrix through `mpt ui shell-snapshot`; it writes a manifest plus PNG snapshots for required Shell surfaces including Dashboard, Command Palette, Settings Center, Module Detail, Logs Viewer, Notification Center, Permission Prompt, and Degraded Module.
 - Added `HostControlConnectionMonitor` for Shell Runner IPC resilience; MainWindow starts it, shows offline state, and refreshes current Shell data after reconnection. `Shell_connection_monitor_reports_offline_then_restored` verifies the transition.
+- Added typed HostControl package lifecycle operations: install, repair, uninstall, and rollback now call `PackageStore`, reload Runtime after package changes, and surface through Shell Packages actions. Package discovery skips `.rollback` backups so uninstalled packages remain available for rollback without appearing as active modules.
 
 ## Last Verified State
 
 - SDK: `dotnet --version` returns `10.0.301`; `global.json` pins `10.0.301`; all projects target `net10.0`.
 - Restore: `dotnet restore MyPowerTools.slnx` succeeded.
 - Build: `dotnet build MyPowerTools.slnx` succeeded with 0 warnings and 0 errors.
-- Tests: `dotnet test MyPowerTools.slnx --no-build` passed 63 tests, 0 failed, 0 skipped.
+- Tests: `dotnet test MyPowerTools.slnx --no-build` passed 64 tests, 0 failed, 0 skipped.
 - Module validation: `dotnet run --project src\MyPowerTools.Cli -- validate modules` passed all 5 production packages.
 - Module contract validation: `dotnet run --project src\MyPowerTools.Cli -- validate contracts` passed all 5 production packages and 7 modules.
 - Package trust: `dotnet run --project src\MyPowerTools.Cli -- package trust modules --strict` reports `signature-hook` for all 5 production packages.
