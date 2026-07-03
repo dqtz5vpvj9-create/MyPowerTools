@@ -1,0 +1,48 @@
+{
+  "schemaVersion": "1.0",
+  "id": "sample.dotnet-grpc-sidecar",
+  "packageId": "sample-dotnet-grpc-sidecar",
+  "displayName": "Sample .NET gRPC Sidecar Module",
+  "version": "0.2.0",
+  "moduleSdk": "1.0",
+  "entrypoints": [
+    {
+      "kind": "grpc-ipc",
+      "priority": 90,
+      "command": "dotnet",
+      "args": [
+        "run",
+        "--project",
+        "templates/dotnet-grpc-sidecar-module/Sample.DotNetGrpcSidecar.MyPowerTools.csproj",
+        "--",
+        "mypowertools.template.dotnet-grpc"
+      ],
+      "windows": {
+        "transport": "named-pipe",
+        "name": "mypowertools.template.dotnet-grpc"
+      },
+      "linux": {
+        "transport": "unix-domain-socket",
+        "path": "$TMPDIR/mypowertools.template.dotnet-grpc.sock"
+      },
+      "macos": {
+        "transport": "unix-domain-socket",
+        "path": "$TMPDIR/mypowertools.template.dotnet-grpc.sock"
+      }
+    }
+  ],
+  "capabilities": [
+    "lifecycle",
+    "status",
+    "commands",
+    "settings",
+    "dashboardCard"
+  ],
+  "permissions": [],
+  "staticIndexes": {
+    "commands": "commands.index.json"
+  },
+  "uiSurfaces": [
+    "ui/dashboard-card.json"
+  ]
+}

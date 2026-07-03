@@ -1,0 +1,189 @@
+syntax = "proto3";
+
+package mypowertools.hostcontrol.v1;
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+
+service HostControl {
+  rpc Ping(PingRequest) returns (PingResponse);
+  rpc GetDashboardSnapshot(DashboardSnapshotRequest) returns (DashboardSnapshot);
+  rpc ListModules(ListModulesRequest) returns (ListModulesResponse);
+  rpc GetModuleDetail(GetModuleDetailRequest) returns (ModuleDetail);
+  rpc ListCommands(ListCommandsRequest) returns (ListCommandsResponse);
+  rpc ExecuteCommand(ExecuteCommandRequest) returns (CommandExecutionResponse);
+  rpc GetSettings(GetSettingsRequest) returns (SettingsSnapshot);
+  rpc UpdateSettings(UpdateSettingsRequest) returns (SettingsSnapshot);
+  rpc TailLogs(TailLogsRequest) returns (stream LogEntry);
+  rpc SubscribeHostEvents(HostEventsRequest) returns (stream HostEvent);
+  rpc OpenShell(OpenShellRequest) returns (google.protobuf.Empty);
+  rpc QuitRunner(QuitRunnerRequest) returns (google.protobuf.Empty);
+}
+
+message PingRequest {
+  string client_id = 1;
+}
+
+message PingResponse {
+  string runner_version = 1;
+  string state = 2;
+}
+
+message DashboardSnapshotRequest {
+  string locale = 1;
+}
+
+message DashboardSnapshot {
+  repeated ModuleCard cards = 1;
+  repeated HostAlert alerts = 2;
+  uint64 event_seq = 3;
+}
+
+message ModuleCard {
+  string module_id = 1;
+  string package_id = 2;
+  string title = 3;
+  string state = 4;
+  string summary = 5;
+  repeated Metric metrics = 6;
+  repeated QuickAction actions = 7;
+}
+
+message Metric {
+  string label = 1;
+  string value = 2;
+}
+
+message QuickAction {
+  string command_id = 1;
+  string title = 2;
+  string style = 3;
+}
+
+message HostAlert {
+  string id = 1;
+  string level = 2;
+  string title = 3;
+  string body = 4;
+}
+
+message ListModulesRequest {
+  bool include_disabled = 1;
+}
+
+message ListModulesResponse {
+  repeated ModuleSummary modules = 1;
+}
+
+message ModuleSummary {
+  string module_id = 1;
+  string package_id = 2;
+  string display_name = 3;
+  string state = 4;
+  string summary = 5;
+}
+
+message GetModuleDetailRequest {
+  string module_id = 1;
+}
+
+message ModuleDetail {
+  string module_id = 1;
+  string package_id = 2;
+  string display_name = 3;
+  string state = 4;
+  string summary = 5;
+  google.protobuf.Struct detail_surface = 6;
+  repeated Diagnostic diagnostics = 7;
+}
+
+message Diagnostic {
+  string id = 1;
+  string label = 2;
+  string state = 3;
+  string detail = 4;
+}
+
+message ListCommandsRequest {
+  string query = 1;
+  bool include_dynamic = 2;
+}
+
+message ListCommandsResponse {
+  repeated CommandItem commands = 1;
+}
+
+message CommandItem {
+  string command_id = 1;
+  string module_id = 2;
+  string title = 3;
+  string subtitle = 4;
+  string icon = 5;
+  string danger_level = 6;
+  bool requires_elevation = 7;
+}
+
+message ExecuteCommandRequest {
+  string invocation_id = 1;
+  string command_id = 2;
+  google.protobuf.Struct args = 3;
+}
+
+message CommandExecutionResponse {
+  string invocation_id = 1;
+  string state = 2;
+  string summary = 3;
+  string log_cursor = 4;
+}
+
+message GetSettingsRequest {
+  string module_id = 1;
+}
+
+message SettingsSnapshot {
+  string module_id = 1;
+  uint64 revision = 2;
+  google.protobuf.Struct values = 3;
+  google.protobuf.Timestamp updated_at = 4;
+}
+
+message UpdateSettingsRequest {
+  string module_id = 1;
+  uint64 expected_revision = 2;
+  google.protobuf.Struct patch = 3;
+}
+
+message TailLogsRequest {
+  string module_id = 1;
+  string cursor = 2;
+}
+
+message LogEntry {
+  string module_id = 1;
+  string cursor = 2;
+  google.protobuf.Timestamp time = 3;
+  string level = 4;
+  string message = 5;
+}
+
+message HostEventsRequest {
+  uint64 last_event_seq = 1;
+}
+
+message HostEvent {
+  uint64 seq = 1;
+  string type = 2;
+  string source_id = 3;
+  google.protobuf.Timestamp time = 4;
+  google.protobuf.Struct payload = 5;
+}
+
+message OpenShellRequest {
+  string surface = 1;
+  string target_id = 2;
+}
+
+message QuitRunnerRequest {
+  bool restart = 1;
+}

@@ -1,0 +1,37 @@
+# Changelog
+
+## 0.2.0
+
+- Added .NET 10 solution structure for Runner, Avalonia Shell, Protocol, Runtime, ModuleHost, Platform Packs, Broker, Packaging, UI, CLI, and tests.
+- Added typed gRPC proto generation for module and host control protocols.
+- Added persistent settings, event sequence handling, command idempotency, log redaction, notification records, and command history.
+- Added package schema validation, sha256 hash manifests, install/uninstall/update/rollback/repair foundations.
+- Added Windows platform provider and macOS/Linux compile-ready degradation providers.
+- Added Broker audit foundations for privileged, service, network, secret, and autostart actions.
+- Added reusable Avalonia MPT controls and UI gate validation.
+- Moved sample modules to test fixtures so production module root contains real tool modules only.
+- Added HostControl-backed Avalonia Shell pages for Dashboard, Modules, Settings, Logs, Notifications, Packages, Diagnostics, command palette, broker permission prompt, and broker audit.
+- Added HostControl notification and package summary RPCs.
+- Added deterministic UI contract and PNG pixel snapshots through `mpt ui snapshot`.
+- Added module contract validation through `mpt validate contracts`, CI, smoke, and CLI acceptance coverage.
+- Added Windows CI workflow, release notes generation, and production README.
+- Added Windows portable install and uninstall scripts with dry-run validation.
+- Added six validated module templates plus template validation script for CI and smoke checks.
+- Added Shell HostControl smoke mode and upgraded the smoke script to launch Runner, verify Shell IPC, and report module/dashboard/command counts.
+- Wired HostControl `QuitRunner` to the Runner host lifetime so smoke-owned Runner processes exit gracefully after Shell IPC validation.
+- Added persistent module enable/disable state through Runtime, HostControl `SetModuleEnabled`, CLI `mpt module list|enable|disable`, and Shell module toggles.
+- Added typed RuntimeDiagnostics HostControl IPC, Shell Diagnostics rendering, CLI `mpt diagnostics`, and Runtime/HostControl diagnostics tests.
+- Added CLI package rollback through `mpt rollback`, test-isolated `--store-root`, and install/uninstall/rollback/repair acceptance coverage.
+- Added local HTTP facade integration coverage for health refresh, HTTP command execution, output redaction, and log correlation.
+- Added broader CLI process coverage for `mpt inspect`, `mpt package hash`, and `mpt doctor`.
+- Added gRPC IPC sidecar crash-policy coverage for process replacement, log correlation, and restart limit enforcement.
+- Added Windows Runner autostart provider, AutostartBroker status/enable/disable audit coverage, CLI `mpt runner autostart`, and release-root discovery for portable Runner/CLI layout.
+- Added gRPC IPC runtime process diagnostics for shared runtime pools, PID/endpoint/start-limit telemetry, module membership, HostControl mapping, Shell Diagnostics rendering, CLI output, and acceptance coverage.
+- Added Runtime transport cleanup on Runner and CLI shutdown so diagnostics and command probes do not leave sidecar processes behind.
+- Added Runner tray infrastructure with cross-platform tray abstractions, Windows native Shell_NotifyIcon implementation, Open Shell and Quit Runner actions, unsupported-platform degradation, and Runner `--no-tray` escape hatch.
+- Added HostControl-backed runtime process restart controls for gRPC IPC pools, including Runtime restart execution, Shell Diagnostics Restart action, CLI `mpt runner process restart`, and acceptance coverage.
+- Added runtime process restart-policy pause/resume controls for gRPC IPC pools, including policy diagnostics, paused-pool degraded rows, Shell Diagnostics Pause/Resume actions, CLI `mpt runner process pause|resume`, HostControl IPC, and Runtime/HostControl/CLI acceptance coverage.
+- Added persistent runtime process policy state under `state/runtime.process-policies.json`, source-aware policy history in RuntimeDiagnostics, Shell Diagnostics policy history rendering, CLI `process-policy` diagnostics output, and reload coverage for paused gRPC IPC pools.
+- Added restart-policy maintenance windows with CLI `--until` / `--duration-minutes`, typed `expires_at` HostControl fields, Shell Diagnostics `Pause 1h`, automatic expiry recovery, and acceptance coverage for expiring gRPC IPC pools.
+- Added SecretBroker-backed OS secret storage: Windows now uses Credential Manager, tests use an in-memory provider, macOS/Linux expose degraded secret providers, CLI has `mpt broker secret self-test`, and broker audit records save/read/delete without leaking secret values.
+- Added typed HostControl module permission and capability requirement fields, Shell module permission sections, CLI `mpt inspect modules` permission output, and acceptance coverage for permission visibility.

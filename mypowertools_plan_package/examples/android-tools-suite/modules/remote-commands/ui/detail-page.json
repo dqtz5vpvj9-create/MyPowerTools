@@ -1,0 +1,26 @@
+{
+  "schemaVersion": "1.0",
+  "surfaceId": "android-tools.remote-commands.detail",
+  "moduleId": "android-tools.remote-commands",
+  "kind": "detail-page",
+  "layout": {
+    "mode": "component"
+  },
+  "uses": [
+    "MptModuleHeader",
+    "MptMetricGrid",
+    "MptTimeline",
+    "MptDiagnosticPanel",
+    "MptErrorView",
+    "MptLoadingView"
+  ],
+  "states": [
+    "loading",
+    "ready",
+    "empty",
+    "degraded",
+    "error",
+    "permission-required",
+    "disabled"
+  ]
+}

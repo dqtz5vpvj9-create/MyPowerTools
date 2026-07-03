@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mypowertools.dev/schemas/command.schema.json",
+  "type": "object",
+  "required": [
+    "id",
+    "title",
+    "kind"
+  ],
+  "properties": {
+    "id": {
+      "type": "string"
+    },
+    "title": {
+      "type": "string"
+    },
+    "subtitle": {
+      "type": "string"
+    },
+    "kind": {
+      "enum": [
+        "action",
+        "open",
+        "toggle",
+        "search",
+        "form"
+      ]
+    },
+    "category": {
+      "type": "string"
+    },
+    "icon": {
+      "type": "string"
+    },
+    "requiresElevation": {
+      "type": "boolean"
+    },
+    "parameters": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "timeoutMs": {
+      "type": "integer"
+    }
+  },
+  "additionalProperties": true
+}

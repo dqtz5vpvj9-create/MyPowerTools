@@ -1,0 +1,24 @@
+{
+  "schemaVersion": "1.0",
+  "id": "sample.stdio-compat-module",
+  "packageId": "sample-stdio-compat-package",
+  "displayName": "Sample stdio Compatibility Module",
+  "version": "0.2.0",
+  "moduleSdk": "1.0",
+  "entrypoints": [
+    {
+      "kind": "jsonrpc-stdio",
+      "priority": 10,
+      "compat": true,
+      "command": "python",
+      "args": [
+        "module_server.py"
+      ]
+    }
+  ],
+  "capabilities": [
+    "status",
+    "commands"
+  ],
+  "permissions": []
+}

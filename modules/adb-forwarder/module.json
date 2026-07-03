@@ -1,0 +1,77 @@
+{
+  "schemaVersion": "1.0",
+  "id": "adb-forwarder",
+  "packageId": "adb-forwarder",
+  "displayName": "AdbForwarder",
+  "version": "0.2.0",
+  "moduleSdk": "1.0",
+  "entrypoints": [
+    {
+      "kind": "inproc-dotnet",
+      "priority": 100,
+      "platforms": [
+        "windows-x64",
+        "windows-arm64",
+        "linux-x64",
+        "macos-arm64"
+      ],
+      "assembly": "AdbForwarder.MyPowerTools.dll",
+      "type": "AdbForwarder.MyPowerTools.AdbForwarderModule"
+    },
+    {
+      "kind": "grpc-ipc",
+      "priority": 70,
+      "command": "adb-forwarder-helper",
+      "windows": {
+        "transport": "named-pipe",
+        "name": "mypowertools.adb-forwarder.helper"
+      },
+      "linux": {
+        "transport": "unix-domain-socket",
+        "path": "$XDG_RUNTIME_DIR/mypowertools/adb-forwarder/helper.sock"
+      },
+      "macos": {
+        "transport": "unix-domain-socket",
+        "path": "$TMPDIR/mypowertools/adb-forwarder/helper.sock"
+      }
+    }
+  ],
+  "capabilities": [
+    "lifecycle",
+    "status",
+    "commands",
+    "settings",
+    "logs",
+    "dashboardCard",
+    "detailPage"
+  ],
+  "requires": [
+    {
+      "capability": "adb.devices",
+      "required": true,
+      "reason": "检测 ADB 设备"
+    },
+    {
+      "capability": "network.portForwarding",
+      "required": true,
+      "reason": "管理端口转发规则"
+    }
+  ],
+  "permissions": [
+    {
+      "id": "apply-portproxy",
+      "level": "broker",
+      "capability": "network.portForwarding",
+      "reason": "写入系统端口转发规则"
+    }
+  ],
+  "staticIndexes": {
+    "commands": "commands.index.json"
+  },
+  "uiSurfaces": [
+    "ui/dashboard-card.json",
+    "ui/detail-page.json",
+    "ui/settings.json",
+    "ui/logs.json"
+  ]
+}

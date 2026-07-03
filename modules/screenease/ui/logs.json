@@ -1,0 +1,23 @@
+{
+  "schemaVersion": "1.0",
+  "surfaceId": "screenease.logs",
+  "moduleId": "screenease",
+  "kind": "logs",
+  "layout": {
+    "mode": "component"
+  },
+  "uses": [
+    "MptLogViewer",
+    "MptErrorView",
+    "MptEmptyState"
+  ],
+  "states": [
+    "loading",
+    "ready",
+    "empty",
+    "degraded",
+    "error",
+    "permission-required",
+    "disabled"
+  ]
+}

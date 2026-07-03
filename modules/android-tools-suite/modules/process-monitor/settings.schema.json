@@ -1,0 +1,16 @@
+{
+  "sections": [
+    {
+      "id": "general",
+      "title": "通用",
+      "items": [
+        {
+          "type": "toggle",
+          "key": "enabled",
+          "label": "启用",
+          "default": true
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,23 @@
+{
+  "schemaVersion": "1.0",
+  "surfaceId": "android-tools.process-monitor.logs",
+  "moduleId": "android-tools.process-monitor",
+  "kind": "logs",
+  "layout": {
+    "mode": "component"
+  },
+  "uses": [
+    "MptLogViewer",
+    "MptErrorView",
+    "MptEmptyState"
+  ],
+  "states": [
+    "loading",
+    "ready",
+    "empty",
+    "degraded",
+    "error",
+    "permission-required",
+    "disabled"
+  ]
+}

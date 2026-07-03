@@ -1,0 +1,31 @@
+{
+  "schemaVersion": "1.0",
+  "surfaceId": "sample.webview-module.detail",
+  "moduleId": "sample.webview-module",
+  "kind": "webview",
+  "layout": {
+    "mode": "webview-frame",
+    "preferredWidth": 960,
+    "preferredHeight": 640,
+    "minWidth": 640,
+    "minHeight": 420
+  },
+  "uses": [
+    "MptWebViewFrame",
+    "MptLoadingView",
+    "MptErrorView"
+  ],
+  "states": [
+    "loading",
+    "ready",
+    "offline",
+    "error"
+  ],
+  "webview": {
+    "themeBridge": true,
+    "navigationPolicy": "allowlisted",
+    "allowedOrigins": [
+      "http://127.0.0.1:42100"
+    ]
+  }
+}

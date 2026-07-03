@@ -1,0 +1,43 @@
+{
+  "schemaVersion": "1.0",
+  "commands": [
+    {
+      "id": "smartbird-thermostat.status.fetch",
+      "title": "Fetch thermostat status",
+      "subtitle": "Queries /api/status from the thermostat service",
+      "kind": "action",
+      "category": "SmartBird Thermostat",
+      "timeoutMs": 8000,
+      "execution": {
+        "type": "http.request",
+        "method": "GET",
+        "path": "/api/status"
+      }
+    },
+    {
+      "id": "smartbird-thermostat.service.restart",
+      "title": "Request thermostat service restart",
+      "subtitle": "Requires ServiceBroker approval and audit",
+      "kind": "action",
+      "category": "SmartBird Thermostat",
+      "requiresElevation": true,
+      "dangerLevel": "medium",
+      "execution": {
+        "type": "broker.request",
+        "actionId": "service.restart",
+        "scope": "SmartBirdThermostat",
+        "reason": "Restart the user service after degraded hardware or HTTP status"
+      }
+    },
+    {
+      "id": "smartbird-thermostat.logs.tail",
+      "title": "Show thermostat logs",
+      "subtitle": "Open the latest Runner-side module logs",
+      "kind": "open",
+      "category": "SmartBird Thermostat",
+      "execution": {
+        "type": "host.logs.tail"
+      }
+    }
+  ]
+}

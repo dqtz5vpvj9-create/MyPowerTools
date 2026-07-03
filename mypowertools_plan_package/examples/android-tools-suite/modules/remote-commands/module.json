@@ -1,0 +1,52 @@
+{
+  "schemaVersion": "1.0",
+  "id": "android-tools.remote-commands",
+  "packageId": "android-tools-suite",
+  "displayName": "Remote Commands",
+  "version": "0.2.0",
+  "moduleSdk": "1.0",
+  "entrypoints": [
+    {
+      "kind": "package-runtime",
+      "priority": 90,
+      "runtimeId": "powertoold",
+      "service": "android_tools.remote_commands.v1.RemoteCommandsModule"
+    },
+    {
+      "kind": "jsonrpc-stdio",
+      "priority": 10,
+      "compat": true,
+      "command": "python",
+      "args": [
+        "compat/remote-commands/module_server.py"
+      ]
+    }
+  ],
+  "capabilities": [
+    "lifecycle",
+    "status",
+    "commands",
+    "settings",
+    "logs",
+    "dashboardCard",
+    "detailPage"
+  ],
+  "requires": [
+    {
+      "capability": "notification.desktop",
+      "required": false,
+      "reason": "显示桌面通知"
+    }
+  ],
+  "permissions": [],
+  "staticIndexes": {
+    "commands": "modules/remote-commands/commands.index.json",
+    "dashboard": "modules/remote-commands/dashboard.index.json"
+  },
+  "uiSurfaces": [
+    "ui/dashboard-card.json",
+    "ui/detail-page.json",
+    "ui/settings.json",
+    "ui/logs.json"
+  ]
+}

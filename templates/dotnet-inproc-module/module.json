@@ -1,0 +1,29 @@
+{
+  "schemaVersion": "1.0",
+  "id": "sample.dotnet-inproc",
+  "packageId": "sample-dotnet-inproc",
+  "displayName": "Sample .NET InProc Module",
+  "version": "0.2.0",
+  "moduleSdk": "1.0",
+  "entrypoints": [
+    {
+      "kind": "inproc-dotnet",
+      "priority": 90,
+      "assembly": "bin/Release/net10.0/Sample.DotNetInProc.MyPowerTools.dll",
+      "type": "Sample.DotNetInProc.ModuleEntry"
+    }
+  ],
+  "capabilities": [
+    "status",
+    "commands",
+    "settings",
+    "dashboardCard"
+  ],
+  "permissions": [],
+  "staticIndexes": {
+    "commands": "commands.index.json"
+  },
+  "uiSurfaces": [
+    "ui/dashboard-card.json"
+  ]
+}

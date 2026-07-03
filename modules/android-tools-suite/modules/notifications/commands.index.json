@@ -1,0 +1,26 @@
+{
+  "schemaVersion": "1.0",
+  "commands": [
+    {
+      "id": "android-tools.notifications.open-inbox",
+      "title": "Open remote notification inbox",
+      "subtitle": "Navigate to notification history and unread state",
+      "kind": "open",
+      "category": "Android Tools",
+      "execution": {
+        "type": "open",
+        "surface": "detail"
+      }
+    },
+    {
+      "id": "android-tools.notifications.test-event",
+      "title": "Send notification module test event",
+      "subtitle": "Publishes a NotificationCenter event",
+      "kind": "action",
+      "category": "Android Tools",
+      "execution": {
+        "type": "host.notification.test"
+      }
+    }
+  ]
+}

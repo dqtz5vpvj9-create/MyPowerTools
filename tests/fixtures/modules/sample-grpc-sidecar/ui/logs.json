@@ -1,0 +1,20 @@
+{
+  "schemaVersion": "1.0",
+  "surfaceId": "sample.grpc.logs",
+  "moduleId": "sample.grpc",
+  "kind": "logs",
+  "layout": {
+    "mode": "component"
+  },
+  "uses": [
+    "MptLogViewer",
+    "MptEmptyState",
+    "MptErrorView"
+  ],
+  "states": [
+    "loading",
+    "ready",
+    "empty",
+    "error"
+  ]
+}

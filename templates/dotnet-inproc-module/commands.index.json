@@ -1,0 +1,14 @@
+{
+  "commands": [
+    {
+      "id": "sample.dotnet-inproc.open",
+      "title": "Open .NET InProc Template",
+      "subtitle": "Static command indexed before module load.",
+      "kind": "open",
+      "category": "Templates",
+      "execution": {
+        "type": "open"
+      }
+    }
+  ]
+}

@@ -1,0 +1,67 @@
+{
+  "schemaVersion": "1.0",
+  "id": "screenease",
+  "packageId": "screenease",
+  "displayName": "ScreenEase",
+  "version": "0.2.0",
+  "moduleSdk": "1.0",
+  "entrypoints": [
+    {
+      "kind": "inproc-dotnet",
+      "priority": 100,
+      "platforms": [
+        "windows-x64",
+        "windows-arm64",
+        "linux-x64",
+        "macos-arm64"
+      ],
+      "assembly": "ScreenEase.MyPowerTools.dll",
+      "type": "ScreenEase.MyPowerTools.ScreenEaseModule"
+    },
+    {
+      "kind": "grpc-ipc",
+      "priority": 70,
+      "command": "screenease-core",
+      "windows": {
+        "transport": "named-pipe",
+        "name": "mypowertools.screenease.core"
+      },
+      "linux": {
+        "transport": "unix-domain-socket",
+        "path": "$XDG_RUNTIME_DIR/mypowertools/screenease/core.sock"
+      },
+      "macos": {
+        "transport": "unix-domain-socket",
+        "path": "$TMPDIR/mypowertools/screenease/core.sock"
+      }
+    }
+  ],
+  "capabilities": [
+    "lifecycle",
+    "status",
+    "commands",
+    "settings",
+    "logs",
+    "dashboardCard",
+    "detailPage"
+  ],
+  "requires": [
+    {
+      "capability": "display.profile",
+      "required": true,
+      "reason": "应用显示配置"
+    },
+    {
+      "capability": "notification.desktop",
+      "required": false,
+      "reason": "显示状态通知"
+    }
+  ],
+  "permissions": [],
+  "uiSurfaces": [
+    "ui/dashboard-card.json",
+    "ui/detail-page.json",
+    "ui/settings.json",
+    "ui/logs.json"
+  ]
+}

@@ -1,0 +1,47 @@
+{
+  "schemaVersion": "1.0",
+  "id": "sample.python-grpc-module",
+  "packageId": "sample-python-grpc-package",
+  "displayName": "Sample Python gRPC Module",
+  "version": "0.2.0",
+  "moduleSdk": "1.0",
+  "entrypoints": [
+    {
+      "kind": "grpc-ipc",
+      "priority": 90,
+      "command": "python",
+      "args": [
+        "module_service.py"
+      ],
+      "windows": {
+        "transport": "named-pipe",
+        "name": "mypowertools.sample.python-grpc"
+      },
+      "linux": {
+        "transport": "unix-domain-socket",
+        "path": "$XDG_RUNTIME_DIR/mypowertools/sample-python-grpc/module.sock"
+      },
+      "macos": {
+        "transport": "unix-domain-socket",
+        "path": "$TMPDIR/mypowertools/sample-python-grpc/module.sock"
+      }
+    }
+  ],
+  "capabilities": [
+    "lifecycle",
+    "status",
+    "commands",
+    "settings",
+    "logs",
+    "dashboardCard",
+    "detailPage"
+  ],
+  "permissions": []
+  ,
+  "staticIndexes": {
+    "commands": "commands.index.json"
+  },
+  "uiSurfaces": [
+    "ui/dashboard-card.json"
+  ]
+}

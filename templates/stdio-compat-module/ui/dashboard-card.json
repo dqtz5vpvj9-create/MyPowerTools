@@ -1,0 +1,25 @@
+{
+  "schemaVersion": "1.0",
+  "surfaceId": "sample.stdio-compat-module.dashboard",
+  "moduleId": "sample.stdio-compat-module",
+  "kind": "dashboard-card",
+  "layout": {
+    "mode": "schema",
+    "preferredWidth": 360,
+    "preferredHeight": 180,
+    "minWidth": 280,
+    "minHeight": 140
+  },
+  "uses": [
+    "MptDashboardCard",
+    "MptStatusPill",
+    "MptActionBar",
+    "MptCommandButton"
+  ],
+  "states": [
+    "loading",
+    "ready",
+    "degraded",
+    "error"
+  ]
+}

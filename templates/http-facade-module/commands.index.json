@@ -1,0 +1,17 @@
+{
+  "commands": [
+    {
+      "id": "sample.http-facade.ping",
+      "title": "Ping HTTP Facade",
+      "subtitle": "Calls /api/ping on the facade service.",
+      "kind": "action",
+      "category": "Templates",
+      "timeoutMs": 5000,
+      "execution": {
+        "type": "http.request",
+        "method": "GET",
+        "path": "/api/ping"
+      }
+    }
+  ]
+}

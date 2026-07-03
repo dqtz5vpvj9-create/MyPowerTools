@@ -1,0 +1,76 @@
+name: MyPowerTools CI
+
+on:
+  push:
+    branches:
+      - main
+      - master
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  windows:
+    name: Windows build, test, validate, package
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Restore
+        shell: pwsh
+        run: dotnet restore MyPowerTools.slnx
+
+      - name: Build
+        shell: pwsh
+        run: dotnet build MyPowerTools.slnx --no-restore
+
+      - name: Test
+        shell: pwsh
+        run: dotnet test MyPowerTools.slnx --no-build
+
+      - name: Validate Modules
+        shell: pwsh
+        run: dotnet run --project src\MyPowerTools.Cli -- validate modules
+
+      - name: Validate Module Contracts
+        shell: pwsh
+        run: dotnet run --project src\MyPowerTools.Cli -- validate contracts
+
+      - name: UI Gate
+        shell: pwsh
+        run: dotnet run --project src\MyPowerTools.Cli -- ui check modules
+
+      - name: UI Contract Snapshots
+        shell: pwsh
+        run: dotnet run --project src\MyPowerTools.Cli -- ui snapshot --surface dashboard-card --theme light --size 1366x768 --density normal --out artifacts\ui-snapshots
+
+      - name: Validate Templates
+        shell: pwsh
+        run: pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\validate-templates.ps1
+
+      - name: Runner Once
+        shell: pwsh
+        run: dotnet run --project src\MyPowerTools.Runner -- --once
+
+      - name: Smoke
+        shell: pwsh
+        run: pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\smoke.ps1
+
+      - name: Publish Windows Portable
+        shell: pwsh
+        run: pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\publish-windows.ps1
+
+      - name: Upload Release Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: MyPowerTools-win-x64
+          path: |
+            artifacts/release/MyPowerTools-win-x64.zip
+            artifacts/release/RELEASE_NOTES.md
+            artifacts/ui-snapshots/**

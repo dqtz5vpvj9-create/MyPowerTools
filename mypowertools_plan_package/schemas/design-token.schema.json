@@ -1,0 +1,17 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mypowertools.local/schemas/design-token.schema.json",
+  "title": "MyPowerTools Design Tokens",
+  "type": "object",
+  "required": ["version", "color", "typography", "spacing", "radius", "elevation", "motion", "layout"],
+  "properties": {
+    "version": { "type": "string" },
+    "color": { "type": "object" },
+    "typography": { "type": "object" },
+    "spacing": { "type": "object" },
+    "radius": { "type": "object" },
+    "elevation": { "type": "object" },
+    "motion": { "type": "object" },
+    "layout": { "type": "object" }
+  }
+}

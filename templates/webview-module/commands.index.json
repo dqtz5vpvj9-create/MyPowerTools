@@ -1,0 +1,14 @@
+{
+  "commands": [
+    {
+      "id": "sample.webview-module.open",
+      "title": "Open WebView Template",
+      "subtitle": "Opens the Shell-framed WebView surface.",
+      "kind": "open",
+      "category": "Templates",
+      "execution": {
+        "type": "open"
+      }
+    }
+  ]
+}

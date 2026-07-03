@@ -1,0 +1,69 @@
+{
+  "Algorithm": "sha256",
+  "Files": [
+    {
+      "Path": "commands.index.json",
+      "Sha256": "1879df947d5f5d778fa100620d223cf5b7de50f45a1e248c6e4426ed16c36236"
+    },
+    {
+      "Path": "module.json",
+      "Sha256": "08166cb15bbbcfbde40cf465ce1a1d8472b14311ed1a0d968fdd3d22dd4b6ce5"
+    },
+    {
+      "Path": "MyPowerTools.Platform.Abstractions.dll",
+      "Sha256": "8b41f949d85a6390e2a752bc410526eeac1e257696766de41864b837cedd046c"
+    },
+    {
+      "Path": "MyPowerTools.Platform.Abstractions.pdb",
+      "Sha256": "90c0a63529f1750184915c7243967963bfac41731ebd06de134c4d94b942504b"
+    },
+    {
+      "Path": "MyPowerTools.Platform.Linux.dll",
+      "Sha256": "8e6c79d72b760f94900dc93758d4c08aab80bff96dc4d2fcc3b2e9550d9677d1"
+    },
+    {
+      "Path": "MyPowerTools.Platform.Linux.pdb",
+      "Sha256": "0b368ed51e3a439de80239cc425b1ab137b3eb3d13319b1e70b089a5e1cee5a3"
+    },
+    {
+      "Path": "MyPowerTools.Platform.Mac.dll",
+      "Sha256": "638c71bddd315f71f05855be69ffbd84eb3a276f9483caed77329a8c917f3416"
+    },
+    {
+      "Path": "MyPowerTools.Platform.Mac.pdb",
+      "Sha256": "a303770208616d53eb00b04b74bc4bcdb4715410b81500086036e39dfe6a44a3"
+    },
+    {
+      "Path": "MyPowerTools.Platform.Windows.dll",
+      "Sha256": "b835d1370d11d67a23c66440bc8d80d35381b41307460261cc1805dc5f7cd947"
+    },
+    {
+      "Path": "MyPowerTools.Platform.Windows.pdb",
+      "Sha256": "1b52d52f72bf51c6bcc091114a0b13f6c9b4df9e46af9d4bc40e3edbc67a8924"
+    },
+    {
+      "Path": "ScreenEase.MyPowerTools.dll",
+      "Sha256": "85b5e8e135aadb90eedd8ffd697e10756a2e9dfa9808c84babd8dc4333e1dbb4"
+    },
+    {
+      "Path": "ScreenEase.MyPowerTools.pdb",
+      "Sha256": "600804cccc2d928539af7104b7e7609c0c57a959441b1eb424f7983f8b3f82a7"
+    },
+    {
+      "Path": "ui/dashboard-card.json",
+      "Sha256": "774b567d155f3c02cfc5b2bbd5f6ffc211df3b74d411589b68a56e1286c5add5"
+    },
+    {
+      "Path": "ui/detail-page.json",
+      "Sha256": "327cc463a56cdcfddbb49ba179df9cd63e3aec824a63ade43a3602d2b921f120"
+    },
+    {
+      "Path": "ui/logs.json",
+      "Sha256": "9cb262780e22aaabf37dbde2b392a421ccea0511f301937fc1b3ad744f344874"
+    },
+    {
+      "Path": "ui/settings.json",
+      "Sha256": "cf05dcc1e5e451fb8dbb83d32b33f10e80063e95a9ad1e2efcfc15704b27f9b3"
+    }
+  ]
+}

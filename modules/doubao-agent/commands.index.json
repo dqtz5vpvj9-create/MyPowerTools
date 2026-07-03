@@ -1,0 +1,38 @@
+{
+  "schemaVersion": "1.0",
+  "commands": [
+    {
+      "id": "doubao-agent.health.check",
+      "title": "Check Doubao runtime health",
+      "subtitle": "Queries the controller health endpoint",
+      "kind": "action",
+      "category": "Doubao Agent",
+      "timeoutMs": 8000,
+      "execution": {
+        "type": "http.request",
+        "method": "GET",
+        "path": "/health"
+      }
+    },
+    {
+      "id": "doubao-agent.logs.tail",
+      "title": "Show Doubao logs",
+      "subtitle": "Open the latest Runner-side module logs",
+      "kind": "open",
+      "category": "Doubao Agent",
+      "execution": {
+        "type": "host.logs.tail"
+      }
+    },
+    {
+      "id": "doubao-agent.notification.test",
+      "title": "Send Doubao test notification",
+      "subtitle": "Publishes a NotificationCenter event",
+      "kind": "action",
+      "category": "Doubao Agent",
+      "execution": {
+        "type": "host.notification.test"
+      }
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "schemaVersion": "1.0",
+  "id": "sample.dotnet",
+  "packageId": "sample-dotnet",
+  "displayName": "Sample .NET Module",
+  "version": "0.2.0",
+  "moduleSdk": "1.0",
+  "entrypoints": [
+    {
+      "kind": "inproc-dotnet",
+      "priority": 100,
+      "platforms": [
+        "windows-x64",
+        "windows-arm64",
+        "linux-x64",
+        "macos-arm64"
+      ],
+      "assembly": "MyPowerTools.SampleModules.DotNet.dll",
+      "type": "MyPowerTools.SampleModules.DotNet.SampleDotNetModule"
+    }
+  ],
+  "capabilities": [
+    "status",
+    "commands",
+    "settings",
+    "dashboardCard"
+  ],
+  "uiSurfaces": [
+    "ui/dashboard-card.json",
+    "ui/settings.json"
+  ]
+}

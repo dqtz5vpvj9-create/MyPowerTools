@@ -1,0 +1,33 @@
+{
+  "schemaVersion": "1.0",
+  "id": "sample.webview-module",
+  "packageId": "sample-webview-module",
+  "displayName": "Sample WebView Module",
+  "version": "0.2.0",
+  "moduleSdk": "1.0",
+  "entrypoints": [
+    {
+      "kind": "http",
+      "priority": 70,
+      "baseUrl": "http://127.0.0.1:42100",
+      "health": {
+        "path": "/api/status"
+      }
+    }
+  ],
+  "capabilities": [
+    "status",
+    "commands",
+    "dashboardCard",
+    "detailPage",
+    "webview"
+  ],
+  "permissions": [],
+  "staticIndexes": {
+    "commands": "commands.index.json"
+  },
+  "uiSurfaces": [
+    "ui/dashboard-card.json",
+    "ui/detail-webview.json"
+  ]
+}

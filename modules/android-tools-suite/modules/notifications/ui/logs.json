@@ -1,0 +1,23 @@
+{
+  "schemaVersion": "1.0",
+  "surfaceId": "android-tools.notifications.logs",
+  "moduleId": "android-tools.notifications",
+  "kind": "logs",
+  "layout": {
+    "mode": "component"
+  },
+  "uses": [
+    "MptLogViewer",
+    "MptErrorView",
+    "MptEmptyState"
+  ],
+  "states": [
+    "loading",
+    "ready",
+    "empty",
+    "degraded",
+    "error",
+    "permission-required",
+    "disabled"
+  ]
+}

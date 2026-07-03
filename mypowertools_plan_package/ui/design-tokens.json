@@ -1,0 +1,99 @@
+{
+  "version": "1.0",
+  "color": {
+    "bg": {
+      "app": "MptColor.Window",
+      "surface": "MptColor.Surface",
+      "card": "MptColor.Card",
+      "cardHover": "MptColor.CardHover"
+    },
+    "text": {
+      "primary": "MptColor.TextPrimary",
+      "secondary": "MptColor.TextSecondary",
+      "disabled": "MptColor.TextDisabled"
+    },
+    "border": {
+      "default": "MptColor.Border"
+    },
+    "accent": {
+      "default": "MptColor.Accent"
+    },
+    "status": {
+      "running": "MptColor.Success",
+      "degraded": "MptColor.Warning",
+      "error": "MptColor.Danger",
+      "info": "MptColor.Info",
+      "neutral": "MptColor.Neutral"
+    }
+  },
+  "typography": {
+    "display": {
+      "size": 28,
+      "weight": 600
+    },
+    "title": {
+      "size": 22,
+      "weight": 600
+    },
+    "subtitle": {
+      "size": 16,
+      "weight": 600
+    },
+    "body": {
+      "size": 14,
+      "weight": 400
+    },
+    "caption": {
+      "size": 12,
+      "weight": 400
+    },
+    "code": {
+      "size": 13,
+      "weight": 400,
+      "family": "monospace"
+    }
+  },
+  "spacing": {
+    "0": 0,
+    "1": 4,
+    "2": 8,
+    "3": 12,
+    "4": 16,
+    "5": 20,
+    "6": 24,
+    "8": 32,
+    "10": 40,
+    "12": 48
+  },
+  "radius": {
+    "control": 6,
+    "card": 12,
+    "panel": 16,
+    "window": 18
+  },
+  "elevation": {
+    "card": "MptElevation.Card",
+    "flyout": "MptElevation.Flyout",
+    "modal": "MptElevation.Modal"
+  },
+  "motion": {
+    "fast": 100,
+    "normal": 180,
+    "slow": 250
+  },
+  "state": {
+    "running": "success",
+    "degraded": "warning",
+    "error": "danger",
+    "stopped": "neutral",
+    "disabled": "disabled",
+    "notConfigured": "info",
+    "starting": "progress"
+  },
+  "layout": {
+    "dashboardCardMinWidth": 320,
+    "dashboardCardMaxWidth": 420,
+    "contentMaxWidth": 1180,
+    "rightPanelWidth": 360
+  }
+}

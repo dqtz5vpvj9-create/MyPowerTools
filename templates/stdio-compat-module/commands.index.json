@@ -1,0 +1,14 @@
+{
+  "commands": [
+    {
+      "id": "sample.stdio-compat-module.open",
+      "title": "Open stdio Compatibility Template",
+      "subtitle": "Static command for the fallback stdio path.",
+      "kind": "open",
+      "category": "Templates",
+      "execution": {
+        "type": "open"
+      }
+    }
+  ]
+}

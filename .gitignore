@@ -1,0 +1,36 @@
+# .NET build outputs
+bin/
+obj/
+[Bb]in/
+[Oo]bj/
+
+# IDE and user-local files
+.vs/
+.idea/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+
+# Generated release and smoke artifacts
+artifacts/
+
+# Local runtime state
+logs/
+state/
+*.log
+*.jsonl
+
+# Packages and archives generated locally
+*.nupkg
+*.snupkg
+*.zip
+
+# Python caches
+__pycache__/
+*.py[cod]
+
+# OS noise
+Thumbs.db
+Desktop.ini
+.DS_Store

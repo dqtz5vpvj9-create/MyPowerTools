@@ -1,0 +1,70 @@
+commands:
+  - id: decode_stack
+    label: "Decode Kernel Stack"
+    command: "/home/lixr/.local/bin/decode_kernel_stack"
+    description: "Decodes the kernel stack for debugging purposes."
+    type: "shell"
+
+  - id: decode_stack_with_symbols
+    label: "Decode Kernel Stack with Symbols"
+    command: "/home/lixr/.local/bin/decode_kernel_stack -s"
+    description: "Decodes the kernel stack with symbol resolution."
+    type: "shell"
+
+  - id: gc_trace_analyzer
+    label: "GC Trace Analyzer"
+    command: "/home/lixr/miniconda3/envs/android_automatic/bin/python3 /home/lixr/repo/androidtools/stat_tools/gc_trace_analyzer.py"
+    description: "Analyzes garbage collection traces to optimize performance."
+    type: "shell"
+
+  - id: collect_rets
+    label: "Collect Multi-app Rets"
+    command: "/home/lixr/miniconda3/envs/android_automatic/bin/python3 /home/lixr/repo/androidtools/collect_MULTIAPP_rets.py"
+    description: "Collects and reports on multi-application interactions."
+    type: "shell"
+
+  - id: collect_pc_mark_rets
+    label: "Collect PCMark Rets"
+    command: "/home/lixr/miniconda3/envs/android_automatic/bin/python3 /home/lixr/repo/androidtools/collect_pc_mark_rets.py"
+    description: "Collects and reports on multi-application interactions."
+    type: "shell"
+
+  - id: replace_host
+    label: "Replace Host Directory"
+    command: "replace_host_directory"
+    description: "Replaces local directory paths with remote URLs."
+    type: "py"
+
+  - id: remove_comments
+    label: "Remove C++ Comments"
+    command: "remove_cpp_comments"
+    description: "Strips C++ comments from the source code."
+    type: "py"
+
+  - id: remove_latex_comment_lines
+    label: "Remove LaTeX Comment Lines"
+    command: "remove_latex_comment_lines"
+    description: "Removes LaTeX lines whose first non-whitespace character is %."
+    type: "py"
+
+  - id: format_latex_comma_period_lines
+    label: "Format LaTeX Comma/Period Lines"
+    command: "format_latex_comma_period_lines"
+    description: "Reflows LaTeX so plain text only breaks after commas and periods, while preserving LaTeX command syntax."
+    type: "py"
+
+  - id: add_extract_result_prefix
+    label: "Add Extract Result Prefix"
+    command: "add_extract_result_prefix"
+    description: "Prefixes each input line with extract_result."
+    type: "py"
+
+  - id: gen_rsync_from_folders
+    label: "Generate Rsync Commands from Folders"
+    command: "gen_rsync_from_folders"
+    description: "Given remote folder paths, generates rsync commands to sync them locally, plus postconditions_db."
+    type: "py"
+
+types:
+  - shell
+  - py

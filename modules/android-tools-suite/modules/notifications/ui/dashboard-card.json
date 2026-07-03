@@ -1,0 +1,24 @@
+{
+  "schemaVersion": "1.0",
+  "surfaceId": "android-tools.notifications.dashboard",
+  "moduleId": "android-tools.notifications",
+  "kind": "dashboard-card",
+  "layout": {
+    "mode": "component"
+  },
+  "uses": [
+    "MptDashboardCard",
+    "MptStatusPill",
+    "MptMetricGrid",
+    "MptActionBar"
+  ],
+  "states": [
+    "loading",
+    "ready",
+    "empty",
+    "degraded",
+    "error",
+    "permission-required",
+    "disabled"
+  ]
+}

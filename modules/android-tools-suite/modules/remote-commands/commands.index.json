@@ -1,0 +1,26 @@
+{
+  "schemaVersion": "1.0",
+  "commands": [
+    {
+      "id": "android-tools.remote-commands.catalog.open",
+      "title": "Open remote command catalog",
+      "subtitle": "Browse imported powertool command definitions",
+      "kind": "open",
+      "category": "Android Tools",
+      "execution": {
+        "type": "open",
+        "surface": "detail"
+      }
+    },
+    {
+      "id": "android-tools.remote-commands.history.open",
+      "title": "Open remote command history",
+      "subtitle": "Show command execution history",
+      "kind": "open",
+      "category": "Android Tools",
+      "execution": {
+        "type": "host.logs.tail"
+      }
+    }
+  ]
+}

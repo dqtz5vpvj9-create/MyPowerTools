@@ -1,0 +1,370 @@
+{
+  "package": "mypowertools-plan-package",
+  "version": "v3-reviewed",
+  "files": [
+    {
+      "path": "CHANGELOG.md",
+      "sha256": "2aeba18ef2a9d7622293ce7f1634022bd8da23677d1e8d8adb85096802d7350e"
+    },
+    {
+      "path": "README.md",
+      "sha256": "7113ce8c7b6783870a2248b9b69701630885a825d00a79633faa4e68d04a7654"
+    },
+    {
+      "path": "adr/ADR-0001-use-avalonia-shell.md",
+      "sha256": "bad678a2399fecae14b5d07c42de21ac57b4b4657d52da26431f748925c41ce4"
+    },
+    {
+      "path": "adr/ADR-0002-sdk-first-module-first.md",
+      "sha256": "788f0117acf9cea26151fef086f1139d148116d01a9ddb2faa0cb153ccfbe8e7"
+    },
+    {
+      "path": "adr/ADR-0003-transport-tiered-module-runtime.md",
+      "sha256": "2c5062d785451684ccc8c3f8f7d44e496a369bdbb84e675d001685f38ccfbec0"
+    },
+    {
+      "path": "adr/ADR-0004-multi-module-package.md",
+      "sha256": "774ae608d76a2163ec25973763616b204cbb1fafaa1996ef4318e194f2f3c55e"
+    },
+    {
+      "path": "adr/ADR-0005-platform-capability-packs.md",
+      "sha256": "df74bfdf169ad3303f2a9573ec2cb6d051f4b5db89af590d036e52161ca9e0c0"
+    },
+    {
+      "path": "adr/ADR-0006-runner-shell-process-split.md",
+      "sha256": "ad203068988d49a88a58c440767a4b42a7680a33a0fd8bd52d6be8cbf9b58359"
+    },
+    {
+      "path": "adr/ADR-0007-ui-design-token-governance.md",
+      "sha256": "8b34858ce6d43b10b1805f88f8defb51199450aeeadb14318bf34b92873f8910"
+    },
+    {
+      "path": "checklists/cross-platform-checklist.md",
+      "sha256": "1b95b473ad77bc7a72a756a979526cb624eb42331b5c4b8629e721c80fe0c1e8"
+    },
+    {
+      "path": "checklists/module-onboarding-checklist.md",
+      "sha256": "d2b317ba23fa189dcf4642367f16a4570b42156d35127f594831bf9b853fe1ff"
+    },
+    {
+      "path": "checklists/release-checklist.md",
+      "sha256": "79a20537e6b54b1e72a0ea778bada9b6879690fc46ea873a1e47dd1e9fd15d3c"
+    },
+    {
+      "path": "checklists/ui-acceptance-checklist.md",
+      "sha256": "e7626a8209169410a667a3f811d28edfd23313402ecea13f17b445c3bfdf4d50"
+    },
+    {
+      "path": "docs/00-final-decision.md",
+      "sha256": "1a61b820d99c3a758a1e543741251c8b7dd83426e458d27ffa1e3dc4c7268d51"
+    },
+    {
+      "path": "docs/01-system-architecture.md",
+      "sha256": "da8802dea5b61bcfcf5600633c7d9c2d1dd8d3a6fbc56db7ba57e6bcf4cb8c09"
+    },
+    {
+      "path": "docs/02-module-protocol.md",
+      "sha256": "d70c016fdd58e250a017c0abaed7fdf0b2dd5600d545c4b9b32683c3ef05cd49"
+    },
+    {
+      "path": "docs/03-package-model.md",
+      "sha256": "ed752871bf728ebe6da27b3bd84f2aaf5da7b28a885ee5ffeb211b6afb527026"
+    },
+    {
+      "path": "docs/04-platform-capabilities.md",
+      "sha256": "3a0a398a440f55f8f649d470f64ea02483d416ef17341469b9d7c759873b0056"
+    },
+    {
+      "path": "docs/05-ui-surfaces.md",
+      "sha256": "9b5235ad40f69159b50a0f32b30da1c9881846976dc5d680bdbbaaa75e39bc6c"
+    },
+    {
+      "path": "docs/06-existing-tools-migration.md",
+      "sha256": "917c7eee1a3f2c84b75eb0214720ab761b5f07994e4017bc6819482e18008f5c"
+    },
+    {
+      "path": "docs/07-android-tools-split.md",
+      "sha256": "bc623dfa63ae01e7114304874a54fa05b895ad73fd896fa9c235e09b384de2ac"
+    },
+    {
+      "path": "docs/08-security-privilege-data.md",
+      "sha256": "e17d2ad1544e3aa8601d1c477372b459656a23a5b765f4f2f507c093587fa6d3"
+    },
+    {
+      "path": "docs/09-roadmap.md",
+      "sha256": "a19f1499b82c2fac701430d6d847b650f96e817fe921bda32a83c7669090d329"
+    },
+    {
+      "path": "docs/10-testing-release.md",
+      "sha256": "4c46cc031f232875478ae8a1f4ef47a4c46e678ab50e63ed172c0c9d826bee67"
+    },
+    {
+      "path": "docs/11-repository-layout.md",
+      "sha256": "224ee29623317b5d0dcc90c037fc8519d02e7ed8d64ae53e1f72be6106bbeaff"
+    },
+    {
+      "path": "docs/12-implementation-prompt.md",
+      "sha256": "88873f27a25f02e45ede3ba4f0d38addfb11207e9bf015a9fcd38e4a63b4d2e2"
+    },
+    {
+      "path": "docs/13-transport-runtime.md",
+      "sha256": "9b2eec17b7b522faefcf787f3dd3a5c110730b31764b2634ce9401109ca4428d"
+    },
+    {
+      "path": "docs/14-consistency-integrity-scalability.md",
+      "sha256": "6bd87fcb756fdd4d9dd65ae2c6218539633a303b904060ff12aa82494238a361"
+    },
+    {
+      "path": "docs/15-powertoys-code-comparison.md",
+      "sha256": "f471caa340e4ae1f2962d8b611f406731b21259deff0ed643940baa38221aba3"
+    },
+    {
+      "path": "docs/16-ui-guardrails.md",
+      "sha256": "3e9170a0e2f86b6d2a278a04baff1d3f6a6a06600495547a5bdeffedb1ef62d5"
+    },
+    {
+      "path": "docs/17-agent-execution-model.md",
+      "sha256": "6d9db8f6d9566cf9314bf361ecfbde29f8b2aaaed4611e16f57e47f8cdf735e8"
+    },
+    {
+      "path": "docs/source-note.md",
+      "sha256": "cfa22a125bdfac3b9ac182d2216a80e67b7f645f69b179adb24d7dfd490ce201"
+    },
+    {
+      "path": "examples/adb-forwarder/module.json",
+      "sha256": "31a2b8a9f3ed867ed9d4d3e306cd8d541e2f42fd00428a4380955b46a7b77fa7"
+    },
+    {
+      "path": "examples/adb-forwarder/ui/dashboard-card.json",
+      "sha256": "f95bcb0f6a67b9b455f21ecd034a39c23c688287e3f99b14ba00792f93632c85"
+    },
+    {
+      "path": "examples/adb-forwarder/ui/detail-page.json",
+      "sha256": "07292f5d8864c160cdd73301b245dc53537f319ba1c6469973f79193077f9175"
+    },
+    {
+      "path": "examples/adb-forwarder/ui/logs.json",
+      "sha256": "f86c2f135d306bac3e11324ab6876919ae92a7dbf6624784620a707bba1b10c8"
+    },
+    {
+      "path": "examples/adb-forwarder/ui/settings.json",
+      "sha256": "234c654ccbcd3e027ba1e7a7acf01224358ce520d9e5275087cd29f7c3a3e36b"
+    },
+    {
+      "path": "examples/android-tools-suite/modules/notifications/module.json",
+      "sha256": "5f3ecf2f9f7548720474c800a79305d05b0ed124ed356f038d326395cd06cef4"
+    },
+    {
+      "path": "examples/android-tools-suite/modules/notifications/settings.schema.json",
+      "sha256": "f48ed0178a447bf907964946a438ea366eaecb562ffea2e68b3b243f3288fee7"
+    },
+    {
+      "path": "examples/android-tools-suite/modules/notifications/ui/dashboard-card.json",
+      "sha256": "efea9398165e8bc478c7898cf2a174d3af4c549e4cc0d667a129613aa702f3d4"
+    },
+    {
+      "path": "examples/android-tools-suite/modules/notifications/ui/detail-page.json",
+      "sha256": "775be20b8791372fed15c985580eda5eb703877e8cfa223686739c006ed9a388"
+    },
+    {
+      "path": "examples/android-tools-suite/modules/notifications/ui/logs.json",
+      "sha256": "adf3f3ac2abfdbc1ee342a3aeddf8e86a6f0b5ba68e34425651a37674b5fba9c"
+    },
+    {
+      "path": "examples/android-tools-suite/modules/notifications/ui/settings.json",
+      "sha256": "b8e7419d5fa06eb8cadbfd1a7b423dd70b37815c0318a6a066d1c30e2e760eda"
+    },
+    {
+      "path": "examples/android-tools-suite/modules/process-monitor/module.json",
+      "sha256": "19674be75f91ab3aca9e69c49cb449a129513ed351750f53a4dbe2d804f47874"
+    },
+    {
+      "path": "examples/android-tools-suite/modules/process-monitor/settings.schema.json",
+      "sha256": "f48ed0178a447bf907964946a438ea366eaecb562ffea2e68b3b243f3288fee7"
+    },
+    {
+      "path": "examples/android-tools-suite/modules/process-monitor/ui/dashboard-card.json",
+      "sha256": "3f377213e47bf9bd92a8a5686ad61631f3b567f281f259bb0d233ccbb5eb50b2"
+    },
+    {
+      "path": "examples/android-tools-suite/modules/process-monitor/ui/detail-page.json",
+      "sha256": "d7e7e9bec6babfd61e64972c23a56652e3e7fd76b994bd5c9ed637c8752626e1"
+    },
+    {
+      "path": "examples/android-tools-suite/modules/process-monitor/ui/logs.json",
+      "sha256": "14c70fa3b99e3ede40224244bfe45f9a77c1222e6b8a69a6e293140f72790ddc"
+    },
+    {
+      "path": "examples/android-tools-suite/modules/process-monitor/ui/settings.json",
+      "sha256": "a2214006060b356b0a67e941891277d4d86e11a1a0a60671c6f3a4adc864db10"
+    },
+    {
+      "path": "examples/android-tools-suite/modules/remote-commands/module.json",
+      "sha256": "b2499832608d25374d3bb11ba0b300474669e684c5782dfc34e04acf32336aa7"
+    },
+    {
+      "path": "examples/android-tools-suite/modules/remote-commands/settings.schema.json",
+      "sha256": "f48ed0178a447bf907964946a438ea366eaecb562ffea2e68b3b243f3288fee7"
+    },
+    {
+      "path": "examples/android-tools-suite/modules/remote-commands/ui/dashboard-card.json",
+      "sha256": "4850dbff2d1100579ed1c80ad270e7ba3fa513955e535a569759cafabe6a21e6"
+    },
+    {
+      "path": "examples/android-tools-suite/modules/remote-commands/ui/detail-page.json",
+      "sha256": "77deac0fcc04e3f8b7f4900441bf570782951023faa0388c1b042c5e3db93be3"
+    },
+    {
+      "path": "examples/android-tools-suite/modules/remote-commands/ui/logs.json",
+      "sha256": "69650c963dc728304652522bbaf52e9a3faf9dc4f9d3a1e68523c90b46873e36"
+    },
+    {
+      "path": "examples/android-tools-suite/modules/remote-commands/ui/settings.json",
+      "sha256": "95cf3c359443305c50861d3a42bcd03b09a72e50813d84c8de166a88170903e6"
+    },
+    {
+      "path": "examples/android-tools-suite/package.json",
+      "sha256": "14f06589b1e088563c977f01bef7738d26e496190092ac7a68a13a2941c78ab0"
+    },
+    {
+      "path": "examples/doubao-agent/module.json",
+      "sha256": "0663f78fe040408bf3e6ce892cd131859c7b82a85cadeb1340b359cbbbc48772"
+    },
+    {
+      "path": "examples/doubao-agent/ui/dashboard-card.json",
+      "sha256": "d9754c8c5df3cd550a4e3bcb588221acd3340669680458c646f133565ea66bc1"
+    },
+    {
+      "path": "examples/doubao-agent/ui/detail-page.json",
+      "sha256": "0c845f8bf18a0d6025162d3c4cb6dc38da2824c319f055bb81d66c9b76faca9a"
+    },
+    {
+      "path": "examples/doubao-agent/ui/logs.json",
+      "sha256": "d50579e65baf3fba4ba96ae933180920ef22f6b5303fe2e7971b5a0103bf57c9"
+    },
+    {
+      "path": "examples/doubao-agent/ui/settings.json",
+      "sha256": "76162cc38399f89d9860a68b2a8bfa0b891c76c4db1669ac94747d5707edb972"
+    },
+    {
+      "path": "examples/screenease/module.json",
+      "sha256": "3f252468ef3cb82304ba96a53486392c927e1f3850729034d5f72dad9858b1a3"
+    },
+    {
+      "path": "examples/screenease/ui/dashboard-card.json",
+      "sha256": "774b567d155f3c02cfc5b2bbd5f6ffc211df3b74d411589b68a56e1286c5add5"
+    },
+    {
+      "path": "examples/screenease/ui/detail-page.json",
+      "sha256": "327cc463a56cdcfddbb49ba179df9cd63e3aec824a63ade43a3602d2b921f120"
+    },
+    {
+      "path": "examples/screenease/ui/logs.json",
+      "sha256": "9cb262780e22aaabf37dbde2b392a421ccea0511f301937fc1b3ad744f344874"
+    },
+    {
+      "path": "examples/screenease/ui/settings.json",
+      "sha256": "cf05dcc1e5e451fb8dbb83d32b33f10e80063e95a9ad1e2efcfc15704b27f9b3"
+    },
+    {
+      "path": "examples/smartbird-thermostat/module.json",
+      "sha256": "016c15f6ad329b918c53db73ecf60054e950b4528f6236c9c5c6d3f320eb7c13"
+    },
+    {
+      "path": "examples/smartbird-thermostat/ui/dashboard-card.json",
+      "sha256": "13dff1ce564b1a8349b9814db95fb327dd5b8969a9e380123d281a3c776f7a73"
+    },
+    {
+      "path": "examples/smartbird-thermostat/ui/detail-page.json",
+      "sha256": "f7a2d976a5de60f4671d2cecfe067722505cee802f70a716365333d3bf7d087a"
+    },
+    {
+      "path": "examples/smartbird-thermostat/ui/logs.json",
+      "sha256": "49817074caec55a5a24735c912e319c6317016e6acbc5c9563d3f3c97ffe084c"
+    },
+    {
+      "path": "examples/smartbird-thermostat/ui/settings.json",
+      "sha256": "91cd7c4cfe799eb16c1d27c6315f42254cd9258a829f2410283d52f80e88f4bb"
+    },
+    {
+      "path": "proto/mpt_host_control_v1.proto",
+      "sha256": "6a80390a474036525a27d62db878ef46715f36545713c0cb5362ae4221959910"
+    },
+    {
+      "path": "proto/mpt_module_v1.proto",
+      "sha256": "01cdb7b0cb250376cdcb29b6caa192291732f16b0488b8ebd9b4a07a555c268b"
+    },
+    {
+      "path": "roadmap/work-breakdown.md",
+      "sha256": "09721101ad15603c700a29467b38ba7d37246f525b5d22e596b157262fa626e6"
+    },
+    {
+      "path": "schemas/command.schema.json",
+      "sha256": "24460935650f0712e3900464616c9788a49f042d0a5abc8e4cb69cd48ebba099"
+    },
+    {
+      "path": "schemas/design-token.schema.json",
+      "sha256": "8592e670f4dcf5a32c82629eb532a8bb33f45f8faa5b12260b20359bad0c897d"
+    },
+    {
+      "path": "schemas/module.schema.json",
+      "sha256": "e532cc67b7448c8614de47bfecd2e02271cf70b387b49f1427c463d8008d13af"
+    },
+    {
+      "path": "schemas/package.schema.json",
+      "sha256": "d58d36dc6006dfe4c5660ddda4b0bd891a6d3363f524ac9cbcc6ad8f3777077f"
+    },
+    {
+      "path": "schemas/settings.schema.json",
+      "sha256": "d8fc66458ff1ee9e6b81566a57ce8610ef87d114ded6a79d1508139ea77beed2"
+    },
+    {
+      "path": "schemas/status.schema.json",
+      "sha256": "0724e2e6989663e7f8dc07f0f7d3d304fecbd083a7c5172b5381b312a29c8c07"
+    },
+    {
+      "path": "schemas/ui-surface.schema.json",
+      "sha256": "e2138f95f86a814929528a8dc31326c71b4c06d8df75fcceec116f2dfb62d59e"
+    },
+    {
+      "path": "templates/dotnet-module/IMptModule.cs",
+      "sha256": "ae6c1596fce057f049a1808bd5d6cb3269d2f118c3cdaee21121064d4fb4bda6"
+    },
+    {
+      "path": "templates/dotnet-module/ModuleEntry.cs",
+      "sha256": "77a88b843ceec77e37c2cf26fd0d93d74811daf895a08de47049bb084d822681"
+    },
+    {
+      "path": "templates/python-grpc-sidecar-module/module.json",
+      "sha256": "41d527fbd56b33b5669ae368fd97750e86bf46ea51079f24cc80ae6ad7993cc1"
+    },
+    {
+      "path": "templates/python-grpc-sidecar-module/module_service.py",
+      "sha256": "ca1eee51a8cfe2d649a22ba04cf960299a8fefbb32f9a0deef128b67c1b3525f"
+    },
+    {
+      "path": "templates/stdio-compat-module/module.json",
+      "sha256": "a4d404a5fa757f8c5d829dd146a4c8f4405b96bd863463f882287abc684bbc2a"
+    },
+    {
+      "path": "templates/stdio-compat-module/module_server.py",
+      "sha256": "415c9c66a7afbeed91b2099765b11ac7437ce983159b300b7e7df88fe5d17d1c"
+    },
+    {
+      "path": "templates/webview-module/README.md",
+      "sha256": "77b690ccacadfc84d690771a06d62c1f8490f4ca306487b1c092be7126dad90f"
+    },
+    {
+      "path": "ui/component-contracts.md",
+      "sha256": "0a7b67c28e9990212fa770805af236c8e90ff99ef6779fd694306880b1049e43"
+    },
+    {
+      "path": "ui/design-tokens.json",
+      "sha256": "3c138b44b0e08472fc06723297c499eac14c79ec0e42d7f2290792c1d17accfb"
+    },
+    {
+      "path": "ui/visual-regression-matrix.md",
+      "sha256": "1e470f5de57190dc52b89ddf6c76169763d82df4de466ae8b8c6e4fda66b09df"
+    }
+  ]
+}

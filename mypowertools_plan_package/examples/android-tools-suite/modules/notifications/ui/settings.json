@@ -1,0 +1,23 @@
+{
+  "schemaVersion": "1.0",
+  "surfaceId": "android-tools.notifications.settings",
+  "moduleId": "android-tools.notifications",
+  "kind": "settings",
+  "layout": {
+    "mode": "schema"
+  },
+  "uses": [
+    "MptSettingsSection",
+    "MptSettingRow",
+    "MptPermissionPrompt"
+  ],
+  "states": [
+    "loading",
+    "ready",
+    "empty",
+    "degraded",
+    "error",
+    "permission-required",
+    "disabled"
+  ]
+}

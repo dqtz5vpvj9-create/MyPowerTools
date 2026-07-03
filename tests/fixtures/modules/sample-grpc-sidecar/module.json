@@ -1,0 +1,37 @@
+{
+  "schemaVersion": "1.0",
+  "id": "sample.grpc",
+  "packageId": "sample-grpc-sidecar",
+  "displayName": "Sample gRPC Sidecar",
+  "version": "0.2.0",
+  "moduleSdk": "1.0",
+  "entrypoints": [
+    {
+      "kind": "grpc-ipc",
+      "priority": 90,
+      "command": "MyPowerTools.SampleSidecar.Grpc",
+      "windows": {
+        "transport": "named-pipe",
+        "name": "mypowertools.sample.grpc"
+      },
+      "linux": {
+        "transport": "unix-domain-socket",
+        "path": "$XDG_RUNTIME_DIR/mypowertools/sample-grpc.sock"
+      },
+      "macos": {
+        "transport": "unix-domain-socket",
+        "path": "$TMPDIR/mypowertools/sample-grpc.sock"
+      }
+    }
+  ],
+  "capabilities": [
+    "status",
+    "commands",
+    "settings",
+    "dashboardCard"
+  ],
+  "uiSurfaces": [
+    "ui/dashboard-card.json",
+    "ui/logs.json"
+  ]
+}

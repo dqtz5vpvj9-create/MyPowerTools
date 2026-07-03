@@ -1,0 +1,30 @@
+{
+  "schemaVersion": "1.0",
+  "id": "sample.http-facade",
+  "packageId": "sample-http-facade",
+  "displayName": "Sample HTTP Facade Module",
+  "version": "0.2.0",
+  "moduleSdk": "1.0",
+  "entrypoints": [
+    {
+      "kind": "http",
+      "priority": 80,
+      "baseUrl": "http://127.0.0.1:42080",
+      "health": {
+        "path": "/api/status"
+      }
+    }
+  ],
+  "capabilities": [
+    "status",
+    "commands",
+    "dashboardCard"
+  ],
+  "permissions": [],
+  "staticIndexes": {
+    "commands": "commands.index.json"
+  },
+  "uiSurfaces": [
+    "ui/dashboard-card.json"
+  ]
+}

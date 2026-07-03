@@ -1,0 +1,71 @@
+{
+  "schemaVersion": "1.0",
+  "id": "smartbird-thermostat",
+  "packageId": "smartbird-thermostat",
+  "displayName": "散热器管理服务",
+  "version": "0.2.0",
+  "moduleSdk": "1.0",
+  "entrypoints": [
+    {
+      "kind": "grpc-ipc",
+      "priority": 80,
+      "command": "smartbird-thermostat-facade",
+      "windows": {
+        "transport": "named-pipe",
+        "name": "mypowertools.smartbird-thermostat.facade"
+      },
+      "linux": {
+        "transport": "unix-domain-socket",
+        "path": "$XDG_RUNTIME_DIR/mypowertools/smartbird-thermostat/facade.sock"
+      },
+      "macos": {
+        "transport": "unix-domain-socket",
+        "path": "$TMPDIR/mypowertools/smartbird-thermostat/facade.sock"
+      }
+    },
+    {
+      "kind": "http",
+      "priority": 40,
+      "baseUrl": "http://127.0.0.1:19002",
+      "health": {
+        "path": "/api/status"
+      }
+    }
+  ],
+  "capabilities": [
+    "lifecycle",
+    "status",
+    "commands",
+    "settings",
+    "logs",
+    "dashboardCard",
+    "detailPage",
+    "notifications"
+  ],
+  "requires": [
+    {
+      "capability": "service.user",
+      "required": true,
+      "reason": "管理后台服务"
+    },
+    {
+      "capability": "notification.desktop",
+      "required": false,
+      "reason": "推送服务告警"
+    }
+  ],
+  "permissions": [
+    {
+      "id": "restart-service",
+      "level": "broker",
+      "capability": "service.user",
+      "reason": "重启后台服务"
+    }
+  ],
+  "uiSurfaces": [
+    "ui/dashboard-card.json",
+    "ui/detail-page.json",
+    "ui/settings.json",
+    "ui/logs.json"
+  ]
+}

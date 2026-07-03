@@ -1,0 +1,84 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mypowertools.local/schemas/ui-surface.schema.json",
+  "title": "MyPowerTools UI Surface",
+  "type": "object",
+  "required": ["schemaVersion", "surfaceId", "moduleId", "kind", "layout", "states"],
+  "properties": {
+    "schemaVersion": { "type": "string" },
+    "surfaceId": { "type": "string", "pattern": "^[a-z0-9][a-z0-9.-]+$" },
+    "moduleId": { "type": "string", "pattern": "^[a-z0-9][a-z0-9.-]+$" },
+    "kind": {
+      "type": "string",
+      "enum": ["dashboard-card", "detail-page", "settings", "logs", "webview", "native-window"]
+    },
+    "layout": {
+      "type": "object",
+      "required": ["mode"],
+      "properties": {
+        "mode": { "type": "string", "enum": ["schema", "component", "webview-frame", "native-window"] },
+        "preferredWidth": { "type": "integer", "minimum": 240 },
+        "preferredHeight": { "type": "integer", "minimum": 120 },
+        "minWidth": { "type": "integer", "minimum": 120 },
+        "minHeight": { "type": "integer", "minimum": 80 }
+      },
+      "additionalProperties": false
+    },
+    "uses": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": [
+          "MptDashboardCard",
+          "MptModuleHeader",
+          "MptStatusPill",
+          "MptMetricGrid",
+          "MptActionBar",
+          "MptCommandButton",
+          "MptSettingsSection",
+          "MptSettingRow",
+          "MptDataTable",
+          "MptTimeline",
+          "MptLogViewer",
+          "MptEmptyState",
+          "MptErrorView",
+          "MptLoadingView",
+          "MptPermissionPrompt",
+          "MptDiagnosticPanel",
+          "MptOverflowMenu",
+          "MptWebViewFrame"
+        ]
+      }
+    },
+    "states": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "enum": ["loading", "ready", "empty", "degraded", "error", "permission-required", "offline", "updating", "disabled"]
+      },
+      "minItems": 3
+    },
+    "webview": {
+      "type": "object",
+      "properties": {
+        "themeBridge": { "type": "boolean" },
+        "navigationPolicy": { "type": "string", "enum": ["none", "allowlisted"] },
+        "allowedOrigins": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": false
+    },
+    "exceptions": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["rule", "reason"],
+        "properties": {
+          "rule": { "type": "string" },
+          "reason": { "type": "string" }
+        },
+        "additionalProperties": false
+      }
+    }
+  },
+  "additionalProperties": false
+}

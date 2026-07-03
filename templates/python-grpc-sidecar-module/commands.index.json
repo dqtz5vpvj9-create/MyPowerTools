@@ -1,0 +1,14 @@
+{
+  "commands": [
+    {
+      "id": "sample.python-grpc-module.open",
+      "title": "Open Python gRPC Template",
+      "subtitle": "Static command for the Python sidecar.",
+      "kind": "open",
+      "category": "Templates",
+      "execution": {
+        "type": "open"
+      }
+    }
+  ]
+}

@@ -1,0 +1,37 @@
+{
+  "Algorithm": "sha256",
+  "Files": [
+    {
+      "Path": "AdbForwarder.MyPowerTools.dll",
+      "Sha256": "c4607d2b2922358bddae0eeceadb618c8d956339a94f882b0ec00547479d33d6"
+    },
+    {
+      "Path": "AdbForwarder.MyPowerTools.pdb",
+      "Sha256": "c2929506584d48a9b161f180583e7e6fd66194839b217a7ab2c9f75684ee5289"
+    },
+    {
+      "Path": "commands.index.json",
+      "Sha256": "2323a88c0ab8d8de9317c256b2e456cfd202c6d0448bd562c211433112c9684c"
+    },
+    {
+      "Path": "module.json",
+      "Sha256": "e8ad31f837913bb3f12c8475adcc69e530df89906c0bce77f55e18a9ee2d9626"
+    },
+    {
+      "Path": "ui/dashboard-card.json",
+      "Sha256": "f95bcb0f6a67b9b455f21ecd034a39c23c688287e3f99b14ba00792f93632c85"
+    },
+    {
+      "Path": "ui/detail-page.json",
+      "Sha256": "07292f5d8864c160cdd73301b245dc53537f319ba1c6469973f79193077f9175"
+    },
+    {
+      "Path": "ui/logs.json",
+      "Sha256": "f86c2f135d306bac3e11324ab6876919ae92a7dbf6624784620a707bba1b10c8"
+    },
+    {
+      "Path": "ui/settings.json",
+      "Sha256": "234c654ccbcd3e027ba1e7a7acf01224358ce520d9e5275087cd29f7c3a3e36b"
+    }
+  ]
+}

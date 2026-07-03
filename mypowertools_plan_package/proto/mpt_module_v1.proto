@@ -1,0 +1,226 @@
+syntax = "proto3";
+
+package mypowertools.module.v1;
+
+option csharp_namespace = "MyPowerTools.Protocol.Module.V1";
+
+service ModuleControl {
+  rpc Initialize(InitializeRequest) returns (InitializeResponse);
+  rpc GetStatus(GetStatusRequest) returns (ModuleStatus);
+  rpc ListCommands(ListCommandsRequest) returns (ListCommandsResponse);
+  rpc ExecuteCommand(ExecuteCommandRequest) returns (CommandExecution);
+  rpc CancelCommand(CancelCommandRequest) returns (CancelCommandResponse);
+  rpc GetSettingsSchema(GetSettingsSchemaRequest) returns (SettingsSchema);
+  rpc GetSettings(GetSettingsRequest) returns (SettingsSnapshot);
+  rpc ValidateSettings(ValidateSettingsRequest) returns (ValidationResult);
+  rpc ApplySettings(ApplySettingsRequest) returns (SettingsSnapshot);
+  rpc ListSurfaces(ListSurfacesRequest) returns (ListSurfacesResponse);
+  rpc TailLogs(TailLogsRequest) returns (stream LogEntry);
+  rpc SubscribeEvents(SubscribeEventsRequest) returns (stream ModuleEvent);
+  rpc Dispose(DisposeRequest) returns (DisposeResponse);
+}
+
+message InitializeRequest {
+  string host_version = 1;
+  string protocol_version = 2;
+  string package_id = 3;
+  string module_id = 4;
+  string data_dir = 5;
+  string cache_dir = 6;
+  string log_dir = 7;
+  string platform = 8;
+  repeated string granted_capabilities = 9;
+}
+
+message InitializeResponse {
+  bool ok = 1;
+  string protocol_version = 2;
+  repeated string capabilities = 3;
+  MptError error = 4;
+}
+
+message GetStatusRequest {
+  string module_id = 1;
+}
+
+message ModuleStatus {
+  string module_id = 1;
+  ModuleState state = 2;
+  string summary = 3;
+  string updated_at = 4;
+  repeated HealthCheck checks = 5;
+  uint64 event_seq = 6;
+}
+
+message HealthCheck {
+  string id = 1;
+  string label = 2;
+  bool ok = 3;
+  string message = 4;
+}
+
+enum ModuleState {
+  MODULE_STATE_UNKNOWN = 0;
+  MODULE_STATE_NOT_CONFIGURED = 1;
+  MODULE_STATE_DISABLED = 2;
+  MODULE_STATE_STOPPED = 3;
+  MODULE_STATE_STARTING = 4;
+  MODULE_STATE_RUNNING = 5;
+  MODULE_STATE_DEGRADED = 6;
+  MODULE_STATE_ERROR = 7;
+}
+
+message ListCommandsRequest {
+  string module_id = 1;
+  string query = 2;
+}
+
+message ListCommandsResponse {
+  repeated MptCommand commands = 1;
+}
+
+message MptCommand {
+  string id = 1;
+  string title = 2;
+  string subtitle = 3;
+  string kind = 4;
+  bool requires_elevation = 5;
+  string icon = 6;
+  repeated CommandParameter parameters = 7;
+}
+
+message CommandParameter {
+  string id = 1;
+  string label = 2;
+  string type = 3;
+  bool required = 4;
+  string default_value = 5;
+}
+
+message ExecuteCommandRequest {
+  string module_id = 1;
+  string command_id = 2;
+  string invocation_id = 3;
+  map<string, string> args = 4;
+}
+
+message CommandExecution {
+  string invocation_id = 1;
+  string command_id = 2;
+  CommandState state = 3;
+  bool success = 4;
+  string output = 5;
+  MptError error = 6;
+}
+
+enum CommandState {
+  COMMAND_STATE_UNKNOWN = 0;
+  COMMAND_STATE_ACCEPTED = 1;
+  COMMAND_STATE_RUNNING = 2;
+  COMMAND_STATE_SUCCEEDED = 3;
+  COMMAND_STATE_FAILED = 4;
+  COMMAND_STATE_CANCELLED = 5;
+}
+
+message CancelCommandRequest {
+  string invocation_id = 1;
+}
+
+message CancelCommandResponse {
+  bool accepted = 1;
+}
+
+message GetSettingsSchemaRequest {
+  string module_id = 1;
+}
+
+message SettingsSchema {
+  string module_id = 1;
+  string schema_json = 2;
+}
+
+message GetSettingsRequest {
+  string module_id = 1;
+}
+
+message SettingsSnapshot {
+  string module_id = 1;
+  uint64 revision = 2;
+  string values_json = 3;
+  string updated_at = 4;
+}
+
+message ValidateSettingsRequest {
+  string module_id = 1;
+  uint64 expected_revision = 2;
+  string patch_json = 3;
+}
+
+message ValidationResult {
+  bool ok = 1;
+  repeated string messages = 2;
+  MptError error = 3;
+}
+
+message ApplySettingsRequest {
+  string module_id = 1;
+  uint64 expected_revision = 2;
+  string patch_json = 3;
+}
+
+message ListSurfacesRequest {
+  string module_id = 1;
+}
+
+message ListSurfacesResponse {
+  repeated UiSurface surfaces = 1;
+}
+
+message UiSurface {
+  string id = 1;
+  string kind = 2;
+  string title = 3;
+  string model_json = 4;
+}
+
+message TailLogsRequest {
+  string module_id = 1;
+  string cursor = 2;
+  uint32 limit = 3;
+}
+
+message LogEntry {
+  string module_id = 1;
+  string cursor = 2;
+  string time = 3;
+  string level = 4;
+  string message = 5;
+}
+
+message SubscribeEventsRequest {
+  string module_id = 1;
+  uint64 last_event_seq = 2;
+}
+
+message ModuleEvent {
+  string module_id = 1;
+  uint64 seq = 2;
+  string type = 3;
+  string time = 4;
+  string payload_json = 5;
+}
+
+message DisposeRequest {
+  string module_id = 1;
+}
+
+message DisposeResponse {
+  bool ok = 1;
+}
+
+message MptError {
+  string code = 1;
+  string message = 2;
+  bool retryable = 3;
+  string details_json = 4;
+}

@@ -1,0 +1,21 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\MyPowerTools.Runtime\MyPowerTools.Runtime.csproj" />
+    <ProjectReference Include="..\MyPowerTools.Protocol\MyPowerTools.Protocol.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <ModulePackageRoot>$(MSBuildProjectDirectory)\..\..\modules\android-tools-suite</ModulePackageRoot>
+  </PropertyGroup>
+
+  <Target Name="CopyModuleAssemblyToPackage" AfterTargets="Build">
+    <MakeDir Directories="$(ModulePackageRoot)" />
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(ModulePackageRoot)" />
+    <Copy SourceFiles="$(TargetDir)$(TargetName).pdb" DestinationFolder="$(ModulePackageRoot)" Condition="Exists('$(TargetDir)$(TargetName).pdb')" />
+  </Target>
+
+</Project>

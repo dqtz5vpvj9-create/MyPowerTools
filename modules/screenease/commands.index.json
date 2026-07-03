@@ -1,0 +1,26 @@
+{
+  "schemaVersion": "1.0",
+  "commands": [
+    {
+      "id": "screenease.profile.open",
+      "title": "Open ScreenEase profiles",
+      "subtitle": "Navigate to ScreenEase detail surface",
+      "kind": "open",
+      "category": "ScreenEase",
+      "execution": {
+        "type": "open",
+        "surface": "detail"
+      }
+    },
+    {
+      "id": "screenease.settings.read",
+      "title": "Read ScreenEase settings",
+      "subtitle": "Loads settings snapshot with revision",
+      "kind": "action",
+      "category": "ScreenEase",
+      "execution": {
+        "type": "host.settings.read"
+      }
+    }
+  ]
+}

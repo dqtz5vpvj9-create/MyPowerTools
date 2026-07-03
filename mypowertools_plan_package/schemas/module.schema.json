@@ -1,0 +1,337 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mypowertools.dev/schemas/module.schema.json",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "id",
+    "packageId",
+    "displayName",
+    "version",
+    "moduleSdk",
+    "entrypoints",
+    "capabilities"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "string"
+    },
+    "id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9.-]*$"
+    },
+    "packageId": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9-]*$"
+    },
+    "displayName": {
+      "type": "string"
+    },
+    "version": {
+      "type": "string"
+    },
+    "moduleSdk": {
+      "type": "string"
+    },
+    "entrypoints": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "required": [
+          "kind",
+          "priority"
+        ],
+        "properties": {
+          "kind": {
+            "enum": [
+              "inproc-dotnet",
+              "grpc-ipc",
+              "package-runtime",
+              "http",
+              "jsonrpc-stdio"
+            ]
+          },
+          "priority": {
+            "type": "integer",
+            "minimum": 0,
+            "maximum": 100
+          },
+          "platforms": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "assembly": {
+            "type": "string"
+          },
+          "type": {
+            "type": "string"
+          },
+          "command": {
+            "type": "string"
+          },
+          "args": {
+            "type": "array",
+            "items": {
+              "type": "string"
+            }
+          },
+          "runtimeId": {
+            "type": "string"
+          },
+          "service": {
+            "type": "string"
+          },
+          "baseUrl": {
+            "type": "string"
+          },
+          "windows": {
+            "$ref": "#/$defs/ipcEndpoint"
+          },
+          "macos": {
+            "$ref": "#/$defs/ipcEndpoint"
+          },
+          "linux": {
+            "$ref": "#/$defs/ipcEndpoint"
+          },
+          "health": {
+            "type": "object"
+          },
+          "compat": {
+            "type": "boolean"
+          },
+          "startupCost": {
+            "type": "integer",
+            "minimum": 0
+          }
+        },
+        "additionalProperties": true
+      }
+    },
+    "capabilities": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      }
+    },
+    "requires": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/requirement"
+      }
+    },
+    "permissions": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/permission"
+      }
+    },
+    "surfaces": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Legacy shorthand. New modules should use ui.surfaces."
+    },
+    "staticIndexes": {
+      "type": "object"
+    },
+    "uiSurfaces": {
+      "type": "array",
+      "items": {
+        "type": "string"
+      },
+      "description": "Paths to UI surface declarations validated by ui-surface.schema.json"
+    }
+  },
+  "$defs": {
+    "ipcEndpoint": {
+      "type": "object",
+      "properties": {
+        "transport": {
+          "enum": [
+            "named-pipe",
+            "unix-domain-socket",
+            "tcp"
+          ]
+        },
+        "name": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        }
+      },
+      "additionalProperties": true
+    },
+    "requirement": {
+      "type": "object",
+      "required": [
+        "capability",
+        "required"
+      ],
+      "properties": {
+        "capability": {
+          "type": "string"
+        },
+        "required": {
+          "type": "boolean"
+        },
+        "reason": {
+          "type": "string"
+        }
+      }
+    },
+    "permission": {
+      "type": "object",
+      "required": [
+        "id",
+        "level",
+        "reason"
+      ],
+      "properties": {
+        "id": {
+          "type": "string"
+        },
+        "level": {
+          "enum": [
+            "user",
+            "elevated",
+            "service",
+            "broker"
+          ]
+        },
+        "capability": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        }
+      }
+    },
+    "uiSurface": {
+      "type": "object",
+      "required": [
+        "designSystemVersion",
+        "themePolicy",
+        "density",
+        "surfaces"
+      ],
+      "properties": {
+        "designSystemVersion": {
+          "type": "string"
+        },
+        "themePolicy": {
+          "type": "string",
+          "enum": [
+            "shell-tokens-only"
+          ]
+        },
+        "density": {
+          "type": "string",
+          "enum": [
+            "shell-controlled"
+          ]
+        },
+        "surfaces": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "object",
+            "required": [
+              "kind",
+              "renderer",
+              "required",
+              "model"
+            ],
+            "properties": {
+              "kind": {
+                "type": "string",
+                "enum": [
+                  "DashboardCard",
+                  "DetailPage",
+                  "SettingsSurface",
+                  "CommandProvider",
+                  "LogsProvider",
+                  "NotificationProvider",
+                  "WebViewSurface",
+                  "NativeWindow"
+                ]
+              },
+              "renderer": {
+                "type": "string",
+                "enum": [
+                  "shell-standard",
+                  "schema",
+                  "component",
+                  "webview-frame",
+                  "native-window",
+                  "custom"
+                ]
+              },
+              "required": {
+                "type": "boolean"
+              },
+              "model": {
+                "type": "string"
+              },
+              "reason": {
+                "type": "string"
+              },
+              "fallback": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          }
+        },
+        "screenshots": {
+          "type": "object",
+          "properties": {
+            "required": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": [
+                  "light",
+                  "dark",
+                  "compact",
+                  "loading",
+                  "error",
+                  "degraded",
+                  "empty",
+                  "permission",
+                  "high-contrast"
+                ]
+              }
+            }
+          },
+          "additionalProperties": false
+        },
+        "exceptions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "rule",
+              "reason"
+            ],
+            "properties": {
+              "rule": {
+                "type": "string"
+              },
+              "reason": {
+                "type": "string"
+              }
+            },
+            "additionalProperties": false
+          }
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": true
+}

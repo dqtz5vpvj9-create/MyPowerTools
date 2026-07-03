@@ -1,0 +1,17 @@
+{
+  "Algorithm": "sha256",
+  "Files": [
+    {
+      "Path": "module.json",
+      "Sha256": "e50703bdc88a92317e86a0a0218899f800adb36ef960bee02972624fb18fdef7"
+    },
+    {
+      "Path": "ui/dashboard-card.json",
+      "Sha256": "9b97057ab3316c7a29c4ad1dbb8eb35a6c97cc03fffcfe9d35844f84dcd566e8"
+    },
+    {
+      "Path": "ui/logs.json",
+      "Sha256": "4f29f0af9f4d253462e8ad09930ca11ad634089b159e3c0f536ded8cfac0d768"
+    }
+  ]
+}

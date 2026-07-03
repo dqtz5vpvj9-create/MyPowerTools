@@ -1,0 +1,45 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mypowertools.dev/schemas/status.schema.json",
+  "type": "object",
+  "required": [
+    "state",
+    "summary",
+    "updatedAt"
+  ],
+  "properties": {
+    "state": {
+      "enum": [
+        "unknown",
+        "notConfigured",
+        "disabled",
+        "stopped",
+        "starting",
+        "running",
+        "degraded",
+        "error",
+        "unsupported",
+        "permissionRequired"
+      ]
+    },
+    "summary": {
+      "type": "string"
+    },
+    "updatedAt": {
+      "type": "string"
+    },
+    "checks": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    },
+    "metrics": {
+      "type": "array",
+      "items": {
+        "type": "object"
+      }
+    }
+  },
+  "additionalProperties": true
+}

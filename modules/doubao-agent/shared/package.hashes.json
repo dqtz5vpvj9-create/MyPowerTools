@@ -1,0 +1,29 @@
+{
+  "Algorithm": "sha256",
+  "Files": [
+    {
+      "Path": "commands.index.json",
+      "Sha256": "1c59f743e247037940dc1efa4539215bf1953b49ddb686b531d6dbfee75e7fe2"
+    },
+    {
+      "Path": "module.json",
+      "Sha256": "f7b99813b346f5cecff7dcf3c4f16fabf310a3b52a9f5943bc627ce2b964a3da"
+    },
+    {
+      "Path": "ui/dashboard-card.json",
+      "Sha256": "d9754c8c5df3cd550a4e3bcb588221acd3340669680458c646f133565ea66bc1"
+    },
+    {
+      "Path": "ui/detail-page.json",
+      "Sha256": "0c845f8bf18a0d6025162d3c4cb6dc38da2824c319f055bb81d66c9b76faca9a"
+    },
+    {
+      "Path": "ui/logs.json",
+      "Sha256": "d50579e65baf3fba4ba96ae933180920ef22f6b5303fe2e7971b5a0103bf57c9"
+    },
+    {
+      "Path": "ui/settings.json",
+      "Sha256": "76162cc38399f89d9860a68b2a8bfa0b891c76c4db1669ac94747d5707edb972"
+    }
+  ]
+}

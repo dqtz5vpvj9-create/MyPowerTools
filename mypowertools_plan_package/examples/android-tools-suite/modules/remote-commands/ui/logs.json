@@ -1,0 +1,23 @@
+{
+  "schemaVersion": "1.0",
+  "surfaceId": "android-tools.remote-commands.logs",
+  "moduleId": "android-tools.remote-commands",
+  "kind": "logs",
+  "layout": {
+    "mode": "component"
+  },
+  "uses": [
+    "MptLogViewer",
+    "MptErrorView",
+    "MptEmptyState"
+  ],
+  "states": [
+    "loading",
+    "ready",
+    "empty",
+    "degraded",
+    "error",
+    "permission-required",
+    "disabled"
+  ]
+}

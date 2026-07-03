@@ -1,0 +1,63 @@
+{
+  "schemaVersion": "1.0",
+  "id": "doubao-agent",
+  "packageId": "doubao-agent",
+  "displayName": "Doubao Agent",
+  "version": "0.2.0",
+  "moduleSdk": "1.0",
+  "entrypoints": [
+    {
+      "kind": "grpc-ipc",
+      "priority": 90,
+      "command": "doubao-agent-controller",
+      "windows": {
+        "transport": "named-pipe",
+        "name": "mypowertools.doubao-agent.controller"
+      },
+      "linux": {
+        "transport": "unix-domain-socket",
+        "path": "$XDG_RUNTIME_DIR/mypowertools/doubao-agent/controller.sock"
+      },
+      "macos": {
+        "transport": "unix-domain-socket",
+        "path": "$TMPDIR/mypowertools/doubao-agent/controller.sock"
+      }
+    },
+    {
+      "kind": "http",
+      "priority": 30,
+      "baseUrl": "http://127.0.0.1:38189",
+      "health": {
+        "path": "/health"
+      }
+    }
+  ],
+  "capabilities": [
+    "lifecycle",
+    "status",
+    "commands",
+    "settings",
+    "logs",
+    "dashboardCard",
+    "detailPage"
+  ],
+  "requires": [
+    {
+      "capability": "secret.store",
+      "required": true,
+      "reason": "读取 Agent secrets"
+    },
+    {
+      "capability": "process.inspect",
+      "required": false,
+      "reason": "诊断运行时进程"
+    }
+  ],
+  "permissions": [],
+  "uiSurfaces": [
+    "ui/dashboard-card.json",
+    "ui/detail-page.json",
+    "ui/settings.json",
+    "ui/logs.json"
+  ]
+}

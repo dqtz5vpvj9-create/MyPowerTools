@@ -1,0 +1,58 @@
+{
+  "schemaVersion": "1.0",
+  "id": "android-tools.notifications",
+  "packageId": "android-tools-suite",
+  "displayName": "Remote Notifications",
+  "version": "0.2.0",
+  "moduleSdk": "1.0",
+  "entrypoints": [
+    {
+      "kind": "inproc-dotnet",
+      "priority": 95,
+      "assembly": "../../AndroidTools.MyPowerTools.dll",
+      "type": "AndroidTools.MyPowerTools.AndroidToolsNotificationsModule"
+    },
+    {
+      "kind": "package-runtime",
+      "priority": 90,
+      "runtimeId": "powertoold",
+      "service": "android_tools.notifications.v1.NotificationsModule"
+    },
+    {
+      "kind": "jsonrpc-stdio",
+      "priority": 10,
+      "compat": true,
+      "command": "python",
+      "args": [
+        "compat/notifications/module_server.py"
+      ]
+    }
+  ],
+  "capabilities": [
+    "lifecycle",
+    "status",
+    "commands",
+    "settings",
+    "logs",
+    "dashboardCard",
+    "detailPage"
+  ],
+  "requires": [
+    {
+      "capability": "notification.desktop",
+      "required": false,
+      "reason": "显示桌面通知"
+    }
+  ],
+  "permissions": [],
+  "staticIndexes": {
+    "commands": "modules/notifications/commands.index.json",
+    "dashboard": "modules/notifications/dashboard.index.json"
+  },
+  "uiSurfaces": [
+    "ui/dashboard-card.json",
+    "ui/detail-page.json",
+    "ui/settings.json",
+    "ui/logs.json"
+  ]
+}

@@ -1,0 +1,26 @@
+{
+  "schemaVersion": "1.0",
+  "surfaceId": "android-tools.process-monitor.detail",
+  "moduleId": "android-tools.process-monitor",
+  "kind": "detail-page",
+  "layout": {
+    "mode": "component"
+  },
+  "uses": [
+    "MptModuleHeader",
+    "MptMetricGrid",
+    "MptTimeline",
+    "MptDiagnosticPanel",
+    "MptErrorView",
+    "MptLoadingView"
+  ],
+  "states": [
+    "loading",
+    "ready",
+    "empty",
+    "degraded",
+    "error",
+    "permission-required",
+    "disabled"
+  ]
+}

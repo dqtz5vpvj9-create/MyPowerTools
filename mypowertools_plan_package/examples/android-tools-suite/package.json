@@ -1,0 +1,61 @@
+{
+  "schemaVersion": "1.0",
+  "id": "android-tools-suite",
+  "displayName": "Android Tools Suite",
+  "version": "0.2.0",
+  "publisher": "lixinrui",
+  "minHostVersion": "0.2.0",
+  "modules": [
+    "modules/notifications/module.json",
+    "modules/remote-commands/module.json",
+    "modules/process-monitor/module.json"
+  ],
+  "shared": {
+    "runtimes": [
+      {
+        "id": "powertoold",
+        "entrypoints": [
+          {
+            "kind": "grpc-ipc",
+            "priority": 90,
+            "command": "windows/x64/powertoold.exe",
+            "platforms": [
+              "windows-x64"
+            ],
+            "windows": {
+              "transport": "named-pipe",
+              "name": "mypowertools.android-tools-suite.powertoold"
+            }
+          },
+          {
+            "kind": "grpc-ipc",
+            "priority": 90,
+            "command": "linux/x64/powertoold",
+            "platforms": [
+              "linux-x64"
+            ],
+            "linux": {
+              "transport": "unix-domain-socket",
+              "path": "$XDG_RUNTIME_DIR/mypowertools/android-tools-suite/powertoold.sock"
+            }
+          },
+          {
+            "kind": "grpc-ipc",
+            "priority": 90,
+            "command": "macos/arm64/powertoold",
+            "platforms": [
+              "macos-arm64"
+            ],
+            "macos": {
+              "transport": "unix-domain-socket",
+              "path": "$TMPDIR/mypowertools/android-tools-suite/powertoold.sock"
+            }
+          }
+        ]
+      }
+    ],
+    "assets": "shared/assets",
+    "dataDir": "${MPT_PACKAGE_DATA}/android-tools-suite"
+  },
+  "hashes": "shared/package.hashes.json"
+}

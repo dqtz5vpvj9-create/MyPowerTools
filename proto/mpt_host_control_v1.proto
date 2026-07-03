@@ -1,0 +1,420 @@
+syntax = "proto3";
+
+package mypowertools.hostcontrol.v1;
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+
+option csharp_namespace = "MyPowerTools.Protocol.HostControl.V1";
+
+service HostControl {
+  rpc Ping(PingRequest) returns (PingResponse);
+  rpc GetDashboardSnapshot(DashboardSnapshotRequest) returns (DashboardSnapshot);
+  rpc ListPackages(ListPackagesRequest) returns (ListPackagesResponse);
+  rpc ListModules(ListModulesRequest) returns (ListModulesResponse);
+  rpc GetRuntimeDiagnostics(RuntimeDiagnosticsRequest) returns (RuntimeDiagnostics);
+  rpc RestartRuntimeProcess(RestartRuntimeProcessRequest) returns (RuntimeProcessRestartResult);
+  rpc SetRuntimeProcessRestartPolicy(SetRuntimeProcessRestartPolicyRequest) returns (RuntimeProcessPolicyResult);
+  rpc SetModuleEnabled(SetModuleEnabledRequest) returns (ModuleDetail);
+  rpc GetModuleDetail(GetModuleDetailRequest) returns (ModuleDetail);
+  rpc ListCommands(ListCommandsRequest) returns (ListCommandsResponse);
+  rpc ExecuteCommand(ExecuteCommandRequest) returns (CommandExecutionResponse);
+  rpc ListBrokerAudit(ListBrokerAuditRequest) returns (ListBrokerAuditResponse);
+  rpc ListNotifications(ListNotificationsRequest) returns (ListNotificationsResponse);
+  rpc GetSettings(GetSettingsRequest) returns (SettingsSnapshot);
+  rpc UpdateSettings(UpdateSettingsRequest) returns (SettingsSnapshot);
+  rpc TailLogs(TailLogsRequest) returns (stream LogEntry);
+  rpc SubscribeHostEvents(HostEventsRequest) returns (stream HostEvent);
+  rpc OpenShell(OpenShellRequest) returns (google.protobuf.Empty);
+  rpc QuitRunner(QuitRunnerRequest) returns (google.protobuf.Empty);
+}
+
+message PingRequest {
+  string client_id = 1;
+}
+
+message PingResponse {
+  string runner_version = 1;
+  string state = 2;
+}
+
+message DashboardSnapshotRequest {
+  string locale = 1;
+}
+
+message DashboardSnapshot {
+  repeated ModuleCard cards = 1;
+  repeated HostAlert alerts = 2;
+  uint64 event_seq = 3;
+}
+
+message ModuleCard {
+  string module_id = 1;
+  string package_id = 2;
+  string title = 3;
+  string state = 4;
+  string summary = 5;
+  repeated Metric metrics = 6;
+  repeated QuickAction actions = 7;
+}
+
+message Metric {
+  string label = 1;
+  string value = 2;
+}
+
+message QuickAction {
+  string command_id = 1;
+  string title = 2;
+  string style = 3;
+}
+
+message HostAlert {
+  string id = 1;
+  string level = 2;
+  string title = 3;
+  string body = 4;
+}
+
+message ListPackagesRequest {
+  bool include_disabled = 1;
+}
+
+message ListPackagesResponse {
+  repeated PackageSummary packages = 1;
+}
+
+message PackageSummary {
+  string package_id = 1;
+  string display_name = 2;
+  string version = 3;
+  string publisher = 4;
+  string directory = 5;
+  string hashes = 6;
+  uint32 module_count = 7;
+  uint32 shared_runtime_count = 8;
+  repeated string module_ids = 9;
+}
+
+message ListModulesRequest {
+  bool include_disabled = 1;
+}
+
+message ListModulesResponse {
+  repeated ModuleSummary modules = 1;
+}
+
+message ModuleSummary {
+  string module_id = 1;
+  string package_id = 2;
+  string display_name = 3;
+  string state = 4;
+  string summary = 5;
+  bool enabled = 6;
+  repeated ModulePermission permissions = 7;
+  repeated ModuleRequirement requirements = 8;
+}
+
+message RuntimeDiagnosticsRequest {
+}
+
+message RuntimeDiagnostics {
+  string runner_version = 1;
+  string host_control_protocol_version = 2;
+  string module_protocol_version = 3;
+  string platform_rid = 4;
+  string dotnet_version = 5;
+  string os_description = 6;
+  string process_architecture = 7;
+  google.protobuf.Timestamp started_at = 8;
+  google.protobuf.Timestamp collected_at = 9;
+  uint64 current_event_seq = 10;
+  RuntimePathDiagnostics paths = 11;
+  RuntimeCountDiagnostics counts = 12;
+  repeated RuntimeTransportDiagnostics transports = 13;
+  repeated RuntimeModuleDiagnostics modules = 14;
+  repeated RuntimeCommandHistoryEntry recent_commands = 15;
+  repeated RuntimeProcessDiagnostics processes = 16;
+  repeated RuntimeProcessPolicyHistoryEntry process_policy_history = 17;
+}
+
+message RuntimePathDiagnostics {
+  string root = 1;
+  string settings = 2;
+  string logs = 3;
+  string state = 4;
+  string packages = 5;
+  string package_root = 6;
+}
+
+message RuntimeCountDiagnostics {
+  uint32 package_count = 1;
+  uint32 module_count = 2;
+  uint32 enabled_module_count = 3;
+  uint32 disabled_module_count = 4;
+  uint32 running_module_count = 5;
+  uint32 degraded_module_count = 6;
+  uint32 error_module_count = 7;
+  uint32 command_count = 8;
+  uint32 dynamic_command_count = 9;
+  uint32 notification_count = 10;
+  uint32 command_history_count = 11;
+}
+
+message RuntimeTransportDiagnostics {
+  string kind = 1;
+  bool runtime_registered = 2;
+  uint32 module_count = 3;
+}
+
+message RuntimeProcessDiagnostics {
+  string transport_kind = 1;
+  string pool_key = 2;
+  string state = 3;
+  uint32 process_id = 4;
+  string endpoint = 5;
+  uint32 start_count = 6;
+  uint32 restart_limit = 7;
+  google.protobuf.Timestamp last_started_at = 8;
+  repeated string module_ids = 9;
+  string restart_policy = 10;
+  string policy_reason = 11;
+  google.protobuf.Timestamp policy_expires_at = 12;
+}
+
+message RestartRuntimeProcessRequest {
+  string transport_kind = 1;
+  string pool_key = 2;
+}
+
+message RuntimeProcessRestartResult {
+  bool success = 1;
+  string transport_kind = 2;
+  string pool_key = 3;
+  string state = 4;
+  string message = 5;
+  repeated string module_ids = 6;
+}
+
+message SetRuntimeProcessRestartPolicyRequest {
+  string transport_kind = 1;
+  string pool_key = 2;
+  bool paused = 3;
+  string reason = 4;
+  string source = 5;
+  google.protobuf.Timestamp expires_at = 6;
+}
+
+message RuntimeProcessPolicyResult {
+  bool success = 1;
+  string transport_kind = 2;
+  string pool_key = 3;
+  string state = 4;
+  string restart_policy = 5;
+  string message = 6;
+  repeated string module_ids = 7;
+  google.protobuf.Timestamp expires_at = 8;
+}
+
+message RuntimeProcessPolicyHistoryEntry {
+  uint64 revision = 1;
+  google.protobuf.Timestamp time = 2;
+  string transport_kind = 3;
+  string pool_key = 4;
+  string restart_policy = 5;
+  string reason = 6;
+  string source = 7;
+  repeated string module_ids = 8;
+  google.protobuf.Timestamp expires_at = 9;
+}
+
+message RuntimeModuleDiagnostics {
+  string module_id = 1;
+  string package_id = 2;
+  string display_name = 3;
+  string state = 4;
+  bool enabled = 5;
+  string transport_kind = 6;
+  google.protobuf.Timestamp updated_at = 7;
+  uint32 diagnostic_count = 8;
+}
+
+message RuntimeCommandHistoryEntry {
+  string invocation_id = 1;
+  string command_id = 2;
+  string module_id = 3;
+  google.protobuf.Timestamp started_at = 4;
+  string state = 5;
+  string summary = 6;
+}
+
+message SetModuleEnabledRequest {
+  string module_id = 1;
+  bool enabled = 2;
+}
+
+message GetModuleDetailRequest {
+  string module_id = 1;
+}
+
+message ModuleDetail {
+  string module_id = 1;
+  string package_id = 2;
+  string display_name = 3;
+  string state = 4;
+  string summary = 5;
+  google.protobuf.Struct detail_surface = 6;
+  repeated Diagnostic diagnostics = 7;
+  repeated ModulePermission permissions = 8;
+  repeated ModuleRequirement requirements = 9;
+}
+
+message ModulePermission {
+  string id = 1;
+  string level = 2;
+  string capability = 3;
+  string reason = 4;
+}
+
+message ModuleRequirement {
+  string capability = 1;
+  bool required = 2;
+  string reason = 3;
+}
+
+message Diagnostic {
+  string id = 1;
+  string label = 2;
+  string state = 3;
+  string detail = 4;
+}
+
+message ListCommandsRequest {
+  string query = 1;
+  bool include_dynamic = 2;
+}
+
+message ListCommandsResponse {
+  repeated CommandItem commands = 1;
+}
+
+message CommandItem {
+  string command_id = 1;
+  string module_id = 2;
+  string title = 3;
+  string subtitle = 4;
+  string icon = 5;
+  string danger_level = 6;
+  bool requires_elevation = 7;
+}
+
+message ExecuteCommandRequest {
+  string invocation_id = 1;
+  string command_id = 2;
+  google.protobuf.Struct args = 3;
+}
+
+message CommandExecutionResponse {
+  string invocation_id = 1;
+  string state = 2;
+  string summary = 3;
+  string log_cursor = 4;
+  string error_code = 5;
+  string error_message = 6;
+  bool retryable = 7;
+  google.protobuf.Struct error_details = 8;
+}
+
+message ListBrokerAuditRequest {
+  string module_id = 1;
+  string action_id = 2;
+  uint32 limit = 3;
+}
+
+message ListBrokerAuditResponse {
+  repeated BrokerAuditEntry entries = 1;
+}
+
+message BrokerAuditEntry {
+  string audit_id = 1;
+  google.protobuf.Timestamp time = 2;
+  string module_id = 3;
+  string action_id = 4;
+  string permission_level = 5;
+  string scope = 6;
+  string reason = 7;
+  bool requires_broker = 8;
+  string result = 9;
+  string rollback = 10;
+}
+
+message ListNotificationsRequest {
+  string module_id = 1;
+  uint32 limit = 2;
+}
+
+message ListNotificationsResponse {
+  repeated NotificationItem notifications = 1;
+}
+
+message NotificationItem {
+  string id = 1;
+  google.protobuf.Timestamp time = 2;
+  string module_id = 3;
+  string level = 4;
+  string title = 5;
+  string body = 6;
+  bool is_read = 7;
+}
+
+message GetSettingsRequest {
+  string module_id = 1;
+}
+
+message SettingsSnapshot {
+  string module_id = 1;
+  uint64 revision = 2;
+  google.protobuf.Struct values = 3;
+  google.protobuf.Timestamp updated_at = 4;
+}
+
+message UpdateSettingsRequest {
+  string module_id = 1;
+  uint64 expected_revision = 2;
+  google.protobuf.Struct patch = 3;
+}
+
+message TailLogsRequest {
+  string module_id = 1;
+  string cursor = 2;
+}
+
+message LogEntry {
+  string module_id = 1;
+  string cursor = 2;
+  google.protobuf.Timestamp time = 3;
+  string level = 4;
+  string message = 5;
+}
+
+message HostEventsRequest {
+  uint64 last_event_seq = 1;
+}
+
+message HostEvent {
+  uint64 seq = 1;
+  string type = 2;
+  string source_id = 3;
+  google.protobuf.Timestamp time = 4;
+  google.protobuf.Struct payload = 5;
+}
+
+message OpenShellRequest {
+  string surface = 1;
+  string target_id = 2;
+}
+
+message QuitRunnerRequest {
+  bool restart = 1;
+}

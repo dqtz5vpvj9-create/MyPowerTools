@@ -1,0 +1,14 @@
+{
+  "commands": [
+    {
+      "id": "sample.dotnet-grpc-sidecar.open",
+      "title": "Open .NET gRPC Template",
+      "subtitle": "Static command for sidecar module.",
+      "kind": "open",
+      "category": "Templates",
+      "execution": {
+        "type": "open"
+      }
+    }
+  ]
+}

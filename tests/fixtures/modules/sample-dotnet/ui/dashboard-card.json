@@ -1,0 +1,20 @@
+{
+  "schemaVersion": "1.0",
+  "surfaceId": "sample.dotnet.dashboard",
+  "moduleId": "sample.dotnet",
+  "kind": "dashboard-card",
+  "layout": {
+    "mode": "component"
+  },
+  "uses": [
+    "MptDashboardCard",
+    "MptStatusPill",
+    "MptActionBar"
+  ],
+  "states": [
+    "loading",
+    "ready",
+    "error",
+    "disabled"
+  ]
+}

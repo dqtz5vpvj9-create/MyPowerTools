@@ -1,0 +1,27 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/AdbForwarder.MyPowerTools/AdbForwarder.MyPowerTools.csproj" />
+    <Project Path="src/AndroidTools.MyPowerTools/AndroidTools.MyPowerTools.csproj" />
+    <Project Path="src/MyPowerTools.Broker/MyPowerTools.Broker.csproj" />
+    <Project Path="src/MyPowerTools.Cli/MyPowerTools.Cli.csproj" />
+    <Project Path="src/MyPowerTools.HostControl/MyPowerTools.HostControl.csproj" />
+    <Project Path="src/MyPowerTools.ModuleHost.GrpcIpc/MyPowerTools.ModuleHost.GrpcIpc.csproj" />
+    <Project Path="src/MyPowerTools.ModuleHost.Http/MyPowerTools.ModuleHost.Http.csproj" />
+    <Project Path="src/MyPowerTools.ModuleHost.InProcDotNet/MyPowerTools.ModuleHost.InProcDotNet.csproj" />
+    <Project Path="src/MyPowerTools.ModuleHost.StdioCompat/MyPowerTools.ModuleHost.StdioCompat.csproj" />
+    <Project Path="src/MyPowerTools.Packaging/MyPowerTools.Packaging.csproj" />
+    <Project Path="src/MyPowerTools.Platform.Abstractions/MyPowerTools.Platform.Abstractions.csproj" />
+    <Project Path="src/MyPowerTools.Platform.Linux/MyPowerTools.Platform.Linux.csproj" />
+    <Project Path="src/MyPowerTools.Platform.Mac/MyPowerTools.Platform.Mac.csproj" />
+    <Project Path="src/MyPowerTools.Platform.Windows/MyPowerTools.Platform.Windows.csproj" />
+    <Project Path="src/MyPowerTools.Protocol/MyPowerTools.Protocol.csproj" />
+    <Project Path="src/MyPowerTools.Runner/MyPowerTools.Runner.csproj" />
+    <Project Path="src/MyPowerTools.Runtime/MyPowerTools.Runtime.csproj" />
+    <Project Path="src/MyPowerTools.SampleModules.DotNet/MyPowerTools.SampleModules.DotNet.csproj" />
+    <Project Path="src/MyPowerTools.SampleSidecar.Grpc/MyPowerTools.SampleSidecar.Grpc.csproj" />
+    <Project Path="src/MyPowerTools.Shell.Avalonia/MyPowerTools.Shell.Avalonia.csproj" />
+    <Project Path="src/MyPowerTools.Tests/MyPowerTools.Tests.csproj" />
+    <Project Path="src/MyPowerTools.UI/MyPowerTools.UI.csproj" />
+    <Project Path="src/ScreenEase.MyPowerTools/ScreenEase.MyPowerTools.csproj" />
+  </Folder>
+</Solution>

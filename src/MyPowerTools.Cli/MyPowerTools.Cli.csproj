@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <ItemGroup>
+    <ProjectReference Include="..\MyPowerTools.Packaging\MyPowerTools.Packaging.csproj" />
+    <ProjectReference Include="..\MyPowerTools.Runtime\MyPowerTools.Runtime.csproj" />
+    <ProjectReference Include="..\MyPowerTools.UI\MyPowerTools.UI.csproj" />
+    <ProjectReference Include="..\MyPowerTools.Broker\MyPowerTools.Broker.csproj" />
+    <ProjectReference Include="..\MyPowerTools.Platform.Windows\MyPowerTools.Platform.Windows.csproj" />
+    <ProjectReference Include="..\MyPowerTools.ModuleHost.InProcDotNet\MyPowerTools.ModuleHost.InProcDotNet.csproj" />
+    <ProjectReference Include="..\MyPowerTools.ModuleHost.GrpcIpc\MyPowerTools.ModuleHost.GrpcIpc.csproj" />
+    <ProjectReference Include="..\MyPowerTools.ModuleHost.StdioCompat\MyPowerTools.ModuleHost.StdioCompat.csproj" />
+  </ItemGroup>
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+</Project>
+
