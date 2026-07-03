@@ -89,6 +89,7 @@ The active objective is to turn MyPowerTools into a production-grade PowerToys-s
 - Completed P5 reliability and observability closure locally: `ModuleSupervisor` records module health observations, consecutive failures, supervisor state, last observation time, and next actions; RuntimeDiagnostics, HostControl, CLI diagnostics, Shell Diagnostics, and Dashboard alerts expose the data; `mpt runner process pause . --duration-minutes 1` resolves the first active process pool for smoke-friendly policy validation.
 - Completed P6 packaging, templates, CLI, install, and release closure locally: publish now writes release/update metadata and a Scoop package-manager manifest, release notes list both artifacts, tests cover metadata/hash parity, the portable zip passes hygiene checks, and release Runner/Shell/autostart/install/uninstall dry-runs are verified.
 - Completed P7 cross-platform capability closure locally: added `ILocalIpc`, platform-native endpoint selection, `IHotkeyService`, `IPrivilegeBroker`, Windows broker-required privilege evaluation, truthful pending hotkey handling, Mac/Linux degraded providers for hotkey/privilege/notification/autostart/service/network/process surfaces, managed process inspection, and tests for required/optional capability resolution, UDS/Named Pipe endpoint shape, and privilege contract behavior.
+- Completed P8 final production closure locally: final audit scans were classified, two internal cleanup items were fixed, the full final validation matrix passed, release metadata now uses relative URLs, release hash parity and zip hygiene passed, release Runner/Shell smoke passed, install/uninstall dry-runs passed, and `.codex/project-state.json` has `productionClosure=true`.
 
 ## Last Verified State
 
@@ -96,7 +97,7 @@ The active objective is to turn MyPowerTools into a production-grade PowerToys-s
 - Restore: `dotnet restore MyPowerTools.slnx` succeeded.
 - Build: `dotnet build MyPowerTools.slnx` succeeded with 0 warnings and 0 errors.
 - Tests: `dotnet test MyPowerTools.slnx --no-build` passed 88 tests, 0 failed, 0 skipped.
-- Phase state: P0, P1, P2, P3, P4, P5, P6, and P7 done; P8 selected as the next active phase in `.codex/project-state.json`.
+- Phase state: P0, P1, P2, P3, P4, P5, P6, P7, and P8 done; `.codex/project-state.json` has `productionClosure=true`.
 - Module validation: `dotnet run --project src\MyPowerTools.Cli -- validate modules` passed all 5 production packages.
 - Module contract validation: `dotnet run --project src\MyPowerTools.Cli -- validate contracts` passed all 5 production packages and 7 modules.
 - Package trust: `dotnet run --project src\MyPowerTools.Cli -- package trust modules --strict` reports `signature-hook` for all 5 production packages.
@@ -131,7 +132,7 @@ The active objective is to turn MyPowerTools into a production-grade PowerToys-s
 - Published CLI secret self-test: release `Cli\MyPowerTools.Cli.exe broker secret self-test --module cli.secret-self-test --name self-test-release-codex` passed through Windows Credential Manager, verified round-trip read, deleted the secret, and printed no secret value.
 - Published CLI permission inspection: release `Cli\MyPowerTools.Cli.exe inspect modules` printed module capabilities, required/optional capability requirements, `apply-portproxy`, and `restart-service` broker permissions.
 - Published package trust verification: release `Cli\MyPowerTools.Cli.exe package trust artifacts\release\win-x64\modules --strict` reported `signature-hook` for all 5 production packages.
-- Release artifact: `artifacts/release/MyPowerTools-win-x64.zip` was rebuilt on 2026-07-04; SHA256 `EAA7E82DCC8B7BA63307360402C68A6764AFCA3870E1703C8FAE0EF5BE1266A4`; size 171460195 bytes.
+- Release artifact: `artifacts/release/MyPowerTools-win-x64.zip` was rebuilt on 2026-07-04; SHA256 `29BECF13374D92F100E58BA60F9187FD166C136919427B826C0A8979EEA3C670`; size 171498490 bytes.
 - Release notes: `artifacts/release/RELEASE_NOTES.md` generated with artifact hash, size, verification commands, release/update metadata, Scoop manifest, and external requirements.
 - Release/update metadata: `artifacts/release/release-metadata.json`; artifact SHA256 matches the Windows zip.
 - Scoop manifest: `artifacts/release/package-managers/scoop/mypowertools.json`; 64-bit hash matches the Windows zip and `bin` exposes `mpt`.
@@ -141,10 +142,10 @@ The active objective is to turn MyPowerTools into a production-grade PowerToys-s
 
 ## Next Highest-Value Work
 
-1. Start P8 final production closure: audit phase docs, scan for TODO/FIXME/placeholder/fake/unsupported/sample/hardcoded paths/secrets, classify every finding, and run the full final validation matrix.
-2. Validate ScreenEase hardware writes against a monitor that supports DDC/CI brightness/color-temperature controls when hardware is available.
-3. Validate SmartBird against real Energy Server and FNB-58 hardware when those services are available.
-4. Validate real Doubao planner/tool/MCP endpoint contracts when production health APIs are available.
+1. Validate ScreenEase hardware writes against a monitor that supports DDC/CI brightness/color-temperature controls when hardware is available.
+2. Validate SmartBird against real Energy Server and FNB-58 hardware when those services are available.
+3. Validate real Doubao planner/tool/MCP endpoint contracts when production health APIs are available.
+4. Validate AndroidTools device notification/remote-command flows against connected ADB devices and notification service state.
 5. Keep production signing and distribution-channel publication classified as external until signing material or a signing service is available.
 
 ## External Requirements To Verify Later

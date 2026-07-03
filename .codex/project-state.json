@@ -1,8 +1,8 @@
 {
   "project": "MyPowerTools",
   "currentPhase": "P8",
-  "lastCompletedPhase": "P7",
-  "nextPhase": "P8",
+  "lastCompletedPhase": "P8",
+  "nextPhase": null,
   "sdk": "10.0.301",
   "packages": 5,
   "modules": 7,
@@ -10,7 +10,7 @@
   "testsFailed": 0,
   "testsSkipped": 0,
   "releaseArtifact": "artifacts/release/MyPowerTools-win-x64.zip",
-  "releaseSha256": "EAA7E82DCC8B7BA63307360402C68A6764AFCA3870E1703C8FAE0EF5BE1266A4",
+  "releaseSha256": "29BECF13374D92F100E58BA60F9187FD166C136919427B826C0A8979EEA3C670",
   "completed": [
     "P0",
     "P1",
@@ -19,7 +19,8 @@
     "P4",
     "P5",
     "P6",
-    "P7"
+    "P7",
+    "P8"
   ],
   "partial": [],
   "blocked": [],
@@ -33,9 +34,10 @@
     "macOS/Linux native validation requires host machines."
   ],
   "nextActions": [
-    "P8: audit phase docs and current code for TODO, FIXME, placeholder, stub, fake, coming soon, unsupported, sample-in-production, hardcoded user paths, secrets, and unredacted tokens.",
-    "P8: classify each final audit finding as fixed now, valid degraded external condition, documentation-only, or removed dead code.",
-    "P8: run the full final validation matrix and update production closure evidence."
+    "External: validate elevated Windows portproxy apply/revert with administrator token or signed helper.",
+    "External: validate production signing with private signing material or signing service.",
+    "External: validate ScreenEase hardware writes on a DDC/CI-capable monitor.",
+    "External: validate SmartBird, AndroidTools device flows, Doubao production endpoints, and macOS/Linux native hosts when those environments are available."
   ],
-  "productionClosure": false
+  "productionClosure": true
 }

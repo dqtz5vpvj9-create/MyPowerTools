@@ -2,6 +2,17 @@
 
 This document tracks the objective criteria against repository evidence. It is intentionally strict: an item remains open until current code, tests, runtime behavior, release artifacts, or docs prove it.
 
+## P8 Final Closure Evidence
+
+| Criterion | Status | Evidence Command | Output Summary | Artifact/File |
+|---|---|---|---|---|
+| Final audit scan | Passed | `rg` scans for TODO/FIXME/placeholder/stub/fake/coming soon, unsupported, sample modules, hardcoded user paths, release URLs, and high-confidence secret patterns | Two internal cleanup items were fixed; remaining matches are documentation-only or explicit degraded external states. | `docs/P8_FINAL_AUDIT.md` |
+| Build and tests | Passed | `dotnet build MyPowerTools.slnx --no-restore`; `dotnet test MyPowerTools.slnx --no-build` | Build succeeded with 0 warnings/0 errors; tests passed 88/0/0. | Solution output |
+| Module and UI gates | Passed | `validate modules`; `validate contracts`; `ui check`; `ui snapshot`; `diagnostics`; `inspect modules`; `module list --include-disabled`; Runner `--once` | 5 packages, 7 modules, 81 commands, 7 dashboard cards, expected degraded states with reasons. | `artifacts/ui-snapshots` |
+| Release validation | Passed | `scripts\publish-windows.ps1`; release package trust; release Runner `--once`; release Shell `--smoke --quit-runner`; autostart/install/uninstall dry-runs | Portable release rebuilt; release Shell connected to Runner 0.2.0 and Runner exited code 0. | `artifacts/release/MyPowerTools-win-x64.zip` |
+| Hash and metadata parity | Passed | `Get-FileHash`; release metadata/Scoop manifest check; zip hygiene check | SHA256 `29BECF13374D92F100E58BA60F9187FD166C136919427B826C0A8979EEA3C670`, size 171498490 bytes; metadata and Scoop URLs are relative; no `bin/`, `obj/`, or `modules/modules/` zip entries. | `artifacts/release/release-metadata.json` |
+| Production closure state | Passed | `.codex/project-state.json` inspection | `lastCompletedPhase=P8`, `nextPhase=null`, `completed` includes P0-P8, `productionClosure=true`. | `.codex/project-state.json` |
+
 ## Verified In This Iteration
 
 | Criterion | Evidence |
@@ -133,8 +144,8 @@ Run date: 2026-07-04.
 | Published CLI autostart dry-run | `artifacts\release\win-x64\Cli\MyPowerTools.Cli.exe runner autostart enable --dry-run` resolved the sibling release Runner command. |
 | Published CLI secret self-test | `artifacts\release\win-x64\Cli\MyPowerTools.Cli.exe broker secret self-test --module cli.secret-self-test --name self-test-release-codex` passed through Windows Credential Manager without printing a secret value. |
 | Published CLI permission inspection | `artifacts\release\win-x64\Cli\MyPowerTools.Cli.exe inspect modules` printed module capabilities, required/optional capability requirements, `apply-portproxy`, and `restart-service` broker permissions. |
-| `pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\publish-windows.ps1` | Produced `artifacts/release/MyPowerTools-win-x64.zip` with SHA256 `EAA7E82DCC8B7BA63307360402C68A6764AFCA3870E1703C8FAE0EF5BE1266A4` and size 171460195 bytes, plus `RELEASE_NOTES.md`, `release-metadata.json`, and the Scoop manifest. |
-| Release metadata/Scoop manifest | `release-metadata.json` artifact hash and `package-managers/scoop/mypowertools.json` 64-bit hash both equal `EAA7E82DCC8B7BA63307360402C68A6764AFCA3870E1703C8FAE0EF5BE1266A4`; the Scoop manifest exposes `mpt`. |
+| `pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\publish-windows.ps1` | Produced `artifacts/release/MyPowerTools-win-x64.zip` with SHA256 `29BECF13374D92F100E58BA60F9187FD166C136919427B826C0A8979EEA3C670` and size 171498490 bytes, plus `RELEASE_NOTES.md`, `release-metadata.json`, and the Scoop manifest. |
+| Release metadata/Scoop manifest | `release-metadata.json` artifact hash and `package-managers/scoop/mypowertools.json` 64-bit hash both equal `29BECF13374D92F100E58BA60F9187FD166C136919427B826C0A8979EEA3C670`; both URLs are relative `MyPowerTools-win-x64.zip`; the Scoop manifest exposes `mpt`. |
 | Release zip hygiene | `MyPowerTools-win-x64.zip` contains no `bin/`, `obj/`, or `modules/modules/` entries. |
 | `artifacts\release\win-x64\Runner\MyPowerTools.Runner.exe --once --data-root artifacts\release-root-once-data-p6` | Release Runner indexed 7 modules from the release root and started AndroidTools powertoold from the release package. |
 | Release Shell smoke | Release Shell connected to Runner `0.2.0`, reported 7 modules, 7 dashboard cards, 81 commands, requested Runner shutdown, and the release Runner exited with code 0. |

@@ -2,7 +2,7 @@
 
 Run date: 2026-07-04.
 
-Only external limitations are listed here. Internal production work remains tracked in the phase ledger until fixed.
+Only external limitations are listed here. The P8 production closure audit found no remaining internal limitation after final validation.
 
 | Limitation | Why It Remains External | Current Local Behavior |
 |---|---|---|

@@ -8,8 +8,8 @@ Run date: 2026-07-04.
 |---|---|
 | Project | MyPowerTools |
 | Current phase | P8 Final production closure |
-| Last completed phase | P7 Cross-platform capability packs and degraded behavior |
-| Next phase | P8 |
+| Last completed phase | P8 Final production closure |
+| Next phase | Complete |
 | SDK | 10.0.301 from `global.json` and `dotnet --version` |
 | Target frameworks | `net10.0` projects across the solution |
 | Production packages | 5: `adb-forwarder`, `android-tools-suite`, `doubao-agent`, `screenease`, `smartbird-thermostat` |
@@ -17,8 +17,8 @@ Run date: 2026-07-04.
 | Templates | 6 |
 | Tests | 88 passed, 0 failed, 0 skipped |
 | Release artifact | `artifacts/release/MyPowerTools-win-x64.zip` |
-| Release SHA256 | `EAA7E82DCC8B7BA63307360402C68A6764AFCA3870E1703C8FAE0EF5BE1266A4` |
-| Production closure | false |
+| Release SHA256 | `29BECF13374D92F100E58BA60F9187FD166C136919427B826C0A8979EEA3C670` |
+| Production closure | true |
 
 ## Latest Validation Results
 
@@ -39,8 +39,9 @@ Run date: 2026-07-04.
 | `dotnet run --no-build --project src\MyPowerTools.Cli -- runner process pause . --duration-minutes 1` | With a temporary Runner active, selected the AndroidTools shared gRPC pool, paused automatic restart for one minute, printed expiry/modules, then resume restored automatic policy. |
 | `dotnet run --project src\MyPowerTools.Cli -- run screenease.native-writer.status` | Succeeded with Windows DDC/CI writer probe output; current Generic PnP Monitor returns `GetMonitorCapabilities` unsupported. |
 | `dotnet run --project src\MyPowerTools.Cli -- run screenease.profile.apply` | Succeeded with profile plan and safe default `native-host-required` because hardware writes are disabled unless explicitly requested or configured. |
-| `pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\publish-windows.ps1` | Rebuilt `artifacts/release/MyPowerTools-win-x64.zip`, `RELEASE_NOTES.md`, `release-metadata.json`, and the Scoop manifest. ZIP SHA256 `EAA7E82DCC8B7BA63307360402C68A6764AFCA3870E1703C8FAE0EF5BE1266A4`; size 171460195 bytes. |
-| Release metadata/Scoop manifest check | `release-metadata.json` artifact hash and `package-managers/scoop/mypowertools.json` 64-bit hash both equal `EAA7E82DCC8B7BA63307360402C68A6764AFCA3870E1703C8FAE0EF5BE1266A4`; manifest exposes `mpt` as the CLI shim. |
+| P8 audit scans | Placeholder/stub/fake scans found only documentation/history or UI input `PlaceholderText`; `unsupported` findings are explicit degraded states; production module roots contain no sample modules; high-confidence secret scan found no real credential material; release metadata contains no `file:///C:` URL. |
+| `pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\publish-windows.ps1` | Rebuilt `artifacts/release/MyPowerTools-win-x64.zip`, `RELEASE_NOTES.md`, `release-metadata.json`, and the Scoop manifest. ZIP SHA256 `29BECF13374D92F100E58BA60F9187FD166C136919427B826C0A8979EEA3C670`; size 171498490 bytes. |
+| Release metadata/Scoop manifest check | `release-metadata.json` artifact hash and `package-managers/scoop/mypowertools.json` 64-bit hash both equal `29BECF13374D92F100E58BA60F9187FD166C136919427B826C0A8979EEA3C670`; both URLs are relative `MyPowerTools-win-x64.zip`; manifest exposes `mpt` as the CLI shim. |
 | Release zip hygiene check | `MyPowerTools-win-x64.zip` contains no `bin/`, `obj/`, or `modules/modules/` entries. |
 | `artifacts\release\win-x64\Cli\MyPowerTools.Cli.exe package trust artifacts\release\win-x64\modules --strict` | Release package trust passed for all 5 production packages. |
 | `artifacts\release\win-x64\Runner\MyPowerTools.Runner.exe --once --data-root artifacts\release-root-once-data-p6` | Release Runner indexed 7 modules from the release root and started AndroidTools powertoold from the release package. |
@@ -48,6 +49,16 @@ Run date: 2026-07-04.
 | `artifacts\release\win-x64\Cli\MyPowerTools.Cli.exe runner autostart enable --dry-run` | Resolved the sibling release Runner executable without registry writes. |
 | `pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\install-windows.ps1 -PackageRoot artifacts\release\win-x64 -InstallDir artifacts\install-dryrun -DryRun` | Succeeded and printed the portable install plan. |
 | `pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\uninstall-windows.ps1 -InstallDir artifacts\install-dryrun -DryRun -Force` | Succeeded and printed the uninstall plan without removing files. |
+
+## P8 Progress On 2026-07-04
+
+| Area | Evidence |
+|---|---|
+| Final audit | `docs/P8_FINAL_AUDIT.md` records scan commands, findings, and classifications for TODO/FIXME/placeholder/stub/fake/coming soon, unsupported states, sample modules, hardcoded user paths, release URLs, and secret patterns. |
+| Cleanup fixes | Local package signature algorithm was renamed from `sha256-manifest-placeholder` to `sha256-manifest-local`; `UiSurfaceGate.WriteSnapshotPlaceholder` was renamed to `WriteDefaultSnapshotSet`; production package signatures were refreshed. |
+| Final validation | SDK 10.0.301, restore, build 0/0, tests 88/0/0, module validation, contract validation, UI gate, UI snapshots, diagnostics, inspect, module list, Runner once, template validation, smoke, publish, release package trust, release Runner once, release Shell smoke, autostart dry-run, install/uninstall dry-run, metadata hash parity, and zip hygiene all passed. |
+| Release artifact | `artifacts/release/MyPowerTools-win-x64.zip`, SHA256 `29BECF13374D92F100E58BA60F9187FD166C136919427B826C0A8979EEA3C670`, size 171498490 bytes. |
+| Closure | `.codex/project-state.json` marks P8 complete with `productionClosure=true`; remaining work is external validation only. |
 
 ## P7 Progress On 2026-07-04
 

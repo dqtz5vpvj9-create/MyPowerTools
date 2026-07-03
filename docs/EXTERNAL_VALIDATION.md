@@ -22,11 +22,11 @@ The following checks require machine state outside the repository. They remain s
 | Artifact | Evidence |
 |---|---|
 | Windows portable zip | `artifacts/release/MyPowerTools-win-x64.zip` |
-| SHA256 | `EAA7E82DCC8B7BA63307360402C68A6764AFCA3870E1703C8FAE0EF5BE1266A4` |
-| Size | 171460195 bytes |
+| SHA256 | `29BECF13374D92F100E58BA60F9187FD166C136919427B826C0A8979EEA3C670` |
+| Size | 171498490 bytes |
 | Release notes | `artifacts/release/RELEASE_NOTES.md` |
-| Release/update metadata | `artifacts/release/release-metadata.json`; artifact hash matches the zip hash. |
-| Scoop manifest | `artifacts/release/package-managers/scoop/mypowertools.json`; 64-bit hash matches the zip hash and `bin` exposes `mpt`. |
+| Release/update metadata | `artifacts/release/release-metadata.json`; artifact hash matches the zip hash and artifact URL is relative: `MyPowerTools-win-x64.zip`. |
+| Scoop manifest | `artifacts/release/package-managers/scoop/mypowertools.json`; 64-bit hash matches the zip hash, URL is relative, and `bin` exposes `mpt`. |
 | Release package trust | `artifacts\release\win-x64\Cli\MyPowerTools.Cli.exe package trust artifacts\release\win-x64\modules --strict` passed. |
 | Release Runner once | `artifacts\release\win-x64\Runner\MyPowerTools.Runner.exe --once --data-root artifacts\release-root-once-data-p6` indexed 7 modules. |
 | Release Shell smoke | Release Shell connected to Runner 0.2.0, reported 7 modules, 7 dashboard cards, 81 commands, requested Runner shutdown, and Runner exited with code 0. |

@@ -2,7 +2,7 @@
 
 Run date: 2026-07-04.
 
-This file separates true external blockers from internal phase gaps. External blockers require hardware, credentials, administrator context, signing material, native OS access, or external services. Internal gaps remain normal engineering work for later phases.
+This file separates true external blockers from internal phase gaps. External blockers require hardware, credentials, administrator context, signing material, native OS access, or external services. P0-P8 have no remaining internal phase gaps after the final production closure.
 
 ## External Blockers
 
@@ -20,7 +20,7 @@ This file separates true external blockers from internal phase gaps. External bl
 
 | Gap | Phase | Current Evidence | Next Work |
 |---|---|---|---|
-| None for P0-P7 | - | P7 now exposes the planned platform service surfaces with explicit unsupported/broker-required behavior, and the P7 validation matrix passed locally. | Continue P8 final production closure. |
+| None for P0-P8 | - | P8 final audit, full validation matrix, release publish, release Runner/Shell smoke, install/uninstall dry-run, metadata hash parity, and zip hygiene all passed locally. | External validation only. |
 
 ## Skipped Tests
 

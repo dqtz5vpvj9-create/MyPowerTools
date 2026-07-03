@@ -360,3 +360,46 @@ Validation:
 Remaining P7 work:
 - Native macOS/Linux Runner/Shell/UDS smoke requires those OS hosts.
 - None internally. Native macOS/Linux validation remains external.
+
+### P8 Final Production Closure
+
+Status: done.
+
+Actions:
+- Ran the final P8 audit scans for TODO/FIXME/placeholder/stub/fake/coming soon, unsupported states, sample modules in production roots, hardcoded user paths, release URLs, and high-confidence secret patterns.
+- Fixed the local package trust algorithm label by renaming `sha256-manifest-placeholder` to `sha256-manifest-local` and refreshing all production package signatures.
+- Renamed `UiSurfaceGate.WriteSnapshotPlaceholder` to `WriteDefaultSnapshotSet` so the code name matches the real contract/PNG snapshot output.
+- Regenerated the Windows portable release after release metadata URL handling was changed to relative `MyPowerTools-win-x64.zip`.
+- Verified release metadata and Scoop manifest hash parity, relative URLs, release package trust, release Runner once, release Shell smoke, autostart dry-run, install/uninstall dry-run, and zip hygiene.
+- Updated P8 audit docs, phase ledger, project status, production readiness evidence, external validation, known limitations, handoff notes, changelog, and project state.
+
+Validation:
+- `dotnet --version` returned `10.0.301`.
+- `dotnet restore MyPowerTools.slnx` succeeded.
+- `dotnet build MyPowerTools.slnx --no-restore` succeeded with 0 warnings and 0 errors.
+- `dotnet run --no-build --project src\MyPowerTools.Cli -- package sign-local modules` refreshed hash manifests and local trust hooks for all 5 production packages.
+- `dotnet test MyPowerTools.slnx --no-build` passed 88 tests, 0 failed, 0 skipped.
+- `dotnet run --no-build --project src\MyPowerTools.Cli -- validate modules` passed for 5 production packages.
+- `dotnet run --no-build --project src\MyPowerTools.Cli -- validate contracts` passed for 5 packages and 7 modules.
+- `dotnet run --no-build --project src\MyPowerTools.Cli -- package trust modules --strict` reported `signature-hook` for all 5 production packages.
+- `dotnet run --no-build --project src\MyPowerTools.Cli -- ui check modules` passed.
+- `dotnet run --no-build --project src\MyPowerTools.Cli -- ui snapshot --surface dashboard-card --theme light --size 1366x768 --density normal --out artifacts\ui-snapshots` wrote the module dashboard snapshot manifest.
+- `dotnet run --no-build --project src\MyPowerTools.Cli -- diagnostics` reported 5 packages, 7 modules, 81 commands, ModuleSupervisor state, and the AndroidTools `grpc-ipc` pool.
+- `dotnet run --no-build --project src\MyPowerTools.Cli -- inspect modules` printed capabilities, requirements, and broker permissions.
+- `dotnet run --no-build --project src\MyPowerTools.Cli -- module list --include-disabled` listed all 7 modules.
+- `dotnet run --no-build --project src\MyPowerTools.Runner -- --once` indexed 7 modules with truthful running/degraded states.
+- `pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\validate-templates.ps1` passed for 6 templates.
+- `pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\smoke.ps1` passed with build, sign-local, 88 tests, module validation, contract validation, package trust, UI snapshots, template validation, Runner once, and Shell HostControl smoke.
+- `pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\publish-windows.ps1` rebuilt `artifacts\release\MyPowerTools-win-x64.zip`.
+- `Get-FileHash artifacts\release\MyPowerTools-win-x64.zip -Algorithm SHA256` returned `29BECF13374D92F100E58BA60F9187FD166C136919427B826C0A8979EEA3C670`; size is 171498490 bytes.
+- Release metadata and Scoop manifest hashes match the Windows zip hash and both use relative URL `MyPowerTools-win-x64.zip`.
+- Release zip hygiene found no `bin/`, `obj/`, or `modules/modules/` entries.
+- `artifacts\release\win-x64\Cli\MyPowerTools.Cli.exe package trust artifacts\release\win-x64\modules --strict` passed for all 5 production packages.
+- `artifacts\release\win-x64\Runner\MyPowerTools.Runner.exe --once` indexed 7 modules from the release root.
+- Release Shell smoke connected to Runner 0.2.0, reported 7 modules, 7 dashboard cards, 81 commands, requested Runner shutdown, and Runner exited with code 0.
+- `artifacts\release\win-x64\Cli\MyPowerTools.Cli.exe runner autostart enable --dry-run` resolved the release Runner executable without registry writes.
+- `pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\install-windows.ps1 -PackageRoot artifacts\release\win-x64 -InstallDir artifacts\install-dryrun -DryRun` printed the install plan.
+- `pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\uninstall-windows.ps1 -InstallDir artifacts\install-dryrun -DryRun -Force` printed the uninstall plan.
+
+Remaining P8 work:
+- None internally. External validation remains for administrator/signed-helper execution, production signing, display and device hardware, external services, and native macOS/Linux hosts.

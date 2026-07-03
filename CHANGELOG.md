@@ -50,3 +50,5 @@
 - Added SmartBird Thermostat InProc typed facade with HTTP status/events/config/log probes, brokered restart request details, settings schema, bounded event output, local path redaction, and degraded Energy Server/FNB-58/ADB diagnostics.
 - Added ScreenEase Windows DDC/CI native display writer probing and explicit hardware-write application for brightness/color-temperature profile changes, with actionable unsupported-monitor diagnostics.
 - Hardened `LogRouter` concurrent append behavior for parallel CLI/runtime command probes.
+- Completed P8 final production closure with final audit classification, release metadata relative URLs, release hash parity, release Runner/Shell smoke, install/uninstall dry-runs, and zip hygiene verification.
+- Renamed local package trust algorithm metadata to `sha256-manifest-local` and refreshed production package signatures.

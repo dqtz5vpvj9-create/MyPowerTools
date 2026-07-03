@@ -10,11 +10,11 @@ This audit tracks the final closure scan required by Phase P8. Findings are clas
 |---|---|---|
 | TODO/FIXME/placeholder/stub/fake/coming soon | `rg -n -i "TODO|FIXME|placeholder|stub|fake|coming soon" -- src modules scripts templates schemas docs README.md CHANGELOG.md .github proto` | Production-signature placeholder and stale UI method name were fixed. Remaining matches are UI `PlaceholderText` properties or historical docs. |
 | Unsupported states | `rg -n -i "unsupported" -- src modules scripts templates schemas docs README.md CHANGELOG.md .github proto` | Matches are explicit degraded-state providers, protocol/status enums, tests, or external limitations. |
-| Hardcoded user paths | `rg -n "C:\\Users\\[^\\]+" -- src modules scripts templates schemas docs README.md CHANGELOG.md .github proto` | No matches. |
-| Personal/user strings | `rg -n -i "C:\\Users\\|lixinrui|LOCALAPPDATA|APPDATA" -- src modules scripts templates schemas docs README.md CHANGELOG.md .github proto` | `%LOCALAPPDATA%`/`%APPDATA%` are installer/runtime environment variables; `lixinrui` appears as package publisher/signer metadata, docs tags, and a packaged AndroidTools endpoint. |
+| Hardcoded user paths and release URLs | `rg -n "C:/Users|C:\\Users|file:///C:|lixinrui" -- artifacts\release docs src modules scripts templates schemas README.md CHANGELOG.md .github proto` | No `C:\Users`, `C:/Users`, or `file:///C:` remains in release metadata. Remaining `lixinrui` matches are package publisher/signer metadata, docs tags, and a packaged AndroidTools endpoint. |
 | High-confidence secret patterns | `rg -n -i "Bearer\s+[A-Za-z0-9._~+/=-]{8,}|sk-[A-Za-z0-9]{20,}|AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_-]{20,}|-----BEGIN (RSA|OPENSSH|PRIVATE) KEY-----" -- ...` | No matches. |
 | Simple secret assignments | `rg -n -i "password\s*[:=]\s*['\"][^'\"]+|token\s*[:=]\s*['\"][^'\"]+|secret\s*[:=]\s*['\"][^'\"]+|api[_-]?key\s*[:=]\s*['\"][^'\"]+" -- ...` | No matches. |
-| Sample modules in production root | `rg -n -i "modules[\\/].*sample|sample.*modules[\\/]" -- modules` | No matches. |
+| Sample modules in production root | `rg -n -i "modules[\\/].*sample|sample.*modules[\\/]" -- modules artifacts\release\win-x64\modules` | No matches. |
+| Release metadata URL parity | Metadata/Scoop hash check against `Get-FileHash artifacts\release\MyPowerTools-win-x64.zip -Algorithm SHA256` | `release-metadata.json` and Scoop `64bit` both use relative URL `MyPowerTools-win-x64.zip`; both hashes match `29BECF13374D92F100E58BA60F9187FD166C136919427B826C0A8979EEA3C670`. |
 
 ## Findings
 
@@ -32,4 +32,4 @@ This audit tracks the final closure scan required by Phase P8. Findings are clas
 
 ## Current P8 Status
 
-The source audit found two internal cleanup items and both were fixed. Remaining limitations are external and are listed in `docs/KNOWN_LIMITATIONS.md`, `docs/OPEN_BLOCKERS.md`, and `docs/EXTERNAL_VALIDATION.md`.
+The source audit found two internal cleanup items and both were fixed. The full final validation matrix passed on 2026-07-04. The Windows portable release is `artifacts/release/MyPowerTools-win-x64.zip`, SHA256 `29BECF13374D92F100E58BA60F9187FD166C136919427B826C0A8979EEA3C670`, size 171498490 bytes. Remaining limitations are external and are listed in `docs/KNOWN_LIMITATIONS.md`, `docs/OPEN_BLOCKERS.md`, and `docs/EXTERNAL_VALIDATION.md`.
