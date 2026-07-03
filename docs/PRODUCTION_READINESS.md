@@ -82,6 +82,8 @@ This document tracks the objective criteria against repository evidence. It is i
 | Smoke script fails truthfully | `scripts/smoke.ps1` wraps native commands with `Invoke-Native` and now stops on failed `dotnet`, template, validation, or CLI commands. |
 | Package store file operations are retry-hardened | `PackageStore` retries transient Windows directory move/delete failures during install, uninstall, and rollback; package lifecycle tests and strict smoke passed after the hardening. |
 | Windows portable artifact exists | `artifacts/release/MyPowerTools-win-x64.zip` was produced by `scripts/publish-windows.ps1` on 2026-07-04. |
+| Cross-platform local IPC abstraction exists | `ILocalIpc` and `LocalIpcService` select Named Pipe endpoints on Windows and Unix Domain Socket paths on macOS/Linux. `Local_ipc_service_selects_platform_native_endpoint_shape` verifies the endpoint shape. |
+| macOS/Linux degraded platform services exist | macOS and Linux platform packs now expose notification, autostart, service, network, process, display, tray, secret, and local IPC surfaces. Unsupported providers return explicit `unsupported` states/messages. `Mac_and_linux_platform_packs_expose_truthful_degraded_services` verifies the behavior. |
 | Phase ledger exists | `docs/PHASES.md`, `docs/PROJECT_STATUS.md`, `docs/PHASE_HISTORY.md`, `docs/OPEN_BLOCKERS.md`, `docs/EXTERNAL_VALIDATION.md`, and `.codex/project-state.json` now track the active 9-phase objective, latest P0 validation results, first incomplete phase, external validation needs, and production closure state. |
 
 ## Latest Local Verification
@@ -94,7 +96,7 @@ Run date: 2026-07-04.
 | `dotnet restore MyPowerTools.slnx` | Succeeded; all projects restored or up-to-date. |
 | `dotnet build MyPowerTools.slnx` | Succeeded, 0 warnings, 0 errors. |
 | `dotnet build MyPowerTools.slnx --no-restore` | Succeeded, 0 warnings, 0 errors. |
-| `dotnet test MyPowerTools.slnx --no-build` | Passed 83, failed 0, skipped 0. |
+| `dotnet test MyPowerTools.slnx --no-build` | Passed 86, failed 0, skipped 0. |
 | `dotnet run --project src\MyPowerTools.Cli -- validate modules` | 5 production packages valid. |
 | `dotnet run --project src\MyPowerTools.Cli -- validate contracts` | 5 production packages and 7 modules passed manifest, dashboard, settings, command, health, and logs contract checks; AndroidTools notifications and remote commands run through powertoold, and process monitor reports its watch-list degraded state. |
 | `dotnet run --project src\MyPowerTools.Cli -- package sign-local modules` | Wrote `shared/package.signature.json` for all 5 production packages and refreshed their hash manifests. |

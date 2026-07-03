@@ -120,11 +120,59 @@ public interface INotificationService
     Task PublishAsync(string title, string body, CancellationToken cancellationToken);
 }
 
+public sealed class UnsupportedNotificationService : INotificationService
+{
+    private readonly string _provider;
+    private readonly string _message;
+
+    public UnsupportedNotificationService(string provider, string message)
+    {
+        _provider = provider;
+        _message = message;
+    }
+
+    public Task PublishAsync(string title, string body, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromException(new PlatformNotSupportedException($"{_provider}: {_message}"));
+    }
+}
+
 public interface IAutostartService
 {
     Task<ServiceStatus> GetAsync(string id, CancellationToken cancellationToken);
     Task<BrokerOperationResult> EnableAsync(string id, string command, CancellationToken cancellationToken);
     Task<BrokerOperationResult> DisableAsync(string id, CancellationToken cancellationToken);
+}
+
+public sealed class UnsupportedAutostartService : IAutostartService
+{
+    private readonly string _provider;
+    private readonly string _message;
+
+    public UnsupportedAutostartService(string provider, string message)
+    {
+        _provider = provider;
+        _message = message;
+    }
+
+    public Task<ServiceStatus> GetAsync(string id, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(new ServiceStatus(id, "unsupported", $"{_provider}: {_message}"));
+    }
+
+    public Task<BrokerOperationResult> EnableAsync(string id, string command, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(new BrokerOperationResult(false, "unsupported", $"{_provider}: {_message}"));
+    }
+
+    public Task<BrokerOperationResult> DisableAsync(string id, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(new BrokerOperationResult(false, "unsupported", $"{_provider}: {_message}"));
+    }
 }
 
 public interface IServiceManager
@@ -134,11 +182,71 @@ public interface IServiceManager
     Task<BrokerOperationResult> StopAsync(string serviceName, CancellationToken cancellationToken);
 }
 
+public sealed class UnsupportedServiceManager : IServiceManager
+{
+    private readonly string _provider;
+    private readonly string _message;
+
+    public UnsupportedServiceManager(string provider, string message)
+    {
+        _provider = provider;
+        _message = message;
+    }
+
+    public Task<ServiceStatus> GetStatusAsync(string serviceName, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(new ServiceStatus(serviceName, "unsupported", $"{_provider}: {_message}"));
+    }
+
+    public Task<BrokerOperationResult> StartAsync(string serviceName, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(new BrokerOperationResult(false, "unsupported", $"{_provider}: {_message}"));
+    }
+
+    public Task<BrokerOperationResult> StopAsync(string serviceName, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(new BrokerOperationResult(false, "unsupported", $"{_provider}: {_message}"));
+    }
+}
+
 public interface INetworkBroker
 {
     Task<IReadOnlyList<PortProxyRule>> ListPortProxyRulesAsync(CancellationToken cancellationToken);
     Task<BrokerOperationResult> ApplyPortProxyRuleAsync(PortProxyRule rule, CancellationToken cancellationToken);
     Task<BrokerOperationResult> RemovePortProxyRuleAsync(PortProxyRule rule, CancellationToken cancellationToken);
+}
+
+public sealed class UnsupportedNetworkBroker : INetworkBroker
+{
+    private readonly string _provider;
+    private readonly string _message;
+
+    public UnsupportedNetworkBroker(string provider, string message)
+    {
+        _provider = provider;
+        _message = message;
+    }
+
+    public Task<IReadOnlyList<PortProxyRule>> ListPortProxyRulesAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult<IReadOnlyList<PortProxyRule>>([]);
+    }
+
+    public Task<BrokerOperationResult> ApplyPortProxyRuleAsync(PortProxyRule rule, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(new BrokerOperationResult(false, "unsupported", $"{_provider}: {_message}"));
+    }
+
+    public Task<BrokerOperationResult> RemovePortProxyRuleAsync(PortProxyRule rule, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(new BrokerOperationResult(false, "unsupported", $"{_provider}: {_message}"));
+    }
 }
 
 public interface ISecretStore
@@ -151,6 +259,94 @@ public interface ISecretStore
 public interface IProcessService
 {
     Task<IReadOnlyList<ProcessSnapshot>> ListAsync(CancellationToken cancellationToken);
+}
+
+public sealed class ManagedProcessService : IProcessService
+{
+    public Task<IReadOnlyList<ProcessSnapshot>> ListAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        try
+        {
+            IReadOnlyList<ProcessSnapshot> processes = System.Diagnostics.Process.GetProcesses()
+                .OrderBy(process => process.ProcessName, StringComparer.OrdinalIgnoreCase)
+                .Take(512)
+                .Select(process => new ProcessSnapshot(process.Id, process.ProcessName, "running", "Process discovered through managed runtime API."))
+                .ToArray();
+            return Task.FromResult(processes);
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or System.ComponentModel.Win32Exception)
+        {
+            IReadOnlyList<ProcessSnapshot> degraded =
+            [
+                new(0, "process.inspect", "degraded", $"Managed process inspection failed: {ex.Message}")
+            ];
+            return Task.FromResult(degraded);
+        }
+    }
+}
+
+public sealed class UnsupportedProcessService : IProcessService
+{
+    private readonly string _provider;
+    private readonly string _message;
+
+    public UnsupportedProcessService(string provider, string message)
+    {
+        _provider = provider;
+        _message = message;
+    }
+
+    public Task<IReadOnlyList<ProcessSnapshot>> ListAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        IReadOnlyList<ProcessSnapshot> processes =
+        [
+            new(0, _provider, "unsupported", _message)
+        ];
+        return Task.FromResult(processes);
+    }
+}
+
+public interface ILocalIpc
+{
+    IpcEndpoint RunnerEndpoint { get; }
+    IpcEndpoint CreateEndpoint(string name);
+}
+
+public sealed class LocalIpcService : ILocalIpc
+{
+    private readonly PlatformId _platform;
+    private readonly string _socketRoot;
+
+    public LocalIpcService(PlatformId platform, string? socketRoot = null)
+    {
+        _platform = platform;
+        _socketRoot = string.IsNullOrWhiteSpace(socketRoot) ? Path.GetTempPath() : socketRoot;
+    }
+
+    public IpcEndpoint RunnerEndpoint => _platform.OperatingSystem == "windows"
+        ? new IpcEndpoint(IpcTransport.NamedPipe, "mypowertools.runner.hostcontrol")
+        : new IpcEndpoint(IpcTransport.UnixDomainSocket, Path.Combine(_socketRoot, "mypowertools.runner.hostcontrol.sock"));
+
+    public IpcEndpoint CreateEndpoint(string name)
+    {
+        var safeName = NormalizeName(name);
+        return _platform.OperatingSystem == "windows"
+            ? new IpcEndpoint(IpcTransport.NamedPipe, $"mypowertools.{safeName}")
+            : new IpcEndpoint(IpcTransport.UnixDomainSocket, Path.Combine(_socketRoot, $"mypowertools.{safeName}.sock"));
+    }
+
+    private static string NormalizeName(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name) ||
+            name.Any(ch => !(char.IsLetterOrDigit(ch) || ch is '.' or '-' or '_')))
+        {
+            throw new ArgumentException("IPC endpoint names must contain only letters, digits, dot, dash, or underscore.", nameof(name));
+        }
+
+        return name.Trim();
+    }
 }
 
 public interface IDisplayService

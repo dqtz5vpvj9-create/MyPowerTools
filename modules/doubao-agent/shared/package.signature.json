@@ -3,7 +3,7 @@
   "PackageId": "doubao-agent",
   "Version": "0.2.0",
   "HashManifest": "shared/package.hashes.json",
-  "HashManifestSha256": "9bbc505f8915f2330f85ce259b9bb519b74b258a7c9d6b1b2f176d8cb7a2d63a",
+  "HashManifestSha256": "c08f0270dbcf7783b554e1007865fa23713cd0ade5d41cfaee02631ef0b34f7c",
   "SignatureState": "unsigned-local-trust",
   "Algorithm": "sha256-manifest-placeholder",
   "KeyId": "local-development",

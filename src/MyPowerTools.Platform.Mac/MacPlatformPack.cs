@@ -4,6 +4,8 @@ namespace MyPowerTools.Platform.Mac;
 
 public sealed class MacPlatformPack
 {
+    private static readonly PlatformId Platform = new("macos", PlatformId.Current().Architecture);
+
     public ICapabilityRegistry Capabilities { get; } = new CapabilityRegistry(
     [
         new("tray", "user", false, "macOS Status Item", "Provider compiles but native implementation is pending."),
@@ -17,13 +19,19 @@ public sealed class MacPlatformPack
         new("network.portForwarding", "elevated", false, "pfctl", "Provider compiles but native implementation is pending."),
         new("ipc.local", "user", true, "Unix domain socket", "UDS IPC available."),
         new("secret.store", "sensitive", false, "Keychain", "Provider compiles but native implementation is pending."),
-        new("process.inspect", "user", false, "ps", "Provider compiles but native implementation is pending."),
+        new("process.inspect", "user", true, "managed process API", "Basic process inspection is available through the managed runtime."),
         new("adb.device", "user", false, "adb CLI", "Provider compiles but adb discovery is pending.")
     ]);
 
     public IDisplayService Display { get; } = new UnsupportedDisplayService("CoreGraphics", "macOS display provider compiles; native DDC/CoreGraphics implementation is pending.");
     public ITrayService Tray { get; } = new UnsupportedTrayService("macOS Status Item", "Native status item integration is pending.");
     public ISecretStore Secrets { get; } = new UnsupportedSecretStore("Keychain", "macOS Keychain provider compiles; native implementation is pending.");
+    public INotificationService Notifications { get; } = new UnsupportedNotificationService("UserNotifications", "macOS notification provider compiles; native implementation is pending.");
+    public IAutostartService Autostart { get; } = new UnsupportedAutostartService("launchd agent", "macOS launchd autostart provider compiles; native implementation is pending.");
+    public IServiceManager Services { get; } = new UnsupportedServiceManager("launchd", "macOS launchd service provider compiles; native implementation is pending.");
+    public INetworkBroker Network { get; } = new UnsupportedNetworkBroker("pfctl", "macOS network broker compiles; native implementation is pending.");
+    public IProcessService Processes { get; } = new ManagedProcessService();
+    public ILocalIpc LocalIpc { get; } = new LocalIpcService(Platform);
 }
 
 public sealed class UnsupportedDisplayService : IDisplayService

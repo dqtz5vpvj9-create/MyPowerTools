@@ -13,6 +13,8 @@ namespace MyPowerTools.Platform.Windows;
 [SupportedOSPlatform("windows")]
 public sealed class WindowsPlatformPack
 {
+    private static readonly PlatformId Platform = new("windows", PlatformId.Current().Architecture);
+
     public ICapabilityRegistry Capabilities { get; } = new CapabilityRegistry(
     [
         new("tray", "user", true, "Windows tray", "Windows tray provider available."),
@@ -37,6 +39,7 @@ public sealed class WindowsPlatformPack
     public IDisplayService Display { get; } = new WindowsDisplayService();
     public IAutostartService Autostart { get; } = new WindowsAutostartService();
     public ITrayService Tray { get; } = new WindowsTrayService();
+    public ILocalIpc LocalIpc { get; } = new LocalIpcService(Platform);
 }
 
 public sealed class WindowsServiceManager : IServiceManager

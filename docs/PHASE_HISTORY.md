@@ -329,3 +329,30 @@ Validation:
 
 Remaining P6 work:
 - None internally. Production signing and channel publication require private signing material or a signing service and remain tracked as external validation.
+
+### P7 Cross-Platform Capability Packs And Degraded Behavior
+
+Status: partial.
+
+Actions:
+- Added `ILocalIpc` and `LocalIpcService` to choose Named Pipe endpoints on Windows and Unix Domain Socket paths on macOS/Linux.
+- Added unsupported provider implementations for notification, autostart, service, network, and process service surfaces in platform abstractions.
+- Added `ManagedProcessService` so macOS/Linux can expose truthful basic process inspection through the managed runtime.
+- Updated Windows, macOS, and Linux platform packs to expose `LocalIpc`.
+- Updated macOS/Linux platform packs to expose notification, autostart, service, network, process, display, tray, and secret services with explicit unsupported states where native implementation is pending.
+- Added acceptance coverage for missing required capability -> `unsupported`, missing optional capability -> `degraded`, platform-native IPC endpoint shape, and Mac/Linux degraded provider behavior.
+
+Validation:
+- `dotnet build MyPowerTools.slnx --no-restore` succeeded with 0 warnings and 0 errors.
+- `dotnet run --no-build --project src\MyPowerTools.Cli -- package sign-local modules` refreshed hash manifests and local trust hooks for all 5 production packages.
+- Targeted P7 tests passed: `Platform_capability_registry_marks_missing_required_capability_unsupported`, `Local_ipc_service_selects_platform_native_endpoint_shape`, and `Mac_and_linux_platform_packs_expose_truthful_degraded_services`.
+- `dotnet test MyPowerTools.slnx --no-build` passed 86 tests, 0 failed, 0 skipped.
+- `dotnet run --no-build --project src\MyPowerTools.Cli -- inspect modules` printed module requirements and broker permissions.
+- `dotnet run --no-build --project src\MyPowerTools.Cli -- diagnostics` reported Windows `grpc-ipc` runtime process state and ModuleSupervisor summaries.
+- `dotnet run --no-build --project src\MyPowerTools.Cli -- validate contracts` passed for 5 packages and 7 modules.
+- `dotnet run --no-build --project src\MyPowerTools.Cli -- package trust modules --strict` reported `signature-hook` for all 5 production packages.
+- The first `scripts\smoke.ps1` run hit one transient process-test exit-code failure in `Cli_restarts_runner_grpc_process_pool_over_hostcontrol`; the isolated test immediately passed, and the full smoke rerun passed with 86 tests, validation, UI snapshots, templates, Runner once, and Shell HostControl smoke.
+
+Remaining P7 work:
+- Native macOS/Linux Runner/Shell/UDS smoke requires those OS hosts.
+- Continue the remaining interface audit for hotkey and privilege-helper surface shape.

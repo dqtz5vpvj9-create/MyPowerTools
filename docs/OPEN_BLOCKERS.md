@@ -14,7 +14,7 @@ This file separates true external blockers from internal phase gaps. External bl
 | SmartBird hardware/service ecosystem validation | P2 | SmartBird InProc typed facade reads HTTP status/events/config/logs, returns brokered restart details, and reports current degraded Energy Server/FNB-58 state. | Connected SmartBird device, FNB-58 meter, Energy Server, and ADB services. |
 | ADB and AndroidTools device/service validation beyond local module contracts | P2 | AdbForwarder diagnostics run; AndroidTools powertoold serves notifications, remote commands, and process monitor locally through `grpc-ipc`. Invalid notification config and empty watch-list degraded paths are covered by acceptance tests. Device-specific notification polling/streaming and command flows depend on local Android devices and services. | Connected ADB devices, notification service state, and expected local command catalog. |
 | Doubao planner/tool/MCP endpoint contract validation | P2 | InProc controller checks ports 38102, 38080, and 38189 separately; current local services expose 404 on planner/tool health paths and 200 on MCP. Role-specific partial outage behavior is covered by acceptance tests. | Running Doubao services with documented production health/status APIs for each role. |
-| Native macOS/Linux runtime validation | P7 | macOS/Linux projects compile with degraded providers; native runtime/smoke validation has not run on those OS hosts. | macOS and Linux validation hosts. |
+| Native macOS/Linux runtime validation | P7 | macOS/Linux projects compile with explicit degraded providers, `ILocalIpc` returns UDS endpoint shapes, and tests verify degraded service behavior. Native runtime/smoke validation has not run on those OS hosts. | macOS and Linux validation hosts. |
 
 ## Internal Phase Gaps
 
@@ -24,4 +24,4 @@ This file separates true external blockers from internal phase gaps. External bl
 
 ## Skipped Tests
 
-None. Latest test run: 83 passed, 0 failed, 0 skipped.
+None. Latest test run: 86 passed, 0 failed, 0 skipped.

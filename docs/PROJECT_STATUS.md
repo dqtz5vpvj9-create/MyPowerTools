@@ -15,7 +15,7 @@ Run date: 2026-07-04.
 | Production packages | 5: `adb-forwarder`, `android-tools-suite`, `doubao-agent`, `screenease`, `smartbird-thermostat` |
 | Production modules | 7 |
 | Templates | 6 |
-| Tests | 83 passed, 0 failed, 0 skipped |
+| Tests | 86 passed, 0 failed, 0 skipped |
 | Release artifact | `artifacts/release/MyPowerTools-win-x64.zip` |
 | Release SHA256 | `EAA7E82DCC8B7BA63307360402C68A6764AFCA3870E1703C8FAE0EF5BE1266A4` |
 | Production closure | false |
@@ -27,7 +27,7 @@ Run date: 2026-07-04.
 | `dotnet --version` | `10.0.301` |
 | `dotnet restore MyPowerTools.slnx` | Succeeded; all projects were up-to-date. |
 | `dotnet build MyPowerTools.slnx --no-restore` | Succeeded with 0 warnings and 0 errors. |
-| `dotnet test MyPowerTools.slnx --no-build` | Passed 83, failed 0, skipped 0. |
+| `dotnet test MyPowerTools.slnx --no-build` | Passed 86, failed 0, skipped 0. |
 | `dotnet run --project src\MyPowerTools.Cli -- validate modules` | 5 production packages valid. |
 | `dotnet run --no-build --project src\MyPowerTools.Cli -- validate contracts` | 5 packages and 7 modules passed contract validation; AndroidTools runs through `grpc-ipc` powertoold with notifications running, remote commands running, process monitor degraded until a watch list is saved, and ScreenEase exposing 14 commands. |
 | `dotnet run --no-build --project src\MyPowerTools.Cli -- package trust modules --strict` | `signature-hook` trust passed for all 5 production packages after local hash/signature refresh. |
@@ -48,6 +48,16 @@ Run date: 2026-07-04.
 | `artifacts\release\win-x64\Cli\MyPowerTools.Cli.exe runner autostart enable --dry-run` | Resolved the sibling release Runner executable without registry writes. |
 | `pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\install-windows.ps1 -PackageRoot artifacts\release\win-x64 -InstallDir artifacts\install-dryrun -DryRun` | Succeeded and printed the portable install plan. |
 | `pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\uninstall-windows.ps1 -InstallDir artifacts\install-dryrun -DryRun -Force` | Succeeded and printed the uninstall plan without removing files. |
+
+## P7 Progress On 2026-07-04
+
+| Area | Evidence |
+|---|---|
+| Platform abstractions | Added `ILocalIpc`, `LocalIpcService`, unsupported provider implementations for notification, autostart, service, network, and process surfaces, plus a managed process inspection service. |
+| macOS/Linux packs | `MacPlatformPack` and `LinuxPlatformPack` now expose local IPC, notification, autostart, service, network, process, display, tray, and secret services. Unsupported providers return explicit `unsupported` state/messages; process inspection uses the managed runtime where supported. |
+| Windows pack | `WindowsPlatformPack` now exposes the same `LocalIpcService`; Windows Runner IPC remains Named Pipe based. |
+| Acceptance coverage | Added tests for required capability failure -> `unsupported`, optional capability failure -> `degraded`, platform-native IPC endpoint shapes, and Mac/Linux degraded service behavior. |
+| P7 validation | Build passed with 0 warnings, 86 tests passed, module inspection still shows requirements and broker permissions, diagnostics still reports Windows `grpc-ipc` runtime process state, contract validation passed, strict package trust passed, and `scripts/smoke.ps1` passed after one transient process-test retry. |
 
 ## P6 Progress On 2026-07-04
 
@@ -84,7 +94,7 @@ Run date: 2026-07-04.
 
 ## Validation Note
 
-Local builds copy module assemblies into `modules/`. When assemblies change, run `dotnet run --no-build --project src\MyPowerTools.Cli -- package sign-local modules` before trust-sensitive tests or strict package verification. The latest P6 verification was repeated after the signatures matched the build outputs.
+Local builds copy module assemblies into `modules/`. When assemblies change, run `dotnet run --no-build --project src\MyPowerTools.Cli -- package sign-local modules` before trust-sensitive tests or strict package verification. The latest P7 verification was repeated after the signatures matched the build outputs.
 
 ## P4 Progress On 2026-07-04
 

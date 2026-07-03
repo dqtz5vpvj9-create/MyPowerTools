@@ -96,6 +96,16 @@ src/MyPowerTools.Platform.Mac
 src/MyPowerTools.Platform.Linux
 ```
 
+## 当前实现状态
+
+| Area | Status |
+|---|---|
+| Windows IPC | `LocalIpcService` uses Named Pipe endpoints. |
+| macOS/Linux IPC | `LocalIpcService` uses Unix Domain Socket paths. |
+| macOS degraded providers | Notification, autostart, service, network, display, tray, and secret providers return explicit unsupported state/messages; process inspection uses the managed runtime. |
+| Linux degraded providers | Notification, autostart, service, network, display, tray, and secret providers return explicit unsupported state/messages; process inspection uses the managed runtime. |
+| Remaining native validation | Native macOS/Linux Runner, Shell, and UDS gRPC smoke require those OS hosts. |
+
 ## 权限动作流程
 
 ```mermaid

@@ -15,6 +15,8 @@ using MyPowerTools.ModuleHost.GrpcIpc;
 using MyPowerTools.ModuleHost.InProcDotNet;
 using MyPowerTools.Packaging;
 using MyPowerTools.Platform.Abstractions;
+using MyPowerTools.Platform.Linux;
+using MyPowerTools.Platform.Mac;
 using MyPowerTools.Protocol;
 using MyPowerTools.Runtime;
 using MyPowerTools.SampleModules.DotNet;
@@ -960,6 +962,69 @@ Address         Port        Address         Port
         ]);
 
         Assert.Equal("degraded", resolution.State);
+    }
+
+    [Fact]
+    public void Platform_capability_registry_marks_missing_required_capability_unsupported()
+    {
+        var registry = new CapabilityRegistry([
+            new CapabilityDescriptor("ipc.local", "user", true, "test", "ok")
+        ]);
+
+        var resolution = registry.ResolveForModule("module", [
+            new CapabilityRequest("module", "ipc.local", true, "ipc"),
+            new CapabilityRequest("module", "network.portForwarding", true, "required")
+        ]);
+
+        Assert.Equal("unsupported", resolution.State);
+        Assert.False(resolution.IsUsable);
+        Assert.Contains(resolution.Messages, message => message.Contains("network.portForwarding", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Local_ipc_service_selects_platform_native_endpoint_shape()
+    {
+        var windows = new LocalIpcService(new PlatformId("windows", "x64"), Path.Combine(Path.GetTempPath(), "ignored"));
+        var linux = new LocalIpcService(new PlatformId("linux", "x64"), Path.Combine(Path.GetTempPath(), "mpt-ipc-test"));
+        var mac = new LocalIpcService(new PlatformId("macos", "arm64"), Path.Combine(Path.GetTempPath(), "mpt-ipc-test"));
+
+        Assert.Equal(IpcTransport.NamedPipe, windows.RunnerEndpoint.Transport);
+        Assert.Equal("mypowertools.runner.hostcontrol", windows.RunnerEndpoint.Address);
+        Assert.Equal(IpcTransport.NamedPipe, windows.CreateEndpoint("sample.grpc").Transport);
+        Assert.Equal("mypowertools.sample.grpc", windows.CreateEndpoint("sample.grpc").Address);
+
+        Assert.Equal(IpcTransport.UnixDomainSocket, linux.RunnerEndpoint.Transport);
+        Assert.StartsWith(Path.Combine(Path.GetTempPath(), "mpt-ipc-test"), linux.RunnerEndpoint.Address, StringComparison.Ordinal);
+        Assert.Equal(IpcTransport.UnixDomainSocket, linux.CreateEndpoint("sample.grpc").Transport);
+        Assert.EndsWith("mypowertools.sample.grpc.sock", linux.CreateEndpoint("sample.grpc").Address, StringComparison.Ordinal);
+        Assert.Equal(IpcTransport.UnixDomainSocket, mac.RunnerEndpoint.Transport);
+    }
+
+    [Fact]
+    public async Task Mac_and_linux_platform_packs_expose_truthful_degraded_services()
+    {
+        var mac = new MacPlatformPack();
+        var linux = new LinuxPlatformPack();
+
+        Assert.False(mac.Capabilities.Resolve("network.portForwarding").Supported);
+        Assert.True(mac.Capabilities.Resolve("ipc.local").Supported);
+        Assert.True(linux.Capabilities.Resolve("process.inspect").Supported);
+        Assert.Equal(IpcTransport.UnixDomainSocket, mac.LocalIpc.RunnerEndpoint.Transport);
+        Assert.Equal(IpcTransport.UnixDomainSocket, linux.LocalIpc.RunnerEndpoint.Transport);
+
+        var macService = await mac.Services.GetStatusAsync("sample", CancellationToken.None);
+        var linuxAutostart = await linux.Autostart.GetAsync("sample", CancellationToken.None);
+        var linuxNetwork = await linux.Network.ApplyPortProxyRuleAsync(
+            new PortProxyRule("127.0.0.1", 12345, "127.0.0.1", 12346),
+            CancellationToken.None);
+        var processes = await linux.Processes.ListAsync(CancellationToken.None);
+
+        Assert.Equal("unsupported", macService.State);
+        Assert.Contains("launchd", macService.Detail, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("unsupported", linuxAutostart.State);
+        Assert.False(linuxNetwork.Success);
+        Assert.Equal("unsupported", linuxNetwork.State);
+        Assert.NotEmpty(processes);
     }
 
     [Fact]

@@ -6,7 +6,7 @@
   "sdk": "10.0.301",
   "packages": 5,
   "modules": 7,
-  "testsPassed": 83,
+  "testsPassed": 86,
   "testsFailed": 0,
   "testsSkipped": 0,
   "releaseArtifact": "artifacts/release/MyPowerTools-win-x64.zip",
@@ -34,9 +34,9 @@
     "macOS/Linux native validation requires host machines."
   ],
   "nextActions": [
-    "P7: audit platform abstractions for Windows-specific leakage and Unix IPC path support.",
-    "P7: verify macOS/Linux degraded providers compile and are visible through diagnostics and module requirements.",
-    "P7: add or strengthen tests for capability resolution, unsupported platform providers, path provider behavior, and module degradation on missing capabilities."
+    "P7: audit remaining platform abstractions for IHotkeyService and privilege-helper interface coverage.",
+    "P7: verify Unix Domain Socket gRPC IPC end-to-end on native macOS/Linux hosts.",
+    "P7: document and test capability/degraded-state behavior for any remaining platform service surfaces."
   ],
   "productionClosure": false
 }

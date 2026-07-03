@@ -4,6 +4,8 @@ namespace MyPowerTools.Platform.Linux;
 
 public sealed class LinuxPlatformPack
 {
+    private static readonly PlatformId Platform = new("linux", PlatformId.Current().Architecture);
+
     public ICapabilityRegistry Capabilities { get; } = new CapabilityRegistry(
     [
         new("tray", "user", false, "AppIndicator", "Provider compiles but desktop integration depends on distribution packages."),
@@ -24,6 +26,12 @@ public sealed class LinuxPlatformPack
     public IDisplayService Display { get; } = new UnsupportedDisplayService("Wayland/X11/DDC", "Linux display provider compiles; compositor and DDC implementation is pending.");
     public ITrayService Tray { get; } = new UnsupportedTrayService("AppIndicator", "Distribution-specific AppIndicator integration is pending.");
     public ISecretStore Secrets { get; } = new UnsupportedSecretStore("Secret Service", "Linux Secret Service provider compiles; native implementation is pending.");
+    public INotificationService Notifications { get; } = new UnsupportedNotificationService("freedesktop notifications", "Linux notification provider compiles; native implementation is pending.");
+    public IAutostartService Autostart { get; } = new UnsupportedAutostartService("systemd user", "Linux autostart provider compiles; native implementation is pending.");
+    public IServiceManager Services { get; } = new UnsupportedServiceManager("systemd", "Linux service provider compiles; native implementation is pending.");
+    public INetworkBroker Network { get; } = new UnsupportedNetworkBroker("nftables/iptables", "Linux network broker compiles; native implementation is pending.");
+    public IProcessService Processes { get; } = new ManagedProcessService();
+    public ILocalIpc LocalIpc { get; } = new LocalIpcService(Platform);
 }
 
 public sealed class UnsupportedDisplayService : IDisplayService
