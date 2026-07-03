@@ -352,13 +352,27 @@ static int RunnerProcess(string[] args)
 
     var transportKind = positional.ElementAtOrDefault(1);
     var poolKey = positional.ElementAtOrDefault(2);
+    using var client = HostControlClient.ForDefaultEndpoint();
+    if (string.Equals(transportKind, ".", StringComparison.OrdinalIgnoreCase) && string.IsNullOrWhiteSpace(poolKey))
+    {
+        var diagnostics = client.GetRuntimeDiagnosticsAsync(CancellationToken.None).GetAwaiter().GetResult();
+        var process = diagnostics.Processes.FirstOrDefault();
+        if (process is null)
+        {
+            Console.WriteLine("No runtime process pool is active.");
+            return 1;
+        }
+
+        transportKind = process.TransportKind;
+        poolKey = process.PoolKey;
+    }
+
     if (string.IsNullOrWhiteSpace(transportKind) || string.IsNullOrWhiteSpace(poolKey))
     {
-        Console.WriteLine("mpt runner process <restart|pause|resume> <transport-kind> <pool-key> [--reason <reason>] [--until <iso-8601>] [--duration-minutes <minutes>]");
+        Console.WriteLine("mpt runner process <restart|pause|resume> <transport-kind> <pool-key>|. [--reason <reason>] [--until <iso-8601>] [--duration-minutes <minutes>]");
         return 2;
     }
 
-    using var client = HostControlClient.ForDefaultEndpoint();
     if (string.Equals(action, "pause", StringComparison.OrdinalIgnoreCase) ||
         string.Equals(action, "resume", StringComparison.OrdinalIgnoreCase))
     {
@@ -551,6 +565,7 @@ static int Diagnostics(string[] args, string root)
     try
     {
         runtime.Load(GetPackageRoot(args, root));
+        runtime.RefreshHealthAsync(CancellationToken.None).GetAwaiter().GetResult();
         runtime.RefreshDynamicCommandsAsync(CancellationToken.None).GetAwaiter().GetResult();
         var diagnostics = runtime.GetRuntimeDiagnostics();
 
@@ -588,7 +603,7 @@ static int Diagnostics(string[] args, string root)
 
         foreach (var module in diagnostics.Modules)
         {
-            Console.WriteLine($"module: {module.ModuleId} state={module.State} transport={module.TransportKind} diagnostics={module.DiagnosticCount}");
+            Console.WriteLine($"module: {module.ModuleId} state={module.State} transport={module.TransportKind} diagnostics={module.DiagnosticCount} supervisor={module.SupervisorState} failures={module.ConsecutiveFailureCount} observations={module.ObservationCount} action={module.SupervisorAction}");
         }
 
         return 0;
@@ -942,7 +957,7 @@ static int Help()
     Console.WriteLine("mpt rollback <package-id> [--store-root <dir>]");
     Console.WriteLine("mpt repair <package-id> [--store-root <dir>]");
     Console.WriteLine("mpt runner autostart [status|enable|disable] [--id <id>] [--command <command>] [--dry-run]");
-    Console.WriteLine("mpt runner process <restart|pause|resume> <transport-kind> <pool-key> [--reason <reason>] [--until <iso-8601>] [--duration-minutes <minutes>]");
+    Console.WriteLine("mpt runner process <restart|pause|resume> <transport-kind> <pool-key>|. [--reason <reason>] [--until <iso-8601>] [--duration-minutes <minutes>]");
     Console.WriteLine("mpt module list [--include-disabled] [--modules <package-root>] [--data-root <dir>]");
     Console.WriteLine("mpt module enable <module-id> [--modules <package-root>] [--data-root <dir>]");
     Console.WriteLine("mpt module disable <module-id> [--modules <package-root>] [--data-root <dir>]");

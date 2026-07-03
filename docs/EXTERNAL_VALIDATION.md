@@ -22,8 +22,8 @@ The following checks require machine state outside the repository. They remain s
 | Artifact | Evidence |
 |---|---|
 | Windows portable zip | `artifacts/release/MyPowerTools-win-x64.zip` |
-| SHA256 | `2418C0BEF33FE955DB81C677B1C74FE3E0DEC5CCA4D2D14BD1CB5D46B02DFDB0` |
-| Size | 171430107 bytes |
+| SHA256 | `3210E8F4607F484C82AD95452BFE9E76ECC51DACEB1C04099719B57AA40ECA9B` |
+| Size | 171459935 bytes |
 | Release notes | `artifacts/release/RELEASE_NOTES.md` |
 | Install dry-run | Previously verified by `scripts/install-windows.ps1 -PackageRoot artifacts\release\win-x64 -InstallDir artifacts\install-dryrun -DryRun`. |
 | Uninstall dry-run | Previously verified by `scripts/uninstall-windows.ps1 -InstallDir artifacts\install-dryrun -DryRun -Force`. |

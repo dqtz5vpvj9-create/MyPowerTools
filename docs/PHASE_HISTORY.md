@@ -259,3 +259,37 @@ Validation:
 
 Remaining P4 work:
 - None internally. Richer module-specific editors beyond schema-rendered Settings and HostControl-backed Detail pages are future feature work.
+
+### P5 Reliability, Observability And Runtime Policy
+
+Status: done.
+
+Actions:
+- Added `ModuleSupervisor` to record per-module health observations, consecutive failure counts, supervisor state, last observation time, and actionable next steps.
+- Wired supervisor observation into runtime load, health refresh, dynamic command refresh, and module enable/disable flows.
+- Added Dashboard host alerts for modules that reach `intervention-needed` after repeated unhealthy samples.
+- Extended `RuntimeModuleDiagnostics` and `mpt_host_control_v1.proto` with summary, observation count, consecutive failure count, supervisor state/action, and last observed time.
+- Updated HostControl mapping, CLI `mpt diagnostics`, and Shell Diagnostics rendering for the new supervisor fields.
+- Made `mpt diagnostics` refresh module health before reporting diagnostics.
+- Added `mpt runner process pause . --duration-minutes 1` shorthand to resolve `.` to the first active RuntimeDiagnostics process pool.
+- Updated Shell event handling so `module.health.changed` refreshes Dashboard, Modules, and Diagnostics views.
+- Added acceptance tests for repeated HTTP facade failure escalation, recovery reset, HostControl supervisor fields, CLI diagnostics supervisor output, and CLI process policy shorthand.
+- Rebuilt the Windows portable release zip.
+
+Validation:
+- `dotnet build MyPowerTools.slnx --no-restore` succeeded with 0 warnings and 0 errors.
+- `dotnet run --no-build --project src\MyPowerTools.Cli -- package sign-local modules` refreshed hash manifests and local trust hooks for all 5 production packages.
+- `dotnet test MyPowerTools.slnx --no-build` passed 82 tests, 0 failed, 0 skipped.
+- `dotnet run --no-build --project src\MyPowerTools.Cli -- diagnostics` reported ModuleSupervisor state/action/failure counts for all 7 modules plus the AndroidTools shared `grpc-ipc` process pool.
+- `dotnet run --no-build --project src\MyPowerTools.Cli -- runner process pause . --duration-minutes 1` passed against a temporary Runner, paused the AndroidTools shared gRPC process pool, printed expiry/modules, and resume restored automatic policy.
+- `dotnet run --no-build --project src\MyPowerTools.Cli -- validate modules` passed for 5 production packages.
+- `dotnet run --no-build --project src\MyPowerTools.Cli -- validate contracts` passed for 5 packages and 7 modules.
+- `dotnet run --no-build --project src\MyPowerTools.Cli -- package trust modules --strict` reported `signature-hook` for all 5 production packages.
+- `dotnet run --no-build --project src\MyPowerTools.Runner -- --once` indexed 7 modules with expected degraded external-dependency states.
+- `pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\smoke.ps1` passed, including build, sign-local, 82 tests, module validation, contract validation, package trust, UI snapshots, template validation, Runner once, and Shell HostControl smoke with graceful Runner shutdown.
+- `pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\publish-windows.ps1` rebuilt `artifacts\release\MyPowerTools-win-x64.zip` with SHA256 `3210E8F4607F484C82AD95452BFE9E76ECC51DACEB1C04099719B57AA40ECA9B` and size 171459935 bytes.
+- `artifacts\release\win-x64\Runner\MyPowerTools.Runner.exe --once --data-root artifacts\release-root-once-data-p5` indexed 7 modules from the release root.
+- Release Shell smoke connected to Runner 0.2.0, reported 7 modules, 7 dashboard cards, 81 commands, requested Runner shutdown, and the release Runner exited.
+
+Remaining P5 work:
+- None internally. Hardware, external services, administrator context, signing material, and native macOS/Linux validation remain tracked in external validation rows or later phases.

@@ -628,10 +628,16 @@ public sealed class HostControlGrpcService : HostProto.HostControl.HostControlBa
             PackageId = module.PackageId,
             DisplayName = module.DisplayName,
             State = module.State,
+            Summary = module.Summary,
             Enabled = module.Enabled,
             TransportKind = module.TransportKind,
             UpdatedAt = Timestamp.FromDateTimeOffset(module.UpdatedAt),
-            DiagnosticCount = (uint)module.DiagnosticCount
+            DiagnosticCount = (uint)module.DiagnosticCount,
+            ObservationCount = (uint)Math.Max(0, module.ObservationCount),
+            ConsecutiveFailureCount = (uint)Math.Max(0, module.ConsecutiveFailureCount),
+            SupervisorState = module.SupervisorState,
+            SupervisorAction = module.SupervisorAction,
+            LastObservedAt = Timestamp.FromDateTimeOffset(module.LastObservedAt)
         }));
         response.RecentCommands.AddRange(diagnostics.RecentCommands.Select(command => new HostProto.RuntimeCommandHistoryEntry
         {

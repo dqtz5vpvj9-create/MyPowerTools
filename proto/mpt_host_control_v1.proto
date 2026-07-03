@@ -272,6 +272,12 @@ message RuntimeModuleDiagnostics {
   string transport_kind = 6;
   google.protobuf.Timestamp updated_at = 7;
   uint32 diagnostic_count = 8;
+  string summary = 9;
+  uint32 observation_count = 10;
+  uint32 consecutive_failure_count = 11;
+  string supervisor_state = 12;
+  string supervisor_action = 13;
+  google.protobuf.Timestamp last_observed_at = 14;
 }
 
 message RuntimeCommandHistoryEntry {

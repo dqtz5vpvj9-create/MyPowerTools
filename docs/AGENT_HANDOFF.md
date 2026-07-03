@@ -86,20 +86,22 @@ The active objective is to turn MyPowerTools into a production-grade PowerToys-s
 - Marked P2 complete locally; remaining P2 concerns require external hardware, connected devices, or documented production service APIs and are tracked in `docs/OPEN_BLOCKERS.md` plus `docs/EXTERNAL_VALIDATION.md`.
 - Completed P3 broker/security closure locally: schema now accepts all planned permission levels, `PrivilegedBroker` requires broker handling for elevated/service/sensitive levels, `ServiceBroker` audits restarts as `serviceUser`, and tests cover schema, broker decisions, service audit, rollback, redaction, and permission-required CLI paths.
 - Completed P4 Shell UI closure locally: Shell keyboard shortcuts are modeled and wired, HostControl exposes runtime settings schemas, Shell Settings renders schema-backed controls, Shell/control colors route through `MptTheme`, Shell snapshots include keyboard/focus/state matrix evidence, `scripts/smoke.ps1` checks native exit codes, and PackageStore retries transient Windows directory move/delete operations.
+- Completed P5 reliability and observability closure locally: `ModuleSupervisor` records module health observations, consecutive failures, supervisor state, last observation time, and next actions; RuntimeDiagnostics, HostControl, CLI diagnostics, Shell Diagnostics, and Dashboard alerts expose the data; `mpt runner process pause . --duration-minutes 1` resolves the first active process pool for smoke-friendly policy validation.
 
 ## Last Verified State
 
 - SDK: `dotnet --version` returns `10.0.301`; `global.json` pins `10.0.301`; all projects target `net10.0`.
 - Restore: `dotnet restore MyPowerTools.slnx` succeeded.
 - Build: `dotnet build MyPowerTools.slnx` succeeded with 0 warnings and 0 errors.
-- Tests: `dotnet test MyPowerTools.slnx --no-build` passed 80 tests, 0 failed, 0 skipped.
-- Phase state: P0, P1, P2, P3, and P4 done; P5 selected as the next active phase in `.codex/project-state.json`.
+- Tests: `dotnet test MyPowerTools.slnx --no-build` passed 82 tests, 0 failed, 0 skipped.
+- Phase state: P0, P1, P2, P3, P4, and P5 done; P6 selected as the next active phase in `.codex/project-state.json`.
 - Module validation: `dotnet run --project src\MyPowerTools.Cli -- validate modules` passed all 5 production packages.
 - Module contract validation: `dotnet run --project src\MyPowerTools.Cli -- validate contracts` passed all 5 production packages and 7 modules.
 - Package trust: `dotnet run --project src\MyPowerTools.Cli -- package trust modules --strict` reports `signature-hook` for all 5 production packages.
 - Module state CLI: `dotnet run --project src\MyPowerTools.Cli -- module list --include-disabled` lists all 7 modules with enabled/disabled state.
 - Module inspection CLI: `dotnet run --project src\MyPowerTools.Cli -- inspect modules` lists capabilities, required/optional capability requirements, `apply-portproxy` broker permission, and `restart-service` broker permission.
-- Runtime diagnostics CLI: `dotnet run --project src\MyPowerTools.Cli -- diagnostics` reports Runner `0.2.0`, protocols `1.0`, 5 packages, 7 modules, 81 commands, paths, transports, per-module state, and AndroidTools `grpc-ipc` process pool `package:android-tools-suite:runtime:powertoold` with all three AndroidTools modules.
+- Runtime diagnostics CLI: `dotnet run --project src\MyPowerTools.Cli -- diagnostics` reports Runner `0.2.0`, protocols `1.0`, 5 packages, 7 modules, 81 commands, paths, transports, per-module state, ModuleSupervisor state/action/failure counts, and AndroidTools `grpc-ipc` process pool `package:android-tools-suite:runtime:powertoold` with all three AndroidTools modules.
+- Runner process policy shorthand: `dotnet run --no-build --project src\MyPowerTools.Cli -- runner process pause . --duration-minutes 1` passed against a temporary Runner, selected the AndroidTools shared gRPC process pool, printed expiry/modules, and resume restored automatic policy.
 - UI gate: `dotnet run --project src\MyPowerTools.Cli -- ui check modules` passed.
 - UI snapshots: `dotnet run --project src\MyPowerTools.Cli -- ui snapshot --surface dashboard-card --theme light --size 1366x768 --density normal --out artifacts\ui-snapshots` wrote 7 contract snapshots and 7 PNG pixel snapshots; first PNG reported 21 unique colors and 876888 non-background pixels.
 - Shell UI snapshots: `dotnet run --project src\MyPowerTools.Cli -- ui shell-snapshot --theme light --size 1366x768 --density normal --out artifacts\shell-ui-snapshots` wrote 10 Shell surface snapshots and 10 PNG pixel snapshots covering 8 required Shell surfaces, 12 keyboard shortcuts, 7 focus states, Settings conflict, Command Palette permission-required, and Logs streaming states.
@@ -127,14 +129,14 @@ The active objective is to turn MyPowerTools into a production-grade PowerToys-s
 - Published CLI secret self-test: release `Cli\MyPowerTools.Cli.exe broker secret self-test --module cli.secret-self-test --name self-test-release-codex` passed through Windows Credential Manager, verified round-trip read, deleted the secret, and printed no secret value.
 - Published CLI permission inspection: release `Cli\MyPowerTools.Cli.exe inspect modules` printed module capabilities, required/optional capability requirements, `apply-portproxy`, and `restart-service` broker permissions.
 - Published package trust verification: release `Cli\MyPowerTools.Cli.exe package trust artifacts\release\win-x64\modules --strict` reported `signature-hook` for all 5 production packages.
-- Release artifact: `artifacts/release/MyPowerTools-win-x64.zip` was rebuilt on 2026-07-04; SHA256 `2418C0BEF33FE955DB81C677B1C74FE3E0DEC5CCA4D2D14BD1CB5D46B02DFDB0`; size 171430107 bytes.
+- Release artifact: `artifacts/release/MyPowerTools-win-x64.zip` was rebuilt on 2026-07-04; SHA256 `3210E8F4607F484C82AD95452BFE9E76ECC51DACEB1C04099719B57AA40ECA9B`; size 171459935 bytes.
 - Release notes: `artifacts/release/RELEASE_NOTES.md` generated with artifact hash, size, verification commands, and external requirements.
 - Portable install dry-run: `pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\install-windows.ps1 -PackageRoot artifacts\release\win-x64 -InstallDir artifacts\install-dryrun -DryRun` succeeded.
 - Portable uninstall dry-run: `pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\uninstall-windows.ps1 -InstallDir artifacts\install-dryrun -DryRun -Force` succeeded.
 
 ## Next Highest-Value Work
 
-1. Continue P5 reliability, observability, and runtime policy closure, focusing on broader ModuleSupervisor health policy automation and operational reporting.
+1. Continue P6 packaging, templates, CLI, install, and release closure, focusing on signed installer/package-manager metadata where possible, update metadata, install/uninstall dry-run evidence, release docs, README, and CHANGELOG.
 2. Validate ScreenEase hardware writes against a monitor that supports DDC/CI brightness/color-temperature controls when hardware is available.
 3. Validate SmartBird against real Energy Server and FNB-58 hardware when those services are available.
 4. Validate real Doubao planner/tool/MCP endpoint contracts when production health APIs are available.

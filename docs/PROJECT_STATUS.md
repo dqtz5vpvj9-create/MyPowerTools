@@ -7,17 +7,17 @@ Run date: 2026-07-04.
 | Field | Value |
 |---|---|
 | Project | MyPowerTools |
-| Current phase | P5 Reliability, observability and runtime policy |
-| Last completed phase | P4 Shell UI, design system and visual quality |
-| Next phase | P5 |
+| Current phase | P6 Packaging, templates, CLI, install and release |
+| Last completed phase | P5 Reliability, observability and runtime policy |
+| Next phase | P6 |
 | SDK | 10.0.301 from `global.json` and `dotnet --version` |
 | Target frameworks | `net10.0` projects across the solution |
 | Production packages | 5: `adb-forwarder`, `android-tools-suite`, `doubao-agent`, `screenease`, `smartbird-thermostat` |
 | Production modules | 7 |
 | Templates | 6 |
-| Tests | 80 passed, 0 failed, 0 skipped |
+| Tests | 82 passed, 0 failed, 0 skipped |
 | Release artifact | `artifacts/release/MyPowerTools-win-x64.zip` |
-| Release SHA256 | `2418C0BEF33FE955DB81C677B1C74FE3E0DEC5CCA4D2D14BD1CB5D46B02DFDB0` |
+| Release SHA256 | `3210E8F4607F484C82AD95452BFE9E76ECC51DACEB1C04099719B57AA40ECA9B` |
 | Production closure | false |
 
 ## Latest Validation Results
@@ -27,7 +27,7 @@ Run date: 2026-07-04.
 | `dotnet --version` | `10.0.301` |
 | `dotnet restore MyPowerTools.slnx` | Succeeded; all projects were up-to-date. |
 | `dotnet build MyPowerTools.slnx --no-restore` | Succeeded with 0 warnings and 0 errors. |
-| `dotnet test MyPowerTools.slnx --no-build` | Passed 80, failed 0, skipped 0. |
+| `dotnet test MyPowerTools.slnx --no-build` | Passed 82, failed 0, skipped 0. |
 | `dotnet run --project src\MyPowerTools.Cli -- validate modules` | 5 production packages valid. |
 | `dotnet run --no-build --project src\MyPowerTools.Cli -- validate contracts` | 5 packages and 7 modules passed contract validation; AndroidTools runs through `grpc-ipc` powertoold with notifications running, remote commands running, process monitor degraded until a watch list is saved, and ScreenEase exposing 14 commands. |
 | `dotnet run --no-build --project src\MyPowerTools.Cli -- package trust modules --strict` | `signature-hook` trust passed for all 5 production packages after local hash/signature refresh. |
@@ -35,12 +35,24 @@ Run date: 2026-07-04.
 | `dotnet run --project src\MyPowerTools.Cli -- ui snapshot --surface dashboard-card --theme light --size 1366x768 --density normal --out artifacts\ui-snapshots` | Wrote 7 module dashboard-card contract snapshots and 7 PNG pixel snapshots. |
 | `dotnet run --project src\MyPowerTools.Cli -- ui shell-snapshot --theme light --size 1366x768 --density normal --out artifacts\shell-ui-snapshots` | Wrote 10 Shell surface snapshots and 10 PNG pixel snapshots with 12 keyboard shortcut entries, 7 focus state entries, Settings conflict, Command Palette permission-required, and Logs streaming states. |
 | `dotnet run --project src\MyPowerTools.Runner -- --once` | 7 modules indexed; AndroidTools Notifications and Remote Commands run through powertoold, AndroidTools Process Monitor reports its watch-list degraded state, and current expected degraded states remain for Doubao partial services, ScreenEase unsupported DDC/CI monitor hardware, and SmartBird Energy Server/FNB-58 dependencies. |
-| `dotnet run --no-build --project src\MyPowerTools.Cli -- diagnostics` | Reports 5 packages, 7 modules, 81 commands, AndroidTools under `grpc-ipc`, and one shared process pool: `package:android-tools-suite:runtime:powertoold`. |
+| `dotnet run --no-build --project src\MyPowerTools.Cli -- diagnostics` | Reports 5 packages, 7 modules, 81 commands, AndroidTools under `grpc-ipc`, one shared process pool, and per-module `supervisor` state with consecutive failure counts and next actions. |
+| `dotnet run --no-build --project src\MyPowerTools.Cli -- runner process pause . --duration-minutes 1` | With a temporary Runner active, selected the AndroidTools shared gRPC pool, paused automatic restart for one minute, printed expiry/modules, then resume restored automatic policy. |
 | `dotnet run --project src\MyPowerTools.Cli -- run screenease.native-writer.status` | Succeeded with Windows DDC/CI writer probe output; current Generic PnP Monitor returns `GetMonitorCapabilities` unsupported. |
 | `dotnet run --project src\MyPowerTools.Cli -- run screenease.profile.apply` | Succeeded with profile plan and safe default `native-host-required` because hardware writes are disabled unless explicitly requested or configured. |
-| `pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\publish-windows.ps1` | Rebuilt `artifacts/release/MyPowerTools-win-x64.zip` with SHA256 `2418C0BEF33FE955DB81C677B1C74FE3E0DEC5CCA4D2D14BD1CB5D46B02DFDB0` and size 171430107 bytes. |
+| `pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\publish-windows.ps1` | Rebuilt `artifacts/release/MyPowerTools-win-x64.zip` with SHA256 `3210E8F4607F484C82AD95452BFE9E76ECC51DACEB1C04099719B57AA40ECA9B` and size 171459935 bytes. |
 | `artifacts\release\win-x64\Runner\MyPowerTools.Runner.exe --once --data-root artifacts\release-root-once-data-p4` | Release Runner indexed 7 modules from the release root and started AndroidTools powertoold from the release package. |
 | `artifacts\release\win-x64\Shell\MyPowerTools.Shell.Avalonia.exe --smoke --timeout-ms 30000 --quit-runner` | Release Shell smoke connected to Runner 0.2.0, reported 7 modules, 7 dashboard cards, 81 commands, and requested Runner shutdown. |
+
+## P5 Progress On 2026-07-04
+
+| Area | Evidence |
+|---|---|
+| ModuleSupervisor automation | Added `ModuleSupervisor` to record module health observations, consecutive failure counts, supervisor state, last observation time, and actionable next steps. Repeated HTTP facade failures now escalate to `intervention-needed` and emit Dashboard alerts. |
+| Runtime diagnostics | `RuntimeModuleDiagnostics` now carries module summary, observation count, consecutive failure count, supervisor state/action, and last observed time through RuntimeDiagnostics. |
+| HostControl and Shell visibility | `mpt_host_control_v1.proto`, `HostControlGrpcService`, and Shell Diagnostics now expose and render supervisor data. Shell refreshes Dashboard/Modules/Diagnostics on `module.health.changed` events. |
+| CLI operations | `mpt diagnostics` refreshes health before printing diagnostics and includes `supervisor`, `failures`, `observations`, and `action`. `mpt runner process pause . --duration-minutes 1` now resolves `.` to the first active RuntimeDiagnostics process pool for smoke-friendly policy checks. |
+| Acceptance coverage | Added Runtime tests for repeated HTTP facade failures, recovery reset, HostControl supervisor fields, and CLI diagnostics output. Existing CLI process policy test now covers `pause .`. |
+| P5 closure | P5 internal gates are complete locally: build passed with 0 warnings, 82 tests passed, module/contract validation passed, diagnostics reports supervisor data, runner process pause shorthand passed against a live Runner, Runner once passed, `smoke.ps1` passed, release Runner once passed, release Shell smoke passed, release notes include ModuleSupervisor, and the Windows zip was rebuilt with SHA256 `3210E8F4607F484C82AD95452BFE9E76ECC51DACEB1C04099719B57AA40ECA9B`. |
 
 ## Current Module State
 

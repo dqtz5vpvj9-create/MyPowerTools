@@ -22,6 +22,7 @@ public sealed class MptHostRuntime : IAsyncDisposable
     private readonly NotificationCenter _notificationCenter = new();
     private readonly CommandHistory _commandHistory = new();
     private readonly HealthMonitor _healthMonitor = new();
+    private readonly ModuleSupervisor _moduleSupervisor = new();
     private readonly PackageTrustVerifier _packageTrust = new();
     private readonly IReadOnlyDictionary<string, IModuleTransportRuntime> _transportRuntimes;
     private readonly DateTimeOffset _startedAt = DateTimeOffset.UtcNow;
@@ -73,6 +74,7 @@ public sealed class MptHostRuntime : IAsyncDisposable
         _packageRoot = Path.GetFullPath(packageRoot);
         _packageRegistry.Load(packageRoot);
         ApplyPersistedModuleState();
+        ObserveAllModules();
         _dynamicCommands = [];
         _commandIndex.Rebuild(EnabledModules());
         RegisterProcessPoolsAndApplyPolicies();
@@ -86,7 +88,8 @@ public sealed class MptHostRuntime : IAsyncDisposable
 
     public DashboardSnapshot GetDashboardSnapshot()
     {
-        var cards = EnabledModules()
+        var enabledModules = EnabledModules();
+        var cards = enabledModules
             .Select(module => new DashboardCard(
                 module.Module.Manifest.Id,
                 module.Module.Manifest.PackageId,
@@ -102,8 +105,16 @@ public sealed class MptHostRuntime : IAsyncDisposable
                     new DashboardAction($"{module.Module.Manifest.Id}.status.refresh", "Refresh", "secondary")
                 ]))
             .ToArray();
+        var alerts = _moduleSupervisor.Snapshots(enabledModules)
+            .Where(snapshot => snapshot.SupervisorState == "intervention-needed")
+            .Select(snapshot => new HostAlert(
+                $"module-supervisor-{snapshot.ModuleId}",
+                "warning",
+                $"{snapshot.ModuleId} needs attention",
+                snapshot.NextAction))
+            .ToArray();
 
-        return new DashboardSnapshot(cards, [], _eventBus.CurrentSeq);
+        return new DashboardSnapshot(cards, alerts, _eventBus.CurrentSeq);
     }
 
     public async Task RefreshHealthAsync(CancellationToken cancellationToken)
@@ -113,10 +124,7 @@ public sealed class MptHostRuntime : IAsyncDisposable
         {
             var status = await CheckTransportHealthAsync(module, cancellationToken)
                 ?? await _healthMonitor.CheckAsync(module, cancellationToken);
-            if (!ReferenceEquals(status, module.Status))
-            {
-                _packageRegistry.UpdateStatus(module.Module.Manifest.Id, status);
-            }
+            RecordModuleStatus(module, status);
         }
     }
 
@@ -137,7 +145,7 @@ public sealed class MptHostRuntime : IAsyncDisposable
                 var status = await runtime.GetStatusAsync(module, context, cancellationToken);
                 if (status is not null)
                 {
-                    _packageRegistry.UpdateStatus(module.Module.Manifest.Id, status);
+                    RecordModuleStatus(module, status);
                 }
 
                 var moduleCommands = await runtime.ListCommandsAsync(module, context, cancellationToken);
@@ -153,7 +161,7 @@ public sealed class MptHostRuntime : IAsyncDisposable
             catch (Exception ex)
             {
                 var message = LogRouter.Redact(ex.Message);
-                _packageRegistry.UpdateStatus(module.Module.Manifest.Id, Degraded(module, message));
+                RecordModuleStatus(module, Degraded(module, message));
                 _logRouter.Append(module.Module.Manifest.PackageId, module.Module.Manifest.Id, "error", message);
             }
         }
@@ -226,6 +234,8 @@ public sealed class MptHostRuntime : IAsyncDisposable
             .ThenBy(process => process.PoolKey, StringComparer.OrdinalIgnoreCase)
             .ToArray();
         var processPolicyHistory = _processPolicyStore.History(10);
+        var supervision = _moduleSupervisor.Snapshots(modules)
+            .ToDictionary(snapshot => snapshot.ModuleId, StringComparer.OrdinalIgnoreCase);
 
         return new RuntimeDiagnosticsSnapshot(
             ProtocolConstants.HostVersion,
@@ -262,15 +272,25 @@ public sealed class MptHostRuntime : IAsyncDisposable
             processPolicyHistory,
             modules
                 .OrderBy(module => module.Module.Manifest.DisplayName, StringComparer.OrdinalIgnoreCase)
-                .Select(module => new RuntimeModuleDiagnostics(
-                    module.Module.Manifest.Id,
-                    module.Module.Manifest.PackageId,
-                    module.Module.Manifest.DisplayName,
-                    module.Status.State,
-                    module.Status.State != "disabled",
-                    module.Entrypoint?.Kind ?? "none",
-                    module.Status.UpdatedAt,
-                    module.Status.Checks.Count))
+                .Select(module =>
+                {
+                    var snapshot = supervision[module.Module.Manifest.Id];
+                    return new RuntimeModuleDiagnostics(
+                        module.Module.Manifest.Id,
+                        module.Module.Manifest.PackageId,
+                        module.Module.Manifest.DisplayName,
+                        module.Status.State,
+                        module.Status.Summary,
+                        module.Status.State != "disabled",
+                        module.Entrypoint?.Kind ?? "none",
+                        module.Status.UpdatedAt,
+                        module.Status.Checks.Count,
+                        snapshot.ObservationCount,
+                        snapshot.ConsecutiveFailureCount,
+                        snapshot.SupervisorState,
+                        snapshot.NextAction,
+                        snapshot.LastObservedAt);
+                })
                 .ToArray(),
             recentCommands);
     }
@@ -354,7 +374,7 @@ public sealed class MptHostRuntime : IAsyncDisposable
 
         _moduleStateStore.SetModuleEnabled(moduleId, enabled);
         var nextStatus = enabled ? InitialStatus(module) : DisabledStatus(module);
-        _packageRegistry.UpdateStatus(moduleId, nextStatus);
+        RecordModuleStatus(module, nextStatus);
         _dynamicCommands = _dynamicCommands
             .Where(command => !string.Equals(command.ModuleId, moduleId, StringComparison.OrdinalIgnoreCase))
             .ToArray();
@@ -673,6 +693,38 @@ public sealed class MptHostRuntime : IAsyncDisposable
                 ? DisabledStatus(module)
                 : InitialStatus(module);
             _packageRegistry.UpdateStatus(module.Module.Manifest.Id, status);
+        }
+    }
+
+    private void ObserveAllModules()
+    {
+        foreach (var module in _packageRegistry.Modules)
+        {
+            _moduleSupervisor.Observe(module, module.Status);
+        }
+    }
+
+    private void RecordModuleStatus(RuntimeModuleRecord module, ModuleStatusSnapshot status)
+    {
+        var previousState = module.Status.State;
+        _packageRegistry.UpdateStatus(module.Module.Manifest.Id, status);
+        var updated = _packageRegistry.FindModule(module.Module.Manifest.Id) ?? module with { Status = status };
+        var supervision = _moduleSupervisor.Observe(updated, status);
+        if (!string.Equals(previousState, status.State, StringComparison.OrdinalIgnoreCase))
+        {
+            var evt = _eventBus.Publish(module.Module.Manifest.Id, "module.health.changed", new JsonObject
+            {
+                ["state"] = status.State,
+                ["summary"] = status.Summary,
+                ["supervisorState"] = supervision.SupervisorState,
+                ["consecutiveFailures"] = supervision.ConsecutiveFailureCount
+            });
+            _logRouter.Append(
+                module.Module.Manifest.PackageId,
+                module.Module.Manifest.Id,
+                supervision.ConsecutiveFailureCount > 0 ? "warning" : "info",
+                $"{status.State}: {status.Summary}",
+                eventSeq: evt.Seq);
         }
     }
 

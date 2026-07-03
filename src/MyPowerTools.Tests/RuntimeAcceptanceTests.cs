@@ -184,6 +184,7 @@ Address         Port        Address         Port
         Assert.Contains("modules: 7 enabled=7 disabled=0", result.Output);
         Assert.Contains("transport: inproc-dotnet", result.Output);
         Assert.Contains("module: screenease", result.Output);
+        Assert.Contains("supervisor=", result.Output);
     }
 
     [Fact]
@@ -1036,6 +1037,58 @@ Address         Port        Address         Port
         Assert.Contains("token=****", result.Output);
         Assert.DoesNotContain("abc123", result.Output);
         Assert.Contains(logs, record => record.InvocationId == "runtime-http-ping" && record.EventSeq > 0);
+    }
+
+    [Fact]
+    public async Task Runtime_supervisor_reports_repeated_http_facade_failures()
+    {
+        var packageRoot = Path.Combine(Path.GetTempPath(), "mpt-http-supervisor", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(packageRoot);
+        WriteHttpFacadeModuleManifest(packageRoot, ReserveUnusedLoopbackUrl());
+        var runtime = new MptHostRuntime(
+            new PackageReader(),
+            PlatformId.Current(),
+            RuntimePaths.Create(Path.Combine(Path.GetTempPath(), "mpt-runtime-http-supervisor", Guid.NewGuid().ToString("N"))));
+
+        runtime.Load(packageRoot);
+        await runtime.RefreshHealthAsync(CancellationToken.None);
+        await runtime.RefreshHealthAsync(CancellationToken.None);
+        await runtime.RefreshHealthAsync(CancellationToken.None);
+        var diagnostics = runtime.GetRuntimeDiagnostics();
+        var module = Assert.Single(diagnostics.Modules);
+        var alert = Assert.Single(runtime.GetDashboardSnapshot().Alerts);
+
+        Assert.Equal("degraded", module.State);
+        Assert.Equal("intervention-needed", module.SupervisorState);
+        Assert.True(module.ObservationCount >= 4);
+        Assert.True(module.ConsecutiveFailureCount >= 3);
+        Assert.Contains("HTTP facade", module.SupervisorAction);
+        Assert.Equal("module-supervisor-sample.http-runtime", alert.Id);
+        Assert.Contains("HTTP facade", alert.Body);
+    }
+
+    [Fact]
+    public async Task Runtime_supervisor_resets_after_http_facade_recovery()
+    {
+        await using var server = TestHttpFacadeServer.Start();
+        var packageRoot = Path.Combine(Path.GetTempPath(), "mpt-http-supervisor-recovery", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(packageRoot);
+        WriteHttpFacadeModuleManifest(packageRoot, server.BaseUrl);
+        var runtime = new MptHostRuntime(
+            new PackageReader(),
+            PlatformId.Current(),
+            RuntimePaths.Create(Path.Combine(Path.GetTempPath(), "mpt-runtime-http-supervisor-recovery", Guid.NewGuid().ToString("N"))));
+
+        runtime.Load(packageRoot);
+        await runtime.RefreshHealthAsync(CancellationToken.None);
+        await runtime.RefreshHealthAsync(CancellationToken.None);
+        var module = Assert.Single(runtime.GetRuntimeDiagnostics().Modules);
+
+        Assert.Equal("running", module.State);
+        Assert.Equal("healthy", module.SupervisorState);
+        Assert.Equal(0, module.ConsecutiveFailureCount);
+        Assert.Equal("No action required.", module.SupervisorAction);
+        Assert.Empty(runtime.GetDashboardSnapshot().Alerts);
     }
 
     [Fact]
@@ -2246,6 +2299,7 @@ cloud_server_protocol: str = "https"
         Assert.Equal(dataRoot, diagnostics.Paths.Root);
         Assert.Contains(diagnostics.Transports, transport => transport.Kind == "inproc-dotnet" && transport.RuntimeRegistered);
         Assert.Contains(diagnostics.Modules, module => module.ModuleId == "doubao-agent" && module.Enabled);
+        Assert.Contains(diagnostics.Modules, module => module.ModuleId == "doubao-agent" && module.SupervisorState == "healthy" && module.ObservationCount > 0);
         Assert.Contains(diagnostics.RecentCommands, command => command.InvocationId == "diagnostics-history");
     }
 
@@ -2442,8 +2496,7 @@ cloud_server_protocol: str = "https"
                 "runner",
                 "process",
                 "pause",
-                repopulatedProcess.TransportKind,
-                repopulatedProcess.PoolKey,
+                ".",
                 "--reason",
                 "cli maintenance",
                 "--duration-minutes",
@@ -2561,6 +2614,15 @@ cloud_server_protocol: str = "https"
         var command = Path.Combine(Root, "src", "MyPowerTools.SampleSidecar.Grpc", "bin", "Debug", "net10.0", fileName);
         Assert.True(File.Exists(command), $"Expected sample gRPC sidecar command at {command}");
         return command;
+    }
+
+    private static string ReserveUnusedLoopbackUrl()
+    {
+        var listener = new TcpListener(IPAddress.Loopback, 0);
+        listener.Start();
+        var port = ((IPEndPoint)listener.LocalEndpoint).Port;
+        listener.Stop();
+        return $"http://127.0.0.1:{port}";
     }
 
     private static async Task<(int ExitCode, string Output)> RunDotnetAsync(params string[] arguments)

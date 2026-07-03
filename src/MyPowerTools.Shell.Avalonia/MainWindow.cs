@@ -301,6 +301,12 @@ public sealed class MainWindow : Window
                     await LoadDiagnosticsPageAsync();
                 }
                 break;
+            case "module.health.changed":
+                if (_currentPage is DashboardPage or ModulesPage or DiagnosticsPage)
+                {
+                    await ShowPageAsync(_currentPage);
+                }
+                break;
         }
     }
 
@@ -952,8 +958,16 @@ public sealed class MainWindow : Window
         panel.Children.Add(DetailLine("Module", module.ModuleId));
         panel.Children.Add(DetailLine("Package", module.PackageId));
         panel.Children.Add(DetailLine("Transport", module.TransportKind));
+        panel.Children.Add(DetailLine("Summary", module.Summary));
         panel.Children.Add(DetailLine("Diagnostics", module.DiagnosticCount.ToString()));
+        panel.Children.Add(DetailLine("Supervisor", $"{module.SupervisorState} · failures {module.ConsecutiveFailureCount} · observations {module.ObservationCount}"));
+        panel.Children.Add(DetailLine("Action", module.SupervisorAction));
         panel.Children.Add(DetailLine("Updated", module.UpdatedAt.ToDateTimeOffset().ToString("yyyy-MM-dd HH:mm:ss")));
+        if (module.LastObservedAt is not null)
+        {
+            panel.Children.Add(DetailLine("Observed", module.LastObservedAt.ToDateTimeOffset().ToString("yyyy-MM-dd HH:mm:ss")));
+        }
+
         return new MptModuleCard(panel);
     }
 

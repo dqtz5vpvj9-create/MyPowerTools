@@ -183,7 +183,23 @@ public sealed record RuntimeModuleDiagnostics(
     string PackageId,
     string DisplayName,
     string State,
+    string Summary,
     bool Enabled,
     string TransportKind,
     DateTimeOffset UpdatedAt,
-    int DiagnosticCount);
+    int DiagnosticCount,
+    int ObservationCount,
+    int ConsecutiveFailureCount,
+    string SupervisorState,
+    string SupervisorAction,
+    DateTimeOffset LastObservedAt);
+
+public sealed record RuntimeModuleSupervisionSnapshot(
+    string ModuleId,
+    string LastState,
+    string LastSummary,
+    int ObservationCount,
+    int ConsecutiveFailureCount,
+    string SupervisorState,
+    string NextAction,
+    DateTimeOffset LastObservedAt);
