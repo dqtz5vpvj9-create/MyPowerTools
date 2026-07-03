@@ -216,6 +216,47 @@ Address         Port        Address         Port
     }
 
     [Fact]
+    public void Ui_shell_snapshot_writes_key_surface_matrix()
+    {
+        var output = Path.Combine(Path.GetTempPath(), "mpt-shell-ui-snapshot", Guid.NewGuid().ToString("N"));
+        var manifestPath = new UiSurfaceGate().WriteShellSnapshotSet(
+            output,
+            new UiSnapshotRequest("*", "light", "1366x768", "normal"));
+
+        var manifest = JsonNode.Parse(File.ReadAllText(manifestPath))!.AsObject();
+        var snapshots = manifest["snapshots"]!.AsArray();
+        var required = manifest["requiredSurfaces"]!.AsArray()
+            .Select(item => item!.GetValue<string>())
+            .ToArray();
+
+        Assert.True(File.Exists(manifestPath));
+        Assert.Equal("1.0", manifest["schemaVersion"]!.GetValue<string>());
+        Assert.Equal(8, manifest["requiredSurfaceCount"]!.GetValue<int>());
+        Assert.True(manifest["snapshotCount"]!.GetValue<int>() >= required.Length);
+        Assert.Equal(manifest["snapshotCount"]!.GetValue<int>(), manifest["pixelSnapshotCount"]!.GetValue<int>());
+        foreach (var surfaceId in required)
+        {
+            Assert.Contains(snapshots, item => item!["surfaceId"]!.GetValue<string>() == surfaceId);
+        }
+
+        Assert.Contains(snapshots, item => item!["surfaceId"]!.GetValue<string>() == "shell.package-manager");
+        Assert.Contains(snapshots, item => item!["surfaceId"]!.GetValue<string>() == "shell.runtime-diagnostics");
+        Assert.Equal(snapshots.Count, Directory.GetFiles(output, "*.snapshot.png").Length);
+        Assert.All(snapshots, item =>
+        {
+            var pixelName = item!["pixelSnapshot"]!.GetValue<string>();
+            var pixelPath = Path.Combine(output, pixelName);
+            Assert.True(File.Exists(pixelPath), $"Missing pixel snapshot {pixelPath}");
+            Assert.Equal(new byte[] { 137, 80, 78, 71, 13, 10, 26, 10 }, File.ReadAllBytes(pixelPath).Take(8).ToArray());
+            Assert.Equal(64, item["pixelSha256"]!.GetValue<string>().Length);
+            Assert.Equal(1366, item["pixelWidth"]!.GetValue<int>());
+            Assert.Equal(768, item["pixelHeight"]!.GetValue<int>());
+            Assert.True(item["pixelUniqueColorCount"]!.GetValue<int>() > 3);
+            Assert.True(item["pixelNonBackgroundPixels"]!.GetValue<int>() > 0);
+        });
+    }
+
+    [Fact]
     public void Runtime_indexes_modules_without_starting_sidecars()
     {
         var runtime = new MptHostRuntime(new PackageReader(), PlatformId.Current());

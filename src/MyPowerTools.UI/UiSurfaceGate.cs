@@ -173,6 +173,88 @@ public sealed class UiSurfaceGate
         return manifestPath;
     }
 
+    public string WriteShellSnapshotSet(string outputDirectory, UiSnapshotRequest request)
+    {
+        Directory.CreateDirectory(outputDirectory);
+        var entries = new JsonArray();
+        var surfaces = CreateShellSurfaces()
+            .Where(surface => MatchesSurfaceFilter(surface, request.Surface))
+            .ToArray();
+
+        foreach (var surface in surfaces)
+        {
+            var source = JsonSerializer.Serialize(surface, JsonOptions);
+            var snapshotBaseName = $"{Sanitize(surface.SurfaceId)}.{Sanitize(request.Theme)}.{Sanitize(request.Density)}.{Sanitize(request.Size)}.snapshot";
+            var snapshotName = $"{snapshotBaseName}.json";
+            var pixelSnapshotName = $"{snapshotBaseName}.png";
+            var snapshotPath = Path.Combine(outputDirectory, snapshotName);
+            var pixelSnapshotPath = Path.Combine(outputDirectory, pixelSnapshotName);
+            var sourceSha256 = Sha256(source);
+            var pixel = PngSurfaceSnapshotWriter.Write(pixelSnapshotPath, pixelSnapshotName, request, "shell", surface);
+            var snapshot = new JsonObject
+            {
+                ["schemaVersion"] = "1.0",
+                ["surfaceId"] = surface.SurfaceId,
+                ["moduleId"] = surface.ModuleId,
+                ["packageId"] = "shell",
+                ["kind"] = surface.Kind,
+                ["theme"] = request.Theme,
+                ["density"] = request.Density,
+                ["size"] = request.Size,
+                ["layout"] = new JsonObject
+                {
+                    ["mode"] = surface.Layout.Mode,
+                    ["preferredWidth"] = surface.Layout.PreferredWidth,
+                    ["preferredHeight"] = surface.Layout.PreferredHeight,
+                    ["minWidth"] = surface.Layout.MinWidth,
+                    ["minHeight"] = surface.Layout.MinHeight
+                },
+                ["uses"] = ToJsonArray(surface.Uses),
+                ["states"] = ToJsonArray(surface.States),
+                ["sourceSha256"] = sourceSha256,
+                ["pixelSnapshot"] = pixel.FileName,
+                ["pixelSha256"] = pixel.Sha256,
+                ["pixelWidth"] = pixel.Width,
+                ["pixelHeight"] = pixel.Height,
+                ["pixelUniqueColorCount"] = pixel.UniqueColorCount,
+                ["pixelNonBackgroundPixels"] = pixel.NonBackgroundPixels
+            };
+            File.WriteAllText(snapshotPath, snapshot.ToJsonString(JsonOptions));
+
+            entries.Add(new JsonObject
+            {
+                ["surfaceId"] = surface.SurfaceId,
+                ["moduleId"] = surface.ModuleId,
+                ["kind"] = surface.Kind,
+                ["snapshot"] = snapshotName,
+                ["sourceSha256"] = sourceSha256,
+                ["pixelSnapshot"] = pixel.FileName,
+                ["pixelSha256"] = pixel.Sha256,
+                ["pixelWidth"] = pixel.Width,
+                ["pixelHeight"] = pixel.Height,
+                ["pixelUniqueColorCount"] = pixel.UniqueColorCount,
+                ["pixelNonBackgroundPixels"] = pixel.NonBackgroundPixels
+            });
+        }
+
+        var manifestPath = Path.Combine(outputDirectory, "shell-ui-snapshot-manifest.json");
+        var manifest = new JsonObject
+        {
+            ["schemaVersion"] = "1.0",
+            ["surface"] = request.Surface,
+            ["theme"] = request.Theme,
+            ["density"] = request.Density,
+            ["size"] = request.Size,
+            ["snapshotCount"] = entries.Count,
+            ["pixelSnapshotCount"] = entries.Count,
+            ["requiredSurfaceCount"] = RequiredShellSurfaceIds.Length,
+            ["requiredSurfaces"] = ToJsonArray(RequiredShellSurfaceIds),
+            ["snapshots"] = entries
+        };
+        File.WriteAllText(manifestPath, manifest.ToJsonString(JsonOptions));
+        return manifestPath;
+    }
+
     private string WriteEmptySnapshotSet(string outputDirectory, UiSnapshotRequest request)
     {
         Directory.CreateDirectory(outputDirectory);
@@ -230,6 +312,56 @@ public sealed class UiSurfaceGate
         }
 
         return builder.ToString();
+    }
+
+    private static readonly string[] RequiredShellSurfaceIds =
+    [
+        "shell.dashboard",
+        "shell.command-palette",
+        "shell.settings-center",
+        "shell.module-detail",
+        "shell.logs-viewer",
+        "shell.notification-center",
+        "shell.permission-prompt",
+        "shell.degraded-module"
+    ];
+
+    private static IReadOnlyList<MptUiSurfaceManifest> CreateShellSurfaces()
+    {
+        return
+        [
+            ShellSurface("shell.dashboard", "dashboard", ["MptDashboardCard", "MptMetricGrid", "MptStatusPill", "MptCommandButton"], ["loading", "ready", "degraded", "error"]),
+            ShellSurface("shell.command-palette", "command-palette", ["MptSearchBox", "MptCommandItem", "MptStatusPill", "MptEmptyState"], ["loading", "ready", "empty", "error"]),
+            ShellSurface("shell.settings-center", "settings-center", ["MptSettingsSection", "MptSettingRow", "MptActionBar", "MptErrorView"], ["loading", "ready", "error"]),
+            ShellSurface("shell.module-detail", "module-detail", ["MptModuleHeader", "MptMetricGrid", "MptDiagnosticPanel", "MptActionBar"], ["loading", "ready", "degraded", "error"]),
+            ShellSurface("shell.logs-viewer", "logs-viewer", ["MptLogViewer", "MptSearchBox", "MptEmptyState", "MptErrorView"], ["loading", "ready", "empty", "error"]),
+            ShellSurface("shell.notification-center", "notification-center", ["MptTimeline", "MptStatusPill", "MptEmptyState", "MptActionBar"], ["loading", "ready", "empty", "error"]),
+            ShellSurface("shell.permission-prompt", "permission-prompt", ["MptPermissionPrompt", "MptDiagnosticPanel", "MptActionBar", "MptStatusPill"], ["loading", "ready", "permission-required", "error"]),
+            ShellSurface("shell.degraded-module", "degraded-module", ["MptModuleHeader", "MptDiagnosticPanel", "MptErrorView", "MptActionBar"], ["loading", "degraded", "error"]),
+            ShellSurface("shell.package-manager", "package-manager", ["MptDataTable", "MptStatusPill", "MptActionBar", "MptEmptyState"], ["loading", "ready", "degraded", "error"]),
+            ShellSurface("shell.runtime-diagnostics", "runtime-diagnostics", ["MptMetricGrid", "MptDiagnosticPanel", "MptDataTable", "MptTimeline"], ["loading", "ready", "degraded", "error"])
+        ];
+    }
+
+    private static MptUiSurfaceManifest ShellSurface(string surfaceId, string kind, List<string> uses, List<string> states)
+    {
+        return new MptUiSurfaceManifest
+        {
+            SchemaVersion = "1.0",
+            SurfaceId = surfaceId,
+            ModuleId = "shell",
+            Kind = kind,
+            Layout = new MptUiSurfaceLayout
+            {
+                Mode = "shell-page",
+                PreferredWidth = 1366,
+                PreferredHeight = 768,
+                MinWidth = 960,
+                MinHeight = 640
+            },
+            Uses = uses,
+            States = states
+        };
     }
 }
 

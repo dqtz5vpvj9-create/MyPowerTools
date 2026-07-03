@@ -462,6 +462,7 @@ static int Ui(string[] args, string root)
     {
         "check" => UiCheck(args.Skip(1).ToArray(), root),
         "snapshot" => UiSnapshot(args.Skip(1).ToArray(), root),
+        "shell-snapshot" => UiShellSnapshot(args.Skip(1).ToArray(), root),
         _ => Help()
     };
 }
@@ -500,6 +501,19 @@ static int UiSnapshot(string[] args, string root)
         GetOption(args, "--size") ?? "1920x1080",
         GetOption(args, "--density") ?? "normal");
     var path = new UiSurfaceGate().WriteSnapshotSet(Path.GetFullPath(packageDir), output, request);
+    Console.WriteLine(path);
+    return 0;
+}
+
+static int UiShellSnapshot(string[] args, string root)
+{
+    var output = GetOption(args, "--out") ?? Path.Combine(root, "artifacts", "shell-ui-snapshots");
+    var request = new UiSnapshotRequest(
+        GetOption(args, "--surface") ?? "*",
+        GetOption(args, "--theme") ?? "light",
+        GetOption(args, "--size") ?? "1366x768",
+        GetOption(args, "--density") ?? "normal");
+    var path = new UiSurfaceGate().WriteShellSnapshotSet(output, request);
     Console.WriteLine(path);
     return 0;
 }
@@ -934,6 +948,7 @@ static int Help()
     Console.WriteLine("mpt module disable <module-id> [--modules <package-root>] [--data-root <dir>]");
     Console.WriteLine("mpt ui check <package-dir>");
     Console.WriteLine("mpt ui snapshot [package-dir] [--surface <id|kind>] [--theme <theme>] [--size <width>x<height>] [--density <density>] [--out <dir>]");
+    Console.WriteLine("mpt ui shell-snapshot [--surface <id|kind>] [--theme <theme>] [--size <width>x<height>] [--density <density>] [--out <dir>]");
     Console.WriteLine("mpt broker audit");
     Console.WriteLine("mpt broker secret self-test [--module <id>] [--name <name>]");
     Console.WriteLine("mpt broker portproxy list");

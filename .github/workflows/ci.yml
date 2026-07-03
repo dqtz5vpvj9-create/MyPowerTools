@@ -58,6 +58,10 @@ jobs:
         shell: pwsh
         run: dotnet run --project src\MyPowerTools.Cli -- ui snapshot --surface dashboard-card --theme light --size 1366x768 --density normal --out artifacts\ui-snapshots
 
+      - name: Shell UI Snapshot Matrix
+        shell: pwsh
+        run: dotnet run --project src\MyPowerTools.Cli -- ui shell-snapshot --theme light --size 1366x768 --density normal --out artifacts\shell-ui-snapshots
+
       - name: Validate Templates
         shell: pwsh
         run: pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\validate-templates.ps1
@@ -82,3 +86,4 @@ jobs:
             artifacts/release/MyPowerTools-win-x64.zip
             artifacts/release/RELEASE_NOTES.md
             artifacts/ui-snapshots/**
+            artifacts/shell-ui-snapshots/**
