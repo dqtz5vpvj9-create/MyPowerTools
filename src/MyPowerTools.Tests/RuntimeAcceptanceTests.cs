@@ -273,7 +273,8 @@ Address         Port        Address         Port
         Assert.Equal("local-portable", metadata["channel"]!.GetValue<string>());
         Assert.Equal(64, artifact["sha256"]!.GetValue<string>().Length);
         Assert.Equal(artifact["sha256"]!.GetValue<string>(), scoop64["hash"]!.GetValue<string>());
-        Assert.StartsWith("file:///", artifact["url"]!.GetValue<string>(), StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("MyPowerTools-win-x64.zip", artifact["url"]!.GetValue<string>());
+        Assert.Equal(artifact["url"]!.GetValue<string>(), scoop64["url"]!.GetValue<string>());
         Assert.Equal("package-managers/scoop/mypowertools.json", metadata["packageManagers"]!["scoop"]!.GetValue<string>());
         Assert.Equal("mpt", scoop["bin"]!.AsArray()[0]!.AsArray()[1]!.GetValue<string>());
     }

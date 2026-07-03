@@ -69,7 +69,7 @@ public sealed class UiSurfaceGate
         return issues;
     }
 
-    public string WriteSnapshotPlaceholder(string outputDirectory)
+    public string WriteDefaultSnapshotSet(string outputDirectory)
     {
         var packageRoot = Path.Combine(Directory.GetCurrentDirectory(), "modules");
         return Directory.Exists(packageRoot)

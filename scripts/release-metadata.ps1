@@ -24,14 +24,13 @@ New-Item -ItemType Directory -Path $scoopRoot -Force | Out-Null
 
 $zipItem = Get-Item -LiteralPath $zipPath
 $zipHash = (Get-FileHash -LiteralPath $zipPath -Algorithm SHA256).Hash
-$readmePath = Join-Path $RepoRoot 'README.md'
-$readmeUrl = if (Test-Path -LiteralPath $readmePath) {
-    ([System.Uri]::new($readmePath)).AbsoluteUri
+$readmeUrl = if ([string]::IsNullOrWhiteSpace($DownloadBaseUrl)) {
+    'README.md'
 } else {
-    ([System.Uri]::new($RepoRoot)).AbsoluteUri
+    $DownloadBaseUrl.TrimEnd('/')
 }
 $artifactUrl = if ([string]::IsNullOrWhiteSpace($DownloadBaseUrl)) {
-    ([System.Uri]::new($zipPath)).AbsoluteUri
+    $artifactName
 } else {
     $base = $DownloadBaseUrl.TrimEnd('/')
     "$base/$artifactName"

@@ -111,7 +111,7 @@ public sealed class PackageTrustVerifier
             HashManifest = hashPath,
             HashManifestSha256 = PackageIntegrity.ComputeSha256(hashFullPath),
             SignatureState = "unsigned-local-trust",
-            Algorithm = "sha256-manifest-placeholder",
+            Algorithm = "sha256-manifest-local",
             KeyId = "local-development",
             Signer = Environment.UserName,
             CreatedAt = ReadExistingCreatedAt(signatureFullPath) ?? DateTimeOffset.UtcNow,
