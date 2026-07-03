@@ -88,6 +88,10 @@ public sealed class HostControlGrpcService : HostProto.HostControl.HostControlBa
                 Publisher = package.Publisher,
                 Directory = package.Directory,
                 Hashes = package.Hashes,
+                TrustState = package.TrustState,
+                TrustPolicy = package.TrustPolicy,
+                SignaturePath = package.SignaturePath,
+                TrustIssueCount = (uint)Math.Max(0, package.TrustIssueCount),
                 ModuleCount = (uint)package.ModuleCount,
                 SharedRuntimeCount = (uint)package.SharedRuntimeCount
             };

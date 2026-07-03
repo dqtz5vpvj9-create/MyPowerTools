@@ -45,6 +45,10 @@ public sealed record PackageSummarySnapshot(
     string Publisher,
     string Directory,
     string Hashes,
+    string TrustState,
+    string TrustPolicy,
+    string SignaturePath,
+    int TrustIssueCount,
     int ModuleCount,
     int SharedRuntimeCount,
     IReadOnlyList<string> ModuleIds);

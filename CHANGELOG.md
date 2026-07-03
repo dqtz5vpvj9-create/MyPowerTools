@@ -36,3 +36,4 @@
 - Added SecretBroker-backed OS secret storage: Windows now uses Credential Manager, tests use an in-memory provider, macOS/Linux expose degraded secret providers, CLI has `mpt broker secret self-test`, and broker audit records save/read/delete without leaking secret values.
 - Added typed HostControl module permission and capability requirement fields, Shell module permission sections, CLI `mpt inspect modules` permission output, and acceptance coverage for permission visibility.
 - Added local package trust hooks: package manifests can declare `trust.signature`, `mpt package sign-local` writes `shared/package.signature.json`, `mpt package trust --strict` validates hash/signature metadata, and package install/repair now use the trust verifier.
+- Added package trust visibility to HostControl package summaries and the Shell Packages page, including trust state, policy, signature path, and trust issue count.

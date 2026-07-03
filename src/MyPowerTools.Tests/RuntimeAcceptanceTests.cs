@@ -1479,6 +1479,10 @@ Address         Port        Address         Port
         Assert.Equal(3u, androidTools.ModuleCount);
         Assert.Contains("android-tools.remote-commands", androidTools.ModuleIds);
         Assert.Equal("shared/package.hashes.json", androidTools.Hashes);
+        Assert.Equal("signature-hook", androidTools.TrustState);
+        Assert.Equal("local", androidTools.TrustPolicy);
+        Assert.Equal("shared/package.signature.json", androidTools.SignaturePath);
+        Assert.Equal(0u, androidTools.TrustIssueCount);
     }
 
     [Fact]

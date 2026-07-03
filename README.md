@@ -16,6 +16,7 @@ The project is designed for local, long-term use: modules register through manif
 - CLI commands for validate, inspect, run, diagnostics, module list/enable/disable, package hash, package sign-local, package trust, install, uninstall, update, rollback, repair, UI gate, UI snapshots, broker audit, broker portproxy, broker secret self-test, and doctor.
 - Runner autostart status, enable, and disable flow through `AutostartBroker`, the Windows HKCU Run provider, and broker audit.
 - Module capability requirements and declared permissions are exposed through typed HostControl IPC, visible on Shell module pages, and inspectable through `mpt inspect modules`.
+- Package trust state, local policy, signature hook path, and trust issue counts are exposed through HostControl package summaries and the Shell Packages page.
 - SecretBroker stores sensitive values through platform secret stores. Windows uses Credential Manager, tests use an in-memory provider, and macOS/Linux expose compile-ready degraded providers.
 - Runtime diagnostics report active gRPC IPC process pools with pool key, PID, endpoint, start count, restart limit, last start time, and module membership.
 - Runtime process controls can restart, pause, and resume gRPC IPC pools through Shell Diagnostics or `mpt runner process <restart|pause|resume>`.

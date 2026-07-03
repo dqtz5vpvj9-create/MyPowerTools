@@ -22,6 +22,7 @@ public sealed class MptHostRuntime : IAsyncDisposable
     private readonly NotificationCenter _notificationCenter = new();
     private readonly CommandHistory _commandHistory = new();
     private readonly HealthMonitor _healthMonitor = new();
+    private readonly PackageTrustVerifier _packageTrust = new();
     private readonly IReadOnlyDictionary<string, IModuleTransportRuntime> _transportRuntimes;
     private readonly DateTimeOffset _startedAt = DateTimeOffset.UtcNow;
     private string _packageRoot = "";
@@ -173,6 +174,7 @@ public sealed class MptHostRuntime : IAsyncDisposable
             .Select(group =>
             {
                 var first = group.First().Package;
+                var trust = _packageTrust.Verify(first.Directory, PackageTrustPolicy.LocalDevelopment);
                 return new PackageSummarySnapshot(
                     first.Package.Id,
                     first.Package.DisplayName,
@@ -180,6 +182,10 @@ public sealed class MptHostRuntime : IAsyncDisposable
                     first.Package.Publisher ?? "",
                     first.Directory,
                     first.Package.Hashes ?? "",
+                    trust.State,
+                    trust.Policy,
+                    trust.SignaturePath,
+                    trust.Issues.Count,
                     group.Count(),
                     first.Package.Shared?.Runtimes.Count ?? 0,
                     group.Select(module => module.Module.Manifest.Id).OrderBy(id => id, StringComparer.OrdinalIgnoreCase).ToArray());

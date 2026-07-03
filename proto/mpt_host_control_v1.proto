@@ -95,6 +95,10 @@ message PackageSummary {
   uint32 module_count = 7;
   uint32 shared_runtime_count = 8;
   repeated string module_ids = 9;
+  string trust_state = 10;
+  string trust_policy = 11;
+  string signature_path = 12;
+  uint32 trust_issue_count = 13;
 }
 
 message ListModulesRequest {

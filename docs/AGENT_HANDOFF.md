@@ -72,6 +72,7 @@ The active objective is to turn MyPowerTools into a production-grade PowerToys-s
 - Added SecretBroker-backed OS secret storage: `SecretReference` validates safe `secret://module/name` references, Windows uses Credential Manager through `WindowsCredentialSecretStore`, tests use `InMemorySecretStore`, macOS/Linux expose degraded `UnsupportedSecretStore`, SecretBroker audits save/read/delete, and CLI exposes `mpt broker secret self-test`.
 - Added module permission visibility: HostControl `ModuleSummary` and `ModuleDetail` now carry typed permissions and capability requirements, Shell module cards/detail pages render the declarations, CLI `mpt inspect modules` prints capabilities/requires/permissions, and acceptance tests cover HostControl plus CLI visibility.
 - Added local package trust hooks: `PackageTrustVerifier` verifies hash manifests and `shared/package.signature.json`, `mpt package sign-local` writes local trust metadata, `mpt package trust --strict` validates packages, `PackageStore.Install` verifies source packages before copying, and `PackageStore.Repair` re-runs trust verification.
+- Added package trust visibility: Runtime package summaries now include trust state, policy, signature path, and trust issue count; HostControl maps those fields; Shell Packages renders the trust badge and signature path; `HostControl_lists_package_summaries` verifies the IPC contract.
 
 ## Last Verified State
 

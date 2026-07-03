@@ -465,12 +465,15 @@ public sealed class MainWindow : Window
             foreach (var package in response.Packages.OrderBy(package => package.DisplayName, StringComparer.OrdinalIgnoreCase))
             {
                 var body = new StackPanel { Spacing = 10 };
-                body.Children.Add(HeaderWithBadge(package.DisplayName, "installed"));
+                body.Children.Add(HeaderWithBadge(package.DisplayName, package.TrustState));
                 body.Children.Add(BuildMetricRow([
                     ("Version", package.Version),
                     ("Modules", package.ModuleCount.ToString()),
                     ("Runtimes", package.SharedRuntimeCount.ToString()),
-                    ("Hashes", string.IsNullOrWhiteSpace(package.Hashes) ? "-" : package.Hashes)
+                    ("Trust", string.IsNullOrWhiteSpace(package.TrustPolicy) ? "-" : package.TrustPolicy),
+                    ("Issues", package.TrustIssueCount.ToString()),
+                    ("Hashes", string.IsNullOrWhiteSpace(package.Hashes) ? "-" : package.Hashes),
+                    ("Signature", string.IsNullOrWhiteSpace(package.SignaturePath) ? "-" : package.SignaturePath)
                 ]));
                 body.Children.Add(new TextBlock
                 {
