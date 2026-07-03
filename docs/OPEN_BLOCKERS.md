@@ -8,7 +8,7 @@ This file separates true external blockers from internal phase gaps. External bl
 
 | Blocker | Affected Phase | Evidence | Required External State |
 |---|---|---|---|
-| Administrator context or elevated helper for live Windows portproxy writes | P3 | `adb-forwarder.portproxy.apply` correctly returns `permission-required` in normal user context; NetworkBroker tests cover rollback and brokered execution paths. | Administrator token, UAC/helper service packaging, or signed elevated helper. |
+| Administrator context or elevated helper for live Windows portproxy writes | P3 | `adb-forwarder.portproxy.apply` and CLI `broker portproxy apply` correctly return `permission-required` in normal user context; NetworkBroker tests cover rollback and brokered execution paths; `PrivilegedBroker` recognizes elevated/service/sensitive levels. | Administrator token, UAC/helper service packaging, or signed elevated helper. |
 | Private signing material for production package/installer signing | P6 | Local trust hook exists; release uses local signature metadata. | Code-signing/private package signing key or signing service. |
 | Hardware validation for display writes | P2, P7 | ScreenEase Windows DDC/CI writer is implemented and wired behind explicit hardware apply; current Generic PnP Monitor returns `GetMonitorCapabilities` unsupported. | Monitor hardware that supports DDC/CI brightness/color-temperature writes. |
 | SmartBird hardware/service ecosystem validation | P2 | SmartBird InProc typed facade reads HTTP status/events/config/logs, returns brokered restart details, and reports current degraded Energy Server/FNB-58 state. | Connected SmartBird device, FNB-58 meter, Energy Server, and ADB services. |
@@ -27,4 +27,4 @@ This file separates true external blockers from internal phase gaps. External bl
 
 ## Skipped Tests
 
-None. Latest test run: 74 passed, 0 failed, 0 skipped.
+None. Latest test run: 77 passed, 0 failed, 0 skipped.

@@ -6,6 +6,16 @@ namespace MyPowerTools.Broker;
 
 public sealed class PrivilegedBroker
 {
+    private static readonly HashSet<string> BrokeredPermissionLevels = new(StringComparer.OrdinalIgnoreCase)
+    {
+        "elevated",
+        "service",
+        "serviceUser",
+        "serviceSystem",
+        "sensitive",
+        "broker"
+    };
+
     private readonly AuditLog _auditLog;
 
     public PrivilegedBroker(AuditLog? auditLog = null)
@@ -17,9 +27,10 @@ public sealed class PrivilegedBroker
 
     public BrokerDecision Evaluate(string actionId, string permissionLevel, string reason, string moduleId = "host", string scope = "")
     {
-        var requiresBroker = permissionLevel is "elevated" or "service" or "broker";
+        var normalizedLevel = permissionLevel.Trim();
+        var requiresBroker = BrokeredPermissionLevels.Contains(normalizedLevel);
         var decision = new BrokerDecision(actionId, requiresBroker, requiresBroker ? MptErrorCodes.PermissionRequired : "", reason);
-        _auditLog.Append(new BrokerAuditEntry(Guid.NewGuid().ToString("N"), DateTimeOffset.UtcNow, moduleId, actionId, permissionLevel, scope, reason, decision.RequiresBroker, "evaluated", ""));
+        _auditLog.Append(new BrokerAuditEntry(Guid.NewGuid().ToString("N"), DateTimeOffset.UtcNow, moduleId, actionId, normalizedLevel, scope, reason, decision.RequiresBroker, "evaluated", ""));
         return decision;
     }
 }

@@ -44,6 +44,53 @@ Address         Port        Address         Port
     }
 
     [Fact]
+    public void Module_schema_accepts_planned_permission_levels()
+    {
+        var packageRoot = Path.Combine(Path.GetTempPath(), "mpt-permission-schema", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(packageRoot);
+        var permissions = new JsonArray();
+        foreach (var level in new[] { "user", "elevated", "service", "serviceUser", "serviceSystem", "sensitive", "broker" })
+        {
+            permissions.Add(new JsonObject
+            {
+                ["id"] = $"permission-{level.ToLowerInvariant()}",
+                ["level"] = level,
+                ["capability"] = $"capability.{level}",
+                ["reason"] = $"validate {level} permission"
+            });
+        }
+
+        var manifest = new JsonObject
+        {
+            ["schemaVersion"] = "1.0",
+            ["id"] = "permission-schema-sample",
+            ["packageId"] = "permission-schema-sample",
+            ["displayName"] = "Permission Schema Sample",
+            ["version"] = "0.2.0",
+            ["moduleSdk"] = "1.0",
+            ["entrypoints"] = new JsonArray
+            {
+                new JsonObject
+                {
+                    ["kind"] = "inproc-dotnet",
+                    ["priority"] = 100,
+                    ["assembly"] = "Permission.Schema.Sample.dll",
+                    ["type"] = "Permission.Schema.Sample.Module"
+                }
+            },
+            ["capabilities"] = new JsonArray("status", "commands"),
+            ["permissions"] = permissions
+        };
+        File.WriteAllText(
+            Path.Combine(packageRoot, "module.json"),
+            manifest.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+
+        var report = new SchemaPackageValidator(Path.Combine(Root, "schemas")).ValidatePackageDirectory(packageRoot);
+
+        Assert.True(report.IsValid, string.Join(Environment.NewLine, report.Issues.Select(issue => issue.Message)));
+    }
+
+    [Fact]
     public async Task Cli_validate_modules_returns_successful_exit_code()
     {
         var result = await RunDotnetAsync(
@@ -390,6 +437,55 @@ Address         Port        Address         Port
 
         var entry = audit.ReadAll().Single();
         Assert.Contains("token=****", entry.Reason);
+    }
+
+    [Fact]
+    public void PrivilegedBroker_requires_broker_for_planned_privilege_levels()
+    {
+        var path = Path.Combine(Path.GetTempPath(), "mpt-privileged-levels-test", Guid.NewGuid().ToString("N"), "audit.jsonl");
+        var audit = new AuditLog(path);
+        var broker = new PrivilegedBroker(audit);
+        var brokered = new[] { "elevated", "service", "serviceUser", "serviceSystem", "sensitive", "broker" };
+
+        foreach (var level in brokered)
+        {
+            var decision = broker.Evaluate($"test.{level}", level, $"reason for {level}", "test-module", $"scope:{level}");
+            Assert.True(decision.RequiresBroker);
+            Assert.Equal("MPT_PERMISSION_REQUIRED", decision.ErrorCode);
+        }
+
+        var userDecision = broker.Evaluate("test.user", "user", "ordinary user action", "test-module", "scope:user");
+        var entries = audit.ReadAll();
+
+        Assert.False(userDecision.RequiresBroker);
+        Assert.Equal("", userDecision.ErrorCode);
+        Assert.All(brokered, level => Assert.Contains(entries, entry => entry.PermissionLevel == level && entry.RequiresBroker));
+        Assert.Contains(entries, entry => entry.PermissionLevel == "user" && !entry.RequiresBroker);
+    }
+
+    [Fact]
+    public async Task ServiceBroker_restart_audits_service_user_level()
+    {
+        var path = Path.Combine(Path.GetTempPath(), "mpt-service-broker-test", Guid.NewGuid().ToString("N"), "audit.jsonl");
+        var audit = new AuditLog(path);
+        var services = new RecordingServiceManager();
+        var broker = new ServiceBroker(services, audit);
+
+        var result = await broker.RestartAsync(
+            "smartbird-thermostat",
+            "smartbird-user-service",
+            "restart after token=abc123",
+            CancellationToken.None);
+        var entries = audit.ReadAll();
+        var auditText = File.ReadAllText(path);
+
+        Assert.True(result.Success);
+        Assert.Equal(["stop:smartbird-user-service", "start:smartbird-user-service"], services.Operations);
+        Assert.All(entries, entry => Assert.Equal("serviceUser", entry.PermissionLevel));
+        Assert.Contains(entries, entry => entry.ActionId == "service.restart" && entry.Result == "requested" && entry.Rollback.Contains("start smartbird-user-service", StringComparison.Ordinal));
+        Assert.Contains(entries, entry => entry.ActionId == "service.restart" && entry.Result == "started");
+        Assert.Contains("token=****", auditText);
+        Assert.DoesNotContain("abc123", auditText);
     }
 
     [Fact]
@@ -2876,6 +2972,28 @@ cloud_server_protocol: str = "https"
         {
             _commands.Remove(id);
             return Task.FromResult(new BrokerOperationResult(true, "disabled", $"Disabled {id}."));
+        }
+    }
+
+    private sealed class RecordingServiceManager : IServiceManager
+    {
+        public List<string> Operations { get; } = [];
+
+        public Task<ServiceStatus> GetStatusAsync(string serviceName, CancellationToken cancellationToken)
+        {
+            return Task.FromResult(new ServiceStatus(serviceName, "running", $"{serviceName} is running."));
+        }
+
+        public Task<BrokerOperationResult> StartAsync(string serviceName, CancellationToken cancellationToken)
+        {
+            Operations.Add($"start:{serviceName}");
+            return Task.FromResult(new BrokerOperationResult(true, "started", $"Started {serviceName}."));
+        }
+
+        public Task<BrokerOperationResult> StopAsync(string serviceName, CancellationToken cancellationToken)
+        {
+            Operations.Add($"stop:{serviceName}");
+            return Task.FromResult(new BrokerOperationResult(true, "stopped", $"Stopped {serviceName}."));
         }
     }
 

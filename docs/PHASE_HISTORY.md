@@ -198,3 +198,31 @@ Validation:
 
 Remaining P2 work:
 - None internally. External validation remains tracked in `docs/OPEN_BLOCKERS.md` and `docs/EXTERNAL_VALIDATION.md`.
+
+### P3 Broker, Privilege, Security And Secrets
+
+Status: done.
+
+Actions:
+- Expanded `schemas/module.schema.json` to accept the planned permission levels: `serviceUser`, `serviceSystem`, and `sensitive`, while retaining `service` and `broker` compatibility.
+- Updated `PrivilegedBroker` so `elevated`, `service`, `serviceUser`, `serviceSystem`, `sensitive`, and `broker` require broker handling, while ordinary `user` actions remain non-brokered.
+- Updated `ServiceBroker.RestartAsync` audit entries to use `serviceUser` for user-level service restarts.
+- Added acceptance coverage for planned permission-level schema validation, `PrivilegedBroker` broker-required decisions, and `ServiceBroker` service-user audit/redaction behavior.
+- Rebuilt and refreshed local package hash/signature metadata after module build outputs were copied into `modules/`.
+
+Validation:
+- `dotnet build MyPowerTools.slnx --no-restore` succeeded with 0 warnings and 0 errors.
+- `dotnet test MyPowerTools.slnx --no-build` passed 77 tests, 0 failed, 0 skipped.
+- `dotnet run --no-build --project src\MyPowerTools.Cli -- validate modules` passed for 5 production packages.
+- `dotnet run --no-build --project src\MyPowerTools.Cli -- validate contracts` passed for 5 packages and 7 modules.
+- `dotnet run --no-build --project src\MyPowerTools.Cli -- package trust modules --strict` reported `signature-hook` for all 5 production packages.
+- `dotnet run --no-build --project src\MyPowerTools.Cli -- inspect modules` printed capabilities, requirements, and broker permissions.
+- `dotnet run --no-build --project src\MyPowerTools.Cli -- broker audit` listed broker audit entries.
+- `dotnet run --no-build --project src\MyPowerTools.Cli -- broker portproxy list` listed 6 local Windows portproxy rules.
+- `dotnet run --no-build --project src\MyPowerTools.Cli -- broker portproxy apply --listen-address 127.0.0.1 --listen-port 45678 --connect-address 127.0.0.1 --connect-port 45679` returned `permission-required` in normal user context.
+- `dotnet run --no-build --project src\MyPowerTools.Cli -- run adb-forwarder.portproxy.apply` returned the expected `permission-required` exit path.
+- `dotnet run --no-build --project src\MyPowerTools.Cli -- broker secret self-test --module cli.secret-self-test --name self-test-p3-codex` passed without printing the secret value.
+- `pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\smoke.ps1` passed, including build, sign-local, 77 tests, module validation, contract validation, package trust, UI snapshots, template validation, Runner once, and Shell HostControl smoke with 7 modules, 7 dashboard cards, and 81 commands.
+
+Remaining P3 work:
+- None internally. Live elevated helper/service execution requires administrator context or signed helper packaging and remains tracked as external validation.

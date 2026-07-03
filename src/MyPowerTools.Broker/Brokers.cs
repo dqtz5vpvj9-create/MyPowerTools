@@ -15,16 +15,16 @@ public sealed class ServiceBroker
 
     public async Task<BrokerOperationResult> RestartAsync(string moduleId, string serviceName, string reason, CancellationToken cancellationToken)
     {
-        _audit.Append(NewEntry(moduleId, "service.restart", "service", serviceName, reason, true, "requested", $"start {serviceName}"));
+        _audit.Append(NewEntry(moduleId, "service.restart", "serviceUser", serviceName, reason, true, "requested", $"start {serviceName}"));
         var stop = await _services.StopAsync(serviceName, cancellationToken);
         if (!stop.Success)
         {
-            _audit.Append(NewEntry(moduleId, "service.restart", "service", serviceName, reason, true, stop.State, stop.Message));
+            _audit.Append(NewEntry(moduleId, "service.restart", "serviceUser", serviceName, reason, true, stop.State, stop.Message));
             return stop;
         }
 
         var start = await _services.StartAsync(serviceName, cancellationToken);
-        _audit.Append(NewEntry(moduleId, "service.restart", "service", serviceName, reason, true, start.State, start.Message));
+        _audit.Append(NewEntry(moduleId, "service.restart", "serviceUser", serviceName, reason, true, start.State, start.Message));
         return start;
     }
 

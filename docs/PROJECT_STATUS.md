@@ -7,15 +7,15 @@ Run date: 2026-07-04.
 | Field | Value |
 |---|---|
 | Project | MyPowerTools |
-| Current phase | P3 Broker, privilege, security and secrets |
-| Last completed phase | P2 Module runtime and existing tools production closure |
-| Next phase | P3 |
+| Current phase | P4 Shell UI, design system and visual quality |
+| Last completed phase | P3 Broker, privilege, security and secrets |
+| Next phase | P4 |
 | SDK | 10.0.301 from `global.json` and `dotnet --version` |
 | Target frameworks | `net10.0` projects across the solution |
 | Production packages | 5: `adb-forwarder`, `android-tools-suite`, `doubao-agent`, `screenease`, `smartbird-thermostat` |
 | Production modules | 7 |
 | Templates | 6 |
-| Tests | 74 passed, 0 failed, 0 skipped |
+| Tests | 77 passed, 0 failed, 0 skipped |
 | Release artifact | `artifacts/release/MyPowerTools-win-x64.zip` |
 | Release SHA256 | `594634C7733FC4CC7A138CD67DF90218F3249C754DE952AF50A795F031292EFA` |
 | Production closure | false |
@@ -27,7 +27,7 @@ Run date: 2026-07-04.
 | `dotnet --version` | `10.0.301` |
 | `dotnet restore MyPowerTools.slnx` | Succeeded; all projects were up-to-date. |
 | `dotnet build MyPowerTools.slnx --no-restore` | Succeeded with 0 warnings and 0 errors. |
-| `dotnet test MyPowerTools.slnx --no-build` | Passed 74, failed 0, skipped 0. |
+| `dotnet test MyPowerTools.slnx --no-build` | Passed 77, failed 0, skipped 0. |
 | `dotnet run --project src\MyPowerTools.Cli -- validate modules` | 5 production packages valid. |
 | `dotnet run --no-build --project src\MyPowerTools.Cli -- validate contracts` | 5 packages and 7 modules passed contract validation; AndroidTools runs through `grpc-ipc` powertoold with notifications running, remote commands running, process monitor degraded until a watch list is saved, and ScreenEase exposing 14 commands. |
 | `dotnet run --no-build --project src\MyPowerTools.Cli -- package trust modules --strict` | `signature-hook` trust passed for all 5 production packages after local hash/signature refresh. |
@@ -80,3 +80,14 @@ Local builds copy module assemblies into `modules/`. When assemblies change, run
 | AndroidTools degraded coverage | `AndroidTools_notifications_reports_actionable_degraded_state_when_endpoint_config_is_invalid` verifies invalid notification endpoint config reports degraded status and actionable server-check output. `AndroidTools_process_monitor_reports_actionable_degraded_state_when_watch_list_is_empty` verifies empty process watch lists remain degraded, list zero configured processes, and reject empty saves. |
 | Doubao degraded coverage | `DoubaoAgent_inproc_module_reports_role_specific_degraded_services` verifies planner/tool/MCP role separation when only one local service is reachable and failed role health commands return retryable `MPT_RUNTIME_UNAVAILABLE` details. |
 | P2 closure | P2 internal gates are complete locally: 5 packages valid, 7 modules valid, all production modules expose status/commands/UI/settings/logs contracts, missing external services produce degraded states, and 74 tests pass. Remaining P2 items are external validation only. |
+
+## P3 Progress On 2026-07-04
+
+| Area | Evidence |
+|---|---|
+| Permission level model | `schemas/module.schema.json` now accepts the planned permission levels: `user`, `elevated`, `service`, `serviceUser`, `serviceSystem`, `sensitive`, and `broker`. `Module_schema_accepts_planned_permission_levels` verifies schema coverage. |
+| PrivilegedBroker decisions | `PrivilegedBroker` treats `elevated`, `service`, `serviceUser`, `serviceSystem`, `sensitive`, and `broker` as broker-required while keeping `user` ordinary. `PrivilegedBroker_requires_broker_for_planned_privilege_levels` verifies the decision and audit output. |
+| ServiceBroker audit | `ServiceBroker.RestartAsync` writes `serviceUser` audit entries for user-level service restarts. `ServiceBroker_restart_audits_service_user_level` verifies requested/start entries, rollback text, operation order, and redaction. |
+| Existing broker safety | NetworkBroker change-set ordering, rollback after partial failure, SecretBroker save/read/delete redaction, AutostartBroker audit, HostControl permission details, Shell permission visibility, and CLI permission inspection remain covered by existing tests. |
+| CLI broker validation | `broker portproxy list` listed 6 local rules; `broker portproxy apply --listen-address 127.0.0.1 --listen-port 45678 --connect-address 127.0.0.1 --connect-port 45679` returned `permission-required` in the normal user context; `run adb-forwarder.portproxy.apply` returned `permission-required`; `broker secret self-test` passed without printing secret values. |
+| P3 closure | P3 internal gates are complete locally: elevated and sensitive actions route through broker models, broker actions audit, secrets are redacted, permission-required paths do not fake success, rollback tests pass, and 77 tests pass. Live elevated helper execution remains external because it requires administrator context or signed helper packaging. |

@@ -200,6 +200,9 @@
             "user",
             "elevated",
             "service",
+            "serviceUser",
+            "serviceSystem",
+            "sensitive",
             "broker"
           ]
         },

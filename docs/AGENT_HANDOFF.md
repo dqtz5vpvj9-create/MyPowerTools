@@ -84,14 +84,15 @@ The active objective is to turn MyPowerTools into a production-grade PowerToys-s
 - Hardened `LogRouter` for concurrent CLI/runtime log writes with per-file in-process locking, read-shared/exclusive writer handles, retry, and blank-line-safe tailing.
 - Added P2 closure acceptance coverage for AndroidTools invalid notification endpoint config, AndroidTools empty process watch-list degradation, and Doubao role-specific partial service outages.
 - Marked P2 complete locally; remaining P2 concerns require external hardware, connected devices, or documented production service APIs and are tracked in `docs/OPEN_BLOCKERS.md` plus `docs/EXTERNAL_VALIDATION.md`.
+- Completed P3 broker/security closure locally: schema now accepts all planned permission levels, `PrivilegedBroker` requires broker handling for elevated/service/sensitive levels, `ServiceBroker` audits restarts as `serviceUser`, and tests cover schema, broker decisions, service audit, rollback, redaction, and permission-required CLI paths.
 
 ## Last Verified State
 
 - SDK: `dotnet --version` returns `10.0.301`; `global.json` pins `10.0.301`; all projects target `net10.0`.
 - Restore: `dotnet restore MyPowerTools.slnx` succeeded.
 - Build: `dotnet build MyPowerTools.slnx` succeeded with 0 warnings and 0 errors.
-- Tests: `dotnet test MyPowerTools.slnx --no-build` passed 74 tests, 0 failed, 0 skipped.
-- Phase state: P0, P1, and P2 done; P3 selected as the next active phase in `.codex/project-state.json`.
+- Tests: `dotnet test MyPowerTools.slnx --no-build` passed 77 tests, 0 failed, 0 skipped.
+- Phase state: P0, P1, P2, and P3 done; P4 selected as the next active phase in `.codex/project-state.json`.
 - Module validation: `dotnet run --project src\MyPowerTools.Cli -- validate modules` passed all 5 production packages.
 - Module contract validation: `dotnet run --project src\MyPowerTools.Cli -- validate contracts` passed all 5 production packages and 7 modules.
 - Package trust: `dotnet run --project src\MyPowerTools.Cli -- package trust modules --strict` reports `signature-hook` for all 5 production packages.
@@ -132,11 +133,11 @@ The active objective is to turn MyPowerTools into a production-grade PowerToys-s
 
 ## Next Highest-Value Work
 
-1. Continue P3 broker, privilege, security, and secrets closure, focusing on elevated helper/service packaging boundaries, broker audit completeness, rollback evidence, and permission-required behavior.
+1. Continue P4 Shell UI, design system, and visual quality closure, focusing on keyboard navigation, interactive screenshot diff evidence, and module-specific deep editor surfaces.
 2. Validate ScreenEase hardware writes against a monitor that supports DDC/CI brightness/color-temperature controls when hardware is available.
 3. Validate SmartBird against real Energy Server and FNB-58 hardware when those services are available.
 4. Validate real Doubao planner/tool/MCP endpoint contracts when production health APIs are available.
-5. Add module-specific deep editors for AndroidTools, AdbForwarder, ScreenEase, Doubao Agent, and SmartBird on top of the generic Shell pages during P4.
+5. Continue packaging/signing work during P6, including signed installer or package-manager metadata.
 
 ## External Requirements To Verify Later
 
