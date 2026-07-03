@@ -125,6 +125,8 @@ Outputs:
 - `artifacts/release/win-x64/`
 - `artifacts/release/MyPowerTools-win-x64.zip`
 - `artifacts/release/RELEASE_NOTES.md`
+- `artifacts/release/release-metadata.json`
+- `artifacts/release/package-managers/scoop/mypowertools.json`
 - `artifacts/release/win-x64/templates/`
 
 The zip root includes `install-windows.ps1` and `uninstall-windows.ps1`. After extracting the zip, install the portable app for the current user:

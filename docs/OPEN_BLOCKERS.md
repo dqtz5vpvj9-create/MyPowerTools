@@ -9,7 +9,7 @@ This file separates true external blockers from internal phase gaps. External bl
 | Blocker | Affected Phase | Evidence | Required External State |
 |---|---|---|---|
 | Administrator context or elevated helper for live Windows portproxy writes | P3 | `adb-forwarder.portproxy.apply` and CLI `broker portproxy apply` correctly return `permission-required` in normal user context; NetworkBroker tests cover rollback and brokered execution paths; `PrivilegedBroker` recognizes elevated/service/sensitive levels. | Administrator token, UAC/helper service packaging, or signed elevated helper. |
-| Private signing material for production package/installer signing | P6 | Local trust hook exists; release uses local signature metadata. | Code-signing/private package signing key or signing service. |
+| Private signing material for production package/installer signing | P6 | Local trust hook exists; release uses local signature metadata, release/update metadata, and a Scoop package-manager manifest. | Code-signing/private package signing key or signing service. |
 | Hardware validation for display writes | P2, P7 | ScreenEase Windows DDC/CI writer is implemented and wired behind explicit hardware apply; current Generic PnP Monitor returns `GetMonitorCapabilities` unsupported. | Monitor hardware that supports DDC/CI brightness/color-temperature writes. |
 | SmartBird hardware/service ecosystem validation | P2 | SmartBird InProc typed facade reads HTTP status/events/config/logs, returns brokered restart details, and reports current degraded Energy Server/FNB-58 state. | Connected SmartBird device, FNB-58 meter, Energy Server, and ADB services. |
 | ADB and AndroidTools device/service validation beyond local module contracts | P2 | AdbForwarder diagnostics run; AndroidTools powertoold serves notifications, remote commands, and process monitor locally through `grpc-ipc`. Invalid notification config and empty watch-list degraded paths are covered by acceptance tests. Device-specific notification polling/streaming and command flows depend on local Android devices and services. | Connected ADB devices, notification service state, and expected local command catalog. |
@@ -20,8 +20,8 @@ This file separates true external blockers from internal phase gaps. External bl
 
 | Gap | Phase | Current Evidence | Next Work |
 |---|---|---|---|
-| MSI/MSIX or package-manager distribution | P6 | Windows portable zip and install/uninstall scripts exist. | Add signed installer or package-manager metadata. |
+| None for P0-P6 | - | P6 now produces the portable zip, release notes, release/update metadata, Scoop manifest, install/uninstall dry-runs, strict package trust, and release smoke evidence. | Continue P7 cross-platform validation work. |
 
 ## Skipped Tests
 
-None. Latest test run: 82 passed, 0 failed, 0 skipped.
+None. Latest test run: 83 passed, 0 failed, 0 skipped.

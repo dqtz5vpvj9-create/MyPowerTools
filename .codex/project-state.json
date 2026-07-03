@@ -1,26 +1,26 @@
 {
   "project": "MyPowerTools",
-  "currentPhase": "P6",
-  "lastCompletedPhase": "P5",
-  "nextPhase": "P6",
+  "currentPhase": "P7",
+  "lastCompletedPhase": "P6",
+  "nextPhase": "P7",
   "sdk": "10.0.301",
   "packages": 5,
   "modules": 7,
-  "testsPassed": 82,
+  "testsPassed": 83,
   "testsFailed": 0,
   "testsSkipped": 0,
   "releaseArtifact": "artifacts/release/MyPowerTools-win-x64.zip",
-  "releaseSha256": "3210E8F4607F484C82AD95452BFE9E76ECC51DACEB1C04099719B57AA40ECA9B",
+  "releaseSha256": "EAA7E82DCC8B7BA63307360402C68A6764AFCA3870E1703C8FAE0EF5BE1266A4",
   "completed": [
     "P0",
     "P1",
     "P2",
     "P3",
     "P4",
-    "P5"
+    "P5",
+    "P6"
   ],
   "partial": [
-    "P6",
     "P7"
   ],
   "blocked": [],
@@ -34,9 +34,9 @@
     "macOS/Linux native validation requires host machines."
   ],
   "nextActions": [
-    "P6: finish packaging, templates, CLI, install, and release closure.",
-    "P6: verify install/uninstall dry-run, release package trust, package-manager/update metadata, README, changelog, and release evidence.",
-    "P6: run restore, build, tests, module validation, contract validation, template validation, smoke, publish, install/uninstall dry-run, and release hash verification."
+    "P7: audit platform abstractions for Windows-specific leakage and Unix IPC path support.",
+    "P7: verify macOS/Linux degraded providers compile and are visible through diagnostics and module requirements.",
+    "P7: add or strengthen tests for capability resolution, unsupported platform providers, path provider behavior, and module degradation on missing capabilities."
   ],
   "productionClosure": false
 }

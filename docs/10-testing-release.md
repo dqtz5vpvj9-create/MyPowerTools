@@ -57,6 +57,9 @@ rollback tests pass
 Windows portable zip produced
 Windows portable install/uninstall dry-run pass
 release notes produced
+release/update metadata produced
+package-manager manifest produced
+release zip contains no bin/obj or modules/modules nesting
 CI workflow runs build, test, validate, module contracts, UI gate, snapshot, template validation, smoke, and package
 ```
 

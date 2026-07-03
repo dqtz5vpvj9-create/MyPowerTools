@@ -293,3 +293,39 @@ Validation:
 
 Remaining P5 work:
 - None internally. Hardware, external services, administrator context, signing material, and native macOS/Linux validation remain tracked in external validation rows or later phases.
+
+### P6 Packaging, Templates, CLI, Install And Release
+
+Status: done.
+
+Actions:
+- Added `scripts/release-metadata.ps1` to generate `artifacts/release/release-metadata.json` and `artifacts/release/package-managers/scoop/mypowertools.json` from the Windows portable zip.
+- Wired `scripts/publish-windows.ps1` to generate release metadata before release notes.
+- Updated `scripts/release-notes.ps1` so release notes list release/update metadata and the Scoop package-manager manifest.
+- Added acceptance coverage for release metadata, local artifact URL generation, SHA256 parity, and Scoop `mpt` shim shape.
+- Refreshed local package hash/signature metadata after build outputs changed under `modules/`.
+
+Validation:
+- `dotnet restore MyPowerTools.slnx` succeeded.
+- `dotnet build MyPowerTools.slnx --no-restore` succeeded with 0 warnings and 0 errors.
+- `dotnet run --no-build --project src\MyPowerTools.Cli -- package sign-local modules` refreshed hash manifests and local trust hooks for all 5 production packages.
+- `dotnet test MyPowerTools.slnx --no-build` passed 83 tests, 0 failed, 0 skipped.
+- `dotnet run --no-build --project src\MyPowerTools.Cli -- validate modules` passed for 5 production packages.
+- `dotnet run --no-build --project src\MyPowerTools.Cli -- validate contracts` passed for 5 packages and 7 modules.
+- `dotnet run --no-build --project src\MyPowerTools.Cli -- inspect modules` printed capabilities, requirements, and broker permissions for all production modules.
+- `dotnet run --no-build --project src\MyPowerTools.Cli -- package trust modules --strict` reported `signature-hook` for all 5 production packages.
+- `pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\validate-templates.ps1` passed for all 6 templates.
+- `pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\smoke.ps1` passed, including build, sign-local, 83 tests, module validation, contract validation, package trust, UI snapshots, template validation, Runner once, and Shell HostControl smoke.
+- `pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\publish-windows.ps1` rebuilt `artifacts\release\MyPowerTools-win-x64.zip`, `RELEASE_NOTES.md`, `release-metadata.json`, and the Scoop manifest.
+- `Get-FileHash artifacts\release\MyPowerTools-win-x64.zip -Algorithm SHA256` returned `EAA7E82DCC8B7BA63307360402C68A6764AFCA3870E1703C8FAE0EF5BE1266A4`.
+- Release metadata and Scoop manifest hashes matched the Windows zip hash; Scoop `bin` exposes `mpt`.
+- Release zip hygiene check found no `bin/`, `obj/`, or `modules/modules/` entries.
+- `artifacts\release\win-x64\Cli\MyPowerTools.Cli.exe package trust artifacts\release\win-x64\modules --strict` passed.
+- `artifacts\release\win-x64\Runner\MyPowerTools.Runner.exe --once --data-root artifacts\release-root-once-data-p6` indexed 7 modules from the release root.
+- Release Shell smoke connected to Runner 0.2.0, reported 7 modules, 7 dashboard cards, 81 commands, requested Runner shutdown, and the release Runner exited with code 0.
+- `artifacts\release\win-x64\Cli\MyPowerTools.Cli.exe runner autostart enable --dry-run` resolved the release Runner path without registry writes.
+- `pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\install-windows.ps1 -PackageRoot artifacts\release\win-x64 -InstallDir artifacts\install-dryrun -DryRun` printed the install plan.
+- `pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\uninstall-windows.ps1 -InstallDir artifacts\install-dryrun -DryRun -Force` printed the uninstall plan.
+
+Remaining P6 work:
+- None internally. Production signing and channel publication require private signing material or a signing service and remain tracked as external validation.

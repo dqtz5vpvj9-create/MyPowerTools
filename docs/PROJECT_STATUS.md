@@ -7,17 +7,17 @@ Run date: 2026-07-04.
 | Field | Value |
 |---|---|
 | Project | MyPowerTools |
-| Current phase | P6 Packaging, templates, CLI, install and release |
-| Last completed phase | P5 Reliability, observability and runtime policy |
-| Next phase | P6 |
+| Current phase | P7 Cross-platform capability packs and degraded behavior |
+| Last completed phase | P6 Packaging, templates, CLI, install and release |
+| Next phase | P7 |
 | SDK | 10.0.301 from `global.json` and `dotnet --version` |
 | Target frameworks | `net10.0` projects across the solution |
 | Production packages | 5: `adb-forwarder`, `android-tools-suite`, `doubao-agent`, `screenease`, `smartbird-thermostat` |
 | Production modules | 7 |
 | Templates | 6 |
-| Tests | 82 passed, 0 failed, 0 skipped |
+| Tests | 83 passed, 0 failed, 0 skipped |
 | Release artifact | `artifacts/release/MyPowerTools-win-x64.zip` |
-| Release SHA256 | `3210E8F4607F484C82AD95452BFE9E76ECC51DACEB1C04099719B57AA40ECA9B` |
+| Release SHA256 | `EAA7E82DCC8B7BA63307360402C68A6764AFCA3870E1703C8FAE0EF5BE1266A4` |
 | Production closure | false |
 
 ## Latest Validation Results
@@ -27,7 +27,7 @@ Run date: 2026-07-04.
 | `dotnet --version` | `10.0.301` |
 | `dotnet restore MyPowerTools.slnx` | Succeeded; all projects were up-to-date. |
 | `dotnet build MyPowerTools.slnx --no-restore` | Succeeded with 0 warnings and 0 errors. |
-| `dotnet test MyPowerTools.slnx --no-build` | Passed 82, failed 0, skipped 0. |
+| `dotnet test MyPowerTools.slnx --no-build` | Passed 83, failed 0, skipped 0. |
 | `dotnet run --project src\MyPowerTools.Cli -- validate modules` | 5 production packages valid. |
 | `dotnet run --no-build --project src\MyPowerTools.Cli -- validate contracts` | 5 packages and 7 modules passed contract validation; AndroidTools runs through `grpc-ipc` powertoold with notifications running, remote commands running, process monitor degraded until a watch list is saved, and ScreenEase exposing 14 commands. |
 | `dotnet run --no-build --project src\MyPowerTools.Cli -- package trust modules --strict` | `signature-hook` trust passed for all 5 production packages after local hash/signature refresh. |
@@ -39,9 +39,25 @@ Run date: 2026-07-04.
 | `dotnet run --no-build --project src\MyPowerTools.Cli -- runner process pause . --duration-minutes 1` | With a temporary Runner active, selected the AndroidTools shared gRPC pool, paused automatic restart for one minute, printed expiry/modules, then resume restored automatic policy. |
 | `dotnet run --project src\MyPowerTools.Cli -- run screenease.native-writer.status` | Succeeded with Windows DDC/CI writer probe output; current Generic PnP Monitor returns `GetMonitorCapabilities` unsupported. |
 | `dotnet run --project src\MyPowerTools.Cli -- run screenease.profile.apply` | Succeeded with profile plan and safe default `native-host-required` because hardware writes are disabled unless explicitly requested or configured. |
-| `pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\publish-windows.ps1` | Rebuilt `artifacts/release/MyPowerTools-win-x64.zip` with SHA256 `3210E8F4607F484C82AD95452BFE9E76ECC51DACEB1C04099719B57AA40ECA9B` and size 171459935 bytes. |
-| `artifacts\release\win-x64\Runner\MyPowerTools.Runner.exe --once --data-root artifacts\release-root-once-data-p4` | Release Runner indexed 7 modules from the release root and started AndroidTools powertoold from the release package. |
-| `artifacts\release\win-x64\Shell\MyPowerTools.Shell.Avalonia.exe --smoke --timeout-ms 30000 --quit-runner` | Release Shell smoke connected to Runner 0.2.0, reported 7 modules, 7 dashboard cards, 81 commands, and requested Runner shutdown. |
+| `pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\publish-windows.ps1` | Rebuilt `artifacts/release/MyPowerTools-win-x64.zip`, `RELEASE_NOTES.md`, `release-metadata.json`, and the Scoop manifest. ZIP SHA256 `EAA7E82DCC8B7BA63307360402C68A6764AFCA3870E1703C8FAE0EF5BE1266A4`; size 171460195 bytes. |
+| Release metadata/Scoop manifest check | `release-metadata.json` artifact hash and `package-managers/scoop/mypowertools.json` 64-bit hash both equal `EAA7E82DCC8B7BA63307360402C68A6764AFCA3870E1703C8FAE0EF5BE1266A4`; manifest exposes `mpt` as the CLI shim. |
+| Release zip hygiene check | `MyPowerTools-win-x64.zip` contains no `bin/`, `obj/`, or `modules/modules/` entries. |
+| `artifacts\release\win-x64\Cli\MyPowerTools.Cli.exe package trust artifacts\release\win-x64\modules --strict` | Release package trust passed for all 5 production packages. |
+| `artifacts\release\win-x64\Runner\MyPowerTools.Runner.exe --once --data-root artifacts\release-root-once-data-p6` | Release Runner indexed 7 modules from the release root and started AndroidTools powertoold from the release package. |
+| `artifacts\release\win-x64\Shell\MyPowerTools.Shell.Avalonia.exe --smoke --timeout-ms 30000 --quit-runner` | Release Shell smoke connected to Runner 0.2.0, reported 7 modules, 7 dashboard cards, 81 commands, requested Runner shutdown, and the release Runner exited with code 0. |
+| `artifacts\release\win-x64\Cli\MyPowerTools.Cli.exe runner autostart enable --dry-run` | Resolved the sibling release Runner executable without registry writes. |
+| `pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\install-windows.ps1 -PackageRoot artifacts\release\win-x64 -InstallDir artifacts\install-dryrun -DryRun` | Succeeded and printed the portable install plan. |
+| `pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\uninstall-windows.ps1 -InstallDir artifacts\install-dryrun -DryRun -Force` | Succeeded and printed the uninstall plan without removing files. |
+
+## P6 Progress On 2026-07-04
+
+| Area | Evidence |
+|---|---|
+| Release metadata | Added `scripts/release-metadata.ps1`; `publish-windows.ps1` now writes `artifacts/release/release-metadata.json` and `artifacts/release/package-managers/scoop/mypowertools.json` after the portable zip is created. |
+| Release notes | `scripts/release-notes.ps1` now lists the release/update metadata and Scoop manifest when they exist. |
+| Acceptance coverage | `Release_metadata_script_writes_update_and_scoop_manifests` verifies metadata, local artifact URL, hash length, Scoop hash parity, and the `mpt` shim entry. |
+| Release validation | Restore, build, 83 tests, module validation, contract validation, strict package trust, template validation, smoke, publish, release package trust, release Runner once, release Shell smoke, release autostart dry-run, install dry-run, uninstall dry-run, hash parity, and zip hygiene all passed locally. |
+| P6 closure | P6 internal gates are complete locally. Production signing and channel publication require external signing material or a signing service. |
 
 ## P5 Progress On 2026-07-04
 
@@ -68,7 +84,7 @@ Run date: 2026-07-04.
 
 ## Validation Note
 
-Local builds copy module assemblies into `modules/`. When assemblies change, run `dotnet run --no-build --project src\MyPowerTools.Cli -- package sign-local modules` before trust-sensitive tests or strict package verification. The latest P4 verification was repeated after the signatures matched the build outputs.
+Local builds copy module assemblies into `modules/`. When assemblies change, run `dotnet run --no-build --project src\MyPowerTools.Cli -- package sign-local modules` before trust-sensitive tests or strict package verification. The latest P6 verification was repeated after the signatures matched the build outputs.
 
 ## P4 Progress On 2026-07-04
 
