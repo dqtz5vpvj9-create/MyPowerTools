@@ -31,13 +31,21 @@ This document tracks the current slice for external review. It is an audit hando
 - Added shadow-copy loading under the runtime cache before loading disk-backed module assemblies.
 - Shared only the host contract assembly and selected framework abstractions across the load boundary.
 - Added an unload probe through `WeakReference` and GC collection after module disposal.
+- Exposed InProc lifecycle through runtime process diagnostics with `loaded`, `unloaded`, and `pending-runner-restart` states.
+- Added a manual Runner restart policy marker when a module fails to release its collectible load context.
 
 ### Acceptance Coverage
 
 - `Inproc_disk_module_uses_collectible_load_context_and_unloads`
   verifies disk-backed in-process modules load outside `AssemblyLoadContext.Default` and unload after disposal.
+- `Runtime_restarts_clean_inproc_module_by_unloading_context`
+  verifies the runtime can unload a clean InProc module through the diagnostics process-control path.
+- `Runtime_marks_inproc_unload_failure_as_pending_runner_restart`
+  verifies a module that holds a default-context event subscription is marked `pending-runner-restart`.
 - `Production_module_projects_reference_abstractions_not_runtime`
   verifies production module project files depend on abstractions, not the runtime project.
+- `Runtime_shell_and_host_do_not_reference_concrete_module_projects`
+  verifies Runtime, HostControl, and Shell avoid references to concrete production module projects.
 - `P_foundation_2_ui_architecture_debt_is_tracked`
   verifies this document reflects the live shell line count and refactor target.
 
@@ -60,8 +68,9 @@ The existing shell already has UI snapshot gates, keyboard shortcut tests, and c
 | --- | --- | --- |
 | Abstractions project | Plugin contracts live in `MyPowerTools.Abstractions` | Done |
 | Production module dependency direction | Modules reference abstractions only | Done |
+| Host dependency direction | Runtime/Shell/Host avoid concrete module references | Done |
 | InProc isolation | Collectible ALC + resolver + shadow copy | Done for disk-backed modules |
-| InProc unload handling | Unload probe and failure surfaced to runtime policy | Probe done; runtime restart policy pending |
+| InProc unload handling | Unload probe and failure surfaced to runtime policy | Done for clean unload and pending-runner-restart diagnostics |
 | Sidecar default for complex modules | Complex modules prefer sidecar transport | Existing manifests keep sidecar-capable modules on sidecar paths |
 | MainWindow size | target <= 250 lines | current: 1845 lines |
 | AXAML + MVVM | Main shell split into views/viewmodels | Pending |
@@ -87,7 +96,7 @@ Latest observed result before packaging:
 
 ```text
 Build: passed, 0 warnings, 0 errors
-Tests: passed, 91 passed, 0 failed, 0 skipped
+Tests: passed, 94 passed, 0 failed, 0 skipped
 Module validation: 5 packages valid
 Contract validation: 5 packages, 7 modules passed
 Strict trust check: 5 signatures accepted under local policy
@@ -97,7 +106,7 @@ The packaging step for external review should run the same validation again and 
 
 ## Recommended Next Slice
 
-1. Add `ModuleUnloadResult` into runtime diagnostics and mark a pending runner restart when collectible ALC unload fails.
+1. Add static tests for conflicting plugin dependency versions and shadow-copy update behavior.
 2. Move dashboard, command palette, settings, logs, package manager, and diagnostics UI into AXAML views with viewmodels.
 3. Introduce shell token dictionaries and component styles under the UI project.
 4. Add a static style lint that scans AXAML and C# UI files.

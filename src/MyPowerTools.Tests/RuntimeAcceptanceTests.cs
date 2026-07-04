@@ -1190,6 +1190,74 @@ Address         Port        Address         Port
     }
 
     [Fact]
+    public async Task Runtime_restarts_clean_inproc_module_by_unloading_context()
+    {
+        await using var host = new InProcDotNetModuleHost();
+        await using var runtime = new MptHostRuntime(
+            new PackageReader(),
+            PlatformId.Current(),
+            RuntimePaths.Create(Path.Combine(Path.GetTempPath(), "mpt-runtime-inproc-clean-restart", Guid.NewGuid().ToString("N"))),
+            [host]);
+
+        runtime.Load(Path.Combine(Root, "modules", "adb-forwarder"));
+        var dynamicCount = await runtime.RefreshDynamicCommandsAsync(CancellationToken.None);
+        var before = Assert.Single(runtime.GetRuntimeDiagnostics().Processes);
+
+        var restart = await runtime.RestartRuntimeProcessAsync("inproc-dotnet", before.PoolKey, CancellationToken.None);
+        var after = runtime.GetRuntimeDiagnostics();
+
+        Assert.True(dynamicCount > 0);
+        Assert.Equal("loaded", before.State);
+        Assert.Equal(Environment.ProcessId, before.ProcessId);
+        Assert.True(restart.Success, restart.Message);
+        Assert.Equal("unloaded", restart.State);
+        Assert.Contains("adb-forwarder", restart.ModuleIds);
+        Assert.Empty(after.Processes);
+    }
+
+    [Fact]
+    public async Task Runtime_marks_inproc_unload_failure_as_pending_runner_restart()
+    {
+        var packageRoot = Path.Combine(Path.GetTempPath(), "mpt-inproc-leaky-restart", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(packageRoot);
+        WriteInProcDotNetModulePackage(
+            packageRoot,
+            "sample.dotnet.leaky",
+            "sample-dotnet-leaky",
+            "Leaky .NET Module",
+            typeof(LeakyDotNetModule).FullName!);
+
+        await using var host = new InProcDotNetModuleHost();
+        await using var runtime = new MptHostRuntime(
+            new PackageReader(),
+            PlatformId.Current(),
+            RuntimePaths.Create(Path.Combine(Path.GetTempPath(), "mpt-runtime-inproc-leaky-restart", Guid.NewGuid().ToString("N"))),
+            [host]);
+
+        runtime.Load(packageRoot);
+        var dynamicCount = await runtime.RefreshDynamicCommandsAsync(CancellationToken.None);
+        var before = Assert.Single(runtime.GetRuntimeDiagnostics().Processes);
+
+        var restart = await runtime.RestartRuntimeProcessAsync("inproc-dotnet", before.PoolKey, CancellationToken.None);
+        var pending = Assert.Single(runtime.GetRuntimeDiagnostics().Processes);
+
+        Assert.True(dynamicCount > 0);
+        Assert.Equal("loaded", before.State);
+        Assert.False(restart.Success);
+        Assert.Equal("pending-runner-restart", restart.State);
+        Assert.Contains("collectible AssemblyLoadContext", restart.Message);
+        Assert.Equal("pending-runner-restart", pending.State);
+        Assert.Equal("manual-runner-restart", pending.RestartPolicy);
+        Assert.Contains("collectible AssemblyLoadContext", pending.PolicyReason);
+        Assert.Contains("sample.dotnet.leaky", pending.ModuleIds);
+
+        var package = new PackageReader().ReadPackageDirectory(packageRoot);
+        var blocked = await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await host.LoadAsync(package.Modules.Single(), CancellationToken.None));
+        Assert.Contains("restart Runner", blocked.Message);
+    }
+
+    [Fact]
     public void Production_module_projects_reference_abstractions_not_runtime()
     {
         var projectFiles = new[]
@@ -1206,6 +1274,46 @@ Address         Port        Address         Port
             var content = File.ReadAllText(Path.Combine(Root, projectFile));
             Assert.Contains("MyPowerTools.Abstractions.csproj", content);
             Assert.DoesNotContain("MyPowerTools.Runtime.csproj", content);
+        }
+    }
+
+    [Fact]
+    public void Runtime_shell_and_host_do_not_reference_concrete_module_projects()
+    {
+        var hostProjectFiles = new[]
+        {
+            "src/MyPowerTools.Runtime/MyPowerTools.Runtime.csproj",
+            "src/MyPowerTools.HostControl/MyPowerTools.HostControl.csproj",
+            "src/MyPowerTools.Shell.Avalonia/MyPowerTools.Shell.Avalonia.csproj"
+        };
+        var concreteModuleTokens = new[]
+        {
+            "AdbForwarder.MyPowerTools",
+            "AndroidTools.MyPowerTools",
+            "DoubaoAgent.MyPowerTools",
+            "ScreenEase.MyPowerTools",
+            "SmartBirdThermostat.MyPowerTools"
+        };
+
+        foreach (var projectFile in hostProjectFiles)
+        {
+            var content = File.ReadAllText(Path.Combine(Root, projectFile));
+            foreach (var token in concreteModuleTokens)
+            {
+                Assert.DoesNotContain(token, content);
+            }
+        }
+
+        foreach (var sourceRoot in new[] { "src/MyPowerTools.Runtime", "src/MyPowerTools.HostControl", "src/MyPowerTools.Shell.Avalonia" })
+        {
+            foreach (var sourceFile in Directory.EnumerateFiles(Path.Combine(Root, sourceRoot), "*.cs", SearchOption.AllDirectories))
+            {
+                var content = File.ReadAllText(sourceFile);
+                foreach (var token in concreteModuleTokens)
+                {
+                    Assert.DoesNotContain(token, content);
+                }
+            }
         }
     }
 
@@ -1252,6 +1360,38 @@ Address         Port        Address         Port
         loadContext = null;
         await host.DisposeAsync();
         return weakReference;
+    }
+
+    private static void WriteInProcDotNetModulePackage(string packageRoot, string moduleId, string packageId, string displayName, string typeName)
+    {
+        var assemblyPath = typeof(SampleDotNetModule).Assembly.Location;
+        var assemblyName = Path.GetFileName(assemblyPath);
+        File.Copy(assemblyPath, Path.Combine(packageRoot, assemblyName), overwrite: true);
+
+        var manifest = new JsonObject
+        {
+            ["schemaVersion"] = "1.0",
+            ["id"] = moduleId,
+            ["packageId"] = packageId,
+            ["displayName"] = displayName,
+            ["version"] = "0.2.0",
+            ["moduleSdk"] = "1.0",
+            ["entrypoints"] = new JsonArray
+            {
+                new JsonObject
+                {
+                    ["kind"] = "inproc-dotnet",
+                    ["priority"] = 100,
+                    ["assembly"] = assemblyName,
+                    ["type"] = typeName
+                }
+            },
+            ["capabilities"] = new JsonArray("status", "commands")
+        };
+
+        File.WriteAllText(
+            Path.Combine(packageRoot, "module.json"),
+            manifest.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
     }
 
     [Fact]

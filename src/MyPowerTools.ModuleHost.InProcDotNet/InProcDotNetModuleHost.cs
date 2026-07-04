@@ -1,11 +1,12 @@
 using System.Reflection;
+using System.Runtime.CompilerServices;
 using System.Runtime.Loader;
 using MyPowerTools.Packaging;
 using MyPowerTools.Runtime;
 
 namespace MyPowerTools.ModuleHost.InProcDotNet;
 
-public sealed class InProcDotNetModuleHost : IModuleTransportRuntime, IAsyncDisposable
+public sealed class InProcDotNetModuleHost : IModuleTransportRuntime, IModuleTransportDiagnosticsProvider, IAsyncDisposable
 {
     private static readonly string[] SharedAssemblies =
     [
@@ -14,9 +15,36 @@ public sealed class InProcDotNetModuleHost : IModuleTransportRuntime, IAsyncDisp
         "Microsoft.Extensions.DependencyInjection.Abstractions"
     ];
 
+    private readonly SemaphoreSlim _moduleLock = new(1, 1);
     private readonly Dictionary<string, InProcModuleSession> _loadedModules = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, HashSet<string>> _knownPoolModules = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, InProcUnloadRecord> _unloadRecords = new(StringComparer.OrdinalIgnoreCase);
+    private bool _disposed;
 
     public string Kind => "inproc-dotnet";
+
+    public string GetProcessPoolKey(RuntimeModuleRecord module)
+    {
+        return PoolKeyForModule(module.Module.Manifest.Id);
+    }
+
+    public void RegisterProcessPool(string poolKey, string moduleId)
+    {
+        _moduleLock.Wait();
+        try
+        {
+            MarkKnown(poolKey, moduleId);
+        }
+        finally
+        {
+            _moduleLock.Release();
+        }
+    }
+
+    public void ApplyRestartPolicy(string poolKey, string restartPolicy, string reason, DateTimeOffset updatedAt, DateTimeOffset? expiresAt)
+    {
+        // InProc modules share the Runner process, so persisted sidecar restart policies do not apply.
+    }
 
     public async ValueTask<ModuleStatusSnapshot?> GetStatusAsync(RuntimeModuleRecord module, ModuleContext context, CancellationToken cancellationToken)
     {
@@ -71,6 +99,7 @@ public sealed class InProcDotNetModuleHost : IModuleTransportRuntime, IAsyncDisp
             throw new InvalidOperationException($"Module '{module.Manifest.Id}' inproc entrypoint requires assembly and type.");
         }
 
+        await ThrowIfPendingRunnerRestartAsync(module.Manifest.Id, cancellationToken);
         var assemblyPath = Path.GetFullPath(Path.Combine(module.Directory, entrypoint.Assembly));
         MptPluginLoadContext? loadContext = null;
 
@@ -92,7 +121,18 @@ public sealed class InProcDotNetModuleHost : IModuleTransportRuntime, IAsyncDisp
 
         if (loadContext is not null)
         {
-            _loadedModules[module.Manifest.Id] = new InProcModuleSession(instance, loadContext);
+            await _moduleLock.WaitAsync(cancellationToken);
+            try
+            {
+                var poolKey = PoolKeyForModule(module.Manifest.Id);
+                MarkKnown(poolKey, module.Manifest.Id);
+                _loadedModules[module.Manifest.Id] = new InProcModuleSession(instance, loadContext, module.Manifest.Id, poolKey, DateTimeOffset.UtcNow);
+                _unloadRecords.Remove(poolKey);
+            }
+            finally
+            {
+                _moduleLock.Release();
+            }
         }
 
         return instance;
@@ -100,16 +140,131 @@ public sealed class InProcDotNetModuleHost : IModuleTransportRuntime, IAsyncDisp
 
     public async ValueTask DisposeAsync()
     {
-        foreach (var session in _loadedModules.Values)
+        if (_disposed)
         {
-            await session.DisposeAndUnloadAsync(CancellationToken.None);
+            return;
         }
 
-        _loadedModules.Clear();
+        _disposed = true;
+        await _moduleLock.WaitAsync();
+        try
+        {
+            foreach (var session in _loadedModules.Values.ToArray())
+            {
+                var result = await session.DisposeAndUnloadAsync(CancellationToken.None);
+                RecordUnloadResult(result);
+            }
+
+            _loadedModules.Clear();
+        }
+        finally
+        {
+            _moduleLock.Release();
+            _moduleLock.Dispose();
+        }
+    }
+
+    public IReadOnlyList<RuntimeProcessDiagnostics> GetProcessDiagnostics()
+    {
+        _moduleLock.Wait();
+        try
+        {
+            var active = _loadedModules.Values
+                .Select(session => new RuntimeProcessDiagnostics(
+                    Kind,
+                    session.PoolKey,
+                    "loaded",
+                    Environment.ProcessId,
+                    session.LoadContextName,
+                    1,
+                    0,
+                    "runner-owned",
+                    "InProc module is loaded inside the Runner process.",
+                    session.LoadedAt,
+                    [session.ModuleId]))
+                .ToArray();
+            var pending = _unloadRecords.Values
+                .Where(record => !_loadedModules.Values.Any(session => string.Equals(session.PoolKey, record.PoolKey, StringComparison.OrdinalIgnoreCase)))
+                .Select(record => new RuntimeProcessDiagnostics(
+                    Kind,
+                    record.PoolKey,
+                    record.State,
+                    Environment.ProcessId,
+                    record.LoadContextName,
+                    1,
+                    0,
+                    record.RestartPolicy,
+                    record.Message,
+                    record.UpdatedAt,
+                    [record.ModuleId]))
+                .ToArray();
+
+            return active.Concat(pending)
+                .OrderBy(process => process.PoolKey, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+        }
+        finally
+        {
+            _moduleLock.Release();
+        }
+    }
+
+    public async ValueTask<RuntimeProcessRestartResult> RestartProcessAsync(string poolKey, CancellationToken cancellationToken)
+    {
+        await _moduleLock.WaitAsync(cancellationToken);
+        try
+        {
+            var session = _loadedModules.Values.FirstOrDefault(value => string.Equals(value.PoolKey, poolKey, StringComparison.OrdinalIgnoreCase));
+            if (session is null)
+            {
+                if (_unloadRecords.TryGetValue(poolKey, out var pending))
+                {
+                    return new RuntimeProcessRestartResult(
+                        false,
+                        Kind,
+                        poolKey,
+                        pending.State,
+                        pending.Message,
+                        [pending.ModuleId]);
+                }
+
+                return new RuntimeProcessRestartResult(false, Kind, poolKey, "missing", $"InProc module pool '{poolKey}' is not loaded.", ModuleIdsForPool(poolKey));
+            }
+
+            var result = await session.DisposeAndUnloadAsync(cancellationToken);
+            _loadedModules.Remove(session.ModuleId);
+            RecordUnloadResult(result);
+            return new RuntimeProcessRestartResult(
+                result.Unloaded,
+                Kind,
+                poolKey,
+                result.State,
+                result.Message,
+                [session.ModuleId]);
+        }
+        finally
+        {
+            _moduleLock.Release();
+        }
+    }
+
+    public ValueTask<RuntimeProcessPolicyResult> SetRestartPolicyAsync(string poolKey, bool paused, string reason, DateTimeOffset? expiresAt, CancellationToken cancellationToken)
+    {
+        var modules = ModuleIdsForPool(poolKey);
+        return ValueTask.FromResult(new RuntimeProcessPolicyResult(
+            false,
+            Kind,
+            poolKey,
+            "unsupported",
+            "runner-owned",
+            "InProc modules share the Runner process; restart policy is controlled by Runner lifecycle.",
+            modules,
+            null));
     }
 
     private async ValueTask<IMptModule> LoadCachedAsync(MptModuleDefinition module, ModuleContext context, CancellationToken cancellationToken)
     {
+        await ThrowIfPendingRunnerRestartAsync(module.Manifest.Id, cancellationToken);
         if (_loadedModules.TryGetValue(module.Manifest.Id, out var loaded))
         {
             return loaded.Module;
@@ -117,6 +272,61 @@ public sealed class InProcDotNetModuleHost : IModuleTransportRuntime, IAsyncDisp
 
         return await LoadAsync(module, context, cancellationToken);
     }
+
+    private async ValueTask ThrowIfPendingRunnerRestartAsync(string moduleId, CancellationToken cancellationToken)
+    {
+        await _moduleLock.WaitAsync(cancellationToken);
+        try
+        {
+            if (_unloadRecords.TryGetValue(PoolKeyForModule(moduleId), out var pending) &&
+                string.Equals(pending.State, "pending-runner-restart", StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidOperationException(pending.Message);
+            }
+        }
+        finally
+        {
+            _moduleLock.Release();
+        }
+    }
+
+    private void MarkKnown(string poolKey, string moduleId)
+    {
+        if (!_knownPoolModules.TryGetValue(poolKey, out var modules))
+        {
+            modules = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            _knownPoolModules[poolKey] = modules;
+        }
+
+        modules.Add(moduleId);
+    }
+
+    private IReadOnlyList<string> ModuleIdsForPool(string poolKey)
+    {
+        return _knownPoolModules.TryGetValue(poolKey, out var modules)
+            ? modules.OrderBy(id => id, StringComparer.OrdinalIgnoreCase).ToArray()
+            : [];
+    }
+
+    private void RecordUnloadResult(InProcUnloadResult result)
+    {
+        if (result.Unloaded)
+        {
+            _unloadRecords.Remove(result.PoolKey);
+            return;
+        }
+
+        _unloadRecords[result.PoolKey] = new InProcUnloadRecord(
+            result.ModuleId,
+            result.PoolKey,
+            result.State,
+            "manual-runner-restart",
+            result.Message,
+            result.LoadContextName,
+            DateTimeOffset.UtcNow);
+    }
+
+    private static string PoolKeyForModule(string moduleId) => $"module:{moduleId}";
 
     private static Assembly ResolveAlreadyLoaded(string assemblyNameOrPath)
     {
@@ -252,36 +462,95 @@ internal sealed class MptPluginLoadContext : AssemblyLoadContext
 
 internal sealed class InProcModuleSession
 {
-    private readonly MptPluginLoadContext _loadContext;
+    private MptPluginLoadContext? _loadContext;
     private readonly WeakReference _loadContextReference;
+    private IMptModule? _module;
 
-    public InProcModuleSession(IMptModule module, MptPluginLoadContext loadContext)
+    public InProcModuleSession(IMptModule module, MptPluginLoadContext loadContext, string moduleId, string poolKey, DateTimeOffset loadedAt)
     {
-        Module = module;
+        _module = module;
         _loadContext = loadContext;
         _loadContextReference = new WeakReference(loadContext, trackResurrection: false);
+        ModuleId = moduleId;
+        PoolKey = poolKey;
+        LoadedAt = loadedAt;
+        LoadContextName = loadContext.Name ?? moduleId;
     }
 
-    public IMptModule Module { get; private set; }
+    public string ModuleId { get; }
+    public string PoolKey { get; }
+    public DateTimeOffset LoadedAt { get; }
+    public string LoadContextName { get; }
+    public IMptModule Module => _module ?? throw new ObjectDisposedException(ModuleId);
 
-    public async ValueTask<bool> DisposeAndUnloadAsync(CancellationToken cancellationToken)
+    public async ValueTask<InProcUnloadResult> DisposeAndUnloadAsync(CancellationToken cancellationToken)
     {
-        await Module.DisposeAsync(cancellationToken);
-        Module = null!;
-        _loadContext.Unload();
-        return await WaitForUnloadAsync();
+        if (_module is null || _loadContext is null)
+        {
+            return new InProcUnloadResult(ModuleId, PoolKey, true, "unloaded", $"InProc module '{ModuleId}' was already unloaded.", LoadContextName);
+        }
+
+        await DisposeModuleAsync(cancellationToken);
+        RequestUnloadAndClear();
+        var unloaded = await WaitForUnloadAsync(cancellationToken);
+        return unloaded
+            ? new InProcUnloadResult(ModuleId, PoolKey, true, "unloaded", $"InProc module '{ModuleId}' unloaded cleanly.", LoadContextName)
+            : new InProcUnloadResult(ModuleId, PoolKey, false, "pending-runner-restart", $"InProc module '{ModuleId}' did not release its collectible AssemblyLoadContext; restart Runner before updating this package.", LoadContextName);
     }
 
-    private async ValueTask<bool> WaitForUnloadAsync()
+    private static void RequestUnload(MptPluginLoadContext loadContext)
+    {
+        loadContext.Unload();
+    }
+
+    private async ValueTask DisposeModuleAsync(CancellationToken cancellationToken)
+    {
+        var module = _module;
+        _module = null;
+        if (module is not null)
+        {
+            await module.DisposeAsync(cancellationToken);
+        }
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private void RequestUnloadAndClear()
+    {
+        var loadContext = _loadContext;
+        _loadContext = null;
+        if (loadContext is not null)
+        {
+            RequestUnload(loadContext);
+        }
+    }
+
+    private async ValueTask<bool> WaitForUnloadAsync(CancellationToken cancellationToken)
     {
         for (var attempt = 0; attempt < 10 && _loadContextReference.IsAlive; attempt++)
         {
             GC.Collect();
             GC.WaitForPendingFinalizers();
             GC.Collect();
-            await Task.Delay(100);
+            await Task.Delay(100, cancellationToken);
         }
 
         return !_loadContextReference.IsAlive;
     }
 }
+
+internal sealed record InProcUnloadResult(
+    string ModuleId,
+    string PoolKey,
+    bool Unloaded,
+    string State,
+    string Message,
+    string LoadContextName);
+
+internal sealed record InProcUnloadRecord(
+    string ModuleId,
+    string PoolKey,
+    string State,
+    string RestartPolicy,
+    string Message,
+    string LoadContextName,
+    DateTimeOffset UpdatedAt);

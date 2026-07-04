@@ -80,3 +80,81 @@ public sealed class SampleDotNetModule : IMptModule
         return ValueTask.CompletedTask;
     }
 }
+
+public sealed class LeakyDotNetModule : IMptModule
+{
+    public string Id => "sample.dotnet.leaky";
+    public string PackageId => "sample-dotnet-leaky";
+    public Version Version => new(0, 2, 0);
+
+    public ValueTask<InitializeResult> InitializeAsync(ModuleContext context, CancellationToken cancellationToken)
+    {
+        AppDomain.CurrentDomain.ProcessExit += OnProcessExit;
+        return ValueTask.FromResult(new InitializeResult(true, context.ProtocolVersion, ["status", "commands"]));
+    }
+
+    public ValueTask<ModuleStatusSnapshot> GetStatusAsync(CancellationToken cancellationToken)
+    {
+        return ValueTask.FromResult(new ModuleStatusSnapshot(
+            Id,
+            "running",
+            "Leaky InProc sample module is loaded.",
+            DateTimeOffset.UtcNow,
+            [new HealthCheckSnapshot("inproc", "InProc host", true, "Loaded in Runner process")],
+            1));
+    }
+
+    public ValueTask<IReadOnlyList<MptCommandDescriptor>> ListCommandsAsync(CancellationToken cancellationToken)
+    {
+        IReadOnlyList<MptCommandDescriptor> commands =
+        [
+            new("sample.dotnet.leaky.ping", Id, "Ping leaky .NET sample", "InProc unload failure fixture", "action")
+        ];
+        return ValueTask.FromResult(commands);
+    }
+
+    public ValueTask<CommandExecutionResult> ExecuteCommandAsync(CommandRequest request, CancellationToken cancellationToken)
+    {
+        return ValueTask.FromResult(new CommandExecutionResult(
+            request.InvocationId,
+            request.CommandId,
+            "succeeded",
+            true,
+            "pong from LeakyDotNetModule"));
+    }
+
+    public async IAsyncEnumerable<MptModuleEvent> SubscribeEventsAsync(EventCursor cursor, [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        await Task.CompletedTask;
+        yield break;
+    }
+
+    public ValueTask<SettingsSchemaDocument> GetSettingsSchemaAsync(CancellationToken cancellationToken)
+    {
+        return ValueTask.FromResult(new SettingsSchemaDocument(Id, """{"type":"object","properties":{}}"""));
+    }
+
+    public ValueTask<SettingsSnapshotDocument> GetSettingsAsync(CancellationToken cancellationToken)
+    {
+        return ValueTask.FromResult(new SettingsSnapshotDocument(Id, 1, new JsonObject(), DateTimeOffset.UtcNow));
+    }
+
+    public ValueTask<SettingsValidationResult> ValidateSettingsAsync(SettingsPatch patch, CancellationToken cancellationToken)
+    {
+        return ValueTask.FromResult(new SettingsValidationResult(true, []));
+    }
+
+    public ValueTask<IReadOnlyList<UiSurfaceDescriptor>> ListSurfacesAsync(CancellationToken cancellationToken)
+    {
+        return ValueTask.FromResult<IReadOnlyList<UiSurfaceDescriptor>>([]);
+    }
+
+    public ValueTask DisposeAsync(CancellationToken cancellationToken)
+    {
+        return ValueTask.CompletedTask;
+    }
+
+    private void OnProcessExit(object? sender, EventArgs e)
+    {
+    }
+}
