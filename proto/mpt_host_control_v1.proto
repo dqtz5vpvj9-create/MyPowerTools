@@ -435,6 +435,8 @@ message SettingsSnapshot {
   uint64 revision = 2;
   google.protobuf.Struct values = 3;
   google.protobuf.Timestamp updated_at = 4;
+  string apply_state = 5;
+  string apply_message = 6;
 }
 
 message UpdateSettingsRequest {

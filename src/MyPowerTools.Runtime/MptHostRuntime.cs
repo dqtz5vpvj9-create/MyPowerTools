@@ -849,15 +849,55 @@ public sealed class MptHostRuntime : IAsyncDisposable
 
     public SettingsSnapshotDocument UpdateSettings(SettingsPatch patch)
     {
+        return UpdateSettingsWithApplyAsync(patch, CancellationToken.None).GetAwaiter().GetResult().Snapshot;
+    }
+
+    public async Task<SettingsUpdateResult> UpdateSettingsWithApplyAsync(SettingsPatch patch, CancellationToken cancellationToken)
+    {
         EnsureModule(patch.ModuleId);
+        var module = _packageRegistry.FindModule(patch.ModuleId);
+        IModuleTransportRuntime? runtime = null;
+        ModuleContext? context = null;
+        if (module is not null && TryGetTransportRuntime(module, out var selectedRuntime))
+        {
+            runtime = selectedRuntime;
+            context = CreateModuleContext(module);
+            var validation = await runtime.ValidateSettingsAsync(module, context, patch, cancellationToken);
+            if (!validation.Ok)
+            {
+                throw new SettingsValidationException(patch.ModuleId, validation.Messages, validation.Error);
+            }
+        }
+
         var updated = _settingsStore.Update(patch);
+        var applyState = runtime is null ? "stored" : "applied";
+        var applyMessage = runtime is null
+            ? "Settings were stored; no runtime apply hook was available."
+            : $"Settings applied at revision {updated.Revision}.";
+
+        if (runtime is not null && module is not null && context is not null)
+        {
+            try
+            {
+                var applied = await runtime.ApplySettingsAsync(module, context, updated, cancellationToken);
+                applyMessage = $"Settings applied at revision {applied.Revision}.";
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                applyState = "apply-failed";
+                applyMessage = LogRouter.Redact(ex.Message);
+                _logRouter.Append(module.Module.Manifest.PackageId, patch.ModuleId, "error", $"Settings apply failed: {applyMessage}");
+            }
+        }
+
         _eventBus.Publish(patch.ModuleId, "settings.updated", new JsonObject
         {
-            ["revision"] = updated.Revision
+            ["revision"] = updated.Revision,
+            ["applyState"] = applyState,
+            ["applyMessage"] = applyMessage
         });
-        var module = _packageRegistry.FindModule(patch.ModuleId);
-        _logRouter.Append(module?.Module.Manifest.PackageId ?? patch.ModuleId, patch.ModuleId, "info", $"Settings updated to revision {updated.Revision}");
-        return updated;
+        _logRouter.Append(module?.Module.Manifest.PackageId ?? patch.ModuleId, patch.ModuleId, "info", $"Settings updated to revision {updated.Revision}; apply state {applyState}");
+        return new SettingsUpdateResult(updated, applyState, applyMessage);
     }
 
     public IReadOnlyList<LogRecord> TailLogs(string moduleId)

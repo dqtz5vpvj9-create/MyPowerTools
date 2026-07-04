@@ -90,6 +90,39 @@ public sealed class GrpcIpcModuleHost : IAsyncDisposable
         return new SettingsSchemaDocument(schema.ModuleId, schema.SchemaJson);
     }
 
+    public async Task<SettingsValidationResult> ValidateSettingsAsync(string moduleId, SettingsPatch patch, CancellationToken cancellationToken)
+    {
+        var client = EnsureClient();
+        var result = await client.ValidateSettingsAsync(new ValidateSettingsRequest
+        {
+            ModuleId = moduleId,
+            ExpectedRevision = patch.ExpectedRevision,
+            PatchJson = patch.Patch.ToJsonString(new JsonSerializerOptions { WriteIndented = false })
+        }, cancellationToken: cancellationToken);
+
+        return new SettingsValidationResult(
+            result.Ok,
+            result.Messages.ToArray(),
+            result.Error is null ? null : new MptRuntimeError(result.Error.Code, result.Error.Message, result.Error.Retryable));
+    }
+
+    public async Task<SettingsSnapshotDocument> ApplySettingsAsync(string moduleId, SettingsSnapshotDocument snapshot, CancellationToken cancellationToken)
+    {
+        var client = EnsureClient();
+        var result = await client.ApplySettingsAsync(new ApplySettingsRequest
+        {
+            ModuleId = moduleId,
+            ExpectedRevision = snapshot.Revision,
+            PatchJson = snapshot.Values.ToJsonString(new JsonSerializerOptions { WriteIndented = false })
+        }, cancellationToken: cancellationToken);
+
+        return new SettingsSnapshotDocument(
+            result.ModuleId,
+            result.Revision,
+            ParseJsonObject(result.ValuesJson),
+            DateTimeOffset.TryParse(result.UpdatedAt, out var updatedAt) ? updatedAt : DateTimeOffset.UtcNow);
+    }
+
     public async Task<IReadOnlyList<MptCommandDescriptor>> ListCommandsAsync(string moduleId, CancellationToken cancellationToken)
     {
         var client = EnsureClient();
@@ -152,6 +185,11 @@ public sealed class GrpcIpcModuleHost : IAsyncDisposable
 
             yield return new KeyValuePair<string, string>(argument.Key, JsonValueToString(argument.Value));
         }
+    }
+
+    private static JsonObject ParseJsonObject(string json)
+    {
+        return JsonNode.Parse(string.IsNullOrWhiteSpace(json) ? "{}" : json) as JsonObject ?? new JsonObject();
     }
 
     private static string JsonValueToString(JsonNode node)
@@ -344,6 +382,16 @@ public sealed class GrpcIpcModuleRuntime : IModuleTransportRuntime, IModuleTrans
     public async ValueTask<SettingsSchemaDocument> GetSettingsSchemaAsync(RuntimeModuleRecord module, ModuleContext context, CancellationToken cancellationToken)
     {
         return await ExecuteWithRestartAsync(module, context, host => host.GetSettingsSchemaAsync(module.Module.Manifest.Id, cancellationToken), cancellationToken);
+    }
+
+    public async ValueTask<SettingsValidationResult> ValidateSettingsAsync(RuntimeModuleRecord module, ModuleContext context, SettingsPatch patch, CancellationToken cancellationToken)
+    {
+        return await ExecuteWithRestartAsync(module, context, host => host.ValidateSettingsAsync(module.Module.Manifest.Id, patch, cancellationToken), cancellationToken);
+    }
+
+    public async ValueTask<SettingsSnapshotDocument> ApplySettingsAsync(RuntimeModuleRecord module, ModuleContext context, SettingsSnapshotDocument snapshot, CancellationToken cancellationToken)
+    {
+        return await ExecuteWithRestartAsync(module, context, host => host.ApplySettingsAsync(module.Module.Manifest.Id, snapshot, cancellationToken), cancellationToken);
     }
 
     public async ValueTask<IReadOnlyList<MptCommandDescriptor>> ListCommandsAsync(RuntimeModuleRecord module, ModuleContext context, CancellationToken cancellationToken)

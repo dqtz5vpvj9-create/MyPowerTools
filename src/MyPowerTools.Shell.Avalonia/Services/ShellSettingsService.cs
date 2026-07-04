@@ -19,9 +19,18 @@ public sealed class ShellSettingsService
                 viewModel.Revision,
                 patch,
                 cancellationToken);
+            var applyState = string.IsNullOrWhiteSpace(updated.ApplyState) ? "stored" : updated.ApplyState;
+            var applyMessage = string.IsNullOrWhiteSpace(updated.ApplyMessage)
+                ? $"Revision {updated.Revision}"
+                : updated.ApplyMessage;
             return new ShellSettingsSaveResult(
                 Saved: true,
-                $"{viewModel.SelectedModuleId} settings saved at revision {updated.Revision}");
+                applyState switch
+                {
+                    "applied" => $"{viewModel.SelectedModuleId} settings saved and applied at revision {updated.Revision}.",
+                    "apply-failed" => $"{viewModel.SelectedModuleId} settings saved but apply failed: {applyMessage}",
+                    _ => $"{viewModel.SelectedModuleId} settings saved at revision {updated.Revision}: {applyMessage}"
+                });
         }
         catch (RpcException ex)
         {

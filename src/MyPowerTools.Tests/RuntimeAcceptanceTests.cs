@@ -1402,6 +1402,71 @@ Address         Port        Address         Port
     }
 
     [Fact]
+    public async Task Settings_update_validates_stores_and_applies_runtime()
+    {
+        var transport = new RecordingSettingsTransportRuntime("inproc-dotnet");
+        var runtime = new MptHostRuntime(
+            new PackageReader(),
+            PlatformId.Current(),
+            RuntimePaths.Create(Path.Combine(Path.GetTempPath(), "mpt-settings-apply", Guid.NewGuid().ToString("N"))),
+            [transport]);
+        runtime.Load(Path.Combine(Root, "modules"));
+        var current = runtime.GetSettings("screenease");
+
+        var result = await runtime.UpdateSettingsWithApplyAsync(
+            new SettingsPatch("screenease", current.Revision, new JsonObject { ["enabled"] = true }),
+            CancellationToken.None);
+
+        Assert.Equal("applied", result.ApplyState);
+        Assert.Contains("Settings applied", result.ApplyMessage);
+        Assert.Equal(1, transport.ValidateCount);
+        Assert.Equal(1, transport.ApplyCount);
+        Assert.Equal("screenease", transport.ValidatedPatch!.ModuleId);
+        Assert.Equal(result.Snapshot.Revision, transport.AppliedSnapshot!.Revision);
+        Assert.True(result.Snapshot.Values["enabled"]!.GetValue<bool>());
+        Assert.Contains(runtime.HostEventsSince(0), evt =>
+            evt.Type == "settings.updated" &&
+            evt.Payload["applyState"]!.GetValue<string>() == "applied");
+    }
+
+    [Fact]
+    public void Settings_validate_apply_chain_is_wired_through_hostcontrol_and_shell()
+    {
+        var hostProtoPath = Path.Combine(Root, "proto", "mpt_host_control_v1.proto");
+        var moduleProtoPath = Path.Combine(Root, "proto", "mpt_module_v1.proto");
+        var runtimeContractsPath = Path.Combine(Root, "src", "MyPowerTools.Runtime", "ModuleContracts.cs");
+        var abstractionsPath = Path.Combine(Root, "src", "MyPowerTools.Abstractions", "PluginContracts.cs");
+        var runtimePath = Path.Combine(Root, "src", "MyPowerTools.Runtime", "MptHostRuntime.cs");
+        var hostServicePath = Path.Combine(Root, "src", "MyPowerTools.HostControl", "HostControlGrpcService.cs");
+        var shellSettingsPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellSettingsService.cs");
+        var grpcHostPath = Path.Combine(Root, "src", "MyPowerTools.ModuleHost.GrpcIpc", "GrpcIpcModuleHost.cs");
+        var hostProto = File.ReadAllText(hostProtoPath);
+        var moduleProto = File.ReadAllText(moduleProtoPath);
+        var runtimeContracts = File.ReadAllText(runtimeContractsPath);
+        var abstractions = File.ReadAllText(abstractionsPath);
+        var runtime = File.ReadAllText(runtimePath);
+        var hostService = File.ReadAllText(hostServicePath);
+        var shellSettings = File.ReadAllText(shellSettingsPath);
+        var grpcHost = File.ReadAllText(grpcHostPath);
+
+        Assert.Contains("rpc ValidateSettings", moduleProto);
+        Assert.Contains("rpc ApplySettings", moduleProto);
+        Assert.Contains("string apply_state = 5", hostProto);
+        Assert.Contains("ValidateSettingsAsync(RuntimeModuleRecord module", runtimeContracts);
+        Assert.Contains("ApplySettingsAsync(RuntimeModuleRecord module", runtimeContracts);
+        Assert.Contains("ApplySettingsAsync(SettingsSnapshotDocument snapshot", abstractions);
+        Assert.Contains("UpdateSettingsWithApplyAsync", runtime);
+        Assert.Contains("runtime.ValidateSettingsAsync", runtime);
+        Assert.Contains("runtime.ApplySettingsAsync", runtime);
+        Assert.Contains("SettingsValidationException", hostService);
+        Assert.Contains("ApplyState = applyState", hostService);
+        Assert.Contains("ValidateSettingsAsync(new ValidateSettingsRequest", grpcHost);
+        Assert.Contains("ApplySettingsAsync(new ApplySettingsRequest", grpcHost);
+        Assert.Contains("saved and applied", shellSettings);
+        Assert.Contains("apply failed", shellSettings);
+    }
+
+    [Fact]
     public void Settings_persist_and_rollback()
     {
         var path = Path.Combine(Path.GetTempPath(), "mpt-settings-test", Guid.NewGuid().ToString("N"));
@@ -4780,6 +4845,65 @@ cloud_server_protocol: str = "https"
             Type = type,
             Time = Google.Protobuf.WellKnownTypes.Timestamp.FromDateTimeOffset(DateTimeOffset.UtcNow)
         };
+    }
+
+    private sealed class RecordingSettingsTransportRuntime : IModuleTransportRuntime
+    {
+        public RecordingSettingsTransportRuntime(string kind)
+        {
+            Kind = kind;
+        }
+
+        public string Kind { get; }
+        public int ValidateCount { get; private set; }
+        public int ApplyCount { get; private set; }
+        public SettingsPatch? ValidatedPatch { get; private set; }
+        public SettingsSnapshotDocument? AppliedSnapshot { get; private set; }
+
+        public ValueTask<ModuleStatusSnapshot?> GetStatusAsync(RuntimeModuleRecord module, ModuleContext context, CancellationToken cancellationToken)
+        {
+            return ValueTask.FromResult<ModuleStatusSnapshot?>(new ModuleStatusSnapshot(
+                module.Module.Manifest.Id,
+                "running",
+                "recording settings runtime",
+                DateTimeOffset.UtcNow,
+                [],
+                0));
+        }
+
+        public ValueTask<SettingsSchemaDocument> GetSettingsSchemaAsync(RuntimeModuleRecord module, ModuleContext context, CancellationToken cancellationToken)
+        {
+            return ValueTask.FromResult(new SettingsSchemaDocument(module.Module.Manifest.Id, """{"type":"object","properties":{}}"""));
+        }
+
+        public ValueTask<SettingsValidationResult> ValidateSettingsAsync(RuntimeModuleRecord module, ModuleContext context, SettingsPatch patch, CancellationToken cancellationToken)
+        {
+            ValidateCount++;
+            ValidatedPatch = patch;
+            return ValueTask.FromResult(new SettingsValidationResult(true, []));
+        }
+
+        public ValueTask<SettingsSnapshotDocument> ApplySettingsAsync(RuntimeModuleRecord module, ModuleContext context, SettingsSnapshotDocument snapshot, CancellationToken cancellationToken)
+        {
+            ApplyCount++;
+            AppliedSnapshot = snapshot;
+            return ValueTask.FromResult(snapshot);
+        }
+
+        public ValueTask<IReadOnlyList<MptCommandDescriptor>> ListCommandsAsync(RuntimeModuleRecord module, ModuleContext context, CancellationToken cancellationToken)
+        {
+            return ValueTask.FromResult<IReadOnlyList<MptCommandDescriptor>>([]);
+        }
+
+        public ValueTask<CommandExecutionResult> ExecuteCommandAsync(RuntimeModuleRecord module, ModuleContext context, CommandRequest request, CancellationToken cancellationToken)
+        {
+            return ValueTask.FromResult(new CommandExecutionResult(
+                request.InvocationId,
+                request.CommandId,
+                "succeeded",
+                true,
+                "recorded"));
+        }
     }
 
     private sealed class TestServerCallContext : ServerCallContext

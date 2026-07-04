@@ -58,6 +58,18 @@ public sealed class InProcDotNetModuleHost : IModuleTransportRuntime, IModuleTra
         return await loaded.GetSettingsSchemaAsync(cancellationToken);
     }
 
+    public async ValueTask<SettingsValidationResult> ValidateSettingsAsync(RuntimeModuleRecord module, ModuleContext context, SettingsPatch patch, CancellationToken cancellationToken)
+    {
+        var loaded = await LoadCachedAsync(module.Module, context, cancellationToken);
+        return await loaded.ValidateSettingsAsync(patch, cancellationToken);
+    }
+
+    public async ValueTask<SettingsSnapshotDocument> ApplySettingsAsync(RuntimeModuleRecord module, ModuleContext context, SettingsSnapshotDocument snapshot, CancellationToken cancellationToken)
+    {
+        var loaded = await LoadCachedAsync(module.Module, context, cancellationToken);
+        return await loaded.ApplySettingsAsync(snapshot, cancellationToken);
+    }
+
     public async ValueTask<IReadOnlyList<MptCommandDescriptor>> ListCommandsAsync(RuntimeModuleRecord module, ModuleContext context, CancellationToken cancellationToken)
     {
         var loaded = await LoadCachedAsync(module.Module, context, cancellationToken);

@@ -96,6 +96,9 @@ This document tracks the current slice for external review. It is an audit hando
 - Added HostControl command parameter descriptors and mapped module/static command parameters through Runtime, gRPC IPC, HostControl, and Shell services.
 - Updated Command Palette ViewModels and AXAML to render basic text/boolean parameter forms and build JSON args for command execution.
 - Added HostControl client and Shell command execution overloads that pass command args through `ExecuteCommandRequest.args`.
+- Added Runtime settings validate/store/apply sequencing through `UpdateSettingsWithApplyAsync`.
+- Mapped settings validate/apply hooks through `IModuleTransportRuntime`, InProc modules, gRPC IPC modules, HostControl, and Shell save status.
+- Extended HostControl settings snapshots with `apply_state` and `apply_message` so Shell can distinguish stored, applied, and apply-failed outcomes.
 
 ### Acceptance Coverage
 
@@ -155,6 +158,10 @@ This document tracks the current slice for external review. It is an audit hando
   verifies Settings Center uses `SettingsCenterView` plus `ShellPageViewModelFactory.FromSettings`, preserves save command wiring, and removes the old imperative settings editor path.
 - `Shell_settings_save_is_extracted_to_service`
   verifies settings patch construction, update calls, and RPC error mapping are owned by `ShellSettingsService` while `ShellWorkspaceController` owns refresh choreography.
+- `Settings_update_validates_stores_and_applies_runtime`
+  verifies Runtime settings updates call transport validation before storage, apply the stored snapshot afterward, and publish `applyState`.
+- `Settings_validate_apply_chain_is_wired_through_hostcontrol_and_shell`
+  verifies settings validate/apply hooks flow through module proto, Runtime transport contracts, HostControl, gRPC IPC, and Shell save status.
 - `Shell_read_only_page_data_is_extracted_to_service`
   verifies read-only HostControl data loading and page ViewModel factory mapping are owned by `ShellPageDataService` while `ShellWorkspaceController` owns page view assignment.
 - `Shell_host_event_refresh_routing_is_extracted_to_service`
@@ -185,7 +192,7 @@ This document tracks the current slice for external review. It is an audit hando
 - Token `ResourceDictionary` split: `MptColors.axaml`, `MptSpacing.axaml`, `MptTypography.axaml`, and `MptDensity.axaml` are loaded through `MptTheme.axaml`.
 - Static style lint for shell UI: covers split-token dictionaries, component-style coverage, AXAML raw colors/font sizes, C# raw colors/font sizes in Shell/UI control surfaces, thin code-behind files, and ViewModel independence from Avalonia controls.
 - Command palette typed argument binding: basic HostControl parameter descriptors, Shell text/boolean parameter editors, and JSON args pass-through are wired; richer validation, preview, progress, and cancellation states remain pending.
-- Settings validate/apply chain with staged diff UX: schema-backed edit and save command are wired; validation preview, apply result states, and staged diff remain pending.
+- Settings validate/apply chain with staged diff UX: Runtime validate/store/apply sequencing, HostControl apply state fields, and Shell save status messages are wired; validation preview, staged diff, rollback-on-apply-failure policy, and richer apply result UX remain pending.
 
 The existing shell already has UI snapshot gates, keyboard shortcut tests, and centralized color-token checks. The next slice should turn those guardrails into a structural refactor that reduces imperative UI construction in `MainWindow.cs`.
 
@@ -207,7 +214,7 @@ The existing shell already has UI snapshot gates, keyboard shortcut tests, and c
 | Component library | Reusable AXAML controls and tokens | Started: foundation component styles and matching C# classes for cards, badges, metrics, command items, settings fields, logs, notifications, prompts, states, headers, action bars, and action buttons |
 | Style lint | Static lint over shell UI style usage | Started: split-token, component-style, raw color/font-size, code-behind, and viewmodel guardrails |
 | Command palette | Typed args and validation UI | Basic parameter descriptors, text/boolean editors, and args pass-through wired; validation preview, execution preview, progress, and cancellation pending |
-| Settings UX | Validate/apply chain with clear states | Schema-backed edit and save wired through AXAML/MVVM; staged diff and apply result states pending |
+| Settings UX | Validate/apply chain with clear states | Runtime validate/store/apply sequencing and Shell save apply-state messages wired; staged diff, validation preview, rollback policy, and richer apply result states pending |
 
 ## Validation Evidence
 
@@ -228,7 +235,7 @@ Latest observed result before packaging:
 
 ```text
 Build: passed, 0 warnings, 0 errors
-Tests: passed, 126 passed, 0 failed, 0 skipped
+Tests: passed, 128 passed, 0 failed, 0 skipped
 Module validation: 5 packages valid
 Contract validation: 5 packages, 7 modules passed
 UI gate: passed
@@ -242,6 +249,6 @@ The packaging step for external review should run the same validation again and 
 
 1. Wire Shell views more deeply onto the new component style names and reduce repeated inline card/list markup.
 2. Add command palette validation preview, execution preview, progress, cancellation, and result/error state handling.
-3. Add Settings validation preview, staged diff, apply result states, and module apply feedback.
+3. Add Settings validation preview, staged diff, rollback-on-apply-failure policy, and richer apply result UI.
 4. Add pixel or Avalonia.Headless screenshot baselines for dashboard, command palette, settings, module detail, logs, notifications, packages, and diagnostics.
 5. Keep sidecar process supervision as the next plugin-runtime depth item after the UI architecture slice starts.

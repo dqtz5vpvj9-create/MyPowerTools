@@ -185,6 +185,8 @@ public sealed class SettingsStore
 
 public sealed record PersistedSettingsSnapshot(string ModuleId, ulong Revision, string ValuesJson, DateTimeOffset UpdatedAt);
 
+public sealed record SettingsUpdateResult(SettingsSnapshotDocument Snapshot, string ApplyState, string ApplyMessage);
+
 public sealed class SettingsConflictException : Exception
 {
     public SettingsConflictException(string moduleId, ulong currentRevision, ulong expectedRevision)
@@ -198,4 +200,29 @@ public sealed class SettingsConflictException : Exception
     public string ModuleId { get; }
     public ulong CurrentRevision { get; }
     public ulong ExpectedRevision { get; }
+}
+
+public sealed class SettingsValidationException : Exception
+{
+    public SettingsValidationException(string moduleId, IReadOnlyList<string> messages, MptRuntimeError? error)
+        : base($"{MptErrorCodes.ValidationFailed}: {moduleId} settings validation failed. {BuildMessage(messages, error)}")
+    {
+        ModuleId = moduleId;
+        Messages = messages;
+        Error = error;
+    }
+
+    public string ModuleId { get; }
+    public IReadOnlyList<string> Messages { get; }
+    public MptRuntimeError? Error { get; }
+
+    private static string BuildMessage(IReadOnlyList<string> messages, MptRuntimeError? error)
+    {
+        if (messages.Count > 0)
+        {
+            return string.Join("; ", messages);
+        }
+
+        return error?.Message ?? "Validation returned no details.";
+    }
 }

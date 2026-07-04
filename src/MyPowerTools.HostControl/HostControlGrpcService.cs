@@ -313,16 +313,22 @@ public sealed class HostControlGrpcService : HostProto.HostControl.HostControlBa
         };
     }
 
-    public override Task<HostProto.SettingsSnapshot> UpdateSettings(HostProto.UpdateSettingsRequest request, ServerCallContext context)
+    public override async Task<HostProto.SettingsSnapshot> UpdateSettings(HostProto.UpdateSettingsRequest request, ServerCallContext context)
     {
         try
         {
-            var snapshot = _runtime.UpdateSettings(new SettingsPatch(request.ModuleId, request.ExpectedRevision, JsonStructMapper.ToJsonObject(request.Patch)));
-            return Task.FromResult(ToProtoSettings(snapshot));
+            var result = await _runtime.UpdateSettingsWithApplyAsync(
+                new SettingsPatch(request.ModuleId, request.ExpectedRevision, JsonStructMapper.ToJsonObject(request.Patch)),
+                context.CancellationToken);
+            return ToProtoSettings(result.Snapshot, result.ApplyState, result.ApplyMessage);
         }
         catch (SettingsConflictException ex)
         {
             throw new RpcException(new Status(StatusCode.FailedPrecondition, ex.Message));
+        }
+        catch (SettingsValidationException ex)
+        {
+            throw new RpcException(new Status(StatusCode.InvalidArgument, ex.Message));
         }
     }
 
@@ -375,14 +381,16 @@ public sealed class HostControlGrpcService : HostProto.HostControl.HostControlBa
         return Task.FromResult(new Empty());
     }
 
-    private static HostProto.SettingsSnapshot ToProtoSettings(SettingsSnapshotDocument snapshot)
+    private static HostProto.SettingsSnapshot ToProtoSettings(SettingsSnapshotDocument snapshot, string applyState = "", string applyMessage = "")
     {
         return new HostProto.SettingsSnapshot
         {
             ModuleId = snapshot.ModuleId,
             Revision = snapshot.Revision,
             Values = JsonStructMapper.ToStruct(snapshot.Values),
-            UpdatedAt = Timestamp.FromDateTimeOffset(snapshot.UpdatedAt)
+            UpdatedAt = Timestamp.FromDateTimeOffset(snapshot.UpdatedAt),
+            ApplyState = applyState,
+            ApplyMessage = applyMessage
         };
     }
 

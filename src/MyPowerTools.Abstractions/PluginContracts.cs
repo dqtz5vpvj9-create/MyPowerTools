@@ -17,6 +17,11 @@ public interface IMptModule
     ValueTask<SettingsSchemaDocument> GetSettingsSchemaAsync(CancellationToken cancellationToken);
     ValueTask<SettingsSnapshotDocument> GetSettingsAsync(CancellationToken cancellationToken);
     ValueTask<SettingsValidationResult> ValidateSettingsAsync(SettingsPatch patch, CancellationToken cancellationToken);
+    ValueTask<SettingsSnapshotDocument> ApplySettingsAsync(SettingsSnapshotDocument snapshot, CancellationToken cancellationToken)
+    {
+        return ValueTask.FromResult(snapshot);
+    }
+
     ValueTask<IReadOnlyList<UiSurfaceDescriptor>> ListSurfacesAsync(CancellationToken cancellationToken);
     ValueTask DisposeAsync(CancellationToken cancellationToken);
 }
