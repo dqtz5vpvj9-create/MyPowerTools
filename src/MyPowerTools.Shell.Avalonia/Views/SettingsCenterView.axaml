@@ -16,6 +16,30 @@
       </StackPanel>
     </Border>
 
+    <ItemsControl ItemsSource="{Binding Modules}">
+      <ItemsControl.ItemsPanel>
+        <ItemsPanelTemplate>
+          <WrapPanel />
+        </ItemsPanelTemplate>
+      </ItemsControl.ItemsPanel>
+      <ItemsControl.ItemTemplate>
+        <DataTemplate x:DataType="vm:ModulePickerItemViewModel">
+          <Button Command="{Binding SelectCommand}" MinHeight="32" Margin="0,0,8,8">
+            <StackPanel Orientation="Horizontal" Spacing="{DynamicResource MptSpacingXs}">
+              <TextBlock Text="{Binding DisplayName}" />
+              <TextBlock Classes="MptMeta" Text="{Binding SelectionText}" IsVisible="{Binding IsSelected}" />
+            </StackPanel>
+          </Button>
+        </DataTemplate>
+      </ItemsControl.ItemTemplate>
+    </ItemsControl>
+
+    <TextBlock Classes="MptPageSubtitle"
+               Text="No modules."
+               IsVisible="{Binding HasNoModules}" />
+
+    <TextBlock Classes="MptMeta" Text="{Binding StatusText}" />
+
     <ItemsControl ItemsSource="{Binding Fields}">
       <ItemsControl.ItemTemplate>
         <DataTemplate x:DataType="vm:SettingsFieldViewModel">
@@ -26,11 +50,47 @@
                 <TextBlock Grid.Column="1" Classes="MptMeta" Text="{Binding EditorType}" />
               </Grid>
               <TextBlock Classes="MptPageSubtitle" Text="{Binding Description}" />
-              <TextBlock Classes="MptMeta" Text="{Binding Value}" />
+              <TextBox Text="{Binding Value, Mode=TwoWay}"
+                       MinWidth="360"
+                       MinHeight="34"
+                       IsVisible="{Binding IsSingleLineTextEditor}" />
+              <TextBox Text="{Binding Value, Mode=TwoWay}"
+                       AcceptsReturn="True"
+                       TextWrapping="NoWrap"
+                       FontFamily="Consolas"
+                       FontSize="12"
+                       MinHeight="120"
+                       IsVisible="{Binding IsMultilineEditor}" />
+              <CheckBox IsChecked="{Binding BooleanValue, Mode=TwoWay}"
+                        Content="{Binding Key}"
+                        MinHeight="32"
+                        IsVisible="{Binding IsBooleanEditor}" />
+              <ComboBox ItemsSource="{Binding Options}"
+                        SelectedItem="{Binding SelectedOption, Mode=TwoWay}"
+                        MinWidth="260"
+                        MinHeight="34"
+                        IsVisible="{Binding IsEnumEditor}" />
             </StackPanel>
           </Border>
         </DataTemplate>
       </ItemsControl.ItemTemplate>
     </ItemsControl>
+
+    <Border Classes="MptCard" IsVisible="{Binding UsesRawJson}">
+      <StackPanel Spacing="{DynamicResource MptSpacingS}">
+        <TextBlock Classes="MptSectionTitle" Text="Raw Settings" />
+        <TextBox Text="{Binding RawJson, Mode=TwoWay}"
+                 AcceptsReturn="True"
+                 TextWrapping="NoWrap"
+                 FontFamily="Consolas"
+                 FontSize="12"
+                 MinHeight="280" />
+      </StackPanel>
+    </Border>
+
+    <Button Content="Save settings"
+            Command="{Binding SaveCommand}"
+            MinHeight="34"
+            MinWidth="120" />
   </StackPanel>
 </UserControl>

@@ -1,4 +1,3 @@
-using System.Globalization;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Avalonia;
@@ -443,22 +442,43 @@ public sealed class MainWindow : Window
             var selected = PickModule(modules, selectedModuleId);
             if (selected is null)
             {
-                _contentHost.Content = BuildPage(SettingsPage, "", new MptEmptyState("No modules."));
+                var emptyViewModel = ShellPageViewModelFactory.FromSettings(
+                    modules,
+                    null,
+                    "",
+                    new JsonObject(),
+                    "{}",
+                    0,
+                    DateTimeOffset.MinValue,
+                    moduleId => LoadSettingsPageAsync(moduleId),
+                    SaveSettingsPageAsync);
+                _contentHost.Content = new SettingsCenterView
+                {
+                    DataContext = emptyViewModel
+                };
+                _statusBar.Text = emptyViewModel.StatusText;
                 return;
             }
 
-            var editorHost = new StackPanel { Spacing = 12 };
-            var body = new StackPanel
+            var schema = await client.GetSettingsSchemaAsync(selected.ModuleId);
+            var snapshot = await client.GetSettingsAsync(selected.ModuleId);
+            var values = JsonStructMapper.ToJsonObject(snapshot.Values);
+            var viewModel = ShellPageViewModelFactory.FromSettings(
+                modules,
+                selected,
+                schema.SchemaJson,
+                values,
+                PrettyJson(snapshot.Values),
+                snapshot.Revision,
+                snapshot.UpdatedAt.ToDateTimeOffset(),
+                moduleId => LoadSettingsPageAsync(moduleId),
+                SaveSettingsPageAsync);
+
+            _contentHost.Content = new SettingsCenterView
             {
-                Spacing = 16,
-                Children =
-                {
-                    BuildModulePicker(modules, selected.ModuleId, moduleId => LoadSettingsPageAsync(moduleId)),
-                    editorHost
-                }
+                DataContext = viewModel
             };
-            _contentHost.Content = BuildPage(SettingsPage, selected.DisplayName, body);
-            await FillSettingsEditorAsync(selected.ModuleId, editorHost);
+            _statusBar.Text = viewModel.StatusText;
         }
         catch (Exception ex)
         {
@@ -467,74 +487,26 @@ public sealed class MainWindow : Window
         }
     }
 
-    private async Task FillSettingsEditorAsync(string moduleId, StackPanel editorHost)
+    private async Task SaveSettingsPageAsync(SettingsCenterViewModel viewModel)
     {
-        editorHost.Children.Clear();
-        using var client = HostControlClient.ForDefaultEndpoint();
-        var schema = await client.GetSettingsSchemaAsync(moduleId);
-        var snapshot = await client.GetSettingsAsync(moduleId);
-        var values = JsonStructMapper.ToJsonObject(snapshot.Values);
-        var schemaObject = TryParseSettingsSchema(schema.SchemaJson);
-        IReadOnlyList<SettingsFieldEditor> fields = schemaObject is null
-            ? []
-            : BuildSettingsFieldEditors(schemaObject, values);
-        TextBox? rawEditor = null;
-
-        var state = new TextBlock
+        try
         {
-            Text = $"Revision {snapshot.Revision} · {snapshot.UpdatedAt.ToDateTimeOffset():yyyy-MM-dd HH:mm:ss} · Schema fields {fields.Count}",
-            Foreground = MptTheme.TextSecondary
-        };
-        editorHost.Children.Add(state);
-
-        if (fields.Count > 0)
-        {
-            var section = new MptSettingsSection("Settings");
-            foreach (var field in fields)
-            {
-                section.Children.Add(field.View);
-            }
-
-            editorHost.Children.Add(new MptModuleCard(section));
+            using var client = HostControlClient.ForDefaultEndpoint();
+            var patch = JsonStructMapper.ToStruct(ShellPageViewModelFactory.BuildSettingsPatch(viewModel));
+            var updated = await client.UpdateSettingsAsync(viewModel.SelectedModuleId, viewModel.Revision, patch);
+            _statusBar.Text = $"{viewModel.SelectedModuleId} settings saved at revision {updated.Revision}";
+            await LoadSettingsPageAsync(viewModel.SelectedModuleId);
         }
-        else
+        catch (RpcException ex)
         {
-            rawEditor = new TextBox
-            {
-                AcceptsReturn = true,
-                TextWrapping = TextWrapping.NoWrap,
-                FontFamily = FontFamily.Parse("Consolas"),
-                FontSize = 12,
-                MinHeight = 280,
-                Text = PrettyJson(snapshot.Values)
-            };
-            editorHost.Children.Add(rawEditor);
+            viewModel.StatusText = ex.Status.Detail;
+            _statusBar.Text = ex.Status.Detail;
         }
-
-        var save = new MptActionButton("Save settings");
-        save.Click += async (_, _) =>
+        catch (Exception ex)
         {
-            try
-            {
-                var patch = rawEditor is null
-                    ? JsonStructMapper.ToStruct(BuildSettingsPatch(fields))
-                    : Struct.Parser.ParseJson(string.IsNullOrWhiteSpace(rawEditor.Text) ? "{}" : rawEditor.Text);
-                var updated = await client.UpdateSettingsAsync(moduleId, snapshot.Revision, patch);
-                _statusBar.Text = $"{moduleId} settings saved at revision {updated.Revision}";
-                await FillSettingsEditorAsync(moduleId, editorHost);
-            }
-            catch (RpcException ex)
-            {
-                _statusBar.Text = ex.Status.Detail;
-            }
-            catch (Exception ex)
-            {
-                _statusBar.Text = ex.Message;
-            }
-        };
-
-        editorHost.Children.Add(save);
-        _statusBar.Text = $"{moduleId} settings revision {snapshot.Revision}, schema fields {fields.Count}";
+            viewModel.StatusText = ex.Message;
+            _statusBar.Text = ex.Message;
+        }
     }
 
     private async Task LoadLogsPageAsync(string? selectedModuleId = null)
@@ -956,209 +928,6 @@ public sealed class MainWindow : Window
         return row;
     }
 
-    private Control BuildModulePicker(HostProto.ListModulesResponse modules, string selectedModuleId, Func<string, Task> handler)
-    {
-        var picker = new WrapPanel();
-        foreach (var module in modules.Modules.OrderBy(module => module.DisplayName, StringComparer.OrdinalIgnoreCase))
-        {
-            var button = new Button
-            {
-                Content = module.DisplayName,
-                Tag = module.ModuleId,
-                Margin = new Thickness(0, 0, 8, 8),
-                MinHeight = 32,
-                BorderBrush = module.ModuleId == selectedModuleId ? MptTheme.Accent : MptTheme.Border
-            };
-            button.Click += async (_, _) => await handler((string)button.Tag!);
-            picker.Children.Add(button);
-        }
-
-        return picker;
-    }
-
-    private static IReadOnlyList<SettingsFieldEditor> BuildSettingsFieldEditors(JsonObject schema, JsonObject values)
-    {
-        if (!schema.TryGetPropertyValue("properties", out var propertiesNode) ||
-            propertiesNode is not JsonObject properties)
-        {
-            return [];
-        }
-
-        var fields = new List<SettingsFieldEditor>();
-        foreach (var propertyPair in properties.OrderBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase))
-        {
-            if (propertyPair.Value is not JsonObject property)
-            {
-                continue;
-            }
-
-            var key = propertyPair.Key;
-            var label = GetSchemaString(property, "title", key);
-            var description = GetSchemaString(property, "description", "");
-            var type = GetSchemaString(property, "type", "string").ToLowerInvariant();
-            values.TryGetPropertyValue(key, out var currentValue);
-            property.TryGetPropertyValue("default", out var defaultValue);
-            var effectiveValue = currentValue ?? defaultValue;
-
-            Control input;
-            var editorType = type;
-            if (property.TryGetPropertyValue("enum", out var enumNode) && enumNode is JsonArray enumValues)
-            {
-                editorType = "enum";
-                var options = enumValues.Select(NodeToEditorText).Where(value => !string.IsNullOrWhiteSpace(value)).ToArray();
-                var selected = NodeToEditorText(effectiveValue);
-                input = new ComboBox
-                {
-                    ItemsSource = options,
-                    SelectedItem = options.Contains(selected, StringComparer.OrdinalIgnoreCase)
-                        ? selected
-                        : options.FirstOrDefault(),
-                    MinWidth = 260,
-                    MinHeight = 34
-                };
-            }
-            else if (type == "boolean")
-            {
-                input = new CheckBox
-                {
-                    IsChecked = NodeToBool(effectiveValue),
-                    MinHeight = 32
-                };
-            }
-            else
-            {
-                input = new TextBox
-                {
-                    Text = NodeToEditorText(effectiveValue),
-                    MinWidth = 360,
-                    MinHeight = type is "object" or "array" ? 96 : 34,
-                    AcceptsReturn = type is "object" or "array",
-                    TextWrapping = type is "object" or "array" ? TextWrapping.NoWrap : TextWrapping.Wrap,
-                    FontFamily = type is "object" or "array" ? FontFamily.Parse("Consolas") : FontFamily.Default,
-                    FontSize = type is "object" or "array" ? 12 : 14
-                };
-            }
-
-            fields.Add(new SettingsFieldEditor(
-                key,
-                editorType,
-                input,
-                BuildSettingsFieldView(label, key, editorType, description, input)));
-        }
-
-        return fields;
-    }
-
-    private static Control BuildSettingsFieldView(string label, string key, string type, string description, Control input)
-    {
-        var panel = new StackPanel { Spacing = 4 };
-        panel.Children.Add(new TextBlock
-        {
-            Text = label,
-            FontWeight = FontWeight.SemiBold
-        });
-        panel.Children.Add(new TextBlock
-        {
-            Text = string.IsNullOrWhiteSpace(description) ? $"{key} · {type}" : $"{key} · {type} · {description}",
-            FontSize = 12,
-            Foreground = MptTheme.TextSecondary,
-            TextWrapping = TextWrapping.Wrap
-        });
-        panel.Children.Add(input);
-        return panel;
-    }
-
-    private static JsonObject BuildSettingsPatch(IReadOnlyList<SettingsFieldEditor> fields)
-    {
-        var patch = new JsonObject();
-        foreach (var field in fields)
-        {
-            patch[field.Key] = field.Type switch
-            {
-                "boolean" => JsonValue.Create(((CheckBox)field.Input).IsChecked == true),
-                "integer" => JsonValue.Create(ParseLong(((TextBox)field.Input).Text, field.Key)),
-                "number" => JsonValue.Create(ParseDouble(((TextBox)field.Input).Text, field.Key)),
-                "object" => ParseCompositeSetting(((TextBox)field.Input).Text, field.Key, "{}"),
-                "array" => ParseCompositeSetting(((TextBox)field.Input).Text, field.Key, "[]"),
-                "enum" => JsonValue.Create(((ComboBox)field.Input).SelectedItem?.ToString() ?? ""),
-                _ => JsonValue.Create(((TextBox)field.Input).Text ?? "")
-            };
-        }
-
-        return patch;
-    }
-
-    private static JsonObject? TryParseSettingsSchema(string schemaJson)
-    {
-        if (string.IsNullOrWhiteSpace(schemaJson))
-        {
-            return null;
-        }
-
-        try
-        {
-            return JsonNode.Parse(schemaJson) as JsonObject;
-        }
-        catch (JsonException)
-        {
-            return null;
-        }
-    }
-
-    private static string GetSchemaString(JsonObject schema, string key, string fallback)
-    {
-        return schema.TryGetPropertyValue(key, out var node) && node is JsonValue value && value.TryGetValue<string>(out var text)
-            ? text
-            : fallback;
-    }
-
-    private static bool NodeToBool(JsonNode? node)
-    {
-        return node is JsonValue value && value.TryGetValue<bool>(out var result) && result;
-    }
-
-    private static string NodeToEditorText(JsonNode? node)
-    {
-        if (node is null)
-        {
-            return "";
-        }
-
-        if (node is JsonValue value && value.TryGetValue<string>(out var text))
-        {
-            return text;
-        }
-
-        return node.ToJsonString(new JsonSerializerOptions { WriteIndented = node is JsonObject or JsonArray });
-    }
-
-    private static long ParseLong(string? value, string key)
-    {
-        if (long.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var result))
-        {
-            return result;
-        }
-
-        throw new FormatException($"{key} must be an integer.");
-    }
-
-    private static double ParseDouble(string? value, string key)
-    {
-        if (double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var result))
-        {
-            return result;
-        }
-
-        throw new FormatException($"{key} must be a number.");
-    }
-
-    private static JsonNode ParseCompositeSetting(string? value, string key, string emptyValue)
-    {
-        var text = string.IsNullOrWhiteSpace(value) ? emptyValue : value;
-        return JsonNode.Parse(text)
-            ?? throw new FormatException($"{key} must be valid JSON.");
-    }
-
     private Button NavButton(string label)
     {
         var button = new Button
@@ -1329,8 +1098,6 @@ public sealed class MainWindow : Window
 
         return modules.Modules.OrderBy(module => module.DisplayName, StringComparer.OrdinalIgnoreCase).FirstOrDefault();
     }
-
-    private sealed record SettingsFieldEditor(string Key, string Type, Control Input, Control View);
 
     private static TextBlock DetailLine(string label, string value)
     {

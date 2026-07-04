@@ -58,6 +58,8 @@ This document tracks the current slice for external review. It is an audit hando
 - Removed the old imperative runtime diagnostics builders from `MainWindow.cs`.
 - Wired the right-side Command Palette panel to `CommandPaletteView` / `CommandPaletteViewModel`, preserving command execution through ViewModel commands.
 - Removed the old `_commandPanel.Children` imperative command-list rendering path from `MainWindow.cs`.
+- Wired Settings Center to `SettingsCenterView` / `SettingsCenterViewModel`, preserving module selection, schema-backed editors, raw JSON fallback, and settings save through ViewModel commands.
+- Removed the old imperative settings editor filler and schema field control builders from `MainWindow.cs`.
 
 ### Acceptance Coverage
 
@@ -99,6 +101,8 @@ This document tracks the current slice for external review. It is an audit hando
   verifies Diagnostics rendering uses `DiagnosticsView` plus `ShellPageViewModelFactory.FromDiagnostics`, preserves process commands and diagnostic sections, and removes old diagnostics builders.
 - `Shell_command_palette_is_wired_to_axaml_view_model`
   verifies the right-side Command Palette uses `CommandPaletteView` plus `ShellPageViewModelFactory.FromCommands`, preserves command execution, and removes the old `_commandPanel.Children` rendering path.
+- `Shell_settings_page_is_wired_to_axaml_view_model`
+  verifies Settings Center uses `SettingsCenterView` plus `ShellPageViewModelFactory.FromSettings`, preserves save command wiring, and removes the old imperative settings editor path.
 - `Shell_theme_resource_dictionary_is_loaded_and_defines_design_tokens`
   verifies the shared UI theme dictionary is loaded by the Shell app and contains required token/style entries.
 - `Shell_axaml_views_use_theme_tokens_without_inline_colors`
@@ -106,14 +110,14 @@ This document tracks the current slice for external review. It is an audit hando
 
 ## Current UI Architecture State
 
-- `src/MyPowerTools.Shell.Avalonia/MainWindow.cs` current: 1425 lines.
+- `src/MyPowerTools.Shell.Avalonia/MainWindow.cs` current: 1192 lines.
 - `MainWindow.cs` target <= 250 lines.
-- AXAML + MVVM migration: Dashboard, Modules, Logs, Notifications, Package Manager, Diagnostics, and the right-side Command Palette list are now live on typed AXAML plus ViewModels; Settings Center still has migration scaffolding while existing `MainWindow.cs` owns its runtime wiring and remaining imperative rendering. Module Detail remains programmatic.
+- AXAML + MVVM migration: Dashboard, Modules, Logs, Notifications, Package Manager, Diagnostics, Settings Center, and the right-side Command Palette list are now live on typed AXAML plus ViewModels. Module Detail remains programmatic.
 - Component AXAML library: started with shared page/card/text styles; reusable control templates remain pending.
 - Token `ResourceDictionary` split: initial shared `MptTheme.axaml` loaded from the UI project.
 - Static style lint for shell UI: started with AXAML/viewmodel/code-behind guardrails; deeper layout and interaction lint pending.
 - Command palette typed argument binding: pending on HostControl command parameter schema exposure.
-- Settings validate/apply chain with staged diff UX: pending.
+- Settings validate/apply chain with staged diff UX: schema-backed edit and save command are wired; validation preview, apply result states, and staged diff remain pending.
 
 The existing shell already has UI snapshot gates, keyboard shortcut tests, and centralized color-token checks. The next slice should turn those guardrails into a structural refactor that reduces imperative UI construction in `MainWindow.cs`.
 
@@ -130,12 +134,12 @@ The existing shell already has UI snapshot gates, keyboard shortcut tests, and c
 | InProc shadow-copy update | Loaded module uses cache while package DLL is replaceable | Done |
 | InProc unload handling | Unload probe and failure surfaced to runtime policy | Done for clean unload and pending-runner-restart diagnostics |
 | Sidecar default for complex modules | Complex modules prefer sidecar transport | Existing manifests keep sidecar-capable modules on sidecar paths |
-| MainWindow size | target <= 250 lines | current: 1425 lines |
-| AXAML + MVVM | Main shell split into views/viewmodels | Started: Dashboard, Modules, Logs, Notifications, Package Manager, Diagnostics, and the right-side Command Palette list wired to AXAML; eight typed page views and control-free viewmodels exist |
+| MainWindow size | target <= 250 lines | current: 1192 lines |
+| AXAML + MVVM | Main shell split into views/viewmodels | Started: Dashboard, Modules, Logs, Notifications, Package Manager, Diagnostics, Settings Center, and the right-side Command Palette list wired to AXAML; eight typed page views and control-free viewmodels exist |
 | Component library | Reusable AXAML controls and tokens | Started: shared theme resources and base page/card/text styles |
 | Style lint | Static lint over shell UI style usage | Started: AXAML token and code-behind/viewmodel guardrails |
 | Command palette | Typed args and validation UI | Command list and execution wired to AXAML/MVVM; typed args pending HostControl parameter schema |
-| Settings UX | Validate/apply chain with clear states | Pending |
+| Settings UX | Validate/apply chain with clear states | Schema-backed edit and save wired through AXAML/MVVM; staged diff and apply result states pending |
 
 ## Validation Evidence
 
@@ -156,7 +160,7 @@ Latest observed result before packaging:
 
 ```text
 Build: passed, 0 warnings, 0 errors
-Tests: passed, 109 passed, 0 failed, 0 skipped
+Tests: passed, 110 passed, 0 failed, 0 skipped
 Module validation: 5 packages valid
 Contract validation: 5 packages, 7 modules passed
 UI gate: passed
@@ -168,8 +172,8 @@ The packaging step for external review should run the same validation again and 
 
 ## Recommended Next Slice
 
-1. Move settings and module detail runtime wiring into AXAML views with viewmodels.
+1. Move module detail runtime wiring into AXAML views with viewmodels.
 2. Introduce shell token dictionaries and component styles under the UI project.
 3. Add a static style lint that scans AXAML and C# UI files.
-4. Add command palette parameter editors and settings validate/apply staging.
+4. Add command palette parameter editors plus settings validation preview, staged diff, and apply result states.
 5. Keep sidecar process supervision as the next plugin-runtime depth item after the UI architecture slice starts.

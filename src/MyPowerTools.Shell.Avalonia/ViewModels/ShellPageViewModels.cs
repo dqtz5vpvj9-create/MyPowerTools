@@ -1,5 +1,8 @@
 using System.ComponentModel;
+using System.Globalization;
 using System.Runtime.CompilerServices;
+using System.Text.Json;
+using System.Text.Json.Nodes;
 using System.Windows.Input;
 using HostProto = MyPowerTools.Protocol.HostControl.V1;
 
@@ -135,17 +138,49 @@ public sealed class ModulesViewModel : ShellPageViewModel
 
 public sealed class SettingsCenterViewModel : ShellPageViewModel
 {
-    public SettingsCenterViewModel(string selectedModuleId, string selectedModuleName, ulong revision, IReadOnlyList<SettingsFieldViewModel> fields)
-        : base("Settings", selectedModuleName, fields.Count == 0 ? "empty" : "ready")
+    private string _rawJson;
+    private string _statusText;
+
+    public SettingsCenterViewModel(
+        string selectedModuleId,
+        string selectedModuleName,
+        ulong revision,
+        string rawJson,
+        string statusText,
+        IReadOnlyList<ModulePickerItemViewModel> modules,
+        IReadOnlyList<SettingsFieldViewModel> fields,
+        Func<SettingsCenterViewModel, Task>? saveSettings = null)
+        : base("Settings", selectedModuleName, selectedModuleId.Length == 0 ? "empty" : "ready")
     {
         SelectedModuleId = selectedModuleId;
         Revision = revision;
+        _rawJson = rawJson;
+        _statusText = statusText;
+        Modules = modules;
         Fields = fields;
+        SaveCommand = new AsyncRelayCommand(() => saveSettings?.Invoke(this) ?? Task.CompletedTask, () => SelectedModuleId.Length > 0);
     }
 
     public string SelectedModuleId { get; }
     public ulong Revision { get; }
+    public IReadOnlyList<ModulePickerItemViewModel> Modules { get; }
     public IReadOnlyList<SettingsFieldViewModel> Fields { get; }
+    public bool HasNoModules => Modules.Count == 0;
+    public bool HasFields => Fields.Count > 0;
+    public bool UsesRawJson => SelectedModuleId.Length > 0 && Fields.Count == 0;
+    public ICommand SaveCommand { get; }
+
+    public string RawJson
+    {
+        get => _rawJson;
+        set => SetProperty(ref _rawJson, value);
+    }
+
+    public string StatusText
+    {
+        get => _statusText;
+        set => SetProperty(ref _statusText, value);
+    }
 }
 
 public sealed class LogsViewModel : ShellPageViewModel
@@ -336,7 +371,61 @@ public sealed record RuntimeModuleDiagnosticViewModel(string DisplayName, string
 public sealed record RuntimeCommandHistoryItemViewModel(string Title, string Detail, string Summary);
 public sealed record BrokerAuditEntryViewModel(string Title, string Detail, string Reason, string Rollback);
 
-public sealed record SettingsFieldViewModel(string Key, string Label, string EditorType, string Description, string Value);
+public sealed class SettingsFieldViewModel : ObservableViewModel
+{
+    private string _value;
+    private bool _booleanValue;
+    private string _selectedOption;
+
+    public SettingsFieldViewModel(
+        string key,
+        string label,
+        string editorType,
+        string description,
+        string value,
+        bool booleanValue,
+        IReadOnlyList<string> options,
+        string selectedOption)
+    {
+        Key = key;
+        Label = label;
+        EditorType = editorType;
+        Description = description;
+        _value = value;
+        _booleanValue = booleanValue;
+        Options = options;
+        _selectedOption = selectedOption;
+    }
+
+    public string Key { get; }
+    public string Label { get; }
+    public string EditorType { get; }
+    public string Description { get; }
+    public IReadOnlyList<string> Options { get; }
+    public bool IsBooleanEditor => EditorType == "boolean";
+    public bool IsEnumEditor => EditorType == "enum";
+    public bool IsMultilineEditor => EditorType is "object" or "array";
+    public bool IsSingleLineTextEditor => !IsBooleanEditor && !IsEnumEditor && !IsMultilineEditor;
+
+    public string Value
+    {
+        get => _value;
+        set => SetProperty(ref _value, value);
+    }
+
+    public bool BooleanValue
+    {
+        get => _booleanValue;
+        set => SetProperty(ref _booleanValue, value);
+    }
+
+    public string SelectedOption
+    {
+        get => _selectedOption;
+        set => SetProperty(ref _selectedOption, value);
+    }
+}
+
 public sealed record ModulePickerItemViewModel(string ModuleId, string DisplayName, bool IsSelected, string SelectionText, ICommand SelectCommand);
 public sealed record LogLineViewModel(string Time, string Level, string Message);
 public sealed record NotificationItemViewModel(string Id, string Time, string ModuleId, string Level, string Title, string Body, bool IsRead);
@@ -432,6 +521,69 @@ public static class ShellPageViewModelFactory
         return new ModulesViewModel(modules);
     }
 
+    public static SettingsCenterViewModel FromSettings(
+        HostProto.ListModulesResponse modules,
+        HostProto.ModuleSummary? selected,
+        string schemaJson,
+        JsonObject values,
+        string rawJson,
+        ulong revision,
+        DateTimeOffset updatedAt,
+        Func<string, Task>? selectModule = null,
+        Func<SettingsCenterViewModel, Task>? saveSettings = null)
+    {
+        var selectedModuleId = selected?.ModuleId ?? "";
+        var picker = modules.Modules
+            .OrderBy(module => module.DisplayName, StringComparer.OrdinalIgnoreCase)
+            .Select(module => new ModulePickerItemViewModel(
+                module.ModuleId,
+                module.DisplayName,
+                string.Equals(module.ModuleId, selectedModuleId, StringComparison.OrdinalIgnoreCase),
+                string.Equals(module.ModuleId, selectedModuleId, StringComparison.OrdinalIgnoreCase) ? "Selected" : "",
+                new AsyncRelayCommand(() => selectModule?.Invoke(module.ModuleId) ?? Task.CompletedTask)))
+            .ToArray();
+
+        var fields = selected is null ? [] : BuildSettingsFields(schemaJson, values);
+        var statusText = selected is null
+            ? "No modules."
+            : $"Revision {revision} - {updatedAt:yyyy-MM-dd HH:mm:ss} - Schema fields {fields.Count}";
+
+        return new SettingsCenterViewModel(
+            selectedModuleId,
+            selected?.DisplayName ?? "No modules.",
+            revision,
+            rawJson,
+            statusText,
+            picker,
+            fields,
+            saveSettings);
+    }
+
+    public static JsonObject BuildSettingsPatch(SettingsCenterViewModel viewModel)
+    {
+        if (viewModel.UsesRawJson)
+        {
+            return ParseRawSettings(viewModel.RawJson);
+        }
+
+        var patch = new JsonObject();
+        foreach (var field in viewModel.Fields)
+        {
+            patch[field.Key] = field.EditorType switch
+            {
+                "boolean" => JsonValue.Create(field.BooleanValue),
+                "integer" => JsonValue.Create(ParseLong(field.Value, field.Key)),
+                "number" => JsonValue.Create(ParseDouble(field.Value, field.Key)),
+                "object" => ParseCompositeSetting(field.Value, field.Key, "{}"),
+                "array" => ParseCompositeSetting(field.Value, field.Key, "[]"),
+                "enum" => JsonValue.Create(field.SelectedOption),
+                _ => JsonValue.Create(field.Value)
+            };
+        }
+
+        return patch;
+    }
+
     public static PackageManagerViewModel FromPackages(
         HostProto.ListPackagesResponse response,
         Func<string, Task>? installPackage = null,
@@ -486,6 +638,141 @@ public static class ShellPageViewModelFactory
             }).ToArray();
 
         return new PackageManagerViewModel(packages, installPackage, rollbackPackage);
+    }
+
+    private static IReadOnlyList<SettingsFieldViewModel> BuildSettingsFields(string schemaJson, JsonObject values)
+    {
+        var schema = TryParseSettingsSchema(schemaJson);
+        if (schema is null ||
+            !schema.TryGetPropertyValue("properties", out var propertiesNode) ||
+            propertiesNode is not JsonObject properties)
+        {
+            return [];
+        }
+
+        var fields = new List<SettingsFieldViewModel>();
+        foreach (var propertyPair in properties.OrderBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase))
+        {
+            if (propertyPair.Value is not JsonObject property)
+            {
+                continue;
+            }
+
+            var key = propertyPair.Key;
+            var label = GetSchemaString(property, "title", key);
+            var description = GetSchemaString(property, "description", "");
+            var type = GetSchemaString(property, "type", "string").ToLowerInvariant();
+            values.TryGetPropertyValue(key, out var currentValue);
+            property.TryGetPropertyValue("default", out var defaultValue);
+            var effectiveValue = currentValue ?? defaultValue;
+            var editorType = type;
+            IReadOnlyList<string> options = [];
+            var selectedOption = "";
+
+            if (property.TryGetPropertyValue("enum", out var enumNode) && enumNode is JsonArray enumValues)
+            {
+                editorType = "enum";
+                options = enumValues
+                    .Select(NodeToEditorText)
+                    .Where(value => !string.IsNullOrWhiteSpace(value))
+                    .ToArray();
+                var selected = NodeToEditorText(effectiveValue);
+                selectedOption = options.Contains(selected, StringComparer.OrdinalIgnoreCase)
+                    ? selected
+                    : options.FirstOrDefault() ?? "";
+            }
+
+            var textValue = NodeToEditorText(effectiveValue);
+            fields.Add(new SettingsFieldViewModel(
+                key,
+                label,
+                editorType,
+                description,
+                textValue,
+                NodeToBool(effectiveValue),
+                options,
+                selectedOption));
+        }
+
+        return fields;
+    }
+
+    private static JsonObject ParseRawSettings(string rawJson)
+    {
+        var text = string.IsNullOrWhiteSpace(rawJson) ? "{}" : rawJson;
+        return JsonNode.Parse(text) as JsonObject
+            ?? throw new FormatException("Raw settings must be a JSON object.");
+    }
+
+    private static JsonObject? TryParseSettingsSchema(string schemaJson)
+    {
+        if (string.IsNullOrWhiteSpace(schemaJson))
+        {
+            return null;
+        }
+
+        try
+        {
+            return JsonNode.Parse(schemaJson) as JsonObject;
+        }
+        catch (JsonException)
+        {
+            return null;
+        }
+    }
+
+    private static string GetSchemaString(JsonObject schema, string key, string fallback)
+    {
+        return schema.TryGetPropertyValue(key, out var node) && node is JsonValue value && value.TryGetValue<string>(out var text)
+            ? text
+            : fallback;
+    }
+
+    private static bool NodeToBool(JsonNode? node)
+    {
+        return node is JsonValue value && value.TryGetValue<bool>(out var result) && result;
+    }
+
+    private static string NodeToEditorText(JsonNode? node)
+    {
+        if (node is null)
+        {
+            return "";
+        }
+
+        if (node is JsonValue value && value.TryGetValue<string>(out var text))
+        {
+            return text;
+        }
+
+        return node.ToJsonString(new JsonSerializerOptions { WriteIndented = node is JsonObject or JsonArray });
+    }
+
+    private static long ParseLong(string value, string key)
+    {
+        if (long.TryParse(value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var result))
+        {
+            return result;
+        }
+
+        throw new FormatException($"{key} must be an integer.");
+    }
+
+    private static double ParseDouble(string value, string key)
+    {
+        if (double.TryParse(value, NumberStyles.Float, CultureInfo.InvariantCulture, out var result))
+        {
+            return result;
+        }
+
+        throw new FormatException($"{key} must be a number.");
+    }
+
+    private static JsonNode ParseCompositeSetting(string value, string key, string emptyValue)
+    {
+        var text = string.IsNullOrWhiteSpace(value) ? emptyValue : value;
+        return JsonNode.Parse(text)
+            ?? throw new FormatException($"{key} must be valid JSON.");
     }
 
     public static LogsViewModel FromLogs(

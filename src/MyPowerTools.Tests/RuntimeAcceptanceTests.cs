@@ -659,6 +659,29 @@ Address         Port        Address         Port
     }
 
     [Fact]
+    public void Shell_settings_page_is_wired_to_axaml_view_model()
+    {
+        var mainWindowPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "MainWindow.cs");
+        var settingsViewPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Views", "SettingsCenterView.axaml");
+        var viewModelPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "ViewModels", "ShellPageViewModels.cs");
+        var mainWindow = File.ReadAllText(mainWindowPath);
+        var settingsView = File.ReadAllText(settingsViewPath);
+        var viewModel = File.ReadAllText(viewModelPath);
+
+        Assert.Contains("ShellPageViewModelFactory.FromSettings", mainWindow);
+        Assert.Contains("new SettingsCenterView", mainWindow);
+        Assert.Contains("SaveSettingsPageAsync", mainWindow);
+        Assert.DoesNotContain("FillSettingsEditorAsync", mainWindow, StringComparison.Ordinal);
+        Assert.DoesNotContain("BuildSettingsFieldEditors", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("x:DataType=\"vm:SettingsCenterViewModel\"", settingsView);
+        Assert.Contains("ModulePickerItemViewModel", settingsView);
+        Assert.Contains("SettingsFieldViewModel", settingsView);
+        Assert.Contains("SaveCommand", settingsView);
+        Assert.Contains("RawJson", settingsView);
+        Assert.Contains("BuildSettingsPatch", viewModel);
+    }
+
+    [Fact]
     public void Shell_theme_resource_dictionary_is_loaded_and_defines_design_tokens()
     {
         var appPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "App.cs");
