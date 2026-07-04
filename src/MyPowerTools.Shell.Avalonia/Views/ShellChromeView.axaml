@@ -79,9 +79,11 @@
           ColumnDefinitions="*,Auto"
           Margin="16,0,16,8">
       <TextBlock x:Name="StatusBar"
+                 Text="{Binding StatusText}"
                  VerticalAlignment="Center" />
       <TextBlock x:Name="RunnerStatus"
                  Grid.Column="1"
+                 Text="{Binding RunnerStatusText}"
                  VerticalAlignment="Center" />
     </Grid>
   </Grid>

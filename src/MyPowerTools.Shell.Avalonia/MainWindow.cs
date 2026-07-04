@@ -3,8 +3,6 @@ using System.Text.Json.Nodes;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
-using Avalonia.Layout;
-using Avalonia.Media;
 using Avalonia.Threading;
 using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
@@ -32,8 +30,6 @@ public sealed class MainWindow : Window
     private readonly ContentControl _commandPanel;
     private readonly ContentControl _permissionPanel;
     private readonly ContentControl _auditPanel;
-    private readonly TextBlock _runnerStatus;
-    private readonly TextBlock _statusBar;
     private readonly ShellChromeViewModel _chromeViewModel;
     private readonly HostControlConnectionMonitor _connectionMonitor = new(new HostControlRunnerConnectionProbe());
     private readonly HostControlEventStreamMonitor _eventStream = new(new HostControlClientEventSource());
@@ -61,8 +57,6 @@ public sealed class MainWindow : Window
         _commandPanel = RequireControl<ContentControl>(chrome, "CommandPanel");
         _permissionPanel = RequireControl<ContentControl>(chrome, "PermissionPanel");
         _auditPanel = RequireControl<ContentControl>(chrome, "AuditPanel");
-        _runnerStatus = RequireControl<TextBlock>(chrome, "RunnerStatus");
-        _statusBar = RequireControl<TextBlock>(chrome, "StatusBar");
         _searchBox.TextChanged += async (_, _) => await LoadCommandsAsync(_searchBox.Text ?? "");
 
         KeyDown += OnShellKeyDown;
@@ -76,7 +70,7 @@ public sealed class MainWindow : Window
         };
         _eventStream.StreamFaulted += (_, ex) =>
         {
-            Dispatcher.UIThread.Post(() => _statusBar.Text = $"Host event stream reconnecting: {ex.Message}");
+            Dispatcher.UIThread.Post(() => SetStatus($"Host event stream reconnecting: {ex.Message}"));
         };
         Opened += async (_, _) =>
         {
@@ -97,6 +91,10 @@ public sealed class MainWindow : Window
         return root.FindControl<T>(name)
             ?? throw new InvalidOperationException($"Shell chrome control '{name}' was not found.");
     }
+
+    private void SetStatus(string text) => _chromeViewModel.StatusText = text;
+
+    private void SetRunnerStatus(string text) => _chromeViewModel.RunnerStatusText = text;
 
     private async Task RefreshAsync()
     {
@@ -121,7 +119,7 @@ public sealed class MainWindow : Window
         }
         catch (Exception ex)
         {
-            _statusBar.Text = ex.Message;
+            SetStatus(ex.Message);
         }
     }
 
@@ -132,18 +130,18 @@ public sealed class MainWindow : Window
             case ShellKeyboardAction.FocusCommandPalette:
                 _searchBox.Focus();
                 _searchBox.SelectAll();
-                _statusBar.Text = "Command Palette focused.";
+                SetStatus("Command Palette focused.");
                 await LoadCommandsAsync(_searchBox.Text ?? "");
                 break;
             case ShellKeyboardAction.ClearCommandPalette:
                 _searchBox.Text = "";
                 _contentHost.Focus();
-                _statusBar.Text = "Command Palette cleared.";
+                SetStatus("Command Palette cleared.");
                 await LoadCommandsAsync("");
                 break;
             case ShellKeyboardAction.Refresh:
                 await RefreshAsync();
-                _statusBar.Text = $"{_currentPage} refreshed.";
+                SetStatus($"{_currentPage} refreshed.");
                 break;
             case ShellKeyboardAction.Navigate when shortcut.TargetPage is not null:
                 await ShowPageAsync(shortcut.TargetPage);
@@ -157,7 +155,7 @@ public sealed class MainWindow : Window
         ApplyRunnerStatus(snapshot);
         if (!snapshot.Online)
         {
-            _statusBar.Text = $"Runner offline: {snapshot.Message}";
+            SetStatus($"Runner offline: {snapshot.Message}");
         }
     }
 
@@ -166,13 +164,13 @@ public sealed class MainWindow : Window
         ApplyRunnerStatus(snapshot);
         if (!snapshot.Online)
         {
-            _statusBar.Text = $"Runner offline: {snapshot.Message}";
+            SetStatus($"Runner offline: {snapshot.Message}");
             return;
         }
 
         if (snapshot.Recovered && refreshOnRecovery)
         {
-            _statusBar.Text = "Runner connection restored.";
+            SetStatus("Runner connection restored.");
             await ShowPageAsync(_currentPage);
             await LoadCommandsAsync(_searchBox.Text ?? "");
             await LoadBrokerAuditAsync();
@@ -181,12 +179,12 @@ public sealed class MainWindow : Window
 
     private void ApplyRunnerStatus(HostControlConnectionSnapshot snapshot)
     {
-        _runnerStatus.Text = snapshot.Online ? $"Runner {snapshot.State}" : "Runner offline";
+        SetRunnerStatus(snapshot.Online ? $"Runner {snapshot.State}" : "Runner offline");
     }
 
     private async Task ApplyHostEventAsync(HostProto.HostEvent evt)
     {
-        _statusBar.Text = $"Event {evt.Seq}: {evt.Type}";
+        SetStatus($"Event {evt.Seq}: {evt.Type}");
         switch (evt.Type)
         {
             case "notification.created":
@@ -239,7 +237,7 @@ public sealed class MainWindow : Window
     {
         _currentPage = page;
         _chromeViewModel.SelectPage(page);
-        _statusBar.Text = $"Loading {page}";
+        SetStatus($"Loading {page}");
 
         switch (page)
         {
@@ -282,12 +280,12 @@ public sealed class MainWindow : Window
             {
                 DataContext = viewModel
             };
-            _statusBar.Text = viewModel.Subtitle;
+            SetStatus(viewModel.Subtitle);
         }
         catch (Exception ex)
         {
             _contentHost.Content = BuildUnavailablePage(DashboardPage, ex.Message);
-            _statusBar.Text = ex.Message;
+            SetStatus(ex.Message);
         }
     }
 
@@ -308,12 +306,12 @@ public sealed class MainWindow : Window
             {
                 DataContext = viewModel
             };
-            _statusBar.Text = $"{viewModel.Modules.Count} modules loaded";
+            SetStatus($"{viewModel.Modules.Count} modules loaded");
         }
         catch (Exception ex)
         {
             _contentHost.Content = BuildUnavailablePage(ModulesPage, ex.Message);
-            _statusBar.Text = ex.Message;
+            SetStatus(ex.Message);
         }
     }
 
@@ -337,12 +335,12 @@ public sealed class MainWindow : Window
             {
                 DataContext = viewModel
             };
-            _statusBar.Text = $"{detail.DisplayName} detail loaded";
+            SetStatus($"{detail.DisplayName} detail loaded");
         }
         catch (Exception ex)
         {
             _contentHost.Content = BuildUnavailablePage("Module Detail", ex.Message);
-            _statusBar.Text = ex.Message;
+            SetStatus(ex.Message);
         }
     }
 
@@ -369,7 +367,7 @@ public sealed class MainWindow : Window
                 {
                     DataContext = emptyViewModel
                 };
-                _statusBar.Text = emptyViewModel.StatusText;
+                SetStatus(emptyViewModel.StatusText);
                 return;
             }
 
@@ -391,12 +389,12 @@ public sealed class MainWindow : Window
             {
                 DataContext = viewModel
             };
-            _statusBar.Text = viewModel.StatusText;
+            SetStatus(viewModel.StatusText);
         }
         catch (Exception ex)
         {
             _contentHost.Content = BuildUnavailablePage(SettingsPage, ex.Message);
-            _statusBar.Text = ex.Message;
+            SetStatus(ex.Message);
         }
     }
 
@@ -407,18 +405,18 @@ public sealed class MainWindow : Window
             using var client = HostControlClient.ForDefaultEndpoint();
             var patch = JsonStructMapper.ToStruct(ShellPageViewModelFactory.BuildSettingsPatch(viewModel));
             var updated = await client.UpdateSettingsAsync(viewModel.SelectedModuleId, viewModel.Revision, patch);
-            _statusBar.Text = $"{viewModel.SelectedModuleId} settings saved at revision {updated.Revision}";
+            SetStatus($"{viewModel.SelectedModuleId} settings saved at revision {updated.Revision}");
             await LoadSettingsPageAsync(viewModel.SelectedModuleId);
         }
         catch (RpcException ex)
         {
             viewModel.StatusText = ex.Status.Detail;
-            _statusBar.Text = ex.Status.Detail;
+            SetStatus(ex.Status.Detail);
         }
         catch (Exception ex)
         {
             viewModel.StatusText = ex.Message;
-            _statusBar.Text = ex.Message;
+            SetStatus(ex.Message);
         }
     }
 
@@ -442,14 +440,14 @@ public sealed class MainWindow : Window
             {
                 DataContext = viewModel
             };
-            _statusBar.Text = selected is null
+            SetStatus(selected is null
                 ? "No modules."
-                : $"{entries.Count} log entries for {selected.ModuleId}";
+                : $"{entries.Count} log entries for {selected.ModuleId}");
         }
         catch (Exception ex)
         {
             _contentHost.Content = BuildUnavailablePage(LogsPage, ex.Message);
-            _statusBar.Text = ex.Message;
+            SetStatus(ex.Message);
         }
     }
 
@@ -465,12 +463,12 @@ public sealed class MainWindow : Window
             {
                 DataContext = viewModel
             };
-            _statusBar.Text = $"{viewModel.Notifications.Count} notifications loaded";
+            SetStatus($"{viewModel.Notifications.Count} notifications loaded");
         }
         catch (Exception ex)
         {
             _contentHost.Content = BuildUnavailablePage(NotificationsPage, ex.Message);
-            _statusBar.Text = ex.Message;
+            SetStatus(ex.Message);
         }
     }
 
@@ -504,12 +502,12 @@ public sealed class MainWindow : Window
             {
                 DataContext = viewModel
             };
-            _statusBar.Text = $"{response.Packages.Count} packages loaded";
+            SetStatus($"{response.Packages.Count} packages loaded");
         }
         catch (Exception ex)
         {
             _contentHost.Content = BuildUnavailablePage(PackagesPage, ex.Message);
-            _statusBar.Text = ex.Message;
+            SetStatus(ex.Message);
         }
     }
 
@@ -535,12 +533,12 @@ public sealed class MainWindow : Window
             {
                 DataContext = viewModel
             };
-            _statusBar.Text = $"Diagnostics loaded for {diagnostics.Counts.ModuleCount} modules";
+            SetStatus($"Diagnostics loaded for {diagnostics.Counts.ModuleCount} modules");
         }
         catch (Exception ex)
         {
             _contentHost.Content = BuildUnavailablePage(DiagnosticsPage, ex.Message);
-            _statusBar.Text = ex.Message;
+            SetStatus(ex.Message);
         }
     }
 
@@ -603,7 +601,7 @@ public sealed class MainWindow : Window
         {
             using var client = HostControlClient.ForDefaultEndpoint();
             var result = await client.ExecuteCommandAsync(commandId);
-            _statusBar.Text = $"{result.State}: {result.Summary}";
+            SetStatus($"{result.State}: {result.Summary}");
             _permissionPanel.Content = null;
             if (result.State == "permission-required")
             {
@@ -621,7 +619,7 @@ public sealed class MainWindow : Window
         }
         catch (Exception ex)
         {
-            _statusBar.Text = ex.Message;
+            SetStatus(ex.Message);
         }
     }
 
@@ -629,7 +627,7 @@ public sealed class MainWindow : Window
     {
         if (string.IsNullOrWhiteSpace(target))
         {
-            _statusBar.Text = $"{operation}: target is required.";
+            SetStatus($"{operation}: target is required.");
             return;
         }
 
@@ -645,11 +643,11 @@ public sealed class MainWindow : Window
 
             await LoadPackagesPageAsync();
             await LoadCommandsAsync(_searchBox.Text ?? "");
-            _statusBar.Text = status;
+            SetStatus(status);
         }
         catch (Exception ex)
         {
-            _statusBar.Text = ex.Message;
+            SetStatus(ex.Message);
         }
     }
 
@@ -659,12 +657,12 @@ public sealed class MainWindow : Window
         {
             using var client = HostControlClient.ForDefaultEndpoint();
             var result = await client.RestartRuntimeProcessAsync(transportKind, poolKey);
-            _statusBar.Text = $"{result.State}: {result.Message}";
+            SetStatus($"{result.State}: {result.Message}");
             await LoadDiagnosticsPageAsync();
         }
         catch (Exception ex)
         {
-            _statusBar.Text = ex.Message;
+            SetStatus(ex.Message);
         }
     }
 
@@ -674,12 +672,12 @@ public sealed class MainWindow : Window
         {
             using var client = HostControlClient.ForDefaultEndpoint();
             var result = await client.SetRuntimeProcessRestartPolicyAsync(transportKind, poolKey, paused, reason ?? "Shell Diagnostics action", source: "shell", expiresAt: expiresAt);
-            _statusBar.Text = $"{result.State}: {result.Message}";
+            SetStatus($"{result.State}: {result.Message}");
             await LoadDiagnosticsPageAsync();
         }
         catch (Exception ex)
         {
-            _statusBar.Text = ex.Message;
+            SetStatus(ex.Message);
         }
     }
 
@@ -689,7 +687,7 @@ public sealed class MainWindow : Window
         {
             using var client = HostControlClient.ForDefaultEndpoint();
             var detail = await client.SetModuleEnabledAsync(moduleId, enabled);
-            _statusBar.Text = $"{detail.DisplayName} {(enabled ? "enabled" : "disabled")}";
+            SetStatus($"{detail.DisplayName} {(enabled ? "enabled" : "disabled")}");
             await LoadCommandsAsync(_searchBox.Text ?? "");
             await LoadBrokerAuditAsync();
             if (showDetail)
@@ -707,7 +705,7 @@ public sealed class MainWindow : Window
         }
         catch (Exception ex)
         {
-            _statusBar.Text = ex.Message;
+            SetStatus(ex.Message);
         }
     }
 

@@ -100,6 +100,9 @@ public abstract class ShellPageViewModel : ObservableViewModel
 
 public sealed class ShellChromeViewModel : ObservableViewModel
 {
+    private string _statusText = "";
+    private string _runnerStatusText = "";
+
     public ShellChromeViewModel(
         IReadOnlyList<string> pageLabels,
         Func<string, Task>? navigate = null,
@@ -115,6 +118,18 @@ public sealed class ShellChromeViewModel : ObservableViewModel
 
     public IReadOnlyList<ShellNavigationItemViewModel> NavigationItems { get; }
     public ICommand RefreshCommand { get; }
+
+    public string StatusText
+    {
+        get => _statusText;
+        set => SetProperty(ref _statusText, value);
+    }
+
+    public string RunnerStatusText
+    {
+        get => _runnerStatusText;
+        set => SetProperty(ref _runnerStatusText, value);
+    }
 
     public void SelectPage(string page)
     {

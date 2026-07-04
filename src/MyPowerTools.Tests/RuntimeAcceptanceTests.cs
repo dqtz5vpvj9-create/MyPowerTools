@@ -778,9 +778,15 @@ Address         Port        Address         Port
         Assert.Contains("x:Name=\"ContentHost\"", shellChromeView);
         Assert.Contains("x:Name=\"CommandPanel\"", shellChromeView);
         Assert.Contains("x:Name=\"StatusBar\"", shellChromeView);
+        Assert.Contains("Text=\"{Binding StatusText}\"", shellChromeView);
+        Assert.Contains("Text=\"{Binding RunnerStatusText}\"", shellChromeView);
         Assert.Contains("AvaloniaXamlLoader.Load(this)", codeBehind);
         Assert.Contains("class ShellChromeViewModel", viewModel);
         Assert.Contains("class ShellNavigationItemViewModel", viewModel);
+        Assert.Contains("public string StatusText", viewModel);
+        Assert.Contains("public string RunnerStatusText", viewModel);
+        Assert.DoesNotContain("_statusBar", mainWindow, StringComparison.Ordinal);
+        Assert.DoesNotContain("_runnerStatus", mainWindow, StringComparison.Ordinal);
     }
 
     [Fact]
