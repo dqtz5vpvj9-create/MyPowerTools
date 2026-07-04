@@ -742,7 +742,11 @@ Address         Port        Address         Port
         Assert.Contains("ItemsSource=\"{Binding Parameters}\"", commandPaletteView);
         Assert.Contains("CommandParameterViewModel", commandPaletteView);
         Assert.Contains("ExecuteLabel", commandPaletteView);
+        Assert.Contains("ExecutionPreview", commandPaletteView);
+        Assert.Contains("ValidationMessage", commandPaletteView);
+        Assert.Contains("ExecutionStateLabel", commandPaletteView);
         Assert.Contains("ICommand ExecuteCommand", viewModel);
+        Assert.Contains("CommandExecutionStatus", viewModel);
     }
 
     [Fact]
@@ -774,12 +778,16 @@ Address         Port        Address         Port
         });
         commands.Commands.Add(command);
 
-        var viewModel = ShellPageViewModelFactory.FromCommands("parameterized", commands, (_, _) => Task.CompletedTask);
+        var viewModel = ShellPageViewModelFactory.FromCommands(
+            "parameterized",
+            commands,
+            (_, _) => Task.FromResult(new CommandExecutionStatus("succeeded", "done")));
         var item = Assert.Single(viewModel.Commands);
 
         Assert.True(item.HasParameters);
         Assert.Contains("2 parameter(s)", item.ParameterSummary);
         Assert.Equal("Run with parameters", item.ExecuteLabel);
+        Assert.Contains("sample.parameterized.run", item.ExecutionPreview);
         Assert.Collection(
             item.Parameters,
             parameter =>
@@ -798,6 +806,68 @@ Address         Port        Address         Port
         var args = item.BuildArgs();
         Assert.Equal("C:\\work", args["path"]!.GetValue<string>());
         Assert.False(args["force"]!.GetValue<bool>());
+    }
+
+    [Fact]
+    public async Task Shell_command_palette_parameter_form_validates_preview_and_execution_state()
+    {
+        var commands = new HostProto.ListCommandsResponse();
+        var command = new HostProto.CommandItem
+        {
+            CommandId = "sample.validate.run",
+            ModuleId = "sample",
+            Title = "Validate command",
+            Subtitle = "Uses local validation",
+            DangerLevel = "none"
+        };
+        command.Parameters.Add(new HostProto.CommandParameter
+        {
+            Id = "path",
+            Label = "Path",
+            Type = "text",
+            Required = true
+        });
+        command.Parameters.Add(new HostProto.CommandParameter
+        {
+            Id = "count",
+            Label = "Count",
+            Type = "number",
+            DefaultValue = "bad"
+        });
+        commands.Commands.Add(command);
+
+        JsonObject? capturedArgs = null;
+        var viewModel = ShellPageViewModelFactory.FromCommands(
+            "validate",
+            commands,
+            (_, args) =>
+            {
+                capturedArgs = args;
+                return Task.FromResult(new CommandExecutionStatus("succeeded", "succeeded: validated"));
+            });
+        var item = Assert.Single(viewModel.Commands);
+
+        Assert.True(item.HasValidationError);
+        Assert.Contains("Path is required.", item.ValidationMessage);
+        Assert.Contains("Count must be a number.", item.ValidationMessage);
+        Assert.False(item.ExecuteCommand.CanExecute(null));
+
+        item.Parameters[0].Value = "C:\\work";
+        item.Parameters[1].Value = "3.5";
+
+        Assert.False(item.HasValidationError);
+        Assert.True(item.ExecuteCommand.CanExecute(null));
+        Assert.Contains("path=C:\\work", item.ExecutionPreview);
+        Assert.Contains("count=3.5", item.ExecutionPreview);
+
+        await item.ExecuteAsync();
+
+        Assert.Equal("succeeded", item.ExecutionState);
+        Assert.Equal("Succeeded", item.ExecutionStateLabel);
+        Assert.Equal("succeeded: validated", item.ExecutionMessage);
+        Assert.NotNull(capturedArgs);
+        Assert.Equal("C:\\work", capturedArgs["path"]!.GetValue<string>());
+        Assert.Equal(3.5, capturedArgs["count"]!.GetValue<double>());
     }
 
     [Fact]

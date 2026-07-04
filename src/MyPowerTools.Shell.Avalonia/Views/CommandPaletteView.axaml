@@ -32,6 +32,7 @@
               <TextBlock Classes="MptMeta"
                          Text="{Binding ParameterSummary}"
                          IsVisible="{Binding HasParameters}" />
+              <TextBlock Classes="MptMeta" Text="{Binding ExecutionPreview}" />
 
               <ItemsControl ItemsSource="{Binding Parameters}" IsVisible="{Binding HasParameters}">
                 <ItemsControl.ItemTemplate>
@@ -44,11 +45,21 @@
                       <CheckBox IsChecked="{Binding BooleanValue, Mode=TwoWay}"
                                 Content="{Binding Label}"
                                 IsVisible="{Binding IsBoolean}" />
+                      <TextBlock Classes="MptMeta"
+                                 Text="{Binding ValidationMessage}"
+                                 IsVisible="{Binding HasValidationError}" />
                     </StackPanel>
                   </DataTemplate>
                 </ItemsControl.ItemTemplate>
               </ItemsControl>
 
+              <TextBlock Classes="MptMeta"
+                         Text="{Binding ValidationMessage}"
+                         IsVisible="{Binding HasValidationError}" />
+              <TextBlock Classes="MptMeta" Text="{Binding ExecutionStateLabel}" />
+              <TextBlock Classes="MptMeta"
+                         Text="{Binding ExecutionMessage}"
+                         IsVisible="{Binding HasExecutionMessage}" />
               <Button Content="{Binding ExecuteLabel}"
                       Command="{Binding ExecuteCommand}"
                       MinHeight="32"

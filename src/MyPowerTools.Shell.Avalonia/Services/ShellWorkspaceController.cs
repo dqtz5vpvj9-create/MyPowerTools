@@ -431,7 +431,7 @@ public sealed class ShellWorkspaceController : IAsyncDisposable
         };
     }
 
-    private async Task ExecuteCommandAsync(string commandId, JsonObject? args = null)
+    private async Task<CommandExecutionStatus> ExecuteCommandAsync(string commandId, JsonObject? args = null)
     {
         try
         {
@@ -451,10 +451,13 @@ public sealed class ShellWorkspaceController : IAsyncDisposable
             {
                 await LoadNotificationsPageAsync();
             }
+
+            return new CommandExecutionStatus(result.Response.State, result.StatusText);
         }
         catch (Exception ex)
         {
             SetStatus(ex.Message);
+            return new CommandExecutionStatus("failed", ex.Message);
         }
     }
 

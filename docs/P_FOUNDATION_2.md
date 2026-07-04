@@ -96,6 +96,7 @@ This document tracks the current slice for external review. It is an audit hando
 - Added HostControl command parameter descriptors and mapped module/static command parameters through Runtime, gRPC IPC, HostControl, and Shell services.
 - Updated Command Palette ViewModels and AXAML to render basic text/boolean parameter forms and build JSON args for command execution.
 - Added HostControl client and Shell command execution overloads that pass command args through `ExecuteCommandRequest.args`.
+- Added Command Palette local parameter validation, execution preview text, per-command execution state, and result/error message binding.
 - Added Runtime settings validate/store/apply sequencing through `UpdateSettingsWithApplyAsync`.
 - Mapped settings validate/apply hooks through `IModuleTransportRuntime`, InProc modules, gRPC IPC modules, HostControl, and Shell save status.
 - Extended HostControl settings snapshots with `apply_state` and `apply_message` so Shell can distinguish stored, applied, and apply-failed outcomes.
@@ -146,6 +147,8 @@ This document tracks the current slice for external review. It is an audit hando
   verifies the right-side Command Palette uses `CommandPaletteView` plus `ShellPageViewModelFactory.FromCommands`, preserves command execution, and removes the old `_commandPanel.Children` rendering path.
 - `Shell_command_palette_parameter_form_builds_command_args`
   verifies Command Palette parameter ViewModels render text/boolean fields and build JSON args from edited form values.
+- `Shell_command_palette_parameter_form_validates_preview_and_execution_state`
+  verifies Command Palette parameter forms validate required and numeric fields, update execution preview text, and surface per-command execution results.
 - `Shell_command_parameter_contract_flows_through_hostcontrol`
   verifies command parameter descriptors flow through proto, abstractions, static indexes, gRPC IPC, HostControl mapping, and Shell execution args.
 - `Shell_command_execution_is_extracted_to_service`
@@ -191,7 +194,7 @@ This document tracks the current slice for external review. It is an audit hando
 - Component AXAML library: foundation component styles now cover module cards, status badges, metric tiles, command items, settings sections, settings fields, log rows, log viewers, notification items, permission prompts, empty/error/loading states, page headers, action bars, and action buttons.
 - Token `ResourceDictionary` split: `MptColors.axaml`, `MptSpacing.axaml`, `MptTypography.axaml`, and `MptDensity.axaml` are loaded through `MptTheme.axaml`.
 - Static style lint for shell UI: covers split-token dictionaries, component-style coverage, AXAML raw colors/font sizes, C# raw colors/font sizes in Shell/UI control surfaces, thin code-behind files, and ViewModel independence from Avalonia controls.
-- Command palette typed argument binding: basic HostControl parameter descriptors, Shell text/boolean parameter editors, and JSON args pass-through are wired; richer validation, preview, progress, and cancellation states remain pending.
+- Command palette typed argument binding: HostControl parameter descriptors, Shell text/boolean parameter editors, JSON args pass-through, required/numeric validation, execution preview, and per-command result/error state are wired; progress streaming and cancellation states remain pending.
 - Settings validate/apply chain with staged diff UX: Runtime validate/store/apply sequencing, HostControl apply state fields, and Shell save status messages are wired; validation preview, staged diff, rollback-on-apply-failure policy, and richer apply result UX remain pending.
 
 The existing shell already has UI snapshot gates, keyboard shortcut tests, and centralized color-token checks. The next slice should turn those guardrails into a structural refactor that reduces imperative UI construction in `MainWindow.cs`.
@@ -213,7 +216,7 @@ The existing shell already has UI snapshot gates, keyboard shortcut tests, and c
 | AXAML + MVVM | Main shell split into views/viewmodels | Started: Dashboard, Modules, Module Detail, Logs, Notifications, Package Manager, Diagnostics, Settings Center, Permission Prompt, Broker Audit, unavailable/error pages, Shell chrome layout/navigation/status row, the right-side Command Palette list, command execution service extraction, runner/event service extraction, Host action service extraction, Settings save service extraction, read-only page data service extraction, Host event refresh routing extraction, and Shell workspace controller extraction wired to AXAML/MVVM/service layers; thirteen typed views and control-free viewmodels exist |
 | Component library | Reusable AXAML controls and tokens | Started: foundation component styles and matching C# classes for cards, badges, metrics, command items, settings fields, logs, notifications, prompts, states, headers, action bars, and action buttons |
 | Style lint | Static lint over shell UI style usage | Started: split-token, component-style, raw color/font-size, code-behind, and viewmodel guardrails |
-| Command palette | Typed args and validation UI | Basic parameter descriptors, text/boolean editors, and args pass-through wired; validation preview, execution preview, progress, and cancellation pending |
+| Command palette | Typed args and validation UI | Parameter descriptors, text/boolean editors, args pass-through, required/numeric validation, execution preview, and per-command result/error state wired; progress streaming and cancellation pending |
 | Settings UX | Validate/apply chain with clear states | Runtime validate/store/apply sequencing and Shell save apply-state messages wired; staged diff, validation preview, rollback policy, and richer apply result states pending |
 
 ## Validation Evidence
@@ -248,7 +251,7 @@ The packaging step for external review should run the same validation again and 
 ## Recommended Next Slice
 
 1. Wire Shell views more deeply onto the new component style names and reduce repeated inline card/list markup.
-2. Add command palette validation preview, execution preview, progress, cancellation, and result/error state handling.
+2. Add command palette progress streaming and cancellation once HostControl exposes streaming command execution.
 3. Add Settings validation preview, staged diff, rollback-on-apply-failure policy, and richer apply result UI.
 4. Add pixel or Avalonia.Headless screenshot baselines for dashboard, command palette, settings, module detail, logs, notifications, packages, and diagnostics.
 5. Keep sidecar process supervision as the next plugin-runtime depth item after the UI architecture slice starts.

@@ -23,6 +23,11 @@ public sealed class AsyncRelayCommand : ICommand
 
     public event EventHandler? CanExecuteChanged;
 
+    public void NotifyCanExecuteChanged()
+    {
+        CanExecuteChanged?.Invoke(this, EventArgs.Empty);
+    }
+
     public bool CanExecute(object? parameter)
     {
         return !_isRunning && (_canExecute?.Invoke() ?? true);
@@ -53,6 +58,11 @@ public abstract class ObservableViewModel : INotifyPropertyChanged
 {
     public event PropertyChangedEventHandler? PropertyChanged;
 
+    protected void OnPropertyChanged([CallerMemberName] string? propertyName = null)
+    {
+        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+    }
+
     protected bool SetProperty<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
     {
         if (EqualityComparer<T>.Default.Equals(field, value))
@@ -61,7 +71,7 @@ public abstract class ObservableViewModel : INotifyPropertyChanged
         }
 
         field = value;
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
+        OnPropertyChanged(propertyName);
         return true;
     }
 }
@@ -454,8 +464,15 @@ public sealed record DashboardCardViewModel(
     IReadOnlyList<ShellActionViewModel> Actions,
     ICommand DetailsCommand);
 
-public sealed class CommandItemViewModel
+public sealed class CommandItemViewModel : ObservableViewModel
 {
+    private readonly Func<string, JsonObject, Task<CommandExecutionStatus>>? _executeCommand;
+    private readonly AsyncRelayCommand _executeCommandWrapper;
+    private string _validationMessage = "";
+    private string _executionState = "ready";
+    private string _executionMessage = "";
+    private string _executionPreview;
+
     public CommandItemViewModel(
         string commandId,
         string moduleId,
@@ -467,7 +484,7 @@ public sealed class CommandItemViewModel
         string riskLabel,
         string parameterSummary,
         bool hasParameters,
-        ICommand executeCommand,
+        Func<string, JsonObject, Task<CommandExecutionStatus>>? executeCommand,
         IReadOnlyList<CommandParameterViewModel>? parameters = null)
     {
         CommandId = commandId;
@@ -483,7 +500,25 @@ public sealed class CommandItemViewModel
             ? $"{Parameters.Count} parameter(s): {string.Join(", ", Parameters.Select(parameter => parameter.Label))}"
             : parameterSummary;
         HasParameters = hasParameters || Parameters.Count > 0;
-        ExecuteCommand = executeCommand;
+        _executeCommand = executeCommand;
+        _executionPreview = BuildExecutionPreview();
+        _executeCommandWrapper = new AsyncRelayCommand(ExecuteAsync, () => !HasValidationError);
+        ExecuteCommand = _executeCommandWrapper;
+
+        foreach (var parameter in Parameters)
+        {
+            parameter.PropertyChanged += (_, args) =>
+            {
+                if (args.PropertyName is nameof(CommandParameterViewModel.Value) or nameof(CommandParameterViewModel.BooleanValue))
+                {
+                    ValidateParameters();
+                    ExecutionPreview = BuildExecutionPreview();
+                    _executeCommandWrapper.NotifyCanExecuteChanged();
+                }
+            };
+        }
+
+        ValidateParameters();
     }
 
     public string CommandId { get; }
@@ -499,9 +534,100 @@ public sealed class CommandItemViewModel
     public IReadOnlyList<CommandParameterViewModel> Parameters { get; }
     public ICommand ExecuteCommand { get; }
     public string ExecuteLabel => HasParameters ? "Run with parameters" : "Run";
+    public bool HasValidationError => ValidationMessage.Length > 0;
+    public bool HasExecutionMessage => ExecutionMessage.Length > 0;
+    public string ExecutionStateLabel => ExecutionState switch
+    {
+        "running" => "Running",
+        "succeeded" => "Succeeded",
+        "failed" => "Failed",
+        "blocked" => "Needs input",
+        _ => "Ready"
+    };
+
+    public string ValidationMessage
+    {
+        get => _validationMessage;
+        private set
+        {
+            if (SetProperty(ref _validationMessage, value))
+            {
+                OnPropertyChanged(nameof(HasValidationError));
+            }
+        }
+    }
+
+    public string ExecutionState
+    {
+        get => _executionState;
+        private set
+        {
+            if (SetProperty(ref _executionState, value))
+            {
+                OnPropertyChanged(nameof(ExecutionStateLabel));
+            }
+        }
+    }
+
+    public string ExecutionMessage
+    {
+        get => _executionMessage;
+        private set
+        {
+            if (SetProperty(ref _executionMessage, value))
+            {
+                OnPropertyChanged(nameof(HasExecutionMessage));
+            }
+        }
+    }
+
+    public string ExecutionPreview
+    {
+        get => _executionPreview;
+        private set => SetProperty(ref _executionPreview, value);
+    }
+
+    public async Task ExecuteAsync()
+    {
+        if (!ValidateParameters())
+        {
+            ExecutionState = "blocked";
+            ExecutionMessage = ValidationMessage;
+            _executeCommandWrapper.NotifyCanExecuteChanged();
+            return;
+        }
+
+        ExecutionState = "running";
+        ExecutionMessage = $"Running {Title}.";
+        try
+        {
+            var result = _executeCommand is null
+                ? new CommandExecutionStatus("succeeded", $"succeeded: {Title}")
+                : await _executeCommand(CommandId, BuildArgs());
+
+            ExecutionState = string.IsNullOrWhiteSpace(result.State) ? "succeeded" : result.State;
+            ExecutionMessage = string.IsNullOrWhiteSpace(result.Message)
+                ? $"{ExecutionStateLabel}: {Title}"
+                : result.Message;
+        }
+        catch (Exception ex)
+        {
+            ExecutionState = "failed";
+            ExecutionMessage = ex.Message;
+        }
+        finally
+        {
+            _executeCommandWrapper.NotifyCanExecuteChanged();
+        }
+    }
 
     public JsonObject BuildArgs()
     {
+        if (!ValidateParameters())
+        {
+            throw new InvalidOperationException(ValidationMessage);
+        }
+
         var args = new JsonObject();
         foreach (var parameter in Parameters)
         {
@@ -515,12 +641,46 @@ public sealed class CommandItemViewModel
 
         return args;
     }
+
+    public bool ValidateParameters()
+    {
+        var messages = new List<string>();
+        foreach (var parameter in Parameters)
+        {
+            var message = parameter.Validate();
+            parameter.SetValidationMessage(message);
+            if (message.Length > 0)
+            {
+                messages.Add(message);
+            }
+        }
+
+        ValidationMessage = string.Join(" ", messages);
+        return messages.Count == 0;
+    }
+
+    private string BuildExecutionPreview()
+    {
+        if (!HasParameters)
+        {
+            return $"Preview: run {CommandId}.";
+        }
+
+        var emitted = Parameters
+            .Where(parameter => parameter.ShouldEmit)
+            .Select(parameter => $"{parameter.Id}={parameter.PreviewValue}")
+            .ToArray();
+        return emitted.Length == 0
+            ? $"Preview: run {CommandId} with no arguments."
+            : $"Preview: run {CommandId} with {string.Join(", ", emitted)}.";
+    }
 }
 
 public sealed class CommandParameterViewModel : ObservableViewModel
 {
     private string _value;
     private bool _booleanValue;
+    private string _validationMessage = "";
 
     public CommandParameterViewModel(string id, string label, string type, bool required, string defaultValue)
     {
@@ -539,6 +699,8 @@ public sealed class CommandParameterViewModel : ObservableViewModel
     public bool IsBoolean => Type is "bool" or "boolean" or "toggle";
     public bool IsText => !IsBoolean;
     public bool ShouldEmit => IsBoolean || Required || !string.IsNullOrWhiteSpace(Value);
+    public bool HasValidationError => ValidationMessage.Length > 0;
+    public string PreviewValue => IsBoolean ? (BooleanValue ? "true" : "false") : Value;
 
     public string Value
     {
@@ -552,6 +714,48 @@ public sealed class CommandParameterViewModel : ObservableViewModel
         set => SetProperty(ref _booleanValue, value);
     }
 
+    public string ValidationMessage
+    {
+        get => _validationMessage;
+        private set
+        {
+            if (SetProperty(ref _validationMessage, value))
+            {
+                OnPropertyChanged(nameof(HasValidationError));
+            }
+        }
+    }
+
+    public string Validate()
+    {
+        if (!IsBoolean && Required && string.IsNullOrWhiteSpace(Value))
+        {
+            return $"{Label} is required.";
+        }
+
+        if (string.IsNullOrWhiteSpace(Value))
+        {
+            return "";
+        }
+
+        if (Type is "integer" && !long.TryParse(Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out _))
+        {
+            return $"{Label} must be an integer.";
+        }
+
+        if (Type is "number" && !double.TryParse(Value, NumberStyles.Float, CultureInfo.InvariantCulture, out _))
+        {
+            return $"{Label} must be a number.";
+        }
+
+        return "";
+    }
+
+    public void SetValidationMessage(string message)
+    {
+        ValidationMessage = message;
+    }
+
     public JsonNode? ToJsonNode()
     {
         if (IsBoolean)
@@ -559,7 +763,12 @@ public sealed class CommandParameterViewModel : ObservableViewModel
             return JsonValue.Create(BooleanValue);
         }
 
-        if (Type is "number" or "integer" && double.TryParse(Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var number))
+        if (Type is "integer" && long.TryParse(Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out var integer))
+        {
+            return JsonValue.Create(integer);
+        }
+
+        if (Type is "number" && double.TryParse(Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var number))
         {
             return JsonValue.Create(number);
         }
@@ -567,6 +776,8 @@ public sealed class CommandParameterViewModel : ObservableViewModel
         return JsonValue.Create(Value);
     }
 }
+
+public sealed record CommandExecutionStatus(string State, string Message);
 
 public sealed record ModuleSummaryItemViewModel(
     string ModuleId,
@@ -732,7 +943,7 @@ public static class ShellPageViewModelFactory
     public static CommandPaletteViewModel FromCommands(
         string query,
         HostProto.ListCommandsResponse response,
-        Func<string, JsonObject, Task>? executeCommand = null)
+        Func<string, JsonObject, Task<CommandExecutionStatus>>? executeCommand = null)
     {
         var commands = response.Commands.Select(command =>
         {
@@ -756,27 +967,11 @@ public static class ShellPageViewModelFactory
                 command.RequiresElevation ? $"{command.DangerLevel} - elevation" : command.DangerLevel,
                 "",
                 parameters.Length > 0,
-                new AsyncRelayCommand(() => executeCommand?.Invoke(command.CommandId, BuildCommandArgs(parameters)) ?? Task.CompletedTask),
+                executeCommand,
                 parameters);
         }).ToArray();
 
         return new CommandPaletteViewModel(query, commands);
-    }
-
-    private static JsonObject BuildCommandArgs(IReadOnlyList<CommandParameterViewModel> parameters)
-    {
-        var args = new JsonObject();
-        foreach (var parameter in parameters)
-        {
-            if (!parameter.ShouldEmit)
-            {
-                continue;
-            }
-
-            args[parameter.Id] = parameter.ToJsonNode();
-        }
-
-        return args;
     }
 
     public static ModulesViewModel FromModules(
@@ -871,7 +1066,16 @@ public static class ShellPageViewModelFactory
                 command.RequiresElevation ? $"{command.DangerLevel} - elevation" : command.DangerLevel,
                 "",
                 false,
-                new AsyncRelayCommand(() => executeCommand?.Invoke(command.CommandId) ?? Task.CompletedTask)))
+                async (commandId, _) =>
+                {
+                    if (executeCommand is null)
+                    {
+                        return new CommandExecutionStatus("succeeded", $"succeeded: {commandId}");
+                    }
+
+                    await executeCommand(commandId);
+                    return new CommandExecutionStatus("succeeded", $"succeeded: {commandId}");
+                }))
             .ToArray();
 
         return new ModuleDetailViewModel(

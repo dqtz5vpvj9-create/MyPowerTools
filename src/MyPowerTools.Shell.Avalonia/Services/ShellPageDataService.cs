@@ -166,7 +166,7 @@ public sealed class ShellPageDataService
 
     public async Task<CommandPaletteViewModel> LoadCommandsAsync(
         string query,
-        Func<string, JsonObject, Task>? executeCommand = null,
+        Func<string, JsonObject, Task<CommandExecutionStatus>>? executeCommand = null,
         CancellationToken cancellationToken = default)
     {
         using var client = HostControlClient.ForDefaultEndpoint();
