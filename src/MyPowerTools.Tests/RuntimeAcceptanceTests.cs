@@ -1258,6 +1258,76 @@ Address         Port        Address         Port
     }
 
     [Fact]
+    public async Task Inproc_plugins_with_conflicting_dependency_versions_load_in_separate_contexts()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "mpt-inproc-conflict", Guid.NewGuid().ToString("N"));
+        var packageOne = Path.Combine(root, "package-one");
+        var packageTwo = Path.Combine(root, "package-two");
+        Directory.CreateDirectory(packageOne);
+        Directory.CreateDirectory(packageTwo);
+
+        await BuildGeneratedInProcPluginPackageAsync(packageOne, "conflict.one", "conflict-one", "ConflictPluginOne", "dependency-v1", "1.0.0.0");
+        await BuildGeneratedInProcPluginPackageAsync(packageTwo, "conflict.two", "conflict-two", "ConflictPluginTwo", "dependency-v2", "2.0.0.0");
+
+        await using var host = new InProcDotNetModuleHost();
+        var reader = new PackageReader();
+        var moduleOne = reader.ReadPackageDirectory(packageOne).Modules.Single();
+        var moduleTwo = reader.ReadPackageDirectory(packageTwo).Modules.Single();
+
+        var loadedOne = await host.LoadAsync(moduleOne, CreateGeneratedPluginContext("conflict-one", "conflict.one"), CancellationToken.None);
+        var loadedTwo = await host.LoadAsync(moduleTwo, CreateGeneratedPluginContext("conflict-two", "conflict.two"), CancellationToken.None);
+        var resultOne = await loadedOne.ExecuteCommandAsync(new CommandRequest("conflict-one", "conflict.one.dependency", new JsonObject()), CancellationToken.None);
+        var resultTwo = await loadedTwo.ExecuteCommandAsync(new CommandRequest("conflict-two", "conflict.two.dependency", new JsonObject()), CancellationToken.None);
+        var contextOne = AssemblyLoadContext.GetLoadContext(loadedOne.GetType().Assembly);
+        var contextTwo = AssemblyLoadContext.GetLoadContext(loadedTwo.GetType().Assembly);
+        var dependencyOne = contextOne!.Assemblies.Single(assembly => assembly.GetName().Name == "PluginSharedDependency");
+        var dependencyTwo = contextTwo!.Assemblies.Single(assembly => assembly.GetName().Name == "PluginSharedDependency");
+
+        Assert.True(resultOne.Success, resultOne.Error?.Message);
+        Assert.True(resultTwo.Success, resultTwo.Error?.Message);
+        Assert.Contains("dependency-v1", resultOne.Output);
+        Assert.Contains("dependency-v2", resultTwo.Output);
+        Assert.NotSame(contextOne, contextTwo);
+        Assert.Equal(new Version(1, 0, 0, 0), dependencyOne.GetName().Version);
+        Assert.Equal(new Version(2, 0, 0, 0), dependencyTwo.GetName().Version);
+    }
+
+    [Fact]
+    public async Task Inproc_module_update_uses_shadow_copy_instead_of_original_package_dll()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "mpt-inproc-shadow-update", Guid.NewGuid().ToString("N"));
+        var packageRoot = Path.Combine(root, "package");
+        var replacementRoot = Path.Combine(root, "replacement");
+        Directory.CreateDirectory(packageRoot);
+        Directory.CreateDirectory(replacementRoot);
+
+        await BuildGeneratedInProcPluginPackageAsync(packageRoot, "shadow.update", "shadow-update", "ShadowUpdatePlugin", "dependency-v1", "1.0.0.0");
+        await BuildGeneratedInProcPluginPackageAsync(replacementRoot, "shadow.update", "shadow-update", "ShadowUpdatePlugin", "dependency-v2", "2.0.0.0");
+
+        var reader = new PackageReader();
+        var module = reader.ReadPackageDirectory(packageRoot).Modules.Single();
+        var context = CreateGeneratedPluginContext("shadow-update", "shadow.update");
+        await using var firstHost = new InProcDotNetModuleHost();
+
+        var (loadedAssemblyPath, before, stillLoaded) = await LoadAndReplaceShadowPluginAsync(firstHost, module, context, packageRoot, replacementRoot);
+        var restart = await firstHost.RestartProcessAsync("module:shadow.update", CancellationToken.None);
+        await using var secondHost = new InProcDotNetModuleHost();
+        var reloaded = await secondHost.LoadAsync(reader.ReadPackageDirectory(packageRoot).Modules.Single(), context, CancellationToken.None);
+        var after = await reloaded.ExecuteCommandAsync(new CommandRequest("shadow-after", "shadow.update.dependency", new JsonObject()), CancellationToken.None);
+
+        Assert.True(before.Success, before.Error?.Message);
+        Assert.True(stillLoaded.Success, stillLoaded.Error?.Message);
+        Assert.True(after.Success, after.Error?.Message);
+        Assert.True(restart.Success, restart.Message);
+        Assert.Contains("inproc-shadow", loadedAssemblyPath);
+        Assert.StartsWith(context.CacheDirectory, loadedAssemblyPath, StringComparison.OrdinalIgnoreCase);
+        Assert.False(loadedAssemblyPath.StartsWith(packageRoot, StringComparison.OrdinalIgnoreCase));
+        Assert.Contains("dependency-v1", before.Output);
+        Assert.Contains("dependency-v1", stillLoaded.Output);
+        Assert.Contains("dependency-v2", after.Output);
+    }
+
+    [Fact]
     public void Production_module_projects_reference_abstractions_not_runtime()
     {
         var projectFiles = new[]
@@ -1392,6 +1462,205 @@ Address         Port        Address         Port
         File.WriteAllText(
             Path.Combine(packageRoot, "module.json"),
             manifest.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+    }
+
+    private static async Task<(string LoadedAssemblyPath, CommandExecutionResult Before, CommandExecutionResult StillLoaded)> LoadAndReplaceShadowPluginAsync(
+        InProcDotNetModuleHost host,
+        MptModuleDefinition module,
+        ModuleContext context,
+        string packageRoot,
+        string replacementRoot)
+    {
+        var loaded = await host.LoadAsync(module, context, CancellationToken.None);
+        var loadedAssemblyPath = loaded.GetType().Assembly.Location;
+        var before = await loaded.ExecuteCommandAsync(new CommandRequest("shadow-before", "shadow.update.dependency", new JsonObject()), CancellationToken.None);
+
+        File.Copy(Path.Combine(replacementRoot, "ShadowUpdatePlugin.dll"), Path.Combine(packageRoot, "ShadowUpdatePlugin.dll"), overwrite: true);
+        File.Copy(Path.Combine(replacementRoot, "PluginSharedDependency.dll"), Path.Combine(packageRoot, "PluginSharedDependency.dll"), overwrite: true);
+        File.SetLastWriteTimeUtc(Path.Combine(packageRoot, "ShadowUpdatePlugin.dll"), DateTime.UtcNow.AddMinutes(1));
+        var stillLoaded = await loaded.ExecuteCommandAsync(new CommandRequest("shadow-still-loaded", "shadow.update.dependency", new JsonObject()), CancellationToken.None);
+        loaded = null!;
+        return (loadedAssemblyPath, before, stillLoaded);
+    }
+
+    private static async Task BuildGeneratedInProcPluginPackageAsync(
+        string packageRoot,
+        string moduleId,
+        string packageId,
+        string assemblyName,
+        string dependencyValue,
+        string dependencyVersion)
+    {
+        var sourceRoot = Path.Combine(Path.GetTempPath(), "mpt-generated-plugin-src", Guid.NewGuid().ToString("N"));
+        var dependencyRoot = Path.Combine(sourceRoot, "PluginSharedDependency");
+        var pluginRoot = Path.Combine(sourceRoot, assemblyName);
+        Directory.CreateDirectory(dependencyRoot);
+        Directory.CreateDirectory(pluginRoot);
+
+        await File.WriteAllTextAsync(Path.Combine(dependencyRoot, "PluginSharedDependency.csproj"), """
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>PluginSharedDependency</AssemblyName>
+    <GenerateAssemblyInfo>false</GenerateAssemblyInfo>
+  </PropertyGroup>
+</Project>
+""");
+        await File.WriteAllTextAsync(Path.Combine(dependencyRoot, "SharedDependency.cs"), $$"""
+using System.Reflection;
+
+[assembly: AssemblyVersion("{{dependencyVersion}}")]
+
+namespace PluginSharedDependency;
+
+public static class SharedDependency
+{
+    public static string Report() => "{{dependencyValue}}";
+}
+""");
+
+        var abstractionsProject = Path.Combine(Root, "src", "MyPowerTools.Abstractions", "MyPowerTools.Abstractions.csproj");
+        await File.WriteAllTextAsync(Path.Combine(pluginRoot, $"{assemblyName}.csproj"), $$"""
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>{{assemblyName}}</AssemblyName>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="{{abstractionsProject}}" />
+    <ProjectReference Include="{{Path.Combine(dependencyRoot, "PluginSharedDependency.csproj")}}" />
+  </ItemGroup>
+</Project>
+""");
+        await File.WriteAllTextAsync(Path.Combine(pluginRoot, "GeneratedModule.cs"), $$""""
+using System.Runtime.CompilerServices;
+using System.Text.Json.Nodes;
+using MyPowerTools.Runtime;
+using PluginSharedDependency;
+
+namespace {{assemblyName}};
+
+public sealed class GeneratedModule : IMptModule
+{
+    public string Id => "{{moduleId}}";
+    public string PackageId => "{{packageId}}";
+    public Version Version => new(0, 2, 0);
+
+    public ValueTask<InitializeResult> InitializeAsync(ModuleContext context, CancellationToken cancellationToken)
+    {
+        return ValueTask.FromResult(new InitializeResult(true, context.ProtocolVersion, ["status", "commands", "settings"]));
+    }
+
+    public ValueTask<ModuleStatusSnapshot> GetStatusAsync(CancellationToken cancellationToken)
+    {
+        return ValueTask.FromResult(new ModuleStatusSnapshot(
+            Id,
+            "running",
+            SharedDependency.Report(),
+            DateTimeOffset.UtcNow,
+            [new HealthCheckSnapshot("dependency", "Dependency", true, SharedDependency.Report())],
+            1));
+    }
+
+    public ValueTask<IReadOnlyList<MptCommandDescriptor>> ListCommandsAsync(CancellationToken cancellationToken)
+    {
+        IReadOnlyList<MptCommandDescriptor> commands =
+        [
+            new("{{moduleId}}.dependency", Id, "Read dependency", "Generated InProc dependency probe", "action")
+        ];
+        return ValueTask.FromResult(commands);
+    }
+
+    public ValueTask<CommandExecutionResult> ExecuteCommandAsync(CommandRequest request, CancellationToken cancellationToken)
+    {
+        return ValueTask.FromResult(new CommandExecutionResult(
+            request.InvocationId,
+            request.CommandId,
+            "succeeded",
+            true,
+            SharedDependency.Report()));
+    }
+
+    public async IAsyncEnumerable<MptModuleEvent> SubscribeEventsAsync(EventCursor cursor, [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        await Task.CompletedTask;
+        yield break;
+    }
+
+    public ValueTask<SettingsSchemaDocument> GetSettingsSchemaAsync(CancellationToken cancellationToken)
+    {
+        return ValueTask.FromResult(new SettingsSchemaDocument(Id, "{}"));
+    }
+
+    public ValueTask<SettingsSnapshotDocument> GetSettingsAsync(CancellationToken cancellationToken)
+    {
+        return ValueTask.FromResult(new SettingsSnapshotDocument(Id, 1, new JsonObject(), DateTimeOffset.UtcNow));
+    }
+
+    public ValueTask<SettingsValidationResult> ValidateSettingsAsync(SettingsPatch patch, CancellationToken cancellationToken)
+    {
+        return ValueTask.FromResult(new SettingsValidationResult(true, []));
+    }
+
+    public ValueTask<IReadOnlyList<UiSurfaceDescriptor>> ListSurfacesAsync(CancellationToken cancellationToken)
+    {
+        return ValueTask.FromResult<IReadOnlyList<UiSurfaceDescriptor>>([]);
+    }
+
+    public ValueTask DisposeAsync(CancellationToken cancellationToken)
+    {
+        return ValueTask.CompletedTask;
+    }
+}
+"""");
+
+        var publish = await RunDotnetAsync(
+            "publish",
+            Path.Combine(pluginRoot, $"{assemblyName}.csproj"),
+            "--nologo",
+            "-c",
+            "Release",
+            "-o",
+            packageRoot);
+        Assert.True(publish.ExitCode == 0, publish.Output);
+
+        var manifest = new JsonObject
+        {
+            ["schemaVersion"] = "1.0",
+            ["id"] = moduleId,
+            ["packageId"] = packageId,
+            ["displayName"] = moduleId,
+            ["version"] = "0.2.0",
+            ["moduleSdk"] = "1.0",
+            ["entrypoints"] = new JsonArray
+            {
+                new JsonObject
+                {
+                    ["kind"] = "inproc-dotnet",
+                    ["priority"] = 100,
+                    ["assembly"] = $"{assemblyName}.dll",
+                    ["type"] = $"{assemblyName}.GeneratedModule"
+                }
+            },
+            ["capabilities"] = new JsonArray("status", "commands", "settings")
+        };
+
+        await File.WriteAllTextAsync(
+            Path.Combine(packageRoot, "module.json"),
+            manifest.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+    }
+
+    private static ModuleContext CreateGeneratedPluginContext(string packageId, string moduleId)
+    {
+        return CreateModuleContext(
+            packageId,
+            moduleId,
+            $"generated-{moduleId}",
+            ["status", "commands", "settings"]);
     }
 
     [Fact]

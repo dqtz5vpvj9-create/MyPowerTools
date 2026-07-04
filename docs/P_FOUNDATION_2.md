@@ -33,6 +33,8 @@ This document tracks the current slice for external review. It is an audit hando
 - Added an unload probe through `WeakReference` and GC collection after module disposal.
 - Exposed InProc lifecycle through runtime process diagnostics with `loaded`, `unloaded`, and `pending-runner-restart` states.
 - Added a manual Runner restart policy marker when a module fails to release its collectible load context.
+- Verified side-by-side loading for generated plugins with the same dependency assembly name and different dependency versions.
+- Verified module update behavior loads from shadow cache while the original package DLL can be replaced.
 
 ### Acceptance Coverage
 
@@ -42,6 +44,10 @@ This document tracks the current slice for external review. It is an audit hando
   verifies the runtime can unload a clean InProc module through the diagnostics process-control path.
 - `Runtime_marks_inproc_unload_failure_as_pending_runner_restart`
   verifies a module that holds a default-context event subscription is marked `pending-runner-restart`.
+- `Inproc_plugins_with_conflicting_dependency_versions_load_in_separate_contexts`
+  verifies separate plugin load contexts can load different versions of the same dependency assembly.
+- `Inproc_module_update_uses_shadow_copy_instead_of_original_package_dll`
+  verifies a loaded module runs from shadow cache, keeps using the old bytes while original package files are replaced, and picks up the replacement after reload.
 - `Production_module_projects_reference_abstractions_not_runtime`
   verifies production module project files depend on abstractions, not the runtime project.
 - `Runtime_shell_and_host_do_not_reference_concrete_module_projects`
@@ -70,6 +76,8 @@ The existing shell already has UI snapshot gates, keyboard shortcut tests, and c
 | Production module dependency direction | Modules reference abstractions only | Done |
 | Host dependency direction | Runtime/Shell/Host avoid concrete module references | Done |
 | InProc isolation | Collectible ALC + resolver + shadow copy | Done for disk-backed modules |
+| InProc dependency isolation | Conflicting dependency versions load side by side | Done |
+| InProc shadow-copy update | Loaded module uses cache while package DLL is replaceable | Done |
 | InProc unload handling | Unload probe and failure surfaced to runtime policy | Done for clean unload and pending-runner-restart diagnostics |
 | Sidecar default for complex modules | Complex modules prefer sidecar transport | Existing manifests keep sidecar-capable modules on sidecar paths |
 | MainWindow size | target <= 250 lines | current: 1845 lines |
@@ -96,7 +104,7 @@ Latest observed result before packaging:
 
 ```text
 Build: passed, 0 warnings, 0 errors
-Tests: passed, 94 passed, 0 failed, 0 skipped
+Tests: passed, 96 passed, 0 failed, 0 skipped
 Module validation: 5 packages valid
 Contract validation: 5 packages, 7 modules passed
 Strict trust check: 5 signatures accepted under local policy
@@ -106,7 +114,7 @@ The packaging step for external review should run the same validation again and 
 
 ## Recommended Next Slice
 
-1. Add static tests for conflicting plugin dependency versions and shadow-copy update behavior.
+1. Add manifest schema and examples for `runtimePolicy.preferred`, `runtimePolicy.allowInProc`, `runtimePolicy.inProcRules`, and `runtimePolicy.sidecarRules`.
 2. Move dashboard, command palette, settings, logs, package manager, and diagnostics UI into AXAML views with viewmodels.
 3. Introduce shell token dictionaries and component styles under the UI project.
 4. Add a static style lint that scans AXAML and C# UI files.
