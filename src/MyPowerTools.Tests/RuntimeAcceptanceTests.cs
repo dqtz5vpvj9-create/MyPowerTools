@@ -580,6 +580,24 @@ Address         Port        Address         Port
     }
 
     [Fact]
+    public void Shell_logs_page_is_wired_to_axaml_view_model()
+    {
+        var mainWindowPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "MainWindow.cs");
+        var logsViewPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Views", "LogsView.axaml");
+        var mainWindow = File.ReadAllText(mainWindowPath);
+        var logsView = File.ReadAllText(logsViewPath);
+
+        Assert.Contains("ShellPageViewModelFactory.FromLogs", mainWindow);
+        Assert.Contains("new LogsView", mainWindow);
+        Assert.DoesNotContain("FillLogsAsync", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("x:DataType=\"vm:LogsViewModel\"", logsView);
+        Assert.Contains("ModulePickerItemViewModel", logsView);
+        Assert.Contains("LogLineViewModel", logsView);
+        Assert.Contains("SelectCommand", logsView);
+        Assert.Contains("IsVisible=\"{Binding HasNoLogs}\"", logsView);
+    }
+
+    [Fact]
     public void Shell_theme_resource_dictionary_is_loaded_and_defines_design_tokens()
     {
         var appPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "App.cs");

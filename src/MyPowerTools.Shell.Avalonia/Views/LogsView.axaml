@@ -9,6 +9,32 @@
       <TextBlock Classes="MptPageSubtitle" Text="{Binding Subtitle}" />
     </StackPanel>
 
+    <ItemsControl ItemsSource="{Binding Modules}">
+      <ItemsControl.ItemsPanel>
+        <ItemsPanelTemplate>
+          <WrapPanel />
+        </ItemsPanelTemplate>
+      </ItemsControl.ItemsPanel>
+      <ItemsControl.ItemTemplate>
+        <DataTemplate x:DataType="vm:ModulePickerItemViewModel">
+          <Button Command="{Binding SelectCommand}" MinHeight="32" Margin="0,0,8,8">
+            <StackPanel Orientation="Horizontal" Spacing="{DynamicResource MptSpacingXs}">
+              <TextBlock Text="{Binding DisplayName}" />
+              <TextBlock Classes="MptMeta" Text="{Binding SelectionText}" IsVisible="{Binding IsSelected}" />
+            </StackPanel>
+          </Button>
+        </DataTemplate>
+      </ItemsControl.ItemTemplate>
+    </ItemsControl>
+
+    <TextBlock Classes="MptPageSubtitle"
+               Text="No modules."
+               IsVisible="{Binding HasNoModules}" />
+
+    <TextBlock Classes="MptPageSubtitle"
+               Text="No logs."
+               IsVisible="{Binding HasNoLogs}" />
+
     <ItemsControl ItemsSource="{Binding Lines}">
       <ItemsControl.ItemTemplate>
         <DataTemplate x:DataType="vm:LogLineViewModel">

@@ -545,51 +545,28 @@ public sealed class MainWindow : Window
             using var client = HostControlClient.ForDefaultEndpoint();
             var modules = await client.ListModulesAsync();
             var selected = PickModule(modules, selectedModuleId);
-            if (selected is null)
-            {
-                _contentHost.Content = BuildPage(LogsPage, "", new MptEmptyState("No modules."));
-                return;
-            }
+            IReadOnlyList<HostProto.LogEntry> entries = selected is null
+                ? []
+                : await client.TailLogsAsync(selected.ModuleId);
+            var viewModel = ShellPageViewModelFactory.FromLogs(
+                modules,
+                selected,
+                entries,
+                moduleId => LoadLogsPageAsync(moduleId));
 
-            var logHost = new StackPanel { Spacing = 12 };
-            var body = new StackPanel
+            _contentHost.Content = new LogsView
             {
-                Spacing = 16,
-                Children =
-                {
-                    BuildModulePicker(modules, selected.ModuleId, moduleId => LoadLogsPageAsync(moduleId)),
-                    logHost
-                }
+                DataContext = viewModel
             };
-            _contentHost.Content = BuildPage(LogsPage, selected.DisplayName, body);
-            await FillLogsAsync(selected.ModuleId, logHost);
+            _statusBar.Text = selected is null
+                ? "No modules."
+                : $"{entries.Count} log entries for {selected.ModuleId}";
         }
         catch (Exception ex)
         {
             _contentHost.Content = BuildUnavailablePage(LogsPage, ex.Message);
             _statusBar.Text = ex.Message;
         }
-    }
-
-    private async Task FillLogsAsync(string moduleId, StackPanel logHost)
-    {
-        logHost.Children.Clear();
-        using var client = HostControlClient.ForDefaultEndpoint();
-        var entries = await client.TailLogsAsync(moduleId);
-        if (entries.Count == 0)
-        {
-            logHost.Children.Add(new MptEmptyState("No logs."));
-        }
-        else
-        {
-            logHost.Children.Add(new MptLogViewer
-            {
-                MinHeight = 420,
-                ItemsSource = entries.Select(entry => $"{entry.Time.ToDateTimeOffset():HH:mm:ss} {entry.Level,-5} {entry.Message}").ToArray()
-            });
-        }
-
-        _statusBar.Text = $"{entries.Count} log entries for {moduleId}";
     }
 
     private async Task LoadNotificationsPageAsync()

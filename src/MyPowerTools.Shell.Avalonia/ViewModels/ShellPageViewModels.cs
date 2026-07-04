@@ -149,13 +149,17 @@ public sealed class SettingsCenterViewModel : ShellPageViewModel
 
 public sealed class LogsViewModel : ShellPageViewModel
 {
-    public LogsViewModel(string selectedModuleName, IReadOnlyList<LogLineViewModel> lines)
-        : base("Logs", selectedModuleName, lines.Count == 0 ? "empty" : "ready")
+    public LogsViewModel(string selectedModuleName, IReadOnlyList<ModulePickerItemViewModel> modules, IReadOnlyList<LogLineViewModel> lines)
+        : base("Logs", selectedModuleName, modules.Count == 0 || lines.Count == 0 ? "empty" : "ready")
     {
+        Modules = modules;
         Lines = lines;
     }
 
+    public IReadOnlyList<ModulePickerItemViewModel> Modules { get; }
     public IReadOnlyList<LogLineViewModel> Lines { get; }
+    public bool HasNoModules => Modules.Count == 0;
+    public bool HasNoLogs => Modules.Count > 0 && Lines.Count == 0;
 }
 
 public sealed class NotificationsViewModel : ShellPageViewModel
@@ -245,6 +249,7 @@ public sealed record RuntimeProcessViewModel(
     IReadOnlyList<string> ModuleIds);
 
 public sealed record SettingsFieldViewModel(string Key, string Label, string EditorType, string Description, string Value);
+public sealed record ModulePickerItemViewModel(string ModuleId, string DisplayName, bool IsSelected, string SelectionText, ICommand SelectCommand);
 public sealed record LogLineViewModel(string Time, string Level, string Message);
 public sealed record NotificationItemViewModel(string Id, string Time, string ModuleId, string Level, string Title, string Body, bool IsRead);
 public sealed record ShellAlertViewModel(string Id, string Level, string Title, string Body);
@@ -342,6 +347,34 @@ public static class ShellPageViewModelFactory
             package.ModuleCount)).ToArray();
 
         return new PackageManagerViewModel(packages);
+    }
+
+    public static LogsViewModel FromLogs(
+        HostProto.ListModulesResponse modules,
+        HostProto.ModuleSummary? selectedModule,
+        IReadOnlyList<HostProto.LogEntry> entries,
+        Func<string, Task>? selectModule = null)
+    {
+        var selectedModuleId = selectedModule?.ModuleId ?? "";
+        var moduleItems = modules.Modules
+            .OrderBy(module => module.DisplayName, StringComparer.OrdinalIgnoreCase)
+            .Select(module =>
+            {
+                var isSelected = string.Equals(module.ModuleId, selectedModuleId, StringComparison.OrdinalIgnoreCase);
+                return new ModulePickerItemViewModel(
+                    module.ModuleId,
+                    module.DisplayName,
+                    isSelected,
+                    isSelected ? "Selected" : "",
+                    new AsyncRelayCommand(() => selectModule?.Invoke(module.ModuleId) ?? Task.CompletedTask));
+            }).ToArray();
+
+        var lines = entries.Select(entry => new LogLineViewModel(
+            entry.Time.ToDateTimeOffset().ToString("HH:mm:ss"),
+            entry.Level,
+            entry.Message)).ToArray();
+
+        return new LogsViewModel(selectedModule?.DisplayName ?? "", moduleItems, lines);
     }
 
     public static NotificationsViewModel FromNotifications(HostProto.ListNotificationsResponse response)

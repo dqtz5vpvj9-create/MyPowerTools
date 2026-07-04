@@ -50,6 +50,8 @@ This document tracks the current slice for external review. It is an audit hando
 - Added and wired `NotificationsView` / `NotificationsViewModel`, replacing the old imperative notification list construction.
 - Added and wired `ModulesView` / `ModulesViewModel`, preserving Details, Settings, Logs, and Enable/Disable actions through ViewModel commands.
 - Removed the old imperative `BuildModuleSummaryCard` path from `MainWindow.cs`.
+- Added and wired `LogsView` / `LogsViewModel`, preserving module selection and log tail rendering through ViewModel commands and data binding.
+- Removed the old imperative `FillLogsAsync` path from `MainWindow.cs`.
 
 ### Acceptance Coverage
 
@@ -83,6 +85,8 @@ This document tracks the current slice for external review. It is an audit hando
   verifies Dashboard rendering uses `DashboardView` plus `ShellPageViewModelFactory.FromDashboard` and that the old imperative dashboard card builder is gone.
 - `Shell_notifications_page_is_wired_to_axaml_view_model`
   verifies Notifications rendering uses `NotificationsView` plus `ShellPageViewModelFactory.FromNotifications` and that the old imperative notification item path is gone.
+- `Shell_logs_page_is_wired_to_axaml_view_model`
+  verifies Logs rendering uses `LogsView` plus `ShellPageViewModelFactory.FromLogs`, preserves module picker commands, and removes the old imperative log filler path.
 - `Shell_theme_resource_dictionary_is_loaded_and_defines_design_tokens`
   verifies the shared UI theme dictionary is loaded by the Shell app and contains required token/style entries.
 - `Shell_axaml_views_use_theme_tokens_without_inline_colors`
@@ -90,9 +94,9 @@ This document tracks the current slice for external review. It is an audit hando
 
 ## Current UI Architecture State
 
-- `src/MyPowerTools.Shell.Avalonia/MainWindow.cs` current: 1752 lines.
+- `src/MyPowerTools.Shell.Avalonia/MainWindow.cs` current: 1729 lines.
 - `MainWindow.cs` target <= 250 lines.
-- AXAML + MVVM migration: Dashboard, Modules, and Notifications are now live on typed AXAML plus ViewModels; other pages still have migration scaffolds while existing `MainWindow.cs` owns runtime wiring and remaining imperative rendering.
+- AXAML + MVVM migration: Dashboard, Modules, Logs, and Notifications are now live on typed AXAML plus ViewModels; other pages still have migration scaffolds while existing `MainWindow.cs` owns runtime wiring and remaining imperative rendering.
 - Component AXAML library: started with shared page/card/text styles; reusable control templates remain pending.
 - Token `ResourceDictionary` split: initial shared `MptTheme.axaml` loaded from the UI project.
 - Static style lint for shell UI: started with AXAML/viewmodel/code-behind guardrails; deeper layout and interaction lint pending.
@@ -114,8 +118,8 @@ The existing shell already has UI snapshot gates, keyboard shortcut tests, and c
 | InProc shadow-copy update | Loaded module uses cache while package DLL is replaceable | Done |
 | InProc unload handling | Unload probe and failure surfaced to runtime policy | Done for clean unload and pending-runner-restart diagnostics |
 | Sidecar default for complex modules | Complex modules prefer sidecar transport | Existing manifests keep sidecar-capable modules on sidecar paths |
-| MainWindow size | target <= 250 lines | current: 1752 lines |
-| AXAML + MVVM | Main shell split into views/viewmodels | Started: Dashboard, Modules, and Notifications wired to AXAML; eight typed page views and control-free viewmodels exist |
+| MainWindow size | target <= 250 lines | current: 1729 lines |
+| AXAML + MVVM | Main shell split into views/viewmodels | Started: Dashboard, Modules, Logs, and Notifications wired to AXAML; eight typed page views and control-free viewmodels exist |
 | Component library | Reusable AXAML controls and tokens | Started: shared theme resources and base page/card/text styles |
 | Style lint | Static lint over shell UI style usage | Started: AXAML token and code-behind/viewmodel guardrails |
 | Command palette | Typed args and validation UI | Pending |
@@ -140,7 +144,7 @@ Latest observed result before packaging:
 
 ```text
 Build: passed, 0 warnings, 0 errors
-Tests: passed, 105 passed, 0 failed, 0 skipped
+Tests: passed, 106 passed, 0 failed, 0 skipped
 Module validation: 5 packages valid
 Contract validation: 5 packages, 7 modules passed
 UI gate: passed
@@ -152,7 +156,7 @@ The packaging step for external review should run the same validation again and 
 
 ## Recommended Next Slice
 
-1. Move dashboard, command palette, settings, logs, package manager, and diagnostics UI into AXAML views with viewmodels.
+1. Move command palette, settings, package manager, and diagnostics runtime wiring into AXAML views with viewmodels.
 2. Introduce shell token dictionaries and component styles under the UI project.
 3. Add a static style lint that scans AXAML and C# UI files.
 4. Add command palette parameter editors and settings validate/apply staging.
