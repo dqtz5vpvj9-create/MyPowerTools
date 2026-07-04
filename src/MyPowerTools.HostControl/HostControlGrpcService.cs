@@ -651,7 +651,11 @@ public sealed class HostControlGrpcService : HostProto.HostControl.HostControlBa
                 StartCount = (uint)Math.Max(0, process.StartCount),
                 RestartLimit = (uint)Math.Max(0, process.RestartLimit),
                 RestartPolicy = process.RestartPolicy,
-                PolicyReason = process.PolicyReason
+                PolicyReason = process.PolicyReason,
+                StdoutLineCount = (uint)Math.Max(0, process.StdoutLineCount),
+                StderrLineCount = (uint)Math.Max(0, process.StderrLineCount),
+                LastStdout = process.LastStdout,
+                LastStderr = process.LastStderr
             };
             if (process.LastStartedAt is not null)
             {

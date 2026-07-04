@@ -131,7 +131,11 @@ public sealed record RuntimeProcessDiagnostics(
     string PolicyReason,
     DateTimeOffset? LastStartedAt,
     IReadOnlyList<string> ModuleIds,
-    DateTimeOffset? PolicyExpiresAt = null);
+    DateTimeOffset? PolicyExpiresAt = null,
+    int StdoutLineCount = 0,
+    int StderrLineCount = 0,
+    string LastStdout = "",
+    string LastStderr = "");
 
 public sealed record RuntimeProcessRestartResult(
     bool Success,

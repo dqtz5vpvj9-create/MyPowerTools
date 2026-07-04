@@ -101,6 +101,7 @@ This document tracks the current slice for external review. It is an audit hando
 - Added Command Palette local parameter validation, execution preview text, per-command execution state, and result/error message binding.
 - Added HostControl-backed command cancellation by invocation id and wired Command Palette running-state cancel actions.
 - Added HostControl server-streaming command execution and wired Command Palette progress event rows for accepted/running/final states.
+- Added gRPC IPC sidecar stdout/stderr drain with redacted diagnostic tails and process-level line counts.
 - Added Runtime settings validate/store/apply sequencing through `UpdateSettingsWithApplyAsync`.
 - Mapped settings validate/apply hooks through `IModuleTransportRuntime`, InProc modules, gRPC IPC modules, HostControl, and Shell save status.
 - Extended HostControl settings snapshots with `apply_state` and `apply_message` so Shell can distinguish stored, applied, and apply-failed outcomes.
@@ -187,6 +188,8 @@ This document tracks the current slice for external review. It is an audit hando
   verifies Runtime emits accepted, running, and terminal command progress events with the final execution result attached.
 - `HostControl_execute_command_stream_exposes_progress_events`
   verifies HostControl maps Runtime command progress events into the server-streaming RPC response.
+- `Runtime_drains_grpc_sidecar_stdio_into_process_diagnostics`
+  verifies gRPC sidecar stdout/stderr streams are drained into process diagnostics with line counts and tail messages.
 - `Shell_read_only_page_data_is_extracted_to_service`
   verifies read-only HostControl data loading and page ViewModel factory mapping are owned by `ShellPageDataService` while `ShellWorkspaceController` owns page view assignment.
 - `Shell_host_event_refresh_routing_is_extracted_to_service`
@@ -223,6 +226,7 @@ This document tracks the current slice for external review. It is an audit hando
 - Shell snapshot gate: writes PNG-backed metadata for Dashboard, Command Palette, Settings Center, Module Detail, Logs, Notifications, Permission Prompt, Degraded Module, Package Manager, and Runtime Diagnostics, including keyboard/focus evidence and the new command/settings states.
 - Command palette typed argument binding: HostControl parameter descriptors, Shell text/boolean parameter editors, JSON args pass-through, required/numeric validation, execution preview, per-command result/error state, cancel action wiring, and progress streaming are done.
 - Settings validate/apply chain with staged diff UX: Runtime validate/store/apply sequencing, HostControl apply state fields, Shell save status messages, staged-change tracking, field-level dirty summaries, patch preview text, local validation preview, save enablement, apply-failure rollback, and structured save-result summaries are wired.
+- Sidecar process supervision: gRPC IPC sidecars have native IPC startup, initialization handshake, process diagnostics, manual restart, restart pause/resume/expiry policy, crash-loop limit, crash recovery, process-tree cleanup, and stdout/stderr drain with diagnostic tails.
 
 The existing shell has UI snapshot gates, keyboard shortcut tests, centralized color-token checks, typed component styles, and Shell views wired onto foundation component class names.
 
@@ -238,7 +242,7 @@ The existing shell has UI snapshot gates, keyboard shortcut tests, centralized c
 | InProc dependency isolation | Conflicting dependency versions load side by side | Done |
 | InProc shadow-copy update | Loaded module uses cache while package DLL is replaceable | Done |
 | InProc unload handling | Unload probe and failure surfaced to runtime policy | Done for clean unload and pending-runner-restart diagnostics |
-| Sidecar default for complex modules | Complex modules prefer sidecar transport | Existing manifests keep sidecar-capable modules on sidecar paths |
+| Sidecar default for complex modules | Complex modules prefer sidecar transport | Done: sidecar-capable modules stay on sidecar paths, with startup handshake, diagnostics, restart policy, crash recovery, process-tree cleanup, and stdout/stderr drain |
 | MainWindow size | target <= 250 lines | current: 59 lines |
 | AXAML + MVVM | Main shell split into views/viewmodels | Started: Dashboard, Modules, Module Detail, Logs, Notifications, Package Manager, Diagnostics, Settings Center, Permission Prompt, Broker Audit, unavailable/error pages, Shell chrome layout/navigation/status row, the right-side Command Palette list, command execution service extraction, runner/event service extraction, Host action service extraction, Settings save service extraction, read-only page data service extraction, Host event refresh routing extraction, and Shell workspace controller extraction wired to AXAML/MVVM/service layers; thirteen typed views and control-free viewmodels exist |
 | Component library | Reusable AXAML controls and tokens | Done for foundation Shell surfaces: component styles, matching C# classes, and Shell view class usage cover cards, badges, metrics, command items, settings sections/fields, logs, notifications, prompts, states, headers, action bars, and action buttons |
@@ -268,7 +272,7 @@ Latest observed result before packaging:
 
 ```text
 Build: passed, 0 warnings, 0 errors
-Tests: passed, 137 passed, 0 failed, 0 skipped
+Tests: passed, 138 passed, 0 failed, 0 skipped
 Module validation: 5 packages valid
 Contract validation: 5 packages, 7 modules passed
 UI gate: passed
@@ -282,4 +286,4 @@ The packaging step for external review should run the same validation again and 
 
 ## Recommended Next Slice
 
-1. Keep sidecar process supervision as the next plugin-runtime depth item after the UI architecture slice starts.
+1. Run final package validation, commit the review-ready build, and create the external review archive with the current Git commit hash.

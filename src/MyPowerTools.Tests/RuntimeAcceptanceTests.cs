@@ -717,6 +717,8 @@ Address         Port        Address         Port
         Assert.Contains("BrokerAuditEntryViewModel", diagnosticsView);
         Assert.Contains("RestartCommand", diagnosticsView);
         Assert.Contains("ToggleRestartPolicyCommand", diagnosticsView);
+        Assert.Contains("StdoutText", diagnosticsView);
+        Assert.Contains("StderrText", diagnosticsView);
     }
 
     [Fact]
@@ -3164,6 +3166,43 @@ public sealed class GeneratedModule : IMptModule
         Assert.Contains(runtime.ListCommands("gRPC"), command => command.Id == "sample.grpc.ping");
         Assert.True(result.Success);
         Assert.Contains("pong", result.Output);
+    }
+
+    [Fact]
+    public async Task Runtime_drains_grpc_sidecar_stdio_into_process_diagnostics()
+    {
+        var sidecarCommand = FindSampleGrpcSidecarCommand();
+        var pipeName = "mypowertools.sample.grpc.stdio." + Guid.NewGuid().ToString("N");
+        var packageRoot = Path.Combine(Path.GetTempPath(), "mpt-grpc-stdio", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(packageRoot);
+        WriteGrpcSidecarModuleManifest(packageRoot, sidecarCommand, pipeName);
+
+        await using var host = new GrpcIpcModuleRuntime();
+        var runtime = new MptHostRuntime(
+            new PackageReader(),
+            PlatformId.Current(),
+            RuntimePaths.Create(Path.Combine(Path.GetTempPath(), "mpt-runtime-grpc-stdio", Guid.NewGuid().ToString("N"))),
+            [host]);
+
+        runtime.Load(packageRoot);
+        await runtime.RefreshDynamicCommandsAsync(CancellationToken.None);
+
+        RuntimeProcessDiagnostics process = null!;
+        for (var attempt = 0; attempt < 20; attempt++)
+        {
+            process = Assert.Single(runtime.GetRuntimeDiagnostics().Processes);
+            if (process.StdoutLineCount > 0 && process.StderrLineCount > 0)
+            {
+                break;
+            }
+
+            await Task.Delay(100);
+        }
+
+        Assert.True(process.StdoutLineCount > 0, "Expected gRPC sidecar stdout to be drained.");
+        Assert.True(process.StderrLineCount > 0, "Expected gRPC sidecar stderr to be drained.");
+        Assert.False(string.IsNullOrWhiteSpace(process.LastStdout));
+        Assert.Contains("mpt-sidecar stderr initialized", process.LastStderr);
     }
 
     [Fact]

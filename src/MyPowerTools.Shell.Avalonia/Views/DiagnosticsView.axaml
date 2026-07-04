@@ -102,6 +102,14 @@
                 <TextBlock Classes="MptMeta" Text="Started" />
                 <TextBlock Grid.Column="1" Text="{Binding StartedAt}" />
               </Grid>
+              <Grid ColumnDefinitions="120,*">
+                <TextBlock Classes="MptMeta" Text="Stdout" />
+                <TextBlock Grid.Column="1" Text="{Binding StdoutText}" TextWrapping="Wrap" />
+              </Grid>
+              <Grid ColumnDefinitions="120,*">
+                <TextBlock Classes="MptMeta" Text="Stderr" />
+                <TextBlock Grid.Column="1" Text="{Binding StderrText}" TextWrapping="Wrap" />
+              </Grid>
               <StackPanel Orientation="Horizontal" Spacing="{DynamicResource MptSpacingS}">
                 <Button Content="Restart" Command="{Binding RestartCommand}" MinHeight="32" MinWidth="84" />
                 <Button Content="{Binding PolicyToggleLabel}" Command="{Binding ToggleRestartPolicyCommand}" MinHeight="32" MinWidth="84" />

@@ -32,6 +32,8 @@ public sealed class SampleModuleControlService : ModuleControl.ModuleControlBase
 {
     public override Task<InitializeResponse> Initialize(InitializeRequest request, ServerCallContext context)
     {
+        Console.WriteLine($"mpt-sidecar stdout initialized module={request.ModuleId}");
+        Console.Error.WriteLine($"mpt-sidecar stderr initialized module={request.ModuleId}");
         var response = new InitializeResponse
         {
             Ok = true,

@@ -21,17 +21,28 @@ public sealed record GrpcIpcHostDiagnostics(
     int StartCount,
     int RestartLimit,
     DateTimeOffset? LastStartedAt,
-    IReadOnlyList<string> ModuleIds);
+    IReadOnlyList<string> ModuleIds,
+    int StdoutLineCount,
+    int StderrLineCount,
+    string LastStdout,
+    string LastStderr);
 
 public sealed record GrpcIpcRestartPolicy(string State, string Reason, DateTimeOffset UpdatedAt, DateTimeOffset? ExpiresAt);
 
 public sealed class GrpcIpcModuleHost : IAsyncDisposable
 {
+    private const int MaxCapturedProcessLines = 20;
+
     private readonly List<Process> _ownedProcesses = [];
+    private readonly object _stdioLock = new();
+    private readonly Queue<string> _stdoutTail = [];
+    private readonly Queue<string> _stderrTail = [];
     private GrpcChannel? _channel;
     private ModuleControl.ModuleControlClient? _client;
     private DateTimeOffset? _startedAt;
     private string _endpoint = "";
+    private int _stdoutLineCount;
+    private int _stderrLineCount;
 
     public async Task InitializeAsync(SelectedEntrypoint entrypoint, ModuleContext context, CancellationToken cancellationToken)
     {
@@ -240,7 +251,22 @@ public sealed class GrpcIpcModuleHost : IAsyncDisposable
         var processId = process is null
             ? 0
             : process.HasExited ? 0 : process.Id;
-        return new GrpcIpcHostDiagnostics(poolKey, state, processId, _endpoint, startCount, restartLimit, _startedAt, moduleIds);
+        lock (_stdioLock)
+        {
+            return new GrpcIpcHostDiagnostics(
+                poolKey,
+                state,
+                processId,
+                _endpoint,
+                startCount,
+                restartLimit,
+                _startedAt,
+                moduleIds,
+                _stdoutLineCount,
+                _stderrLineCount,
+                _stdoutTail.LastOrDefault() ?? "",
+                _stderrTail.LastOrDefault() ?? "");
+        }
     }
 
     public async ValueTask DisposeAsync()
@@ -281,8 +307,48 @@ public sealed class GrpcIpcModuleHost : IAsyncDisposable
         }
 
         var process = Process.Start(psi) ?? throw new InvalidOperationException($"Could not start sidecar '{entrypoint.Command}'.");
+        process.OutputDataReceived += (_, args) => CaptureStdout(args.Data);
+        process.ErrorDataReceived += (_, args) => CaptureStderr(args.Data);
+        process.BeginOutputReadLine();
+        process.BeginErrorReadLine();
         _ownedProcesses.Add(process);
         _startedAt = DateTimeOffset.UtcNow;
+    }
+
+    private void CaptureStdout(string? line)
+    {
+        if (line is null)
+        {
+            return;
+        }
+
+        lock (_stdioLock)
+        {
+            _stdoutLineCount++;
+            _stdoutTail.Enqueue(LogRouter.Redact(line));
+            while (_stdoutTail.Count > MaxCapturedProcessLines)
+            {
+                _stdoutTail.Dequeue();
+            }
+        }
+    }
+
+    private void CaptureStderr(string? line)
+    {
+        if (line is null)
+        {
+            return;
+        }
+
+        lock (_stdioLock)
+        {
+            _stderrLineCount++;
+            _stderrTail.Enqueue(LogRouter.Redact(line));
+            while (_stderrTail.Count > MaxCapturedProcessLines)
+            {
+                _stderrTail.Dequeue();
+            }
+        }
     }
 
     private GrpcChannel CreateChannel(SelectedEntrypoint entrypoint)
@@ -454,7 +520,11 @@ public sealed class GrpcIpcModuleRuntime : IModuleTransportRuntime, IModuleTrans
                         policy.Reason,
                         host.LastStartedAt,
                         host.ModuleIds,
-                        policy.ExpiresAt);
+                        policy.ExpiresAt,
+                        host.StdoutLineCount,
+                        host.StderrLineCount,
+                        host.LastStdout,
+                        host.LastStderr);
                 })
                 .Concat(_restartPolicies
                     .Where(pair => string.Equals(pair.Value.State, "paused", StringComparison.OrdinalIgnoreCase) && !_hosts.ContainsKey(pair.Key))
