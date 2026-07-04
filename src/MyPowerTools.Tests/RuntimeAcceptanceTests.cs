@@ -2759,6 +2759,30 @@ Address         Port        Address         Port
     }
 
     [Fact]
+    public void Abstractions_project_exposes_named_plugin_contracts()
+    {
+        var contracts = File.ReadAllText(Path.Combine(Root, "src/MyPowerTools.Abstractions/NamedPluginContracts.cs"));
+        var project = File.ReadAllText(Path.Combine(Root, "src/MyPowerTools.Abstractions/MyPowerTools.Abstractions.csproj"));
+
+        Assert.Contains("<TargetFramework>net10.0</TargetFramework>", project);
+        foreach (var token in new[]
+        {
+            "interface IMptModuleFactory",
+            "interface IModuleContext",
+            "interface ICommandContext",
+            "record ModuleStatus",
+            "record ModuleCommand",
+            "record CommandResult",
+            "record SettingsSchema",
+            "record ModuleEvent",
+            "record UiSurfaceDescriptor"
+        })
+        {
+            Assert.Contains(token, contracts);
+        }
+    }
+
+    [Fact]
     public async Task Runtime_delegates_dynamic_inproc_commands_to_transport_host()
     {
         _ = typeof(SampleDotNetModule).Assembly;

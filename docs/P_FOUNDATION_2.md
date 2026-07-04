@@ -21,6 +21,7 @@ This document tracks the current slice for external review. It is an audit hando
 
 - Added `src/MyPowerTools.Abstractions`.
 - Moved plugin-facing contracts into the abstractions assembly while preserving the existing `MyPowerTools.Runtime` namespace for source compatibility.
+- Added named `MyPowerTools.Abstractions` contract aliases for the review-facing API names: `IMptModuleFactory`, `IModuleContext`, `ICommandContext`, `ModuleStatus`, `ModuleCommand`, `CommandResult`, `SettingsSchema`, `ModuleEvent`, and `UiSurfaceDescriptor`.
 - Updated production module projects to reference `MyPowerTools.Abstractions` instead of `MyPowerTools.Runtime`.
 - Added `MptLogRedactor` to keep module log redaction available without taking a runtime dependency.
 - Added `runtimePolicy` schema and C# manifest model fields for preferred runtime, InProc rules, and sidecar rules.
@@ -130,6 +131,8 @@ This document tracks the current slice for external review. It is an audit hando
   verifies production module project files depend on abstractions, not the runtime project.
 - `Runtime_shell_and_host_do_not_reference_concrete_module_projects`
   verifies Runtime, HostControl, and Shell avoid references to concrete production module projects.
+- `Abstractions_project_exposes_named_plugin_contracts`
+  verifies the abstractions project exposes the named plugin-facing contract types from the P-Foundation-2 review prompt.
 - `P_foundation_2_ui_architecture_debt_is_tracked`
   verifies this document reflects the live shell line count and refactor target.
 - `Shell_workspace_controller_owns_shell_orchestration`
@@ -272,7 +275,7 @@ Latest observed result before packaging:
 
 ```text
 Build: passed, 0 warnings, 0 errors
-Tests: passed, 138 passed, 0 failed, 0 skipped
+Tests: passed, 139 passed, 0 failed, 0 skipped
 Module validation: 5 packages valid
 Contract validation: 5 packages, 7 modules passed
 UI gate: passed
