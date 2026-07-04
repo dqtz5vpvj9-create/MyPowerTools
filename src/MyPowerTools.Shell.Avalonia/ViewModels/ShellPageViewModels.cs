@@ -270,13 +270,17 @@ public sealed class ModuleDetailViewModel : ShellPageViewModel
 
 public sealed class SettingsCenterViewModel : ShellPageViewModel
 {
-    private readonly string _originalRawJson;
     private readonly AsyncRelayCommand _saveCommand;
+    private string _originalRawJson;
     private string _rawJson;
     private string _statusText;
     private int _dirtyCount;
     private string _patchPreview = "";
     private string _validationMessage = "";
+    private string _saveResultState = "";
+    private string _saveResultTitle = "";
+    private string _saveResultMessage = "";
+    private string _saveResultRevision = "";
 
     public SettingsCenterViewModel(
         string selectedModuleId,
@@ -319,7 +323,7 @@ public sealed class SettingsCenterViewModel : ShellPageViewModel
     }
 
     public string SelectedModuleId { get; }
-    public ulong Revision { get; }
+    public ulong Revision { get; private set; }
     public IReadOnlyList<ModulePickerItemViewModel> Modules { get; }
     public IReadOnlyList<SettingsFieldViewModel> Fields { get; }
     public bool HasNoModules => Modules.Count == 0;
@@ -329,6 +333,8 @@ public sealed class SettingsCenterViewModel : ShellPageViewModel
     public bool HasChanges => DirtyCount > 0;
     public bool HasPatchPreview => PatchPreview.Length > 0;
     public bool HasValidationErrors => ValidationMessage.Length > 0;
+    public bool HasSaveResult => SaveResultState.Length > 0 || SaveResultMessage.Length > 0;
+    public bool HasSaveResultRevision => SaveResultRevision.Length > 0;
     public bool CanSave => SelectedModuleId.Length > 0 && HasChanges && !HasValidationErrors;
     public string ChangeSummary => HasChanges ? $"{DirtyCount} staged change(s)" : "No staged changes.";
 
@@ -387,6 +393,74 @@ public sealed class SettingsCenterViewModel : ShellPageViewModel
     {
         get => _statusText;
         set => SetProperty(ref _statusText, value);
+    }
+
+    public string SaveResultState
+    {
+        get => _saveResultState;
+        private set
+        {
+            if (SetProperty(ref _saveResultState, value))
+            {
+                OnPropertyChanged(nameof(HasSaveResult));
+            }
+        }
+    }
+
+    public string SaveResultTitle
+    {
+        get => _saveResultTitle;
+        private set => SetProperty(ref _saveResultTitle, value);
+    }
+
+    public string SaveResultMessage
+    {
+        get => _saveResultMessage;
+        private set
+        {
+            if (SetProperty(ref _saveResultMessage, value))
+            {
+                OnPropertyChanged(nameof(HasSaveResult));
+            }
+        }
+    }
+
+    public string SaveResultRevision
+    {
+        get => _saveResultRevision;
+        private set
+        {
+            if (SetProperty(ref _saveResultRevision, value))
+            {
+                OnPropertyChanged(nameof(HasSaveResultRevision));
+            }
+        }
+    }
+
+    public void ApplySaveResult(string state, string title, string message, ulong revision, bool saved)
+    {
+        SaveResultState = string.IsNullOrWhiteSpace(state)
+            ? (saved ? "stored" : "failed")
+            : state;
+        SaveResultTitle = string.IsNullOrWhiteSpace(title)
+            ? (saved ? "Settings saved" : "Settings save failed")
+            : title;
+        SaveResultMessage = message;
+        SaveResultRevision = revision == 0 ? "" : $"Revision {revision}";
+        StatusText = message;
+
+        if (saved)
+        {
+            Revision = revision;
+            OnPropertyChanged(nameof(Revision));
+            _originalRawJson = RawJson;
+            foreach (var field in Fields)
+            {
+                field.AcceptCurrentValue();
+            }
+
+            RefreshStagedChanges();
+        }
     }
 
     public void RefreshStagedChanges()
@@ -1101,9 +1175,9 @@ public sealed class SettingsFieldViewModel : ObservableViewModel
     public string EditorType { get; }
     public string Description { get; }
     public IReadOnlyList<string> Options { get; }
-    public string OriginalValue { get; }
-    public bool OriginalBooleanValue { get; }
-    public string OriginalSelectedOption { get; }
+    public string OriginalValue { get; private set; }
+    public bool OriginalBooleanValue { get; private set; }
+    public string OriginalSelectedOption { get; private set; }
     public bool IsBooleanEditor => EditorType == "boolean";
     public bool IsEnumEditor => EditorType == "enum";
     public bool IsMultilineEditor => EditorType is "object" or "array";
@@ -1215,6 +1289,18 @@ public sealed class SettingsFieldViewModel : ObservableViewModel
     public void RefreshValidationState()
     {
         ValidationMessage = Validate();
+    }
+
+    public void AcceptCurrentValue()
+    {
+        OriginalValue = Value;
+        OriginalBooleanValue = BooleanValue;
+        OriginalSelectedOption = SelectedOption;
+        OnPropertyChanged(nameof(OriginalValue));
+        OnPropertyChanged(nameof(OriginalBooleanValue));
+        OnPropertyChanged(nameof(OriginalSelectedOption));
+        OnPropertyChanged(nameof(OriginalEditorValue));
+        RaiseDirtyStateChanged();
     }
 
     private void RaiseDirtyStateChanged()

@@ -291,12 +291,13 @@ public sealed class ShellWorkspaceController : IAsyncDisposable
     private async Task SaveSettingsPageAsync(SettingsCenterViewModel viewModel)
     {
         var result = await _settingsService.SaveAsync(viewModel);
-        viewModel.StatusText = result.StatusText;
+        viewModel.ApplySaveResult(
+            result.ApplyState,
+            result.ApplyTitle,
+            result.ApplyMessage,
+            result.Revision,
+            result.Saved);
         SetStatus(result.StatusText);
-        if (result.Saved)
-        {
-            await LoadSettingsPageAsync(viewModel.SelectedModuleId);
-        }
     }
 
     private async Task LoadLogsPageAsync(string? selectedModuleId = null)

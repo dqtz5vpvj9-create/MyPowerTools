@@ -39,6 +39,20 @@
                IsVisible="{Binding HasNoModules}" />
 
     <TextBlock Classes="MptMeta" Text="{Binding StatusText}" />
+    <Border Classes="MptInset" IsVisible="{Binding HasSaveResult}">
+      <StackPanel Spacing="{DynamicResource MptSpacingXs}">
+        <Grid ColumnDefinitions="*,Auto">
+          <TextBlock FontWeight="SemiBold" Text="{Binding SaveResultTitle}" />
+          <TextBlock Grid.Column="1" Classes="MptMeta" Text="{Binding SaveResultState}" />
+        </Grid>
+        <TextBlock Classes="MptMeta"
+                   Text="{Binding SaveResultMessage}"
+                   TextWrapping="Wrap" />
+        <TextBlock Classes="MptMeta"
+                   Text="{Binding SaveResultRevision}"
+                   IsVisible="{Binding HasSaveResultRevision}" />
+      </StackPanel>
+    </Border>
     <Border Classes="MptInset">
       <StackPanel Spacing="{DynamicResource MptSpacingXs}">
         <TextBlock Classes="MptMeta" Text="{Binding ChangeSummary}" />

@@ -1160,10 +1160,14 @@ Address         Port        Address         Port
         Assert.Contains("ChangeSummary", settingsView);
         Assert.Contains("PatchPreview", settingsView);
         Assert.Contains("DirtySummary", settingsView);
+        Assert.Contains("HasSaveResult", settingsView);
+        Assert.Contains("SaveResultState", settingsView);
+        Assert.Contains("SaveResultMessage", settingsView);
         Assert.Contains("HasValidationErrors", settingsView);
         Assert.Contains("HasValidationError", settingsView);
         Assert.Contains("BuildSettingsPatch", viewModel);
         Assert.Contains("RefreshStagedChanges", viewModel);
+        Assert.Contains("ApplySaveResult", viewModel);
         Assert.Contains("CanSave", viewModel);
     }
 
@@ -1229,6 +1233,18 @@ Address         Port        Address         Port
         Assert.Equal(38200, patch["port"]!.GetValue<long>());
         Assert.Equal("compact", patch["mode"]!.GetValue<string>());
         Assert.True(patch["enabled"]!.GetValue<bool>());
+
+        viewModel.ApplySaveResult("applied", "Settings applied", "Settings applied to sample.", 8, saved: true);
+
+        Assert.True(viewModel.HasSaveResult);
+        Assert.Equal("applied", viewModel.SaveResultState);
+        Assert.Equal("Settings applied", viewModel.SaveResultTitle);
+        Assert.Equal("Settings applied to sample.", viewModel.SaveResultMessage);
+        Assert.Equal("Revision 8", viewModel.SaveResultRevision);
+        Assert.Equal((ulong)8, viewModel.Revision);
+        Assert.False(viewModel.HasChanges);
+        Assert.Equal("No staged changes.", viewModel.ChangeSummary);
+        Assert.False(viewModel.SaveCommand.CanExecute(null));
     }
 
     [Fact]
@@ -1252,6 +1268,9 @@ Address         Port        Address         Port
         Assert.Contains("RpcException", service);
         Assert.Contains("BuildSettingsPatch", service);
         Assert.Contains("ShellSettingsSaveResult", service);
+        Assert.Contains("ApplySaveResult", workspace);
+        Assert.Contains("ApplyState", service);
+        Assert.Contains("ApplyTitle", service);
     }
 
     [Fact]
@@ -1845,6 +1864,8 @@ Address         Port        Address         Port
         Assert.Contains("SettingsValidationException", hostService);
         Assert.Contains("ApplyState = applyState", hostService);
         Assert.Contains("apply-failed-rolled-back", shellSettings);
+        Assert.Contains("ApplyTitle", shellSettings);
+        Assert.Contains("ShellSettingsSaveResult.Failed", shellSettings);
         Assert.Contains("ValidateSettingsAsync(new ValidateSettingsRequest", grpcHost);
         Assert.Contains("ApplySettingsAsync(new ApplySettingsRequest", grpcHost);
         Assert.Contains("saved and applied", shellSettings);

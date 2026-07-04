@@ -106,6 +106,7 @@ This document tracks the current slice for external review. It is an audit hando
 - Added Settings Center staged-change tracking, field-level dirty summaries, patch preview text, and save enablement only when edits are staged.
 - Added Settings Center local validation preview for numeric, enum, object, array, and raw JSON edits before save.
 - Added Settings apply-failure rollback policy for persistent settings snapshots, including `apply-failed-rolled-back` state propagation to Shell.
+- Added Settings Center save-result summary rows for stored, applied, apply-failed, rolled-back, and RPC failure outcomes, with saved values accepted back into the staged-diff model.
 
 ### Acceptance Coverage
 
@@ -172,7 +173,7 @@ This document tracks the current slice for external review. It is an audit hando
 - `Shell_settings_save_is_extracted_to_service`
   verifies settings patch construction, update calls, and RPC error mapping are owned by `ShellSettingsService` while `ShellWorkspaceController` owns refresh choreography.
 - `Shell_settings_page_tracks_staged_diff_before_save`
-  verifies Settings Center keeps original field values, tracks staged changes, renders patch preview text, previews validation errors, and enables save only after valid edits are staged.
+  verifies Settings Center keeps original field values, tracks staged changes, renders patch preview text, previews validation errors, enables save only after valid edits are staged, and accepts successful save results back into the dirty-state model.
 - `Settings_update_validates_stores_and_applies_runtime`
   verifies Runtime settings updates call transport validation before storage, apply the stored snapshot afterward, and publish `applyState`.
 - `Settings_apply_failure_rolls_back_persisted_update`
@@ -218,7 +219,7 @@ This document tracks the current slice for external review. It is an audit hando
 - Static style lint for shell UI: covers split-token dictionaries, component-style coverage, AXAML raw colors/font sizes, C# raw colors/font sizes in Shell/UI control surfaces, thin code-behind files, and ViewModel independence from Avalonia controls.
 - Shell snapshot gate: writes PNG-backed metadata for Dashboard, Command Palette, Settings Center, Module Detail, Logs, Notifications, Permission Prompt, Degraded Module, Package Manager, and Runtime Diagnostics, including keyboard/focus evidence and the new command/settings states.
 - Command palette typed argument binding: HostControl parameter descriptors, Shell text/boolean parameter editors, JSON args pass-through, required/numeric validation, execution preview, per-command result/error state, cancel action wiring, and progress streaming are done.
-- Settings validate/apply chain with staged diff UX: Runtime validate/store/apply sequencing, HostControl apply state fields, Shell save status messages, staged-change tracking, field-level dirty summaries, patch preview text, local validation preview, save enablement, and apply-failure rollback are wired; richer apply result states remain pending.
+- Settings validate/apply chain with staged diff UX: Runtime validate/store/apply sequencing, HostControl apply state fields, Shell save status messages, staged-change tracking, field-level dirty summaries, patch preview text, local validation preview, save enablement, apply-failure rollback, and structured save-result summaries are wired.
 
 The existing shell already has UI snapshot gates, keyboard shortcut tests, and centralized color-token checks. The next slice should turn those guardrails into a structural refactor that reduces imperative UI construction in `MainWindow.cs`.
 
@@ -241,7 +242,7 @@ The existing shell already has UI snapshot gates, keyboard shortcut tests, and c
 | Style lint | Static lint over shell UI style usage | Started: split-token, component-style, raw color/font-size, code-behind, and viewmodel guardrails |
 | Pixel snapshots | Module and Shell PNG snapshot evidence | Done for module dashboard cards and 10 Shell surfaces with keyboard/focus, command validation/execution, and settings staged-diff/apply-failed metadata |
 | Command palette | Typed args, validation UI, cancellation, and progress streaming | Parameter descriptors, text/boolean editors, args pass-through, required/numeric validation, execution preview, per-command result/error state, cancel action wiring, and accepted/running/final progress rows done |
-| Settings UX | Validate/apply chain with clear states | Runtime validate/store/apply sequencing, Shell save apply-state messages, staged diff, patch preview, local validation preview, and apply-failure rollback wired; richer apply result states pending |
+| Settings UX | Validate/apply chain with clear states | Runtime validate/store/apply sequencing, Shell save apply-state messages, staged diff, patch preview, local validation preview, apply-failure rollback, and structured save-result summaries wired |
 
 ## Validation Evidence
 
@@ -279,5 +280,4 @@ The packaging step for external review should run the same validation again and 
 ## Recommended Next Slice
 
 1. Wire Shell views more deeply onto the new component style names and reduce repeated inline card/list markup.
-2. Add richer Settings apply result UI.
-3. Keep sidecar process supervision as the next plugin-runtime depth item after the UI architecture slice starts.
+2. Keep sidecar process supervision as the next plugin-runtime depth item after the UI architecture slice starts.
