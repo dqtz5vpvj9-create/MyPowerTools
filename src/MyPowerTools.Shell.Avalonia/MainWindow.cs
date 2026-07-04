@@ -372,14 +372,18 @@ public sealed class MainWindow : Window
         {
             using var client = HostControlClient.ForDefaultEndpoint();
             var response = await client.ListModulesAsync();
-            var list = new StackPanel { Spacing = 12 };
-            foreach (var module in response.Modules.OrderBy(module => module.DisplayName, StringComparer.OrdinalIgnoreCase))
-            {
-                list.Children.Add(BuildModuleSummaryCard(module));
-            }
+            var viewModel = ShellPageViewModelFactory.FromModules(
+                response,
+                moduleId => ShowModuleDetailPageAsync(moduleId),
+                moduleId => LoadSettingsPageAsync(moduleId),
+                moduleId => LoadLogsPageAsync(moduleId),
+                (moduleId, enabled) => SetModuleEnabledAsync(moduleId, enabled));
 
-            _contentHost.Content = BuildPage(ModulesPage, $"{response.Modules.Count} modules", list);
-            _statusBar.Text = $"{response.Modules.Count} modules loaded";
+            _contentHost.Content = new ModulesView
+            {
+                DataContext = viewModel
+            };
+            _statusBar.Text = $"{viewModel.Modules.Count} modules loaded";
         }
         catch (Exception ex)
         {
@@ -1047,53 +1051,6 @@ public sealed class MainWindow : Window
                 FontSize = 12
             });
         }
-    }
-
-    private Control BuildModuleSummaryCard(HostProto.ModuleSummary module)
-    {
-        var panel = new StackPanel { Spacing = 10 };
-        panel.Children.Add(HeaderWithBadge(module.DisplayName, module.State));
-        panel.Children.Add(new TextBlock
-        {
-            Text = module.Summary,
-            TextWrapping = TextWrapping.Wrap,
-            Foreground = MptTheme.TextSecondary
-        });
-        panel.Children.Add(new TextBlock
-        {
-            Text = $"{module.PackageId} · {module.ModuleId}",
-            FontSize = 12,
-            Foreground = MptTheme.TextMuted
-        });
-        var permissionSummary = module.Permissions.Count == 0
-            ? "Permissions: none"
-            : $"Permissions: {module.Permissions.Count} declared";
-        panel.Children.Add(new TextBlock
-        {
-            Text = $"{permissionSummary} · Requirements: {module.Requirements.Count}",
-            FontSize = 12,
-            Foreground = module.Permissions.Any(permission => permission.Level is "broker" or "elevated" or "service")
-                ? MptTheme.Warning
-                : MptTheme.TextMuted,
-            TextWrapping = TextWrapping.Wrap
-        });
-
-        var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-        var details = new MptActionButton("Details");
-        details.Click += async (_, _) => await ShowModuleDetailPageAsync(module.ModuleId);
-        var settings = new MptActionButton("Settings");
-        settings.Click += async (_, _) => await LoadSettingsPageAsync(module.ModuleId);
-        var logs = new MptActionButton("Logs");
-        logs.Click += async (_, _) => await LoadLogsPageAsync(module.ModuleId);
-        var toggle = new MptActionButton(module.Enabled ? "Disable" : "Enable");
-        toggle.Click += async (_, _) => await SetModuleEnabledAsync(module.ModuleId, !module.Enabled);
-        actions.Children.Add(details);
-        actions.Children.Add(settings);
-        actions.Children.Add(logs);
-        actions.Children.Add(toggle);
-        panel.Children.Add(actions);
-
-        return new MptModuleCard(panel);
     }
 
     private Control BuildModuleHero(HostProto.ModuleDetail detail)

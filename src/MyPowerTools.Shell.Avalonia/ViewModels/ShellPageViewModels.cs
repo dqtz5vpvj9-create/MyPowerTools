@@ -120,6 +120,18 @@ public sealed class CommandPaletteViewModel : ShellPageViewModel
     public IReadOnlyList<CommandItemViewModel> Commands { get; }
 }
 
+public sealed class ModulesViewModel : ShellPageViewModel
+{
+    public ModulesViewModel(IReadOnlyList<ModuleSummaryItemViewModel> modules)
+        : base("Modules", $"{modules.Count} modules", modules.Count == 0 ? "empty" : "ready")
+    {
+        Modules = modules;
+    }
+
+    public IReadOnlyList<ModuleSummaryItemViewModel> Modules { get; }
+    public bool IsEmpty => Modules.Count == 0;
+}
+
 public sealed class SettingsCenterViewModel : ShellPageViewModel
 {
     public SettingsCenterViewModel(string selectedModuleId, string selectedModuleName, ulong revision, IReadOnlyList<SettingsFieldViewModel> fields)
@@ -200,6 +212,22 @@ public sealed record CommandItemViewModel(
     string DangerLevel,
     bool RequiresElevation);
 
+public sealed record ModuleSummaryItemViewModel(
+    string ModuleId,
+    string PackageId,
+    string DisplayName,
+    string State,
+    string Summary,
+    bool Enabled,
+    string Identity,
+    string PermissionSummary,
+    string ToggleLabel,
+    bool HasElevatedPermissions,
+    ICommand DetailsCommand,
+    ICommand SettingsCommand,
+    ICommand LogsCommand,
+    ICommand ToggleEnabledCommand);
+
 public sealed record PackageSummaryViewModel(
     string PackageId,
     string DisplayName,
@@ -264,6 +292,43 @@ public static class ShellPageViewModelFactory
             command.RequiresElevation)).ToArray();
 
         return new CommandPaletteViewModel(query, commands);
+    }
+
+    public static ModulesViewModel FromModules(
+        HostProto.ListModulesResponse response,
+        Func<string, Task>? showDetails = null,
+        Func<string, Task>? showSettings = null,
+        Func<string, Task>? showLogs = null,
+        Func<string, bool, Task>? setModuleEnabled = null)
+    {
+        var modules = response.Modules
+            .OrderBy(module => module.DisplayName, StringComparer.OrdinalIgnoreCase)
+            .Select(module =>
+            {
+                var permissionSummary = module.Permissions.Count == 0
+                    ? "Permissions: none"
+                    : $"Permissions: {module.Permissions.Count} declared";
+                var hasElevatedPermissions = module.Permissions.Any(permission =>
+                    permission.Level is "broker" or "elevated" or "service");
+
+                return new ModuleSummaryItemViewModel(
+                    module.ModuleId,
+                    module.PackageId,
+                    module.DisplayName,
+                    module.State,
+                    module.Summary,
+                    module.Enabled,
+                    $"{module.PackageId} · {module.ModuleId}",
+                    $"{permissionSummary} · Requirements: {module.Requirements.Count}",
+                    module.Enabled ? "Disable" : "Enable",
+                    hasElevatedPermissions,
+                    new AsyncRelayCommand(() => showDetails?.Invoke(module.ModuleId) ?? Task.CompletedTask),
+                    new AsyncRelayCommand(() => showSettings?.Invoke(module.ModuleId) ?? Task.CompletedTask),
+                    new AsyncRelayCommand(() => showLogs?.Invoke(module.ModuleId) ?? Task.CompletedTask),
+                    new AsyncRelayCommand(() => setModuleEnabled?.Invoke(module.ModuleId, !module.Enabled) ?? Task.CompletedTask));
+            }).ToArray();
+
+        return new ModulesViewModel(modules);
     }
 
     public static PackageManagerViewModel FromPackages(HostProto.ListPackagesResponse response)

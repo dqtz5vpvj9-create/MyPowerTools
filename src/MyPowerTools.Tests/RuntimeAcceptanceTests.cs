@@ -450,6 +450,7 @@ Address         Port        Address         Port
         var expectedPages = new Dictionary<string, string>
         {
             ["DashboardView"] = "DashboardViewModel",
+            ["ModulesView"] = "ModulesViewModel",
             ["CommandPaletteView"] = "CommandPaletteViewModel",
             ["SettingsCenterView"] = "SettingsCenterViewModel",
             ["LogsView"] = "LogsViewModel",
@@ -523,6 +524,25 @@ Address         Port        Address         Port
         Assert.Equal("Command Palette", commandViewModel.Title);
         Assert.Equal("open", commandViewModel.Query);
         Assert.Single(commandViewModel.Commands);
+    }
+
+    [Fact]
+    public void Shell_modules_page_is_wired_to_axaml_view_model()
+    {
+        var mainWindowPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "MainWindow.cs");
+        var modulesViewPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Views", "ModulesView.axaml");
+        var mainWindow = File.ReadAllText(mainWindowPath);
+        var modulesView = File.ReadAllText(modulesViewPath);
+
+        Assert.Contains("ShellPageViewModelFactory.FromModules", mainWindow);
+        Assert.Contains("new ModulesView", mainWindow);
+        Assert.DoesNotContain("BuildModuleSummaryCard", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("x:DataType=\"vm:ModulesViewModel\"", modulesView);
+        Assert.Contains("ModuleSummaryItemViewModel", modulesView);
+        Assert.Contains("DetailsCommand", modulesView);
+        Assert.Contains("SettingsCommand", modulesView);
+        Assert.Contains("LogsCommand", modulesView);
+        Assert.Contains("ToggleEnabledCommand", modulesView);
     }
 
     [Fact]
