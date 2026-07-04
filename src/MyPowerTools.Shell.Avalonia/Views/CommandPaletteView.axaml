@@ -60,6 +60,20 @@
               <TextBlock Classes="MptMeta"
                          Text="{Binding ExecutionMessage}"
                          IsVisible="{Binding HasExecutionMessage}" />
+              <ItemsControl ItemsSource="{Binding ProgressEvents}"
+                            IsVisible="{Binding HasProgressEvents}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:CommandProgressItemViewModel">
+                    <Grid ColumnDefinitions="92,*" Margin="0,0,0,4">
+                      <TextBlock Classes="MptMeta" Text="{Binding StateLabel}" />
+                      <TextBlock Grid.Column="1"
+                                 Classes="MptMeta"
+                                 Text="{Binding Message}"
+                                 TextWrapping="Wrap" />
+                    </Grid>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
               <StackPanel Orientation="Horizontal" Spacing="{DynamicResource MptSpacingS}">
                 <Button Content="{Binding ExecuteLabel}"
                         Command="{Binding ExecuteCommand}"

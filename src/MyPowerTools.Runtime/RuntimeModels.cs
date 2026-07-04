@@ -157,6 +157,15 @@ public sealed record CommandCancellationResult(
     string State,
     string Message);
 
+public sealed record CommandProgressEvent(
+    string InvocationId,
+    string CommandId,
+    string State,
+    string Message,
+    int Sequence,
+    bool Terminal,
+    CommandExecutionResult? FinalResult = null);
+
 public sealed record RuntimeProcessPolicySnapshot(
     ulong Revision,
     IReadOnlyList<RuntimeProcessPolicyRecord> Policies,

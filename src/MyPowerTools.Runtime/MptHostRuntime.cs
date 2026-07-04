@@ -1,5 +1,6 @@
 using System.Collections.Concurrent;
 using System.Net.Http.Json;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text.Json.Nodes;
 using MyPowerTools.Packaging;
@@ -429,6 +430,38 @@ public sealed class MptHostRuntime : IAsyncDisposable
     public Task<CommandExecutionResult> ExecuteCommandAsync(CommandRequest request, CancellationToken cancellationToken)
     {
         return _executions.GetOrAdd(request.InvocationId, _ => ExecuteCommandTrackedAsync(request, cancellationToken));
+    }
+
+    public async IAsyncEnumerable<CommandProgressEvent> ExecuteCommandStreamAsync(CommandRequest request, [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        yield return new CommandProgressEvent(
+            request.InvocationId,
+            request.CommandId,
+            "accepted",
+            $"Command {request.CommandId} accepted.",
+            1,
+            false);
+
+        yield return new CommandProgressEvent(
+            request.InvocationId,
+            request.CommandId,
+            "running",
+            $"Command {request.CommandId} is running.",
+            2,
+            false);
+
+        var result = await ExecuteCommandAsync(request, cancellationToken);
+        var message = result.Success
+            ? result.Output
+            : result.Error?.Message ?? "Command failed.";
+        yield return new CommandProgressEvent(
+            result.InvocationId,
+            result.CommandId,
+            result.State,
+            message,
+            3,
+            true,
+            result);
     }
 
     public CommandCancellationResult CancelCommand(string invocationId)

@@ -99,6 +99,7 @@ This document tracks the current slice for external review. It is an audit hando
 - Added HostControl client and Shell command execution overloads that pass command args through `ExecuteCommandRequest.args`.
 - Added Command Palette local parameter validation, execution preview text, per-command execution state, and result/error message binding.
 - Added HostControl-backed command cancellation by invocation id and wired Command Palette running-state cancel actions.
+- Added HostControl server-streaming command execution and wired Command Palette progress event rows for accepted/running/final states.
 - Added Runtime settings validate/store/apply sequencing through `UpdateSettingsWithApplyAsync`.
 - Mapped settings validate/apply hooks through `IModuleTransportRuntime`, InProc modules, gRPC IPC modules, HostControl, and Shell save status.
 - Extended HostControl settings snapshots with `apply_state` and `apply_message` so Shell can distinguish stored, applied, and apply-failed outcomes.
@@ -154,12 +155,14 @@ This document tracks the current slice for external review. It is an audit hando
   verifies Command Palette parameter ViewModels render text/boolean fields and build JSON args from edited form values.
 - `Shell_command_palette_parameter_form_validates_preview_and_execution_state`
   verifies Command Palette parameter forms validate required and numeric fields, update execution preview text, and surface per-command execution results.
+- `Shell_command_palette_progress_stream_records_events`
+  verifies Command Palette command items record accepted, running, and final progress events from an async execution stream.
 - `Shell_command_palette_cancel_command_updates_running_state`
   verifies Command Palette command items expose cancel actions while running and move to cancelled state after local cancellation.
 - `Shell_command_parameter_contract_flows_through_hostcontrol`
-  verifies command parameter descriptors and cancel RPCs flow through proto, abstractions, static indexes, gRPC IPC, HostControl mapping, and Shell execution args.
+  verifies command parameter descriptors, command stream RPCs, and cancel RPCs flow through proto, abstractions, static indexes, gRPC IPC, HostControl mapping, and Shell execution args.
 - `Shell_command_execution_is_extracted_to_service`
-  verifies HostControl command execution is owned by `ShellCommandExecutionService` and `ShellWorkspaceController` consumes the service result for status and permission prompt presentation.
+  verifies HostControl unary and streaming command execution is owned by `ShellCommandExecutionService` and `ShellWorkspaceController` consumes service results for status and permission prompt presentation.
 - `Shell_runner_events_are_extracted_to_service`
   verifies Runner connection and host event stream monitors are owned by `ShellRunnerEventService` and `ShellWorkspaceController` consumes service events.
 - `Shell_host_actions_are_extracted_to_service`
@@ -178,6 +181,10 @@ This document tracks the current slice for external review. It is an audit hando
   verifies settings validate/apply hooks flow through module proto, Runtime transport contracts, HostControl, gRPC IPC, and Shell save status.
 - `Runtime_cancel_command_stops_running_invocation`
   verifies Runtime tracks active command cancellation sources, cancels a running transport invocation, and records the cancelled command history state.
+- `Runtime_command_stream_emits_progress_and_final_result`
+  verifies Runtime emits accepted, running, and terminal command progress events with the final execution result attached.
+- `HostControl_execute_command_stream_exposes_progress_events`
+  verifies HostControl maps Runtime command progress events into the server-streaming RPC response.
 - `Shell_read_only_page_data_is_extracted_to_service`
   verifies read-only HostControl data loading and page ViewModel factory mapping are owned by `ShellPageDataService` while `ShellWorkspaceController` owns page view assignment.
 - `Shell_host_event_refresh_routing_is_extracted_to_service`
@@ -210,7 +217,7 @@ This document tracks the current slice for external review. It is an audit hando
 - Token `ResourceDictionary` split: `MptColors.axaml`, `MptSpacing.axaml`, `MptTypography.axaml`, and `MptDensity.axaml` are loaded through `MptTheme.axaml`.
 - Static style lint for shell UI: covers split-token dictionaries, component-style coverage, AXAML raw colors/font sizes, C# raw colors/font sizes in Shell/UI control surfaces, thin code-behind files, and ViewModel independence from Avalonia controls.
 - Shell snapshot gate: writes PNG-backed metadata for Dashboard, Command Palette, Settings Center, Module Detail, Logs, Notifications, Permission Prompt, Degraded Module, Package Manager, and Runtime Diagnostics, including keyboard/focus evidence and the new command/settings states.
-- Command palette typed argument binding: HostControl parameter descriptors, Shell text/boolean parameter editors, JSON args pass-through, required/numeric validation, execution preview, per-command result/error state, and cancel action wiring are done; progress streaming remains pending.
+- Command palette typed argument binding: HostControl parameter descriptors, Shell text/boolean parameter editors, JSON args pass-through, required/numeric validation, execution preview, per-command result/error state, cancel action wiring, and progress streaming are done.
 - Settings validate/apply chain with staged diff UX: Runtime validate/store/apply sequencing, HostControl apply state fields, Shell save status messages, staged-change tracking, field-level dirty summaries, patch preview text, local validation preview, save enablement, and apply-failure rollback are wired; richer apply result states remain pending.
 
 The existing shell already has UI snapshot gates, keyboard shortcut tests, and centralized color-token checks. The next slice should turn those guardrails into a structural refactor that reduces imperative UI construction in `MainWindow.cs`.
@@ -233,7 +240,7 @@ The existing shell already has UI snapshot gates, keyboard shortcut tests, and c
 | Component library | Reusable AXAML controls and tokens | Started: foundation component styles and matching C# classes for cards, badges, metrics, command items, settings fields, logs, notifications, prompts, states, headers, action bars, and action buttons |
 | Style lint | Static lint over shell UI style usage | Started: split-token, component-style, raw color/font-size, code-behind, and viewmodel guardrails |
 | Pixel snapshots | Module and Shell PNG snapshot evidence | Done for module dashboard cards and 10 Shell surfaces with keyboard/focus, command validation/execution, and settings staged-diff/apply-failed metadata |
-| Command palette | Typed args and validation UI | Parameter descriptors, text/boolean editors, args pass-through, required/numeric validation, execution preview, per-command result/error state, and cancel action wiring done; progress streaming pending |
+| Command palette | Typed args, validation UI, cancellation, and progress streaming | Parameter descriptors, text/boolean editors, args pass-through, required/numeric validation, execution preview, per-command result/error state, cancel action wiring, and accepted/running/final progress rows done |
 | Settings UX | Validate/apply chain with clear states | Runtime validate/store/apply sequencing, Shell save apply-state messages, staged diff, patch preview, local validation preview, and apply-failure rollback wired; richer apply result states pending |
 
 ## Validation Evidence
@@ -257,7 +264,7 @@ Latest observed result before packaging:
 
 ```text
 Build: passed, 0 warnings, 0 errors
-Tests: passed, 128 passed, 0 failed, 0 skipped
+Tests: passed, 136 passed, 0 failed, 0 skipped
 Module validation: 5 packages valid
 Contract validation: 5 packages, 7 modules passed
 UI gate: passed
@@ -272,6 +279,5 @@ The packaging step for external review should run the same validation again and 
 ## Recommended Next Slice
 
 1. Wire Shell views more deeply onto the new component style names and reduce repeated inline card/list markup.
-2. Add command palette progress streaming once HostControl exposes streaming command execution.
-3. Add richer Settings apply result UI.
-4. Keep sidecar process supervision as the next plugin-runtime depth item after the UI architecture slice starts.
+2. Add richer Settings apply result UI.
+3. Keep sidecar process supervision as the next plugin-runtime depth item after the UI architecture slice starts.

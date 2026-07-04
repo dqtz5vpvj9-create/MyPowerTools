@@ -1,3 +1,4 @@
+using System.Runtime.CompilerServices;
 using System.Text.Json.Nodes;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -394,7 +395,7 @@ public sealed class ShellWorkspaceController : IAsyncDisposable
         {
             var viewModel = await _pageData.LoadCommandsAsync(
                 query,
-                (commandId, args, invocationId, cancellationToken) => ExecuteCommandAsync(commandId, args, invocationId, cancellationToken),
+                (commandId, args, invocationId, cancellationToken) => ExecuteCommandStreamAsync(commandId, args, invocationId, cancellationToken),
                 invocationId => CancelCommandAsync(invocationId));
             _commandPanel.Content = new CommandPaletteView
             {
@@ -467,6 +468,39 @@ public sealed class ShellWorkspaceController : IAsyncDisposable
         {
             SetStatus(ex.Message);
             return new CommandExecutionStatus("failed", ex.Message);
+        }
+    }
+
+    private async IAsyncEnumerable<CommandExecutionStatus> ExecuteCommandStreamAsync(
+        string commandId,
+        JsonObject? args,
+        string invocationId,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        await foreach (var result in _commandExecutionService.ExecuteStreamAsync(invocationId, commandId, args, cancellationToken)
+            .WithCancellation(cancellationToken))
+        {
+            SetStatus(result.StatusText);
+            _permissionPanel.Content = null;
+            if (result.RequiresPermissionPrompt && result.Event.FinalResponse is not null)
+            {
+                _permissionPanel.Content = new PermissionPromptView
+                {
+                    DataContext = ShellPageViewModelFactory.FromPermissionPrompt(result.Event.FinalResponse, LoadBrokerAuditAsync)
+                };
+            }
+
+            yield return new CommandExecutionStatus(
+                result.Event.State,
+                result.StatusText,
+                result.Event.Terminal,
+                (int)result.Event.Sequence);
+        }
+
+        await LoadBrokerAuditAsync();
+        if (_currentPage == NotificationsPage)
+        {
+            await LoadNotificationsPageAsync();
         }
     }
 

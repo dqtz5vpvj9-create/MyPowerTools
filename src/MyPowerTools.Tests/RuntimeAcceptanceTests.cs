@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
+using System.Runtime.CompilerServices;
 using System.Runtime.Loader;
 using System.Text;
 using System.Text.Json;
@@ -744,12 +745,15 @@ Address         Port        Address         Port
         Assert.Contains("ExecuteLabel", commandPaletteView);
         Assert.Contains("CancelCommand", commandPaletteView);
         Assert.Contains("CanCancel", commandPaletteView);
+        Assert.Contains("ProgressEvents", commandPaletteView);
+        Assert.Contains("HasProgressEvents", commandPaletteView);
         Assert.Contains("ExecutionPreview", commandPaletteView);
         Assert.Contains("ValidationMessage", commandPaletteView);
         Assert.Contains("ExecutionStateLabel", commandPaletteView);
         Assert.Contains("ICommand ExecuteCommand", viewModel);
         Assert.Contains("ICommand CancelCommand", viewModel);
         Assert.Contains("CommandExecutionStatus", viewModel);
+        Assert.Contains("CommandProgressItemViewModel", viewModel);
         Assert.Contains("CommandCancellationStatus", viewModel);
     }
 
@@ -785,7 +789,7 @@ Address         Port        Address         Port
         var viewModel = ShellPageViewModelFactory.FromCommands(
             "parameterized",
             commands,
-            (_, _, _, _) => Task.FromResult(new CommandExecutionStatus("succeeded", "done")));
+            (_, _, _, cancellationToken) => SingleCommandStatus("succeeded", "done", cancellationToken));
         var item = Assert.Single(viewModel.Commands);
 
         Assert.True(item.HasParameters);
@@ -847,7 +851,7 @@ Address         Port        Address         Port
             (_, args, _, _) =>
             {
                 capturedArgs = args;
-                return Task.FromResult(new CommandExecutionStatus("succeeded", "succeeded: validated"));
+                return SingleCommandStatus("succeeded", "succeeded: validated");
             });
         var item = Assert.Single(viewModel.Commands);
 
@@ -872,6 +876,53 @@ Address         Port        Address         Port
         Assert.NotNull(capturedArgs);
         Assert.Equal("C:\\work", capturedArgs["path"]!.GetValue<string>());
         Assert.Equal(3.5, capturedArgs["count"]!.GetValue<double>());
+        Assert.True(item.HasProgressEvents);
+        Assert.Contains(item.ProgressEvents, evt => evt.StateLabel == "Succeeded");
+    }
+
+    [Fact]
+    public async Task Shell_command_palette_progress_stream_records_events()
+    {
+        var commands = new HostProto.ListCommandsResponse();
+        commands.Commands.Add(new HostProto.CommandItem
+        {
+            CommandId = "sample.progress.run",
+            ModuleId = "sample",
+            Title = "Progress command",
+            Subtitle = "Streams progress",
+            DangerLevel = "none"
+        });
+
+        var viewModel = ShellPageViewModelFactory.FromCommands(
+            "progress",
+            commands,
+            (_, _, _, cancellationToken) => CommandProgressStatuses(cancellationToken));
+        var item = Assert.Single(viewModel.Commands);
+
+        await item.ExecuteAsync();
+
+        Assert.Equal("succeeded", item.ExecutionState);
+        Assert.True(item.HasProgressEvents);
+        Assert.Collection(
+            item.ProgressEvents,
+            evt =>
+            {
+                Assert.Equal(1, evt.Sequence);
+                Assert.Equal("Accepted", evt.StateLabel);
+                Assert.False(evt.IsTerminal);
+            },
+            evt =>
+            {
+                Assert.Equal(2, evt.Sequence);
+                Assert.Equal("Running", evt.StateLabel);
+                Assert.False(evt.IsTerminal);
+            },
+            evt =>
+            {
+                Assert.Equal(3, evt.Sequence);
+                Assert.Equal("Succeeded", evt.StateLabel);
+                Assert.True(evt.IsTerminal);
+            });
     }
 
     [Fact]
@@ -892,12 +943,7 @@ Address         Port        Address         Port
         var viewModel = ShellPageViewModelFactory.FromCommands(
             "cancel",
             commands,
-            async (_, _, _, cancellationToken) =>
-            {
-                started.SetResult();
-                await Task.Delay(TimeSpan.FromSeconds(30), cancellationToken);
-                return new CommandExecutionStatus("succeeded", "finished");
-            },
+            (_, _, _, cancellationToken) => DelayedCommandStatus(started, cancellationToken),
             invocationId =>
             {
                 cancelled.SetResult();
@@ -917,6 +963,35 @@ Address         Port        Address         Port
         Assert.Equal("cancelled", item.ExecutionState);
         Assert.Contains("Cancelled", item.ExecutionMessage);
         await cancelled.Task.WaitAsync(TimeSpan.FromSeconds(5));
+    }
+
+    private static async IAsyncEnumerable<CommandExecutionStatus> SingleCommandStatus(
+        string state,
+        string message,
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        await Task.Yield();
+        cancellationToken.ThrowIfCancellationRequested();
+        yield return new CommandExecutionStatus(state, message);
+    }
+
+    private static async IAsyncEnumerable<CommandExecutionStatus> CommandProgressStatuses(
+        [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        await Task.Yield();
+        cancellationToken.ThrowIfCancellationRequested();
+        yield return new CommandExecutionStatus("accepted", "accepted", false, 1);
+        yield return new CommandExecutionStatus("running", "running", false, 2);
+        yield return new CommandExecutionStatus("succeeded", "done", true, 3);
+    }
+
+    private static async IAsyncEnumerable<CommandExecutionStatus> DelayedCommandStatus(
+        TaskCompletionSource started,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        started.SetResult();
+        await Task.Delay(TimeSpan.FromSeconds(30), cancellationToken);
+        yield return new CommandExecutionStatus("succeeded", "finished");
     }
 
     [Fact]
@@ -940,7 +1015,9 @@ Address         Port        Address         Port
         var workspace = File.ReadAllText(workspacePath);
 
         Assert.Contains("rpc CancelCommand", proto);
+        Assert.Contains("rpc ExecuteCommandStream", proto);
         Assert.Contains("message CancelCommandRequest", proto);
+        Assert.Contains("message CommandExecutionEvent", proto);
         Assert.Contains("repeated CommandParameter parameters = 8", proto);
         Assert.Contains("message CommandParameter", proto);
         Assert.Contains("CommandParameterDescriptor", abstractions);
@@ -948,10 +1025,14 @@ Address         Port        Address         Port
         Assert.Contains("parameter.DefaultValue", grpcHost);
         Assert.Contains("item.Parameters.AddRange", hostService);
         Assert.Contains("CancelCommand(HostProto.CancelCommandRequest", hostService);
+        Assert.Contains("ExecuteCommandStream(HostProto.ExecuteCommandRequest", hostService);
         Assert.Contains("JsonStructMapper.ToStruct(args)", hostClient);
         Assert.Contains("CancelCommandAsync", hostClient);
+        Assert.Contains("ExecuteCommandStreamAsync", hostClient);
         Assert.Contains("ExecuteAsync(string commandId, JsonObject? args", commandService);
+        Assert.Contains("ExecuteStreamAsync", commandService);
         Assert.Contains("CancelAsync(string invocationId", commandService);
+        Assert.Contains("ExecuteCommandStreamAsync(commandId, args, invocationId", workspace);
         Assert.Contains("CancelCommandAsync(invocationId)", workspace);
     }
 
@@ -967,12 +1048,14 @@ Address         Port        Address         Port
 
         Assert.Contains("ShellCommandExecutionService", workspace);
         Assert.Contains("_commandExecutionService.ExecuteAsync(invocationId, commandId, args", workspace);
+        Assert.Contains("_commandExecutionService.ExecuteStreamAsync(invocationId, commandId, args", workspace);
         Assert.Contains("_commandExecutionService.CancelAsync(invocationId)", workspace);
         Assert.DoesNotContain("ShellCommandExecutionService", mainWindow, StringComparison.Ordinal);
         Assert.DoesNotContain("var result = await client.ExecuteCommandAsync(commandId);", workspace, StringComparison.Ordinal);
         Assert.DoesNotContain("var result = await client.ExecuteCommandAsync(commandId);", mainWindow, StringComparison.Ordinal);
         Assert.Contains("HostControlClient.ForDefaultEndpoint()", service);
         Assert.Contains("ShellCommandExecutionResult", service);
+        Assert.Contains("ShellCommandExecutionEvent", service);
         Assert.Contains("RequiresPermissionPrompt", service);
     }
 
@@ -1589,6 +1672,41 @@ Address         Port        Address         Port
 
         Assert.True(result.Success);
         Assert.Contains("Settings revision", result.Output);
+    }
+
+    [Fact]
+    public async Task Runtime_command_stream_emits_progress_and_final_result()
+    {
+        var runtime = new MptHostRuntime(new PackageReader(), PlatformId.Current());
+        runtime.Load(Path.Combine(Root, "modules"));
+        var events = new List<CommandProgressEvent>();
+
+        await foreach (var evt in runtime.ExecuteCommandStreamAsync(
+            new CommandRequest("settings-stream", "screenease.settings.read", new JsonObject()),
+            CancellationToken.None))
+        {
+            events.Add(evt);
+        }
+
+        Assert.Collection(
+            events,
+            evt =>
+            {
+                Assert.Equal("accepted", evt.State);
+                Assert.False(evt.Terminal);
+            },
+            evt =>
+            {
+                Assert.Equal("running", evt.State);
+                Assert.False(evt.Terminal);
+            },
+            evt =>
+            {
+                Assert.Equal("succeeded", evt.State);
+                Assert.True(evt.Terminal);
+                Assert.NotNull(evt.FinalResult);
+                Assert.Contains("Settings revision", evt.FinalResult!.Output);
+            });
     }
 
     [Fact]
@@ -3895,6 +4013,43 @@ cloud_server_protocol: str = "https"
     }
 
     [Fact]
+    public async Task HostControl_execute_command_stream_exposes_progress_events()
+    {
+        var runtime = new MptHostRuntime(new PackageReader(), PlatformId.Current());
+        runtime.Load(Path.Combine(Root, "modules"));
+        var service = new HostControlGrpcService(runtime);
+        var request = new HostProto.ExecuteCommandRequest
+        {
+            InvocationId = "hostcontrol-stream",
+            CommandId = "screenease.settings.read",
+            Args = JsonStructMapper.ToStruct(new JsonObject())
+        };
+        var writer = new RecordingServerStreamWriter<HostProto.CommandExecutionEvent>();
+
+        await service.ExecuteCommandStream(request, writer, new TestServerCallContext());
+
+        Assert.Collection(
+            writer.Messages,
+            evt =>
+            {
+                Assert.Equal("accepted", evt.State);
+                Assert.False(evt.Terminal);
+            },
+            evt =>
+            {
+                Assert.Equal("running", evt.State);
+                Assert.False(evt.Terminal);
+            },
+            evt =>
+            {
+                Assert.Equal("succeeded", evt.State);
+                Assert.True(evt.Terminal);
+                Assert.Equal("succeeded", evt.FinalResponse.State);
+                Assert.Contains("Settings revision", evt.FinalResponse.Summary);
+            });
+    }
+
+    [Fact]
     public async Task HostControl_module_detail_exposes_declared_permissions()
     {
         var runtime = new MptHostRuntime(new PackageReader(), PlatformId.Current());
@@ -5222,6 +5377,18 @@ cloud_server_protocol: str = "https"
 
         protected override Task WriteResponseHeadersAsyncCore(Metadata responseHeaders)
         {
+            return Task.CompletedTask;
+        }
+    }
+
+    private sealed class RecordingServerStreamWriter<T> : IServerStreamWriter<T>
+    {
+        public List<T> Messages { get; } = [];
+        public WriteOptions? WriteOptions { get; set; }
+
+        public Task WriteAsync(T message)
+        {
+            Messages.Add(message);
             return Task.CompletedTask;
         }
     }

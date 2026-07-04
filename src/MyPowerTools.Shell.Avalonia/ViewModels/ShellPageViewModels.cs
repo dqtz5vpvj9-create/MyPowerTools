@@ -1,3 +1,4 @@
+using System.Collections.ObjectModel;
 using System.ComponentModel;
 using System.Globalization;
 using System.Runtime.CompilerServices;
@@ -584,7 +585,7 @@ public sealed record DashboardCardViewModel(
 
 public sealed class CommandItemViewModel : ObservableViewModel
 {
-    private readonly Func<string, JsonObject, string, CancellationToken, Task<CommandExecutionStatus>>? _executeCommand;
+    private readonly Func<string, JsonObject, string, CancellationToken, IAsyncEnumerable<CommandExecutionStatus>>? _executeCommand;
     private readonly Func<string, Task<CommandCancellationStatus>>? _cancelCommand;
     private readonly AsyncRelayCommand _executeCommandWrapper;
     private readonly AsyncRelayCommand _cancelCommandWrapper;
@@ -606,7 +607,7 @@ public sealed class CommandItemViewModel : ObservableViewModel
         string riskLabel,
         string parameterSummary,
         bool hasParameters,
-        Func<string, JsonObject, string, CancellationToken, Task<CommandExecutionStatus>>? executeCommand,
+        Func<string, JsonObject, string, CancellationToken, IAsyncEnumerable<CommandExecutionStatus>>? executeCommand,
         Func<string, Task<CommandCancellationStatus>>? cancelCommand = null,
         IReadOnlyList<CommandParameterViewModel>? parameters = null)
     {
@@ -619,6 +620,7 @@ public sealed class CommandItemViewModel : ObservableViewModel
         ModuleLabel = moduleLabel;
         RiskLabel = riskLabel;
         Parameters = parameters ?? [];
+        ProgressEvents = [];
         ParameterSummary = parameterSummary.Length == 0 && Parameters.Count > 0
             ? $"{Parameters.Count} parameter(s): {string.Join(", ", Parameters.Select(parameter => parameter.Label))}"
             : parameterSummary;
@@ -658,17 +660,20 @@ public sealed class CommandItemViewModel : ObservableViewModel
     public string ParameterSummary { get; }
     public bool HasParameters { get; }
     public IReadOnlyList<CommandParameterViewModel> Parameters { get; }
+    public ObservableCollection<CommandProgressItemViewModel> ProgressEvents { get; }
     public ICommand ExecuteCommand { get; }
     public ICommand CancelCommand { get; }
     public string ExecuteLabel => IsRunning ? "Running" : HasParameters ? "Run with parameters" : "Run";
     public string CancelLabel => ExecutionState == "cancelling" ? "Cancelling" : "Cancel";
     public bool HasValidationError => ValidationMessage.Length > 0;
     public bool HasExecutionMessage => ExecutionMessage.Length > 0;
-    public bool IsRunning => ExecutionState is "running" or "cancelling";
+    public bool HasProgressEvents => ProgressEvents.Count > 0;
+    public bool IsRunning => ExecutionState is "accepted" or "running" or "cancelling";
     public bool CanCancel => IsRunning && _activeInvocationId.Length > 0;
     public string ExecutionStateLabel => ExecutionState switch
     {
         "running" => "Running",
+        "accepted" => "Accepted",
         "cancelling" => "Cancelling",
         "succeeded" => "Succeeded",
         "failed" => "Failed",
@@ -737,28 +742,31 @@ public sealed class CommandItemViewModel : ObservableViewModel
         _activeInvocationId = Guid.NewGuid().ToString("N");
         _activeExecution?.Dispose();
         _activeExecution = new CancellationTokenSource();
+        ClearProgressEvents();
         ExecutionState = "running";
         ExecutionMessage = $"Running {Title}.";
         try
         {
-            var result = _executeCommand is null
-                ? new CommandExecutionStatus("succeeded", $"succeeded: {Title}")
-                : await _executeCommand(CommandId, BuildArgs(), _activeInvocationId, _activeExecution.Token);
-
-            ExecutionState = string.IsNullOrWhiteSpace(result.State) ? "succeeded" : result.State;
-            ExecutionMessage = string.IsNullOrWhiteSpace(result.Message)
-                ? $"{ExecutionStateLabel}: {Title}"
-                : result.Message;
+            if (_executeCommand is null)
+            {
+                ApplyExecutionStatus(new CommandExecutionStatus("succeeded", $"succeeded: {Title}"));
+            }
+            else
+            {
+                await foreach (var result in _executeCommand(CommandId, BuildArgs(), _activeInvocationId, _activeExecution.Token)
+                    .WithCancellation(_activeExecution.Token))
+                {
+                    ApplyExecutionStatus(result);
+                }
+            }
         }
         catch (OperationCanceledException) when (ExecutionState == "cancelling")
         {
-            ExecutionState = "cancelled";
-            ExecutionMessage = $"Cancelled {Title}.";
+            ApplyExecutionStatus(new CommandExecutionStatus("cancelled", $"Cancelled {Title}."));
         }
         catch (Exception ex)
         {
-            ExecutionState = "failed";
-            ExecutionMessage = ex.Message;
+            ApplyExecutionStatus(new CommandExecutionStatus("failed", ex.Message));
         }
         finally
         {
@@ -804,6 +812,26 @@ public sealed class CommandItemViewModel : ObservableViewModel
             ExecutionState = "failed";
             ExecutionMessage = ex.Message;
         }
+    }
+
+    private void ClearProgressEvents()
+    {
+        ProgressEvents.Clear();
+        OnPropertyChanged(nameof(HasProgressEvents));
+    }
+
+    private void ApplyExecutionStatus(CommandExecutionStatus result)
+    {
+        ExecutionState = string.IsNullOrWhiteSpace(result.State) ? "succeeded" : result.State;
+        ExecutionMessage = string.IsNullOrWhiteSpace(result.Message)
+            ? $"{ExecutionStateLabel}: {Title}"
+            : result.Message;
+        ProgressEvents.Add(new CommandProgressItemViewModel(
+            result.Sequence <= 0 ? ProgressEvents.Count + 1 : result.Sequence,
+            ExecutionStateLabel,
+            ExecutionMessage,
+            result.IsTerminal));
+        OnPropertyChanged(nameof(HasProgressEvents));
     }
 
     public JsonObject BuildArgs()
@@ -962,7 +990,9 @@ public sealed class CommandParameterViewModel : ObservableViewModel
     }
 }
 
-public sealed record CommandExecutionStatus(string State, string Message);
+public sealed record CommandExecutionStatus(string State, string Message, bool IsTerminal = true, int Sequence = 0);
+
+public sealed record CommandProgressItemViewModel(int Sequence, string StateLabel, string Message, bool IsTerminal);
 
 public sealed record CommandCancellationStatus(bool Accepted, string InvocationId, string State, string Message);
 
@@ -1250,7 +1280,7 @@ public static class ShellPageViewModelFactory
     public static CommandPaletteViewModel FromCommands(
         string query,
         HostProto.ListCommandsResponse response,
-        Func<string, JsonObject, string, CancellationToken, Task<CommandExecutionStatus>>? executeCommand = null,
+        Func<string, JsonObject, string, CancellationToken, IAsyncEnumerable<CommandExecutionStatus>>? executeCommand = null,
         Func<string, Task<CommandCancellationStatus>>? cancelCommand = null)
     {
         var commands = response.Commands.Select(command =>
@@ -1375,16 +1405,7 @@ public static class ShellPageViewModelFactory
                 command.RequiresElevation ? $"{command.DangerLevel} - elevation" : command.DangerLevel,
                 "",
                 false,
-                async (commandId, _, _, _) =>
-                {
-                    if (executeCommand is null)
-                    {
-                        return new CommandExecutionStatus("succeeded", $"succeeded: {commandId}");
-                    }
-
-                    await executeCommand(commandId);
-                    return new CommandExecutionStatus("succeeded", $"succeeded: {commandId}");
-                }))
+                (commandId, _, _, cancellationToken) => ExecuteModuleDetailCommandAsync(commandId, executeCommand, cancellationToken)))
             .ToArray();
 
         return new ModuleDetailViewModel(
@@ -1399,6 +1420,21 @@ public static class ShellPageViewModelFactory
             diagnostics,
             commandItems,
             new AsyncRelayCommand(() => setModuleEnabled?.Invoke(detail.ModuleId, !enabled) ?? Task.CompletedTask));
+    }
+
+    private static async IAsyncEnumerable<CommandExecutionStatus> ExecuteModuleDetailCommandAsync(
+        string commandId,
+        Func<string, Task>? executeCommand,
+        [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        yield return new CommandExecutionStatus("running", $"running: {commandId}", false, 1);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (executeCommand is not null)
+        {
+            await executeCommand(commandId);
+        }
+
+        yield return new CommandExecutionStatus("succeeded", $"succeeded: {commandId}", true, 2);
     }
 
     public static SettingsCenterViewModel FromSettings(

@@ -166,7 +166,7 @@ public sealed class ShellPageDataService
 
     public async Task<CommandPaletteViewModel> LoadCommandsAsync(
         string query,
-        Func<string, JsonObject, string, CancellationToken, Task<CommandExecutionStatus>>? executeCommand = null,
+        Func<string, JsonObject, string, CancellationToken, IAsyncEnumerable<CommandExecutionStatus>>? executeCommand = null,
         Func<string, Task<CommandCancellationStatus>>? cancelCommand = null,
         CancellationToken cancellationToken = default)
     {

@@ -231,23 +231,31 @@ public sealed class HostControlGrpcService : HostProto.HostControl.HostControlBa
     public override async Task<HostProto.CommandExecutionResponse> ExecuteCommand(HostProto.ExecuteCommandRequest request, ServerCallContext context)
     {
         var result = await _runtime.ExecuteCommandAsync(new CommandRequest(request.InvocationId, request.CommandId, JsonStructMapper.ToJsonObject(request.Args)), context.CancellationToken);
-        var response = new HostProto.CommandExecutionResponse
-        {
-            InvocationId = result.InvocationId,
-            State = result.State,
-            Summary = result.Success ? result.Output : result.Error?.Message ?? "Command failed.",
-            LogCursor = result.CommandId
-        };
+        return ToProtoCommandExecutionResponse(result);
+    }
 
-        if (result.Error is not null)
+    public override async Task ExecuteCommandStream(HostProto.ExecuteCommandRequest request, IServerStreamWriter<HostProto.CommandExecutionEvent> responseStream, ServerCallContext context)
+    {
+        await foreach (var evt in _runtime.ExecuteCommandStreamAsync(
+            new CommandRequest(request.InvocationId, request.CommandId, JsonStructMapper.ToJsonObject(request.Args)),
+            context.CancellationToken))
         {
-            response.ErrorCode = result.Error.Code;
-            response.ErrorMessage = result.Error.Message;
-            response.Retryable = result.Error.Retryable;
-            response.ErrorDetails = JsonStructMapper.ToStruct(result.Error.Details ?? new JsonObject());
+            var response = new HostProto.CommandExecutionEvent
+            {
+                InvocationId = evt.InvocationId,
+                CommandId = evt.CommandId,
+                State = evt.State,
+                Message = evt.Message,
+                Sequence = (uint)Math.Max(0, evt.Sequence),
+                Terminal = evt.Terminal
+            };
+            if (evt.FinalResult is not null)
+            {
+                response.FinalResponse = ToProtoCommandExecutionResponse(evt.FinalResult);
+            }
+
+            await responseStream.WriteAsync(response);
         }
-
-        return response;
     }
 
     public override Task<HostProto.CancelCommandResponse> CancelCommand(HostProto.CancelCommandRequest request, ServerCallContext context)
@@ -563,6 +571,27 @@ public sealed class HostControlGrpcService : HostProto.HostControl.HostControlBa
                 DefaultValue = parameter.DefaultValue
             }));
         return item;
+    }
+
+    private static HostProto.CommandExecutionResponse ToProtoCommandExecutionResponse(CommandExecutionResult result)
+    {
+        var response = new HostProto.CommandExecutionResponse
+        {
+            InvocationId = result.InvocationId,
+            State = result.State,
+            Summary = result.Success ? result.Output : result.Error?.Message ?? "Command failed.",
+            LogCursor = result.CommandId
+        };
+
+        if (result.Error is not null)
+        {
+            response.ErrorCode = result.Error.Code;
+            response.ErrorMessage = result.Error.Message;
+            response.Retryable = result.Error.Retryable;
+            response.ErrorDetails = JsonStructMapper.ToStruct(result.Error.Details ?? new JsonObject());
+        }
+
+        return response;
     }
 
     private static HostProto.RuntimeDiagnostics ToProtoRuntimeDiagnostics(RuntimeDiagnosticsSnapshot diagnostics)

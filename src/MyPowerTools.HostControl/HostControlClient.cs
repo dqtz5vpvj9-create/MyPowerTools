@@ -165,6 +165,20 @@ public sealed class HostControlClient : IDisposable
         }, cancellationToken: cancellationToken);
     }
 
+    public async IAsyncEnumerable<HostProto.CommandExecutionEvent> ExecuteCommandStreamAsync(string invocationId, string commandId, JsonObject args, [EnumeratorCancellation] CancellationToken cancellationToken = default)
+    {
+        using var call = _client.ExecuteCommandStream(new HostProto.ExecuteCommandRequest
+        {
+            CommandId = commandId,
+            InvocationId = invocationId,
+            Args = JsonStructMapper.ToStruct(args)
+        }, cancellationToken: cancellationToken);
+        while (await call.ResponseStream.MoveNext(cancellationToken))
+        {
+            yield return call.ResponseStream.Current;
+        }
+    }
+
     public async Task<HostProto.CancelCommandResponse> CancelCommandAsync(string invocationId, CancellationToken cancellationToken = default)
     {
         return await _client.CancelCommandAsync(new HostProto.CancelCommandRequest { InvocationId = invocationId }, cancellationToken: cancellationToken);
