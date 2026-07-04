@@ -45,6 +45,8 @@ This document tracks the current slice for external review. It is an audit hando
 - Added typed AXAML page views for Dashboard, Command Palette, Settings, Logs, Package Manager, and Diagnostics under `src/MyPowerTools.Shell.Avalonia/Views`.
 - Added `src/MyPowerTools.Shell.Avalonia/ViewModels/ShellPageViewModels.cs` with control-free page viewmodels and HostControl protocol mapping factories.
 - Added static guardrails for typed AXAML bindings, thin code-behind files, theme-token usage, and ViewModel independence from Avalonia controls.
+- Wired the Dashboard page to `DashboardView` and `DashboardViewModel`, preserving Details and quick-action command execution through ViewModel commands.
+- Removed the old imperative `BuildDashboardCard` path from `MainWindow.cs`.
 
 ### Acceptance Coverage
 
@@ -72,6 +74,8 @@ This document tracks the current slice for external review. It is an audit hando
   verifies the six primary Shell pages have AXAML views, typed bindings, theme tokens, and thin code-behind files.
 - `Shell_viewmodels_are_control_free_and_map_host_protocol`
   verifies Shell viewmodels do not depend on Avalonia controls and can map HostControl dashboard and command data.
+- `Shell_dashboard_page_is_wired_to_axaml_view_model`
+  verifies Dashboard rendering uses `DashboardView` plus `ShellPageViewModelFactory.FromDashboard` and that the old imperative dashboard card builder is gone.
 - `Shell_theme_resource_dictionary_is_loaded_and_defines_design_tokens`
   verifies the shared UI theme dictionary is loaded by the Shell app and contains required token/style entries.
 - `Shell_axaml_views_use_theme_tokens_without_inline_colors`
@@ -79,9 +83,9 @@ This document tracks the current slice for external review. It is an audit hando
 
 ## Current UI Architecture State
 
-- `src/MyPowerTools.Shell.Avalonia/MainWindow.cs` current: 1845 lines.
+- `src/MyPowerTools.Shell.Avalonia/MainWindow.cs` current: 1801 lines.
 - `MainWindow.cs` target <= 250 lines.
-- AXAML + MVVM migration: started with typed page views and protocol-backed viewmodels; existing `MainWindow.cs` still owns runtime wiring and imperative rendering.
+- AXAML + MVVM migration: Dashboard is now live on typed AXAML plus ViewModel; other pages still have migration scaffolds while existing `MainWindow.cs` owns runtime wiring and remaining imperative rendering.
 - Component AXAML library: started with shared page/card/text styles; reusable control templates remain pending.
 - Token `ResourceDictionary` split: initial shared `MptTheme.axaml` loaded from the UI project.
 - Static style lint for shell UI: started with AXAML/viewmodel/code-behind guardrails; deeper layout and interaction lint pending.
@@ -103,8 +107,8 @@ The existing shell already has UI snapshot gates, keyboard shortcut tests, and c
 | InProc shadow-copy update | Loaded module uses cache while package DLL is replaceable | Done |
 | InProc unload handling | Unload probe and failure surfaced to runtime policy | Done for clean unload and pending-runner-restart diagnostics |
 | Sidecar default for complex modules | Complex modules prefer sidecar transport | Existing manifests keep sidecar-capable modules on sidecar paths |
-| MainWindow size | target <= 250 lines | current: 1845 lines |
-| AXAML + MVVM | Main shell split into views/viewmodels | Started: six typed page views and control-free viewmodels |
+| MainWindow size | target <= 250 lines | current: 1801 lines |
+| AXAML + MVVM | Main shell split into views/viewmodels | Started: Dashboard wired to AXAML; six typed page views and control-free viewmodels exist |
 | Component library | Reusable AXAML controls and tokens | Started: shared theme resources and base page/card/text styles |
 | Style lint | Static lint over shell UI style usage | Started: AXAML token and code-behind/viewmodel guardrails |
 | Command palette | Typed args and validation UI | Pending |
@@ -120,6 +124,7 @@ dotnet run --no-build --project src\MyPowerTools.Cli -- package sign-local modul
 dotnet test MyPowerTools.slnx --no-build
 dotnet run --no-build --project src\MyPowerTools.Cli -- validate modules
 dotnet run --no-build --project src\MyPowerTools.Cli -- validate contracts
+dotnet run --no-build --project src\MyPowerTools.Cli -- ui check modules
 dotnet run --no-build --project src\MyPowerTools.Cli -- package trust modules --strict
 pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\validate-templates.ps1
 ```
@@ -128,9 +133,10 @@ Latest observed result before packaging:
 
 ```text
 Build: passed, 0 warnings, 0 errors
-Tests: passed, 102 passed, 0 failed, 0 skipped
+Tests: passed, 103 passed, 0 failed, 0 skipped
 Module validation: 5 packages valid
 Contract validation: 5 packages, 7 modules passed
+UI gate: passed
 Strict trust check: 5 signatures accepted under local policy
 Template validation: 6 templates passed manifest validation, UI gate, .NET builds, and Python syntax checks
 ```

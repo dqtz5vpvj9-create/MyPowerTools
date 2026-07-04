@@ -1,8 +1,49 @@
 using System.ComponentModel;
 using System.Runtime.CompilerServices;
+using System.Windows.Input;
 using HostProto = MyPowerTools.Protocol.HostControl.V1;
 
 namespace MyPowerTools.Shell.Avalonia.ViewModels;
+
+public sealed class AsyncRelayCommand : ICommand
+{
+    private readonly Func<Task> _execute;
+    private readonly Func<bool>? _canExecute;
+    private bool _isRunning;
+
+    public AsyncRelayCommand(Func<Task> execute, Func<bool>? canExecute = null)
+    {
+        _execute = execute;
+        _canExecute = canExecute;
+    }
+
+    public event EventHandler? CanExecuteChanged;
+
+    public bool CanExecute(object? parameter)
+    {
+        return !_isRunning && (_canExecute?.Invoke() ?? true);
+    }
+
+    public async void Execute(object? parameter)
+    {
+        if (!CanExecute(parameter))
+        {
+            return;
+        }
+
+        _isRunning = true;
+        CanExecuteChanged?.Invoke(this, EventArgs.Empty);
+        try
+        {
+            await _execute();
+        }
+        finally
+        {
+            _isRunning = false;
+            CanExecuteChanged?.Invoke(this, EventArgs.Empty);
+        }
+    }
+}
 
 public abstract class ObservableViewModel : INotifyPropertyChanged
 {
@@ -136,7 +177,8 @@ public sealed record DashboardCardViewModel(
     string State,
     string Summary,
     IReadOnlyList<MetricViewModel> Metrics,
-    IReadOnlyList<ShellActionViewModel> Actions);
+    IReadOnlyList<ShellActionViewModel> Actions,
+    ICommand DetailsCommand);
 
 public sealed record CommandItemViewModel(
     string CommandId,
@@ -165,12 +207,15 @@ public sealed record RuntimeProcessViewModel(
 public sealed record SettingsFieldViewModel(string Key, string Label, string EditorType, string Description, string Value);
 public sealed record LogLineViewModel(string Time, string Level, string Message);
 public sealed record ShellAlertViewModel(string Id, string Level, string Title, string Body);
-public sealed record ShellActionViewModel(string CommandId, string Title, string Style);
+public sealed record ShellActionViewModel(string CommandId, string Title, string Style, ICommand ExecuteCommand);
 public sealed record MetricViewModel(string Label, string Value);
 
 public static class ShellPageViewModelFactory
 {
-    public static DashboardViewModel FromDashboard(HostProto.DashboardSnapshot snapshot)
+    public static DashboardViewModel FromDashboard(
+        HostProto.DashboardSnapshot snapshot,
+        Func<string, Task>? showDetails = null,
+        Func<string, Task>? executeAction = null)
     {
         var cards = snapshot.Cards.Select(card => new DashboardCardViewModel(
             card.ModuleId,
@@ -179,7 +224,12 @@ public static class ShellPageViewModelFactory
             card.State,
             card.Summary,
             card.Metrics.Select(metric => new MetricViewModel(metric.Label, metric.Value)).ToArray(),
-            card.Actions.Select(action => new ShellActionViewModel(action.CommandId, action.Title, action.Style)).ToArray())).ToArray();
+            card.Actions.Select(action => new ShellActionViewModel(
+                action.CommandId,
+                action.Title,
+                action.Style,
+                new AsyncRelayCommand(() => executeAction?.Invoke(action.CommandId) ?? Task.CompletedTask))).ToArray(),
+            new AsyncRelayCommand(() => showDetails?.Invoke(card.ModuleId) ?? Task.CompletedTask))).ToArray();
 
         var alerts = snapshot.Alerts.Select(alert => new ShellAlertViewModel(
             alert.Id,

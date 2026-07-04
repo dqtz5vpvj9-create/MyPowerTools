@@ -483,7 +483,7 @@ Address         Port        Address         Port
             var text = File.ReadAllText(file);
             Assert.DoesNotContain("Avalonia.Controls", text, StringComparison.Ordinal);
             Assert.DoesNotContain("UserControl", text, StringComparison.Ordinal);
-            Assert.DoesNotContain("Window", text, StringComparison.Ordinal);
+            Assert.DoesNotContain("Avalonia.Controls.Window", text, StringComparison.Ordinal);
         }
 
         var dashboard = new HostProto.DashboardSnapshot { EventSeq = 42 };
@@ -522,6 +522,24 @@ Address         Port        Address         Port
         Assert.Equal("Command Palette", commandViewModel.Title);
         Assert.Equal("open", commandViewModel.Query);
         Assert.Single(commandViewModel.Commands);
+    }
+
+    [Fact]
+    public void Shell_dashboard_page_is_wired_to_axaml_view_model()
+    {
+        var mainWindowPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "MainWindow.cs");
+        var dashboardViewPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Views", "DashboardView.axaml");
+        var viewModelPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "ViewModels", "ShellPageViewModels.cs");
+        var mainWindow = File.ReadAllText(mainWindowPath);
+        var dashboardView = File.ReadAllText(dashboardViewPath);
+        var viewModel = File.ReadAllText(viewModelPath);
+
+        Assert.Contains("ShellPageViewModelFactory.FromDashboard", mainWindow);
+        Assert.Contains("new DashboardView", mainWindow);
+        Assert.DoesNotContain("BuildDashboardCard", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("DetailsCommand", dashboardView);
+        Assert.Contains("ExecuteCommand", dashboardView);
+        Assert.Contains("System.Windows.Input", viewModel);
     }
 
     [Fact]

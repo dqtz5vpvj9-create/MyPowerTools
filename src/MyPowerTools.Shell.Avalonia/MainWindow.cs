@@ -10,6 +10,8 @@ using Avalonia.Threading;
 using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
 using MyPowerTools.HostControl;
+using MyPowerTools.Shell.Avalonia.ViewModels;
+using MyPowerTools.Shell.Avalonia.Views;
 using MyPowerTools.UI;
 using MyPowerTools.UI.Controls;
 using HostProto = MyPowerTools.Protocol.HostControl.V1;
@@ -37,7 +39,6 @@ public sealed class MainWindow : Window
     private readonly Dictionary<string, Button> _navButtons = new(StringComparer.OrdinalIgnoreCase);
     private readonly HostControlConnectionMonitor _connectionMonitor = new(new HostControlRunnerConnectionProbe());
     private readonly HostControlEventStreamMonitor _eventStream = new(new HostControlClientEventSource());
-    private readonly DesignTokens _tokens;
     private string _currentPage = DashboardPage;
 
     public MainWindow()
@@ -48,7 +49,6 @@ public sealed class MainWindow : Window
         MinWidth = 920;
         MinHeight = 620;
 
-        _tokens = TryLoadTokens();
         Content = BuildLayout();
         KeyDown += OnShellKeyDown;
         _connectionMonitor.StateChanged += (_, snapshot) =>
@@ -348,24 +348,16 @@ public sealed class MainWindow : Window
         {
             using var client = HostControlClient.ForDefaultEndpoint();
             var snapshot = await client.GetDashboardSnapshotAsync();
-            var panel = new WrapPanel
+            var viewModel = ShellPageViewModelFactory.FromDashboard(
+                snapshot,
+                moduleId => ShowModuleDetailPageAsync(moduleId),
+                commandId => ExecuteCommandAsync(commandId));
+
+            _contentHost.Content = new DashboardView
             {
-                ItemWidth = Math.Min(_tokens.Layout.DashboardCardMaxWidth, 380),
-                ItemHeight = 190
+                DataContext = viewModel
             };
-
-            foreach (var alert in snapshot.Alerts)
-            {
-                panel.Children.Add(new MptErrorState($"{alert.Title}: {alert.Body}"));
-            }
-
-            foreach (var card in snapshot.Cards)
-            {
-                panel.Children.Add(BuildDashboardCard(card));
-            }
-
-            _contentHost.Content = BuildPage(DashboardPage, $"{snapshot.Cards.Count} modules indexed, event seq {snapshot.EventSeq}", panel);
-            _statusBar.Text = $"{snapshot.Cards.Count} modules indexed, event seq {snapshot.EventSeq}";
+            _statusBar.Text = viewModel.Subtitle;
         }
         catch (Exception ex)
         {
@@ -1061,35 +1053,6 @@ public sealed class MainWindow : Window
                 FontSize = 12
             });
         }
-    }
-
-    private Control BuildDashboardCard(HostProto.ModuleCard card)
-    {
-        var panel = new StackPanel { Spacing = 10 };
-        panel.Children.Add(HeaderWithBadge(card.Title, card.State));
-        panel.Children.Add(new TextBlock
-        {
-            Text = card.Summary,
-            TextWrapping = TextWrapping.Wrap,
-            Foreground = MptTheme.TextSecondary,
-            MaxHeight = 42
-        });
-
-        panel.Children.Add(BuildMetricRow(card.Metrics.Select(metric => (metric.Label, metric.Value)).ToArray()));
-
-        var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-        var details = new MptActionButton("Details");
-        details.Click += async (_, _) => await ShowModuleDetailPageAsync(card.ModuleId);
-        actions.Children.Add(details);
-        foreach (var action in card.Actions.Take(2))
-        {
-            var button = new MptActionButton(action.Title) { Tag = action.CommandId };
-            button.Click += async (_, _) => await ExecuteCommandAsync((string)button.Tag!);
-            actions.Children.Add(button);
-        }
-        panel.Children.Add(actions);
-
-        return new MptModuleCard(panel);
     }
 
     private Control BuildModuleSummaryCard(HostProto.ModuleSummary module)
@@ -1818,13 +1781,6 @@ public sealed class MainWindow : Window
         {
             return value.ToString();
         }
-    }
-
-    private static DesignTokens TryLoadTokens()
-    {
-        var root = FindRepositoryRoot(AppContext.BaseDirectory);
-        var tokenPath = Path.Combine(root, "ui", "design-tokens.json");
-        return File.Exists(tokenPath) ? DesignTokens.Load(tokenPath) : new DesignTokens();
     }
 
     private static string FindRepositoryRoot(string start)

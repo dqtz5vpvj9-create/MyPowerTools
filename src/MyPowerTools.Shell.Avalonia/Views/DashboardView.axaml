@@ -3,53 +3,66 @@
              xmlns:vm="using:MyPowerTools.Shell.Avalonia.ViewModels"
              x:Class="MyPowerTools.Shell.Avalonia.Views.DashboardView"
              x:DataType="vm:DashboardViewModel">
-  <ScrollViewer Margin="{DynamicResource MptPagePadding}">
-    <StackPanel Spacing="{DynamicResource MptSpacingM}">
-      <StackPanel Spacing="{DynamicResource MptSpacingXs}">
-        <TextBlock Classes="MptPageTitle" Text="{Binding Title}" />
-        <TextBlock Classes="MptPageSubtitle" Text="{Binding Subtitle}" />
-      </StackPanel>
+  <StackPanel Margin="{DynamicResource MptPagePadding}" Spacing="{DynamicResource MptSpacingM}">
+    <StackPanel Spacing="{DynamicResource MptSpacingXs}">
+      <TextBlock Classes="MptPageTitle" Text="{Binding Title}" />
+      <TextBlock Classes="MptPageSubtitle" Text="{Binding Subtitle}" />
+    </StackPanel>
 
-      <ItemsControl ItemsSource="{Binding Alerts}">
-        <ItemsControl.ItemTemplate>
-          <DataTemplate x:DataType="vm:ShellAlertViewModel">
-            <Border Classes="MptInset" Margin="0,0,0,8">
-              <StackPanel Spacing="{DynamicResource MptSpacingXs}">
-                <TextBlock FontWeight="SemiBold" Text="{Binding Title}" />
-                <TextBlock Classes="MptPageSubtitle" Text="{Binding Body}" />
-              </StackPanel>
-            </Border>
-          </DataTemplate>
-        </ItemsControl.ItemTemplate>
-      </ItemsControl>
+    <ItemsControl ItemsSource="{Binding Alerts}">
+      <ItemsControl.ItemTemplate>
+        <DataTemplate x:DataType="vm:ShellAlertViewModel">
+          <Border Classes="MptInset" Margin="0,0,0,8">
+            <StackPanel Spacing="{DynamicResource MptSpacingXs}">
+              <TextBlock FontWeight="SemiBold" Text="{Binding Title}" />
+              <TextBlock Classes="MptPageSubtitle" Text="{Binding Body}" />
+            </StackPanel>
+          </Border>
+        </DataTemplate>
+      </ItemsControl.ItemTemplate>
+    </ItemsControl>
 
-      <ItemsControl ItemsSource="{Binding Cards}">
-        <ItemsControl.ItemTemplate>
-          <DataTemplate x:DataType="vm:DashboardCardViewModel">
-            <Border Classes="MptCard" Margin="0,0,0,12">
-              <StackPanel Spacing="{DynamicResource MptSpacingS}">
-                <Grid ColumnDefinitions="*,Auto">
-                  <TextBlock Classes="MptSectionTitle" Text="{Binding Title}" />
-                  <TextBlock Grid.Column="1" Classes="MptMeta" Text="{Binding State}" />
-                </Grid>
-                <TextBlock Classes="MptPageSubtitle" Text="{Binding Summary}" />
-                <ItemsControl ItemsSource="{Binding Metrics}">
+    <ItemsControl ItemsSource="{Binding Cards}">
+      <ItemsControl.ItemTemplate>
+        <DataTemplate x:DataType="vm:DashboardCardViewModel">
+          <Border Classes="MptCard" Margin="0,0,0,12">
+            <StackPanel Spacing="{DynamicResource MptSpacingS}">
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBlock Classes="MptSectionTitle" Text="{Binding Title}" />
+                <TextBlock Grid.Column="1" Classes="MptMeta" Text="{Binding State}" />
+              </Grid>
+              <TextBlock Classes="MptPageSubtitle" Text="{Binding Summary}" />
+              <ItemsControl ItemsSource="{Binding Metrics}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:MetricViewModel">
+                    <Border Classes="MptInset" Margin="0,0,8,0">
+                      <StackPanel>
+                        <TextBlock FontWeight="SemiBold" Text="{Binding Value}" />
+                        <TextBlock Classes="MptMeta" Text="{Binding Label}" />
+                      </StackPanel>
+                    </Border>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+              <StackPanel Orientation="Horizontal" Spacing="{DynamicResource MptSpacingS}">
+                <Button Content="Details" Command="{Binding DetailsCommand}" MinHeight="32" MinWidth="76" />
+                <ItemsControl ItemsSource="{Binding Actions}">
+                  <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                      <StackPanel Orientation="Horizontal" Spacing="{DynamicResource MptSpacingS}" />
+                    </ItemsPanelTemplate>
+                  </ItemsControl.ItemsPanel>
                   <ItemsControl.ItemTemplate>
-                    <DataTemplate x:DataType="vm:MetricViewModel">
-                      <Border Classes="MptInset" Margin="0,0,8,0">
-                        <StackPanel>
-                          <TextBlock FontWeight="SemiBold" Text="{Binding Value}" />
-                          <TextBlock Classes="MptMeta" Text="{Binding Label}" />
-                        </StackPanel>
-                      </Border>
+                    <DataTemplate x:DataType="vm:ShellActionViewModel">
+                      <Button Content="{Binding Title}" Command="{Binding ExecuteCommand}" MinHeight="32" MinWidth="76" />
                     </DataTemplate>
                   </ItemsControl.ItemTemplate>
                 </ItemsControl>
               </StackPanel>
-            </Border>
-          </DataTemplate>
-        </ItemsControl.ItemTemplate>
-      </ItemsControl>
-    </StackPanel>
-  </ScrollViewer>
+            </StackPanel>
+          </Border>
+        </DataTemplate>
+      </ItemsControl.ItemTemplate>
+    </ItemsControl>
+  </StackPanel>
 </UserControl>
