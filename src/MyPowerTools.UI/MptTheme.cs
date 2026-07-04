@@ -4,6 +4,10 @@ namespace MyPowerTools.UI;
 
 public static class MptTheme
 {
+    public const double FontSizeTitle = 24;
+    public const double FontSizeSection = 18;
+    public const double FontSizeMeta = 12;
+
     public static IBrush AppBackground { get; } = Brush.Parse("#f7f8fb");
     public static IBrush CardBackground { get; } = Brushes.White;
     public static IBrush Border { get; } = Brush.Parse("#dde2ea");

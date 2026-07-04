@@ -1092,6 +1092,54 @@ Address         Port        Address         Port
     }
 
     [Fact]
+    public void Shell_static_style_lint_rejects_raw_axaml_and_csharp_ui_literals()
+    {
+        var axamlFiles = Directory
+            .EnumerateFiles(Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Views"), "*.axaml")
+            .Concat(Directory.EnumerateFiles(Path.Combine(Root, "src", "MyPowerTools.UI", "Controls"), "*.axaml"));
+
+        foreach (var file in axamlFiles)
+        {
+            var text = File.ReadAllText(file);
+            Assert.DoesNotContain("#", text, StringComparison.Ordinal);
+            Assert.DoesNotContain("Brush.Parse", text, StringComparison.Ordinal);
+            Assert.DoesNotContain("Brushes.", text, StringComparison.Ordinal);
+            Assert.False(
+                System.Text.RegularExpressions.Regex.IsMatch(text, "FontSize=\"[0-9]"),
+                $"{file} should use typography tokens instead of raw FontSize values.");
+        }
+
+        foreach (var file in new[]
+        {
+            Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "MainWindow.cs"),
+            Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellWorkspaceController.cs"),
+            Path.Combine(Root, "src", "MyPowerTools.UI", "Controls", "MptControls.cs")
+        })
+        {
+            var text = File.ReadAllText(file);
+            Assert.DoesNotContain("Brush.Parse(\"#", text, StringComparison.Ordinal);
+            Assert.DoesNotContain("Brushes.", text, StringComparison.Ordinal);
+            Assert.False(
+                System.Text.RegularExpressions.Regex.IsMatch(text, "FontSize = [0-9]"),
+                $"{file} should use typography constants instead of raw FontSize values.");
+        }
+    }
+
+    [Fact]
+    public void Shell_code_behind_files_stay_thin_and_hostcontrol_free()
+    {
+        var viewRoot = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Views");
+        foreach (var file in Directory.EnumerateFiles(viewRoot, "*.axaml.cs"))
+        {
+            var text = File.ReadAllText(file);
+            Assert.Contains("AvaloniaXamlLoader.Load(this)", text);
+            Assert.DoesNotContain("HostControlClient", text, StringComparison.Ordinal);
+            Assert.DoesNotContain("DataContext =", text, StringComparison.Ordinal);
+            Assert.True(File.ReadLines(file).Count() <= 18, $"{file} should stay as thin view loading code.");
+        }
+    }
+
+    [Fact]
     public void Ui_shell_snapshot_writes_key_surface_matrix()
     {
         var output = Path.Combine(Path.GetTempPath(), "mpt-shell-ui-snapshot", Guid.NewGuid().ToString("N"));

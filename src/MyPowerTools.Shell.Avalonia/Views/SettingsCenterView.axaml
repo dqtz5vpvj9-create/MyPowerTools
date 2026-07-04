@@ -58,7 +58,7 @@
                        AcceptsReturn="True"
                        TextWrapping="NoWrap"
                        FontFamily="Consolas"
-                       FontSize="12"
+                       FontSize="{DynamicResource MptFontSizeMeta}"
                        MinHeight="120"
                        IsVisible="{Binding IsMultilineEditor}" />
               <CheckBox IsChecked="{Binding BooleanValue, Mode=TwoWay}"
@@ -83,7 +83,7 @@
                  AcceptsReturn="True"
                  TextWrapping="NoWrap"
                  FontFamily="Consolas"
-                 FontSize="12"
+                 FontSize="{DynamicResource MptFontSizeMeta}"
                  MinHeight="280" />
       </StackPanel>
     </Border>

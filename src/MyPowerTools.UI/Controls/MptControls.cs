@@ -74,7 +74,7 @@ public sealed class MptStatusBadge : Border
         {
             Text = state,
             Foreground = color,
-            FontSize = 12
+            FontSize = MptTheme.FontSizeMeta
         };
     }
 }
@@ -92,7 +92,7 @@ public sealed class MptCommandItem : Border
             Children =
             {
                 new TextBlock { Text = title, FontWeight = FontWeight.SemiBold },
-                new TextBlock { Text = subtitle, Foreground = MptTheme.TextSecondary, FontSize = 12 }
+                new TextBlock { Text = subtitle, Foreground = MptTheme.TextSecondary, FontSize = MptTheme.FontSizeMeta }
             }
         };
     }
@@ -104,7 +104,7 @@ public sealed class MptSettingsSection : StackPanel
     {
         Classes.Add("MptSettingsSection");
         Spacing = 10;
-        Children.Add(new TextBlock { Text = title, FontSize = 18, FontWeight = FontWeight.SemiBold });
+        Children.Add(new TextBlock { Text = title, FontSize = MptTheme.FontSizeSection, FontWeight = FontWeight.SemiBold });
     }
 }
 
@@ -134,7 +134,7 @@ public sealed class MptLogViewer : ListBox
     {
         Classes.Add("MptLogViewer");
         FontFamily = FontFamily.Parse("Consolas");
-        FontSize = 12;
+        FontSize = MptTheme.FontSizeMeta;
     }
 }
 
@@ -184,7 +184,7 @@ public sealed class MptMetricTile : Border
             Children =
             {
                 new TextBlock { Text = value, FontWeight = FontWeight.SemiBold },
-                new TextBlock { Text = label, FontSize = 12, Foreground = MptTheme.TextSecondary }
+                new TextBlock { Text = label, FontSize = MptTheme.FontSizeMeta, Foreground = MptTheme.TextSecondary }
             }
         };
     }
@@ -256,7 +256,7 @@ public sealed class MptPageHeader : StackPanel
     {
         Classes.Add("MptPageHeader");
         Spacing = 4;
-        Children.Add(new TextBlock { Text = title, FontSize = 24, FontWeight = FontWeight.SemiBold });
+        Children.Add(new TextBlock { Text = title, FontSize = MptTheme.FontSizeTitle, FontWeight = FontWeight.SemiBold });
         Children.Add(new TextBlock { Text = subtitle, TextWrapping = TextWrapping.Wrap, Foreground = MptTheme.TextSecondary });
     }
 }
