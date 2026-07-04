@@ -1,0 +1,33 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:MyPowerTools.Shell.Avalonia.ViewModels"
+             x:Class="MyPowerTools.Shell.Avalonia.Views.BrokerAuditView"
+             x:DataType="vm:BrokerAuditViewModel">
+  <StackPanel Spacing="{DynamicResource MptSpacingXs}">
+    <TextBlock Classes="MptSectionTitle"
+               Text="{Binding Title}"
+               Margin="0,8,0,2" />
+    <TextBlock Classes="MptPageSubtitle"
+               Text="No broker audit entries."
+               IsVisible="{Binding IsEmpty}" />
+    <TextBlock Classes="MptPageSubtitle"
+               Text="{Binding ErrorMessage}"
+               IsVisible="{Binding HasError}" />
+    <ItemsControl ItemsSource="{Binding Entries}">
+      <ItemsControl.ItemTemplate>
+        <DataTemplate x:DataType="vm:BrokerAuditSidebarEntryViewModel">
+          <Border Classes="MptInset" Margin="0,0,0,6">
+            <StackPanel Spacing="{DynamicResource MptSpacingXs}">
+              <TextBlock FontWeight="SemiBold"
+                         Text="{Binding Title}"
+                         TextTrimming="CharacterEllipsis" />
+              <TextBlock Classes="MptMeta"
+                         Text="{Binding Detail}"
+                         TextTrimming="CharacterEllipsis" />
+            </StackPanel>
+          </Border>
+        </DataTemplate>
+      </ItemsControl.ItemTemplate>
+    </ItemsControl>
+  </StackPanel>
+</UserControl>

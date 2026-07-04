@@ -4,6 +4,7 @@ using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Windows.Input;
+using Google.Protobuf.WellKnownTypes;
 using HostProto = MyPowerTools.Protocol.HostControl.V1;
 
 namespace MyPowerTools.Shell.Avalonia.ViewModels;
@@ -329,6 +330,34 @@ public sealed class DiagnosticsViewModel : ShellPageViewModel
     public bool HasNoBrokerAudit => BrokerAudit.Count == 0;
 }
 
+public sealed class PermissionPromptViewModel
+{
+    public PermissionPromptViewModel(IReadOnlyList<MetricViewModel> details, ICommand auditCommand)
+    {
+        Details = details;
+        AuditCommand = auditCommand;
+    }
+
+    public string Title => "Permission Required";
+    public IReadOnlyList<MetricViewModel> Details { get; }
+    public ICommand AuditCommand { get; }
+}
+
+public sealed class BrokerAuditViewModel
+{
+    public BrokerAuditViewModel(IReadOnlyList<BrokerAuditSidebarEntryViewModel> entries, string errorMessage = "")
+    {
+        Entries = entries;
+        ErrorMessage = errorMessage;
+    }
+
+    public string Title => "Broker Audit";
+    public IReadOnlyList<BrokerAuditSidebarEntryViewModel> Entries { get; }
+    public string ErrorMessage { get; }
+    public bool IsEmpty => Entries.Count == 0 && ErrorMessage.Length == 0;
+    public bool HasError => ErrorMessage.Length > 0;
+}
+
 public sealed record DashboardCardViewModel(
     string ModuleId,
     string PackageId,
@@ -419,6 +448,7 @@ public sealed record RuntimeProcessPolicyHistoryItemViewModel(string Title, stri
 public sealed record RuntimeModuleDiagnosticViewModel(string DisplayName, string State, IReadOnlyList<MetricViewModel> Details);
 public sealed record RuntimeCommandHistoryItemViewModel(string Title, string Detail, string Summary);
 public sealed record BrokerAuditEntryViewModel(string Title, string Detail, string Reason, string Rollback);
+public sealed record BrokerAuditSidebarEntryViewModel(string Title, string Detail);
 
 public sealed class SettingsFieldViewModel : ObservableViewModel
 {
@@ -705,6 +735,44 @@ public static class ShellPageViewModelFactory
         return patch;
     }
 
+    public static PermissionPromptViewModel FromPermissionPrompt(
+        HostProto.CommandExecutionResponse result,
+        Func<Task>? showAudit = null)
+    {
+        var details = result.ErrorDetails;
+        var actionId = ReadDetailString(details, "actionId", result.ErrorCode);
+        var scope = ReadDetailString(details, "scope", "");
+        var reason = ReadDetailString(details, "reason", result.ErrorMessage);
+        var applyCount = CountNestedList(details, "expectedChange", "apply");
+        var removeCount = CountNestedList(details, "expectedChange", "remove");
+        var rollbackCount = CountList(details, "rollback");
+
+        var rows = new[]
+        {
+            new MetricViewModel("Action", string.IsNullOrWhiteSpace(actionId) ? "-" : actionId),
+            new MetricViewModel("Scope", string.IsNullOrWhiteSpace(scope) ? "-" : scope),
+            new MetricViewModel("Reason", string.IsNullOrWhiteSpace(reason) ? "-" : reason),
+            new MetricViewModel("Expected change", $"{applyCount} apply, {removeCount} remove"),
+            new MetricViewModel("Rollback", $"{rollbackCount} step(s)")
+        };
+
+        return new PermissionPromptViewModel(rows, new AsyncRelayCommand(() => showAudit?.Invoke() ?? Task.CompletedTask));
+    }
+
+    public static BrokerAuditViewModel FromBrokerAudit(HostProto.ListBrokerAuditResponse audit)
+    {
+        var entries = audit.Entries.Select(entry => new BrokerAuditSidebarEntryViewModel(
+            $"{entry.Result} - {entry.ActionId}",
+            $"{entry.ModuleId} - {entry.Scope}")).ToArray();
+
+        return new BrokerAuditViewModel(entries);
+    }
+
+    public static BrokerAuditViewModel FromBrokerAuditError(string message)
+    {
+        return new BrokerAuditViewModel([], $"Audit unavailable: {message}");
+    }
+
     public static PackageManagerViewModel FromPackages(
         HostProto.ListPackagesResponse response,
         Func<string, Task>? installPackage = null,
@@ -759,6 +827,52 @@ public static class ShellPageViewModelFactory
             }).ToArray();
 
         return new PackageManagerViewModel(packages, installPackage, rollbackPackage);
+    }
+
+    private static string ReadDetailString(Struct details, string key, string fallback)
+    {
+        if (details.Fields.TryGetValue(key, out var value))
+        {
+            return DetailValueToText(value);
+        }
+
+        return fallback;
+    }
+
+    private static int CountNestedList(Struct details, string objectKey, string listKey)
+    {
+        if (details.Fields.TryGetValue(objectKey, out var outer) &&
+            outer.KindCase == Value.KindOneofCase.StructValue &&
+            outer.StructValue.Fields.TryGetValue(listKey, out var inner) &&
+            inner.KindCase == Value.KindOneofCase.ListValue)
+        {
+            return inner.ListValue.Values.Count;
+        }
+
+        return 0;
+    }
+
+    private static int CountList(Struct details, string key)
+    {
+        if (details.Fields.TryGetValue(key, out var value) && value.KindCase == Value.KindOneofCase.ListValue)
+        {
+            return value.ListValue.Values.Count;
+        }
+
+        return 0;
+    }
+
+    private static string DetailValueToText(Value value)
+    {
+        return value.KindCase switch
+        {
+            Value.KindOneofCase.StringValue => value.StringValue,
+            Value.KindOneofCase.NumberValue => value.NumberValue.ToString("0.##", CultureInfo.InvariantCulture),
+            Value.KindOneofCase.BoolValue => value.BoolValue ? "true" : "false",
+            Value.KindOneofCase.ListValue => $"{value.ListValue.Values.Count} item(s)",
+            Value.KindOneofCase.StructValue => $"{value.StructValue.Fields.Count} field(s)",
+            _ => ""
+        };
     }
 
     private static IReadOnlyList<SettingsFieldViewModel> BuildSettingsFields(string schemaJson, JsonObject values)

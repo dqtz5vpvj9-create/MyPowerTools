@@ -31,8 +31,8 @@ public sealed class MainWindow : Window
     private readonly MptSearchBox _searchBox = new();
     private readonly ContentControl _contentHost = new();
     private readonly ContentControl _commandPanel = new();
-    private readonly StackPanel _permissionPanel = new();
-    private readonly StackPanel _auditPanel = new();
+    private readonly ContentControl _permissionPanel = new();
+    private readonly ContentControl _auditPanel = new();
     private readonly TextBlock _runnerStatus = new();
     private readonly TextBlock _statusBar = new();
     private readonly Dictionary<string, Button> _navButtons = new(StringComparer.OrdinalIgnoreCase);
@@ -124,8 +124,6 @@ public sealed class MainWindow : Window
         Grid.SetRow(content, 1);
         root.Children.Add(content);
 
-        _permissionPanel.Spacing = 8;
-        _auditPanel.Spacing = 6;
         var commandHost = new Border
         {
             Margin = new Thickness(0, 4, 16, 12),
@@ -648,103 +646,18 @@ public sealed class MainWindow : Window
         {
             using var client = HostControlClient.ForDefaultEndpoint();
             var audit = await client.ListBrokerAuditAsync(6);
-            _auditPanel.Children.Clear();
-            _auditPanel.Children.Add(new TextBlock
+            _auditPanel.Content = new BrokerAuditView
             {
-                Text = "Broker Audit",
-                FontWeight = FontWeight.SemiBold,
-                Margin = new Thickness(0, 8, 0, 2)
-            });
-
-            foreach (var entry in audit.Entries)
-            {
-                _auditPanel.Children.Add(BuildAuditEntry(entry));
-            }
-
-            if (audit.Entries.Count == 0)
-            {
-                _auditPanel.Children.Add(new TextBlock
-                {
-                    Text = "No broker audit entries.",
-                    FontSize = 12,
-                    Foreground = MptTheme.TextSecondary
-                });
-            }
+                DataContext = ShellPageViewModelFactory.FromBrokerAudit(audit)
+            };
         }
         catch (Exception ex)
         {
-            _auditPanel.Children.Clear();
-            _auditPanel.Children.Add(new TextBlock
+            _auditPanel.Content = new BrokerAuditView
             {
-                Text = $"Audit unavailable: {ex.Message}",
-                TextWrapping = TextWrapping.Wrap,
-                    Foreground = MptTheme.Warning,
-                FontSize = 12
-            });
+                DataContext = ShellPageViewModelFactory.FromBrokerAuditError(ex.Message)
+            };
         }
-    }
-
-    private Control BuildPermissionPrompt(HostProto.CommandExecutionResponse result)
-    {
-        var details = result.ErrorDetails;
-        var actionId = ReadString(details, "actionId", result.ErrorCode);
-        var scope = ReadString(details, "scope", "");
-        var reason = ReadString(details, "reason", result.ErrorMessage);
-        var applyCount = CountNestedList(details, "expectedChange", "apply");
-        var removeCount = CountNestedList(details, "expectedChange", "remove");
-        var rollbackCount = CountList(details, "rollback");
-
-        var rows = new StackPanel { Spacing = 5 };
-        rows.Children.Add(new TextBlock
-        {
-            Text = "Permission Required",
-            FontWeight = FontWeight.SemiBold,
-            Foreground = MptTheme.Warning
-        });
-        rows.Children.Add(DetailLine("Action", actionId));
-        rows.Children.Add(DetailLine("Scope", scope));
-        rows.Children.Add(DetailLine("Reason", reason));
-        rows.Children.Add(DetailLine("Expected change", $"{applyCount} apply, {removeCount} remove"));
-        rows.Children.Add(DetailLine("Rollback", $"{rollbackCount} step(s)"));
-
-        var auditButton = new MptActionButton("Audit");
-        auditButton.Click += async (_, _) => await LoadBrokerAuditAsync();
-        rows.Children.Add(auditButton);
-
-        return new Border
-        {
-            Padding = new Thickness(12),
-            CornerRadius = new CornerRadius(8),
-            BorderBrush = MptTheme.Warning,
-            BorderThickness = new Thickness(1),
-            Background = MptTheme.WarningBackground,
-            Child = rows
-        };
-    }
-
-    private Control BuildAuditEntry(HostProto.BrokerAuditEntry entry)
-    {
-        return new StackPanel
-        {
-            Spacing = 2,
-            Children =
-            {
-                new TextBlock
-                {
-                    Text = $"{entry.Result} · {entry.ActionId}",
-                    FontSize = 12,
-                    FontWeight = FontWeight.SemiBold,
-                    TextTrimming = TextTrimming.CharacterEllipsis
-                },
-                new TextBlock
-                {
-                    Text = $"{entry.ModuleId} · {entry.Scope}",
-                    FontSize = 12,
-                    Foreground = MptTheme.TextSecondary,
-                    TextTrimming = TextTrimming.CharacterEllipsis
-                }
-            }
-        };
     }
 
     private Control BuildPage(string title, string subtitle, Control body)
@@ -827,10 +740,13 @@ public sealed class MainWindow : Window
             using var client = HostControlClient.ForDefaultEndpoint();
             var result = await client.ExecuteCommandAsync(commandId);
             _statusBar.Text = $"{result.State}: {result.Summary}";
-            _permissionPanel.Children.Clear();
+            _permissionPanel.Content = null;
             if (result.State == "permission-required")
             {
-                _permissionPanel.Children.Add(BuildPermissionPrompt(result));
+                _permissionPanel.Content = new PermissionPromptView
+                {
+                    DataContext = ShellPageViewModelFactory.FromPermissionPrompt(result, LoadBrokerAuditAsync)
+                };
             }
 
             await LoadBrokerAuditAsync();
@@ -943,63 +859,6 @@ public sealed class MainWindow : Window
         }
 
         return modules.Modules.OrderBy(module => module.DisplayName, StringComparer.OrdinalIgnoreCase).FirstOrDefault();
-    }
-
-    private static TextBlock DetailLine(string label, string value)
-    {
-        return new TextBlock
-        {
-            Text = string.IsNullOrWhiteSpace(value) ? $"{label}: -" : $"{label}: {value}",
-            TextWrapping = TextWrapping.Wrap,
-            FontSize = 12,
-            Foreground = MptTheme.TextPrimary
-        };
-    }
-
-    private static string ReadString(Struct details, string key, string fallback)
-    {
-        if (details.Fields.TryGetValue(key, out var value))
-        {
-            return ValueToText(value);
-        }
-
-        return fallback;
-    }
-
-    private static int CountNestedList(Struct details, string objectKey, string listKey)
-    {
-        if (details.Fields.TryGetValue(objectKey, out var outer) &&
-            outer.KindCase == Value.KindOneofCase.StructValue &&
-            outer.StructValue.Fields.TryGetValue(listKey, out var inner) &&
-            inner.KindCase == Value.KindOneofCase.ListValue)
-        {
-            return inner.ListValue.Values.Count;
-        }
-
-        return 0;
-    }
-
-    private static int CountList(Struct details, string key)
-    {
-        if (details.Fields.TryGetValue(key, out var value) && value.KindCase == Value.KindOneofCase.ListValue)
-        {
-            return value.ListValue.Values.Count;
-        }
-
-        return 0;
-    }
-
-    private static string ValueToText(Value value)
-    {
-        return value.KindCase switch
-        {
-            Value.KindOneofCase.StringValue => value.StringValue,
-            Value.KindOneofCase.NumberValue => value.NumberValue.ToString("0.##"),
-            Value.KindOneofCase.BoolValue => value.BoolValue ? "true" : "false",
-            Value.KindOneofCase.ListValue => $"{value.ListValue.Values.Count} item(s)",
-            Value.KindOneofCase.StructValue => $"{value.StructValue.Fields.Count} field(s)",
-            _ => ""
-        };
     }
 
     private static string PrettyJson(Struct value)

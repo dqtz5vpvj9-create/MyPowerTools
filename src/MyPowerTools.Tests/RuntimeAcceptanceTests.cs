@@ -707,6 +707,33 @@ Address         Port        Address         Port
     }
 
     [Fact]
+    public void Shell_permission_and_audit_sidebars_are_wired_to_axaml_view_models()
+    {
+        var mainWindowPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "MainWindow.cs");
+        var permissionViewPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Views", "PermissionPromptView.axaml");
+        var auditViewPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Views", "BrokerAuditView.axaml");
+        var viewModelPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "ViewModels", "ShellPageViewModels.cs");
+        var mainWindow = File.ReadAllText(mainWindowPath);
+        var permissionView = File.ReadAllText(permissionViewPath);
+        var auditView = File.ReadAllText(auditViewPath);
+        var viewModel = File.ReadAllText(viewModelPath);
+
+        Assert.Contains("new PermissionPromptView", mainWindow);
+        Assert.Contains("new BrokerAuditView", mainWindow);
+        Assert.Contains("ShellPageViewModelFactory.FromPermissionPrompt", mainWindow);
+        Assert.Contains("ShellPageViewModelFactory.FromBrokerAudit", mainWindow);
+        Assert.DoesNotContain("BuildPermissionPrompt", mainWindow, StringComparison.Ordinal);
+        Assert.DoesNotContain("BuildAuditEntry", mainWindow, StringComparison.Ordinal);
+        Assert.DoesNotContain("_auditPanel.Children", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("x:DataType=\"vm:PermissionPromptViewModel\"", permissionView);
+        Assert.Contains("AuditCommand", permissionView);
+        Assert.Contains("x:DataType=\"vm:BrokerAuditViewModel\"", auditView);
+        Assert.Contains("BrokerAuditSidebarEntryViewModel", auditView);
+        Assert.Contains("FromPermissionPrompt", viewModel);
+        Assert.Contains("FromBrokerAuditError", viewModel);
+    }
+
+    [Fact]
     public void Shell_theme_resource_dictionary_is_loaded_and_defines_design_tokens()
     {
         var appPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "App.cs");

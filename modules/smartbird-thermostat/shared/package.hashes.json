@@ -11,11 +11,11 @@
     },
     {
       "Path": "SmartBirdThermostat.MyPowerTools.dll",
-      "Sha256": "554133e5d90ada76016981565bc23b6b8114f16c65930113266c7fd85e0a51b8"
+      "Sha256": "738151504fc7717dc8a4fa776307ab997af8f80845e91005ae3c959c5d4b81dd"
     },
     {
       "Path": "SmartBirdThermostat.MyPowerTools.pdb",
-      "Sha256": "6bfcd0a533b642f4cf55fca608c2b6c08a7fb5a7f94d912d1bde6ff995a054e8"
+      "Sha256": "a1160f6292d45f401c4b7c6289bccafb6a2a785447c6f594c321e0628c133f80"
     },
     {
       "Path": "ui/dashboard-card.json",

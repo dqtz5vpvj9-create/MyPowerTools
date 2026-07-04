@@ -1,0 +1,25 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:MyPowerTools.Shell.Avalonia.ViewModels"
+             x:Class="MyPowerTools.Shell.Avalonia.Views.PermissionPromptView"
+             x:DataType="vm:PermissionPromptViewModel">
+  <Border Classes="MptCard" Margin="0,0,0,8">
+    <StackPanel Spacing="{DynamicResource MptSpacingS}">
+      <TextBlock Classes="MptSectionTitle" Text="{Binding Title}" />
+      <ItemsControl ItemsSource="{Binding Details}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="vm:MetricViewModel">
+            <Grid ColumnDefinitions="110,*" Margin="0,0,0,4">
+              <TextBlock Classes="MptMeta" Text="{Binding Label}" />
+              <TextBlock Grid.Column="1" Text="{Binding Value}" TextWrapping="Wrap" />
+            </Grid>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+      <Button Content="Audit"
+              Command="{Binding AuditCommand}"
+              MinHeight="32"
+              MinWidth="76" />
+    </StackPanel>
+  </Border>
+</UserControl>
