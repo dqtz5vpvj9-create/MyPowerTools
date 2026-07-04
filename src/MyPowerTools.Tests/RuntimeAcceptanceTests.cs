@@ -457,7 +457,8 @@ Address         Port        Address         Port
             ["LogsView"] = "LogsViewModel",
             ["NotificationsView"] = "NotificationsViewModel",
             ["PackageManagerView"] = "PackageManagerViewModel",
-            ["DiagnosticsView"] = "DiagnosticsViewModel"
+            ["DiagnosticsView"] = "DiagnosticsViewModel",
+            ["UnavailablePageView"] = "UnavailablePageViewModel"
         };
 
         foreach (var (viewName, viewModelName) in expectedPages)
@@ -731,6 +732,24 @@ Address         Port        Address         Port
         Assert.Contains("BrokerAuditSidebarEntryViewModel", auditView);
         Assert.Contains("FromPermissionPrompt", viewModel);
         Assert.Contains("FromBrokerAuditError", viewModel);
+    }
+
+    [Fact]
+    public void Shell_unavailable_page_is_wired_to_axaml_view_model()
+    {
+        var mainWindowPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "MainWindow.cs");
+        var unavailableViewPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Views", "UnavailablePageView.axaml");
+        var viewModelPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "ViewModels", "ShellPageViewModels.cs");
+        var mainWindow = File.ReadAllText(mainWindowPath);
+        var unavailableView = File.ReadAllText(unavailableViewPath);
+        var viewModel = File.ReadAllText(viewModelPath);
+
+        Assert.Contains("new UnavailablePageView", mainWindow);
+        Assert.Contains("new UnavailablePageViewModel", mainWindow);
+        Assert.DoesNotContain("BuildPage(", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("x:DataType=\"vm:UnavailablePageViewModel\"", unavailableView);
+        Assert.Contains("Message", unavailableView);
+        Assert.Contains("class UnavailablePageViewModel", viewModel);
     }
 
     [Fact]

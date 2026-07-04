@@ -358,6 +358,17 @@ public sealed class BrokerAuditViewModel
     public bool HasError => ErrorMessage.Length > 0;
 }
 
+public sealed class UnavailablePageViewModel : ShellPageViewModel
+{
+    public UnavailablePageViewModel(string title, string message)
+        : base(title, "", "error")
+    {
+        Message = message;
+    }
+
+    public string Message { get; }
+}
+
 public sealed record DashboardCardViewModel(
     string ModuleId,
     string PackageId,

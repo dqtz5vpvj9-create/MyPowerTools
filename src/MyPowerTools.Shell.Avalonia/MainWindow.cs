@@ -660,31 +660,12 @@ public sealed class MainWindow : Window
         }
     }
 
-    private Control BuildPage(string title, string subtitle, Control body)
-    {
-        var panel = new StackPanel { Spacing = 16 };
-        panel.Children.Add(new TextBlock
-        {
-            Text = title,
-            FontSize = 28,
-            FontWeight = FontWeight.SemiBold
-        });
-        if (!string.IsNullOrWhiteSpace(subtitle))
-        {
-            panel.Children.Add(new TextBlock
-            {
-                Text = subtitle,
-                Foreground = MptTheme.TextSecondary,
-                TextWrapping = TextWrapping.Wrap
-            });
-        }
-        panel.Children.Add(body);
-        return panel;
-    }
-
     private Control BuildUnavailablePage(string title, string message)
     {
-        return BuildPage(title, "", new MptErrorState(message));
+        return new UnavailablePageView
+        {
+            DataContext = new UnavailablePageViewModel(title, message)
+        };
     }
 
     private Button NavButton(string label)

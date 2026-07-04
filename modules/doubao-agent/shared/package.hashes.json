@@ -7,11 +7,11 @@
     },
     {
       "Path": "DoubaoAgent.MyPowerTools.dll",
-      "Sha256": "79f767bd751d4e73ca18467e88770333b3aeaadd5a37c46a3ffa5d549888ee1c"
+      "Sha256": "1f3aa215a75bc86ea928c8ceaed4647db706ec6ba6d662d8666382c901105290"
     },
     {
       "Path": "DoubaoAgent.MyPowerTools.pdb",
-      "Sha256": "6e77998c5783edd6360656183cb943982d175308d677fb56c97352de92d4824d"
+      "Sha256": "258786956549043d8cb0eaede49efae35023980456d4761c783f14d511245984"
     },
     {
       "Path": "module.json",
