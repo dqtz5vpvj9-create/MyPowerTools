@@ -1014,15 +1014,67 @@ Address         Port        Address         Port
     {
         var appPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "App.cs");
         var themePath = Path.Combine(Root, "src", "MyPowerTools.UI", "Themes", "MptTheme.axaml");
+        var colorsPath = Path.Combine(Root, "src", "MyPowerTools.UI", "Themes", "MptColors.axaml");
+        var spacingPath = Path.Combine(Root, "src", "MyPowerTools.UI", "Themes", "MptSpacing.axaml");
+        var typographyPath = Path.Combine(Root, "src", "MyPowerTools.UI", "Themes", "MptTypography.axaml");
+        var densityPath = Path.Combine(Root, "src", "MyPowerTools.UI", "Themes", "MptDensity.axaml");
+        var controlsPath = Path.Combine(Root, "src", "MyPowerTools.UI", "Controls", "MptControls.axaml");
         var app = File.ReadAllText(appPath);
         var theme = File.ReadAllText(themePath);
+        var colors = File.ReadAllText(colorsPath);
+        var spacing = File.ReadAllText(spacingPath);
+        var typography = File.ReadAllText(typographyPath);
+        var density = File.ReadAllText(densityPath);
+        var controls = File.ReadAllText(controlsPath);
 
         Assert.Contains("avares://MyPowerTools.UI/Themes/MptTheme.axaml", app);
-        Assert.Contains("x:Key=\"MptBrushAppBackground\"", theme);
-        Assert.Contains("x:Key=\"MptPagePadding\"", theme);
-        Assert.Contains("x:Key=\"MptRadiusCard\"", theme);
-        Assert.Contains("TextBlock.MptPageTitle", theme);
-        Assert.Contains("Border.MptCard", theme);
+        Assert.Contains("MptColors.axaml", theme);
+        Assert.Contains("MptSpacing.axaml", theme);
+        Assert.Contains("MptTypography.axaml", theme);
+        Assert.Contains("MptDensity.axaml", theme);
+        Assert.Contains("Controls/MptControls.axaml", theme);
+        Assert.Contains("x:Key=\"MptBrushAppBackground\"", colors);
+        Assert.Contains("x:Key=\"MptBrushWarningBackground\"", colors);
+        Assert.Contains("x:Key=\"MptPagePadding\"", spacing);
+        Assert.Contains("x:Key=\"MptRadiusCard\"", spacing);
+        Assert.Contains("x:Key=\"MptFontSizeTitle\"", typography);
+        Assert.Contains("TextBlock.MptPageTitle", typography);
+        Assert.Contains("x:Key=\"MptDensityControlHeight\"", density);
+        Assert.Contains("Border.MptCard", controls);
+        Assert.All(new[] { theme, spacing, typography, density, controls }, text => Assert.DoesNotContain("#", text, StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Shell_ui_component_styles_cover_foundation_controls()
+    {
+        var controlsPath = Path.Combine(Root, "src", "MyPowerTools.UI", "Controls", "MptControls.cs");
+        var controlsAxamlPath = Path.Combine(Root, "src", "MyPowerTools.UI", "Controls", "MptControls.axaml");
+        var controlsCode = File.ReadAllText(controlsPath);
+        var controlsStyles = File.ReadAllText(controlsAxamlPath);
+
+        foreach (var component in new[]
+        {
+            "MptModuleCard",
+            "MptStatusBadge",
+            "MptMetricTile",
+            "MptCommandItem",
+            "MptSettingsSection",
+            "MptSettingsField",
+            "MptLogViewer",
+            "MptLogRow",
+            "MptNotificationItem",
+            "MptPermissionPrompt",
+            "MptEmptyState",
+            "MptErrorState",
+            "MptLoadingSkeleton",
+            "MptPageHeader",
+            "MptActionBar",
+            "MptActionButton"
+        })
+        {
+            Assert.Contains($"class {component}", controlsCode);
+            Assert.Contains($".{component}", controlsStyles);
+        }
     }
 
     [Fact]

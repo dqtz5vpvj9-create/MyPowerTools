@@ -1,0 +1,18 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Styles.Resources>
+    <SolidColorBrush x:Key="MptBrushAppBackground" Color="#F7F8FB" />
+    <SolidColorBrush x:Key="MptBrushCardBackground" Color="#FFFFFF" />
+    <SolidColorBrush x:Key="MptBrushBorder" Color="#DDE2EA" />
+    <SolidColorBrush x:Key="MptBrushAccent" Color="#2563EB" />
+    <SolidColorBrush x:Key="MptBrushTextPrimary" Color="#374151" />
+    <SolidColorBrush x:Key="MptBrushTextSecondary" Color="#586174" />
+    <SolidColorBrush x:Key="MptBrushTextMuted" Color="#6B7280" />
+    <SolidColorBrush x:Key="MptBrushSuccess" Color="#107C41" />
+    <SolidColorBrush x:Key="MptBrushWarning" Color="#9A6700" />
+    <SolidColorBrush x:Key="MptBrushWarningBackground" Color="#FFF8E6" />
+    <SolidColorBrush x:Key="MptBrushDanger" Color="#B42318" />
+    <SolidColorBrush x:Key="MptBrushNeutral" Color="#4B5563" />
+    <SolidColorBrush x:Key="MptBrushSurfaceInset" Color="#EEF2F7" />
+  </Styles.Resources>
+</Styles>

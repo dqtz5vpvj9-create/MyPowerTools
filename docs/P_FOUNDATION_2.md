@@ -86,6 +86,10 @@ This document tracks the current slice for external review. It is an audit hando
 - Updated `ShellWorkspaceController` to execute refresh plans instead of carrying Host event routing rules inline.
 - Added `ShellWorkspaceController` to own Shell page routing, command palette loading, permission prompt presentation, broker audit loading, keyboard shortcut handling, runner event subscriptions, package operations, diagnostics actions, settings saves, and module enable/disable choreography.
 - Reduced `MainWindow.cs` to a 59-line bootstrap wrapper for Shell chrome construction, named host lookup, lifecycle hooks, and keyboard dispatch.
+- Split the shared UI theme into concern-specific Avalonia resource dictionaries: `MptColors.axaml`, `MptSpacing.axaml`, `MptTypography.axaml`, and `MptDensity.axaml`.
+- Kept `MptTheme.axaml` as the single Shell import point and wired it to the token dictionaries plus `Controls/MptControls.axaml`.
+- Added AXAML component styles for module cards, status badges, metric tiles, command items, settings sections, settings fields, log rows, log viewers, notification items, permission prompts, empty/error/loading states, page headers, action bars, and action buttons.
+- Expanded `MptControls.cs` with matching foundation control classes and class names for `MptSettingsField`, `MptLogRow`, `MptLoadingSkeleton`, `MptPageHeader`, and `MptActionBar`.
 
 ### Acceptance Coverage
 
@@ -152,7 +156,9 @@ This document tracks the current slice for external review. It is an audit hando
 - `Shell_chrome_layout_is_wired_to_axaml_view`
   verifies the Shell three-column chrome is defined in `ShellChromeView.axaml`, preserves named hosts, binds navigation/refresh/status text to `ShellChromeViewModel`, and removes old navigation builders plus direct status `TextBlock` fields.
 - `Shell_theme_resource_dictionary_is_loaded_and_defines_design_tokens`
-  verifies the shared UI theme dictionary is loaded by the Shell app and contains required token/style entries.
+  verifies the Shell app loads the shared UI theme entry point and that color, spacing, typography, density, and component dictionaries are split by concern.
+- `Shell_ui_component_styles_cover_foundation_controls`
+  verifies the foundation UI control classes have matching AXAML component styles.
 - `Shell_axaml_views_use_theme_tokens_without_inline_colors`
   verifies Shell AXAML views use theme resources instead of inline colors.
 
@@ -161,8 +167,8 @@ This document tracks the current slice for external review. It is an audit hando
 - `src/MyPowerTools.Shell.Avalonia/MainWindow.cs` current: 59 lines.
 - `MainWindow.cs` target <= 250 lines.
 - AXAML + MVVM migration: Dashboard, Modules, Module Detail, Logs, Notifications, Package Manager, Diagnostics, Settings Center, Permission Prompt, Broker Audit, unavailable/error pages, Shell chrome layout/navigation/status row, the right-side Command Palette list, command execution service extraction, runner/event service extraction, Host action service extraction, Settings save service extraction, read-only page data service extraction, Host event refresh routing extraction, and Shell workspace controller extraction are now live on typed AXAML plus ViewModels/services.
-- Component AXAML library: started with shared page/card/text styles; reusable control templates remain pending.
-- Token `ResourceDictionary` split: initial shared `MptTheme.axaml` loaded from the UI project.
+- Component AXAML library: foundation component styles now cover module cards, status badges, metric tiles, command items, settings sections, settings fields, log rows, log viewers, notification items, permission prompts, empty/error/loading states, page headers, action bars, and action buttons.
+- Token `ResourceDictionary` split: `MptColors.axaml`, `MptSpacing.axaml`, `MptTypography.axaml`, and `MptDensity.axaml` are loaded through `MptTheme.axaml`.
 - Static style lint for shell UI: started with AXAML/viewmodel/code-behind guardrails; deeper layout and interaction lint pending.
 - Command palette typed argument binding: pending on HostControl command parameter schema exposure.
 - Settings validate/apply chain with staged diff UX: schema-backed edit and save command are wired; validation preview, apply result states, and staged diff remain pending.
@@ -184,8 +190,8 @@ The existing shell already has UI snapshot gates, keyboard shortcut tests, and c
 | Sidecar default for complex modules | Complex modules prefer sidecar transport | Existing manifests keep sidecar-capable modules on sidecar paths |
 | MainWindow size | target <= 250 lines | current: 59 lines |
 | AXAML + MVVM | Main shell split into views/viewmodels | Started: Dashboard, Modules, Module Detail, Logs, Notifications, Package Manager, Diagnostics, Settings Center, Permission Prompt, Broker Audit, unavailable/error pages, Shell chrome layout/navigation/status row, the right-side Command Palette list, command execution service extraction, runner/event service extraction, Host action service extraction, Settings save service extraction, read-only page data service extraction, Host event refresh routing extraction, and Shell workspace controller extraction wired to AXAML/MVVM/service layers; thirteen typed views and control-free viewmodels exist |
-| Component library | Reusable AXAML controls and tokens | Started: shared theme resources and base page/card/text styles |
-| Style lint | Static lint over shell UI style usage | Started: AXAML token and code-behind/viewmodel guardrails |
+| Component library | Reusable AXAML controls and tokens | Started: foundation component styles and matching C# classes for cards, badges, metrics, command items, settings fields, logs, notifications, prompts, states, headers, action bars, and action buttons |
+| Style lint | Static lint over shell UI style usage | Started: split-token, component-style, AXAML token, code-behind, and viewmodel guardrails |
 | Command palette | Typed args and validation UI | Command list and execution wired to AXAML/MVVM; typed args pending HostControl parameter schema |
 | Settings UX | Validate/apply chain with clear states | Schema-backed edit and save wired through AXAML/MVVM; staged diff and apply result states pending |
 
@@ -208,7 +214,7 @@ Latest observed result before packaging:
 
 ```text
 Build: passed, 0 warnings, 0 errors
-Tests: passed, 121 passed, 0 failed, 0 skipped
+Tests: passed, 122 passed, 0 failed, 0 skipped
 Module validation: 5 packages valid
 Contract validation: 5 packages, 7 modules passed
 UI gate: passed
@@ -220,8 +226,8 @@ The packaging step for external review should run the same validation again and 
 
 ## Recommended Next Slice
 
-1. Split shell token dictionaries and component styles under the UI project.
-2. Add reusable AXAML controls for module cards, status badges, metric tiles, settings fields, log rows, notifications, prompts, and action bars.
-3. Add deeper static style lint that scans AXAML and C# UI files.
-4. Add command palette parameter editors plus settings validation preview, staged diff, and apply result states.
+1. Wire Shell views more deeply onto the new component style names and reduce repeated inline card/list markup.
+2. Add deeper static style lint that scans AXAML and C# UI files.
+3. Add command palette parameter editors plus settings validation preview, staged diff, and apply result states.
+4. Add pixel or Avalonia.Headless screenshot baselines for dashboard, command palette, settings, module detail, logs, notifications, packages, and diagnostics.
 5. Keep sidecar process supervision as the next plugin-runtime depth item after the UI architecture slice starts.

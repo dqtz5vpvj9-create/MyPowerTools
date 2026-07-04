@@ -1,0 +1,47 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Styles.Resources>
+    <x:Double x:Key="MptFontSizeTitle">24</x:Double>
+    <x:Double x:Key="MptFontSizeSection">18</x:Double>
+    <x:Double x:Key="MptFontSizeBody">14</x:Double>
+    <x:Double x:Key="MptFontSizeSubtitle">13</x:Double>
+    <x:Double x:Key="MptFontSizeMeta">12</x:Double>
+    <x:Double x:Key="MptLineHeightTitle">32</x:Double>
+    <x:Double x:Key="MptLineHeightBody">20</x:Double>
+    <x:Double x:Key="MptLineHeightMeta">16</x:Double>
+  </Styles.Resources>
+
+  <Style Selector="TextBlock.MptPageTitle">
+    <Setter Property="FontSize" Value="{DynamicResource MptFontSizeTitle}" />
+    <Setter Property="LineHeight" Value="{DynamicResource MptLineHeightTitle}" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Foreground" Value="{DynamicResource MptBrushTextPrimary}" />
+  </Style>
+
+  <Style Selector="TextBlock.MptPageSubtitle">
+    <Setter Property="FontSize" Value="{DynamicResource MptFontSizeSubtitle}" />
+    <Setter Property="LineHeight" Value="{DynamicResource MptLineHeightBody}" />
+    <Setter Property="Foreground" Value="{DynamicResource MptBrushTextSecondary}" />
+    <Setter Property="TextWrapping" Value="Wrap" />
+  </Style>
+
+  <Style Selector="TextBlock.MptSectionTitle">
+    <Setter Property="FontSize" Value="{DynamicResource MptFontSizeSection}" />
+    <Setter Property="LineHeight" Value="{DynamicResource MptLineHeightBody}" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Foreground" Value="{DynamicResource MptBrushTextPrimary}" />
+  </Style>
+
+  <Style Selector="TextBlock.MptBody">
+    <Setter Property="FontSize" Value="{DynamicResource MptFontSizeBody}" />
+    <Setter Property="LineHeight" Value="{DynamicResource MptLineHeightBody}" />
+    <Setter Property="Foreground" Value="{DynamicResource MptBrushTextPrimary}" />
+    <Setter Property="TextWrapping" Value="Wrap" />
+  </Style>
+
+  <Style Selector="TextBlock.MptMeta">
+    <Setter Property="FontSize" Value="{DynamicResource MptFontSizeMeta}" />
+    <Setter Property="LineHeight" Value="{DynamicResource MptLineHeightMeta}" />
+    <Setter Property="Foreground" Value="{DynamicResource MptBrushTextMuted}" />
+  </Style>
+</Styles>

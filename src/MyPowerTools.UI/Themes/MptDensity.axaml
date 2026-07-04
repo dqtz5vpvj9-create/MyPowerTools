@@ -1,0 +1,10 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Styles.Resources>
+    <x:Double x:Key="MptDensityControlHeight">32</x:Double>
+    <x:Double x:Key="MptDensityListItemMinHeight">36</x:Double>
+    <x:Double x:Key="MptDensityCardMinHeight">96</x:Double>
+    <x:Double x:Key="MptDensityMetricTileMinWidth">96</x:Double>
+    <x:Double x:Key="MptDensityMetricTileMinHeight">64</x:Double>
+  </Styles.Resources>
+</Styles>
