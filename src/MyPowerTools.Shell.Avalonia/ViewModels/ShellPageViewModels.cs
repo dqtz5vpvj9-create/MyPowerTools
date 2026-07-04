@@ -136,6 +136,51 @@ public sealed class ModulesViewModel : ShellPageViewModel
     public bool IsEmpty => Modules.Count == 0;
 }
 
+public sealed class ModuleDetailViewModel : ShellPageViewModel
+{
+    public ModuleDetailViewModel(
+        string moduleId,
+        string packageId,
+        string displayName,
+        string state,
+        string summary,
+        IReadOnlyList<MetricViewModel> metrics,
+        IReadOnlyList<ModulePermissionViewModel> permissions,
+        IReadOnlyList<ModuleRequirementViewModel> requirements,
+        IReadOnlyList<ModuleDiagnosticItemViewModel> diagnostics,
+        IReadOnlyList<CommandItemViewModel> commands,
+        ICommand toggleEnabledCommand)
+        : base(displayName, packageId, state)
+    {
+        ModuleId = moduleId;
+        PackageId = packageId;
+        StateLabel = state;
+        Summary = summary;
+        Metrics = metrics;
+        Permissions = permissions;
+        Requirements = requirements;
+        Diagnostics = diagnostics;
+        Commands = commands;
+        ToggleEnabledCommand = toggleEnabledCommand;
+    }
+
+    public string ModuleId { get; }
+    public string PackageId { get; }
+    public string StateLabel { get; }
+    public string Summary { get; }
+    public IReadOnlyList<MetricViewModel> Metrics { get; }
+    public IReadOnlyList<ModulePermissionViewModel> Permissions { get; }
+    public IReadOnlyList<ModuleRequirementViewModel> Requirements { get; }
+    public IReadOnlyList<ModuleDiagnosticItemViewModel> Diagnostics { get; }
+    public IReadOnlyList<CommandItemViewModel> Commands { get; }
+    public ICommand ToggleEnabledCommand { get; }
+    public string ToggleEnabledLabel => string.Equals(StateLabel, "disabled", StringComparison.OrdinalIgnoreCase) ? "Enable" : "Disable";
+    public bool HasNoPermissions => Permissions.Count == 0;
+    public bool HasNoRequirements => Requirements.Count == 0;
+    public bool HasNoDiagnostics => Diagnostics.Count == 0;
+    public bool HasNoCommands => Commands.Count == 0;
+}
+
 public sealed class SettingsCenterViewModel : ShellPageViewModel
 {
     private string _rawJson;
@@ -345,6 +390,10 @@ public sealed record PackageSummaryViewModel(
 
 public sealed record PackageModuleLinkViewModel(string ModuleId, ICommand OpenCommand);
 
+public sealed record ModulePermissionViewModel(string Id, string Level, string Capability, string Reason);
+public sealed record ModuleRequirementViewModel(string Capability, string StateLabel, string Reason);
+public sealed record ModuleDiagnosticItemViewModel(string Label, string State, string Detail);
+
 public sealed record RuntimeProcessViewModel(
     string TransportKind,
     string PoolKey,
@@ -519,6 +568,78 @@ public static class ShellPageViewModelFactory
             }).ToArray();
 
         return new ModulesViewModel(modules);
+    }
+
+    public static ModuleDetailViewModel FromModuleDetail(
+        HostProto.ModuleDetail detail,
+        HostProto.ListCommandsResponse commands,
+        Func<string, bool, Task>? setModuleEnabled = null,
+        Func<string, Task>? executeCommand = null)
+    {
+        var enabled = !string.Equals(detail.State, "disabled", StringComparison.OrdinalIgnoreCase);
+        var metrics = new[]
+        {
+            new MetricViewModel("Package", detail.PackageId),
+            new MetricViewModel("Module", detail.ModuleId),
+            new MetricViewModel("Diagnostics", detail.Diagnostics.Count.ToString()),
+            new MetricViewModel("Permissions", detail.Permissions.Count.ToString())
+        };
+
+        var permissions = detail.Permissions
+            .OrderBy(permission => permission.Level, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(permission => permission.Id, StringComparer.OrdinalIgnoreCase)
+            .Select(permission => new ModulePermissionViewModel(
+                permission.Id,
+                permission.Level,
+                string.IsNullOrWhiteSpace(permission.Capability) ? "No capability" : permission.Capability,
+                permission.Reason))
+            .ToArray();
+
+        var requirements = detail.Requirements
+            .OrderByDescending(requirement => requirement.Required)
+            .ThenBy(requirement => requirement.Capability, StringComparer.OrdinalIgnoreCase)
+            .Select(requirement => new ModuleRequirementViewModel(
+                requirement.Capability,
+                requirement.Required ? "required" : "optional",
+                requirement.Reason))
+            .ToArray();
+
+        var diagnostics = detail.Diagnostics
+            .Select(diagnostic => new ModuleDiagnosticItemViewModel(
+                diagnostic.Label,
+                diagnostic.State,
+                diagnostic.Detail))
+            .ToArray();
+
+        var commandItems = commands.Commands
+            .Where(command => string.Equals(command.ModuleId, detail.ModuleId, StringComparison.OrdinalIgnoreCase))
+            .Take(12)
+            .Select(command => new CommandItemViewModel(
+                command.CommandId,
+                command.ModuleId,
+                command.Title,
+                command.Subtitle,
+                command.DangerLevel,
+                command.RequiresElevation,
+                string.IsNullOrWhiteSpace(command.ModuleId) ? "Module: unknown" : $"Module: {command.ModuleId}",
+                command.RequiresElevation ? $"{command.DangerLevel} - elevation" : command.DangerLevel,
+                "",
+                false,
+                new AsyncRelayCommand(() => executeCommand?.Invoke(command.CommandId) ?? Task.CompletedTask)))
+            .ToArray();
+
+        return new ModuleDetailViewModel(
+            detail.ModuleId,
+            detail.PackageId,
+            detail.DisplayName,
+            detail.State,
+            detail.Summary,
+            metrics,
+            permissions,
+            requirements,
+            diagnostics,
+            commandItems,
+            new AsyncRelayCommand(() => setModuleEnabled?.Invoke(detail.ModuleId, !enabled) ?? Task.CompletedTask));
     }
 
     public static SettingsCenterViewModel FromSettings(

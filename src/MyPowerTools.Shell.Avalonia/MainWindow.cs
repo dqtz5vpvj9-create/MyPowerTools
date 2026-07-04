@@ -400,30 +400,16 @@ public sealed class MainWindow : Window
             using var client = HostControlClient.ForDefaultEndpoint();
             var detail = await client.GetModuleDetailAsync(moduleId);
             var commands = await client.ListCommandsAsync(moduleId);
-            var body = new StackPanel { Spacing = 16 };
-            body.Children.Add(BuildModuleHero(detail));
-            body.Children.Add(Section(
-                "Declared Permissions",
-                detail.Permissions.Count == 0 ? new MptEmptyState("No broker permissions declared.") : BuildPermissionList(detail.Permissions)));
-            body.Children.Add(Section(
-                "Capability Requirements",
-                detail.Requirements.Count == 0 ? new MptEmptyState("No capability requirements declared.") : BuildRequirementList(detail.Requirements)));
+            var viewModel = ShellPageViewModelFactory.FromModuleDetail(
+                detail,
+                commands,
+                (targetModuleId, enabled) => SetModuleEnabledAsync(targetModuleId, enabled, showDetail: true),
+                commandId => ExecuteCommandAsync(commandId));
 
-            var diagnostics = new StackPanel { Spacing = 8 };
-            foreach (var item in detail.Diagnostics)
+            _contentHost.Content = new ModuleDetailView
             {
-                diagnostics.Children.Add(BuildDiagnostic(item));
-            }
-            body.Children.Add(Section("Diagnostics", diagnostics.Children.Count == 0 ? new MptEmptyState("No diagnostics.") : diagnostics));
-
-            var commandList = new StackPanel { Spacing = 8 };
-            foreach (var command in commands.Commands.Where(command => command.ModuleId == moduleId).Take(12))
-            {
-                commandList.Children.Add(BuildCommand(command));
-            }
-            body.Children.Add(Section("Commands", commandList.Children.Count == 0 ? new MptEmptyState("No commands.") : commandList));
-
-            _contentHost.Content = BuildPage(detail.DisplayName, detail.PackageId, body);
+                DataContext = viewModel
+            };
             _statusBar.Text = $"{detail.DisplayName} detail loaded";
         }
         catch (Exception ex)
@@ -698,97 +684,6 @@ public sealed class MainWindow : Window
         }
     }
 
-    private Control BuildModuleHero(HostProto.ModuleDetail detail)
-    {
-        var panel = new StackPanel { Spacing = 10 };
-        panel.Children.Add(HeaderWithBadge(detail.DisplayName, detail.State));
-        panel.Children.Add(new TextBlock
-        {
-            Text = detail.Summary,
-            TextWrapping = TextWrapping.Wrap,
-            Foreground = MptTheme.TextSecondary
-        });
-        panel.Children.Add(BuildMetricRow([
-            ("Package", detail.PackageId),
-            ("Module", detail.ModuleId),
-            ("Diagnostics", detail.Diagnostics.Count.ToString()),
-            ("Permissions", detail.Permissions.Count.ToString())
-        ]));
-        var enabled = detail.State != "disabled";
-        var toggle = new MptActionButton(enabled ? "Disable" : "Enable");
-        toggle.Click += async (_, _) => await SetModuleEnabledAsync(detail.ModuleId, !enabled, showDetail: true);
-        panel.Children.Add(toggle);
-
-        return new MptModuleCard(panel);
-    }
-
-    private Control BuildPermissionList(IEnumerable<HostProto.ModulePermission> permissions)
-    {
-        var list = new StackPanel { Spacing = 8 };
-        foreach (var permission in permissions.OrderBy(permission => permission.Level, StringComparer.OrdinalIgnoreCase).ThenBy(permission => permission.Id, StringComparer.OrdinalIgnoreCase))
-        {
-            var capability = string.IsNullOrWhiteSpace(permission.Capability) ? "No capability" : permission.Capability;
-            list.Children.Add(new StackPanel
-            {
-                Spacing = 3,
-                Children =
-                {
-                    HeaderWithBadge(permission.Id, permission.Level),
-                    DetailLine("Capability", capability),
-                    DetailLine("Reason", permission.Reason)
-                }
-            });
-        }
-
-        return list;
-    }
-
-    private Control BuildRequirementList(IEnumerable<HostProto.ModuleRequirement> requirements)
-    {
-        var list = new StackPanel { Spacing = 8 };
-        foreach (var requirement in requirements.OrderByDescending(requirement => requirement.Required).ThenBy(requirement => requirement.Capability, StringComparer.OrdinalIgnoreCase))
-        {
-            list.Children.Add(new StackPanel
-            {
-                Spacing = 3,
-                Children =
-                {
-                    HeaderWithBadge(requirement.Capability, requirement.Required ? "required" : "optional"),
-                    DetailLine("Reason", requirement.Reason)
-                }
-            });
-        }
-
-        return list;
-    }
-
-    private Control BuildDiagnostic(HostProto.Diagnostic diagnostic)
-    {
-        var panel = new StackPanel { Spacing = 4 };
-        panel.Children.Add(HeaderWithBadge(diagnostic.Label, diagnostic.State));
-        panel.Children.Add(new TextBlock
-        {
-            Text = diagnostic.Detail,
-            TextWrapping = TextWrapping.Wrap,
-            Foreground = MptTheme.TextSecondary
-        });
-        return new MptModuleCard(panel);
-    }
-
-    private Control BuildCommand(HostProto.CommandItem command)
-    {
-        var item = new MptCommandItem(command.Title, command.Subtitle);
-        var button = new Button
-        {
-            Content = item,
-            HorizontalContentAlignment = HorizontalAlignment.Stretch,
-            Tag = command.CommandId,
-            MinHeight = 58
-        };
-        button.Click += async (_, _) => await ExecuteCommandAsync((string)button.Tag!);
-        return button;
-    }
-
     private Control BuildPermissionPrompt(HostProto.CommandExecutionResponse result)
     {
         var details = result.ErrorDetails;
@@ -877,55 +772,6 @@ public sealed class MainWindow : Window
     private Control BuildUnavailablePage(string title, string message)
     {
         return BuildPage(title, "", new MptErrorState(message));
-    }
-
-    private Control Section(string title, Control content)
-    {
-        return new MptModuleCard(new StackPanel
-        {
-            Spacing = 10,
-            Children =
-            {
-                new TextBlock
-                {
-                    Text = title,
-                    FontSize = 18,
-                    FontWeight = FontWeight.SemiBold
-                },
-                content
-            }
-        });
-    }
-
-    private Control HeaderWithBadge(string title, string state)
-    {
-        var header = new DockPanel { LastChildFill = true };
-        var badge = new MptStatusBadge(state);
-        DockPanel.SetDock(badge, Dock.Right);
-        header.Children.Add(badge);
-        header.Children.Add(new TextBlock
-        {
-            Text = title,
-            FontSize = 17,
-            FontWeight = FontWeight.SemiBold,
-            TextTrimming = TextTrimming.CharacterEllipsis,
-            VerticalAlignment = VerticalAlignment.Center
-        });
-        return header;
-    }
-
-    private Control BuildMetricRow(IReadOnlyList<(string Label, string Value)> metrics)
-    {
-        var row = new WrapPanel { ItemWidth = 140 };
-        foreach (var metric in metrics)
-        {
-            row.Children.Add(new MptMetricTile(metric.Label, metric.Value)
-            {
-                Margin = new Thickness(0, 0, 8, 8)
-            });
-        }
-
-        return row;
     }
 
     private Button NavButton(string label)

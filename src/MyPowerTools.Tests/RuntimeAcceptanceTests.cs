@@ -451,6 +451,7 @@ Address         Port        Address         Port
         {
             ["DashboardView"] = "DashboardViewModel",
             ["ModulesView"] = "ModulesViewModel",
+            ["ModuleDetailView"] = "ModuleDetailViewModel",
             ["CommandPaletteView"] = "CommandPaletteViewModel",
             ["SettingsCenterView"] = "SettingsCenterViewModel",
             ["LogsView"] = "LogsViewModel",
@@ -543,6 +544,30 @@ Address         Port        Address         Port
         Assert.Contains("SettingsCommand", modulesView);
         Assert.Contains("LogsCommand", modulesView);
         Assert.Contains("ToggleEnabledCommand", modulesView);
+    }
+
+    [Fact]
+    public void Shell_module_detail_page_is_wired_to_axaml_view_model()
+    {
+        var mainWindowPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "MainWindow.cs");
+        var moduleDetailViewPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Views", "ModuleDetailView.axaml");
+        var viewModelPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "ViewModels", "ShellPageViewModels.cs");
+        var mainWindow = File.ReadAllText(mainWindowPath);
+        var moduleDetailView = File.ReadAllText(moduleDetailViewPath);
+        var viewModel = File.ReadAllText(viewModelPath);
+
+        Assert.Contains("ShellPageViewModelFactory.FromModuleDetail", mainWindow);
+        Assert.Contains("new ModuleDetailView", mainWindow);
+        Assert.DoesNotContain("BuildModuleHero", mainWindow, StringComparison.Ordinal);
+        Assert.DoesNotContain("BuildPermissionList", mainWindow, StringComparison.Ordinal);
+        Assert.DoesNotContain("BuildCommand(", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("x:DataType=\"vm:ModuleDetailViewModel\"", moduleDetailView);
+        Assert.Contains("ModulePermissionViewModel", moduleDetailView);
+        Assert.Contains("ModuleRequirementViewModel", moduleDetailView);
+        Assert.Contains("ModuleDiagnosticItemViewModel", moduleDetailView);
+        Assert.Contains("ToggleEnabledCommand", moduleDetailView);
+        Assert.Contains("ExecuteCommand", moduleDetailView);
+        Assert.Contains("FromModuleDetail", viewModel);
     }
 
     [Fact]

@@ -60,6 +60,8 @@ This document tracks the current slice for external review. It is an audit hando
 - Removed the old `_commandPanel.Children` imperative command-list rendering path from `MainWindow.cs`.
 - Wired Settings Center to `SettingsCenterView` / `SettingsCenterViewModel`, preserving module selection, schema-backed editors, raw JSON fallback, and settings save through ViewModel commands.
 - Removed the old imperative settings editor filler and schema field control builders from `MainWindow.cs`.
+- Wired Module Detail to `ModuleDetailView` / `ModuleDetailViewModel`, preserving module toggle, permissions, requirements, diagnostics, and command execution through ViewModel commands.
+- Removed the old imperative module detail hero, permission, requirement, diagnostic, and command builders from `MainWindow.cs`.
 
 ### Acceptance Coverage
 
@@ -89,6 +91,8 @@ This document tracks the current slice for external review. It is an audit hando
   verifies Shell viewmodels do not depend on Avalonia controls and can map HostControl dashboard and command data.
 - `Shell_modules_page_is_wired_to_axaml_view_model`
   verifies Modules rendering uses `ModulesView` plus `ShellPageViewModelFactory.FromModules`, preserves the four module action commands, and removes the old imperative module summary builder.
+- `Shell_module_detail_page_is_wired_to_axaml_view_model`
+  verifies Module Detail rendering uses `ModuleDetailView` plus `ShellPageViewModelFactory.FromModuleDetail`, preserves toggle and command execution, and removes old detail builders.
 - `Shell_dashboard_page_is_wired_to_axaml_view_model`
   verifies Dashboard rendering uses `DashboardView` plus `ShellPageViewModelFactory.FromDashboard` and that the old imperative dashboard card builder is gone.
 - `Shell_notifications_page_is_wired_to_axaml_view_model`
@@ -110,9 +114,9 @@ This document tracks the current slice for external review. It is an audit hando
 
 ## Current UI Architecture State
 
-- `src/MyPowerTools.Shell.Avalonia/MainWindow.cs` current: 1192 lines.
+- `src/MyPowerTools.Shell.Avalonia/MainWindow.cs` current: 1038 lines.
 - `MainWindow.cs` target <= 250 lines.
-- AXAML + MVVM migration: Dashboard, Modules, Logs, Notifications, Package Manager, Diagnostics, Settings Center, and the right-side Command Palette list are now live on typed AXAML plus ViewModels. Module Detail remains programmatic.
+- AXAML + MVVM migration: Dashboard, Modules, Module Detail, Logs, Notifications, Package Manager, Diagnostics, Settings Center, and the right-side Command Palette list are now live on typed AXAML plus ViewModels.
 - Component AXAML library: started with shared page/card/text styles; reusable control templates remain pending.
 - Token `ResourceDictionary` split: initial shared `MptTheme.axaml` loaded from the UI project.
 - Static style lint for shell UI: started with AXAML/viewmodel/code-behind guardrails; deeper layout and interaction lint pending.
@@ -134,8 +138,8 @@ The existing shell already has UI snapshot gates, keyboard shortcut tests, and c
 | InProc shadow-copy update | Loaded module uses cache while package DLL is replaceable | Done |
 | InProc unload handling | Unload probe and failure surfaced to runtime policy | Done for clean unload and pending-runner-restart diagnostics |
 | Sidecar default for complex modules | Complex modules prefer sidecar transport | Existing manifests keep sidecar-capable modules on sidecar paths |
-| MainWindow size | target <= 250 lines | current: 1192 lines |
-| AXAML + MVVM | Main shell split into views/viewmodels | Started: Dashboard, Modules, Logs, Notifications, Package Manager, Diagnostics, Settings Center, and the right-side Command Palette list wired to AXAML; eight typed page views and control-free viewmodels exist |
+| MainWindow size | target <= 250 lines | current: 1038 lines |
+| AXAML + MVVM | Main shell split into views/viewmodels | Started: Dashboard, Modules, Module Detail, Logs, Notifications, Package Manager, Diagnostics, Settings Center, and the right-side Command Palette list wired to AXAML; nine typed page views and control-free viewmodels exist |
 | Component library | Reusable AXAML controls and tokens | Started: shared theme resources and base page/card/text styles |
 | Style lint | Static lint over shell UI style usage | Started: AXAML token and code-behind/viewmodel guardrails |
 | Command palette | Typed args and validation UI | Command list and execution wired to AXAML/MVVM; typed args pending HostControl parameter schema |
@@ -160,7 +164,7 @@ Latest observed result before packaging:
 
 ```text
 Build: passed, 0 warnings, 0 errors
-Tests: passed, 110 passed, 0 failed, 0 skipped
+Tests: passed, 111 passed, 0 failed, 0 skipped
 Module validation: 5 packages valid
 Contract validation: 5 packages, 7 modules passed
 UI gate: passed
@@ -172,8 +176,8 @@ The packaging step for external review should run the same validation again and 
 
 ## Recommended Next Slice
 
-1. Move module detail runtime wiring into AXAML views with viewmodels.
+1. Extract remaining Shell chrome, permission prompts, broker audit, and unavailable/error pages from `MainWindow.cs`.
 2. Introduce shell token dictionaries and component styles under the UI project.
-3. Add a static style lint that scans AXAML and C# UI files.
+3. Add deeper static style lint that scans AXAML and C# UI files.
 4. Add command palette parameter editors plus settings validation preview, staged diff, and apply result states.
 5. Keep sidecar process supervision as the next plugin-runtime depth item after the UI architecture slice starts.
