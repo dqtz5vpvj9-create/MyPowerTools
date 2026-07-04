@@ -25,6 +25,9 @@
     "settings",
     "dashboardCard"
   ],
+  "development": {
+    "allowAlreadyLoadedFallback": true
+  },
   "uiSurfaces": [
     "ui/dashboard-card.json",
     "ui/settings.json"

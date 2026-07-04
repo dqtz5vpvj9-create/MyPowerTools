@@ -134,6 +134,13 @@ public sealed class SmartBirdThermostatModule : IMptModule
             messages.Count == 0 ? null : new MptRuntimeError(MptErrorCodes.ValidationFailed, string.Join("; ", messages))));
     }
 
+    public ValueTask<SettingsSnapshotDocument> ApplySettingsAsync(SettingsSnapshotDocument snapshot, CancellationToken cancellationToken)
+    {
+        var updated = SmartBirdSettings.Default().Apply(snapshot.Values) with { UpdatedAt = DateTimeOffset.UtcNow };
+        Store.Save(updated);
+        return ValueTask.FromResult(updated.ToSettingsSnapshot(Id) with { Revision = snapshot.Revision });
+    }
+
     public ValueTask<IReadOnlyList<UiSurfaceDescriptor>> ListSurfacesAsync(CancellationToken cancellationToken)
     {
         IReadOnlyList<UiSurfaceDescriptor> surfaces =

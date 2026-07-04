@@ -284,6 +284,8 @@ message RuntimeModuleDiagnostics {
   string supervisor_state = 12;
   string supervisor_action = 13;
   google.protobuf.Timestamp last_observed_at = 14;
+  string transport_selection_reason = 15;
+  repeated string transport_selection_diagnostics = 16;
 }
 
 message RuntimeCommandHistoryEntry {

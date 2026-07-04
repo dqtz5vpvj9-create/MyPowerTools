@@ -15,6 +15,7 @@ public sealed class DoubaoAgentModule : IMptModule
 
     private readonly HttpClient _httpClient;
     private ModuleContext? _context;
+    private DoubaoSettings _settings = DoubaoSettings.Default();
 
     public DoubaoAgentModule()
         : this(new HttpClient { Timeout = TimeSpan.FromMilliseconds(1200) })
@@ -43,7 +44,7 @@ public sealed class DoubaoAgentModule : IMptModule
 
     public async ValueTask<ModuleStatusSnapshot> GetStatusAsync(CancellationToken cancellationToken)
     {
-        var checks = await CheckServicesAsync(DefaultEndpoints, cancellationToken);
+        var checks = await CheckServicesAsync(ResolveEndpoints(new JsonObject()), cancellationToken);
         var running = checks.Count(check => check.Ok);
         var state = running == checks.Count ? "running" : running == 0 ? "degraded" : "degraded";
         var summary = running == checks.Count
@@ -104,18 +105,7 @@ public sealed class DoubaoAgentModule : IMptModule
 
     public ValueTask<SettingsSnapshotDocument> GetSettingsAsync(CancellationToken cancellationToken)
     {
-        return ValueTask.FromResult(new SettingsSnapshotDocument(
-            Id,
-            1,
-            new JsonObject
-            {
-                ["plannerBaseUrl"] = "http://127.0.0.1:38102",
-                ["toolBaseUrl"] = "http://127.0.0.1:38080",
-                ["mcpBaseUrl"] = "http://127.0.0.1:38189",
-                ["healthPath"] = "/health",
-                ["redactSensitiveOutput"] = true
-            },
-            DateTimeOffset.UtcNow));
+        return ValueTask.FromResult(_settings.ToSnapshot(Id));
     }
 
     public ValueTask<SettingsValidationResult> ValidateSettingsAsync(SettingsPatch patch, CancellationToken cancellationToken)
@@ -142,6 +132,12 @@ public sealed class DoubaoAgentModule : IMptModule
             messages.Count == 0,
             messages,
             messages.Count == 0 ? null : new MptRuntimeError(MptErrorCodes.ValidationFailed, string.Join("; ", messages))));
+    }
+
+    public ValueTask<SettingsSnapshotDocument> ApplySettingsAsync(SettingsSnapshotDocument snapshot, CancellationToken cancellationToken)
+    {
+        _settings = DoubaoSettings.FromJson(snapshot.Values);
+        return ValueTask.FromResult(_settings.ToSnapshot(Id) with { Revision = snapshot.Revision });
     }
 
     public ValueTask<IReadOnlyList<UiSurfaceDescriptor>> ListSurfacesAsync(CancellationToken cancellationToken)
@@ -275,12 +271,12 @@ public sealed class DoubaoAgentModule : IMptModule
 
     private DoubaoServiceEndpoint[] ResolveEndpoints(JsonObject args)
     {
-        var healthPath = ReadString(args, "healthPath") ?? "/health";
+        var healthPath = ReadString(args, "healthPath") ?? _settings.HealthPath;
         return
         [
-            new("planner", "Agent Planner", ReadString(args, "plannerBaseUrl") ?? DefaultEndpoints[0].BaseUrl, healthPath),
-            new("tool", "Tool Runtime", ReadString(args, "toolBaseUrl") ?? DefaultEndpoints[1].BaseUrl, healthPath),
-            new("mcp", "MCP Bridge", ReadString(args, "mcpBaseUrl") ?? DefaultEndpoints[2].BaseUrl, healthPath)
+            new("planner", "Agent Planner", ReadString(args, "plannerBaseUrl") ?? _settings.PlannerBaseUrl, healthPath),
+            new("tool", "Tool Runtime", ReadString(args, "toolBaseUrl") ?? _settings.ToolBaseUrl, healthPath),
+            new("mcp", "MCP Bridge", ReadString(args, "mcpBaseUrl") ?? _settings.McpBaseUrl, healthPath)
         ];
     }
 
@@ -344,4 +340,55 @@ public sealed class DoubaoAgentModule : IMptModule
     }
 
     private sealed record DoubaoServiceEndpoint(string Id, string Label, string BaseUrl, string HealthPath);
+
+    private sealed record DoubaoSettings(
+        string PlannerBaseUrl,
+        string ToolBaseUrl,
+        string McpBaseUrl,
+        string HealthPath,
+        bool RedactSensitiveOutput)
+    {
+        public static DoubaoSettings Default()
+        {
+            return new DoubaoSettings(
+                DefaultEndpoints[0].BaseUrl,
+                DefaultEndpoints[1].BaseUrl,
+                DefaultEndpoints[2].BaseUrl,
+                "/health",
+                true);
+        }
+
+        public static DoubaoSettings FromJson(JsonObject values)
+        {
+            var defaults = Default();
+            return new DoubaoSettings(
+                SettingsJson.ReadString(values, "plannerBaseUrl") ?? defaults.PlannerBaseUrl,
+                SettingsJson.ReadString(values, "toolBaseUrl") ?? defaults.ToolBaseUrl,
+                SettingsJson.ReadString(values, "mcpBaseUrl") ?? defaults.McpBaseUrl,
+                NormalizePath(SettingsJson.ReadString(values, "healthPath"), defaults.HealthPath),
+                SettingsJson.ReadBool(values, "redactSensitiveOutput") ?? defaults.RedactSensitiveOutput);
+        }
+
+        public SettingsSnapshotDocument ToSnapshot(string moduleId)
+        {
+            return new SettingsSnapshotDocument(moduleId, 1, ToJson(), DateTimeOffset.UtcNow);
+        }
+
+        public JsonObject ToJson()
+        {
+            return new JsonObject
+            {
+                ["plannerBaseUrl"] = PlannerBaseUrl,
+                ["toolBaseUrl"] = ToolBaseUrl,
+                ["mcpBaseUrl"] = McpBaseUrl,
+                ["healthPath"] = HealthPath,
+                ["redactSensitiveOutput"] = RedactSensitiveOutput
+            };
+        }
+
+        private static string NormalizePath(string? value, string fallback)
+        {
+            return string.IsNullOrWhiteSpace(value) || !value.StartsWith("/", StringComparison.Ordinal) ? fallback : value;
+        }
+    }
 }

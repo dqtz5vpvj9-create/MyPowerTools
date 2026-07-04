@@ -80,6 +80,7 @@ public sealed record TrayActionInvocation(string ActionId, DateTimeOffset Invoke
 public sealed record TrayStartResult(bool Success, string State, string Message);
 public sealed record HotkeyRegistration(string Id, string Gesture, string Scope, string Reason);
 public sealed record HotkeyRegistrationResult(bool Success, string State, string Message);
+public sealed record HotkeyInvocation(string Id, string Gesture, string Scope, DateTimeOffset InvokedAt);
 public sealed record PrivilegeRequest(
     string ActionId,
     string PermissionLevel,
@@ -126,8 +127,10 @@ public sealed class UnsupportedTrayService : ITrayService
     }
 }
 
-public interface IHotkeyService
+public interface IHotkeyService : IAsyncDisposable
 {
+    event EventHandler<HotkeyInvocation>? Pressed;
+
     Task<HotkeyRegistrationResult> RegisterAsync(HotkeyRegistration registration, CancellationToken cancellationToken);
     Task<HotkeyRegistrationResult> UnregisterAsync(string id, CancellationToken cancellationToken);
 }
@@ -136,6 +139,12 @@ public sealed class UnsupportedHotkeyService : IHotkeyService
 {
     private readonly string _provider;
     private readonly string _message;
+
+    public event EventHandler<HotkeyInvocation>? Pressed
+    {
+        add { }
+        remove { }
+    }
 
     public UnsupportedHotkeyService(string provider, string message)
     {
@@ -153,6 +162,11 @@ public sealed class UnsupportedHotkeyService : IHotkeyService
     {
         cancellationToken.ThrowIfCancellationRequested();
         return Task.FromResult(new HotkeyRegistrationResult(false, "unsupported", $"{_provider}: {_message}"));
+    }
+
+    public ValueTask DisposeAsync()
+    {
+        return ValueTask.CompletedTask;
     }
 }
 

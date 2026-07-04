@@ -48,38 +48,56 @@ public sealed class InProcDotNetModuleHost : IModuleTransportRuntime, IModuleTra
 
     public async ValueTask<ModuleStatusSnapshot?> GetStatusAsync(RuntimeModuleRecord module, ModuleContext context, CancellationToken cancellationToken)
     {
-        var loaded = await LoadCachedAsync(module.Module, context, cancellationToken);
-        return await loaded.GetStatusAsync(cancellationToken);
+        return await ExecuteWithBudgetAsync(module, cancellationToken, async token =>
+        {
+            var loaded = await LoadCachedAsync(module.Module, context, token);
+            return await loaded.GetStatusAsync(token);
+        });
     }
 
     public async ValueTask<SettingsSchemaDocument> GetSettingsSchemaAsync(RuntimeModuleRecord module, ModuleContext context, CancellationToken cancellationToken)
     {
-        var loaded = await LoadCachedAsync(module.Module, context, cancellationToken);
-        return await loaded.GetSettingsSchemaAsync(cancellationToken);
+        return await ExecuteWithBudgetAsync(module, cancellationToken, async token =>
+        {
+            var loaded = await LoadCachedAsync(module.Module, context, token);
+            return await loaded.GetSettingsSchemaAsync(token);
+        });
     }
 
     public async ValueTask<SettingsValidationResult> ValidateSettingsAsync(RuntimeModuleRecord module, ModuleContext context, SettingsPatch patch, CancellationToken cancellationToken)
     {
-        var loaded = await LoadCachedAsync(module.Module, context, cancellationToken);
-        return await loaded.ValidateSettingsAsync(patch, cancellationToken);
+        return await ExecuteWithBudgetAsync(module, cancellationToken, async token =>
+        {
+            var loaded = await LoadCachedAsync(module.Module, context, token);
+            return await loaded.ValidateSettingsAsync(patch, token);
+        });
     }
 
     public async ValueTask<SettingsSnapshotDocument> ApplySettingsAsync(RuntimeModuleRecord module, ModuleContext context, SettingsSnapshotDocument snapshot, CancellationToken cancellationToken)
     {
-        var loaded = await LoadCachedAsync(module.Module, context, cancellationToken);
-        return await loaded.ApplySettingsAsync(snapshot, cancellationToken);
+        return await ExecuteWithBudgetAsync(module, cancellationToken, async token =>
+        {
+            var loaded = await LoadCachedAsync(module.Module, context, token);
+            return await loaded.ApplySettingsAsync(snapshot, token);
+        });
     }
 
     public async ValueTask<IReadOnlyList<MptCommandDescriptor>> ListCommandsAsync(RuntimeModuleRecord module, ModuleContext context, CancellationToken cancellationToken)
     {
-        var loaded = await LoadCachedAsync(module.Module, context, cancellationToken);
-        return await loaded.ListCommandsAsync(cancellationToken);
+        return await ExecuteWithBudgetAsync(module, cancellationToken, async token =>
+        {
+            var loaded = await LoadCachedAsync(module.Module, context, token);
+            return await loaded.ListCommandsAsync(token);
+        });
     }
 
     public async ValueTask<CommandExecutionResult> ExecuteCommandAsync(RuntimeModuleRecord module, ModuleContext context, CommandRequest request, CancellationToken cancellationToken)
     {
-        var loaded = await LoadCachedAsync(module.Module, context, cancellationToken);
-        return await loaded.ExecuteCommandAsync(request, cancellationToken);
+        return await ExecuteWithBudgetAsync(module, cancellationToken, async token =>
+        {
+            var loaded = await LoadCachedAsync(module.Module, context, token);
+            return await loaded.ExecuteCommandAsync(request, token);
+        });
     }
 
     public ValueTask<IMptModule> LoadAsync(MptModuleDefinition module, CancellationToken cancellationToken)
@@ -117,7 +135,7 @@ public sealed class InProcDotNetModuleHost : IModuleTransportRuntime, IModuleTra
 
         var assembly = File.Exists(assemblyPath)
             ? LoadIsolatedAssembly(module, context, entrypoint, assemblyPath, out loadContext)
-            : ResolveAlreadyLoaded(entrypoint.Assembly);
+            : ResolveAlreadyLoadedIfAllowed(module, entrypoint.Assembly);
 
         var type = assembly.GetType(entrypoint.Type, throwOnError: true)!;
         if (Activator.CreateInstance(type) is not IMptModule instance)
@@ -285,6 +303,29 @@ public sealed class InProcDotNetModuleHost : IModuleTransportRuntime, IModuleTra
         return await LoadAsync(module, context, cancellationToken);
     }
 
+    private static async ValueTask<T> ExecuteWithBudgetAsync<T>(
+        RuntimeModuleRecord module,
+        CancellationToken cancellationToken,
+        Func<CancellationToken, ValueTask<T>> action)
+    {
+        var maxCallMs = module.Entrypoint?.InProcMaxCallMs;
+        if (maxCallMs is not > 0)
+        {
+            return await action(cancellationToken);
+        }
+
+        using var budget = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        budget.CancelAfter(TimeSpan.FromMilliseconds(maxCallMs.Value));
+        try
+        {
+            return await action(budget.Token);
+        }
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+        {
+            throw new TimeoutException($"InProc module '{module.Module.Manifest.Id}' exceeded runtimePolicy.inProcRules.maxCallMs={maxCallMs.Value}.");
+        }
+    }
+
     private async ValueTask ThrowIfPendingRunnerRestartAsync(string moduleId, CancellationToken cancellationToken)
     {
         await _moduleLock.WaitAsync(cancellationToken);
@@ -339,6 +380,16 @@ public sealed class InProcDotNetModuleHost : IModuleTransportRuntime, IModuleTra
     }
 
     private static string PoolKeyForModule(string moduleId) => $"module:{moduleId}";
+
+    private static Assembly ResolveAlreadyLoadedIfAllowed(MptModuleDefinition module, string assemblyNameOrPath)
+    {
+        if (module.Manifest.Development?.AllowAlreadyLoadedFallback != true)
+        {
+            throw new FileNotFoundException($"Assembly '{assemblyNameOrPath}' was not found on disk, and development.allowAlreadyLoadedFallback is not enabled.");
+        }
+
+        return ResolveAlreadyLoaded(assemblyNameOrPath);
+    }
 
     private static Assembly ResolveAlreadyLoaded(string assemblyNameOrPath)
     {

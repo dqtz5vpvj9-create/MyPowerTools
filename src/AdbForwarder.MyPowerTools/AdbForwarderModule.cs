@@ -10,6 +10,7 @@ namespace AdbForwarder.MyPowerTools;
 public sealed class AdbForwarderModule : IMptModule
 {
     private ModuleContext? _context;
+    private JsonObject _settings = DefaultSettings();
 
     public string Id => "adb-forwarder";
     public string PackageId => "adb-forwarder";
@@ -26,10 +27,11 @@ public sealed class AdbForwarderModule : IMptModule
 
     public async ValueTask<ModuleStatusSnapshot> GetStatusAsync(CancellationToken cancellationToken)
     {
-        var adb = await RunToolAsync("adb", ["version"], TimeSpan.FromSeconds(3), cancellationToken);
+        var adbPath = AdbPath();
+        var adb = await RunToolAsync(adbPath, ["version"], TimeSpan.FromSeconds(3), cancellationToken);
         var devices = adb.Available
-            ? await RunToolAsync("adb", ["devices", "-l"], TimeSpan.FromSeconds(5), cancellationToken)
-            : ToolResult.Missing("adb", "ADB executable was not found on PATH.");
+            ? await RunToolAsync(adbPath, ["devices", "-l"], TimeSpan.FromSeconds(5), cancellationToken)
+            : ToolResult.Missing(adbPath, $"{adbPath} executable was not found on PATH.");
         var portproxy = await ReadPortProxyAsync(cancellationToken);
         var portproxyRules = portproxy.Available && portproxy.ExitCode == 0
             ? PortProxyParser.Parse(portproxy.Stdout)
@@ -71,7 +73,7 @@ public sealed class AdbForwarderModule : IMptModule
         return request.CommandId switch
         {
             "adb-forwarder.diagnostics.summary" => Succeeded(request, await DiagnosticsSummaryAsync(cancellationToken)),
-            "adb-forwarder.devices.scan" => Succeeded(request, ToJson(await RunToolAsync("adb", ["devices", "-l"], TimeSpan.FromSeconds(10), cancellationToken))),
+            "adb-forwarder.devices.scan" => Succeeded(request, ToJson(await RunToolAsync(AdbPath(), ["devices", "-l"], TimeSpan.FromSeconds(10), cancellationToken))),
             "adb-forwarder.portproxy.list" => Succeeded(request, ToJson(await ReadPortProxyAsync(cancellationToken), includePortProxyRules: true)),
             "adb-forwarder.portproxy.plan" => await PlanPortProxyAsync(request, cancellationToken),
             "adb-forwarder.portproxy.apply" => await RequestPortProxyApplyAsync(request, cancellationToken),
@@ -123,22 +125,23 @@ public sealed class AdbForwarderModule : IMptModule
 
     public ValueTask<SettingsSnapshotDocument> GetSettingsAsync(CancellationToken cancellationToken)
     {
-        var values = new JsonObject
-        {
-            ["adbPath"] = "adb",
-            ["applyMode"] = "brokered",
-            ["mappings"] = new JsonArray()
-        };
-        return ValueTask.FromResult(new SettingsSnapshotDocument(Id, 1, values, DateTimeOffset.UtcNow));
+        return ValueTask.FromResult(new SettingsSnapshotDocument(Id, 1, (JsonObject)_settings.DeepClone(), DateTimeOffset.UtcNow));
     }
 
     public ValueTask<SettingsValidationResult> ValidateSettingsAsync(SettingsPatch patch, CancellationToken cancellationToken)
     {
-        var (_, messages) = AdbPortProxyModel.ParseMappings(patch.Patch);
+        var values = SettingsJson.Merge(_settings, patch.Patch);
+        var (_, messages) = AdbPortProxyModel.ParseMappings(values);
         return ValueTask.FromResult(new SettingsValidationResult(
             messages.Count == 0,
             messages,
             messages.Count == 0 ? null : new MptRuntimeError(MptErrorCodes.ValidationFailed, string.Join("; ", messages))));
+    }
+
+    public ValueTask<SettingsSnapshotDocument> ApplySettingsAsync(SettingsSnapshotDocument snapshot, CancellationToken cancellationToken)
+    {
+        _settings = SettingsJson.Merge(DefaultSettings(), snapshot.Values);
+        return ValueTask.FromResult(snapshot with { Values = (JsonObject)_settings.DeepClone() });
     }
 
     public ValueTask<IReadOnlyList<UiSurfaceDescriptor>> ListSurfacesAsync(CancellationToken cancellationToken)
@@ -158,10 +161,11 @@ public sealed class AdbForwarderModule : IMptModule
 
     private async Task<string> DiagnosticsSummaryAsync(CancellationToken cancellationToken)
     {
-        var adbVersion = await RunToolAsync("adb", ["version"], TimeSpan.FromSeconds(3), cancellationToken);
+        var adbPath = AdbPath();
+        var adbVersion = await RunToolAsync(adbPath, ["version"], TimeSpan.FromSeconds(3), cancellationToken);
         var devices = adbVersion.Available
-            ? await RunToolAsync("adb", ["devices", "-l"], TimeSpan.FromSeconds(10), cancellationToken)
-            : ToolResult.Missing("adb", "ADB executable was not found on PATH.");
+            ? await RunToolAsync(adbPath, ["devices", "-l"], TimeSpan.FromSeconds(10), cancellationToken)
+            : ToolResult.Missing(adbPath, $"{adbPath} executable was not found on PATH.");
         var portproxy = await ReadPortProxyAsync(cancellationToken);
         var payload = new JsonObject
         {
@@ -223,7 +227,8 @@ public sealed class AdbForwarderModule : IMptModule
 
     private async Task<PortProxyPlanningResult> BuildPortProxyPlanAsync(JsonObject args, bool revert, CancellationToken cancellationToken)
     {
-        var (mappings, validationMessages) = AdbPortProxyModel.ParseMappings(args);
+        var values = SettingsJson.Merge(_settings, args);
+        var (mappings, validationMessages) = AdbPortProxyModel.ParseMappings(values);
         if (validationMessages.Count > 0)
         {
             return new PortProxyPlanningResult(null, null, validationMessages);
@@ -231,7 +236,7 @@ public sealed class AdbForwarderModule : IMptModule
 
         var warnings = new List<string>();
         var currentState = default(ToolResult?);
-        var currentRules = TryReadCurrentRulesOverride(args);
+        var currentRules = TryReadCurrentRulesOverride(values);
         if (currentRules is null)
         {
             currentState = await ReadPortProxyAsync(cancellationToken);
@@ -330,6 +335,21 @@ public sealed class AdbForwarderModule : IMptModule
         {
             return fallback;
         }
+    }
+
+    private string AdbPath()
+    {
+        return SettingsJson.ReadString(_settings, "adbPath") is { Length: > 0 } value ? value : "adb";
+    }
+
+    private static JsonObject DefaultSettings()
+    {
+        return new JsonObject
+        {
+            ["adbPath"] = "adb",
+            ["applyMode"] = "brokered",
+            ["mappings"] = new JsonArray()
+        };
     }
 
     private static async Task<ToolResult> ReadPortProxyAsync(CancellationToken cancellationToken)

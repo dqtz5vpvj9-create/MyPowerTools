@@ -342,7 +342,7 @@ Actions:
 - Updated macOS/Linux platform packs to expose notification, autostart, service, network, process, display, tray, and secret services with explicit unsupported states where native implementation is pending.
 - Added acceptance coverage for missing required capability -> `unsupported`, missing optional capability -> `degraded`, platform-native IPC endpoint shape, and Mac/Linux degraded provider behavior.
 - Added `IHotkeyService`, `IPrivilegeBroker`, `UnsupportedHotkeyService`, `UnsupportedPrivilegeBroker`, and `BrokerRequiredPrivilegeBroker` to platform abstractions.
-- Updated Windows, macOS, and Linux platform packs to expose hotkey and privilege provider surfaces. Windows hotkey registration is marked pending, Windows privilege evaluation returns broker-required, and macOS/Linux return explicit unsupported states.
+- Updated Windows, macOS, and Linux platform packs to expose hotkey and privilege provider surfaces. Windows hotkey registration now uses Win32 `RegisterHotKey`, Windows privilege evaluation returns broker-required, and macOS/Linux return explicit unsupported states.
 - Updated `PrivilegedBroker` to implement the platform privilege contract.
 - Added acceptance coverage for cross-platform hotkey/privilege provider behavior and `PrivilegedBroker` async contract/audit behavior.
 

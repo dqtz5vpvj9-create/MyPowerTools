@@ -70,13 +70,20 @@ app.MapGrpcService<HostControlGrpcService>();
 app.MapGet("/", () => $"MyPowerTools.Runner {ProtocolConstants.HostVersion} is running.");
 
 Console.WriteLine($"MyPowerTools.Runner serving HostControl on {endpoint.Transport}:{endpoint.Address}");
-var tray = await StartTrayAsync(app, root, args);
+var windowsPlatform = OperatingSystem.IsWindows() ? new WindowsPlatformPack() : null;
+var tray = await StartTrayAsync(app, root, args, windowsPlatform);
+var hotkeys = await StartHotkeysAsync(root, args, windowsPlatform);
 try
 {
     await app.RunAsync();
 }
 finally
 {
+    if (hotkeys is not null)
+    {
+        await hotkeys.DisposeAsync();
+    }
+
     if (tray is not null)
     {
         await tray.DisposeAsync();
@@ -108,14 +115,16 @@ static IModuleTransportRuntime[] CreateTransportRuntimes()
     ];
 }
 
-static async Task<ITrayService?> StartTrayAsync(WebApplication app, string root, string[] args)
+static async Task<ITrayService?> StartTrayAsync(WebApplication app, string root, string[] args, WindowsPlatformPack? platform)
 {
-    if (args.Contains("--no-tray", StringComparer.OrdinalIgnoreCase) || !OperatingSystem.IsWindows())
+    if (args.Contains("--no-tray", StringComparer.OrdinalIgnoreCase) ||
+        platform is null ||
+        !OperatingSystem.IsWindows())
     {
         return null;
     }
 
-    var tray = new WindowsPlatformPack().Tray;
+    var tray = platform.Tray;
     var result = await tray.StartAsync(
         new TrayOptions(
             "MyPowerTools.Runner",
@@ -152,32 +161,71 @@ static async Task<ITrayService?> StartTrayAsync(WebApplication app, string root,
     return null;
 }
 
-static void StartShell(string root)
+static async Task<IHotkeyService?> StartHotkeysAsync(string root, string[] args, WindowsPlatformPack? platform)
 {
-    var startInfo = CreateShellStartInfo(root);
+    if (args.Contains("--no-hotkeys", StringComparer.OrdinalIgnoreCase) ||
+        platform is null ||
+        !OperatingSystem.IsWindows())
+    {
+        return null;
+    }
+
+    var hotkeys = platform.Hotkeys;
+    hotkeys.Pressed += (_, invocation) =>
+    {
+        if (!string.Equals(invocation.Id, "command-palette", StringComparison.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        try
+        {
+            StartShell(root, focusCommandPalette: true);
+            Console.WriteLine($"MyPowerTools.Runner hotkey invoked: {invocation.Gesture}");
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"MyPowerTools.Runner hotkey action failed: {ex.Message}");
+        }
+    };
+
+    var result = await hotkeys.RegisterAsync(
+        new HotkeyRegistration("command-palette", "Ctrl+Alt+Space", "runner", "Open the command palette."),
+        CancellationToken.None);
+    Console.WriteLine($"MyPowerTools.Runner hotkey {result.State}: {result.Message}");
+    return hotkeys;
+}
+
+static void StartShell(string root, bool focusCommandPalette = false)
+{
+    var startInfo = CreateShellStartInfo(root, focusCommandPalette);
     Process.Start(startInfo);
 }
 
-static ProcessStartInfo CreateShellStartInfo(string root)
+static ProcessStartInfo CreateShellStartInfo(string root, bool focusCommandPalette = false)
 {
     var siblingShell = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "Shell", "MyPowerTools.Shell.Avalonia.exe"));
     if (File.Exists(siblingShell))
     {
-        return new ProcessStartInfo
+        var siblingStartInfo = new ProcessStartInfo
         {
             FileName = siblingShell,
             UseShellExecute = false
         };
+        AddShellArguments(siblingStartInfo, focusCommandPalette);
+        return siblingStartInfo;
     }
 
     var debugShell = Path.Combine(root, "src", "MyPowerTools.Shell.Avalonia", "bin", "Debug", "net10.0", "MyPowerTools.Shell.Avalonia.exe");
     if (File.Exists(debugShell))
     {
-        return new ProcessStartInfo
+        var debugStartInfo = new ProcessStartInfo
         {
             FileName = debugShell,
             UseShellExecute = false
         };
+        AddShellArguments(debugStartInfo, focusCommandPalette);
+        return debugStartInfo;
     }
 
     var shellProject = Path.Combine(root, "src", "MyPowerTools.Shell.Avalonia", "MyPowerTools.Shell.Avalonia.csproj");
@@ -190,7 +238,23 @@ static ProcessStartInfo CreateShellStartInfo(string root)
     startInfo.ArgumentList.Add("run");
     startInfo.ArgumentList.Add("--project");
     startInfo.ArgumentList.Add(shellProject);
+    AddShellArguments(startInfo, focusCommandPalette, throughDotnetRun: true);
     return startInfo;
+}
+
+static void AddShellArguments(ProcessStartInfo startInfo, bool focusCommandPalette, bool throughDotnetRun = false)
+{
+    if (!focusCommandPalette)
+    {
+        return;
+    }
+
+    if (throughDotnetRun)
+    {
+        startInfo.ArgumentList.Add("--");
+    }
+
+    startInfo.ArgumentList.Add("--command-palette");
 }
 
 static string FindRepositoryRoot(string start)

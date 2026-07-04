@@ -7,15 +7,15 @@
     },
     {
       "Path": "DoubaoAgent.MyPowerTools.dll",
-      "Sha256": "92b88d4b04c6a8c5edfa5c0d5707321a327db3fa7f9c7fc5ba1947150a9fc77c"
+      "Sha256": "c4b5a0e2acedc6c9fbfef0d18ab665c4846d3e2eedc65ea015cb1f4255742d0c"
     },
     {
       "Path": "DoubaoAgent.MyPowerTools.pdb",
-      "Sha256": "c1a355748b5cb4816e2e84963b4ac73ac23e391ef3d9e45bf58c03785e36dbce"
+      "Sha256": "0626a78a45916ebb48a435b16c4afbf9114cae3ad8c6f19ab72eccba0ead6b94"
     },
     {
       "Path": "module.json",
-      "Sha256": "90fceed26babeca703792048f78f50d591f2ba633d709b27e58aafeda17dfd52"
+      "Sha256": "d73d461916f7a6b789950ded6d998ab7f36e0428f58b6877232cdad9fc23d551"
     },
     {
       "Path": "ui/dashboard-card.json",

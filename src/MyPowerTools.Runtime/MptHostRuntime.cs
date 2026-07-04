@@ -125,6 +125,12 @@ public sealed class MptHostRuntime : IAsyncDisposable
         ExpireProcessPolicies();
         foreach (var module in EnabledModules().ToArray())
         {
+            if (TryGetTransportRuntime(module, out var runtime))
+            {
+                var context = CreateModuleContext(module);
+                await ApplyPersistedSettingsIfPresentAsync(module, runtime, context, cancellationToken);
+            }
+
             var status = await CheckTransportHealthAsync(module, cancellationToken)
                 ?? await _healthMonitor.CheckAsync(module, cancellationToken);
             RecordModuleStatus(module, status);
@@ -145,6 +151,7 @@ public sealed class MptHostRuntime : IAsyncDisposable
             var context = CreateModuleContext(module);
             try
             {
+                await ApplyPersistedSettingsIfPresentAsync(module, runtime, context, cancellationToken);
                 var status = await runtime.GetStatusAsync(module, context, cancellationToken);
                 if (status is not null)
                 {
@@ -292,7 +299,11 @@ public sealed class MptHostRuntime : IAsyncDisposable
                         snapshot.ConsecutiveFailureCount,
                         snapshot.SupervisorState,
                         snapshot.NextAction,
-                        snapshot.LastObservedAt);
+                        snapshot.LastObservedAt,
+                        module.Entrypoint?.SelectionReason ?? "No compatible runnable entrypoint was selected.",
+                        module.TransportDiagnostics
+                            .Select(diagnostic => $"{diagnostic.State}:{diagnostic.TransportKind}:{diagnostic.Reason}")
+                            .ToArray());
                 })
                 .ToArray(),
             recentCommands);
@@ -663,7 +674,9 @@ public sealed class MptHostRuntime : IAsyncDisposable
 
         try
         {
-            return await runtime.ExecuteCommandAsync(record, CreateModuleContext(record), request, cancellationToken);
+            var context = CreateModuleContext(record);
+            await ApplyPersistedSettingsIfPresentAsync(record, runtime, context, cancellationToken);
+            return await runtime.ExecuteCommandAsync(record, context, request, cancellationToken);
         }
         catch (OperationCanceledException)
         {
@@ -674,6 +687,34 @@ public sealed class MptHostRuntime : IAsyncDisposable
         catch (Exception ex)
         {
             return Failed(request, MptErrorCodes.RuntimeUnavailable, LogRouter.Redact(ex.Message), retryable: true);
+        }
+    }
+
+    private async ValueTask ApplyPersistedSettingsIfPresentAsync(
+        RuntimeModuleRecord module,
+        IModuleTransportRuntime runtime,
+        ModuleContext context,
+        CancellationToken cancellationToken)
+    {
+        var snapshot = _settingsStore.Get(module.Module.Manifest.Id);
+        if (snapshot.Values.Count == 0)
+        {
+            return;
+        }
+
+        try
+        {
+            await runtime.ApplySettingsAsync(module, context, snapshot, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            var message = $"Persisted settings apply failed: {LogRouter.Redact(ex.Message)}";
+            RecordModuleStatus(module, Degraded(module, message));
+            _logRouter.Append(module.Module.Manifest.PackageId, module.Module.Manifest.Id, "error", message);
         }
     }
 
@@ -899,7 +940,7 @@ public sealed class MptHostRuntime : IAsyncDisposable
                 : "stopped";
         var summary = module.Entrypoint is null
             ? "No compatible runnable entrypoint for this platform."
-            : $"Indexed via {module.Entrypoint.Kind}.";
+            : $"Indexed via {module.Entrypoint.Kind}. {module.Entrypoint.SelectionReason}";
 
         return new ModuleStatusSnapshot(
             module.Module.Manifest.Id,
@@ -908,7 +949,7 @@ public sealed class MptHostRuntime : IAsyncDisposable
             DateTimeOffset.UtcNow,
             [
                 new HealthCheckSnapshot("manifest", "Manifest", true, "Loaded"),
-                new HealthCheckSnapshot("transport", "Transport", module.Entrypoint is not null, module.Entrypoint?.Kind ?? "No compatible entrypoint")
+                new HealthCheckSnapshot("transport", "Transport", module.Entrypoint is not null, module.Entrypoint?.SelectionReason ?? "No compatible entrypoint")
             ],
             module.Status.EventSeq);
     }

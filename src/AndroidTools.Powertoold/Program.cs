@@ -274,15 +274,18 @@ public sealed class AndroidToolsModuleControlService : ModuleControl.ModuleContr
     public override async Task<SettingsSnapshot> ApplySettings(ApplySettingsRequest request, ServerCallContext context)
     {
         var module = _registry.Get(request.ModuleId);
+        var values = ParseJsonObject(request.PatchJson);
         var validation = await module.ValidateSettingsAsync(
-            new SettingsPatch(request.ModuleId, request.ExpectedRevision, ParseJsonObject(request.PatchJson)),
+            new SettingsPatch(request.ModuleId, request.ExpectedRevision, values),
             context.CancellationToken);
         if (!validation.Ok)
         {
             throw new RpcException(new Status(StatusCode.InvalidArgument, string.Join("; ", validation.Messages)));
         }
 
-        var settings = await module.GetSettingsAsync(context.CancellationToken);
+        var settings = await module.ApplySettingsAsync(
+            new SettingsSnapshotDocument(request.ModuleId, request.ExpectedRevision, values, DateTimeOffset.UtcNow),
+            context.CancellationToken);
         return new SettingsSnapshot
         {
             ModuleId = settings.ModuleId,

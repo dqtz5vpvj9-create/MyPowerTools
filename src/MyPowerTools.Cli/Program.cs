@@ -8,6 +8,7 @@ using MyPowerTools.ModuleHost.GrpcIpc;
 using MyPowerTools.ModuleHost.InProcDotNet;
 using MyPowerTools.ModuleHost.StdioCompat;
 using MyPowerTools.Platform.Windows;
+using MyPowerTools.Shell.Avalonia;
 using System.Globalization;
 using System.Text.Json.Nodes;
 using MyPowerTools.HostControl;
@@ -528,7 +529,9 @@ static int UiShellSnapshot(string[] args, string root)
         GetOption(args, "--size") ?? "1366x768",
         GetOption(args, "--density") ?? "normal");
     var path = new UiSurfaceGate().WriteShellSnapshotSet(output, request);
+    var realPath = ShellRealScreenshotWriter.WriteSnapshotSet(output, request.Theme, request.Size, request.Density);
     Console.WriteLine(path);
+    Console.WriteLine(realPath);
     return 0;
 }
 
@@ -603,7 +606,11 @@ static int Diagnostics(string[] args, string root)
 
         foreach (var module in diagnostics.Modules)
         {
-            Console.WriteLine($"module: {module.ModuleId} state={module.State} transport={module.TransportKind} diagnostics={module.DiagnosticCount} supervisor={module.SupervisorState} failures={module.ConsecutiveFailureCount} observations={module.ObservationCount} action={module.SupervisorAction}");
+            Console.WriteLine($"module: {module.ModuleId} state={module.State} transport={module.TransportKind} selection=\"{module.TransportSelectionReason}\" diagnostics={module.DiagnosticCount} supervisor={module.SupervisorState} failures={module.ConsecutiveFailureCount} observations={module.ObservationCount} action={module.SupervisorAction}");
+            foreach (var selection in module.TransportSelectionDiagnostics)
+            {
+                Console.WriteLine($"module-transport: {module.ModuleId} {selection}");
+            }
         }
 
         return 0;
@@ -963,7 +970,7 @@ static int Help()
     Console.WriteLine("mpt module disable <module-id> [--modules <package-root>] [--data-root <dir>]");
     Console.WriteLine("mpt ui check <package-dir>");
     Console.WriteLine("mpt ui snapshot [package-dir] [--surface <id|kind>] [--theme <theme>] [--size <width>x<height>] [--density <density>] [--out <dir>]");
-    Console.WriteLine("mpt ui shell-snapshot [--surface <id|kind>] [--theme <theme>] [--size <width>x<height>] [--density <density>] [--out <dir>]");
+    Console.WriteLine("mpt ui shell-snapshot [--surface <id|kind>] [--theme <theme>] [--size <width>x<height>] [--density <density>] [--out <dir>] (writes contract and real Avalonia screenshots)");
     Console.WriteLine("mpt broker audit");
     Console.WriteLine("mpt broker secret self-test [--module <id>] [--name <name>]");
     Console.WriteLine("mpt broker portproxy list");

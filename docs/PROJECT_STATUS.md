@@ -15,7 +15,7 @@ Run date: 2026-07-04.
 | Production packages | 5: `adb-forwarder`, `android-tools-suite`, `doubao-agent`, `screenease`, `smartbird-thermostat` |
 | Production modules | 7 |
 | Templates | 6 |
-| Tests | 88 passed, 0 failed, 0 skipped |
+| Tests | 150 passed, 0 failed, 0 skipped |
 | Release artifact | `artifacts/release/MyPowerTools-win-x64.zip` |
 | Release SHA256 | `29BECF13374D92F100E58BA60F9187FD166C136919427B826C0A8979EEA3C670` |
 | Production closure | true |
@@ -27,13 +27,13 @@ Run date: 2026-07-04.
 | `dotnet --version` | `10.0.301` |
 | `dotnet restore MyPowerTools.slnx` | Succeeded; all projects were up-to-date. |
 | `dotnet build MyPowerTools.slnx --no-restore` | Succeeded with 0 warnings and 0 errors. |
-| `dotnet test MyPowerTools.slnx --no-build` | Passed 88, failed 0, skipped 0. |
+| `dotnet test MyPowerTools.slnx --no-build` | Passed 150, failed 0, skipped 0. |
 | `dotnet run --project src\MyPowerTools.Cli -- validate modules` | 5 production packages valid. |
 | `dotnet run --no-build --project src\MyPowerTools.Cli -- validate contracts` | 5 packages and 7 modules passed contract validation; AndroidTools runs through `grpc-ipc` powertoold with notifications running, remote commands running, process monitor degraded until a watch list is saved, and ScreenEase exposing 14 commands. |
 | `dotnet run --no-build --project src\MyPowerTools.Cli -- package trust modules --strict` | `signature-hook` trust passed for all 5 production packages after local hash/signature refresh. |
 | `dotnet run --project src\MyPowerTools.Cli -- ui check modules` | UI gate passed. |
 | `dotnet run --project src\MyPowerTools.Cli -- ui snapshot --surface dashboard-card --theme light --size 1366x768 --density normal --out artifacts\ui-snapshots` | Wrote 7 module dashboard-card contract snapshots and 7 PNG pixel snapshots. |
-| `dotnet run --project src\MyPowerTools.Cli -- ui shell-snapshot --theme light --size 1366x768 --density normal --out artifacts\shell-ui-snapshots` | Wrote 10 Shell surface snapshots and 10 PNG pixel snapshots with 12 keyboard shortcut entries, 7 focus state entries, Settings conflict, Command Palette permission-required, and Logs streaming states. |
+| `dotnet run --project src\MyPowerTools.Cli -- ui shell-snapshot --theme light --size 1366x768 --density normal --out artifacts\shell-ui-snapshots` | Wrote 10 Shell contract snapshots and 10 contract PNG snapshots plus `shell-real-screenshot-manifest.json` with 8 real Avalonia screenshots. |
 | `dotnet run --project src\MyPowerTools.Runner -- --once` | 7 modules indexed; AndroidTools Notifications and Remote Commands run through powertoold, AndroidTools Process Monitor reports its watch-list degraded state, and current expected degraded states remain for Doubao partial services, ScreenEase unsupported DDC/CI monitor hardware, and SmartBird Energy Server/FNB-58 dependencies. |
 | `dotnet run --no-build --project src\MyPowerTools.Cli -- diagnostics` | Reports 5 packages, 7 modules, 81 commands, AndroidTools under `grpc-ipc`, one shared process pool, and per-module `supervisor` state with consecutive failure counts and next actions. |
 | `dotnet run --no-build --project src\MyPowerTools.Cli -- runner process pause . --duration-minutes 1` | With a temporary Runner active, selected the AndroidTools shared gRPC pool, paused automatic restart for one minute, printed expiry/modules, then resume restored automatic policy. |
@@ -56,7 +56,7 @@ Run date: 2026-07-04.
 |---|---|
 | Final audit | `docs/P8_FINAL_AUDIT.md` records scan commands, findings, and classifications for TODO/FIXME/placeholder/stub/fake/coming soon, unsupported states, sample modules, hardcoded user paths, release URLs, and secret patterns. |
 | Cleanup fixes | Local package signature algorithm was renamed from `sha256-manifest-placeholder` to `sha256-manifest-local`; `UiSurfaceGate.WriteSnapshotPlaceholder` was renamed to `WriteDefaultSnapshotSet`; production package signatures were refreshed. |
-| Final validation | SDK 10.0.301, restore, build 0/0, tests 88/0/0, module validation, contract validation, UI gate, UI snapshots, diagnostics, inspect, module list, Runner once, template validation, smoke, publish, release package trust, release Runner once, release Shell smoke, autostart dry-run, install/uninstall dry-run, metadata hash parity, and zip hygiene all passed. |
+| Final validation | SDK 10.0.301, restore, build 0/0, tests 150/0/0, module validation, contract validation, UI gate, UI snapshots, diagnostics, inspect, module list, Runner once, template validation, smoke, publish, release package trust, release Runner once, release Shell smoke, autostart dry-run, install/uninstall dry-run, metadata hash parity, and zip hygiene all passed. |
 | Release artifact | `artifacts/release/MyPowerTools-win-x64.zip`, SHA256 `29BECF13374D92F100E58BA60F9187FD166C136919427B826C0A8979EEA3C670`, size 171498490 bytes. |
 | Closure | `.codex/project-state.json` marks P8 complete with `productionClosure=true`; remaining work is external validation only. |
 
@@ -66,9 +66,9 @@ Run date: 2026-07-04.
 |---|---|
 | Platform abstractions | Added `ILocalIpc`, `LocalIpcService`, `IHotkeyService`, `IPrivilegeBroker`, unsupported provider implementations for notification, autostart, service, network, process, hotkey, and privilege surfaces, plus managed process inspection. |
 | macOS/Linux packs | `MacPlatformPack` and `LinuxPlatformPack` now expose local IPC, notification, autostart, service, network, process, display, tray, secret, hotkey, and privilege services. Unsupported providers return explicit `unsupported` state/messages; process inspection uses the managed runtime where supported. |
-| Windows pack | `WindowsPlatformPack` exposes `LocalIpc`, `Hotkeys`, and `Privileges`; Windows Runner IPC remains Named Pipe based, hotkey registration is truthfully marked pending, and privilege evaluation returns broker-required. |
+| Windows pack | `WindowsPlatformPack` exposes `LocalIpc`, `Hotkeys`, and `Privileges`; Windows Runner IPC remains Named Pipe based, `Hotkeys` registers real Win32 `RegisterHotKey` gestures for the Runner command palette shortcut, and privilege evaluation returns broker-required. |
 | Acceptance coverage | Added tests for required capability failure -> `unsupported`, optional capability failure -> `degraded`, platform-native IPC endpoint shapes, Mac/Linux degraded service behavior, hotkey/privilege provider surfaces, and `PrivilegedBroker` implementing the platform privilege contract. |
-| P7 validation | Build passed with 0 warnings, 88 tests passed, module inspection shows requirements and broker permissions, diagnostics reports Windows `grpc-ipc` runtime process state, contract validation passed, strict package trust passed, and `scripts/smoke.ps1` passed. |
+| P7 validation | Build passed with 0 warnings, 150 tests passed, module inspection shows requirements and broker permissions, diagnostics reports Windows `grpc-ipc` runtime process state, contract validation passed, strict package trust passed, and `scripts/smoke.ps1` passed. |
 
 ## P6 Progress On 2026-07-04
 

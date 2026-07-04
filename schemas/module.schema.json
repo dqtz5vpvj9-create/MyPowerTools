@@ -142,6 +142,10 @@
       "$ref": "#/$defs/runtimePolicy",
       "description": "Runtime isolation preference and guardrails. Complex or native modules should prefer sidecar/service transports; InProc is a trusted optimized path."
     },
+    "development": {
+      "$ref": "#/$defs/development",
+      "description": "Development-only switches. Production manifests should omit this block."
+    },
     "uiSurfaces": {
       "type": "array",
       "items": {
@@ -239,6 +243,16 @@
         "killProcessTree": {
           "type": "boolean",
           "default": true
+        }
+      },
+      "additionalProperties": false
+    },
+    "development": {
+      "type": "object",
+      "properties": {
+        "allowAlreadyLoadedFallback": {
+          "type": "boolean",
+          "default": false
         }
       },
       "additionalProperties": false

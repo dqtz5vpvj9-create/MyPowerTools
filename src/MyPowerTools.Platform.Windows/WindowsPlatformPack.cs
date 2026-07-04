@@ -18,7 +18,7 @@ public sealed class WindowsPlatformPack
     public ICapabilityRegistry Capabilities { get; } = new CapabilityRegistry(
     [
         new("tray", "user", true, "Windows tray", "Windows tray provider available."),
-        new("hotkey.global", "user", false, "Win32 hotkey", "Global hotkey provider surface exists; native registration is pending."),
+        new("hotkey.global", "user", true, "Win32 RegisterHotKey", "Global hotkey provider registers Win32 user hotkeys."),
         new("notification.desktop", "user", true, "Windows notification", "Desktop notification provider available."),
         new("autostart.user", "user", true, "Startup folder", "User autostart provider available."),
         new("service.user", "user", true, "sc.exe / Task Scheduler", "User service diagnostics available."),
@@ -39,9 +39,16 @@ public sealed class WindowsPlatformPack
     public IDisplayService Display { get; } = new WindowsDisplayService();
     public IAutostartService Autostart { get; } = new WindowsAutostartService();
     public ITrayService Tray { get; } = new WindowsTrayService();
-    public IHotkeyService Hotkeys { get; } = new UnsupportedHotkeyService("Win32 hotkey", "Global hotkey provider surface exists; native registration is pending.");
+    public IHotkeyService Hotkeys { get; } = CreateHotkeyService();
     public IPrivilegeBroker Privileges { get; } = new BrokerRequiredPrivilegeBroker("UAC broker", "Elevated actions require MyPowerTools Broker approval and audit.");
     public ILocalIpc LocalIpc { get; } = new LocalIpcService(Platform);
+
+    private static IHotkeyService CreateHotkeyService()
+    {
+        return OperatingSystem.IsWindows()
+            ? new WindowsGlobalHotkeyService()
+            : new UnsupportedHotkeyService("Win32 RegisterHotKey", "Windows global hotkeys require user32.dll.");
+    }
 }
 
 public sealed class WindowsServiceManager : IServiceManager

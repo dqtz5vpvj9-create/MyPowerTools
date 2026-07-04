@@ -25,7 +25,8 @@ public sealed class PackageRegistry
         {
             foreach (var module in package.Modules)
             {
-                var entrypoint = _transportSelector.Select(package, module);
+                var selection = _transportSelector.Select(package, module);
+                var entrypoint = selection.Entrypoint;
                 var state = entrypoint is null
                     ? "unsupported"
                     : entrypoint.Kind == "inproc-dotnet"
@@ -33,12 +34,13 @@ public sealed class PackageRegistry
                         : "stopped";
                 var summary = entrypoint is null
                     ? "No compatible runnable entrypoint for this platform."
-                    : $"Indexed via {entrypoint.Kind}.";
+                    : $"Indexed via {entrypoint.Kind}. {entrypoint.SelectionReason}";
 
                 _modules.Add(new RuntimeModuleRecord(
                     package,
                     module,
                     entrypoint,
+                    selection.Diagnostics,
                     new ModuleStatusSnapshot(
                         module.Manifest.Id,
                         state,
@@ -46,7 +48,7 @@ public sealed class PackageRegistry
                         DateTimeOffset.UtcNow,
                         [
                             new HealthCheckSnapshot("manifest", "Manifest", true, "Loaded"),
-                            new HealthCheckSnapshot("transport", "Transport", entrypoint is not null, entrypoint?.Kind ?? "No compatible entrypoint")
+                            new HealthCheckSnapshot("transport", "Transport", entrypoint is not null, entrypoint?.SelectionReason ?? "No compatible entrypoint")
                         ],
                         0)));
             }

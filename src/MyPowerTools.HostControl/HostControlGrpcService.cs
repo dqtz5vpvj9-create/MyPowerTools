@@ -690,22 +690,28 @@ public sealed class HostControlGrpcService : HostProto.HostControl.HostControlBa
             mapped.ModuleIds.AddRange(entry.ModuleIds);
             return mapped;
         }));
-        response.Modules.AddRange(diagnostics.Modules.Select(module => new HostProto.RuntimeModuleDiagnostics
+        response.Modules.AddRange(diagnostics.Modules.Select(module =>
         {
-            ModuleId = module.ModuleId,
-            PackageId = module.PackageId,
-            DisplayName = module.DisplayName,
-            State = module.State,
-            Summary = module.Summary,
-            Enabled = module.Enabled,
-            TransportKind = module.TransportKind,
-            UpdatedAt = Timestamp.FromDateTimeOffset(module.UpdatedAt),
-            DiagnosticCount = (uint)module.DiagnosticCount,
-            ObservationCount = (uint)Math.Max(0, module.ObservationCount),
-            ConsecutiveFailureCount = (uint)Math.Max(0, module.ConsecutiveFailureCount),
-            SupervisorState = module.SupervisorState,
-            SupervisorAction = module.SupervisorAction,
-            LastObservedAt = Timestamp.FromDateTimeOffset(module.LastObservedAt)
+            var mapped = new HostProto.RuntimeModuleDiagnostics
+            {
+                ModuleId = module.ModuleId,
+                PackageId = module.PackageId,
+                DisplayName = module.DisplayName,
+                State = module.State,
+                Summary = module.Summary,
+                Enabled = module.Enabled,
+                TransportKind = module.TransportKind,
+                UpdatedAt = Timestamp.FromDateTimeOffset(module.UpdatedAt),
+                DiagnosticCount = (uint)module.DiagnosticCount,
+                ObservationCount = (uint)Math.Max(0, module.ObservationCount),
+                ConsecutiveFailureCount = (uint)Math.Max(0, module.ConsecutiveFailureCount),
+                SupervisorState = module.SupervisorState,
+                SupervisorAction = module.SupervisorAction,
+                LastObservedAt = Timestamp.FromDateTimeOffset(module.LastObservedAt),
+                TransportSelectionReason = module.TransportSelectionReason
+            };
+            mapped.TransportSelectionDiagnostics.AddRange(module.TransportSelectionDiagnostics);
+            return mapped;
         }));
         response.RecentCommands.AddRange(diagnostics.RecentCommands.Select(command => new HostProto.RuntimeCommandHistoryEntry
         {

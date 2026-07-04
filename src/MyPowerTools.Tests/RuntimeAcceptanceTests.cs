@@ -127,6 +127,10 @@ Address         Port        Address         Port
                 ["killProcessTree"] = true
             }
         });
+        manifest["development"] = new JsonObject
+        {
+            ["allowAlreadyLoadedFallback"] = true
+        };
         File.WriteAllText(
             Path.Combine(packageRoot, "module.json"),
             manifest.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
@@ -146,6 +150,8 @@ Address         Port        Address         Port
         Assert.Equal(8000, module.RuntimePolicy.SidecarRules!.ReadyTimeoutMs);
         Assert.Equal(4, module.RuntimePolicy.SidecarRules.RestartLimit);
         Assert.True(module.RuntimePolicy.SidecarRules.KillProcessTree);
+        Assert.NotNull(module.Development);
+        Assert.True(module.Development!.AllowAlreadyLoadedFallback);
     }
 
     [Fact]
@@ -174,6 +180,111 @@ Address         Port        Address         Port
 
         Assert.False(report.IsValid);
         Assert.Contains(report.Issues, issue => issue.Severity == "error" && issue.Message.Contains("module.schema.json", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Runtime_policy_prefers_sidecar_over_higher_priority_inproc()
+    {
+        var packageRoot = Path.Combine(Path.GetTempPath(), "mpt-runtime-policy-sidecar", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(Path.Combine(packageRoot, "tools"));
+        File.WriteAllText(Path.Combine(packageRoot, "tools", "sidecar.exe"), "");
+        WriteRuntimePolicySelectionModule(
+            packageRoot,
+            new JsonObject
+            {
+                ["preferred"] = "sidecar",
+                ["allowInProc"] = true,
+                ["inProcRules"] = RuntimePolicyInProcRules(3000),
+                ["sidecarRules"] = RuntimePolicySidecarRules(9000, 2, 12)
+            },
+            includeSidecar: true,
+            includeInProc: true);
+        var runtime = new MptHostRuntime(
+            new PackageReader(),
+            PlatformId.Current(),
+            RuntimePaths.Create(Path.Combine(Path.GetTempPath(), "mpt-runtime-policy-sidecar-state", Guid.NewGuid().ToString("N"))));
+
+        runtime.Load(packageRoot);
+        var module = Assert.Single(runtime.Modules);
+        var diagnostics = Assert.Single(runtime.GetRuntimeDiagnostics().Modules);
+
+        Assert.Equal("grpc-ipc", module.Entrypoint!.Kind);
+        Assert.Equal(2, module.Entrypoint.SidecarRestartLimit);
+        Assert.Equal(12, module.Entrypoint.SidecarRestartWindowSeconds);
+        Assert.Contains("runtimePolicy.preferred='sidecar' matched", module.Entrypoint.SelectionReason);
+        Assert.Contains(module.TransportDiagnostics, diagnostic => diagnostic.State == "selected" && diagnostic.TransportKind == "grpc-ipc");
+        Assert.Contains("runtimePolicy.preferred='sidecar' matched", diagnostics.TransportSelectionReason);
+        Assert.Contains(diagnostics.TransportSelectionDiagnostics, item => item.Contains("selected:grpc-ipc", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public void Runtime_policy_blocks_inproc_when_allow_inproc_is_false()
+    {
+        var packageRoot = Path.Combine(Path.GetTempPath(), "mpt-runtime-policy-no-inproc", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(packageRoot);
+        WriteRuntimePolicySelectionModule(
+            packageRoot,
+            new JsonObject
+            {
+                ["preferred"] = "inproc",
+                ["allowInProc"] = false,
+                ["inProcRules"] = RuntimePolicyInProcRules(3000)
+            },
+            includeSidecar: false,
+            includeInProc: true);
+        var runtime = new MptHostRuntime(
+            new PackageReader(),
+            PlatformId.Current(),
+            RuntimePaths.Create(Path.Combine(Path.GetTempPath(), "mpt-runtime-policy-no-inproc-state", Guid.NewGuid().ToString("N"))));
+
+        runtime.Load(packageRoot);
+        var module = Assert.Single(runtime.Modules);
+
+        Assert.Null(module.Entrypoint);
+        Assert.Equal("unsupported", module.Status.State);
+        Assert.Contains(module.TransportDiagnostics, diagnostic =>
+            diagnostic.State == "skipped" &&
+            diagnostic.TransportKind == "inproc-dotnet" &&
+            diagnostic.Reason.Contains("allowInProc=false", StringComparison.Ordinal));
+    }
+
+    [Fact]
+    public async Task Inproc_already_loaded_fallback_requires_development_flag()
+    {
+        _ = typeof(SampleDotNetModule).Assembly;
+        var packageRoot = Path.Combine(Path.GetTempPath(), "mpt-inproc-fallback", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(packageRoot);
+        WriteMissingAssemblyInProcModule(packageRoot, allowDevelopmentFallback: false);
+        var package = new PackageReader().ReadPackageDirectory(packageRoot);
+        await using var host = new InProcDotNetModuleHost();
+
+        var blocked = await Assert.ThrowsAsync<FileNotFoundException>(async () =>
+            await host.LoadAsync(package.Modules.Single(), CancellationToken.None).AsTask());
+
+        WriteMissingAssemblyInProcModule(packageRoot, allowDevelopmentFallback: true);
+        package = new PackageReader().ReadPackageDirectory(packageRoot);
+        var loaded = await host.LoadAsync(package.Modules.Single(), CancellationToken.None);
+        var result = await loaded.ExecuteCommandAsync(new CommandRequest("fallback", "sample.dotnet.ping", new JsonObject()), CancellationToken.None);
+
+        Assert.Contains("development.allowAlreadyLoadedFallback", blocked.Message);
+        Assert.True(result.Success, result.Error?.Message);
+    }
+
+    [Fact]
+    public void Production_modules_declare_runtime_policy_without_development_fallback()
+    {
+        var packages = new PackageReader().DiscoverPackages(Path.Combine(Root, "modules"));
+
+        foreach (var module in packages.SelectMany(package => package.Modules))
+        {
+            Assert.NotNull(module.Manifest.RuntimePolicy);
+            Assert.Null(module.Manifest.Development);
+            if (module.Manifest.PackageId == "android-tools-suite")
+            {
+                Assert.False(module.Manifest.RuntimePolicy!.AllowInProc);
+                Assert.Equal("sidecar", module.Manifest.RuntimePolicy.Preferred);
+            }
+        }
     }
 
     [Fact]
@@ -377,8 +488,9 @@ Address         Port        Address         Port
         Assert.True(manifest["snapshotCount"]!.GetValue<int>() >= 5);
         Assert.Equal(manifest["snapshotCount"]!.GetValue<int>(), manifest["pixelSnapshotCount"]!.GetValue<int>());
         Assert.Contains(snapshots, item => item!["surfaceId"]!.GetValue<string>() == "adb-forwarder.dashboard");
-        Assert.All(Directory.GetFiles(output, "*.snapshot.json"), path => Assert.Contains("sourceSha256", File.ReadAllText(path)));
-        Assert.Equal(snapshots.Count, Directory.GetFiles(output, "*.snapshot.png").Length);
+        Assert.Equal("contract", manifest["artifactKind"]!.GetValue<string>());
+        Assert.All(Directory.GetFiles(output, "*.contract.json"), path => Assert.Contains("sourceSha256", File.ReadAllText(path)));
+        Assert.Equal(snapshots.Count, Directory.GetFiles(output, "*.contract.png").Length);
         Assert.All(snapshots, item =>
         {
             var pixelName = item!["pixelSnapshot"]!.GetValue<string>();
@@ -590,11 +702,10 @@ Address         Port        Address         Port
     {
         var workspacePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellWorkspaceController.cs");
         var moduleDetailViewPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Views", "ModuleDetailView.axaml");
-        var viewModelPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "ViewModels", "ShellPageViewModels.cs");
         var servicePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellPageDataService.cs");
         var workspace = File.ReadAllText(workspacePath);
         var moduleDetailView = File.ReadAllText(moduleDetailViewPath);
-        var viewModel = File.ReadAllText(viewModelPath);
+        var viewModel = ReadShellViewModelsText();
         var service = File.ReadAllText(servicePath);
 
         Assert.Contains("_pageData.LoadModuleDetailAsync", workspace);
@@ -617,11 +728,10 @@ Address         Port        Address         Port
     {
         var workspacePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellWorkspaceController.cs");
         var dashboardViewPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Views", "DashboardView.axaml");
-        var viewModelPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "ViewModels", "ShellPageViewModels.cs");
         var servicePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellPageDataService.cs");
         var workspace = File.ReadAllText(workspacePath);
         var dashboardView = File.ReadAllText(dashboardViewPath);
-        var viewModel = File.ReadAllText(viewModelPath);
+        var viewModel = ReadShellViewModelsText();
         var service = File.ReadAllText(servicePath);
 
         Assert.Contains("_pageData.LoadDashboardAsync", workspace);
@@ -726,11 +836,10 @@ Address         Port        Address         Port
     {
         var workspacePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellWorkspaceController.cs");
         var commandPaletteViewPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Views", "CommandPaletteView.axaml");
-        var viewModelPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "ViewModels", "ShellPageViewModels.cs");
         var servicePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellPageDataService.cs");
         var workspace = File.ReadAllText(workspacePath);
         var commandPaletteView = File.ReadAllText(commandPaletteViewPath);
-        var viewModel = File.ReadAllText(viewModelPath);
+        var viewModel = ReadShellViewModelsText();
         var service = File.ReadAllText(servicePath);
 
         Assert.Contains("_pageData.LoadCommandsAsync", workspace);
@@ -1141,11 +1250,10 @@ Address         Port        Address         Port
     {
         var workspacePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellWorkspaceController.cs");
         var settingsViewPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Views", "SettingsCenterView.axaml");
-        var viewModelPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "ViewModels", "ShellPageViewModels.cs");
         var servicePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellPageDataService.cs");
         var workspace = File.ReadAllText(workspacePath);
         var settingsView = File.ReadAllText(settingsViewPath);
-        var viewModel = File.ReadAllText(viewModelPath);
+        var viewModel = ReadShellViewModelsText();
         var service = File.ReadAllText(servicePath);
 
         Assert.Contains("_pageData.LoadSettingsAsync", workspace);
@@ -1317,12 +1425,11 @@ Address         Port        Address         Port
         var workspacePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellWorkspaceController.cs");
         var permissionViewPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Views", "PermissionPromptView.axaml");
         var auditViewPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Views", "BrokerAuditView.axaml");
-        var viewModelPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "ViewModels", "ShellPageViewModels.cs");
         var servicePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellPageDataService.cs");
         var workspace = File.ReadAllText(workspacePath);
         var permissionView = File.ReadAllText(permissionViewPath);
         var auditView = File.ReadAllText(auditViewPath);
-        var viewModel = File.ReadAllText(viewModelPath);
+        var viewModel = ReadShellViewModelsText();
         var service = File.ReadAllText(servicePath);
 
         Assert.Contains("new PermissionPromptView", workspace);
@@ -1347,10 +1454,9 @@ Address         Port        Address         Port
     {
         var workspacePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellWorkspaceController.cs");
         var unavailableViewPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Views", "UnavailablePageView.axaml");
-        var viewModelPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "ViewModels", "ShellPageViewModels.cs");
         var workspace = File.ReadAllText(workspacePath);
         var unavailableView = File.ReadAllText(unavailableViewPath);
-        var viewModel = File.ReadAllText(viewModelPath);
+        var viewModel = ReadShellViewModelsText();
 
         Assert.Contains("new UnavailablePageView", workspace);
         Assert.Contains("new UnavailablePageViewModel", workspace);
@@ -1366,11 +1472,10 @@ Address         Port        Address         Port
         var mainWindowPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "MainWindow.cs");
         var shellChromeViewPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Views", "ShellChromeView.axaml");
         var codeBehindPath = shellChromeViewPath + ".cs";
-        var viewModelPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "ViewModels", "ShellPageViewModels.cs");
         var mainWindow = File.ReadAllText(mainWindowPath);
         var shellChromeView = File.ReadAllText(shellChromeViewPath);
         var codeBehind = File.ReadAllText(codeBehindPath);
-        var viewModel = File.ReadAllText(viewModelPath);
+        var viewModel = ReadShellViewModelsText();
 
         Assert.Contains("new ShellChromeView", mainWindow);
         Assert.Contains("new ShellChromeViewModel", mainWindow);
@@ -1563,6 +1668,19 @@ Address         Port        Address         Port
     }
 
     [Fact]
+    public void Shell_viewmodel_files_stay_split_by_page()
+    {
+        var viewModelRoot = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "ViewModels");
+        var files = Directory.EnumerateFiles(viewModelRoot, "*.cs").ToArray();
+        var shellPageFile = Path.Combine(viewModelRoot, "ShellPageViewModels.cs");
+
+        Assert.Contains(files, file => Path.GetFileName(file) == "ShellPageViewModelFactory.DashboardCommands.cs");
+        Assert.Contains(files, file => Path.GetFileName(file) == "SettingsCenterViewModel.cs");
+        Assert.Contains("View model definitions are split", File.ReadAllText(shellPageFile));
+        Assert.All(files, file => Assert.True(File.ReadLines(file).Count() <= 350, $"{file} must stay <= 350 lines."));
+    }
+
+    [Fact]
     public void Ui_shell_snapshot_writes_key_surface_matrix()
     {
         var output = Path.Combine(Path.GetTempPath(), "mpt-shell-ui-snapshot", Guid.NewGuid().ToString("N"));
@@ -1578,6 +1696,7 @@ Address         Port        Address         Port
 
         Assert.True(File.Exists(manifestPath));
         Assert.Equal("1.0", manifest["schemaVersion"]!.GetValue<string>());
+        Assert.Equal("contract", manifest["artifactKind"]!.GetValue<string>());
         Assert.Equal(8, manifest["requiredSurfaceCount"]!.GetValue<int>());
         Assert.True(manifest["snapshotCount"]!.GetValue<int>() >= required.Length);
         Assert.Equal(manifest["snapshotCount"]!.GetValue<int>(), manifest["pixelSnapshotCount"]!.GetValue<int>());
@@ -1622,7 +1741,7 @@ Address         Port        Address         Port
             .First(item => item!["surfaceId"]!.GetValue<string>() == "shell.logs-viewer")!
             .AsObject();
         Assert.Contains(logsViewer["states"]!.AsArray(), item => item!.GetValue<string>() == "streaming");
-        Assert.Equal(snapshots.Count, Directory.GetFiles(output, "*.snapshot.png").Length);
+        Assert.Equal(snapshots.Count, Directory.GetFiles(output, "*.contract.png").Length);
         Assert.All(snapshots, item =>
         {
             var pixelName = item!["pixelSnapshot"]!.GetValue<string>();
@@ -1634,6 +1753,46 @@ Address         Port        Address         Port
             Assert.Equal(768, item["pixelHeight"]!.GetValue<int>());
             Assert.True(item["pixelUniqueColorCount"]!.GetValue<int>() > 3);
             Assert.True(item["pixelNonBackgroundPixels"]!.GetValue<int>() > 0);
+        });
+    }
+
+    [Fact]
+    public void Ui_shell_real_screenshot_renders_actual_avalonia_pngs()
+    {
+        var output = Path.Combine(Path.GetTempPath(), "mpt-shell-real-screenshot", Guid.NewGuid().ToString("N"));
+        var manifestPath = ShellRealScreenshotWriter.WriteSnapshotSet(output, "light", "1366x768", "normal");
+        var manifest = JsonNode.Parse(File.ReadAllText(manifestPath))!.AsObject();
+        var screenshots = manifest["screenshots"]!.AsArray();
+        var requiredScreens = new[]
+        {
+            "dashboard",
+            "command-palette-with-params",
+            "settings-dirty-state",
+            "module-detail-degraded",
+            "logs-long-lines",
+            "notifications-list",
+            "packages",
+            "diagnostics-wide"
+        };
+
+        Assert.Equal("real-avalonia-screenshot", manifest["artifactKind"]!.GetValue<string>());
+        Assert.Equal(requiredScreens.Length, manifest["screenshotCount"]!.GetValue<int>());
+        foreach (var screenId in requiredScreens)
+        {
+            Assert.Contains(screenshots, item => item!["screenId"]!.GetValue<string>() == screenId);
+        }
+
+        Assert.All(screenshots, item =>
+        {
+            var fileName = item!["fileName"]!.GetValue<string>();
+            var path = Path.Combine(output, fileName);
+            var bytes = File.ReadAllBytes(path);
+            Assert.True(bytes.Length > 1000, $"Real screenshot {path} should be non-empty.");
+            Assert.Equal(new byte[] { 137, 80, 78, 71, 13, 10, 26, 10 }, bytes.Take(8).ToArray());
+            Assert.Equal(64, item["sha256"]!.GetValue<string>().Length);
+            Assert.Equal(1366, item["width"]!.GetValue<int>());
+            Assert.Equal(768, item["height"]!.GetValue<int>());
+            Assert.Equal("Avalonia.Headless", item["renderer"]!.GetValue<string>());
         });
     }
 
@@ -1906,6 +2065,179 @@ Address         Port        Address         Port
         Assert.Contains("ApplySettingsAsync(new ApplySettingsRequest", grpcHost);
         Assert.Contains("saved and applied", shellSettings);
         Assert.Contains("apply failed", shellSettings);
+    }
+
+    [Fact]
+    public async Task Settings_apply_through_hostcontrol_changes_doubao_command_behavior()
+    {
+        await using var host = new InProcDotNetModuleHost();
+        var runtime = new MptHostRuntime(
+            new PackageReader(),
+            PlatformId.Current(),
+            RuntimePaths.Create(Path.Combine(Path.GetTempPath(), "mpt-settings-doubao-real", Guid.NewGuid().ToString("N"))),
+            [host]);
+        runtime.Load(Path.Combine(Root, "modules"));
+        await runtime.RefreshDynamicCommandsAsync(CancellationToken.None);
+        var service = new HostControlGrpcService(runtime, new AuditLog(Path.Combine(Path.GetTempPath(), "mpt-settings-doubao-real-audit", Guid.NewGuid().ToString("N"), "audit.jsonl")));
+
+        var current = await service.GetSettings(new HostProto.GetSettingsRequest { ModuleId = "doubao-agent" }, new TestServerCallContext());
+        var saved = await service.UpdateSettings(
+            new HostProto.UpdateSettingsRequest
+            {
+                ModuleId = "doubao-agent",
+                ExpectedRevision = current.Revision,
+                Patch = JsonStructMapper.ToStruct(new JsonObject
+                {
+                    ["plannerBaseUrl"] = "http://127.0.0.1:45678",
+                    ["toolBaseUrl"] = "http://127.0.0.1:45679",
+                    ["mcpBaseUrl"] = "http://127.0.0.1:45680",
+                    ["healthPath"] = "/ready"
+                })
+            },
+            new TestServerCallContext());
+        var command = await service.ExecuteCommand(
+            new HostProto.ExecuteCommandRequest
+            {
+                InvocationId = "doubao-settings-hostcontrol",
+                CommandId = "doubao-agent.self-test",
+                Args = JsonStructMapper.ToStruct(new JsonObject())
+            },
+            new TestServerCallContext());
+
+        var payload = JsonNode.Parse(command.Summary)!.AsObject();
+        var services = payload["services"]!.AsArray().Select(item => item!.AsObject()).ToArray();
+
+        Assert.Equal("applied", saved.ApplyState);
+        Assert.Equal("succeeded", command.State);
+        Assert.Contains(services, service => service["id"]!.GetValue<string>() == "planner" && service["baseUrl"]!.GetValue<string>().Contains("45678", StringComparison.Ordinal));
+        Assert.Contains(services, service => service["id"]!.GetValue<string>() == "tool" && service["baseUrl"]!.GetValue<string>().Contains("45679", StringComparison.Ordinal));
+        Assert.Contains(services, service => service["id"]!.GetValue<string>() == "mcp" && service["healthPath"]!.GetValue<string>() == "/ready");
+    }
+
+    [Fact]
+    public async Task Production_inproc_settings_apply_changes_module_command_behavior()
+    {
+        await using var host = new InProcDotNetModuleHost();
+        var runtime = new MptHostRuntime(
+            new PackageReader(),
+            PlatformId.Current(),
+            RuntimePaths.Create(Path.Combine(Path.GetTempPath(), "mpt-settings-production-real", Guid.NewGuid().ToString("N"))),
+            [host]);
+        runtime.Load(Path.Combine(Root, "modules"));
+        await runtime.RefreshDynamicCommandsAsync(CancellationToken.None);
+
+        var adbCurrent = runtime.GetSettings("adb-forwarder");
+        var adb = await runtime.UpdateSettingsWithApplyAsync(
+            new SettingsPatch("adb-forwarder", adbCurrent.Revision, new JsonObject { ["adbPath"] = "mpt-missing-adb-from-settings" }),
+            CancellationToken.None);
+        var devices = await runtime.ExecuteCommandAsync(
+            new CommandRequest("adb-settings-devices", "adb-forwarder.devices.scan", new JsonObject()),
+            CancellationToken.None);
+        var devicesPayload = JsonNode.Parse(devices.Output)!.AsObject();
+
+        var screenCurrent = runtime.GetSettings("screenease");
+        var screen = await runtime.UpdateSettingsWithApplyAsync(
+            new SettingsPatch("screenease", screenCurrent.Revision, new JsonObject { ["activeProfileId"] = "focus" }),
+            CancellationToken.None);
+        var screenPlan = await runtime.ExecuteCommandAsync(
+            new CommandRequest("screenease-settings-plan", "screenease.profile.plan", new JsonObject()),
+            CancellationToken.None);
+        var screenPayload = JsonNode.Parse(screenPlan.Output)!.AsObject();
+
+        await using var server = TestHttpFacadeServer.Start();
+        var smartCurrent = runtime.GetSettings("smartbird-thermostat");
+        var smart = await runtime.UpdateSettingsWithApplyAsync(
+            new SettingsPatch("smartbird-thermostat", smartCurrent.Revision, new JsonObject
+            {
+                ["baseUrl"] = server.BaseUrl,
+                ["energyServerBaseUrl"] = server.BaseUrl,
+                ["targetTemperatureC"] = 61
+            }),
+            CancellationToken.None);
+        var config = await runtime.ExecuteCommandAsync(
+            new CommandRequest("smartbird-settings-config", "smartbird-thermostat.config.get", new JsonObject()),
+            CancellationToken.None);
+        var configPayload = JsonNode.Parse(config.Output)!.AsObject()["localConfig"]!.AsObject();
+
+        Assert.Equal("applied", adb.ApplyState);
+        Assert.True(devices.Success);
+        Assert.Equal("mpt-missing-adb-from-settings", devicesPayload["tool"]!.GetValue<string>());
+        Assert.Equal("applied", screen.ApplyState);
+        Assert.True(screenPlan.Success);
+        Assert.Equal("focus", screenPayload["profile"]!.AsObject()["id"]!.GetValue<string>());
+        Assert.Equal("applied", smart.ApplyState);
+        Assert.True(config.Success);
+        Assert.Equal(server.BaseUrl, configPayload["baseUrl"]!.GetValue<string>());
+        Assert.Equal(61, configPayload["targetTemperatureC"]!.GetValue<double>());
+    }
+
+    [Fact]
+    public async Task AndroidTools_settings_apply_changes_module_command_behavior()
+    {
+        var commandsRoot = Path.Combine(Path.GetTempPath(), "mpt-android-settings-commands", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(commandsRoot);
+        var commandsPath = Path.Combine(commandsRoot, "commands.yaml");
+        await File.WriteAllTextAsync(commandsPath, """
+commands:
+  - id: settings_echo
+    label: Settings Echo
+    command: remove_cpp_comments
+    description: Command imported from Host settings path.
+    type: py
+""");
+
+        var remote = new AndroidToolsRemoteCommandsModule();
+        await remote.InitializeAsync(CreateModuleContext("android-tools-suite", "android-tools.remote-commands", "android-remote-settings", ["remote.commands"]), CancellationToken.None);
+        await remote.ApplySettingsAsync(
+            new SettingsSnapshotDocument("android-tools.remote-commands", 2, new JsonObject { ["commandsYamlPath"] = commandsPath }, DateTimeOffset.UtcNow),
+            CancellationToken.None);
+        var remoteCommands = await remote.ListCommandsAsync(CancellationToken.None);
+        var catalog = await remote.ExecuteCommandAsync(
+            new CommandRequest("android-remote-settings-catalog", "android-tools.remote-commands.catalog.summary", new JsonObject()),
+            CancellationToken.None);
+
+        var notifications = new AndroidToolsNotificationsModule();
+        await notifications.InitializeAsync(CreateModuleContext("android-tools-suite", "android-tools.notifications", "android-notifications-settings", ["notifications.remote"]), CancellationToken.None);
+        await notifications.ApplySettingsAsync(
+            new SettingsSnapshotDocument("android-tools.notifications", 2, new JsonObject
+            {
+                ["serverProtocol"] = "http",
+                ["serverHost"] = "127.0.0.1",
+                ["serverPort"] = 34567
+            }, DateTimeOffset.UtcNow),
+            CancellationToken.None);
+        var inbox = await notifications.ExecuteCommandAsync(
+            new CommandRequest("android-notifications-settings-inbox", "android-tools.notifications.inbox.summary", new JsonObject()),
+            CancellationToken.None);
+        var endpoint = JsonNode.Parse(inbox.Output)!.AsObject()["endpoint"]!.AsObject();
+
+        await using var grpcHost = new GrpcIpcModuleRuntime();
+        await using var runtime = new MptHostRuntime(
+            new PackageReader(),
+            PlatformId.Current(),
+            RuntimePaths.Create(Path.Combine(Path.GetTempPath(), "mpt-android-settings-grpc", Guid.NewGuid().ToString("N"))),
+            [grpcHost]);
+        runtime.Load(Path.Combine(Root, "modules"));
+        await runtime.RefreshDynamicCommandsAsync(CancellationToken.None);
+        var current = runtime.GetSettings("android-tools.process-monitor");
+        var process = await runtime.UpdateSettingsWithApplyAsync(
+            new SettingsPatch("android-tools.process-monitor", current.Revision, new JsonObject { ["processes"] = new JsonArray("dotnet", "pwsh") }),
+            CancellationToken.None);
+        var summary = await runtime.ExecuteCommandAsync(
+            new CommandRequest("android-process-settings-summary", "android-tools.process-monitor.status.summary", new JsonObject()),
+            CancellationToken.None);
+        var configured = JsonNode.Parse(summary.Output)!.AsObject()["configured"]!.AsArray().Select(item => item!.GetValue<string>()).ToArray();
+
+        Assert.Contains(remoteCommands, command => command.Id == "android-tools.remote-commands.run.settings_echo");
+        Assert.Contains("host-settings", catalog.Output);
+        Assert.True(inbox.Success);
+        Assert.True(endpoint["found"]!.GetValue<bool>());
+        Assert.Equal("127.0.0.1", endpoint["host"]!.GetValue<string>());
+        Assert.Equal(34567, endpoint["port"]!.GetValue<int>());
+        Assert.Equal("applied", process.ApplyState);
+        Assert.True(summary.Success);
+        Assert.Contains("dotnet", configured);
+        Assert.Contains("pwsh", configured);
     }
 
     [Fact]
@@ -2422,6 +2754,7 @@ Address         Port        Address         Port
         var linux = new LinuxPlatformPack();
 
         var registration = new HotkeyRegistration("command-palette", "Ctrl+Alt+Space", "runner", "Open the command palette.");
+        var windowsRegistration = new HotkeyRegistration("command-palette-test", "Ctrl+Shift+F24", "runner", "Test Windows global hotkey registration.");
         var request = new PrivilegeRequest(
             "network.portproxy.apply",
             "elevated",
@@ -2439,13 +2772,25 @@ Address         Port        Address         Port
         if (OperatingSystem.IsWindows())
         {
             var windows = new WindowsPlatformPack();
-            var windowsHotkey = await windows.Hotkeys.RegisterAsync(registration, CancellationToken.None);
+            await using var windowsHotkeys = windows.Hotkeys;
+            var windowsHotkey = await windowsHotkeys.RegisterAsync(windowsRegistration, CancellationToken.None);
             var windowsPrivilege = await windows.Privileges.EvaluateAsync(request, CancellationToken.None);
 
-            Assert.False(windows.Capabilities.Resolve("hotkey.global").Supported);
+            Assert.True(windows.Capabilities.Resolve("hotkey.global").Supported);
             Assert.True(windows.Capabilities.Resolve("privilege.elevated").Supported);
-            Assert.False(windowsHotkey.Success);
-            Assert.Equal("unsupported", windowsHotkey.State);
+            Assert.NotEqual("unsupported", windowsHotkey.State);
+            if (windowsHotkey.Success)
+            {
+                Assert.Equal("registered", windowsHotkey.State);
+                var unregister = await windowsHotkeys.UnregisterAsync(windowsRegistration.Id, CancellationToken.None);
+                Assert.True(unregister.Success);
+                Assert.Equal("unregistered", unregister.State);
+            }
+            else
+            {
+                Assert.Contains(windowsHotkey.State, ["conflict", "failed"]);
+            }
+
             Assert.True(windowsPrivilege.RequiresBroker);
             Assert.Equal("permission-required", windowsPrivilege.State);
             Assert.Contains("Broker", windowsPrivilege.Message, StringComparison.OrdinalIgnoreCase);
@@ -2462,6 +2807,46 @@ Address         Port        Address         Port
         Assert.Equal("unsupported", linuxHotkey.State);
         Assert.Equal("unsupported", linuxPrivilege.State);
         Assert.True(linuxPrivilege.RequiresBroker);
+    }
+
+    [Fact]
+    public void Windows_hotkey_gesture_parser_maps_command_palette_gesture()
+    {
+        Assert.True(WindowsHotkeyGesture.TryParse("Alt + Ctrl + Space", out var parsed, out var error), error);
+        Assert.NotNull(parsed);
+        Assert.Equal("Ctrl+Alt+Space", parsed!.NormalizedGesture);
+        Assert.Equal(0x0001u | 0x0002u, parsed.Modifiers);
+        Assert.Equal(0x20u, parsed.VirtualKey);
+
+        Assert.True(WindowsHotkeyGesture.TryParse("Ctrl+Shift+F24", out var functionKey, out error), error);
+        Assert.Equal("Ctrl+Shift+F24", functionKey!.NormalizedGesture);
+
+        Assert.False(WindowsHotkeyGesture.TryParse("Space", out _, out error));
+        Assert.Contains("modifier", error, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Runner_wires_windows_global_hotkey_to_command_palette_startup()
+    {
+        var runnerPath = Path.Combine(Root, "src", "MyPowerTools.Runner", "Program.cs");
+        var appPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "App.cs");
+        var mainWindowPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "MainWindow.cs");
+        var workspacePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellWorkspaceController.cs");
+        var startupOptionsPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "ShellStartupOptions.cs");
+        var runner = File.ReadAllText(runnerPath);
+        var app = File.ReadAllText(appPath);
+        var mainWindow = File.ReadAllText(mainWindowPath);
+        var workspace = File.ReadAllText(workspacePath);
+        var startupOptions = File.ReadAllText(startupOptionsPath);
+
+        Assert.Contains("StartHotkeysAsync", runner);
+        Assert.Contains("new HotkeyRegistration(\"command-palette\", \"Ctrl+Alt+Space\"", runner);
+        Assert.Contains("--command-palette", runner);
+        Assert.Contains("hotkeys.Pressed", runner);
+        Assert.Contains("ShellStartupOptions.FromArgs", app);
+        Assert.Contains("--command-palette", startupOptions);
+        Assert.Contains("FocusCommandPaletteAsync", mainWindow);
+        Assert.Contains("public async Task FocusCommandPaletteAsync()", workspace);
     }
 
     [Fact]
@@ -3081,6 +3466,129 @@ public sealed class GeneratedModule : IMptModule
             ["runtimePolicy"] = runtimePolicy,
             ["capabilities"] = new JsonArray("status", "commands")
         };
+    }
+
+    private static JsonObject RuntimePolicyInProcRules(int maxCallMs)
+    {
+        return new JsonObject
+        {
+            ["maxCallMs"] = maxCallMs,
+            ["allowNativeDll"] = false,
+            ["allowWindow"] = false,
+            ["allowBackgroundThreads"] = false,
+            ["loadContext"] = "collectible",
+            ["shadowCopy"] = true
+        };
+    }
+
+    private static JsonObject RuntimePolicySidecarRules(int readyTimeoutMs, int restartLimit, int restartWindowSeconds)
+    {
+        return new JsonObject
+        {
+            ["readyTimeoutMs"] = readyTimeoutMs,
+            ["restartLimit"] = restartLimit,
+            ["restartWindowSeconds"] = restartWindowSeconds,
+            ["killProcessTree"] = true
+        };
+    }
+
+    private static void WriteRuntimePolicySelectionModule(
+        string packageRoot,
+        JsonObject runtimePolicy,
+        bool includeSidecar,
+        bool includeInProc)
+    {
+        var entrypoints = new JsonArray();
+        if (includeInProc)
+        {
+            var assemblyPath = typeof(SampleDotNetModule).Assembly.Location;
+            var assemblyName = Path.GetFileName(assemblyPath);
+            File.Copy(assemblyPath, Path.Combine(packageRoot, assemblyName), overwrite: true);
+            entrypoints.Add(new JsonObject
+            {
+                ["kind"] = "inproc-dotnet",
+                ["priority"] = 100,
+                ["assembly"] = assemblyName,
+                ["type"] = "MyPowerTools.SampleModules.DotNet.SampleDotNetModule"
+            });
+        }
+
+        if (includeSidecar)
+        {
+            entrypoints.Add(new JsonObject
+            {
+                ["kind"] = "grpc-ipc",
+                ["priority"] = 10,
+                ["command"] = "tools/sidecar.exe",
+                ["windows"] = new JsonObject
+                {
+                    ["transport"] = "named-pipe",
+                    ["name"] = "mypowertools.runtime-policy-test"
+                },
+                ["linux"] = new JsonObject
+                {
+                    ["transport"] = "unix-domain-socket",
+                    ["path"] = "/tmp/mypowertools-runtime-policy-test.sock"
+                },
+                ["macos"] = new JsonObject
+                {
+                    ["transport"] = "unix-domain-socket",
+                    ["path"] = "/tmp/mypowertools-runtime-policy-test.sock"
+                }
+            });
+        }
+
+        var manifest = new JsonObject
+        {
+            ["schemaVersion"] = "1.0",
+            ["id"] = "runtime-policy-selection",
+            ["packageId"] = "runtime-policy-selection",
+            ["displayName"] = "Runtime Policy Selection",
+            ["version"] = "0.2.0",
+            ["moduleSdk"] = "1.0",
+            ["entrypoints"] = entrypoints,
+            ["runtimePolicy"] = runtimePolicy,
+            ["capabilities"] = new JsonArray("status", "commands")
+        };
+        File.WriteAllText(
+            Path.Combine(packageRoot, "module.json"),
+            manifest.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+    }
+
+    private static void WriteMissingAssemblyInProcModule(string packageRoot, bool allowDevelopmentFallback)
+    {
+        var manifest = new JsonObject
+        {
+            ["schemaVersion"] = "1.0",
+            ["id"] = "sample.dotnet",
+            ["packageId"] = "sample-dotnet",
+            ["displayName"] = "Sample .NET Module",
+            ["version"] = "0.2.0",
+            ["moduleSdk"] = "1.0",
+            ["entrypoints"] = new JsonArray
+            {
+                new JsonObject
+                {
+                    ["kind"] = "inproc-dotnet",
+                    ["priority"] = 100,
+                    ["assembly"] = "MyPowerTools.SampleModules.DotNet.dll",
+                    ["type"] = "MyPowerTools.SampleModules.DotNet.SampleDotNetModule"
+                }
+            },
+            ["capabilities"] = new JsonArray("status", "commands")
+        };
+
+        if (allowDevelopmentFallback)
+        {
+            manifest["development"] = new JsonObject
+            {
+                ["allowAlreadyLoadedFallback"] = true
+            };
+        }
+
+        File.WriteAllText(
+            Path.Combine(packageRoot, "module.json"),
+            manifest.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
     }
 
     [Fact]
@@ -4729,6 +5237,16 @@ cloud_server_protocol: str = "https"
         }
 
         return Directory.GetCurrentDirectory();
+    }
+
+    private static string ReadShellViewModelsText()
+    {
+        var viewModelRoot = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "ViewModels");
+        return string.Join(
+            Environment.NewLine,
+            Directory.EnumerateFiles(viewModelRoot, "*.cs", SearchOption.AllDirectories)
+                .OrderBy(Path.GetFileName, StringComparer.OrdinalIgnoreCase)
+                .Select(File.ReadAllText));
     }
 
     private static JsonObject CreateAdbPortProxyArgs(string currentPortProxyText)

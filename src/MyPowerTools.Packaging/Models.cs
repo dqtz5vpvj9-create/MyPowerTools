@@ -74,6 +74,7 @@ public sealed class MptModuleManifest
     public List<string> UiSurfaces { get; init; } = [];
     public Dictionary<string, JsonElement>? StaticIndexes { get; init; }
     public MptRuntimePolicyManifest? RuntimePolicy { get; init; }
+    public MptDevelopmentManifest? Development { get; init; }
 
     [JsonExtensionData]
     public Dictionary<string, JsonElement> ExtensionData { get; init; } = [];
@@ -143,6 +144,14 @@ public sealed class MptSidecarRuntimeRulesManifest
     public int? RestartLimit { get; init; }
     public int? RestartWindowSeconds { get; init; }
     public bool? KillProcessTree { get; init; }
+
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement> ExtensionData { get; init; } = [];
+}
+
+public sealed class MptDevelopmentManifest
+{
+    public bool AllowAlreadyLoadedFallback { get; init; }
 
     [JsonExtensionData]
     public Dictionary<string, JsonElement> ExtensionData { get; init; } = [];

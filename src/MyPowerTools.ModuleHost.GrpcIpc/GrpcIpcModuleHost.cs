@@ -43,9 +43,11 @@ public sealed class GrpcIpcModuleHost : IAsyncDisposable
     private string _endpoint = "";
     private int _stdoutLineCount;
     private int _stderrLineCount;
+    private bool _killProcessTree = true;
 
     public async Task InitializeAsync(SelectedEntrypoint entrypoint, ModuleContext context, CancellationToken cancellationToken)
     {
+        _killProcessTree = entrypoint.SidecarKillProcessTree ?? true;
         if (!string.IsNullOrWhiteSpace(entrypoint.Command))
         {
             StartSidecar(entrypoint);
@@ -54,7 +56,12 @@ public sealed class GrpcIpcModuleHost : IAsyncDisposable
         _channel = CreateChannel(entrypoint);
         _client = new ModuleControl.ModuleControlClient(_channel);
 
-        await InitializeModuleAsync(context, cancellationToken);
+        using var readyTimeout = entrypoint.SidecarReadyTimeoutMs is > 0
+            ? CancellationTokenSource.CreateLinkedTokenSource(cancellationToken)
+            : null;
+        readyTimeout?.CancelAfter(TimeSpan.FromMilliseconds(entrypoint.SidecarReadyTimeoutMs!.Value));
+
+        await InitializeModuleAsync(context, readyTimeout?.Token ?? cancellationToken);
     }
 
     public async Task InitializeModuleAsync(ModuleContext context, CancellationToken cancellationToken)
@@ -276,7 +283,7 @@ public sealed class GrpcIpcModuleHost : IAsyncDisposable
         {
             if (!process.HasExited)
             {
-                process.Kill(entireProcessTree: true);
+                process.Kill(entireProcessTree: _killProcessTree);
                 await process.WaitForExitAsync();
             }
 
@@ -391,8 +398,7 @@ public sealed class GrpcIpcModuleHost : IAsyncDisposable
 
 public sealed class GrpcIpcModuleRuntime : IModuleTransportRuntime, IModuleTransportDiagnosticsProvider, IAsyncDisposable
 {
-    private static readonly TimeSpan RestartWindow = TimeSpan.FromSeconds(30);
-    private const int MaxStartsPerWindow = 4;
+    private static readonly GrpcIpcPoolRuntimePolicy DefaultPoolRuntimePolicy = new(4, TimeSpan.FromSeconds(30));
 
     private readonly SemaphoreSlim _poolLock = new(1, 1);
     private readonly Dictionary<string, GrpcIpcModuleHost> _hosts = new(StringComparer.OrdinalIgnoreCase);
@@ -400,6 +406,7 @@ public sealed class GrpcIpcModuleRuntime : IModuleTransportRuntime, IModuleTrans
     private readonly Dictionary<string, HashSet<string>> _knownPoolModules = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, List<DateTimeOffset>> _startHistory = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, GrpcIpcRestartPolicy> _restartPolicies = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, GrpcIpcPoolRuntimePolicy> _poolRuntimePolicies = new(StringComparer.OrdinalIgnoreCase);
 
     public string Kind => "grpc-ipc";
 
@@ -485,6 +492,7 @@ public sealed class GrpcIpcModuleRuntime : IModuleTransportRuntime, IModuleTrans
             _knownPoolModules.Clear();
             _startHistory.Clear();
             _restartPolicies.Clear();
+            _poolRuntimePolicies.Clear();
         }
         finally
         {
@@ -502,11 +510,12 @@ public sealed class GrpcIpcModuleRuntime : IModuleTransportRuntime, IModuleTrans
                 {
                     _initializedModules.TryGetValue(pair.Key, out var modules);
                     _startHistory.TryGetValue(pair.Key, out var starts);
+                    var runtimePolicy = RuntimePolicyForPool(pair.Key);
                     var host = pair.Value.GetDiagnostics(
                         pair.Key,
                         ModuleIdsForPool(pair.Key, modules),
                         starts?.Count ?? 0,
-                        MaxStartsPerWindow);
+                        runtimePolicy.RestartLimit);
                     var policy = PolicyForPool(pair.Key);
                     return new RuntimeProcessDiagnostics(
                         Kind,
@@ -538,7 +547,7 @@ public sealed class GrpcIpcModuleRuntime : IModuleTransportRuntime, IModuleTrans
                             0,
                             "",
                             starts?.Count ?? 0,
-                            MaxStartsPerWindow,
+                            RuntimePolicyForPool(pair.Key).RestartLimit,
                             pair.Value.State,
                             pair.Value.Reason,
                             null,
@@ -639,7 +648,9 @@ public sealed class GrpcIpcModuleRuntime : IModuleTransportRuntime, IModuleTrans
                 throw new InvalidOperationException($"Module {module.Module.Manifest.Id} has no selected gRPC IPC entrypoint.");
             }
 
-            RecordStartOrThrow(poolKey);
+            var runtimePolicy = RuntimePolicyFor(module);
+            _poolRuntimePolicies[poolKey] = runtimePolicy;
+            RecordStartOrThrow(poolKey, runtimePolicy);
             var host = new GrpcIpcModuleHost();
             await host.InitializeAsync(module.Entrypoint, context, cancellationToken);
             _hosts[poolKey] = host;
@@ -752,7 +763,25 @@ public sealed class GrpcIpcModuleRuntime : IModuleTransportRuntime, IModuleTrans
             : new GrpcIpcRestartPolicy("automatic", "", DateTimeOffset.MinValue, null);
     }
 
-    private void RecordStartOrThrow(string poolKey)
+    private GrpcIpcPoolRuntimePolicy RuntimePolicyForPool(string poolKey)
+    {
+        return _poolRuntimePolicies.TryGetValue(poolKey, out var policy)
+            ? policy
+            : DefaultPoolRuntimePolicy;
+    }
+
+    private static GrpcIpcPoolRuntimePolicy RuntimePolicyFor(RuntimeModuleRecord module)
+    {
+        var restartLimit = module.Entrypoint?.SidecarRestartLimit is > 0
+            ? module.Entrypoint.SidecarRestartLimit.Value
+            : DefaultPoolRuntimePolicy.RestartLimit;
+        var restartWindow = module.Entrypoint?.SidecarRestartWindowSeconds is > 0
+            ? TimeSpan.FromSeconds(module.Entrypoint.SidecarRestartWindowSeconds.Value)
+            : DefaultPoolRuntimePolicy.RestartWindow;
+        return new GrpcIpcPoolRuntimePolicy(restartLimit, restartWindow);
+    }
+
+    private void RecordStartOrThrow(string poolKey, GrpcIpcPoolRuntimePolicy runtimePolicy)
     {
         var now = DateTimeOffset.UtcNow;
         if (!_startHistory.TryGetValue(poolKey, out var starts))
@@ -761,8 +790,8 @@ public sealed class GrpcIpcModuleRuntime : IModuleTransportRuntime, IModuleTrans
             _startHistory[poolKey] = starts;
         }
 
-        starts.RemoveAll(start => now - start > RestartWindow);
-        if (starts.Count >= MaxStartsPerWindow)
+        starts.RemoveAll(start => now - start > runtimePolicy.RestartWindow);
+        if (starts.Count >= runtimePolicy.RestartLimit)
         {
             throw new InvalidOperationException($"gRPC IPC runtime '{poolKey}' restart limit reached.");
         }
@@ -792,3 +821,5 @@ public sealed class GrpcIpcModuleRuntime : IModuleTransportRuntime, IModuleTrans
                ex is InvalidOperationException;
     }
 }
+
+internal sealed record GrpcIpcPoolRuntimePolicy(int RestartLimit, TimeSpan RestartWindow);

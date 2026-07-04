@@ -204,6 +204,13 @@ public sealed class ScreenEaseModule : IMptModule
             messages.Count == 0 ? null : new MptRuntimeError(MptErrorCodes.ValidationFailed, string.Join("; ", messages))));
     }
 
+    public ValueTask<SettingsSnapshotDocument> ApplySettingsAsync(SettingsSnapshotDocument snapshot, CancellationToken cancellationToken)
+    {
+        var state = ScreenEaseState.FromSettings(snapshot.Values);
+        Store.Save(state);
+        return ValueTask.FromResult(state.ToSettingsSnapshot(Id) with { Revision = snapshot.Revision });
+    }
+
     public ValueTask<IReadOnlyList<UiSurfaceDescriptor>> ListSurfacesAsync(CancellationToken cancellationToken)
     {
         IReadOnlyList<UiSurfaceDescriptor> surfaces =
@@ -550,6 +557,33 @@ internal sealed record ScreenEaseState(
             DateTimeOffset.UtcNow);
     }
 
+    public static ScreenEaseState FromSettings(JsonObject values)
+    {
+        var defaults = Default();
+        var profiles = values.TryGetPropertyValue("profiles", out var profilesNode) && profilesNode is JsonArray profilesArray
+            ? profilesArray.OfType<JsonObject>().Select(ScreenEaseProfile.FromJson).Where(profile => profile.Validate().Count == 0).ToArray()
+            : defaults.Profiles;
+        if (profiles.Count == 0)
+        {
+            profiles = defaults.Profiles;
+        }
+
+        var rules = values.TryGetPropertyValue("rules", out var rulesNode) && rulesNode is JsonArray rulesArray
+            ? rulesArray.OfType<JsonObject>().Select(ScreenEaseRule.FromJson).ToArray()
+            : defaults.Rules;
+        var activeProfileId = SettingsJson.ReadString(values, "activeProfileId") ?? defaults.ActiveProfileId;
+        if (!profiles.Any(profile => string.Equals(profile.Id, activeProfileId, StringComparison.OrdinalIgnoreCase)))
+        {
+            activeProfileId = profiles[0].Id;
+        }
+
+        var nativeHost = values.TryGetPropertyValue("nativeHost", out var nativeHostNode) && nativeHostNode is JsonObject nativeHostObject
+            ? ScreenEaseNativeHostState.FromJson(nativeHostObject)
+            : defaults.NativeHost;
+
+        return new ScreenEaseState(activeProfileId, profiles, rules, nativeHost, DateTimeOffset.UtcNow);
+    }
+
     public ScreenEaseProfile? FindProfile(string id)
     {
         return Profiles.FirstOrDefault(profile => string.Equals(profile.Id, id, StringComparison.OrdinalIgnoreCase));
@@ -688,6 +722,15 @@ internal sealed record ScreenEaseProfile(string Id, string Name, int Brightness,
 
 internal sealed record ScreenEaseRule(string Id, string ProfileId, bool Enabled, string Condition)
 {
+    public static ScreenEaseRule FromJson(JsonObject node)
+    {
+        return new ScreenEaseRule(
+            SettingsJson.ReadString(node, "id") ?? "",
+            SettingsJson.ReadString(node, "profileId") ?? "",
+            SettingsJson.ReadBool(node, "enabled") ?? true,
+            SettingsJson.ReadString(node, "condition") ?? "");
+    }
+
     public JsonObject ToJson(string profileName)
     {
         return new JsonObject
@@ -704,6 +747,14 @@ internal sealed record ScreenEaseRule(string Id, string ProfileId, bool Enabled,
 
 internal sealed record ScreenEaseNativeHostState(bool Enabled, bool Available, string Message)
 {
+    public static ScreenEaseNativeHostState FromJson(JsonObject node)
+    {
+        return new ScreenEaseNativeHostState(
+            SettingsJson.ReadBool(node, "enabled") ?? false,
+            SettingsJson.ReadBool(node, "available") ?? false,
+            SettingsJson.ReadString(node, "message") ?? "ScreenEase native host is pending; state/profile management is available.");
+    }
+
     public JsonObject ToJson()
     {
         return new JsonObject

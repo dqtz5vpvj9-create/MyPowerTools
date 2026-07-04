@@ -121,6 +121,14 @@ public sealed class ShellWorkspaceController : IAsyncDisposable
         }
     }
 
+    public async Task FocusCommandPaletteAsync()
+    {
+        _searchBox.Focus();
+        _searchBox.SelectAll();
+        SetStatus("Command Palette focused.");
+        await LoadCommandsAsync(_searchBox.Text ?? "");
+    }
+
     public async ValueTask DisposeAsync()
     {
         await _runnerEvents.DisposeAsync();
@@ -142,10 +150,7 @@ public sealed class ShellWorkspaceController : IAsyncDisposable
         switch (shortcut.Action)
         {
             case ShellKeyboardAction.FocusCommandPalette:
-                _searchBox.Focus();
-                _searchBox.SelectAll();
-                SetStatus("Command Palette focused.");
-                await LoadCommandsAsync(_searchBox.Text ?? "");
+                await FocusCommandPaletteAsync();
                 break;
             case ShellKeyboardAction.ClearCommandPalette:
                 _searchBox.Text = "";

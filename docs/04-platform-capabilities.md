@@ -102,7 +102,7 @@ src/MyPowerTools.Platform.Linux
 |---|---|
 | Windows IPC | `LocalIpcService` uses Named Pipe endpoints. |
 | macOS/Linux IPC | `LocalIpcService` uses Unix Domain Socket paths. |
-| Hotkey providers | `IHotkeyService` exists across platform packs. Windows exposes a truthful pending provider; macOS/Linux return explicit `unsupported` states for Event tap and X11/Wayland providers. |
+| Hotkey providers | `IHotkeyService` exists across platform packs. Windows uses a real Win32 `RegisterHotKey` provider with Runner-owned command palette registration; macOS/Linux return explicit `unsupported` states for Event tap and X11/Wayland providers. |
 | Privilege broker providers | `IPrivilegeBroker` exists across platform packs. Windows returns `permission-required` through a broker-required provider and `PrivilegedBroker` implements the same contract; macOS/Linux return explicit `unsupported` states for privileged helper/polkit providers. |
 | macOS degraded providers | Notification, autostart, service, network, display, tray, hotkey, privilege, and secret providers return explicit unsupported state/messages; process inspection uses the managed runtime. |
 | Linux degraded providers | Notification, autostart, service, network, display, tray, hotkey, privilege, and secret providers return explicit unsupported state/messages; process inspection uses the managed runtime. |

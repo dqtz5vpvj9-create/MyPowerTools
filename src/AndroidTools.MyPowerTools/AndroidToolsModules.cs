@@ -12,12 +12,14 @@ namespace AndroidTools.MyPowerTools;
 
 public sealed class AndroidToolsRemoteCommandsModule : AndroidToolsModuleBase
 {
+    private JsonObject _settings = RemoteDefaultSettings();
+
     public override string Id => "android-tools.remote-commands";
     public override string DisplayName => "Remote Commands";
 
     public override ValueTask<ModuleStatusSnapshot> GetStatusAsync(CancellationToken cancellationToken)
     {
-        var catalog = Shared.LoadCommandCatalog();
+        var catalog = LoadCatalog();
         var history = Shared.LoadRemoteCommandHistorySummary();
         var checks = new[]
         {
@@ -31,7 +33,7 @@ public sealed class AndroidToolsRemoteCommandsModule : AndroidToolsModuleBase
 
     public override ValueTask<IReadOnlyList<MptCommandDescriptor>> ListCommandsAsync(CancellationToken cancellationToken)
     {
-        var catalog = Shared.LoadCommandCatalog();
+        var catalog = LoadCatalog();
         var commands = new List<MptCommandDescriptor>
         {
             Command("android-tools.remote-commands.catalog.summary", "Summarize imported remote commands", "List commands imported from powertool commands.yaml"),
@@ -61,7 +63,7 @@ public sealed class AndroidToolsRemoteCommandsModule : AndroidToolsModuleBase
     {
         if (request.CommandId == "android-tools.remote-commands.catalog.summary")
         {
-            return Succeeded(request, Shared.LoadCommandCatalog().ToJson().ToJsonString());
+            return Succeeded(request, LoadCatalog().ToJson().ToJsonString());
         }
 
         if (request.CommandId == "android-tools.remote-commands.history.summary")
@@ -76,7 +78,7 @@ public sealed class AndroidToolsRemoteCommandsModule : AndroidToolsModuleBase
         }
 
         var commandId = request.CommandId[prefix.Length..];
-        var catalog = Shared.LoadCommandCatalog();
+        var catalog = LoadCatalog();
         var command = catalog.Commands.FirstOrDefault(item => string.Equals(item.Id, commandId, StringComparison.OrdinalIgnoreCase));
         if (command is null)
         {
@@ -111,17 +113,19 @@ public sealed class AndroidToolsRemoteCommandsModule : AndroidToolsModuleBase
 
     public override ValueTask<SettingsSnapshotDocument> GetSettingsAsync(CancellationToken cancellationToken)
     {
-        return ValueTask.FromResult(new SettingsSnapshotDocument(
-            Id,
-            1,
-            new JsonObject
-            {
-                ["commandsYamlPath"] = "auto",
-                ["defaultHost"] = "r743",
-                ["shellExecutionMode"] = "explicit",
-                ["historyRetention"] = 500
-            },
-            DateTimeOffset.UtcNow));
+        return ValueTask.FromResult(new SettingsSnapshotDocument(Id, 1, (JsonObject)_settings.DeepClone(), DateTimeOffset.UtcNow));
+    }
+
+    public override ValueTask<SettingsSnapshotDocument> ApplySettingsAsync(SettingsSnapshotDocument snapshot, CancellationToken cancellationToken)
+    {
+        _settings = SettingsJson.Merge(RemoteDefaultSettings(), snapshot.Values);
+        return ValueTask.FromResult(snapshot with { Values = (JsonObject)_settings.DeepClone() });
+    }
+
+    private CommandCatalog LoadCatalog()
+    {
+        var path = SettingsJson.ReadString(_settings, "commandsYamlPath");
+        return Shared.LoadCommandCatalog(string.Equals(path, "auto", StringComparison.OrdinalIgnoreCase) ? null : path);
     }
 
     private CommandExecutionResult ExecutePythonTool(CommandRequest request, PowerToolCommand command)
@@ -202,16 +206,29 @@ public sealed class AndroidToolsRemoteCommandsModule : AndroidToolsModuleBase
         return name is "replace_host_directory" or "remove_cpp_comments" or "remove_latex_comment_lines" or
             "format_latex_comma_period_lines" or "add_extract_result_prefix" or "gen_rsync_from_folders";
     }
+
+    private static JsonObject RemoteDefaultSettings()
+    {
+        return new JsonObject
+        {
+            ["commandsYamlPath"] = "auto",
+            ["defaultHost"] = "r743",
+            ["shellExecutionMode"] = "explicit",
+            ["historyRetention"] = 500
+        };
+    }
 }
 
 public sealed class AndroidToolsNotificationsModule : AndroidToolsModuleBase
 {
+    private JsonObject? _settings;
+
     public override string Id => "android-tools.notifications";
     public override string DisplayName => "Remote Notifications";
 
     public override ValueTask<ModuleStatusSnapshot> GetStatusAsync(CancellationToken cancellationToken)
     {
-        var endpoint = Shared.LoadNotificationEndpoint();
+        var endpoint = CurrentEndpoint();
         var checks = new[]
         {
             new HealthCheckSnapshot("notification.config", "Notification endpoint config", endpoint.Found, endpoint.Message),
@@ -237,8 +254,8 @@ public sealed class AndroidToolsNotificationsModule : AndroidToolsModuleBase
     {
         return request.CommandId switch
         {
-            "android-tools.notifications.server.check" => Succeeded(request, (await Shared.CheckNotificationServerAsync(cancellationToken)).ToJsonString()),
-            "android-tools.notifications.inbox.summary" => Succeeded(request, Shared.NotificationInboxSummary().ToJsonString()),
+            "android-tools.notifications.server.check" => Succeeded(request, (await Shared.CheckNotificationServerAsync(CurrentEndpoint(), cancellationToken)).ToJsonString()),
+            "android-tools.notifications.inbox.summary" => Succeeded(request, Shared.NotificationInboxSummary(CurrentEndpoint()).ToJsonString()),
             "android-tools.notifications.test-event" => Succeeded(request, new JsonObject
             {
                 ["moduleId"] = Id,
@@ -270,32 +287,57 @@ public sealed class AndroidToolsNotificationsModule : AndroidToolsModuleBase
 
     public override ValueTask<SettingsSnapshotDocument> GetSettingsAsync(CancellationToken cancellationToken)
     {
-        var endpoint = Shared.LoadNotificationEndpoint();
-        return ValueTask.FromResult(new SettingsSnapshotDocument(
-            Id,
-            1,
-            new JsonObject
-            {
-                ["enabled"] = true,
-                ["serverProtocol"] = endpoint.Protocol,
-                ["serverHost"] = endpoint.Host,
-                ["serverPort"] = endpoint.Port,
-                ["defaultChannel"] = "default",
-                ["pollIntervalSeconds"] = 30,
-                ["tagFilter"] = new JsonArray()
-            },
-            DateTimeOffset.UtcNow));
+        return ValueTask.FromResult(new SettingsSnapshotDocument(Id, 1, (JsonObject)CurrentSettings().DeepClone(), DateTimeOffset.UtcNow));
+    }
+
+    public override ValueTask<SettingsSnapshotDocument> ApplySettingsAsync(SettingsSnapshotDocument snapshot, CancellationToken cancellationToken)
+    {
+        _settings = SettingsJson.Merge(DefaultNotificationSettings(Shared.LoadNotificationEndpoint()), snapshot.Values);
+        return ValueTask.FromResult(snapshot with { Values = (JsonObject)_settings.DeepClone() });
+    }
+
+    private JsonObject CurrentSettings()
+    {
+        return _settings ?? DefaultNotificationSettings(Shared.LoadNotificationEndpoint());
+    }
+
+    private NotificationEndpoint CurrentEndpoint()
+    {
+        var settings = CurrentSettings();
+        var protocol = SettingsJson.ReadString(settings, "serverProtocol") ?? "https";
+        var host = SettingsJson.ReadString(settings, "serverHost") ?? "";
+        var port = SettingsJson.ReadInt(settings, "serverPort") ?? 0;
+        return string.IsNullOrWhiteSpace(host) || port <= 0
+            ? NotificationEndpoint.Missing(SettingsJson.ReadString(settings, "configSourceMessage") ?? "Notification endpoint is not configured in Host settings or package-shared config.")
+            : new NotificationEndpoint(true, protocol, host, port, $"Endpoint {protocol}://{host}:{port} imported from Host settings.");
+    }
+
+    private static JsonObject DefaultNotificationSettings(NotificationEndpoint endpoint)
+    {
+        return new JsonObject
+        {
+            ["enabled"] = true,
+            ["serverProtocol"] = endpoint.Protocol,
+            ["serverHost"] = endpoint.Host,
+            ["serverPort"] = endpoint.Port,
+            ["configSourceMessage"] = endpoint.Message,
+            ["defaultChannel"] = "default",
+            ["pollIntervalSeconds"] = 30,
+            ["tagFilter"] = new JsonArray()
+        };
     }
 }
 
 public sealed class AndroidToolsProcessMonitorModule : AndroidToolsModuleBase
 {
+    private JsonObject? _settings;
+
     public override string Id => "android-tools.process-monitor";
     public override string DisplayName => "Process Monitor";
 
     public override ValueTask<ModuleStatusSnapshot> GetStatusAsync(CancellationToken cancellationToken)
     {
-        var processes = Shared.LoadProcessWatchList();
+        var processes = CurrentWatchList();
         var states = Shared.CheckProcesses(processes.Names);
         var checks = new[]
         {
@@ -321,7 +363,7 @@ public sealed class AndroidToolsProcessMonitorModule : AndroidToolsModuleBase
     {
         if (request.CommandId == "android-tools.process-monitor.status.summary")
         {
-            var processes = Shared.LoadProcessWatchList();
+            var processes = CurrentWatchList();
             return ValueTask.FromResult(Succeeded(request, new JsonObject
             {
                 ["source"] = processes.SourceKind,
@@ -332,7 +374,7 @@ public sealed class AndroidToolsProcessMonitorModule : AndroidToolsModuleBase
 
         if (request.CommandId == "android-tools.process-monitor.watch.list")
         {
-            return ValueTask.FromResult(Succeeded(request, Shared.LoadProcessWatchList().ToJson().ToJsonString()));
+            return ValueTask.FromResult(Succeeded(request, CurrentWatchList().ToJson().ToJsonString()));
         }
 
         if (request.CommandId == "android-tools.process-monitor.watch.save")
@@ -371,18 +413,49 @@ public sealed class AndroidToolsProcessMonitorModule : AndroidToolsModuleBase
 
     public override ValueTask<SettingsSnapshotDocument> GetSettingsAsync(CancellationToken cancellationToken)
     {
-        var list = Shared.LoadProcessWatchList();
-        return ValueTask.FromResult(new SettingsSnapshotDocument(
-            Id,
-            1,
-            new JsonObject
-            {
-                ["enabled"] = true,
-                ["processes"] = ToJsonArray(list.Names),
-                ["scanIntervalSeconds"] = 20,
-                ["alertWhenFound"] = true
-            },
-            DateTimeOffset.UtcNow));
+        return ValueTask.FromResult(new SettingsSnapshotDocument(Id, 1, (JsonObject)CurrentSettings().DeepClone(), DateTimeOffset.UtcNow));
+    }
+
+    public override ValueTask<SettingsSnapshotDocument> ApplySettingsAsync(SettingsSnapshotDocument snapshot, CancellationToken cancellationToken)
+    {
+        var merged = SettingsJson.Merge(DefaultProcessSettings(Shared.LoadProcessWatchList()), snapshot.Values);
+        _settings = merged;
+        var names = SettingsJson.ReadStringArray(merged, "processes");
+        if (names.Count > 0)
+        {
+            Shared.SaveProcessWatchList(names);
+        }
+
+        return ValueTask.FromResult(snapshot with { Values = (JsonObject)merged.DeepClone() });
+    }
+
+    private ProcessWatchList CurrentWatchList()
+    {
+        if (_settings is null)
+        {
+            return Shared.LoadProcessWatchList();
+        }
+
+        var names = SettingsJson.ReadStringArray(_settings, "processes");
+        return names.Count == 0
+            ? new ProcessWatchList([], "host-settings", "No processes are configured in Host settings.")
+            : new ProcessWatchList(names, "host-settings", $"{names.Count} process name(s) configured in Host settings.");
+    }
+
+    private JsonObject CurrentSettings()
+    {
+        return _settings ?? DefaultProcessSettings(Shared.LoadProcessWatchList());
+    }
+
+    private static JsonObject DefaultProcessSettings(ProcessWatchList list)
+    {
+        return new JsonObject
+        {
+            ["enabled"] = true,
+            ["processes"] = ToJsonArray(list.Names),
+            ["scanIntervalSeconds"] = 20,
+            ["alertWhenFound"] = true
+        };
     }
 }
 
@@ -430,6 +503,11 @@ public abstract class AndroidToolsModuleBase : IMptModule
     public virtual ValueTask<SettingsValidationResult> ValidateSettingsAsync(SettingsPatch patch, CancellationToken cancellationToken)
     {
         return ValueTask.FromResult(new SettingsValidationResult(true, []));
+    }
+
+    public virtual ValueTask<SettingsSnapshotDocument> ApplySettingsAsync(SettingsSnapshotDocument snapshot, CancellationToken cancellationToken)
+    {
+        return ValueTask.FromResult(snapshot);
     }
 
     public virtual ValueTask<IReadOnlyList<UiSurfaceDescriptor>> ListSurfacesAsync(CancellationToken cancellationToken)
@@ -618,9 +696,9 @@ public sealed class AndroidToolsSharedRuntime
         }
     }
 
-    internal CommandCatalog LoadCommandCatalog()
+    internal CommandCatalog LoadCommandCatalog(string? configuredPath = null)
     {
-        var source = FindFirstExisting(CommandsYamlCandidates());
+        var source = FindFirstExisting(CommandsYamlCandidates(configuredPath));
         if (source.Path is null)
         {
             return new CommandCatalog([], "commands.yaml was not found in configured, package, or discovered legacy locations.", "missing");
@@ -712,7 +790,11 @@ public sealed class AndroidToolsSharedRuntime
 
     internal async Task<JsonObject> CheckNotificationServerAsync(CancellationToken cancellationToken)
     {
-        var endpoint = LoadNotificationEndpoint();
+        return await CheckNotificationServerAsync(LoadNotificationEndpoint(), cancellationToken);
+    }
+
+    internal async Task<JsonObject> CheckNotificationServerAsync(NotificationEndpoint endpoint, CancellationToken cancellationToken)
+    {
         if (!endpoint.Found)
         {
             return endpoint.ToJson();
@@ -745,7 +827,11 @@ public sealed class AndroidToolsSharedRuntime
 
     internal JsonObject NotificationInboxSummary()
     {
-        var endpoint = LoadNotificationEndpoint();
+        return NotificationInboxSummary(LoadNotificationEndpoint());
+    }
+
+    internal JsonObject NotificationInboxSummary(NotificationEndpoint endpoint)
+    {
         return new JsonObject
         {
             ["endpoint"] = endpoint.ToJson(),
@@ -885,8 +971,13 @@ public sealed class AndroidToolsSharedRuntime
         }
     }
 
-    private IEnumerable<DiscoveredFile> CommandsYamlCandidates()
+    private IEnumerable<DiscoveredFile> CommandsYamlCandidates(string? configuredPath = null)
     {
+        if (!string.IsNullOrWhiteSpace(configuredPath))
+        {
+            yield return new DiscoveredFile(configuredPath, "host-settings");
+        }
+
         var env = Environment.GetEnvironmentVariable("MPT_ANDROIDTOOLS_COMMANDS");
         if (!string.IsNullOrWhiteSpace(env))
         {

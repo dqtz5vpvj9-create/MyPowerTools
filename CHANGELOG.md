@@ -18,7 +18,7 @@
 - Added Windows portable install and uninstall scripts with dry-run validation.
 - Added release/update metadata generation and a Scoop package-manager manifest with hash parity checks for the Windows portable zip.
 - Added cross-platform local IPC endpoint selection plus macOS/Linux degraded service providers for platform capability packs.
-- Added cross-platform hotkey and privilege provider surfaces with truthful Windows pending/broker-required behavior and explicit macOS/Linux unsupported states.
+- Added cross-platform hotkey and privilege provider surfaces with Win32 `RegisterHotKey` on Windows, broker-required privilege behavior, and explicit macOS/Linux unsupported states.
 - Added six validated module templates plus template validation script for CI and smoke checks.
 - Added Shell HostControl smoke mode and upgraded the smoke script to launch Runner, verify Shell IPC, and report module/dashboard/command counts.
 - Wired HostControl `QuitRunner` to the Runner host lifetime so smoke-owned Runner processes exit gracefully after Shell IPC validation.

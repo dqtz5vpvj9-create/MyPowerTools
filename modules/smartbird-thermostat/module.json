@@ -53,6 +53,24 @@
     "detailPage",
     "notifications"
   ],
+  "runtimePolicy": {
+    "preferred": "sidecar",
+    "allowInProc": true,
+    "inProcRules": {
+      "maxCallMs": 10000,
+      "allowNativeDll": false,
+      "allowWindow": false,
+      "allowBackgroundThreads": false,
+      "loadContext": "collectible",
+      "shadowCopy": true
+    },
+    "sidecarRules": {
+      "readyTimeoutMs": 8000,
+      "restartLimit": 4,
+      "restartWindowSeconds": 30,
+      "killProcessTree": true
+    }
+  },
   "requires": [
     {
       "capability": "service.user",

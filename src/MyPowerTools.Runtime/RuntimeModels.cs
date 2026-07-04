@@ -6,6 +6,7 @@ public sealed record RuntimeModuleRecord(
     MptPackageDefinition Package,
     MptModuleDefinition Module,
     SelectedEntrypoint? Entrypoint,
+    IReadOnlyList<TransportSelectionDiagnostic> TransportDiagnostics,
     ModuleStatusSnapshot Status);
 
 public sealed record SelectedEntrypoint(
@@ -19,7 +20,20 @@ public sealed record SelectedEntrypoint(
     string? Service,
     string? EndpointTransport,
     string? EndpointAddress,
-    string? HealthPath);
+    string? HealthPath,
+    string SelectionReason,
+    IReadOnlyList<TransportSelectionDiagnostic> SelectionDiagnostics,
+    int? InProcMaxCallMs,
+    int? SidecarReadyTimeoutMs,
+    int? SidecarRestartLimit,
+    int? SidecarRestartWindowSeconds,
+    bool? SidecarKillProcessTree);
+
+public sealed record TransportSelectionDiagnostic(
+    string TransportKind,
+    string RuntimeId,
+    string State,
+    string Reason);
 
 public sealed record DashboardCard(
     string ModuleId,
@@ -211,7 +225,9 @@ public sealed record RuntimeModuleDiagnostics(
     int ConsecutiveFailureCount,
     string SupervisorState,
     string SupervisorAction,
-    DateTimeOffset LastObservedAt);
+    DateTimeOffset LastObservedAt,
+    string TransportSelectionReason,
+    IReadOnlyList<string> TransportSelectionDiagnostics);
 
 public sealed record RuntimeModuleSupervisionSnapshot(
     string ModuleId,

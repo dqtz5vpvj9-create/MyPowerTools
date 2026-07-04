@@ -100,7 +100,7 @@ public sealed class UiSurfaceGate
                     }
 
                     var source = File.ReadAllText(fullPath);
-                    var snapshotBaseName = $"{Sanitize(surface.SurfaceId)}.{Sanitize(request.Theme)}.{Sanitize(request.Density)}.{Sanitize(request.Size)}.snapshot";
+                    var snapshotBaseName = $"{Sanitize(surface.SurfaceId)}.{Sanitize(request.Theme)}.{Sanitize(request.Density)}.{Sanitize(request.Size)}.contract";
                     var snapshotName = $"{snapshotBaseName}.json";
                     var pixelSnapshotName = $"{snapshotBaseName}.png";
                     var snapshotPath = Path.Combine(outputDirectory, snapshotName);
@@ -159,8 +159,9 @@ public sealed class UiSurfaceGate
         var manifestPath = Path.Combine(outputDirectory, "ui-snapshot-manifest.json");
         var manifest = new JsonObject
         {
-            ["schemaVersion"] = "1.0",
-            ["packageRoot"] = Path.GetFullPath(packageRoot),
+                ["schemaVersion"] = "1.0",
+                ["artifactKind"] = "contract",
+                ["packageRoot"] = Path.GetFullPath(packageRoot),
             ["surface"] = request.Surface,
             ["theme"] = request.Theme,
             ["density"] = request.Density,
@@ -184,7 +185,7 @@ public sealed class UiSurfaceGate
         foreach (var surface in surfaces)
         {
             var source = JsonSerializer.Serialize(surface, JsonOptions);
-            var snapshotBaseName = $"{Sanitize(surface.SurfaceId)}.{Sanitize(request.Theme)}.{Sanitize(request.Density)}.{Sanitize(request.Size)}.snapshot";
+            var snapshotBaseName = $"{Sanitize(surface.SurfaceId)}.{Sanitize(request.Theme)}.{Sanitize(request.Density)}.{Sanitize(request.Size)}.contract";
             var snapshotName = $"{snapshotBaseName}.json";
             var pixelSnapshotName = $"{snapshotBaseName}.png";
             var snapshotPath = Path.Combine(outputDirectory, snapshotName);
@@ -246,6 +247,7 @@ public sealed class UiSurfaceGate
         var manifest = new JsonObject
         {
             ["schemaVersion"] = "1.0",
+            ["artifactKind"] = "contract",
             ["surface"] = request.Surface,
             ["theme"] = request.Theme,
             ["density"] = request.Density,

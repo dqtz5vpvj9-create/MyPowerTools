@@ -11,9 +11,16 @@ namespace MyPowerTools.Shell.Avalonia;
 public sealed class MainWindow : Window
 {
     private readonly ShellWorkspaceController _workspace;
+    private readonly ShellStartupOptions _startupOptions;
 
     public MainWindow()
+        : this(ShellStartupOptions.Default)
     {
+    }
+
+    public MainWindow(ShellStartupOptions startupOptions)
+    {
+        _startupOptions = startupOptions;
         Title = "MyPowerTools";
         Width = 1180;
         Height = 760;
@@ -41,8 +48,17 @@ public sealed class MainWindow : Window
         workspace = _workspace;
 
         KeyDown += OnShellKeyDown;
-        Opened += async (_, _) => await _workspace.OpenAsync();
+        Opened += async (_, _) => await OpenShellAsync();
         Closed += async (_, _) => await _workspace.DisposeAsync();
+    }
+
+    private async Task OpenShellAsync()
+    {
+        await _workspace.OpenAsync();
+        if (_startupOptions.FocusCommandPalette)
+        {
+            await _workspace.FocusCommandPaletteAsync();
+        }
     }
 
     private async void OnShellKeyDown(object? sender, KeyEventArgs e)
