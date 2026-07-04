@@ -32,6 +32,7 @@ public sealed class MainWindow : Window
     private readonly ContentControl _auditPanel;
     private readonly ShellChromeViewModel _chromeViewModel;
     private readonly Services.ShellCommandExecutionService _commandExecutionService = new();
+    private readonly Services.ShellHostActionService _hostActions = new();
     private readonly Services.ShellRunnerEventService _runnerEvents = new();
     private string _currentPage = DashboardPage;
 
@@ -441,22 +442,10 @@ public sealed class MainWindow : Window
             var response = await client.ListPackagesAsync();
             var viewModel = ShellPageViewModelFactory.FromPackages(
                 response,
-                sourceDirectory => RunPackageOperationAsync(
-                    "install",
-                    sourceDirectory,
-                    client => client.InstallPackageAsync(sourceDirectory)),
-                packageId => RunPackageOperationAsync(
-                    "rollback",
-                    packageId,
-                    client => client.RollbackPackageAsync(packageId)),
-                packageId => RunPackageOperationAsync(
-                    "repair",
-                    packageId,
-                    client => client.RepairPackageAsync(packageId)),
-                packageId => RunPackageOperationAsync(
-                    "uninstall",
-                    packageId,
-                    client => client.UninstallPackageAsync(packageId)),
+                sourceDirectory => RunPackageOperationAsync("install", sourceDirectory),
+                packageId => RunPackageOperationAsync("rollback", packageId),
+                packageId => RunPackageOperationAsync("repair", packageId),
+                packageId => RunPackageOperationAsync("uninstall", packageId),
                 moduleId => ShowModuleDetailPageAsync(moduleId));
 
             _contentHost.Content = new PackageManagerView
@@ -583,27 +572,18 @@ public sealed class MainWindow : Window
         }
     }
 
-    private async Task RunPackageOperationAsync(string operation, string target, Func<HostControlClient, Task<HostProto.PackageOperationResult>> action)
+    private async Task RunPackageOperationAsync(string operation, string target)
     {
-        if (string.IsNullOrWhiteSpace(target))
-        {
-            SetStatus($"{operation}: target is required.");
-            return;
-        }
-
         try
         {
-            using var client = HostControlClient.ForDefaultEndpoint();
-            var result = await action(client);
-            var status = $"{result.Operation} {result.PackageId}: {result.Message}";
-            if (result.Issues.Count > 0)
+            var result = await _hostActions.RunPackageOperationAsync(operation, target);
+            if (result.ShouldRefresh)
             {
-                status = $"{result.Operation} {result.PackageId}: {result.Issues[0].Severity}: {result.Issues[0].Message}";
+                await LoadPackagesPageAsync();
+                await LoadCommandsAsync(_searchBox.Text ?? "");
             }
 
-            await LoadPackagesPageAsync();
-            await LoadCommandsAsync(_searchBox.Text ?? "");
-            SetStatus(status);
+            SetStatus(result.StatusText);
         }
         catch (Exception ex)
         {
@@ -615,9 +595,8 @@ public sealed class MainWindow : Window
     {
         try
         {
-            using var client = HostControlClient.ForDefaultEndpoint();
-            var result = await client.RestartRuntimeProcessAsync(transportKind, poolKey);
-            SetStatus($"{result.State}: {result.Message}");
+            var result = await _hostActions.RestartRuntimeProcessAsync(transportKind, poolKey);
+            SetStatus(result.StatusText);
             await LoadDiagnosticsPageAsync();
         }
         catch (Exception ex)
@@ -630,9 +609,8 @@ public sealed class MainWindow : Window
     {
         try
         {
-            using var client = HostControlClient.ForDefaultEndpoint();
-            var result = await client.SetRuntimeProcessRestartPolicyAsync(transportKind, poolKey, paused, reason ?? "Shell Diagnostics action", source: "shell", expiresAt: expiresAt);
-            SetStatus($"{result.State}: {result.Message}");
+            var result = await _hostActions.SetRuntimeProcessRestartPolicyAsync(transportKind, poolKey, paused, expiresAt, reason);
+            SetStatus(result.StatusText);
             await LoadDiagnosticsPageAsync();
         }
         catch (Exception ex)
@@ -645,9 +623,8 @@ public sealed class MainWindow : Window
     {
         try
         {
-            using var client = HostControlClient.ForDefaultEndpoint();
-            var detail = await client.SetModuleEnabledAsync(moduleId, enabled);
-            SetStatus($"{detail.DisplayName} {(enabled ? "enabled" : "disabled")}");
+            var result = await _hostActions.SetModuleEnabledAsync(moduleId, enabled);
+            SetStatus(result.StatusText);
             await LoadCommandsAsync(_searchBox.Text ?? "");
             await LoadBrokerAuditAsync();
             if (showDetail)

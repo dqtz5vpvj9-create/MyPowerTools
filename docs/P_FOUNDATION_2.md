@@ -76,6 +76,8 @@ This document tracks the current slice for external review. It is an audit hando
 - Updated `MainWindow.cs` to consume command execution results from the service while keeping permission prompt presentation in the Shell.
 - Added `ShellRunnerEventService` to own Runner connection monitor, host event stream monitor, status text updates, runner status text updates, and recovery notifications.
 - Updated `MainWindow.cs` to subscribe to runner/event service outputs while keeping page refresh decisions in the Shell.
+- Added `ShellHostActionService` to own HostControl-backed package operations, runtime process controls, runtime restart policy changes, and module enable/disable actions.
+- Updated `MainWindow.cs` to consume Host action service results and keep only page refresh choreography in the Shell.
 
 ### Acceptance Coverage
 
@@ -123,6 +125,8 @@ This document tracks the current slice for external review. It is an audit hando
   verifies HostControl command execution is owned by `ShellCommandExecutionService` and `MainWindow.cs` consumes the service result for status and permission prompt presentation.
 - `Shell_runner_events_are_extracted_to_service`
   verifies Runner connection and host event stream monitors are owned by `ShellRunnerEventService` and `MainWindow.cs` consumes service events.
+- `Shell_host_actions_are_extracted_to_service`
+  verifies package operations, runtime process controls, restart policy changes, and module enable/disable calls are owned by `ShellHostActionService`.
 - `Shell_settings_page_is_wired_to_axaml_view_model`
   verifies Settings Center uses `SettingsCenterView` plus `ShellPageViewModelFactory.FromSettings`, preserves save command wiring, and removes the old imperative settings editor path.
 - `Shell_permission_and_audit_sidebars_are_wired_to_axaml_view_models`
@@ -138,9 +142,9 @@ This document tracks the current slice for external review. It is an audit hando
 
 ## Current UI Architecture State
 
-- `src/MyPowerTools.Shell.Avalonia/MainWindow.cs` current: 719 lines.
+- `src/MyPowerTools.Shell.Avalonia/MainWindow.cs` current: 696 lines.
 - `MainWindow.cs` target <= 250 lines.
-- AXAML + MVVM migration: Dashboard, Modules, Module Detail, Logs, Notifications, Package Manager, Diagnostics, Settings Center, Permission Prompt, Broker Audit, unavailable/error pages, Shell chrome layout/navigation/status row, the right-side Command Palette list, command execution service extraction, and runner/event service extraction are now live on typed AXAML plus ViewModels/services.
+- AXAML + MVVM migration: Dashboard, Modules, Module Detail, Logs, Notifications, Package Manager, Diagnostics, Settings Center, Permission Prompt, Broker Audit, unavailable/error pages, Shell chrome layout/navigation/status row, the right-side Command Palette list, command execution service extraction, runner/event service extraction, and Host action service extraction are now live on typed AXAML plus ViewModels/services.
 - Component AXAML library: started with shared page/card/text styles; reusable control templates remain pending.
 - Token `ResourceDictionary` split: initial shared `MptTheme.axaml` loaded from the UI project.
 - Static style lint for shell UI: started with AXAML/viewmodel/code-behind guardrails; deeper layout and interaction lint pending.
@@ -162,8 +166,8 @@ The existing shell already has UI snapshot gates, keyboard shortcut tests, and c
 | InProc shadow-copy update | Loaded module uses cache while package DLL is replaceable | Done |
 | InProc unload handling | Unload probe and failure surfaced to runtime policy | Done for clean unload and pending-runner-restart diagnostics |
 | Sidecar default for complex modules | Complex modules prefer sidecar transport | Existing manifests keep sidecar-capable modules on sidecar paths |
-| MainWindow size | target <= 250 lines | current: 719 lines |
-| AXAML + MVVM | Main shell split into views/viewmodels | Started: Dashboard, Modules, Module Detail, Logs, Notifications, Package Manager, Diagnostics, Settings Center, Permission Prompt, Broker Audit, unavailable/error pages, Shell chrome layout/navigation/status row, the right-side Command Palette list, command execution service extraction, and runner/event service extraction wired to AXAML/MVVM/service layers; thirteen typed views and control-free viewmodels exist |
+| MainWindow size | target <= 250 lines | current: 696 lines |
+| AXAML + MVVM | Main shell split into views/viewmodels | Started: Dashboard, Modules, Module Detail, Logs, Notifications, Package Manager, Diagnostics, Settings Center, Permission Prompt, Broker Audit, unavailable/error pages, Shell chrome layout/navigation/status row, the right-side Command Palette list, command execution service extraction, runner/event service extraction, and Host action service extraction wired to AXAML/MVVM/service layers; thirteen typed views and control-free viewmodels exist |
 | Component library | Reusable AXAML controls and tokens | Started: shared theme resources and base page/card/text styles |
 | Style lint | Static lint over shell UI style usage | Started: AXAML token and code-behind/viewmodel guardrails |
 | Command palette | Typed args and validation UI | Command list and execution wired to AXAML/MVVM; typed args pending HostControl parameter schema |
@@ -188,7 +192,7 @@ Latest observed result before packaging:
 
 ```text
 Build: passed, 0 warnings, 0 errors
-Tests: passed, 116 passed, 0 failed, 0 skipped
+Tests: passed, 117 passed, 0 failed, 0 skipped
 Module validation: 5 packages valid
 Contract validation: 5 packages, 7 modules passed
 UI gate: passed
@@ -200,7 +204,7 @@ The packaging step for external review should run the same validation again and 
 
 ## Recommended Next Slice
 
-1. Extract remaining package, module, settings, and diagnostics HostControl actions from `MainWindow.cs`.
+1. Extract settings save/apply and read-only page data loading from `MainWindow.cs`.
 2. Introduce shell token dictionaries and component styles under the UI project.
 3. Add deeper static style lint that scans AXAML and C# UI files.
 4. Add command palette parameter editors plus settings validation preview, staged diff, and apply result states.

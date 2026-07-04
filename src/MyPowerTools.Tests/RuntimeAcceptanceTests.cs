@@ -723,6 +723,28 @@ Address         Port        Address         Port
     }
 
     [Fact]
+    public void Shell_host_actions_are_extracted_to_service()
+    {
+        var mainWindowPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "MainWindow.cs");
+        var servicePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellHostActionService.cs");
+        var mainWindow = File.ReadAllText(mainWindowPath);
+        var service = File.ReadAllText(servicePath);
+
+        Assert.Contains("ShellHostActionService", mainWindow);
+        Assert.Contains("_hostActions.RunPackageOperationAsync", mainWindow);
+        Assert.Contains("_hostActions.RestartRuntimeProcessAsync", mainWindow);
+        Assert.Contains("_hostActions.SetRuntimeProcessRestartPolicyAsync", mainWindow);
+        Assert.Contains("_hostActions.SetModuleEnabledAsync", mainWindow);
+        Assert.DoesNotContain("client.InstallPackageAsync", mainWindow, StringComparison.Ordinal);
+        Assert.DoesNotContain("client.RestartRuntimeProcessAsync", mainWindow, StringComparison.Ordinal);
+        Assert.DoesNotContain("client.SetRuntimeProcessRestartPolicyAsync", mainWindow, StringComparison.Ordinal);
+        Assert.DoesNotContain("client.SetModuleEnabledAsync", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("HostControlClient.ForDefaultEndpoint()", service);
+        Assert.Contains("ShellPackageActionResult", service);
+        Assert.Contains("ShellActionResult", service);
+    }
+
+    [Fact]
     public void Shell_settings_page_is_wired_to_axaml_view_model()
     {
         var mainWindowPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "MainWindow.cs");
