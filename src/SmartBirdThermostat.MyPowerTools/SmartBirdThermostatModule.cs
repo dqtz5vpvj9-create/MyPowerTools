@@ -261,7 +261,7 @@ public sealed class SmartBirdThermostatModule : IMptModule
             ["dataDirectory"] = RedactPath(Context.DataDirectory),
             ["cacheDirectory"] = RedactPath(Context.CacheDirectory),
             ["logDirectory"] = RedactPath(Context.LogDirectory),
-            ["redaction"] = LogRouter.Redact("token=abc123 secret=hidden password=hunter2 authorization=Bearer sample"),
+            ["redaction"] = MptLogRedactor.Redact("token=abc123 secret=hidden password=hunter2 authorization=Bearer sample"),
             ["endpoints"] = new JsonObject
             {
                 ["status"] = BuildUri(options.BaseUrl, options.StatusPath).ToString(),
@@ -365,11 +365,11 @@ public sealed class SmartBirdThermostatModule : IMptModule
         }
         catch (OperationCanceledException)
         {
-            return new SmartBirdCheck(id, label, false, $"Timed out while checking {LogRouter.Redact(baseUrl)}.", BuildUri(baseUrl, path).ToString(), true);
+            return new SmartBirdCheck(id, label, false, $"Timed out while checking {MptLogRedactor.Redact(baseUrl)}.", BuildUri(baseUrl, path).ToString(), true);
         }
         catch (Exception ex)
         {
-            return new SmartBirdCheck(id, label, false, LogRouter.Redact(ex.Message), SafeUri(baseUrl, path), true);
+            return new SmartBirdCheck(id, label, false, MptLogRedactor.Redact(ex.Message), SafeUri(baseUrl, path), true);
         }
     }
 
@@ -421,7 +421,7 @@ public sealed class SmartBirdThermostatModule : IMptModule
         }
         catch (Exception ex)
         {
-            return new ServiceJsonResult(source, false, 0, SafeUri(baseUrl, path), LogRouter.Redact(ex.Message), null);
+            return new ServiceJsonResult(source, false, 0, SafeUri(baseUrl, path), MptLogRedactor.Redact(ex.Message), null);
         }
     }
 
@@ -550,7 +550,7 @@ public sealed class SmartBirdThermostatModule : IMptModule
         }
         catch
         {
-            return LogRouter.Redact($"{baseUrl}{path}");
+            return MptLogRedactor.Redact($"{baseUrl}{path}");
         }
     }
 
@@ -607,7 +607,7 @@ public sealed class SmartBirdThermostatModule : IMptModule
 
     private static string RedactSensitive(string value)
     {
-        value = LogRouter.Redact(value);
+        value = MptLogRedactor.Redact(value);
         var replacements = new[]
         {
             (Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "%LOCALAPPDATA%"),
@@ -744,7 +744,7 @@ public sealed class SmartBirdThermostatModule : IMptModule
             var stderrTask = process.StandardError.ReadToEndAsync(timeoutCts.Token);
             await process.WaitForExitAsync(timeoutCts.Token);
             var stdout = RedactAdbOutput(await stdoutTask);
-            var stderr = LogRouter.Redact(await stderrTask);
+            var stderr = MptLogRedactor.Redact(await stderrTask);
             return new ToolResult(fileName, true, process.ExitCode, Trim(stdout), Trim(stderr), DateTimeOffset.UtcNow - startedAt);
         }
         catch (Win32Exception ex) when (ex.NativeErrorCode == 2)
@@ -757,13 +757,13 @@ public sealed class SmartBirdThermostatModule : IMptModule
         }
         catch (Exception ex)
         {
-            return ToolResult.Failed(fileName, -1, LogRouter.Redact(ex.Message));
+            return ToolResult.Failed(fileName, -1, MptLogRedactor.Redact(ex.Message));
         }
     }
 
     private static string RedactAdbOutput(string value)
     {
-        value = LogRouter.Redact(value);
+        value = MptLogRedactor.Redact(value);
         var lines = value.Replace("\r\n", "\n").Split('\n');
         var deviceIndex = 1;
         for (var i = 0; i < lines.Length; i++)

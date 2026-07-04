@@ -7,7 +7,7 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\..\src\MyPowerTools.Runtime\MyPowerTools.Runtime.csproj" />
+    <ProjectReference Include="..\..\src\MyPowerTools.Abstractions\MyPowerTools.Abstractions.csproj" />
   </ItemGroup>
 
 </Project>

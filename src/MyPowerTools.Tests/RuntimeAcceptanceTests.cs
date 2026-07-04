@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.Net;
 using System.Net.Sockets;
+using System.Runtime.Loader;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -347,6 +348,20 @@ Address         Port        Address         Port
             Assert.DoesNotContain("Brush.Parse(\"#", text, StringComparison.Ordinal);
             Assert.DoesNotContain("Brushes.White", text, StringComparison.Ordinal);
         }
+    }
+
+    [Fact]
+    public void P_foundation_2_ui_architecture_debt_is_tracked()
+    {
+        var mainWindowPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "MainWindow.cs");
+        var foundationDocPath = Path.Combine(Root, "docs", "P_FOUNDATION_2.md");
+        var mainWindowLineCount = File.ReadLines(mainWindowPath).Count();
+        var foundationDoc = File.ReadAllText(foundationDocPath);
+
+        Assert.Contains("MainWindow.cs", foundationDoc);
+        Assert.Contains($"current: {mainWindowLineCount} lines", foundationDoc);
+        Assert.Contains("target <= 250 lines", foundationDoc);
+        Assert.Contains("AXAML + MVVM", foundationDoc);
     }
 
     [Fact]
@@ -1159,6 +1174,42 @@ Address         Port        Address         Port
     }
 
     [Fact]
+    public async Task Inproc_disk_module_uses_collectible_load_context_and_unloads()
+    {
+        var weakReference = await LoadAndDisposeAdbForwarderAsync();
+
+        for (var attempt = 0; attempt < 10 && weakReference.IsAlive; attempt++)
+        {
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            GC.Collect();
+            await Task.Delay(100);
+        }
+
+        Assert.False(weakReference.IsAlive);
+    }
+
+    [Fact]
+    public void Production_module_projects_reference_abstractions_not_runtime()
+    {
+        var projectFiles = new[]
+        {
+            "src/AdbForwarder.MyPowerTools/AdbForwarder.MyPowerTools.csproj",
+            "src/AndroidTools.MyPowerTools/AndroidTools.MyPowerTools.csproj",
+            "src/DoubaoAgent.MyPowerTools/DoubaoAgent.MyPowerTools.csproj",
+            "src/ScreenEase.MyPowerTools/ScreenEase.MyPowerTools.csproj",
+            "src/SmartBirdThermostat.MyPowerTools/SmartBirdThermostat.MyPowerTools.csproj"
+        };
+
+        foreach (var projectFile in projectFiles)
+        {
+            var content = File.ReadAllText(Path.Combine(Root, projectFile));
+            Assert.Contains("MyPowerTools.Abstractions.csproj", content);
+            Assert.DoesNotContain("MyPowerTools.Runtime.csproj", content);
+        }
+    }
+
+    [Fact]
     public async Task Runtime_delegates_dynamic_inproc_commands_to_transport_host()
     {
         _ = typeof(SampleDotNetModule).Assembly;
@@ -1181,6 +1232,26 @@ Address         Port        Address         Port
         Assert.True(result.Success);
         Assert.Contains("pong", result.Output);
         Assert.Contains(snapshot.Cards, card => card.ModuleId == "sample.dotnet" && card.State == "running");
+    }
+
+    private static async Task<WeakReference> LoadAndDisposeAdbForwarderAsync()
+    {
+        await using var host = new InProcDotNetModuleHost();
+        var package = new PackageReader().ReadPackageDirectory(Path.Combine(Root, "modules", "adb-forwarder"));
+        var module = package.Modules.Single();
+        var loaded = await host.LoadAsync(module, CancellationToken.None);
+        var loadContext = AssemblyLoadContext.GetLoadContext(loaded.GetType().Assembly);
+
+        Assert.NotNull(loadContext);
+        Assert.NotSame(AssemblyLoadContext.Default, loadContext);
+        Assert.True(loadContext!.IsCollectible);
+
+        var weakReference = new WeakReference(loadContext, trackResurrection: false);
+        await loaded.DisposeAsync(CancellationToken.None);
+        loaded = null!;
+        loadContext = null;
+        await host.DisposeAsync();
+        return weakReference;
     }
 
     [Fact]

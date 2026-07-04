@@ -205,12 +205,12 @@ public sealed class DoubaoAgentModule : IMptModule
             ["dataDirectory"] = RedactPath(Context.DataDirectory),
             ["cacheDirectory"] = RedactPath(Context.CacheDirectory),
             ["logDirectory"] = RedactPath(Context.LogDirectory),
-            ["redaction"] = LogRouter.Redact("token=abc123 secret=hidden password=hunter2"),
+            ["redaction"] = MptLogRedactor.Redact("token=abc123 secret=hidden password=hunter2"),
             ["services"] = new JsonArray(endpoints.Select(endpoint => new JsonObject
             {
                 ["id"] = endpoint.Id,
                 ["label"] = endpoint.Label,
-                ["baseUrl"] = LogRouter.Redact(endpoint.BaseUrl),
+                ["baseUrl"] = MptLogRedactor.Redact(endpoint.BaseUrl),
                 ["healthPath"] = endpoint.HealthPath
             }).ToArray<JsonNode?>())
         };
@@ -257,7 +257,7 @@ public sealed class DoubaoAgentModule : IMptModule
             timeout.CancelAfter(TimeSpan.FromMilliseconds(1000));
             var uri = new Uri(new Uri(endpoint.BaseUrl.TrimEnd('/') + "/"), endpoint.HealthPath.TrimStart('/'));
             using var response = await _httpClient.GetAsync(uri, timeout.Token);
-            var body = LogRouter.Redact(await response.Content.ReadAsStringAsync(timeout.Token));
+            var body = MptLogRedactor.Redact(await response.Content.ReadAsStringAsync(timeout.Token));
             var message = response.IsSuccessStatusCode
                 ? $"HTTP {(int)response.StatusCode}: {Trim(body)}"
                 : $"HTTP {(int)response.StatusCode}: {Trim(body)}";
@@ -269,7 +269,7 @@ public sealed class DoubaoAgentModule : IMptModule
         }
         catch (Exception ex)
         {
-            return new HealthCheckSnapshot($"doubao.{endpoint.Id}", endpoint.Label, false, LogRouter.Redact(ex.Message));
+            return new HealthCheckSnapshot($"doubao.{endpoint.Id}", endpoint.Label, false, MptLogRedactor.Redact(ex.Message));
         }
     }
 

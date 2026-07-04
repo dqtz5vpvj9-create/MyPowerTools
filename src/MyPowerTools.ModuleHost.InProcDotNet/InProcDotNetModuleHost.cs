@@ -7,15 +7,16 @@ namespace MyPowerTools.ModuleHost.InProcDotNet;
 
 public sealed class InProcDotNetModuleHost : IModuleTransportRuntime, IAsyncDisposable
 {
-    private readonly Dictionary<string, IMptModule> _loadedModules = new(StringComparer.OrdinalIgnoreCase);
-    private readonly HashSet<string> _probeDirectories = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly string[] SharedAssemblies =
+    [
+        "MyPowerTools.Abstractions",
+        "Microsoft.Extensions.Logging.Abstractions",
+        "Microsoft.Extensions.DependencyInjection.Abstractions"
+    ];
+
+    private readonly Dictionary<string, InProcModuleSession> _loadedModules = new(StringComparer.OrdinalIgnoreCase);
 
     public string Kind => "inproc-dotnet";
-
-    public InProcDotNetModuleHost()
-    {
-        AssemblyLoadContext.Default.Resolving += ResolveFromProbeDirectories;
-    }
 
     public async ValueTask<ModuleStatusSnapshot?> GetStatusAsync(RuntimeModuleRecord module, ModuleContext context, CancellationToken cancellationToken)
     {
@@ -71,14 +72,10 @@ public sealed class InProcDotNetModuleHost : IModuleTransportRuntime, IAsyncDisp
         }
 
         var assemblyPath = Path.GetFullPath(Path.Combine(module.Directory, entrypoint.Assembly));
-        var assemblyDirectory = Path.GetDirectoryName(assemblyPath);
-        if (!string.IsNullOrWhiteSpace(assemblyDirectory))
-        {
-            _probeDirectories.Add(assemblyDirectory);
-        }
+        MptPluginLoadContext? loadContext = null;
 
         var assembly = File.Exists(assemblyPath)
-            ? AssemblyLoadContext.Default.LoadFromAssemblyPath(assemblyPath)
+            ? LoadIsolatedAssembly(module, context, entrypoint, assemblyPath, out loadContext)
             : ResolveAlreadyLoaded(entrypoint.Assembly);
 
         var type = assembly.GetType(entrypoint.Type, throwOnError: true)!;
@@ -93,30 +90,32 @@ public sealed class InProcDotNetModuleHost : IModuleTransportRuntime, IAsyncDisp
             throw new InvalidOperationException(initialized.Error?.Message ?? $"Module '{module.Manifest.Id}' rejected initialization.");
         }
 
+        if (loadContext is not null)
+        {
+            _loadedModules[module.Manifest.Id] = new InProcModuleSession(instance, loadContext);
+        }
+
         return instance;
     }
 
     public async ValueTask DisposeAsync()
     {
-        foreach (var module in _loadedModules.Values)
+        foreach (var session in _loadedModules.Values)
         {
-            await module.DisposeAsync(CancellationToken.None);
+            await session.DisposeAndUnloadAsync(CancellationToken.None);
         }
 
         _loadedModules.Clear();
-        AssemblyLoadContext.Default.Resolving -= ResolveFromProbeDirectories;
     }
 
     private async ValueTask<IMptModule> LoadCachedAsync(MptModuleDefinition module, ModuleContext context, CancellationToken cancellationToken)
     {
         if (_loadedModules.TryGetValue(module.Manifest.Id, out var loaded))
         {
-            return loaded;
+            return loaded.Module;
         }
 
-        loaded = await LoadAsync(module, context, cancellationToken);
-        _loadedModules[module.Manifest.Id] = loaded;
-        return loaded;
+        return await LoadAsync(module, context, cancellationToken);
     }
 
     private static Assembly ResolveAlreadyLoaded(string assemblyNameOrPath)
@@ -127,18 +126,162 @@ public sealed class InProcDotNetModuleHost : IModuleTransportRuntime, IAsyncDisp
             ?? throw new FileNotFoundException($"Assembly '{assemblyNameOrPath}' was not found on disk or in the current load context.");
     }
 
-    private Assembly? ResolveFromProbeDirectories(AssemblyLoadContext context, AssemblyName assemblyName)
+    private static Assembly LoadIsolatedAssembly(
+        MptModuleDefinition module,
+        ModuleContext context,
+        MptEntrypointManifest entrypoint,
+        string assemblyPath,
+        out MptPluginLoadContext loadContext)
     {
-        var fileName = assemblyName.Name + ".dll";
-        foreach (var directory in _probeDirectories)
+        var sourceRoot = Path.GetDirectoryName(assemblyPath)
+            ?? throw new InvalidOperationException($"Module '{module.Manifest.Id}' assembly path has no directory.");
+        var shadowRoot = ShadowCopyModule(module, context, entrypoint, assemblyPath, sourceRoot);
+        var shadowAssemblyPath = Path.Combine(shadowRoot, Path.GetFileName(assemblyPath));
+        loadContext = new MptPluginLoadContext(shadowAssemblyPath, SharedAssemblies);
+        return loadContext.LoadFromAssemblyPath(shadowAssemblyPath);
+    }
+
+    private static string ShadowCopyModule(
+        MptModuleDefinition module,
+        ModuleContext context,
+        MptEntrypointManifest entrypoint,
+        string assemblyPath,
+        string sourceRoot)
+    {
+        var fingerprint = HashForPath(module, entrypoint, assemblyPath);
+        var safePackage = SanitizePathSegment(module.Manifest.PackageId);
+        var safeModule = SanitizePathSegment(module.Manifest.Id);
+        var shadowRoot = Path.Combine(context.CacheDirectory, "inproc-shadow", safePackage, safeModule, fingerprint);
+        var marker = Path.Combine(shadowRoot, ".complete");
+        if (File.Exists(marker))
         {
-            var candidate = Path.Combine(directory, fileName);
-            if (File.Exists(candidate))
-            {
-                return context.LoadFromAssemblyPath(candidate);
-            }
+            return shadowRoot;
         }
 
-        return null;
+        Directory.CreateDirectory(shadowRoot);
+        CopyDirectory(sourceRoot, shadowRoot);
+        File.WriteAllText(marker, DateTimeOffset.UtcNow.ToString("O"));
+        return shadowRoot;
+    }
+
+    private static void CopyDirectory(string sourceRoot, string destinationRoot)
+    {
+        foreach (var directory in Directory.EnumerateDirectories(sourceRoot, "*", SearchOption.AllDirectories))
+        {
+            var relative = Path.GetRelativePath(sourceRoot, directory);
+            if (IsIgnoredSegment(relative))
+            {
+                continue;
+            }
+
+            Directory.CreateDirectory(Path.Combine(destinationRoot, relative));
+        }
+
+        foreach (var file in Directory.EnumerateFiles(sourceRoot, "*", SearchOption.AllDirectories))
+        {
+            var relative = Path.GetRelativePath(sourceRoot, file);
+            if (IsIgnoredSegment(relative))
+            {
+                continue;
+            }
+
+            var destination = Path.Combine(destinationRoot, relative);
+            Directory.CreateDirectory(Path.GetDirectoryName(destination)!);
+            File.Copy(file, destination, overwrite: true);
+        }
+    }
+
+    private static bool IsIgnoredSegment(string relativePath)
+    {
+        return relativePath.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+            .Any(segment => segment.Equals("bin", StringComparison.OrdinalIgnoreCase) ||
+                            segment.Equals("obj", StringComparison.OrdinalIgnoreCase) ||
+                            segment.Equals(".git", StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static string HashForPath(MptModuleDefinition module, MptEntrypointManifest entrypoint, string assemblyPath)
+    {
+        var info = new FileInfo(assemblyPath);
+        var input = string.Join(
+            "|",
+            module.Manifest.PackageId,
+            module.Manifest.Id,
+            entrypoint.Assembly,
+            info.Length,
+            info.LastWriteTimeUtc.Ticks);
+        return Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(input)))[..16].ToLowerInvariant();
+    }
+
+    private static string SanitizePathSegment(string value)
+    {
+        var invalid = Path.GetInvalidFileNameChars();
+        return new string(value.Select(character => invalid.Contains(character) ? '_' : character).ToArray());
+    }
+}
+
+internal sealed class MptPluginLoadContext : AssemblyLoadContext
+{
+    private readonly AssemblyDependencyResolver _resolver;
+    private readonly HashSet<string> _sharedAssemblies;
+
+    public MptPluginLoadContext(string mainAssemblyPath, IEnumerable<string> sharedAssemblies)
+        : base(Path.GetFileNameWithoutExtension(mainAssemblyPath), isCollectible: true)
+    {
+        _resolver = new AssemblyDependencyResolver(mainAssemblyPath);
+        _sharedAssemblies = sharedAssemblies.ToHashSet(StringComparer.OrdinalIgnoreCase);
+    }
+
+    protected override Assembly? Load(AssemblyName assemblyName)
+    {
+        if (assemblyName.Name is not null && _sharedAssemblies.Contains(assemblyName.Name))
+        {
+            return AssemblyLoadContext.Default.Assemblies.FirstOrDefault(assembly =>
+                string.Equals(assembly.GetName().Name, assemblyName.Name, StringComparison.OrdinalIgnoreCase));
+        }
+
+        var path = _resolver.ResolveAssemblyToPath(assemblyName);
+        return path is null ? null : LoadFromAssemblyPath(path);
+    }
+
+    protected override IntPtr LoadUnmanagedDll(string unmanagedDllName)
+    {
+        var path = _resolver.ResolveUnmanagedDllToPath(unmanagedDllName);
+        return path is null ? IntPtr.Zero : LoadUnmanagedDllFromPath(path);
+    }
+}
+
+internal sealed class InProcModuleSession
+{
+    private readonly MptPluginLoadContext _loadContext;
+    private readonly WeakReference _loadContextReference;
+
+    public InProcModuleSession(IMptModule module, MptPluginLoadContext loadContext)
+    {
+        Module = module;
+        _loadContext = loadContext;
+        _loadContextReference = new WeakReference(loadContext, trackResurrection: false);
+    }
+
+    public IMptModule Module { get; private set; }
+
+    public async ValueTask<bool> DisposeAndUnloadAsync(CancellationToken cancellationToken)
+    {
+        await Module.DisposeAsync(cancellationToken);
+        Module = null!;
+        _loadContext.Unload();
+        return await WaitForUnloadAsync();
+    }
+
+    private async ValueTask<bool> WaitForUnloadAsync()
+    {
+        for (var attempt = 0; attempt < 10 && _loadContextReference.IsAlive; attempt++)
+        {
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            GC.Collect();
+            await Task.Delay(100);
+        }
+
+        return !_loadContextReference.IsAlive;
     }
 }

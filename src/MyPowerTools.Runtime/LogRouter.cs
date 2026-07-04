@@ -1,12 +1,10 @@
 using System.Text.Json;
-using System.Text.RegularExpressions;
 using System.Collections.Concurrent;
 
 namespace MyPowerTools.Runtime;
 
 public sealed class LogRouter
 {
-    private static readonly Regex SensitivePattern = new("(token|secret|password|cookie|authorization|apiKey|accessKey|refreshToken)=([^\\s;,&]+)", RegexOptions.IgnoreCase | RegexOptions.Compiled);
     private static readonly ConcurrentDictionary<string, object> FileLocks = new(StringComparer.OrdinalIgnoreCase);
     private readonly string _logDirectory;
 
@@ -52,7 +50,7 @@ public sealed class LogRouter
             .ToArray();
     }
 
-    public static string Redact(string value) => SensitivePattern.Replace(value, "$1=****");
+    public static string Redact(string value) => MptLogRedactor.Redact(value);
 
     private static void AppendLine(string path, string line)
     {

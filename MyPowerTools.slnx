@@ -11,6 +11,7 @@
     <Project Path="src/MyPowerTools.ModuleHost.Http/MyPowerTools.ModuleHost.Http.csproj" />
     <Project Path="src/MyPowerTools.ModuleHost.InProcDotNet/MyPowerTools.ModuleHost.InProcDotNet.csproj" />
     <Project Path="src/MyPowerTools.ModuleHost.StdioCompat/MyPowerTools.ModuleHost.StdioCompat.csproj" />
+    <Project Path="src/MyPowerTools.Abstractions/MyPowerTools.Abstractions.csproj" />
     <Project Path="src/MyPowerTools.Packaging/MyPowerTools.Packaging.csproj" />
     <Project Path="src/MyPowerTools.Platform.Abstractions/MyPowerTools.Platform.Abstractions.csproj" />
     <Project Path="src/MyPowerTools.Platform.Linux/MyPowerTools.Platform.Linux.csproj" />

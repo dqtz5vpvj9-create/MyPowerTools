@@ -10,8 +10,8 @@
         "dependencies": {
           "AndroidTools.MyPowerTools": "1.0.0",
           "Grpc.AspNetCore": "2.80.0",
-          "MyPowerTools.Protocol": "1.0.0",
-          "MyPowerTools.Runtime": "1.0.0"
+          "MyPowerTools.Abstractions": "1.0.0",
+          "MyPowerTools.Protocol": "1.0.0"
         },
         "runtime": {
           "powertoold.dll": {}
@@ -95,49 +95,10 @@
           }
         }
       },
-      "Humanizer.Core/3.0.10": {
-        "runtime": {
-          "lib/net10.0/Humanizer.dll": {
-            "assemblyVersion": "3.0.0.0",
-            "fileVersion": "3.0.10.37104"
-          }
-        }
-      },
-      "Json.More.Net/3.0.1": {
-        "runtime": {
-          "lib/net10.0/Json.More.dll": {
-            "assemblyVersion": "3.0.0.0",
-            "fileVersion": "3.0.1.0"
-          }
-        }
-      },
-      "JsonPointer.Net/7.0.1": {
-        "dependencies": {
-          "Humanizer.Core": "3.0.10",
-          "Json.More.Net": "3.0.1"
-        },
-        "runtime": {
-          "lib/net10.0/JsonPointer.Net.dll": {
-            "assemblyVersion": "7.0.0.0",
-            "fileVersion": "7.0.1.0"
-          }
-        }
-      },
-      "JsonSchema.Net/9.2.2": {
-        "dependencies": {
-          "JsonPointer.Net": "7.0.1"
-        },
-        "runtime": {
-          "lib/net9.0/JsonSchema.Net.dll": {
-            "assemblyVersion": "9.0.0.0",
-            "fileVersion": "9.2.2.0"
-          }
-        }
-      },
       "AndroidTools.MyPowerTools/1.0.0": {
         "dependencies": {
-          "MyPowerTools.Protocol": "1.0.0",
-          "MyPowerTools.Runtime": "1.0.0"
+          "MyPowerTools.Abstractions": "1.0.0",
+          "MyPowerTools.Protocol": "1.0.0"
         },
         "runtime": {
           "AndroidTools.MyPowerTools.dll": {
@@ -146,22 +107,9 @@
           }
         }
       },
-      "MyPowerTools.Packaging/1.0.0": {
-        "dependencies": {
-          "JsonSchema.Net": "9.2.2",
-          "MyPowerTools.Platform.Abstractions": "1.0.0",
-          "MyPowerTools.Protocol": "1.0.0"
-        },
+      "MyPowerTools.Abstractions/1.0.0": {
         "runtime": {
-          "MyPowerTools.Packaging.dll": {
-            "assemblyVersion": "1.0.0.0",
-            "fileVersion": "1.0.0.0"
-          }
-        }
-      },
-      "MyPowerTools.Platform.Abstractions/1.0.0": {
-        "runtime": {
-          "MyPowerTools.Platform.Abstractions.dll": {
+          "MyPowerTools.Abstractions.dll": {
             "assemblyVersion": "1.0.0.0",
             "fileVersion": "1.0.0.0"
           }
@@ -174,19 +122,6 @@
         },
         "runtime": {
           "MyPowerTools.Protocol.dll": {
-            "assemblyVersion": "1.0.0.0",
-            "fileVersion": "1.0.0.0"
-          }
-        }
-      },
-      "MyPowerTools.Runtime/1.0.0": {
-        "dependencies": {
-          "MyPowerTools.Packaging": "1.0.0",
-          "MyPowerTools.Platform.Abstractions": "1.0.0",
-          "MyPowerTools.Protocol": "1.0.0"
-        },
-        "runtime": {
-          "MyPowerTools.Runtime.dll": {
             "assemblyVersion": "1.0.0.0",
             "fileVersion": "1.0.0.0"
           }
@@ -256,55 +191,17 @@
       "path": "grpc.net.common/2.80.0",
       "hashPath": "grpc.net.common.2.80.0.nupkg.sha512"
     },
-    "Humanizer.Core/3.0.10": {
-      "type": "package",
-      "serviceable": true,
-      "sha512": "sha512-yZIhtw8sYuvsONzQbZxWpR60tMWYHXoo0DL6nyOqSFiU5POjBTSEyWFpTQtJEZuy+oqiYTXKXY/Mjx7KnqIQFw==",
-      "path": "humanizer.core/3.0.10",
-      "hashPath": "humanizer.core.3.0.10.nupkg.sha512"
-    },
-    "Json.More.Net/3.0.1": {
-      "type": "package",
-      "serviceable": true,
-      "sha512": "sha512-fRctF2J2SILYG6wqP21drmeEODmCVkVQ/b3MndDu2fT1swfySyUgq7ePCk+aENGlDcIm05fyfjh9vcuqDEfv3w==",
-      "path": "json.more.net/3.0.1",
-      "hashPath": "json.more.net.3.0.1.nupkg.sha512"
-    },
-    "JsonPointer.Net/7.0.1": {
-      "type": "package",
-      "serviceable": true,
-      "sha512": "sha512-5C497yxfktYFsqxKG+GUQPsMvBqIjzLkqtDEdMGsnBpl3/OB8DOvTo7LEyRX7AVc1kVVj0IX5zhmLrlbvAYEnw==",
-      "path": "jsonpointer.net/7.0.1",
-      "hashPath": "jsonpointer.net.7.0.1.nupkg.sha512"
-    },
-    "JsonSchema.Net/9.2.2": {
-      "type": "package",
-      "serviceable": true,
-      "sha512": "sha512-S65LahlS1jA1cVshtBx7lnFPbQoTgZ4QdHX8fZ94VwUBlMQ9IvA2bu4ElUdrdu0VrJImMCxs5rpyybcvsrnmRA==",
-      "path": "jsonschema.net/9.2.2",
-      "hashPath": "jsonschema.net.9.2.2.nupkg.sha512"
-    },
     "AndroidTools.MyPowerTools/1.0.0": {
       "type": "project",
       "serviceable": false,
       "sha512": ""
     },
-    "MyPowerTools.Packaging/1.0.0": {
-      "type": "project",
-      "serviceable": false,
-      "sha512": ""
-    },
-    "MyPowerTools.Platform.Abstractions/1.0.0": {
+    "MyPowerTools.Abstractions/1.0.0": {
       "type": "project",
       "serviceable": false,
       "sha512": ""
     },
     "MyPowerTools.Protocol/1.0.0": {
-      "type": "project",
-      "serviceable": false,
-      "sha512": ""
-    },
-    "MyPowerTools.Runtime/1.0.0": {
       "type": "project",
       "serviceable": false,
       "sha512": ""

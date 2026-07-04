@@ -374,7 +374,7 @@ public sealed class AdbForwarderModule : IMptModule
             var stderrTask = process.StandardError.ReadToEndAsync(timeoutCts.Token);
             await process.WaitForExitAsync(timeoutCts.Token);
             var stdout = RedactToolOutput(fileName, arguments, await stdoutTask);
-            var stderr = LogRouter.Redact(await stderrTask);
+            var stderr = MptLogRedactor.Redact(await stderrTask);
             return new ToolResult(fileName, true, process.ExitCode, Trim(stdout), Trim(stderr), DateTimeOffset.UtcNow - startedAt);
         }
         catch (Win32Exception ex) when (ex.NativeErrorCode == 2)
@@ -387,7 +387,7 @@ public sealed class AdbForwarderModule : IMptModule
         }
         catch (Exception ex)
         {
-            return ToolResult.Failed(fileName, -1, LogRouter.Redact(ex.Message));
+            return ToolResult.Failed(fileName, -1, MptLogRedactor.Redact(ex.Message));
         }
     }
 
@@ -414,7 +414,7 @@ public sealed class AdbForwarderModule : IMptModule
 
     private static string RedactToolOutput(string fileName, IReadOnlyList<string> arguments, string value)
     {
-        value = LogRouter.Redact(value);
+        value = MptLogRedactor.Redact(value);
         if (!string.Equals(fileName, "adb", StringComparison.OrdinalIgnoreCase))
         {
             return value;

@@ -638,7 +638,7 @@ public sealed class AndroidToolsSharedRuntime
         }
         catch (Exception ex)
         {
-            return new CommandCatalog([], $"commands.yaml import failed: {LogRouter.Redact(ex.Message)}", source.SourceKind);
+            return new CommandCatalog([], $"commands.yaml import failed: {MptLogRedactor.Redact(ex.Message)}", source.SourceKind);
         }
     }
 
@@ -738,7 +738,7 @@ public sealed class AndroidToolsSharedRuntime
             {
                 ["endpoint"] = endpoint.RedactedUri,
                 ["state"] = "degraded",
-                ["message"] = LogRouter.Redact(ex.Message)
+                ["message"] = MptLogRedactor.Redact(ex.Message)
             };
         }
     }
@@ -788,7 +788,7 @@ public sealed class AndroidToolsSharedRuntime
         }
         catch (Exception ex)
         {
-            return new ProcessWatchList([], source.SourceKind, $"processes.json parse failed: {LogRouter.Redact(ex.Message)}");
+            return new ProcessWatchList([], source.SourceKind, $"processes.json parse failed: {MptLogRedactor.Redact(ex.Message)}");
         }
     }
 
@@ -818,7 +818,7 @@ public sealed class AndroidToolsSharedRuntime
             }
             catch (Exception ex)
             {
-                states.Add(new ProcessStateSnapshot(name, 0, LogRouter.Redact(ex.Message)));
+                states.Add(new ProcessStateSnapshot(name, 0, MptLogRedactor.Redact(ex.Message)));
             }
         }
 
@@ -867,8 +867,8 @@ public sealed class AndroidToolsSharedRuntime
             await process.WaitForExitAsync(linked.Token);
             return new ShellRunResult(
                 process.ExitCode,
-                Trim(LogRouter.Redact(await stdoutTask)),
-                Trim(LogRouter.Redact(await stderrTask)),
+                Trim(MptLogRedactor.Redact(await stdoutTask)),
+                Trim(MptLogRedactor.Redact(await stderrTask)),
                 started.ElapsedMilliseconds);
         }
         catch (Win32Exception ex) when (ex.NativeErrorCode == 2)
@@ -881,7 +881,7 @@ public sealed class AndroidToolsSharedRuntime
         }
         catch (Exception ex)
         {
-            return new ShellRunResult(-1, "", LogRouter.Redact(ex.Message), started.ElapsedMilliseconds);
+            return new ShellRunResult(-1, "", MptLogRedactor.Redact(ex.Message), started.ElapsedMilliseconds);
         }
     }
 
