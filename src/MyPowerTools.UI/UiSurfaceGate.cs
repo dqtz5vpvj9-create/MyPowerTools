@@ -337,8 +337,8 @@ public sealed class UiSurfaceGate
         return
         [
             ShellSurface("shell.dashboard", "dashboard", ["MptDashboardCard", "MptMetricGrid", "MptStatusPill", "MptCommandButton"], ["loading", "ready", "degraded", "error"]),
-            ShellSurface("shell.command-palette", "command-palette", ["MptSearchBox", "MptCommandItem", "MptStatusPill", "MptEmptyState"], ["loading", "ready", "empty", "permission-required", "error"]),
-            ShellSurface("shell.settings-center", "settings-center", ["MptSettingsSection", "MptSettingRow", "MptActionBar", "MptErrorView"], ["loading", "ready", "conflict", "error"]),
+            ShellSurface("shell.command-palette", "command-palette", ["MptSearchBox", "MptCommandItem", "MptStatusPill", "MptEmptyState"], ["loading", "ready", "empty", "permission-required", "validation-error", "executing", "succeeded", "error"]),
+            ShellSurface("shell.settings-center", "settings-center", ["MptSettingsSection", "MptSettingRow", "MptActionBar", "MptErrorView"], ["loading", "ready", "staged-diff", "apply-failed", "validation-error", "conflict", "error"]),
             ShellSurface("shell.module-detail", "module-detail", ["MptModuleHeader", "MptMetricGrid", "MptDiagnosticPanel", "MptActionBar"], ["loading", "ready", "degraded", "error"]),
             ShellSurface("shell.logs-viewer", "logs-viewer", ["MptLogViewer", "MptSearchBox", "MptEmptyState", "MptErrorView"], ["loading", "ready", "streaming", "empty", "error"]),
             ShellSurface("shell.notification-center", "notification-center", ["MptTimeline", "MptStatusPill", "MptEmptyState", "MptActionBar"], ["loading", "ready", "empty", "error"]),
@@ -436,8 +436,8 @@ public sealed class UiSurfaceGate
         return surfaceId switch
         {
             "shell.dashboard" => ["navigation-focus-visible", "dashboard-card-action-focus-visible", "refresh-focus-visible"],
-            "shell.command-palette" => ["command-search-focus-visible", "command-item-focus-visible", "empty-state-readable"],
-            "shell.settings-center" => ["module-picker-focus-visible", "settings-editor-focus-visible", "save-action-focus-visible"],
+            "shell.command-palette" => ["command-search-focus-visible", "command-item-focus-visible", "command-parameter-validation-readable", "command-result-readable", "empty-state-readable"],
+            "shell.settings-center" => ["module-picker-focus-visible", "settings-editor-focus-visible", "settings-staged-diff-readable", "patch-preview-readable", "save-action-focus-visible"],
             "shell.module-detail" => ["module-action-focus-visible", "permission-section-readable", "diagnostic-card-focus-visible"],
             "shell.logs-viewer" => ["module-picker-focus-visible", "log-list-focus-visible", "empty-state-readable"],
             "shell.notification-center" => ["notification-item-focus-visible", "empty-state-readable"],

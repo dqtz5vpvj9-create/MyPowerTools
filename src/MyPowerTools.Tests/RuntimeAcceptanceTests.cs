@@ -1404,11 +1404,17 @@ Address         Port        Address         Port
             .AsObject();
         Assert.Contains(commandPalette["keyboardShortcuts"]!.AsArray(), item => item!.GetValue<string>() == "Ctrl+K");
         Assert.Contains(commandPalette["focusStates"]!.AsArray(), item => item!.GetValue<string>() == "command-item-focus-visible");
+        Assert.Contains(commandPalette["focusStates"]!.AsArray(), item => item!.GetValue<string>() == "command-parameter-validation-readable");
         Assert.Contains(commandPalette["states"]!.AsArray(), item => item!.GetValue<string>() == "permission-required");
+        Assert.Contains(commandPalette["states"]!.AsArray(), item => item!.GetValue<string>() == "validation-error");
+        Assert.Contains(commandPalette["states"]!.AsArray(), item => item!.GetValue<string>() == "executing");
         var settingsCenter = snapshots
             .First(item => item!["surfaceId"]!.GetValue<string>() == "shell.settings-center")!
             .AsObject();
         Assert.Contains(settingsCenter["states"]!.AsArray(), item => item!.GetValue<string>() == "conflict");
+        Assert.Contains(settingsCenter["states"]!.AsArray(), item => item!.GetValue<string>() == "staged-diff");
+        Assert.Contains(settingsCenter["states"]!.AsArray(), item => item!.GetValue<string>() == "apply-failed");
+        Assert.Contains(settingsCenter["focusStates"]!.AsArray(), item => item!.GetValue<string>() == "patch-preview-readable");
         var logsViewer = snapshots
             .First(item => item!["surfaceId"]!.GetValue<string>() == "shell.logs-viewer")!
             .AsObject();

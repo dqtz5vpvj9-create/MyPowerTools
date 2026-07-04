@@ -93,6 +93,7 @@ This document tracks the current slice for external review. It is an audit hando
 - Replaced remaining Shell AXAML raw `FontSize` values with typography tokens.
 - Added C# typography constants to `MptTheme` and updated UI controls to use those constants instead of raw `FontSize` literals.
 - Added deeper static style lint coverage for Shell/UI AXAML and C# files, including raw color literals, raw font-size literals, thin code-behind limits, and HostControl-free view code-behind.
+- Extended Shell UI snapshot metadata for Command Palette validation/execution states and Settings staged-diff/apply-failed states.
 - Added HostControl command parameter descriptors and mapped module/static command parameters through Runtime, gRPC IPC, HostControl, and Shell services.
 - Updated Command Palette ViewModels and AXAML to render basic text/boolean parameter forms and build JSON args for command execution.
 - Added HostControl client and Shell command execution overloads that pass command args through `ExecuteCommandRequest.args`.
@@ -188,6 +189,8 @@ This document tracks the current slice for external review. It is an audit hando
   verifies Shell/UI AXAML and UI C# files avoid raw color literals and raw `FontSize` values outside token surfaces.
 - `Shell_code_behind_files_stay_thin_and_hostcontrol_free`
   verifies all Shell view code-behind files only load AXAML, remain under the thin-file limit, and avoid HostControl/data loading.
+- `Ui_shell_snapshot_writes_key_surface_matrix`
+  verifies Shell PNG snapshot metadata covers the key Shell page surfaces, keyboard/focus evidence, Command Palette validation/execution states, and Settings staged-diff/apply-failed states.
 
 ## Current UI Architecture State
 
@@ -197,6 +200,7 @@ This document tracks the current slice for external review. It is an audit hando
 - Component AXAML library: foundation component styles now cover module cards, status badges, metric tiles, command items, settings sections, settings fields, log rows, log viewers, notification items, permission prompts, empty/error/loading states, page headers, action bars, and action buttons.
 - Token `ResourceDictionary` split: `MptColors.axaml`, `MptSpacing.axaml`, `MptTypography.axaml`, and `MptDensity.axaml` are loaded through `MptTheme.axaml`.
 - Static style lint for shell UI: covers split-token dictionaries, component-style coverage, AXAML raw colors/font sizes, C# raw colors/font sizes in Shell/UI control surfaces, thin code-behind files, and ViewModel independence from Avalonia controls.
+- Shell snapshot gate: writes PNG-backed metadata for Dashboard, Command Palette, Settings Center, Module Detail, Logs, Notifications, Permission Prompt, Degraded Module, Package Manager, and Runtime Diagnostics, including keyboard/focus evidence and the new command/settings states.
 - Command palette typed argument binding: HostControl parameter descriptors, Shell text/boolean parameter editors, JSON args pass-through, required/numeric validation, execution preview, and per-command result/error state are wired; progress streaming and cancellation states remain pending.
 - Settings validate/apply chain with staged diff UX: Runtime validate/store/apply sequencing, HostControl apply state fields, Shell save status messages, staged-change tracking, field-level dirty summaries, patch preview text, and save enablement are wired; validation preview, rollback-on-apply-failure policy, and richer apply result states remain pending.
 
@@ -219,6 +223,7 @@ The existing shell already has UI snapshot gates, keyboard shortcut tests, and c
 | AXAML + MVVM | Main shell split into views/viewmodels | Started: Dashboard, Modules, Module Detail, Logs, Notifications, Package Manager, Diagnostics, Settings Center, Permission Prompt, Broker Audit, unavailable/error pages, Shell chrome layout/navigation/status row, the right-side Command Palette list, command execution service extraction, runner/event service extraction, Host action service extraction, Settings save service extraction, read-only page data service extraction, Host event refresh routing extraction, and Shell workspace controller extraction wired to AXAML/MVVM/service layers; thirteen typed views and control-free viewmodels exist |
 | Component library | Reusable AXAML controls and tokens | Started: foundation component styles and matching C# classes for cards, badges, metrics, command items, settings fields, logs, notifications, prompts, states, headers, action bars, and action buttons |
 | Style lint | Static lint over shell UI style usage | Started: split-token, component-style, raw color/font-size, code-behind, and viewmodel guardrails |
+| Pixel snapshots | Module and Shell PNG snapshot evidence | Done for module dashboard cards and 10 Shell surfaces with keyboard/focus, command validation/execution, and settings staged-diff/apply-failed metadata |
 | Command palette | Typed args and validation UI | Parameter descriptors, text/boolean editors, args pass-through, required/numeric validation, execution preview, and per-command result/error state wired; progress streaming and cancellation pending |
 | Settings UX | Validate/apply chain with clear states | Runtime validate/store/apply sequencing, Shell save apply-state messages, staged diff, and patch preview wired; validation preview, rollback policy, and richer apply result states pending |
 
@@ -233,6 +238,8 @@ dotnet test MyPowerTools.slnx --no-build
 dotnet run --no-build --project src\MyPowerTools.Cli -- validate modules
 dotnet run --no-build --project src\MyPowerTools.Cli -- validate contracts
 dotnet run --no-build --project src\MyPowerTools.Cli -- ui check modules
+dotnet run --no-build --project src\MyPowerTools.Cli -- ui snapshot --surface dashboard-card --theme light --size 1366x768 --density normal --out artifacts\ui-snapshots
+dotnet run --no-build --project src\MyPowerTools.Cli -- ui shell-snapshot --theme light --size 1366x768 --density normal --out artifacts\shell-ui-snapshots
 dotnet run --no-build --project src\MyPowerTools.Cli -- package trust modules --strict
 pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\validate-templates.ps1
 ```
@@ -245,6 +252,8 @@ Tests: passed, 128 passed, 0 failed, 0 skipped
 Module validation: 5 packages valid
 Contract validation: 5 packages, 7 modules passed
 UI gate: passed
+Module UI snapshots: 7 dashboard-card PNG snapshots
+Shell UI snapshots: 10 Shell PNG snapshots
 Strict trust check: 5 signatures accepted under local policy
 Template validation: 6 templates passed manifest validation, UI gate, .NET builds, and Python syntax checks
 ```
@@ -256,5 +265,4 @@ The packaging step for external review should run the same validation again and 
 1. Wire Shell views more deeply onto the new component style names and reduce repeated inline card/list markup.
 2. Add command palette progress streaming and cancellation once HostControl exposes streaming command execution.
 3. Add Settings validation preview, rollback-on-apply-failure policy, and richer apply result UI.
-4. Add pixel or Avalonia.Headless screenshot baselines for dashboard, command palette, settings, module detail, logs, notifications, packages, and diagnostics.
-5. Keep sidecar process supervision as the next plugin-runtime depth item after the UI architecture slice starts.
+4. Keep sidecar process supervision as the next plugin-runtime depth item after the UI architecture slice starts.
