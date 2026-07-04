@@ -101,7 +101,13 @@ public sealed class GrpcIpcModuleHost : IAsyncDisposable
             command.Subtitle,
             command.Kind,
             command.RequiresElevation,
-            command.Icon)).ToArray();
+            command.Icon,
+            Parameters: command.Parameters.Select(parameter => new CommandParameterDescriptor(
+                parameter.Id,
+                parameter.Label,
+                parameter.Type,
+                parameter.Required,
+                parameter.DefaultValue)).ToArray())).ToArray();
     }
 
     public async Task<CommandExecutionResult> ExecuteCommandAsync(CommandRequest request, CancellationToken cancellationToken)

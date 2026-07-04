@@ -1,6 +1,7 @@
 using System.Runtime.CompilerServices;
 using System.Net.Sockets;
 using System.IO.Pipes;
+using System.Text.Json.Nodes;
 using Google.Protobuf.WellKnownTypes;
 using Grpc.Net.Client;
 using MyPowerTools.Platform.Abstractions;
@@ -146,10 +147,16 @@ public sealed class HostControlClient : IDisposable
 
     public async Task<HostProto.CommandExecutionResponse> ExecuteCommandAsync(string commandId, CancellationToken cancellationToken = default)
     {
+        return await ExecuteCommandAsync(commandId, new JsonObject(), cancellationToken);
+    }
+
+    public async Task<HostProto.CommandExecutionResponse> ExecuteCommandAsync(string commandId, JsonObject args, CancellationToken cancellationToken = default)
+    {
         return await _client.ExecuteCommandAsync(new HostProto.ExecuteCommandRequest
         {
             CommandId = commandId,
-            InvocationId = Guid.NewGuid().ToString("N")
+            InvocationId = Guid.NewGuid().ToString("N"),
+            Args = JsonStructMapper.ToStruct(args)
         }, cancellationToken: cancellationToken);
     }
 

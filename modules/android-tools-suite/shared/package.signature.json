@@ -3,7 +3,7 @@
   "PackageId": "android-tools-suite",
   "Version": "0.2.0",
   "HashManifest": "shared/package.hashes.json",
-  "HashManifestSha256": "03c52eb3339caa2de00cd1e74c15a0fb2ea50ea47f125733680f178e951105f7",
+  "HashManifestSha256": "529ca44df42d16a2410d0b2f234de962b09d39025f618f5ab3246b0364f8ce47",
   "SignatureState": "unsigned-local-trust",
   "Algorithm": "sha256-manifest-local",
   "KeyId": "local-development",

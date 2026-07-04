@@ -454,18 +454,119 @@ public sealed record DashboardCardViewModel(
     IReadOnlyList<ShellActionViewModel> Actions,
     ICommand DetailsCommand);
 
-public sealed record CommandItemViewModel(
-    string CommandId,
-    string ModuleId,
-    string Title,
-    string Subtitle,
-    string DangerLevel,
-    bool RequiresElevation,
-    string ModuleLabel,
-    string RiskLabel,
-    string ParameterSummary,
-    bool HasParameters,
-    ICommand ExecuteCommand);
+public sealed class CommandItemViewModel
+{
+    public CommandItemViewModel(
+        string commandId,
+        string moduleId,
+        string title,
+        string subtitle,
+        string dangerLevel,
+        bool requiresElevation,
+        string moduleLabel,
+        string riskLabel,
+        string parameterSummary,
+        bool hasParameters,
+        ICommand executeCommand,
+        IReadOnlyList<CommandParameterViewModel>? parameters = null)
+    {
+        CommandId = commandId;
+        ModuleId = moduleId;
+        Title = title;
+        Subtitle = subtitle;
+        DangerLevel = dangerLevel;
+        RequiresElevation = requiresElevation;
+        ModuleLabel = moduleLabel;
+        RiskLabel = riskLabel;
+        Parameters = parameters ?? [];
+        ParameterSummary = parameterSummary.Length == 0 && Parameters.Count > 0
+            ? $"{Parameters.Count} parameter(s): {string.Join(", ", Parameters.Select(parameter => parameter.Label))}"
+            : parameterSummary;
+        HasParameters = hasParameters || Parameters.Count > 0;
+        ExecuteCommand = executeCommand;
+    }
+
+    public string CommandId { get; }
+    public string ModuleId { get; }
+    public string Title { get; }
+    public string Subtitle { get; }
+    public string DangerLevel { get; }
+    public bool RequiresElevation { get; }
+    public string ModuleLabel { get; }
+    public string RiskLabel { get; }
+    public string ParameterSummary { get; }
+    public bool HasParameters { get; }
+    public IReadOnlyList<CommandParameterViewModel> Parameters { get; }
+    public ICommand ExecuteCommand { get; }
+    public string ExecuteLabel => HasParameters ? "Run with parameters" : "Run";
+
+    public JsonObject BuildArgs()
+    {
+        var args = new JsonObject();
+        foreach (var parameter in Parameters)
+        {
+            if (!parameter.ShouldEmit)
+            {
+                continue;
+            }
+
+            args[parameter.Id] = parameter.ToJsonNode();
+        }
+
+        return args;
+    }
+}
+
+public sealed class CommandParameterViewModel : ObservableViewModel
+{
+    private string _value;
+    private bool _booleanValue;
+
+    public CommandParameterViewModel(string id, string label, string type, bool required, string defaultValue)
+    {
+        Id = id;
+        Label = label;
+        Type = string.IsNullOrWhiteSpace(type) ? "text" : type;
+        Required = required;
+        _value = defaultValue;
+        _booleanValue = string.Equals(defaultValue, "true", StringComparison.OrdinalIgnoreCase);
+    }
+
+    public string Id { get; }
+    public string Label { get; }
+    public string Type { get; }
+    public bool Required { get; }
+    public bool IsBoolean => Type is "bool" or "boolean" or "toggle";
+    public bool IsText => !IsBoolean;
+    public bool ShouldEmit => IsBoolean || Required || !string.IsNullOrWhiteSpace(Value);
+
+    public string Value
+    {
+        get => _value;
+        set => SetProperty(ref _value, value);
+    }
+
+    public bool BooleanValue
+    {
+        get => _booleanValue;
+        set => SetProperty(ref _booleanValue, value);
+    }
+
+    public JsonNode? ToJsonNode()
+    {
+        if (IsBoolean)
+        {
+            return JsonValue.Create(BooleanValue);
+        }
+
+        if (Type is "number" or "integer" && double.TryParse(Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var number))
+        {
+            return JsonValue.Create(number);
+        }
+
+        return JsonValue.Create(Value);
+    }
+}
 
 public sealed record ModuleSummaryItemViewModel(
     string ModuleId,
@@ -631,22 +732,51 @@ public static class ShellPageViewModelFactory
     public static CommandPaletteViewModel FromCommands(
         string query,
         HostProto.ListCommandsResponse response,
-        Func<string, Task>? executeCommand = null)
+        Func<string, JsonObject, Task>? executeCommand = null)
     {
-        var commands = response.Commands.Select(command => new CommandItemViewModel(
-            command.CommandId,
-            command.ModuleId,
-            command.Title,
-            command.Subtitle,
-            command.DangerLevel,
-            command.RequiresElevation,
-            string.IsNullOrWhiteSpace(command.ModuleId) ? "Module: unknown" : $"Module: {command.ModuleId}",
-            command.RequiresElevation ? $"{command.DangerLevel} - elevation" : command.DangerLevel,
-            "",
-            false,
-            new AsyncRelayCommand(() => executeCommand?.Invoke(command.CommandId) ?? Task.CompletedTask))).ToArray();
+        var commands = response.Commands.Select(command =>
+        {
+            var parameters = command.Parameters
+                .Select(parameter => new CommandParameterViewModel(
+                    parameter.Id,
+                    parameter.Label,
+                    parameter.Type,
+                    parameter.Required,
+                    parameter.DefaultValue))
+                .ToArray();
+
+            return new CommandItemViewModel(
+                command.CommandId,
+                command.ModuleId,
+                command.Title,
+                command.Subtitle,
+                command.DangerLevel,
+                command.RequiresElevation,
+                string.IsNullOrWhiteSpace(command.ModuleId) ? "Module: unknown" : $"Module: {command.ModuleId}",
+                command.RequiresElevation ? $"{command.DangerLevel} - elevation" : command.DangerLevel,
+                "",
+                parameters.Length > 0,
+                new AsyncRelayCommand(() => executeCommand?.Invoke(command.CommandId, BuildCommandArgs(parameters)) ?? Task.CompletedTask),
+                parameters);
+        }).ToArray();
 
         return new CommandPaletteViewModel(query, commands);
+    }
+
+    private static JsonObject BuildCommandArgs(IReadOnlyList<CommandParameterViewModel> parameters)
+    {
+        var args = new JsonObject();
+        foreach (var parameter in parameters)
+        {
+            if (!parameter.ShouldEmit)
+            {
+                continue;
+            }
+
+            args[parameter.Id] = parameter.ToJsonNode();
+        }
+
+        return args;
     }
 
     public static ModulesViewModel FromModules(

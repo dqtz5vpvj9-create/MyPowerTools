@@ -224,16 +224,7 @@ public sealed class HostControlGrpcService : HostProto.HostControl.HostControlBa
     public override Task<HostProto.ListCommandsResponse> ListCommands(HostProto.ListCommandsRequest request, ServerCallContext context)
     {
         var response = new HostProto.ListCommandsResponse();
-        response.Commands.AddRange(_runtime.ListCommands(request.Query).Select(command => new HostProto.CommandItem
-        {
-            CommandId = command.Id,
-            ModuleId = command.ModuleId,
-            Title = command.Title,
-            Subtitle = command.Subtitle,
-            Icon = command.Icon,
-            DangerLevel = command.DangerLevel,
-            RequiresElevation = command.RequiresElevation
-        }));
+        response.Commands.AddRange(_runtime.ListCommands(request.Query).Select(ToProtoCommandItem));
         return Task.FromResult(response);
     }
 
@@ -528,6 +519,30 @@ public sealed class HostControlGrpcService : HostProto.HostControl.HostControlBa
             Required = requirement.Required,
             Reason = requirement.Reason ?? ""
         };
+    }
+
+    private static HostProto.CommandItem ToProtoCommandItem(MptCommandDescriptor command)
+    {
+        var item = new HostProto.CommandItem
+        {
+            CommandId = command.Id,
+            ModuleId = command.ModuleId,
+            Title = command.Title,
+            Subtitle = command.Subtitle,
+            Icon = command.Icon,
+            DangerLevel = command.DangerLevel,
+            RequiresElevation = command.RequiresElevation
+        };
+        item.Parameters.AddRange((command.Parameters ?? [])
+            .Select(parameter => new HostProto.CommandParameter
+            {
+                Id = parameter.Id,
+                Label = parameter.Label,
+                Type = parameter.Type,
+                Required = parameter.Required,
+                DefaultValue = parameter.DefaultValue
+            }));
+        return item;
     }
 
     private static HostProto.RuntimeDiagnostics ToProtoRuntimeDiagnostics(RuntimeDiagnosticsSnapshot diagnostics)

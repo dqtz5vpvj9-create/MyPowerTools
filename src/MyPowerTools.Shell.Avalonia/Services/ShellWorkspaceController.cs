@@ -1,3 +1,4 @@
+using System.Text.Json.Nodes;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Threading;
@@ -391,7 +392,7 @@ public sealed class ShellWorkspaceController : IAsyncDisposable
     {
         try
         {
-            var viewModel = await _pageData.LoadCommandsAsync(query, commandId => ExecuteCommandAsync(commandId));
+            var viewModel = await _pageData.LoadCommandsAsync(query, (commandId, args) => ExecuteCommandAsync(commandId, args));
             _commandPanel.Content = new CommandPaletteView
             {
                 DataContext = viewModel
@@ -430,11 +431,11 @@ public sealed class ShellWorkspaceController : IAsyncDisposable
         };
     }
 
-    private async Task ExecuteCommandAsync(string commandId)
+    private async Task ExecuteCommandAsync(string commandId, JsonObject? args = null)
     {
         try
         {
-            var result = await _commandExecutionService.ExecuteAsync(commandId);
+            var result = await _commandExecutionService.ExecuteAsync(commandId, args);
             SetStatus(result.StatusText);
             _permissionPanel.Content = null;
             if (result.RequiresPermissionPrompt)

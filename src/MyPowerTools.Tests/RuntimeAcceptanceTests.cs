@@ -465,7 +465,7 @@ Address         Port        Address         Port
         Assert.Contains("ApplyHostEventAsync", workspace);
         Assert.Contains("ShellPageRefreshRouter.Route(_currentPage, evt)", workspace);
         Assert.Contains("_pageData.LoadDashboardAsync", workspace);
-        Assert.Contains("_commandExecutionService.ExecuteAsync(commandId)", workspace);
+        Assert.Contains("_commandExecutionService.ExecuteAsync(commandId, args)", workspace);
         Assert.DoesNotContain("HostControlClient", mainWindow, StringComparison.Ordinal);
         Assert.DoesNotContain("ShellPageDataService", mainWindow, StringComparison.Ordinal);
         Assert.DoesNotContain("ShellCommandExecutionService", mainWindow, StringComparison.Ordinal);
@@ -739,7 +739,96 @@ Address         Port        Address         Port
         Assert.Contains("ExecuteCommand", commandPaletteView);
         Assert.Contains("IsVisible=\"{Binding IsEmpty}\"", commandPaletteView);
         Assert.Contains("ParameterSummary", commandPaletteView);
+        Assert.Contains("ItemsSource=\"{Binding Parameters}\"", commandPaletteView);
+        Assert.Contains("CommandParameterViewModel", commandPaletteView);
+        Assert.Contains("ExecuteLabel", commandPaletteView);
         Assert.Contains("ICommand ExecuteCommand", viewModel);
+    }
+
+    [Fact]
+    public void Shell_command_palette_parameter_form_builds_command_args()
+    {
+        var commands = new HostProto.ListCommandsResponse();
+        var command = new HostProto.CommandItem
+        {
+            CommandId = "sample.parameterized.run",
+            ModuleId = "sample",
+            Title = "Run parameterized command",
+            Subtitle = "Uses Shell form args",
+            DangerLevel = "none"
+        };
+        command.Parameters.Add(new HostProto.CommandParameter
+        {
+            Id = "path",
+            Label = "Path",
+            Type = "text",
+            Required = true,
+            DefaultValue = "C:\\temp"
+        });
+        command.Parameters.Add(new HostProto.CommandParameter
+        {
+            Id = "force",
+            Label = "Force",
+            Type = "boolean",
+            DefaultValue = "true"
+        });
+        commands.Commands.Add(command);
+
+        var viewModel = ShellPageViewModelFactory.FromCommands("parameterized", commands, (_, _) => Task.CompletedTask);
+        var item = Assert.Single(viewModel.Commands);
+
+        Assert.True(item.HasParameters);
+        Assert.Contains("2 parameter(s)", item.ParameterSummary);
+        Assert.Equal("Run with parameters", item.ExecuteLabel);
+        Assert.Collection(
+            item.Parameters,
+            parameter =>
+            {
+                Assert.Equal("path", parameter.Id);
+                Assert.True(parameter.IsText);
+                parameter.Value = "C:\\work";
+            },
+            parameter =>
+            {
+                Assert.Equal("force", parameter.Id);
+                Assert.True(parameter.IsBoolean);
+                parameter.BooleanValue = false;
+            });
+
+        var args = item.BuildArgs();
+        Assert.Equal("C:\\work", args["path"]!.GetValue<string>());
+        Assert.False(args["force"]!.GetValue<bool>());
+    }
+
+    [Fact]
+    public void Shell_command_parameter_contract_flows_through_hostcontrol()
+    {
+        var protoPath = Path.Combine(Root, "proto", "mpt_host_control_v1.proto");
+        var abstractionsPath = Path.Combine(Root, "src", "MyPowerTools.Abstractions", "PluginContracts.cs");
+        var staticReaderPath = Path.Combine(Root, "src", "MyPowerTools.Runtime", "StaticCommandIndexReader.cs");
+        var grpcHostPath = Path.Combine(Root, "src", "MyPowerTools.ModuleHost.GrpcIpc", "GrpcIpcModuleHost.cs");
+        var hostServicePath = Path.Combine(Root, "src", "MyPowerTools.HostControl", "HostControlGrpcService.cs");
+        var hostClientPath = Path.Combine(Root, "src", "MyPowerTools.HostControl", "HostControlClient.cs");
+        var commandServicePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellCommandExecutionService.cs");
+        var workspacePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellWorkspaceController.cs");
+        var proto = File.ReadAllText(protoPath);
+        var abstractions = File.ReadAllText(abstractionsPath);
+        var staticReader = File.ReadAllText(staticReaderPath);
+        var grpcHost = File.ReadAllText(grpcHostPath);
+        var hostService = File.ReadAllText(hostServicePath);
+        var hostClient = File.ReadAllText(hostClientPath);
+        var commandService = File.ReadAllText(commandServicePath);
+        var workspace = File.ReadAllText(workspacePath);
+
+        Assert.Contains("repeated CommandParameter parameters = 8", proto);
+        Assert.Contains("message CommandParameter", proto);
+        Assert.Contains("CommandParameterDescriptor", abstractions);
+        Assert.Contains("ReadParameters(command)", staticReader);
+        Assert.Contains("parameter.DefaultValue", grpcHost);
+        Assert.Contains("item.Parameters.AddRange", hostService);
+        Assert.Contains("JsonStructMapper.ToStruct(args)", hostClient);
+        Assert.Contains("ExecuteAsync(string commandId, JsonObject? args", commandService);
+        Assert.Contains("ExecuteCommandAsync(commandId, args)", workspace);
     }
 
     [Fact]
@@ -753,7 +842,7 @@ Address         Port        Address         Port
         var service = File.ReadAllText(servicePath);
 
         Assert.Contains("ShellCommandExecutionService", workspace);
-        Assert.Contains("_commandExecutionService.ExecuteAsync(commandId)", workspace);
+        Assert.Contains("_commandExecutionService.ExecuteAsync(commandId, args)", workspace);
         Assert.DoesNotContain("ShellCommandExecutionService", mainWindow, StringComparison.Ordinal);
         Assert.DoesNotContain("var result = await client.ExecuteCommandAsync(commandId);", workspace, StringComparison.Ordinal);
         Assert.DoesNotContain("var result = await client.ExecuteCommandAsync(commandId);", mainWindow, StringComparison.Ordinal);

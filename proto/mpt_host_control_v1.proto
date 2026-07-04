@@ -347,6 +347,15 @@ message CommandItem {
   string icon = 5;
   string danger_level = 6;
   bool requires_elevation = 7;
+  repeated CommandParameter parameters = 8;
+}
+
+message CommandParameter {
+  string id = 1;
+  string label = 2;
+  string type = 3;
+  bool required = 4;
+  string default_value = 5;
 }
 
 message ExecuteCommandRequest {

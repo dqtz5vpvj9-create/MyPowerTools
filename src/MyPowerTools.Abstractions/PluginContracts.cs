@@ -55,7 +55,15 @@ public sealed record MptCommandDescriptor(
     string DangerLevel = "",
     string Category = "",
     int TimeoutMs = 30000,
-    JsonObject? Execution = null);
+    JsonObject? Execution = null,
+    IReadOnlyList<CommandParameterDescriptor>? Parameters = null);
+
+public sealed record CommandParameterDescriptor(
+    string Id,
+    string Label,
+    string Type,
+    bool Required = false,
+    string DefaultValue = "");
 
 public sealed record CommandRequest(string InvocationId, string CommandId, JsonObject Args);
 

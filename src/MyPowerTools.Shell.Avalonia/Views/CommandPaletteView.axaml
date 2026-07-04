@@ -20,25 +20,41 @@
     <ItemsControl ItemsSource="{Binding Commands}">
       <ItemsControl.ItemTemplate>
         <DataTemplate x:DataType="vm:CommandItemViewModel">
-          <Button Command="{Binding ExecuteCommand}"
-                  HorizontalContentAlignment="Stretch"
-                  MinHeight="58"
-                  Margin="0,0,0,8">
-            <Border Classes="MptCard">
-              <StackPanel Spacing="{DynamicResource MptSpacingXs}">
-                <Grid ColumnDefinitions="*,Auto">
-                  <TextBlock FontWeight="SemiBold" Text="{Binding Title}" />
-                  <TextBlock Grid.Column="1" Classes="MptMeta" Text="{Binding RiskLabel}" />
-                </Grid>
-                <TextBlock Classes="MptPageSubtitle" Text="{Binding Subtitle}" />
-                <TextBlock Classes="MptMeta" Text="{Binding CommandId}" />
-                <TextBlock Classes="MptMeta" Text="{Binding ModuleLabel}" />
-                <TextBlock Classes="MptMeta"
-                           Text="{Binding ParameterSummary}"
-                           IsVisible="{Binding HasParameters}" />
-              </StackPanel>
-            </Border>
-          </Button>
+          <Border Classes="MptCommandItem" Margin="0,0,0,8">
+            <StackPanel Spacing="{DynamicResource MptSpacingS}">
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBlock FontWeight="SemiBold" Text="{Binding Title}" />
+                <TextBlock Grid.Column="1" Classes="MptMeta" Text="{Binding RiskLabel}" />
+              </Grid>
+              <TextBlock Classes="MptPageSubtitle" Text="{Binding Subtitle}" />
+              <TextBlock Classes="MptMeta" Text="{Binding CommandId}" />
+              <TextBlock Classes="MptMeta" Text="{Binding ModuleLabel}" />
+              <TextBlock Classes="MptMeta"
+                         Text="{Binding ParameterSummary}"
+                         IsVisible="{Binding HasParameters}" />
+
+              <ItemsControl ItemsSource="{Binding Parameters}" IsVisible="{Binding HasParameters}">
+                <ItemsControl.ItemTemplate>
+                  <DataTemplate x:DataType="vm:CommandParameterViewModel">
+                    <StackPanel Spacing="{DynamicResource MptSpacingXs}" Margin="0,0,0,6">
+                      <TextBlock Classes="MptMeta" Text="{Binding Label}" />
+                      <TextBox Text="{Binding Value, Mode=TwoWay}"
+                               MinHeight="32"
+                               IsVisible="{Binding IsText}" />
+                      <CheckBox IsChecked="{Binding BooleanValue, Mode=TwoWay}"
+                                Content="{Binding Label}"
+                                IsVisible="{Binding IsBoolean}" />
+                    </StackPanel>
+                  </DataTemplate>
+                </ItemsControl.ItemTemplate>
+              </ItemsControl>
+
+              <Button Content="{Binding ExecuteLabel}"
+                      Command="{Binding ExecuteCommand}"
+                      MinHeight="32"
+                      MinWidth="76" />
+            </StackPanel>
+          </Border>
         </DataTemplate>
       </ItemsControl.ItemTemplate>
     </ItemsControl>
