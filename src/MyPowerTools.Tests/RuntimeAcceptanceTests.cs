@@ -768,6 +768,24 @@ Address         Port        Address         Port
     }
 
     [Fact]
+    public void Shell_settings_save_is_extracted_to_service()
+    {
+        var mainWindowPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "MainWindow.cs");
+        var servicePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellSettingsService.cs");
+        var mainWindow = File.ReadAllText(mainWindowPath);
+        var service = File.ReadAllText(servicePath);
+
+        Assert.Contains("ShellSettingsService", mainWindow);
+        Assert.Contains("_settingsService.SaveAsync(viewModel)", mainWindow);
+        Assert.DoesNotContain("client.UpdateSettingsAsync", mainWindow, StringComparison.Ordinal);
+        Assert.DoesNotContain("RpcException", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("client.UpdateSettingsAsync", service);
+        Assert.Contains("RpcException", service);
+        Assert.Contains("BuildSettingsPatch", service);
+        Assert.Contains("ShellSettingsSaveResult", service);
+    }
+
+    [Fact]
     public void Shell_permission_and_audit_sidebars_are_wired_to_axaml_view_models()
     {
         var mainWindowPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "MainWindow.cs");

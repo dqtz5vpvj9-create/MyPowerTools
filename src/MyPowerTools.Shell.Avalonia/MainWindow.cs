@@ -5,7 +5,6 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Threading;
 using Google.Protobuf.WellKnownTypes;
-using Grpc.Core;
 using MyPowerTools.HostControl;
 using MyPowerTools.Shell.Avalonia.ViewModels;
 using MyPowerTools.Shell.Avalonia.Views;
@@ -34,6 +33,7 @@ public sealed class MainWindow : Window
     private readonly Services.ShellCommandExecutionService _commandExecutionService = new();
     private readonly Services.ShellHostActionService _hostActions = new();
     private readonly Services.ShellRunnerEventService _runnerEvents = new();
+    private readonly Services.ShellSettingsService _settingsService = new();
     private string _currentPage = DashboardPage;
 
     public MainWindow()
@@ -362,23 +362,12 @@ public sealed class MainWindow : Window
 
     private async Task SaveSettingsPageAsync(SettingsCenterViewModel viewModel)
     {
-        try
+        var result = await _settingsService.SaveAsync(viewModel);
+        viewModel.StatusText = result.StatusText;
+        SetStatus(result.StatusText);
+        if (result.Saved)
         {
-            using var client = HostControlClient.ForDefaultEndpoint();
-            var patch = JsonStructMapper.ToStruct(ShellPageViewModelFactory.BuildSettingsPatch(viewModel));
-            var updated = await client.UpdateSettingsAsync(viewModel.SelectedModuleId, viewModel.Revision, patch);
-            SetStatus($"{viewModel.SelectedModuleId} settings saved at revision {updated.Revision}");
             await LoadSettingsPageAsync(viewModel.SelectedModuleId);
-        }
-        catch (RpcException ex)
-        {
-            viewModel.StatusText = ex.Status.Detail;
-            SetStatus(ex.Status.Detail);
-        }
-        catch (Exception ex)
-        {
-            viewModel.StatusText = ex.Message;
-            SetStatus(ex.Message);
         }
     }
 
