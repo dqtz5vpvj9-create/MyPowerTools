@@ -146,6 +146,18 @@ public sealed class LogsViewModel : ShellPageViewModel
     public IReadOnlyList<LogLineViewModel> Lines { get; }
 }
 
+public sealed class NotificationsViewModel : ShellPageViewModel
+{
+    public NotificationsViewModel(IReadOnlyList<NotificationItemViewModel> notifications)
+        : base("Notifications", $"{notifications.Count} notifications", notifications.Count == 0 ? "empty" : "ready")
+    {
+        Notifications = notifications;
+    }
+
+    public IReadOnlyList<NotificationItemViewModel> Notifications { get; }
+    public bool IsEmpty => Notifications.Count == 0;
+}
+
 public sealed class PackageManagerViewModel : ShellPageViewModel
 {
     public PackageManagerViewModel(IReadOnlyList<PackageSummaryViewModel> packages)
@@ -206,6 +218,7 @@ public sealed record RuntimeProcessViewModel(
 
 public sealed record SettingsFieldViewModel(string Key, string Label, string EditorType, string Description, string Value);
 public sealed record LogLineViewModel(string Time, string Level, string Message);
+public sealed record NotificationItemViewModel(string Id, string Time, string ModuleId, string Level, string Title, string Body, bool IsRead);
 public sealed record ShellAlertViewModel(string Id, string Level, string Title, string Body);
 public sealed record ShellActionViewModel(string CommandId, string Title, string Style, ICommand ExecuteCommand);
 public sealed record MetricViewModel(string Label, string Value);
@@ -264,6 +277,20 @@ public static class ShellPageViewModelFactory
             package.ModuleCount)).ToArray();
 
         return new PackageManagerViewModel(packages);
+    }
+
+    public static NotificationsViewModel FromNotifications(HostProto.ListNotificationsResponse response)
+    {
+        var notifications = response.Notifications.Select(notification => new NotificationItemViewModel(
+            notification.Id,
+            notification.Time.ToDateTimeOffset().ToString("yyyy-MM-dd HH:mm:ss"),
+            notification.ModuleId,
+            notification.Level,
+            notification.Title,
+            notification.Body,
+            notification.IsRead)).ToArray();
+
+        return new NotificationsViewModel(notifications);
     }
 
     public static DiagnosticsViewModel FromDiagnostics(HostProto.RuntimeDiagnostics diagnostics)

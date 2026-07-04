@@ -453,6 +453,7 @@ Address         Port        Address         Port
             ["CommandPaletteView"] = "CommandPaletteViewModel",
             ["SettingsCenterView"] = "SettingsCenterViewModel",
             ["LogsView"] = "LogsViewModel",
+            ["NotificationsView"] = "NotificationsViewModel",
             ["PackageManagerView"] = "PackageManagerViewModel",
             ["DiagnosticsView"] = "DiagnosticsViewModel"
         };
@@ -540,6 +541,22 @@ Address         Port        Address         Port
         Assert.Contains("DetailsCommand", dashboardView);
         Assert.Contains("ExecuteCommand", dashboardView);
         Assert.Contains("System.Windows.Input", viewModel);
+    }
+
+    [Fact]
+    public void Shell_notifications_page_is_wired_to_axaml_view_model()
+    {
+        var mainWindowPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "MainWindow.cs");
+        var notificationsViewPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Views", "NotificationsView.axaml");
+        var mainWindow = File.ReadAllText(mainWindowPath);
+        var notificationsView = File.ReadAllText(notificationsViewPath);
+
+        Assert.Contains("ShellPageViewModelFactory.FromNotifications", mainWindow);
+        Assert.Contains("new NotificationsView", mainWindow);
+        Assert.DoesNotContain("MptNotificationItem", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("x:DataType=\"vm:NotificationsViewModel\"", notificationsView);
+        Assert.Contains("NotificationItemViewModel", notificationsView);
+        Assert.Contains("IsVisible=\"{Binding IsEmpty}\"", notificationsView);
     }
 
     [Fact]

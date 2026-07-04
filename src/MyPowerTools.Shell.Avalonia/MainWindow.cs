@@ -594,19 +594,13 @@ public sealed class MainWindow : Window
         {
             using var client = HostControlClient.ForDefaultEndpoint();
             var response = await client.ListNotificationsAsync(80);
-            var list = new StackPanel { Spacing = 10 };
-            foreach (var item in response.Notifications)
-            {
-                list.Children.Add(new MptNotificationItem(
-                    $"{item.Level} · {item.Title}",
-                    $"{item.ModuleId} · {item.Time.ToDateTimeOffset():yyyy-MM-dd HH:mm:ss}\n{item.Body}"));
-            }
+            var viewModel = ShellPageViewModelFactory.FromNotifications(response);
 
-            _contentHost.Content = BuildPage(
-                NotificationsPage,
-                $"{response.Notifications.Count} notifications",
-                list.Children.Count == 0 ? new MptEmptyState("No notifications.") : list);
-            _statusBar.Text = $"{response.Notifications.Count} notifications loaded";
+            _contentHost.Content = new NotificationsView
+            {
+                DataContext = viewModel
+            };
+            _statusBar.Text = $"{viewModel.Notifications.Count} notifications loaded";
         }
         catch (Exception ex)
         {
