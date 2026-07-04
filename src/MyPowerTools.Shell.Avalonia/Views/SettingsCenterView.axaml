@@ -1,0 +1,36 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:MyPowerTools.Shell.Avalonia.ViewModels"
+             x:Class="MyPowerTools.Shell.Avalonia.Views.SettingsCenterView"
+             x:DataType="vm:SettingsCenterViewModel">
+  <StackPanel Margin="{DynamicResource MptPagePadding}" Spacing="{DynamicResource MptSpacingM}">
+    <StackPanel Spacing="{DynamicResource MptSpacingXs}">
+      <TextBlock Classes="MptPageTitle" Text="{Binding Title}" />
+      <TextBlock Classes="MptPageSubtitle" Text="{Binding Subtitle}" />
+    </StackPanel>
+
+    <Border Classes="MptInset">
+      <StackPanel Orientation="Horizontal" Spacing="{DynamicResource MptSpacingS}">
+        <TextBlock Classes="MptMeta" Text="{Binding SelectedModuleId}" />
+        <TextBlock Classes="MptMeta" Text="{Binding Revision}" />
+      </StackPanel>
+    </Border>
+
+    <ItemsControl ItemsSource="{Binding Fields}">
+      <ItemsControl.ItemTemplate>
+        <DataTemplate x:DataType="vm:SettingsFieldViewModel">
+          <Border Classes="MptCard" Margin="0,0,0,8">
+            <StackPanel Spacing="{DynamicResource MptSpacingXs}">
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBlock FontWeight="SemiBold" Text="{Binding Label}" />
+                <TextBlock Grid.Column="1" Classes="MptMeta" Text="{Binding EditorType}" />
+              </Grid>
+              <TextBlock Classes="MptPageSubtitle" Text="{Binding Description}" />
+              <TextBlock Classes="MptMeta" Text="{Binding Value}" />
+            </StackPanel>
+          </Border>
+        </DataTemplate>
+      </ItemsControl.ItemTemplate>
+    </ItemsControl>
+  </StackPanel>
+</UserControl>

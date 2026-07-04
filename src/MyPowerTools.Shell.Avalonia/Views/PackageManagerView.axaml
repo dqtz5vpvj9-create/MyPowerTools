@@ -1,0 +1,31 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:MyPowerTools.Shell.Avalonia.ViewModels"
+             x:Class="MyPowerTools.Shell.Avalonia.Views.PackageManagerView"
+             x:DataType="vm:PackageManagerViewModel">
+  <StackPanel Margin="{DynamicResource MptPagePadding}" Spacing="{DynamicResource MptSpacingM}">
+    <StackPanel Spacing="{DynamicResource MptSpacingXs}">
+      <TextBlock Classes="MptPageTitle" Text="{Binding Title}" />
+      <TextBlock Classes="MptPageSubtitle" Text="{Binding Subtitle}" />
+    </StackPanel>
+
+    <ItemsControl ItemsSource="{Binding Packages}">
+      <ItemsControl.ItemTemplate>
+        <DataTemplate x:DataType="vm:PackageSummaryViewModel">
+          <Border Classes="MptCard" Margin="0,0,0,8">
+            <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto">
+              <TextBlock FontWeight="SemiBold" Text="{Binding DisplayName}" />
+              <TextBlock Grid.Column="1" Classes="MptMeta" Text="{Binding TrustState}" />
+              <TextBlock Grid.Row="1" Grid.ColumnSpan="2" Classes="MptPageSubtitle" Text="{Binding Publisher}" />
+              <StackPanel Grid.Row="2" Grid.ColumnSpan="2" Orientation="Horizontal" Spacing="{DynamicResource MptSpacingS}">
+                <TextBlock Classes="MptMeta" Text="{Binding PackageId}" />
+                <TextBlock Classes="MptMeta" Text="{Binding Version}" />
+                <TextBlock Classes="MptMeta" Text="{Binding ModuleCount}" />
+              </StackPanel>
+            </Grid>
+          </Border>
+        </DataTemplate>
+      </ItemsControl.ItemTemplate>
+    </ItemsControl>
+  </StackPanel>
+</UserControl>

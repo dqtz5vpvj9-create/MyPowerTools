@@ -23,6 +23,7 @@ using MyPowerTools.Protocol;
 using MyPowerTools.Runtime;
 using MyPowerTools.SampleModules.DotNet;
 using MyPowerTools.Shell.Avalonia;
+using MyPowerTools.Shell.Avalonia.ViewModels;
 using MyPowerTools.UI;
 using ScreenEase.MyPowerTools;
 using HostProto = MyPowerTools.Protocol.HostControl.V1;
@@ -440,6 +441,117 @@ Address         Port        Address         Port
         Assert.Contains($"current: {mainWindowLineCount} lines", foundationDoc);
         Assert.Contains("target <= 250 lines", foundationDoc);
         Assert.Contains("AXAML + MVVM", foundationDoc);
+    }
+
+    [Fact]
+    public void Shell_axaml_mvvm_migration_scaffold_exists_with_typed_bindings()
+    {
+        var shellRoot = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia");
+        var expectedPages = new Dictionary<string, string>
+        {
+            ["DashboardView"] = "DashboardViewModel",
+            ["CommandPaletteView"] = "CommandPaletteViewModel",
+            ["SettingsCenterView"] = "SettingsCenterViewModel",
+            ["LogsView"] = "LogsViewModel",
+            ["PackageManagerView"] = "PackageManagerViewModel",
+            ["DiagnosticsView"] = "DiagnosticsViewModel"
+        };
+
+        foreach (var (viewName, viewModelName) in expectedPages)
+        {
+            var axamlPath = Path.Combine(shellRoot, "Views", $"{viewName}.axaml");
+            var codeBehindPath = axamlPath + ".cs";
+            var axaml = File.ReadAllText(axamlPath);
+            var codeBehind = File.ReadAllText(codeBehindPath);
+
+            Assert.True(File.Exists(axamlPath), $"Missing {axamlPath}");
+            Assert.True(File.Exists(codeBehindPath), $"Missing {codeBehindPath}");
+            Assert.Contains($"x:DataType=\"vm:{viewModelName}\"", axaml);
+            Assert.Contains("DynamicResource MptPagePadding", axaml);
+            Assert.Contains("AvaloniaXamlLoader.Load(this)", codeBehind);
+            Assert.True(File.ReadLines(codeBehindPath).Count() <= 18, $"{codeBehindPath} should stay as thin view loading code.");
+            Assert.DoesNotContain("HostControlClient", codeBehind, StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
+    public void Shell_viewmodels_are_control_free_and_map_host_protocol()
+    {
+        var viewModelRoot = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "ViewModels");
+        foreach (var file in Directory.EnumerateFiles(viewModelRoot, "*.cs"))
+        {
+            var text = File.ReadAllText(file);
+            Assert.DoesNotContain("Avalonia.Controls", text, StringComparison.Ordinal);
+            Assert.DoesNotContain("UserControl", text, StringComparison.Ordinal);
+            Assert.DoesNotContain("Window", text, StringComparison.Ordinal);
+        }
+
+        var dashboard = new HostProto.DashboardSnapshot { EventSeq = 42 };
+        var card = new HostProto.ModuleCard
+        {
+            ModuleId = "sample",
+            PackageId = "sample-package",
+            Title = "Sample",
+            State = "running",
+            Summary = "Ready"
+        };
+        card.Metrics.Add(new HostProto.Metric { Label = "Commands", Value = "3" });
+        card.Actions.Add(new HostProto.QuickAction { CommandId = "sample.open", Title = "Open", Style = "primary" });
+        dashboard.Cards.Add(card);
+        dashboard.Alerts.Add(new HostProto.HostAlert { Id = "a1", Level = "info", Title = "Notice", Body = "All set" });
+
+        var dashboardViewModel = ShellPageViewModelFactory.FromDashboard(dashboard);
+
+        Assert.Equal("Dashboard", dashboardViewModel.Title);
+        Assert.Equal("1 modules indexed, event seq 42", dashboardViewModel.Subtitle);
+        Assert.Single(dashboardViewModel.Cards);
+        Assert.Single(dashboardViewModel.Alerts);
+
+        var commands = new HostProto.ListCommandsResponse();
+        commands.Commands.Add(new HostProto.CommandItem
+        {
+            CommandId = "sample.open",
+            ModuleId = "sample",
+            Title = "Open",
+            Subtitle = "Open Sample",
+            DangerLevel = "none"
+        });
+
+        var commandViewModel = ShellPageViewModelFactory.FromCommands("open", commands);
+
+        Assert.Equal("Command Palette", commandViewModel.Title);
+        Assert.Equal("open", commandViewModel.Query);
+        Assert.Single(commandViewModel.Commands);
+    }
+
+    [Fact]
+    public void Shell_theme_resource_dictionary_is_loaded_and_defines_design_tokens()
+    {
+        var appPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "App.cs");
+        var themePath = Path.Combine(Root, "src", "MyPowerTools.UI", "Themes", "MptTheme.axaml");
+        var app = File.ReadAllText(appPath);
+        var theme = File.ReadAllText(themePath);
+
+        Assert.Contains("avares://MyPowerTools.UI/Themes/MptTheme.axaml", app);
+        Assert.Contains("x:Key=\"MptBrushAppBackground\"", theme);
+        Assert.Contains("x:Key=\"MptPagePadding\"", theme);
+        Assert.Contains("x:Key=\"MptRadiusCard\"", theme);
+        Assert.Contains("TextBlock.MptPageTitle", theme);
+        Assert.Contains("Border.MptCard", theme);
+    }
+
+    [Fact]
+    public void Shell_axaml_views_use_theme_tokens_without_inline_colors()
+    {
+        var viewRoot = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Views");
+        foreach (var file in Directory.EnumerateFiles(viewRoot, "*.axaml"))
+        {
+            var text = File.ReadAllText(file);
+            Assert.Contains("DynamicResource", text);
+            Assert.DoesNotContain("#", text, StringComparison.Ordinal);
+            Assert.DoesNotContain("Brush.Parse", text, StringComparison.Ordinal);
+            Assert.DoesNotContain("Brushes.", text, StringComparison.Ordinal);
+        }
     }
 
     [Fact]

@@ -1,0 +1,33 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:MyPowerTools.Shell.Avalonia.ViewModels"
+             x:Class="MyPowerTools.Shell.Avalonia.Views.CommandPaletteView"
+             x:DataType="vm:CommandPaletteViewModel">
+  <StackPanel Margin="{DynamicResource MptPagePadding}" Spacing="{DynamicResource MptSpacingM}">
+    <StackPanel Spacing="{DynamicResource MptSpacingXs}">
+      <TextBlock Classes="MptPageTitle" Text="{Binding Title}" />
+      <TextBlock Classes="MptPageSubtitle" Text="{Binding Subtitle}" />
+    </StackPanel>
+
+    <Border Classes="MptInset">
+      <TextBlock Classes="MptMeta" Text="{Binding Query}" />
+    </Border>
+
+    <ItemsControl ItemsSource="{Binding Commands}">
+      <ItemsControl.ItemTemplate>
+        <DataTemplate x:DataType="vm:CommandItemViewModel">
+          <Border Classes="MptCard" Margin="0,0,0,8">
+            <StackPanel Spacing="{DynamicResource MptSpacingXs}">
+              <Grid ColumnDefinitions="*,Auto">
+                <TextBlock FontWeight="SemiBold" Text="{Binding Title}" />
+                <TextBlock Grid.Column="1" Classes="MptMeta" Text="{Binding DangerLevel}" />
+              </Grid>
+              <TextBlock Classes="MptPageSubtitle" Text="{Binding Subtitle}" />
+              <TextBlock Classes="MptMeta" Text="{Binding CommandId}" />
+            </StackPanel>
+          </Border>
+        </DataTemplate>
+      </ItemsControl.ItemTemplate>
+    </ItemsControl>
+  </StackPanel>
+</UserControl>

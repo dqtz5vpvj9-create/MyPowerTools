@@ -10,6 +10,10 @@ public sealed class App : Application
     public override void Initialize()
     {
         Styles.Add(new FluentTheme());
+        Styles.Add(new StyleInclude(new Uri("avares://MyPowerTools.Shell.Avalonia/App.cs"))
+        {
+            Source = new Uri("avares://MyPowerTools.UI/Themes/MptTheme.axaml")
+        });
     }
 
     public override void OnFrameworkInitializationCompleted()

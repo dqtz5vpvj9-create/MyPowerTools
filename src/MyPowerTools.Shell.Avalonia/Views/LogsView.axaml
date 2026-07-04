@@ -1,0 +1,26 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:MyPowerTools.Shell.Avalonia.ViewModels"
+             x:Class="MyPowerTools.Shell.Avalonia.Views.LogsView"
+             x:DataType="vm:LogsViewModel">
+  <StackPanel Margin="{DynamicResource MptPagePadding}" Spacing="{DynamicResource MptSpacingM}">
+    <StackPanel Spacing="{DynamicResource MptSpacingXs}">
+      <TextBlock Classes="MptPageTitle" Text="{Binding Title}" />
+      <TextBlock Classes="MptPageSubtitle" Text="{Binding Subtitle}" />
+    </StackPanel>
+
+    <ItemsControl ItemsSource="{Binding Lines}">
+      <ItemsControl.ItemTemplate>
+        <DataTemplate x:DataType="vm:LogLineViewModel">
+          <Border Classes="MptInset" Margin="0,0,0,4">
+            <Grid ColumnDefinitions="120,80,*">
+              <TextBlock Classes="MptMeta" Text="{Binding Time}" />
+              <TextBlock Grid.Column="1" Classes="MptMeta" Text="{Binding Level}" />
+              <TextBlock Grid.Column="2" Text="{Binding Message}" TextWrapping="Wrap" />
+            </Grid>
+          </Border>
+        </DataTemplate>
+      </ItemsControl.ItemTemplate>
+    </ItemsControl>
+  </StackPanel>
+</UserControl>

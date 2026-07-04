@@ -38,6 +38,14 @@ This document tracks the current slice for external review. It is an audit hando
 - Verified side-by-side loading for generated plugins with the same dependency assembly name and different dependency versions.
 - Verified module update behavior loads from shadow cache while the original package DLL can be replaced.
 
+### Shell UI Architecture
+
+- Added `src/MyPowerTools.UI/Themes/MptTheme.axaml` as the first shared Avalonia `ResourceDictionary` for Shell brushes, spacing, radius, and text styles.
+- Updated `App.cs` to load the shared theme through `avares://MyPowerTools.UI/Themes/MptTheme.axaml`.
+- Added typed AXAML page views for Dashboard, Command Palette, Settings, Logs, Package Manager, and Diagnostics under `src/MyPowerTools.Shell.Avalonia/Views`.
+- Added `src/MyPowerTools.Shell.Avalonia/ViewModels/ShellPageViewModels.cs` with control-free page viewmodels and HostControl protocol mapping factories.
+- Added static guardrails for typed AXAML bindings, thin code-behind files, theme-token usage, and ViewModel independence from Avalonia controls.
+
 ### Acceptance Coverage
 
 - `Inproc_disk_module_uses_collectible_load_context_and_unloads`
@@ -60,15 +68,23 @@ This document tracks the current slice for external review. It is an audit hando
   verifies Runtime, HostControl, and Shell avoid references to concrete production module projects.
 - `P_foundation_2_ui_architecture_debt_is_tracked`
   verifies this document reflects the live shell line count and refactor target.
+- `Shell_axaml_mvvm_migration_scaffold_exists_with_typed_bindings`
+  verifies the six primary Shell pages have AXAML views, typed bindings, theme tokens, and thin code-behind files.
+- `Shell_viewmodels_are_control_free_and_map_host_protocol`
+  verifies Shell viewmodels do not depend on Avalonia controls and can map HostControl dashboard and command data.
+- `Shell_theme_resource_dictionary_is_loaded_and_defines_design_tokens`
+  verifies the shared UI theme dictionary is loaded by the Shell app and contains required token/style entries.
+- `Shell_axaml_views_use_theme_tokens_without_inline_colors`
+  verifies Shell AXAML views use theme resources instead of inline colors.
 
 ## Current UI Architecture State
 
 - `src/MyPowerTools.Shell.Avalonia/MainWindow.cs` current: 1845 lines.
 - `MainWindow.cs` target <= 250 lines.
-- AXAML + MVVM migration: pending.
-- Component AXAML library: pending.
-- Token `ResourceDictionary` split: pending.
-- Static style lint for shell UI: partially covered by existing token tests, deeper lint pending.
+- AXAML + MVVM migration: started with typed page views and protocol-backed viewmodels; existing `MainWindow.cs` still owns runtime wiring and imperative rendering.
+- Component AXAML library: started with shared page/card/text styles; reusable control templates remain pending.
+- Token `ResourceDictionary` split: initial shared `MptTheme.axaml` loaded from the UI project.
+- Static style lint for shell UI: started with AXAML/viewmodel/code-behind guardrails; deeper layout and interaction lint pending.
 - Command palette typed argument binding: pending.
 - Settings validate/apply chain with staged diff UX: pending.
 
@@ -88,9 +104,9 @@ The existing shell already has UI snapshot gates, keyboard shortcut tests, and c
 | InProc unload handling | Unload probe and failure surfaced to runtime policy | Done for clean unload and pending-runner-restart diagnostics |
 | Sidecar default for complex modules | Complex modules prefer sidecar transport | Existing manifests keep sidecar-capable modules on sidecar paths |
 | MainWindow size | target <= 250 lines | current: 1845 lines |
-| AXAML + MVVM | Main shell split into views/viewmodels | Pending |
-| Component library | Reusable AXAML controls and tokens | Pending |
-| Style lint | Static lint over shell UI style usage | Pending |
+| AXAML + MVVM | Main shell split into views/viewmodels | Started: six typed page views and control-free viewmodels |
+| Component library | Reusable AXAML controls and tokens | Started: shared theme resources and base page/card/text styles |
+| Style lint | Static lint over shell UI style usage | Started: AXAML token and code-behind/viewmodel guardrails |
 | Command palette | Typed args and validation UI | Pending |
 | Settings UX | Validate/apply chain with clear states | Pending |
 
@@ -112,7 +128,7 @@ Latest observed result before packaging:
 
 ```text
 Build: passed, 0 warnings, 0 errors
-Tests: passed, 98 passed, 0 failed, 0 skipped
+Tests: passed, 102 passed, 0 failed, 0 skipped
 Module validation: 5 packages valid
 Contract validation: 5 packages, 7 modules passed
 Strict trust check: 5 signatures accepted under local policy
