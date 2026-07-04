@@ -1,11 +1,7 @@
-using System.Text.Json;
-using System.Text.Json.Nodes;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Threading;
-using Google.Protobuf.WellKnownTypes;
-using MyPowerTools.HostControl;
 using MyPowerTools.Shell.Avalonia.ViewModels;
 using MyPowerTools.Shell.Avalonia.Views;
 using MyPowerTools.UI;
@@ -32,6 +28,7 @@ public sealed class MainWindow : Window
     private readonly ShellChromeViewModel _chromeViewModel;
     private readonly Services.ShellCommandExecutionService _commandExecutionService = new();
     private readonly Services.ShellHostActionService _hostActions = new();
+    private readonly Services.ShellPageDataService _pageData = new();
     private readonly Services.ShellRunnerEventService _runnerEvents = new();
     private readonly Services.ShellSettingsService _settingsService = new();
     private string _currentPage = DashboardPage;
@@ -231,18 +228,15 @@ public sealed class MainWindow : Window
     {
         try
         {
-            using var client = HostControlClient.ForDefaultEndpoint();
-            var snapshot = await client.GetDashboardSnapshotAsync();
-            var viewModel = ShellPageViewModelFactory.FromDashboard(
-                snapshot,
+            var result = await _pageData.LoadDashboardAsync(
                 moduleId => ShowModuleDetailPageAsync(moduleId),
                 commandId => ExecuteCommandAsync(commandId));
 
             _contentHost.Content = new DashboardView
             {
-                DataContext = viewModel
+                DataContext = result.ViewModel
             };
-            SetStatus(viewModel.Subtitle);
+            SetStatus(result.StatusText);
         }
         catch (Exception ex)
         {
@@ -255,10 +249,7 @@ public sealed class MainWindow : Window
     {
         try
         {
-            using var client = HostControlClient.ForDefaultEndpoint();
-            var response = await client.ListModulesAsync();
-            var viewModel = ShellPageViewModelFactory.FromModules(
-                response,
+            var result = await _pageData.LoadModulesAsync(
                 moduleId => ShowModuleDetailPageAsync(moduleId),
                 moduleId => LoadSettingsPageAsync(moduleId),
                 moduleId => LoadLogsPageAsync(moduleId),
@@ -266,9 +257,9 @@ public sealed class MainWindow : Window
 
             _contentHost.Content = new ModulesView
             {
-                DataContext = viewModel
+                DataContext = result.ViewModel
             };
-            SetStatus($"{viewModel.Modules.Count} modules loaded");
+            SetStatus(result.StatusText);
         }
         catch (Exception ex)
         {
@@ -284,20 +275,16 @@ public sealed class MainWindow : Window
 
         try
         {
-            using var client = HostControlClient.ForDefaultEndpoint();
-            var detail = await client.GetModuleDetailAsync(moduleId);
-            var commands = await client.ListCommandsAsync(moduleId);
-            var viewModel = ShellPageViewModelFactory.FromModuleDetail(
-                detail,
-                commands,
+            var result = await _pageData.LoadModuleDetailAsync(
+                moduleId,
                 (targetModuleId, enabled) => SetModuleEnabledAsync(targetModuleId, enabled, showDetail: true),
                 commandId => ExecuteCommandAsync(commandId));
 
             _contentHost.Content = new ModuleDetailView
             {
-                DataContext = viewModel
+                DataContext = result.ViewModel
             };
-            SetStatus($"{detail.DisplayName} detail loaded");
+            SetStatus(result.StatusText);
         }
         catch (Exception ex)
         {
@@ -310,48 +297,16 @@ public sealed class MainWindow : Window
     {
         try
         {
-            using var client = HostControlClient.ForDefaultEndpoint();
-            var modules = await client.ListModulesAsync();
-            var selected = PickModule(modules, selectedModuleId);
-            if (selected is null)
-            {
-                var emptyViewModel = ShellPageViewModelFactory.FromSettings(
-                    modules,
-                    null,
-                    "",
-                    new JsonObject(),
-                    "{}",
-                    0,
-                    DateTimeOffset.MinValue,
-                    moduleId => LoadSettingsPageAsync(moduleId),
-                    SaveSettingsPageAsync);
-                _contentHost.Content = new SettingsCenterView
-                {
-                    DataContext = emptyViewModel
-                };
-                SetStatus(emptyViewModel.StatusText);
-                return;
-            }
-
-            var schema = await client.GetSettingsSchemaAsync(selected.ModuleId);
-            var snapshot = await client.GetSettingsAsync(selected.ModuleId);
-            var values = JsonStructMapper.ToJsonObject(snapshot.Values);
-            var viewModel = ShellPageViewModelFactory.FromSettings(
-                modules,
-                selected,
-                schema.SchemaJson,
-                values,
-                PrettyJson(snapshot.Values),
-                snapshot.Revision,
-                snapshot.UpdatedAt.ToDateTimeOffset(),
+            var result = await _pageData.LoadSettingsAsync(
+                selectedModuleId,
                 moduleId => LoadSettingsPageAsync(moduleId),
                 SaveSettingsPageAsync);
 
             _contentHost.Content = new SettingsCenterView
             {
-                DataContext = viewModel
+                DataContext = result.ViewModel
             };
-            SetStatus(viewModel.StatusText);
+            SetStatus(result.StatusText);
         }
         catch (Exception ex)
         {
@@ -375,25 +330,15 @@ public sealed class MainWindow : Window
     {
         try
         {
-            using var client = HostControlClient.ForDefaultEndpoint();
-            var modules = await client.ListModulesAsync();
-            var selected = PickModule(modules, selectedModuleId);
-            IReadOnlyList<HostProto.LogEntry> entries = selected is null
-                ? []
-                : await client.TailLogsAsync(selected.ModuleId);
-            var viewModel = ShellPageViewModelFactory.FromLogs(
-                modules,
-                selected,
-                entries,
+            var result = await _pageData.LoadLogsAsync(
+                selectedModuleId,
                 moduleId => LoadLogsPageAsync(moduleId));
 
             _contentHost.Content = new LogsView
             {
-                DataContext = viewModel
+                DataContext = result.ViewModel
             };
-            SetStatus(selected is null
-                ? "No modules."
-                : $"{entries.Count} log entries for {selected.ModuleId}");
+            SetStatus(result.StatusText);
         }
         catch (Exception ex)
         {
@@ -406,15 +351,13 @@ public sealed class MainWindow : Window
     {
         try
         {
-            using var client = HostControlClient.ForDefaultEndpoint();
-            var response = await client.ListNotificationsAsync(80);
-            var viewModel = ShellPageViewModelFactory.FromNotifications(response);
+            var result = await _pageData.LoadNotificationsAsync();
 
             _contentHost.Content = new NotificationsView
             {
-                DataContext = viewModel
+                DataContext = result.ViewModel
             };
-            SetStatus($"{viewModel.Notifications.Count} notifications loaded");
+            SetStatus(result.StatusText);
         }
         catch (Exception ex)
         {
@@ -427,10 +370,7 @@ public sealed class MainWindow : Window
     {
         try
         {
-            using var client = HostControlClient.ForDefaultEndpoint();
-            var response = await client.ListPackagesAsync();
-            var viewModel = ShellPageViewModelFactory.FromPackages(
-                response,
+            var result = await _pageData.LoadPackagesAsync(
                 sourceDirectory => RunPackageOperationAsync("install", sourceDirectory),
                 packageId => RunPackageOperationAsync("rollback", packageId),
                 packageId => RunPackageOperationAsync("repair", packageId),
@@ -439,9 +379,9 @@ public sealed class MainWindow : Window
 
             _contentHost.Content = new PackageManagerView
             {
-                DataContext = viewModel
+                DataContext = result.ViewModel
             };
-            SetStatus($"{response.Packages.Count} packages loaded");
+            SetStatus(result.StatusText);
         }
         catch (Exception ex)
         {
@@ -454,12 +394,7 @@ public sealed class MainWindow : Window
     {
         try
         {
-            using var client = HostControlClient.ForDefaultEndpoint();
-            var diagnostics = await client.GetRuntimeDiagnosticsAsync();
-            var audit = await client.ListBrokerAuditAsync(5);
-            var viewModel = ShellPageViewModelFactory.FromDiagnostics(
-                diagnostics,
-                audit,
+            var result = await _pageData.LoadDiagnosticsAsync(
                 (transportKind, poolKey) => RestartRuntimeProcessAsync(transportKind, poolKey),
                 (transportKind, poolKey, paused, expiresAt, reason) => SetRuntimeProcessRestartPolicyAsync(
                     transportKind,
@@ -470,9 +405,9 @@ public sealed class MainWindow : Window
 
             _contentHost.Content = new DiagnosticsView
             {
-                DataContext = viewModel
+                DataContext = result.ViewModel
             };
-            SetStatus($"Diagnostics loaded for {diagnostics.Counts.ModuleCount} modules");
+            SetStatus(result.StatusText);
         }
         catch (Exception ex)
         {
@@ -485,16 +420,7 @@ public sealed class MainWindow : Window
     {
         try
         {
-            using var client = HostControlClient.ForDefaultEndpoint();
-            var response = await client.ListCommandsAsync(query);
-            if (response.Commands.Count > 30)
-            {
-                var limited = new HostProto.ListCommandsResponse();
-                limited.Commands.AddRange(response.Commands.Take(30));
-                response = limited;
-            }
-
-            var viewModel = ShellPageViewModelFactory.FromCommands(query, response, commandId => ExecuteCommandAsync(commandId));
+            var viewModel = await _pageData.LoadCommandsAsync(query, commandId => ExecuteCommandAsync(commandId));
             _commandPanel.Content = new CommandPaletteView
             {
                 DataContext = viewModel
@@ -510,18 +436,17 @@ public sealed class MainWindow : Window
     {
         try
         {
-            using var client = HostControlClient.ForDefaultEndpoint();
-            var audit = await client.ListBrokerAuditAsync(6);
+            var viewModel = await _pageData.LoadBrokerAuditAsync();
             _auditPanel.Content = new BrokerAuditView
             {
-                DataContext = ShellPageViewModelFactory.FromBrokerAudit(audit)
+                DataContext = viewModel
             };
         }
         catch (Exception ex)
         {
             _auditPanel.Content = new BrokerAuditView
             {
-                DataContext = ShellPageViewModelFactory.FromBrokerAuditError(ex.Message)
+                DataContext = _pageData.CreateBrokerAuditError(ex.Message)
             };
         }
     }
@@ -632,38 +557,6 @@ public sealed class MainWindow : Window
         catch (Exception ex)
         {
             SetStatus(ex.Message);
-        }
-    }
-
-    private static HostProto.ModuleSummary? PickModule(HostProto.ListModulesResponse modules, string? selectedModuleId)
-    {
-        if (!string.IsNullOrWhiteSpace(selectedModuleId))
-        {
-            var selected = modules.Modules.FirstOrDefault(module => string.Equals(module.ModuleId, selectedModuleId, StringComparison.OrdinalIgnoreCase));
-            if (selected is not null)
-            {
-                return selected;
-            }
-        }
-
-        return modules.Modules.OrderBy(module => module.DisplayName, StringComparer.OrdinalIgnoreCase).FirstOrDefault();
-    }
-
-    private static string PrettyJson(Struct value)
-    {
-        if (value.Fields.Count == 0)
-        {
-            return "{}";
-        }
-
-        try
-        {
-            using var document = JsonDocument.Parse(value.ToString());
-            return JsonSerializer.Serialize(document.RootElement, new JsonSerializerOptions { WriteIndented = true });
-        }
-        catch
-        {
-            return value.ToString();
         }
     }
 
