@@ -13,19 +13,32 @@
       <TextBlock Classes="MptMeta" Text="{Binding Query}" />
     </Border>
 
+    <TextBlock Classes="MptPageSubtitle"
+               Text="No commands found."
+               IsVisible="{Binding IsEmpty}" />
+
     <ItemsControl ItemsSource="{Binding Commands}">
       <ItemsControl.ItemTemplate>
         <DataTemplate x:DataType="vm:CommandItemViewModel">
-          <Border Classes="MptCard" Margin="0,0,0,8">
-            <StackPanel Spacing="{DynamicResource MptSpacingXs}">
-              <Grid ColumnDefinitions="*,Auto">
-                <TextBlock FontWeight="SemiBold" Text="{Binding Title}" />
-                <TextBlock Grid.Column="1" Classes="MptMeta" Text="{Binding DangerLevel}" />
-              </Grid>
-              <TextBlock Classes="MptPageSubtitle" Text="{Binding Subtitle}" />
-              <TextBlock Classes="MptMeta" Text="{Binding CommandId}" />
-            </StackPanel>
-          </Border>
+          <Button Command="{Binding ExecuteCommand}"
+                  HorizontalContentAlignment="Stretch"
+                  MinHeight="58"
+                  Margin="0,0,0,8">
+            <Border Classes="MptCard">
+              <StackPanel Spacing="{DynamicResource MptSpacingXs}">
+                <Grid ColumnDefinitions="*,Auto">
+                  <TextBlock FontWeight="SemiBold" Text="{Binding Title}" />
+                  <TextBlock Grid.Column="1" Classes="MptMeta" Text="{Binding RiskLabel}" />
+                </Grid>
+                <TextBlock Classes="MptPageSubtitle" Text="{Binding Subtitle}" />
+                <TextBlock Classes="MptMeta" Text="{Binding CommandId}" />
+                <TextBlock Classes="MptMeta" Text="{Binding ModuleLabel}" />
+                <TextBlock Classes="MptMeta"
+                           Text="{Binding ParameterSummary}"
+                           IsVisible="{Binding HasParameters}" />
+              </StackPanel>
+            </Border>
+          </Button>
         </DataTemplate>
       </ItemsControl.ItemTemplate>
     </ItemsControl>

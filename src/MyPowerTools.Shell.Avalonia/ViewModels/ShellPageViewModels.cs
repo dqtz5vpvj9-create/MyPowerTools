@@ -110,7 +110,7 @@ public sealed class DashboardViewModel : ShellPageViewModel
 public sealed class CommandPaletteViewModel : ShellPageViewModel
 {
     public CommandPaletteViewModel(string query, IReadOnlyList<CommandItemViewModel> commands)
-        : base("Command Palette", $"{commands.Count} commands")
+        : base("Command Palette", $"{commands.Count} commands", commands.Count == 0 ? "empty" : "ready")
     {
         Query = query;
         Commands = commands;
@@ -118,6 +118,7 @@ public sealed class CommandPaletteViewModel : ShellPageViewModel
 
     public string Query { get; }
     public IReadOnlyList<CommandItemViewModel> Commands { get; }
+    public bool IsEmpty => Commands.Count == 0;
 }
 
 public sealed class ModulesViewModel : ShellPageViewModel
@@ -264,7 +265,12 @@ public sealed record CommandItemViewModel(
     string Title,
     string Subtitle,
     string DangerLevel,
-    bool RequiresElevation);
+    bool RequiresElevation,
+    string ModuleLabel,
+    string RiskLabel,
+    string ParameterSummary,
+    bool HasParameters,
+    ICommand ExecuteCommand);
 
 public sealed record ModuleSummaryItemViewModel(
     string ModuleId,
@@ -368,7 +374,10 @@ public static class ShellPageViewModelFactory
         return new DashboardViewModel($"{cards.Length} modules indexed, event seq {snapshot.EventSeq}", cards, alerts);
     }
 
-    public static CommandPaletteViewModel FromCommands(string query, HostProto.ListCommandsResponse response)
+    public static CommandPaletteViewModel FromCommands(
+        string query,
+        HostProto.ListCommandsResponse response,
+        Func<string, Task>? executeCommand = null)
     {
         var commands = response.Commands.Select(command => new CommandItemViewModel(
             command.CommandId,
@@ -376,7 +385,12 @@ public static class ShellPageViewModelFactory
             command.Title,
             command.Subtitle,
             command.DangerLevel,
-            command.RequiresElevation)).ToArray();
+            command.RequiresElevation,
+            string.IsNullOrWhiteSpace(command.ModuleId) ? "Module: unknown" : $"Module: {command.ModuleId}",
+            command.RequiresElevation ? $"{command.DangerLevel} - elevation" : command.DangerLevel,
+            "",
+            false,
+            new AsyncRelayCommand(() => executeCommand?.Invoke(command.CommandId) ?? Task.CompletedTask))).ToArray();
 
         return new CommandPaletteViewModel(query, commands);
     }

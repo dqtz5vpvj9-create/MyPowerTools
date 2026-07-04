@@ -638,6 +638,27 @@ Address         Port        Address         Port
     }
 
     [Fact]
+    public void Shell_command_palette_is_wired_to_axaml_view_model()
+    {
+        var mainWindowPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "MainWindow.cs");
+        var commandPaletteViewPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Views", "CommandPaletteView.axaml");
+        var viewModelPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "ViewModels", "ShellPageViewModels.cs");
+        var mainWindow = File.ReadAllText(mainWindowPath);
+        var commandPaletteView = File.ReadAllText(commandPaletteViewPath);
+        var viewModel = File.ReadAllText(viewModelPath);
+
+        Assert.Contains("ShellPageViewModelFactory.FromCommands", mainWindow);
+        Assert.Contains("new CommandPaletteView", mainWindow);
+        Assert.DoesNotContain("_commandPanel.Children", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("x:DataType=\"vm:CommandPaletteViewModel\"", commandPaletteView);
+        Assert.Contains("CommandItemViewModel", commandPaletteView);
+        Assert.Contains("ExecuteCommand", commandPaletteView);
+        Assert.Contains("IsVisible=\"{Binding IsEmpty}\"", commandPaletteView);
+        Assert.Contains("ParameterSummary", commandPaletteView);
+        Assert.Contains("ICommand ExecuteCommand", viewModel);
+    }
+
+    [Fact]
     public void Shell_theme_resource_dictionary_is_loaded_and_defines_design_tokens()
     {
         var appPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "App.cs");

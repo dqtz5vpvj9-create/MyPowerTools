@@ -31,7 +31,7 @@ public sealed class MainWindow : Window
     private readonly MptSidebar _navigation = new();
     private readonly MptSearchBox _searchBox = new();
     private readonly ContentControl _contentHost = new();
-    private readonly StackPanel _commandPanel = new();
+    private readonly ContentControl _commandPanel = new();
     private readonly StackPanel _permissionPanel = new();
     private readonly StackPanel _auditPanel = new();
     private readonly TextBlock _runnerStatus = new();
@@ -125,7 +125,6 @@ public sealed class MainWindow : Window
         Grid.SetRow(content, 1);
         root.Children.Add(content);
 
-        _commandPanel.Spacing = 8;
         _permissionPanel.Spacing = 8;
         _auditPanel.Spacing = 6;
         var commandHost = new Border
@@ -666,22 +665,22 @@ public sealed class MainWindow : Window
         {
             using var client = HostControlClient.ForDefaultEndpoint();
             var response = await client.ListCommandsAsync(query);
-            _commandPanel.Children.Clear();
-
-            foreach (var command in response.Commands.Take(30))
+            if (response.Commands.Count > 30)
             {
-                _commandPanel.Children.Add(BuildCommand(command));
+                var limited = new HostProto.ListCommandsResponse();
+                limited.Commands.AddRange(response.Commands.Take(30));
+                response = limited;
             }
 
-            if (response.Commands.Count == 0)
+            var viewModel = ShellPageViewModelFactory.FromCommands(query, response, commandId => ExecuteCommandAsync(commandId));
+            _commandPanel.Content = new CommandPaletteView
             {
-                _commandPanel.Children.Add(new MptEmptyState("No commands found."));
-            }
+                DataContext = viewModel
+            };
         }
         catch (Exception ex)
         {
-            _commandPanel.Children.Clear();
-            _commandPanel.Children.Add(new MptErrorState(ex.Message));
+            _commandPanel.Content = new MptErrorState(ex.Message);
         }
     }
 
