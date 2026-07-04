@@ -32,8 +32,7 @@ public sealed class MainWindow : Window
     private readonly ContentControl _auditPanel;
     private readonly ShellChromeViewModel _chromeViewModel;
     private readonly Services.ShellCommandExecutionService _commandExecutionService = new();
-    private readonly HostControlConnectionMonitor _connectionMonitor = new(new HostControlRunnerConnectionProbe());
-    private readonly HostControlEventStreamMonitor _eventStream = new(new HostControlClientEventSource());
+    private readonly Services.ShellRunnerEventService _runnerEvents = new();
     private string _currentPage = DashboardPage;
 
     public MainWindow()
@@ -61,28 +60,18 @@ public sealed class MainWindow : Window
         _searchBox.TextChanged += async (_, _) => await LoadCommandsAsync(_searchBox.Text ?? "");
 
         KeyDown += OnShellKeyDown;
-        _connectionMonitor.StateChanged += (_, snapshot) =>
-        {
-            Dispatcher.UIThread.Post(async () => await ApplyConnectionSnapshotAsync(snapshot, refreshOnRecovery: true));
-        };
-        _eventStream.EventReceived += (_, evt) =>
-        {
-            Dispatcher.UIThread.Post(async () => await ApplyHostEventAsync(evt));
-        };
-        _eventStream.StreamFaulted += (_, ex) =>
-        {
-            Dispatcher.UIThread.Post(() => SetStatus($"Host event stream reconnecting: {ex.Message}"));
-        };
+        _runnerEvents.StatusChanged += text => Dispatcher.UIThread.Post(() => SetStatus(text));
+        _runnerEvents.RunnerStatusChanged += text => Dispatcher.UIThread.Post(() => SetRunnerStatus(text));
+        _runnerEvents.RunnerRecovered += () => Dispatcher.UIThread.Post(async () => await RefreshShellDataAsync());
+        _runnerEvents.HostEventReceived += evt => Dispatcher.UIThread.Post(async () => await ApplyHostEventAsync(evt));
         Opened += async (_, _) =>
         {
-            _connectionMonitor.Start();
-            _eventStream.Start();
+            _runnerEvents.Start();
             await RefreshAsync();
         };
         Closed += async (_, _) =>
         {
-            await _eventStream.DisposeAsync();
-            await _connectionMonitor.DisposeAsync();
+            await _runnerEvents.DisposeAsync();
         };
     }
 
@@ -99,7 +88,12 @@ public sealed class MainWindow : Window
 
     private async Task RefreshAsync()
     {
-        await LoadRunnerStatusAsync();
+        await _runnerEvents.CheckOnceAsync();
+        await RefreshShellDataAsync();
+    }
+
+    private async Task RefreshShellDataAsync()
+    {
         await ShowPageAsync(_currentPage);
         await LoadCommandsAsync(_searchBox.Text ?? "");
         await LoadBrokerAuditAsync();
@@ -150,42 +144,8 @@ public sealed class MainWindow : Window
         }
     }
 
-    private async Task LoadRunnerStatusAsync()
-    {
-        var snapshot = await _connectionMonitor.CheckOnceAsync(notify: false);
-        ApplyRunnerStatus(snapshot);
-        if (!snapshot.Online)
-        {
-            SetStatus($"Runner offline: {snapshot.Message}");
-        }
-    }
-
-    private async Task ApplyConnectionSnapshotAsync(HostControlConnectionSnapshot snapshot, bool refreshOnRecovery)
-    {
-        ApplyRunnerStatus(snapshot);
-        if (!snapshot.Online)
-        {
-            SetStatus($"Runner offline: {snapshot.Message}");
-            return;
-        }
-
-        if (snapshot.Recovered && refreshOnRecovery)
-        {
-            SetStatus("Runner connection restored.");
-            await ShowPageAsync(_currentPage);
-            await LoadCommandsAsync(_searchBox.Text ?? "");
-            await LoadBrokerAuditAsync();
-        }
-    }
-
-    private void ApplyRunnerStatus(HostControlConnectionSnapshot snapshot)
-    {
-        SetRunnerStatus(snapshot.Online ? $"Runner {snapshot.State}" : "Runner offline");
-    }
-
     private async Task ApplyHostEventAsync(HostProto.HostEvent evt)
     {
-        SetStatus($"Event {evt.Seq}: {evt.Type}");
         switch (evt.Type)
         {
             case "notification.created":

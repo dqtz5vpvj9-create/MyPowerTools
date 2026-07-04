@@ -701,6 +701,28 @@ Address         Port        Address         Port
     }
 
     [Fact]
+    public void Shell_runner_events_are_extracted_to_service()
+    {
+        var mainWindowPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "MainWindow.cs");
+        var servicePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellRunnerEventService.cs");
+        var mainWindow = File.ReadAllText(mainWindowPath);
+        var service = File.ReadAllText(servicePath);
+
+        Assert.Contains("ShellRunnerEventService", mainWindow);
+        Assert.Contains("_runnerEvents.CheckOnceAsync()", mainWindow);
+        Assert.Contains("_runnerEvents.HostEventReceived", mainWindow);
+        Assert.DoesNotContain("HostControlConnectionMonitor _connectionMonitor", mainWindow, StringComparison.Ordinal);
+        Assert.DoesNotContain("HostControlEventStreamMonitor _eventStream", mainWindow, StringComparison.Ordinal);
+        Assert.DoesNotContain("LoadRunnerStatusAsync", mainWindow, StringComparison.Ordinal);
+        Assert.DoesNotContain("ApplyConnectionSnapshotAsync", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("HostControlConnectionMonitor", service);
+        Assert.Contains("HostControlEventStreamMonitor", service);
+        Assert.Contains("RunnerRecovered", service);
+        Assert.Contains("HostEventReceived", service);
+        Assert.Contains("StatusChanged?.Invoke", service);
+    }
+
+    [Fact]
     public void Shell_settings_page_is_wired_to_axaml_view_model()
     {
         var mainWindowPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "MainWindow.cs");

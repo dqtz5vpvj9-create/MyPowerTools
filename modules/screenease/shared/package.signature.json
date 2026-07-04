@@ -3,7 +3,7 @@
   "PackageId": "screenease",
   "Version": "0.2.0",
   "HashManifest": "shared/package.hashes.json",
-  "HashManifestSha256": "d05f481f6f71fd413d9cce379b205bb2d54204a9fc2bf5f3e8f30be2a21492e0",
+  "HashManifestSha256": "43cddf3cc3f9e47c08dcbe99e77fac34589640681cfaeace16f596f76e655e2e",
   "SignatureState": "unsigned-local-trust",
   "Algorithm": "sha256-manifest-local",
   "KeyId": "local-development",
