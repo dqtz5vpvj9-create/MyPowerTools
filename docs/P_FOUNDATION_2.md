@@ -66,6 +66,8 @@ This document tracks the current slice for external review. It is an audit hando
 - Removed the old imperative permission prompt and broker audit entry builders from `MainWindow.cs`.
 - Wired unavailable/error pages to `UnavailablePageView` / `UnavailablePageViewModel`.
 - Removed the old generic imperative `BuildPage` error wrapper from `MainWindow.cs`.
+- Wired the Shell chrome layout to `ShellChromeView.axaml`, preserving navigation, search, refresh, content host, command panel, permission panel, broker audit panel, and status row through named controls.
+- Removed the old imperative `BuildLayout`, `Header`, and dock helper layout construction from `MainWindow.cs`.
 
 ### Acceptance Coverage
 
@@ -115,6 +117,8 @@ This document tracks the current slice for external review. It is an audit hando
   verifies Permission Prompt and Broker Audit sidebars use AXAML views and ViewModel factories, and removes old sidebar builders.
 - `Shell_unavailable_page_is_wired_to_axaml_view_model`
   verifies unavailable/error pages use `UnavailablePageView` with a typed ViewModel and removes the old generic `BuildPage` helper.
+- `Shell_chrome_layout_is_wired_to_axaml_view`
+  verifies the Shell three-column chrome is defined in `ShellChromeView.axaml`, preserves named hosts, and removes the old `BuildLayout` path.
 - `Shell_theme_resource_dictionary_is_loaded_and_defines_design_tokens`
   verifies the shared UI theme dictionary is loaded by the Shell app and contains required token/style entries.
 - `Shell_axaml_views_use_theme_tokens_without_inline_colors`
@@ -122,9 +126,9 @@ This document tracks the current slice for external review. It is an audit hando
 
 ## Current UI Architecture State
 
-- `src/MyPowerTools.Shell.Avalonia/MainWindow.cs` current: 878 lines.
+- `src/MyPowerTools.Shell.Avalonia/MainWindow.cs` current: 795 lines.
 - `MainWindow.cs` target <= 250 lines.
-- AXAML + MVVM migration: Dashboard, Modules, Module Detail, Logs, Notifications, Package Manager, Diagnostics, Settings Center, Permission Prompt, Broker Audit, unavailable/error pages, and the right-side Command Palette list are now live on typed AXAML plus ViewModels.
+- AXAML + MVVM migration: Dashboard, Modules, Module Detail, Logs, Notifications, Package Manager, Diagnostics, Settings Center, Permission Prompt, Broker Audit, unavailable/error pages, Shell chrome layout, and the right-side Command Palette list are now live on typed AXAML plus ViewModels.
 - Component AXAML library: started with shared page/card/text styles; reusable control templates remain pending.
 - Token `ResourceDictionary` split: initial shared `MptTheme.axaml` loaded from the UI project.
 - Static style lint for shell UI: started with AXAML/viewmodel/code-behind guardrails; deeper layout and interaction lint pending.
@@ -146,8 +150,8 @@ The existing shell already has UI snapshot gates, keyboard shortcut tests, and c
 | InProc shadow-copy update | Loaded module uses cache while package DLL is replaceable | Done |
 | InProc unload handling | Unload probe and failure surfaced to runtime policy | Done for clean unload and pending-runner-restart diagnostics |
 | Sidecar default for complex modules | Complex modules prefer sidecar transport | Existing manifests keep sidecar-capable modules on sidecar paths |
-| MainWindow size | target <= 250 lines | current: 878 lines |
-| AXAML + MVVM | Main shell split into views/viewmodels | Started: Dashboard, Modules, Module Detail, Logs, Notifications, Package Manager, Diagnostics, Settings Center, Permission Prompt, Broker Audit, unavailable/error pages, and the right-side Command Palette list wired to AXAML; twelve typed views and control-free viewmodels exist |
+| MainWindow size | target <= 250 lines | current: 795 lines |
+| AXAML + MVVM | Main shell split into views/viewmodels | Started: Dashboard, Modules, Module Detail, Logs, Notifications, Package Manager, Diagnostics, Settings Center, Permission Prompt, Broker Audit, unavailable/error pages, Shell chrome layout, and the right-side Command Palette list wired to AXAML; thirteen typed views and control-free viewmodels exist |
 | Component library | Reusable AXAML controls and tokens | Started: shared theme resources and base page/card/text styles |
 | Style lint | Static lint over shell UI style usage | Started: AXAML token and code-behind/viewmodel guardrails |
 | Command palette | Typed args and validation UI | Command list and execution wired to AXAML/MVVM; typed args pending HostControl parameter schema |
@@ -172,7 +176,7 @@ Latest observed result before packaging:
 
 ```text
 Build: passed, 0 warnings, 0 errors
-Tests: passed, 113 passed, 0 failed, 0 skipped
+Tests: passed, 114 passed, 0 failed, 0 skipped
 Module validation: 5 packages valid
 Contract validation: 5 packages, 7 modules passed
 UI gate: passed
@@ -184,7 +188,7 @@ The packaging step for external review should run the same validation again and 
 
 ## Recommended Next Slice
 
-1. Extract remaining Shell chrome, runner controls, and event-stream handling from `MainWindow.cs`.
+1. Extract remaining navigation state, runner controls, and event-stream handling from `MainWindow.cs`.
 2. Introduce shell token dictionaries and component styles under the UI project.
 3. Add deeper static style lint that scans AXAML and C# UI files.
 4. Add command palette parameter editors plus settings validation preview, staged diff, and apply result states.

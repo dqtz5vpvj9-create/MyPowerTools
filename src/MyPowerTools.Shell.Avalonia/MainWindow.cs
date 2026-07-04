@@ -27,14 +27,14 @@ public sealed class MainWindow : Window
     private const string PackagesPage = "Packages";
     private const string DiagnosticsPage = "Diagnostics";
 
-    private readonly MptSidebar _navigation = new();
-    private readonly MptSearchBox _searchBox = new();
-    private readonly ContentControl _contentHost = new();
-    private readonly ContentControl _commandPanel = new();
-    private readonly ContentControl _permissionPanel = new();
-    private readonly ContentControl _auditPanel = new();
-    private readonly TextBlock _runnerStatus = new();
-    private readonly TextBlock _statusBar = new();
+    private readonly MptSidebar _navigation;
+    private readonly MptSearchBox _searchBox;
+    private readonly ContentControl _contentHost;
+    private readonly ContentControl _commandPanel;
+    private readonly ContentControl _permissionPanel;
+    private readonly ContentControl _auditPanel;
+    private readonly TextBlock _runnerStatus;
+    private readonly TextBlock _statusBar;
     private readonly Dictionary<string, Button> _navButtons = new(StringComparer.OrdinalIgnoreCase);
     private readonly HostControlConnectionMonitor _connectionMonitor = new(new HostControlRunnerConnectionProbe());
     private readonly HostControlEventStreamMonitor _eventStream = new(new HostControlClientEventSource());
@@ -48,7 +48,18 @@ public sealed class MainWindow : Window
         MinWidth = 920;
         MinHeight = 620;
 
-        Content = BuildLayout();
+        var chrome = new ShellChromeView();
+        Content = chrome;
+        _navigation = RequireControl<MptSidebar>(chrome, "NavigationHost");
+        _searchBox = RequireControl<MptSearchBox>(chrome, "SearchBox");
+        _contentHost = RequireControl<ContentControl>(chrome, "ContentHost");
+        _commandPanel = RequireControl<ContentControl>(chrome, "CommandPanel");
+        _permissionPanel = RequireControl<ContentControl>(chrome, "PermissionPanel");
+        _auditPanel = RequireControl<ContentControl>(chrome, "AuditPanel");
+        _runnerStatus = RequireControl<TextBlock>(chrome, "RunnerStatus");
+        _statusBar = RequireControl<TextBlock>(chrome, "StatusBar");
+        ConfigureChrome(RequireControl<Button>(chrome, "RefreshButton"));
+
         KeyDown += OnShellKeyDown;
         _connectionMonitor.StateChanged += (_, snapshot) =>
         {
@@ -75,15 +86,8 @@ public sealed class MainWindow : Window
         };
     }
 
-    private Control BuildLayout()
+    private void ConfigureChrome(Button refresh)
     {
-        var root = new Grid
-        {
-            ColumnDefinitions = new ColumnDefinitions("220,*,360"),
-            RowDefinitions = new RowDefinitions("64,*,32"),
-            Background = MptTheme.AppBackground
-        };
-
         _navigation.Children.Add(new TextBlock
         {
             Text = "MyPowerTools",
@@ -96,77 +100,15 @@ public sealed class MainWindow : Window
             _navigation.Children.Add(NavButton(label));
         }
 
-        Grid.SetRowSpan(_navigation, 3);
-        root.Children.Add(_navigation);
-
-        var topBar = new MptTopBar();
         _searchBox.TextChanged += async (_, _) => await LoadCommandsAsync(_searchBox.Text ?? "");
-        topBar.Children.Add(_searchBox);
-
-        var refresh = new MptActionButton("Refresh")
-        {
-            Margin = new Thickness(12, 0, 0, 0),
-            HorizontalAlignment = HorizontalAlignment.Right
-        };
         refresh.Click += async (_, _) => await RefreshAsync();
-        Grid.SetColumn(refresh, 1);
-        topBar.Children.Add(refresh);
-        Grid.SetColumn(topBar, 1);
-        Grid.SetColumnSpan(topBar, 2);
-        root.Children.Add(topBar);
+    }
 
-        var content = new ScrollViewer
-        {
-            Content = _contentHost,
-            Margin = new Thickness(16, 4, 16, 12)
-        };
-        Grid.SetColumn(content, 1);
-        Grid.SetRow(content, 1);
-        root.Children.Add(content);
-
-        var commandHost = new Border
-        {
-            Margin = new Thickness(0, 4, 16, 12),
-            Padding = new Thickness(14),
-            CornerRadius = new CornerRadius(8),
-            BorderBrush = MptTheme.Border,
-            BorderThickness = new Thickness(1),
-            Background = MptTheme.CardBackground,
-            Child = new DockPanel
-            {
-                LastChildFill = true,
-                Children =
-                {
-                    Header("Command Palette"),
-                    DockedTop(_permissionPanel),
-                    DockedBottom(_auditPanel),
-                    new ScrollViewer
-                    {
-                        Content = _commandPanel
-                    }
-                }
-            }
-        };
-        Grid.SetColumn(commandHost, 2);
-        Grid.SetRow(commandHost, 1);
-        root.Children.Add(commandHost);
-
-        var status = new Grid
-        {
-            ColumnDefinitions = new ColumnDefinitions("*,Auto"),
-            Margin = new Thickness(16, 0, 16, 8)
-        };
-        _statusBar.VerticalAlignment = VerticalAlignment.Center;
-        status.Children.Add(_statusBar);
-        _runnerStatus.VerticalAlignment = VerticalAlignment.Center;
-        Grid.SetColumn(_runnerStatus, 1);
-        status.Children.Add(_runnerStatus);
-        Grid.SetColumn(status, 1);
-        Grid.SetColumnSpan(status, 2);
-        Grid.SetRow(status, 2);
-        root.Children.Add(status);
-
-        return root;
+    private static T RequireControl<T>(Control root, string name)
+        where T : Control
+    {
+        return root.FindControl<T>(name)
+            ?? throw new InvalidOperationException($"Shell chrome control '{name}' was not found.");
     }
 
     private async Task RefreshAsync()
@@ -687,31 +629,6 @@ public sealed class MainWindow : Window
         {
             pair.Value.BorderBrush = pair.Key == _currentPage ? MptTheme.Accent : MptTheme.Border;
         }
-    }
-
-    private static TextBlock Header(string text)
-    {
-        var header = new TextBlock
-        {
-            Text = text,
-            FontSize = 16,
-            FontWeight = FontWeight.SemiBold,
-            Margin = new Thickness(0, 0, 0, 12)
-        };
-        DockPanel.SetDock(header, Dock.Top);
-        return header;
-    }
-
-    private static Control DockedTop(Control control)
-    {
-        DockPanel.SetDock(control, Dock.Top);
-        return control;
-    }
-
-    private static Control DockedBottom(Control control)
-    {
-        DockPanel.SetDock(control, Dock.Bottom);
-        return control;
     }
 
     private async Task ExecuteCommandAsync(string commandId)

@@ -753,6 +753,28 @@ Address         Port        Address         Port
     }
 
     [Fact]
+    public void Shell_chrome_layout_is_wired_to_axaml_view()
+    {
+        var mainWindowPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "MainWindow.cs");
+        var shellChromeViewPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Views", "ShellChromeView.axaml");
+        var codeBehindPath = shellChromeViewPath + ".cs";
+        var mainWindow = File.ReadAllText(mainWindowPath);
+        var shellChromeView = File.ReadAllText(shellChromeViewPath);
+        var codeBehind = File.ReadAllText(codeBehindPath);
+
+        Assert.Contains("new ShellChromeView", mainWindow);
+        Assert.Contains("RequireControl<MptSidebar>", mainWindow);
+        Assert.DoesNotContain("BuildLayout", mainWindow, StringComparison.Ordinal);
+        Assert.DoesNotContain("new Grid", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"NavigationHost\"", shellChromeView);
+        Assert.Contains("x:Name=\"SearchBox\"", shellChromeView);
+        Assert.Contains("x:Name=\"ContentHost\"", shellChromeView);
+        Assert.Contains("x:Name=\"CommandPanel\"", shellChromeView);
+        Assert.Contains("x:Name=\"StatusBar\"", shellChromeView);
+        Assert.Contains("AvaloniaXamlLoader.Load(this)", codeBehind);
+    }
+
+    [Fact]
     public void Shell_theme_resource_dictionary_is_loaded_and_defines_design_tokens()
     {
         var appPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "App.cs");
