@@ -685,6 +685,22 @@ Address         Port        Address         Port
     }
 
     [Fact]
+    public void Shell_command_execution_is_extracted_to_service()
+    {
+        var mainWindowPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "MainWindow.cs");
+        var servicePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellCommandExecutionService.cs");
+        var mainWindow = File.ReadAllText(mainWindowPath);
+        var service = File.ReadAllText(servicePath);
+
+        Assert.Contains("ShellCommandExecutionService", mainWindow);
+        Assert.Contains("_commandExecutionService.ExecuteAsync(commandId)", mainWindow);
+        Assert.DoesNotContain("var result = await client.ExecuteCommandAsync(commandId);", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("HostControlClient.ForDefaultEndpoint()", service);
+        Assert.Contains("ShellCommandExecutionResult", service);
+        Assert.Contains("RequiresPermissionPrompt", service);
+    }
+
+    [Fact]
     public void Shell_settings_page_is_wired_to_axaml_view_model()
     {
         var mainWindowPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "MainWindow.cs");

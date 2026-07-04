@@ -31,6 +31,7 @@ public sealed class MainWindow : Window
     private readonly ContentControl _permissionPanel;
     private readonly ContentControl _auditPanel;
     private readonly ShellChromeViewModel _chromeViewModel;
+    private readonly Services.ShellCommandExecutionService _commandExecutionService = new();
     private readonly HostControlConnectionMonitor _connectionMonitor = new(new HostControlRunnerConnectionProbe());
     private readonly HostControlEventStreamMonitor _eventStream = new(new HostControlClientEventSource());
     private string _currentPage = DashboardPage;
@@ -599,15 +600,14 @@ public sealed class MainWindow : Window
     {
         try
         {
-            using var client = HostControlClient.ForDefaultEndpoint();
-            var result = await client.ExecuteCommandAsync(commandId);
-            SetStatus($"{result.State}: {result.Summary}");
+            var result = await _commandExecutionService.ExecuteAsync(commandId);
+            SetStatus(result.StatusText);
             _permissionPanel.Content = null;
-            if (result.State == "permission-required")
+            if (result.RequiresPermissionPrompt)
             {
                 _permissionPanel.Content = new PermissionPromptView
                 {
-                    DataContext = ShellPageViewModelFactory.FromPermissionPrompt(result, LoadBrokerAuditAsync)
+                    DataContext = ShellPageViewModelFactory.FromPermissionPrompt(result.Response, LoadBrokerAuditAsync)
                 };
             }
 

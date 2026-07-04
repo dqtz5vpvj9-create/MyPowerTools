@@ -3,11 +3,11 @@
   "Files": [
     {
       "Path": "AdbForwarder.MyPowerTools.dll",
-      "Sha256": "bc553869966dd87debb15dc78b25f29756b9ba7605a7226194b7100f63b99a2f"
+      "Sha256": "1fd4f0ac0ec705f624dcf7fe5dd5081f9757cc432a203d0cd94dbbdd86e820af"
     },
     {
       "Path": "AdbForwarder.MyPowerTools.pdb",
-      "Sha256": "068b4a14f95a271c2988c66e150738e2ca2b966b7212f03f16a660931aab1c26"
+      "Sha256": "af8ec60c7faf2adb7de0934c869d895f3df2b6721fe30a2ec097b2a3705bdef2"
     },
     {
       "Path": "commands.index.json",
