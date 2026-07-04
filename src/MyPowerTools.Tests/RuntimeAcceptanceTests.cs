@@ -1022,8 +1022,11 @@ Address         Port        Address         Port
         Assert.Contains("ChangeSummary", settingsView);
         Assert.Contains("PatchPreview", settingsView);
         Assert.Contains("DirtySummary", settingsView);
+        Assert.Contains("HasValidationErrors", settingsView);
+        Assert.Contains("HasValidationError", settingsView);
         Assert.Contains("BuildSettingsPatch", viewModel);
         Assert.Contains("RefreshStagedChanges", viewModel);
+        Assert.Contains("CanSave", viewModel);
     }
 
     [Fact]
@@ -1067,10 +1070,17 @@ Address         Port        Address         Port
 
         var port = Assert.Single(viewModel.Fields, field => field.Key == "port");
         var mode = Assert.Single(viewModel.Fields, field => field.Key == "mode");
-        port.Value = "38200";
+        port.Value = "invalid";
         mode.SelectedOption = "compact";
 
+        Assert.True(viewModel.HasValidationErrors);
+        Assert.Contains("Port must be an integer.", viewModel.ValidationMessage);
+        Assert.False(viewModel.SaveCommand.CanExecute(null));
+
+        port.Value = "38200";
+
         Assert.True(viewModel.HasChanges);
+        Assert.False(viewModel.HasValidationErrors);
         Assert.Equal(2, viewModel.DirtyCount);
         Assert.Equal("2 staged change(s)", viewModel.ChangeSummary);
         Assert.Contains("port: 38189 -> 38200", viewModel.PatchPreview);

@@ -43,6 +43,9 @@
       <StackPanel Spacing="{DynamicResource MptSpacingXs}">
         <TextBlock Classes="MptMeta" Text="{Binding ChangeSummary}" />
         <TextBlock Classes="MptMeta"
+                   Text="{Binding ValidationMessage}"
+                   IsVisible="{Binding HasValidationErrors}" />
+        <TextBlock Classes="MptMeta"
                    Text="{Binding PatchPreview}"
                    IsVisible="{Binding HasPatchPreview}" />
       </StackPanel>
@@ -61,6 +64,9 @@
               <TextBlock Classes="MptMeta"
                          Text="{Binding DirtySummary}"
                          IsVisible="{Binding IsDirty}" />
+              <TextBlock Classes="MptMeta"
+                         Text="{Binding ValidationMessage}"
+                         IsVisible="{Binding HasValidationError}" />
               <TextBox Text="{Binding Value, Mode=TwoWay}"
                        MinWidth="360"
                        MinHeight="34"

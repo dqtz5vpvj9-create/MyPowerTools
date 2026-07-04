@@ -275,6 +275,7 @@ public sealed class SettingsCenterViewModel : ShellPageViewModel
     private string _statusText;
     private int _dirtyCount;
     private string _patchPreview = "";
+    private string _validationMessage = "";
 
     public SettingsCenterViewModel(
         string selectedModuleId,
@@ -296,7 +297,7 @@ public sealed class SettingsCenterViewModel : ShellPageViewModel
         Fields = fields;
         _saveCommand = new AsyncRelayCommand(
             () => saveSettings?.Invoke(this) ?? Task.CompletedTask,
-            () => SelectedModuleId.Length > 0 && HasChanges);
+            () => CanSave);
         SaveCommand = _saveCommand;
 
         foreach (var field in Fields)
@@ -305,7 +306,8 @@ public sealed class SettingsCenterViewModel : ShellPageViewModel
             {
                 if (args.PropertyName is nameof(SettingsFieldViewModel.Value)
                     or nameof(SettingsFieldViewModel.BooleanValue)
-                    or nameof(SettingsFieldViewModel.SelectedOption))
+                    or nameof(SettingsFieldViewModel.SelectedOption)
+                    or nameof(SettingsFieldViewModel.ValidationMessage))
                 {
                     RefreshStagedChanges();
                 }
@@ -325,6 +327,8 @@ public sealed class SettingsCenterViewModel : ShellPageViewModel
     public ICommand SaveCommand { get; }
     public bool HasChanges => DirtyCount > 0;
     public bool HasPatchPreview => PatchPreview.Length > 0;
+    public bool HasValidationErrors => ValidationMessage.Length > 0;
+    public bool CanSave => SelectedModuleId.Length > 0 && HasChanges && !HasValidationErrors;
     public string ChangeSummary => HasChanges ? $"{DirtyCount} staged change(s)" : "No staged changes.";
 
     public int DirtyCount
@@ -335,6 +339,7 @@ public sealed class SettingsCenterViewModel : ShellPageViewModel
             if (SetProperty(ref _dirtyCount, value))
             {
                 OnPropertyChanged(nameof(HasChanges));
+                OnPropertyChanged(nameof(CanSave));
                 OnPropertyChanged(nameof(ChangeSummary));
             }
         }
@@ -348,6 +353,19 @@ public sealed class SettingsCenterViewModel : ShellPageViewModel
             if (SetProperty(ref _patchPreview, value))
             {
                 OnPropertyChanged(nameof(HasPatchPreview));
+            }
+        }
+    }
+
+    public string ValidationMessage
+    {
+        get => _validationMessage;
+        private set
+        {
+            if (SetProperty(ref _validationMessage, value))
+            {
+                OnPropertyChanged(nameof(HasValidationErrors));
+                OnPropertyChanged(nameof(CanSave));
             }
         }
     }
@@ -377,17 +395,40 @@ public sealed class SettingsCenterViewModel : ShellPageViewModel
             var changed = !string.Equals(RawJson.Trim(), _originalRawJson.Trim(), StringComparison.Ordinal);
             DirtyCount = changed ? 1 : 0;
             PatchPreview = changed ? $"rawJson: {RawJson.Length} character(s) staged." : "";
+            ValidationMessage = ValidateRawJson();
             _saveCommand.NotifyCanExecuteChanged();
             return;
         }
 
+        var validationMessages = Fields
+            .Select(field => field.ValidationMessage)
+            .Where(message => message.Length > 0)
+            .ToArray();
         var dirtyFields = Fields
             .Where(field => field.IsDirty)
             .Select(field => field.DirtySummary)
             .ToArray();
         DirtyCount = dirtyFields.Length;
         PatchPreview = string.Join(Environment.NewLine, dirtyFields);
+        ValidationMessage = string.Join(" ", validationMessages);
         _saveCommand.NotifyCanExecuteChanged();
+    }
+
+    private string ValidateRawJson()
+    {
+        if (!UsesRawJson || string.IsNullOrWhiteSpace(RawJson))
+        {
+            return "";
+        }
+
+        try
+        {
+            return JsonNode.Parse(RawJson) is JsonObject ? "" : "Raw settings must be a JSON object.";
+        }
+        catch (JsonException ex)
+        {
+            return $"Raw settings JSON is invalid: {ex.Message}";
+        }
     }
 }
 
@@ -930,6 +971,7 @@ public sealed class SettingsFieldViewModel : ObservableViewModel
     private string _value;
     private bool _booleanValue;
     private string _selectedOption;
+    private string _validationMessage = "";
 
     public SettingsFieldViewModel(
         string key,
@@ -952,6 +994,7 @@ public sealed class SettingsFieldViewModel : ObservableViewModel
         OriginalValue = value;
         OriginalBooleanValue = booleanValue;
         OriginalSelectedOption = selectedOption;
+        RefreshValidationState();
     }
 
     public string Key { get; }
@@ -987,6 +1030,19 @@ public sealed class SettingsFieldViewModel : ObservableViewModel
         "enum" => OriginalSelectedOption,
         _ => OriginalValue
     };
+    public bool HasValidationError => ValidationMessage.Length > 0;
+
+    public string ValidationMessage
+    {
+        get => _validationMessage;
+        private set
+        {
+            if (SetProperty(ref _validationMessage, value))
+            {
+                OnPropertyChanged(nameof(HasValidationError));
+            }
+        }
+    }
 
     public string Value
     {
@@ -995,6 +1051,7 @@ public sealed class SettingsFieldViewModel : ObservableViewModel
         {
             if (SetProperty(ref _value, value))
             {
+                RefreshValidationState();
                 RaiseDirtyStateChanged();
             }
         }
@@ -1007,6 +1064,7 @@ public sealed class SettingsFieldViewModel : ObservableViewModel
         {
             if (SetProperty(ref _booleanValue, value))
             {
+                RefreshValidationState();
                 RaiseDirtyStateChanged();
             }
         }
@@ -1019,9 +1077,45 @@ public sealed class SettingsFieldViewModel : ObservableViewModel
         {
             if (SetProperty(ref _selectedOption, value))
             {
+                RefreshValidationState();
                 RaiseDirtyStateChanged();
             }
         }
+    }
+
+    public string Validate()
+    {
+        if (EditorType == "integer" && !long.TryParse(Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out _))
+        {
+            return $"{Label} must be an integer.";
+        }
+
+        if (EditorType == "number" && !double.TryParse(Value, NumberStyles.Float, CultureInfo.InvariantCulture, out _))
+        {
+            return $"{Label} must be a number.";
+        }
+
+        if (EditorType == "object" && !TryParseCompositeSetting(Value, JsonValueKind.Object))
+        {
+            return $"{Label} must be a JSON object.";
+        }
+
+        if (EditorType == "array" && !TryParseCompositeSetting(Value, JsonValueKind.Array))
+        {
+            return $"{Label} must be a JSON array.";
+        }
+
+        if (EditorType == "enum" && Options.Count > 0 && !Options.Contains(SelectedOption, StringComparer.Ordinal))
+        {
+            return $"{Label} must match one of the declared options.";
+        }
+
+        return "";
+    }
+
+    public void RefreshValidationState()
+    {
+        ValidationMessage = Validate();
     }
 
     private void RaiseDirtyStateChanged()
@@ -1029,6 +1123,21 @@ public sealed class SettingsFieldViewModel : ObservableViewModel
         OnPropertyChanged(nameof(IsDirty));
         OnPropertyChanged(nameof(DirtySummary));
         OnPropertyChanged(nameof(CurrentEditorValue));
+    }
+
+    private static bool TryParseCompositeSetting(string value, JsonValueKind expectedKind)
+    {
+        var fallback = expectedKind == JsonValueKind.Object ? "{}" : "[]";
+        var text = string.IsNullOrWhiteSpace(value) ? fallback : value;
+        try
+        {
+            using var document = JsonDocument.Parse(text);
+            return document.RootElement.ValueKind == expectedKind;
+        }
+        catch (JsonException)
+        {
+            return false;
+        }
     }
 }
 
