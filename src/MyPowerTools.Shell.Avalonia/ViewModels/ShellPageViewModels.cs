@@ -584,8 +584,12 @@ public sealed record DashboardCardViewModel(
 
 public sealed class CommandItemViewModel : ObservableViewModel
 {
-    private readonly Func<string, JsonObject, Task<CommandExecutionStatus>>? _executeCommand;
+    private readonly Func<string, JsonObject, string, CancellationToken, Task<CommandExecutionStatus>>? _executeCommand;
+    private readonly Func<string, Task<CommandCancellationStatus>>? _cancelCommand;
     private readonly AsyncRelayCommand _executeCommandWrapper;
+    private readonly AsyncRelayCommand _cancelCommandWrapper;
+    private CancellationTokenSource? _activeExecution;
+    private string _activeInvocationId = "";
     private string _validationMessage = "";
     private string _executionState = "ready";
     private string _executionMessage = "";
@@ -602,7 +606,8 @@ public sealed class CommandItemViewModel : ObservableViewModel
         string riskLabel,
         string parameterSummary,
         bool hasParameters,
-        Func<string, JsonObject, Task<CommandExecutionStatus>>? executeCommand,
+        Func<string, JsonObject, string, CancellationToken, Task<CommandExecutionStatus>>? executeCommand,
+        Func<string, Task<CommandCancellationStatus>>? cancelCommand = null,
         IReadOnlyList<CommandParameterViewModel>? parameters = null)
     {
         CommandId = commandId;
@@ -619,9 +624,12 @@ public sealed class CommandItemViewModel : ObservableViewModel
             : parameterSummary;
         HasParameters = hasParameters || Parameters.Count > 0;
         _executeCommand = executeCommand;
+        _cancelCommand = cancelCommand;
         _executionPreview = BuildExecutionPreview();
         _executeCommandWrapper = new AsyncRelayCommand(ExecuteAsync, () => !HasValidationError);
+        _cancelCommandWrapper = new AsyncRelayCommand(CancelAsync, () => CanCancel);
         ExecuteCommand = _executeCommandWrapper;
+        CancelCommand = _cancelCommandWrapper;
 
         foreach (var parameter in Parameters)
         {
@@ -651,14 +659,20 @@ public sealed class CommandItemViewModel : ObservableViewModel
     public bool HasParameters { get; }
     public IReadOnlyList<CommandParameterViewModel> Parameters { get; }
     public ICommand ExecuteCommand { get; }
-    public string ExecuteLabel => HasParameters ? "Run with parameters" : "Run";
+    public ICommand CancelCommand { get; }
+    public string ExecuteLabel => IsRunning ? "Running" : HasParameters ? "Run with parameters" : "Run";
+    public string CancelLabel => ExecutionState == "cancelling" ? "Cancelling" : "Cancel";
     public bool HasValidationError => ValidationMessage.Length > 0;
     public bool HasExecutionMessage => ExecutionMessage.Length > 0;
+    public bool IsRunning => ExecutionState is "running" or "cancelling";
+    public bool CanCancel => IsRunning && _activeInvocationId.Length > 0;
     public string ExecutionStateLabel => ExecutionState switch
     {
         "running" => "Running",
+        "cancelling" => "Cancelling",
         "succeeded" => "Succeeded",
         "failed" => "Failed",
+        "cancelled" => "Cancelled",
         "blocked" => "Needs input",
         _ => "Ready"
     };
@@ -683,6 +697,11 @@ public sealed class CommandItemViewModel : ObservableViewModel
             if (SetProperty(ref _executionState, value))
             {
                 OnPropertyChanged(nameof(ExecutionStateLabel));
+                OnPropertyChanged(nameof(IsRunning));
+                OnPropertyChanged(nameof(CanCancel));
+                OnPropertyChanged(nameof(ExecuteLabel));
+                OnPropertyChanged(nameof(CancelLabel));
+                _cancelCommandWrapper.NotifyCanExecuteChanged();
             }
         }
     }
@@ -715,18 +734,26 @@ public sealed class CommandItemViewModel : ObservableViewModel
             return;
         }
 
+        _activeInvocationId = Guid.NewGuid().ToString("N");
+        _activeExecution?.Dispose();
+        _activeExecution = new CancellationTokenSource();
         ExecutionState = "running";
         ExecutionMessage = $"Running {Title}.";
         try
         {
             var result = _executeCommand is null
                 ? new CommandExecutionStatus("succeeded", $"succeeded: {Title}")
-                : await _executeCommand(CommandId, BuildArgs());
+                : await _executeCommand(CommandId, BuildArgs(), _activeInvocationId, _activeExecution.Token);
 
             ExecutionState = string.IsNullOrWhiteSpace(result.State) ? "succeeded" : result.State;
             ExecutionMessage = string.IsNullOrWhiteSpace(result.Message)
                 ? $"{ExecutionStateLabel}: {Title}"
                 : result.Message;
+        }
+        catch (OperationCanceledException) when (ExecutionState == "cancelling")
+        {
+            ExecutionState = "cancelled";
+            ExecutionMessage = $"Cancelled {Title}.";
         }
         catch (Exception ex)
         {
@@ -735,7 +762,47 @@ public sealed class CommandItemViewModel : ObservableViewModel
         }
         finally
         {
+            _activeExecution?.Dispose();
+            _activeExecution = null;
+            _activeInvocationId = "";
             _executeCommandWrapper.NotifyCanExecuteChanged();
+            _cancelCommandWrapper.NotifyCanExecuteChanged();
+            OnPropertyChanged(nameof(CanCancel));
+            OnPropertyChanged(nameof(ExecuteLabel));
+        }
+    }
+
+    public async Task CancelAsync()
+    {
+        if (!CanCancel)
+        {
+            return;
+        }
+
+        var invocationId = _activeInvocationId;
+        ExecutionState = "cancelling";
+        ExecutionMessage = $"Cancelling {Title}.";
+        try
+        {
+            var result = _cancelCommand is null
+                ? new CommandCancellationStatus(false, invocationId, "unsupported", "Cancellation is not available for this command.")
+                : await _cancelCommand(invocationId);
+            ExecutionMessage = result.Message;
+            if (!result.Accepted)
+            {
+                ExecutionState = string.Equals(result.State, "completed", StringComparison.OrdinalIgnoreCase)
+                    ? "ready"
+                    : "failed";
+            }
+            else
+            {
+                _activeExecution?.Cancel();
+            }
+        }
+        catch (Exception ex)
+        {
+            ExecutionState = "failed";
+            ExecutionMessage = ex.Message;
         }
     }
 
@@ -896,6 +963,8 @@ public sealed class CommandParameterViewModel : ObservableViewModel
 }
 
 public sealed record CommandExecutionStatus(string State, string Message);
+
+public sealed record CommandCancellationStatus(bool Accepted, string InvocationId, string State, string Message);
 
 public sealed record ModuleSummaryItemViewModel(
     string ModuleId,
@@ -1181,7 +1250,8 @@ public static class ShellPageViewModelFactory
     public static CommandPaletteViewModel FromCommands(
         string query,
         HostProto.ListCommandsResponse response,
-        Func<string, JsonObject, Task<CommandExecutionStatus>>? executeCommand = null)
+        Func<string, JsonObject, string, CancellationToken, Task<CommandExecutionStatus>>? executeCommand = null,
+        Func<string, Task<CommandCancellationStatus>>? cancelCommand = null)
     {
         var commands = response.Commands.Select(command =>
         {
@@ -1206,6 +1276,7 @@ public static class ShellPageViewModelFactory
                 "",
                 parameters.Length > 0,
                 executeCommand,
+                cancelCommand,
                 parameters);
         }).ToArray();
 
@@ -1304,7 +1375,7 @@ public static class ShellPageViewModelFactory
                 command.RequiresElevation ? $"{command.DangerLevel} - elevation" : command.DangerLevel,
                 "",
                 false,
-                async (commandId, _) =>
+                async (commandId, _, _, _) =>
                 {
                     if (executeCommand is null)
                     {

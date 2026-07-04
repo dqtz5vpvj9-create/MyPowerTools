@@ -29,6 +29,8 @@ public sealed class MptHostRuntime : IAsyncDisposable
     private string _packageRoot = "";
     private IReadOnlyList<MptCommandDescriptor> _dynamicCommands = [];
     private readonly ConcurrentDictionary<string, Task<CommandExecutionResult>> _executions = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, CancellationTokenSource> _executionCancellations = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, byte> _cancelledInvocations = new(StringComparer.OrdinalIgnoreCase);
     private readonly HttpClient _httpClient = new()
     {
         Timeout = TimeSpan.FromSeconds(30)
@@ -426,7 +428,44 @@ public sealed class MptHostRuntime : IAsyncDisposable
 
     public Task<CommandExecutionResult> ExecuteCommandAsync(CommandRequest request, CancellationToken cancellationToken)
     {
-        return _executions.GetOrAdd(request.InvocationId, _ => ExecuteCommandInternalAsync(request, cancellationToken));
+        return _executions.GetOrAdd(request.InvocationId, _ => ExecuteCommandTrackedAsync(request, cancellationToken));
+    }
+
+    public CommandCancellationResult CancelCommand(string invocationId)
+    {
+        if (string.IsNullOrWhiteSpace(invocationId))
+        {
+            return new CommandCancellationResult(false, "", "validation-failed", "invocationId is required.");
+        }
+
+        if (_executionCancellations.TryGetValue(invocationId, out var cancellation))
+        {
+            _cancelledInvocations[invocationId] = 1;
+            cancellation.Cancel();
+            return new CommandCancellationResult(true, invocationId, "cancelling", $"Cancellation requested for {invocationId}.");
+        }
+
+        if (_executions.TryGetValue(invocationId, out var execution) && execution.IsCompleted)
+        {
+            return new CommandCancellationResult(false, invocationId, "completed", $"Invocation {invocationId} has already completed.");
+        }
+
+        return new CommandCancellationResult(false, invocationId, "not-found", $"Invocation {invocationId} is not running.");
+    }
+
+    private async Task<CommandExecutionResult> ExecuteCommandTrackedAsync(CommandRequest request, CancellationToken cancellationToken)
+    {
+        using var linkedCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        _executionCancellations[request.InvocationId] = linkedCancellation;
+        try
+        {
+            return await ExecuteCommandInternalAsync(request, linkedCancellation.Token);
+        }
+        finally
+        {
+            _executionCancellations.TryRemove(request.InvocationId, out _);
+            _cancelledInvocations.TryRemove(request.InvocationId, out _);
+        }
     }
 
     private async Task<CommandExecutionResult> ExecuteCommandInternalAsync(CommandRequest request, CancellationToken cancellationToken)
@@ -454,7 +493,18 @@ public sealed class MptHostRuntime : IAsyncDisposable
             ["invocationId"] = request.InvocationId
         });
 
-        var result = await ExecuteCommandCoreAsync(command, request, cancellationToken);
+        CommandExecutionResult result;
+        try
+        {
+            result = await ExecuteCommandCoreAsync(command, request, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            result = IsCommandCancelled(request.InvocationId)
+                ? Cancelled(request)
+                : Failed(request, MptErrorCodes.CommandTimeout, $"Command {request.CommandId} timed out.", retryable: true);
+        }
+
         _commandHistory.Complete(result);
 
         var record = _packageRegistry.FindModule(command.ModuleId);
@@ -533,7 +583,9 @@ public sealed class MptHostRuntime : IAsyncDisposable
         }
         catch (OperationCanceledException)
         {
-            return Failed(request, MptErrorCodes.CommandTimeout, $"Command {request.CommandId} timed out.", retryable: true);
+            return IsCommandCancelled(request.InvocationId)
+                ? Cancelled(request)
+                : Failed(request, MptErrorCodes.CommandTimeout, $"Command {request.CommandId} timed out.", retryable: true);
         }
         catch (Exception ex)
         {
@@ -582,7 +634,9 @@ public sealed class MptHostRuntime : IAsyncDisposable
         }
         catch (OperationCanceledException)
         {
-            return Failed(request, MptErrorCodes.CommandTimeout, $"Command {request.CommandId} timed out.", retryable: true);
+            return IsCommandCancelled(request.InvocationId)
+                ? Cancelled(request)
+                : Failed(request, MptErrorCodes.CommandTimeout, $"Command {request.CommandId} timed out.", retryable: true);
         }
         catch (Exception ex)
         {
@@ -598,6 +652,22 @@ public sealed class MptHostRuntime : IAsyncDisposable
     private static CommandExecutionResult Failed(CommandRequest request, string code, string message, bool retryable = false)
     {
         return new CommandExecutionResult(request.InvocationId, request.CommandId, "failed", false, "", new MptRuntimeError(code, message, retryable));
+    }
+
+    private static CommandExecutionResult Cancelled(CommandRequest request)
+    {
+        return new CommandExecutionResult(
+            request.InvocationId,
+            request.CommandId,
+            "cancelled",
+            false,
+            "",
+            new MptRuntimeError(MptErrorCodes.CommandCancelled, $"Command {request.CommandId} was cancelled."));
+    }
+
+    private bool IsCommandCancelled(string invocationId)
+    {
+        return _cancelledInvocations.ContainsKey(invocationId);
     }
 
     private bool TryGetTransportRuntime(RuntimeModuleRecord module, out IModuleTransportRuntime runtime)

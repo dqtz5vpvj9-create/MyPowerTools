@@ -151,6 +151,12 @@ public sealed record RuntimeProcessPolicyResult(
     IReadOnlyList<string> ModuleIds,
     DateTimeOffset? ExpiresAt = null);
 
+public sealed record CommandCancellationResult(
+    bool Accepted,
+    string InvocationId,
+    string State,
+    string Message);
+
 public sealed record RuntimeProcessPolicySnapshot(
     ulong Revision,
     IReadOnlyList<RuntimeProcessPolicyRecord> Policies,

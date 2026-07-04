@@ -250,6 +250,18 @@ public sealed class HostControlGrpcService : HostProto.HostControl.HostControlBa
         return response;
     }
 
+    public override Task<HostProto.CancelCommandResponse> CancelCommand(HostProto.CancelCommandRequest request, ServerCallContext context)
+    {
+        var result = _runtime.CancelCommand(request.InvocationId);
+        return Task.FromResult(new HostProto.CancelCommandResponse
+        {
+            Accepted = result.Accepted,
+            InvocationId = result.InvocationId,
+            State = result.State,
+            Message = result.Message
+        });
+    }
+
     public override Task<HostProto.ListBrokerAuditResponse> ListBrokerAudit(HostProto.ListBrokerAuditRequest request, ServerCallContext context)
     {
         var limit = request.Limit == 0 ? 50 : Math.Min(request.Limit, 200);

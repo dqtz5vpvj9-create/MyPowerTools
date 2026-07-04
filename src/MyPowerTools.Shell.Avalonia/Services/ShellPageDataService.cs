@@ -166,7 +166,8 @@ public sealed class ShellPageDataService
 
     public async Task<CommandPaletteViewModel> LoadCommandsAsync(
         string query,
-        Func<string, JsonObject, Task<CommandExecutionStatus>>? executeCommand = null,
+        Func<string, JsonObject, string, CancellationToken, Task<CommandExecutionStatus>>? executeCommand = null,
+        Func<string, Task<CommandCancellationStatus>>? cancelCommand = null,
         CancellationToken cancellationToken = default)
     {
         using var client = HostControlClient.ForDefaultEndpoint();
@@ -178,7 +179,7 @@ public sealed class ShellPageDataService
             response = limited;
         }
 
-        return ShellPageViewModelFactory.FromCommands(query, response, executeCommand);
+        return ShellPageViewModelFactory.FromCommands(query, response, executeCommand, cancelCommand);
     }
 
     public async Task<BrokerAuditViewModel> LoadBrokerAuditAsync(

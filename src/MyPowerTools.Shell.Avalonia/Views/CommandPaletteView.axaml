@@ -60,10 +60,17 @@
               <TextBlock Classes="MptMeta"
                          Text="{Binding ExecutionMessage}"
                          IsVisible="{Binding HasExecutionMessage}" />
-              <Button Content="{Binding ExecuteLabel}"
-                      Command="{Binding ExecuteCommand}"
-                      MinHeight="32"
-                      MinWidth="76" />
+              <StackPanel Orientation="Horizontal" Spacing="{DynamicResource MptSpacingS}">
+                <Button Content="{Binding ExecuteLabel}"
+                        Command="{Binding ExecuteCommand}"
+                        MinHeight="32"
+                        MinWidth="76" />
+                <Button Content="{Binding CancelLabel}"
+                        Command="{Binding CancelCommand}"
+                        IsVisible="{Binding CanCancel}"
+                        MinHeight="32"
+                        MinWidth="76" />
+              </StackPanel>
             </StackPanel>
           </Border>
         </DataTemplate>

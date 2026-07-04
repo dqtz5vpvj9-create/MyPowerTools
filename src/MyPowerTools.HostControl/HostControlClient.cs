@@ -152,12 +152,22 @@ public sealed class HostControlClient : IDisposable
 
     public async Task<HostProto.CommandExecutionResponse> ExecuteCommandAsync(string commandId, JsonObject args, CancellationToken cancellationToken = default)
     {
+        return await ExecuteCommandAsync(Guid.NewGuid().ToString("N"), commandId, args, cancellationToken);
+    }
+
+    public async Task<HostProto.CommandExecutionResponse> ExecuteCommandAsync(string invocationId, string commandId, JsonObject args, CancellationToken cancellationToken = default)
+    {
         return await _client.ExecuteCommandAsync(new HostProto.ExecuteCommandRequest
         {
             CommandId = commandId,
-            InvocationId = Guid.NewGuid().ToString("N"),
+            InvocationId = invocationId,
             Args = JsonStructMapper.ToStruct(args)
         }, cancellationToken: cancellationToken);
+    }
+
+    public async Task<HostProto.CancelCommandResponse> CancelCommandAsync(string invocationId, CancellationToken cancellationToken = default)
+    {
+        return await _client.CancelCommandAsync(new HostProto.CancelCommandRequest { InvocationId = invocationId }, cancellationToken: cancellationToken);
     }
 
     public async Task<HostProto.ListBrokerAuditResponse> ListBrokerAuditAsync(int limit = 20, string moduleId = "", string actionId = "", CancellationToken cancellationToken = default)

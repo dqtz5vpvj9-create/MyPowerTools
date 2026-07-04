@@ -465,7 +465,7 @@ Address         Port        Address         Port
         Assert.Contains("ApplyHostEventAsync", workspace);
         Assert.Contains("ShellPageRefreshRouter.Route(_currentPage, evt)", workspace);
         Assert.Contains("_pageData.LoadDashboardAsync", workspace);
-        Assert.Contains("_commandExecutionService.ExecuteAsync(commandId, args)", workspace);
+        Assert.Contains("_commandExecutionService.ExecuteAsync(invocationId, commandId, args", workspace);
         Assert.DoesNotContain("HostControlClient", mainWindow, StringComparison.Ordinal);
         Assert.DoesNotContain("ShellPageDataService", mainWindow, StringComparison.Ordinal);
         Assert.DoesNotContain("ShellCommandExecutionService", mainWindow, StringComparison.Ordinal);
@@ -742,11 +742,15 @@ Address         Port        Address         Port
         Assert.Contains("ItemsSource=\"{Binding Parameters}\"", commandPaletteView);
         Assert.Contains("CommandParameterViewModel", commandPaletteView);
         Assert.Contains("ExecuteLabel", commandPaletteView);
+        Assert.Contains("CancelCommand", commandPaletteView);
+        Assert.Contains("CanCancel", commandPaletteView);
         Assert.Contains("ExecutionPreview", commandPaletteView);
         Assert.Contains("ValidationMessage", commandPaletteView);
         Assert.Contains("ExecutionStateLabel", commandPaletteView);
         Assert.Contains("ICommand ExecuteCommand", viewModel);
+        Assert.Contains("ICommand CancelCommand", viewModel);
         Assert.Contains("CommandExecutionStatus", viewModel);
+        Assert.Contains("CommandCancellationStatus", viewModel);
     }
 
     [Fact]
@@ -781,7 +785,7 @@ Address         Port        Address         Port
         var viewModel = ShellPageViewModelFactory.FromCommands(
             "parameterized",
             commands,
-            (_, _) => Task.FromResult(new CommandExecutionStatus("succeeded", "done")));
+            (_, _, _, _) => Task.FromResult(new CommandExecutionStatus("succeeded", "done")));
         var item = Assert.Single(viewModel.Commands);
 
         Assert.True(item.HasParameters);
@@ -840,7 +844,7 @@ Address         Port        Address         Port
         var viewModel = ShellPageViewModelFactory.FromCommands(
             "validate",
             commands,
-            (_, args) =>
+            (_, args, _, _) =>
             {
                 capturedArgs = args;
                 return Task.FromResult(new CommandExecutionStatus("succeeded", "succeeded: validated"));
@@ -871,6 +875,51 @@ Address         Port        Address         Port
     }
 
     [Fact]
+    public async Task Shell_command_palette_cancel_command_updates_running_state()
+    {
+        var commands = new HostProto.ListCommandsResponse();
+        commands.Commands.Add(new HostProto.CommandItem
+        {
+            CommandId = "sample.cancel.run",
+            ModuleId = "sample",
+            Title = "Cancelable command",
+            Subtitle = "Runs until cancelled",
+            DangerLevel = "none"
+        });
+
+        var started = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var cancelled = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var viewModel = ShellPageViewModelFactory.FromCommands(
+            "cancel",
+            commands,
+            async (_, _, _, cancellationToken) =>
+            {
+                started.SetResult();
+                await Task.Delay(TimeSpan.FromSeconds(30), cancellationToken);
+                return new CommandExecutionStatus("succeeded", "finished");
+            },
+            invocationId =>
+            {
+                cancelled.SetResult();
+                return Task.FromResult(new CommandCancellationStatus(true, invocationId, "cancelling", "cancel requested"));
+            });
+        var item = Assert.Single(viewModel.Commands);
+
+        var executeTask = item.ExecuteAsync();
+        await started.Task.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.True(item.CanCancel);
+        Assert.Equal("Running", item.ExecutionStateLabel);
+
+        await item.CancelAsync();
+        await executeTask.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.Equal("cancelled", item.ExecutionState);
+        Assert.Contains("Cancelled", item.ExecutionMessage);
+        await cancelled.Task.WaitAsync(TimeSpan.FromSeconds(5));
+    }
+
+    [Fact]
     public void Shell_command_parameter_contract_flows_through_hostcontrol()
     {
         var protoPath = Path.Combine(Root, "proto", "mpt_host_control_v1.proto");
@@ -890,15 +939,20 @@ Address         Port        Address         Port
         var commandService = File.ReadAllText(commandServicePath);
         var workspace = File.ReadAllText(workspacePath);
 
+        Assert.Contains("rpc CancelCommand", proto);
+        Assert.Contains("message CancelCommandRequest", proto);
         Assert.Contains("repeated CommandParameter parameters = 8", proto);
         Assert.Contains("message CommandParameter", proto);
         Assert.Contains("CommandParameterDescriptor", abstractions);
         Assert.Contains("ReadParameters(command)", staticReader);
         Assert.Contains("parameter.DefaultValue", grpcHost);
         Assert.Contains("item.Parameters.AddRange", hostService);
+        Assert.Contains("CancelCommand(HostProto.CancelCommandRequest", hostService);
         Assert.Contains("JsonStructMapper.ToStruct(args)", hostClient);
+        Assert.Contains("CancelCommandAsync", hostClient);
         Assert.Contains("ExecuteAsync(string commandId, JsonObject? args", commandService);
-        Assert.Contains("ExecuteCommandAsync(commandId, args)", workspace);
+        Assert.Contains("CancelAsync(string invocationId", commandService);
+        Assert.Contains("CancelCommandAsync(invocationId)", workspace);
     }
 
     [Fact]
@@ -912,7 +966,8 @@ Address         Port        Address         Port
         var service = File.ReadAllText(servicePath);
 
         Assert.Contains("ShellCommandExecutionService", workspace);
-        Assert.Contains("_commandExecutionService.ExecuteAsync(commandId, args)", workspace);
+        Assert.Contains("_commandExecutionService.ExecuteAsync(invocationId, commandId, args", workspace);
+        Assert.Contains("_commandExecutionService.CancelAsync(invocationId)", workspace);
         Assert.DoesNotContain("ShellCommandExecutionService", mainWindow, StringComparison.Ordinal);
         Assert.DoesNotContain("var result = await client.ExecuteCommandAsync(commandId);", workspace, StringComparison.Ordinal);
         Assert.DoesNotContain("var result = await client.ExecuteCommandAsync(commandId);", mainWindow, StringComparison.Ordinal);
@@ -1605,6 +1660,37 @@ Address         Port        Address         Port
         Assert.Contains(runtime.HostEventsSince(0), evt =>
             evt.Type == "settings.updated" &&
             evt.Payload["applyState"]!.GetValue<string>() == "apply-failed-rolled-back");
+    }
+
+    [Fact]
+    public async Task Runtime_cancel_command_stops_running_invocation()
+    {
+        var transport = new RecordingSettingsTransportRuntime("inproc-dotnet")
+        {
+            BlockCommandUntilCancelled = true
+        };
+        var runtime = new MptHostRuntime(
+            new PackageReader(),
+            PlatformId.Current(),
+            RuntimePaths.Create(Path.Combine(Path.GetTempPath(), "mpt-command-cancel", Guid.NewGuid().ToString("N"))),
+            [transport]);
+        runtime.Load(Path.Combine(Root, "modules"));
+        var request = new CommandRequest("cancel-test", "screenease.native-writer.status", new JsonObject());
+
+        var execution = runtime.ExecuteCommandAsync(request, CancellationToken.None);
+        await transport.CommandStarted.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var cancellation = runtime.CancelCommand(request.InvocationId);
+        var result = await execution.WaitAsync(TimeSpan.FromSeconds(5));
+
+        Assert.True(cancellation.Accepted);
+        Assert.Equal("cancelling", cancellation.State);
+        Assert.Equal("cancelled", result.State);
+        Assert.False(result.Success);
+        Assert.Equal(MptErrorCodes.CommandCancelled, result.Error!.Code);
+        Assert.Contains(runtime.ListCommandHistory(), entry =>
+            entry.InvocationId == request.InvocationId &&
+            entry.State == "cancelled" &&
+            entry.Summary.Contains("cancelled", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -5041,6 +5127,8 @@ cloud_server_protocol: str = "https"
         public SettingsPatch? ValidatedPatch { get; private set; }
         public SettingsSnapshotDocument? AppliedSnapshot { get; private set; }
         public bool FailApply { get; init; }
+        public bool BlockCommandUntilCancelled { get; init; }
+        public TaskCompletionSource CommandStarted { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
 
         public ValueTask<ModuleStatusSnapshot?> GetStatusAsync(RuntimeModuleRecord module, ModuleContext context, CancellationToken cancellationToken)
         {
@@ -5082,14 +5170,20 @@ cloud_server_protocol: str = "https"
             return ValueTask.FromResult<IReadOnlyList<MptCommandDescriptor>>([]);
         }
 
-        public ValueTask<CommandExecutionResult> ExecuteCommandAsync(RuntimeModuleRecord module, ModuleContext context, CommandRequest request, CancellationToken cancellationToken)
+        public async ValueTask<CommandExecutionResult> ExecuteCommandAsync(RuntimeModuleRecord module, ModuleContext context, CommandRequest request, CancellationToken cancellationToken)
         {
-            return ValueTask.FromResult(new CommandExecutionResult(
+            if (BlockCommandUntilCancelled)
+            {
+                CommandStarted.SetResult();
+                await Task.Delay(TimeSpan.FromSeconds(30), cancellationToken);
+            }
+
+            return new CommandExecutionResult(
                 request.InvocationId,
                 request.CommandId,
                 "succeeded",
                 true,
-                "recorded"));
+                "recorded");
         }
     }
 

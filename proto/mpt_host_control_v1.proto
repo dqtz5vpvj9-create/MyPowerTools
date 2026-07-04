@@ -24,6 +24,7 @@ service HostControl {
   rpc GetModuleDetail(GetModuleDetailRequest) returns (ModuleDetail);
   rpc ListCommands(ListCommandsRequest) returns (ListCommandsResponse);
   rpc ExecuteCommand(ExecuteCommandRequest) returns (CommandExecutionResponse);
+  rpc CancelCommand(CancelCommandRequest) returns (CancelCommandResponse);
   rpc ListBrokerAudit(ListBrokerAuditRequest) returns (ListBrokerAuditResponse);
   rpc ListNotifications(ListNotificationsRequest) returns (ListNotificationsResponse);
   rpc GetSettingsSchema(GetSettingsSchemaRequest) returns (SettingsSchema);
@@ -373,6 +374,17 @@ message CommandExecutionResponse {
   string error_message = 6;
   bool retryable = 7;
   google.protobuf.Struct error_details = 8;
+}
+
+message CancelCommandRequest {
+  string invocation_id = 1;
+}
+
+message CancelCommandResponse {
+  bool accepted = 1;
+  string invocation_id = 2;
+  string state = 3;
+  string message = 4;
 }
 
 message ListBrokerAuditRequest {

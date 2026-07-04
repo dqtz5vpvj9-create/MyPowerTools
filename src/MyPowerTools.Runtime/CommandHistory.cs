@@ -30,7 +30,10 @@ public sealed class CommandHistory
             var index = _records.FindIndex(record => record.InvocationId == result.InvocationId);
             if (index >= 0)
             {
-                _records[index] = _records[index] with { State = result.State, Summary = result.Output };
+                var summary = string.IsNullOrWhiteSpace(result.Output)
+                    ? result.Error?.Message ?? ""
+                    : result.Output;
+                _records[index] = _records[index] with { State = result.State, Summary = summary };
             }
         }
     }

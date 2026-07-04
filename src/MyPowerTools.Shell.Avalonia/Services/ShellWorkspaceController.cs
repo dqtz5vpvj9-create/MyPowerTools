@@ -392,7 +392,10 @@ public sealed class ShellWorkspaceController : IAsyncDisposable
     {
         try
         {
-            var viewModel = await _pageData.LoadCommandsAsync(query, (commandId, args) => ExecuteCommandAsync(commandId, args));
+            var viewModel = await _pageData.LoadCommandsAsync(
+                query,
+                (commandId, args, invocationId, cancellationToken) => ExecuteCommandAsync(commandId, args, invocationId, cancellationToken),
+                invocationId => CancelCommandAsync(invocationId));
             _commandPanel.Content = new CommandPaletteView
             {
                 DataContext = viewModel
@@ -431,11 +434,17 @@ public sealed class ShellWorkspaceController : IAsyncDisposable
         };
     }
 
-    private async Task<CommandExecutionStatus> ExecuteCommandAsync(string commandId, JsonObject? args = null)
+    private async Task<CommandExecutionStatus> ExecuteCommandAsync(
+        string commandId,
+        JsonObject? args = null,
+        string? invocationId = null,
+        CancellationToken cancellationToken = default)
     {
         try
         {
-            var result = await _commandExecutionService.ExecuteAsync(commandId, args);
+            var result = string.IsNullOrWhiteSpace(invocationId)
+                ? await _commandExecutionService.ExecuteAsync(commandId, args, cancellationToken)
+                : await _commandExecutionService.ExecuteAsync(invocationId, commandId, args, cancellationToken);
             SetStatus(result.StatusText);
             _permissionPanel.Content = null;
             if (result.RequiresPermissionPrompt)
@@ -458,6 +467,21 @@ public sealed class ShellWorkspaceController : IAsyncDisposable
         {
             SetStatus(ex.Message);
             return new CommandExecutionStatus("failed", ex.Message);
+        }
+    }
+
+    private async Task<CommandCancellationStatus> CancelCommandAsync(string invocationId)
+    {
+        try
+        {
+            var result = await _commandExecutionService.CancelAsync(invocationId);
+            SetStatus(result.Message);
+            return new CommandCancellationStatus(result.Accepted, result.InvocationId, result.State, result.Message);
+        }
+        catch (Exception ex)
+        {
+            SetStatus(ex.Message);
+            return new CommandCancellationStatus(false, invocationId, "failed", ex.Message);
         }
     }
 
