@@ -98,6 +98,66 @@ public abstract class ShellPageViewModel : ObservableViewModel
     }
 }
 
+public sealed class ShellChromeViewModel : ObservableViewModel
+{
+    public ShellChromeViewModel(
+        IReadOnlyList<string> pageLabels,
+        Func<string, Task>? navigate = null,
+        Func<Task>? refresh = null)
+    {
+        NavigationItems = pageLabels
+            .Select(label => new ShellNavigationItemViewModel(
+                label,
+                new AsyncRelayCommand(() => navigate?.Invoke(label) ?? Task.CompletedTask)))
+            .ToArray();
+        RefreshCommand = new AsyncRelayCommand(() => refresh?.Invoke() ?? Task.CompletedTask);
+    }
+
+    public IReadOnlyList<ShellNavigationItemViewModel> NavigationItems { get; }
+    public ICommand RefreshCommand { get; }
+
+    public void SelectPage(string page)
+    {
+        foreach (var item in NavigationItems)
+        {
+            item.IsSelected = string.Equals(item.Label, page, StringComparison.OrdinalIgnoreCase);
+        }
+    }
+}
+
+public sealed class ShellNavigationItemViewModel : ObservableViewModel
+{
+    private bool _isSelected;
+    private string _selectionText = "";
+
+    public ShellNavigationItemViewModel(string label, ICommand navigateCommand)
+    {
+        Label = label;
+        NavigateCommand = navigateCommand;
+    }
+
+    public string Label { get; }
+    public ICommand NavigateCommand { get; }
+
+    public bool IsSelected
+    {
+        get => _isSelected;
+        set
+        {
+            if (SetProperty(ref _isSelected, value))
+            {
+                SelectionText = value ? "Selected" : "";
+            }
+        }
+    }
+
+    public string SelectionText
+    {
+        get => _selectionText;
+        private set => SetProperty(ref _selectionText, value);
+    }
+}
+
 public sealed class DashboardViewModel : ShellPageViewModel
 {
     public DashboardViewModel(string subtitle, IReadOnlyList<DashboardCardViewModel> cards, IReadOnlyList<ShellAlertViewModel> alerts)

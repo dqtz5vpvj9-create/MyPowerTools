@@ -758,20 +758,29 @@ Address         Port        Address         Port
         var mainWindowPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "MainWindow.cs");
         var shellChromeViewPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Views", "ShellChromeView.axaml");
         var codeBehindPath = shellChromeViewPath + ".cs";
+        var viewModelPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "ViewModels", "ShellPageViewModels.cs");
         var mainWindow = File.ReadAllText(mainWindowPath);
         var shellChromeView = File.ReadAllText(shellChromeViewPath);
         var codeBehind = File.ReadAllText(codeBehindPath);
+        var viewModel = File.ReadAllText(viewModelPath);
 
         Assert.Contains("new ShellChromeView", mainWindow);
-        Assert.Contains("RequireControl<MptSidebar>", mainWindow);
+        Assert.Contains("new ShellChromeViewModel", mainWindow);
         Assert.DoesNotContain("BuildLayout", mainWindow, StringComparison.Ordinal);
         Assert.DoesNotContain("new Grid", mainWindow, StringComparison.Ordinal);
+        Assert.DoesNotContain("NavButton", mainWindow, StringComparison.Ordinal);
+        Assert.DoesNotContain("UpdateNavigationState", mainWindow, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"NavigationHost\"", shellChromeView);
+        Assert.Contains("ItemsSource=\"{Binding NavigationItems}\"", shellChromeView);
+        Assert.Contains("Command=\"{Binding RefreshCommand}\"", shellChromeView);
+        Assert.Contains("ShellNavigationItemViewModel", shellChromeView);
         Assert.Contains("x:Name=\"SearchBox\"", shellChromeView);
         Assert.Contains("x:Name=\"ContentHost\"", shellChromeView);
         Assert.Contains("x:Name=\"CommandPanel\"", shellChromeView);
         Assert.Contains("x:Name=\"StatusBar\"", shellChromeView);
         Assert.Contains("AvaloniaXamlLoader.Load(this)", codeBehind);
+        Assert.Contains("class ShellChromeViewModel", viewModel);
+        Assert.Contains("class ShellNavigationItemViewModel", viewModel);
     }
 
     [Fact]

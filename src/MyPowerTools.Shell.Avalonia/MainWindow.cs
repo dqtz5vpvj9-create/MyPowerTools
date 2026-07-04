@@ -27,7 +27,6 @@ public sealed class MainWindow : Window
     private const string PackagesPage = "Packages";
     private const string DiagnosticsPage = "Diagnostics";
 
-    private readonly MptSidebar _navigation;
     private readonly MptSearchBox _searchBox;
     private readonly ContentControl _contentHost;
     private readonly ContentControl _commandPanel;
@@ -35,7 +34,7 @@ public sealed class MainWindow : Window
     private readonly ContentControl _auditPanel;
     private readonly TextBlock _runnerStatus;
     private readonly TextBlock _statusBar;
-    private readonly Dictionary<string, Button> _navButtons = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ShellChromeViewModel _chromeViewModel;
     private readonly HostControlConnectionMonitor _connectionMonitor = new(new HostControlRunnerConnectionProbe());
     private readonly HostControlEventStreamMonitor _eventStream = new(new HostControlClientEventSource());
     private string _currentPage = DashboardPage;
@@ -48,9 +47,15 @@ public sealed class MainWindow : Window
         MinWidth = 920;
         MinHeight = 620;
 
-        var chrome = new ShellChromeView();
+        _chromeViewModel = new ShellChromeViewModel(
+            [DashboardPage, ModulesPage, SettingsPage, LogsPage, NotificationsPage, PackagesPage, DiagnosticsPage],
+            page => ShowPageAsync(page),
+            RefreshAsync);
+        var chrome = new ShellChromeView
+        {
+            DataContext = _chromeViewModel
+        };
         Content = chrome;
-        _navigation = RequireControl<MptSidebar>(chrome, "NavigationHost");
         _searchBox = RequireControl<MptSearchBox>(chrome, "SearchBox");
         _contentHost = RequireControl<ContentControl>(chrome, "ContentHost");
         _commandPanel = RequireControl<ContentControl>(chrome, "CommandPanel");
@@ -58,7 +63,7 @@ public sealed class MainWindow : Window
         _auditPanel = RequireControl<ContentControl>(chrome, "AuditPanel");
         _runnerStatus = RequireControl<TextBlock>(chrome, "RunnerStatus");
         _statusBar = RequireControl<TextBlock>(chrome, "StatusBar");
-        ConfigureChrome(RequireControl<Button>(chrome, "RefreshButton"));
+        _searchBox.TextChanged += async (_, _) => await LoadCommandsAsync(_searchBox.Text ?? "");
 
         KeyDown += OnShellKeyDown;
         _connectionMonitor.StateChanged += (_, snapshot) =>
@@ -84,24 +89,6 @@ public sealed class MainWindow : Window
             await _eventStream.DisposeAsync();
             await _connectionMonitor.DisposeAsync();
         };
-    }
-
-    private void ConfigureChrome(Button refresh)
-    {
-        _navigation.Children.Add(new TextBlock
-        {
-            Text = "MyPowerTools",
-            FontSize = 22,
-            FontWeight = FontWeight.SemiBold,
-            Margin = new Thickness(0, 0, 0, 18)
-        });
-        foreach (var label in new[] { DashboardPage, ModulesPage, SettingsPage, LogsPage, NotificationsPage, PackagesPage, DiagnosticsPage })
-        {
-            _navigation.Children.Add(NavButton(label));
-        }
-
-        _searchBox.TextChanged += async (_, _) => await LoadCommandsAsync(_searchBox.Text ?? "");
-        refresh.Click += async (_, _) => await RefreshAsync();
     }
 
     private static T RequireControl<T>(Control root, string name)
@@ -251,7 +238,7 @@ public sealed class MainWindow : Window
     private async Task ShowPageAsync(string page)
     {
         _currentPage = page;
-        UpdateNavigationState();
+        _chromeViewModel.SelectPage(page);
         _statusBar.Text = $"Loading {page}";
 
         switch (page)
@@ -333,7 +320,7 @@ public sealed class MainWindow : Window
     private async Task ShowModuleDetailPageAsync(string moduleId)
     {
         _currentPage = ModulesPage;
-        UpdateNavigationState();
+        _chromeViewModel.SelectPage(ModulesPage);
 
         try
         {
@@ -608,27 +595,6 @@ public sealed class MainWindow : Window
         {
             DataContext = new UnavailablePageViewModel(title, message)
         };
-    }
-
-    private Button NavButton(string label)
-    {
-        var button = new Button
-        {
-            Content = label,
-            HorizontalContentAlignment = HorizontalAlignment.Left,
-            MinHeight = 36
-        };
-        button.Click += async (_, _) => await ShowPageAsync(label);
-        _navButtons[label] = button;
-        return button;
-    }
-
-    private void UpdateNavigationState()
-    {
-        foreach (var pair in _navButtons)
-        {
-            pair.Value.BorderBrush = pair.Key == _currentPage ? MptTheme.Accent : MptTheme.Border;
-        }
     }
 
     private async Task ExecuteCommandAsync(string commandId)

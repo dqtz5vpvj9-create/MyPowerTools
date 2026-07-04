@@ -1,12 +1,35 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:controls="using:MyPowerTools.UI.Controls"
-             x:Class="MyPowerTools.Shell.Avalonia.Views.ShellChromeView">
+             xmlns:vm="using:MyPowerTools.Shell.Avalonia.ViewModels"
+             x:Class="MyPowerTools.Shell.Avalonia.Views.ShellChromeView"
+             x:DataType="vm:ShellChromeViewModel">
   <Grid ColumnDefinitions="220,*,360"
         RowDefinitions="64,*,32"
         Background="{DynamicResource MptBrushAppBackground}">
     <controls:MptSidebar x:Name="NavigationHost"
-                         Grid.RowSpan="3" />
+                         Grid.RowSpan="3">
+      <TextBlock Classes="MptPageTitle"
+                 Text="MyPowerTools"
+                 Margin="0,0,0,18" />
+      <ItemsControl ItemsSource="{Binding NavigationItems}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="vm:ShellNavigationItemViewModel">
+            <Button Command="{Binding NavigateCommand}"
+                    HorizontalContentAlignment="Left"
+                    MinHeight="36"
+                    Margin="0,0,0,6">
+              <StackPanel Orientation="Horizontal" Spacing="{DynamicResource MptSpacingXs}">
+                <TextBlock Text="{Binding Label}" />
+                <TextBlock Classes="MptMeta"
+                           Text="{Binding SelectionText}"
+                           IsVisible="{Binding IsSelected}" />
+              </StackPanel>
+            </Button>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </controls:MptSidebar>
 
     <controls:MptTopBar Grid.Column="1"
                         Grid.ColumnSpan="2">
@@ -14,6 +37,7 @@
       <Button x:Name="RefreshButton"
               Grid.Column="1"
               Content="Refresh"
+              Command="{Binding RefreshCommand}"
               Margin="12,0,0,0"
               HorizontalAlignment="Right"
               MinWidth="76"
