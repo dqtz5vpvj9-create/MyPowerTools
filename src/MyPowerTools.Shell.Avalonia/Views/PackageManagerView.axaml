@@ -9,7 +9,7 @@
       <TextBlock Classes="MptPageSubtitle" Text="{Binding Subtitle}" />
     </StackPanel>
 
-    <Border Classes="MptCard">
+    <Border Classes="MptSettingsSection">
       <StackPanel Spacing="{DynamicResource MptSpacingS}">
         <TextBlock Classes="MptSectionTitle" Text="Package Operations" />
         <StackPanel Orientation="Horizontal" Spacing="{DynamicResource MptSpacingS}">
@@ -36,7 +36,7 @@
     <ItemsControl ItemsSource="{Binding Packages}">
       <ItemsControl.ItemTemplate>
         <DataTemplate x:DataType="vm:PackageSummaryViewModel">
-          <Border Classes="MptCard" Margin="0,0,0,12">
+          <Border Classes="MptModuleCard" Margin="0,0,0,12">
             <StackPanel Spacing="{DynamicResource MptSpacingS}">
               <Grid ColumnDefinitions="*,Auto">
                 <TextBlock Classes="MptSectionTitle" Text="{Binding DisplayName}" />

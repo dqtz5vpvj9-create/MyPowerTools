@@ -12,7 +12,7 @@
     <ItemsControl ItemsSource="{Binding Alerts}">
       <ItemsControl.ItemTemplate>
         <DataTemplate x:DataType="vm:ShellAlertViewModel">
-          <Border Classes="MptInset" Margin="0,0,0,8">
+          <Border Classes="MptSettingsField" Margin="0,0,0,8">
             <StackPanel Spacing="{DynamicResource MptSpacingXs}">
               <TextBlock FontWeight="SemiBold" Text="{Binding Title}" />
               <TextBlock Classes="MptPageSubtitle" Text="{Binding Body}" />
@@ -25,7 +25,7 @@
     <ItemsControl ItemsSource="{Binding Cards}">
       <ItemsControl.ItemTemplate>
         <DataTemplate x:DataType="vm:DashboardCardViewModel">
-          <Border Classes="MptCard" Margin="0,0,0,12">
+          <Border Classes="MptModuleCard" Margin="0,0,0,12">
             <StackPanel Spacing="{DynamicResource MptSpacingS}">
               <Grid ColumnDefinitions="*,Auto">
                 <TextBlock Classes="MptSectionTitle" Text="{Binding Title}" />
@@ -35,7 +35,7 @@
               <ItemsControl ItemsSource="{Binding Metrics}">
                 <ItemsControl.ItemTemplate>
                   <DataTemplate x:DataType="vm:MetricViewModel">
-                    <Border Classes="MptInset" Margin="0,0,8,0">
+                    <Border Classes="MptMetricTile" Margin="0,0,8,0">
                       <StackPanel>
                         <TextBlock FontWeight="SemiBold" Text="{Binding Value}" />
                         <TextBlock Classes="MptMeta" Text="{Binding Label}" />

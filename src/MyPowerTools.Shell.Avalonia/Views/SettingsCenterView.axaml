@@ -39,7 +39,7 @@
                IsVisible="{Binding HasNoModules}" />
 
     <TextBlock Classes="MptMeta" Text="{Binding StatusText}" />
-    <Border Classes="MptInset" IsVisible="{Binding HasSaveResult}">
+    <Border Classes="MptSettingsSection" IsVisible="{Binding HasSaveResult}">
       <StackPanel Spacing="{DynamicResource MptSpacingXs}">
         <Grid ColumnDefinitions="*,Auto">
           <TextBlock FontWeight="SemiBold" Text="{Binding SaveResultTitle}" />
@@ -53,7 +53,7 @@
                    IsVisible="{Binding HasSaveResultRevision}" />
       </StackPanel>
     </Border>
-    <Border Classes="MptInset">
+    <Border Classes="MptSettingsSection">
       <StackPanel Spacing="{DynamicResource MptSpacingXs}">
         <TextBlock Classes="MptMeta" Text="{Binding ChangeSummary}" />
         <TextBlock Classes="MptMeta"
@@ -68,7 +68,7 @@
     <ItemsControl ItemsSource="{Binding Fields}">
       <ItemsControl.ItemTemplate>
         <DataTemplate x:DataType="vm:SettingsFieldViewModel">
-          <Border Classes="MptCard" Margin="0,0,0,8">
+          <Border Classes="MptSettingsField" Margin="0,0,0,8">
             <StackPanel Spacing="{DynamicResource MptSpacingXs}">
               <Grid ColumnDefinitions="*,Auto">
                 <TextBlock FontWeight="SemiBold" Text="{Binding Label}" />
@@ -107,7 +107,7 @@
       </ItemsControl.ItemTemplate>
     </ItemsControl>
 
-    <Border Classes="MptCard" IsVisible="{Binding UsesRawJson}">
+    <Border Classes="MptSettingsSection" IsVisible="{Binding UsesRawJson}">
       <StackPanel Spacing="{DynamicResource MptSpacingS}">
         <TextBlock Classes="MptSectionTitle" Text="Raw Settings" />
         <TextBox Text="{Binding RawJson, Mode=TwoWay}"

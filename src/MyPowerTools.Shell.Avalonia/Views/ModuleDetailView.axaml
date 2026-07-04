@@ -4,7 +4,7 @@
              x:Class="MyPowerTools.Shell.Avalonia.Views.ModuleDetailView"
              x:DataType="vm:ModuleDetailViewModel">
   <StackPanel Margin="{DynamicResource MptPagePadding}" Spacing="{DynamicResource MptSpacingM}">
-    <Border Classes="MptCard">
+    <Border Classes="MptModuleCard">
       <StackPanel Spacing="{DynamicResource MptSpacingS}">
         <Grid ColumnDefinitions="*,Auto">
           <StackPanel Spacing="{DynamicResource MptSpacingXs}">
@@ -18,7 +18,7 @@
         <ItemsControl ItemsSource="{Binding Metrics}">
           <ItemsControl.ItemTemplate>
             <DataTemplate x:DataType="vm:MetricViewModel">
-              <Border Classes="MptInset" Margin="0,0,8,0">
+              <Border Classes="MptMetricTile" Margin="0,0,8,0">
                 <StackPanel>
                   <TextBlock FontWeight="SemiBold" Text="{Binding Value}" />
                   <TextBlock Classes="MptMeta" Text="{Binding Label}" />
@@ -35,7 +35,7 @@
       </StackPanel>
     </Border>
 
-    <Border Classes="MptCard">
+    <Border Classes="MptSettingsSection">
       <StackPanel Spacing="{DynamicResource MptSpacingS}">
         <TextBlock Classes="MptSectionTitle" Text="Declared Permissions" />
         <TextBlock Classes="MptPageSubtitle"
@@ -44,7 +44,7 @@
         <ItemsControl ItemsSource="{Binding Permissions}">
           <ItemsControl.ItemTemplate>
             <DataTemplate x:DataType="vm:ModulePermissionViewModel">
-              <Border Classes="MptInset" Margin="0,0,0,8">
+              <Border Classes="MptSettingsField" Margin="0,0,0,8">
                 <StackPanel Spacing="{DynamicResource MptSpacingXs}">
                   <Grid ColumnDefinitions="*,Auto">
                     <TextBlock FontWeight="SemiBold" Text="{Binding Id}" />
@@ -60,7 +60,7 @@
       </StackPanel>
     </Border>
 
-    <Border Classes="MptCard">
+    <Border Classes="MptSettingsSection">
       <StackPanel Spacing="{DynamicResource MptSpacingS}">
         <TextBlock Classes="MptSectionTitle" Text="Capability Requirements" />
         <TextBlock Classes="MptPageSubtitle"
@@ -69,7 +69,7 @@
         <ItemsControl ItemsSource="{Binding Requirements}">
           <ItemsControl.ItemTemplate>
             <DataTemplate x:DataType="vm:ModuleRequirementViewModel">
-              <Border Classes="MptInset" Margin="0,0,0,8">
+              <Border Classes="MptSettingsField" Margin="0,0,0,8">
                 <StackPanel Spacing="{DynamicResource MptSpacingXs}">
                   <Grid ColumnDefinitions="*,Auto">
                     <TextBlock FontWeight="SemiBold" Text="{Binding Capability}" />
@@ -84,7 +84,7 @@
       </StackPanel>
     </Border>
 
-    <Border Classes="MptCard">
+    <Border Classes="MptSettingsSection">
       <StackPanel Spacing="{DynamicResource MptSpacingS}">
         <TextBlock Classes="MptSectionTitle" Text="Diagnostics" />
         <TextBlock Classes="MptPageSubtitle"
@@ -93,7 +93,7 @@
         <ItemsControl ItemsSource="{Binding Diagnostics}">
           <ItemsControl.ItemTemplate>
             <DataTemplate x:DataType="vm:ModuleDiagnosticItemViewModel">
-              <Border Classes="MptInset" Margin="0,0,0,8">
+              <Border Classes="MptSettingsField" Margin="0,0,0,8">
                 <StackPanel Spacing="{DynamicResource MptSpacingXs}">
                   <Grid ColumnDefinitions="*,Auto">
                     <TextBlock FontWeight="SemiBold" Text="{Binding Label}" />
@@ -108,7 +108,7 @@
       </StackPanel>
     </Border>
 
-    <Border Classes="MptCard">
+    <Border Classes="MptSettingsSection">
       <StackPanel Spacing="{DynamicResource MptSpacingS}">
         <TextBlock Classes="MptSectionTitle" Text="Commands" />
         <TextBlock Classes="MptPageSubtitle"
@@ -121,7 +121,7 @@
                       HorizontalContentAlignment="Stretch"
                       MinHeight="58"
                       Margin="0,0,0,8">
-                <Border Classes="MptInset">
+                <Border Classes="MptCommandItem">
                   <StackPanel Spacing="{DynamicResource MptSpacingXs}">
                     <Grid ColumnDefinitions="*,Auto">
                       <TextBlock FontWeight="SemiBold" Text="{Binding Title}" />

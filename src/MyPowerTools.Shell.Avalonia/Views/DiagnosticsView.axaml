@@ -17,7 +17,7 @@
       </ItemsControl.ItemsPanel>
       <ItemsControl.ItemTemplate>
         <DataTemplate x:DataType="vm:MetricViewModel">
-          <Border Classes="MptInset" Margin="0,0,8,8">
+          <Border Classes="MptMetricTile" Margin="0,0,8,8">
             <StackPanel>
               <TextBlock FontWeight="SemiBold" Text="{Binding Value}" />
               <TextBlock Classes="MptMeta" Text="{Binding Label}" />
@@ -46,7 +46,7 @@
     <ItemsControl ItemsSource="{Binding Transports}">
       <ItemsControl.ItemTemplate>
         <DataTemplate x:DataType="vm:RuntimeTransportViewModel">
-          <Border Classes="MptCard" Margin="0,0,0,8">
+          <Border Classes="MptSettingsSection" Margin="0,0,0,8">
             <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
               <TextBlock Classes="MptSectionTitle" Text="{Binding Kind}" />
               <TextBlock Grid.Column="1" Classes="MptMeta" Text="{Binding State}" />
@@ -64,7 +64,7 @@
     <ItemsControl ItemsSource="{Binding Processes}">
       <ItemsControl.ItemTemplate>
         <DataTemplate x:DataType="vm:RuntimeProcessViewModel">
-          <Border Classes="MptCard" Margin="0,0,0,8">
+          <Border Classes="MptSettingsSection" Margin="0,0,0,8">
             <StackPanel Spacing="{DynamicResource MptSpacingS}">
               <Grid ColumnDefinitions="*,Auto">
                 <TextBlock Classes="MptSectionTitle" Text="{Binding PoolKey}" />
@@ -140,7 +140,7 @@
     <ItemsControl ItemsSource="{Binding Modules}">
       <ItemsControl.ItemTemplate>
         <DataTemplate x:DataType="vm:RuntimeModuleDiagnosticViewModel">
-          <Border Classes="MptCard" Margin="0,0,0,8">
+          <Border Classes="MptSettingsSection" Margin="0,0,0,8">
             <StackPanel Spacing="{DynamicResource MptSpacingS}">
               <Grid ColumnDefinitions="*,Auto">
                 <TextBlock Classes="MptSectionTitle" Text="{Binding DisplayName}" />

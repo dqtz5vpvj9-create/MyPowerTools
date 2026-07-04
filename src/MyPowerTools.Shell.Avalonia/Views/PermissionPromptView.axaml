@@ -3,7 +3,7 @@
              xmlns:vm="using:MyPowerTools.Shell.Avalonia.ViewModels"
              x:Class="MyPowerTools.Shell.Avalonia.Views.PermissionPromptView"
              x:DataType="vm:PermissionPromptViewModel">
-  <Border Classes="MptCard" Margin="0,0,0,8">
+  <Border Classes="MptPermissionPrompt" Margin="0,0,0,8">
     <StackPanel Spacing="{DynamicResource MptSpacingS}">
       <TextBlock Classes="MptSectionTitle" Text="{Binding Title}" />
       <ItemsControl ItemsSource="{Binding Details}">

@@ -16,7 +16,7 @@
     <ItemsControl ItemsSource="{Binding Modules}">
       <ItemsControl.ItemTemplate>
         <DataTemplate x:DataType="vm:ModuleSummaryItemViewModel">
-          <Border Classes="MptCard" Margin="0,0,0,12">
+          <Border Classes="MptModuleCard" Margin="0,0,0,12">
             <StackPanel Spacing="{DynamicResource MptSpacingS}">
               <Grid ColumnDefinitions="*,Auto">
                 <TextBlock Classes="MptSectionTitle" Text="{Binding DisplayName}" />

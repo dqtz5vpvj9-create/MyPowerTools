@@ -93,6 +93,7 @@ This document tracks the current slice for external review. It is an audit hando
 - Replaced remaining Shell AXAML raw `FontSize` values with typography tokens.
 - Added C# typography constants to `MptTheme` and updated UI controls to use those constants instead of raw `FontSize` literals.
 - Added deeper static style lint coverage for Shell/UI AXAML and C# files, including raw color literals, raw font-size literals, thin code-behind limits, and HostControl-free view code-behind.
+- Rewired Shell AXAML views to use foundation component classes such as `MptModuleCard`, `MptMetricTile`, `MptSettingsSection`, `MptSettingsField`, `MptLogRow`, `MptNotificationItem`, `MptPermissionPrompt`, `MptCommandItem`, and `MptErrorState` instead of generic `MptCard` markup.
 - Extended Shell UI snapshot metadata for Command Palette validation/execution states and Settings staged-diff/apply-failed states.
 - Added HostControl command parameter descriptors and mapped module/static command parameters through Runtime, gRPC IPC, HostControl, and Shell services.
 - Updated Command Palette ViewModels and AXAML to render basic text/boolean parameter forms and build JSON args for command execution.
@@ -200,6 +201,8 @@ This document tracks the current slice for external review. It is an audit hando
   verifies the Shell app loads the shared UI theme entry point and that color, spacing, typography, density, and component dictionaries are split by concern.
 - `Shell_ui_component_styles_cover_foundation_controls`
   verifies the foundation UI control classes have matching AXAML component styles.
+- `Shell_axaml_views_use_foundation_component_classes`
+  verifies Shell AXAML views use foundation component class names and do not continue rendering repeated cards with the generic `MptCard` class.
 - `Shell_axaml_views_use_theme_tokens_without_inline_colors`
   verifies Shell AXAML views use theme resources instead of inline colors.
 - `Shell_static_style_lint_rejects_raw_axaml_and_csharp_ui_literals`
@@ -214,14 +217,14 @@ This document tracks the current slice for external review. It is an audit hando
 - `src/MyPowerTools.Shell.Avalonia/MainWindow.cs` current: 59 lines.
 - `MainWindow.cs` target <= 250 lines.
 - AXAML + MVVM migration: Dashboard, Modules, Module Detail, Logs, Notifications, Package Manager, Diagnostics, Settings Center, Permission Prompt, Broker Audit, unavailable/error pages, Shell chrome layout/navigation/status row, the right-side Command Palette list, command execution service extraction, runner/event service extraction, Host action service extraction, Settings save service extraction, read-only page data service extraction, Host event refresh routing extraction, and Shell workspace controller extraction are now live on typed AXAML plus ViewModels/services.
-- Component AXAML library: foundation component styles now cover module cards, status badges, metric tiles, command items, settings sections, settings fields, log rows, log viewers, notification items, permission prompts, empty/error/loading states, page headers, action bars, and action buttons.
+- Component AXAML library: foundation component styles now cover module cards, status badges, metric tiles, command items, settings sections, settings fields, log rows, log viewers, notification items, permission prompts, empty/error/loading states, page headers, action bars, and action buttons; Shell views now use the foundation component class names instead of repeated generic card markup.
 - Token `ResourceDictionary` split: `MptColors.axaml`, `MptSpacing.axaml`, `MptTypography.axaml`, and `MptDensity.axaml` are loaded through `MptTheme.axaml`.
 - Static style lint for shell UI: covers split-token dictionaries, component-style coverage, AXAML raw colors/font sizes, C# raw colors/font sizes in Shell/UI control surfaces, thin code-behind files, and ViewModel independence from Avalonia controls.
 - Shell snapshot gate: writes PNG-backed metadata for Dashboard, Command Palette, Settings Center, Module Detail, Logs, Notifications, Permission Prompt, Degraded Module, Package Manager, and Runtime Diagnostics, including keyboard/focus evidence and the new command/settings states.
 - Command palette typed argument binding: HostControl parameter descriptors, Shell text/boolean parameter editors, JSON args pass-through, required/numeric validation, execution preview, per-command result/error state, cancel action wiring, and progress streaming are done.
 - Settings validate/apply chain with staged diff UX: Runtime validate/store/apply sequencing, HostControl apply state fields, Shell save status messages, staged-change tracking, field-level dirty summaries, patch preview text, local validation preview, save enablement, apply-failure rollback, and structured save-result summaries are wired.
 
-The existing shell already has UI snapshot gates, keyboard shortcut tests, and centralized color-token checks. The next slice should turn those guardrails into a structural refactor that reduces imperative UI construction in `MainWindow.cs`.
+The existing shell has UI snapshot gates, keyboard shortcut tests, centralized color-token checks, typed component styles, and Shell views wired onto foundation component class names.
 
 ## Acceptance Matrix
 
@@ -238,7 +241,7 @@ The existing shell already has UI snapshot gates, keyboard shortcut tests, and c
 | Sidecar default for complex modules | Complex modules prefer sidecar transport | Existing manifests keep sidecar-capable modules on sidecar paths |
 | MainWindow size | target <= 250 lines | current: 59 lines |
 | AXAML + MVVM | Main shell split into views/viewmodels | Started: Dashboard, Modules, Module Detail, Logs, Notifications, Package Manager, Diagnostics, Settings Center, Permission Prompt, Broker Audit, unavailable/error pages, Shell chrome layout/navigation/status row, the right-side Command Palette list, command execution service extraction, runner/event service extraction, Host action service extraction, Settings save service extraction, read-only page data service extraction, Host event refresh routing extraction, and Shell workspace controller extraction wired to AXAML/MVVM/service layers; thirteen typed views and control-free viewmodels exist |
-| Component library | Reusable AXAML controls and tokens | Started: foundation component styles and matching C# classes for cards, badges, metrics, command items, settings fields, logs, notifications, prompts, states, headers, action bars, and action buttons |
+| Component library | Reusable AXAML controls and tokens | Done for foundation Shell surfaces: component styles, matching C# classes, and Shell view class usage cover cards, badges, metrics, command items, settings sections/fields, logs, notifications, prompts, states, headers, action bars, and action buttons |
 | Style lint | Static lint over shell UI style usage | Started: split-token, component-style, raw color/font-size, code-behind, and viewmodel guardrails |
 | Pixel snapshots | Module and Shell PNG snapshot evidence | Done for module dashboard cards and 10 Shell surfaces with keyboard/focus, command validation/execution, and settings staged-diff/apply-failed metadata |
 | Command palette | Typed args, validation UI, cancellation, and progress streaming | Parameter descriptors, text/boolean editors, args pass-through, required/numeric validation, execution preview, per-command result/error state, cancel action wiring, and accepted/running/final progress rows done |
@@ -265,7 +268,7 @@ Latest observed result before packaging:
 
 ```text
 Build: passed, 0 warnings, 0 errors
-Tests: passed, 136 passed, 0 failed, 0 skipped
+Tests: passed, 137 passed, 0 failed, 0 skipped
 Module validation: 5 packages valid
 Contract validation: 5 packages, 7 modules passed
 UI gate: passed
@@ -279,5 +282,4 @@ The packaging step for external review should run the same validation again and 
 
 ## Recommended Next Slice
 
-1. Wire Shell views more deeply onto the new component style names and reduce repeated inline card/list markup.
-2. Keep sidecar process supervision as the next plugin-runtime depth item after the UI architecture slice starts.
+1. Keep sidecar process supervision as the next plugin-runtime depth item after the UI architecture slice starts.

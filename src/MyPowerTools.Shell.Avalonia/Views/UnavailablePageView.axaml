@@ -8,7 +8,7 @@
       <TextBlock Classes="MptPageTitle" Text="{Binding Title}" />
       <TextBlock Classes="MptMeta" Text="{Binding State}" />
     </StackPanel>
-    <Border Classes="MptCard">
+    <Border Classes="MptErrorState">
       <TextBlock Text="{Binding Message}" TextWrapping="Wrap" />
     </Border>
   </StackPanel>

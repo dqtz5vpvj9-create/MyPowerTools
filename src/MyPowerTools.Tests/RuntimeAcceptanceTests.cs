@@ -1465,6 +1465,40 @@ Address         Port        Address         Port
     }
 
     [Fact]
+    public void Shell_axaml_views_use_foundation_component_classes()
+    {
+        var viewRoot = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Views");
+        var dashboard = File.ReadAllText(Path.Combine(viewRoot, "DashboardView.axaml"));
+        var modules = File.ReadAllText(Path.Combine(viewRoot, "ModulesView.axaml"));
+        var moduleDetail = File.ReadAllText(Path.Combine(viewRoot, "ModuleDetailView.axaml"));
+        var settings = File.ReadAllText(Path.Combine(viewRoot, "SettingsCenterView.axaml"));
+        var notifications = File.ReadAllText(Path.Combine(viewRoot, "NotificationsView.axaml"));
+        var logs = File.ReadAllText(Path.Combine(viewRoot, "LogsView.axaml"));
+        var permissions = File.ReadAllText(Path.Combine(viewRoot, "PermissionPromptView.axaml"));
+        var packages = File.ReadAllText(Path.Combine(viewRoot, "PackageManagerView.axaml"));
+        var unavailable = File.ReadAllText(Path.Combine(viewRoot, "UnavailablePageView.axaml"));
+
+        Assert.Contains("MptModuleCard", dashboard);
+        Assert.Contains("MptMetricTile", dashboard);
+        Assert.Contains("MptModuleCard", modules);
+        Assert.Contains("MptSettingsSection", moduleDetail);
+        Assert.Contains("MptSettingsField", moduleDetail);
+        Assert.Contains("MptCommandItem", moduleDetail);
+        Assert.Contains("MptSettingsSection", settings);
+        Assert.Contains("MptSettingsField", settings);
+        Assert.Contains("MptNotificationItem", notifications);
+        Assert.Contains("MptLogRow", logs);
+        Assert.Contains("MptPermissionPrompt", permissions);
+        Assert.Contains("MptModuleCard", packages);
+        Assert.Contains("MptErrorState", unavailable);
+
+        foreach (var file in Directory.EnumerateFiles(viewRoot, "*.axaml"))
+        {
+            Assert.DoesNotContain("Classes=\"MptCard\"", File.ReadAllText(file), StringComparison.Ordinal);
+        }
+    }
+
+    [Fact]
     public void Shell_axaml_views_use_theme_tokens_without_inline_colors()
     {
         var viewRoot = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Views");
