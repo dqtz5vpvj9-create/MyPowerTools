@@ -73,17 +73,19 @@ This document tracks the current slice for external review. It is an audit hando
 - Bound the Shell status row and runner status text through `ShellChromeViewModel`.
 - Removed direct status `TextBlock` fields from `MainWindow.cs`.
 - Added `ShellCommandExecutionService` as the first Shell service-layer extraction for HostControl-backed command execution.
-- Updated `MainWindow.cs` to consume command execution results from the service while keeping permission prompt presentation in the Shell.
+- Updated `ShellWorkspaceController` to consume command execution results from the service while keeping permission prompt presentation in the Shell workspace.
 - Added `ShellRunnerEventService` to own Runner connection monitor, host event stream monitor, status text updates, runner status text updates, and recovery notifications.
-- Updated `MainWindow.cs` to subscribe to runner/event service outputs while keeping page refresh decisions in the Shell.
+- Updated `ShellWorkspaceController` to subscribe to runner/event service outputs while keeping page refresh decisions in the Shell workspace.
 - Added `ShellHostActionService` to own HostControl-backed package operations, runtime process controls, runtime restart policy changes, and module enable/disable actions.
-- Updated `MainWindow.cs` to consume Host action service results and keep only page refresh choreography in the Shell.
+- Updated `ShellWorkspaceController` to consume Host action service results and keep page refresh choreography in the Shell workspace.
 - Added `ShellSettingsService` to own settings patch construction, `UpdateSettingsAsync`, and RPC error mapping for Settings Center saves.
-- Updated `MainWindow.cs` to consume Settings save results and keep only ViewModel status refresh choreography in the Shell.
+- Updated `ShellWorkspaceController` to consume Settings save results and keep ViewModel status refresh choreography in the Shell workspace.
 - Added `ShellPageDataService` to own read-only HostControl page data loading and ViewModel factory mapping for Dashboard, Modules, Module Detail, Settings, Logs, Notifications, Packages, Diagnostics, Command Palette, and Broker Audit.
-- Updated `MainWindow.cs` to consume page data service results while keeping only View assignment, status assignment, and page refresh choreography in the Shell.
+- Updated `ShellWorkspaceController` to consume page data service results while keeping View assignment, status assignment, and page refresh choreography in the Shell workspace.
 - Added `ShellPageRefreshRouter` to own Host event to page refresh routing.
-- Updated `MainWindow.cs` to execute refresh plans instead of carrying Host event routing rules inline.
+- Updated `ShellWorkspaceController` to execute refresh plans instead of carrying Host event routing rules inline.
+- Added `ShellWorkspaceController` to own Shell page routing, command palette loading, permission prompt presentation, broker audit loading, keyboard shortcut handling, runner event subscriptions, package operations, diagnostics actions, settings saves, and module enable/disable choreography.
+- Reduced `MainWindow.cs` to a 59-line bootstrap wrapper for Shell chrome construction, named host lookup, lifecycle hooks, and keyboard dispatch.
 
 ### Acceptance Coverage
 
@@ -107,6 +109,8 @@ This document tracks the current slice for external review. It is an audit hando
   verifies Runtime, HostControl, and Shell avoid references to concrete production module projects.
 - `P_foundation_2_ui_architecture_debt_is_tracked`
   verifies this document reflects the live shell line count and refactor target.
+- `Shell_workspace_controller_owns_shell_orchestration`
+  verifies `MainWindow.cs` delegates Shell workspace orchestration to `ShellWorkspaceController` and stays below the 250-line target.
 - `Shell_axaml_mvvm_migration_scaffold_exists_with_typed_bindings`
   verifies the current Shell page migration set has AXAML views, typed bindings, theme tokens, and thin code-behind files.
 - `Shell_viewmodels_are_control_free_and_map_host_protocol`
@@ -128,17 +132,17 @@ This document tracks the current slice for external review. It is an audit hando
 - `Shell_command_palette_is_wired_to_axaml_view_model`
   verifies the right-side Command Palette uses `CommandPaletteView` plus `ShellPageViewModelFactory.FromCommands`, preserves command execution, and removes the old `_commandPanel.Children` rendering path.
 - `Shell_command_execution_is_extracted_to_service`
-  verifies HostControl command execution is owned by `ShellCommandExecutionService` and `MainWindow.cs` consumes the service result for status and permission prompt presentation.
+  verifies HostControl command execution is owned by `ShellCommandExecutionService` and `ShellWorkspaceController` consumes the service result for status and permission prompt presentation.
 - `Shell_runner_events_are_extracted_to_service`
-  verifies Runner connection and host event stream monitors are owned by `ShellRunnerEventService` and `MainWindow.cs` consumes service events.
+  verifies Runner connection and host event stream monitors are owned by `ShellRunnerEventService` and `ShellWorkspaceController` consumes service events.
 - `Shell_host_actions_are_extracted_to_service`
   verifies package operations, runtime process controls, restart policy changes, and module enable/disable calls are owned by `ShellHostActionService`.
 - `Shell_settings_page_is_wired_to_axaml_view_model`
   verifies Settings Center uses `SettingsCenterView` plus `ShellPageViewModelFactory.FromSettings`, preserves save command wiring, and removes the old imperative settings editor path.
 - `Shell_settings_save_is_extracted_to_service`
-  verifies settings patch construction, update calls, and RPC error mapping are owned by `ShellSettingsService`.
+  verifies settings patch construction, update calls, and RPC error mapping are owned by `ShellSettingsService` while `ShellWorkspaceController` owns refresh choreography.
 - `Shell_read_only_page_data_is_extracted_to_service`
-  verifies read-only HostControl data loading and page ViewModel factory mapping are owned by `ShellPageDataService`.
+  verifies read-only HostControl data loading and page ViewModel factory mapping are owned by `ShellPageDataService` while `ShellWorkspaceController` owns page view assignment.
 - `Shell_host_event_refresh_routing_is_extracted_to_service`
   verifies Host event refresh routing is owned by `ShellPageRefreshRouter` and covers command and settings event plans.
 - `Shell_permission_and_audit_sidebars_are_wired_to_axaml_view_models`
@@ -154,9 +158,9 @@ This document tracks the current slice for external review. It is an audit hando
 
 ## Current UI Architecture State
 
-- `src/MyPowerTools.Shell.Avalonia/MainWindow.cs` current: 562 lines.
+- `src/MyPowerTools.Shell.Avalonia/MainWindow.cs` current: 59 lines.
 - `MainWindow.cs` target <= 250 lines.
-- AXAML + MVVM migration: Dashboard, Modules, Module Detail, Logs, Notifications, Package Manager, Diagnostics, Settings Center, Permission Prompt, Broker Audit, unavailable/error pages, Shell chrome layout/navigation/status row, the right-side Command Palette list, command execution service extraction, runner/event service extraction, Host action service extraction, Settings save service extraction, read-only page data service extraction, and Host event refresh routing extraction are now live on typed AXAML plus ViewModels/services.
+- AXAML + MVVM migration: Dashboard, Modules, Module Detail, Logs, Notifications, Package Manager, Diagnostics, Settings Center, Permission Prompt, Broker Audit, unavailable/error pages, Shell chrome layout/navigation/status row, the right-side Command Palette list, command execution service extraction, runner/event service extraction, Host action service extraction, Settings save service extraction, read-only page data service extraction, Host event refresh routing extraction, and Shell workspace controller extraction are now live on typed AXAML plus ViewModels/services.
 - Component AXAML library: started with shared page/card/text styles; reusable control templates remain pending.
 - Token `ResourceDictionary` split: initial shared `MptTheme.axaml` loaded from the UI project.
 - Static style lint for shell UI: started with AXAML/viewmodel/code-behind guardrails; deeper layout and interaction lint pending.
@@ -178,8 +182,8 @@ The existing shell already has UI snapshot gates, keyboard shortcut tests, and c
 | InProc shadow-copy update | Loaded module uses cache while package DLL is replaceable | Done |
 | InProc unload handling | Unload probe and failure surfaced to runtime policy | Done for clean unload and pending-runner-restart diagnostics |
 | Sidecar default for complex modules | Complex modules prefer sidecar transport | Existing manifests keep sidecar-capable modules on sidecar paths |
-| MainWindow size | target <= 250 lines | current: 562 lines |
-| AXAML + MVVM | Main shell split into views/viewmodels | Started: Dashboard, Modules, Module Detail, Logs, Notifications, Package Manager, Diagnostics, Settings Center, Permission Prompt, Broker Audit, unavailable/error pages, Shell chrome layout/navigation/status row, the right-side Command Palette list, command execution service extraction, runner/event service extraction, Host action service extraction, Settings save service extraction, read-only page data service extraction, and Host event refresh routing extraction wired to AXAML/MVVM/service layers; thirteen typed views and control-free viewmodels exist |
+| MainWindow size | target <= 250 lines | current: 59 lines |
+| AXAML + MVVM | Main shell split into views/viewmodels | Started: Dashboard, Modules, Module Detail, Logs, Notifications, Package Manager, Diagnostics, Settings Center, Permission Prompt, Broker Audit, unavailable/error pages, Shell chrome layout/navigation/status row, the right-side Command Palette list, command execution service extraction, runner/event service extraction, Host action service extraction, Settings save service extraction, read-only page data service extraction, Host event refresh routing extraction, and Shell workspace controller extraction wired to AXAML/MVVM/service layers; thirteen typed views and control-free viewmodels exist |
 | Component library | Reusable AXAML controls and tokens | Started: shared theme resources and base page/card/text styles |
 | Style lint | Static lint over shell UI style usage | Started: AXAML token and code-behind/viewmodel guardrails |
 | Command palette | Typed args and validation UI | Command list and execution wired to AXAML/MVVM; typed args pending HostControl parameter schema |
@@ -204,7 +208,7 @@ Latest observed result before packaging:
 
 ```text
 Build: passed, 0 warnings, 0 errors
-Tests: passed, 120 passed, 0 failed, 0 skipped
+Tests: passed, 121 passed, 0 failed, 0 skipped
 Module validation: 5 packages valid
 Contract validation: 5 packages, 7 modules passed
 UI gate: passed
@@ -216,8 +220,8 @@ The packaging step for external review should run the same validation again and 
 
 ## Recommended Next Slice
 
-1. Introduce shell token dictionaries and component styles under the UI project.
-2. Add deeper static style lint that scans AXAML and C# UI files.
-3. Add command palette parameter editors plus settings validation preview, staged diff, and apply result states.
-4. Continue thinning `MainWindow.cs` by extracting permission prompt presentation and shell lifecycle wiring.
+1. Split shell token dictionaries and component styles under the UI project.
+2. Add reusable AXAML controls for module cards, status badges, metric tiles, settings fields, log rows, notifications, prompts, and action bars.
+3. Add deeper static style lint that scans AXAML and C# UI files.
+4. Add command palette parameter editors plus settings validation preview, staged diff, and apply result states.
 5. Keep sidecar process supervision as the next plugin-runtime depth item after the UI architecture slice starts.

@@ -3,11 +3,11 @@
   "Files": [
     {
       "Path": "AndroidTools.MyPowerTools.dll",
-      "Sha256": "8eb44f227a16491aae5e684e61b2f715c4ecc9d967629c03ef309a8a797d9c08"
+      "Sha256": "39f3cba052ef5011164b1c5ca0fdb2d744b8f2d01db956e2cb767c3f9aa2c7d6"
     },
     {
       "Path": "AndroidTools.MyPowerTools.pdb",
-      "Sha256": "d1c014af2ea9112da447ddc50db36fb187ce1bc7c902a43c825a442ef69eb46c"
+      "Sha256": "6aeb07874cbede4c2f356332973a22824806c993077360fe004e85fa771360d3"
     },
     {
       "Path": "modules/notifications/commands.index.json",
@@ -107,11 +107,11 @@
     },
     {
       "Path": "windows/x64/AndroidTools.MyPowerTools.dll",
-      "Sha256": "8eb44f227a16491aae5e684e61b2f715c4ecc9d967629c03ef309a8a797d9c08"
+      "Sha256": "39f3cba052ef5011164b1c5ca0fdb2d744b8f2d01db956e2cb767c3f9aa2c7d6"
     },
     {
       "Path": "windows/x64/AndroidTools.MyPowerTools.pdb",
-      "Sha256": "d1c014af2ea9112da447ddc50db36fb187ce1bc7c902a43c825a442ef69eb46c"
+      "Sha256": "6aeb07874cbede4c2f356332973a22824806c993077360fe004e85fa771360d3"
     },
     {
       "Path": "windows/x64/Google.Protobuf.dll",
@@ -159,11 +159,11 @@
     },
     {
       "Path": "windows/x64/MyPowerTools.Abstractions.dll",
-      "Sha256": "c04a1ca2f8409c170737b1535954ff37d2920fb26d37cd41e49f63bfdb88451c"
+      "Sha256": "cf9da27a7ad6b150e0aea8acfb0cb18e85ace6ec1ba82373681c2e08249b3e3d"
     },
     {
       "Path": "windows/x64/MyPowerTools.Abstractions.pdb",
-      "Sha256": "32ef0478af1490d19d3ac74a6fe94b890ef22e297e46865aeed4d16f2f3e7ef2"
+      "Sha256": "7847cc5f926851f2e4f9833bf9e6e3d5d758a1403ad0617e45311ee34cf7adfa"
     },
     {
       "Path": "windows/x64/MyPowerTools.Packaging.dll",
@@ -183,11 +183,11 @@
     },
     {
       "Path": "windows/x64/MyPowerTools.Protocol.dll",
-      "Sha256": "e8b1e1ffe003f8b23693781b14b04ea7302d42fbbfb1061609fa033ef74fc9fc"
+      "Sha256": "ed4f6282ebf4853231f263a015e76d209b2a8fe65eb6981c2e6338eea0f771ec"
     },
     {
       "Path": "windows/x64/MyPowerTools.Protocol.pdb",
-      "Sha256": "ed4d5136e37f301678e0b689c9633bb8ed7fa25ace86fa03019fa190e676617f"
+      "Sha256": "b3ec174dbcd285f112526bb4749221a6d707d811dc78ad6f3a87b4023ae85d33"
     },
     {
       "Path": "windows/x64/MyPowerTools.Runtime.dll",
@@ -203,15 +203,15 @@
     },
     {
       "Path": "windows/x64/powertoold.dll",
-      "Sha256": "4e4102bd456be0d2f3663e13815dce913141e0560e657446abe954b26c89aba2"
+      "Sha256": "a8a58cca3a3a192c62f9b851b2e889e4176be26faade995a7e6979f4b48ecee2"
     },
     {
       "Path": "windows/x64/powertoold.exe",
-      "Sha256": "b9769b02222fac4b0a3f1c5520c427ecbad466b5b66402bfc202f3ebf277c32f"
+      "Sha256": "227235c1a38beffb7184bc425e57c6305a4607498daa0daf831ec2272edf63f5"
     },
     {
       "Path": "windows/x64/powertoold.pdb",
-      "Sha256": "5c49735f3506db07a0496bb8d18acb218cb1dd4751957322f81a463dc48e5812"
+      "Sha256": "5c40acd774d1bb1f32bf063f82f091d6d5441b23a98fcbf4e65e6c7bb59a85ee"
     },
     {
       "Path": "windows/x64/powertoold.runtimeconfig.json",

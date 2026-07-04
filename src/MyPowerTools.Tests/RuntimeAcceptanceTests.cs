@@ -421,6 +421,7 @@ Address         Port        Address         Port
         foreach (var file in new[]
         {
             Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "MainWindow.cs"),
+            Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellWorkspaceController.cs"),
             Path.Combine(Root, "src", "MyPowerTools.UI", "Controls", "MptControls.cs")
         })
         {
@@ -442,6 +443,38 @@ Address         Port        Address         Port
         Assert.Contains($"current: {mainWindowLineCount} lines", foundationDoc);
         Assert.Contains("target <= 250 lines", foundationDoc);
         Assert.Contains("AXAML + MVVM", foundationDoc);
+        Assert.True(mainWindowLineCount <= 250, "MainWindow.cs should stay below the P-Foundation-2 thin-window target.");
+    }
+
+    [Fact]
+    public void Shell_workspace_controller_owns_shell_orchestration()
+    {
+        var mainWindowPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "MainWindow.cs");
+        var workspacePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellWorkspaceController.cs");
+        var mainWindow = File.ReadAllText(mainWindowPath);
+        var workspace = File.ReadAllText(workspacePath);
+
+        Assert.Contains("new ShellWorkspaceController", mainWindow);
+        Assert.Contains("ShellWorkspaceController.PageLabels", mainWindow);
+        Assert.Contains("_workspace.OpenAsync()", mainWindow);
+        Assert.Contains("_workspace.DisposeAsync()", mainWindow);
+        Assert.Contains("_workspace.HandleKeyDownAsync(e)", mainWindow);
+        Assert.Contains("public async Task RefreshAsync()", workspace);
+        Assert.Contains("public async Task ShowPageAsync(string page)", workspace);
+        Assert.Contains("public async Task HandleKeyDownAsync(KeyEventArgs e)", workspace);
+        Assert.Contains("ApplyHostEventAsync", workspace);
+        Assert.Contains("ShellPageRefreshRouter.Route(_currentPage, evt)", workspace);
+        Assert.Contains("_pageData.LoadDashboardAsync", workspace);
+        Assert.Contains("_commandExecutionService.ExecuteAsync(commandId)", workspace);
+        Assert.DoesNotContain("HostControlClient", mainWindow, StringComparison.Ordinal);
+        Assert.DoesNotContain("ShellPageDataService", mainWindow, StringComparison.Ordinal);
+        Assert.DoesNotContain("ShellCommandExecutionService", mainWindow, StringComparison.Ordinal);
+        Assert.DoesNotContain("ShellRunnerEventService", mainWindow, StringComparison.Ordinal);
+        Assert.DoesNotContain("ShellHostActionService", mainWindow, StringComparison.Ordinal);
+        Assert.DoesNotContain("ShellSettingsService", mainWindow, StringComparison.Ordinal);
+        Assert.DoesNotContain("ShellPageViewModelFactory.FromPermissionPrompt", mainWindow, StringComparison.Ordinal);
+        Assert.DoesNotContain("new DashboardView", mainWindow, StringComparison.Ordinal);
+        Assert.DoesNotContain("new PermissionPromptView", mainWindow, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -532,17 +565,17 @@ Address         Port        Address         Port
     [Fact]
     public void Shell_modules_page_is_wired_to_axaml_view_model()
     {
-        var mainWindowPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "MainWindow.cs");
+        var workspacePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellWorkspaceController.cs");
         var modulesViewPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Views", "ModulesView.axaml");
         var servicePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellPageDataService.cs");
-        var mainWindow = File.ReadAllText(mainWindowPath);
+        var workspace = File.ReadAllText(workspacePath);
         var modulesView = File.ReadAllText(modulesViewPath);
         var service = File.ReadAllText(servicePath);
 
-        Assert.Contains("_pageData.LoadModulesAsync", mainWindow);
+        Assert.Contains("_pageData.LoadModulesAsync", workspace);
         Assert.Contains("ShellPageViewModelFactory.FromModules", service);
-        Assert.Contains("new ModulesView", mainWindow);
-        Assert.DoesNotContain("BuildModuleSummaryCard", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("new ModulesView", workspace);
+        Assert.DoesNotContain("BuildModuleSummaryCard", workspace, StringComparison.Ordinal);
         Assert.Contains("x:DataType=\"vm:ModulesViewModel\"", modulesView);
         Assert.Contains("ModuleSummaryItemViewModel", modulesView);
         Assert.Contains("DetailsCommand", modulesView);
@@ -554,21 +587,21 @@ Address         Port        Address         Port
     [Fact]
     public void Shell_module_detail_page_is_wired_to_axaml_view_model()
     {
-        var mainWindowPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "MainWindow.cs");
+        var workspacePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellWorkspaceController.cs");
         var moduleDetailViewPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Views", "ModuleDetailView.axaml");
         var viewModelPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "ViewModels", "ShellPageViewModels.cs");
         var servicePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellPageDataService.cs");
-        var mainWindow = File.ReadAllText(mainWindowPath);
+        var workspace = File.ReadAllText(workspacePath);
         var moduleDetailView = File.ReadAllText(moduleDetailViewPath);
         var viewModel = File.ReadAllText(viewModelPath);
         var service = File.ReadAllText(servicePath);
 
-        Assert.Contains("_pageData.LoadModuleDetailAsync", mainWindow);
+        Assert.Contains("_pageData.LoadModuleDetailAsync", workspace);
         Assert.Contains("ShellPageViewModelFactory.FromModuleDetail", service);
-        Assert.Contains("new ModuleDetailView", mainWindow);
-        Assert.DoesNotContain("BuildModuleHero", mainWindow, StringComparison.Ordinal);
-        Assert.DoesNotContain("BuildPermissionList", mainWindow, StringComparison.Ordinal);
-        Assert.DoesNotContain("BuildCommand(", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("new ModuleDetailView", workspace);
+        Assert.DoesNotContain("BuildModuleHero", workspace, StringComparison.Ordinal);
+        Assert.DoesNotContain("BuildPermissionList", workspace, StringComparison.Ordinal);
+        Assert.DoesNotContain("BuildCommand(", workspace, StringComparison.Ordinal);
         Assert.Contains("x:DataType=\"vm:ModuleDetailViewModel\"", moduleDetailView);
         Assert.Contains("ModulePermissionViewModel", moduleDetailView);
         Assert.Contains("ModuleRequirementViewModel", moduleDetailView);
@@ -581,19 +614,19 @@ Address         Port        Address         Port
     [Fact]
     public void Shell_dashboard_page_is_wired_to_axaml_view_model()
     {
-        var mainWindowPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "MainWindow.cs");
+        var workspacePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellWorkspaceController.cs");
         var dashboardViewPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Views", "DashboardView.axaml");
         var viewModelPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "ViewModels", "ShellPageViewModels.cs");
         var servicePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellPageDataService.cs");
-        var mainWindow = File.ReadAllText(mainWindowPath);
+        var workspace = File.ReadAllText(workspacePath);
         var dashboardView = File.ReadAllText(dashboardViewPath);
         var viewModel = File.ReadAllText(viewModelPath);
         var service = File.ReadAllText(servicePath);
 
-        Assert.Contains("_pageData.LoadDashboardAsync", mainWindow);
+        Assert.Contains("_pageData.LoadDashboardAsync", workspace);
         Assert.Contains("ShellPageViewModelFactory.FromDashboard", service);
-        Assert.Contains("new DashboardView", mainWindow);
-        Assert.DoesNotContain("BuildDashboardCard", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("new DashboardView", workspace);
+        Assert.DoesNotContain("BuildDashboardCard", workspace, StringComparison.Ordinal);
         Assert.Contains("DetailsCommand", dashboardView);
         Assert.Contains("ExecuteCommand", dashboardView);
         Assert.Contains("System.Windows.Input", viewModel);
@@ -602,17 +635,17 @@ Address         Port        Address         Port
     [Fact]
     public void Shell_notifications_page_is_wired_to_axaml_view_model()
     {
-        var mainWindowPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "MainWindow.cs");
+        var workspacePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellWorkspaceController.cs");
         var notificationsViewPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Views", "NotificationsView.axaml");
         var servicePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellPageDataService.cs");
-        var mainWindow = File.ReadAllText(mainWindowPath);
+        var workspace = File.ReadAllText(workspacePath);
         var notificationsView = File.ReadAllText(notificationsViewPath);
         var service = File.ReadAllText(servicePath);
 
-        Assert.Contains("_pageData.LoadNotificationsAsync", mainWindow);
+        Assert.Contains("_pageData.LoadNotificationsAsync", workspace);
         Assert.Contains("ShellPageViewModelFactory.FromNotifications", service);
-        Assert.Contains("new NotificationsView", mainWindow);
-        Assert.DoesNotContain("MptNotificationItem", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("new NotificationsView", workspace);
+        Assert.DoesNotContain("MptNotificationItem", workspace, StringComparison.Ordinal);
         Assert.Contains("x:DataType=\"vm:NotificationsViewModel\"", notificationsView);
         Assert.Contains("NotificationItemViewModel", notificationsView);
         Assert.Contains("IsVisible=\"{Binding IsEmpty}\"", notificationsView);
@@ -621,17 +654,17 @@ Address         Port        Address         Port
     [Fact]
     public void Shell_logs_page_is_wired_to_axaml_view_model()
     {
-        var mainWindowPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "MainWindow.cs");
+        var workspacePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellWorkspaceController.cs");
         var logsViewPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Views", "LogsView.axaml");
         var servicePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellPageDataService.cs");
-        var mainWindow = File.ReadAllText(mainWindowPath);
+        var workspace = File.ReadAllText(workspacePath);
         var logsView = File.ReadAllText(logsViewPath);
         var service = File.ReadAllText(servicePath);
 
-        Assert.Contains("_pageData.LoadLogsAsync", mainWindow);
+        Assert.Contains("_pageData.LoadLogsAsync", workspace);
         Assert.Contains("ShellPageViewModelFactory.FromLogs", service);
-        Assert.Contains("new LogsView", mainWindow);
-        Assert.DoesNotContain("FillLogsAsync", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("new LogsView", workspace);
+        Assert.DoesNotContain("FillLogsAsync", workspace, StringComparison.Ordinal);
         Assert.Contains("x:DataType=\"vm:LogsViewModel\"", logsView);
         Assert.Contains("ModulePickerItemViewModel", logsView);
         Assert.Contains("LogLineViewModel", logsView);
@@ -642,18 +675,18 @@ Address         Port        Address         Port
     [Fact]
     public void Shell_packages_page_is_wired_to_axaml_view_model()
     {
-        var mainWindowPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "MainWindow.cs");
+        var workspacePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellWorkspaceController.cs");
         var packagesViewPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Views", "PackageManagerView.axaml");
         var servicePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellPageDataService.cs");
-        var mainWindow = File.ReadAllText(mainWindowPath);
+        var workspace = File.ReadAllText(workspacePath);
         var packagesView = File.ReadAllText(packagesViewPath);
         var service = File.ReadAllText(servicePath);
 
-        Assert.Contains("_pageData.LoadPackagesAsync", mainWindow);
+        Assert.Contains("_pageData.LoadPackagesAsync", workspace);
         Assert.Contains("ShellPageViewModelFactory.FromPackages", service);
-        Assert.Contains("new PackageManagerView", mainWindow);
-        Assert.DoesNotContain("BuildPackageOperationsPanel", mainWindow, StringComparison.Ordinal);
-        Assert.DoesNotContain("BuildPackageActionRow", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("new PackageManagerView", workspace);
+        Assert.DoesNotContain("BuildPackageOperationsPanel", workspace, StringComparison.Ordinal);
+        Assert.DoesNotContain("BuildPackageActionRow", workspace, StringComparison.Ordinal);
         Assert.Contains("x:DataType=\"vm:PackageManagerViewModel\"", packagesView);
         Assert.Contains("InstallSourceDirectory", packagesView);
         Assert.Contains("InstallCommand", packagesView);
@@ -665,18 +698,18 @@ Address         Port        Address         Port
     [Fact]
     public void Shell_diagnostics_page_is_wired_to_axaml_view_model()
     {
-        var mainWindowPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "MainWindow.cs");
+        var workspacePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellWorkspaceController.cs");
         var diagnosticsViewPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Views", "DiagnosticsView.axaml");
         var servicePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellPageDataService.cs");
-        var mainWindow = File.ReadAllText(mainWindowPath);
+        var workspace = File.ReadAllText(workspacePath);
         var diagnosticsView = File.ReadAllText(diagnosticsViewPath);
         var service = File.ReadAllText(servicePath);
 
-        Assert.Contains("_pageData.LoadDiagnosticsAsync", mainWindow);
+        Assert.Contains("_pageData.LoadDiagnosticsAsync", workspace);
         Assert.Contains("ShellPageViewModelFactory.FromDiagnostics", service);
-        Assert.Contains("new DiagnosticsView", mainWindow);
-        Assert.DoesNotContain("BuildRuntimeProcessDiagnostic", mainWindow, StringComparison.Ordinal);
-        Assert.DoesNotContain("BuildRuntimeCommandHistoryEntry", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("new DiagnosticsView", workspace);
+        Assert.DoesNotContain("BuildRuntimeProcessDiagnostic", workspace, StringComparison.Ordinal);
+        Assert.DoesNotContain("BuildRuntimeCommandHistoryEntry", workspace, StringComparison.Ordinal);
         Assert.Contains("x:DataType=\"vm:DiagnosticsViewModel\"", diagnosticsView);
         Assert.Contains("RuntimeTransportViewModel", diagnosticsView);
         Assert.Contains("RuntimeProcessPolicyHistoryItemViewModel", diagnosticsView);
@@ -688,19 +721,19 @@ Address         Port        Address         Port
     [Fact]
     public void Shell_command_palette_is_wired_to_axaml_view_model()
     {
-        var mainWindowPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "MainWindow.cs");
+        var workspacePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellWorkspaceController.cs");
         var commandPaletteViewPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Views", "CommandPaletteView.axaml");
         var viewModelPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "ViewModels", "ShellPageViewModels.cs");
         var servicePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellPageDataService.cs");
-        var mainWindow = File.ReadAllText(mainWindowPath);
+        var workspace = File.ReadAllText(workspacePath);
         var commandPaletteView = File.ReadAllText(commandPaletteViewPath);
         var viewModel = File.ReadAllText(viewModelPath);
         var service = File.ReadAllText(servicePath);
 
-        Assert.Contains("_pageData.LoadCommandsAsync", mainWindow);
+        Assert.Contains("_pageData.LoadCommandsAsync", workspace);
         Assert.Contains("ShellPageViewModelFactory.FromCommands", service);
-        Assert.Contains("new CommandPaletteView", mainWindow);
-        Assert.DoesNotContain("_commandPanel.Children", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("new CommandPaletteView", workspace);
+        Assert.DoesNotContain("_commandPanel.Children", workspace, StringComparison.Ordinal);
         Assert.Contains("x:DataType=\"vm:CommandPaletteViewModel\"", commandPaletteView);
         Assert.Contains("CommandItemViewModel", commandPaletteView);
         Assert.Contains("ExecuteCommand", commandPaletteView);
@@ -713,12 +746,16 @@ Address         Port        Address         Port
     public void Shell_command_execution_is_extracted_to_service()
     {
         var mainWindowPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "MainWindow.cs");
+        var workspacePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellWorkspaceController.cs");
         var servicePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellCommandExecutionService.cs");
         var mainWindow = File.ReadAllText(mainWindowPath);
+        var workspace = File.ReadAllText(workspacePath);
         var service = File.ReadAllText(servicePath);
 
-        Assert.Contains("ShellCommandExecutionService", mainWindow);
-        Assert.Contains("_commandExecutionService.ExecuteAsync(commandId)", mainWindow);
+        Assert.Contains("ShellCommandExecutionService", workspace);
+        Assert.Contains("_commandExecutionService.ExecuteAsync(commandId)", workspace);
+        Assert.DoesNotContain("ShellCommandExecutionService", mainWindow, StringComparison.Ordinal);
+        Assert.DoesNotContain("var result = await client.ExecuteCommandAsync(commandId);", workspace, StringComparison.Ordinal);
         Assert.DoesNotContain("var result = await client.ExecuteCommandAsync(commandId);", mainWindow, StringComparison.Ordinal);
         Assert.Contains("HostControlClient.ForDefaultEndpoint()", service);
         Assert.Contains("ShellCommandExecutionResult", service);
@@ -729,17 +766,20 @@ Address         Port        Address         Port
     public void Shell_runner_events_are_extracted_to_service()
     {
         var mainWindowPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "MainWindow.cs");
+        var workspacePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellWorkspaceController.cs");
         var servicePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellRunnerEventService.cs");
         var mainWindow = File.ReadAllText(mainWindowPath);
+        var workspace = File.ReadAllText(workspacePath);
         var service = File.ReadAllText(servicePath);
 
-        Assert.Contains("ShellRunnerEventService", mainWindow);
-        Assert.Contains("_runnerEvents.CheckOnceAsync()", mainWindow);
-        Assert.Contains("_runnerEvents.HostEventReceived", mainWindow);
-        Assert.DoesNotContain("HostControlConnectionMonitor _connectionMonitor", mainWindow, StringComparison.Ordinal);
-        Assert.DoesNotContain("HostControlEventStreamMonitor _eventStream", mainWindow, StringComparison.Ordinal);
-        Assert.DoesNotContain("LoadRunnerStatusAsync", mainWindow, StringComparison.Ordinal);
-        Assert.DoesNotContain("ApplyConnectionSnapshotAsync", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("ShellRunnerEventService", workspace);
+        Assert.Contains("_runnerEvents.CheckOnceAsync()", workspace);
+        Assert.Contains("_runnerEvents.HostEventReceived", workspace);
+        Assert.DoesNotContain("ShellRunnerEventService", mainWindow, StringComparison.Ordinal);
+        Assert.DoesNotContain("HostControlConnectionMonitor _connectionMonitor", workspace, StringComparison.Ordinal);
+        Assert.DoesNotContain("HostControlEventStreamMonitor _eventStream", workspace, StringComparison.Ordinal);
+        Assert.DoesNotContain("LoadRunnerStatusAsync", workspace, StringComparison.Ordinal);
+        Assert.DoesNotContain("ApplyConnectionSnapshotAsync", workspace, StringComparison.Ordinal);
         Assert.Contains("HostControlConnectionMonitor", service);
         Assert.Contains("HostControlEventStreamMonitor", service);
         Assert.Contains("RunnerRecovered", service);
@@ -750,14 +790,14 @@ Address         Port        Address         Port
     [Fact]
     public void Shell_host_event_refresh_routing_is_extracted_to_service()
     {
-        var mainWindowPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "MainWindow.cs");
+        var workspacePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellWorkspaceController.cs");
         var servicePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellPageRefreshRouter.cs");
-        var mainWindow = File.ReadAllText(mainWindowPath);
+        var workspace = File.ReadAllText(workspacePath);
         var service = File.ReadAllText(servicePath);
 
-        Assert.Contains("ShellPageRefreshRouter.Route(_currentPage, evt)", mainWindow);
-        Assert.DoesNotContain("switch (evt.Type)", mainWindow, StringComparison.Ordinal);
-        Assert.DoesNotContain("\"module.enabled\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("ShellPageRefreshRouter.Route(_currentPage, evt)", workspace);
+        Assert.DoesNotContain("switch (evt.Type)", workspace, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"module.enabled\"", workspace, StringComparison.Ordinal);
         Assert.Contains("\"module.enabled\"", service);
         Assert.Contains("ReloadCommands", service);
         Assert.Contains("ReloadCurrentPage", service);
@@ -776,19 +816,22 @@ Address         Port        Address         Port
     public void Shell_host_actions_are_extracted_to_service()
     {
         var mainWindowPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "MainWindow.cs");
+        var workspacePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellWorkspaceController.cs");
         var servicePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellHostActionService.cs");
         var mainWindow = File.ReadAllText(mainWindowPath);
+        var workspace = File.ReadAllText(workspacePath);
         var service = File.ReadAllText(servicePath);
 
-        Assert.Contains("ShellHostActionService", mainWindow);
-        Assert.Contains("_hostActions.RunPackageOperationAsync", mainWindow);
-        Assert.Contains("_hostActions.RestartRuntimeProcessAsync", mainWindow);
-        Assert.Contains("_hostActions.SetRuntimeProcessRestartPolicyAsync", mainWindow);
-        Assert.Contains("_hostActions.SetModuleEnabledAsync", mainWindow);
-        Assert.DoesNotContain("client.InstallPackageAsync", mainWindow, StringComparison.Ordinal);
-        Assert.DoesNotContain("client.RestartRuntimeProcessAsync", mainWindow, StringComparison.Ordinal);
-        Assert.DoesNotContain("client.SetRuntimeProcessRestartPolicyAsync", mainWindow, StringComparison.Ordinal);
-        Assert.DoesNotContain("client.SetModuleEnabledAsync", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("ShellHostActionService", workspace);
+        Assert.Contains("_hostActions.RunPackageOperationAsync", workspace);
+        Assert.Contains("_hostActions.RestartRuntimeProcessAsync", workspace);
+        Assert.Contains("_hostActions.SetRuntimeProcessRestartPolicyAsync", workspace);
+        Assert.Contains("_hostActions.SetModuleEnabledAsync", workspace);
+        Assert.DoesNotContain("ShellHostActionService", mainWindow, StringComparison.Ordinal);
+        Assert.DoesNotContain("client.InstallPackageAsync", workspace, StringComparison.Ordinal);
+        Assert.DoesNotContain("client.RestartRuntimeProcessAsync", workspace, StringComparison.Ordinal);
+        Assert.DoesNotContain("client.SetRuntimeProcessRestartPolicyAsync", workspace, StringComparison.Ordinal);
+        Assert.DoesNotContain("client.SetModuleEnabledAsync", workspace, StringComparison.Ordinal);
         Assert.Contains("HostControlClient.ForDefaultEndpoint()", service);
         Assert.Contains("ShellPackageActionResult", service);
         Assert.Contains("ShellActionResult", service);
@@ -797,21 +840,21 @@ Address         Port        Address         Port
     [Fact]
     public void Shell_settings_page_is_wired_to_axaml_view_model()
     {
-        var mainWindowPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "MainWindow.cs");
+        var workspacePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellWorkspaceController.cs");
         var settingsViewPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Views", "SettingsCenterView.axaml");
         var viewModelPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "ViewModels", "ShellPageViewModels.cs");
         var servicePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellPageDataService.cs");
-        var mainWindow = File.ReadAllText(mainWindowPath);
+        var workspace = File.ReadAllText(workspacePath);
         var settingsView = File.ReadAllText(settingsViewPath);
         var viewModel = File.ReadAllText(viewModelPath);
         var service = File.ReadAllText(servicePath);
 
-        Assert.Contains("_pageData.LoadSettingsAsync", mainWindow);
+        Assert.Contains("_pageData.LoadSettingsAsync", workspace);
         Assert.Contains("ShellPageViewModelFactory.FromSettings", service);
-        Assert.Contains("new SettingsCenterView", mainWindow);
-        Assert.Contains("SaveSettingsPageAsync", mainWindow);
-        Assert.DoesNotContain("FillSettingsEditorAsync", mainWindow, StringComparison.Ordinal);
-        Assert.DoesNotContain("BuildSettingsFieldEditors", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("new SettingsCenterView", workspace);
+        Assert.Contains("SaveSettingsPageAsync", workspace);
+        Assert.DoesNotContain("FillSettingsEditorAsync", workspace, StringComparison.Ordinal);
+        Assert.DoesNotContain("BuildSettingsFieldEditors", workspace, StringComparison.Ordinal);
         Assert.Contains("x:DataType=\"vm:SettingsCenterViewModel\"", settingsView);
         Assert.Contains("ModulePickerItemViewModel", settingsView);
         Assert.Contains("SettingsFieldViewModel", settingsView);
@@ -824,13 +867,18 @@ Address         Port        Address         Port
     public void Shell_settings_save_is_extracted_to_service()
     {
         var mainWindowPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "MainWindow.cs");
+        var workspacePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellWorkspaceController.cs");
         var servicePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellSettingsService.cs");
         var mainWindow = File.ReadAllText(mainWindowPath);
+        var workspace = File.ReadAllText(workspacePath);
         var service = File.ReadAllText(servicePath);
 
-        Assert.Contains("ShellSettingsService", mainWindow);
-        Assert.Contains("_settingsService.SaveAsync(viewModel)", mainWindow);
+        Assert.Contains("ShellSettingsService", workspace);
+        Assert.Contains("_settingsService.SaveAsync(viewModel)", workspace);
+        Assert.DoesNotContain("ShellSettingsService", mainWindow, StringComparison.Ordinal);
+        Assert.DoesNotContain("client.UpdateSettingsAsync", workspace, StringComparison.Ordinal);
         Assert.DoesNotContain("client.UpdateSettingsAsync", mainWindow, StringComparison.Ordinal);
+        Assert.DoesNotContain("RpcException", workspace, StringComparison.Ordinal);
         Assert.DoesNotContain("RpcException", mainWindow, StringComparison.Ordinal);
         Assert.Contains("client.UpdateSettingsAsync", service);
         Assert.Contains("RpcException", service);
@@ -842,22 +890,26 @@ Address         Port        Address         Port
     public void Shell_read_only_page_data_is_extracted_to_service()
     {
         var mainWindowPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "MainWindow.cs");
+        var workspacePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellWorkspaceController.cs");
         var servicePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellPageDataService.cs");
         var mainWindow = File.ReadAllText(mainWindowPath);
+        var workspace = File.ReadAllText(workspacePath);
         var service = File.ReadAllText(servicePath);
 
-        Assert.Contains("ShellPageDataService", mainWindow);
+        Assert.Contains("ShellPageDataService", workspace);
+        Assert.DoesNotContain("ShellPageDataService", mainWindow, StringComparison.Ordinal);
         Assert.DoesNotContain("HostControlClient", mainWindow, StringComparison.Ordinal);
-        Assert.DoesNotContain("GetDashboardSnapshotAsync", mainWindow, StringComparison.Ordinal);
-        Assert.DoesNotContain("ListModulesAsync", mainWindow, StringComparison.Ordinal);
-        Assert.DoesNotContain("GetModuleDetailAsync", mainWindow, StringComparison.Ordinal);
-        Assert.DoesNotContain("TailLogsAsync", mainWindow, StringComparison.Ordinal);
-        Assert.DoesNotContain("ListNotificationsAsync", mainWindow, StringComparison.Ordinal);
-        Assert.DoesNotContain("ListPackagesAsync", mainWindow, StringComparison.Ordinal);
-        Assert.DoesNotContain("GetRuntimeDiagnosticsAsync", mainWindow, StringComparison.Ordinal);
-        Assert.DoesNotContain("ListBrokerAuditAsync", mainWindow, StringComparison.Ordinal);
-        Assert.DoesNotContain("PickModule", mainWindow, StringComparison.Ordinal);
-        Assert.DoesNotContain("PrettyJson", mainWindow, StringComparison.Ordinal);
+        Assert.DoesNotContain("HostControlClient", workspace, StringComparison.Ordinal);
+        Assert.DoesNotContain("GetDashboardSnapshotAsync", workspace, StringComparison.Ordinal);
+        Assert.DoesNotContain("ListModulesAsync", workspace, StringComparison.Ordinal);
+        Assert.DoesNotContain("GetModuleDetailAsync", workspace, StringComparison.Ordinal);
+        Assert.DoesNotContain("TailLogsAsync", workspace, StringComparison.Ordinal);
+        Assert.DoesNotContain("ListNotificationsAsync", workspace, StringComparison.Ordinal);
+        Assert.DoesNotContain("ListPackagesAsync", workspace, StringComparison.Ordinal);
+        Assert.DoesNotContain("GetRuntimeDiagnosticsAsync", workspace, StringComparison.Ordinal);
+        Assert.DoesNotContain("ListBrokerAuditAsync", workspace, StringComparison.Ordinal);
+        Assert.DoesNotContain("PickModule", workspace, StringComparison.Ordinal);
+        Assert.DoesNotContain("PrettyJson", workspace, StringComparison.Ordinal);
         Assert.Contains("HostControlClient.ForDefaultEndpoint()", service);
         Assert.Contains("GetDashboardSnapshotAsync", service);
         Assert.Contains("ListModulesAsync", service);
@@ -873,26 +925,26 @@ Address         Port        Address         Port
     [Fact]
     public void Shell_permission_and_audit_sidebars_are_wired_to_axaml_view_models()
     {
-        var mainWindowPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "MainWindow.cs");
+        var workspacePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellWorkspaceController.cs");
         var permissionViewPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Views", "PermissionPromptView.axaml");
         var auditViewPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Views", "BrokerAuditView.axaml");
         var viewModelPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "ViewModels", "ShellPageViewModels.cs");
         var servicePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellPageDataService.cs");
-        var mainWindow = File.ReadAllText(mainWindowPath);
+        var workspace = File.ReadAllText(workspacePath);
         var permissionView = File.ReadAllText(permissionViewPath);
         var auditView = File.ReadAllText(auditViewPath);
         var viewModel = File.ReadAllText(viewModelPath);
         var service = File.ReadAllText(servicePath);
 
-        Assert.Contains("new PermissionPromptView", mainWindow);
-        Assert.Contains("new BrokerAuditView", mainWindow);
-        Assert.Contains("ShellPageViewModelFactory.FromPermissionPrompt", mainWindow);
-        Assert.Contains("_pageData.LoadBrokerAuditAsync", mainWindow);
-        Assert.Contains("_pageData.CreateBrokerAuditError", mainWindow);
+        Assert.Contains("new PermissionPromptView", workspace);
+        Assert.Contains("new BrokerAuditView", workspace);
+        Assert.Contains("ShellPageViewModelFactory.FromPermissionPrompt", workspace);
+        Assert.Contains("_pageData.LoadBrokerAuditAsync", workspace);
+        Assert.Contains("_pageData.CreateBrokerAuditError", workspace);
         Assert.Contains("ShellPageViewModelFactory.FromBrokerAudit", service);
-        Assert.DoesNotContain("BuildPermissionPrompt", mainWindow, StringComparison.Ordinal);
-        Assert.DoesNotContain("BuildAuditEntry", mainWindow, StringComparison.Ordinal);
-        Assert.DoesNotContain("_auditPanel.Children", mainWindow, StringComparison.Ordinal);
+        Assert.DoesNotContain("BuildPermissionPrompt", workspace, StringComparison.Ordinal);
+        Assert.DoesNotContain("BuildAuditEntry", workspace, StringComparison.Ordinal);
+        Assert.DoesNotContain("_auditPanel.Children", workspace, StringComparison.Ordinal);
         Assert.Contains("x:DataType=\"vm:PermissionPromptViewModel\"", permissionView);
         Assert.Contains("AuditCommand", permissionView);
         Assert.Contains("x:DataType=\"vm:BrokerAuditViewModel\"", auditView);
@@ -904,16 +956,16 @@ Address         Port        Address         Port
     [Fact]
     public void Shell_unavailable_page_is_wired_to_axaml_view_model()
     {
-        var mainWindowPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "MainWindow.cs");
+        var workspacePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellWorkspaceController.cs");
         var unavailableViewPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Views", "UnavailablePageView.axaml");
         var viewModelPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "ViewModels", "ShellPageViewModels.cs");
-        var mainWindow = File.ReadAllText(mainWindowPath);
+        var workspace = File.ReadAllText(workspacePath);
         var unavailableView = File.ReadAllText(unavailableViewPath);
         var viewModel = File.ReadAllText(viewModelPath);
 
-        Assert.Contains("new UnavailablePageView", mainWindow);
-        Assert.Contains("new UnavailablePageViewModel", mainWindow);
-        Assert.DoesNotContain("BuildPage(", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("new UnavailablePageView", workspace);
+        Assert.Contains("new UnavailablePageViewModel", workspace);
+        Assert.DoesNotContain("BuildPage(", workspace, StringComparison.Ordinal);
         Assert.Contains("x:DataType=\"vm:UnavailablePageViewModel\"", unavailableView);
         Assert.Contains("Message", unavailableView);
         Assert.Contains("class UnavailablePageViewModel", viewModel);
@@ -954,6 +1006,7 @@ Address         Port        Address         Port
         Assert.Contains("public string RunnerStatusText", viewModel);
         Assert.DoesNotContain("_statusBar", mainWindow, StringComparison.Ordinal);
         Assert.DoesNotContain("_runnerStatus", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("new ShellWorkspaceController", mainWindow);
     }
 
     [Fact]
