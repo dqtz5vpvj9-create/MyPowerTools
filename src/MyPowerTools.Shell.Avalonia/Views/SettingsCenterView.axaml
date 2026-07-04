@@ -39,6 +39,14 @@
                IsVisible="{Binding HasNoModules}" />
 
     <TextBlock Classes="MptMeta" Text="{Binding StatusText}" />
+    <Border Classes="MptInset">
+      <StackPanel Spacing="{DynamicResource MptSpacingXs}">
+        <TextBlock Classes="MptMeta" Text="{Binding ChangeSummary}" />
+        <TextBlock Classes="MptMeta"
+                   Text="{Binding PatchPreview}"
+                   IsVisible="{Binding HasPatchPreview}" />
+      </StackPanel>
+    </Border>
 
     <ItemsControl ItemsSource="{Binding Fields}">
       <ItemsControl.ItemTemplate>
@@ -50,6 +58,9 @@
                 <TextBlock Grid.Column="1" Classes="MptMeta" Text="{Binding EditorType}" />
               </Grid>
               <TextBlock Classes="MptPageSubtitle" Text="{Binding Description}" />
+              <TextBlock Classes="MptMeta"
+                         Text="{Binding DirtySummary}"
+                         IsVisible="{Binding IsDirty}" />
               <TextBox Text="{Binding Value, Mode=TwoWay}"
                        MinWidth="360"
                        MinHeight="34"

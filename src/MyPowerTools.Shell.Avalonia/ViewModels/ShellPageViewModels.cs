@@ -269,8 +269,12 @@ public sealed class ModuleDetailViewModel : ShellPageViewModel
 
 public sealed class SettingsCenterViewModel : ShellPageViewModel
 {
+    private readonly string _originalRawJson;
+    private readonly AsyncRelayCommand _saveCommand;
     private string _rawJson;
     private string _statusText;
+    private int _dirtyCount;
+    private string _patchPreview = "";
 
     public SettingsCenterViewModel(
         string selectedModuleId,
@@ -286,10 +290,29 @@ public sealed class SettingsCenterViewModel : ShellPageViewModel
         SelectedModuleId = selectedModuleId;
         Revision = revision;
         _rawJson = rawJson;
+        _originalRawJson = rawJson;
         _statusText = statusText;
         Modules = modules;
         Fields = fields;
-        SaveCommand = new AsyncRelayCommand(() => saveSettings?.Invoke(this) ?? Task.CompletedTask, () => SelectedModuleId.Length > 0);
+        _saveCommand = new AsyncRelayCommand(
+            () => saveSettings?.Invoke(this) ?? Task.CompletedTask,
+            () => SelectedModuleId.Length > 0 && HasChanges);
+        SaveCommand = _saveCommand;
+
+        foreach (var field in Fields)
+        {
+            field.PropertyChanged += (_, args) =>
+            {
+                if (args.PropertyName is nameof(SettingsFieldViewModel.Value)
+                    or nameof(SettingsFieldViewModel.BooleanValue)
+                    or nameof(SettingsFieldViewModel.SelectedOption))
+                {
+                    RefreshStagedChanges();
+                }
+            };
+        }
+
+        RefreshStagedChanges();
     }
 
     public string SelectedModuleId { get; }
@@ -300,17 +323,71 @@ public sealed class SettingsCenterViewModel : ShellPageViewModel
     public bool HasFields => Fields.Count > 0;
     public bool UsesRawJson => SelectedModuleId.Length > 0 && Fields.Count == 0;
     public ICommand SaveCommand { get; }
+    public bool HasChanges => DirtyCount > 0;
+    public bool HasPatchPreview => PatchPreview.Length > 0;
+    public string ChangeSummary => HasChanges ? $"{DirtyCount} staged change(s)" : "No staged changes.";
+
+    public int DirtyCount
+    {
+        get => _dirtyCount;
+        private set
+        {
+            if (SetProperty(ref _dirtyCount, value))
+            {
+                OnPropertyChanged(nameof(HasChanges));
+                OnPropertyChanged(nameof(ChangeSummary));
+            }
+        }
+    }
+
+    public string PatchPreview
+    {
+        get => _patchPreview;
+        private set
+        {
+            if (SetProperty(ref _patchPreview, value))
+            {
+                OnPropertyChanged(nameof(HasPatchPreview));
+            }
+        }
+    }
 
     public string RawJson
     {
         get => _rawJson;
-        set => SetProperty(ref _rawJson, value);
+        set
+        {
+            if (SetProperty(ref _rawJson, value))
+            {
+                RefreshStagedChanges();
+            }
+        }
     }
 
     public string StatusText
     {
         get => _statusText;
         set => SetProperty(ref _statusText, value);
+    }
+
+    public void RefreshStagedChanges()
+    {
+        if (UsesRawJson)
+        {
+            var changed = !string.Equals(RawJson.Trim(), _originalRawJson.Trim(), StringComparison.Ordinal);
+            DirtyCount = changed ? 1 : 0;
+            PatchPreview = changed ? $"rawJson: {RawJson.Length} character(s) staged." : "";
+            _saveCommand.NotifyCanExecuteChanged();
+            return;
+        }
+
+        var dirtyFields = Fields
+            .Where(field => field.IsDirty)
+            .Select(field => field.DirtySummary)
+            .ToArray();
+        DirtyCount = dirtyFields.Length;
+        PatchPreview = string.Join(Environment.NewLine, dirtyFields);
+        _saveCommand.NotifyCanExecuteChanged();
     }
 }
 
@@ -872,6 +949,9 @@ public sealed class SettingsFieldViewModel : ObservableViewModel
         _booleanValue = booleanValue;
         Options = options;
         _selectedOption = selectedOption;
+        OriginalValue = value;
+        OriginalBooleanValue = booleanValue;
+        OriginalSelectedOption = selectedOption;
     }
 
     public string Key { get; }
@@ -879,27 +959,76 @@ public sealed class SettingsFieldViewModel : ObservableViewModel
     public string EditorType { get; }
     public string Description { get; }
     public IReadOnlyList<string> Options { get; }
+    public string OriginalValue { get; }
+    public bool OriginalBooleanValue { get; }
+    public string OriginalSelectedOption { get; }
     public bool IsBooleanEditor => EditorType == "boolean";
     public bool IsEnumEditor => EditorType == "enum";
     public bool IsMultilineEditor => EditorType is "object" or "array";
     public bool IsSingleLineTextEditor => !IsBooleanEditor && !IsEnumEditor && !IsMultilineEditor;
+    public bool IsDirty => EditorType switch
+    {
+        "boolean" => BooleanValue != OriginalBooleanValue,
+        "enum" => !string.Equals(SelectedOption, OriginalSelectedOption, StringComparison.Ordinal),
+        _ => !string.Equals(Value, OriginalValue, StringComparison.Ordinal)
+    };
+    public string DirtySummary => IsDirty
+        ? $"{Key}: {OriginalEditorValue} -> {CurrentEditorValue}"
+        : $"{Key}: unchanged";
+    public string CurrentEditorValue => EditorType switch
+    {
+        "boolean" => BooleanValue ? "true" : "false",
+        "enum" => SelectedOption,
+        _ => Value
+    };
+    public string OriginalEditorValue => EditorType switch
+    {
+        "boolean" => OriginalBooleanValue ? "true" : "false",
+        "enum" => OriginalSelectedOption,
+        _ => OriginalValue
+    };
 
     public string Value
     {
         get => _value;
-        set => SetProperty(ref _value, value);
+        set
+        {
+            if (SetProperty(ref _value, value))
+            {
+                RaiseDirtyStateChanged();
+            }
+        }
     }
 
     public bool BooleanValue
     {
         get => _booleanValue;
-        set => SetProperty(ref _booleanValue, value);
+        set
+        {
+            if (SetProperty(ref _booleanValue, value))
+            {
+                RaiseDirtyStateChanged();
+            }
+        }
     }
 
     public string SelectedOption
     {
         get => _selectedOption;
-        set => SetProperty(ref _selectedOption, value);
+        set
+        {
+            if (SetProperty(ref _selectedOption, value))
+            {
+                RaiseDirtyStateChanged();
+            }
+        }
+    }
+
+    private void RaiseDirtyStateChanged()
+    {
+        OnPropertyChanged(nameof(IsDirty));
+        OnPropertyChanged(nameof(DirtySummary));
+        OnPropertyChanged(nameof(CurrentEditorValue));
     }
 }
 

@@ -100,6 +100,7 @@ This document tracks the current slice for external review. It is an audit hando
 - Added Runtime settings validate/store/apply sequencing through `UpdateSettingsWithApplyAsync`.
 - Mapped settings validate/apply hooks through `IModuleTransportRuntime`, InProc modules, gRPC IPC modules, HostControl, and Shell save status.
 - Extended HostControl settings snapshots with `apply_state` and `apply_message` so Shell can distinguish stored, applied, and apply-failed outcomes.
+- Added Settings Center staged-change tracking, field-level dirty summaries, patch preview text, and save enablement only when edits are staged.
 
 ### Acceptance Coverage
 
@@ -161,6 +162,8 @@ This document tracks the current slice for external review. It is an audit hando
   verifies Settings Center uses `SettingsCenterView` plus `ShellPageViewModelFactory.FromSettings`, preserves save command wiring, and removes the old imperative settings editor path.
 - `Shell_settings_save_is_extracted_to_service`
   verifies settings patch construction, update calls, and RPC error mapping are owned by `ShellSettingsService` while `ShellWorkspaceController` owns refresh choreography.
+- `Shell_settings_page_tracks_staged_diff_before_save`
+  verifies Settings Center keeps original field values, tracks staged changes, renders patch preview text, and enables save only after edits are staged.
 - `Settings_update_validates_stores_and_applies_runtime`
   verifies Runtime settings updates call transport validation before storage, apply the stored snapshot afterward, and publish `applyState`.
 - `Settings_validate_apply_chain_is_wired_through_hostcontrol_and_shell`
@@ -195,7 +198,7 @@ This document tracks the current slice for external review. It is an audit hando
 - Token `ResourceDictionary` split: `MptColors.axaml`, `MptSpacing.axaml`, `MptTypography.axaml`, and `MptDensity.axaml` are loaded through `MptTheme.axaml`.
 - Static style lint for shell UI: covers split-token dictionaries, component-style coverage, AXAML raw colors/font sizes, C# raw colors/font sizes in Shell/UI control surfaces, thin code-behind files, and ViewModel independence from Avalonia controls.
 - Command palette typed argument binding: HostControl parameter descriptors, Shell text/boolean parameter editors, JSON args pass-through, required/numeric validation, execution preview, and per-command result/error state are wired; progress streaming and cancellation states remain pending.
-- Settings validate/apply chain with staged diff UX: Runtime validate/store/apply sequencing, HostControl apply state fields, and Shell save status messages are wired; validation preview, staged diff, rollback-on-apply-failure policy, and richer apply result UX remain pending.
+- Settings validate/apply chain with staged diff UX: Runtime validate/store/apply sequencing, HostControl apply state fields, Shell save status messages, staged-change tracking, field-level dirty summaries, patch preview text, and save enablement are wired; validation preview, rollback-on-apply-failure policy, and richer apply result states remain pending.
 
 The existing shell already has UI snapshot gates, keyboard shortcut tests, and centralized color-token checks. The next slice should turn those guardrails into a structural refactor that reduces imperative UI construction in `MainWindow.cs`.
 
@@ -217,7 +220,7 @@ The existing shell already has UI snapshot gates, keyboard shortcut tests, and c
 | Component library | Reusable AXAML controls and tokens | Started: foundation component styles and matching C# classes for cards, badges, metrics, command items, settings fields, logs, notifications, prompts, states, headers, action bars, and action buttons |
 | Style lint | Static lint over shell UI style usage | Started: split-token, component-style, raw color/font-size, code-behind, and viewmodel guardrails |
 | Command palette | Typed args and validation UI | Parameter descriptors, text/boolean editors, args pass-through, required/numeric validation, execution preview, and per-command result/error state wired; progress streaming and cancellation pending |
-| Settings UX | Validate/apply chain with clear states | Runtime validate/store/apply sequencing and Shell save apply-state messages wired; staged diff, validation preview, rollback policy, and richer apply result states pending |
+| Settings UX | Validate/apply chain with clear states | Runtime validate/store/apply sequencing, Shell save apply-state messages, staged diff, and patch preview wired; validation preview, rollback policy, and richer apply result states pending |
 
 ## Validation Evidence
 
@@ -252,6 +255,6 @@ The packaging step for external review should run the same validation again and 
 
 1. Wire Shell views more deeply onto the new component style names and reduce repeated inline card/list markup.
 2. Add command palette progress streaming and cancellation once HostControl exposes streaming command execution.
-3. Add Settings validation preview, staged diff, rollback-on-apply-failure policy, and richer apply result UI.
+3. Add Settings validation preview, rollback-on-apply-failure policy, and richer apply result UI.
 4. Add pixel or Avalonia.Headless screenshot baselines for dashboard, command palette, settings, module detail, logs, notifications, packages, and diagnostics.
 5. Keep sidecar process supervision as the next plugin-runtime depth item after the UI architecture slice starts.

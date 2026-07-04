@@ -1019,7 +1019,68 @@ Address         Port        Address         Port
         Assert.Contains("SettingsFieldViewModel", settingsView);
         Assert.Contains("SaveCommand", settingsView);
         Assert.Contains("RawJson", settingsView);
+        Assert.Contains("ChangeSummary", settingsView);
+        Assert.Contains("PatchPreview", settingsView);
+        Assert.Contains("DirtySummary", settingsView);
         Assert.Contains("BuildSettingsPatch", viewModel);
+        Assert.Contains("RefreshStagedChanges", viewModel);
+    }
+
+    [Fact]
+    public void Shell_settings_page_tracks_staged_diff_before_save()
+    {
+        var modules = new HostProto.ListModulesResponse();
+        var selected = new HostProto.ModuleSummary
+        {
+            ModuleId = "sample",
+            DisplayName = "Sample"
+        };
+        modules.Modules.Add(selected);
+        var schemaJson = """
+            {
+              "properties": {
+                "enabled": { "type": "boolean", "title": "Enabled" },
+                "mode": { "type": "string", "title": "Mode", "enum": [ "normal", "compact" ] },
+                "port": { "type": "integer", "title": "Port" }
+              }
+            }
+            """;
+        var values = new JsonObject
+        {
+            ["enabled"] = true,
+            ["mode"] = "normal",
+            ["port"] = 38189
+        };
+        var viewModel = ShellPageViewModelFactory.FromSettings(
+            modules,
+            selected,
+            schemaJson,
+            values,
+            values.ToJsonString(),
+            7,
+            DateTimeOffset.Parse("2026-07-04T00:00:00Z"));
+
+        Assert.False(viewModel.HasChanges);
+        Assert.Equal(0, viewModel.DirtyCount);
+        Assert.Equal("No staged changes.", viewModel.ChangeSummary);
+        Assert.False(viewModel.SaveCommand.CanExecute(null));
+
+        var port = Assert.Single(viewModel.Fields, field => field.Key == "port");
+        var mode = Assert.Single(viewModel.Fields, field => field.Key == "mode");
+        port.Value = "38200";
+        mode.SelectedOption = "compact";
+
+        Assert.True(viewModel.HasChanges);
+        Assert.Equal(2, viewModel.DirtyCount);
+        Assert.Equal("2 staged change(s)", viewModel.ChangeSummary);
+        Assert.Contains("port: 38189 -> 38200", viewModel.PatchPreview);
+        Assert.Contains("mode: normal -> compact", viewModel.PatchPreview);
+        Assert.True(viewModel.SaveCommand.CanExecute(null));
+
+        var patch = ShellPageViewModelFactory.BuildSettingsPatch(viewModel);
+        Assert.Equal(38200, patch["port"]!.GetValue<long>());
+        Assert.Equal("compact", patch["mode"]!.GetValue<string>());
+        Assert.True(patch["enabled"]!.GetValue<bool>());
     }
 
     [Fact]

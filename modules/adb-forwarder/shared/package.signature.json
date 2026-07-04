@@ -3,7 +3,7 @@
   "PackageId": "adb-forwarder",
   "Version": "0.2.0",
   "HashManifest": "shared/package.hashes.json",
-  "HashManifestSha256": "de7508d4a8904197e824cee547ea89cea980795772c2c675b5a7e7c2b96e10fc",
+  "HashManifestSha256": "c0aa21724d8ee200dbe3f32558d0fc37c4317811bf0ec5708f20d65ae822d48d",
   "SignatureState": "unsigned-local-trust",
   "Algorithm": "sha256-manifest-local",
   "KeyId": "local-development",
