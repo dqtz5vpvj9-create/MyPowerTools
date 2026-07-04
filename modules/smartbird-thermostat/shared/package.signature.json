@@ -3,7 +3,7 @@
   "PackageId": "smartbird-thermostat",
   "Version": "0.2.0",
   "HashManifest": "shared/package.hashes.json",
-  "HashManifestSha256": "fbac1202e44fb488aad9f5ca3f1d50d935e5f08bc9f3f5e848ef270d48064a28",
+  "HashManifestSha256": "6358fed96fdc0a2c27ad0cd4925f9b660d28a4d183296e4278ae7a371b2de3c3",
   "SignatureState": "unsigned-local-trust",
   "Algorithm": "sha256-manifest-local",
   "KeyId": "local-development",

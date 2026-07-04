@@ -144,51 +144,35 @@ public sealed class MainWindow : Window
 
     private async Task ApplyHostEventAsync(HostProto.HostEvent evt)
     {
-        switch (evt.Type)
+        var plan = Services.ShellPageRefreshRouter.Route(_currentPage, evt);
+        if (plan.ReloadBrokerAudit)
         {
-            case "notification.created":
-                if (_currentPage == NotificationsPage)
-                {
-                    await LoadNotificationsPageAsync();
-                }
-                break;
-            case "command.executed":
-                await LoadBrokerAuditAsync();
-                if (_currentPage is DashboardPage or DiagnosticsPage)
-                {
-                    await ShowPageAsync(_currentPage);
-                }
-                break;
-            case "settings.updated":
-                if (_currentPage == SettingsPage)
-                {
-                    await LoadSettingsPageAsync(evt.SourceId);
-                }
-                break;
-            case "module.enabled":
-            case "module.disabled":
-            case "registry.loaded":
-            case "commands.dynamic.refreshed":
-                await LoadCommandsAsync(_searchBox.Text ?? "");
-                if (_currentPage is DashboardPage or ModulesPage or PackagesPage or DiagnosticsPage)
-                {
-                    await ShowPageAsync(_currentPage);
-                }
-                break;
-            case "runtime.process.restart":
-            case "runtime.process.policy":
-            case "runtime.process.policy.expired":
-                if (_currentPage == DiagnosticsPage)
-                {
-                    await LoadDiagnosticsPageAsync();
-                }
-                break;
-            case "module.health.changed":
-                if (_currentPage is DashboardPage or ModulesPage or DiagnosticsPage)
-                {
-                    await ShowPageAsync(_currentPage);
-                }
-                break;
+            await LoadBrokerAuditAsync();
+        }
+
+        if (plan.ReloadCommands)
+        {
+            await LoadCommandsAsync(_searchBox.Text ?? "");
+        }
+
+        if (plan.ReloadNotifications)
+        {
+            await LoadNotificationsPageAsync();
+        }
+
+        if (plan.ReloadSettingsModuleId is not null)
+        {
+            await LoadSettingsPageAsync(plan.ReloadSettingsModuleId);
+        }
+
+        if (plan.ReloadDiagnostics)
+        {
+            await LoadDiagnosticsPageAsync();
+        }
+
+        if (plan.ReloadCurrentPage)
+        {
+            await ShowPageAsync(_currentPage);
         }
     }
 

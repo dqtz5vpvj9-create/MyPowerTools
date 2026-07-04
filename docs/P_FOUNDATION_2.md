@@ -82,6 +82,8 @@ This document tracks the current slice for external review. It is an audit hando
 - Updated `MainWindow.cs` to consume Settings save results and keep only ViewModel status refresh choreography in the Shell.
 - Added `ShellPageDataService` to own read-only HostControl page data loading and ViewModel factory mapping for Dashboard, Modules, Module Detail, Settings, Logs, Notifications, Packages, Diagnostics, Command Palette, and Broker Audit.
 - Updated `MainWindow.cs` to consume page data service results while keeping only View assignment, status assignment, and page refresh choreography in the Shell.
+- Added `ShellPageRefreshRouter` to own Host event to page refresh routing.
+- Updated `MainWindow.cs` to execute refresh plans instead of carrying Host event routing rules inline.
 
 ### Acceptance Coverage
 
@@ -137,6 +139,8 @@ This document tracks the current slice for external review. It is an audit hando
   verifies settings patch construction, update calls, and RPC error mapping are owned by `ShellSettingsService`.
 - `Shell_read_only_page_data_is_extracted_to_service`
   verifies read-only HostControl data loading and page ViewModel factory mapping are owned by `ShellPageDataService`.
+- `Shell_host_event_refresh_routing_is_extracted_to_service`
+  verifies Host event refresh routing is owned by `ShellPageRefreshRouter` and covers command and settings event plans.
 - `Shell_permission_and_audit_sidebars_are_wired_to_axaml_view_models`
   verifies Permission Prompt and Broker Audit sidebars use AXAML views and ViewModel factories, and removes old sidebar builders.
 - `Shell_unavailable_page_is_wired_to_axaml_view_model`
@@ -150,9 +154,9 @@ This document tracks the current slice for external review. It is an audit hando
 
 ## Current UI Architecture State
 
-- `src/MyPowerTools.Shell.Avalonia/MainWindow.cs` current: 578 lines.
+- `src/MyPowerTools.Shell.Avalonia/MainWindow.cs` current: 562 lines.
 - `MainWindow.cs` target <= 250 lines.
-- AXAML + MVVM migration: Dashboard, Modules, Module Detail, Logs, Notifications, Package Manager, Diagnostics, Settings Center, Permission Prompt, Broker Audit, unavailable/error pages, Shell chrome layout/navigation/status row, the right-side Command Palette list, command execution service extraction, runner/event service extraction, Host action service extraction, Settings save service extraction, and read-only page data service extraction are now live on typed AXAML plus ViewModels/services.
+- AXAML + MVVM migration: Dashboard, Modules, Module Detail, Logs, Notifications, Package Manager, Diagnostics, Settings Center, Permission Prompt, Broker Audit, unavailable/error pages, Shell chrome layout/navigation/status row, the right-side Command Palette list, command execution service extraction, runner/event service extraction, Host action service extraction, Settings save service extraction, read-only page data service extraction, and Host event refresh routing extraction are now live on typed AXAML plus ViewModels/services.
 - Component AXAML library: started with shared page/card/text styles; reusable control templates remain pending.
 - Token `ResourceDictionary` split: initial shared `MptTheme.axaml` loaded from the UI project.
 - Static style lint for shell UI: started with AXAML/viewmodel/code-behind guardrails; deeper layout and interaction lint pending.
@@ -174,8 +178,8 @@ The existing shell already has UI snapshot gates, keyboard shortcut tests, and c
 | InProc shadow-copy update | Loaded module uses cache while package DLL is replaceable | Done |
 | InProc unload handling | Unload probe and failure surfaced to runtime policy | Done for clean unload and pending-runner-restart diagnostics |
 | Sidecar default for complex modules | Complex modules prefer sidecar transport | Existing manifests keep sidecar-capable modules on sidecar paths |
-| MainWindow size | target <= 250 lines | current: 578 lines |
-| AXAML + MVVM | Main shell split into views/viewmodels | Started: Dashboard, Modules, Module Detail, Logs, Notifications, Package Manager, Diagnostics, Settings Center, Permission Prompt, Broker Audit, unavailable/error pages, Shell chrome layout/navigation/status row, the right-side Command Palette list, command execution service extraction, runner/event service extraction, Host action service extraction, Settings save service extraction, and read-only page data service extraction wired to AXAML/MVVM/service layers; thirteen typed views and control-free viewmodels exist |
+| MainWindow size | target <= 250 lines | current: 562 lines |
+| AXAML + MVVM | Main shell split into views/viewmodels | Started: Dashboard, Modules, Module Detail, Logs, Notifications, Package Manager, Diagnostics, Settings Center, Permission Prompt, Broker Audit, unavailable/error pages, Shell chrome layout/navigation/status row, the right-side Command Palette list, command execution service extraction, runner/event service extraction, Host action service extraction, Settings save service extraction, read-only page data service extraction, and Host event refresh routing extraction wired to AXAML/MVVM/service layers; thirteen typed views and control-free viewmodels exist |
 | Component library | Reusable AXAML controls and tokens | Started: shared theme resources and base page/card/text styles |
 | Style lint | Static lint over shell UI style usage | Started: AXAML token and code-behind/viewmodel guardrails |
 | Command palette | Typed args and validation UI | Command list and execution wired to AXAML/MVVM; typed args pending HostControl parameter schema |
@@ -200,7 +204,7 @@ Latest observed result before packaging:
 
 ```text
 Build: passed, 0 warnings, 0 errors
-Tests: passed, 119 passed, 0 failed, 0 skipped
+Tests: passed, 120 passed, 0 failed, 0 skipped
 Module validation: 5 packages valid
 Contract validation: 5 packages, 7 modules passed
 UI gate: passed
@@ -215,5 +219,5 @@ The packaging step for external review should run the same validation again and 
 1. Introduce shell token dictionaries and component styles under the UI project.
 2. Add deeper static style lint that scans AXAML and C# UI files.
 3. Add command palette parameter editors plus settings validation preview, staged diff, and apply result states.
-4. Continue thinning `MainWindow.cs` by extracting page refresh routing and permission prompt presentation.
+4. Continue thinning `MainWindow.cs` by extracting permission prompt presentation and shell lifecycle wiring.
 5. Keep sidecar process supervision as the next plugin-runtime depth item after the UI architecture slice starts.

@@ -23,6 +23,7 @@ using MyPowerTools.Protocol;
 using MyPowerTools.Runtime;
 using MyPowerTools.SampleModules.DotNet;
 using MyPowerTools.Shell.Avalonia;
+using MyPowerTools.Shell.Avalonia.Services;
 using MyPowerTools.Shell.Avalonia.ViewModels;
 using MyPowerTools.UI;
 using ScreenEase.MyPowerTools;
@@ -744,6 +745,31 @@ Address         Port        Address         Port
         Assert.Contains("RunnerRecovered", service);
         Assert.Contains("HostEventReceived", service);
         Assert.Contains("StatusChanged?.Invoke", service);
+    }
+
+    [Fact]
+    public void Shell_host_event_refresh_routing_is_extracted_to_service()
+    {
+        var mainWindowPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "MainWindow.cs");
+        var servicePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellPageRefreshRouter.cs");
+        var mainWindow = File.ReadAllText(mainWindowPath);
+        var service = File.ReadAllText(servicePath);
+
+        Assert.Contains("ShellPageRefreshRouter.Route(_currentPage, evt)", mainWindow);
+        Assert.DoesNotContain("switch (evt.Type)", mainWindow, StringComparison.Ordinal);
+        Assert.DoesNotContain("\"module.enabled\"", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("\"module.enabled\"", service);
+        Assert.Contains("ReloadCommands", service);
+        Assert.Contains("ReloadCurrentPage", service);
+
+        var commandPlan = ShellPageRefreshRouter.Route("Dashboard", new HostProto.HostEvent { Type = "command.executed" });
+        Assert.True(commandPlan.ReloadBrokerAudit);
+        Assert.True(commandPlan.ReloadCurrentPage);
+
+        var settingsPlan = ShellPageRefreshRouter.Route(
+            "Settings",
+            new HostProto.HostEvent { Type = "settings.updated", SourceId = "sample.module" });
+        Assert.Equal("sample.module", settingsPlan.ReloadSettingsModuleId);
     }
 
     [Fact]
