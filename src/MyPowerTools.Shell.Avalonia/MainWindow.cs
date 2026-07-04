@@ -596,59 +596,30 @@ public sealed class MainWindow : Window
         {
             using var client = HostControlClient.ForDefaultEndpoint();
             var response = await client.ListPackagesAsync();
-            var list = new StackPanel { Spacing = 12 };
-            list.Children.Add(BuildPackageOperationsPanel());
-            foreach (var package in response.Packages.OrderBy(package => package.DisplayName, StringComparer.OrdinalIgnoreCase))
+            var viewModel = ShellPageViewModelFactory.FromPackages(
+                response,
+                sourceDirectory => RunPackageOperationAsync(
+                    "install",
+                    sourceDirectory,
+                    client => client.InstallPackageAsync(sourceDirectory)),
+                packageId => RunPackageOperationAsync(
+                    "rollback",
+                    packageId,
+                    client => client.RollbackPackageAsync(packageId)),
+                packageId => RunPackageOperationAsync(
+                    "repair",
+                    packageId,
+                    client => client.RepairPackageAsync(packageId)),
+                packageId => RunPackageOperationAsync(
+                    "uninstall",
+                    packageId,
+                    client => client.UninstallPackageAsync(packageId)),
+                moduleId => ShowModuleDetailPageAsync(moduleId));
+
+            _contentHost.Content = new PackageManagerView
             {
-                var body = new StackPanel { Spacing = 10 };
-                body.Children.Add(HeaderWithBadge(package.DisplayName, package.TrustState));
-                body.Children.Add(BuildMetricRow([
-                    ("Version", package.Version),
-                    ("Modules", package.ModuleCount.ToString()),
-                    ("Runtimes", package.SharedRuntimeCount.ToString()),
-                    ("Trust", string.IsNullOrWhiteSpace(package.TrustPolicy) ? "-" : package.TrustPolicy),
-                    ("Issues", package.TrustIssueCount.ToString()),
-                    ("Hashes", string.IsNullOrWhiteSpace(package.Hashes) ? "-" : package.Hashes),
-                    ("Signature", string.IsNullOrWhiteSpace(package.SignaturePath) ? "-" : package.SignaturePath)
-                ]));
-                body.Children.Add(new TextBlock
-                {
-                    Text = string.Join(", ", package.ModuleIds),
-                    TextWrapping = TextWrapping.Wrap,
-                    Foreground = MptTheme.TextSecondary
-                });
-                body.Children.Add(new TextBlock
-                {
-                    Text = package.Directory,
-                    FontSize = 12,
-                    Foreground = MptTheme.TextMuted,
-                    TextTrimming = TextTrimming.CharacterEllipsis
-                });
-
-                var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-                foreach (var moduleId in package.ModuleIds.Take(3))
-                {
-                    var open = new Button
-                    {
-                        Content = new TextBlock
-                        {
-                            Text = moduleId,
-                            TextTrimming = TextTrimming.CharacterEllipsis,
-                            MaxWidth = 150
-                        },
-                        Tag = moduleId,
-                        MinHeight = 32,
-                        MaxWidth = 180
-                    };
-                    open.Click += async (_, _) => await ShowModuleDetailPageAsync((string)open.Tag!);
-                    actions.Children.Add(open);
-                }
-                body.Children.Add(actions);
-                body.Children.Add(BuildPackageActionRow(package.PackageId));
-                list.Children.Add(new MptModuleCard(body));
-            }
-
-            _contentHost.Content = BuildPage(PackagesPage, $"{response.Packages.Count} packages", list);
+                DataContext = viewModel
+            };
             _statusBar.Text = $"{response.Packages.Count} packages loaded";
         }
         catch (Exception ex)
@@ -658,80 +629,6 @@ public sealed class MainWindow : Window
         }
     }
 
-    private Control BuildPackageOperationsPanel()
-    {
-        var installPath = new TextBox
-        {
-            PlaceholderText = "Package source directory",
-            MinWidth = 360,
-            MinHeight = 34
-        };
-        var install = new MptActionButton("Install");
-        install.Click += async (_, _) => await RunPackageOperationAsync(
-            "install",
-            installPath.Text ?? "",
-            client => client.InstallPackageAsync(installPath.Text ?? ""));
-
-        var rollbackId = new TextBox
-        {
-            PlaceholderText = "Package id",
-            MinWidth = 220,
-            MinHeight = 34
-        };
-        var rollback = new MptActionButton("Rollback");
-        rollback.Click += async (_, _) => await RunPackageOperationAsync(
-            "rollback",
-            rollbackId.Text ?? "",
-            client => client.RollbackPackageAsync(rollbackId.Text ?? ""));
-
-        var installRow = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Spacing = 8,
-            Children = { installPath, install }
-        };
-        var rollbackRow = new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Spacing = 8,
-            Children = { rollbackId, rollback }
-        };
-
-        return Section("Package Operations", new StackPanel
-        {
-            Spacing = 10,
-            Children = { installRow, rollbackRow }
-        });
-    }
-
-    private Control BuildPackageActionRow(string packageId)
-    {
-        var repair = new MptActionButton("Repair") { Tag = packageId };
-        repair.Click += async (_, _) => await RunPackageOperationAsync(
-            "repair",
-            packageId,
-            client => client.RepairPackageAsync(packageId));
-
-        var uninstall = new MptActionButton("Uninstall") { Tag = packageId };
-        uninstall.Click += async (_, _) => await RunPackageOperationAsync(
-            "uninstall",
-            packageId,
-            client => client.UninstallPackageAsync(packageId));
-
-        var rollback = new MptActionButton("Rollback") { Tag = packageId };
-        rollback.Click += async (_, _) => await RunPackageOperationAsync(
-            "rollback",
-            packageId,
-            client => client.RollbackPackageAsync(packageId));
-
-        return new StackPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Spacing = 8,
-            Children = { repair, uninstall, rollback }
-        };
-    }
-
     private async Task LoadDiagnosticsPageAsync()
     {
         try
@@ -739,71 +636,21 @@ public sealed class MainWindow : Window
             using var client = HostControlClient.ForDefaultEndpoint();
             var diagnostics = await client.GetRuntimeDiagnosticsAsync();
             var audit = await client.ListBrokerAuditAsync(5);
-            var body = new StackPanel { Spacing = 16 };
-            body.Children.Add(BuildMetricRow([
-                ("Runner", diagnostics.RunnerVersion),
-                ("Host IPC", diagnostics.HostControlProtocolVersion),
-                ("Module IPC", diagnostics.ModuleProtocolVersion),
-                ("Platform", diagnostics.PlatformRid)
-            ]));
-            body.Children.Add(BuildMetricRow([
-                ("Packages", diagnostics.Counts.PackageCount.ToString()),
-                ("Modules", diagnostics.Counts.ModuleCount.ToString()),
-                ("Enabled", diagnostics.Counts.EnabledModuleCount.ToString()),
-                ("Commands", diagnostics.Counts.CommandCount.ToString())
-            ]));
-            body.Children.Add(BuildMetricRow([
-                ("Running", diagnostics.Counts.RunningModuleCount.ToString()),
-                ("Degraded", diagnostics.Counts.DegradedModuleCount.ToString()),
-                ("Errors", diagnostics.Counts.ErrorModuleCount.ToString()),
-                ("Event Seq", diagnostics.CurrentEventSeq.ToString())
-            ]));
+            var viewModel = ShellPageViewModelFactory.FromDiagnostics(
+                diagnostics,
+                audit,
+                (transportKind, poolKey) => RestartRuntimeProcessAsync(transportKind, poolKey),
+                (transportKind, poolKey, paused, expiresAt, reason) => SetRuntimeProcessRestartPolicyAsync(
+                    transportKind,
+                    poolKey,
+                    paused,
+                    expiresAt,
+                    reason));
 
-            body.Children.Add(Section("Runtime Paths", BuildPathDiagnostics(diagnostics.Paths)));
-
-            var transportList = new StackPanel { Spacing = 8 };
-            foreach (var transport in diagnostics.Transports)
+            _contentHost.Content = new DiagnosticsView
             {
-                transportList.Children.Add(BuildRuntimeTransportDiagnostic(transport));
-            }
-            body.Children.Add(Section("Transports", transportList.Children.Count == 0 ? new MptEmptyState("No transports.") : transportList));
-
-            var processList = new StackPanel { Spacing = 8 };
-            foreach (var process in diagnostics.Processes)
-            {
-                processList.Children.Add(BuildRuntimeProcessDiagnostic(process));
-            }
-            body.Children.Add(Section("Runtime Processes", processList.Children.Count == 0 ? new MptEmptyState("No transport processes.") : processList));
-
-            var policyHistory = new StackPanel { Spacing = 8 };
-            foreach (var entry in diagnostics.ProcessPolicyHistory)
-            {
-                policyHistory.Children.Add(BuildRuntimeProcessPolicyHistoryEntry(entry));
-            }
-            body.Children.Add(Section("Process Policy History", policyHistory.Children.Count == 0 ? new MptEmptyState("No process policy history.") : policyHistory));
-
-            var moduleList = new StackPanel { Spacing = 8 };
-            foreach (var module in diagnostics.Modules)
-            {
-                moduleList.Children.Add(BuildRuntimeModuleDiagnostic(module));
-            }
-            body.Children.Add(Section("Modules", moduleList.Children.Count == 0 ? new MptEmptyState("No modules.") : moduleList));
-
-            var commandHistory = new StackPanel { Spacing = 8 };
-            foreach (var command in diagnostics.RecentCommands)
-            {
-                commandHistory.Children.Add(BuildRuntimeCommandHistoryEntry(command));
-            }
-            body.Children.Add(Section("Command History", commandHistory.Children.Count == 0 ? new MptEmptyState("No command history.") : commandHistory));
-
-            var auditList = new StackPanel { Spacing = 8 };
-            foreach (var entry in audit.Entries)
-            {
-                auditList.Children.Add(BuildAuditEntry(entry));
-            }
-            body.Children.Add(Section("Broker Audit", auditList.Children.Count == 0 ? new MptEmptyState("No broker audit entries.") : auditList));
-
-            _contentHost.Content = BuildPage(DiagnosticsPage, $"Collected {diagnostics.CollectedAt.ToDateTimeOffset():yyyy-MM-dd HH:mm:ss}", body);
+                DataContext = viewModel
+            };
             _statusBar.Text = $"Diagnostics loaded for {diagnostics.Counts.ModuleCount} modules";
         }
         catch (Exception ex)
@@ -811,156 +658,6 @@ public sealed class MainWindow : Window
             _contentHost.Content = BuildUnavailablePage(DiagnosticsPage, ex.Message);
             _statusBar.Text = ex.Message;
         }
-    }
-
-    private static Control BuildPathDiagnostics(HostProto.RuntimePathDiagnostics paths)
-    {
-        return new StackPanel
-        {
-            Spacing = 6,
-            Children =
-            {
-                DetailLine("Root", paths.Root),
-                DetailLine("Settings", paths.Settings),
-                DetailLine("Logs", paths.Logs),
-                DetailLine("State", paths.State),
-                DetailLine("Packages", paths.Packages),
-                DetailLine("Package Root", paths.PackageRoot)
-            }
-        };
-    }
-
-    private Control BuildRuntimeTransportDiagnostic(HostProto.RuntimeTransportDiagnostics transport)
-    {
-        var state = transport.RuntimeRegistered ? "registered" : "manifest";
-        var panel = new StackPanel { Spacing = 4 };
-        panel.Children.Add(HeaderWithBadge(transport.Kind, state));
-        panel.Children.Add(DetailLine("Modules", transport.ModuleCount.ToString()));
-        return new MptModuleCard(panel);
-    }
-
-    private Control BuildRuntimeProcessDiagnostic(HostProto.RuntimeProcessDiagnostics process)
-    {
-        var panel = new StackPanel { Spacing = 6 };
-        panel.Children.Add(HeaderWithBadge(process.PoolKey, process.State));
-        panel.Children.Add(DetailLine("Transport", process.TransportKind));
-        panel.Children.Add(DetailLine("Process", process.ProcessId == 0 ? "external" : process.ProcessId.ToString()));
-        panel.Children.Add(DetailLine("Endpoint", process.Endpoint));
-        panel.Children.Add(DetailLine("Starts", $"{process.StartCount}/{process.RestartLimit}"));
-        panel.Children.Add(DetailLine("Policy", string.IsNullOrWhiteSpace(process.PolicyReason) ? process.RestartPolicy : $"{process.RestartPolicy} · {process.PolicyReason}"));
-        if (process.PolicyExpiresAt is not null)
-        {
-            panel.Children.Add(DetailLine("Expires", process.PolicyExpiresAt.ToDateTimeOffset().ToString("yyyy-MM-dd HH:mm:ss")));
-        }
-
-        panel.Children.Add(DetailLine("Modules", process.ModuleIds.Count == 0 ? "none" : string.Join(", ", process.ModuleIds)));
-        if (process.LastStartedAt is not null)
-        {
-            panel.Children.Add(DetailLine("Started", process.LastStartedAt.ToDateTimeOffset().ToString("yyyy-MM-dd HH:mm:ss")));
-        }
-
-        var actions = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
-        var restart = new MptActionButton("Restart");
-        restart.Click += async (_, _) => await RestartRuntimeProcessAsync(process.TransportKind, process.PoolKey);
-        actions.Children.Add(restart);
-        var paused = string.Equals(process.RestartPolicy, "paused", StringComparison.OrdinalIgnoreCase);
-        var policy = new MptActionButton(paused ? "Resume" : "Pause");
-        policy.Click += async (_, _) => await SetRuntimeProcessRestartPolicyAsync(process.TransportKind, process.PoolKey, !paused);
-        actions.Children.Add(policy);
-        if (!paused)
-        {
-            var maintenance = new MptActionButton("Pause 1h");
-            maintenance.Click += async (_, _) => await SetRuntimeProcessRestartPolicyAsync(
-                process.TransportKind,
-                process.PoolKey,
-                true,
-                DateTimeOffset.UtcNow.AddHours(1),
-                "Shell Diagnostics maintenance window");
-            actions.Children.Add(maintenance);
-        }
-
-        panel.Children.Add(actions);
-
-        return new MptModuleCard(panel);
-    }
-
-    private static Control BuildRuntimeProcessPolicyHistoryEntry(HostProto.RuntimeProcessPolicyHistoryEntry entry)
-    {
-        return new StackPanel
-        {
-            Spacing = 2,
-            Children =
-            {
-                new TextBlock
-                {
-                    Text = $"{entry.RestartPolicy} · {entry.PoolKey}",
-                    FontSize = 12,
-                    FontWeight = FontWeight.SemiBold,
-                    TextTrimming = TextTrimming.CharacterEllipsis
-                },
-                new TextBlock
-                {
-                    Text = $"{entry.Source} · {entry.TransportKind} · rev {entry.Revision} · {entry.Time.ToDateTimeOffset():yyyy-MM-dd HH:mm:ss}",
-                    FontSize = 11,
-                    Foreground = MptTheme.TextSecondary,
-                    TextTrimming = TextTrimming.CharacterEllipsis
-                },
-                new TextBlock
-                {
-                    Text = entry.ExpiresAt is null
-                        ? (string.IsNullOrWhiteSpace(entry.Reason) ? "No reason recorded." : entry.Reason)
-                        : $"{(string.IsNullOrWhiteSpace(entry.Reason) ? "No reason recorded." : entry.Reason)} · expires {entry.ExpiresAt.ToDateTimeOffset():yyyy-MM-dd HH:mm:ss}",
-                    FontSize = 11,
-                    Foreground = MptTheme.TextSecondary,
-                    TextWrapping = TextWrapping.Wrap
-                }
-            }
-        };
-    }
-
-    private Control BuildRuntimeModuleDiagnostic(HostProto.RuntimeModuleDiagnostics module)
-    {
-        var panel = new StackPanel { Spacing = 6 };
-        panel.Children.Add(HeaderWithBadge(module.DisplayName, module.State));
-        panel.Children.Add(DetailLine("Module", module.ModuleId));
-        panel.Children.Add(DetailLine("Package", module.PackageId));
-        panel.Children.Add(DetailLine("Transport", module.TransportKind));
-        panel.Children.Add(DetailLine("Summary", module.Summary));
-        panel.Children.Add(DetailLine("Diagnostics", module.DiagnosticCount.ToString()));
-        panel.Children.Add(DetailLine("Supervisor", $"{module.SupervisorState} · failures {module.ConsecutiveFailureCount} · observations {module.ObservationCount}"));
-        panel.Children.Add(DetailLine("Action", module.SupervisorAction));
-        panel.Children.Add(DetailLine("Updated", module.UpdatedAt.ToDateTimeOffset().ToString("yyyy-MM-dd HH:mm:ss")));
-        if (module.LastObservedAt is not null)
-        {
-            panel.Children.Add(DetailLine("Observed", module.LastObservedAt.ToDateTimeOffset().ToString("yyyy-MM-dd HH:mm:ss")));
-        }
-
-        return new MptModuleCard(panel);
-    }
-
-    private static Control BuildRuntimeCommandHistoryEntry(HostProto.RuntimeCommandHistoryEntry command)
-    {
-        return new StackPanel
-        {
-            Spacing = 2,
-            Children =
-            {
-                new TextBlock
-                {
-                    Text = $"{command.State} · {command.CommandId}",
-                    FontSize = 12,
-                    FontWeight = FontWeight.SemiBold,
-                    TextTrimming = TextTrimming.CharacterEllipsis
-                },
-                new TextBlock
-                {
-                    Text = $"{command.ModuleId} · {command.StartedAt.ToDateTimeOffset():yyyy-MM-dd HH:mm:ss}",
-                    FontSize = 12,
-                    Foreground = MptTheme.TextSecondary,
-                    TextTrimming = TextTrimming.CharacterEllipsis
-                }
-            }
-        };
     }
 
     private async Task LoadCommandsAsync(string query)

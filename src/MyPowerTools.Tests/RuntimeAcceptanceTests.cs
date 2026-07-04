@@ -598,6 +598,46 @@ Address         Port        Address         Port
     }
 
     [Fact]
+    public void Shell_packages_page_is_wired_to_axaml_view_model()
+    {
+        var mainWindowPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "MainWindow.cs");
+        var packagesViewPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Views", "PackageManagerView.axaml");
+        var mainWindow = File.ReadAllText(mainWindowPath);
+        var packagesView = File.ReadAllText(packagesViewPath);
+
+        Assert.Contains("ShellPageViewModelFactory.FromPackages", mainWindow);
+        Assert.Contains("new PackageManagerView", mainWindow);
+        Assert.DoesNotContain("BuildPackageOperationsPanel", mainWindow, StringComparison.Ordinal);
+        Assert.DoesNotContain("BuildPackageActionRow", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("x:DataType=\"vm:PackageManagerViewModel\"", packagesView);
+        Assert.Contains("InstallSourceDirectory", packagesView);
+        Assert.Contains("InstallCommand", packagesView);
+        Assert.Contains("PackageModuleLinkViewModel", packagesView);
+        Assert.Contains("RepairCommand", packagesView);
+        Assert.Contains("UninstallCommand", packagesView);
+    }
+
+    [Fact]
+    public void Shell_diagnostics_page_is_wired_to_axaml_view_model()
+    {
+        var mainWindowPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "MainWindow.cs");
+        var diagnosticsViewPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Views", "DiagnosticsView.axaml");
+        var mainWindow = File.ReadAllText(mainWindowPath);
+        var diagnosticsView = File.ReadAllText(diagnosticsViewPath);
+
+        Assert.Contains("ShellPageViewModelFactory.FromDiagnostics", mainWindow);
+        Assert.Contains("new DiagnosticsView", mainWindow);
+        Assert.DoesNotContain("BuildRuntimeProcessDiagnostic", mainWindow, StringComparison.Ordinal);
+        Assert.DoesNotContain("BuildRuntimeCommandHistoryEntry", mainWindow, StringComparison.Ordinal);
+        Assert.Contains("x:DataType=\"vm:DiagnosticsViewModel\"", diagnosticsView);
+        Assert.Contains("RuntimeTransportViewModel", diagnosticsView);
+        Assert.Contains("RuntimeProcessPolicyHistoryItemViewModel", diagnosticsView);
+        Assert.Contains("BrokerAuditEntryViewModel", diagnosticsView);
+        Assert.Contains("RestartCommand", diagnosticsView);
+        Assert.Contains("ToggleRestartPolicyCommand", diagnosticsView);
+    }
+
+    [Fact]
     public void Shell_theme_resource_dictionary_is_loaded_and_defines_design_tokens()
     {
         var appPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "App.cs");
