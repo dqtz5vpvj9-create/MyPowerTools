@@ -96,6 +96,84 @@ Address         Port        Address         Port
     }
 
     [Fact]
+    public void Module_schema_accepts_runtime_policy_and_reader_maps_fields()
+    {
+        var packageRoot = Path.Combine(Path.GetTempPath(), "mpt-runtime-policy-schema", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(packageRoot);
+        var manifest = CreateRuntimePolicyManifest(new JsonObject
+        {
+            ["preferred"] = "sidecar",
+            ["allowInProc"] = true,
+            ["inProcRules"] = new JsonObject
+            {
+                ["maxCallMs"] = 3000,
+                ["allowNativeDll"] = false,
+                ["allowWindow"] = false,
+                ["allowBackgroundThreads"] = false,
+                ["loadContext"] = "collectible",
+                ["shadowCopy"] = true,
+                ["sharedAssemblies"] = new JsonArray(
+                    "MyPowerTools.Abstractions",
+                    "Microsoft.Extensions.Logging.Abstractions")
+            },
+            ["sidecarRules"] = new JsonObject
+            {
+                ["readyTimeoutMs"] = 8000,
+                ["restartLimit"] = 4,
+                ["restartWindowSeconds"] = 30,
+                ["killProcessTree"] = true
+            }
+        });
+        File.WriteAllText(
+            Path.Combine(packageRoot, "module.json"),
+            manifest.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+
+        var report = new SchemaPackageValidator(Path.Combine(Root, "schemas")).ValidatePackageDirectory(packageRoot);
+        var module = new PackageReader().ReadPackageDirectory(packageRoot).Modules.Single().Manifest;
+
+        Assert.True(report.IsValid, string.Join(Environment.NewLine, report.Issues.Select(issue => issue.Message)));
+        Assert.NotNull(module.RuntimePolicy);
+        Assert.Equal("sidecar", module.RuntimePolicy!.Preferred);
+        Assert.True(module.RuntimePolicy.AllowInProc);
+        Assert.Equal(3000, module.RuntimePolicy.InProcRules!.MaxCallMs);
+        Assert.False(module.RuntimePolicy.InProcRules.AllowNativeDll);
+        Assert.Equal("collectible", module.RuntimePolicy.InProcRules.LoadContext);
+        Assert.True(module.RuntimePolicy.InProcRules.ShadowCopy);
+        Assert.Contains("MyPowerTools.Abstractions", module.RuntimePolicy.InProcRules.SharedAssemblies);
+        Assert.Equal(8000, module.RuntimePolicy.SidecarRules!.ReadyTimeoutMs);
+        Assert.Equal(4, module.RuntimePolicy.SidecarRules.RestartLimit);
+        Assert.True(module.RuntimePolicy.SidecarRules.KillProcessTree);
+    }
+
+    [Fact]
+    public void Module_schema_rejects_invalid_runtime_policy()
+    {
+        var packageRoot = Path.Combine(Path.GetTempPath(), "mpt-runtime-policy-invalid", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(packageRoot);
+        var manifest = CreateRuntimePolicyManifest(new JsonObject
+        {
+            ["preferred"] = "load-everything-in-runner",
+            ["allowInProc"] = true,
+            ["inProcRules"] = new JsonObject
+            {
+                ["maxCallMs"] = 1,
+                ["allowNativeDll"] = true,
+                ["allowWindow"] = false,
+                ["allowBackgroundThreads"] = false,
+                ["loadContext"] = "default"
+            }
+        });
+        File.WriteAllText(
+            Path.Combine(packageRoot, "module.json"),
+            manifest.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+
+        var report = new SchemaPackageValidator(Path.Combine(Root, "schemas")).ValidatePackageDirectory(packageRoot);
+
+        Assert.False(report.IsValid);
+        Assert.Contains(report.Issues, issue => issue.Severity == "error" && issue.Message.Contains("module.schema.json", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public async Task Cli_validate_modules_returns_successful_exit_code()
     {
         var result = await RunDotnetAsync(
@@ -1661,6 +1739,31 @@ public sealed class GeneratedModule : IMptModule
             moduleId,
             $"generated-{moduleId}",
             ["status", "commands", "settings"]);
+    }
+
+    private static JsonObject CreateRuntimePolicyManifest(JsonObject runtimePolicy)
+    {
+        return new JsonObject
+        {
+            ["schemaVersion"] = "1.0",
+            ["id"] = "runtime-policy-sample",
+            ["packageId"] = "runtime-policy-sample",
+            ["displayName"] = "Runtime Policy Sample",
+            ["version"] = "0.2.0",
+            ["moduleSdk"] = "1.0",
+            ["entrypoints"] = new JsonArray
+            {
+                new JsonObject
+                {
+                    ["kind"] = "grpc-ipc",
+                    ["priority"] = 90,
+                    ["command"] = "sample-sidecar",
+                    ["args"] = new JsonArray("sample")
+                }
+            },
+            ["runtimePolicy"] = runtimePolicy,
+            ["capabilities"] = new JsonArray("status", "commands")
+        };
     }
 
     [Fact]

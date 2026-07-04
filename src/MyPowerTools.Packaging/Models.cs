@@ -73,6 +73,7 @@ public sealed class MptModuleManifest
     public List<string> Surfaces { get; init; } = [];
     public List<string> UiSurfaces { get; init; } = [];
     public Dictionary<string, JsonElement>? StaticIndexes { get; init; }
+    public MptRuntimePolicyManifest? RuntimePolicy { get; init; }
 
     [JsonExtensionData]
     public Dictionary<string, JsonElement> ExtensionData { get; init; } = [];
@@ -106,6 +107,42 @@ public sealed class IpcEndpointManifest
     public string? Transport { get; init; }
     public string? Name { get; init; }
     public string? Path { get; init; }
+
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement> ExtensionData { get; init; } = [];
+}
+
+public sealed class MptRuntimePolicyManifest
+{
+    public string Preferred { get; init; } = "";
+    public bool AllowInProc { get; init; }
+    public MptInProcRuntimeRulesManifest? InProcRules { get; init; }
+    public MptSidecarRuntimeRulesManifest? SidecarRules { get; init; }
+
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement> ExtensionData { get; init; } = [];
+}
+
+public sealed class MptInProcRuntimeRulesManifest
+{
+    public int? MaxCallMs { get; init; }
+    public bool AllowNativeDll { get; init; }
+    public bool AllowWindow { get; init; }
+    public bool AllowBackgroundThreads { get; init; }
+    public string? LoadContext { get; init; }
+    public bool? ShadowCopy { get; init; }
+    public List<string> SharedAssemblies { get; init; } = [];
+
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement> ExtensionData { get; init; } = [];
+}
+
+public sealed class MptSidecarRuntimeRulesManifest
+{
+    public int? ReadyTimeoutMs { get; init; }
+    public int? RestartLimit { get; init; }
+    public int? RestartWindowSeconds { get; init; }
+    public bool? KillProcessTree { get; init; }
 
     [JsonExtensionData]
     public Dictionary<string, JsonElement> ExtensionData { get; init; } = [];

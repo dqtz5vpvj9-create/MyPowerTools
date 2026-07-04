@@ -23,6 +23,8 @@ This document tracks the current slice for external review. It is an audit hando
 - Moved plugin-facing contracts into the abstractions assembly while preserving the existing `MyPowerTools.Runtime` namespace for source compatibility.
 - Updated production module projects to reference `MyPowerTools.Abstractions` instead of `MyPowerTools.Runtime`.
 - Added `MptLogRedactor` to keep module log redaction available without taking a runtime dependency.
+- Added `runtimePolicy` schema and C# manifest model fields for preferred runtime, InProc rules, and sidecar rules.
+- Updated module templates with runtime policy examples for InProc, sidecar, service facade, WebView, and stdio compatibility modules.
 
 ### In-Process .NET Isolation
 
@@ -48,6 +50,10 @@ This document tracks the current slice for external review. It is an audit hando
   verifies separate plugin load contexts can load different versions of the same dependency assembly.
 - `Inproc_module_update_uses_shadow_copy_instead_of_original_package_dll`
   verifies a loaded module runs from shadow cache, keeps using the old bytes while original package files are replaced, and picks up the replacement after reload.
+- `Module_schema_accepts_runtime_policy_and_reader_maps_fields`
+  verifies `runtimePolicy` validates and maps into the package reader model.
+- `Module_schema_rejects_invalid_runtime_policy`
+  verifies invalid runtime preferences and unsafe timing values fail module schema validation.
 - `Production_module_projects_reference_abstractions_not_runtime`
   verifies production module project files depend on abstractions, not the runtime project.
 - `Runtime_shell_and_host_do_not_reference_concrete_module_projects`
@@ -75,6 +81,7 @@ The existing shell already has UI snapshot gates, keyboard shortcut tests, and c
 | Abstractions project | Plugin contracts live in `MyPowerTools.Abstractions` | Done |
 | Production module dependency direction | Modules reference abstractions only | Done |
 | Host dependency direction | Runtime/Shell/Host avoid concrete module references | Done |
+| Runtime policy schema | `runtimePolicy.preferred`, `allowInProc`, `inProcRules`, and `sidecarRules` | Done |
 | InProc isolation | Collectible ALC + resolver + shadow copy | Done for disk-backed modules |
 | InProc dependency isolation | Conflicting dependency versions load side by side | Done |
 | InProc shadow-copy update | Loaded module uses cache while package DLL is replaceable | Done |
@@ -98,24 +105,26 @@ dotnet test MyPowerTools.slnx --no-build
 dotnet run --no-build --project src\MyPowerTools.Cli -- validate modules
 dotnet run --no-build --project src\MyPowerTools.Cli -- validate contracts
 dotnet run --no-build --project src\MyPowerTools.Cli -- package trust modules --strict
+pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\validate-templates.ps1
 ```
 
 Latest observed result before packaging:
 
 ```text
 Build: passed, 0 warnings, 0 errors
-Tests: passed, 96 passed, 0 failed, 0 skipped
+Tests: passed, 98 passed, 0 failed, 0 skipped
 Module validation: 5 packages valid
 Contract validation: 5 packages, 7 modules passed
 Strict trust check: 5 signatures accepted under local policy
+Template validation: 6 templates passed manifest validation, UI gate, .NET builds, and Python syntax checks
 ```
 
 The packaging step for external review should run the same validation again and include the current Git commit hash in the archive manifest.
 
 ## Recommended Next Slice
 
-1. Add manifest schema and examples for `runtimePolicy.preferred`, `runtimePolicy.allowInProc`, `runtimePolicy.inProcRules`, and `runtimePolicy.sidecarRules`.
-2. Move dashboard, command palette, settings, logs, package manager, and diagnostics UI into AXAML views with viewmodels.
-3. Introduce shell token dictionaries and component styles under the UI project.
-4. Add a static style lint that scans AXAML and C# UI files.
-5. Add command palette parameter editors and settings validate/apply staging.
+1. Move dashboard, command palette, settings, logs, package manager, and diagnostics UI into AXAML views with viewmodels.
+2. Introduce shell token dictionaries and component styles under the UI project.
+3. Add a static style lint that scans AXAML and C# UI files.
+4. Add command palette parameter editors and settings validate/apply staging.
+5. Keep sidecar process supervision as the next plugin-runtime depth item after the UI architecture slice starts.

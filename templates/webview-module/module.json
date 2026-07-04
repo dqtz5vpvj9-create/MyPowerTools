@@ -15,6 +15,16 @@
       }
     }
   ],
+  "runtimePolicy": {
+    "preferred": "service",
+    "allowInProc": false,
+    "sidecarRules": {
+      "readyTimeoutMs": 8000,
+      "restartLimit": 0,
+      "restartWindowSeconds": 30,
+      "killProcessTree": true
+    }
+  },
   "capabilities": [
     "status",
     "commands",

@@ -13,6 +13,23 @@
       "type": "Sample.DotNetInProc.ModuleEntry"
     }
   ],
+  "runtimePolicy": {
+    "preferred": "inproc",
+    "allowInProc": true,
+    "inProcRules": {
+      "maxCallMs": 3000,
+      "allowNativeDll": false,
+      "allowWindow": false,
+      "allowBackgroundThreads": false,
+      "loadContext": "collectible",
+      "shadowCopy": true,
+      "sharedAssemblies": [
+        "MyPowerTools.Abstractions",
+        "Microsoft.Extensions.Logging.Abstractions",
+        "Microsoft.Extensions.DependencyInjection.Abstractions"
+      ]
+    }
+  },
   "capabilities": [
     "status",
     "commands",

@@ -138,6 +138,10 @@
     "staticIndexes": {
       "type": "object"
     },
+    "runtimePolicy": {
+      "$ref": "#/$defs/runtimePolicy",
+      "description": "Runtime isolation preference and guardrails. Complex or native modules should prefer sidecar/service transports; InProc is a trusted optimized path."
+    },
     "uiSurfaces": {
       "type": "array",
       "items": {
@@ -147,6 +151,98 @@
     }
   },
   "$defs": {
+    "runtimePolicy": {
+      "type": "object",
+      "required": [
+        "preferred"
+      ],
+      "properties": {
+        "preferred": {
+          "type": "string",
+          "enum": [
+            "sidecar",
+            "inproc",
+            "service",
+            "compat"
+          ]
+        },
+        "allowInProc": {
+          "type": "boolean",
+          "default": false
+        },
+        "inProcRules": {
+          "$ref": "#/$defs/inProcRules"
+        },
+        "sidecarRules": {
+          "$ref": "#/$defs/sidecarRules"
+        }
+      },
+      "additionalProperties": false
+    },
+    "inProcRules": {
+      "type": "object",
+      "properties": {
+        "maxCallMs": {
+          "type": "integer",
+          "minimum": 100,
+          "maximum": 600000
+        },
+        "allowNativeDll": {
+          "type": "boolean",
+          "default": false
+        },
+        "allowWindow": {
+          "type": "boolean",
+          "default": false
+        },
+        "allowBackgroundThreads": {
+          "type": "boolean",
+          "default": false
+        },
+        "loadContext": {
+          "type": "string",
+          "enum": [
+            "collectible"
+          ]
+        },
+        "shadowCopy": {
+          "type": "boolean",
+          "default": true
+        },
+        "sharedAssemblies": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      },
+      "additionalProperties": false
+    },
+    "sidecarRules": {
+      "type": "object",
+      "properties": {
+        "readyTimeoutMs": {
+          "type": "integer",
+          "minimum": 100,
+          "maximum": 600000
+        },
+        "restartLimit": {
+          "type": "integer",
+          "minimum": 0,
+          "maximum": 100
+        },
+        "restartWindowSeconds": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 86400
+        },
+        "killProcessTree": {
+          "type": "boolean",
+          "default": true
+        }
+      },
+      "additionalProperties": false
+    },
     "ipcEndpoint": {
       "type": "object",
       "properties": {
