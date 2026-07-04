@@ -884,9 +884,21 @@ public sealed class MptHostRuntime : IAsyncDisposable
             }
             catch (Exception ex) when (ex is not OperationCanceledException)
             {
-                applyState = "apply-failed";
-                applyMessage = LogRouter.Redact(ex.Message);
-                _logRouter.Append(module.Module.Manifest.PackageId, patch.ModuleId, "error", $"Settings apply failed: {applyMessage}");
+                var applyError = LogRouter.Redact(ex.Message);
+                try
+                {
+                    updated = _settingsStore.Rollback(patch.ModuleId);
+                    applyState = "apply-failed-rolled-back";
+                    applyMessage = $"Settings apply failed and rolled back to revision {updated.Revision}: {applyError}";
+                    _logRouter.Append(module.Module.Manifest.PackageId, patch.ModuleId, "error", applyMessage);
+                }
+                catch (Exception rollbackEx)
+                {
+                    var rollbackError = LogRouter.Redact(rollbackEx.Message);
+                    applyState = "apply-failed";
+                    applyMessage = $"Settings apply failed and rollback failed: {applyError}; rollback: {rollbackError}";
+                    _logRouter.Append(module.Module.Manifest.PackageId, patch.ModuleId, "error", applyMessage);
+                }
             }
         }
 

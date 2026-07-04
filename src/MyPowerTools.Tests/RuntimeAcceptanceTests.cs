@@ -1577,6 +1577,37 @@ Address         Port        Address         Port
     }
 
     [Fact]
+    public async Task Settings_apply_failure_rolls_back_persisted_update()
+    {
+        var transport = new RecordingSettingsTransportRuntime("inproc-dotnet")
+        {
+            FailApply = true
+        };
+        var runtime = new MptHostRuntime(
+            new PackageReader(),
+            PlatformId.Current(),
+            RuntimePaths.Create(Path.Combine(Path.GetTempPath(), "mpt-settings-rollback", Guid.NewGuid().ToString("N"))),
+            [transport]);
+        runtime.Load(Path.Combine(Root, "modules"));
+        var current = runtime.GetSettings("screenease");
+
+        var result = await runtime.UpdateSettingsWithApplyAsync(
+            new SettingsPatch("screenease", current.Revision, new JsonObject { ["enabled"] = true }),
+            CancellationToken.None);
+
+        var after = runtime.GetSettings("screenease");
+        Assert.Equal("apply-failed-rolled-back", result.ApplyState);
+        Assert.Contains("rolled back", result.ApplyMessage);
+        Assert.Equal(current.Revision, result.Snapshot.Revision);
+        Assert.Equal(current.Revision, after.Revision);
+        Assert.Null(after.Values["enabled"]);
+        Assert.Equal(1, transport.ApplyCount);
+        Assert.Contains(runtime.HostEventsSince(0), evt =>
+            evt.Type == "settings.updated" &&
+            evt.Payload["applyState"]!.GetValue<string>() == "apply-failed-rolled-back");
+    }
+
+    [Fact]
     public void Settings_validate_apply_chain_is_wired_through_hostcontrol_and_shell()
     {
         var hostProtoPath = Path.Combine(Root, "proto", "mpt_host_control_v1.proto");
@@ -1605,8 +1636,11 @@ Address         Port        Address         Port
         Assert.Contains("UpdateSettingsWithApplyAsync", runtime);
         Assert.Contains("runtime.ValidateSettingsAsync", runtime);
         Assert.Contains("runtime.ApplySettingsAsync", runtime);
+        Assert.Contains("apply-failed-rolled-back", runtime);
+        Assert.Contains("_settingsStore.Rollback", runtime);
         Assert.Contains("SettingsValidationException", hostService);
         Assert.Contains("ApplyState = applyState", hostService);
+        Assert.Contains("apply-failed-rolled-back", shellSettings);
         Assert.Contains("ValidateSettingsAsync(new ValidateSettingsRequest", grpcHost);
         Assert.Contains("ApplySettingsAsync(new ApplySettingsRequest", grpcHost);
         Assert.Contains("saved and applied", shellSettings);
@@ -5006,6 +5040,7 @@ cloud_server_protocol: str = "https"
         public int ApplyCount { get; private set; }
         public SettingsPatch? ValidatedPatch { get; private set; }
         public SettingsSnapshotDocument? AppliedSnapshot { get; private set; }
+        public bool FailApply { get; init; }
 
         public ValueTask<ModuleStatusSnapshot?> GetStatusAsync(RuntimeModuleRecord module, ModuleContext context, CancellationToken cancellationToken)
         {
@@ -5034,6 +5069,11 @@ cloud_server_protocol: str = "https"
         {
             ApplyCount++;
             AppliedSnapshot = snapshot;
+            if (FailApply)
+            {
+                throw new InvalidOperationException("synthetic apply failure");
+            }
+
             return ValueTask.FromResult(snapshot);
         }
 

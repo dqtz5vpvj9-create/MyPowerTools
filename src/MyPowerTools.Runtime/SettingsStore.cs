@@ -67,6 +67,7 @@ public sealed class SettingsStore
                 UpdatedAt = DateTimeOffset.UtcNow
             };
             _settings[patch.ModuleId] = next;
+            SaveBackup(current);
             Save(next);
             return next;
         }
@@ -152,6 +153,18 @@ public sealed class SettingsStore
             File.Copy(path, path + ".bak", overwrite: true);
         }
 
+        AtomicWrite(path, JsonSerializer.Serialize(ToPersisted(snapshot), JsonOptions));
+    }
+
+    private void SaveBackup(SettingsSnapshotDocument snapshot)
+    {
+        if (_rootDirectory is null)
+        {
+            return;
+        }
+
+        var path = GetPath(snapshot.ModuleId) + ".bak";
+        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         AtomicWrite(path, JsonSerializer.Serialize(ToPersisted(snapshot), JsonOptions));
     }
 

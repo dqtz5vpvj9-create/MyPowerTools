@@ -28,6 +28,7 @@ public sealed class ShellSettingsService
                 applyState switch
                 {
                     "applied" => $"{viewModel.SelectedModuleId} settings saved and applied at revision {updated.Revision}.",
+                    "apply-failed-rolled-back" => $"{viewModel.SelectedModuleId} settings apply failed and rolled back: {applyMessage}",
                     "apply-failed" => $"{viewModel.SelectedModuleId} settings saved but apply failed: {applyMessage}",
                     _ => $"{viewModel.SelectedModuleId} settings saved at revision {updated.Revision}: {applyMessage}"
                 });
