@@ -1,6 +1,6 @@
 using System.Runtime.CompilerServices;
 using System.Text.Json.Nodes;
-using MyPowerTools.Runtime;
+using MyPowerTools.Abstractions;
 
 namespace Sample.DotNetInProc;
 
@@ -95,3 +95,4 @@ public sealed class ModuleEntry : IMptModule
         return ValueTask.CompletedTask;
     }
 }
+

@@ -4,8 +4,8 @@ namespace MyPowerTools.Abstractions;
 
 public interface IMptModuleFactory
 {
-    ValueTask<MyPowerTools.Runtime.IMptModule> CreateAsync(
-        MyPowerTools.Runtime.ModuleContext context,
+    ValueTask<IMptModule> CreateAsync(
+        ModuleContext context,
         CancellationToken cancellationToken);
 }
 
@@ -71,7 +71,5 @@ public sealed record CommandResult(
 public sealed record SettingsSchema(string ModuleId, string SchemaJson);
 
 public sealed record ModuleEvent(string ModuleId, ulong Seq, string Type, DateTimeOffset Time, JsonObject Payload);
-
-public sealed record UiSurfaceDescriptor(string Id, string Kind, string Title, JsonObject Model);
 
 public sealed record RuntimeError(string Code, string Message, bool Retryable = false, JsonObject? Details = null);

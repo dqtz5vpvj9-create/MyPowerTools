@@ -1,6 +1,6 @@
 using System.Text.Json.Nodes;
 
-namespace MyPowerTools.Runtime;
+namespace MyPowerTools.Abstractions;
 
 public static class SettingsJson
 {

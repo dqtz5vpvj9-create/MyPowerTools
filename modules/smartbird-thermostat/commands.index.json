@@ -63,6 +63,22 @@
       "kind": "action",
       "category": "SmartBird Thermostat",
       "timeoutMs": 10000,
+      "parameters": [
+        {
+          "id": "baseUrl",
+          "label": "Base URL",
+          "type": "text",
+          "required": false,
+          "defaultValue": ""
+        },
+        {
+          "id": "targetTemperatureC",
+          "label": "Target temperature C",
+          "type": "number",
+          "required": false,
+          "defaultValue": "22"
+        }
+      ],
       "execution": {
         "type": "module.execute"
       }
@@ -98,8 +114,22 @@
       "requiresElevation": true,
       "dangerLevel": "medium",
       "timeoutMs": 10000,
+      "parameters": [
+        {
+          "id": "reason",
+          "label": "Reason",
+          "type": "multiline",
+          "required": false,
+          "defaultValue": "Restart SmartBird thermostat service after degraded diagnostics."
+        }
+      ],
+      "constraints": [
+        "mutatesSystemState",
+        "requiresElevatedWrites"
+      ],
       "execution": {
-        "type": "module.execute"
+        "type": "module.execute",
+        "brokerApprovalOnly": true
       }
     }
   ]

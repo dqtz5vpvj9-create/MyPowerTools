@@ -5,8 +5,9 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Text.RegularExpressions;
+using System.Threading.Channels;
 using MyPowerTools.Protocol;
-using MyPowerTools.Runtime;
+using MyPowerTools.Abstractions;
 
 namespace AndroidTools.MyPowerTools;
 
@@ -47,6 +48,23 @@ public sealed class AndroidToolsRemoteCommandsModule : AndroidToolsModuleBase
                 imported.Label,
                 imported.Description,
                 timeoutMs: imported.Type == "shell" ? 120000 : 30000,
+                constraints: imported.Type == "shell"
+                    ?
+                    [
+                        MptOperationConstraints.RunsExternalProcesses,
+                        MptOperationConstraints.RequiresLongRunningLoop
+                    ]
+                    : null,
+                parameters: string.Equals(imported.Type, "shell", StringComparison.OrdinalIgnoreCase)
+                    ?
+                    [
+                        new CommandParameterDescriptor("execute", "Execute", "boolean", false, "false"),
+                        new CommandParameterDescriptor("timeoutMs", "Timeout ms", "number", false, "120000")
+                    ]
+                    :
+                    [
+                        new CommandParameterDescriptor("input", "Input", "multiline", false, "")
+                    ],
                 execution: new JsonObject
                 {
                     ["type"] = "module.execute",
@@ -94,6 +112,22 @@ public sealed class AndroidToolsRemoteCommandsModule : AndroidToolsModuleBase
 
         Shared.AppendRemoteCommandHistory(command, result);
         return result;
+    }
+
+    public override async IAsyncEnumerable<CommandExecutionEvent> ExecuteCommandStreamAsync(CommandRequest request, [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        if (!TryResolveShellCommand(request, out var command, out var failed))
+        {
+            var result = failed ?? await ExecuteCommandAsync(request, cancellationToken);
+            yield return FinalEvent(result);
+            yield break;
+        }
+
+        var timeout = TimeSpan.FromMilliseconds(Math.Max(1000, ReadInt(request.Args, "timeoutMs") ?? 120000));
+        await foreach (var evt in Shared.RunShellCommandStreamAsync(request, command, timeout, cancellationToken).WithCancellation(cancellationToken))
+        {
+            yield return evt;
+        }
     }
 
     public override ValueTask<SettingsSchemaDocument> GetSettingsSchemaAsync(CancellationToken cancellationToken)
@@ -199,6 +233,53 @@ public sealed class AndroidToolsRemoteCommandsModule : AndroidToolsModuleBase
         return run.ExitCode == 0
             ? Succeeded(request, payload.ToJsonString())
             : Failed(request, MptErrorCodes.RuntimeUnavailable, $"Shell command exited with code {run.ExitCode}.", retryable: true, details: payload);
+    }
+
+    private bool TryResolveShellCommand(CommandRequest request, out PowerToolCommand command, out CommandExecutionResult? failed)
+    {
+        command = default!;
+        failed = null;
+        if (!ReadBool(request.Args, "execute"))
+        {
+            return false;
+        }
+
+        const string prefix = "android-tools.remote-commands.run.";
+        if (!request.CommandId.StartsWith(prefix, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var commandId = request.CommandId[prefix.Length..];
+        command = LoadCatalog().Commands.FirstOrDefault(item => string.Equals(item.Id, commandId, StringComparison.OrdinalIgnoreCase))!;
+        if (command is null)
+        {
+            failed = Failed(request, MptErrorCodes.NotFound, $"Powertool command '{commandId}' was not found in the imported catalog.");
+            return false;
+        }
+
+        if (!string.Equals(command.Type, "shell", StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        if (OperatingSystem.IsWindows() && command.Command.TrimStart().StartsWith('/'))
+        {
+            failed = Failed(
+                request,
+                MptErrorCodes.RuntimeUnavailable,
+                "This imported shell command targets a Unix path and cannot run on the current Windows host.",
+                retryable: false,
+                details: new JsonObject
+                {
+                    ["commandId"] = command.Id,
+                    ["command"] = command.Command,
+                    ["platform"] = "windows"
+                });
+            return false;
+        }
+
+        return true;
     }
 
     private static bool KnownPythonTool(string name)
@@ -485,6 +566,12 @@ public abstract class AndroidToolsModuleBase : IMptModule
     public abstract ValueTask<IReadOnlyList<MptCommandDescriptor>> ListCommandsAsync(CancellationToken cancellationToken);
     public abstract ValueTask<CommandExecutionResult> ExecuteCommandAsync(CommandRequest request, CancellationToken cancellationToken);
 
+    public virtual async IAsyncEnumerable<CommandExecutionEvent> ExecuteCommandStreamAsync(CommandRequest request, [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        var result = await ExecuteCommandAsync(request, cancellationToken);
+        yield return FinalEvent(result);
+    }
+
     public IAsyncEnumerable<MptModuleEvent> SubscribeEventsAsync(EventCursor cursor, CancellationToken cancellationToken)
     {
         return EmptyAsyncEnumerable.Of<MptModuleEvent>(cancellationToken);
@@ -530,14 +617,33 @@ public abstract class AndroidToolsModuleBase : IMptModule
         return new ModuleStatusSnapshot(Id, state, summary, DateTimeOffset.UtcNow, checks, 0);
     }
 
-    protected MptCommandDescriptor Command(string id, string title, string subtitle, int timeoutMs = 30000, JsonObject? execution = null)
+    protected MptCommandDescriptor Command(
+        string id,
+        string title,
+        string subtitle,
+        int timeoutMs = 30000,
+        JsonObject? execution = null,
+        IReadOnlyList<string>? constraints = null,
+        IReadOnlyList<CommandParameterDescriptor>? parameters = null)
     {
-        return new MptCommandDescriptor(id, Id, title, subtitle, "action", Category: "Android Tools", TimeoutMs: timeoutMs, Execution: execution);
+        return new MptCommandDescriptor(id, Id, title, subtitle, "action", Category: "Android Tools", TimeoutMs: timeoutMs, Execution: execution, Parameters: parameters, Constraints: constraints);
     }
 
     protected static CommandExecutionResult Succeeded(CommandRequest request, string output)
     {
         return new CommandExecutionResult(request.InvocationId, request.CommandId, "succeeded", true, output);
+    }
+
+    protected static CommandExecutionEvent FinalEvent(CommandExecutionResult result, int sequence = 1)
+    {
+        return new CommandExecutionEvent(
+            result.InvocationId,
+            result.CommandId,
+            result.State,
+            result.Success ? result.Output : result.Error?.Message ?? "Command failed.",
+            sequence,
+            true,
+            result);
     }
 
     protected static CommandExecutionResult NotFound(CommandRequest request)
@@ -971,6 +1077,108 @@ public sealed class AndroidToolsSharedRuntime
         }
     }
 
+    internal async IAsyncEnumerable<CommandExecutionEvent> RunShellCommandStreamAsync(
+        CommandRequest request,
+        PowerToolCommand command,
+        TimeSpan timeout,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        var channel = Channel.CreateUnbounded<CommandExecutionEvent>(new UnboundedChannelOptions
+        {
+            SingleReader = true,
+            SingleWriter = false
+        });
+
+        _ = Task.Run(async () =>
+        {
+            var sequence = 1;
+            var started = Stopwatch.StartNew();
+            var stdout = new StringBuilder();
+            var stderr = new StringBuilder();
+            using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            linked.CancelAfter(timeout);
+
+            try
+            {
+                await channel.Writer.WriteAsync(new CommandExecutionEvent(
+                    request.InvocationId,
+                    request.CommandId,
+                    "progress",
+                    $"Starting shell command '{command.Id}'.",
+                    sequence++,
+                    false), cancellationToken);
+
+                var psi = CreateShellProcessStartInfo(command.Command);
+                using var process = Process.Start(psi);
+                if (process is null)
+                {
+                    await WriteFinalAsync(new ShellRunResult(-1, "", "Process could not be started.", started.ElapsedMilliseconds));
+                    return;
+                }
+
+                var stdoutTask = PumpLinesAsync(process.StandardOutput, "stdout", stdout, channel.Writer, request, () => sequence++, linked.Token);
+                var stderrTask = PumpLinesAsync(process.StandardError, "stderr", stderr, channel.Writer, request, () => sequence++, linked.Token);
+                await process.WaitForExitAsync(linked.Token);
+                await Task.WhenAll(stdoutTask, stderrTask);
+                await WriteFinalAsync(new ShellRunResult(
+                    process.ExitCode,
+                    Trim(MptLogRedactor.Redact(stdout.ToString())),
+                    Trim(MptLogRedactor.Redact(stderr.ToString())),
+                    started.ElapsedMilliseconds));
+            }
+            catch (Win32Exception ex) when (ex.NativeErrorCode == 2)
+            {
+                await WriteFinalAsync(new ShellRunResult(-1, "", $"{ShellFileName()} executable was not found on PATH.", started.ElapsedMilliseconds));
+            }
+            catch (OperationCanceledException)
+            {
+                await WriteFinalAsync(new ShellRunResult(-1, "", $"Shell command timed out after {timeout.TotalSeconds:n0}s.", started.ElapsedMilliseconds));
+            }
+            catch (Exception ex)
+            {
+                await WriteFinalAsync(new ShellRunResult(-1, "", MptLogRedactor.Redact(ex.Message), started.ElapsedMilliseconds));
+            }
+            finally
+            {
+                channel.Writer.TryComplete();
+            }
+
+            async Task WriteFinalAsync(ShellRunResult run)
+            {
+                var payload = new JsonObject
+                {
+                    ["commandId"] = command.Id,
+                    ["exitCode"] = run.ExitCode,
+                    ["stdout"] = run.Stdout,
+                    ["stderr"] = run.Stderr,
+                    ["durationMs"] = run.DurationMs
+                };
+                var result = run.ExitCode == 0
+                    ? new CommandExecutionResult(request.InvocationId, request.CommandId, "succeeded", true, payload.ToJsonString())
+                    : new CommandExecutionResult(
+                        request.InvocationId,
+                        request.CommandId,
+                        "failed",
+                        false,
+                        "",
+                        new MptRuntimeError(MptErrorCodes.RuntimeUnavailable, $"Shell command exited with code {run.ExitCode}.", true, payload));
+                await channel.Writer.WriteAsync(new CommandExecutionEvent(
+                    request.InvocationId,
+                    request.CommandId,
+                    result.State,
+                    result.Success ? result.Output : result.Error?.Message ?? "Command failed.",
+                    sequence++,
+                    true,
+                    result), CancellationToken.None);
+            }
+        }, CancellationToken.None);
+
+        await foreach (var evt in channel.Reader.ReadAllAsync(cancellationToken))
+        {
+            yield return evt;
+        }
+    }
+
     private IEnumerable<DiscoveredFile> CommandsYamlCandidates(string? configuredPath = null)
     {
         if (!string.IsNullOrWhiteSpace(configuredPath))
@@ -1105,6 +1313,62 @@ public sealed class AndroidToolsSharedRuntime
     {
         var match = Regex.Match(text, $@"{Regex.Escape(key)}\s*:\s*int\s*=\s*(?<value>\d+)", RegexOptions.IgnoreCase);
         return match.Success && int.TryParse(match.Groups["value"].Value, out var value) ? value : null;
+    }
+
+    private static ProcessStartInfo CreateShellProcessStartInfo(string command)
+    {
+        var psi = new ProcessStartInfo
+        {
+            FileName = ShellFileName(),
+            UseShellExecute = false,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            CreateNoWindow = true
+        };
+
+        if (OperatingSystem.IsWindows())
+        {
+            psi.ArgumentList.Add("-NoLogo");
+            psi.ArgumentList.Add("-NoProfile");
+            psi.ArgumentList.Add("-NonInteractive");
+            psi.ArgumentList.Add("-Command");
+            psi.ArgumentList.Add(command);
+        }
+        else
+        {
+            psi.ArgumentList.Add("-lc");
+            psi.ArgumentList.Add(command);
+        }
+
+        return psi;
+    }
+
+    private static string ShellFileName()
+    {
+        return OperatingSystem.IsWindows() ? "pwsh.exe" : "/bin/sh";
+    }
+
+    private static async Task PumpLinesAsync(
+        TextReader reader,
+        string state,
+        StringBuilder sink,
+        ChannelWriter<CommandExecutionEvent> writer,
+        CommandRequest request,
+        Func<int> nextSequence,
+        CancellationToken cancellationToken)
+    {
+        while (await reader.ReadLineAsync(cancellationToken) is { } line)
+        {
+            var redacted = MptLogRedactor.Redact(line);
+            sink.AppendLine(redacted);
+            await writer.WriteAsync(new CommandExecutionEvent(
+                request.InvocationId,
+                request.CommandId,
+                state,
+                redacted,
+                nextSequence(),
+                false), cancellationToken);
+        }
     }
 
     private static string Trim(string value)
@@ -1489,3 +1753,4 @@ internal static class StringLineExtensions
         return end - start;
     }
 }
+

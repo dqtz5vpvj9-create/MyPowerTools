@@ -4,7 +4,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using MyPowerTools.Protocol;
-using MyPowerTools.Runtime;
+using MyPowerTools.Abstractions;
 
 namespace SmartBirdThermostat.MyPowerTools;
 
@@ -59,17 +59,18 @@ public sealed class SmartBirdThermostatModule : IMptModule
 
     public ValueTask<IReadOnlyList<MptCommandDescriptor>> ListCommandsAsync(CancellationToken cancellationToken)
     {
+        var facadeParameters = FacadeParameters();
         IReadOnlyList<MptCommandDescriptor> commands =
         [
-            Command("smartbird-thermostat.status.fetch", "Fetch thermostat status", "Queries status and dependency health through the SmartBird facade"),
-            Command("smartbird-thermostat.status.summary", "Summarize thermostat status", "Reports SmartBird service, Energy Server, FNB-58, and ADB readiness"),
-            Command("smartbird-thermostat.events.list", "List thermostat events", "Reads recent thermostat events or returns an actionable degraded event source"),
-            Command("smartbird-thermostat.logs.summary", "Summarize thermostat logs", "Combines Runner-managed module logs with service log diagnostics"),
-            Command("smartbird-thermostat.config.get", "Read thermostat config", "Reads local module policy plus optional service config"),
-            Command("smartbird-thermostat.config.save", "Save thermostat config", "Validates and persists SmartBird facade policy settings"),
-            Command("smartbird-thermostat.hardware.diagnostics", "Check thermostat hardware dependencies", "Checks Energy Server, FNB-58, and ADB dependency readiness"),
+            Command("smartbird-thermostat.status.fetch", "Fetch thermostat status", "Queries status and dependency health through the SmartBird facade", parameters: facadeParameters),
+            Command("smartbird-thermostat.status.summary", "Summarize thermostat status", "Reports SmartBird service, Energy Server, FNB-58, and ADB readiness", parameters: facadeParameters),
+            Command("smartbird-thermostat.events.list", "List thermostat events", "Reads recent thermostat events or returns an actionable degraded event source", parameters: facadeParameters),
+            Command("smartbird-thermostat.logs.summary", "Summarize thermostat logs", "Combines Runner-managed module logs with service log diagnostics", parameters: facadeParameters),
+            Command("smartbird-thermostat.config.get", "Read thermostat config", "Reads local module policy plus optional service config", parameters: facadeParameters),
+            Command("smartbird-thermostat.config.save", "Save thermostat config", "Validates and persists SmartBird facade policy settings", parameters: ConfigSaveParameters()),
+            Command("smartbird-thermostat.hardware.diagnostics", "Check thermostat hardware dependencies", "Checks Energy Server, FNB-58, and ADB dependency readiness", parameters: facadeParameters),
             Command("smartbird-thermostat.self-test", "Run thermostat facade self-test", "Verifies paths, settings schema, endpoints, and redaction"),
-            Command("smartbird-thermostat.service.restart", "Request thermostat service restart", "Builds a ServiceBroker restart request with audit details", requiresElevation: true, dangerLevel: "medium")
+            Command("smartbird-thermostat.service.restart", "Request thermostat service restart", "Builds a ServiceBroker restart request with audit details", requiresElevation: true, dangerLevel: "medium", parameters: RestartParameters())
         ];
         return ValueTask.FromResult(commands);
     }
@@ -561,8 +562,26 @@ public sealed class SmartBirdThermostatModule : IMptModule
         }
     }
 
-    private static MptCommandDescriptor Command(string id, string title, string subtitle, bool requiresElevation = false, string dangerLevel = "")
+    private static MptCommandDescriptor Command(
+        string id,
+        string title,
+        string subtitle,
+        bool requiresElevation = false,
+        string dangerLevel = "",
+        IReadOnlyList<CommandParameterDescriptor>? parameters = null)
     {
+        var execution = new JsonObject { ["type"] = "module.execute" };
+        IReadOnlyList<string>? constraints = null;
+        if (requiresElevation)
+        {
+            execution["brokerApprovalOnly"] = true;
+            constraints =
+            [
+                MptOperationConstraints.MutatesSystemState,
+                MptOperationConstraints.RequiresElevatedWrites
+            ];
+        }
+
         return new MptCommandDescriptor(
             id,
             "smartbird-thermostat",
@@ -573,7 +592,39 @@ public sealed class SmartBirdThermostatModule : IMptModule
             DangerLevel: dangerLevel,
             Category: "SmartBird Thermostat",
             TimeoutMs: 10000,
-            Execution: new JsonObject { ["type"] = "module.execute" });
+            Execution: execution,
+            Parameters: parameters,
+            Constraints: constraints);
+    }
+
+    private static IReadOnlyList<CommandParameterDescriptor> FacadeParameters()
+    {
+        return
+        [
+            new CommandParameterDescriptor("baseUrl", "Base URL", "text", false, ""),
+            new CommandParameterDescriptor("statusPath", "Status path", "text", false, "/status"),
+            new CommandParameterDescriptor("eventsPath", "Events path", "text", false, "/events"),
+            new CommandParameterDescriptor("energyServerBaseUrl", "Energy server URL", "text", false, "")
+        ];
+    }
+
+    private static IReadOnlyList<CommandParameterDescriptor> ConfigSaveParameters()
+    {
+        return
+        [
+            new CommandParameterDescriptor("baseUrl", "Base URL", "text", false, ""),
+            new CommandParameterDescriptor("statusPath", "Status path", "text", false, "/status"),
+            new CommandParameterDescriptor("targetTemperatureC", "Target temperature C", "number", false, "22"),
+            new CommandParameterDescriptor("pollIntervalSeconds", "Poll interval seconds", "number", false, "30")
+        ];
+    }
+
+    private static IReadOnlyList<CommandParameterDescriptor> RestartParameters()
+    {
+        return
+        [
+            new CommandParameterDescriptor("reason", "Reason", "multiline", false, "Restart SmartBird thermostat service after degraded diagnostics.")
+        ];
     }
 
     private static CommandExecutionResult Succeeded(CommandRequest request, string output)
@@ -1009,3 +1060,4 @@ public sealed class SmartBirdThermostatModule : IMptModule
         }
     }
 }
+

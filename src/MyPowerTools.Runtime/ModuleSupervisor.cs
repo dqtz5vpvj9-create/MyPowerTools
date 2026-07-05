@@ -5,7 +5,7 @@ public sealed class ModuleSupervisor
     private const int InterventionFailureThreshold = 3;
     private readonly Dictionary<string, ModuleSupervisorRecord> _records = new(StringComparer.OrdinalIgnoreCase);
 
-    public RuntimeModuleSupervisionSnapshot Observe(RuntimeModuleRecord module, ModuleStatusSnapshot status)
+    public RuntimeModuleSupervisionSnapshot Observe(RuntimeModuleRecord module, MyPowerTools.Abstractions.ModuleStatusSnapshot status)
     {
         var moduleId = module.Module.Manifest.Id;
         _records.TryGetValue(moduleId, out var previous);
@@ -75,7 +75,7 @@ public sealed class ModuleSupervisor
         return "healthy";
     }
 
-    private static string ResolveAction(RuntimeModuleRecord module, ModuleStatusSnapshot status, int consecutiveFailures)
+    private static string ResolveAction(RuntimeModuleRecord module, MyPowerTools.Abstractions.ModuleStatusSnapshot status, int consecutiveFailures)
     {
         if (status.State.Equals("disabled", StringComparison.OrdinalIgnoreCase))
         {

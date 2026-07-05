@@ -1,27 +1,29 @@
+using Sdk = MyPowerTools.Abstractions;
+
 namespace MyPowerTools.Runtime;
 
 public sealed class CommandIndex
 {
-    private readonly List<MptCommandDescriptor> _commands = [];
+    private readonly List<Sdk.MptCommandDescriptor> _commands = [];
     private readonly StaticCommandIndexReader _staticReader = new();
 
-    public IReadOnlyList<MptCommandDescriptor> Commands => _commands;
+    public IReadOnlyList<Sdk.MptCommandDescriptor> Commands => _commands;
 
-    public void Rebuild(IEnumerable<RuntimeModuleRecord> modules, IEnumerable<MptCommandDescriptor>? dynamicCommands = null)
+    public void Rebuild(IEnumerable<RuntimeModuleRecord> modules, IEnumerable<Sdk.MptCommandDescriptor>? dynamicCommands = null)
     {
         _commands.Clear();
 
         foreach (var module in modules.OrderBy(module => module.Module.Manifest.DisplayName, StringComparer.OrdinalIgnoreCase))
         {
             var id = module.Module.Manifest.Id;
-            AddOrReplace(new MptCommandDescriptor(
+            AddOrReplace(new Sdk.MptCommandDescriptor(
                 $"{id}.open",
                 id,
                 $"Open {module.Module.Manifest.DisplayName}",
                 module.Module.Manifest.DisplayName,
                 "open",
                 Execution: new() { ["type"] = "open", ["surface"] = "detail" }));
-            AddOrReplace(new MptCommandDescriptor(
+            AddOrReplace(new Sdk.MptCommandDescriptor(
                 $"{id}.status.refresh",
                 id,
                 $"Refresh {module.Module.Manifest.DisplayName}",
@@ -31,7 +33,7 @@ public sealed class CommandIndex
 
             if (module.Module.Manifest.Capabilities.Contains("settings", StringComparer.OrdinalIgnoreCase))
             {
-                AddOrReplace(new MptCommandDescriptor(
+                AddOrReplace(new Sdk.MptCommandDescriptor(
                     $"{id}.settings.open",
                     id,
                     $"Open {module.Module.Manifest.DisplayName} settings",
@@ -55,7 +57,7 @@ public sealed class CommandIndex
         }
     }
 
-    public IReadOnlyList<MptCommandDescriptor> Search(string? query)
+    public IReadOnlyList<Sdk.MptCommandDescriptor> Search(string? query)
     {
         if (string.IsNullOrWhiteSpace(query))
         {
@@ -70,12 +72,12 @@ public sealed class CommandIndex
             .ToArray();
     }
 
-    public MptCommandDescriptor? Find(string commandId)
+    public Sdk.MptCommandDescriptor? Find(string commandId)
     {
         return _commands.FirstOrDefault(command => string.Equals(command.Id, commandId, StringComparison.OrdinalIgnoreCase));
     }
 
-    private void AddOrReplace(MptCommandDescriptor command)
+    private void AddOrReplace(Sdk.MptCommandDescriptor command)
     {
         var existing = _commands.FindIndex(candidate => string.Equals(candidate.Id, command.Id, StringComparison.OrdinalIgnoreCase));
         if (existing >= 0)

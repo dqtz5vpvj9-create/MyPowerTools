@@ -25,6 +25,9 @@
     <ProjectReference Include="..\AndroidTools.MyPowerTools\AndroidTools.MyPowerTools.csproj" />
     <ProjectReference Include="..\MyPowerTools.Protocol\MyPowerTools.Protocol.csproj" />
     <ProjectReference Include="..\MyPowerTools.Packaging\MyPowerTools.Packaging.csproj" />
+    <ProjectReference Include="..\MyPowerTools.Platform.Linux\MyPowerTools.Platform.Linux.csproj" />
+    <ProjectReference Include="..\MyPowerTools.Platform.Mac\MyPowerTools.Platform.Mac.csproj" />
+    <ProjectReference Include="..\MyPowerTools.Platform.Windows\MyPowerTools.Platform.Windows.csproj" />
     <ProjectReference Include="..\MyPowerTools.Runtime\MyPowerTools.Runtime.csproj" />
     <ProjectReference Include="..\MyPowerTools.UI\MyPowerTools.UI.csproj" />
     <ProjectReference Include="..\MyPowerTools.HostControl\MyPowerTools.HostControl.csproj" />

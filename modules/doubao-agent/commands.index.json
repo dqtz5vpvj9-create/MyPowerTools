@@ -8,6 +8,36 @@
       "kind": "action",
       "category": "Doubao Agent",
       "timeoutMs": 8000,
+      "parameters": [
+        {
+          "id": "plannerBaseUrl",
+          "label": "Planner base URL",
+          "type": "text",
+          "required": false,
+          "defaultValue": ""
+        },
+        {
+          "id": "toolBaseUrl",
+          "label": "Tool base URL",
+          "type": "text",
+          "required": false,
+          "defaultValue": ""
+        },
+        {
+          "id": "mcpBaseUrl",
+          "label": "MCP base URL",
+          "type": "text",
+          "required": false,
+          "defaultValue": ""
+        },
+        {
+          "id": "healthPath",
+          "label": "Health path",
+          "type": "text",
+          "required": false,
+          "defaultValue": "/health"
+        }
+      ],
       "execution": {
         "type": "module.execute"
       }

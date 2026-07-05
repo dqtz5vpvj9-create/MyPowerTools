@@ -6,7 +6,15 @@ using Grpc.Core;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using MyPowerTools.Protocol;
 using MyPowerTools.Protocol.Module.V1;
-using MyPowerTools.Runtime;
+using CommandExecutionResult = MyPowerTools.Abstractions.CommandExecutionResult;
+using CommandRequest = MyPowerTools.Abstractions.CommandRequest;
+using EventCursor = MyPowerTools.Abstractions.EventCursor;
+using IMptModule = MyPowerTools.Abstractions.IMptModule;
+using InitializeResult = MyPowerTools.Abstractions.InitializeResult;
+using ModuleContext = MyPowerTools.Abstractions.ModuleContext;
+using MptRuntimeError = MyPowerTools.Abstractions.MptRuntimeError;
+using SettingsPatch = MyPowerTools.Abstractions.SettingsPatch;
+using SettingsSnapshotDocument = MyPowerTools.Abstractions.SettingsSnapshotDocument;
 
 var endpoint = AndroidToolsSidecarEndpoint.From(args);
 var builder = WebApplication.CreateBuilder(new WebApplicationOptions { Args = [] });
@@ -218,20 +226,32 @@ public sealed class AndroidToolsModuleControlService : ModuleControl.ModuleContr
             new CommandRequest(request.InvocationId, request.CommandId, args),
             context.CancellationToken);
 
-        var response = new CommandExecution
-        {
-            InvocationId = result.InvocationId,
-            CommandId = result.CommandId,
-            State = ToGrpcCommandState(result.State),
-            Success = result.Success,
-            Output = result.Output
-        };
-        if (result.Error is not null)
-        {
-            response.Error = ToGrpcError(result.Error);
-        }
+        return ToGrpcCommandExecution(result);
+    }
 
-        return response;
+    public override async Task ExecuteCommandStream(ExecuteCommandRequest request, IServerStreamWriter<CommandExecutionEvent> responseStream, ServerCallContext context)
+    {
+        var args = ToJsonArgs(request.Args);
+        await foreach (var evt in _registry.Get(request.ModuleId)
+            .ExecuteCommandStreamAsync(new CommandRequest(request.InvocationId, request.CommandId, args), context.CancellationToken)
+            .WithCancellation(context.CancellationToken))
+        {
+            var response = new CommandExecutionEvent
+            {
+                InvocationId = evt.InvocationId,
+                CommandId = evt.CommandId,
+                State = evt.State,
+                Message = evt.Message,
+                Sequence = (uint)Math.Max(0, evt.Sequence),
+                Terminal = evt.Terminal
+            };
+            if (evt.FinalResult is not null)
+            {
+                response.FinalResult = ToGrpcCommandExecution(evt.FinalResult);
+            }
+
+            await responseStream.WriteAsync(response, context.CancellationToken);
+        }
     }
 
     public override async Task<SettingsSchema> GetSettingsSchema(GetSettingsSchemaRequest request, ServerCallContext context)
@@ -409,6 +429,24 @@ public sealed class AndroidToolsModuleControlService : ModuleControl.ModuleContr
         };
     }
 
+    private static CommandExecution ToGrpcCommandExecution(CommandExecutionResult result)
+    {
+        var response = new CommandExecution
+        {
+            InvocationId = result.InvocationId,
+            CommandId = result.CommandId,
+            State = ToGrpcCommandState(result.State),
+            Success = result.Success,
+            Output = result.Output
+        };
+        if (result.Error is not null)
+        {
+            response.Error = ToGrpcError(result.Error);
+        }
+
+        return response;
+    }
+
     private static MptError ToGrpcError(MptRuntimeError error)
     {
         return new MptError
@@ -420,3 +458,4 @@ public sealed class AndroidToolsModuleControlService : ModuleControl.ModuleContr
         };
     }
 }
+

@@ -12,7 +12,7 @@ public sealed class HealthMonitor
         };
     }
 
-    public async Task<ModuleStatusSnapshot> CheckAsync(RuntimeModuleRecord record, CancellationToken cancellationToken)
+    public async Task<MyPowerTools.Abstractions.ModuleStatusSnapshot> CheckAsync(RuntimeModuleRecord record, CancellationToken cancellationToken)
     {
         if (record.Entrypoint is null)
         {
@@ -27,7 +27,7 @@ public sealed class HealthMonitor
         return record.Status;
     }
 
-    private async Task<ModuleStatusSnapshot> CheckHttpAsync(RuntimeModuleRecord record, CancellationToken cancellationToken)
+    private async Task<MyPowerTools.Abstractions.ModuleStatusSnapshot> CheckHttpAsync(RuntimeModuleRecord record, CancellationToken cancellationToken)
     {
         var endpoint = record.Entrypoint?.EndpointAddress;
         if (string.IsNullOrWhiteSpace(endpoint))
@@ -41,14 +41,14 @@ public sealed class HealthMonitor
             var uri = new Uri(new Uri(endpoint.TrimEnd('/') + "/"), healthPath.TrimStart('/'));
             using var response = await _httpClient.GetAsync(uri, cancellationToken);
             var body = await response.Content.ReadAsStringAsync(cancellationToken);
-            return new ModuleStatusSnapshot(
+            return new MyPowerTools.Abstractions.ModuleStatusSnapshot(
                 record.Module.Manifest.Id,
                 response.IsSuccessStatusCode ? "running" : "degraded",
                 response.IsSuccessStatusCode ? "HTTP health check succeeded." : $"HTTP health returned {(int)response.StatusCode}.",
                 DateTimeOffset.UtcNow,
                 [
-                    new HealthCheckSnapshot("manifest", "Manifest", true, "Loaded"),
-                    new HealthCheckSnapshot("http", "HTTP health", response.IsSuccessStatusCode, LogRouter.Redact(body))
+                    new MyPowerTools.Abstractions.HealthCheckSnapshot("manifest", "Manifest", true, "Loaded"),
+                    new MyPowerTools.Abstractions.HealthCheckSnapshot("http", "HTTP health", response.IsSuccessStatusCode, LogRouter.Redact(body))
                 ],
                 record.Status.EventSeq);
         }
@@ -58,16 +58,16 @@ public sealed class HealthMonitor
         }
     }
 
-    private static ModuleStatusSnapshot Degraded(RuntimeModuleRecord record, string message)
+    private static MyPowerTools.Abstractions.ModuleStatusSnapshot Degraded(RuntimeModuleRecord record, string message)
     {
-        return new ModuleStatusSnapshot(
+        return new MyPowerTools.Abstractions.ModuleStatusSnapshot(
             record.Module.Manifest.Id,
             "degraded",
             LogRouter.Redact(message),
             DateTimeOffset.UtcNow,
             [
-                new HealthCheckSnapshot("manifest", "Manifest", true, "Loaded"),
-                new HealthCheckSnapshot("http", "HTTP health", false, LogRouter.Redact(message))
+                new MyPowerTools.Abstractions.HealthCheckSnapshot("manifest", "Manifest", true, "Loaded"),
+                new MyPowerTools.Abstractions.HealthCheckSnapshot("http", "HTTP health", false, LogRouter.Redact(message))
             ],
             record.Status.EventSeq);
     }

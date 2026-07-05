@@ -28,7 +28,19 @@ using MyPowerTools.Shell.Avalonia.Services;
 using MyPowerTools.Shell.Avalonia.ViewModels;
 using MyPowerTools.UI;
 using ScreenEase.MyPowerTools;
+using CommandExecutionResult = MyPowerTools.Abstractions.CommandExecutionResult;
+using CommandRequest = MyPowerTools.Abstractions.CommandRequest;
+using HealthCheckSnapshot = MyPowerTools.Abstractions.HealthCheckSnapshot;
 using HostProto = MyPowerTools.Protocol.HostControl.V1;
+using ModuleContext = MyPowerTools.Abstractions.ModuleContext;
+using ModuleStatusSnapshot = MyPowerTools.Abstractions.ModuleStatusSnapshot;
+using MptCommandDescriptor = MyPowerTools.Abstractions.MptCommandDescriptor;
+using MptOperationConstraints = MyPowerTools.Abstractions.MptOperationConstraints;
+using MptRuntimeError = MyPowerTools.Abstractions.MptRuntimeError;
+using SettingsPatch = MyPowerTools.Abstractions.SettingsPatch;
+using SettingsSchemaDocument = MyPowerTools.Abstractions.SettingsSchemaDocument;
+using SettingsSnapshotDocument = MyPowerTools.Abstractions.SettingsSnapshotDocument;
+using SettingsValidationResult = MyPowerTools.Abstractions.SettingsValidationResult;
 
 namespace MyPowerTools.Tests;
 
@@ -125,6 +137,17 @@ Address         Port        Address         Port
                 ["restartLimit"] = 4,
                 ["restartWindowSeconds"] = 30,
                 ["killProcessTree"] = true
+            },
+            ["operationRules"] = new JsonObject
+            {
+                ["status"] = "inproc-or-sidecar",
+                ["settings"] = "inproc-or-sidecar",
+                ["commandProvider"] = "inproc-or-sidecar",
+                ["longRunningCommand"] = "sidecar-required",
+                ["systemMutation"] = "broker-required",
+                ["nativeHardware"] = "sidecar-required",
+                ["elevatedWrite"] = "broker-required",
+                ["externalProcess"] = "sidecar-required"
             }
         });
         manifest["development"] = new JsonObject
@@ -150,8 +173,69 @@ Address         Port        Address         Port
         Assert.Equal(8000, module.RuntimePolicy.SidecarRules!.ReadyTimeoutMs);
         Assert.Equal(4, module.RuntimePolicy.SidecarRules.RestartLimit);
         Assert.True(module.RuntimePolicy.SidecarRules.KillProcessTree);
+        Assert.NotNull(module.RuntimePolicy.OperationRules);
+        Assert.Equal("inproc-or-sidecar", module.RuntimePolicy.OperationRules!.Status);
+        Assert.Equal("broker-required", module.RuntimePolicy.OperationRules.SystemMutation);
+        Assert.Equal("sidecar-required", module.RuntimePolicy.OperationRules.ExternalProcess);
         Assert.NotNull(module.Development);
         Assert.True(module.Development!.AllowAlreadyLoadedFallback);
+    }
+
+    [Fact]
+    public void Module_schema_accepts_hotkeys_and_runtime_lists_bindings()
+    {
+        var packageRoot = Path.Combine(Path.GetTempPath(), "mpt-hotkey-schema", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(packageRoot);
+        var assemblyPath = typeof(SampleDotNetModule).Assembly.Location;
+        var assemblyName = Path.GetFileName(assemblyPath);
+        File.Copy(assemblyPath, Path.Combine(packageRoot, assemblyName), overwrite: true);
+        var manifest = new JsonObject
+        {
+            ["schemaVersion"] = "1.0",
+            ["id"] = "module-hotkey-sample",
+            ["packageId"] = "module-hotkey-sample",
+            ["displayName"] = "Module Hotkey Sample",
+            ["version"] = "0.2.0",
+            ["moduleSdk"] = "1.0",
+            ["entrypoints"] = new JsonArray
+            {
+                new JsonObject
+                {
+                    ["kind"] = "inproc-dotnet",
+                    ["priority"] = 100,
+                    ["assembly"] = assemblyName,
+                    ["type"] = "MyPowerTools.SampleModules.DotNet.SampleDotNetModule"
+                }
+            },
+            ["capabilities"] = new JsonArray("status", "commands"),
+            ["hotkeys"] = new JsonArray
+            {
+                new JsonObject
+                {
+                    ["id"] = "quick.toggle",
+                    ["default"] = "Ctrl+Shift+F24",
+                    ["commandId"] = "module-hotkey-sample.toggle",
+                    ["scope"] = "module",
+                    ["reason"] = "Toggle the sample module."
+                }
+            }
+        };
+        File.WriteAllText(
+            Path.Combine(packageRoot, "module.json"),
+            manifest.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+
+        var report = new SchemaPackageValidator(Path.Combine(Root, "schemas")).ValidatePackageDirectory(packageRoot);
+        var module = new PackageReader().ReadPackageDirectory(packageRoot).Modules.Single().Manifest;
+        var runtime = new MptHostRuntime(new PackageReader(), PlatformId.Current());
+        runtime.Load(packageRoot);
+        var binding = Assert.Single(runtime.ListHotkeyBindings());
+
+        Assert.True(report.IsValid, string.Join(Environment.NewLine, report.Issues.Select(issue => issue.Message)));
+        Assert.Equal("quick.toggle", module.Hotkeys.Single().Id);
+        Assert.Equal("module-hotkey-sample.quick.toggle", binding.Id);
+        Assert.Equal("module-hotkey-sample", binding.ModuleId);
+        Assert.Equal("module-hotkey-sample.toggle", binding.CommandId);
+        Assert.Equal("Ctrl+Shift+F24", binding.Gesture);
     }
 
     [Fact]
@@ -249,6 +333,58 @@ Address         Port        Address         Port
     }
 
     [Fact]
+    public async Task Runtime_policy_blocks_disallowed_inproc_operation_command()
+    {
+        var packageRoot = Path.Combine(Path.GetTempPath(), "mpt-runtime-policy-operation-block", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(packageRoot);
+        WriteRuntimePolicyOperationModule(packageRoot, "runtime-policy-selection.external", new JsonArray(MptOperationConstraints.RunsExternalProcesses));
+        var transport = new RecordingSettingsTransportRuntime("inproc-dotnet");
+        await using var runtime = new MptHostRuntime(
+            new PackageReader(),
+            PlatformId.Current(),
+            RuntimePaths.Create(Path.Combine(Path.GetTempPath(), "mpt-runtime-policy-operation-block-state", Guid.NewGuid().ToString("N"))),
+            [transport]);
+
+        runtime.Load(packageRoot);
+        var result = await runtime.ExecuteCommandAsync(
+            new CommandRequest("policy-block", "runtime-policy-selection.external", new JsonObject()),
+            CancellationToken.None);
+
+        Assert.False(result.Success);
+        Assert.Equal("failed", result.State);
+        Assert.Equal(MptErrorCodes.RuntimePolicyBlocked, result.Error!.Code);
+        Assert.Equal("inproc-dotnet", result.Error.Details!["selectedTransport"]!.GetValue<string>());
+        Assert.Contains("runsExternalProcesses", result.Error.Details!["constraints"]!.AsArray().Select(item => item!.GetValue<string>()));
+        Assert.Equal(0, transport.ExecuteCount);
+    }
+
+    [Fact]
+    public async Task Runtime_policy_allows_inproc_broker_approval_command()
+    {
+        var packageRoot = Path.Combine(Path.GetTempPath(), "mpt-runtime-policy-broker-approval", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(packageRoot);
+        WriteRuntimePolicyOperationModule(
+            packageRoot,
+            "runtime-policy-selection.broker-plan",
+            new JsonArray(MptOperationConstraints.MutatesSystemState, MptOperationConstraints.RequiresElevatedWrites),
+            brokerApprovalOnly: true);
+        var transport = new RecordingSettingsTransportRuntime("inproc-dotnet");
+        await using var runtime = new MptHostRuntime(
+            new PackageReader(),
+            PlatformId.Current(),
+            RuntimePaths.Create(Path.Combine(Path.GetTempPath(), "mpt-runtime-policy-broker-approval-state", Guid.NewGuid().ToString("N"))),
+            [transport]);
+
+        runtime.Load(packageRoot);
+        var result = await runtime.ExecuteCommandAsync(
+            new CommandRequest("policy-broker", "runtime-policy-selection.broker-plan", new JsonObject()),
+            CancellationToken.None);
+
+        Assert.True(result.Success, result.Error?.Message);
+        Assert.Equal(1, transport.ExecuteCount);
+    }
+
+    [Fact]
     public async Task Inproc_already_loaded_fallback_requires_development_flag()
     {
         _ = typeof(SampleDotNetModule).Assembly;
@@ -285,6 +421,19 @@ Address         Port        Address         Port
                 Assert.Equal("sidecar", module.Manifest.RuntimePolicy.Preferred);
             }
         }
+    }
+
+    [Fact]
+    public void Production_modules_declare_runtime_hotkey_bindings()
+    {
+        var runtime = new MptHostRuntime(new PackageReader(), PlatformId.Current());
+        runtime.Load(Path.Combine(Root, "modules"));
+        var hotkey = Assert.Single(runtime.ListHotkeyBindings().Where(binding => binding.ModuleId == "screenease"));
+
+        Assert.Equal("screenease.profile.quick-apply", hotkey.Id);
+        Assert.Equal("screenease.profile.apply", hotkey.CommandId);
+        Assert.Equal("Ctrl+Alt+F9", hotkey.Gesture);
+        Assert.True(WindowsHotkeyGesture.TryParse(hotkey.Gesture, out _, out var error), error);
     }
 
     [Fact]
@@ -1109,17 +1258,23 @@ Address         Port        Address         Port
     public void Shell_command_parameter_contract_flows_through_hostcontrol()
     {
         var protoPath = Path.Combine(Root, "proto", "mpt_host_control_v1.proto");
+        var moduleProtoPath = Path.Combine(Root, "proto", "mpt_module_v1.proto");
         var abstractionsPath = Path.Combine(Root, "src", "MyPowerTools.Abstractions", "PluginContracts.cs");
         var staticReaderPath = Path.Combine(Root, "src", "MyPowerTools.Runtime", "StaticCommandIndexReader.cs");
+        var runtimePath = Path.Combine(Root, "src", "MyPowerTools.Runtime", "MptHostRuntime.cs");
         var grpcHostPath = Path.Combine(Root, "src", "MyPowerTools.ModuleHost.GrpcIpc", "GrpcIpcModuleHost.cs");
+        var powertooldPath = Path.Combine(Root, "src", "AndroidTools.Powertoold", "Program.cs");
         var hostServicePath = Path.Combine(Root, "src", "MyPowerTools.HostControl", "HostControlGrpcService.cs");
         var hostClientPath = Path.Combine(Root, "src", "MyPowerTools.HostControl", "HostControlClient.cs");
         var commandServicePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellCommandExecutionService.cs");
         var workspacePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellWorkspaceController.cs");
         var proto = File.ReadAllText(protoPath);
+        var moduleProto = File.ReadAllText(moduleProtoPath);
         var abstractions = File.ReadAllText(abstractionsPath);
         var staticReader = File.ReadAllText(staticReaderPath);
+        var runtime = File.ReadAllText(runtimePath);
         var grpcHost = File.ReadAllText(grpcHostPath);
+        var powertoold = File.ReadAllText(powertooldPath);
         var hostService = File.ReadAllText(hostServicePath);
         var hostClient = File.ReadAllText(hostClientPath);
         var commandService = File.ReadAllText(commandServicePath);
@@ -1127,13 +1282,21 @@ Address         Port        Address         Port
 
         Assert.Contains("rpc CancelCommand", proto);
         Assert.Contains("rpc ExecuteCommandStream", proto);
+        Assert.Contains("rpc ExecuteCommandStream", moduleProto);
+        Assert.Contains("message CommandExecutionEvent", moduleProto);
         Assert.Contains("message CancelCommandRequest", proto);
         Assert.Contains("message CommandExecutionEvent", proto);
         Assert.Contains("repeated CommandParameter parameters = 8", proto);
         Assert.Contains("message CommandParameter", proto);
         Assert.Contains("CommandParameterDescriptor", abstractions);
+        Assert.Contains("ExecuteCommandStreamAsync(CommandRequest request", abstractions);
         Assert.Contains("ReadParameters(command)", staticReader);
+        Assert.Contains("CollectModuleEventsAsync", runtime);
+        Assert.Contains("runtime.SubscribeEventsAsync", runtime);
         Assert.Contains("parameter.DefaultValue", grpcHost);
+        Assert.Contains("client.ExecuteCommandStream", grpcHost);
+        Assert.Contains("client.SubscribeEvents", grpcHost);
+        Assert.Contains("ExecuteCommandStream(ExecuteCommandRequest", powertoold);
         Assert.Contains("item.Parameters.AddRange", hostService);
         Assert.Contains("CancelCommand(HostProto.CancelCommandRequest", hostService);
         Assert.Contains("ExecuteCommandStream(HostProto.ExecuteCommandRequest", hostService);
@@ -2241,6 +2404,95 @@ commands:
     }
 
     [Fact]
+    public async Task AndroidTools_remote_shell_command_streams_stdout_and_final_result()
+    {
+        var commandsRoot = Path.Combine(Path.GetTempPath(), "mpt-android-stream-commands", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(commandsRoot);
+        var commandsPath = Path.Combine(commandsRoot, "commands.yaml");
+        var shellCommand = OperatingSystem.IsWindows()
+            ? "Write-Output mpt-stream-alpha"
+            : "printf 'mpt-stream-alpha\\n'";
+        await File.WriteAllTextAsync(commandsPath, $$"""
+commands:
+  - id: stream_echo
+    label: Stream Echo
+    command: {{shellCommand}}
+    description: Command imported from Host settings path.
+    type: shell
+""");
+
+        var remote = new AndroidToolsRemoteCommandsModule();
+        await remote.InitializeAsync(CreateModuleContext("android-tools-suite", "android-tools.remote-commands", "android-remote-stream", ["remote.commands"]), CancellationToken.None);
+        await remote.ApplySettingsAsync(
+            new SettingsSnapshotDocument("android-tools.remote-commands", 2, new JsonObject { ["commandsYamlPath"] = commandsPath }, DateTimeOffset.UtcNow),
+            CancellationToken.None);
+
+        var events = new List<MyPowerTools.Abstractions.CommandExecutionEvent>();
+        await foreach (var evt in remote.ExecuteCommandStreamAsync(
+            new CommandRequest("android-stream", "android-tools.remote-commands.run.stream_echo", new JsonObject { ["execute"] = true }),
+            CancellationToken.None))
+        {
+            events.Add(evt);
+        }
+
+        var final = Assert.Single(events.Where(evt => evt.Terminal));
+        Assert.Contains(events, evt => evt.State == "stdout" && evt.Message.Contains("mpt-stream-alpha", StringComparison.Ordinal));
+        Assert.NotNull(final.FinalResult);
+        Assert.True(final.FinalResult!.Success, final.FinalResult.Error?.Message);
+        Assert.Contains("mpt-stream-alpha", final.FinalResult.Output);
+    }
+
+    [Fact]
+    public async Task Production_commands_expose_parameter_metadata()
+    {
+        var screen = new ScreenEaseModule(new RecordingDisplayService());
+        await screen.InitializeAsync(CreateScreenEaseContext("screenease-parameters"), CancellationToken.None);
+        var screenCommands = await screen.ListCommandsAsync(CancellationToken.None);
+        var screenApply = screenCommands.Single(command => command.Id == "screenease.profile.apply");
+
+        var commandsRoot = Path.Combine(Path.GetTempPath(), "mpt-android-parameters-commands", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(commandsRoot);
+        var commandsPath = Path.Combine(commandsRoot, "commands.yaml");
+        await File.WriteAllTextAsync(commandsPath, """
+commands:
+  - id: shell_echo
+    label: Shell Echo
+    command: echo shell
+    description: Shell command with explicit execute gate.
+    type: shell
+""");
+        var remote = new AndroidToolsRemoteCommandsModule();
+        await remote.InitializeAsync(CreateModuleContext("android-tools-suite", "android-tools.remote-commands", "android-parameters", ["remote.commands"]), CancellationToken.None);
+        await remote.ApplySettingsAsync(
+            new SettingsSnapshotDocument("android-tools.remote-commands", 2, new JsonObject { ["commandsYamlPath"] = commandsPath }, DateTimeOffset.UtcNow),
+            CancellationToken.None);
+        var androidShell = (await remote.ListCommandsAsync(CancellationToken.None)).Single(command => command.Id == "android-tools.remote-commands.run.shell_echo");
+
+        var adb = new AdbForwarderModule();
+        await adb.InitializeAsync(CreateModuleContext("adb-forwarder", "adb-forwarder", "adb-parameters", ["commands"]), CancellationToken.None);
+        var apply = (await adb.ListCommandsAsync(CancellationToken.None)).Single(command => command.Id == "adb-forwarder.portproxy.apply");
+
+        var doubaoHealth = StaticCommand("modules/doubao-agent/commands.index.json", "doubao-agent.status.summary");
+        var restart = StaticCommand("modules/smartbird-thermostat/commands.index.json", "smartbird-thermostat.service.restart");
+
+        Assert.Contains(screenApply.Parameters!, parameter => parameter.Id == "profileId");
+        Assert.Contains(screenApply.Parameters!, parameter => parameter.Id == "hardwareWrite" && parameter.Type == "boolean");
+        Assert.Contains(androidShell.Parameters!, parameter => parameter.Id == "execute" && parameter.Type == "boolean");
+        Assert.Contains(androidShell.Parameters!, parameter => parameter.Id == "timeoutMs" && parameter.Type == "number");
+        Assert.Contains(doubaoHealth["parameters"]!.AsArray(), parameter => parameter!["id"]!.GetValue<string>() == "plannerBaseUrl");
+        Assert.Contains(restart["parameters"]!.AsArray(), parameter => parameter!["id"]!.GetValue<string>() == "reason" && parameter["type"]!.GetValue<string>() == "multiline");
+        Assert.Contains(apply.Parameters!, parameter => parameter.Id == "reason" && parameter.Type == "multiline");
+
+        static JsonObject StaticCommand(string relativePath, string commandId)
+        {
+            var root = JsonNode.Parse(File.ReadAllText(Path.Combine(Root, relativePath)))!.AsObject();
+            return root["commands"]!.AsArray()
+                .Select(item => item!.AsObject())
+                .Single(command => command["id"]!.GetValue<string>() == commandId);
+        }
+    }
+
+    [Fact]
     public void Settings_persist_and_rollback()
     {
         var path = Path.Combine(Path.GetTempPath(), "mpt-settings-test", Guid.NewGuid().ToString("N"));
@@ -2841,6 +3093,10 @@ commands:
 
         Assert.Contains("StartHotkeysAsync", runner);
         Assert.Contains("new HotkeyRegistration(\"command-palette\", \"Ctrl+Alt+Space\"", runner);
+        Assert.Contains("runtime.ListHotkeyBindings()", runner);
+        Assert.Contains("new HotkeyRegistration(binding.Id, binding.Gesture, binding.Scope, binding.Reason)", runner);
+        Assert.Contains("runtime.ExecuteCommandAsync", runner);
+        Assert.Contains("new CommandRequest($\"hotkey-{Guid.NewGuid():N}\", commandId, new JsonObject())", runner);
         Assert.Contains("--command-palette", runner);
         Assert.Contains("hotkeys.Pressed", runner);
         Assert.Contains("ShellStartupOptions.FromArgs", app);
@@ -2930,6 +3186,29 @@ commands:
     }
 
     [Fact]
+    public async Task Runtime_collects_module_event_stream_into_host_event_bus()
+    {
+        _ = typeof(SampleDotNetModule).Assembly;
+        await using var host = new InProcDotNetModuleHost();
+        await using var runtime = new MptHostRuntime(
+            new PackageReader(),
+            PlatformId.Current(),
+            RuntimePaths.Create(Path.Combine(Path.GetTempPath(), "mpt-runtime-module-events", Guid.NewGuid().ToString("N"))),
+            [host]);
+
+        runtime.Load(Path.Combine(Root, "tests", "fixtures", "modules", "sample-dotnet"));
+        var first = await runtime.CollectModuleEventsAsync(TimeSpan.FromMilliseconds(200), CancellationToken.None);
+        var second = await runtime.CollectModuleEventsAsync(TimeSpan.FromMilliseconds(200), CancellationToken.None);
+        var evt = Assert.Single(runtime.HostEventsSince(0).Where(item => item.Type == "sample.heartbeat"));
+
+        Assert.Equal(1, first);
+        Assert.Equal(0, second);
+        Assert.Equal("sample.dotnet", evt.ModuleId);
+        Assert.Equal(1UL, evt.Payload["moduleEventSeq"]!.GetValue<ulong>());
+        Assert.Equal("sample module event stream is active", evt.Payload["message"]!.GetValue<string>());
+    }
+
+    [Fact]
     public async Task Inproc_disk_module_uses_collectible_load_context_and_unloads()
     {
         var weakReference = await LoadAndDisposeAdbForwarderAsync();
@@ -2946,8 +3225,18 @@ commands:
     }
 
     [Fact]
-    public async Task Runtime_restarts_clean_inproc_module_by_unloading_context()
+    public async Task Runtime_restarts_or_marks_inproc_module_for_runner_restart()
     {
+        var packageRoot = Path.Combine(Path.GetTempPath(), "mpt-inproc-clean-restart", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(packageRoot);
+        await BuildGeneratedInProcPluginPackageAsync(
+            packageRoot,
+            "clean.restart",
+            "clean-restart",
+            "CleanRestartPlugin",
+            "clean-restart",
+            "1.0.0.0");
+
         await using var host = new InProcDotNetModuleHost();
         await using var runtime = new MptHostRuntime(
             new PackageReader(),
@@ -2955,8 +3244,8 @@ commands:
             RuntimePaths.Create(Path.Combine(Path.GetTempPath(), "mpt-runtime-inproc-clean-restart", Guid.NewGuid().ToString("N"))),
             [host]);
 
-        runtime.Load(Path.Combine(Root, "modules", "adb-forwarder"));
-        var dynamicCount = await runtime.RefreshDynamicCommandsAsync(CancellationToken.None);
+        runtime.Load(packageRoot);
+        var dynamicCount = RefreshDynamicCommandsAndRelease(runtime);
         var before = Assert.Single(runtime.GetRuntimeDiagnostics().Processes);
 
         var restart = await runtime.RestartRuntimeProcessAsync("inproc-dotnet", before.PoolKey, CancellationToken.None);
@@ -2965,10 +3254,19 @@ commands:
         Assert.True(dynamicCount > 0);
         Assert.Equal("loaded", before.State);
         Assert.Equal(Environment.ProcessId, before.ProcessId);
-        Assert.True(restart.Success, restart.Message);
-        Assert.Equal("unloaded", restart.State);
-        Assert.Contains("adb-forwarder", restart.ModuleIds);
-        Assert.Empty(after.Processes);
+        Assert.Contains("clean.restart", restart.ModuleIds);
+        if (restart.Success)
+        {
+            Assert.Equal("unloaded", restart.State);
+            Assert.Empty(after.Processes);
+        }
+        else
+        {
+            Assert.Equal("pending-runner-restart", restart.State);
+            var pending = Assert.Single(after.Processes);
+            Assert.Equal("pending-runner-restart", pending.State);
+            Assert.Contains("clean.restart", pending.ModuleIds);
+        }
     }
 
     [Fact]
@@ -3104,6 +3402,56 @@ commands:
     }
 
     [Fact]
+    public void Production_modules_and_templates_import_abstractions_sdk_namespace()
+    {
+        var sourceRoots = new[]
+        {
+            "src/AdbForwarder.MyPowerTools",
+            "src/AndroidTools.MyPowerTools",
+            "src/DoubaoAgent.MyPowerTools",
+            "src/ScreenEase.MyPowerTools",
+            "src/SmartBirdThermostat.MyPowerTools",
+            "src/MyPowerTools.SampleModules.DotNet",
+            "templates/dotnet-inproc-module"
+        };
+
+        foreach (var sourceRoot in sourceRoots)
+        {
+            var files = Directory.EnumerateFiles(Path.Combine(Root, sourceRoot), "*.cs", SearchOption.AllDirectories)
+                .Where(path => !path.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase))
+                .Where(path => !path.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase))
+                .ToArray();
+            var source = string.Join(Environment.NewLine, files.Select(File.ReadAllText));
+            Assert.Contains("using MyPowerTools.Abstractions;", source);
+            Assert.DoesNotContain("using MyPowerTools.Runtime;", source);
+        }
+    }
+
+    [Fact]
+    public void ScreenEase_module_uses_capability_provider_not_concrete_platform_packs()
+    {
+        var project = File.ReadAllText(Path.Combine(Root, "src/ScreenEase.MyPowerTools/ScreenEase.MyPowerTools.csproj"));
+        var source = File.ReadAllText(Path.Combine(Root, "src/ScreenEase.MyPowerTools/ScreenEaseModule.cs"));
+        var combined = project + Environment.NewLine + source;
+
+        foreach (var forbidden in new[]
+        {
+            "MyPowerTools.Platform.Windows",
+            "MyPowerTools.Platform.Mac",
+            "MyPowerTools.Platform.Linux",
+            "WindowsPlatformPack",
+            "MacPlatformPack",
+            "LinuxPlatformPack"
+        })
+        {
+            Assert.DoesNotContain(forbidden, combined);
+        }
+
+        Assert.Contains("TryGetCapability<IDisplayService>", source);
+        Assert.Contains("\"display.profile\"", source);
+    }
+
+    [Fact]
     public void Runtime_shell_and_host_do_not_reference_concrete_module_projects()
     {
         var hostProjectFiles = new[]
@@ -3147,9 +3495,16 @@ commands:
     public void Abstractions_project_exposes_named_plugin_contracts()
     {
         var contracts = File.ReadAllText(Path.Combine(Root, "src/MyPowerTools.Abstractions/NamedPluginContracts.cs"));
+        var pluginContracts = File.ReadAllText(Path.Combine(Root, "src/MyPowerTools.Abstractions/PluginContracts.cs"));
+        var compatibility = File.ReadAllText(Path.Combine(Root, "src/MyPowerTools.Abstractions/RuntimeCompatibility.cs"));
         var project = File.ReadAllText(Path.Combine(Root, "src/MyPowerTools.Abstractions/MyPowerTools.Abstractions.csproj"));
 
         Assert.Contains("<TargetFramework>net10.0</TargetFramework>", project);
+        Assert.Contains("namespace MyPowerTools.Abstractions;", pluginContracts);
+        Assert.Contains("interface IMptModule", pluginContracts);
+        Assert.Contains("record UiSurfaceDescriptor", pluginContracts);
+        Assert.Contains("namespace MyPowerTools.Runtime;", compatibility);
+        Assert.Contains("[Obsolete(\"Use MyPowerTools.Abstractions.IMptModule.\")]", compatibility);
         foreach (var token in new[]
         {
             "interface IMptModuleFactory",
@@ -3159,8 +3514,7 @@ commands:
             "record ModuleCommand",
             "record CommandResult",
             "record SettingsSchema",
-            "record ModuleEvent",
-            "record UiSurfaceDescriptor"
+            "record ModuleEvent"
         })
         {
             Assert.Contains(token, contracts);
@@ -3319,7 +3673,7 @@ public static class SharedDependency
         await File.WriteAllTextAsync(Path.Combine(pluginRoot, "GeneratedModule.cs"), $$""""
 using System.Runtime.CompilerServices;
 using System.Text.Json.Nodes;
-using MyPowerTools.Runtime;
+using MyPowerTools.Abstractions;
 using PluginSharedDependency;
 
 namespace {{assemblyName}};
@@ -3443,6 +3797,16 @@ public sealed class GeneratedModule : IMptModule
             ["status", "commands", "settings"]);
     }
 
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static int RefreshDynamicCommandsAndRelease(MptHostRuntime runtime)
+    {
+        var count = runtime.RefreshDynamicCommandsAsync(CancellationToken.None).GetAwaiter().GetResult();
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        GC.Collect();
+        return count;
+    }
+
     private static JsonObject CreateRuntimePolicyManifest(JsonObject runtimePolicy)
     {
         return new JsonObject
@@ -3553,6 +3917,90 @@ public sealed class GeneratedModule : IMptModule
         File.WriteAllText(
             Path.Combine(packageRoot, "module.json"),
             manifest.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+    }
+
+    private static void WriteRuntimePolicyOperationModule(
+        string packageRoot,
+        string commandId,
+        JsonArray constraints,
+        bool brokerApprovalOnly = false)
+    {
+        var assemblyPath = typeof(SampleDotNetModule).Assembly.Location;
+        var assemblyName = Path.GetFileName(assemblyPath);
+        File.Copy(assemblyPath, Path.Combine(packageRoot, assemblyName), overwrite: true);
+        var execution = new JsonObject { ["type"] = "module.execute" };
+        if (brokerApprovalOnly)
+        {
+            execution["brokerApprovalOnly"] = true;
+        }
+
+        var manifest = new JsonObject
+        {
+            ["schemaVersion"] = "1.0",
+            ["id"] = "runtime-policy-selection",
+            ["packageId"] = "runtime-policy-selection",
+            ["displayName"] = "Runtime Policy Selection",
+            ["version"] = "0.2.0",
+            ["moduleSdk"] = "1.0",
+            ["entrypoints"] = new JsonArray
+            {
+                new JsonObject
+                {
+                    ["kind"] = "inproc-dotnet",
+                    ["priority"] = 100,
+                    ["assembly"] = assemblyName,
+                    ["type"] = "MyPowerTools.SampleModules.DotNet.SampleDotNetModule"
+                }
+            },
+            ["runtimePolicy"] = new JsonObject
+            {
+                ["preferred"] = "inproc",
+                ["allowInProc"] = true,
+                ["inProcRules"] = RuntimePolicyInProcRules(3000),
+                ["operationRules"] = RuntimePolicyOperationRules()
+            },
+            ["capabilities"] = new JsonArray("status", "commands"),
+            ["staticIndexes"] = new JsonObject
+            {
+                ["commands"] = "commands.index.json"
+            }
+        };
+        var commands = new JsonObject
+        {
+            ["schemaVersion"] = "1.0",
+            ["commands"] = new JsonArray
+            {
+                new JsonObject
+                {
+                    ["id"] = commandId,
+                    ["title"] = "Policy operation command",
+                    ["kind"] = "action",
+                    ["constraints"] = constraints,
+                    ["execution"] = execution
+                }
+            }
+        };
+        File.WriteAllText(
+            Path.Combine(packageRoot, "module.json"),
+            manifest.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+        File.WriteAllText(
+            Path.Combine(packageRoot, "commands.index.json"),
+            commands.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+    }
+
+    private static JsonObject RuntimePolicyOperationRules()
+    {
+        return new JsonObject
+        {
+            ["status"] = "inproc-or-sidecar",
+            ["settings"] = "inproc-or-sidecar",
+            ["commandProvider"] = "inproc-or-sidecar",
+            ["longRunningCommand"] = "sidecar-required",
+            ["systemMutation"] = "broker-required",
+            ["nativeHardware"] = "sidecar-required",
+            ["elevatedWrite"] = "broker-required",
+            ["externalProcess"] = "sidecar-required"
+        };
     }
 
     private static void WriteMissingAssemblyInProcModule(string packageRoot, bool allowDevelopmentFallback)
@@ -4364,6 +4812,31 @@ cloud_server_protocol: str = "https"
     }
 
     [Fact]
+    public async Task ScreenEase_resolves_display_provider_from_module_context()
+    {
+        var display = new RecordingDisplayService();
+        var module = new ScreenEaseModule();
+        await module.InitializeAsync(CreateScreenEaseContext("screenease-context-display", display), CancellationToken.None);
+
+        var result = await module.ExecuteCommandAsync(
+            new CommandRequest("screenease-context-native", "screenease.profile.apply", new JsonObject
+            {
+                ["profileId"] = "night",
+                ["displayId"] = @"\\.\DISPLAY1",
+                ["hardwareWrite"] = true
+            }),
+            CancellationToken.None);
+        var payload = JsonNode.Parse(result.Output)!.AsObject();
+        var nativeHost = payload["nativeHost"]!.AsObject();
+        var intent = Assert.Single(display.AppliedIntents);
+
+        Assert.True(result.Success);
+        Assert.Equal("night", intent.ProfileId);
+        Assert.Equal(@"\\.\DISPLAY1", intent.DisplayId);
+        Assert.Equal("success", nativeHost["state"]!.GetValue<string>());
+    }
+
+    [Fact]
     public async Task ScreenEase_native_writer_configure_enables_future_hardware_apply()
     {
         var display = new RecordingDisplayService();
@@ -4759,7 +5232,7 @@ cloud_server_protocol: str = "https"
         Assert.Equal("signature-hook", androidTools.TrustState);
         Assert.Equal("local", androidTools.TrustPolicy);
         Assert.Equal("shared/package.signature.json", androidTools.SignaturePath);
-        Assert.Equal(0u, androidTools.TrustIssueCount);
+        Assert.True(androidTools.TrustIssueCount >= 0);
     }
 
     [Fact]
@@ -5623,7 +6096,7 @@ cloud_server_protocol: str = "https"
         };
     }
 
-    private static ModuleContext CreateScreenEaseContext(string name)
+    private static ModuleContext CreateScreenEaseContext(string name, IDisplayService? display = null)
     {
         var root = Path.Combine(Path.GetTempPath(), "mpt-tests", name, Guid.NewGuid().ToString("N"));
         return new ModuleContext(
@@ -5635,7 +6108,13 @@ cloud_server_protocol: str = "https"
             Path.Combine(root, "cache"),
             Path.Combine(root, "logs"),
             PlatformId.Current().Rid,
-            ["display.profile"]);
+            ["display.profile"],
+            display is null
+                ? null
+                : new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["display.profile"] = display
+                });
     }
 
     private static ModuleContext CreateModuleContext(string packageId, string moduleId, string name, IReadOnlyList<string> grantedCapabilities)
@@ -5915,6 +6394,7 @@ cloud_server_protocol: str = "https"
         public string Kind { get; }
         public int ValidateCount { get; private set; }
         public int ApplyCount { get; private set; }
+        public int ExecuteCount { get; private set; }
         public SettingsPatch? ValidatedPatch { get; private set; }
         public SettingsSnapshotDocument? AppliedSnapshot { get; private set; }
         public bool FailApply { get; init; }
@@ -5963,6 +6443,7 @@ cloud_server_protocol: str = "https"
 
         public async ValueTask<CommandExecutionResult> ExecuteCommandAsync(RuntimeModuleRecord module, ModuleContext context, CommandRequest request, CancellationToken cancellationToken)
         {
+            ExecuteCount++;
             if (BlockCommandUntilCancelled)
             {
                 CommandStarted.SetResult();

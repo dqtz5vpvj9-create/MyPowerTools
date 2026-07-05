@@ -12,6 +12,7 @@ using MyPowerTools.Shell.Avalonia;
 using System.Globalization;
 using System.Text.Json.Nodes;
 using MyPowerTools.HostControl;
+using CommandRequest = MyPowerTools.Abstractions.CommandRequest;
 
 var root = FindRepositoryRoot(AppContext.BaseDirectory);
 var command = args.FirstOrDefault() ?? "help";
@@ -771,7 +772,21 @@ static MptHostRuntime CreateRuntime(string? dataRoot = null)
     var paths = string.IsNullOrWhiteSpace(dataRoot)
         ? RuntimePaths.CreateDefault()
         : RuntimePaths.Create(Path.GetFullPath(dataRoot));
-    return new MptHostRuntime(new PackageReader(), PlatformId.Current(), paths, CreateTransportRuntimes());
+    return new MptHostRuntime(new PackageReader(), PlatformId.Current(), paths, CreateTransportRuntimes(), CreateCapabilityProviders());
+}
+
+static IReadOnlyDictionary<string, object> CreateCapabilityProviders()
+{
+    if (!OperatingSystem.IsWindows())
+    {
+        return new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+    }
+
+    var platform = new WindowsPlatformPack();
+    return new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase)
+    {
+        ["display.profile"] = platform.Display
+    };
 }
 
 static void DisposeRuntime(MptHostRuntime runtime)

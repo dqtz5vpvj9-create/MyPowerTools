@@ -38,6 +38,15 @@
       "subtitle": "Enable or disable hardware writes for future profile apply commands",
       "kind": "action",
       "category": "ScreenEase",
+      "parameters": [
+        {
+          "id": "enabled",
+          "label": "Enabled",
+          "type": "boolean",
+          "required": false,
+          "defaultValue": "true"
+        }
+      ],
       "execution": {
         "type": "module.execute"
       }

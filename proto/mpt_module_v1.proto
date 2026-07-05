@@ -9,6 +9,7 @@ service ModuleControl {
   rpc GetStatus(GetStatusRequest) returns (ModuleStatus);
   rpc ListCommands(ListCommandsRequest) returns (ListCommandsResponse);
   rpc ExecuteCommand(ExecuteCommandRequest) returns (CommandExecution);
+  rpc ExecuteCommandStream(ExecuteCommandRequest) returns (stream CommandExecutionEvent);
   rpc CancelCommand(CancelCommandRequest) returns (CancelCommandResponse);
   rpc GetSettingsSchema(GetSettingsSchemaRequest) returns (SettingsSchema);
   rpc GetSettings(GetSettingsRequest) returns (SettingsSnapshot);
@@ -111,6 +112,17 @@ message CommandExecution {
   bool success = 4;
   string output = 5;
   MptError error = 6;
+}
+
+message CommandExecutionEvent {
+  string invocation_id = 1;
+  string command_id = 2;
+  string state = 3;
+  string message = 4;
+  uint32 sequence = 5;
+  bool terminal = 6;
+  CommandExecution final_result = 7;
+  string channel = 8;
 }
 
 enum CommandState {

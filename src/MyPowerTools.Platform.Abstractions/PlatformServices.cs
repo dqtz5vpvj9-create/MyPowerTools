@@ -459,3 +459,37 @@ public interface IDisplayService
     Task<DisplayWriterStatus> GetWriterStatusAsync(CancellationToken cancellationToken);
     Task<BrokerOperationResult> ApplyProfileAsync(DisplayProfileIntent intent, CancellationToken cancellationToken);
 }
+
+public sealed class UnsupportedDisplayService : IDisplayService
+{
+    private readonly string _provider;
+    private readonly string _message;
+
+    public UnsupportedDisplayService(string provider, string message)
+    {
+        _provider = provider;
+        _message = message;
+    }
+
+    public Task<IReadOnlyList<DisplaySnapshot>> ListDisplaysAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        IReadOnlyList<DisplaySnapshot> displays =
+        [
+            new("display.unsupported", _provider, "unsupported", 0, 0, 0, "unknown", false, _message)
+        ];
+        return Task.FromResult(displays);
+    }
+
+    public Task<DisplayWriterStatus> GetWriterStatusAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(new DisplayWriterStatus(false, "unsupported", $"{_provider}: {_message}"));
+    }
+
+    public Task<BrokerOperationResult> ApplyProfileAsync(DisplayProfileIntent intent, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(new BrokerOperationResult(false, "unsupported", $"{_provider}: {_message}"));
+    }
+}

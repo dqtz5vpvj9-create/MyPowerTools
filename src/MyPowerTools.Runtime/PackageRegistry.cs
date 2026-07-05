@@ -41,14 +41,14 @@ public sealed class PackageRegistry
                     module,
                     entrypoint,
                     selection.Diagnostics,
-                    new ModuleStatusSnapshot(
+                    new MyPowerTools.Abstractions.ModuleStatusSnapshot(
                         module.Manifest.Id,
                         state,
                         summary,
                         DateTimeOffset.UtcNow,
                         [
-                            new HealthCheckSnapshot("manifest", "Manifest", true, "Loaded"),
-                            new HealthCheckSnapshot("transport", "Transport", entrypoint is not null, entrypoint?.SelectionReason ?? "No compatible entrypoint")
+                            new MyPowerTools.Abstractions.HealthCheckSnapshot("manifest", "Manifest", true, "Loaded"),
+                            new MyPowerTools.Abstractions.HealthCheckSnapshot("transport", "Transport", entrypoint is not null, entrypoint?.SelectionReason ?? "No compatible entrypoint")
                         ],
                         0)));
             }
@@ -60,7 +60,7 @@ public sealed class PackageRegistry
         return _modules.FirstOrDefault(module => string.Equals(module.Module.Manifest.Id, moduleId, StringComparison.OrdinalIgnoreCase));
     }
 
-    public void UpdateStatus(string moduleId, ModuleStatusSnapshot status)
+    public void UpdateStatus(string moduleId, MyPowerTools.Abstractions.ModuleStatusSnapshot status)
     {
         var index = _modules.FindIndex(module => string.Equals(module.Module.Manifest.Id, moduleId, StringComparison.OrdinalIgnoreCase));
         if (index >= 0)

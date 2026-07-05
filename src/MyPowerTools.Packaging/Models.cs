@@ -72,6 +72,7 @@ public sealed class MptModuleManifest
     public List<MptPermissionManifest> Permissions { get; init; } = [];
     public List<string> Surfaces { get; init; } = [];
     public List<string> UiSurfaces { get; init; } = [];
+    public List<MptHotkeyManifest> Hotkeys { get; init; } = [];
     public Dictionary<string, JsonElement>? StaticIndexes { get; init; }
     public MptRuntimePolicyManifest? RuntimePolicy { get; init; }
     public MptDevelopmentManifest? Development { get; init; }
@@ -119,6 +120,22 @@ public sealed class MptRuntimePolicyManifest
     public bool AllowInProc { get; init; }
     public MptInProcRuntimeRulesManifest? InProcRules { get; init; }
     public MptSidecarRuntimeRulesManifest? SidecarRules { get; init; }
+    public MptRuntimeOperationRulesManifest? OperationRules { get; init; }
+
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement> ExtensionData { get; init; } = [];
+}
+
+public sealed class MptRuntimeOperationRulesManifest
+{
+    public string? Status { get; init; }
+    public string? Settings { get; init; }
+    public string? CommandProvider { get; init; }
+    public string? LongRunningCommand { get; init; }
+    public string? SystemMutation { get; init; }
+    public string? NativeHardware { get; init; }
+    public string? ElevatedWrite { get; init; }
+    public string? ExternalProcess { get; init; }
 
     [JsonExtensionData]
     public Dictionary<string, JsonElement> ExtensionData { get; init; } = [];
@@ -169,6 +186,15 @@ public sealed class MptPermissionManifest
     public string Id { get; init; } = "";
     public string Level { get; init; } = "";
     public string? Capability { get; init; }
+    public string Reason { get; init; } = "";
+}
+
+public sealed class MptHotkeyManifest
+{
+    public string Id { get; init; } = "";
+    public string Default { get; init; } = "";
+    public string CommandId { get; init; } = "";
+    public string Scope { get; init; } = "module";
     public string Reason { get; init; } = "";
 }
 

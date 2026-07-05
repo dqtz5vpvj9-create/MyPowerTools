@@ -35,6 +35,28 @@
     "requiresElevation": {
       "type": "boolean"
     },
+    "constraints": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/operationConstraint"
+      },
+      "uniqueItems": true
+    },
+    "mutatesSystemState": {
+      "type": "boolean"
+    },
+    "requiresElevatedWrites": {
+      "type": "boolean"
+    },
+    "usesNativeHardware": {
+      "type": "boolean"
+    },
+    "runsExternalProcesses": {
+      "type": "boolean"
+    },
+    "requiresLongRunningLoop": {
+      "type": "boolean"
+    },
     "parameters": {
       "type": "array",
       "items": {
@@ -43,6 +65,18 @@
     },
     "timeoutMs": {
       "type": "integer"
+    }
+  },
+  "$defs": {
+    "operationConstraint": {
+      "type": "string",
+      "enum": [
+        "mutatesSystemState",
+        "requiresElevatedWrites",
+        "usesNativeHardware",
+        "runsExternalProcesses",
+        "requiresLongRunningLoop"
+      ]
     }
   },
   "additionalProperties": true

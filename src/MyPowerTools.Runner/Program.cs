@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using MyPowerTools.HostControl;
 using MyPowerTools.ModuleHost.GrpcIpc;
@@ -9,11 +10,13 @@ using MyPowerTools.Platform.Abstractions;
 using MyPowerTools.Platform.Windows;
 using MyPowerTools.Protocol;
 using MyPowerTools.Runtime;
+using CommandRequest = MyPowerTools.Abstractions.CommandRequest;
 
 var root = FindRepositoryRoot(AppContext.BaseDirectory);
 var modulesRoot = GetOption(args, "--modules") ?? Path.Combine(root, "modules");
 var once = args.Contains("--once", StringComparer.OrdinalIgnoreCase);
 var platform = PlatformId.Current();
+var windowsPlatform = OperatingSystem.IsWindows() ? new WindowsPlatformPack() : null;
 var dataRoot = GetOption(args, "--data-root") ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MyPowerTools");
 var runtimePaths = RuntimePaths.Create(dataRoot);
 
@@ -24,7 +27,7 @@ if (!guard.OwnsInstance && !once)
     return 2;
 }
 
-await using var runtime = new MptHostRuntime(new PackageReader(), platform, runtimePaths, CreateTransportRuntimes());
+await using var runtime = new MptHostRuntime(new PackageReader(), platform, runtimePaths, CreateTransportRuntimes(), CreateCapabilityProviders(windowsPlatform));
 runtime.Load(modulesRoot);
 await runtime.RefreshDynamicCommandsAsync(CancellationToken.None);
 
@@ -70,9 +73,8 @@ app.MapGrpcService<HostControlGrpcService>();
 app.MapGet("/", () => $"MyPowerTools.Runner {ProtocolConstants.HostVersion} is running.");
 
 Console.WriteLine($"MyPowerTools.Runner serving HostControl on {endpoint.Transport}:{endpoint.Address}");
-var windowsPlatform = OperatingSystem.IsWindows() ? new WindowsPlatformPack() : null;
 var tray = await StartTrayAsync(app, root, args, windowsPlatform);
-var hotkeys = await StartHotkeysAsync(root, args, windowsPlatform);
+var hotkeys = await StartHotkeysAsync(root, args, windowsPlatform, runtime);
 try
 {
     await app.RunAsync();
@@ -113,6 +115,19 @@ static IModuleTransportRuntime[] CreateTransportRuntimes()
         new GrpcIpcModuleRuntime(),
         new StdioCompatModuleHost()
     ];
+}
+
+static IReadOnlyDictionary<string, object> CreateCapabilityProviders(WindowsPlatformPack? windowsPlatform)
+{
+    if (windowsPlatform is null || !OperatingSystem.IsWindows())
+    {
+        return new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+    }
+
+    return new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase)
+    {
+        ["display.profile"] = windowsPlatform.Display
+    };
 }
 
 static async Task<ITrayService?> StartTrayAsync(WebApplication app, string root, string[] args, WindowsPlatformPack? platform)
@@ -161,7 +176,7 @@ static async Task<ITrayService?> StartTrayAsync(WebApplication app, string root,
     return null;
 }
 
-static async Task<IHotkeyService?> StartHotkeysAsync(string root, string[] args, WindowsPlatformPack? platform)
+static async Task<IHotkeyService?> StartHotkeysAsync(string root, string[] args, WindowsPlatformPack? platform, MptHostRuntime runtime)
 {
     if (args.Contains("--no-hotkeys", StringComparer.OrdinalIgnoreCase) ||
         platform is null ||
@@ -171,28 +186,59 @@ static async Task<IHotkeyService?> StartHotkeysAsync(string root, string[] args,
     }
 
     var hotkeys = platform.Hotkeys;
+    var moduleHotkeys = runtime.ListHotkeyBindings();
+    var commandByHotkeyId = moduleHotkeys.ToDictionary(binding => binding.Id, binding => binding.CommandId, StringComparer.OrdinalIgnoreCase);
     hotkeys.Pressed += (_, invocation) =>
     {
-        if (!string.Equals(invocation.Id, "command-palette", StringComparison.OrdinalIgnoreCase))
+        if (string.Equals(invocation.Id, "command-palette", StringComparison.OrdinalIgnoreCase))
+        {
+            try
+            {
+                StartShell(root, focusCommandPalette: true);
+                Console.WriteLine($"MyPowerTools.Runner hotkey invoked: {invocation.Gesture}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"MyPowerTools.Runner hotkey action failed: {ex.Message}");
+            }
+
+            return;
+        }
+
+        if (!commandByHotkeyId.TryGetValue(invocation.Id, out var commandId))
         {
             return;
         }
 
-        try
+        _ = Task.Run(async () =>
         {
-            StartShell(root, focusCommandPalette: true);
-            Console.WriteLine($"MyPowerTools.Runner hotkey invoked: {invocation.Gesture}");
-        }
-        catch (Exception ex)
-        {
-            Console.WriteLine($"MyPowerTools.Runner hotkey action failed: {ex.Message}");
-        }
+            try
+            {
+                var result = await runtime.ExecuteCommandAsync(
+                    new CommandRequest($"hotkey-{Guid.NewGuid():N}", commandId, new JsonObject()),
+                    CancellationToken.None);
+                Console.WriteLine($"MyPowerTools.Runner hotkey command {commandId}: {result.State}");
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"MyPowerTools.Runner hotkey command {commandId} failed: {ex.Message}");
+            }
+        });
     };
 
     var result = await hotkeys.RegisterAsync(
         new HotkeyRegistration("command-palette", "Ctrl+Alt+Space", "runner", "Open the command palette."),
         CancellationToken.None);
     Console.WriteLine($"MyPowerTools.Runner hotkey {result.State}: {result.Message}");
+
+    foreach (var binding in moduleHotkeys)
+    {
+        result = await hotkeys.RegisterAsync(
+            new HotkeyRegistration(binding.Id, binding.Gesture, binding.Scope, binding.Reason),
+            CancellationToken.None);
+        Console.WriteLine($"MyPowerTools.Runner module hotkey {result.State}: {result.Message}");
+    }
+
     return hotkeys;
 }
 

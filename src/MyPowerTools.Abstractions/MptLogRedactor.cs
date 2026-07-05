@@ -1,6 +1,6 @@
 using System.Text.RegularExpressions;
 
-namespace MyPowerTools.Runtime;
+namespace MyPowerTools.Abstractions;
 
 public static class MptLogRedactor
 {

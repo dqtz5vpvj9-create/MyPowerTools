@@ -20,6 +20,19 @@
       "category": "AdbForwarder",
       "requiresElevation": true,
       "dangerLevel": "medium",
+      "parameters": [
+        {
+          "id": "reason",
+          "label": "Reason",
+          "type": "multiline",
+          "required": false,
+          "defaultValue": "Apply configured ADB port forwarding rules through NetworkBroker."
+        }
+      ],
+      "constraints": [
+        "mutatesSystemState",
+        "requiresElevatedWrites"
+      ],
       "execution": {
         "type": "broker.request",
         "actionId": "network.portproxy.apply",
@@ -35,6 +48,19 @@
       "category": "AdbForwarder",
       "requiresElevation": true,
       "dangerLevel": "medium",
+      "parameters": [
+        {
+          "id": "reason",
+          "label": "Reason",
+          "type": "multiline",
+          "required": false,
+          "defaultValue": "Revert configured ADB port forwarding rules through NetworkBroker."
+        }
+      ],
+      "constraints": [
+        "mutatesSystemState",
+        "requiresElevatedWrites"
+      ],
       "execution": {
         "type": "broker.request",
         "actionId": "network.portproxy.remove",

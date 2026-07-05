@@ -1,6 +1,6 @@
 using System.Runtime.CompilerServices;
 using System.Text.Json.Nodes;
-using MyPowerTools.Runtime;
+using MyPowerTools.Abstractions;
 
 namespace MyPowerTools.SampleModules.DotNet;
 
@@ -48,7 +48,15 @@ public sealed class SampleDotNetModule : IMptModule
     public async IAsyncEnumerable<MptModuleEvent> SubscribeEventsAsync(EventCursor cursor, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         await Task.CompletedTask;
-        yield break;
+        if (cursor.LastEventSeq < 1)
+        {
+            yield return new MptModuleEvent(
+                Id,
+                1,
+                "sample.heartbeat",
+                DateTimeOffset.UtcNow,
+                new JsonObject { ["message"] = "sample module event stream is active" });
+        }
     }
 
     public ValueTask<SettingsSchemaDocument> GetSettingsSchemaAsync(CancellationToken cancellationToken)
@@ -158,3 +166,4 @@ public sealed class LeakyDotNetModule : IMptModule
     {
     }
 }
+

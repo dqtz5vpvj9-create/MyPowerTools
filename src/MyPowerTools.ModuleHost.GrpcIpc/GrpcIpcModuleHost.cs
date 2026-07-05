@@ -2,6 +2,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.IO.Pipes;
 using System.Net.Sockets;
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using Grpc.Core;
@@ -10,6 +11,20 @@ using MyPowerTools.Platform.Abstractions;
 using MyPowerTools.Protocol;
 using MyPowerTools.Protocol.Module.V1;
 using MyPowerTools.Runtime;
+using CommandExecutionResult = MyPowerTools.Abstractions.CommandExecutionResult;
+using CommandParameterDescriptor = MyPowerTools.Abstractions.CommandParameterDescriptor;
+using CommandRequest = MyPowerTools.Abstractions.CommandRequest;
+using EventCursor = MyPowerTools.Abstractions.EventCursor;
+using HealthCheckSnapshot = MyPowerTools.Abstractions.HealthCheckSnapshot;
+using ModuleContext = MyPowerTools.Abstractions.ModuleContext;
+using ModuleStatusSnapshot = MyPowerTools.Abstractions.ModuleStatusSnapshot;
+using MptCommandDescriptor = MyPowerTools.Abstractions.MptCommandDescriptor;
+using MptModuleEvent = MyPowerTools.Abstractions.MptModuleEvent;
+using MptRuntimeError = MyPowerTools.Abstractions.MptRuntimeError;
+using SettingsPatch = MyPowerTools.Abstractions.SettingsPatch;
+using SettingsSchemaDocument = MyPowerTools.Abstractions.SettingsSchemaDocument;
+using SettingsSnapshotDocument = MyPowerTools.Abstractions.SettingsSnapshotDocument;
+using SettingsValidationResult = MyPowerTools.Abstractions.SettingsValidationResult;
 
 namespace MyPowerTools.ModuleHost.GrpcIpc;
 
@@ -183,13 +198,113 @@ public sealed class GrpcIpcModuleHost : IAsyncDisposable
 
         var response = await client.ExecuteCommandAsync(grpcRequest, cancellationToken: cancellationToken);
 
+        return ToCommandExecutionResult(response);
+    }
+
+    public async IAsyncEnumerable<CommandProgressEvent> ExecuteCommandStreamAsync(
+        string moduleId,
+        CommandRequest request,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        var client = EnsureClient();
+        var grpcRequest = new ExecuteCommandRequest
+        {
+            ModuleId = moduleId,
+            CommandId = request.CommandId,
+            InvocationId = request.InvocationId
+        };
+        foreach (var argument in ToGrpcArgs(request.Args))
+        {
+            grpcRequest.Args[argument.Key] = argument.Value;
+        }
+
+        using var call = client.ExecuteCommandStream(grpcRequest, cancellationToken: cancellationToken);
+        while (true)
+        {
+            MyPowerTools.Protocol.Module.V1.CommandExecutionEvent? current = null;
+            CommandExecutionResult? fallback = null;
+            try
+            {
+                if (!await call.ResponseStream.MoveNext(cancellationToken))
+                {
+                    break;
+                }
+
+                current = call.ResponseStream.Current;
+            }
+            catch (RpcException ex) when (ex.StatusCode == StatusCode.Unimplemented)
+            {
+                fallback = await ExecuteCommandAsync(moduleId, request, cancellationToken);
+            }
+
+            if (fallback is not null)
+            {
+                yield return new CommandProgressEvent(
+                    fallback.InvocationId,
+                    fallback.CommandId,
+                    fallback.State,
+                    fallback.Success ? fallback.Output : fallback.Error?.Message ?? "Command failed.",
+                    0,
+                    true,
+                    fallback);
+                yield break;
+            }
+
+            if (current is null)
+            {
+                break;
+            }
+
+            yield return new CommandProgressEvent(
+                current.InvocationId,
+                current.CommandId,
+                current.State,
+                current.Message,
+                (int)current.Sequence,
+                current.Terminal,
+                current.FinalResult is null ? null : ToCommandExecutionResult(current.FinalResult));
+        }
+    }
+
+    public async IAsyncEnumerable<MptModuleEvent> SubscribeEventsAsync(
+        string moduleId,
+        EventCursor cursor,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        var client = EnsureClient();
+        using var call = client.SubscribeEvents(new SubscribeEventsRequest
+        {
+            ModuleId = moduleId,
+            LastEventSeq = cursor.LastEventSeq
+        }, cancellationToken: cancellationToken);
+
+        while (await call.ResponseStream.MoveNext(cancellationToken))
+        {
+            var evt = call.ResponseStream.Current;
+            yield return new MptModuleEvent(
+                evt.ModuleId,
+                evt.Seq,
+                evt.Type,
+                DateTimeOffset.TryParse(evt.Time, out var time) ? time : DateTimeOffset.UtcNow,
+                ParseJsonObject(evt.PayloadJson));
+        }
+    }
+
+    private static CommandExecutionResult ToCommandExecutionResult(CommandExecution response)
+    {
         return new CommandExecutionResult(
             response.InvocationId,
             response.CommandId,
             response.State.ToString().Replace("COMMAND_STATE_", "", StringComparison.OrdinalIgnoreCase).ToLowerInvariant(),
             response.Success,
             response.Output,
-            response.Error is null ? null : new MptRuntimeError(response.Error.Code, response.Error.Message, response.Error.Retryable));
+            response.Error is null
+                ? null
+                : new MptRuntimeError(
+                    response.Error.Code,
+                    response.Error.Message,
+                    response.Error.Retryable,
+                    string.IsNullOrWhiteSpace(response.Error.DetailsJson) ? null : ParseJsonObject(response.Error.DetailsJson)));
     }
 
     private static IEnumerable<KeyValuePair<string, string>> ToGrpcArgs(JsonObject args)
@@ -475,6 +590,32 @@ public sealed class GrpcIpcModuleRuntime : IModuleTransportRuntime, IModuleTrans
     public async ValueTask<CommandExecutionResult> ExecuteCommandAsync(RuntimeModuleRecord module, ModuleContext context, CommandRequest request, CancellationToken cancellationToken)
     {
         return await ExecuteWithRestartAsync(module, context, host => host.ExecuteCommandAsync(module.Module.Manifest.Id, request, cancellationToken), cancellationToken);
+    }
+
+    public async IAsyncEnumerable<CommandProgressEvent> ExecuteCommandStreamAsync(
+        RuntimeModuleRecord module,
+        ModuleContext context,
+        CommandRequest request,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        var host = await GetHostAsync(module, context, cancellationToken);
+        await foreach (var evt in host.ExecuteCommandStreamAsync(module.Module.Manifest.Id, request, cancellationToken).WithCancellation(cancellationToken))
+        {
+            yield return evt;
+        }
+    }
+
+    public async IAsyncEnumerable<MptModuleEvent> SubscribeEventsAsync(
+        RuntimeModuleRecord module,
+        ModuleContext context,
+        EventCursor cursor,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        var host = await GetHostAsync(module, context, cancellationToken);
+        await foreach (var evt in host.SubscribeEventsAsync(module.Module.Manifest.Id, cursor, cancellationToken).WithCancellation(cancellationToken))
+        {
+            yield return evt;
+        }
     }
 
     public async ValueTask DisposeAsync()

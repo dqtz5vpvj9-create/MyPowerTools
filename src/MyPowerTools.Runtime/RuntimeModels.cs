@@ -7,7 +7,7 @@ public sealed record RuntimeModuleRecord(
     MptModuleDefinition Module,
     SelectedEntrypoint? Entrypoint,
     IReadOnlyList<TransportSelectionDiagnostic> TransportDiagnostics,
-    ModuleStatusSnapshot Status);
+    MyPowerTools.Abstractions.ModuleStatusSnapshot Status);
 
 public sealed record SelectedEntrypoint(
     string Kind,
@@ -48,6 +48,14 @@ public sealed record DashboardMetric(string Label, string Value);
 
 public sealed record DashboardAction(string CommandId, string Title, string Style);
 
+public sealed record RuntimeHotkeyBinding(
+    string Id,
+    string ModuleId,
+    string CommandId,
+    string Gesture,
+    string Scope,
+    string Reason);
+
 public sealed record HostAlert(string Id, string Level, string Title, string Body);
 
 public sealed record DashboardSnapshot(IReadOnlyList<DashboardCard> Cards, IReadOnlyList<HostAlert> Alerts, ulong EventSeq);
@@ -73,7 +81,7 @@ public sealed record ModuleDetailSnapshot(
     string DisplayName,
     string State,
     string Summary,
-    IReadOnlyList<HealthCheckSnapshot> Diagnostics,
+    IReadOnlyList<MyPowerTools.Abstractions.HealthCheckSnapshot> Diagnostics,
     IReadOnlyList<ModulePermissionSnapshot> Permissions,
     IReadOnlyList<ModuleRequirementSnapshot> Requirements);
 
@@ -182,7 +190,7 @@ public sealed record CommandProgressEvent(
     string Message,
     int Sequence,
     bool Terminal,
-    CommandExecutionResult? FinalResult = null);
+    MyPowerTools.Abstractions.CommandExecutionResult? FinalResult = null);
 
 public sealed record RuntimeProcessPolicySnapshot(
     ulong Revision,

@@ -5,6 +5,8 @@ using MyPowerTools.Platform.Abstractions;
 using MyPowerTools.Protocol;
 using MyPowerTools.Runtime;
 using MyPowerTools.UI;
+using ModuleContext = MyPowerTools.Abstractions.ModuleContext;
+using MptCommandDescriptor = MyPowerTools.Abstractions.MptCommandDescriptor;
 
 namespace MyPowerTools.Cli;
 

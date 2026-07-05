@@ -2,6 +2,14 @@ using MyPowerTools.Runtime;
 using System.Diagnostics;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using CommandExecutionResult = MyPowerTools.Abstractions.CommandExecutionResult;
+using CommandRequest = MyPowerTools.Abstractions.CommandRequest;
+using HealthCheckSnapshot = MyPowerTools.Abstractions.HealthCheckSnapshot;
+using ModuleContext = MyPowerTools.Abstractions.ModuleContext;
+using ModuleStatusSnapshot = MyPowerTools.Abstractions.ModuleStatusSnapshot;
+using MptCommandDescriptor = MyPowerTools.Abstractions.MptCommandDescriptor;
+using MptRuntimeError = MyPowerTools.Abstractions.MptRuntimeError;
+using SettingsSchemaDocument = MyPowerTools.Abstractions.SettingsSchemaDocument;
 
 namespace MyPowerTools.ModuleHost.StdioCompat;
 

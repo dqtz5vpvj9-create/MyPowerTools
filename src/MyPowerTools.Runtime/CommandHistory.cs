@@ -1,3 +1,5 @@
+using Sdk = MyPowerTools.Abstractions;
+
 namespace MyPowerTools.Runtime;
 
 public sealed class CommandHistory
@@ -5,7 +7,7 @@ public sealed class CommandHistory
     private readonly List<CommandHistoryRecord> _records = [];
     private readonly object _gate = new();
 
-    public CommandHistoryRecord Add(CommandRequest request, MptCommandDescriptor? descriptor, string state)
+    public CommandHistoryRecord Add(Sdk.CommandRequest request, Sdk.MptCommandDescriptor? descriptor, string state)
     {
         var record = new CommandHistoryRecord(
             request.InvocationId,
@@ -23,7 +25,7 @@ public sealed class CommandHistory
         return record;
     }
 
-    public void Complete(CommandExecutionResult result)
+    public void Complete(Sdk.CommandExecutionResult result)
     {
         lock (_gate)
         {

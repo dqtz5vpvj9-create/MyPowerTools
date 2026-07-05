@@ -4,9 +4,6 @@
     <ProjectReference Include="..\MyPowerTools.Abstractions\MyPowerTools.Abstractions.csproj" />
     <ProjectReference Include="..\MyPowerTools.Protocol\MyPowerTools.Protocol.csproj" />
     <ProjectReference Include="..\MyPowerTools.Platform.Abstractions\MyPowerTools.Platform.Abstractions.csproj" />
-    <ProjectReference Include="..\MyPowerTools.Platform.Windows\MyPowerTools.Platform.Windows.csproj" />
-    <ProjectReference Include="..\MyPowerTools.Platform.Mac\MyPowerTools.Platform.Mac.csproj" />
-    <ProjectReference Include="..\MyPowerTools.Platform.Linux\MyPowerTools.Platform.Linux.csproj" />
   </ItemGroup>
 
   <PropertyGroup>
@@ -18,8 +15,8 @@
 
   <Target Name="CopyModuleAssemblyToPackage" AfterTargets="Build">
     <ItemGroup>
-      <ModuleDependencyFiles Include="$(TargetDir)MyPowerTools.Platform.*.dll" />
-      <ModuleDependencyFiles Include="$(TargetDir)MyPowerTools.Platform.*.pdb" />
+      <ModuleDependencyFiles Include="$(TargetDir)MyPowerTools.Platform.Abstractions.dll" />
+      <ModuleDependencyFiles Include="$(TargetDir)MyPowerTools.Platform.Abstractions.pdb" />
     </ItemGroup>
     <MakeDir Directories="$(ModulePackageRoot)" />
     <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(ModulePackageRoot)" />

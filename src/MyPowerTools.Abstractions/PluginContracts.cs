@@ -1,7 +1,7 @@
 using System.Runtime.CompilerServices;
 using System.Text.Json.Nodes;
 
-namespace MyPowerTools.Runtime;
+namespace MyPowerTools.Abstractions;
 
 public interface IMptModule
 {
@@ -13,6 +13,19 @@ public interface IMptModule
     ValueTask<ModuleStatusSnapshot> GetStatusAsync(CancellationToken cancellationToken);
     ValueTask<IReadOnlyList<MptCommandDescriptor>> ListCommandsAsync(CancellationToken cancellationToken);
     ValueTask<CommandExecutionResult> ExecuteCommandAsync(CommandRequest request, CancellationToken cancellationToken);
+    async IAsyncEnumerable<CommandExecutionEvent> ExecuteCommandStreamAsync(CommandRequest request, [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        var result = await ExecuteCommandAsync(request, cancellationToken);
+        yield return new CommandExecutionEvent(
+            result.InvocationId,
+            result.CommandId,
+            result.State,
+            result.Success ? result.Output : result.Error?.Message ?? "Command failed.",
+            1,
+            true,
+            result);
+    }
+
     IAsyncEnumerable<MptModuleEvent> SubscribeEventsAsync(EventCursor cursor, CancellationToken cancellationToken);
     ValueTask<SettingsSchemaDocument> GetSettingsSchemaAsync(CancellationToken cancellationToken);
     ValueTask<SettingsSnapshotDocument> GetSettingsAsync(CancellationToken cancellationToken);
@@ -26,7 +39,7 @@ public interface IMptModule
     ValueTask DisposeAsync(CancellationToken cancellationToken);
 }
 
-public sealed record ModuleContext(
+public record ModuleContext(
     string HostVersion,
     string ProtocolVersion,
     string PackageId,
@@ -35,11 +48,36 @@ public sealed record ModuleContext(
     string CacheDirectory,
     string LogDirectory,
     string Platform,
-    IReadOnlyList<string> GrantedCapabilities);
+    IReadOnlyList<string> GrantedCapabilities,
+    IReadOnlyDictionary<string, object>? CapabilityProviders = null)
+{
+    public bool TryGetCapability<T>(string capabilityId, out T capability)
+        where T : class
+    {
+        capability = null!;
+        if (CapabilityProviders is null ||
+            !CapabilityProviders.TryGetValue(capabilityId, out var provider) ||
+            provider is not T typed)
+        {
+            return false;
+        }
 
-public sealed record InitializeResult(bool Ok, string ProtocolVersion, IReadOnlyList<string> Capabilities, MptRuntimeError? Error = null);
+        capability = typed;
+        return true;
+    }
 
-public sealed record ModuleStatusSnapshot(
+    public T GetCapability<T>(string capabilityId)
+        where T : class
+    {
+        return TryGetCapability<T>(capabilityId, out var capability)
+            ? capability
+            : throw new InvalidOperationException($"Capability provider '{capabilityId}' is not available for module '{ModuleId}'.");
+    }
+}
+
+public record InitializeResult(bool Ok, string ProtocolVersion, IReadOnlyList<string> Capabilities, MptRuntimeError? Error = null);
+
+public record ModuleStatusSnapshot(
     string ModuleId,
     string State,
     string Summary,
@@ -47,9 +85,9 @@ public sealed record ModuleStatusSnapshot(
     IReadOnlyList<HealthCheckSnapshot> Checks,
     ulong EventSeq);
 
-public sealed record HealthCheckSnapshot(string Id, string Label, bool Ok, string Message);
+public record HealthCheckSnapshot(string Id, string Label, bool Ok, string Message);
 
-public sealed record MptCommandDescriptor(
+public record MptCommandDescriptor(
     string Id,
     string ModuleId,
     string Title,
@@ -61,18 +99,28 @@ public sealed record MptCommandDescriptor(
     string Category = "",
     int TimeoutMs = 30000,
     JsonObject? Execution = null,
-    IReadOnlyList<CommandParameterDescriptor>? Parameters = null);
+    IReadOnlyList<CommandParameterDescriptor>? Parameters = null,
+    IReadOnlyList<string>? Constraints = null);
 
-public sealed record CommandParameterDescriptor(
+public static class MptOperationConstraints
+{
+    public const string MutatesSystemState = "mutatesSystemState";
+    public const string RequiresElevatedWrites = "requiresElevatedWrites";
+    public const string UsesNativeHardware = "usesNativeHardware";
+    public const string RunsExternalProcesses = "runsExternalProcesses";
+    public const string RequiresLongRunningLoop = "requiresLongRunningLoop";
+}
+
+public record CommandParameterDescriptor(
     string Id,
     string Label,
     string Type,
     bool Required = false,
     string DefaultValue = "");
 
-public sealed record CommandRequest(string InvocationId, string CommandId, JsonObject Args);
+public record CommandRequest(string InvocationId, string CommandId, JsonObject Args);
 
-public sealed record CommandExecutionResult(
+public record CommandExecutionResult(
     string InvocationId,
     string CommandId,
     string State,
@@ -80,21 +128,30 @@ public sealed record CommandExecutionResult(
     string Output,
     MptRuntimeError? Error = null);
 
-public sealed record EventCursor(ulong LastEventSeq);
+public record CommandExecutionEvent(
+    string InvocationId,
+    string CommandId,
+    string State,
+    string Message,
+    int Sequence,
+    bool Terminal,
+    CommandExecutionResult? FinalResult = null);
 
-public sealed record MptModuleEvent(string ModuleId, ulong Seq, string Type, DateTimeOffset Time, JsonObject Payload);
+public record EventCursor(ulong LastEventSeq);
 
-public sealed record SettingsSchemaDocument(string ModuleId, string SchemaJson);
+public record MptModuleEvent(string ModuleId, ulong Seq, string Type, DateTimeOffset Time, JsonObject Payload);
 
-public sealed record SettingsSnapshotDocument(string ModuleId, ulong Revision, JsonObject Values, DateTimeOffset UpdatedAt);
+public record SettingsSchemaDocument(string ModuleId, string SchemaJson);
 
-public sealed record SettingsPatch(string ModuleId, ulong ExpectedRevision, JsonObject Patch);
+public record SettingsSnapshotDocument(string ModuleId, ulong Revision, JsonObject Values, DateTimeOffset UpdatedAt);
 
-public sealed record SettingsValidationResult(bool Ok, IReadOnlyList<string> Messages, MptRuntimeError? Error = null);
+public record SettingsPatch(string ModuleId, ulong ExpectedRevision, JsonObject Patch);
 
-public sealed record UiSurfaceDescriptor(string Id, string Kind, string Title, JsonObject Model);
+public record SettingsValidationResult(bool Ok, IReadOnlyList<string> Messages, MptRuntimeError? Error = null);
 
-public sealed record MptRuntimeError(string Code, string Message, bool Retryable = false, JsonObject? Details = null);
+public record UiSurfaceDescriptor(string Id, string Kind, string Title, JsonObject Model);
+
+public record MptRuntimeError(string Code, string Message, bool Retryable = false, JsonObject? Details = null);
 
 public static class EmptyAsyncEnumerable
 {

@@ -1,6 +1,7 @@
 using System.Text.Json.Nodes;
 using System.Text.Json;
 using MyPowerTools.Protocol;
+using Sdk = MyPowerTools.Abstractions;
 
 namespace MyPowerTools.Runtime;
 
@@ -12,7 +13,7 @@ public sealed class SettingsStore
     };
 
     private readonly object _gate = new();
-    private readonly Dictionary<string, SettingsSnapshotDocument> _settings = new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, Sdk.SettingsSnapshotDocument> _settings = new(StringComparer.OrdinalIgnoreCase);
     private readonly string? _rootDirectory;
 
     public SettingsStore(string? rootDirectory = null)
@@ -24,7 +25,7 @@ public sealed class SettingsStore
         }
     }
 
-    public SettingsSnapshotDocument Get(string moduleId)
+    public Sdk.SettingsSnapshotDocument Get(string moduleId)
     {
         lock (_gate)
         {
@@ -33,19 +34,19 @@ public sealed class SettingsStore
                 return snapshot;
             }
 
-            snapshot = Load(moduleId) ?? new SettingsSnapshotDocument(moduleId, 1, new JsonObject(), DateTimeOffset.UtcNow);
+            snapshot = Load(moduleId) ?? new Sdk.SettingsSnapshotDocument(moduleId, 1, new JsonObject(), DateTimeOffset.UtcNow);
             _settings[moduleId] = snapshot;
             return snapshot;
         }
     }
 
-    public SettingsSnapshotDocument Update(SettingsPatch patch)
+    public Sdk.SettingsSnapshotDocument Update(Sdk.SettingsPatch patch)
     {
         lock (_gate)
         {
             if (!_settings.TryGetValue(patch.ModuleId, out var current))
             {
-                current = new SettingsSnapshotDocument(patch.ModuleId, 1, new JsonObject(), DateTimeOffset.UtcNow);
+                current = new Sdk.SettingsSnapshotDocument(patch.ModuleId, 1, new JsonObject(), DateTimeOffset.UtcNow);
                 _settings[patch.ModuleId] = current;
             }
 
@@ -100,7 +101,7 @@ public sealed class SettingsStore
         }
     }
 
-    public SettingsSnapshotDocument Rollback(string moduleId)
+    public Sdk.SettingsSnapshotDocument Rollback(string moduleId)
     {
         if (_rootDirectory is null)
         {
@@ -122,7 +123,7 @@ public sealed class SettingsStore
         }
     }
 
-    private SettingsSnapshotDocument? Load(string moduleId)
+    private Sdk.SettingsSnapshotDocument? Load(string moduleId)
     {
         if (_rootDirectory is null)
         {
@@ -139,7 +140,7 @@ public sealed class SettingsStore
         return persisted is null ? null : FromPersisted(persisted);
     }
 
-    private void Save(SettingsSnapshotDocument snapshot)
+    private void Save(Sdk.SettingsSnapshotDocument snapshot)
     {
         if (_rootDirectory is null)
         {
@@ -156,7 +157,7 @@ public sealed class SettingsStore
         AtomicWrite(path, JsonSerializer.Serialize(ToPersisted(snapshot), JsonOptions));
     }
 
-    private void SaveBackup(SettingsSnapshotDocument snapshot)
+    private void SaveBackup(Sdk.SettingsSnapshotDocument snapshot)
     {
         if (_rootDirectory is null)
         {
@@ -184,21 +185,21 @@ public sealed class SettingsStore
         }
     }
 
-    private static PersistedSettingsSnapshot ToPersisted(SettingsSnapshotDocument snapshot)
+    private static PersistedSettingsSnapshot ToPersisted(Sdk.SettingsSnapshotDocument snapshot)
     {
         return new PersistedSettingsSnapshot(snapshot.ModuleId, snapshot.Revision, snapshot.Values.ToJsonString(), snapshot.UpdatedAt);
     }
 
-    private static SettingsSnapshotDocument FromPersisted(PersistedSettingsSnapshot persisted)
+    private static Sdk.SettingsSnapshotDocument FromPersisted(PersistedSettingsSnapshot persisted)
     {
         var values = JsonNode.Parse(persisted.ValuesJson) as JsonObject ?? new JsonObject();
-        return new SettingsSnapshotDocument(persisted.ModuleId, persisted.Revision, values, persisted.UpdatedAt);
+        return new Sdk.SettingsSnapshotDocument(persisted.ModuleId, persisted.Revision, values, persisted.UpdatedAt);
     }
 }
 
 public sealed record PersistedSettingsSnapshot(string ModuleId, ulong Revision, string ValuesJson, DateTimeOffset UpdatedAt);
 
-public sealed record SettingsUpdateResult(SettingsSnapshotDocument Snapshot, string ApplyState, string ApplyMessage);
+public sealed record SettingsUpdateResult(Sdk.SettingsSnapshotDocument Snapshot, string ApplyState, string ApplyMessage);
 
 public sealed class SettingsConflictException : Exception
 {
@@ -217,7 +218,7 @@ public sealed class SettingsConflictException : Exception
 
 public sealed class SettingsValidationException : Exception
 {
-    public SettingsValidationException(string moduleId, IReadOnlyList<string> messages, MptRuntimeError? error)
+    public SettingsValidationException(string moduleId, IReadOnlyList<string> messages, MyPowerTools.Abstractions.MptRuntimeError? error)
         : base($"{MptErrorCodes.ValidationFailed}: {moduleId} settings validation failed. {BuildMessage(messages, error)}")
     {
         ModuleId = moduleId;
@@ -227,9 +228,9 @@ public sealed class SettingsValidationException : Exception
 
     public string ModuleId { get; }
     public IReadOnlyList<string> Messages { get; }
-    public MptRuntimeError? Error { get; }
+    public MyPowerTools.Abstractions.MptRuntimeError? Error { get; }
 
-    private static string BuildMessage(IReadOnlyList<string> messages, MptRuntimeError? error)
+    private static string BuildMessage(IReadOnlyList<string> messages, MyPowerTools.Abstractions.MptRuntimeError? error)
     {
         if (messages.Count > 0)
         {

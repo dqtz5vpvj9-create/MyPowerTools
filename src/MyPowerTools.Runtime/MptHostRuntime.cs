@@ -3,9 +3,11 @@ using System.Net.Http.Json;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 using System.Text.Json.Nodes;
+using MyPowerTools.Abstractions;
 using MyPowerTools.Packaging;
 using MyPowerTools.Platform.Abstractions;
 using MyPowerTools.Protocol;
+using Sdk = MyPowerTools.Abstractions;
 
 namespace MyPowerTools.Runtime;
 
@@ -26,18 +28,25 @@ public sealed class MptHostRuntime : IAsyncDisposable
     private readonly ModuleSupervisor _moduleSupervisor = new();
     private readonly PackageTrustVerifier _packageTrust = new();
     private readonly IReadOnlyDictionary<string, IModuleTransportRuntime> _transportRuntimes;
+    private readonly IReadOnlyDictionary<string, object> _capabilityProviders;
     private readonly DateTimeOffset _startedAt = DateTimeOffset.UtcNow;
     private string _packageRoot = "";
-    private IReadOnlyList<MptCommandDescriptor> _dynamicCommands = [];
-    private readonly ConcurrentDictionary<string, Task<CommandExecutionResult>> _executions = new(StringComparer.OrdinalIgnoreCase);
+    private IReadOnlyList<Sdk.MptCommandDescriptor> _dynamicCommands = [];
+    private readonly ConcurrentDictionary<string, Task<Sdk.CommandExecutionResult>> _executions = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, CancellationTokenSource> _executionCancellations = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, byte> _cancelledInvocations = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, ulong> _moduleEventCursors = new(StringComparer.OrdinalIgnoreCase);
     private readonly HttpClient _httpClient = new()
     {
         Timeout = TimeSpan.FromSeconds(30)
     };
 
-    public MptHostRuntime(PackageReader packageReader, PlatformId platform, RuntimePaths? paths = null, IEnumerable<IModuleTransportRuntime>? transportRuntimes = null)
+    public MptHostRuntime(
+        PackageReader packageReader,
+        PlatformId platform,
+        RuntimePaths? paths = null,
+        IEnumerable<IModuleTransportRuntime>? transportRuntimes = null,
+        IReadOnlyDictionary<string, object>? capabilityProviders = null)
     {
         paths ??= RuntimePaths.Create(Path.Combine(Path.GetTempPath(), "MyPowerTools", "runtime-tests"));
         _paths = paths;
@@ -50,6 +59,7 @@ public sealed class MptHostRuntime : IAsyncDisposable
         _transportRuntimes = (transportRuntimes ?? [])
             .GroupBy(runtime => runtime.Kind, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
+        _capabilityProviders = capabilityProviders ?? new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
     }
 
     public IReadOnlyList<RuntimeModuleRecord> Modules => _packageRegistry.Modules;
@@ -140,7 +150,7 @@ public sealed class MptHostRuntime : IAsyncDisposable
     public async Task<int> RefreshDynamicCommandsAsync(CancellationToken cancellationToken)
     {
         ExpireProcessPolicies();
-        var commands = new List<MptCommandDescriptor>();
+        var commands = new List<Sdk.MptCommandDescriptor>();
         foreach (var module in EnabledModules().ToArray())
         {
             if (!TryGetTransportRuntime(module, out var runtime))
@@ -328,7 +338,25 @@ public sealed class MptHostRuntime : IAsyncDisposable
             return new RuntimeProcessRestartResult(false, transportKind, poolKey, "unsupported", $"Transport '{transportKind}' does not expose process controls.", []);
         }
 
+        var clearDynamicCommands = string.Equals(transportKind, "inproc-dotnet", StringComparison.OrdinalIgnoreCase);
+        if (clearDynamicCommands)
+        {
+            var moduleIds = diagnosticsProvider.GetProcessDiagnostics()
+                .Where(process =>
+                    string.Equals(process.TransportKind, transportKind, StringComparison.OrdinalIgnoreCase) &&
+                    string.Equals(process.PoolKey, poolKey, StringComparison.OrdinalIgnoreCase))
+                .SelectMany(process => process.ModuleIds)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            ClearDynamicCommandsForModules(moduleIds);
+        }
+
         var result = await diagnosticsProvider.RestartProcessAsync(poolKey, cancellationToken);
+        if (clearDynamicCommands && result.Success)
+        {
+            ClearDynamicCommandsForModules(result.ModuleIds);
+        }
+
         var evt = _eventBus.Publish("runner", "runtime.process.restart", new JsonObject
         {
             ["transportKind"] = transportKind,
@@ -428,51 +456,185 @@ public sealed class MptHostRuntime : IAsyncDisposable
                 .ToArray());
     }
 
-    public IReadOnlyList<MptCommandDescriptor> ListCommands(string? query)
+    public IReadOnlyList<Sdk.MptCommandDescriptor> ListCommands(string? query)
     {
         return _commandIndex.Search(query);
     }
 
-    public CommandExecutionResult ExecuteCommand(CommandRequest request)
+    public IReadOnlyList<RuntimeHotkeyBinding> ListHotkeyBindings()
+    {
+        return EnabledModules()
+            .SelectMany(module =>
+            {
+                var moduleId = module.Module.Manifest.Id;
+                return module.Module.Manifest.Hotkeys
+                    .Where(hotkey =>
+                        !string.IsNullOrWhiteSpace(hotkey.Id) &&
+                        !string.IsNullOrWhiteSpace(hotkey.Default) &&
+                        !string.IsNullOrWhiteSpace(hotkey.CommandId))
+                    .Select(hotkey => new RuntimeHotkeyBinding(
+                        RuntimeHotkeyId(moduleId, hotkey.Id),
+                        moduleId,
+                        hotkey.CommandId,
+                        hotkey.Default,
+                        string.IsNullOrWhiteSpace(hotkey.Scope) ? "module" : hotkey.Scope,
+                        string.IsNullOrWhiteSpace(hotkey.Reason) ? $"Invoke {hotkey.CommandId}." : hotkey.Reason));
+            })
+            .OrderBy(binding => binding.Id, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    public Sdk.CommandExecutionResult ExecuteCommand(Sdk.CommandRequest request)
     {
         return ExecuteCommandAsync(request, CancellationToken.None).GetAwaiter().GetResult();
     }
 
-    public Task<CommandExecutionResult> ExecuteCommandAsync(CommandRequest request, CancellationToken cancellationToken)
+    public Task<Sdk.CommandExecutionResult> ExecuteCommandAsync(Sdk.CommandRequest request, CancellationToken cancellationToken)
     {
         return _executions.GetOrAdd(request.InvocationId, _ => ExecuteCommandTrackedAsync(request, cancellationToken));
     }
 
-    public async IAsyncEnumerable<CommandProgressEvent> ExecuteCommandStreamAsync(CommandRequest request, [EnumeratorCancellation] CancellationToken cancellationToken)
+    public async IAsyncEnumerable<CommandProgressEvent> ExecuteCommandStreamAsync(Sdk.CommandRequest request, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
+        var sequence = 1;
         yield return new CommandProgressEvent(
             request.InvocationId,
             request.CommandId,
             "accepted",
             $"Command {request.CommandId} accepted.",
-            1,
+            sequence,
             false);
 
+        sequence++;
         yield return new CommandProgressEvent(
             request.InvocationId,
             request.CommandId,
             "running",
             $"Command {request.CommandId} is running.",
-            2,
+            sequence,
             false);
 
-        var result = await ExecuteCommandAsync(request, cancellationToken);
-        var message = result.Success
-            ? result.Output
-            : result.Error?.Message ?? "Command failed.";
-        yield return new CommandProgressEvent(
-            result.InvocationId,
-            result.CommandId,
-            result.State,
-            message,
-            3,
-            true,
-            result);
+        await foreach (var evt in ExecuteCommandStreamInternalAsync(request, cancellationToken).WithCancellation(cancellationToken))
+        {
+            sequence++;
+            yield return evt with { Sequence = sequence };
+        }
+    }
+
+    private async IAsyncEnumerable<CommandProgressEvent> ExecuteCommandStreamInternalAsync(Sdk.CommandRequest request, [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        var command = _commandIndex.Find(request.CommandId);
+        var executionType = command?.Execution?["type"]?.GetValue<string>() ?? command?.Kind ?? "";
+        if (command is null || !IsTransportExecutionType(executionType))
+        {
+            var fallbackResult = await ExecuteCommandAsync(request, cancellationToken);
+            yield return FinalProgress(fallbackResult);
+            yield break;
+        }
+
+        _commandHistory.Add(request, command, "accepted");
+        using var linkedCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        _executionCancellations[request.InvocationId] = linkedCancellation;
+        Sdk.CommandExecutionResult? result = null;
+        var terminalEmitted = false;
+        try
+        {
+            ExpireProcessPolicies();
+            var evt = _eventBus.Publish(command.ModuleId, "command.executed", new JsonObject
+            {
+                ["commandId"] = request.CommandId,
+                ["invocationId"] = request.InvocationId,
+                ["streamed"] = true
+            });
+
+            result = await PrepareTransportCommandStreamAsync(command, request, linkedCancellation.Token);
+            if (result is null)
+            {
+                var record = _packageRegistry.FindModule(command.ModuleId)!;
+                var runtime = _transportRuntimes[record.Entrypoint!.Kind];
+                var context = CreateModuleContext(record);
+                await ApplyPersistedSettingsIfPresentAsync(record, runtime, context, linkedCancellation.Token);
+                await using var stream = runtime.ExecuteCommandStreamAsync(record, context, request, linkedCancellation.Token).GetAsyncEnumerator(linkedCancellation.Token);
+                while (true)
+                {
+                    CommandProgressEvent current;
+                    try
+                    {
+                        if (!await stream.MoveNextAsync())
+                        {
+                            break;
+                        }
+
+                        current = stream.Current;
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        result = IsCommandCancelled(request.InvocationId)
+                            ? Cancelled(request)
+                            : Failed(request, MptErrorCodes.CommandTimeout, $"Command {request.CommandId} timed out.", retryable: true);
+                        break;
+                    }
+                    catch (Exception ex)
+                    {
+                        result = Failed(request, MptErrorCodes.RuntimeUnavailable, LogRouter.Redact(ex.Message), retryable: true);
+                        break;
+                    }
+
+                    if (current.Terminal)
+                    {
+                        terminalEmitted = current.FinalResult is not null;
+                        result = current.FinalResult;
+                    }
+
+                    yield return current;
+                }
+
+                if (result is null)
+                {
+                    result = Succeeded(request, $"Command stream completed for {request.CommandId}.");
+                }
+
+                _logRouter.Append(record.Module.Manifest.PackageId, command.ModuleId, result.Success ? "info" : "error", result.Success ? result.Output : result.Error?.Message ?? "Command failed.", request.InvocationId, evt.Seq);
+            }
+        }
+        finally
+        {
+            _executionCancellations.TryRemove(request.InvocationId, out _);
+            _cancelledInvocations.TryRemove(request.InvocationId, out _);
+        }
+
+        if (result is not null)
+        {
+            _commandHistory.Complete(result);
+            if (!terminalEmitted)
+            {
+                yield return FinalProgress(result);
+            }
+        }
+    }
+
+    private async Task<Sdk.CommandExecutionResult?> PrepareTransportCommandStreamAsync(Sdk.MptCommandDescriptor command, Sdk.CommandRequest request, CancellationToken cancellationToken)
+    {
+        var record = _packageRegistry.FindModule(command.ModuleId);
+        if (record is null)
+        {
+            return Failed(request, MptErrorCodes.NotFound, $"Module {command.ModuleId} was not found.");
+        }
+
+        var policy = RuntimeOperationPolicy.Evaluate(command, request, record);
+        if (!policy.IsAllowed)
+        {
+            return Failed(request, MptErrorCodes.RuntimePolicyBlocked, policy.Message, details: policy.Details);
+        }
+
+        if (!TryGetTransportRuntime(record, out _))
+        {
+            var transport = record.Entrypoint?.Kind ?? "none";
+            return Failed(request, MptErrorCodes.UnsupportedTransport, $"No transport runtime is registered for {command.ModuleId} via {transport}.");
+        }
+
+        await Task.CompletedTask;
+        return null;
     }
 
     public CommandCancellationResult CancelCommand(string invocationId)
@@ -497,7 +659,7 @@ public sealed class MptHostRuntime : IAsyncDisposable
         return new CommandCancellationResult(false, invocationId, "not-found", $"Invocation {invocationId} is not running.");
     }
 
-    private async Task<CommandExecutionResult> ExecuteCommandTrackedAsync(CommandRequest request, CancellationToken cancellationToken)
+    private async Task<Sdk.CommandExecutionResult> ExecuteCommandTrackedAsync(Sdk.CommandRequest request, CancellationToken cancellationToken)
     {
         using var linkedCancellation = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         _executionCancellations[request.InvocationId] = linkedCancellation;
@@ -512,19 +674,19 @@ public sealed class MptHostRuntime : IAsyncDisposable
         }
     }
 
-    private async Task<CommandExecutionResult> ExecuteCommandInternalAsync(CommandRequest request, CancellationToken cancellationToken)
+    private async Task<Sdk.CommandExecutionResult> ExecuteCommandInternalAsync(Sdk.CommandRequest request, CancellationToken cancellationToken)
     {
         var command = _commandIndex.Find(request.CommandId);
         _commandHistory.Add(request, command, "accepted");
         if (command is null)
         {
-            var failed = new CommandExecutionResult(
+            var failed = new Sdk.CommandExecutionResult(
                 request.InvocationId,
                 request.CommandId,
                 "failed",
                 false,
                 "",
-                new MptRuntimeError(MptErrorCodes.NotFound, $"Command '{request.CommandId}' was not found."));
+                new Sdk.MptRuntimeError(MptErrorCodes.NotFound, $"Command '{request.CommandId}' was not found."));
             _commandHistory.Complete(failed);
             _logRouter.Append("unknown", "unknown", "error", failed.Error!.Message, request.InvocationId);
             return failed;
@@ -537,7 +699,7 @@ public sealed class MptHostRuntime : IAsyncDisposable
             ["invocationId"] = request.InvocationId
         });
 
-        CommandExecutionResult result;
+        Sdk.CommandExecutionResult result;
         try
         {
             result = await ExecuteCommandCoreAsync(command, request, cancellationToken);
@@ -556,7 +718,7 @@ public sealed class MptHostRuntime : IAsyncDisposable
         return result;
     }
 
-    private async Task<CommandExecutionResult> ExecuteCommandCoreAsync(MptCommandDescriptor command, CommandRequest request, CancellationToken cancellationToken)
+    private async Task<Sdk.CommandExecutionResult> ExecuteCommandCoreAsync(Sdk.MptCommandDescriptor command, Sdk.CommandRequest request, CancellationToken cancellationToken)
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         timeout.CancelAfter(TimeSpan.FromMilliseconds(Math.Max(1000, command.TimeoutMs)));
@@ -575,31 +737,43 @@ public sealed class MptHostRuntime : IAsyncDisposable
         };
     }
 
-    private async Task<CommandExecutionResult> RefreshCommandAsync(MptCommandDescriptor command, CommandRequest request, CancellationToken cancellationToken)
+    private static bool IsTransportExecutionType(string executionType)
+    {
+        return executionType is not
+            "open" and not
+            "host.status.refresh" and not
+            "host.logs.tail" and not
+            "host.settings.read" and not
+            "host.notification.test" and not
+            "http.request" and not
+            "broker.request";
+    }
+
+    private async Task<Sdk.CommandExecutionResult> RefreshCommandAsync(Sdk.MptCommandDescriptor command, Sdk.CommandRequest request, CancellationToken cancellationToken)
     {
         await RefreshHealthAsync(cancellationToken);
         return Succeeded(request, $"Status refreshed for {command.ModuleId}.");
     }
 
-    private CommandExecutionResult TailLogsCommand(MptCommandDescriptor command, CommandRequest request)
+    private Sdk.CommandExecutionResult TailLogsCommand(Sdk.MptCommandDescriptor command, Sdk.CommandRequest request)
     {
         var logs = TailLogs(command.ModuleId);
         return Succeeded(request, $"{logs.Count} log records available for {command.ModuleId}.");
     }
 
-    private CommandExecutionResult SettingsReadCommand(MptCommandDescriptor command, CommandRequest request)
+    private Sdk.CommandExecutionResult SettingsReadCommand(Sdk.MptCommandDescriptor command, Sdk.CommandRequest request)
     {
         var settings = GetSettings(command.ModuleId);
         return Succeeded(request, $"Settings revision {settings.Revision} loaded for {command.ModuleId}.");
     }
 
-    private CommandExecutionResult NotificationTestCommand(MptCommandDescriptor command, CommandRequest request)
+    private Sdk.CommandExecutionResult NotificationTestCommand(Sdk.MptCommandDescriptor command, Sdk.CommandRequest request)
     {
         var notification = PublishNotification(command.ModuleId, "info", command.Title, command.Subtitle);
         return Succeeded(request, $"Notification {notification.Id} created.");
     }
 
-    private async Task<CommandExecutionResult> HttpRequestCommandAsync(MptCommandDescriptor command, CommandRequest request, CancellationToken cancellationToken)
+    private async Task<Sdk.CommandExecutionResult> HttpRequestCommandAsync(Sdk.MptCommandDescriptor command, Sdk.CommandRequest request, CancellationToken cancellationToken)
     {
         var module = _packageRegistry.FindModule(command.ModuleId);
         var entrypoint = module?.Entrypoint;
@@ -637,7 +811,7 @@ public sealed class MptHostRuntime : IAsyncDisposable
         }
     }
 
-    private CommandExecutionResult BrokerRequestCommand(MptCommandDescriptor command, CommandRequest request)
+    private Sdk.CommandExecutionResult BrokerRequestCommand(Sdk.MptCommandDescriptor command, Sdk.CommandRequest request)
     {
         var actionId = command.Execution?["actionId"]?.GetValue<string>() ?? command.Id;
         var reason = command.Execution?["reason"]?.GetValue<string>() ?? command.Subtitle;
@@ -649,21 +823,27 @@ public sealed class MptHostRuntime : IAsyncDisposable
             ["scope"] = scope,
             ["reason"] = reason
         };
-        return new CommandExecutionResult(
+        return new Sdk.CommandExecutionResult(
             request.InvocationId,
             request.CommandId,
             "permission-required",
             false,
             "",
-            new MptRuntimeError(MptErrorCodes.PermissionRequired, $"Broker approval required for {actionId}.", false, details));
+            new Sdk.MptRuntimeError(MptErrorCodes.PermissionRequired, $"Broker approval required for {actionId}.", false, details));
     }
 
-    private async Task<CommandExecutionResult> TransportCommandAsync(MptCommandDescriptor command, CommandRequest request, CancellationToken cancellationToken)
+    private async Task<Sdk.CommandExecutionResult> TransportCommandAsync(Sdk.MptCommandDescriptor command, Sdk.CommandRequest request, CancellationToken cancellationToken)
     {
         var record = _packageRegistry.FindModule(command.ModuleId);
         if (record is null)
         {
             return Failed(request, MptErrorCodes.NotFound, $"Module {command.ModuleId} was not found.");
+        }
+
+        var policy = RuntimeOperationPolicy.Evaluate(command, request, record);
+        if (!policy.IsAllowed)
+        {
+            return Failed(request, MptErrorCodes.RuntimePolicyBlocked, policy.Message, details: policy.Details);
         }
 
         if (!TryGetTransportRuntime(record, out var runtime))
@@ -693,7 +873,7 @@ public sealed class MptHostRuntime : IAsyncDisposable
     private async ValueTask ApplyPersistedSettingsIfPresentAsync(
         RuntimeModuleRecord module,
         IModuleTransportRuntime runtime,
-        ModuleContext context,
+        Sdk.ModuleContext context,
         CancellationToken cancellationToken)
     {
         var snapshot = _settingsStore.Get(module.Module.Manifest.Id);
@@ -718,25 +898,37 @@ public sealed class MptHostRuntime : IAsyncDisposable
         }
     }
 
-    private static CommandExecutionResult Succeeded(CommandRequest request, string output)
+    private static Sdk.CommandExecutionResult Succeeded(Sdk.CommandRequest request, string output)
     {
-        return new CommandExecutionResult(request.InvocationId, request.CommandId, "succeeded", true, output);
+        return new Sdk.CommandExecutionResult(request.InvocationId, request.CommandId, "succeeded", true, output);
     }
 
-    private static CommandExecutionResult Failed(CommandRequest request, string code, string message, bool retryable = false)
+    private static CommandProgressEvent FinalProgress(Sdk.CommandExecutionResult result)
     {
-        return new CommandExecutionResult(request.InvocationId, request.CommandId, "failed", false, "", new MptRuntimeError(code, message, retryable));
+        return new CommandProgressEvent(
+            result.InvocationId,
+            result.CommandId,
+            result.State,
+            result.Success ? result.Output : result.Error?.Message ?? "Command failed.",
+            0,
+            true,
+            result);
     }
 
-    private static CommandExecutionResult Cancelled(CommandRequest request)
+    private static Sdk.CommandExecutionResult Failed(Sdk.CommandRequest request, string code, string message, bool retryable = false, JsonObject? details = null)
     {
-        return new CommandExecutionResult(
+        return new Sdk.CommandExecutionResult(request.InvocationId, request.CommandId, "failed", false, "", new Sdk.MptRuntimeError(code, message, retryable, details));
+    }
+
+    private static Sdk.CommandExecutionResult Cancelled(Sdk.CommandRequest request)
+    {
+        return new Sdk.CommandExecutionResult(
             request.InvocationId,
             request.CommandId,
             "cancelled",
             false,
             "",
-            new MptRuntimeError(MptErrorCodes.CommandCancelled, $"Command {request.CommandId} was cancelled."));
+            new Sdk.MptRuntimeError(MptErrorCodes.CommandCancelled, $"Command {request.CommandId} was cancelled."));
     }
 
     private bool IsCommandCancelled(string invocationId)
@@ -755,7 +947,7 @@ public sealed class MptHostRuntime : IAsyncDisposable
         return false;
     }
 
-    private async Task<ModuleStatusSnapshot?> CheckTransportHealthAsync(RuntimeModuleRecord module, CancellationToken cancellationToken)
+    private async Task<Sdk.ModuleStatusSnapshot?> CheckTransportHealthAsync(RuntimeModuleRecord module, CancellationToken cancellationToken)
     {
         if (!TryGetTransportRuntime(module, out var runtime))
         {
@@ -776,7 +968,7 @@ public sealed class MptHostRuntime : IAsyncDisposable
         }
     }
 
-    private ModuleContext CreateModuleContext(RuntimeModuleRecord module)
+    private Sdk.ModuleContext CreateModuleContext(RuntimeModuleRecord module)
     {
         var moduleStateRoot = Path.Combine(_paths.State, "modules", module.Module.Manifest.Id);
         var dataDir = Path.Combine(moduleStateRoot, "data");
@@ -786,7 +978,7 @@ public sealed class MptHostRuntime : IAsyncDisposable
         Directory.CreateDirectory(cacheDir);
         Directory.CreateDirectory(logDir);
 
-        return new ModuleContext(
+        return new Sdk.ModuleContext(
             ProtocolConstants.HostVersion,
             ProtocolConstants.ModuleProtocolVersion,
             module.Module.Manifest.PackageId,
@@ -795,10 +987,11 @@ public sealed class MptHostRuntime : IAsyncDisposable
             cacheDir,
             logDir,
             PlatformId.Current().Rid,
-            module.Module.Manifest.Capabilities);
+            module.Module.Manifest.Capabilities,
+            _capabilityProviders);
     }
 
-    private static MptCommandDescriptor NormalizeDynamicCommand(RuntimeModuleRecord module, MptCommandDescriptor command)
+    private static Sdk.MptCommandDescriptor NormalizeDynamicCommand(RuntimeModuleRecord module, Sdk.MptCommandDescriptor command)
     {
         var execution = command.Execution;
         if (execution is null)
@@ -814,16 +1007,16 @@ public sealed class MptHostRuntime : IAsyncDisposable
         };
     }
 
-    private static ModuleStatusSnapshot Degraded(RuntimeModuleRecord module, string message)
+    private static Sdk.ModuleStatusSnapshot Degraded(RuntimeModuleRecord module, string message)
     {
-        return new ModuleStatusSnapshot(
+        return new Sdk.ModuleStatusSnapshot(
             module.Module.Manifest.Id,
             "degraded",
             message,
             DateTimeOffset.UtcNow,
             [
-                new HealthCheckSnapshot("manifest", "Manifest", true, "Loaded"),
-                new HealthCheckSnapshot("transport", "Transport runtime", false, message)
+                new Sdk.HealthCheckSnapshot("manifest", "Manifest", true, "Loaded"),
+                new Sdk.HealthCheckSnapshot("transport", "Transport runtime", false, message)
             ],
             module.Status.EventSeq);
     }
@@ -848,7 +1041,7 @@ public sealed class MptHostRuntime : IAsyncDisposable
         }
     }
 
-    private void RecordModuleStatus(RuntimeModuleRecord module, ModuleStatusSnapshot status)
+    private void RecordModuleStatus(RuntimeModuleRecord module, MyPowerTools.Abstractions.ModuleStatusSnapshot status)
     {
         var previousState = module.Status.State;
         _packageRegistry.UpdateStatus(module.Module.Manifest.Id, status);
@@ -931,7 +1124,31 @@ public sealed class MptHostRuntime : IAsyncDisposable
             .ToArray();
     }
 
-    private static ModuleStatusSnapshot InitialStatus(RuntimeModuleRecord module)
+    private void ClearDynamicCommandsForModules(IReadOnlyCollection<string> moduleIds)
+    {
+        if (moduleIds.Count == 0)
+        {
+            return;
+        }
+
+        var moduleIdSet = moduleIds.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        _dynamicCommands = _dynamicCommands
+            .Where(command => !moduleIdSet.Contains(command.ModuleId))
+            .ToArray();
+        _commandIndex.Rebuild(EnabledModules(), _dynamicCommands);
+        GC.Collect();
+        GC.WaitForPendingFinalizers();
+        GC.Collect();
+    }
+
+    private static string RuntimeHotkeyId(string moduleId, string hotkeyId)
+    {
+        return hotkeyId.StartsWith(moduleId + ".", StringComparison.OrdinalIgnoreCase)
+            ? hotkeyId
+            : $"{moduleId}.{hotkeyId}";
+    }
+
+    private static Sdk.ModuleStatusSnapshot InitialStatus(RuntimeModuleRecord module)
     {
         var state = module.Entrypoint is null
             ? "unsupported"
@@ -942,28 +1159,28 @@ public sealed class MptHostRuntime : IAsyncDisposable
             ? "No compatible runnable entrypoint for this platform."
             : $"Indexed via {module.Entrypoint.Kind}. {module.Entrypoint.SelectionReason}";
 
-        return new ModuleStatusSnapshot(
+        return new Sdk.ModuleStatusSnapshot(
             module.Module.Manifest.Id,
             state,
             summary,
             DateTimeOffset.UtcNow,
             [
-                new HealthCheckSnapshot("manifest", "Manifest", true, "Loaded"),
-                new HealthCheckSnapshot("transport", "Transport", module.Entrypoint is not null, module.Entrypoint?.SelectionReason ?? "No compatible entrypoint")
+                new Sdk.HealthCheckSnapshot("manifest", "Manifest", true, "Loaded"),
+                new Sdk.HealthCheckSnapshot("transport", "Transport", module.Entrypoint is not null, module.Entrypoint?.SelectionReason ?? "No compatible entrypoint")
             ],
             module.Status.EventSeq);
     }
 
-    private static ModuleStatusSnapshot DisabledStatus(RuntimeModuleRecord module)
+    private static Sdk.ModuleStatusSnapshot DisabledStatus(RuntimeModuleRecord module)
     {
-        return new ModuleStatusSnapshot(
+        return new Sdk.ModuleStatusSnapshot(
             module.Module.Manifest.Id,
             "disabled",
             "Module is disabled by user configuration.",
             DateTimeOffset.UtcNow,
             [
-                new HealthCheckSnapshot("manifest", "Manifest", true, "Loaded"),
-                new HealthCheckSnapshot("module-state", "Module state", false, "Disabled by user configuration")
+                new Sdk.HealthCheckSnapshot("manifest", "Manifest", true, "Loaded"),
+                new Sdk.HealthCheckSnapshot("module-state", "Module state", false, "Disabled by user configuration")
             ],
             module.Status.EventSeq);
     }
@@ -973,35 +1190,35 @@ public sealed class MptHostRuntime : IAsyncDisposable
         return value.Length <= 500 ? value : value[..500] + "...";
     }
 
-    public SettingsSnapshotDocument GetSettings(string moduleId)
+    public Sdk.SettingsSnapshotDocument GetSettings(string moduleId)
     {
         EnsureModule(moduleId);
         return _settingsStore.Get(moduleId);
     }
 
-    public async ValueTask<SettingsSchemaDocument> GetSettingsSchemaAsync(string moduleId, CancellationToken cancellationToken)
+    public async ValueTask<Sdk.SettingsSchemaDocument> GetSettingsSchemaAsync(string moduleId, CancellationToken cancellationToken)
     {
         var module = _packageRegistry.FindModule(moduleId)
             ?? throw new KeyNotFoundException($"Module '{moduleId}' was not found.");
         if (!TryGetTransportRuntime(module, out var runtime))
         {
-            return new SettingsSchemaDocument(moduleId, """{"type":"object","properties":{}}""");
+            return new Sdk.SettingsSchemaDocument(moduleId, """{"type":"object","properties":{}}""");
         }
 
         return await runtime.GetSettingsSchemaAsync(module, CreateModuleContext(module), cancellationToken);
     }
 
-    public SettingsSnapshotDocument UpdateSettings(SettingsPatch patch)
+    public Sdk.SettingsSnapshotDocument UpdateSettings(Sdk.SettingsPatch patch)
     {
         return UpdateSettingsWithApplyAsync(patch, CancellationToken.None).GetAwaiter().GetResult().Snapshot;
     }
 
-    public async Task<SettingsUpdateResult> UpdateSettingsWithApplyAsync(SettingsPatch patch, CancellationToken cancellationToken)
+    public async Task<SettingsUpdateResult> UpdateSettingsWithApplyAsync(Sdk.SettingsPatch patch, CancellationToken cancellationToken)
     {
         EnsureModule(patch.ModuleId);
         var module = _packageRegistry.FindModule(patch.ModuleId);
         IModuleTransportRuntime? runtime = null;
-        ModuleContext? context = null;
+        Sdk.ModuleContext? context = null;
         if (module is not null && TryGetTransportRuntime(module, out var selectedRuntime))
         {
             runtime = selectedRuntime;
@@ -1062,9 +1279,45 @@ public sealed class MptHostRuntime : IAsyncDisposable
         return _logRouter.Tail(moduleId);
     }
 
-    public IReadOnlyList<MptModuleEvent> HostEventsSince(ulong lastEventSeq)
+    public IReadOnlyList<Sdk.MptModuleEvent> HostEventsSince(ulong lastEventSeq)
     {
         return _eventBus.Since(lastEventSeq);
+    }
+
+    public async Task<int> CollectModuleEventsAsync(TimeSpan perModuleWindow, CancellationToken cancellationToken)
+    {
+        var count = 0;
+        foreach (var module in EnabledModules())
+        {
+            if (!TryGetTransportRuntime(module, out var runtime))
+            {
+                continue;
+            }
+
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeout.CancelAfter(perModuleWindow);
+            var moduleId = module.Module.Manifest.Id;
+            var cursor = new Sdk.EventCursor(_moduleEventCursors.GetValueOrDefault(moduleId));
+            try
+            {
+                var context = CreateModuleContext(module);
+                await foreach (var evt in runtime.SubscribeEventsAsync(module, context, cursor, timeout.Token).WithCancellation(timeout.Token))
+                {
+                    _moduleEventCursors[moduleId] = Math.Max(_moduleEventCursors.GetValueOrDefault(moduleId), evt.Seq);
+                    var payload = (evt.Payload.DeepClone() as JsonObject) ?? new JsonObject();
+                    payload["moduleEventSeq"] = evt.Seq;
+                    payload["moduleEventTime"] = evt.Time.ToString("O");
+                    _eventBus.Publish(evt.ModuleId, evt.Type, payload);
+                    count++;
+                }
+            }
+            catch (OperationCanceledException) when (timeout.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
+            {
+                // Bounded collection window elapsed; callers can poll again with the stored cursor.
+            }
+        }
+
+        return count;
     }
 
     public IReadOnlyList<NotificationRecord> ListNotifications() => _notificationCenter.List();
@@ -1093,3 +1346,4 @@ public sealed class MptHostRuntime : IAsyncDisposable
         }
     }
 }
+

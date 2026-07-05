@@ -1,6 +1,6 @@
 using System.Text.Json.Nodes;
 using MyPowerTools.Protocol;
-using MyPowerTools.Runtime;
+using MyPowerTools.Abstractions;
 
 namespace DoubaoAgent.MyPowerTools;
 
@@ -55,13 +55,14 @@ public sealed class DoubaoAgentModule : IMptModule
 
     public ValueTask<IReadOnlyList<MptCommandDescriptor>> ListCommandsAsync(CancellationToken cancellationToken)
     {
+        var endpointParameters = EndpointParameters();
         IReadOnlyList<MptCommandDescriptor> commands =
         [
-            Command("doubao-agent.status.summary", "Summarize Doubao runtime status", "Checks planner, tool runtime, and MCP bridge ports"),
-            Command("doubao-agent.health.check", "Check all Doubao runtime services", "Queries planner, tool runtime, and MCP bridge health endpoints"),
-            Command("doubao-agent.planner.health", "Check Doubao planner", "Queries the planner service on port 38102"),
-            Command("doubao-agent.tool.health", "Check Doubao tool runtime", "Queries the tool runtime service on port 38080"),
-            Command("doubao-agent.mcp.health", "Check Doubao MCP bridge", "Queries the MCP bridge service on port 38189"),
+            Command("doubao-agent.status.summary", "Summarize Doubao runtime status", "Checks planner, tool runtime, and MCP bridge ports", endpointParameters),
+            Command("doubao-agent.health.check", "Check all Doubao runtime services", "Queries planner, tool runtime, and MCP bridge health endpoints", endpointParameters),
+            Command("doubao-agent.planner.health", "Check Doubao planner", "Queries the planner service on port 38102", endpointParameters),
+            Command("doubao-agent.tool.health", "Check Doubao tool runtime", "Queries the tool runtime service on port 38080", endpointParameters),
+            Command("doubao-agent.mcp.health", "Check Doubao MCP bridge", "Queries the MCP bridge service on port 38189", endpointParameters),
             Command("doubao-agent.self-test", "Run Doubao controller self-test", "Verifies data, cache, logs, settings, and redaction boundaries"),
             Command("doubao-agent.logs.summary", "Summarize Doubao module logs", "Reports Runner-managed log directory state")
         ];
@@ -292,7 +293,7 @@ public sealed class DoubaoAgentModule : IMptModule
         };
     }
 
-    private static MptCommandDescriptor Command(string id, string title, string subtitle)
+    private static MptCommandDescriptor Command(string id, string title, string subtitle, IReadOnlyList<CommandParameterDescriptor>? parameters = null)
     {
         return new MptCommandDescriptor(
             id,
@@ -302,7 +303,19 @@ public sealed class DoubaoAgentModule : IMptModule
             "action",
             Category: "Doubao Agent",
             TimeoutMs: 8000,
-            Execution: new JsonObject { ["type"] = "module.execute" });
+            Execution: new JsonObject { ["type"] = "module.execute" },
+            Parameters: parameters);
+    }
+
+    private static IReadOnlyList<CommandParameterDescriptor> EndpointParameters()
+    {
+        return
+        [
+            new CommandParameterDescriptor("plannerBaseUrl", "Planner base URL", "text", false, ""),
+            new CommandParameterDescriptor("toolBaseUrl", "Tool base URL", "text", false, ""),
+            new CommandParameterDescriptor("mcpBaseUrl", "MCP base URL", "text", false, ""),
+            new CommandParameterDescriptor("healthPath", "Health path", "text", false, "/health")
+        ];
     }
 
     private static CommandExecutionResult Succeeded(CommandRequest request, string output)
@@ -392,3 +405,4 @@ public sealed class DoubaoAgentModule : IMptModule
         }
     }
 }
+

@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Sdk = MyPowerTools.Abstractions;
 
 namespace MyPowerTools.Runtime;
 
@@ -12,7 +13,7 @@ public sealed class StaticCommandIndexReader
         AllowTrailingCommas = true
     };
 
-    public IReadOnlyList<MptCommandDescriptor> Read(RuntimeModuleRecord module)
+    public IReadOnlyList<Sdk.MptCommandDescriptor> Read(RuntimeModuleRecord module)
     {
         var commandsPath = ResolveCommandsIndexPath(module);
         if (commandsPath is null || !File.Exists(commandsPath))
@@ -28,7 +29,7 @@ public sealed class StaticCommandIndexReader
             _ => []
         };
 
-        var result = new List<MptCommandDescriptor>();
+        var result = new List<Sdk.MptCommandDescriptor>();
         foreach (var commandNode in commandNodes)
         {
             if (commandNode is not JsonObject command)
@@ -43,7 +44,7 @@ public sealed class StaticCommandIndexReader
                 continue;
             }
 
-            result.Add(new MptCommandDescriptor(
+            result.Add(new Sdk.MptCommandDescriptor(
                 id,
                 module.Module.Manifest.Id,
                 title,
@@ -55,13 +56,68 @@ public sealed class StaticCommandIndexReader
                 command["category"]?.GetValue<string>() ?? module.Module.Manifest.DisplayName,
                 command["timeoutMs"]?.GetValue<int>() ?? 30000,
                 command["execution"]?.DeepClone() as JsonObject,
-                ReadParameters(command)));
+                ReadParameters(command),
+                ReadConstraints(command)));
         }
 
         return result;
     }
 
-    private static IReadOnlyList<CommandParameterDescriptor> ReadParameters(JsonObject command)
+    private static IReadOnlyList<string> ReadConstraints(JsonObject command)
+    {
+        var constraints = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        AddConstraints(command["constraints"], constraints);
+        if (command["execution"] is JsonObject execution)
+        {
+            AddConstraints(execution["constraints"], constraints);
+        }
+
+        AddConstraintIfTrue(command, "mutatesSystemState", Sdk.MptOperationConstraints.MutatesSystemState, constraints);
+        AddConstraintIfTrue(command, "requiresElevatedWrites", Sdk.MptOperationConstraints.RequiresElevatedWrites, constraints);
+        AddConstraintIfTrue(command, "usesNativeHardware", Sdk.MptOperationConstraints.UsesNativeHardware, constraints);
+        AddConstraintIfTrue(command, "runsExternalProcesses", Sdk.MptOperationConstraints.RunsExternalProcesses, constraints);
+        AddConstraintIfTrue(command, "requiresLongRunningLoop", Sdk.MptOperationConstraints.RequiresLongRunningLoop, constraints);
+
+        if (command["requiresElevation"]?.GetValue<bool>() == true)
+        {
+            constraints.Add(Sdk.MptOperationConstraints.RequiresElevatedWrites);
+        }
+
+        if (string.Equals(command["execution"]?["type"]?.GetValue<string>(), "broker.request", StringComparison.OrdinalIgnoreCase))
+        {
+            constraints.Add(Sdk.MptOperationConstraints.MutatesSystemState);
+            constraints.Add(Sdk.MptOperationConstraints.RequiresElevatedWrites);
+        }
+
+        return constraints.Count == 0 ? [] : constraints.Order(StringComparer.OrdinalIgnoreCase).ToArray();
+    }
+
+    private static void AddConstraints(JsonNode? node, ISet<string> constraints)
+    {
+        if (node is not JsonArray values)
+        {
+            return;
+        }
+
+        foreach (var value in values)
+        {
+            var constraint = value?.GetValue<string>();
+            if (!string.IsNullOrWhiteSpace(constraint))
+            {
+                constraints.Add(constraint);
+            }
+        }
+    }
+
+    private static void AddConstraintIfTrue(JsonObject command, string propertyName, string constraint, ISet<string> constraints)
+    {
+        if (command[propertyName]?.GetValue<bool>() == true)
+        {
+            constraints.Add(constraint);
+        }
+    }
+
+    private static IReadOnlyList<Sdk.CommandParameterDescriptor> ReadParameters(JsonObject command)
     {
         if (command["parameters"] is not JsonArray parameters)
         {
@@ -80,7 +136,7 @@ public sealed class StaticCommandIndexReader
                     return null;
                 }
 
-                return new CommandParameterDescriptor(
+                return new Sdk.CommandParameterDescriptor(
                     id,
                     parameter["label"]?.GetValue<string>() ?? id,
                     parameter["type"]?.GetValue<string>() ?? "text",
@@ -88,7 +144,7 @@ public sealed class StaticCommandIndexReader
                     ReadScalar(parameter["defaultValue"] ?? parameter["default"]));
             })
             .Where(parameter => parameter is not null)
-            .Cast<CommandParameterDescriptor>()
+            .Cast<Sdk.CommandParameterDescriptor>()
             .ToArray();
     }
 

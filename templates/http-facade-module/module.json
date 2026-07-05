@@ -23,6 +23,16 @@
       "restartLimit": 0,
       "restartWindowSeconds": 30,
       "killProcessTree": true
+    },
+    "operationRules": {
+      "status": "inproc-or-sidecar",
+      "settings": "inproc-or-sidecar",
+      "commandProvider": "inproc-or-sidecar",
+      "longRunningCommand": "sidecar-required",
+      "systemMutation": "broker-required",
+      "nativeHardware": "sidecar-required",
+      "elevatedWrite": "broker-required",
+      "externalProcess": "sidecar-required"
     }
   },
   "capabilities": [

@@ -3,7 +3,7 @@ using System.Diagnostics;
 using System.Runtime.CompilerServices;
 using System.Text.Json.Nodes;
 using MyPowerTools.Protocol;
-using MyPowerTools.Runtime;
+using MyPowerTools.Abstractions;
 
 namespace AdbForwarder.MyPowerTools;
 
@@ -62,10 +62,37 @@ public sealed class AdbForwarderModule : IMptModule
             new("adb-forwarder.devices.scan", Id, "Scan ADB devices", "Run adb devices -l", "action", Category: "AdbForwarder"),
             new("adb-forwarder.portproxy.list", Id, "List Windows portproxy rules", "Read netsh interface portproxy state", "action", Category: "AdbForwarder"),
             new("adb-forwarder.portproxy.plan", Id, "Plan portproxy changes", "Compare configured ADB mappings with current Windows state", "action", Category: "AdbForwarder"),
-            new("adb-forwarder.portproxy.apply", Id, "Request portproxy apply", "Create an audited NetworkBroker apply request", "action", true, DangerLevel: "medium", Category: "AdbForwarder"),
-            new("adb-forwarder.portproxy.revert", Id, "Request portproxy revert", "Create an audited NetworkBroker revert request", "action", true, DangerLevel: "medium", Category: "AdbForwarder")
+            BrokeredCommand("adb-forwarder.portproxy.apply", "Request portproxy apply", "Create an audited NetworkBroker apply request", "Apply configured ADB port forwarding rules through NetworkBroker."),
+            BrokeredCommand("adb-forwarder.portproxy.revert", "Request portproxy revert", "Create an audited NetworkBroker revert request", "Revert configured ADB port forwarding rules through NetworkBroker.")
         ];
         return ValueTask.FromResult(commands);
+    }
+
+    private static MptCommandDescriptor BrokeredCommand(string id, string title, string subtitle, string defaultReason)
+    {
+        return new MptCommandDescriptor(
+            id,
+            "adb-forwarder",
+            title,
+            subtitle,
+            "action",
+            true,
+            DangerLevel: "medium",
+            Category: "AdbForwarder",
+            Execution: new JsonObject
+            {
+                ["type"] = "module.execute",
+                ["brokerApprovalOnly"] = true
+            },
+            Parameters:
+            [
+                new CommandParameterDescriptor("reason", "Reason", "multiline", false, defaultReason)
+            ],
+            Constraints:
+            [
+                MptOperationConstraints.MutatesSystemState,
+                MptOperationConstraints.RequiresElevatedWrites
+            ]);
     }
 
     public async ValueTask<CommandExecutionResult> ExecuteCommandAsync(CommandRequest request, CancellationToken cancellationToken)
@@ -551,3 +578,4 @@ public sealed class AdbForwarderModule : IMptModule
 
     private sealed record PortProxyPlanningResult(AdbPortProxyPlan? Plan, ToolResult? CurrentState, IReadOnlyList<string> ValidationMessages);
 }
+

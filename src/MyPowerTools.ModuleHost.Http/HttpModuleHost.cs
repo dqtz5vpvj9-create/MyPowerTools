@@ -1,5 +1,7 @@
 using MyPowerTools.Runtime;
 using System.Text.Json.Nodes;
+using HealthCheckSnapshot = MyPowerTools.Abstractions.HealthCheckSnapshot;
+using ModuleStatusSnapshot = MyPowerTools.Abstractions.ModuleStatusSnapshot;
 
 namespace MyPowerTools.ModuleHost.Http;
 

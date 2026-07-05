@@ -14,6 +14,7 @@ namespace MyPowerTools.Platform.Windows;
 public sealed class WindowsPlatformPack
 {
     private static readonly PlatformId Platform = new("windows", PlatformId.Current().Architecture);
+    private readonly Lazy<IHotkeyService> _hotkeys = new(CreateHotkeyService);
 
     public ICapabilityRegistry Capabilities { get; } = new CapabilityRegistry(
     [
@@ -39,7 +40,7 @@ public sealed class WindowsPlatformPack
     public IDisplayService Display { get; } = new WindowsDisplayService();
     public IAutostartService Autostart { get; } = new WindowsAutostartService();
     public ITrayService Tray { get; } = new WindowsTrayService();
-    public IHotkeyService Hotkeys { get; } = CreateHotkeyService();
+    public IHotkeyService Hotkeys => _hotkeys.Value;
     public IPrivilegeBroker Privileges { get; } = new BrokerRequiredPrivilegeBroker("UAC broker", "Elevated actions require MyPowerTools Broker approval and audit.");
     public ILocalIpc LocalIpc { get; } = new LocalIpcService(Platform);
 

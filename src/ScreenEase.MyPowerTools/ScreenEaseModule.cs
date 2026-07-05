@@ -1,11 +1,8 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using MyPowerTools.Platform.Abstractions;
-using MyPowerTools.Platform.Linux;
-using MyPowerTools.Platform.Mac;
-using MyPowerTools.Platform.Windows;
 using MyPowerTools.Protocol;
-using MyPowerTools.Runtime;
+using MyPowerTools.Abstractions;
 
 namespace ScreenEase.MyPowerTools;
 
@@ -39,7 +36,7 @@ public sealed class ScreenEaseModule : IMptModule
         Directory.CreateDirectory(context.CacheDirectory);
         Directory.CreateDirectory(context.LogDirectory);
         _store = new ScreenEaseStore(Path.Combine(context.DataDirectory, "screenease-state.json"));
-        _display = _displayOverride ?? CreateDisplayService();
+        _display = _displayOverride ?? CreateDisplayService(context);
         Store.EnsureDefaults();
         return ValueTask.FromResult(new InitializeResult(true, context.ProtocolVersion, ["status", "commands", "settings", "logs", "dashboardCard", "detailPage"]));
     }
@@ -73,12 +70,15 @@ public sealed class ScreenEaseModule : IMptModule
             Command("screenease.status.summary", "Summarize ScreenEase status", "Display state, active profile, rules, and native host readiness"),
             Command("screenease.displays.list", "List displays", "Enumerate displays through the platform display provider"),
             Command("screenease.profile.list", "List ScreenEase profiles", "Show brightness and color temperature profiles"),
-            Command("screenease.profile.plan", "Plan profile application", "Preview display changes for a selected profile"),
-            Command("screenease.profile.apply", "Apply ScreenEase profile", "Switch active profile and request hardware apply when native host is ready"),
-            Command("screenease.profile.save", "Save ScreenEase profile", "Persist a profile into ScreenEase shared state"),
+            Command("screenease.profile.plan", "Plan profile application", "Preview display changes for a selected profile", ProfileParameters(includeHardwareWrite: false)),
+            Command("screenease.profile.apply", "Apply ScreenEase profile", "Switch active profile and request hardware apply when native host is ready", ProfileParameters(includeHardwareWrite: true)),
+            Command("screenease.profile.save", "Save ScreenEase profile", "Persist a profile into ScreenEase shared state", SaveProfileParameters()),
             Command("screenease.rules.status", "Show ScreenEase rules", "Inspect schedule and ambient rule status"),
             Command("screenease.native-writer.status", "Show ScreenEase native writer status", "Probe Windows DDC/CI display write readiness"),
-            Command("screenease.native-writer.configure", "Configure ScreenEase native writer", "Enable or disable hardware writes for future profile apply commands")
+            Command("screenease.native-writer.configure", "Configure ScreenEase native writer", "Enable or disable hardware writes for future profile apply commands",
+            [
+                new CommandParameterDescriptor("enabled", "Enabled", "boolean", false, "true")
+            ])
         ];
         return ValueTask.FromResult(commands);
     }
@@ -424,9 +424,35 @@ public sealed class ScreenEaseModule : IMptModule
         };
     }
 
-    private MptCommandDescriptor Command(string id, string title, string subtitle)
+    private MptCommandDescriptor Command(string id, string title, string subtitle, IReadOnlyList<CommandParameterDescriptor>? parameters = null)
     {
-        return new MptCommandDescriptor(id, Id, title, subtitle, "action", Category: "ScreenEase", Execution: new JsonObject { ["type"] = "module.execute" });
+        return new MptCommandDescriptor(id, Id, title, subtitle, "action", Category: "ScreenEase", Execution: new JsonObject { ["type"] = "module.execute" }, Parameters: parameters);
+    }
+
+    private static IReadOnlyList<CommandParameterDescriptor> ProfileParameters(bool includeHardwareWrite)
+    {
+        var parameters = new List<CommandParameterDescriptor>
+        {
+            new("profileId", "Profile ID", "text", false, ""),
+            new("displayId", "Display ID", "text", false, "all")
+        };
+        if (includeHardwareWrite)
+        {
+            parameters.Add(new CommandParameterDescriptor("hardwareWrite", "Hardware write", "boolean", false, "false"));
+        }
+
+        return parameters;
+    }
+
+    private static IReadOnlyList<CommandParameterDescriptor> SaveProfileParameters()
+    {
+        return
+        [
+            new CommandParameterDescriptor("id", "Profile ID", "text", true, ""),
+            new CommandParameterDescriptor("name", "Name", "text", true, ""),
+            new CommandParameterDescriptor("brightness", "Brightness", "number", false, "70"),
+            new CommandParameterDescriptor("colorTemperature", "Color temperature", "number", false, "5200")
+        ];
     }
 
     private static CommandExecutionResult Succeeded(CommandRequest request, string output)
@@ -473,19 +499,16 @@ public sealed class ScreenEaseModule : IMptModule
         }
     }
 
-    private static IDisplayService CreateDisplayService()
+    private static IDisplayService CreateDisplayService(ModuleContext context)
     {
-        if (OperatingSystem.IsWindows())
+        if (context.TryGetCapability<IDisplayService>("display.profile", out var display))
         {
-            return new WindowsPlatformPack().Display;
+            return display;
         }
 
-        if (OperatingSystem.IsMacOS())
-        {
-            return new MacPlatformPack().Display;
-        }
-
-        return new LinuxPlatformPack().Display;
+        return new UnsupportedDisplayService(
+            "display.profile",
+            "No display capability provider was injected by the host runtime.");
     }
 }
 
@@ -766,3 +789,4 @@ internal sealed record ScreenEaseNativeHostState(bool Enabled, bool Available, s
         };
     }
 }
+

@@ -6,7 +6,12 @@ using MyPowerTools.Broker;
 using MyPowerTools.Packaging;
 using MyPowerTools.Protocol;
 using MyPowerTools.Runtime;
+using CommandExecutionResult = MyPowerTools.Abstractions.CommandExecutionResult;
+using CommandRequest = MyPowerTools.Abstractions.CommandRequest;
 using HostProto = MyPowerTools.Protocol.HostControl.V1;
+using MptCommandDescriptor = MyPowerTools.Abstractions.MptCommandDescriptor;
+using SettingsPatch = MyPowerTools.Abstractions.SettingsPatch;
+using SettingsSnapshotDocument = MyPowerTools.Abstractions.SettingsSnapshotDocument;
 
 namespace MyPowerTools.HostControl;
 

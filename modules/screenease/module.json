@@ -61,6 +61,16 @@
       "restartLimit": 4,
       "restartWindowSeconds": 30,
       "killProcessTree": true
+    },
+    "operationRules": {
+      "status": "inproc-or-sidecar",
+      "settings": "inproc-or-sidecar",
+      "commandProvider": "inproc-or-sidecar",
+      "longRunningCommand": "sidecar-required",
+      "systemMutation": "broker-required",
+      "nativeHardware": "sidecar-required",
+      "elevatedWrite": "broker-required",
+      "externalProcess": "sidecar-required"
     }
   },
   "requires": [
@@ -76,6 +86,15 @@
     }
   ],
   "permissions": [],
+  "hotkeys": [
+    {
+      "id": "profile.quick-apply",
+      "default": "Ctrl+Alt+F9",
+      "commandId": "screenease.profile.apply",
+      "scope": "module",
+      "reason": "Apply the active ScreenEase profile."
+    }
+  ],
   "staticIndexes": {
     "commands": "commands.index.json"
   },

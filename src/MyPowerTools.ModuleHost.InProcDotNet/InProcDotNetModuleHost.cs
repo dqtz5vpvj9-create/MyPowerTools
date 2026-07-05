@@ -3,6 +3,18 @@ using System.Runtime.CompilerServices;
 using System.Runtime.Loader;
 using MyPowerTools.Packaging;
 using MyPowerTools.Runtime;
+using CommandExecutionResult = MyPowerTools.Abstractions.CommandExecutionResult;
+using CommandRequest = MyPowerTools.Abstractions.CommandRequest;
+using HealthCheckSnapshot = MyPowerTools.Abstractions.HealthCheckSnapshot;
+using IMptModule = MyPowerTools.Abstractions.IMptModule;
+using ModuleContext = MyPowerTools.Abstractions.ModuleContext;
+using ModuleStatusSnapshot = MyPowerTools.Abstractions.ModuleStatusSnapshot;
+using MptCommandDescriptor = MyPowerTools.Abstractions.MptCommandDescriptor;
+using MptRuntimeError = MyPowerTools.Abstractions.MptRuntimeError;
+using SettingsPatch = MyPowerTools.Abstractions.SettingsPatch;
+using SettingsSchemaDocument = MyPowerTools.Abstractions.SettingsSchemaDocument;
+using SettingsSnapshotDocument = MyPowerTools.Abstractions.SettingsSnapshotDocument;
+using SettingsValidationResult = MyPowerTools.Abstractions.SettingsValidationResult;
 
 namespace MyPowerTools.ModuleHost.InProcDotNet;
 
@@ -98,6 +110,39 @@ public sealed class InProcDotNetModuleHost : IModuleTransportRuntime, IModuleTra
             var loaded = await LoadCachedAsync(module.Module, context, token);
             return await loaded.ExecuteCommandAsync(request, token);
         });
+    }
+
+    public async IAsyncEnumerable<CommandProgressEvent> ExecuteCommandStreamAsync(
+        RuntimeModuleRecord module,
+        ModuleContext context,
+        CommandRequest request,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        var loaded = await LoadCachedAsync(module.Module, context, cancellationToken);
+        await foreach (var evt in loaded.ExecuteCommandStreamAsync(request, cancellationToken).WithCancellation(cancellationToken))
+        {
+            yield return new CommandProgressEvent(
+                evt.InvocationId,
+                evt.CommandId,
+                evt.State,
+                evt.Message,
+                evt.Sequence,
+                evt.Terminal,
+                evt.FinalResult);
+        }
+    }
+
+    public async IAsyncEnumerable<MyPowerTools.Abstractions.MptModuleEvent> SubscribeEventsAsync(
+        RuntimeModuleRecord module,
+        ModuleContext context,
+        MyPowerTools.Abstractions.EventCursor cursor,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        var loaded = await LoadCachedAsync(module.Module, context, cancellationToken);
+        await foreach (var evt in loaded.SubscribeEventsAsync(cursor, cancellationToken).WithCancellation(cancellationToken))
+        {
+            yield return evt;
+        }
     }
 
     public ValueTask<IMptModule> LoadAsync(MptModuleDefinition module, CancellationToken cancellationToken)
