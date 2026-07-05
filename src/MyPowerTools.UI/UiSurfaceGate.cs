@@ -3,6 +3,7 @@ using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Text.RegularExpressions;
 
 namespace MyPowerTools.UI;
 
@@ -62,6 +63,51 @@ public sealed class UiSurfaceGate
                 foreach (var component in surface.Uses.Where(component => !AllowedComponents.Contains(component)))
                 {
                     issues.Add(new ValidationIssue(fullPath, "error", $"Component '{component}' is outside the Shell component whitelist."));
+                }
+            }
+        }
+
+        return issues;
+    }
+
+    public IReadOnlyList<ValidationIssue> CheckShellSource(string repositoryRoot)
+    {
+        var root = Path.GetFullPath(repositoryRoot);
+        var issues = new List<ValidationIssue>();
+        var shellRoot = Path.Combine(root, "src", "MyPowerTools.Shell.Avalonia");
+        var uiRoot = Path.Combine(root, "src", "MyPowerTools.UI");
+        if (!Directory.Exists(shellRoot) || !Directory.Exists(uiRoot))
+        {
+            return issues;
+        }
+
+        var axamlFiles = Directory
+            .EnumerateFiles(Path.Combine(shellRoot, "Views"), "*.axaml", SearchOption.AllDirectories)
+            .Concat(Directory.EnumerateFiles(Path.Combine(uiRoot, "Controls"), "*.axaml", SearchOption.AllDirectories));
+        foreach (var file in axamlFiles)
+        {
+            var text = File.ReadAllText(file);
+            AddIfMatches(issues, file, text, "#[0-9A-Fa-f]{3,8}|Brush\\.Parse|Brushes\\.", "Use theme brush resources instead of raw colors.");
+            AddIfMatches(issues, file, text, "\\b(Margin|Padding|Spacing)=\"[0-9]", "Use spacing resources instead of raw spacing literals.");
+            AddIfMatches(issues, file, text, "\\bFontSize=\"[0-9]", "Use typography resources instead of raw FontSize literals.");
+        }
+
+        var csharpFiles = Directory
+            .EnumerateFiles(shellRoot, "*.cs", SearchOption.AllDirectories)
+            .Where(file => !file.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase))
+            .Where(file => !file.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase));
+        foreach (var file in csharpFiles)
+        {
+            var text = File.ReadAllText(file);
+            AddIfMatches(issues, file, text, "Brush\\.Parse\\(\"#|Brushes\\.", "Use theme brush resources instead of raw colors.");
+            AddIfMatches(issues, file, text, "\\bFontSize\\s*=\\s*[0-9]", "Use typography constants instead of raw FontSize literals.");
+
+            if (Path.GetFileName(file).StartsWith("ShellWorkspaceController", StringComparison.OrdinalIgnoreCase))
+            {
+                var lineCount = File.ReadLines(file).Count();
+                if (lineCount > 240)
+                {
+                    issues.Add(new ValidationIssue(file, "error", $"Shell workspace coordinator file has {lineCount} lines; split page orchestration below 240 lines per file."));
                 }
             }
         }
@@ -309,6 +355,14 @@ public sealed class UiSurfaceGate
     {
         var bytes = SHA256.HashData(Encoding.UTF8.GetBytes(value));
         return Convert.ToHexString(bytes);
+    }
+
+    private static void AddIfMatches(List<ValidationIssue> issues, string file, string text, string pattern, string message)
+    {
+        if (Regex.IsMatch(text, pattern))
+        {
+            issues.Add(new ValidationIssue(file, "error", message));
+        }
     }
 
     private static string Sanitize(string value)

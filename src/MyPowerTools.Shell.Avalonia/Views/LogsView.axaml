@@ -17,7 +17,7 @@
       </ItemsControl.ItemsPanel>
       <ItemsControl.ItemTemplate>
         <DataTemplate x:DataType="vm:ModulePickerItemViewModel">
-          <Button Command="{Binding SelectCommand}" MinHeight="32" Margin="0,0,8,8">
+          <Button Command="{Binding SelectCommand}" MinHeight="32" Margin="{DynamicResource MptWrapItemMargin}">
             <StackPanel Orientation="Horizontal" Spacing="{DynamicResource MptSpacingXs}">
               <TextBlock Text="{Binding DisplayName}" />
               <TextBlock Classes="MptMeta" Text="{Binding SelectionText}" IsVisible="{Binding IsSelected}" />
@@ -38,7 +38,7 @@
     <ItemsControl ItemsSource="{Binding Lines}">
       <ItemsControl.ItemTemplate>
         <DataTemplate x:DataType="vm:LogLineViewModel">
-          <Border Classes="MptLogRow" Margin="0,0,0,4">
+          <Border Classes="MptLogRow" Margin="{DynamicResource MptGapBottomXs}">
             <Grid ColumnDefinitions="120,80,*">
               <TextBlock Classes="MptMeta" Text="{Binding Time}" />
               <TextBlock Grid.Column="1" Classes="MptMeta" Text="{Binding Level}" />

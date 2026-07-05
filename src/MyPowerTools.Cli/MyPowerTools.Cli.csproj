@@ -1,6 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
+    <PackageReference Include="Grpc.AspNetCore" Version="2.80.0" />
     <ProjectReference Include="..\MyPowerTools.Packaging\MyPowerTools.Packaging.csproj" />
     <ProjectReference Include="..\MyPowerTools.Runtime\MyPowerTools.Runtime.csproj" />
     <ProjectReference Include="..\MyPowerTools.UI\MyPowerTools.UI.csproj" />

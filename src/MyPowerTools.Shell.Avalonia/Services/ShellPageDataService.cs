@@ -63,6 +63,7 @@ public sealed class ShellPageDataService
     {
         using var client = HostControlClient.ForDefaultEndpoint();
         var modules = await client.ListModulesAsync(cancellationToken);
+        var diagnostics = await client.GetRuntimeDiagnosticsAsync(cancellationToken);
         var selected = PickModule(modules, selectedModuleId);
         if (selected is null)
         {
@@ -75,7 +76,8 @@ public sealed class ShellPageDataService
                 0,
                 DateTimeOffset.MinValue,
                 selectModule,
-                saveSettings);
+                saveSettings,
+                diagnostics.Hotkeys);
             return new ShellPageDataResult<SettingsCenterViewModel>(emptyViewModel, emptyViewModel.StatusText);
         }
 
@@ -91,7 +93,8 @@ public sealed class ShellPageDataService
             snapshot.Revision,
             snapshot.UpdatedAt.ToDateTimeOffset(),
             selectModule,
-            saveSettings);
+            saveSettings,
+            diagnostics.Hotkeys);
         return new ShellPageDataResult<SettingsCenterViewModel>(viewModel, viewModel.StatusText);
     }
 

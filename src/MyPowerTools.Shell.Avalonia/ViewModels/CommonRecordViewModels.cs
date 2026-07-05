@@ -16,3 +16,11 @@ public sealed record NotificationItemViewModel(string Id, string Time, string Mo
 public sealed record ShellAlertViewModel(string Id, string Level, string Title, string Body);
 public sealed record ShellActionViewModel(string CommandId, string Title, string Style, ICommand ExecuteCommand);
 public sealed record MetricViewModel(string Label, string Value);
+public sealed record HotkeyBindingViewModel(
+    string Id,
+    string Gesture,
+    string CommandId,
+    string State,
+    string Message,
+    bool HasConflict,
+    ICommand ResetCommand);

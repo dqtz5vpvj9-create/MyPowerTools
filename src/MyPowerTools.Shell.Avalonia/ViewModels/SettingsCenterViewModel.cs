@@ -32,6 +32,7 @@ public sealed class SettingsCenterViewModel : ShellPageViewModel
         string statusText,
         IReadOnlyList<ModulePickerItemViewModel> modules,
         IReadOnlyList<SettingsFieldViewModel> fields,
+        IReadOnlyList<HotkeyBindingViewModel>? hotkeys = null,
         Func<SettingsCenterViewModel, Task>? saveSettings = null)
         : base("Settings", selectedModuleName, selectedModuleId.Length == 0 ? "empty" : "ready")
     {
@@ -42,6 +43,7 @@ public sealed class SettingsCenterViewModel : ShellPageViewModel
         _statusText = statusText;
         Modules = modules;
         Fields = fields;
+        Hotkeys = hotkeys ?? [];
         _saveCommand = new AsyncRelayCommand(
             () => saveSettings?.Invoke(this) ?? Task.CompletedTask,
             () => CanSave);
@@ -68,8 +70,14 @@ public sealed class SettingsCenterViewModel : ShellPageViewModel
     public ulong Revision { get; private set; }
     public IReadOnlyList<ModulePickerItemViewModel> Modules { get; }
     public IReadOnlyList<SettingsFieldViewModel> Fields { get; }
+    public IReadOnlyList<HotkeyBindingViewModel> Hotkeys { get; }
     public bool HasNoModules => Modules.Count == 0;
     public bool HasFields => Fields.Count > 0;
+    public bool HasHotkeys => Hotkeys.Count > 0;
+    public bool HasHotkeyConflicts => Hotkeys.Any(hotkey => hotkey.HasConflict);
+    public string HotkeyStatusText => HasHotkeyConflicts
+        ? "One or more hotkeys conflict with another runtime binding."
+        : "Hotkey bindings use their default gestures.";
     public bool UsesRawJson => SelectedModuleId.Length > 0 && Fields.Count == 0;
     public ICommand SaveCommand { get; }
     public bool HasChanges => DirtyCount > 0;

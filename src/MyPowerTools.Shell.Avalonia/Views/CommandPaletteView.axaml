@@ -20,7 +20,7 @@
     <ItemsControl ItemsSource="{Binding Commands}">
       <ItemsControl.ItemTemplate>
         <DataTemplate x:DataType="vm:CommandItemViewModel">
-          <Border Classes="MptCommandItem" Margin="0,0,0,8">
+          <Border Classes="MptCommandItem" Margin="{DynamicResource MptGapBottomM}">
             <StackPanel Spacing="{DynamicResource MptSpacingS}">
               <Grid ColumnDefinitions="*,Auto">
                 <TextBlock FontWeight="SemiBold" Text="{Binding Title}" />
@@ -37,7 +37,7 @@
               <ItemsControl ItemsSource="{Binding Parameters}" IsVisible="{Binding HasParameters}">
                 <ItemsControl.ItemTemplate>
                   <DataTemplate x:DataType="vm:CommandParameterViewModel">
-                    <StackPanel Spacing="{DynamicResource MptSpacingXs}" Margin="0,0,0,6">
+                    <StackPanel Spacing="{DynamicResource MptSpacingXs}" Margin="{DynamicResource MptGapBottomS}">
                       <TextBlock Classes="MptMeta" Text="{Binding Label}" />
                       <TextBox Text="{Binding Value, Mode=TwoWay}"
                                MinHeight="32"
@@ -64,7 +64,7 @@
                             IsVisible="{Binding HasProgressEvents}">
                 <ItemsControl.ItemTemplate>
                   <DataTemplate x:DataType="vm:CommandProgressItemViewModel">
-                    <Grid ColumnDefinitions="92,*" Margin="0,0,0,4">
+                    <Grid ColumnDefinitions="92,*" Margin="{DynamicResource MptGapBottomXs}">
                       <TextBlock Classes="MptMeta" Text="{Binding StateLabel}" />
                       <TextBlock Grid.Column="1"
                                  Classes="MptMeta"

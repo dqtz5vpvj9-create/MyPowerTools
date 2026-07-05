@@ -56,6 +56,16 @@ public sealed record RuntimeHotkeyBinding(
     string Scope,
     string Reason);
 
+public sealed record RuntimeHotkeyDiagnostic(
+    string Id,
+    string ModuleId,
+    string CommandId,
+    string Gesture,
+    string Scope,
+    string State,
+    string Message,
+    bool IsDefault);
+
 public sealed record HostAlert(string Id, string Level, string Title, string Body);
 
 public sealed record DashboardSnapshot(IReadOnlyList<DashboardCard> Cards, IReadOnlyList<HostAlert> Alerts, ulong EventSeq);
@@ -113,6 +123,7 @@ public sealed record RuntimeDiagnosticsSnapshot(
     IReadOnlyList<RuntimeProcessDiagnostics> Processes,
     IReadOnlyList<RuntimeProcessPolicyHistoryEntry> ProcessPolicyHistory,
     IReadOnlyList<RuntimeModuleDiagnostics> Modules,
+    IReadOnlyList<RuntimeHotkeyDiagnostic> Hotkeys,
     IReadOnlyList<CommandHistoryRecord> RecentCommands);
 
 public sealed record RuntimePathDiagnostics(

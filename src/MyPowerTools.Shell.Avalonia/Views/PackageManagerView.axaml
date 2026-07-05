@@ -36,7 +36,7 @@
     <ItemsControl ItemsSource="{Binding Packages}">
       <ItemsControl.ItemTemplate>
         <DataTemplate x:DataType="vm:PackageSummaryViewModel">
-          <Border Classes="MptModuleCard" Margin="0,0,0,12">
+          <Border Classes="MptModuleCard" Margin="{DynamicResource MptGapBottomL}">
             <StackPanel Spacing="{DynamicResource MptSpacingS}">
               <Grid ColumnDefinitions="*,Auto">
                 <TextBlock Classes="MptSectionTitle" Text="{Binding DisplayName}" />
@@ -47,7 +47,7 @@
               <ItemsControl ItemsSource="{Binding Metrics}">
                 <ItemsControl.ItemTemplate>
                   <DataTemplate x:DataType="vm:MetricViewModel">
-                    <Grid ColumnDefinitions="120,*" Margin="0,0,0,4">
+                    <Grid ColumnDefinitions="120,*" Margin="{DynamicResource MptGapBottomXs}">
                       <TextBlock Classes="MptMeta" Text="{Binding Label}" />
                       <TextBlock Grid.Column="1" Text="{Binding Value}" TextWrapping="Wrap" />
                     </Grid>
@@ -67,7 +67,7 @@
                 </ItemsControl.ItemsPanel>
                 <ItemsControl.ItemTemplate>
                   <DataTemplate x:DataType="vm:PackageModuleLinkViewModel">
-                    <Button Content="{Binding ModuleId}" Command="{Binding OpenCommand}" MinHeight="32" MaxWidth="180" Margin="0,0,8,8" />
+                    <Button Content="{Binding ModuleId}" Command="{Binding OpenCommand}" MinHeight="32" MaxWidth="180" Margin="{DynamicResource MptWrapItemMargin}" />
                   </DataTemplate>
                 </ItemsControl.ItemTemplate>
               </ItemsControl>

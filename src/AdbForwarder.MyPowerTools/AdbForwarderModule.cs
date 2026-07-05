@@ -117,8 +117,43 @@ public sealed class AdbForwarderModule : IMptModule
 
     public async IAsyncEnumerable<MptModuleEvent> SubscribeEventsAsync(EventCursor cursor, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        await Task.CompletedTask;
-        yield break;
+        if (cursor.LastEventSeq < 1)
+        {
+            var devices = await RunToolAsync(AdbPath(), ["devices", "-l"], TimeSpan.FromSeconds(5), cancellationToken);
+            var deviceCount = CountAdbDevices(devices.Stdout);
+            yield return new MptModuleEvent(
+                Id,
+                1,
+                deviceCount > 0 ? "device.connected" : "device.disconnected",
+                DateTimeOffset.UtcNow,
+                new JsonObject
+                {
+                    ["title"] = "ADB device state",
+                    ["message"] = devices.Available ? $"{deviceCount} ADB device(s) detected." : devices.Message,
+                    ["deviceCount"] = deviceCount,
+                    ["adbAvailable"] = devices.Available
+                });
+        }
+
+        if (cursor.LastEventSeq < 2)
+        {
+            var portproxy = await ReadPortProxyAsync(cancellationToken);
+            var rules = portproxy.Available && portproxy.ExitCode == 0
+                ? PortProxyParser.Parse(portproxy.Stdout)
+                : [];
+            yield return new MptModuleEvent(
+                Id,
+                2,
+                "portproxy.changed",
+                DateTimeOffset.UtcNow,
+                new JsonObject
+                {
+                    ["title"] = "Portproxy state",
+                    ["message"] = portproxy.Available ? $"{rules.Count} Windows portproxy rule(s) detected." : portproxy.Message,
+                    ["ruleCount"] = rules.Count,
+                    ["available"] = portproxy.Available
+                });
+        }
     }
 
     public ValueTask<SettingsSchemaDocument> GetSettingsSchemaAsync(CancellationToken cancellationToken)
@@ -184,6 +219,17 @@ public sealed class AdbForwarderModule : IMptModule
     public ValueTask DisposeAsync(CancellationToken cancellationToken)
     {
         return ValueTask.CompletedTask;
+    }
+
+    private static int CountAdbDevices(string stdout)
+    {
+        return stdout.Replace("\r\n", "\n", StringComparison.Ordinal).Split('\n')
+            .Skip(1)
+            .Select(line => line.Trim())
+            .Count(line =>
+                line.Length > 0 &&
+                !line.StartsWith("*", StringComparison.Ordinal) &&
+                !line.Contains("offline", StringComparison.OrdinalIgnoreCase));
     }
 
     private async Task<string> DiagnosticsSummaryAsync(CancellationToken cancellationToken)

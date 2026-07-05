@@ -644,6 +644,17 @@ public sealed class HostControlGrpcService : HostProto.HostControl.HostControlBa
             RuntimeRegistered = transport.RuntimeRegistered,
             ModuleCount = (uint)transport.ModuleCount
         }));
+        response.Hotkeys.AddRange(diagnostics.Hotkeys.Select(hotkey => new HostProto.RuntimeHotkeyDiagnostics
+        {
+            Id = hotkey.Id,
+            ModuleId = hotkey.ModuleId,
+            CommandId = hotkey.CommandId,
+            Gesture = hotkey.Gesture,
+            Scope = hotkey.Scope,
+            State = hotkey.State,
+            Message = hotkey.Message,
+            IsDefault = hotkey.IsDefault
+        }));
         response.Processes.AddRange(diagnostics.Processes.Select(process =>
         {
             var mapped = new HostProto.RuntimeProcessDiagnostics

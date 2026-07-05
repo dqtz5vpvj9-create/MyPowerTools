@@ -1,5 +1,6 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using System.Runtime.CompilerServices;
 using MyPowerTools.Platform.Abstractions;
 using MyPowerTools.Protocol;
 using MyPowerTools.Abstractions;
@@ -100,9 +101,58 @@ public sealed class ScreenEaseModule : IMptModule
         };
     }
 
-    public IAsyncEnumerable<MptModuleEvent> SubscribeEventsAsync(EventCursor cursor, CancellationToken cancellationToken)
+    public async IAsyncEnumerable<MptModuleEvent> SubscribeEventsAsync(EventCursor cursor, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        return EmptyAsyncEnumerable.Of<MptModuleEvent>(cancellationToken);
+        var state = Store.Load();
+        if (cursor.LastEventSeq < 1)
+        {
+            var displays = await Display.ListDisplaysAsync(cancellationToken);
+            yield return new MptModuleEvent(
+                Id,
+                1,
+                "display.changed",
+                DateTimeOffset.UtcNow,
+                new JsonObject
+                {
+                    ["title"] = "Display inventory",
+                    ["message"] = $"{displays.Count} display(s) reported by the platform provider.",
+                    ["displayCount"] = displays.Count,
+                    ["usableDisplayCount"] = displays.Count(display => display.State != "unsupported")
+                });
+        }
+
+        if (cursor.LastEventSeq < 2)
+        {
+            yield return new MptModuleEvent(
+                Id,
+                2,
+                "profile.applied",
+                DateTimeOffset.UtcNow,
+                new JsonObject
+                {
+                    ["title"] = "ScreenEase active profile",
+                    ["message"] = $"Active profile is '{state.ActiveProfileId}'.",
+                    ["profileId"] = state.ActiveProfileId,
+                    ["profileCount"] = state.Profiles.Count
+                });
+        }
+
+        if (cursor.LastEventSeq < 3)
+        {
+            var writer = await Display.GetWriterStatusAsync(cancellationToken);
+            yield return new MptModuleEvent(
+                Id,
+                3,
+                writer.Available ? "native-writer.ready" : "native-writer.failed",
+                DateTimeOffset.UtcNow,
+                new JsonObject
+                {
+                    ["title"] = "ScreenEase native writer",
+                    ["message"] = writer.Message,
+                    ["available"] = writer.Available,
+                    ["state"] = writer.State
+                });
+        }
     }
 
     public ValueTask<SettingsSchemaDocument> GetSettingsSchemaAsync(CancellationToken cancellationToken)

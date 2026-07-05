@@ -186,8 +186,9 @@ static async Task<IHotkeyService?> StartHotkeysAsync(string root, string[] args,
     }
 
     var hotkeys = platform.Hotkeys;
-    var moduleHotkeys = runtime.ListHotkeyBindings();
-    var commandByHotkeyId = moduleHotkeys.ToDictionary(binding => binding.Id, binding => binding.CommandId, StringComparer.OrdinalIgnoreCase);
+    var commandByHotkeyId = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+    var registeredModuleHotkeyIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    var hotkeyGate = new object();
     hotkeys.Pressed += (_, invocation) =>
     {
         if (string.Equals(invocation.Id, "command-palette", StringComparison.OrdinalIgnoreCase))
@@ -205,7 +206,13 @@ static async Task<IHotkeyService?> StartHotkeysAsync(string root, string[] args,
             return;
         }
 
-        if (!commandByHotkeyId.TryGetValue(invocation.Id, out var commandId))
+        string? commandId;
+        lock (hotkeyGate)
+        {
+            commandByHotkeyId.TryGetValue(invocation.Id, out commandId);
+        }
+
+        if (commandId is null)
         {
             return;
         }
@@ -228,18 +235,96 @@ static async Task<IHotkeyService?> StartHotkeysAsync(string root, string[] args,
 
     var result = await hotkeys.RegisterAsync(
         new HotkeyRegistration("command-palette", "Ctrl+Alt+Space", "runner", "Open the command palette."),
-        CancellationToken.None);
+            CancellationToken.None);
     Console.WriteLine($"MyPowerTools.Runner hotkey {result.State}: {result.Message}");
 
-    foreach (var binding in moduleHotkeys)
+    await SyncModuleHotkeysAsync(hotkeys, runtime, commandByHotkeyId, registeredModuleHotkeyIds, hotkeyGate, CancellationToken.None);
+    _ = Task.Run(() => WatchRuntimeHotkeyBindingsAsync(hotkeys, runtime, commandByHotkeyId, registeredModuleHotkeyIds, hotkeyGate));
+
+    return hotkeys;
+}
+
+static async Task WatchRuntimeHotkeyBindingsAsync(
+    IHotkeyService hotkeys,
+    MptHostRuntime runtime,
+    Dictionary<string, string> commandByHotkeyId,
+    HashSet<string> registeredModuleHotkeyIds,
+    object hotkeyGate)
+{
+    var lastEventSeq = 0UL;
+    while (true)
     {
-        result = await hotkeys.RegisterAsync(
-            new HotkeyRegistration(binding.Id, binding.Gesture, binding.Scope, binding.Reason),
-            CancellationToken.None);
+        foreach (var evt in runtime.HostEventsSince(lastEventSeq))
+        {
+            lastEventSeq = evt.Seq;
+            if (RequiresHotkeySync(evt.Type))
+            {
+                await SyncModuleHotkeysAsync(
+                    hotkeys,
+                    runtime,
+                    commandByHotkeyId,
+                    registeredModuleHotkeyIds,
+                    hotkeyGate,
+                    CancellationToken.None);
+            }
+        }
+
+        await Task.Delay(TimeSpan.FromSeconds(1));
+    }
+}
+
+static async Task SyncModuleHotkeysAsync(
+    IHotkeyService hotkeys,
+    MptHostRuntime runtime,
+    Dictionary<string, string> commandByHotkeyId,
+    HashSet<string> registeredModuleHotkeyIds,
+    object hotkeyGate,
+    CancellationToken cancellationToken)
+{
+    var bindings = runtime.ListHotkeyBindings();
+    var nextIds = bindings.Select(binding => binding.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
+    foreach (var id in registeredModuleHotkeyIds.Where(id => !nextIds.Contains(id)).ToArray())
+    {
+        var result = await hotkeys.UnregisterAsync(id, cancellationToken);
+        lock (hotkeyGate)
+        {
+            registeredModuleHotkeyIds.Remove(id);
+            commandByHotkeyId.Remove(id);
+        }
+
         Console.WriteLine($"MyPowerTools.Runner module hotkey {result.State}: {result.Message}");
     }
 
-    return hotkeys;
+    foreach (var binding in bindings)
+    {
+        lock (hotkeyGate)
+        {
+            commandByHotkeyId[binding.Id] = binding.CommandId;
+        }
+
+        if (registeredModuleHotkeyIds.Contains(binding.Id))
+        {
+            continue;
+        }
+
+        var result = await hotkeys.RegisterAsync(
+            new HotkeyRegistration(binding.Id, binding.Gesture, binding.Scope, binding.Reason),
+            cancellationToken);
+        if (result.Success)
+        {
+            lock (hotkeyGate)
+            {
+                registeredModuleHotkeyIds.Add(binding.Id);
+            }
+        }
+
+        Console.WriteLine($"MyPowerTools.Runner module hotkey {result.State}: {result.Message}");
+    }
+}
+
+static bool RequiresHotkeySync(string eventType)
+{
+    return eventType is "module.enabled" or "module.disabled" or "settings.updated" or "registry.loaded";
 }
 
 static void StartShell(string root, bool focusCommandPalette = false)

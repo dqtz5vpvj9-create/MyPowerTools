@@ -213,7 +213,7 @@ Address         Port        Address         Port
                 new JsonObject
                 {
                     ["id"] = "quick.toggle",
-                    ["default"] = "Ctrl+Shift+F24",
+                    ["default"] = "Ctrl+Alt+Space",
                     ["commandId"] = "module-hotkey-sample.toggle",
                     ["scope"] = "module",
                     ["reason"] = "Toggle the sample module."
@@ -235,7 +235,17 @@ Address         Port        Address         Port
         Assert.Equal("module-hotkey-sample.quick.toggle", binding.Id);
         Assert.Equal("module-hotkey-sample", binding.ModuleId);
         Assert.Equal("module-hotkey-sample.toggle", binding.CommandId);
-        Assert.Equal("Ctrl+Shift+F24", binding.Gesture);
+        Assert.Equal("Ctrl+Alt+Space", binding.Gesture);
+
+        var hotkeys = runtime.GetRuntimeDiagnostics().Hotkeys;
+        Assert.Contains(hotkeys, hotkey =>
+            hotkey.Id == "command-palette" &&
+            hotkey.Gesture == "Ctrl+Alt+Space" &&
+            hotkey.State == "conflict");
+        Assert.Contains(hotkeys, hotkey =>
+            hotkey.Id == "module-hotkey-sample.quick.toggle" &&
+            hotkey.State == "conflict" &&
+            hotkey.Message.Contains("command-palette", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -680,12 +690,16 @@ Address         Port        Address         Port
     [Fact]
     public void Shell_ui_colors_are_centralized_in_theme_tokens()
     {
-        foreach (var file in new[]
-        {
-            Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "MainWindow.cs"),
-            Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellWorkspaceController.cs"),
-            Path.Combine(Root, "src", "MyPowerTools.UI", "Controls", "MptControls.cs")
-        })
+        var files = new[]
+            {
+                Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "MainWindow.cs"),
+                Path.Combine(Root, "src", "MyPowerTools.UI", "Controls", "MptControls.cs")
+            }
+            .Concat(Directory.EnumerateFiles(
+                Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services"),
+                "ShellWorkspaceController*.cs"));
+
+        foreach (var file in files)
         {
             var text = File.ReadAllText(file);
             Assert.DoesNotContain("Brush.Parse(\"#", text, StringComparison.Ordinal);
@@ -714,7 +728,7 @@ Address         Port        Address         Port
         var mainWindowPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "MainWindow.cs");
         var workspacePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellWorkspaceController.cs");
         var mainWindow = File.ReadAllText(mainWindowPath);
-        var workspace = File.ReadAllText(workspacePath);
+        var workspace = ReadShellWorkspaceControllerText();
 
         Assert.Contains("new ShellWorkspaceController", mainWindow);
         Assert.Contains("ShellWorkspaceController.PageLabels", mainWindow);
@@ -830,7 +844,7 @@ Address         Port        Address         Port
         var workspacePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellWorkspaceController.cs");
         var modulesViewPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Views", "ModulesView.axaml");
         var servicePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellPageDataService.cs");
-        var workspace = File.ReadAllText(workspacePath);
+        var workspace = ReadShellWorkspaceControllerText();
         var modulesView = File.ReadAllText(modulesViewPath);
         var service = File.ReadAllText(servicePath);
 
@@ -852,7 +866,7 @@ Address         Port        Address         Port
         var workspacePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellWorkspaceController.cs");
         var moduleDetailViewPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Views", "ModuleDetailView.axaml");
         var servicePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellPageDataService.cs");
-        var workspace = File.ReadAllText(workspacePath);
+        var workspace = ReadShellWorkspaceControllerText();
         var moduleDetailView = File.ReadAllText(moduleDetailViewPath);
         var viewModel = ReadShellViewModelsText();
         var service = File.ReadAllText(servicePath);
@@ -878,7 +892,7 @@ Address         Port        Address         Port
         var workspacePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellWorkspaceController.cs");
         var dashboardViewPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Views", "DashboardView.axaml");
         var servicePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellPageDataService.cs");
-        var workspace = File.ReadAllText(workspacePath);
+        var workspace = ReadShellWorkspaceControllerText();
         var dashboardView = File.ReadAllText(dashboardViewPath);
         var viewModel = ReadShellViewModelsText();
         var service = File.ReadAllText(servicePath);
@@ -898,7 +912,7 @@ Address         Port        Address         Port
         var workspacePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellWorkspaceController.cs");
         var notificationsViewPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Views", "NotificationsView.axaml");
         var servicePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellPageDataService.cs");
-        var workspace = File.ReadAllText(workspacePath);
+        var workspace = ReadShellWorkspaceControllerText();
         var notificationsView = File.ReadAllText(notificationsViewPath);
         var service = File.ReadAllText(servicePath);
 
@@ -917,7 +931,7 @@ Address         Port        Address         Port
         var workspacePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellWorkspaceController.cs");
         var logsViewPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Views", "LogsView.axaml");
         var servicePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellPageDataService.cs");
-        var workspace = File.ReadAllText(workspacePath);
+        var workspace = ReadShellWorkspaceControllerText();
         var logsView = File.ReadAllText(logsViewPath);
         var service = File.ReadAllText(servicePath);
 
@@ -938,7 +952,7 @@ Address         Port        Address         Port
         var workspacePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellWorkspaceController.cs");
         var packagesViewPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Views", "PackageManagerView.axaml");
         var servicePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellPageDataService.cs");
-        var workspace = File.ReadAllText(workspacePath);
+        var workspace = ReadShellWorkspaceControllerText();
         var packagesView = File.ReadAllText(packagesViewPath);
         var service = File.ReadAllText(servicePath);
 
@@ -961,7 +975,7 @@ Address         Port        Address         Port
         var workspacePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellWorkspaceController.cs");
         var diagnosticsViewPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Views", "DiagnosticsView.axaml");
         var servicePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellPageDataService.cs");
-        var workspace = File.ReadAllText(workspacePath);
+        var workspace = ReadShellWorkspaceControllerText();
         var diagnosticsView = File.ReadAllText(diagnosticsViewPath);
         var service = File.ReadAllText(servicePath);
 
@@ -986,7 +1000,7 @@ Address         Port        Address         Port
         var workspacePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellWorkspaceController.cs");
         var commandPaletteViewPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Views", "CommandPaletteView.axaml");
         var servicePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellPageDataService.cs");
-        var workspace = File.ReadAllText(workspacePath);
+        var workspace = ReadShellWorkspaceControllerText();
         var commandPaletteView = File.ReadAllText(commandPaletteViewPath);
         var viewModel = ReadShellViewModelsText();
         var service = File.ReadAllText(servicePath);
@@ -1278,7 +1292,7 @@ Address         Port        Address         Port
         var hostService = File.ReadAllText(hostServicePath);
         var hostClient = File.ReadAllText(hostClientPath);
         var commandService = File.ReadAllText(commandServicePath);
-        var workspace = File.ReadAllText(workspacePath);
+        var workspace = ReadShellWorkspaceControllerText();
 
         Assert.Contains("rpc CancelCommand", proto);
         Assert.Contains("rpc ExecuteCommandStream", proto);
@@ -1317,7 +1331,7 @@ Address         Port        Address         Port
         var workspacePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellWorkspaceController.cs");
         var servicePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellCommandExecutionService.cs");
         var mainWindow = File.ReadAllText(mainWindowPath);
-        var workspace = File.ReadAllText(workspacePath);
+        var workspace = ReadShellWorkspaceControllerText();
         var service = File.ReadAllText(servicePath);
 
         Assert.Contains("ShellCommandExecutionService", workspace);
@@ -1340,7 +1354,7 @@ Address         Port        Address         Port
         var workspacePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellWorkspaceController.cs");
         var servicePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellRunnerEventService.cs");
         var mainWindow = File.ReadAllText(mainWindowPath);
-        var workspace = File.ReadAllText(workspacePath);
+        var workspace = ReadShellWorkspaceControllerText();
         var service = File.ReadAllText(servicePath);
 
         Assert.Contains("ShellRunnerEventService", workspace);
@@ -1363,7 +1377,7 @@ Address         Port        Address         Port
     {
         var workspacePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellWorkspaceController.cs");
         var servicePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellPageRefreshRouter.cs");
-        var workspace = File.ReadAllText(workspacePath);
+        var workspace = ReadShellWorkspaceControllerText();
         var service = File.ReadAllText(servicePath);
 
         Assert.Contains("ShellPageRefreshRouter.Route(_currentPage, evt)", workspace);
@@ -1390,7 +1404,7 @@ Address         Port        Address         Port
         var workspacePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellWorkspaceController.cs");
         var servicePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellHostActionService.cs");
         var mainWindow = File.ReadAllText(mainWindowPath);
-        var workspace = File.ReadAllText(workspacePath);
+        var workspace = ReadShellWorkspaceControllerText();
         var service = File.ReadAllText(servicePath);
 
         Assert.Contains("ShellHostActionService", workspace);
@@ -1414,7 +1428,7 @@ Address         Port        Address         Port
         var workspacePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellWorkspaceController.cs");
         var settingsViewPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Views", "SettingsCenterView.axaml");
         var servicePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellPageDataService.cs");
-        var workspace = File.ReadAllText(workspacePath);
+        var workspace = ReadShellWorkspaceControllerText();
         var settingsView = File.ReadAllText(settingsViewPath);
         var viewModel = ReadShellViewModelsText();
         var service = File.ReadAllText(servicePath);
@@ -1527,7 +1541,7 @@ Address         Port        Address         Port
         var workspacePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellWorkspaceController.cs");
         var servicePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellSettingsService.cs");
         var mainWindow = File.ReadAllText(mainWindowPath);
-        var workspace = File.ReadAllText(workspacePath);
+        var workspace = ReadShellWorkspaceControllerText();
         var service = File.ReadAllText(servicePath);
 
         Assert.Contains("ShellSettingsService", workspace);
@@ -1553,7 +1567,7 @@ Address         Port        Address         Port
         var workspacePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellWorkspaceController.cs");
         var servicePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellPageDataService.cs");
         var mainWindow = File.ReadAllText(mainWindowPath);
-        var workspace = File.ReadAllText(workspacePath);
+        var workspace = ReadShellWorkspaceControllerText();
         var service = File.ReadAllText(servicePath);
 
         Assert.Contains("ShellPageDataService", workspace);
@@ -1589,7 +1603,7 @@ Address         Port        Address         Port
         var permissionViewPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Views", "PermissionPromptView.axaml");
         var auditViewPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Views", "BrokerAuditView.axaml");
         var servicePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellPageDataService.cs");
-        var workspace = File.ReadAllText(workspacePath);
+        var workspace = ReadShellWorkspaceControllerText();
         var permissionView = File.ReadAllText(permissionViewPath);
         var auditView = File.ReadAllText(auditViewPath);
         var viewModel = ReadShellViewModelsText();
@@ -1617,7 +1631,7 @@ Address         Port        Address         Port
     {
         var workspacePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellWorkspaceController.cs");
         var unavailableViewPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Views", "UnavailablePageView.axaml");
-        var workspace = File.ReadAllText(workspacePath);
+        var workspace = ReadShellWorkspaceControllerText();
         var unavailableView = File.ReadAllText(unavailableViewPath);
         var viewModel = ReadShellViewModelsText();
 
@@ -1798,14 +1812,20 @@ Address         Port        Address         Port
             Assert.False(
                 System.Text.RegularExpressions.Regex.IsMatch(text, "FontSize=\"[0-9]"),
                 $"{file} should use typography tokens instead of raw FontSize values.");
+            Assert.False(
+                System.Text.RegularExpressions.Regex.IsMatch(text, "\\b(Margin|Padding|Spacing)=\"[0-9]"),
+                $"{file} should use spacing tokens instead of raw spacing values.");
         }
 
-        foreach (var file in new[]
-        {
-            Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "MainWindow.cs"),
-            Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellWorkspaceController.cs"),
-            Path.Combine(Root, "src", "MyPowerTools.UI", "Controls", "MptControls.cs")
-        })
+        var csharpFiles = new[]
+            {
+                Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "MainWindow.cs"),
+                Path.Combine(Root, "src", "MyPowerTools.UI", "Controls", "MptControls.cs")
+            }
+            .Concat(Directory.EnumerateFiles(
+                Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services"),
+                "ShellWorkspaceController*.cs"));
+        foreach (var file in csharpFiles)
         {
             var text = File.ReadAllText(file);
             Assert.DoesNotContain("Brush.Parse(\"#", text, StringComparison.Ordinal);
@@ -1814,6 +1834,8 @@ Address         Port        Address         Port
                 System.Text.RegularExpressions.Regex.IsMatch(text, "FontSize = [0-9]"),
                 $"{file} should use typography constants instead of raw FontSize values.");
         }
+
+        Assert.Empty(new UiSurfaceGate().CheckShellSource(Root).Where(issue => issue.Severity == "error"));
     }
 
     [Fact]
@@ -1957,6 +1979,186 @@ Address         Port        Address         Port
             Assert.Equal(768, item["height"]!.GetValue<int>());
             Assert.Equal("Avalonia.Headless", item["renderer"]!.GetValue<string>());
         });
+
+        AssertLiveHostControlScreenshotManifest();
+    }
+
+    private static void AssertLiveHostControlScreenshotManifest()
+    {
+        var output = Path.Combine(Path.GetTempPath(), "mpt-shell-live-screenshot", Guid.NewGuid().ToString("N"));
+        var timestamp = Google.Protobuf.WellKnownTypes.Timestamp.FromDateTimeOffset(DateTimeOffset.UtcNow);
+        var dashboard = new HostProto.DashboardSnapshot { EventSeq = 7 };
+        var card = new HostProto.ModuleCard
+        {
+            ModuleId = "sample.live",
+            PackageId = "sample-live-package",
+            Title = "Sample Live",
+            State = "running",
+            Summary = "Loaded from HostControl fixture data."
+        };
+        card.Metrics.Add(new HostProto.Metric { Label = "Transport", Value = "fixture-hostcontrol" });
+        card.Actions.Add(new HostProto.QuickAction { CommandId = "sample.live.run", Title = "Run", Style = "primary" });
+        dashboard.Cards.Add(card);
+
+        var modules = new HostProto.ListModulesResponse();
+        var selected = new HostProto.ModuleSummary
+        {
+            ModuleId = "sample.live",
+            PackageId = "sample-live-package",
+            DisplayName = "Sample Live",
+            State = "running",
+            Summary = "Live HostControl module.",
+            Enabled = true
+        };
+        modules.Modules.Add(selected);
+        var commands = new HostProto.ListCommandsResponse();
+        var command = new HostProto.CommandItem
+        {
+            CommandId = "sample.live.run",
+            ModuleId = "sample.live",
+            Title = "Run live command",
+            Subtitle = "Uses live HostControl data.",
+            DangerLevel = "normal"
+        };
+        command.Parameters.Add(new HostProto.CommandParameter
+        {
+            Id = "reason",
+            Label = "Reason",
+            Type = "string",
+            Required = true,
+            DefaultValue = "live snapshot"
+        });
+        commands.Commands.Add(command);
+
+        var packages = new HostProto.ListPackagesResponse();
+        packages.Packages.Add(new HostProto.PackageSummary
+        {
+            PackageId = "sample-live-package",
+            DisplayName = "Sample Live Package",
+            Version = "0.2.0",
+            Publisher = "tests",
+            Directory = output,
+            TrustState = "trusted",
+            TrustPolicy = "local"
+        });
+        packages.Packages[0].ModuleIds.Add("sample.live");
+        var notifications = new HostProto.ListNotificationsResponse();
+        notifications.Notifications.Add(new HostProto.NotificationItem
+        {
+            Id = "n-live",
+            Time = timestamp,
+            ModuleId = "sample.live",
+            Level = "info",
+            Title = "Live event",
+            Body = "Notification came from HostControl fixture data."
+        });
+        var diagnostics = new HostProto.RuntimeDiagnostics
+        {
+            RunnerVersion = "0.2.0",
+            HostControlProtocolVersion = "1.0",
+            ModuleProtocolVersion = "1.0",
+            PlatformRid = "test",
+            DotnetVersion = Environment.Version.ToString(),
+            OsDescription = "test",
+            ProcessArchitecture = "x64",
+            StartedAt = timestamp,
+            CollectedAt = timestamp,
+            CurrentEventSeq = 7,
+            Paths = new HostProto.RuntimePathDiagnostics
+            {
+                Root = output,
+                Settings = output,
+                Logs = output,
+                State = output,
+                Packages = output,
+                PackageRoot = output
+            },
+            Counts = new HostProto.RuntimeCountDiagnostics
+            {
+                PackageCount = 1,
+                ModuleCount = 1,
+                EnabledModuleCount = 1,
+                RunningModuleCount = 1,
+                CommandCount = 1,
+                NotificationCount = 1
+            }
+        };
+        diagnostics.Transports.Add(new HostProto.RuntimeTransportDiagnostics { Kind = "inproc-dotnet", RuntimeRegistered = true, ModuleCount = 1 });
+        diagnostics.Modules.Add(new HostProto.RuntimeModuleDiagnostics
+        {
+            ModuleId = "sample.live",
+            PackageId = "sample-live-package",
+            DisplayName = "Sample Live",
+            State = "running",
+            Enabled = true,
+            TransportKind = "inproc-dotnet",
+            Summary = "Live HostControl module.",
+            UpdatedAt = timestamp,
+            LastObservedAt = timestamp
+        });
+        diagnostics.Hotkeys.Add(new HostProto.RuntimeHotkeyDiagnostics
+        {
+            Id = "sample.live.quick",
+            ModuleId = "sample.live",
+            CommandId = "sample.live.run",
+            Gesture = "Ctrl+Alt+F10",
+            Scope = "module",
+            State = "ok",
+            Message = "Gesture is available."
+        });
+
+        var data = new ShellHostControlSnapshotData(
+            "fixture-hostcontrol",
+            dashboard,
+            commands,
+            modules,
+            selected,
+            new HostProto.ModuleDetail
+            {
+                ModuleId = "sample.live",
+                PackageId = "sample-live-package",
+                DisplayName = "Sample Live",
+                State = "running",
+                Summary = "Live HostControl detail."
+            },
+            new HostProto.SettingsSchema
+            {
+                ModuleId = "sample.live",
+                SchemaJson = """{"properties":{"profile":{"type":"string","title":"Profile"}}}"""
+            },
+            new HostProto.SettingsSnapshot
+            {
+                ModuleId = "sample.live",
+                Revision = 3,
+                Values = JsonStructMapper.ToStruct(new JsonObject { ["profile"] = "normal" }),
+                UpdatedAt = timestamp
+            },
+            [
+                new HostProto.LogEntry
+                {
+                    ModuleId = "sample.live",
+                    Cursor = "1",
+                    Time = timestamp,
+                    Level = "info",
+                    Message = "Live fixture log line."
+                }
+            ],
+            notifications,
+            packages,
+            diagnostics,
+            new HostProto.ListBrokerAuditResponse());
+
+        var manifestPath = ShellRealScreenshotWriter.WriteSnapshotSetFromHostControlData(
+            output,
+            "light",
+            "1366x768",
+            "normal",
+            data);
+        var manifest = JsonNode.Parse(File.ReadAllText(manifestPath))!.AsObject();
+
+        Assert.True(manifest["usesHostControlData"]!.GetValue<bool>());
+        Assert.Equal("fixture-hostcontrol", manifest["dataSource"]!.GetValue<string>());
+        Assert.Equal(8, manifest["screenshotCount"]!.GetValue<int>());
     }
 
     [Fact]
@@ -3088,12 +3290,16 @@ commands:
         var runner = File.ReadAllText(runnerPath);
         var app = File.ReadAllText(appPath);
         var mainWindow = File.ReadAllText(mainWindowPath);
-        var workspace = File.ReadAllText(workspacePath);
+        var workspace = ReadShellWorkspaceControllerText();
         var startupOptions = File.ReadAllText(startupOptionsPath);
 
         Assert.Contains("StartHotkeysAsync", runner);
         Assert.Contains("new HotkeyRegistration(\"command-palette\", \"Ctrl+Alt+Space\"", runner);
         Assert.Contains("runtime.ListHotkeyBindings()", runner);
+        Assert.Contains("SyncModuleHotkeysAsync", runner);
+        Assert.Contains("WatchRuntimeHotkeyBindingsAsync", runner);
+        Assert.Contains("hotkeys.UnregisterAsync", runner);
+        Assert.Contains("RequiresHotkeySync(evt.Type)", runner);
         Assert.Contains("new HotkeyRegistration(binding.Id, binding.Gesture, binding.Scope, binding.Reason)", runner);
         Assert.Contains("runtime.ExecuteCommandAsync", runner);
         Assert.Contains("new CommandRequest($\"hotkey-{Guid.NewGuid():N}\", commandId, new JsonObject())", runner);
@@ -3206,6 +3412,42 @@ commands:
         Assert.Equal("sample.dotnet", evt.ModuleId);
         Assert.Equal(1UL, evt.Payload["moduleEventSeq"]!.GetValue<ulong>());
         Assert.Equal("sample module event stream is active", evt.Payload["message"]!.GetValue<string>());
+    }
+
+    [Fact]
+    public async Task Runtime_collects_production_module_events_and_notifications()
+    {
+        await using var inproc = new InProcDotNetModuleHost();
+        await using var grpc = new GrpcIpcModuleRuntime();
+        await using var runtime = new MptHostRuntime(
+            new PackageReader(),
+            PlatformId.Current(),
+            RuntimePaths.Create(Path.Combine(Path.GetTempPath(), "mpt-runtime-production-events", Guid.NewGuid().ToString("N"))),
+            [inproc, grpc]);
+
+        runtime.Load(Path.Combine(Root, "modules"));
+        var count = await runtime.CollectModuleEventsAsync(TimeSpan.FromMilliseconds(1500), CancellationToken.None);
+        var events = runtime.HostEventsSince(0);
+        var productionModuleIds = events
+            .Where(evt => evt.ModuleId is
+                "adb-forwarder" or
+                "screenease" or
+                "doubao-agent" or
+                "smartbird-thermostat" or
+                "android-tools.notifications" or
+                "android-tools.process-monitor" or
+                "android-tools.remote-commands")
+            .Select(evt => evt.ModuleId)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+        var notifications = runtime.ListNotifications();
+
+        Assert.True(count >= 4, $"Expected at least 4 production module events, got {count}.");
+        Assert.True(productionModuleIds.Length >= 4, string.Join(", ", events.Select(evt => $"{evt.ModuleId}:{evt.Type}")));
+        Assert.Contains(events, evt => evt.Type == "portproxy.changed");
+        Assert.Contains(events, evt => evt.Type == "profile.applied");
+        Assert.Contains(events, evt => evt.Type is "server.disconnected" or "message.received");
+        Assert.NotEmpty(notifications);
     }
 
     [Fact]
@@ -5718,6 +5960,16 @@ cloud_server_protocol: str = "https"
         return string.Join(
             Environment.NewLine,
             Directory.EnumerateFiles(viewModelRoot, "*.cs", SearchOption.AllDirectories)
+                .OrderBy(Path.GetFileName, StringComparer.OrdinalIgnoreCase)
+                .Select(File.ReadAllText));
+    }
+
+    private static string ReadShellWorkspaceControllerText()
+    {
+        var servicesRoot = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services");
+        return string.Join(
+            Environment.NewLine,
+            Directory.EnumerateFiles(servicesRoot, "ShellWorkspaceController*.cs", SearchOption.TopDirectoryOnly)
                 .OrderBy(Path.GetFileName, StringComparer.OrdinalIgnoreCase)
                 .Select(File.ReadAllText));
     }

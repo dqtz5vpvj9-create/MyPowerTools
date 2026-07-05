@@ -316,6 +316,7 @@ public sealed class MptHostRuntime : IAsyncDisposable
                             .ToArray());
                 })
                 .ToArray(),
+            ListHotkeyDiagnostics(),
             recentCommands);
     }
 
@@ -481,6 +482,56 @@ public sealed class MptHostRuntime : IAsyncDisposable
                         string.IsNullOrWhiteSpace(hotkey.Reason) ? $"Invoke {hotkey.CommandId}." : hotkey.Reason));
             })
             .OrderBy(binding => binding.Id, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    public IReadOnlyList<RuntimeHotkeyDiagnostic> ListHotkeyDiagnostics()
+    {
+        var bindings = ListHotkeyBindings()
+            .Select(binding => new RuntimeHotkeyBinding(
+                binding.Id,
+                binding.ModuleId,
+                binding.CommandId,
+                NormalizeGesture(binding.Gesture),
+                binding.Scope,
+                binding.Reason))
+            .Concat(
+            [
+                new RuntimeHotkeyBinding(
+                    "command-palette",
+                    "runner",
+                    "shell.command-palette.open",
+                    "Ctrl+Alt+Space",
+                    "runner",
+                    "Open the command palette.")
+            ])
+            .ToArray();
+        var conflicts = bindings
+            .GroupBy(binding => NormalizeGesture(binding.Gesture), StringComparer.OrdinalIgnoreCase)
+            .Where(group => group.Count() > 1)
+            .ToDictionary(group => group.Key, group => group.Select(item => item.Id).ToArray(), StringComparer.OrdinalIgnoreCase);
+
+        return bindings
+            .OrderBy(binding => binding.ModuleId, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(binding => binding.Id, StringComparer.OrdinalIgnoreCase)
+            .Select(binding =>
+            {
+                var conflict = conflicts.TryGetValue(NormalizeGesture(binding.Gesture), out var ids);
+                var peers = conflict && ids is not null
+                    ? string.Join(", ", ids.Where(id => !string.Equals(id, binding.Id, StringComparison.OrdinalIgnoreCase)))
+                    : "";
+                return new RuntimeHotkeyDiagnostic(
+                    binding.Id,
+                    binding.ModuleId,
+                    binding.CommandId,
+                    NormalizeGesture(binding.Gesture),
+                    binding.Scope,
+                    conflict ? "conflict" : "ok",
+                    conflict
+                        ? $"Gesture {binding.Gesture} also maps to {peers}."
+                        : "Gesture is available in the runtime binding table.",
+                    true);
+            })
             .ToArray();
     }
 
@@ -1148,6 +1199,16 @@ public sealed class MptHostRuntime : IAsyncDisposable
             : $"{moduleId}.{hotkeyId}";
     }
 
+    private static string NormalizeGesture(string gesture)
+    {
+        return string.Join(
+            "+",
+            gesture
+                .Split('+', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                .Select(part => part.Equals("control", StringComparison.OrdinalIgnoreCase) ? "Ctrl" : part)
+                .Select(part => part.Equals("esc", StringComparison.OrdinalIgnoreCase) ? "Escape" : part));
+    }
+
     private static Sdk.ModuleStatusSnapshot InitialStatus(RuntimeModuleRecord module)
     {
         var state = module.Entrypoint is null
@@ -1308,6 +1369,7 @@ public sealed class MptHostRuntime : IAsyncDisposable
                     payload["moduleEventSeq"] = evt.Seq;
                     payload["moduleEventTime"] = evt.Time.ToString("O");
                     _eventBus.Publish(evt.ModuleId, evt.Type, payload);
+                    PublishNotificationForModuleEvent(evt);
                     count++;
                 }
             }
@@ -1336,6 +1398,45 @@ public sealed class MptHostRuntime : IAsyncDisposable
         var module = _packageRegistry.FindModule(moduleId);
         _logRouter.Append(module?.Module.Manifest.PackageId ?? moduleId, moduleId, "info", $"Notification '{title}' created.", eventSeq: evt.Seq);
         return notification;
+    }
+
+    private void PublishNotificationForModuleEvent(Sdk.MptModuleEvent evt)
+    {
+        if (!ShouldNotifyForModuleEvent(evt.Type))
+        {
+            return;
+        }
+
+        var level = EventNotificationLevel(evt.Type);
+        var title = ReadPayloadString(evt.Payload, "title") ?? evt.Type;
+        var body = ReadPayloadString(evt.Payload, "message") ??
+            ReadPayloadString(evt.Payload, "summary") ??
+            evt.Payload.ToJsonString();
+        _notificationCenter.Publish(evt.ModuleId, level, title, body);
+    }
+
+    private static bool ShouldNotifyForModuleEvent(string eventType)
+    {
+        return eventType.Contains("failed", StringComparison.OrdinalIgnoreCase) ||
+               eventType.Contains("disconnected", StringComparison.OrdinalIgnoreCase) ||
+               eventType.Contains("missing", StringComparison.OrdinalIgnoreCase) ||
+               eventType.Contains("alert", StringComparison.OrdinalIgnoreCase) ||
+               eventType.Contains("degraded", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string EventNotificationLevel(string eventType)
+    {
+        return eventType.Contains("failed", StringComparison.OrdinalIgnoreCase) ||
+               eventType.Contains("missing", StringComparison.OrdinalIgnoreCase)
+            ? "warning"
+            : "info";
+    }
+
+    private static string? ReadPayloadString(JsonObject payload, string key)
+    {
+        return payload.TryGetPropertyValue(key, out var node) && node is not null && node.GetValueKind() == System.Text.Json.JsonValueKind.String
+            ? node.GetValue<string>()
+            : null;
     }
 
     private void EnsureModule(string moduleId)

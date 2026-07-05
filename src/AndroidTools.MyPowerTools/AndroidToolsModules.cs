@@ -130,6 +130,31 @@ public sealed class AndroidToolsRemoteCommandsModule : AndroidToolsModuleBase
         }
     }
 
+    protected override async IAsyncEnumerable<MptModuleEvent> BuildModuleEventsAsync(EventCursor cursor, [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        await Task.CompletedTask;
+        if (cursor.LastEventSeq >= 1)
+        {
+            yield break;
+        }
+
+        var catalog = LoadCatalog();
+        var history = Shared.LoadRemoteCommandHistorySummary();
+        yield return new MptModuleEvent(
+            Id,
+            1,
+            "command.finished",
+            DateTimeOffset.UtcNow,
+            new JsonObject
+            {
+                ["title"] = "AndroidTools remote command catalog",
+                ["message"] = $"{catalog.Commands.Count} imported command(s); {history.MyPowerToolsHistoryCount} MyPowerTools history item(s).",
+                ["commandCount"] = catalog.Commands.Count,
+                ["historyCount"] = history.MyPowerToolsHistoryCount,
+                ["source"] = catalog.SourceKind
+            });
+    }
+
     public override ValueTask<SettingsSchemaDocument> GetSettingsSchemaAsync(CancellationToken cancellationToken)
     {
         return ValueTask.FromResult(new SettingsSchemaDocument(Id, """
@@ -348,6 +373,31 @@ public sealed class AndroidToolsNotificationsModule : AndroidToolsModuleBase
         };
     }
 
+    protected override async IAsyncEnumerable<MptModuleEvent> BuildModuleEventsAsync(EventCursor cursor, [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        await Task.CompletedTask;
+        if (cursor.LastEventSeq >= 1)
+        {
+            yield break;
+        }
+
+        var endpoint = CurrentEndpoint();
+        var inbox = Shared.NotificationInboxSummary(endpoint);
+        yield return new MptModuleEvent(
+            Id,
+            1,
+            endpoint.Found ? "message.received" : "server.disconnected",
+            DateTimeOffset.UtcNow,
+            new JsonObject
+            {
+                ["title"] = "AndroidTools notification endpoint",
+                ["message"] = endpoint.Message,
+                ["endpointFound"] = endpoint.Found,
+                ["legacyHistory"] = inbox["legacyHistory"]!.DeepClone(),
+                ["sshSigningKey"] = inbox["sshSigningKey"]!.DeepClone()
+            });
+    }
+
     public override ValueTask<SettingsSchemaDocument> GetSettingsSchemaAsync(CancellationToken cancellationToken)
     {
         return ValueTask.FromResult(new SettingsSchemaDocument(Id, """
@@ -477,6 +527,32 @@ public sealed class AndroidToolsProcessMonitorModule : AndroidToolsModuleBase
         return ValueTask.FromResult(NotFound(request));
     }
 
+    protected override async IAsyncEnumerable<MptModuleEvent> BuildModuleEventsAsync(EventCursor cursor, [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        await Task.CompletedTask;
+        if (cursor.LastEventSeq >= 1)
+        {
+            yield break;
+        }
+
+        var processes = CurrentWatchList();
+        var states = Shared.CheckProcesses(processes.Names);
+        var runningCount = states.Count(state => state.Running);
+        yield return new MptModuleEvent(
+            Id,
+            1,
+            runningCount > 0 ? "process.started" : "watch.alert",
+            DateTimeOffset.UtcNow,
+            new JsonObject
+            {
+                ["title"] = "AndroidTools process watch",
+                ["message"] = processes.Names.Count == 0 ? processes.Message : $"{runningCount} of {states.Count} watched process name(s) are running.",
+                ["configuredCount"] = processes.Names.Count,
+                ["runningCount"] = runningCount,
+                ["source"] = processes.SourceKind
+            });
+    }
+
     public override ValueTask<SettingsSchemaDocument> GetSettingsSchemaAsync(CancellationToken cancellationToken)
     {
         return ValueTask.FromResult(new SettingsSchemaDocument(Id, """
@@ -572,9 +648,33 @@ public abstract class AndroidToolsModuleBase : IMptModule
         yield return FinalEvent(result);
     }
 
-    public IAsyncEnumerable<MptModuleEvent> SubscribeEventsAsync(EventCursor cursor, CancellationToken cancellationToken)
+    public async IAsyncEnumerable<MptModuleEvent> SubscribeEventsAsync(EventCursor cursor, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        return EmptyAsyncEnumerable.Of<MptModuleEvent>(cancellationToken);
+        await foreach (var evt in BuildModuleEventsAsync(cursor, cancellationToken).WithCancellation(cancellationToken))
+        {
+            yield return evt;
+        }
+    }
+
+    protected virtual async IAsyncEnumerable<MptModuleEvent> BuildModuleEventsAsync(EventCursor cursor, [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        if (cursor.LastEventSeq >= 1)
+        {
+            yield break;
+        }
+
+        var status = await GetStatusAsync(cancellationToken);
+        yield return new MptModuleEvent(
+            Id,
+            1,
+            status.State == "running" ? "module.running" : "module.degraded",
+            DateTimeOffset.UtcNow,
+            new JsonObject
+            {
+                ["title"] = DisplayName,
+                ["message"] = status.Summary,
+                ["state"] = status.State
+            });
     }
 
     public virtual ValueTask<SettingsSchemaDocument> GetSettingsSchemaAsync(CancellationToken cancellationToken)

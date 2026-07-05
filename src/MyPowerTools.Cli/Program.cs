@@ -11,6 +11,11 @@ using MyPowerTools.Platform.Windows;
 using MyPowerTools.Shell.Avalonia;
 using System.Globalization;
 using System.Text.Json.Nodes;
+using Microsoft.AspNetCore.Builder;
+using Microsoft.AspNetCore.Hosting;
+using Microsoft.AspNetCore.Server.Kestrel.Core;
+using Microsoft.Extensions.DependencyInjection;
+using Microsoft.Extensions.Logging;
 using MyPowerTools.HostControl;
 using CommandRequest = MyPowerTools.Abstractions.CommandRequest;
 
@@ -490,6 +495,7 @@ static int UiCheck(string[] args, string root)
     var gate = new UiSurfaceGate();
     var issues = reader.DiscoverPackages(Path.GetFullPath(packageDir))
         .SelectMany(gate.CheckPackage)
+        .Concat(gate.CheckShellSource(root))
         .ToArray();
 
     foreach (var issue in issues)
@@ -530,10 +536,113 @@ static int UiShellSnapshot(string[] args, string root)
         GetOption(args, "--size") ?? "1366x768",
         GetOption(args, "--density") ?? "normal");
     var path = new UiSurfaceGate().WriteShellSnapshotSet(output, request);
-    var realPath = ShellRealScreenshotWriter.WriteSnapshotSet(output, request.Theme, request.Size, request.Density);
+    var realPath = args.Contains("--live", StringComparer.OrdinalIgnoreCase)
+        ? UiShellSnapshotLiveAsync(args, root, output, request).GetAwaiter().GetResult()
+        : ShellRealScreenshotWriter.WriteSnapshotSet(output, request.Theme, request.Size, request.Density);
     Console.WriteLine(path);
     Console.WriteLine(realPath);
     return 0;
+}
+
+static async Task<string> UiShellSnapshotLiveAsync(string[] args, string root, string output, UiSnapshotRequest request)
+{
+    using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(40));
+    if (!args.Contains("--fixture-only", StringComparer.OrdinalIgnoreCase))
+    {
+        try
+        {
+            using var client = HostControlClient.ForDefaultEndpoint();
+            await client.PingAsync(timeout.Token);
+            return await ShellRealScreenshotWriter.WriteSnapshotSetFromHostControlAsync(
+                output,
+                request.Theme,
+                request.Size,
+                request.Density,
+                client,
+                "runner-hostcontrol",
+                timeout.Token);
+        }
+        catch (Exception ex) when (!args.Contains("--runner-only", StringComparer.OrdinalIgnoreCase) && ex is not OperationCanceledException)
+        {
+            Console.WriteLine($"Runner HostControl unavailable for live screenshot: {ex.Message}");
+        }
+    }
+
+    return await WriteShellSnapshotFromFixtureHostControlAsync(args, root, output, request, timeout.Token);
+}
+
+static async Task<string> WriteShellSnapshotFromFixtureHostControlAsync(
+    string[] args,
+    string root,
+    string output,
+    UiSnapshotRequest request,
+    CancellationToken cancellationToken)
+{
+    var dataRoot = GetOption(args, "--data-root") ??
+        Path.Combine(Path.GetTempPath(), "MyPowerTools", "shell-live-snapshot", Guid.NewGuid().ToString("N"));
+    var modulesRoot = GetPackageRoot(args, root);
+    var endpoint = CreateFixtureHostControlEndpoint();
+    await using var runtime = CreateRuntime(dataRoot);
+    runtime.Load(modulesRoot);
+    await runtime.RefreshDynamicCommandsAsync(cancellationToken);
+    await runtime.RefreshHealthAsync(cancellationToken);
+    await runtime.CollectModuleEventsAsync(TimeSpan.FromMilliseconds(1500), cancellationToken);
+
+    var builder = WebApplication.CreateBuilder(Array.Empty<string>());
+    builder.Logging.ClearProviders();
+    builder.Services.AddGrpc();
+    builder.Services.AddSingleton(runtime);
+    builder.Services.AddSingleton(CreateDefaultAuditLog());
+    builder.WebHost.ConfigureKestrel(options =>
+    {
+        if (endpoint.Transport == IpcTransport.NamedPipe)
+        {
+            options.ListenNamedPipe(endpoint.Address, listen => listen.Protocols = HttpProtocols.Http2);
+            return;
+        }
+
+        if (File.Exists(endpoint.Address))
+        {
+            File.Delete(endpoint.Address);
+        }
+
+        Directory.CreateDirectory(Path.GetDirectoryName(endpoint.Address)!);
+        options.ListenUnixSocket(endpoint.Address, listen => listen.Protocols = HttpProtocols.Http2);
+    });
+
+    await using var app = builder.Build();
+    app.MapGrpcService<HostControlGrpcService>();
+    await app.StartAsync(cancellationToken);
+    try
+    {
+        using var client = HostControlClient.ForEndpoint(endpoint);
+        await client.PingAsync(cancellationToken);
+        return await ShellRealScreenshotWriter.WriteSnapshotSetFromHostControlAsync(
+            output,
+            request.Theme,
+            request.Size,
+            request.Density,
+            client,
+            "fixture-hostcontrol",
+            cancellationToken);
+    }
+    finally
+    {
+        await app.StopAsync(CancellationToken.None);
+        if (endpoint.Transport == IpcTransport.UnixDomainSocket && File.Exists(endpoint.Address))
+        {
+            File.Delete(endpoint.Address);
+        }
+    }
+}
+
+static IpcEndpoint CreateFixtureHostControlEndpoint()
+{
+    return OperatingSystem.IsWindows()
+        ? new IpcEndpoint(IpcTransport.NamedPipe, $"mypowertools.shell.snapshot.{Guid.NewGuid():N}")
+        : new IpcEndpoint(
+            IpcTransport.UnixDomainSocket,
+            Path.Combine(Path.GetTempPath(), $"mypowertools.shell.snapshot.{Guid.NewGuid():N}.sock"));
 }
 
 static int Broker(string[] args, string root)
@@ -985,7 +1094,7 @@ static int Help()
     Console.WriteLine("mpt module disable <module-id> [--modules <package-root>] [--data-root <dir>]");
     Console.WriteLine("mpt ui check <package-dir>");
     Console.WriteLine("mpt ui snapshot [package-dir] [--surface <id|kind>] [--theme <theme>] [--size <width>x<height>] [--density <density>] [--out <dir>]");
-    Console.WriteLine("mpt ui shell-snapshot [--surface <id|kind>] [--theme <theme>] [--size <width>x<height>] [--density <density>] [--out <dir>] (writes contract and real Avalonia screenshots)");
+    Console.WriteLine("mpt ui shell-snapshot [--live] [--fixture-only] [--runner-only] [--surface <id|kind>] [--theme <theme>] [--size <width>x<height>] [--density <density>] [--out <dir>] (writes contract and real Avalonia screenshots)");
     Console.WriteLine("mpt broker audit");
     Console.WriteLine("mpt broker secret self-test [--module <id>] [--name <name>]");
     Console.WriteLine("mpt broker portproxy list");

@@ -17,7 +17,7 @@
       </ItemsControl.ItemsPanel>
       <ItemsControl.ItemTemplate>
         <DataTemplate x:DataType="vm:MetricViewModel">
-          <Border Classes="MptMetricTile" Margin="0,0,8,8">
+          <Border Classes="MptMetricTile" Margin="{DynamicResource MptWrapItemMargin}">
             <StackPanel>
               <TextBlock FontWeight="SemiBold" Text="{Binding Value}" />
               <TextBlock Classes="MptMeta" Text="{Binding Label}" />
@@ -31,7 +31,7 @@
     <ItemsControl ItemsSource="{Binding Paths}">
       <ItemsControl.ItemTemplate>
         <DataTemplate x:DataType="vm:MetricViewModel">
-          <Grid ColumnDefinitions="120,*" Margin="0,0,0,4">
+          <Grid ColumnDefinitions="120,*" Margin="{DynamicResource MptGapBottomXs}">
             <TextBlock Classes="MptMeta" Text="{Binding Label}" />
             <TextBlock Grid.Column="1" Text="{Binding Value}" TextWrapping="Wrap" />
           </Grid>
@@ -46,7 +46,7 @@
     <ItemsControl ItemsSource="{Binding Transports}">
       <ItemsControl.ItemTemplate>
         <DataTemplate x:DataType="vm:RuntimeTransportViewModel">
-          <Border Classes="MptSettingsSection" Margin="0,0,0,8">
+          <Border Classes="MptSettingsSection" Margin="{DynamicResource MptGapBottomM}">
             <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
               <TextBlock Classes="MptSectionTitle" Text="{Binding Kind}" />
               <TextBlock Grid.Column="1" Classes="MptMeta" Text="{Binding State}" />
@@ -64,7 +64,7 @@
     <ItemsControl ItemsSource="{Binding Processes}">
       <ItemsControl.ItemTemplate>
         <DataTemplate x:DataType="vm:RuntimeProcessViewModel">
-          <Border Classes="MptSettingsSection" Margin="0,0,0,8">
+          <Border Classes="MptSettingsSection" Margin="{DynamicResource MptGapBottomM}">
             <StackPanel Spacing="{DynamicResource MptSpacingS}">
               <Grid ColumnDefinitions="*,Auto">
                 <TextBlock Classes="MptSectionTitle" Text="{Binding PoolKey}" />
@@ -132,7 +132,7 @@
     <ItemsControl ItemsSource="{Binding ProcessPolicyHistory}">
       <ItemsControl.ItemTemplate>
         <DataTemplate x:DataType="vm:RuntimeProcessPolicyHistoryItemViewModel">
-          <StackPanel Spacing="{DynamicResource MptSpacingXs}" Margin="0,0,0,8">
+          <StackPanel Spacing="{DynamicResource MptSpacingXs}" Margin="{DynamicResource MptGapBottomM}">
             <TextBlock FontWeight="SemiBold" Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
             <TextBlock Classes="MptMeta" Text="{Binding Detail}" TextTrimming="CharacterEllipsis" />
             <TextBlock Classes="MptMeta" Text="{Binding Reason}" TextWrapping="Wrap" />
@@ -148,7 +148,7 @@
     <ItemsControl ItemsSource="{Binding Modules}">
       <ItemsControl.ItemTemplate>
         <DataTemplate x:DataType="vm:RuntimeModuleDiagnosticViewModel">
-          <Border Classes="MptSettingsSection" Margin="0,0,0,8">
+          <Border Classes="MptSettingsSection" Margin="{DynamicResource MptGapBottomM}">
             <StackPanel Spacing="{DynamicResource MptSpacingS}">
               <Grid ColumnDefinitions="*,Auto">
                 <TextBlock Classes="MptSectionTitle" Text="{Binding DisplayName}" />
@@ -157,7 +157,7 @@
               <ItemsControl ItemsSource="{Binding Details}">
                 <ItemsControl.ItemTemplate>
                   <DataTemplate x:DataType="vm:MetricViewModel">
-                    <Grid ColumnDefinitions="120,*" Margin="0,0,0,4">
+                    <Grid ColumnDefinitions="120,*" Margin="{DynamicResource MptGapBottomXs}">
                       <TextBlock Classes="MptMeta" Text="{Binding Label}" />
                       <TextBlock Grid.Column="1" Text="{Binding Value}" TextWrapping="Wrap" />
                     </Grid>
@@ -177,7 +177,7 @@
     <ItemsControl ItemsSource="{Binding RecentCommands}">
       <ItemsControl.ItemTemplate>
         <DataTemplate x:DataType="vm:RuntimeCommandHistoryItemViewModel">
-          <StackPanel Spacing="{DynamicResource MptSpacingXs}" Margin="0,0,0,8">
+          <StackPanel Spacing="{DynamicResource MptSpacingXs}" Margin="{DynamicResource MptGapBottomM}">
             <TextBlock FontWeight="SemiBold" Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
             <TextBlock Classes="MptMeta" Text="{Binding Detail}" TextTrimming="CharacterEllipsis" />
             <TextBlock Classes="MptMeta" Text="{Binding Summary}" TextWrapping="Wrap" />
@@ -193,7 +193,7 @@
     <ItemsControl ItemsSource="{Binding BrokerAudit}">
       <ItemsControl.ItemTemplate>
         <DataTemplate x:DataType="vm:BrokerAuditEntryViewModel">
-          <StackPanel Spacing="{DynamicResource MptSpacingXs}" Margin="0,0,0,8">
+          <StackPanel Spacing="{DynamicResource MptSpacingXs}" Margin="{DynamicResource MptGapBottomM}">
             <TextBlock FontWeight="SemiBold" Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
             <TextBlock Classes="MptMeta" Text="{Binding Detail}" TextTrimming="CharacterEllipsis" />
             <TextBlock Classes="MptMeta" Text="{Binding Reason}" TextWrapping="Wrap" />

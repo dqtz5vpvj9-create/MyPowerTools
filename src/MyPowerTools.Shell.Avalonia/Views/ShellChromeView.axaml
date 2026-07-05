@@ -11,14 +11,14 @@
                          Grid.RowSpan="3">
       <TextBlock Classes="MptPageTitle"
                  Text="MyPowerTools"
-                 Margin="0,0,0,18" />
+                 Margin="{DynamicResource MptGapBottomXl}" />
       <ItemsControl ItemsSource="{Binding NavigationItems}">
         <ItemsControl.ItemTemplate>
           <DataTemplate x:DataType="vm:ShellNavigationItemViewModel">
             <Button Command="{Binding NavigateCommand}"
                     HorizontalContentAlignment="Left"
                     MinHeight="36"
-                    Margin="0,0,0,6">
+                    Margin="{DynamicResource MptGapBottomS}">
               <StackPanel Orientation="Horizontal" Spacing="{DynamicResource MptSpacingXs}">
                 <TextBlock Text="{Binding Label}" />
                 <TextBlock Classes="MptMeta"
@@ -38,7 +38,7 @@
               Grid.Column="1"
               Content="Refresh"
               Command="{Binding RefreshCommand}"
-              Margin="12,0,0,0"
+              Margin="{DynamicResource MptCommandPanelMargin}"
               HorizontalAlignment="Right"
               MinWidth="76"
               MinHeight="32" />
@@ -52,8 +52,8 @@
 
     <Border Grid.Column="2"
             Grid.Row="1"
-            Margin="0,4,16,12"
-            Padding="14"
+            Margin="{DynamicResource MptSearchPanelMargin}"
+            Padding="{DynamicResource MptSearchBoxPadding}"
             CornerRadius="{DynamicResource MptRadiusCard}"
             BorderBrush="{DynamicResource MptBrushBorder}"
             BorderThickness="1"
@@ -62,7 +62,7 @@
         <TextBlock DockPanel.Dock="Top"
                    Classes="MptSectionTitle"
                    Text="Command Palette"
-                   Margin="0,0,0,12" />
+                   Margin="{DynamicResource MptGapBottomL}" />
         <ContentControl x:Name="PermissionPanel"
                         DockPanel.Dock="Top" />
         <ContentControl x:Name="AuditPanel"
@@ -77,7 +77,7 @@
           Grid.ColumnSpan="2"
           Grid.Row="2"
           ColumnDefinitions="*,Auto"
-          Margin="16,0,16,8">
+          Margin="{DynamicResource MptStatusBarMargin}">
       <TextBlock x:Name="StatusBar"
                  Text="{Binding StatusText}"
                  VerticalAlignment="Center" />

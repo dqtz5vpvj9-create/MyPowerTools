@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using System.Runtime.CompilerServices;
 using MyPowerTools.Protocol;
 using MyPowerTools.Abstractions;
 
@@ -83,9 +84,28 @@ public sealed class DoubaoAgentModule : IMptModule
         };
     }
 
-    public IAsyncEnumerable<MptModuleEvent> SubscribeEventsAsync(EventCursor cursor, CancellationToken cancellationToken)
+    public async IAsyncEnumerable<MptModuleEvent> SubscribeEventsAsync(EventCursor cursor, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        return EmptyAsyncEnumerable.Of<MptModuleEvent>(cancellationToken);
+        if (cursor.LastEventSeq >= 1)
+        {
+            yield break;
+        }
+
+        var checks = await CheckServicesAsync(ResolveEndpoints(new JsonObject()), cancellationToken);
+        var running = checks.Count(check => check.Ok);
+        yield return new MptModuleEvent(
+            Id,
+            1,
+            running == checks.Count ? "planner.up" : "planner.down",
+            DateTimeOffset.UtcNow,
+            new JsonObject
+            {
+                ["title"] = "Doubao runtime services",
+                ["message"] = $"{running}/{checks.Count} Doubao runtime service(s) are reachable.",
+                ["reachableCount"] = running,
+                ["serviceCount"] = checks.Count,
+                ["services"] = new JsonArray(checks.Select(ToServiceJson).Select(node => node.DeepClone()).ToArray())
+            });
     }
 
     public ValueTask<SettingsSchemaDocument> GetSettingsSchemaAsync(CancellationToken cancellationToken)

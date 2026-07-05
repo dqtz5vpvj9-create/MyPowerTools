@@ -21,7 +21,8 @@ public static partial class ShellPageViewModelFactory
         ulong revision,
         DateTimeOffset updatedAt,
         Func<string, Task>? selectModule = null,
-        Func<SettingsCenterViewModel, Task>? saveSettings = null)
+        Func<SettingsCenterViewModel, Task>? saveSettings = null,
+        IEnumerable<HostProto.RuntimeHotkeyDiagnostics>? hotkeys = null)
     {
         var selectedModuleId = selected?.ModuleId ?? "";
         var picker = modules.Modules
@@ -38,6 +39,18 @@ public static partial class ShellPageViewModelFactory
         var statusText = selected is null
             ? "No modules."
             : $"Revision {revision} - {updatedAt:yyyy-MM-dd HH:mm:ss} - Schema fields {fields.Count}";
+        var hotkeyRows = (hotkeys ?? [])
+            .Where(hotkey => string.Equals(hotkey.ModuleId, selectedModuleId, StringComparison.OrdinalIgnoreCase))
+            .OrderBy(hotkey => hotkey.Id, StringComparer.OrdinalIgnoreCase)
+            .Select(hotkey => new HotkeyBindingViewModel(
+                hotkey.Id,
+                hotkey.Gesture,
+                hotkey.CommandId,
+                hotkey.State,
+                hotkey.Message,
+                string.Equals(hotkey.State, "conflict", StringComparison.OrdinalIgnoreCase),
+                new AsyncRelayCommand(() => Task.CompletedTask)))
+            .ToArray();
 
         return new SettingsCenterViewModel(
             selectedModuleId,
@@ -47,6 +60,7 @@ public static partial class ShellPageViewModelFactory
             statusText,
             picker,
             fields,
+            hotkeyRows,
             saveSettings);
     }
 

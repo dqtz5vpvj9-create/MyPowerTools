@@ -7,56 +7,101 @@ using Avalonia.Controls;
 using Avalonia.Headless;
 using Avalonia.Skia;
 using Avalonia.Styling;
+using Avalonia.Threading;
+using Google.Protobuf.WellKnownTypes;
+using MyPowerTools.HostControl;
 using MyPowerTools.Shell.Avalonia.ViewModels;
 using MyPowerTools.Shell.Avalonia.Views;
+using HostProto = MyPowerTools.Protocol.HostControl.V1;
 
 namespace MyPowerTools.Shell.Avalonia;
 
 public static class ShellRealScreenshotWriter
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
+    private static readonly object RenderLock = new();
     private static bool _applicationInitialized;
 
     public static string WriteSnapshotSet(string outputDirectory, string theme, string size, string density)
     {
-        Directory.CreateDirectory(outputDirectory);
-        var (width, height) = ParseSize(size);
-        EnsureApplication(theme);
+        return WriteSnapshotSetCore(outputDirectory, theme, size, density, CreateSampleScreens(), "sample-fixture");
+    }
 
-        var entries = new JsonArray();
-        foreach (var screen in CreateScreens())
+    public static async Task<string> WriteSnapshotSetFromHostControlAsync(
+        string outputDirectory,
+        string theme,
+        string size,
+        string density,
+        HostControlClient client,
+        string dataSource,
+        CancellationToken cancellationToken = default)
+    {
+        var data = await ShellHostControlSnapshotData.LoadAsync(client, dataSource, cancellationToken);
+        return WriteSnapshotSetFromHostControlData(outputDirectory, theme, size, density, data);
+    }
+
+    public static string WriteSnapshotSetFromHostControlData(
+        string outputDirectory,
+        string theme,
+        string size,
+        string density,
+        ShellHostControlSnapshotData data)
+    {
+        return WriteSnapshotSetCore(outputDirectory, theme, size, density, CreateHostControlScreens(data), data.DataSource);
+    }
+
+    private static string WriteSnapshotSetCore(
+        string outputDirectory,
+        string theme,
+        string size,
+        string density,
+        IReadOnlyList<RealScreen> screens,
+        string dataSource)
+    {
+        lock (RenderLock)
         {
-            var fileName = $"real-{screen.Id}.{Sanitize(theme)}.{Sanitize(density)}.{Sanitize(size)}.png";
-            var path = Path.Combine(outputDirectory, fileName);
-            ApplyTheme(theme);
-            Render(screen.CreateView(), path, width, height);
-            var sha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path))).ToLowerInvariant();
+            Directory.CreateDirectory(outputDirectory);
+            var (width, height) = ParseSize(size);
+            EnsureApplication(theme);
 
-            entries.Add(new JsonObject
+            var entries = new JsonArray();
+            foreach (var screen in screens)
             {
-                ["screenId"] = screen.Id,
-                ["title"] = screen.Title,
-                ["fileName"] = fileName,
-                ["sha256"] = sha256,
-                ["width"] = width,
-                ["height"] = height,
-                ["renderer"] = "Avalonia.Headless"
-            });
-        }
+                var fileName = $"real-{screen.Id}.{Sanitize(theme)}.{Sanitize(density)}.{Sanitize(size)}.png";
+                var path = Path.Combine(outputDirectory, fileName);
+                ApplyTheme(theme);
+                Render(screen.CreateView, path, width, height);
+                var sha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path))).ToLowerInvariant();
 
-        var manifestPath = Path.Combine(outputDirectory, "shell-real-screenshot-manifest.json");
-        var manifest = new JsonObject
-        {
-            ["schemaVersion"] = "1.0",
-            ["artifactKind"] = "real-avalonia-screenshot",
-            ["theme"] = theme,
-            ["density"] = density,
-            ["size"] = size,
-            ["screenshotCount"] = entries.Count,
-            ["screenshots"] = entries
-        };
-        File.WriteAllText(manifestPath, manifest.ToJsonString(JsonOptions));
-        return manifestPath;
+                entries.Add(new JsonObject
+                {
+                    ["screenId"] = screen.Id,
+                    ["title"] = screen.Title,
+                    ["fileName"] = fileName,
+                    ["sha256"] = sha256,
+                    ["width"] = width,
+                    ["height"] = height,
+                    ["renderer"] = "Avalonia.Headless",
+                    ["dataSource"] = dataSource
+                });
+            }
+
+            var manifestPath = Path.Combine(outputDirectory, "shell-real-screenshot-manifest.json");
+            var manifest = new JsonObject
+            {
+                ["schemaVersion"] = "1.0",
+                ["artifactKind"] = "real-avalonia-screenshot",
+                ["theme"] = theme,
+                ["density"] = density,
+                ["size"] = size,
+                ["dataSource"] = dataSource,
+                ["usesHostControlData"] = dataSource.Contains("hostcontrol", StringComparison.OrdinalIgnoreCase),
+                ["screenshotCount"] = entries.Count,
+                ["screenshots"] = entries
+            };
+            File.WriteAllText(manifestPath, manifest.ToJsonString(JsonOptions));
+            return manifestPath;
+        }
     }
 
     private static void EnsureApplication(string theme)
@@ -76,6 +121,12 @@ public static class ShellRealScreenshotWriter
 
     private static void ApplyTheme(string theme)
     {
+        if (!Dispatcher.UIThread.CheckAccess())
+        {
+            Dispatcher.UIThread.Invoke(() => ApplyTheme(theme));
+            return;
+        }
+
         if (Application.Current is not null)
         {
             Application.Current.RequestedThemeVariant = string.Equals(theme, "dark", StringComparison.OrdinalIgnoreCase)
@@ -84,8 +135,15 @@ public static class ShellRealScreenshotWriter
         }
     }
 
-    private static void Render(Control view, string path, int width, int height)
+    private static void Render(Func<Control> createView, string path, int width, int height)
     {
+        if (!Dispatcher.UIThread.CheckAccess())
+        {
+            Dispatcher.UIThread.Invoke(() => Render(createView, path, width, height));
+            return;
+        }
+
+        var view = createView();
         var window = new Window
         {
             Width = width,
@@ -107,7 +165,7 @@ public static class ShellRealScreenshotWriter
         window.Close();
     }
 
-    private static IReadOnlyList<RealScreen> CreateScreens()
+    private static IReadOnlyList<RealScreen> CreateSampleScreens()
     {
         return
         [
@@ -119,6 +177,57 @@ public static class ShellRealScreenshotWriter
             new("notifications-list", "Notifications List", () => new NotificationsView { DataContext = SampleNotifications() }),
             new("packages", "Packages", () => new PackageManagerView { DataContext = SamplePackages() }),
             new("diagnostics-wide", "Diagnostics Wide", () => new DiagnosticsView { DataContext = SampleDiagnostics() })
+        ];
+    }
+
+    private static IReadOnlyList<RealScreen> CreateHostControlScreens(ShellHostControlSnapshotData data)
+    {
+        var selected = data.SelectedModule;
+        var settingsValues = JsonStructMapper.ToJsonObject(data.Settings.Values);
+        var settings = ShellPageViewModelFactory.FromSettings(
+            data.Modules,
+            selected,
+            data.SettingsSchema.SchemaJson,
+            settingsValues,
+            PrettyJson(data.Settings.Values),
+            data.Settings.Revision,
+            ToDateTimeOffsetOrMin(data.Settings.UpdatedAt),
+            hotkeys: data.Diagnostics.Hotkeys);
+
+        return
+        [
+            new("dashboard", "Dashboard", () => new DashboardView
+            {
+                DataContext = ShellPageViewModelFactory.FromDashboard(data.Dashboard)
+            }),
+            new("command-palette-with-params", "Command Palette With Parameters", () => new CommandPaletteView
+            {
+                DataContext = ShellPageViewModelFactory.FromCommands(CommandQuery(data.Commands), data.Commands)
+            }),
+            new("settings-dirty-state", "Settings", () => new SettingsCenterView
+            {
+                DataContext = settings
+            }),
+            new("module-detail-degraded", "Module Detail", () => new ModuleDetailView
+            {
+                DataContext = ShellPageViewModelFactory.FromModuleDetail(data.ModuleDetail, data.Commands)
+            }),
+            new("logs-long-lines", "Logs", () => new LogsView
+            {
+                DataContext = ShellPageViewModelFactory.FromLogs(data.Modules, selected, data.Logs)
+            }),
+            new("notifications-list", "Notifications", () => new NotificationsView
+            {
+                DataContext = ShellPageViewModelFactory.FromNotifications(data.Notifications)
+            }),
+            new("packages", "Packages", () => new PackageManagerView
+            {
+                DataContext = ShellPageViewModelFactory.FromPackages(data.Packages)
+            }),
+            new("diagnostics-wide", "Diagnostics", () => new DiagnosticsView
+            {
+                DataContext = ShellPageViewModelFactory.FromDiagnostics(data.Diagnostics, data.BrokerAudit)
+            })
         ];
     }
 
@@ -327,5 +436,104 @@ public static class ShellRealScreenshotWriter
         return new string(value.Select(character => char.IsLetterOrDigit(character) || character is '-' or '_' ? character : '-').ToArray());
     }
 
+    private static string CommandQuery(HostProto.ListCommandsResponse commands)
+    {
+        var command = commands.Commands.FirstOrDefault(item => item.Parameters.Count > 0)
+            ?? commands.Commands.FirstOrDefault();
+        return command?.ModuleId ?? "";
+    }
+
+    private static string PrettyJson(Struct value)
+    {
+        if (value.Fields.Count == 0)
+        {
+            return "{}";
+        }
+
+        try
+        {
+            using var document = JsonDocument.Parse(value.ToString());
+            return JsonSerializer.Serialize(document.RootElement, new JsonSerializerOptions { WriteIndented = true });
+        }
+        catch
+        {
+            return value.ToString();
+        }
+    }
+
+    private static DateTimeOffset ToDateTimeOffsetOrMin(Timestamp? timestamp)
+    {
+        return timestamp is null ? DateTimeOffset.MinValue : timestamp.ToDateTimeOffset();
+    }
+
     private sealed record RealScreen(string Id, string Title, Func<Control> CreateView);
+}
+
+public sealed record ShellHostControlSnapshotData(
+    string DataSource,
+    HostProto.DashboardSnapshot Dashboard,
+    HostProto.ListCommandsResponse Commands,
+    HostProto.ListModulesResponse Modules,
+    HostProto.ModuleSummary? SelectedModule,
+    HostProto.ModuleDetail ModuleDetail,
+    HostProto.SettingsSchema SettingsSchema,
+    HostProto.SettingsSnapshot Settings,
+    IReadOnlyList<HostProto.LogEntry> Logs,
+    HostProto.ListNotificationsResponse Notifications,
+    HostProto.ListPackagesResponse Packages,
+    HostProto.RuntimeDiagnostics Diagnostics,
+    HostProto.ListBrokerAuditResponse BrokerAudit)
+{
+    public static async Task<ShellHostControlSnapshotData> LoadAsync(
+        HostControlClient client,
+        string dataSource,
+        CancellationToken cancellationToken)
+    {
+        var dashboard = await client.GetDashboardSnapshotAsync(cancellationToken);
+        var modules = await client.ListModulesAsync(cancellationToken);
+        var commands = await client.ListCommandsAsync("", cancellationToken);
+        var selected = PickModule(modules);
+        var detail = selected is null
+            ? new HostProto.ModuleDetail()
+            : await client.GetModuleDetailAsync(selected.ModuleId, cancellationToken);
+        var settingsSchema = selected is null
+            ? new HostProto.SettingsSchema()
+            : await client.GetSettingsSchemaAsync(selected.ModuleId, cancellationToken);
+        var settings = selected is null
+            ? new HostProto.SettingsSnapshot { UpdatedAt = Timestamp.FromDateTimeOffset(DateTimeOffset.UtcNow) }
+            : await client.GetSettingsAsync(selected.ModuleId, cancellationToken);
+        var logs = selected is null
+            ? Array.Empty<HostProto.LogEntry>()
+            : await client.TailLogsAsync(selected.ModuleId, cancellationToken);
+        var notifications = await client.ListNotificationsAsync(80, cancellationToken: cancellationToken);
+        var packages = await client.ListPackagesAsync(cancellationToken);
+        var diagnostics = await client.GetRuntimeDiagnosticsAsync(cancellationToken);
+        var audit = await client.ListBrokerAuditAsync(6, cancellationToken: cancellationToken);
+
+        return new ShellHostControlSnapshotData(
+            dataSource,
+            dashboard,
+            commands,
+            modules,
+            selected,
+            detail,
+            settingsSchema,
+            settings,
+            logs,
+            notifications,
+            packages,
+            diagnostics,
+            audit);
+    }
+
+    private static HostProto.ModuleSummary? PickModule(HostProto.ListModulesResponse modules)
+    {
+        return modules.Modules
+            .Where(module => module.Enabled)
+            .OrderBy(module => module.DisplayName, StringComparer.OrdinalIgnoreCase)
+            .FirstOrDefault()
+            ?? modules.Modules
+                .OrderBy(module => module.DisplayName, StringComparer.OrdinalIgnoreCase)
+                .FirstOrDefault();
+    }
 }

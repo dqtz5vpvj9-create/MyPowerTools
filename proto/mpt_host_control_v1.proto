@@ -173,6 +173,7 @@ message RuntimeDiagnostics {
   repeated RuntimeCommandHistoryEntry recent_commands = 15;
   repeated RuntimeProcessDiagnostics processes = 16;
   repeated RuntimeProcessPolicyHistoryEntry process_policy_history = 17;
+  repeated RuntimeHotkeyDiagnostics hotkeys = 18;
 }
 
 message RuntimePathDiagnostics {
@@ -202,6 +203,17 @@ message RuntimeTransportDiagnostics {
   string kind = 1;
   bool runtime_registered = 2;
   uint32 module_count = 3;
+}
+
+message RuntimeHotkeyDiagnostics {
+  string id = 1;
+  string module_id = 2;
+  string command_id = 3;
+  string gesture = 4;
+  string scope = 5;
+  string state = 6;
+  string message = 7;
+  bool is_default = 8;
 }
 
 message RuntimeProcessDiagnostics {

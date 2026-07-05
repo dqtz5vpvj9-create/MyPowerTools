@@ -24,7 +24,7 @@
       </ItemsControl.ItemsPanel>
       <ItemsControl.ItemTemplate>
         <DataTemplate x:DataType="vm:ModulePickerItemViewModel">
-          <Button Command="{Binding SelectCommand}" MinHeight="32" Margin="0,0,8,8">
+          <Button Command="{Binding SelectCommand}" MinHeight="32" Margin="{DynamicResource MptWrapItemMargin}">
             <StackPanel Orientation="Horizontal" Spacing="{DynamicResource MptSpacingXs}">
               <TextBlock Text="{Binding DisplayName}" />
               <TextBlock Classes="MptMeta" Text="{Binding SelectionText}" IsVisible="{Binding IsSelected}" />
@@ -39,6 +39,37 @@
                IsVisible="{Binding HasNoModules}" />
 
     <TextBlock Classes="MptMeta" Text="{Binding StatusText}" />
+    <Border Classes="MptSettingsSection" IsVisible="{Binding HasHotkeys}">
+      <StackPanel Spacing="{DynamicResource MptSpacingS}">
+        <Grid ColumnDefinitions="*,Auto">
+          <TextBlock Classes="MptSectionTitle" Text="Hotkeys" />
+          <TextBlock Grid.Column="1" Classes="MptMeta" Text="{Binding HotkeyStatusText}" />
+        </Grid>
+        <ItemsControl ItemsSource="{Binding Hotkeys}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:HotkeyBindingViewModel">
+              <Border Classes="MptSettingsField" Margin="{DynamicResource MptGapBottomM}">
+                <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto">
+                  <TextBlock FontWeight="SemiBold" Text="{Binding Gesture}" />
+                  <TextBlock Grid.Column="1" Classes="MptMeta" Text="{Binding State}" />
+                  <TextBlock Grid.Row="1" Grid.ColumnSpan="2" Classes="MptMeta" Text="{Binding CommandId}" />
+                  <TextBlock Grid.Row="2"
+                             Classes="MptMeta"
+                             Text="{Binding Message}"
+                             TextWrapping="Wrap" />
+                  <Button Grid.Row="2"
+                          Grid.Column="1"
+                          Content="Reset"
+                          Command="{Binding ResetCommand}"
+                          MinHeight="32"
+                          MinWidth="72" />
+                </Grid>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </StackPanel>
+    </Border>
     <Border Classes="MptSettingsSection" IsVisible="{Binding HasSaveResult}">
       <StackPanel Spacing="{DynamicResource MptSpacingXs}">
         <Grid ColumnDefinitions="*,Auto">
@@ -68,7 +99,7 @@
     <ItemsControl ItemsSource="{Binding Fields}">
       <ItemsControl.ItemTemplate>
         <DataTemplate x:DataType="vm:SettingsFieldViewModel">
-          <Border Classes="MptSettingsField" Margin="0,0,0,8">
+          <Border Classes="MptSettingsField" Margin="{DynamicResource MptGapBottomM}">
             <StackPanel Spacing="{DynamicResource MptSpacingXs}">
               <Grid ColumnDefinitions="*,Auto">
                 <TextBlock FontWeight="SemiBold" Text="{Binding Label}" />

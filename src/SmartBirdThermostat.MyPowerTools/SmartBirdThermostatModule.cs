@@ -1,6 +1,7 @@
 using System.ComponentModel;
 using System.Diagnostics;
 using System.Net.Http.Json;
+using System.Runtime.CompilerServices;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using MyPowerTools.Protocol;
@@ -91,9 +92,30 @@ public sealed class SmartBirdThermostatModule : IMptModule
         };
     }
 
-    public IAsyncEnumerable<MptModuleEvent> SubscribeEventsAsync(EventCursor cursor, CancellationToken cancellationToken)
+    public async IAsyncEnumerable<MptModuleEvent> SubscribeEventsAsync(EventCursor cursor, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        return EmptyAsyncEnumerable.Of<MptModuleEvent>(cancellationToken);
+        if (cursor.LastEventSeq >= 1)
+        {
+            yield break;
+        }
+
+        var options = Store.Load();
+        var payload = await BuildStatusPayloadAsync(options, cancellationToken);
+        var checks = ReadChecks(payload);
+        var requiredOk = checks.Where(check => IsRequired(check.Id)).All(check => check.Ok);
+        yield return new MptModuleEvent(
+            Id,
+            1,
+            requiredOk ? "policy.triggered" : "hardware.missing",
+            DateTimeOffset.UtcNow,
+            new JsonObject
+            {
+                ["title"] = "SmartBird hardware policy",
+                ["message"] = requiredOk ? "SmartBird required hardware checks are reachable." : SummarizeDegraded(checks),
+                ["targetTemperatureC"] = options.TargetTemperatureC,
+                ["requiredOk"] = requiredOk,
+                ["checkCount"] = checks.Count
+            });
     }
 
     public ValueTask<SettingsSchemaDocument> GetSettingsSchemaAsync(CancellationToken cancellationToken)
