@@ -19,7 +19,9 @@ public sealed class MptHostRuntime : IAsyncDisposable
     private readonly PlatformId _platform;
     private readonly SettingsStore _settingsStore;
     private readonly ModuleStateStore _moduleStateStore;
+    private readonly HotkeyStore _hotkeyStore;
     private readonly RuntimeProcessPolicyStore _processPolicyStore;
+    private readonly ModuleEventStore _moduleEventStore;
     private readonly EventBus _eventBus = new();
     private readonly LogRouter _logRouter;
     private readonly NotificationCenter _notificationCenter = new();
@@ -32,10 +34,15 @@ public sealed class MptHostRuntime : IAsyncDisposable
     private readonly DateTimeOffset _startedAt = DateTimeOffset.UtcNow;
     private string _packageRoot = "";
     private IReadOnlyList<Sdk.MptCommandDescriptor> _dynamicCommands = [];
-    private readonly ConcurrentDictionary<string, Task<Sdk.CommandExecutionResult>> _executions = new(StringComparer.OrdinalIgnoreCase);
+    private readonly InvocationExecutionCache _executions = new();
     private readonly ConcurrentDictionary<string, CancellationTokenSource> _executionCancellations = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, CommandRuntimeCancellationTarget> _executionRuntimeTargets = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, byte> _cancelledInvocations = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, ulong> _moduleEventCursors = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, Task> _moduleEventPumpTasks = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, CancellationTokenSource> _moduleEventPumpCancellations = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, int> _moduleEventPumpFailures = new(StringComparer.OrdinalIgnoreCase);
+    private CancellationTokenSource? _moduleEventPumpCancellation;
     private readonly HttpClient _httpClient = new()
     {
         Timeout = TimeSpan.FromSeconds(30)
@@ -54,12 +61,18 @@ public sealed class MptHostRuntime : IAsyncDisposable
         _packageRegistry = new PackageRegistry(packageReader, platform);
         _settingsStore = new SettingsStore(paths.Settings);
         _moduleStateStore = new ModuleStateStore(paths.State);
+        _hotkeyStore = new HotkeyStore(paths.State);
         _processPolicyStore = new RuntimeProcessPolicyStore(paths.State);
+        _moduleEventStore = new ModuleEventStore(paths.State);
         _logRouter = new LogRouter(paths.Logs);
         _transportRuntimes = (transportRuntimes ?? [])
             .GroupBy(runtime => runtime.Kind, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
         _capabilityProviders = capabilityProviders ?? new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+        foreach (var cursor in _moduleEventStore.LoadCursors())
+        {
+            _moduleEventCursors[cursor.Key] = cursor.Value;
+        }
     }
 
     public IReadOnlyList<RuntimeModuleRecord> Modules => _packageRegistry.Modules;
@@ -67,6 +80,7 @@ public sealed class MptHostRuntime : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        await StopModuleEventPumpAsync();
         _httpClient.Dispose();
         foreach (var runtime in _transportRuntimes.Values)
         {
@@ -313,11 +327,65 @@ public sealed class MptHostRuntime : IAsyncDisposable
                         module.Entrypoint?.SelectionReason ?? "No compatible runnable entrypoint was selected.",
                         module.TransportDiagnostics
                             .Select(diagnostic => $"{diagnostic.State}:{diagnostic.TransportKind}:{diagnostic.Reason}")
-                            .ToArray());
+                            .ToArray(),
+                        DescribeModuleEnabledState(module),
+                        DescribeTransportActiveState(module, processDiagnostics),
+                        DescribeToolRuntimeState(module, processDiagnostics));
                 })
                 .ToArray(),
             ListHotkeyDiagnostics(),
             recentCommands);
+    }
+
+    private string DescribeTransportActiveState(RuntimeModuleRecord module, IReadOnlyList<RuntimeProcessDiagnostics> processes)
+    {
+        if (module.Status.State == "disabled")
+        {
+            return "inactive";
+        }
+
+        if (module.Entrypoint is null)
+        {
+            return "no-entrypoint";
+        }
+
+        if (!_transportRuntimes.ContainsKey(module.Entrypoint.Kind))
+        {
+            return "unregistered";
+        }
+
+        var process = processes.FirstOrDefault(candidate =>
+            string.Equals(candidate.TransportKind, module.Entrypoint.Kind, StringComparison.OrdinalIgnoreCase) &&
+            candidate.ModuleIds.Contains(module.Module.Manifest.Id, StringComparer.OrdinalIgnoreCase));
+        return process?.State ?? "registered";
+    }
+
+    private static string DescribeModuleEnabledState(RuntimeModuleRecord module)
+    {
+        return module.Status.State == "disabled" ? "disabled" : "enabled";
+    }
+
+    private string DescribeToolRuntimeState(RuntimeModuleRecord module, IReadOnlyList<RuntimeProcessDiagnostics> processes)
+    {
+        if (module.Status.State == "disabled")
+        {
+            return "disabled";
+        }
+
+        var transportState = DescribeTransportActiveState(module, processes);
+        if (transportState is "no-entrypoint" or "unregistered")
+        {
+            return "unavailable";
+        }
+
+        return module.Status.State switch
+        {
+            "running" => "running",
+            "degraded" => "partial",
+            "error" => "error",
+            var state when string.IsNullOrWhiteSpace(state) => "unknown",
+            var state => state
+        };
     }
 
     public async Task<RuntimeProcessRestartResult> RestartRuntimeProcessAsync(string transportKind, string poolKey, CancellationToken cancellationToken)
@@ -412,8 +480,18 @@ public sealed class MptHostRuntime : IAsyncDisposable
 
     public ModuleDetailSnapshot SetModuleEnabled(string moduleId, bool enabled)
     {
+        return SetModuleEnabledAsync(moduleId, enabled, CancellationToken.None).GetAwaiter().GetResult();
+    }
+
+    public async Task<ModuleDetailSnapshot> SetModuleEnabledAsync(string moduleId, bool enabled, CancellationToken cancellationToken = default)
+    {
         var module = _packageRegistry.FindModule(moduleId)
             ?? throw new KeyNotFoundException($"Module '{moduleId}' was not found.");
+
+        if (!enabled)
+        {
+            await StopModuleEventStreamAsync(moduleId);
+        }
 
         _moduleStateStore.SetModuleEnabled(moduleId, enabled);
         var nextStatus = enabled ? InitialStatus(module) : DisabledStatus(module);
@@ -421,13 +499,97 @@ public sealed class MptHostRuntime : IAsyncDisposable
         _dynamicCommands = _dynamicCommands
             .Where(command => !string.Equals(command.ModuleId, moduleId, StringComparison.OrdinalIgnoreCase))
             .ToArray();
+
+        if (enabled)
+        {
+            await EnableModuleResourcesAsync(module, cancellationToken);
+        }
+        else
+        {
+            await DisableModuleResourcesAsync(module, cancellationToken);
+        }
+
         _commandIndex.Rebuild(EnabledModules(), _dynamicCommands);
         var evt = _eventBus.Publish(moduleId, enabled ? "module.enabled" : "module.disabled", new JsonObject
         {
             ["enabled"] = enabled
         });
         _logRouter.Append(module.Module.Manifest.PackageId, moduleId, "info", enabled ? "Module enabled." : "Module disabled.", eventSeq: evt.Seq);
+        if (enabled)
+        {
+            StartModuleEventStream(moduleId);
+        }
+
         return GetModuleDetail(moduleId);
+    }
+
+    public void StartModuleEventPump()
+    {
+        if (_moduleEventPumpCancellation is not null)
+        {
+            return;
+        }
+
+        _moduleEventPumpCancellation = new CancellationTokenSource();
+        foreach (var module in EnabledModules())
+        {
+            StartModuleEventStream(module.Module.Manifest.Id);
+        }
+
+        var evt = _eventBus.Publish("runner", "module.eventPump.started", new JsonObject
+        {
+            ["moduleCount"] = EnabledModules().Count
+        });
+        _logRouter.Append("runner", "runner", "info", "Module event pump started.", eventSeq: evt.Seq);
+    }
+
+    public async ValueTask StopModuleEventPumpAsync()
+    {
+        var pump = _moduleEventPumpCancellation;
+        if (pump is null)
+        {
+            return;
+        }
+
+        _moduleEventPumpCancellation = null;
+        pump.Cancel();
+        var cancellations = _moduleEventPumpCancellations.Values.ToArray();
+        foreach (var cancellation in cancellations)
+        {
+            try
+            {
+                cancellation.Cancel();
+            }
+            catch (ObjectDisposedException)
+            {
+                // The stream task may have completed and disposed its linked token first.
+            }
+        }
+
+        var tasks = _moduleEventPumpTasks.Values.ToArray();
+        if (tasks.Length > 0)
+        {
+            try
+            {
+                await Task.WhenAll(tasks);
+            }
+            catch (OperationCanceledException)
+            {
+                // Expected while stopping the pump.
+            }
+        }
+
+        foreach (var cancellation in cancellations)
+        {
+            cancellation.Dispose();
+        }
+
+        _moduleEventPumpTasks.Clear();
+        _moduleEventPumpCancellations.Clear();
+        _moduleEventPumpFailures.Clear();
+        pump.Dispose();
+        var evt = _eventBus.Publish("runner", "module.eventPump.stopped", new JsonObject());
+        _logRouter.Append("runner", "runner", "info", "Module event pump stopped.", eventSeq: evt.Seq);
     }
 
     public ModuleDetailSnapshot GetModuleDetail(string moduleId)
@@ -464,37 +626,26 @@ public sealed class MptHostRuntime : IAsyncDisposable
 
     public IReadOnlyList<RuntimeHotkeyBinding> ListHotkeyBindings()
     {
-        return EnabledModules()
-            .SelectMany(module =>
-            {
-                var moduleId = module.Module.Manifest.Id;
-                return module.Module.Manifest.Hotkeys
-                    .Where(hotkey =>
-                        !string.IsNullOrWhiteSpace(hotkey.Id) &&
-                        !string.IsNullOrWhiteSpace(hotkey.Default) &&
-                        !string.IsNullOrWhiteSpace(hotkey.CommandId))
-                    .Select(hotkey => new RuntimeHotkeyBinding(
-                        RuntimeHotkeyId(moduleId, hotkey.Id),
-                        moduleId,
-                        hotkey.CommandId,
-                        hotkey.Default,
-                        string.IsNullOrWhiteSpace(hotkey.Scope) ? "module" : hotkey.Scope,
-                        string.IsNullOrWhiteSpace(hotkey.Reason) ? $"Invoke {hotkey.CommandId}." : hotkey.Reason));
-            })
+        return EnumerateHotkeyBindings(includeDisabledOverrides: false)
             .OrderBy(binding => binding.Id, StringComparer.OrdinalIgnoreCase)
             .ToArray();
     }
 
     public IReadOnlyList<RuntimeHotkeyDiagnostic> ListHotkeyDiagnostics()
     {
-        var bindings = ListHotkeyBindings()
+        var moduleBindings = EnumerateHotkeyBindings(includeDisabledOverrides: true).ToArray();
+        var bindings = moduleBindings
             .Select(binding => new RuntimeHotkeyBinding(
                 binding.Id,
                 binding.ModuleId,
                 binding.CommandId,
                 NormalizeGesture(binding.Gesture),
                 binding.Scope,
-                binding.Reason))
+                binding.Reason,
+                binding.DefaultGesture,
+                binding.IsDefault,
+                binding.Disabled,
+                binding.CommandArgsJson))
             .Concat(
             [
                 new RuntimeHotkeyBinding(
@@ -503,10 +654,12 @@ public sealed class MptHostRuntime : IAsyncDisposable
                     "shell.command-palette.open",
                     "Ctrl+Alt+Space",
                     "runner",
-                    "Open the command palette.")
+                    "Open the command palette.",
+                    "Ctrl+Alt+Space")
             ])
             .ToArray();
         var conflicts = bindings
+            .Where(binding => !binding.Disabled)
             .GroupBy(binding => NormalizeGesture(binding.Gesture), StringComparer.OrdinalIgnoreCase)
             .Where(group => group.Count() > 1)
             .ToDictionary(group => group.Key, group => group.Select(item => item.Id).ToArray(), StringComparer.OrdinalIgnoreCase);
@@ -526,13 +679,54 @@ public sealed class MptHostRuntime : IAsyncDisposable
                     binding.CommandId,
                     NormalizeGesture(binding.Gesture),
                     binding.Scope,
-                    conflict ? "conflict" : "ok",
-                    conflict
+                    binding.Disabled ? "disabled" : conflict ? "conflict" : "ok",
+                    binding.Disabled
+                        ? "Hotkey override is disabled and will not be registered."
+                        : conflict
                         ? $"Gesture {binding.Gesture} also maps to {peers}."
                         : "Gesture is available in the runtime binding table.",
-                    true);
+                    binding.IsDefault,
+                    string.IsNullOrWhiteSpace(binding.DefaultGesture) ? NormalizeGesture(binding.Gesture) : NormalizeGesture(binding.DefaultGesture));
             })
             .ToArray();
+    }
+
+    private IEnumerable<RuntimeHotkeyBinding> EnumerateHotkeyBindings(bool includeDisabledOverrides)
+    {
+        foreach (var module in EnabledModules())
+        {
+            var moduleId = module.Module.Manifest.Id;
+            foreach (var hotkey in module.Module.Manifest.Hotkeys)
+            {
+                if (string.IsNullOrWhiteSpace(hotkey.Id) ||
+                    string.IsNullOrWhiteSpace(hotkey.Default) ||
+                    string.IsNullOrWhiteSpace(hotkey.CommandId))
+                {
+                    continue;
+                }
+
+                var stored = _hotkeyStore.Get(moduleId, hotkey.Id);
+                if (stored?.Disabled == true && !includeDisabledOverrides)
+                {
+                    continue;
+                }
+
+                var gesture = stored is null || string.IsNullOrWhiteSpace(stored.Gesture)
+                    ? hotkey.Default
+                    : stored.Gesture;
+                yield return new RuntimeHotkeyBinding(
+                    RuntimeHotkeyId(moduleId, hotkey.Id),
+                    moduleId,
+                    hotkey.CommandId,
+                    gesture,
+                    string.IsNullOrWhiteSpace(hotkey.Scope) ? "module" : hotkey.Scope,
+                    string.IsNullOrWhiteSpace(hotkey.Reason) ? $"Invoke {hotkey.CommandId}." : hotkey.Reason,
+                    hotkey.Default,
+                    stored is null,
+                    stored?.Disabled == true,
+                    stored?.CommandArgsJson ?? "{}");
+            }
+        }
     }
 
     public Sdk.CommandExecutionResult ExecuteCommand(Sdk.CommandRequest request)
@@ -542,7 +736,7 @@ public sealed class MptHostRuntime : IAsyncDisposable
 
     public Task<Sdk.CommandExecutionResult> ExecuteCommandAsync(Sdk.CommandRequest request, CancellationToken cancellationToken)
     {
-        return _executions.GetOrAdd(request.InvocationId, _ => ExecuteCommandTrackedAsync(request, cancellationToken));
+        return _executions.GetOrAdd(request.InvocationId, () => ExecuteCommandTrackedAsync(request, cancellationToken));
     }
 
     public async IAsyncEnumerable<CommandProgressEvent> ExecuteCommandStreamAsync(Sdk.CommandRequest request, [EnumeratorCancellation] CancellationToken cancellationToken)
@@ -598,12 +792,17 @@ public sealed class MptHostRuntime : IAsyncDisposable
                 ["streamed"] = true
             });
 
-            result = await PrepareTransportCommandStreamAsync(command, request, linkedCancellation.Token);
-            if (result is null)
+            var route = ResolveTransportCommandRoute(command, request);
+            if (route.Failure is not null)
             {
-                var record = _packageRegistry.FindModule(command.ModuleId)!;
+                result = route.Failure;
+            }
+            else
+            {
+                var record = route.Record!;
                 var runtime = _transportRuntimes[record.Entrypoint!.Kind];
                 var context = CreateModuleContext(record);
+                _executionRuntimeTargets[request.InvocationId] = new CommandRuntimeCancellationTarget(record, runtime, context);
                 await ApplyPersistedSettingsIfPresentAsync(record, runtime, context, linkedCancellation.Token);
                 await using var stream = runtime.ExecuteCommandStreamAsync(record, context, request, linkedCancellation.Token).GetAsyncEnumerator(linkedCancellation.Token);
                 while (true)
@@ -651,6 +850,7 @@ public sealed class MptHostRuntime : IAsyncDisposable
         finally
         {
             _executionCancellations.TryRemove(request.InvocationId, out _);
+            _executionRuntimeTargets.TryRemove(request.InvocationId, out _);
             _cancelledInvocations.TryRemove(request.InvocationId, out _);
         }
 
@@ -664,45 +864,41 @@ public sealed class MptHostRuntime : IAsyncDisposable
         }
     }
 
-    private async Task<Sdk.CommandExecutionResult?> PrepareTransportCommandStreamAsync(Sdk.MptCommandDescriptor command, Sdk.CommandRequest request, CancellationToken cancellationToken)
+    public CommandCancellationResult CancelCommand(string invocationId)
     {
-        var record = _packageRegistry.FindModule(command.ModuleId);
-        if (record is null)
-        {
-            return Failed(request, MptErrorCodes.NotFound, $"Module {command.ModuleId} was not found.");
-        }
-
-        var policy = RuntimeOperationPolicy.Evaluate(command, request, record);
-        if (!policy.IsAllowed)
-        {
-            return Failed(request, MptErrorCodes.RuntimePolicyBlocked, policy.Message, details: policy.Details);
-        }
-
-        if (!TryGetTransportRuntime(record, out _))
-        {
-            var transport = record.Entrypoint?.Kind ?? "none";
-            return Failed(request, MptErrorCodes.UnsupportedTransport, $"No transport runtime is registered for {command.ModuleId} via {transport}.");
-        }
-
-        await Task.CompletedTask;
-        return null;
+        return CancelCommandAsync(invocationId, CancellationToken.None).GetAwaiter().GetResult();
     }
 
-    public CommandCancellationResult CancelCommand(string invocationId)
+    public async Task<CommandCancellationResult> CancelCommandAsync(string invocationId, CancellationToken cancellationToken = default)
     {
         if (string.IsNullOrWhiteSpace(invocationId))
         {
             return new CommandCancellationResult(false, "", "validation-failed", "invocationId is required.");
         }
 
-        if (_executionCancellations.TryGetValue(invocationId, out var cancellation))
+        if (_executionCancellations.TryGetValue(invocationId, out var cancellationSource))
         {
             _cancelledInvocations[invocationId] = 1;
-            cancellation.Cancel();
+            cancellationSource.Cancel();
+            if (_executionRuntimeTargets.TryGetValue(invocationId, out var target))
+            {
+                try
+                {
+                    var module = await target.Runtime.CancelCommandAsync(target.Module, target.Context, invocationId, cancellationToken);
+                    return module.Accepted
+                        ? new CommandCancellationResult(true, invocationId, "cancelling", $"Cancellation requested for {invocationId}; module accepted cancellation.")
+                        : new CommandCancellationResult(true, invocationId, "host-cancelling-module-rejected", $"Host cancellation requested for {invocationId}; module response: {module.Message}");
+                }
+                catch (Exception ex)
+                {
+                    return new CommandCancellationResult(true, invocationId, "host-cancelling-module-error", $"Host cancellation requested for {invocationId}; module cancellation failed: {LogRouter.Redact(ex.Message)}");
+                }
+            }
+
             return new CommandCancellationResult(true, invocationId, "cancelling", $"Cancellation requested for {invocationId}.");
         }
 
-        if (_executions.TryGetValue(invocationId, out var execution) && execution.IsCompleted)
+        if (_executions.IsCompleted(invocationId))
         {
             return new CommandCancellationResult(false, invocationId, "completed", $"Invocation {invocationId} has already completed.");
         }
@@ -885,27 +1081,19 @@ public sealed class MptHostRuntime : IAsyncDisposable
 
     private async Task<Sdk.CommandExecutionResult> TransportCommandAsync(Sdk.MptCommandDescriptor command, Sdk.CommandRequest request, CancellationToken cancellationToken)
     {
-        var record = _packageRegistry.FindModule(command.ModuleId);
-        if (record is null)
+        var route = ResolveTransportCommandRoute(command, request);
+        if (route.Failure is not null)
         {
-            return Failed(request, MptErrorCodes.NotFound, $"Module {command.ModuleId} was not found.");
+            return route.Failure;
         }
 
-        var policy = RuntimeOperationPolicy.Evaluate(command, request, record);
-        if (!policy.IsAllowed)
-        {
-            return Failed(request, MptErrorCodes.RuntimePolicyBlocked, policy.Message, details: policy.Details);
-        }
-
-        if (!TryGetTransportRuntime(record, out var runtime))
-        {
-            var transport = record.Entrypoint?.Kind ?? "none";
-            return Failed(request, MptErrorCodes.UnsupportedTransport, $"No transport runtime is registered for {command.ModuleId} via {transport}.");
-        }
+        var record = route.Record!;
+        var runtime = _transportRuntimes[record.Entrypoint!.Kind];
 
         try
         {
             var context = CreateModuleContext(record);
+            _executionRuntimeTargets[request.InvocationId] = new CommandRuntimeCancellationTarget(record, runtime, context);
             await ApplyPersistedSettingsIfPresentAsync(record, runtime, context, cancellationToken);
             return await runtime.ExecuteCommandAsync(record, context, request, cancellationToken);
         }
@@ -919,6 +1107,284 @@ public sealed class MptHostRuntime : IAsyncDisposable
         {
             return Failed(request, MptErrorCodes.RuntimeUnavailable, LogRouter.Redact(ex.Message), retryable: true);
         }
+        finally
+        {
+            _executionRuntimeTargets.TryRemove(request.InvocationId, out _);
+        }
+    }
+
+    private CommandRouteResolution ResolveTransportCommandRoute(Sdk.MptCommandDescriptor command, Sdk.CommandRequest request)
+    {
+        var record = _packageRegistry.FindModule(command.ModuleId);
+        if (record is null)
+        {
+            return new CommandRouteResolution(null, Failed(request, MptErrorCodes.NotFound, $"Module {command.ModuleId} was not found."));
+        }
+
+        var policy = RuntimeOperationPolicy.Evaluate(command, request, record);
+        if (policy.IsAllowed && TryGetTransportRuntime(record, out _))
+        {
+            return new CommandRouteResolution(record, null);
+        }
+
+        var constraints = RuntimeOperationPolicy.GetConstraints(command, request);
+        if (constraints.Count > 0)
+        {
+            var routeSelection = _packageRegistry.SelectCommandEntrypoint(
+                record,
+                command,
+                request,
+                _transportRuntimes.Keys.ToHashSet(StringComparer.OrdinalIgnoreCase));
+
+            if (routeSelection.Entrypoint is not null)
+            {
+                var routedRecord = record with
+                {
+                    Entrypoint = routeSelection.Entrypoint,
+                    TransportDiagnostics = routeSelection.Diagnostics
+                };
+                var routedPolicy = RuntimeOperationPolicy.Evaluate(command, request, routedRecord, routeSelection.Entrypoint);
+                if (routedPolicy.IsAllowed && TryGetTransportRuntime(routedRecord, out _))
+                {
+                    return new CommandRouteResolution(routedRecord, null);
+                }
+            }
+
+            if (!policy.IsAllowed)
+            {
+                var routeUnavailableReason = DescribeRouteUnavailable(routeSelection);
+                var blocked = RuntimeOperationPolicyDecision.Blocked(
+                    command,
+                    record,
+                    record.Entrypoint,
+                    policy.Constraints,
+                    policy.Violations,
+                    routeUnavailableReason,
+                    routeSelection.Diagnostics);
+                return new CommandRouteResolution(null, Failed(request, MptErrorCodes.RuntimePolicyBlocked, blocked.Message, details: blocked.Details));
+            }
+        }
+
+        if (!policy.IsAllowed)
+        {
+            return new CommandRouteResolution(null, Failed(request, MptErrorCodes.RuntimePolicyBlocked, policy.Message, details: policy.Details));
+        }
+
+        var transport = record.Entrypoint?.Kind ?? "none";
+        return new CommandRouteResolution(null, Failed(request, MptErrorCodes.UnsupportedTransport, $"No transport runtime is registered for {command.ModuleId} via {transport}."));
+    }
+
+    private static string DescribeRouteUnavailable(TransportSelectionResult selection)
+    {
+        var selected = selection.Diagnostics.LastOrDefault(diagnostic => diagnostic.State == "selected");
+        if (selected is not null)
+        {
+            return selected.Reason;
+        }
+
+        var skipped = selection.Diagnostics.LastOrDefault(diagnostic => diagnostic.State == "skipped");
+        return skipped?.Reason ?? "No alternate command route satisfied the required runtime policy.";
+    }
+
+    private async Task EnableModuleResourcesAsync(RuntimeModuleRecord module, CancellationToken cancellationToken)
+    {
+        if (!TryGetTransportRuntime(module, out var runtime))
+        {
+            return;
+        }
+
+        var context = CreateModuleContext(module);
+        try
+        {
+            await runtime.EnableModuleAsync(module, context, cancellationToken);
+            await ApplyPersistedSettingsIfPresentAsync(module, runtime, context, cancellationToken);
+            var status = await runtime.GetStatusAsync(module, context, cancellationToken);
+            if (status is not null)
+            {
+                RecordModuleStatus(module, status);
+            }
+
+            var commands = await runtime.ListCommandsAsync(module, context, cancellationToken);
+            ReplaceDynamicCommands(module.Module.Manifest.Id, commands.Select(command => NormalizeDynamicCommand(module, command)).ToArray());
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            var message = LogRouter.Redact(ex.Message);
+            RecordModuleStatus(module, Degraded(module, message));
+            _logRouter.Append(module.Module.Manifest.PackageId, module.Module.Manifest.Id, "error", message);
+        }
+    }
+
+    private async Task DisableModuleResourcesAsync(RuntimeModuleRecord module, CancellationToken cancellationToken)
+    {
+        if (!TryGetTransportRuntime(module, out var runtime))
+        {
+            return;
+        }
+
+        var context = CreateModuleContext(module);
+        var enabledModuleIds = EnabledModules()
+            .Select(item => item.Module.Manifest.Id)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        try
+        {
+            await runtime.DisableModuleAsync(module, context, enabledModuleIds, cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            var message = LogRouter.Redact(ex.Message);
+            _logRouter.Append(module.Module.Manifest.PackageId, module.Module.Manifest.Id, "error", $"Module disable cleanup failed: {message}");
+            _eventBus.Publish(module.Module.Manifest.Id, "module.disable.cleanup.failed", new JsonObject
+            {
+                ["message"] = message
+            });
+        }
+    }
+
+    private void ReplaceDynamicCommands(string moduleId, IReadOnlyList<Sdk.MptCommandDescriptor> commands)
+    {
+        _dynamicCommands = _dynamicCommands
+            .Where(command => !string.Equals(command.ModuleId, moduleId, StringComparison.OrdinalIgnoreCase))
+            .Concat(commands)
+            .ToArray();
+    }
+
+    private void StartModuleEventStream(string moduleId)
+    {
+        var pump = _moduleEventPumpCancellation;
+        if (pump is null || pump.IsCancellationRequested)
+        {
+            return;
+        }
+
+        _moduleEventPumpTasks.GetOrAdd(moduleId, id => Task.Run(() => RunModuleEventStreamAsync(id, pump.Token), CancellationToken.None));
+    }
+
+    private async ValueTask StopModuleEventStreamAsync(string moduleId)
+    {
+        CancellationTokenSource? cancellation = null;
+        if (_moduleEventPumpCancellations.TryRemove(moduleId, out cancellation))
+        {
+            try
+            {
+                cancellation.Cancel();
+            }
+            catch (ObjectDisposedException)
+            {
+                // The stream task may have completed and disposed its linked token first.
+            }
+        }
+
+        if (_moduleEventPumpTasks.TryRemove(moduleId, out var task))
+        {
+            try
+            {
+                await task;
+            }
+            catch (OperationCanceledException)
+            {
+                // Expected when disabling a module or stopping the pump.
+            }
+        }
+
+        cancellation?.Dispose();
+        _moduleEventPumpFailures.TryRemove(moduleId, out _);
+    }
+
+    private async Task RunModuleEventStreamAsync(string moduleId, CancellationToken pumpToken)
+    {
+        while (!pumpToken.IsCancellationRequested)
+        {
+            var module = _packageRegistry.FindModule(moduleId);
+            if (module is null || string.Equals(module.Status.State, "disabled", StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            if (!TryGetTransportRuntime(module, out var runtime))
+            {
+                await DelayEventPumpRetryAsync(moduleId, pumpToken);
+                continue;
+            }
+
+            var moduleCancellation = CancellationTokenSource.CreateLinkedTokenSource(pumpToken);
+            _moduleEventPumpCancellations[moduleId] = moduleCancellation;
+            try
+            {
+                var context = CreateModuleContext(module);
+                var cursor = new Sdk.EventCursor(_moduleEventCursors.GetValueOrDefault(moduleId));
+                await foreach (var evt in runtime.SubscribeEventsAsync(module, context, cursor, moduleCancellation.Token).WithCancellation(moduleCancellation.Token))
+                {
+                    PublishModuleEvent(evt);
+                }
+
+                _moduleEventPumpFailures[moduleId] = 0;
+                await Task.Delay(TimeSpan.FromSeconds(1), pumpToken);
+            }
+            catch (OperationCanceledException) when (moduleCancellation.IsCancellationRequested || pumpToken.IsCancellationRequested)
+            {
+                return;
+            }
+            catch (Exception ex)
+            {
+                var failureCount = _moduleEventPumpFailures.AddOrUpdate(moduleId, 1, (_, current) => current + 1);
+                var message = LogRouter.Redact(ex.Message);
+                _eventBus.Publish(moduleId, "module.eventStream.failed", new JsonObject
+                {
+                    ["failureCount"] = failureCount,
+                    ["message"] = message
+                });
+                _logRouter.Append(module.Module.Manifest.PackageId, moduleId, "error", $"Module event stream failed: {message}");
+                await DelayEventPumpRetryAsync(moduleId, pumpToken);
+            }
+            finally
+            {
+                _moduleEventPumpCancellations.TryRemove(moduleId, out _);
+                moduleCancellation.Dispose();
+            }
+        }
+    }
+
+    private async Task DelayEventPumpRetryAsync(string moduleId, CancellationToken cancellationToken)
+    {
+        var failureCount = _moduleEventPumpFailures.GetValueOrDefault(moduleId);
+        var delaySeconds = Math.Min(30, Math.Max(1, failureCount == 0 ? 1 : 1 << Math.Min(5, failureCount - 1)));
+        await Task.Delay(TimeSpan.FromSeconds(delaySeconds), cancellationToken);
+    }
+
+    private bool PublishModuleEvent(Sdk.MptModuleEvent evt)
+    {
+        var moduleId = evt.ModuleId;
+        var lastSeen = _moduleEventCursors.GetValueOrDefault(moduleId);
+        if (evt.Seq <= lastSeen)
+        {
+            return false;
+        }
+
+        _moduleEventCursors[moduleId] = Math.Max(lastSeen, evt.Seq);
+        try
+        {
+            _moduleEventStore.Record(evt);
+        }
+        catch (Exception ex)
+        {
+            _logRouter.Append(evt.ModuleId, evt.ModuleId, "warning", $"Module event persistence failed: {LogRouter.Redact(ex.Message)}");
+        }
+
+        var payload = (evt.Payload.DeepClone() as JsonObject) ?? new JsonObject();
+        payload["moduleEventSeq"] = evt.Seq;
+        payload["moduleEventTime"] = evt.Time.ToString("O");
+        _eventBus.Publish(evt.ModuleId, evt.Type, payload);
+        PublishNotificationForModuleEvent(evt);
+        return true;
     }
 
     private async ValueTask ApplyPersistedSettingsIfPresentAsync(
@@ -1277,6 +1743,9 @@ public sealed class MptHostRuntime : IAsyncDisposable
     public async Task<SettingsUpdateResult> UpdateSettingsWithApplyAsync(Sdk.SettingsPatch patch, CancellationToken cancellationToken)
     {
         EnsureModule(patch.ModuleId);
+        var hotkeyEdits = ExtractHotkeyEdits(patch.ModuleId, patch.Patch);
+        var settingsPatchValues = StripRuntimeSettingsPatch(patch.Patch);
+        var settingsPatch = new Sdk.SettingsPatch(patch.ModuleId, patch.ExpectedRevision, settingsPatchValues);
         var module = _packageRegistry.FindModule(patch.ModuleId);
         IModuleTransportRuntime? runtime = null;
         Sdk.ModuleContext? context = null;
@@ -1284,14 +1753,14 @@ public sealed class MptHostRuntime : IAsyncDisposable
         {
             runtime = selectedRuntime;
             context = CreateModuleContext(module);
-            var validation = await runtime.ValidateSettingsAsync(module, context, patch, cancellationToken);
+            var validation = await runtime.ValidateSettingsAsync(module, context, settingsPatch, cancellationToken);
             if (!validation.Ok)
             {
-                throw new SettingsValidationException(patch.ModuleId, validation.Messages, validation.Error);
+                throw new SettingsValidationException(settingsPatch.ModuleId, validation.Messages, validation.Error);
             }
         }
 
-        var updated = _settingsStore.Update(patch);
+        var updated = _settingsStore.Update(settingsPatch);
         var applyState = runtime is null ? "stored" : "applied";
         var applyMessage = runtime is null
             ? "Settings were stored; no runtime apply hook was available."
@@ -1324,14 +1793,75 @@ public sealed class MptHostRuntime : IAsyncDisposable
             }
         }
 
+        ApplyHotkeyEdits(patch.ModuleId, hotkeyEdits);
         _eventBus.Publish(patch.ModuleId, "settings.updated", new JsonObject
         {
             ["revision"] = updated.Revision,
             ["applyState"] = applyState,
-            ["applyMessage"] = applyMessage
+            ["applyMessage"] = applyMessage,
+            ["hotkeyEditCount"] = hotkeyEdits.Count
         });
+        if (hotkeyEdits.Count > 0)
+        {
+            _eventBus.Publish(patch.ModuleId, "hotkeys.updated", new JsonObject
+            {
+                ["hotkeyEditCount"] = hotkeyEdits.Count
+            });
+        }
+
         _logRouter.Append(module?.Module.Manifest.PackageId ?? patch.ModuleId, patch.ModuleId, "info", $"Settings updated to revision {updated.Revision}; apply state {applyState}");
         return new SettingsUpdateResult(updated, applyState, applyMessage);
+    }
+
+    private static JsonObject StripRuntimeSettingsPatch(JsonObject patch)
+    {
+        var clone = (patch.DeepClone() as JsonObject) ?? new JsonObject();
+        clone.Remove("$hotkeys");
+        return clone;
+    }
+
+    private static IReadOnlyList<HotkeyEdit> ExtractHotkeyEdits(string moduleId, JsonObject patch)
+    {
+        if (patch["$hotkeys"] is not JsonArray edits)
+        {
+            return [];
+        }
+
+        var result = new List<HotkeyEdit>();
+        foreach (var edit in edits.OfType<JsonObject>())
+        {
+            var id = edit["id"]?.GetValue<string>() ?? "";
+            if (string.IsNullOrWhiteSpace(id))
+            {
+                continue;
+            }
+
+            var hotkeyId = id.StartsWith(moduleId + ".", StringComparison.OrdinalIgnoreCase)
+                ? id[(moduleId.Length + 1)..]
+                : id;
+            result.Add(new HotkeyEdit(
+                hotkeyId,
+                edit["gesture"]?.GetValue<string>() ?? "",
+                edit["reset"]?.GetValue<bool>() == true,
+                edit["disabled"]?.GetValue<bool>() == true,
+                edit["commandArgs"]?.ToJsonString() ?? "{}"));
+        }
+
+        return result;
+    }
+
+    private void ApplyHotkeyEdits(string moduleId, IReadOnlyList<HotkeyEdit> edits)
+    {
+        foreach (var edit in edits)
+        {
+            if (edit.Reset)
+            {
+                _hotkeyStore.Reset(moduleId, edit.HotkeyId);
+                continue;
+            }
+
+            _hotkeyStore.Set(moduleId, edit.HotkeyId, edit.Gesture, edit.Disabled, edit.CommandArgsJson);
+        }
     }
 
     public IReadOnlyList<LogRecord> TailLogs(string moduleId)
@@ -1364,13 +1894,10 @@ public sealed class MptHostRuntime : IAsyncDisposable
                 var context = CreateModuleContext(module);
                 await foreach (var evt in runtime.SubscribeEventsAsync(module, context, cursor, timeout.Token).WithCancellation(timeout.Token))
                 {
-                    _moduleEventCursors[moduleId] = Math.Max(_moduleEventCursors.GetValueOrDefault(moduleId), evt.Seq);
-                    var payload = (evt.Payload.DeepClone() as JsonObject) ?? new JsonObject();
-                    payload["moduleEventSeq"] = evt.Seq;
-                    payload["moduleEventTime"] = evt.Time.ToString("O");
-                    _eventBus.Publish(evt.ModuleId, evt.Type, payload);
-                    PublishNotificationForModuleEvent(evt);
-                    count++;
+                    if (PublishModuleEvent(evt))
+                    {
+                        count++;
+                    }
                 }
             }
             catch (OperationCanceledException) when (timeout.IsCancellationRequested && !cancellationToken.IsCancellationRequested)
@@ -1412,7 +1939,7 @@ public sealed class MptHostRuntime : IAsyncDisposable
         var body = ReadPayloadString(evt.Payload, "message") ??
             ReadPayloadString(evt.Payload, "summary") ??
             evt.Payload.ToJsonString();
-        _notificationCenter.Publish(evt.ModuleId, level, title, body);
+        PublishNotification(evt.ModuleId, level, title, body);
     }
 
     private static bool ShouldNotifyForModuleEvent(string eventType)
@@ -1446,5 +1973,10 @@ public sealed class MptHostRuntime : IAsyncDisposable
             throw new KeyNotFoundException($"Module '{moduleId}' was not found.");
         }
     }
-}
 
+    private sealed record HotkeyEdit(string HotkeyId, string Gesture, bool Reset, bool Disabled, string CommandArgsJson);
+
+    private sealed record CommandRouteResolution(RuntimeModuleRecord? Record, Sdk.CommandExecutionResult? Failure);
+
+    private sealed record CommandRuntimeCancellationTarget(RuntimeModuleRecord Module, IModuleTransportRuntime Runtime, MyPowerTools.Abstractions.ModuleContext Context);
+}

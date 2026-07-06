@@ -2,6 +2,8 @@ syntax = "proto3";
 
 package mypowertools.module.v1;
 
+import "google/protobuf/struct.proto";
+
 option csharp_namespace = "MyPowerTools.Protocol.Module.V1";
 
 service ModuleControl {
@@ -88,6 +90,13 @@ message MptCommand {
   bool requires_elevation = 5;
   string icon = 6;
   repeated CommandParameter parameters = 7;
+  string category = 8;
+  string danger_level = 9;
+  uint32 timeout_ms = 10;
+  repeated string constraints = 11;
+  string execution_json = 12;
+  bool supports_progress = 13;
+  bool supports_cancellation = 14;
 }
 
 message CommandParameter {
@@ -103,6 +112,8 @@ message ExecuteCommandRequest {
   string command_id = 2;
   string invocation_id = 3;
   map<string, string> args = 4;
+  google.protobuf.Struct typed_args = 5;
+  string args_json = 6;
 }
 
 message CommandExecution {
@@ -140,6 +151,8 @@ message CancelCommandRequest {
 
 message CancelCommandResponse {
   bool accepted = 1;
+  string state = 2;
+  string message = 3;
 }
 
 message GetSettingsSchemaRequest {

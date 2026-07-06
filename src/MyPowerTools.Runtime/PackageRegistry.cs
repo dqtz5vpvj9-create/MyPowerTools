@@ -1,5 +1,6 @@
 using MyPowerTools.Packaging;
 using MyPowerTools.Platform.Abstractions;
+using Sdk = MyPowerTools.Abstractions;
 
 namespace MyPowerTools.Runtime;
 
@@ -58,6 +59,15 @@ public sealed class PackageRegistry
     public RuntimeModuleRecord? FindModule(string moduleId)
     {
         return _modules.FirstOrDefault(module => string.Equals(module.Module.Manifest.Id, moduleId, StringComparison.OrdinalIgnoreCase));
+    }
+
+    public TransportSelectionResult SelectCommandEntrypoint(
+        RuntimeModuleRecord module,
+        Sdk.MptCommandDescriptor command,
+        Sdk.CommandRequest request,
+        IReadOnlySet<string> availableTransportKinds)
+    {
+        return _transportSelector.SelectForCommand(module.Package, module.Module, command, request, availableTransportKinds);
     }
 
     public void UpdateStatus(string moduleId, MyPowerTools.Abstractions.ModuleStatusSnapshot status)

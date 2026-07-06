@@ -214,6 +214,7 @@ message RuntimeHotkeyDiagnostics {
   string state = 6;
   string message = 7;
   bool is_default = 8;
+  string default_gesture = 9;
 }
 
 message RuntimeProcessDiagnostics {
@@ -298,6 +299,9 @@ message RuntimeModuleDiagnostics {
   google.protobuf.Timestamp last_observed_at = 14;
   string transport_selection_reason = 15;
   repeated string transport_selection_diagnostics = 16;
+  string module_enabled_state = 17;
+  string transport_active_state = 18;
+  string tool_runtime_state = 19;
 }
 
 message RuntimeCommandHistoryEntry {

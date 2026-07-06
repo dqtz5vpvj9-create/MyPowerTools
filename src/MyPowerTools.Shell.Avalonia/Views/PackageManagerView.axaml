@@ -1,31 +1,60 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="using:MyPowerTools.UI.Controls"
              xmlns:vm="using:MyPowerTools.Shell.Avalonia.ViewModels"
              x:Class="MyPowerTools.Shell.Avalonia.Views.PackageManagerView"
              x:DataType="vm:PackageManagerViewModel">
   <StackPanel Margin="{DynamicResource MptPagePadding}" Spacing="{DynamicResource MptSpacingM}">
-    <StackPanel Spacing="{DynamicResource MptSpacingXs}">
-      <TextBlock Classes="MptPageTitle" Text="{Binding Title}" />
-      <TextBlock Classes="MptPageSubtitle" Text="{Binding Subtitle}" />
-    </StackPanel>
+    <Grid ColumnDefinitions="*,Auto">
+      <StackPanel Spacing="{DynamicResource MptSpacingXs}">
+        <TextBlock Classes="MptPageTitle" Text="{Binding Title}" />
+        <TextBlock Classes="MptPageSubtitle" Text="{Binding Subtitle}" />
+      </StackPanel>
+      <StackPanel Grid.Column="1" Classes="MptActionBar" Orientation="Horizontal">
+        <controls:MptButton Content="Repair selected"
+                            MinWidth="{DynamicResource MptDensityActionMinWidth}" />
+        <controls:MptButton Content="Refresh trust"
+                            MinWidth="{DynamicResource MptDensityActionMinWidth}" />
+      </StackPanel>
+    </Grid>
 
     <Border Classes="MptSettingsSection">
       <StackPanel Spacing="{DynamicResource MptSpacingS}">
         <TextBlock Classes="MptSectionTitle" Text="Package Operations" />
-        <StackPanel Orientation="Horizontal" Spacing="{DynamicResource MptSpacingS}">
-          <TextBox PlaceholderText="Package source directory"
-                   Text="{Binding InstallSourceDirectory, Mode=TwoWay}"
-                   MinWidth="360"
-                   MinHeight="34" />
-          <Button Content="Install" Command="{Binding InstallCommand}" MinHeight="34" MinWidth="86" />
-        </StackPanel>
-        <StackPanel Orientation="Horizontal" Spacing="{DynamicResource MptSpacingS}">
-          <TextBox PlaceholderText="Package id"
-                   Text="{Binding RollbackPackageId, Mode=TwoWay}"
-                   MinWidth="220"
-                   MinHeight="34" />
-          <Button Content="Rollback" Command="{Binding RollbackCommand}" MinHeight="34" MinWidth="86" />
-        </StackPanel>
+        <Grid ColumnDefinitions="*,*" ColumnSpacing="{DynamicResource MptSpacingM}">
+          <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{DynamicResource MptSpacingS}">
+            <controls:MptTextBox PlaceholderText="Package source directory"
+                                 Text="{Binding InstallSourceDirectory, Mode=TwoWay}"
+                                 MinWidth="{DynamicResource MptPackageSourceInputWidth}" />
+            <controls:MptButton Grid.Column="1"
+                                Classes="MptPrimaryButton"
+                                Content="Install"
+                                Command="{Binding InstallCommand}"
+                                MinWidth="{DynamicResource MptPackageActionWidth}" />
+          </Grid>
+          <Grid Grid.Column="1" ColumnDefinitions="*,Auto" ColumnSpacing="{DynamicResource MptSpacingS}">
+            <controls:MptTextBox PlaceholderText="Package id"
+                                 Text="{Binding RollbackPackageId, Mode=TwoWay}"
+                                 MinWidth="{DynamicResource MptPackageIdInputWidth}" />
+            <controls:MptButton Grid.Column="1"
+                                Content="Rollback"
+                                Command="{Binding RollbackCommand}"
+                                MinWidth="{DynamicResource MptPackageActionWidth}" />
+          </Grid>
+        </Grid>
+      </StackPanel>
+    </Border>
+
+    <Border Classes="MptToolbar">
+      <StackPanel Classes="MptToolbar" Orientation="Horizontal">
+        <controls:MptTextBox PlaceholderText="Search packages"
+                             MinWidth="{DynamicResource MptPackageIdInputWidth}" />
+        <controls:MptButton Content="Trusted"
+                            MinWidth="{DynamicResource MptDensityActionMinWidth}" />
+        <controls:MptButton Content="Warnings"
+                            MinWidth="{DynamicResource MptDensityActionMinWidth}" />
+        <controls:MptButton Content="Updates"
+                            MinWidth="{DynamicResource MptDensityActionMinWidth}" />
       </StackPanel>
     </Border>
 
@@ -34,20 +63,34 @@
                IsVisible="{Binding IsEmpty}" />
 
     <ItemsControl ItemsSource="{Binding Packages}">
+      <ItemsControl.ItemsPanel>
+        <ItemsPanelTemplate>
+          <WrapPanel ItemWidth="{DynamicResource MptLayoutPackageCardWidth}" />
+        </ItemsPanelTemplate>
+      </ItemsControl.ItemsPanel>
       <ItemsControl.ItemTemplate>
         <DataTemplate x:DataType="vm:PackageSummaryViewModel">
-          <Border Classes="MptModuleCard" Margin="{DynamicResource MptGapBottomL}">
-            <StackPanel Spacing="{DynamicResource MptSpacingS}">
+          <Border Classes="MptPackageCard" Margin="{DynamicResource MptWrapItemMargin}">
+            <Grid RowDefinitions="Auto,Auto,*,Auto">
               <Grid ColumnDefinitions="*,Auto">
-                <TextBlock Classes="MptSectionTitle" Text="{Binding DisplayName}" />
-                <TextBlock Grid.Column="1" Classes="MptMeta" Text="{Binding TrustState}" />
+                <StackPanel Spacing="{DynamicResource MptSpacingXs}">
+                  <TextBlock Classes="MptSectionTitle" Text="{Binding DisplayName}" TextWrapping="Wrap" />
+                  <TextBlock Classes="MptMeta" Text="{Binding PackageId}" TextWrapping="Wrap" />
+                  <TextBlock Classes="MptPageSubtitle" Text="{Binding Publisher}" />
+                </StackPanel>
+                <Border Grid.Column="1" Classes="MptStatusBadge">
+                  <TextBlock Classes="MptMeta" Text="{Binding TrustState}" />
+                </Border>
               </Grid>
-              <TextBlock Classes="MptPageSubtitle" Text="{Binding Publisher}" />
 
-              <ItemsControl ItemsSource="{Binding Metrics}">
+              <ItemsControl Grid.Row="1" ItemsSource="{Binding Metrics}" Margin="{DynamicResource MptGapTopM}">
                 <ItemsControl.ItemTemplate>
                   <DataTemplate x:DataType="vm:MetricViewModel">
-                    <Grid ColumnDefinitions="120,*" Margin="{DynamicResource MptGapBottomXs}">
+                    <Grid Margin="{DynamicResource MptGapBottomXs}">
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="{DynamicResource MptLayoutMetricLabelGridWidth}" />
+                        <ColumnDefinition Width="*" />
+                      </Grid.ColumnDefinitions>
                       <TextBlock Classes="MptMeta" Text="{Binding Label}" />
                       <TextBlock Grid.Column="1" Text="{Binding Value}" TextWrapping="Wrap" />
                     </Grid>
@@ -55,29 +98,38 @@
                 </ItemsControl.ItemTemplate>
               </ItemsControl>
 
-              <TextBlock Classes="MptMeta" Text="{Binding PackageId}" />
-              <TextBlock Classes="MptMeta" Text="{Binding ModuleIdsText}" TextWrapping="Wrap" />
-              <TextBlock Classes="MptMeta" Text="{Binding Directory}" TextTrimming="CharacterEllipsis" />
-
-              <ItemsControl ItemsSource="{Binding ModuleLinks}">
-                <ItemsControl.ItemsPanel>
-                  <ItemsPanelTemplate>
-                    <WrapPanel />
-                  </ItemsPanelTemplate>
-                </ItemsControl.ItemsPanel>
-                <ItemsControl.ItemTemplate>
-                  <DataTemplate x:DataType="vm:PackageModuleLinkViewModel">
-                    <Button Content="{Binding ModuleId}" Command="{Binding OpenCommand}" MinHeight="32" MaxWidth="180" Margin="{DynamicResource MptWrapItemMargin}" />
-                  </DataTemplate>
-                </ItemsControl.ItemTemplate>
-              </ItemsControl>
-
-              <StackPanel Orientation="Horizontal" Spacing="{DynamicResource MptSpacingS}">
-                <Button Content="Repair" Command="{Binding RepairCommand}" MinHeight="32" MinWidth="84" />
-                <Button Content="Uninstall" Command="{Binding UninstallCommand}" MinHeight="32" MinWidth="84" />
-                <Button Content="Rollback" Command="{Binding RollbackCommand}" MinHeight="32" MinWidth="84" />
+              <StackPanel Grid.Row="2" Spacing="{DynamicResource MptSpacingXs}">
+                <TextBlock Classes="MptMeta" Text="{Binding ModuleIdsText}" TextWrapping="Wrap" />
+                <TextBlock Classes="MptMeta" Text="{Binding Directory}" TextTrimming="CharacterEllipsis" />
+                <ItemsControl ItemsSource="{Binding ModuleLinks}">
+                  <ItemsControl.ItemsPanel>
+                    <ItemsPanelTemplate>
+                      <WrapPanel />
+                    </ItemsPanelTemplate>
+                  </ItemsControl.ItemsPanel>
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:PackageModuleLinkViewModel">
+                      <controls:MptButton Content="{Binding ModuleId}"
+                                          Command="{Binding OpenCommand}"
+                                          Margin="{DynamicResource MptWrapItemMargin}" />
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
               </StackPanel>
-            </StackPanel>
+
+              <StackPanel Grid.Row="3" Orientation="Horizontal" Spacing="{DynamicResource MptSpacingS}">
+                <controls:MptButton Classes="MptPrimaryButton"
+                                    Content="Repair"
+                                    Command="{Binding RepairCommand}"
+                                    MinWidth="{DynamicResource MptPackageActionWidth}" />
+                <controls:MptButton Content="Uninstall"
+                                    Command="{Binding UninstallCommand}"
+                                    MinWidth="{DynamicResource MptPackageActionWidth}" />
+                <controls:MptButton Content="Rollback"
+                                    Command="{Binding RollbackCommand}"
+                                    MinWidth="{DynamicResource MptPackageActionWidth}" />
+              </StackPanel>
+            </Grid>
           </Border>
         </DataTemplate>
       </ItemsControl.ItemTemplate>

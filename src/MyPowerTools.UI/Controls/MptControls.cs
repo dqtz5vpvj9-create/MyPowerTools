@@ -1,6 +1,4 @@
-using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Layout;
 using Avalonia.Media;
 
 namespace MyPowerTools.UI.Controls;
@@ -9,11 +7,7 @@ public sealed class MptShellWindow : Window
 {
     public MptShellWindow()
     {
-        Width = 1180;
-        Height = 760;
-        MinWidth = 920;
-        MinHeight = 620;
-        Background = MptTheme.AppBackground;
+        Classes.Add(nameof(MptShellWindow));
     }
 }
 
@@ -21,8 +15,7 @@ public sealed class MptSidebar : StackPanel
 {
     public MptSidebar()
     {
-        Spacing = 6;
-        Margin = new Thickness(16);
+        Classes.Add(nameof(MptSidebar));
     }
 }
 
@@ -30,101 +23,107 @@ public sealed class MptTopBar : Grid
 {
     public MptTopBar()
     {
-        ColumnDefinitions = new ColumnDefinitions("*,Auto");
-        Margin = new Thickness(16, 12, 16, 8);
+        Classes.Add(nameof(MptTopBar));
     }
 }
 
 public sealed class MptSearchBox : TextBox
 {
+    protected override Type StyleKeyOverride => typeof(TextBox);
+
     public MptSearchBox()
     {
-        PlaceholderText = "Search commands";
-        MinHeight = 36;
+        Classes.Add(nameof(MptSearchBox));
+    }
+}
+
+public sealed class MptButton : Button
+{
+    protected override Type StyleKeyOverride => typeof(Button);
+
+    public MptButton()
+    {
+        Classes.Add(nameof(MptButton));
+    }
+}
+
+public sealed class MptIconButton : Button
+{
+    protected override Type StyleKeyOverride => typeof(Button);
+
+    public MptIconButton()
+    {
+        Classes.Add(nameof(MptIconButton));
+    }
+}
+
+public sealed class MptTextBox : TextBox
+{
+    protected override Type StyleKeyOverride => typeof(TextBox);
+
+    public MptTextBox()
+    {
+        Classes.Add(nameof(MptTextBox));
+    }
+}
+
+public sealed class MptCheckBox : CheckBox
+{
+    protected override Type StyleKeyOverride => typeof(CheckBox);
+
+    public MptCheckBox()
+    {
+        Classes.Add(nameof(MptCheckBox));
+    }
+}
+
+public sealed class MptComboBox : ComboBox
+{
+    protected override Type StyleKeyOverride => typeof(ComboBox);
+
+    public MptComboBox()
+    {
+        Classes.Add(nameof(MptComboBox));
     }
 }
 
 public sealed class MptModuleCard : Border
 {
-    public MptModuleCard(Control content)
+    public MptModuleCard()
     {
-        Classes.Add("MptModuleCard");
-        Margin = new Thickness(0, 0, 16, 16);
-        Padding = new Thickness(16);
-        CornerRadius = new CornerRadius(8);
-        BorderBrush = MptTheme.Border;
-        BorderThickness = new Thickness(1);
-        Background = MptTheme.CardBackground;
-        Child = content;
+        Classes.Add(nameof(MptModuleCard));
     }
 }
 
 public sealed class MptStatusBadge : Border
 {
-    public MptStatusBadge(string state)
+    public MptStatusBadge()
     {
-        var color = MptTheme.StatusBrush(state);
-
-        Classes.Add("MptStatusBadge");
-        Padding = new Thickness(8, 2);
-        CornerRadius = new CornerRadius(999);
-        BorderBrush = color;
-        BorderThickness = new Thickness(1);
-        Child = new TextBlock
-        {
-            Text = state,
-            Foreground = color,
-            FontSize = MptTheme.FontSizeMeta
-        };
+        Classes.Add(nameof(MptStatusBadge));
     }
 }
 
 public sealed class MptCommandItem : Border
 {
-    public MptCommandItem(string title, string subtitle)
+    public MptCommandItem()
     {
-        Classes.Add("MptCommandItem");
-        Padding = new Thickness(12);
-        CornerRadius = new CornerRadius(8);
-        Child = new StackPanel
-        {
-            Spacing = 3,
-            Children =
-            {
-                new TextBlock { Text = title, FontWeight = FontWeight.SemiBold },
-                new TextBlock { Text = subtitle, Foreground = MptTheme.TextSecondary, FontSize = MptTheme.FontSizeMeta }
-            }
-        };
+        Classes.Add(nameof(MptCommandItem));
     }
 }
 
 public sealed class MptSettingsSection : StackPanel
 {
-    public MptSettingsSection(string title)
+    public MptSettingsSection()
     {
-        Classes.Add("MptSettingsSection");
-        Spacing = 10;
-        Children.Add(new TextBlock { Text = title, FontSize = MptTheme.FontSizeSection, FontWeight = FontWeight.SemiBold });
+        Classes.Add(nameof(MptSettingsSection));
     }
 }
 
 public sealed class MptSettingsField : Border
 {
-    public MptSettingsField(string label, Control editor)
+    public MptSettingsField()
     {
-        Classes.Add("MptSettingsField");
-        Padding = new Thickness(10);
-        CornerRadius = new CornerRadius(6);
-        Background = MptTheme.AppBackground;
-        Child = new StackPanel
-        {
-            Spacing = 6,
-            Children =
-            {
-                new TextBlock { Text = label, FontWeight = FontWeight.SemiBold },
-                editor
-            }
-        };
+        Classes.Add(nameof(MptSettingsField));
     }
 }
 
@@ -132,110 +131,75 @@ public sealed class MptLogViewer : ListBox
 {
     public MptLogViewer()
     {
-        Classes.Add("MptLogViewer");
-        FontFamily = FontFamily.Parse("Consolas");
-        FontSize = MptTheme.FontSizeMeta;
+        Classes.Add(nameof(MptLogViewer));
     }
 }
 
 public sealed class MptLogRow : Border
 {
-    public MptLogRow(Control content)
+    public MptLogRow()
     {
-        Classes.Add("MptLogRow");
-        Padding = new Thickness(10, 8);
-        CornerRadius = new CornerRadius(6);
-        Background = MptTheme.AppBackground;
-        Child = content;
+        Classes.Add(nameof(MptLogRow));
     }
 }
 
 public sealed class MptNotificationItem : Border
 {
-    public MptNotificationItem(string title, string body)
+    public MptNotificationItem()
     {
-        Classes.Add("MptNotificationItem");
-        Padding = new Thickness(12);
-        CornerRadius = new CornerRadius(8);
-        BorderBrush = MptTheme.Border;
-        BorderThickness = new Thickness(1);
-        Child = new StackPanel
-        {
-            Spacing = 4,
-            Children =
-            {
-                new TextBlock { Text = title, FontWeight = FontWeight.SemiBold },
-                new TextBlock { Text = body, TextWrapping = TextWrapping.Wrap, Foreground = MptTheme.TextSecondary }
-            }
-        };
+        Classes.Add(nameof(MptNotificationItem));
     }
 }
 
 public sealed class MptMetricTile : Border
 {
-    public MptMetricTile(string label, string value)
+    public MptMetricTile()
     {
-        Classes.Add("MptMetricTile");
-        Padding = new Thickness(10);
-        CornerRadius = new CornerRadius(8);
-        Background = MptTheme.AppBackground;
-        Child = new StackPanel
-        {
-            Children =
-            {
-                new TextBlock { Text = value, FontWeight = FontWeight.SemiBold },
-                new TextBlock { Text = label, FontSize = MptTheme.FontSizeMeta, Foreground = MptTheme.TextSecondary }
-            }
-        };
+        Classes.Add(nameof(MptMetricTile));
     }
 }
 
 public sealed class MptActionButton : Button
 {
-    public MptActionButton(string title)
+    protected override Type StyleKeyOverride => typeof(Button);
+
+    public MptActionButton()
     {
-        Classes.Add("MptActionButton");
-        Content = title;
-        MinWidth = 76;
-        MinHeight = 32;
+        Classes.Add(nameof(MptActionButton));
     }
 }
 
 public sealed class MptPermissionPrompt : Border
 {
-    public MptPermissionPrompt(string reason)
+    public MptPermissionPrompt()
     {
-        Classes.Add("MptPermissionPrompt");
-        Padding = new Thickness(16);
-        CornerRadius = new CornerRadius(8);
-        BorderBrush = MptTheme.Warning;
-        BorderThickness = new Thickness(1);
-        Child = new TextBlock { Text = reason, TextWrapping = TextWrapping.Wrap };
+        Classes.Add(nameof(MptPermissionPrompt));
     }
 }
 
-public sealed class MptEmptyState : TextBlock
+public sealed class MptEmptyState : Border
 {
-    public MptEmptyState(string text)
+    public MptEmptyState()
     {
-        Classes.Add("MptEmptyState");
-        Text = text;
-        Foreground = MptTheme.TextSecondary;
-        HorizontalAlignment = HorizontalAlignment.Center;
-        VerticalAlignment = VerticalAlignment.Center;
+        Classes.Add(nameof(MptEmptyState));
     }
 }
 
 public sealed class MptErrorState : Border
 {
-    public MptErrorState(string message)
+    public MptErrorState()
     {
-        Classes.Add("MptErrorState");
-        Padding = new Thickness(16);
-        CornerRadius = new CornerRadius(8);
-        BorderBrush = MptTheme.Danger;
-        BorderThickness = new Thickness(1);
-        Child = new TextBlock { Text = message, TextWrapping = TextWrapping.Wrap };
+        Classes.Add(nameof(MptErrorState));
+    }
+
+    public MptErrorState(string message)
+        : this()
+    {
+        Child = new TextBlock
+        {
+            Text = message,
+            TextWrapping = TextWrapping.Wrap
+        };
     }
 }
 
@@ -243,21 +207,15 @@ public sealed class MptLoadingSkeleton : Border
 {
     public MptLoadingSkeleton()
     {
-        Classes.Add("MptLoadingSkeleton");
-        MinHeight = 36;
-        CornerRadius = new CornerRadius(6);
-        Background = MptTheme.AppBackground;
+        Classes.Add(nameof(MptLoadingSkeleton));
     }
 }
 
 public sealed class MptPageHeader : StackPanel
 {
-    public MptPageHeader(string title, string subtitle)
+    public MptPageHeader()
     {
-        Classes.Add("MptPageHeader");
-        Spacing = 4;
-        Children.Add(new TextBlock { Text = title, FontSize = MptTheme.FontSizeTitle, FontWeight = FontWeight.SemiBold });
-        Children.Add(new TextBlock { Text = subtitle, TextWrapping = TextWrapping.Wrap, Foreground = MptTheme.TextSecondary });
+        Classes.Add(nameof(MptPageHeader));
     }
 }
 
@@ -265,8 +223,6 @@ public sealed class MptActionBar : StackPanel
 {
     public MptActionBar()
     {
-        Classes.Add("MptActionBar");
-        Orientation = Orientation.Horizontal;
-        Spacing = 8;
+        Classes.Add(nameof(MptActionBar));
     }
 }

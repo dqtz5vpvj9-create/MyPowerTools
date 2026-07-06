@@ -3,19 +3,19 @@
   "Files": [
     {
       "Path": "commands.index.json",
-      "Sha256": "c85ad9099d5110baeb9eeb58430e50ac5aa9437ee4e694dca2358e8a173cf4ee"
+      "Sha256": "df06bdc992f70549b714c1383345f78b74e40861bbf20c6aea09005557f21ac3"
     },
     {
       "Path": "DoubaoAgent.MyPowerTools.dll",
-      "Sha256": "c4b5a0e2acedc6c9fbfef0d18ab665c4846d3e2eedc65ea015cb1f4255742d0c"
+      "Sha256": "e72bb85feb7ac3f877adfafd7bde1c20af70ff259972ef471405bfe7d7ef3d20"
     },
     {
       "Path": "DoubaoAgent.MyPowerTools.pdb",
-      "Sha256": "0626a78a45916ebb48a435b16c4afbf9114cae3ad8c6f19ab72eccba0ead6b94"
+      "Sha256": "2af9c586cba82f336fec37263917c99c8be1dbcb77ee1a0d5685a4672455a1df"
     },
     {
       "Path": "module.json",
-      "Sha256": "d73d461916f7a6b789950ded6d998ab7f36e0428f58b6877232cdad9fc23d551"
+      "Sha256": "23ada760928cacce53754c1739f80c370473c8754226e73ce254dd42781405b9"
     },
     {
       "Path": "ui/dashboard-card.json",

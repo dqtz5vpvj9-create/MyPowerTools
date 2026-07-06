@@ -1,0 +1,20 @@
+<Styles xmlns="https://github.com/avaloniaui">
+  <Style Selector="Border.MptTabStrip">
+    <Setter Property="Padding" Value="{DynamicResource MptCompactPadding}" />
+    <Setter Property="CornerRadius" Value="{DynamicResource MptRadiusCard}" />
+    <Setter Property="Background" Value="{DynamicResource MptBrushSurfaceInset}" />
+  </Style>
+
+  <Style Selector="TextBlock.MptTabItem">
+    <Setter Property="Padding" Value="{DynamicResource MptButtonPadding}" />
+    <Setter Property="FontSize" Value="{DynamicResource MptFontSizeBody}" />
+    <Setter Property="Foreground" Value="{DynamicResource MptBrushTextSecondary}" />
+  </Style>
+
+  <Style Selector="TextBlock.MptTabItemSelected">
+    <Setter Property="Padding" Value="{DynamicResource MptButtonPadding}" />
+    <Setter Property="FontSize" Value="{DynamicResource MptFontSizeBody}" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Foreground" Value="{DynamicResource MptBrushAccent}" />
+  </Style>
+</Styles>

@@ -5,6 +5,7 @@ using System.Windows.Input;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
+using Avalonia.Media;
 using Avalonia.Skia;
 using Avalonia.Styling;
 using Avalonia.Threading;
@@ -12,6 +13,7 @@ using Google.Protobuf.WellKnownTypes;
 using MyPowerTools.HostControl;
 using MyPowerTools.Shell.Avalonia.ViewModels;
 using MyPowerTools.Shell.Avalonia.Views;
+using MyPowerTools.UI;
 using HostProto = MyPowerTools.Protocol.HostControl.V1;
 
 namespace MyPowerTools.Shell.Avalonia;
@@ -129,9 +131,11 @@ public static class ShellRealScreenshotWriter
 
         if (Application.Current is not null)
         {
-            Application.Current.RequestedThemeVariant = string.Equals(theme, "dark", StringComparison.OrdinalIgnoreCase)
+            var dark = string.Equals(theme, "dark", StringComparison.OrdinalIgnoreCase);
+            Application.Current.RequestedThemeVariant = dark
                 ? ThemeVariant.Dark
                 : ThemeVariant.Light;
+            MptTheme.ApplyPalette(Application.Current, dark);
         }
     }
 
@@ -169,14 +173,14 @@ public static class ShellRealScreenshotWriter
     {
         return
         [
-            new("dashboard", "Dashboard", () => new DashboardView { DataContext = SampleDashboard() }),
-            new("command-palette-with-params", "Command Palette With Parameters", () => new CommandPaletteView { DataContext = SampleCommandPalette() }),
-            new("settings-dirty-state", "Settings Dirty State", () => new SettingsCenterView { DataContext = SampleSettings() }),
-            new("module-detail-degraded", "Module Detail Degraded", () => new ModuleDetailView { DataContext = SampleModuleDetail() }),
-            new("logs-long-lines", "Logs Long Lines", () => new LogsView { DataContext = SampleLogs() }),
-            new("notifications-list", "Notifications List", () => new NotificationsView { DataContext = SampleNotifications() }),
-            new("packages", "Packages", () => new PackageManagerView { DataContext = SamplePackages() }),
-            new("diagnostics-wide", "Diagnostics Wide", () => new DiagnosticsView { DataContext = SampleDiagnostics() })
+            new("dashboard", "Dashboard", () => CreateShellChrome("Dashboard", new DashboardView { DataContext = SampleDashboard() })),
+            new("command-palette-with-params", "Command Palette With Parameters", () => CreateShellChrome("Commands", new CommandPaletteView { DataContext = SampleCommandPalette() })),
+            new("settings-dirty-state", "Settings Dirty State", () => CreateShellChrome("Settings", new SettingsCenterView { DataContext = SampleSettings() })),
+            new("module-detail-degraded", "Module Detail Degraded", () => CreateShellChrome("Modules", new ModuleDetailView { DataContext = SampleModuleDetail() })),
+            new("logs-long-lines", "Logs Long Lines", () => CreateShellChrome("Logs", new LogsView { DataContext = SampleLogs() })),
+            new("notifications-list", "Notifications List", () => CreateShellChrome("Notifications", new NotificationsView { DataContext = SampleNotifications() })),
+            new("packages", "Packages", () => CreateShellChrome("Packages", new PackageManagerView { DataContext = SamplePackages() })),
+            new("diagnostics-wide", "Diagnostics Wide", () => CreateShellChrome("Diagnostics", new DiagnosticsView { DataContext = SampleDiagnostics() }))
         ];
     }
 
@@ -196,39 +200,106 @@ public static class ShellRealScreenshotWriter
 
         return
         [
-            new("dashboard", "Dashboard", () => new DashboardView
+            new("dashboard", "Dashboard", () => CreateShellChrome("Dashboard", new DashboardView
             {
                 DataContext = ShellPageViewModelFactory.FromDashboard(data.Dashboard)
-            }),
-            new("command-palette-with-params", "Command Palette With Parameters", () => new CommandPaletteView
+            }, ShellPageViewModelFactory.FromCommands(CommandQuery(data.Commands), data.Commands), data.DataSource)),
+            new("command-palette-with-params", "Command Palette With Parameters", () => CreateShellChrome("Commands", new CommandPaletteView
             {
                 DataContext = ShellPageViewModelFactory.FromCommands(CommandQuery(data.Commands), data.Commands)
-            }),
-            new("settings-dirty-state", "Settings", () => new SettingsCenterView
+            }, ShellPageViewModelFactory.FromCommands(CommandQuery(data.Commands), data.Commands), data.DataSource)),
+            new("settings-dirty-state", "Settings", () => CreateShellChrome("Settings", new SettingsCenterView
             {
                 DataContext = settings
-            }),
-            new("module-detail-degraded", "Module Detail", () => new ModuleDetailView
+            }, ShellPageViewModelFactory.FromCommands(CommandQuery(data.Commands), data.Commands), data.DataSource)),
+            new("module-detail-degraded", "Module Detail", () => CreateShellChrome("Modules", new ModuleDetailView
             {
                 DataContext = ShellPageViewModelFactory.FromModuleDetail(data.ModuleDetail, data.Commands)
-            }),
-            new("logs-long-lines", "Logs", () => new LogsView
+            }, ShellPageViewModelFactory.FromCommands(CommandQuery(data.Commands), data.Commands), data.DataSource)),
+            new("logs-long-lines", "Logs", () => CreateShellChrome("Logs", new LogsView
             {
                 DataContext = ShellPageViewModelFactory.FromLogs(data.Modules, selected, data.Logs)
-            }),
-            new("notifications-list", "Notifications", () => new NotificationsView
+            }, ShellPageViewModelFactory.FromCommands(CommandQuery(data.Commands), data.Commands), data.DataSource)),
+            new("notifications-list", "Notifications", () => CreateShellChrome("Notifications", new NotificationsView
             {
                 DataContext = ShellPageViewModelFactory.FromNotifications(data.Notifications)
-            }),
-            new("packages", "Packages", () => new PackageManagerView
+            }, ShellPageViewModelFactory.FromCommands(CommandQuery(data.Commands), data.Commands), data.DataSource)),
+            new("packages", "Packages", () => CreateShellChrome("Packages", new PackageManagerView
             {
                 DataContext = ShellPageViewModelFactory.FromPackages(data.Packages)
-            }),
-            new("diagnostics-wide", "Diagnostics", () => new DiagnosticsView
+            }, ShellPageViewModelFactory.FromCommands(CommandQuery(data.Commands), data.Commands), data.DataSource)),
+            new("diagnostics-wide", "Diagnostics", () => CreateShellChrome("Diagnostics", new DiagnosticsView
             {
                 DataContext = ShellPageViewModelFactory.FromDiagnostics(data.Diagnostics, data.BrokerAudit)
-            })
+            }, ShellPageViewModelFactory.FromCommands(CommandQuery(data.Commands), data.Commands), data.DataSource))
         ];
+    }
+
+    private static ShellChromeView CreateShellChrome(
+        string selectedPage,
+        Control content,
+        CommandPaletteViewModel? commandPalette = null,
+        string dataSource = "sample-fixture")
+    {
+        var chromeViewModel = new ShellChromeViewModel(["Dashboard", "Modules", "Commands", "Settings", "Logs", "Notifications", "Packages", "Diagnostics"])
+        {
+            StatusText = "Full shell snapshot",
+            RunnerStatusText = "Runner connected",
+            IsCommandPaletteOpen = string.Equals(selectedPage, "Commands", StringComparison.OrdinalIgnoreCase),
+            IsPermissionPromptOpen = false
+        };
+        chromeViewModel.SelectPage(selectedPage);
+
+        var chrome = new ShellChromeView { DataContext = chromeViewModel };
+        SetShellContent(chrome, "ContentHost", content);
+        SetShellContent(chrome, "CommandPanel", new CommandPaletteView { DataContext = commandPalette ?? SampleCommandPalette() });
+        SetShellContent(chrome, "PermissionPanel", CreatePermissionPrompt());
+        SetShellContent(chrome, "AuditPanel", CreateAuditSummary(dataSource));
+        return chrome;
+    }
+
+    private static void SetShellContent(ShellChromeView chrome, string name, Control content)
+    {
+        var host = chrome.FindControl<ContentControl>(name) ?? throw new InvalidOperationException($"ShellChromeView missing {name}.");
+        host.Content = content;
+    }
+
+    private static Control CreatePermissionPrompt()
+    {
+        return new Border
+        {
+            Padding = MptTheme.FieldPadding,
+            Margin = MptTheme.PermissionPanelMargin,
+            BorderThickness = MptTheme.BorderThickness,
+            Child = new StackPanel
+            {
+                Spacing = 4,
+                Children =
+                {
+                    new TextBlock { Text = "Permission Required" },
+                    new TextBlock { Text = "NetworkBroker approval is required for portproxy.apply.", TextWrapping = TextWrapping.Wrap }
+                }
+            }
+        };
+    }
+
+    private static Control CreateAuditSummary(string dataSource)
+    {
+        return new Border
+        {
+            Padding = MptTheme.FieldPadding,
+            Margin = MptTheme.AuditPanelMargin,
+            BorderThickness = MptTheme.BorderThickness,
+            Child = new StackPanel
+            {
+                Spacing = 4,
+                Children =
+                {
+                    new TextBlock { Text = "Audit" },
+                    new TextBlock { Text = "Snapshot data source is recorded in the screenshot manifest.", TextWrapping = TextWrapping.Wrap }
+                }
+            }
+        };
     }
 
     private static DashboardViewModel SampleDashboard()

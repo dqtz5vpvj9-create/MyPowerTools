@@ -133,26 +133,54 @@ public sealed class AndroidToolsRemoteCommandsModule : AndroidToolsModuleBase
     protected override async IAsyncEnumerable<MptModuleEvent> BuildModuleEventsAsync(EventCursor cursor, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         await Task.CompletedTask;
-        if (cursor.LastEventSeq >= 1)
-        {
-            yield break;
-        }
-
+        var seq = Math.Max(1UL, cursor.LastEventSeq);
         var catalog = LoadCatalog();
         var history = Shared.LoadRemoteCommandHistorySummary();
-        yield return new MptModuleEvent(
-            Id,
-            1,
-            "command.finished",
-            DateTimeOffset.UtcNow,
-            new JsonObject
+        var fingerprint = $"{catalog.Commands.Count}|{history.MyPowerToolsHistoryCount}|{catalog.SourceKind}";
+        if (cursor.LastEventSeq < 1)
+        {
+            yield return new MptModuleEvent(
+                Id,
+                1,
+                "command.finished",
+                DateTimeOffset.UtcNow,
+                new JsonObject
+                {
+                    ["title"] = "AndroidTools remote command catalog",
+                    ["message"] = $"{catalog.Commands.Count} imported command(s); {history.MyPowerToolsHistoryCount} MyPowerTools history item(s).",
+                    ["commandCount"] = catalog.Commands.Count,
+                    ["historyCount"] = history.MyPowerToolsHistoryCount,
+                    ["source"] = catalog.SourceKind
+                });
+        }
+
+        while (true)
+        {
+            await Task.Delay(TimeSpan.FromSeconds(30), cancellationToken);
+            catalog = LoadCatalog();
+            history = Shared.LoadRemoteCommandHistorySummary();
+            var nextFingerprint = $"{catalog.Commands.Count}|{history.MyPowerToolsHistoryCount}|{catalog.SourceKind}";
+            if (string.Equals(nextFingerprint, fingerprint, StringComparison.Ordinal))
             {
-                ["title"] = "AndroidTools remote command catalog",
-                ["message"] = $"{catalog.Commands.Count} imported command(s); {history.MyPowerToolsHistoryCount} MyPowerTools history item(s).",
-                ["commandCount"] = catalog.Commands.Count,
-                ["historyCount"] = history.MyPowerToolsHistoryCount,
-                ["source"] = catalog.SourceKind
-            });
+                continue;
+            }
+
+            fingerprint = nextFingerprint;
+            seq++;
+            yield return new MptModuleEvent(
+                Id,
+                seq,
+                "command.finished",
+                DateTimeOffset.UtcNow,
+                new JsonObject
+                {
+                    ["title"] = "AndroidTools remote command catalog",
+                    ["message"] = $"{catalog.Commands.Count} imported command(s); {history.MyPowerToolsHistoryCount} MyPowerTools history item(s).",
+                    ["commandCount"] = catalog.Commands.Count,
+                    ["historyCount"] = history.MyPowerToolsHistoryCount,
+                    ["source"] = catalog.SourceKind
+                });
+        }
     }
 
     public override ValueTask<SettingsSchemaDocument> GetSettingsSchemaAsync(CancellationToken cancellationToken)
@@ -252,7 +280,14 @@ public sealed class AndroidToolsRemoteCommandsModule : AndroidToolsModuleBase
             ["exitCode"] = run.ExitCode,
             ["stdout"] = run.Stdout,
             ["stderr"] = run.Stderr,
-            ["durationMs"] = run.DurationMs
+            ["durationMs"] = run.DurationMs,
+            ["truncated"] = run.OutputTruncated,
+            ["stdoutBytes"] = run.StdoutBytes,
+            ["stderrBytes"] = run.StderrBytes,
+            ["stdoutLines"] = run.StdoutLines,
+            ["stderrLines"] = run.StderrLines,
+            ["maxOutputBytesPerStream"] = AndroidToolsSharedRuntime.MaxShellOutputBytesPerStream,
+            ["maxOutputLineBytes"] = AndroidToolsSharedRuntime.MaxShellOutputLineBytes
         };
 
         return run.ExitCode == 0
@@ -376,26 +411,55 @@ public sealed class AndroidToolsNotificationsModule : AndroidToolsModuleBase
     protected override async IAsyncEnumerable<MptModuleEvent> BuildModuleEventsAsync(EventCursor cursor, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         await Task.CompletedTask;
-        if (cursor.LastEventSeq >= 1)
-        {
-            yield break;
-        }
-
+        var seq = Math.Max(1UL, cursor.LastEventSeq);
+        var pollInterval = TimeSpan.FromSeconds(Math.Clamp(SettingsJson.ReadInt(CurrentSettings(), "pollIntervalSeconds") ?? 30, 5, 3600));
         var endpoint = CurrentEndpoint();
         var inbox = Shared.NotificationInboxSummary(endpoint);
-        yield return new MptModuleEvent(
-            Id,
-            1,
-            endpoint.Found ? "message.received" : "server.disconnected",
-            DateTimeOffset.UtcNow,
-            new JsonObject
+        var fingerprint = $"{endpoint.Found}|{endpoint.Message}|{inbox.ToJsonString()}";
+        if (cursor.LastEventSeq < 1)
+        {
+            yield return new MptModuleEvent(
+                Id,
+                1,
+                endpoint.Found ? "message.received" : "server.disconnected",
+                DateTimeOffset.UtcNow,
+                new JsonObject
+                {
+                    ["title"] = "AndroidTools notification endpoint",
+                    ["message"] = endpoint.Message,
+                    ["endpointFound"] = endpoint.Found,
+                    ["legacyHistory"] = inbox["legacyHistory"]!.DeepClone(),
+                    ["sshSigningKey"] = inbox["sshSigningKey"]!.DeepClone()
+                });
+        }
+
+        while (true)
+        {
+            await Task.Delay(pollInterval, cancellationToken);
+            endpoint = CurrentEndpoint();
+            inbox = Shared.NotificationInboxSummary(endpoint);
+            var nextFingerprint = $"{endpoint.Found}|{endpoint.Message}|{inbox.ToJsonString()}";
+            if (string.Equals(nextFingerprint, fingerprint, StringComparison.Ordinal))
             {
-                ["title"] = "AndroidTools notification endpoint",
-                ["message"] = endpoint.Message,
-                ["endpointFound"] = endpoint.Found,
-                ["legacyHistory"] = inbox["legacyHistory"]!.DeepClone(),
-                ["sshSigningKey"] = inbox["sshSigningKey"]!.DeepClone()
-            });
+                continue;
+            }
+
+            fingerprint = nextFingerprint;
+            seq++;
+            yield return new MptModuleEvent(
+                Id,
+                seq,
+                endpoint.Found ? "message.received" : "server.disconnected",
+                DateTimeOffset.UtcNow,
+                new JsonObject
+                {
+                    ["title"] = "AndroidTools notification endpoint",
+                    ["message"] = endpoint.Message,
+                    ["endpointFound"] = endpoint.Found,
+                    ["legacyHistory"] = inbox["legacyHistory"]!.DeepClone(),
+                    ["sshSigningKey"] = inbox["sshSigningKey"]!.DeepClone()
+                });
+        }
     }
 
     public override ValueTask<SettingsSchemaDocument> GetSettingsSchemaAsync(CancellationToken cancellationToken)
@@ -530,27 +594,57 @@ public sealed class AndroidToolsProcessMonitorModule : AndroidToolsModuleBase
     protected override async IAsyncEnumerable<MptModuleEvent> BuildModuleEventsAsync(EventCursor cursor, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         await Task.CompletedTask;
-        if (cursor.LastEventSeq >= 1)
-        {
-            yield break;
-        }
-
+        var seq = Math.Max(1UL, cursor.LastEventSeq);
+        var pollInterval = TimeSpan.FromSeconds(Math.Clamp(SettingsJson.ReadInt(CurrentSettings(), "scanIntervalSeconds") ?? 20, 5, 3600));
         var processes = CurrentWatchList();
         var states = Shared.CheckProcesses(processes.Names);
         var runningCount = states.Count(state => state.Running);
-        yield return new MptModuleEvent(
-            Id,
-            1,
-            runningCount > 0 ? "process.started" : "watch.alert",
-            DateTimeOffset.UtcNow,
-            new JsonObject
+        var fingerprint = $"{processes.SourceKind}|{string.Join(",", states.Select(state => $"{state.Name}:{state.Running}"))}";
+        if (cursor.LastEventSeq < 1)
+        {
+            yield return new MptModuleEvent(
+                Id,
+                1,
+                runningCount > 0 ? "process.started" : "watch.alert",
+                DateTimeOffset.UtcNow,
+                new JsonObject
+                {
+                    ["title"] = "AndroidTools process watch",
+                    ["message"] = processes.Names.Count == 0 ? processes.Message : $"{runningCount} of {states.Count} watched process name(s) are running.",
+                    ["configuredCount"] = processes.Names.Count,
+                    ["runningCount"] = runningCount,
+                    ["source"] = processes.SourceKind
+                });
+        }
+
+        while (true)
+        {
+            await Task.Delay(pollInterval, cancellationToken);
+            processes = CurrentWatchList();
+            states = Shared.CheckProcesses(processes.Names);
+            runningCount = states.Count(state => state.Running);
+            var nextFingerprint = $"{processes.SourceKind}|{string.Join(",", states.Select(state => $"{state.Name}:{state.Running}"))}";
+            if (string.Equals(nextFingerprint, fingerprint, StringComparison.Ordinal))
             {
-                ["title"] = "AndroidTools process watch",
-                ["message"] = processes.Names.Count == 0 ? processes.Message : $"{runningCount} of {states.Count} watched process name(s) are running.",
-                ["configuredCount"] = processes.Names.Count,
-                ["runningCount"] = runningCount,
-                ["source"] = processes.SourceKind
-            });
+                continue;
+            }
+
+            fingerprint = nextFingerprint;
+            seq++;
+            yield return new MptModuleEvent(
+                Id,
+                seq,
+                runningCount > 0 ? "process.started" : "watch.alert",
+                DateTimeOffset.UtcNow,
+                new JsonObject
+                {
+                    ["title"] = "AndroidTools process watch",
+                    ["message"] = processes.Names.Count == 0 ? processes.Message : $"{runningCount} of {states.Count} watched process name(s) are running.",
+                    ["configuredCount"] = processes.Names.Count,
+                    ["runningCount"] = runningCount,
+                    ["source"] = processes.SourceKind
+                });
+        }
     }
 
     public override ValueTask<SettingsSchemaDocument> GetSettingsSchemaAsync(CancellationToken cancellationToken)
@@ -724,9 +818,24 @@ public abstract class AndroidToolsModuleBase : IMptModule
         int timeoutMs = 30000,
         JsonObject? execution = null,
         IReadOnlyList<string>? constraints = null,
-        IReadOnlyList<CommandParameterDescriptor>? parameters = null)
+        IReadOnlyList<CommandParameterDescriptor>? parameters = null,
+        bool supportsProgress = false,
+        bool supportsCancellation = false)
     {
-        return new MptCommandDescriptor(id, Id, title, subtitle, "action", Category: "Android Tools", TimeoutMs: timeoutMs, Execution: execution, Parameters: parameters, Constraints: constraints);
+        var supportsStreaming = constraints?.Contains(MptOperationConstraints.RequiresLongRunningLoop) == true;
+        return new MptCommandDescriptor(
+            id,
+            Id,
+            title,
+            subtitle,
+            "action",
+            Category: "Android Tools",
+            TimeoutMs: timeoutMs,
+            Execution: execution,
+            Parameters: parameters,
+            Constraints: constraints,
+            SupportsProgress: supportsProgress || supportsStreaming,
+            SupportsCancellation: supportsCancellation || supportsStreaming);
     }
 
     protected static CommandExecutionResult Succeeded(CommandRequest request, string output)
@@ -863,6 +972,11 @@ public abstract class AndroidToolsModuleBase : IMptModule
 
 public sealed class AndroidToolsSharedRuntime
 {
+    internal const int ShellStreamChannelCapacity = 256;
+    internal const int MaxShellStreamLineEvents = 1000;
+    internal const int MaxShellOutputBytesPerStream = 256 * 1024;
+    internal const int MaxShellOutputLineBytes = 4096;
+
     private static readonly object Gate = new();
     private static readonly Dictionary<string, AndroidToolsSharedRuntime> Runtimes = new(StringComparer.OrdinalIgnoreCase);
     private readonly HttpClient _httpClient = new() { Timeout = TimeSpan.FromSeconds(4) };
@@ -1122,6 +1236,10 @@ public sealed class AndroidToolsSharedRuntime
         var started = Stopwatch.StartNew();
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
         linked.CancelAfter(timeout);
+        var stdout = new BoundedShellOutput(MaxShellOutputBytesPerStream);
+        var stderr = new BoundedShellOutput(MaxShellOutputBytesPerStream);
+        Task? stdoutTask = null;
+        Task? stderrTask = null;
 
         var psi = new ProcessStartInfo
         {
@@ -1146,22 +1264,29 @@ public sealed class AndroidToolsSharedRuntime
             psi.ArgumentList.Add(command);
         }
 
+        Process? process = null;
         try
         {
-            using var process = Process.Start(psi);
+            process = Process.Start(psi);
             if (process is null)
             {
                 return new ShellRunResult(-1, "", "Process could not be started.", started.ElapsedMilliseconds);
             }
 
-            var stdoutTask = process.StandardOutput.ReadToEndAsync(linked.Token);
-            var stderrTask = process.StandardError.ReadToEndAsync(linked.Token);
+            stdoutTask = PumpCapturedLinesAsync(process.StandardOutput, stdout, linked.Token);
+            stderrTask = PumpCapturedLinesAsync(process.StandardError, stderr, linked.Token);
             await process.WaitForExitAsync(linked.Token);
+            await Task.WhenAll(stdoutTask, stderrTask);
             return new ShellRunResult(
                 process.ExitCode,
-                Trim(MptLogRedactor.Redact(await stdoutTask)),
-                Trim(MptLogRedactor.Redact(await stderrTask)),
-                started.ElapsedMilliseconds);
+                Trim(stdout.Text),
+                Trim(stderr.Text),
+                started.ElapsedMilliseconds,
+                stdout.Truncated || stderr.Truncated,
+                stdout.TotalBytes,
+                stderr.TotalBytes,
+                stdout.LineCount,
+                stderr.LineCount);
         }
         catch (Win32Exception ex) when (ex.NativeErrorCode == 2)
         {
@@ -1169,11 +1294,20 @@ public sealed class AndroidToolsSharedRuntime
         }
         catch (OperationCanceledException)
         {
-            return new ShellRunResult(-1, "", $"Shell command timed out after {timeout.TotalSeconds:n0}s.", started.ElapsedMilliseconds);
+            KillProcessTree(process);
+            await ObserveCaptureCompletionAsync(stdoutTask, stderrTask);
+            var message = cancellationToken.IsCancellationRequested
+                ? "Shell command was cancelled."
+                : $"Shell command timed out after {timeout.TotalSeconds:n0}s.";
+            return new ShellRunResult(-1, "", message, started.ElapsedMilliseconds);
         }
         catch (Exception ex)
         {
             return new ShellRunResult(-1, "", MptLogRedactor.Redact(ex.Message), started.ElapsedMilliseconds);
+        }
+        finally
+        {
+            process?.Dispose();
         }
     }
 
@@ -1183,18 +1317,21 @@ public sealed class AndroidToolsSharedRuntime
         TimeSpan timeout,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        var channel = Channel.CreateUnbounded<CommandExecutionEvent>(new UnboundedChannelOptions
+        var channel = Channel.CreateBounded<CommandExecutionEvent>(new BoundedChannelOptions(ShellStreamChannelCapacity)
         {
             SingleReader = true,
-            SingleWriter = false
+            SingleWriter = false,
+            FullMode = BoundedChannelFullMode.Wait
         });
 
         _ = Task.Run(async () =>
         {
-            var sequence = 1;
+            var sequence = 0;
             var started = Stopwatch.StartNew();
-            var stdout = new StringBuilder();
-            var stderr = new StringBuilder();
+            var stdout = new BoundedShellOutput(MaxShellOutputBytesPerStream);
+            var stderr = new BoundedShellOutput(MaxShellOutputBytesPerStream);
+            var eventLimiter = new ShellStreamEventLimiter(MaxShellStreamLineEvents);
+            Process? process = null;
             using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             linked.CancelAfter(timeout);
 
@@ -1205,26 +1342,31 @@ public sealed class AndroidToolsSharedRuntime
                     request.CommandId,
                     "progress",
                     $"Starting shell command '{command.Id}'.",
-                    sequence++,
+                    NextSequence(),
                     false), cancellationToken);
 
                 var psi = CreateShellProcessStartInfo(command.Command);
-                using var process = Process.Start(psi);
+                process = Process.Start(psi);
                 if (process is null)
                 {
                     await WriteFinalAsync(new ShellRunResult(-1, "", "Process could not be started.", started.ElapsedMilliseconds));
                     return;
                 }
 
-                var stdoutTask = PumpLinesAsync(process.StandardOutput, "stdout", stdout, channel.Writer, request, () => sequence++, linked.Token);
-                var stderrTask = PumpLinesAsync(process.StandardError, "stderr", stderr, channel.Writer, request, () => sequence++, linked.Token);
+                var stdoutTask = PumpLinesAsync(process.StandardOutput, "stdout", stdout, eventLimiter, channel.Writer, request, NextSequence, linked.Token);
+                var stderrTask = PumpLinesAsync(process.StandardError, "stderr", stderr, eventLimiter, channel.Writer, request, NextSequence, linked.Token);
                 await process.WaitForExitAsync(linked.Token);
                 await Task.WhenAll(stdoutTask, stderrTask);
                 await WriteFinalAsync(new ShellRunResult(
                     process.ExitCode,
-                    Trim(MptLogRedactor.Redact(stdout.ToString())),
-                    Trim(MptLogRedactor.Redact(stderr.ToString())),
-                    started.ElapsedMilliseconds));
+                    Trim(stdout.Text),
+                    Trim(stderr.Text),
+                    started.ElapsedMilliseconds,
+                    stdout.Truncated || stderr.Truncated || eventLimiter.Truncated,
+                    stdout.TotalBytes,
+                    stderr.TotalBytes,
+                    stdout.LineCount,
+                    stderr.LineCount));
             }
             catch (Win32Exception ex) when (ex.NativeErrorCode == 2)
             {
@@ -1232,7 +1374,15 @@ public sealed class AndroidToolsSharedRuntime
             }
             catch (OperationCanceledException)
             {
-                await WriteFinalAsync(new ShellRunResult(-1, "", $"Shell command timed out after {timeout.TotalSeconds:n0}s.", started.ElapsedMilliseconds));
+                KillProcessTree(process);
+                if (cancellationToken.IsCancellationRequested)
+                {
+                    await WriteCancelledAsync("Shell command was cancelled.");
+                }
+                else
+                {
+                    await WriteFinalAsync(new ShellRunResult(-1, "", $"Shell command timed out after {timeout.TotalSeconds:n0}s.", started.ElapsedMilliseconds));
+                }
             }
             catch (Exception ex)
             {
@@ -1240,6 +1390,7 @@ public sealed class AndroidToolsSharedRuntime
             }
             finally
             {
+                process?.Dispose();
                 channel.Writer.TryComplete();
             }
 
@@ -1251,7 +1402,15 @@ public sealed class AndroidToolsSharedRuntime
                     ["exitCode"] = run.ExitCode,
                     ["stdout"] = run.Stdout,
                     ["stderr"] = run.Stderr,
-                    ["durationMs"] = run.DurationMs
+                    ["durationMs"] = run.DurationMs,
+                    ["truncated"] = run.OutputTruncated,
+                    ["stdoutBytes"] = run.StdoutBytes,
+                    ["stderrBytes"] = run.StderrBytes,
+                    ["stdoutLines"] = run.StdoutLines,
+                    ["stderrLines"] = run.StderrLines,
+                    ["maxStreamLineEvents"] = MaxShellStreamLineEvents,
+                    ["maxOutputBytesPerStream"] = MaxShellOutputBytesPerStream,
+                    ["maxOutputLineBytes"] = MaxShellOutputLineBytes
                 };
                 var result = run.ExitCode == 0
                     ? new CommandExecutionResult(request.InvocationId, request.CommandId, "succeeded", true, payload.ToJsonString())
@@ -1267,9 +1426,33 @@ public sealed class AndroidToolsSharedRuntime
                     request.CommandId,
                     result.State,
                     result.Success ? result.Output : result.Error?.Message ?? "Command failed.",
-                    sequence++,
+                    NextSequence(),
                     true,
                     result), CancellationToken.None);
+            }
+
+            async Task WriteCancelledAsync(string message)
+            {
+                var result = new CommandExecutionResult(
+                    request.InvocationId,
+                    request.CommandId,
+                    "cancelled",
+                    false,
+                    "",
+                    new MptRuntimeError(MptErrorCodes.CommandCancelled, message));
+                await channel.Writer.WriteAsync(new CommandExecutionEvent(
+                    request.InvocationId,
+                    request.CommandId,
+                    result.State,
+                    message,
+                    NextSequence(),
+                    true,
+                    result), CancellationToken.None);
+            }
+
+            int NextSequence()
+            {
+                return Interlocked.Increment(ref sequence);
             }
         }, CancellationToken.None);
 
@@ -1448,10 +1631,37 @@ public sealed class AndroidToolsSharedRuntime
         return OperatingSystem.IsWindows() ? "pwsh.exe" : "/bin/sh";
     }
 
+    private static void KillProcessTree(Process? process)
+    {
+        if (process is null || process.HasExited)
+        {
+            return;
+        }
+
+        try
+        {
+            process.Kill(entireProcessTree: true);
+        }
+        catch (InvalidOperationException)
+        {
+        }
+        catch (Exception)
+        {
+            try
+            {
+                process.Kill();
+            }
+            catch
+            {
+            }
+        }
+    }
+
     private static async Task PumpLinesAsync(
         TextReader reader,
         string state,
-        StringBuilder sink,
+        BoundedShellOutput sink,
+        ShellStreamEventLimiter eventLimiter,
         ChannelWriter<CommandExecutionEvent> writer,
         CommandRequest request,
         Func<int> nextSequence,
@@ -1460,14 +1670,58 @@ public sealed class AndroidToolsSharedRuntime
         while (await reader.ReadLineAsync(cancellationToken) is { } line)
         {
             var redacted = MptLogRedactor.Redact(line);
-            sink.AppendLine(redacted);
-            await writer.WriteAsync(new CommandExecutionEvent(
-                request.InvocationId,
-                request.CommandId,
-                state,
-                redacted,
-                nextSequence(),
-                false), cancellationToken);
+            var eventLine = sink.AppendLine(redacted, MaxShellOutputLineBytes, out var lineTruncated);
+            if (eventLimiter.TryReserveLineEvent())
+            {
+                await writer.WriteAsync(new CommandExecutionEvent(
+                    request.InvocationId,
+                    request.CommandId,
+                    state,
+                    eventLine,
+                    nextSequence(),
+                    false), cancellationToken);
+            }
+
+            if ((lineTruncated || sink.Truncated || eventLimiter.Truncated) && eventLimiter.TryReserveTruncationEvent())
+            {
+                await writer.WriteAsync(new CommandExecutionEvent(
+                    request.InvocationId,
+                    request.CommandId,
+                    "output.truncated",
+                    "Shell command output exceeded the streaming capture limits; remaining output is drained and summarized in the final result.",
+                    nextSequence(),
+                    false), cancellationToken);
+            }
+        }
+    }
+
+    private static async Task PumpCapturedLinesAsync(
+        TextReader reader,
+        BoundedShellOutput sink,
+        CancellationToken cancellationToken)
+    {
+        while (await reader.ReadLineAsync(cancellationToken) is { } line)
+        {
+            _ = sink.AppendLine(MptLogRedactor.Redact(line), MaxShellOutputLineBytes, out _);
+        }
+    }
+
+    private static async Task ObserveCaptureCompletionAsync(params Task?[] tasks)
+    {
+        foreach (var task in tasks)
+        {
+            if (task is null)
+            {
+                continue;
+            }
+
+            try
+            {
+                await task.WaitAsync(TimeSpan.FromSeconds(1));
+            }
+            catch
+            {
+            }
         }
     }
 
@@ -1810,7 +2064,136 @@ internal sealed record ProcessStateSnapshot(string Name, int InstanceCount, stri
     }
 }
 
-internal sealed record ShellRunResult(int ExitCode, string Stdout, string Stderr, long DurationMs);
+internal sealed record ShellRunResult(
+    int ExitCode,
+    string Stdout,
+    string Stderr,
+    long DurationMs,
+    bool OutputTruncated = false,
+    int StdoutBytes = 0,
+    int StderrBytes = 0,
+    int StdoutLines = 0,
+    int StderrLines = 0);
+
+internal sealed class BoundedShellOutput
+{
+    private readonly StringBuilder _builder = new();
+    private readonly int _maxBytes;
+    private int _capturedBytes;
+
+    public BoundedShellOutput(int maxBytes)
+    {
+        _maxBytes = maxBytes;
+    }
+
+    public bool Truncated { get; private set; }
+    public int TotalBytes { get; private set; }
+    public int LineCount { get; private set; }
+    public string Text => _builder.ToString();
+
+    public string AppendLine(string line, int maxLineBytes, out bool lineTruncated)
+    {
+        LineCount++;
+        TotalBytes += Encoding.UTF8.GetByteCount(line + Environment.NewLine);
+        var eventLine = LimitUtf8(line, maxLineBytes, out lineTruncated);
+        if (lineTruncated)
+        {
+            Truncated = true;
+        }
+
+        AppendToBuffer(eventLine + Environment.NewLine);
+        return eventLine;
+    }
+
+    private void AppendToBuffer(string value)
+    {
+        if (_capturedBytes >= _maxBytes)
+        {
+            Truncated = true;
+            return;
+        }
+
+        var bytes = Encoding.UTF8.GetByteCount(value);
+        if (_capturedBytes + bytes <= _maxBytes)
+        {
+            _builder.Append(value);
+            _capturedBytes += bytes;
+            return;
+        }
+
+        var remaining = _maxBytes - _capturedBytes;
+        if (remaining > 0)
+        {
+            _builder.Append(LimitUtf8(value, remaining, out _));
+            _capturedBytes = _maxBytes;
+        }
+
+        Truncated = true;
+    }
+
+    private static string LimitUtf8(string value, int maxBytes, out bool truncated)
+    {
+        truncated = false;
+        if (Encoding.UTF8.GetByteCount(value) <= maxBytes)
+        {
+            return value;
+        }
+
+        truncated = true;
+        var builder = new StringBuilder();
+        var used = 0;
+        foreach (var ch in value)
+        {
+            var bytes = Encoding.UTF8.GetByteCount(new[] { ch });
+            if (used + bytes > Math.Max(0, maxBytes - 16))
+            {
+                break;
+            }
+
+            builder.Append(ch);
+            used += bytes;
+        }
+
+        builder.Append("...[truncated]");
+        return builder.ToString();
+    }
+}
+
+internal sealed class ShellStreamEventLimiter
+{
+    private readonly int _maxLineEvents;
+    private int _lineEvents;
+    private int _truncationEventEmitted;
+
+    public ShellStreamEventLimiter(int maxLineEvents)
+    {
+        _maxLineEvents = maxLineEvents;
+    }
+
+    public bool Truncated => Volatile.Read(ref _lineEvents) >= _maxLineEvents;
+
+    public bool TryReserveLineEvent()
+    {
+        while (true)
+        {
+            var current = Volatile.Read(ref _lineEvents);
+            if (current >= _maxLineEvents)
+            {
+                return false;
+            }
+
+            if (Interlocked.CompareExchange(ref _lineEvents, current + 1, current) == current)
+            {
+                return true;
+            }
+        }
+    }
+
+    public bool TryReserveTruncationEvent()
+    {
+        return Interlocked.Exchange(ref _truncationEventEmitted, 1) == 0;
+    }
+}
 
 internal sealed record DiscoveredFile(string? Path, string SourceKind);
 

@@ -1,0 +1,23 @@
+<Styles xmlns="https://github.com/avaloniaui">
+  <Style Selector="Border.MptStatusBadge">
+    <Setter Property="Padding" Value="{DynamicResource MptCompactBadgePadding}" />
+    <Setter Property="CornerRadius" Value="{DynamicResource MptRadiusBadge}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MptBrushNeutral}" />
+    <Setter Property="BorderThickness" Value="{DynamicResource MptBorderThickness}" />
+    <Setter Property="Background" Value="{DynamicResource MptBrushSurfaceRaised}" />
+    <Setter Property="HorizontalAlignment" Value="Left" />
+    <Setter Property="VerticalAlignment" Value="Top" />
+  </Style>
+
+  <Style Selector="Border.MptStatusBadge.running">
+    <Setter Property="BorderBrush" Value="{DynamicResource MptBrushSuccess}" />
+  </Style>
+
+  <Style Selector="Border.MptStatusBadge.degraded">
+    <Setter Property="BorderBrush" Value="{DynamicResource MptBrushWarning}" />
+  </Style>
+
+  <Style Selector="Border.MptStatusBadge.error">
+    <Setter Property="BorderBrush" Value="{DynamicResource MptBrushDanger}" />
+  </Style>
+</Styles>

@@ -214,10 +214,10 @@ public sealed class HostControlGrpcService : HostProto.HostControl.HostControlBa
         return ToProtoRuntimeProcessPolicyResult(result);
     }
 
-    public override Task<HostProto.ModuleDetail> SetModuleEnabled(HostProto.SetModuleEnabledRequest request, ServerCallContext context)
+    public override async Task<HostProto.ModuleDetail> SetModuleEnabled(HostProto.SetModuleEnabledRequest request, ServerCallContext context)
     {
-        var detail = _runtime.SetModuleEnabled(request.ModuleId, request.Enabled);
-        return Task.FromResult(ToProtoModuleDetail(detail));
+        var detail = await _runtime.SetModuleEnabledAsync(request.ModuleId, request.Enabled, context.CancellationToken);
+        return ToProtoModuleDetail(detail);
     }
 
     public override Task<HostProto.ModuleDetail> GetModuleDetail(HostProto.GetModuleDetailRequest request, ServerCallContext context)
@@ -263,16 +263,16 @@ public sealed class HostControlGrpcService : HostProto.HostControl.HostControlBa
         }
     }
 
-    public override Task<HostProto.CancelCommandResponse> CancelCommand(HostProto.CancelCommandRequest request, ServerCallContext context)
+    public override async Task<HostProto.CancelCommandResponse> CancelCommand(HostProto.CancelCommandRequest request, ServerCallContext context)
     {
-        var result = _runtime.CancelCommand(request.InvocationId);
-        return Task.FromResult(new HostProto.CancelCommandResponse
+        var result = await _runtime.CancelCommandAsync(request.InvocationId, context.CancellationToken);
+        return new HostProto.CancelCommandResponse
         {
             Accepted = result.Accepted,
             InvocationId = result.InvocationId,
             State = result.State,
             Message = result.Message
-        });
+        };
     }
 
     public override Task<HostProto.ListBrokerAuditResponse> ListBrokerAudit(HostProto.ListBrokerAuditRequest request, ServerCallContext context)
@@ -653,7 +653,8 @@ public sealed class HostControlGrpcService : HostProto.HostControl.HostControlBa
             Scope = hotkey.Scope,
             State = hotkey.State,
             Message = hotkey.Message,
-            IsDefault = hotkey.IsDefault
+            IsDefault = hotkey.IsDefault,
+            DefaultGesture = hotkey.DefaultGesture
         }));
         response.Processes.AddRange(diagnostics.Processes.Select(process =>
         {
@@ -724,7 +725,10 @@ public sealed class HostControlGrpcService : HostProto.HostControl.HostControlBa
                 SupervisorState = module.SupervisorState,
                 SupervisorAction = module.SupervisorAction,
                 LastObservedAt = Timestamp.FromDateTimeOffset(module.LastObservedAt),
-                TransportSelectionReason = module.TransportSelectionReason
+                TransportSelectionReason = module.TransportSelectionReason,
+                ModuleEnabledState = module.ModuleEnabledState,
+                TransportActiveState = module.TransportActiveState,
+                ToolRuntimeState = module.ToolRuntimeState
             };
             mapped.TransportSelectionDiagnostics.AddRange(module.TransportSelectionDiagnostics);
             return mapped;

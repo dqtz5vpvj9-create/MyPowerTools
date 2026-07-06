@@ -10,6 +10,7 @@ public sealed record RuntimePaths(string Root, string Settings, string Logs, str
 
     public static RuntimePaths Create(string root)
     {
+        root = Path.GetFullPath(root);
         var paths = new RuntimePaths(
             root,
             Path.Combine(root, "settings"),

@@ -1,13 +1,22 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="using:MyPowerTools.UI.Controls"
              xmlns:vm="using:MyPowerTools.Shell.Avalonia.ViewModels"
              x:Class="MyPowerTools.Shell.Avalonia.Views.DiagnosticsView"
              x:DataType="vm:DiagnosticsViewModel">
   <StackPanel Margin="{DynamicResource MptPagePadding}" Spacing="{DynamicResource MptSpacingM}">
-    <StackPanel Spacing="{DynamicResource MptSpacingXs}">
-      <TextBlock Classes="MptPageTitle" Text="{Binding Title}" />
-      <TextBlock Classes="MptPageSubtitle" Text="{Binding Subtitle}" />
-    </StackPanel>
+    <Grid ColumnDefinitions="*,Auto">
+      <StackPanel Spacing="{DynamicResource MptSpacingXs}">
+        <TextBlock Classes="MptPageTitle" Text="{Binding Title}" />
+        <TextBlock Classes="MptPageSubtitle" Text="{Binding Subtitle}" />
+      </StackPanel>
+      <StackPanel Grid.Column="1" Classes="MptActionBar" Orientation="Horizontal">
+        <controls:MptButton Content="Copy JSON"
+                            MinWidth="{DynamicResource MptDensityActionMinWidth}" />
+        <controls:MptButton Content="Refresh"
+                            MinWidth="{DynamicResource MptDensityActionMinWidth}" />
+      </StackPanel>
+    </Grid>
 
     <ItemsControl ItemsSource="{Binding Metrics}">
       <ItemsControl.ItemsPanel>
@@ -19,7 +28,7 @@
         <DataTemplate x:DataType="vm:MetricViewModel">
           <Border Classes="MptMetricTile" Margin="{DynamicResource MptWrapItemMargin}">
             <StackPanel>
-              <TextBlock FontWeight="SemiBold" Text="{Binding Value}" />
+              <TextBlock Classes="MptCardTitle" Text="{Binding Value}" />
               <TextBlock Classes="MptMeta" Text="{Binding Label}" />
             </StackPanel>
           </Border>
@@ -27,180 +36,234 @@
       </ItemsControl.ItemTemplate>
     </ItemsControl>
 
-    <TextBlock Classes="MptSectionTitle" Text="Runtime Paths" />
-    <ItemsControl ItemsSource="{Binding Paths}">
-      <ItemsControl.ItemTemplate>
-        <DataTemplate x:DataType="vm:MetricViewModel">
-          <Grid ColumnDefinitions="120,*" Margin="{DynamicResource MptGapBottomXs}">
-            <TextBlock Classes="MptMeta" Text="{Binding Label}" />
-            <TextBlock Grid.Column="1" Text="{Binding Value}" TextWrapping="Wrap" />
-          </Grid>
-        </DataTemplate>
-      </ItemsControl.ItemTemplate>
-    </ItemsControl>
+    <Border Classes="MptTabStrip">
+      <StackPanel Orientation="Horizontal" Spacing="{DynamicResource MptSpacingXs}">
+        <TextBlock Classes="MptTabItemSelected" Text="Runtime" />
+        <TextBlock Classes="MptTabItem" Text="Transports" />
+        <TextBlock Classes="MptTabItem" Text="Processes" />
+        <TextBlock Classes="MptTabItem" Text="Modules" />
+        <TextBlock Classes="MptTabItem" Text="History" />
+        <TextBlock Classes="MptTabItem" Text="Broker Audit" />
+      </StackPanel>
+    </Border>
 
-    <TextBlock Classes="MptSectionTitle" Text="Transports" />
-    <TextBlock Classes="MptPageSubtitle"
-               Text="No transports."
-               IsVisible="{Binding HasNoTransports}" />
-    <ItemsControl ItemsSource="{Binding Transports}">
-      <ItemsControl.ItemTemplate>
-        <DataTemplate x:DataType="vm:RuntimeTransportViewModel">
-          <Border Classes="MptSettingsSection" Margin="{DynamicResource MptGapBottomM}">
-            <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
-              <TextBlock Classes="MptSectionTitle" Text="{Binding Kind}" />
-              <TextBlock Grid.Column="1" Classes="MptMeta" Text="{Binding State}" />
-              <TextBlock Grid.Row="1" Grid.ColumnSpan="2" Classes="MptMeta" Text="{Binding ModuleCount}" />
+    <Grid ColumnDefinitions="*,380" ColumnSpacing="{DynamicResource MptSpacingM}">
+      <StackPanel Spacing="{DynamicResource MptSpacingM}">
+        <Border Classes="MptSettingsSection">
+          <StackPanel Spacing="{DynamicResource MptSpacingS}">
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock Classes="MptSectionTitle" Text="Runtime Paths" />
+              <TextBlock Grid.Column="1" Classes="MptMeta" Text="copy-ready" />
             </Grid>
-          </Border>
-        </DataTemplate>
-      </ItemsControl.ItemTemplate>
-    </ItemsControl>
-
-    <TextBlock Classes="MptSectionTitle" Text="Runtime Processes" />
-    <TextBlock Classes="MptPageSubtitle"
-               Text="No transport processes."
-               IsVisible="{Binding HasNoProcesses}" />
-    <ItemsControl ItemsSource="{Binding Processes}">
-      <ItemsControl.ItemTemplate>
-        <DataTemplate x:DataType="vm:RuntimeProcessViewModel">
-          <Border Classes="MptSettingsSection" Margin="{DynamicResource MptGapBottomM}">
-            <StackPanel Spacing="{DynamicResource MptSpacingS}">
-              <Grid ColumnDefinitions="*,Auto">
-                <TextBlock Classes="MptSectionTitle" Text="{Binding PoolKey}" />
-                <TextBlock Grid.Column="1" Classes="MptMeta" Text="{Binding State}" />
-              </Grid>
-              <Grid ColumnDefinitions="120,*">
-                <TextBlock Classes="MptMeta" Text="Transport" />
-                <TextBlock Grid.Column="1" Text="{Binding TransportKind}" />
-              </Grid>
-              <Grid ColumnDefinitions="120,*">
-                <TextBlock Classes="MptMeta" Text="Process" />
-                <TextBlock Grid.Column="1" Text="{Binding ProcessText}" />
-              </Grid>
-              <Grid ColumnDefinitions="120,*">
-                <TextBlock Classes="MptMeta" Text="Endpoint" />
-                <TextBlock Grid.Column="1" Text="{Binding Endpoint}" TextWrapping="Wrap" />
-              </Grid>
-              <Grid ColumnDefinitions="120,*">
-                <TextBlock Classes="MptMeta" Text="Starts" />
-                <TextBlock Grid.Column="1" Text="{Binding Starts}" />
-              </Grid>
-              <Grid ColumnDefinitions="120,*">
-                <TextBlock Classes="MptMeta" Text="Policy" />
-                <TextBlock Grid.Column="1" Text="{Binding PolicyText}" TextWrapping="Wrap" />
-              </Grid>
-              <Grid ColumnDefinitions="120,*">
-                <TextBlock Classes="MptMeta" Text="Expires" />
-                <TextBlock Grid.Column="1" Text="{Binding PolicyExpiresAt}" />
-              </Grid>
-              <Grid ColumnDefinitions="120,*">
-                <TextBlock Classes="MptMeta" Text="Modules" />
-                <TextBlock Grid.Column="1" Text="{Binding ModulesText}" TextWrapping="Wrap" />
-              </Grid>
-              <Grid ColumnDefinitions="120,*">
-                <TextBlock Classes="MptMeta" Text="Started" />
-                <TextBlock Grid.Column="1" Text="{Binding StartedAt}" />
-              </Grid>
-              <Grid ColumnDefinitions="120,*">
-                <TextBlock Classes="MptMeta" Text="Stdout" />
-                <TextBlock Grid.Column="1" Text="{Binding StdoutText}" TextWrapping="Wrap" />
-              </Grid>
-              <Grid ColumnDefinitions="120,*">
-                <TextBlock Classes="MptMeta" Text="Stderr" />
-                <TextBlock Grid.Column="1" Text="{Binding StderrText}" TextWrapping="Wrap" />
-              </Grid>
-              <StackPanel Orientation="Horizontal" Spacing="{DynamicResource MptSpacingS}">
-                <Button Content="Restart" Command="{Binding RestartCommand}" MinHeight="32" MinWidth="84" />
-                <Button Content="{Binding PolicyToggleLabel}" Command="{Binding ToggleRestartPolicyCommand}" MinHeight="32" MinWidth="84" />
-                <Button Content="Pause 1h"
-                        Command="{Binding PauseForMaintenanceCommand}"
-                        IsVisible="{Binding CanPauseForMaintenance}"
-                        MinHeight="32"
-                        MinWidth="84" />
-              </StackPanel>
-            </StackPanel>
-          </Border>
-        </DataTemplate>
-      </ItemsControl.ItemTemplate>
-    </ItemsControl>
-
-    <TextBlock Classes="MptSectionTitle" Text="Process Policy History" />
-    <TextBlock Classes="MptPageSubtitle"
-               Text="No process policy history."
-               IsVisible="{Binding HasNoProcessPolicyHistory}" />
-    <ItemsControl ItemsSource="{Binding ProcessPolicyHistory}">
-      <ItemsControl.ItemTemplate>
-        <DataTemplate x:DataType="vm:RuntimeProcessPolicyHistoryItemViewModel">
-          <StackPanel Spacing="{DynamicResource MptSpacingXs}" Margin="{DynamicResource MptGapBottomM}">
-            <TextBlock FontWeight="SemiBold" Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
-            <TextBlock Classes="MptMeta" Text="{Binding Detail}" TextTrimming="CharacterEllipsis" />
-            <TextBlock Classes="MptMeta" Text="{Binding Reason}" TextWrapping="Wrap" />
+            <ItemsControl ItemsSource="{Binding Paths}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:MetricViewModel">
+                  <Grid ColumnDefinitions="132,*" Margin="{DynamicResource MptGapBottomXs}">
+                    <TextBlock Classes="MptMeta" Text="{Binding Label}" />
+                    <TextBlock Grid.Column="1" Text="{Binding Value}" TextWrapping="Wrap" />
+                  </Grid>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
           </StackPanel>
-        </DataTemplate>
-      </ItemsControl.ItemTemplate>
-    </ItemsControl>
+        </Border>
 
-    <TextBlock Classes="MptSectionTitle" Text="Modules" />
-    <TextBlock Classes="MptPageSubtitle"
-               Text="No modules."
-               IsVisible="{Binding HasNoModules}" />
-    <ItemsControl ItemsSource="{Binding Modules}">
-      <ItemsControl.ItemTemplate>
-        <DataTemplate x:DataType="vm:RuntimeModuleDiagnosticViewModel">
-          <Border Classes="MptSettingsSection" Margin="{DynamicResource MptGapBottomM}">
-            <StackPanel Spacing="{DynamicResource MptSpacingS}">
-              <Grid ColumnDefinitions="*,Auto">
-                <TextBlock Classes="MptSectionTitle" Text="{Binding DisplayName}" />
-                <TextBlock Grid.Column="1" Classes="MptMeta" Text="{Binding State}" />
-              </Grid>
-              <ItemsControl ItemsSource="{Binding Details}">
-                <ItemsControl.ItemTemplate>
-                  <DataTemplate x:DataType="vm:MetricViewModel">
-                    <Grid ColumnDefinitions="120,*" Margin="{DynamicResource MptGapBottomXs}">
-                      <TextBlock Classes="MptMeta" Text="{Binding Label}" />
-                      <TextBlock Grid.Column="1" Text="{Binding Value}" TextWrapping="Wrap" />
+        <Border Classes="MptSettingsSection">
+          <StackPanel Spacing="{DynamicResource MptSpacingS}">
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock Classes="MptSectionTitle" Text="Runtime Processes" />
+              <TextBlock Grid.Column="1" Classes="MptMeta" Text="restart policy" />
+            </Grid>
+            <TextBlock Classes="MptPageSubtitle"
+                       Text="No transport processes."
+                       IsVisible="{Binding HasNoProcesses}" />
+            <ItemsControl ItemsSource="{Binding Processes}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:RuntimeProcessViewModel">
+                  <Border Classes="MptSettingsField" Margin="{DynamicResource MptGapBottomM}">
+                    <StackPanel Spacing="{DynamicResource MptSpacingS}">
+                      <Grid ColumnDefinitions="*,Auto">
+                        <StackPanel Spacing="{DynamicResource MptSpacingXs}">
+                          <TextBlock FontWeight="SemiBold" Text="{Binding PoolKey}" TextWrapping="Wrap" />
+                          <TextBlock Classes="MptMeta" Text="{Binding TransportKind}" />
+                        </StackPanel>
+                        <Border Grid.Column="1" Classes="MptStatusBadge">
+                          <TextBlock Classes="MptMeta" Text="{Binding State}" />
+                        </Border>
+                      </Grid>
+                      <Grid ColumnDefinitions="132,*">
+                        <TextBlock Classes="MptMeta" Text="Process" />
+                        <TextBlock Grid.Column="1" Text="{Binding ProcessText}" />
+                      </Grid>
+                      <Grid ColumnDefinitions="132,*">
+                        <TextBlock Classes="MptMeta" Text="Endpoint" />
+                        <TextBlock Grid.Column="1" Text="{Binding Endpoint}" TextWrapping="Wrap" />
+                      </Grid>
+                      <Grid ColumnDefinitions="132,*">
+                        <TextBlock Classes="MptMeta" Text="Policy" />
+                        <TextBlock Grid.Column="1" Text="{Binding PolicyText}" TextWrapping="Wrap" />
+                      </Grid>
+                      <Grid ColumnDefinitions="132,*">
+                        <TextBlock Classes="MptMeta" Text="Modules" />
+                        <TextBlock Grid.Column="1" Text="{Binding ModulesText}" TextWrapping="Wrap" />
+                      </Grid>
+                      <Grid ColumnDefinitions="132,*">
+                        <TextBlock Classes="MptMeta" Text="Stdout" />
+                        <TextBlock Grid.Column="1" Text="{Binding StdoutText}" TextWrapping="Wrap" />
+                      </Grid>
+                      <Grid ColumnDefinitions="132,*">
+                        <TextBlock Classes="MptMeta" Text="Stderr" />
+                        <TextBlock Grid.Column="1" Text="{Binding StderrText}" TextWrapping="Wrap" />
+                      </Grid>
+                      <StackPanel Orientation="Horizontal" Spacing="{DynamicResource MptSpacingS}">
+                        <controls:MptButton Classes="MptPrimaryButton"
+                                            Content="Restart"
+                                            Command="{Binding RestartCommand}"
+                                            MinWidth="{DynamicResource MptDensityActionMinWidth}" />
+                        <controls:MptButton Content="{Binding PolicyToggleLabel}"
+                                            Command="{Binding ToggleRestartPolicyCommand}"
+                                            MinWidth="{DynamicResource MptDensityActionMinWidth}" />
+                        <controls:MptButton Content="Pause 1h"
+                                            Command="{Binding PauseForMaintenanceCommand}"
+                                            IsVisible="{Binding CanPauseForMaintenance}"
+                                            MinWidth="{DynamicResource MptDensityActionMinWidth}" />
+                      </StackPanel>
+                    </StackPanel>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+        </Border>
+
+        <Border Classes="MptSettingsSection">
+          <StackPanel Spacing="{DynamicResource MptSpacingS}">
+            <TextBlock Classes="MptSectionTitle" Text="Modules" />
+            <TextBlock Classes="MptPageSubtitle"
+                       Text="No modules."
+                       IsVisible="{Binding HasNoModules}" />
+            <ItemsControl ItemsSource="{Binding Modules}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:RuntimeModuleDiagnosticViewModel">
+                  <Border Classes="MptSettingsField" Margin="{DynamicResource MptGapBottomM}">
+                    <StackPanel Spacing="{DynamicResource MptSpacingS}">
+                      <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock FontWeight="SemiBold" Text="{Binding DisplayName}" TextWrapping="Wrap" />
+                        <Border Grid.Column="1" Classes="MptStatusBadge">
+                          <TextBlock Classes="MptMeta" Text="{Binding State}" />
+                        </Border>
+                      </Grid>
+                      <ItemsControl ItemsSource="{Binding Details}">
+                        <ItemsControl.ItemTemplate>
+                          <DataTemplate x:DataType="vm:MetricViewModel">
+                            <Grid ColumnDefinitions="132,*" Margin="{DynamicResource MptGapBottomXs}">
+                              <TextBlock Classes="MptMeta" Text="{Binding Label}" />
+                              <TextBlock Grid.Column="1" Text="{Binding Value}" TextWrapping="Wrap" />
+                            </Grid>
+                          </DataTemplate>
+                        </ItemsControl.ItemTemplate>
+                      </ItemsControl>
+                    </StackPanel>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+        </Border>
+      </StackPanel>
+
+      <StackPanel Grid.Column="1" Spacing="{DynamicResource MptSpacingM}">
+        <Border Classes="MptSettingsSection">
+          <StackPanel Spacing="{DynamicResource MptSpacingS}">
+            <TextBlock Classes="MptSectionTitle" Text="Transports" />
+            <TextBlock Classes="MptPageSubtitle"
+                       Text="No transports."
+                       IsVisible="{Binding HasNoTransports}" />
+            <ItemsControl ItemsSource="{Binding Transports}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:RuntimeTransportViewModel">
+                  <Border Classes="MptSettingsField" Margin="{DynamicResource MptGapBottomM}">
+                    <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
+                      <TextBlock FontWeight="SemiBold" Text="{Binding Kind}" />
+                      <Border Grid.Column="1" Classes="MptStatusBadge">
+                        <TextBlock Classes="MptMeta" Text="{Binding State}" />
+                      </Border>
+                      <TextBlock Grid.Row="1" Grid.ColumnSpan="2" Classes="MptMeta" Text="{Binding ModuleCount}" />
                     </Grid>
-                  </DataTemplate>
-                </ItemsControl.ItemTemplate>
-              </ItemsControl>
-            </StackPanel>
-          </Border>
-        </DataTemplate>
-      </ItemsControl.ItemTemplate>
-    </ItemsControl>
-
-    <TextBlock Classes="MptSectionTitle" Text="Command History" />
-    <TextBlock Classes="MptPageSubtitle"
-               Text="No command history."
-               IsVisible="{Binding HasNoRecentCommands}" />
-    <ItemsControl ItemsSource="{Binding RecentCommands}">
-      <ItemsControl.ItemTemplate>
-        <DataTemplate x:DataType="vm:RuntimeCommandHistoryItemViewModel">
-          <StackPanel Spacing="{DynamicResource MptSpacingXs}" Margin="{DynamicResource MptGapBottomM}">
-            <TextBlock FontWeight="SemiBold" Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
-            <TextBlock Classes="MptMeta" Text="{Binding Detail}" TextTrimming="CharacterEllipsis" />
-            <TextBlock Classes="MptMeta" Text="{Binding Summary}" TextWrapping="Wrap" />
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
           </StackPanel>
-        </DataTemplate>
-      </ItemsControl.ItemTemplate>
-    </ItemsControl>
+        </Border>
 
-    <TextBlock Classes="MptSectionTitle" Text="Broker Audit" />
-    <TextBlock Classes="MptPageSubtitle"
-               Text="No broker audit entries."
-               IsVisible="{Binding HasNoBrokerAudit}" />
-    <ItemsControl ItemsSource="{Binding BrokerAudit}">
-      <ItemsControl.ItemTemplate>
-        <DataTemplate x:DataType="vm:BrokerAuditEntryViewModel">
-          <StackPanel Spacing="{DynamicResource MptSpacingXs}" Margin="{DynamicResource MptGapBottomM}">
-            <TextBlock FontWeight="SemiBold" Text="{Binding Title}" TextTrimming="CharacterEllipsis" />
-            <TextBlock Classes="MptMeta" Text="{Binding Detail}" TextTrimming="CharacterEllipsis" />
-            <TextBlock Classes="MptMeta" Text="{Binding Reason}" TextWrapping="Wrap" />
-            <TextBlock Classes="MptMeta" Text="{Binding Rollback}" TextWrapping="Wrap" />
+        <Border Classes="MptSettingsSection">
+          <StackPanel Spacing="{DynamicResource MptSpacingS}">
+            <TextBlock Classes="MptSectionTitle" Text="Process Policy History" />
+            <TextBlock Classes="MptPageSubtitle"
+                       Text="No process policy history."
+                       IsVisible="{Binding HasNoProcessPolicyHistory}" />
+            <ItemsControl ItemsSource="{Binding ProcessPolicyHistory}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:RuntimeProcessPolicyHistoryItemViewModel">
+                  <Border Classes="MptSettingsField" Margin="{DynamicResource MptGapBottomM}">
+                    <StackPanel Spacing="{DynamicResource MptSpacingXs}">
+                      <TextBlock FontWeight="SemiBold" Text="{Binding Title}" TextWrapping="Wrap" />
+                      <TextBlock Classes="MptMeta" Text="{Binding Detail}" TextWrapping="Wrap" />
+                      <TextBlock Classes="MptMeta" Text="{Binding Reason}" TextWrapping="Wrap" />
+                    </StackPanel>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
           </StackPanel>
-        </DataTemplate>
-      </ItemsControl.ItemTemplate>
-    </ItemsControl>
+        </Border>
+
+        <Border Classes="MptSettingsSection">
+          <StackPanel Spacing="{DynamicResource MptSpacingS}">
+            <TextBlock Classes="MptSectionTitle" Text="Command History" />
+            <TextBlock Classes="MptPageSubtitle"
+                       Text="No command history."
+                       IsVisible="{Binding HasNoRecentCommands}" />
+            <ItemsControl ItemsSource="{Binding RecentCommands}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:RuntimeCommandHistoryItemViewModel">
+                  <Border Classes="MptSettingsField" Margin="{DynamicResource MptGapBottomM}">
+                    <StackPanel Spacing="{DynamicResource MptSpacingXs}">
+                      <TextBlock FontWeight="SemiBold" Text="{Binding Title}" TextWrapping="Wrap" />
+                      <TextBlock Classes="MptMeta" Text="{Binding Detail}" TextWrapping="Wrap" />
+                      <TextBlock Classes="MptMeta" Text="{Binding Summary}" TextWrapping="Wrap" />
+                    </StackPanel>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+        </Border>
+
+        <Border Classes="MptSettingsSection">
+          <StackPanel Spacing="{DynamicResource MptSpacingS}">
+            <TextBlock Classes="MptSectionTitle" Text="Broker Audit" />
+            <TextBlock Classes="MptPageSubtitle"
+                       Text="No broker audit entries."
+                       IsVisible="{Binding HasNoBrokerAudit}" />
+            <ItemsControl ItemsSource="{Binding BrokerAudit}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:BrokerAuditEntryViewModel">
+                  <Border Classes="MptSettingsField" Margin="{DynamicResource MptGapBottomM}">
+                    <StackPanel Spacing="{DynamicResource MptSpacingXs}">
+                      <TextBlock FontWeight="SemiBold" Text="{Binding Title}" TextWrapping="Wrap" />
+                      <TextBlock Classes="MptMeta" Text="{Binding Detail}" TextWrapping="Wrap" />
+                      <TextBlock Classes="MptMeta" Text="{Binding Reason}" TextWrapping="Wrap" />
+                      <TextBlock Classes="MptMeta" Text="{Binding Rollback}" TextWrapping="Wrap" />
+                    </StackPanel>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+        </Border>
+      </StackPanel>
+    </Grid>
   </StackPanel>
 </UserControl>

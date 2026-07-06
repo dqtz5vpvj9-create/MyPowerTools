@@ -60,23 +60,22 @@ public sealed class GrpcIpcModuleHost : IAsyncDisposable
     private int _stderrLineCount;
     private bool _killProcessTree = true;
 
-    public async Task InitializeAsync(SelectedEntrypoint entrypoint, ModuleContext context, CancellationToken cancellationToken)
+    public async Task InitializeAsync(
+        SelectedEntrypoint entrypoint,
+        ModuleContext context,
+        string packageDirectory,
+        string moduleDirectory,
+        CancellationToken cancellationToken)
     {
         _killProcessTree = entrypoint.SidecarKillProcessTree ?? true;
         if (!string.IsNullOrWhiteSpace(entrypoint.Command))
         {
-            StartSidecar(entrypoint);
+            StartSidecar(entrypoint, context, packageDirectory, moduleDirectory);
         }
 
         _channel = CreateChannel(entrypoint);
         _client = new ModuleControl.ModuleControlClient(_channel);
-
-        using var readyTimeout = entrypoint.SidecarReadyTimeoutMs is > 0
-            ? CancellationTokenSource.CreateLinkedTokenSource(cancellationToken)
-            : null;
-        readyTimeout?.CancelAfter(TimeSpan.FromMilliseconds(entrypoint.SidecarReadyTimeoutMs!.Value));
-
-        await InitializeModuleAsync(context, readyTimeout?.Token ?? cancellationToken);
+        await InitializeModuleWithReadinessAsync(entrypoint, context, cancellationToken);
     }
 
     public async Task InitializeModuleAsync(ModuleContext context, CancellationToken cancellationToken)
@@ -99,7 +98,13 @@ public sealed class GrpcIpcModuleHost : IAsyncDisposable
 
         if (!response.Ok)
         {
-            throw new InvalidOperationException(response.Error?.Message ?? $"Module {context.ModuleId} rejected initialization.");
+            throw new InvalidOperationException($"initialize rejected: {response.Error?.Message ?? $"Module {context.ModuleId} rejected initialization."}");
+        }
+
+        if (!string.IsNullOrWhiteSpace(response.ProtocolVersion) &&
+            !string.Equals(response.ProtocolVersion, context.ProtocolVersion, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new InvalidOperationException($"protocol mismatch: host expected {context.ProtocolVersion}, sidecar returned {response.ProtocolVersion}.");
         }
     }
 
@@ -168,12 +173,19 @@ public sealed class GrpcIpcModuleHost : IAsyncDisposable
             command.Kind,
             command.RequiresElevation,
             command.Icon,
+            command.DangerLevel,
+            command.Category,
+            (int)command.TimeoutMs,
+            string.IsNullOrWhiteSpace(command.ExecutionJson) ? null : ParseJsonObject(command.ExecutionJson),
             Parameters: command.Parameters.Select(parameter => new CommandParameterDescriptor(
                 parameter.Id,
                 parameter.Label,
                 parameter.Type,
                 parameter.Required,
-                parameter.DefaultValue)).ToArray())).ToArray();
+                parameter.DefaultValue)).ToArray(),
+            Constraints: command.Constraints.ToArray(),
+            SupportsProgress: command.SupportsProgress,
+            SupportsCancellation: command.SupportsCancellation)).ToArray();
     }
 
     public async Task<CommandExecutionResult> ExecuteCommandAsync(CommandRequest request, CancellationToken cancellationToken)
@@ -189,7 +201,9 @@ public sealed class GrpcIpcModuleHost : IAsyncDisposable
         {
             ModuleId = moduleId,
             CommandId = request.CommandId,
-            InvocationId = request.InvocationId
+            InvocationId = request.InvocationId,
+            TypedArgs = Google.Protobuf.WellKnownTypes.Struct.Parser.ParseJson(request.Args.ToJsonString(new JsonSerializerOptions { WriteIndented = false })),
+            ArgsJson = request.Args.ToJsonString(new JsonSerializerOptions { WriteIndented = false })
         };
         foreach (var argument in ToGrpcArgs(request.Args))
         {
@@ -211,7 +225,9 @@ public sealed class GrpcIpcModuleHost : IAsyncDisposable
         {
             ModuleId = moduleId,
             CommandId = request.CommandId,
-            InvocationId = request.InvocationId
+            InvocationId = request.InvocationId,
+            TypedArgs = Google.Protobuf.WellKnownTypes.Struct.Parser.ParseJson(request.Args.ToJsonString(new JsonSerializerOptions { WriteIndented = false })),
+            ArgsJson = request.Args.ToJsonString(new JsonSerializerOptions { WriteIndented = false })
         };
         foreach (var argument in ToGrpcArgs(request.Args))
         {
@@ -278,15 +294,65 @@ public sealed class GrpcIpcModuleHost : IAsyncDisposable
             LastEventSeq = cursor.LastEventSeq
         }, cancellationToken: cancellationToken);
 
-        while (await call.ResponseStream.MoveNext(cancellationToken))
+        while (true)
         {
+            bool hasNext;
+            try
+            {
+                hasNext = await call.ResponseStream.MoveNext(cancellationToken);
+            }
+            catch (RpcException ex) when (ex.StatusCode == StatusCode.Cancelled && cancellationToken.IsCancellationRequested)
+            {
+                yield break;
+            }
+
+            if (!hasNext)
+            {
+                yield break;
+            }
+
             var evt = call.ResponseStream.Current;
             yield return new MptModuleEvent(
                 evt.ModuleId,
                 evt.Seq,
                 evt.Type,
                 DateTimeOffset.TryParse(evt.Time, out var time) ? time : DateTimeOffset.UtcNow,
-                ParseJsonObject(evt.PayloadJson));
+            ParseJsonObject(evt.PayloadJson));
+        }
+    }
+
+    public async Task DisposeModuleAsync(string moduleId, CancellationToken cancellationToken)
+    {
+        var client = EnsureClient();
+        try
+        {
+            await client.DisposeAsync(new DisposeRequest { ModuleId = moduleId }, cancellationToken: cancellationToken);
+        }
+        catch (RpcException ex) when (ex.StatusCode == StatusCode.Unimplemented)
+        {
+            // Older sidecars only support process-level disposal; pool shutdown still handles them.
+        }
+    }
+
+    public async Task<CommandCancellationResult> CancelCommandAsync(string invocationId, CancellationToken cancellationToken)
+    {
+        var client = EnsureClient();
+        try
+        {
+            var response = await client.CancelCommandAsync(new CancelCommandRequest { InvocationId = invocationId }, cancellationToken: cancellationToken);
+            return new CommandCancellationResult(
+                response.Accepted,
+                invocationId,
+                string.IsNullOrWhiteSpace(response.State)
+                    ? (response.Accepted ? "module-cancelling" : "module-cancel-rejected")
+                    : response.State,
+                string.IsNullOrWhiteSpace(response.Message)
+                    ? (response.Accepted ? $"Module accepted cancellation for {invocationId}." : $"Module rejected cancellation for {invocationId}.")
+                    : response.Message);
+        }
+        catch (RpcException ex) when (ex.StatusCode == StatusCode.Unimplemented)
+        {
+            return new CommandCancellationResult(false, invocationId, "module-cancel-unsupported", "Sidecar does not implement ModuleControl.CancelCommand.");
         }
     }
 
@@ -413,15 +479,96 @@ public sealed class GrpcIpcModuleHost : IAsyncDisposable
         return _client ?? throw new InvalidOperationException("gRPC IPC module host has not been initialized.");
     }
 
-    private void StartSidecar(SelectedEntrypoint entrypoint)
+    private async Task InitializeModuleWithReadinessAsync(SelectedEntrypoint entrypoint, ModuleContext context, CancellationToken cancellationToken)
     {
+        var timeoutMs = entrypoint.SidecarReadyTimeoutMs is > 0 ? entrypoint.SidecarReadyTimeoutMs.Value : 10000;
+        using var readyTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        readyTimeout.CancelAfter(TimeSpan.FromMilliseconds(timeoutMs));
+        var delay = TimeSpan.FromMilliseconds(100);
+        Exception? lastFailure = null;
+
+        while (!readyTimeout.IsCancellationRequested)
+        {
+            ThrowIfOwnedSidecarExited(entrypoint);
+
+            try
+            {
+                await InitializeModuleAsync(context, readyTimeout.Token);
+                return;
+            }
+            catch (Exception ex) when (IsReadinessRetryable(ex, readyTimeout.Token))
+            {
+                lastFailure = ex;
+                await Task.Delay(delay, readyTimeout.Token);
+                delay = TimeSpan.FromMilliseconds(Math.Min(2000, delay.TotalMilliseconds * 2));
+            }
+            catch (Exception ex) when (readyTimeout.IsCancellationRequested)
+            {
+                lastFailure = ex;
+                ThrowIfOwnedSidecarExited(entrypoint);
+                break;
+            }
+        }
+
+        ThrowIfOwnedSidecarExited(entrypoint);
+        throw new TimeoutException($"endpoint timeout: sidecar '{entrypoint.Command ?? entrypoint.Service ?? "external"}' did not become ready within {timeoutMs}ms. Last failure: {lastFailure?.Message}");
+    }
+
+    private void ThrowIfOwnedSidecarExited(SelectedEntrypoint entrypoint)
+    {
+        if (_ownedProcesses.Count == 0 || !_ownedProcesses.All(process => process.HasExited))
+        {
+            return;
+        }
+
+        var process = _ownedProcesses.Last();
+        throw new InvalidOperationException($"process exited before readiness: sidecar '{entrypoint.Command}' exited with code {process.ExitCode}.");
+    }
+
+    private static bool IsReadinessRetryable(Exception ex, CancellationToken cancellationToken)
+    {
+        if (cancellationToken.IsCancellationRequested)
+        {
+            return false;
+        }
+
+        if (ex is RpcException rpc)
+        {
+            return rpc.StatusCode is StatusCode.Unavailable or StatusCode.DeadlineExceeded or StatusCode.Cancelled;
+        }
+
+        if (ex is IOException or TimeoutException or SocketException)
+        {
+            return true;
+        }
+
+        if (ex is InvalidOperationException invalid)
+        {
+            return invalid.Message.Contains("endpoint", StringComparison.OrdinalIgnoreCase) ||
+                   invalid.Message.Contains("connection", StringComparison.OrdinalIgnoreCase) ||
+                   invalid.Message.Contains("pipe", StringComparison.OrdinalIgnoreCase);
+        }
+
+        return false;
+    }
+
+    private void StartSidecar(SelectedEntrypoint entrypoint, ModuleContext context, string packageDirectory, string moduleDirectory)
+    {
+        var workingDirectory = ResolveWorkingDirectory(entrypoint, packageDirectory, moduleDirectory);
         var psi = new ProcessStartInfo
         {
             FileName = entrypoint.Command!,
+            WorkingDirectory = workingDirectory,
             UseShellExecute = false,
             RedirectStandardOutput = true,
             RedirectStandardError = true
         };
+        var endpoint = ToEndpoint(entrypoint);
+        psi.Environment["MPT_PACKAGE_DIR"] = ResolvePackageDirectory(packageDirectory, workingDirectory);
+        psi.Environment["MPT_MODULE_ID"] = context.ModuleId;
+        psi.Environment["MPT_RUNTIME_ID"] = entrypoint.RuntimeId ?? "";
+        psi.Environment["MPT_ENDPOINT_TRANSPORT"] = endpoint.Transport.ToString();
+        psi.Environment["MPT_ENDPOINT_ADDRESS"] = endpoint.Address;
 
         foreach (var arg in entrypoint.Args)
         {
@@ -435,6 +582,58 @@ public sealed class GrpcIpcModuleHost : IAsyncDisposable
         process.BeginErrorReadLine();
         _ownedProcesses.Add(process);
         _startedAt = DateTimeOffset.UtcNow;
+    }
+
+    private static string ResolveWorkingDirectory(SelectedEntrypoint entrypoint, string packageDirectory, string moduleDirectory)
+    {
+        if (!string.IsNullOrWhiteSpace(entrypoint.RuntimeId) && Directory.Exists(packageDirectory))
+        {
+            return packageDirectory;
+        }
+
+        if (Directory.Exists(moduleDirectory))
+        {
+            return moduleDirectory;
+        }
+
+        if (Directory.Exists(packageDirectory))
+        {
+            return packageDirectory;
+        }
+
+        if (!string.IsNullOrWhiteSpace(entrypoint.Command))
+        {
+            var directory = Path.GetDirectoryName(entrypoint.Command);
+            if (!string.IsNullOrWhiteSpace(directory))
+            {
+                return directory;
+            }
+        }
+
+        return Environment.CurrentDirectory;
+    }
+
+    private static string ResolvePackageDirectory(string packageDirectory, string workingDirectory)
+    {
+        if (Directory.Exists(packageDirectory))
+        {
+            return packageDirectory;
+        }
+
+        var directory = new DirectoryInfo(workingDirectory);
+        while (directory is not null)
+        {
+            if (File.Exists(Path.Combine(directory.FullName, "package.json")) ||
+                File.Exists(Path.Combine(directory.FullName, "module.json")) ||
+                Directory.Exists(Path.Combine(directory.FullName, "shared")))
+            {
+                return directory.FullName;
+            }
+
+            directory = directory.Parent;
+        }
+
+        return workingDirectory;
     }
 
     private void CaptureStdout(string? line)
@@ -506,7 +705,8 @@ public sealed class GrpcIpcModuleHost : IAsyncDisposable
             _ => OperatingSystem.IsWindows() ? IpcTransport.NamedPipe : IpcTransport.UnixDomainSocket
         };
 
-        var address = entrypoint.EndpointAddress ?? throw new InvalidOperationException("gRPC IPC endpoint address is missing.");
+        var rawAddress = entrypoint.EndpointAddress ?? throw new InvalidOperationException("gRPC IPC endpoint address is missing.");
+        var address = new PlatformPathService().ExpandRuntimePath(rawAddress);
         return new IpcEndpoint(transport, address);
     }
 }
@@ -562,6 +762,46 @@ public sealed class GrpcIpcModuleRuntime : IModuleTransportRuntime, IModuleTrans
         }
     }
 
+    public async ValueTask EnableModuleAsync(RuntimeModuleRecord module, ModuleContext context, CancellationToken cancellationToken)
+    {
+        await GetHostAsync(module, context, cancellationToken);
+    }
+
+    public async ValueTask DisableModuleAsync(RuntimeModuleRecord module, ModuleContext context, IReadOnlySet<string> enabledModuleIds, CancellationToken cancellationToken)
+    {
+        var poolKey = GetPoolKey(module);
+        await _poolLock.WaitAsync(cancellationToken);
+        try
+        {
+            if (!_hosts.TryGetValue(poolKey, out var host))
+            {
+                if (_initializedModules.TryGetValue(poolKey, out var staleModules))
+                {
+                    staleModules.Remove(module.Module.Manifest.Id);
+                }
+
+                return;
+            }
+
+            await host.DisposeModuleAsync(module.Module.Manifest.Id, cancellationToken);
+            if (_initializedModules.TryGetValue(poolKey, out var modules))
+            {
+                modules.Remove(module.Module.Manifest.Id);
+            }
+
+            var anyEnabledModuleStillUsesPool = _initializedModules.TryGetValue(poolKey, out var remaining) &&
+                remaining.Any(id => enabledModuleIds.Contains(id));
+            if (!anyEnabledModuleStillUsesPool)
+            {
+                await RemoveHostCoreAsync(poolKey, host);
+            }
+        }
+        finally
+        {
+            _poolLock.Release();
+        }
+    }
+
     public async ValueTask<ModuleStatusSnapshot?> GetStatusAsync(RuntimeModuleRecord module, ModuleContext context, CancellationToken cancellationToken)
     {
         return await ExecuteWithRestartAsync(module, context, host => host.GetStatusAsync(module.Module.Manifest.Id, cancellationToken), cancellationToken);
@@ -592,16 +832,92 @@ public sealed class GrpcIpcModuleRuntime : IModuleTransportRuntime, IModuleTrans
         return await ExecuteWithRestartAsync(module, context, host => host.ExecuteCommandAsync(module.Module.Manifest.Id, request, cancellationToken), cancellationToken);
     }
 
+    public async ValueTask<CommandCancellationResult> CancelCommandAsync(RuntimeModuleRecord module, ModuleContext context, string invocationId, CancellationToken cancellationToken)
+    {
+        var poolKey = GetPoolKey(module);
+        var host = await TryGetHostForCancellationAsync(poolKey, module.Module.Manifest.Id, cancellationToken);
+        if (host is null)
+        {
+            return new CommandCancellationResult(
+                false,
+                invocationId,
+                "module-cancel-not-running",
+                $"No active gRPC IPC host is running the invocation {invocationId}.");
+        }
+
+        return await host.CancelCommandAsync(invocationId, cancellationToken);
+    }
+
     public async IAsyncEnumerable<CommandProgressEvent> ExecuteCommandStreamAsync(
         RuntimeModuleRecord module,
         ModuleContext context,
         CommandRequest request,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
+        var poolKey = GetPoolKey(module);
         var host = await GetHostAsync(module, context, cancellationToken);
-        await foreach (var evt in host.ExecuteCommandStreamAsync(module.Module.Manifest.Id, request, cancellationToken).WithCancellation(cancellationToken))
+        IAsyncEnumerator<CommandProgressEvent>? stream = null;
+        var terminalFailureEmitted = false;
+        try
         {
-            yield return evt;
+            stream = host.ExecuteCommandStreamAsync(module.Module.Manifest.Id, request, cancellationToken).GetAsyncEnumerator(cancellationToken);
+            while (true)
+            {
+                CommandProgressEvent? current = null;
+                CommandProgressEvent? terminalFailure = null;
+                try
+                {
+                    if (!await stream.MoveNextAsync())
+                    {
+                        break;
+                    }
+
+                    current = stream.Current;
+                }
+                catch (Exception ex) when (ShouldRestartAfter(ex, cancellationToken))
+                {
+                    await RemoveHostAsync(poolKey);
+                    var message = LogRouter.Redact(ex.Message);
+                    var result = new CommandExecutionResult(
+                        request.InvocationId,
+                        request.CommandId,
+                        "failed",
+                        false,
+                        "",
+                        new MptRuntimeError(MptErrorCodes.RuntimeUnavailable, $"Streaming command failed because the sidecar became unavailable: {message}", true));
+                    terminalFailure = new CommandProgressEvent(
+                        request.InvocationId,
+                        request.CommandId,
+                        result.State,
+                        result.Error!.Message,
+                        0,
+                        true,
+                        result);
+                }
+
+                if (terminalFailure is not null)
+                {
+                    terminalFailureEmitted = true;
+                    yield return terminalFailure;
+                    yield break;
+                }
+
+                yield return current!;
+            }
+        }
+        finally
+        {
+            if (stream is not null)
+            {
+                try
+                {
+                    await stream.DisposeAsync();
+                }
+                catch when (terminalFailureEmitted)
+                {
+                    await RemoveHostAsync(poolKey);
+                }
+            }
         }
     }
 
@@ -793,10 +1109,36 @@ public sealed class GrpcIpcModuleRuntime : IModuleTransportRuntime, IModuleTrans
             _poolRuntimePolicies[poolKey] = runtimePolicy;
             RecordStartOrThrow(poolKey, runtimePolicy);
             var host = new GrpcIpcModuleHost();
-            await host.InitializeAsync(module.Entrypoint, context, cancellationToken);
+            await host.InitializeAsync(module.Entrypoint, context, module.Package.Directory, module.Module.Directory, cancellationToken);
             _hosts[poolKey] = host;
             MarkInitialized(poolKey, module.Module.Manifest.Id);
             return host;
+        }
+        finally
+        {
+            _poolLock.Release();
+        }
+    }
+
+    private async Task<GrpcIpcModuleHost?> TryGetHostForCancellationAsync(string poolKey, string moduleId, CancellationToken cancellationToken)
+    {
+        await _poolLock.WaitAsync(cancellationToken);
+        try
+        {
+            if (!_hosts.TryGetValue(poolKey, out var host))
+            {
+                return null;
+            }
+
+            if (!host.IsProcessHealthy())
+            {
+                await RemoveHostCoreAsync(poolKey, host);
+                return null;
+            }
+
+            return _initializedModules.TryGetValue(poolKey, out var modules) && modules.Contains(moduleId)
+                ? host
+                : null;
         }
         finally
         {

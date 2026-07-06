@@ -350,12 +350,12 @@ Validation:
 - `dotnet build MyPowerTools.slnx --no-restore` succeeded with 0 warnings and 0 errors.
 - `dotnet run --no-build --project src\MyPowerTools.Cli -- package sign-local modules` refreshed hash manifests and local trust hooks for all 5 production packages.
 - Targeted P7 tests passed: `Platform_capability_registry_marks_missing_required_capability_unsupported`, `Local_ipc_service_selects_platform_native_endpoint_shape`, `Mac_and_linux_platform_packs_expose_truthful_degraded_services`, `Platform_packs_expose_hotkey_and_privilege_surfaces`, and `Privileged_broker_implements_platform_privilege_contract`.
-- `dotnet test MyPowerTools.slnx --no-build` passed 88 tests, 0 failed, 0 skipped.
+- `dotnet test MyPowerTools.slnx --no-build` passed 187 tests, 0 failed, 0 skipped.
 - `dotnet run --no-build --project src\MyPowerTools.Cli -- inspect modules` printed module requirements and broker permissions.
 - `dotnet run --no-build --project src\MyPowerTools.Cli -- diagnostics` reported Windows `grpc-ipc` runtime process state and ModuleSupervisor summaries.
 - `dotnet run --no-build --project src\MyPowerTools.Cli -- validate contracts` passed for 5 packages and 7 modules.
 - `dotnet run --no-build --project src\MyPowerTools.Cli -- package trust modules --strict` reported `signature-hook` for all 5 production packages.
-- `pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\smoke.ps1` passed with build, sign-local, 88 tests, module validation, contract validation, package trust, UI snapshots, template validation, Runner once, and Shell HostControl smoke.
+- `pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\smoke.ps1` passed with build, sign-local, module validation, contract validation, package trust, UI snapshots, template validation, Runner once, and Shell HostControl smoke.
 
 Remaining P7 work:
 - Native macOS/Linux Runner/Shell/UDS smoke requires those OS hosts.
@@ -391,7 +391,7 @@ Validation:
 - `pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\validate-templates.ps1` passed for 6 templates.
 - `pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\smoke.ps1` passed with build, sign-local, 88 tests, module validation, contract validation, package trust, UI snapshots, template validation, Runner once, and Shell HostControl smoke.
 - `pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\publish-windows.ps1` rebuilt `artifacts\release\MyPowerTools-win-x64.zip`.
-- `Get-FileHash artifacts\release\MyPowerTools-win-x64.zip -Algorithm SHA256` returned `29BECF13374D92F100E58BA60F9187FD166C136919427B826C0A8979EEA3C670`; size is 171498490 bytes.
+- `Get-FileHash artifacts\release\MyPowerTools-win-x64.zip -Algorithm SHA256` now returns the P-UI-Foundation refreshed release hash `B4F8CFED2E13C0370068B0D4DEBB0F66BCF4A18E74620FD7FEBAAEB93CC84BE5`; size is 223125040 bytes.
 - Release metadata and Scoop manifest hashes match the Windows zip hash and both use relative URL `MyPowerTools-win-x64.zip`.
 - Release zip hygiene found no `bin/`, `obj/`, or `modules/modules/` entries.
 - `artifacts\release\win-x64\Cli\MyPowerTools.Cli.exe package trust artifacts\release\win-x64\modules --strict` passed for all 5 production packages.
@@ -403,3 +403,60 @@ Validation:
 
 Remaining P8 work:
 - None internally. External validation remains for administrator/signed-helper execution, production signing, display and device hardware, external services, and native macOS/Linux hosts.
+
+### Final Production Closure Refresh
+
+Status: done.
+
+Actions:
+- Closed HostControl IPC local token authentication.
+- Persisted module event cursors and JSONL event history under runtime state.
+- Added `scripts/create-review-evidence.ps1` and generated final command outputs, UI snapshots, Shell screenshots, and evidence zip.
+- Added `docs/FINAL_ACCEPTANCE.md` and refreshed project status, readiness, limitations, external validation, and handoff docs for the final review package.
+
+Validation:
+- `dotnet build MyPowerTools.slnx --no-restore` succeeded with 0 warnings and 0 errors.
+- `dotnet test MyPowerTools.slnx --no-build` passed 189 tests, 0 failed, 0 skipped.
+- P7 focused tests passed 8 tests, 0 failed, 0 skipped.
+- HostControl focused tests passed 20 tests, 0 failed, 0 skipped.
+- `pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\smoke.ps1` passed.
+- `pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\create-review-evidence.ps1` passed and wrote `artifacts\review\MyPowerTools-final-evidence.zip`.
+- Release zip SHA256 is `B4F8CFED2E13C0370068B0D4DEBB0F66BCF4A18E74620FD7FEBAAEB93CC84BE5`.
+- Evidence zip SHA256 is `ABA4ED23AC71D4727A1FB3619610CD57B996DBCA3A32465CB6A2CD6DCB8A4AF1`.
+
+Remaining work:
+- None internally. External validation remains for administrator/signed-helper execution, production signing, display/device hardware, external services, and native macOS/Linux hosts.
+
+### P-UI-Foundation Production UI Repair
+
+Status: done.
+
+Actions:
+- Converted the Shell UI from raw Avalonia controls toward the P-UI-Foundation component set: sidebar, top bar, search box, buttons, icon buttons, module cards, package cards, status badges, metrics, command list items, command parameter forms, settings sections and fields, log viewer, notification rows, permission prompts, empty/error states, loading skeleton, page header, split view, tab strip, toolbar, and command palette.
+- Reworked the full Shell layout so Dashboard, Modules, Module Detail, Command Palette, Packages, Settings, Logs, Notifications, Diagnostics, and Permission Prompt render through MPT component classes instead of ad hoc local styling.
+- Removed the permanent right-side Command Palette/Audit rail from the main Shell and moved Command Palette into an overlay workflow with visible parameter inputs and action buttons in compact layouts.
+- Added UI gate coverage for the required P-UI-Foundation component style files and updated screenshot checks to use real Avalonia PNG output.
+- Refreshed release, review evidence, project state, acceptance docs, readiness docs, and handoff docs after the UI repair.
+
+Validation:
+- `dotnet restore MyPowerTools.slnx` succeeded.
+- `dotnet build MyPowerTools.slnx --no-restore` succeeded with 0 warnings and 0 errors.
+- `dotnet test MyPowerTools.slnx --no-build` passed 189 tests, 0 failed, 0 skipped.
+- `dotnet run --no-build --project src\MyPowerTools.Cli -- ui check modules` passed and checks the required P-UI-Foundation component style files.
+- Final UI screenshots were generated for fixture 1366, fixture 1920, fixture 1280 compact, dark mode, and live Runner-backed full Shell flows under `artifacts\ui-final-*`.
+- `pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\smoke.ps1` passed.
+- `pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\create-review-evidence.ps1` passed and wrote `artifacts\review\MyPowerTools-final-evidence.zip`.
+- Release zip SHA256 is `B4F8CFED2E13C0370068B0D4DEBB0F66BCF4A18E74620FD7FEBAAEB93CC84BE5`.
+- Evidence zip SHA256 is `ABA4ED23AC71D4727A1FB3619610CD57B996DBCA3A32465CB6A2CD6DCB8A4AF1`.
+
+Completion basis:
+- The component inventory exists as concrete AXAML files and is enforced by `UiSurfaceGate`.
+- The Shell views consume the component classes across every primary page.
+- The live Runner-backed screenshots use HostControl data and report `usesHostControlData=true`.
+- The release Runner evidence shows internal path/assembly load failures are gone; remaining degraded states point to external devices, hardware, services, or credentials.
+- Full tests, smoke, template validation, package trust, UI gate, and review evidence all pass after the UI repair.
+
+Remaining work:
+- None internally. External validation remains for administrator/signed-helper execution, production signing, display/device hardware, external services, and native macOS/Linux hosts.
+
+

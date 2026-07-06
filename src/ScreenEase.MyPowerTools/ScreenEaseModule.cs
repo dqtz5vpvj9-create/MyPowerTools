@@ -104,6 +104,7 @@ public sealed class ScreenEaseModule : IMptModule
     public async IAsyncEnumerable<MptModuleEvent> SubscribeEventsAsync(EventCursor cursor, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
         var state = Store.Load();
+        var seq = Math.Max(3UL, cursor.LastEventSeq);
         if (cursor.LastEventSeq < 1)
         {
             var displays = await Display.ListDisplaysAsync(cancellationToken);
@@ -153,6 +154,46 @@ public sealed class ScreenEaseModule : IMptModule
                     ["state"] = writer.State
                 });
         }
+
+        var fingerprint = await BuildEventFingerprintAsync(cancellationToken);
+        while (true)
+        {
+            await Task.Delay(TimeSpan.FromSeconds(10), cancellationToken);
+            var nextFingerprint = await BuildEventFingerprintAsync(cancellationToken);
+            if (string.Equals(nextFingerprint, fingerprint, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            fingerprint = nextFingerprint;
+            state = Store.Load();
+            seq++;
+            yield return new MptModuleEvent(
+                Id,
+                seq,
+                "display.changed",
+                DateTimeOffset.UtcNow,
+                new JsonObject
+                {
+                    ["title"] = "ScreenEase state changed",
+                    ["message"] = $"Active profile is '{state.ActiveProfileId}'.",
+                    ["profileId"] = state.ActiveProfileId,
+                    ["profileCount"] = state.Profiles.Count
+                });
+        }
+    }
+
+    private async Task<string> BuildEventFingerprintAsync(CancellationToken cancellationToken)
+    {
+        var state = Store.Load();
+        var displays = await Display.ListDisplaysAsync(cancellationToken);
+        var writer = await Display.GetWriterStatusAsync(cancellationToken);
+        var displayFingerprint = string.Join(
+            ",",
+            displays
+                .OrderBy(display => display.Id, StringComparer.OrdinalIgnoreCase)
+                .Select(display => $"{display.Id}:{display.State}:{display.Width}x{display.Height}:{display.RefreshRateHz}:{display.Primary}"));
+        return $"{state.ActiveProfileId}|{state.Profiles.Count}|{state.Rules.Count}|{writer.Available}:{writer.State}:{writer.Message}|{displayFingerprint}";
     }
 
     public ValueTask<SettingsSchemaDocument> GetSettingsSchemaAsync(CancellationToken cancellationToken)
@@ -602,6 +643,19 @@ internal sealed class ScreenEaseStore
         Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
         var tmp = _path + ".tmp";
         File.WriteAllText(tmp, JsonSerializer.Serialize(state, JsonOptions));
+        for (var attempt = 0; attempt < 5; attempt++)
+        {
+            try
+            {
+                File.Move(tmp, _path, overwrite: true);
+                return;
+            }
+            catch (Exception) when (attempt < 4)
+            {
+                Thread.Sleep(TimeSpan.FromMilliseconds(25 * (attempt + 1)));
+            }
+        }
+
         File.Move(tmp, _path, overwrite: true);
     }
 }

@@ -6,37 +6,51 @@ namespace MyPowerTools.Runtime;
 
 internal static class RuntimeOperationPolicy
 {
-    private const string Any = "any";
-    private const string InProcOrSidecar = "inproc-or-sidecar";
-    private const string SidecarRequired = "sidecar-required";
-    private const string ServiceRequired = "service-required";
-    private const string BrokerRequired = "broker-required";
+    internal const string Any = "any";
+    internal const string InProcOrSidecar = "inproc-or-sidecar";
+    internal const string SidecarRequired = "sidecar-required";
+    internal const string ServiceRequired = "service-required";
+    internal const string BrokerRequired = "broker-required";
 
     public static RuntimeOperationPolicyDecision Evaluate(
         Sdk.MptCommandDescriptor command,
         Sdk.CommandRequest request,
         RuntimeModuleRecord module)
     {
+        return Evaluate(command, request, module, module.Entrypoint);
+    }
+
+    public static RuntimeOperationPolicyDecision Evaluate(
+        Sdk.MptCommandDescriptor command,
+        Sdk.CommandRequest request,
+        RuntimeModuleRecord module,
+        SelectedEntrypoint? entrypoint)
+    {
         var constraints = ReadConstraints(command, request).ToArray();
-        if (constraints.Length == 0 || module.Entrypoint is null)
+        if (constraints.Length == 0 || entrypoint is null)
         {
             return RuntimeOperationPolicyDecision.Allowed(constraints);
         }
 
-        var transport = module.Entrypoint.Kind;
+        var transport = entrypoint.Kind;
         var violations = new List<RuntimeOperationPolicyViolation>();
         foreach (var constraint in constraints)
         {
             var rule = ResolveRule(module.Module.Manifest.RuntimePolicy?.OperationRules, constraint);
             if (!IsAllowed(rule, transport, command))
             {
-                violations.Add(new RuntimeOperationPolicyViolation(constraint, rule, transport));
+                violations.Add(new RuntimeOperationPolicyViolation(constraint, rule, RequiredRouteForRule(rule), transport));
             }
         }
 
         return violations.Count == 0
             ? RuntimeOperationPolicyDecision.Allowed(constraints)
-            : RuntimeOperationPolicyDecision.Blocked(command, module, constraints, violations);
+            : RuntimeOperationPolicyDecision.Blocked(command, module, entrypoint, constraints, violations);
+    }
+
+    internal static IReadOnlyList<string> GetConstraints(Sdk.MptCommandDescriptor command, Sdk.CommandRequest request)
+    {
+        return ReadConstraints(command, request).ToArray();
     }
 
     private static IEnumerable<string> ReadConstraints(Sdk.MptCommandDescriptor command, Sdk.CommandRequest request)
@@ -119,7 +133,7 @@ internal static class RuntimeOperationPolicy
             Sdk.MptOperationConstraints.RequiresLongRunningLoop;
     }
 
-    private static string ResolveRule(MptRuntimeOperationRulesManifest? rules, string constraint)
+    internal static string ResolveRule(MptRuntimeOperationRulesManifest? rules, string constraint)
     {
         return constraint switch
         {
@@ -135,6 +149,24 @@ internal static class RuntimeOperationPolicy
     private static string NormalizeRule(string? rule, string defaultRule)
     {
         return string.IsNullOrWhiteSpace(rule) ? defaultRule : rule;
+    }
+
+    internal static bool IsAllowedForTransport(string rule, string transport, Sdk.MptCommandDescriptor command)
+    {
+        return IsAllowed(rule, transport, command);
+    }
+
+    internal static string RequiredRouteForRule(string rule)
+    {
+        return rule switch
+        {
+            Any => "any",
+            InProcOrSidecar => "inproc-or-sidecar",
+            SidecarRequired => "sidecar-or-service",
+            ServiceRequired => "service",
+            BrokerRequired => "broker",
+            _ => rule
+        };
     }
 
     private static bool IsAllowed(string rule, string transport, Sdk.MptCommandDescriptor command)
@@ -184,6 +216,7 @@ internal static class RuntimeOperationPolicy
 internal sealed record RuntimeOperationPolicyViolation(
     string Constraint,
     string RequiredRule,
+    string RequiredRoute,
     string SelectedTransport);
 
 internal sealed record RuntimeOperationPolicyDecision(
@@ -201,8 +234,11 @@ internal sealed record RuntimeOperationPolicyDecision(
     public static RuntimeOperationPolicyDecision Blocked(
         Sdk.MptCommandDescriptor command,
         RuntimeModuleRecord module,
+        SelectedEntrypoint? entrypoint,
         IReadOnlyList<string> constraints,
-        IReadOnlyList<RuntimeOperationPolicyViolation> violations)
+        IReadOnlyList<RuntimeOperationPolicyViolation> violations,
+        string? unavailableReason = null,
+        IReadOnlyList<TransportSelectionDiagnostic>? routeDiagnostics = null)
     {
         var violationArray = new JsonArray();
         foreach (var violation in violations)
@@ -211,21 +247,31 @@ internal sealed record RuntimeOperationPolicyDecision(
             {
                 ["constraint"] = violation.Constraint,
                 ["requiredRule"] = violation.RequiredRule,
+                ["requiredRoute"] = violation.RequiredRoute,
                 ["selectedTransport"] = violation.SelectedTransport
             });
         }
 
+        var first = violations[0];
+        unavailableReason ??= $"Selected transport '{first.SelectedTransport}' does not satisfy required route '{first.RequiredRoute}'.";
         var details = new JsonObject
         {
             ["moduleId"] = module.Module.Manifest.Id,
             ["commandId"] = command.Id,
-            ["selectedTransport"] = module.Entrypoint?.Kind ?? "none",
-            ["selectionReason"] = module.Entrypoint?.SelectionReason ?? "",
+            ["selectedTransport"] = entrypoint?.Kind ?? "none",
+            ["selectionReason"] = entrypoint?.SelectionReason ?? "",
+            ["alternateRequiredRoute"] = first.RequiredRoute,
+            ["unavailableReason"] = unavailableReason,
             ["constraints"] = ToJsonArray(constraints),
             ["violations"] = violationArray
         };
-        var first = violations[0];
-        var message = $"Command '{command.Id}' requires operation constraint '{first.Constraint}' with runtimePolicy rule '{first.RequiredRule}', but selected transport is '{first.SelectedTransport}'.";
+
+        if (routeDiagnostics is { Count: > 0 })
+        {
+            details["routeDiagnostics"] = ToJsonArray(routeDiagnostics.Select(item => $"{item.State}:{item.TransportKind}:{item.Reason}"));
+        }
+
+        var message = $"Command '{command.Id}' requires operation constraint '{first.Constraint}' with runtimePolicy rule '{first.RequiredRule}' ({first.RequiredRoute}), but selected transport is '{first.SelectedTransport}'. {unavailableReason}";
         return new RuntimeOperationPolicyDecision(false, constraints, violations, message, details);
     }
 

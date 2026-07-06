@@ -1,36 +1,86 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="using:MyPowerTools.UI.Controls"
              xmlns:vm="using:MyPowerTools.Shell.Avalonia.ViewModels"
              x:Class="MyPowerTools.Shell.Avalonia.Views.NotificationsView"
              x:DataType="vm:NotificationsViewModel">
   <StackPanel Margin="{DynamicResource MptPagePadding}" Spacing="{DynamicResource MptSpacingM}">
-    <StackPanel Spacing="{DynamicResource MptSpacingXs}">
-      <TextBlock Classes="MptPageTitle" Text="{Binding Title}" />
-      <TextBlock Classes="MptPageSubtitle" Text="{Binding Subtitle}" />
-    </StackPanel>
+    <Grid ColumnDefinitions="*,Auto">
+      <StackPanel Spacing="{DynamicResource MptSpacingXs}">
+        <TextBlock Classes="MptPageTitle" Text="{Binding Title}" />
+        <TextBlock Classes="MptPageSubtitle" Text="{Binding Subtitle}" />
+      </StackPanel>
+      <StackPanel Grid.Column="1" Classes="MptActionBar" Orientation="Horizontal">
+        <controls:MptButton Content="Mark read"
+                            MinWidth="{DynamicResource MptDensityActionMinWidth}" />
+        <controls:MptButton Content="Clear"
+                            MinWidth="{DynamicResource MptDensityActionMinWidth}" />
+      </StackPanel>
+    </Grid>
+
+    <Border Classes="MptToolbar">
+      <StackPanel Classes="MptToolbar" Orientation="Horizontal">
+        <controls:MptTextBox PlaceholderText="Search notifications"
+                             MinWidth="{DynamicResource MptPackageIdInputWidth}" />
+        <controls:MptButton Content="Unread"
+                            MinWidth="{DynamicResource MptDensityActionMinWidth}" />
+        <controls:MptButton Content="Warning"
+                            MinWidth="{DynamicResource MptDensityActionMinWidth}" />
+        <controls:MptButton Content="Error"
+                            MinWidth="{DynamicResource MptDensityActionMinWidth}" />
+      </StackPanel>
+    </Border>
 
     <TextBlock Classes="MptPageSubtitle"
                Text="No notifications."
                IsVisible="{Binding IsEmpty}" />
 
-    <ItemsControl ItemsSource="{Binding Notifications}">
-      <ItemsControl.ItemTemplate>
-        <DataTemplate x:DataType="vm:NotificationItemViewModel">
-          <Border Classes="MptNotificationItem" Margin="{DynamicResource MptGapBottomM}">
-            <StackPanel Spacing="{DynamicResource MptSpacingXs}">
-              <Grid ColumnDefinitions="*,Auto">
-                <TextBlock FontWeight="SemiBold" Text="{Binding Title}" />
-                <TextBlock Grid.Column="1" Classes="MptMeta" Text="{Binding Level}" />
+    <Grid ColumnDefinitions="*,340" ColumnSpacing="{DynamicResource MptSpacingM}">
+      <ItemsControl ItemsSource="{Binding Notifications}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="vm:NotificationItemViewModel">
+            <Border Classes="MptNotificationItem" Margin="{DynamicResource MptGapBottomM}">
+              <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto">
+                <StackPanel Spacing="{DynamicResource MptSpacingXs}">
+                  <TextBlock FontWeight="SemiBold" Text="{Binding Title}" TextWrapping="Wrap" />
+                  <StackPanel Orientation="Horizontal" Spacing="{DynamicResource MptSpacingS}">
+                    <TextBlock Classes="MptMeta" Text="{Binding ModuleId}" />
+                    <TextBlock Classes="MptMeta" Text="{Binding Time}" />
+                  </StackPanel>
+                </StackPanel>
+                <Border Grid.Column="1" Classes="MptStatusBadge">
+                  <TextBlock Classes="MptMeta" Text="{Binding Level}" />
+                </Border>
+                <TextBlock Grid.Row="1"
+                           Grid.ColumnSpan="2"
+                           Classes="MptPageSubtitle"
+                           Text="{Binding Body}"
+                           TextWrapping="Wrap" />
+                <TextBlock Grid.Row="2"
+                           Grid.ColumnSpan="2"
+                           Classes="MptMeta"
+                           Text="Details ready"
+                           IsVisible="{Binding !IsRead}" />
               </Grid>
-              <StackPanel Orientation="Horizontal" Spacing="{DynamicResource MptSpacingS}">
-                <TextBlock Classes="MptMeta" Text="{Binding ModuleId}" />
-                <TextBlock Classes="MptMeta" Text="{Binding Time}" />
-              </StackPanel>
-              <TextBlock Classes="MptPageSubtitle" Text="{Binding Body}" />
+            </Border>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+
+      <Border Grid.Column="1" Classes="MptSplitPane">
+        <StackPanel Spacing="{DynamicResource MptSpacingS}">
+          <TextBlock Classes="MptSectionTitle" Text="Details" />
+          <TextBlock Classes="MptPageSubtitle"
+                     Text="Select a notification to inspect the module, severity, timestamp and related command context."
+                     TextWrapping="Wrap" />
+          <Border Classes="MptInset">
+            <StackPanel Spacing="{DynamicResource MptSpacingXs}">
+              <TextBlock Classes="MptMeta" Text="Filters" />
+              <TextBlock Text="Unread, severity and module filters are available from the toolbar." TextWrapping="Wrap" />
             </StackPanel>
           </Border>
-        </DataTemplate>
-      </ItemsControl.ItemTemplate>
-    </ItemsControl>
+        </StackPanel>
+      </Border>
+    </Grid>
   </StackPanel>
 </UserControl>

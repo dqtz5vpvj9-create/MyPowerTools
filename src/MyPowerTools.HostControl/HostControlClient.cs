@@ -3,6 +3,8 @@ using System.Net.Sockets;
 using System.IO.Pipes;
 using System.Text.Json.Nodes;
 using Google.Protobuf.WellKnownTypes;
+using Grpc.Core;
+using Grpc.Core.Interceptors;
 using Grpc.Net.Client;
 using MyPowerTools.Platform.Abstractions;
 using MyPowerTools.Protocol;
@@ -15,10 +17,14 @@ public sealed class HostControlClient : IDisposable
     private readonly GrpcChannel _channel;
     private readonly HostProto.HostControl.HostControlClient _client;
 
-    private HostControlClient(GrpcChannel channel)
+    private HostControlClient(GrpcChannel channel, string? authToken)
     {
         _channel = channel;
-        _client = new HostProto.HostControl.HostControlClient(channel);
+        var baseInvoker = channel.CreateCallInvoker();
+        CallInvoker invoker = string.IsNullOrWhiteSpace(authToken)
+            ? baseInvoker
+            : baseInvoker.Intercept(new HostControlAuthClientInterceptor(authToken));
+        _client = new HostProto.HostControl.HostControlClient(invoker);
     }
 
     public static HostControlClient ForDefaultEndpoint()
@@ -27,6 +33,11 @@ public sealed class HostControlClient : IDisposable
     }
 
     public static HostControlClient ForEndpoint(IpcEndpoint endpoint)
+    {
+        return ForEndpoint(endpoint, HostControlAuthTokenStore.TryReadToken());
+    }
+
+    public static HostControlClient ForEndpoint(IpcEndpoint endpoint, string? authToken)
     {
         var handler = new SocketsHttpHandler
         {
@@ -55,7 +66,7 @@ public sealed class HostControlClient : IDisposable
             HttpHandler = handler
         });
 
-        return new HostControlClient(channel);
+        return new HostControlClient(channel, authToken);
     }
 
     public async Task<HostProto.PingResponse> PingAsync(CancellationToken cancellationToken = default)

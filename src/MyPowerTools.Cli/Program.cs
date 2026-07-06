@@ -483,6 +483,7 @@ static int Ui(string[] args, string root)
     {
         "check" => UiCheck(args.Skip(1).ToArray(), root),
         "snapshot" => UiSnapshot(args.Skip(1).ToArray(), root),
+        "screenshot" => UiScreenshot(args.Skip(1).ToArray(), root),
         "shell-snapshot" => UiShellSnapshot(args.Skip(1).ToArray(), root),
         _ => Help()
     };
@@ -527,6 +528,42 @@ static int UiSnapshot(string[] args, string root)
     return 0;
 }
 
+static int UiScreenshot(string[] args, string root)
+{
+    var normalized = new List<string>();
+    for (var index = 0; index < args.Length; index++)
+    {
+        var arg = args[index];
+        if (arg is "--mode" or "--page")
+        {
+            index++;
+            continue;
+        }
+
+        normalized.Add(arg);
+    }
+
+    var mode = GetOption(args, "--mode");
+    if (string.Equals(mode, "fixture", StringComparison.OrdinalIgnoreCase))
+    {
+        normalized.Add("--fixture-only");
+    }
+    else if (string.Equals(mode, "live-runner", StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(mode, "live", StringComparison.OrdinalIgnoreCase))
+    {
+        normalized.Add("--live-runner");
+    }
+
+    var page = GetOption(args, "--page");
+    if (!string.IsNullOrWhiteSpace(page))
+    {
+        normalized.Add("--surface");
+        normalized.Add(MapUiPageToSurface(page));
+    }
+
+    return UiShellSnapshot(normalized.ToArray(), root);
+}
+
 static int UiShellSnapshot(string[] args, string root)
 {
     var output = GetOption(args, "--out") ?? Path.Combine(root, "artifacts", "shell-ui-snapshots");
@@ -536,7 +573,7 @@ static int UiShellSnapshot(string[] args, string root)
         GetOption(args, "--size") ?? "1366x768",
         GetOption(args, "--density") ?? "normal");
     var path = new UiSurfaceGate().WriteShellSnapshotSet(output, request);
-    var realPath = args.Contains("--live", StringComparer.OrdinalIgnoreCase)
+    var realPath = HasFlag(args, "--live") || HasFlag(args, "--live-runner")
         ? UiShellSnapshotLiveAsync(args, root, output, request).GetAwaiter().GetResult()
         : ShellRealScreenshotWriter.WriteSnapshotSet(output, request.Theme, request.Size, request.Density);
     Console.WriteLine(path);
@@ -544,15 +581,31 @@ static int UiShellSnapshot(string[] args, string root)
     return 0;
 }
 
+static string MapUiPageToSurface(string page)
+{
+    return page.Trim().ToLowerInvariant() switch
+    {
+        "dashboard" => "shell.dashboard",
+        "command-palette" or "commands" => "shell.command-palette",
+        "module-detail" or "modules" => "shell.module-detail",
+        "settings" or "settings-center" => "shell.settings-center",
+        "logs" or "logs-viewer" => "shell.logs-viewer",
+        "notifications" or "notification-center" => "shell.notification-center",
+        "packages" or "package-manager" => "shell.package-manager",
+        "diagnostics" or "runtime-diagnostics" => "shell.runtime-diagnostics",
+        _ => page
+    };
+}
+
 static async Task<string> UiShellSnapshotLiveAsync(string[] args, string root, string output, UiSnapshotRequest request)
 {
-    using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(40));
-    if (!args.Contains("--fixture-only", StringComparer.OrdinalIgnoreCase))
+    if (!HasFlag(args, "--fixture-only"))
     {
+        using var runnerTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(40));
         try
         {
             using var client = HostControlClient.ForDefaultEndpoint();
-            await client.PingAsync(timeout.Token);
+            await client.PingAsync(runnerTimeout.Token);
             return await ShellRealScreenshotWriter.WriteSnapshotSetFromHostControlAsync(
                 output,
                 request.Theme,
@@ -560,15 +613,16 @@ static async Task<string> UiShellSnapshotLiveAsync(string[] args, string root, s
                 request.Density,
                 client,
                 "runner-hostcontrol",
-                timeout.Token);
+                runnerTimeout.Token);
         }
-        catch (Exception ex) when (!args.Contains("--runner-only", StringComparer.OrdinalIgnoreCase) && ex is not OperationCanceledException)
+        catch (Exception ex) when (!HasFlag(args, "--runner-only") && ex is not OperationCanceledException)
         {
             Console.WriteLine($"Runner HostControl unavailable for live screenshot: {ex.Message}");
         }
     }
 
-    return await WriteShellSnapshotFromFixtureHostControlAsync(args, root, output, request, timeout.Token);
+    using var fixtureTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(40));
+    return await WriteShellSnapshotFromFixtureHostControlAsync(args, root, output, request, fixtureTimeout.Token);
 }
 
 static async Task<string> WriteShellSnapshotFromFixtureHostControlAsync(
@@ -1094,7 +1148,8 @@ static int Help()
     Console.WriteLine("mpt module disable <module-id> [--modules <package-root>] [--data-root <dir>]");
     Console.WriteLine("mpt ui check <package-dir>");
     Console.WriteLine("mpt ui snapshot [package-dir] [--surface <id|kind>] [--theme <theme>] [--size <width>x<height>] [--density <density>] [--out <dir>]");
-    Console.WriteLine("mpt ui shell-snapshot [--live] [--fixture-only] [--runner-only] [--surface <id|kind>] [--theme <theme>] [--size <width>x<height>] [--density <density>] [--out <dir>] (writes contract and real Avalonia screenshots)");
+    Console.WriteLine("mpt ui screenshot [--mode fixture|live-runner] [--full-shell] [--page dashboard|command-palette|module-detail|settings|logs|notifications|packages|diagnostics] [--theme <theme>] [--size <width>x<height>] [--density <density>] [--out <dir>]");
+    Console.WriteLine("mpt ui shell-snapshot [--live|--live-runner] [--full-shell] [--fixture-only] [--runner-only] [--surface <id|kind>] [--theme <theme>] [--size <width>x<height>] [--density <density>] [--out <dir>] (writes contract and full ShellChrome Avalonia screenshots)");
     Console.WriteLine("mpt broker audit");
     Console.WriteLine("mpt broker secret self-test [--module <id>] [--name <name>]");
     Console.WriteLine("mpt broker portproxy list");

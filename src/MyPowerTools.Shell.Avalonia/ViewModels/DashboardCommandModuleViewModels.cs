@@ -21,6 +21,11 @@ public sealed class DashboardViewModel : ShellPageViewModel
 
     public IReadOnlyList<DashboardCardViewModel> Cards { get; }
     public IReadOnlyList<ShellAlertViewModel> Alerts { get; }
+    public string RunningCount => Cards.Count(card => string.Equals(card.State, "running", StringComparison.OrdinalIgnoreCase)).ToString(CultureInfo.InvariantCulture);
+    public string DegradedCount => Cards.Count(card => string.Equals(card.State, "degraded", StringComparison.OrdinalIgnoreCase)).ToString(CultureInfo.InvariantCulture);
+    public string CommandCount => Cards.Sum(card => card.Actions.Count).ToString(CultureInfo.InvariantCulture);
+    public string NotificationCount => Alerts.Count.ToString(CultureInfo.InvariantCulture);
+    public bool HasAlerts => Alerts.Count > 0;
 }
 
 public sealed class CommandPaletteViewModel : ShellPageViewModel
@@ -29,13 +34,86 @@ public sealed class CommandPaletteViewModel : ShellPageViewModel
         : base("Command Palette", $"{commands.Count} commands", commands.Count == 0 ? "empty" : "ready")
     {
         Query = query;
-        Commands = commands;
+        Commands = RankCommands(query, commands);
+        ProviderGroups = Commands
+            .GroupBy(command => command.ModuleId, StringComparer.OrdinalIgnoreCase)
+            .OrderBy(group => group.Key, StringComparer.OrdinalIgnoreCase)
+            .Select(group => new CommandProviderGroupViewModel(
+                group.Key.Length == 0 ? "unknown" : group.Key,
+                group.Key.Length == 0 ? "Unknown provider" : group.Key,
+                $"{group.Count()} command(s)",
+                group.ToArray()))
+            .ToArray();
+        RecentCommands = Commands
+            .Take(4)
+            .Select(command => new CommandPaletteHistoryItemViewModel(command.CommandId, command.Title, command.ExecutionStateLabel))
+            .ToArray();
+        SelectedCommand = Commands.FirstOrDefault();
     }
 
     public string Query { get; }
     public IReadOnlyList<CommandItemViewModel> Commands { get; }
+    public IReadOnlyList<CommandProviderGroupViewModel> ProviderGroups { get; }
+    public IReadOnlyList<CommandPaletteHistoryItemViewModel> RecentCommands { get; }
+    public CommandItemViewModel? SelectedCommand { get; }
     public bool IsEmpty => Commands.Count == 0;
+    public bool HasSelection => SelectedCommand is not null;
+    public bool HasRecentCommands => RecentCommands.Count > 0;
+    public string KeyboardSelectionHint => "Keyboard selection ready";
+    public string SelectionPreview => SelectedCommand?.ExecutionPreview ?? "No command selected.";
+    public string DangerousConfirmationText => SelectedCommand?.DangerConfirmationText ?? "";
+    public bool RequiresDangerousConfirmation => SelectedCommand?.RequiresDangerousConfirmation == true;
+
+    private static IReadOnlyList<CommandItemViewModel> RankCommands(string query, IReadOnlyList<CommandItemViewModel> commands)
+    {
+        return commands
+            .Select(command => new { Command = command, Score = FuzzyScore(query, command) })
+            .OrderByDescending(item => item.Score)
+            .ThenBy(item => item.Command.ModuleId, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(item => item.Command.Title, StringComparer.OrdinalIgnoreCase)
+            .Select(item => item.Command)
+            .ToArray();
+    }
+
+    private static int FuzzyScore(string query, CommandItemViewModel command)
+    {
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            return 0;
+        }
+
+        var normalizedQuery = query.Trim();
+        var haystack = $"{command.Title} {command.Subtitle} {command.CommandId} {command.ModuleId}";
+        if (haystack.Contains(normalizedQuery, StringComparison.OrdinalIgnoreCase))
+        {
+            return 1000 + normalizedQuery.Length;
+        }
+
+        var score = 0;
+        var cursor = 0;
+        foreach (var ch in normalizedQuery)
+        {
+            var index = haystack.IndexOf(ch.ToString(), cursor, StringComparison.OrdinalIgnoreCase);
+            if (index < 0)
+            {
+                continue;
+            }
+
+            score += index == cursor ? 25 : 10;
+            cursor = index + 1;
+        }
+
+        return score;
+    }
 }
+
+public sealed record CommandProviderGroupViewModel(
+    string ProviderId,
+    string Label,
+    string CountText,
+    IReadOnlyList<CommandItemViewModel> Commands);
+
+public sealed record CommandPaletteHistoryItemViewModel(string CommandId, string Title, string State);
 
 public sealed class ModulesViewModel : ShellPageViewModel
 {

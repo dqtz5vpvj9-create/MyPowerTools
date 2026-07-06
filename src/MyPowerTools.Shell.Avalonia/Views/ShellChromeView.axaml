@@ -4,87 +4,145 @@
              xmlns:vm="using:MyPowerTools.Shell.Avalonia.ViewModels"
              x:Class="MyPowerTools.Shell.Avalonia.Views.ShellChromeView"
              x:DataType="vm:ShellChromeViewModel">
-  <Grid ColumnDefinitions="220,*,360"
-        RowDefinitions="64,*,32"
-        Background="{DynamicResource MptBrushAppBackground}">
+  <Grid Background="{DynamicResource MptBrushAppBackground}">
+    <Grid.ColumnDefinitions>
+      <ColumnDefinition Width="{DynamicResource MptLayoutSidebarGridWidth}" />
+      <ColumnDefinition Width="*" />
+    </Grid.ColumnDefinitions>
+    <Grid.RowDefinitions>
+      <RowDefinition Height="{DynamicResource MptLayoutTopBarGridHeight}" />
+      <RowDefinition Height="*" />
+      <RowDefinition Height="{DynamicResource MptLayoutStatusBarGridHeight}" />
+    </Grid.RowDefinitions>
+
     <controls:MptSidebar x:Name="NavigationHost"
                          Grid.RowSpan="3">
       <TextBlock Classes="MptPageTitle"
-                 Text="MyPowerTools"
+                 Text="MPT"
                  Margin="{DynamicResource MptGapBottomXl}" />
       <ItemsControl ItemsSource="{Binding NavigationItems}">
         <ItemsControl.ItemTemplate>
           <DataTemplate x:DataType="vm:ShellNavigationItemViewModel">
-            <Button Command="{Binding NavigateCommand}"
+            <controls:MptButton Classes="MptNavButton"
+                    Command="{Binding NavigateCommand}"
                     HorizontalContentAlignment="Left"
-                    MinHeight="36"
+                    MinHeight="{DynamicResource MptDensityControlHeight}"
                     Margin="{DynamicResource MptGapBottomS}">
-              <StackPanel Orientation="Horizontal" Spacing="{DynamicResource MptSpacingXs}">
-                <TextBlock Text="{Binding Label}" />
-                <TextBlock Classes="MptMeta"
-                           Text="{Binding SelectionText}"
-                           IsVisible="{Binding IsSelected}" />
-              </StackPanel>
-            </Button>
+              <Grid ColumnDefinitions="Auto,*">
+                <Border Classes="MptNavIndicator"
+                        IsVisible="{Binding IsSelected}" />
+                <TextBlock Grid.Column="1"
+                           Text="{Binding Label}" />
+              </Grid>
+            </controls:MptButton>
           </DataTemplate>
         </ItemsControl.ItemTemplate>
       </ItemsControl>
     </controls:MptSidebar>
 
     <controls:MptTopBar Grid.Column="1"
-                        Grid.ColumnSpan="2">
+                        ColumnDefinitions="*,Auto">
       <controls:MptSearchBox x:Name="SearchBox" />
-      <Button x:Name="RefreshButton"
-              Grid.Column="1"
-              Content="Refresh"
-              Command="{Binding RefreshCommand}"
-              Margin="{DynamicResource MptCommandPanelMargin}"
-              HorizontalAlignment="Right"
-              MinWidth="76"
-              MinHeight="32" />
+      <StackPanel Grid.Column="1"
+                  Orientation="Horizontal"
+                  Spacing="{DynamicResource MptSpacingS}"
+                  HorizontalAlignment="Right">
+        <controls:MptButton Classes="MptPrimaryButton"
+                Content="Commands"
+                Command="{Binding OpenCommandPaletteCommand}"
+                MinWidth="{DynamicResource MptDensityActionMinWidth}" />
+        <controls:MptButton x:Name="RefreshButton"
+                Content="Refresh"
+                Command="{Binding RefreshCommand}"
+                MinWidth="{DynamicResource MptDensityActionMinWidth}" />
+      </StackPanel>
     </controls:MptTopBar>
 
     <ScrollViewer Grid.Column="1"
                   Grid.Row="1"
                   Margin="{DynamicResource MptPagePadding}">
-      <ContentControl x:Name="ContentHost" />
+      <ContentControl x:Name="ContentHost"
+                      MaxWidth="{DynamicResource MptLayoutPageMaxWidth}"
+                      HorizontalAlignment="Stretch" />
     </ScrollViewer>
 
-    <Border Grid.Column="2"
-            Grid.Row="1"
-            Margin="{DynamicResource MptSearchPanelMargin}"
-            Padding="{DynamicResource MptSearchBoxPadding}"
-            CornerRadius="{DynamicResource MptRadiusCard}"
-            BorderBrush="{DynamicResource MptBrushBorder}"
-            BorderThickness="1"
-            Background="{DynamicResource MptBrushCardBackground}">
-      <DockPanel LastChildFill="True">
-        <TextBlock DockPanel.Dock="Top"
-                   Classes="MptSectionTitle"
-                   Text="Command Palette"
-                   Margin="{DynamicResource MptGapBottomL}" />
-        <ContentControl x:Name="PermissionPanel"
-                        DockPanel.Dock="Top" />
-        <ContentControl x:Name="AuditPanel"
-                        DockPanel.Dock="Bottom" />
-        <ScrollViewer>
-          <ContentControl x:Name="CommandPanel" />
-        </ScrollViewer>
-      </DockPanel>
-    </Border>
-
     <Grid Grid.Column="1"
-          Grid.ColumnSpan="2"
           Grid.Row="2"
           ColumnDefinitions="*,Auto"
           Margin="{DynamicResource MptStatusBarMargin}">
       <TextBlock x:Name="StatusBar"
+                 Classes="MptMeta"
                  Text="{Binding StatusText}"
                  VerticalAlignment="Center" />
       <TextBlock x:Name="RunnerStatus"
                  Grid.Column="1"
+                 Classes="MptMeta"
                  Text="{Binding RunnerStatusText}"
                  VerticalAlignment="Center" />
     </Grid>
+
+    <Grid x:Name="GlobalOverlayHost"
+          Grid.ColumnSpan="2"
+          Grid.RowSpan="3"
+          Background="{DynamicResource MptBrushOverlayScrim}"
+          IsVisible="{Binding IsCommandPaletteOpen}">
+      <Border Width="{DynamicResource MptLayoutOverlayWidth}"
+              MaxHeight="{DynamicResource MptLayoutOverlayMaxHeight}"
+              Padding="{DynamicResource MptOverlayPadding}"
+              CornerRadius="{DynamicResource MptRadiusOverlay}"
+              BorderBrush="{DynamicResource MptBrushBorderStrong}"
+              BorderThickness="{DynamicResource MptBorderThickness}"
+              Background="{DynamicResource MptBrushCardBackground}"
+              BoxShadow="{DynamicResource MptShadowOverlay}"
+              HorizontalAlignment="Center"
+              VerticalAlignment="Center">
+        <Grid RowDefinitions="Auto,*">
+          <controls:MptButton Content="Close"
+                  Command="{Binding CloseCommandPaletteCommand}"
+                  MinWidth="{DynamicResource MptDensityActionMinWidth}"
+                  HorizontalAlignment="Right"
+                  Margin="{DynamicResource MptGapBottomL}" />
+          <ContentControl x:Name="CommandPanel"
+                          Grid.Row="1" />
+        </Grid>
+      </Border>
+    </Grid>
+
+    <Grid Grid.ColumnSpan="2"
+          Grid.RowSpan="3"
+          Background="{DynamicResource MptBrushOverlayScrim}"
+          IsVisible="{Binding IsPermissionPromptOpen}">
+      <Border Width="{DynamicResource MptLayoutPermissionPromptWidth}"
+              Padding="{DynamicResource MptOverlayPanelPadding}"
+              CornerRadius="{DynamicResource MptRadiusOverlay}"
+              BorderBrush="{DynamicResource MptBrushWarning}"
+              BorderThickness="{DynamicResource MptBorderThickness}"
+              Background="{DynamicResource MptBrushCardBackground}"
+              BoxShadow="{DynamicResource MptShadowRaised}"
+              HorizontalAlignment="Center"
+              VerticalAlignment="Center">
+        <Grid RowDefinitions="Auto,*">
+          <Grid ColumnDefinitions="*,Auto"
+                Margin="{DynamicResource MptGapBottomL}">
+            <StackPanel Spacing="{DynamicResource MptSpacingXs}">
+              <TextBlock Classes="MptSectionTitle"
+                         Text="Permission Required" />
+              <TextBlock Classes="MptMeta"
+                         Text="Review the requested broker action before continuing." />
+            </StackPanel>
+            <controls:MptButton Grid.Column="1"
+                    Content="Dismiss"
+                    Command="{Binding DismissPermissionPromptCommand}"
+                    MinWidth="{DynamicResource MptDensityActionMinWidth}" />
+          </Grid>
+          <ContentControl x:Name="PermissionPanel"
+                          Grid.Row="1" />
+        </Grid>
+      </Border>
+    </Grid>
+
+    <ContentControl x:Name="AuditPanel"
+                    IsVisible="False" />
   </Grid>
 </UserControl>
+

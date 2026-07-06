@@ -68,12 +68,14 @@ public sealed partial class ShellWorkspaceController
                 : await _commandExecutionService.ExecuteAsync(invocationId, commandId, args, cancellationToken);
             SetStatus(result.StatusText);
             _permissionPanel.Content = null;
+            _chromeViewModel.IsPermissionPromptOpen = false;
             if (result.RequiresPermissionPrompt)
             {
                 _permissionPanel.Content = new PermissionPromptView
                 {
                     DataContext = ShellPageViewModelFactory.FromPermissionPrompt(result.Response, LoadBrokerAuditAsync)
                 };
+                _chromeViewModel.IsPermissionPromptOpen = true;
             }
 
             await LoadBrokerAuditAsync();
@@ -102,12 +104,14 @@ public sealed partial class ShellWorkspaceController
         {
             SetStatus(result.StatusText);
             _permissionPanel.Content = null;
+            _chromeViewModel.IsPermissionPromptOpen = false;
             if (result.RequiresPermissionPrompt && result.Event.FinalResponse is not null)
             {
                 _permissionPanel.Content = new PermissionPromptView
                 {
                     DataContext = ShellPageViewModelFactory.FromPermissionPrompt(result.Event.FinalResponse, LoadBrokerAuditAsync)
                 };
+                _chromeViewModel.IsPermissionPromptOpen = true;
             }
 
             yield return new CommandExecutionStatus(

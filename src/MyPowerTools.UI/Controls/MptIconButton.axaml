@@ -1,0 +1,7 @@
+<Styles xmlns="https://github.com/avaloniaui">
+  <Style Selector="Button.MptIconButton">
+    <Setter Property="MinWidth" Value="{DynamicResource MptDensityControlHeight}" />
+    <Setter Property="MinHeight" Value="{DynamicResource MptDensityControlHeight}" />
+    <Setter Property="Padding" Value="{DynamicResource MptCompactPadding}" />
+  </Style>
+</Styles>

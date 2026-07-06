@@ -63,6 +63,19 @@ public sealed class SettingsCenterViewModel : ShellPageViewModel
             };
         }
 
+        foreach (var hotkey in Hotkeys)
+        {
+            hotkey.PropertyChanged += (_, args) =>
+            {
+                if (args.PropertyName is nameof(HotkeyBindingViewModel.Gesture)
+                    or nameof(HotkeyBindingViewModel.ResetRequested)
+                    or nameof(HotkeyBindingViewModel.IsDirty))
+                {
+                    RefreshStagedChanges();
+                }
+            };
+        }
+
         RefreshStagedChanges();
     }
 
@@ -218,8 +231,11 @@ public sealed class SettingsCenterViewModel : ShellPageViewModel
         if (UsesRawJson)
         {
             var changed = !string.Equals(RawJson.Trim(), _originalRawJson.Trim(), StringComparison.Ordinal);
-            DirtyCount = changed ? 1 : 0;
-            PatchPreview = changed ? $"rawJson: {RawJson.Length} character(s) staged." : "";
+            var rawDirtyHotkeys = HotkeyDirtySummaries();
+            DirtyCount = (changed ? 1 : 0) + rawDirtyHotkeys.Length;
+            PatchPreview = string.Join(
+                Environment.NewLine,
+                (changed ? new[] { $"rawJson: {RawJson.Length} character(s) staged." } : Array.Empty<string>()).Concat(rawDirtyHotkeys));
             ValidationMessage = ValidateRawJson();
             _saveCommand.NotifyCanExecuteChanged();
             return;
@@ -233,10 +249,21 @@ public sealed class SettingsCenterViewModel : ShellPageViewModel
             .Where(field => field.IsDirty)
             .Select(field => field.DirtySummary)
             .ToArray();
-        DirtyCount = dirtyFields.Length;
-        PatchPreview = string.Join(Environment.NewLine, dirtyFields);
+        var dirtyHotkeys = HotkeyDirtySummaries();
+        DirtyCount = dirtyFields.Length + dirtyHotkeys.Length;
+        PatchPreview = string.Join(Environment.NewLine, dirtyFields.Concat(dirtyHotkeys));
         ValidationMessage = string.Join(" ", validationMessages);
         _saveCommand.NotifyCanExecuteChanged();
+    }
+
+    private string[] HotkeyDirtySummaries()
+    {
+        return Hotkeys
+            .Where(hotkey => hotkey.IsDirty || hotkey.ResetRequested)
+            .Select(hotkey => hotkey.ResetRequested
+                ? $"{hotkey.Id}: reset to {hotkey.DefaultGesture}"
+                : $"{hotkey.Id}: {hotkey.OriginalGesture} -> {hotkey.Gesture}")
+            .ToArray();
     }
 
     private string ValidateRawJson()

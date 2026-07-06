@@ -1,0 +1,11 @@
+<Styles xmlns="https://github.com/avaloniaui">
+  <Style Selector="StackPanel.MptCommandParameterForm">
+    <Setter Property="Spacing" Value="{DynamicResource MptSpacingS}" />
+  </Style>
+
+  <Style Selector="Border.MptCommandParameterForm">
+    <Setter Property="Padding" Value="{DynamicResource MptCompactPadding}" />
+    <Setter Property="CornerRadius" Value="{DynamicResource MptRadiusControl}" />
+    <Setter Property="Background" Value="{DynamicResource MptBrushSurfaceInset}" />
+  </Style>
+</Styles>

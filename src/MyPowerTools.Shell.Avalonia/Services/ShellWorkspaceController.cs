@@ -11,6 +11,7 @@ public sealed partial class ShellWorkspaceController : IAsyncDisposable
 {
     private const string DashboardPage = "Dashboard";
     private const string ModulesPage = "Modules";
+    private const string CommandsPage = "Commands";
     private const string SettingsPage = "Settings";
     private const string LogsPage = "Logs";
     private const string NotificationsPage = "Notifications";
@@ -46,6 +47,7 @@ public sealed partial class ShellWorkspaceController : IAsyncDisposable
         _auditPanel = auditPanel;
 
         _searchBox.TextChanged += async (_, _) => await LoadCommandsAsync(_searchBox.Text ?? "");
+        _searchBox.GotFocus += async (_, _) => await OpenCommandPaletteAsync(focusSearch: false);
         _runnerEvents.StatusChanged += text => Dispatcher.UIThread.Post(() => SetStatus(text));
         _runnerEvents.RunnerStatusChanged += text => Dispatcher.UIThread.Post(() => SetRunnerStatus(text));
         _runnerEvents.RunnerRecovered += () => Dispatcher.UIThread.Post(async () => await RefreshShellDataAsync());
@@ -53,7 +55,7 @@ public sealed partial class ShellWorkspaceController : IAsyncDisposable
     }
 
     public static IReadOnlyList<string> PageLabels { get; } =
-        [DashboardPage, ModulesPage, SettingsPage, LogsPage, NotificationsPage, PackagesPage, DiagnosticsPage];
+        [DashboardPage, ModulesPage, CommandsPage, SettingsPage, LogsPage, NotificationsPage, PackagesPage, DiagnosticsPage];
 
     public async Task OpenAsync()
     {
@@ -69,8 +71,20 @@ public sealed partial class ShellWorkspaceController : IAsyncDisposable
 
     public async Task ShowPageAsync(string page)
     {
+        if (string.Equals(page, CommandsPage, StringComparison.OrdinalIgnoreCase))
+        {
+            _chromeViewModel.SelectPage(CommandsPage);
+            await OpenCommandPaletteAsync();
+            return;
+        }
+
         _currentPage = page;
         _chromeViewModel.SelectPage(page);
+        if (!string.Equals(page, CommandsPage, StringComparison.OrdinalIgnoreCase))
+        {
+            _chromeViewModel.IsCommandPaletteOpen = false;
+        }
+
         SetStatus($"Loading {page}");
 
         switch (page)
@@ -80,6 +94,9 @@ public sealed partial class ShellWorkspaceController : IAsyncDisposable
                 break;
             case ModulesPage:
                 await LoadModulesPageAsync();
+                break;
+            case CommandsPage:
+                await OpenCommandPaletteAsync();
                 break;
             case SettingsPage:
                 await LoadSettingsPageAsync();
@@ -118,14 +135,6 @@ public sealed partial class ShellWorkspaceController : IAsyncDisposable
         }
     }
 
-    public async Task FocusCommandPaletteAsync()
-    {
-        _searchBox.Focus();
-        _searchBox.SelectAll();
-        SetStatus("Command Palette focused.");
-        await LoadCommandsAsync(_searchBox.Text ?? "");
-    }
-
     public async ValueTask DisposeAsync()
     {
         await _runnerEvents.DisposeAsync();
@@ -150,10 +159,7 @@ public sealed partial class ShellWorkspaceController : IAsyncDisposable
                 await FocusCommandPaletteAsync();
                 break;
             case ShellKeyboardAction.ClearCommandPalette:
-                _searchBox.Text = "";
-                _contentHost.Focus();
-                SetStatus("Command Palette cleared.");
-                await LoadCommandsAsync("");
+                await CloseCommandPaletteAsync();
                 break;
             case ShellKeyboardAction.Refresh:
                 await RefreshAsync();

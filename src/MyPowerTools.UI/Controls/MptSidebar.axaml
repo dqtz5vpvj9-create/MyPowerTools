@@ -1,0 +1,42 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:controls="using:MyPowerTools.UI.Controls">
+  <Style Selector="controls|MptSidebar">
+    <Setter Property="Spacing" Value="{DynamicResource MptSpacingS}" />
+    <Setter Property="Margin" Value="{DynamicResource MptSidebarPadding}" />
+  </Style>
+
+  <Style Selector="controls|MptButton.MptNavButton">
+    <Setter Property="HorizontalContentAlignment" Value="Left" />
+    <Setter Property="Background" Value="{DynamicResource MptBrushAppBackground}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MptBrushAppBackground}" />
+  </Style>
+
+  <Style Selector="controls|MptButton.MptNavButton:pointerover">
+    <Setter Property="Background" Value="{DynamicResource MptBrushSurfaceMuted}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MptBrushAccent}" />
+  </Style>
+
+  <Style Selector="StackPanel.MptSidebar">
+    <Setter Property="Spacing" Value="{DynamicResource MptSpacingS}" />
+    <Setter Property="Margin" Value="{DynamicResource MptSidebarPadding}" />
+  </Style>
+
+  <Style Selector="Button.MptNavButton">
+    <Setter Property="HorizontalContentAlignment" Value="Left" />
+    <Setter Property="Background" Value="{DynamicResource MptBrushAppBackground}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MptBrushAppBackground}" />
+  </Style>
+
+  <Style Selector="Button.MptNavButton:pointerover">
+    <Setter Property="Background" Value="{DynamicResource MptBrushSurfaceMuted}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MptBrushAccent}" />
+  </Style>
+
+  <Style Selector="Border.MptNavIndicator">
+    <Setter Property="Width" Value="{DynamicResource MptNavIndicatorWidth}" />
+    <Setter Property="MinHeight" Value="{DynamicResource MptDensityCompactControlHeight}" />
+    <Setter Property="CornerRadius" Value="{DynamicResource MptRadiusBadge}" />
+    <Setter Property="Background" Value="{DynamicResource MptBrushAccent}" />
+    <Setter Property="Margin" Value="{DynamicResource MptGapRightM}" />
+  </Style>
+</Styles>

@@ -1,94 +1,188 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="using:MyPowerTools.UI.Controls"
              xmlns:vm="using:MyPowerTools.Shell.Avalonia.ViewModels"
              x:Class="MyPowerTools.Shell.Avalonia.Views.CommandPaletteView"
              x:DataType="vm:CommandPaletteViewModel">
-  <StackPanel Margin="{DynamicResource MptPagePadding}" Spacing="{DynamicResource MptSpacingM}">
-    <StackPanel Spacing="{DynamicResource MptSpacingXs}">
-      <TextBlock Classes="MptPageTitle" Text="{Binding Title}" />
-      <TextBlock Classes="MptPageSubtitle" Text="{Binding Subtitle}" />
-    </StackPanel>
+  <Grid ColumnDefinitions="*,380"
+        RowDefinitions="Auto,*"
+        ColumnSpacing="{DynamicResource MptSpacingM}">
+    <Grid Grid.ColumnSpan="2"
+          ColumnDefinitions="*,Auto"
+          Margin="{DynamicResource MptGapBottomM}">
+      <StackPanel Spacing="{DynamicResource MptSpacingXs}">
+        <TextBlock Classes="MptSectionTitle" Text="Command Palette" />
+        <TextBlock Classes="MptMeta" Text="{Binding KeyboardSelectionHint}" />
+      </StackPanel>
+      <Border Grid.Column="1" Classes="MptStatusBadge">
+        <TextBlock Classes="MptMeta" Text="{Binding Subtitle}" />
+      </Border>
+    </Grid>
 
-    <Border Classes="MptInset">
-      <TextBlock Classes="MptMeta" Text="{Binding Query}" />
-    </Border>
+    <ScrollViewer Grid.Row="1">
+      <StackPanel Spacing="{DynamicResource MptSpacingM}">
+        <controls:MptSearchBox Text="{Binding Query, Mode=OneWay}"
+                               MinHeight="{DynamicResource MptDensityControlHeight}"
+                               Padding="{DynamicResource MptSearchBoxPadding}"
+                               CornerRadius="{DynamicResource MptRadiusControl}"
+                               Background="{DynamicResource MptBrushCardBackground}"
+                               BorderBrush="{DynamicResource MptBrushBorderStrong}"
+                               BorderThickness="{DynamicResource MptBorderThickness}"
+                               Foreground="{DynamicResource MptBrushTextPrimary}" />
 
-    <TextBlock Classes="MptPageSubtitle"
-               Text="No commands found."
-               IsVisible="{Binding IsEmpty}" />
+        <Border Classes="MptInset" IsVisible="{Binding HasRecentCommands}">
+          <StackPanel Spacing="{DynamicResource MptSpacingXs}">
+            <TextBlock Classes="MptSectionTitle" Text="Recent" />
+            <ItemsControl ItemsSource="{Binding RecentCommands}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:CommandPaletteHistoryItemViewModel">
+                  <Grid ColumnDefinitions="*,Auto" Margin="{DynamicResource MptGapBottomXs}">
+                    <TextBlock Text="{Binding Title}" />
+                    <TextBlock Grid.Column="1" Classes="MptMeta" Text="{Binding State}" />
+                  </Grid>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+        </Border>
 
-    <ItemsControl ItemsSource="{Binding Commands}">
-      <ItemsControl.ItemTemplate>
-        <DataTemplate x:DataType="vm:CommandItemViewModel">
-          <Border Classes="MptCommandItem" Margin="{DynamicResource MptGapBottomM}">
-            <StackPanel Spacing="{DynamicResource MptSpacingS}">
-              <Grid ColumnDefinitions="*,Auto">
-                <TextBlock FontWeight="SemiBold" Text="{Binding Title}" />
-                <TextBlock Grid.Column="1" Classes="MptMeta" Text="{Binding RiskLabel}" />
-              </Grid>
-              <TextBlock Classes="MptPageSubtitle" Text="{Binding Subtitle}" />
-              <TextBlock Classes="MptMeta" Text="{Binding CommandId}" />
-              <TextBlock Classes="MptMeta" Text="{Binding ModuleLabel}" />
-              <TextBlock Classes="MptMeta"
-                         Text="{Binding ParameterSummary}"
-                         IsVisible="{Binding HasParameters}" />
-              <TextBlock Classes="MptMeta" Text="{Binding ExecutionPreview}" />
+        <TextBlock Classes="MptPageSubtitle"
+                   Text="No commands found."
+                   IsVisible="{Binding IsEmpty}" />
 
-              <ItemsControl ItemsSource="{Binding Parameters}" IsVisible="{Binding HasParameters}">
-                <ItemsControl.ItemTemplate>
-                  <DataTemplate x:DataType="vm:CommandParameterViewModel">
-                    <StackPanel Spacing="{DynamicResource MptSpacingXs}" Margin="{DynamicResource MptGapBottomS}">
-                      <TextBlock Classes="MptMeta" Text="{Binding Label}" />
-                      <TextBox Text="{Binding Value, Mode=TwoWay}"
-                               MinHeight="32"
-                               IsVisible="{Binding IsText}" />
-                      <CheckBox IsChecked="{Binding BooleanValue, Mode=TwoWay}"
-                                Content="{Binding Label}"
-                                IsVisible="{Binding IsBoolean}" />
-                      <TextBlock Classes="MptMeta"
-                                 Text="{Binding ValidationMessage}"
-                                 IsVisible="{Binding HasValidationError}" />
-                    </StackPanel>
-                  </DataTemplate>
-                </ItemsControl.ItemTemplate>
-              </ItemsControl>
-
-              <TextBlock Classes="MptMeta"
-                         Text="{Binding ValidationMessage}"
-                         IsVisible="{Binding HasValidationError}" />
-              <TextBlock Classes="MptMeta" Text="{Binding ExecutionStateLabel}" />
-              <TextBlock Classes="MptMeta"
-                         Text="{Binding ExecutionMessage}"
-                         IsVisible="{Binding HasExecutionMessage}" />
-              <ItemsControl ItemsSource="{Binding ProgressEvents}"
-                            IsVisible="{Binding HasProgressEvents}">
-                <ItemsControl.ItemTemplate>
-                  <DataTemplate x:DataType="vm:CommandProgressItemViewModel">
-                    <Grid ColumnDefinitions="92,*" Margin="{DynamicResource MptGapBottomXs}">
-                      <TextBlock Classes="MptMeta" Text="{Binding StateLabel}" />
-                      <TextBlock Grid.Column="1"
-                                 Classes="MptMeta"
-                                 Text="{Binding Message}"
-                                 TextWrapping="Wrap" />
-                    </Grid>
-                  </DataTemplate>
-                </ItemsControl.ItemTemplate>
-              </ItemsControl>
-              <StackPanel Orientation="Horizontal" Spacing="{DynamicResource MptSpacingS}">
-                <Button Content="{Binding ExecuteLabel}"
-                        Command="{Binding ExecuteCommand}"
-                        MinHeight="32"
-                        MinWidth="76" />
-                <Button Content="{Binding CancelLabel}"
-                        Command="{Binding CancelCommand}"
-                        IsVisible="{Binding CanCancel}"
-                        MinHeight="32"
-                        MinWidth="76" />
+        <ItemsControl ItemsSource="{Binding ProviderGroups}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:CommandProviderGroupViewModel">
+              <StackPanel Spacing="{DynamicResource MptSpacingS}" Margin="{DynamicResource MptGapBottomM}">
+                <Grid ColumnDefinitions="*,Auto">
+                  <TextBlock Classes="MptSectionTitle" Text="{Binding Label}" />
+                  <TextBlock Grid.Column="1" Classes="MptMeta" Text="{Binding CountText}" />
+                </Grid>
+                <ItemsControl ItemsSource="{Binding Commands}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:CommandItemViewModel">
+                      <Border Classes="MptCommandItem MptCommandListItem" Margin="{DynamicResource MptGapBottomS}">
+                        <StackPanel Spacing="{DynamicResource MptSpacingXs}">
+                          <Grid ColumnDefinitions="*,Auto">
+                            <TextBlock FontWeight="SemiBold" Text="{Binding Title}" />
+                            <TextBlock Grid.Column="1" Classes="MptMeta" Text="{Binding RiskLabel}" />
+                          </Grid>
+                          <TextBlock Classes="MptMeta" Text="{Binding CommandId}" />
+                          <TextBlock Classes="MptPageSubtitle" Text="{Binding Subtitle}" />
+                        </StackPanel>
+                      </Border>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
               </StackPanel>
-            </StackPanel>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </StackPanel>
+    </ScrollViewer>
+
+    <Border Grid.Row="1"
+            Grid.Column="1"
+            Classes="MptSettingsSection"
+            IsVisible="{Binding HasSelection}">
+      <ScrollViewer>
+        <StackPanel Spacing="{DynamicResource MptSpacingS}">
+          <Grid ColumnDefinitions="*,Auto">
+            <TextBlock Classes="MptSectionTitle" Text="{Binding SelectedCommand.Title}" />
+            <TextBlock Grid.Column="1" Classes="MptMeta" Text="{Binding SelectedCommand.ExecutionStateLabel}" />
+          </Grid>
+          <TextBlock Classes="MptPageSubtitle" Text="{Binding SelectedCommand.Subtitle}" />
+          <TextBlock Classes="MptMeta" Text="{Binding SelectedCommand.CommandId}" />
+          <TextBlock Classes="MptMeta"
+                     Text="{Binding SelectedCommand.ParameterSummary}"
+                     IsVisible="{Binding SelectedCommand.HasParameters}" />
+          <TextBlock Classes="MptMeta" Text="{Binding SelectedCommand.ExecutionPreview}" TextWrapping="Wrap" />
+
+          <Border Classes="MptInset" IsVisible="{Binding RequiresDangerousConfirmation}">
+            <TextBlock Classes="MptMeta"
+                       Text="{Binding DangerousConfirmationText}"
+                       TextWrapping="Wrap" />
           </Border>
-        </DataTemplate>
-      </ItemsControl.ItemTemplate>
-    </ItemsControl>
-  </StackPanel>
+
+          <StackPanel Orientation="Horizontal" Spacing="{DynamicResource MptSpacingS}">
+            <controls:MptButton Classes="MptPrimaryButton"
+                    Content="{Binding SelectedCommand.ExecuteLabel}"
+                    Command="{Binding SelectedCommand.ExecuteCommand}"
+                    MinWidth="{DynamicResource MptDensityActionMinWidth}" />
+            <controls:MptButton Content="{Binding SelectedCommand.CancelLabel}"
+                    Command="{Binding SelectedCommand.CancelCommand}"
+                    IsVisible="{Binding SelectedCommand.CanCancel}"
+                    MinWidth="{DynamicResource MptDensityActionMinWidth}" />
+          </StackPanel>
+
+          <Border Classes="MptCommandParameterForm"
+                  IsVisible="{Binding SelectedCommand.HasParameters}">
+            <ItemsControl ItemsSource="{Binding SelectedCommand.Parameters}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:CommandParameterViewModel">
+                  <StackPanel Classes="MptCommandParameterForm"
+                              Margin="{DynamicResource MptGapBottomS}">
+                    <TextBlock Classes="MptMeta" Text="{Binding Label}" />
+                    <controls:MptTextBox Text="{Binding Value, Mode=TwoWay}"
+                                         MinHeight="{DynamicResource MptDensityControlHeight}"
+                                         Padding="{DynamicResource MptInputPadding}"
+                                         CornerRadius="{DynamicResource MptRadiusControl}"
+                                         Background="{DynamicResource MptBrushCardBackground}"
+                                         BorderBrush="{DynamicResource MptBrushBorderStrong}"
+                                         BorderThickness="{DynamicResource MptBorderThickness}"
+                                         Foreground="{DynamicResource MptBrushTextPrimary}"
+                                         IsVisible="{Binding IsText}" />
+                    <controls:MptCheckBox IsChecked="{Binding BooleanValue, Mode=TwoWay}"
+                                          Content="{Binding Label}"
+                                          IsVisible="{Binding IsBoolean}" />
+                    <TextBlock Classes="MptMeta"
+                               Text="{Binding ValidationMessage}"
+                               IsVisible="{Binding HasValidationError}" />
+                  </StackPanel>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </Border>
+
+          <TextBlock Classes="MptMeta"
+                     Text="{Binding SelectedCommand.ValidationMessage}"
+                     IsVisible="{Binding SelectedCommand.HasValidationError}" />
+          <TextBlock Classes="MptMeta"
+                     Text="{Binding SelectedCommand.ResultSummary}"
+                     TextWrapping="Wrap" />
+          <TextBlock Classes="MptMeta"
+                     Text="{Binding SelectedCommand.StdoutPreview}"
+                     IsVisible="{Binding SelectedCommand.HasStdout}"
+                     TextWrapping="Wrap" />
+          <TextBlock Classes="MptMeta"
+                     Text="{Binding SelectedCommand.StderrPreview}"
+                     IsVisible="{Binding SelectedCommand.HasStderr}"
+                     TextWrapping="Wrap" />
+
+          <ItemsControl ItemsSource="{Binding SelectedCommand.ProgressEvents}"
+                        IsVisible="{Binding SelectedCommand.HasProgressEvents}">
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:CommandProgressItemViewModel">
+                <Grid ColumnDefinitions="64,*" Margin="{DynamicResource MptGapBottomXs}">
+                  <TextBlock Classes="MptMeta" Text="{Binding StateLabel}" />
+                  <TextBlock Grid.Column="1"
+                             Classes="MptMeta"
+                             Text="{Binding Message}"
+                             TextWrapping="Wrap" />
+                </Grid>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+
+          <Border Classes="MptInset" IsVisible="{Binding SelectedCommand.HasExpandableError}">
+            <TextBlock Classes="MptMeta"
+                       Text="{Binding SelectedCommand.ExecutionMessage}"
+                       TextWrapping="Wrap" />
+          </Border>
+
+        </StackPanel>
+      </ScrollViewer>
+    </Border>
+  </Grid>
 </UserControl>
+

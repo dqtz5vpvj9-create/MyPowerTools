@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="using:MyPowerTools.UI.Controls"
              xmlns:vm="using:MyPowerTools.Shell.Avalonia.ViewModels"
              x:Class="MyPowerTools.Shell.Avalonia.Views.PermissionPromptView"
              x:DataType="vm:PermissionPromptViewModel">
@@ -16,10 +17,11 @@
           </DataTemplate>
         </ItemsControl.ItemTemplate>
       </ItemsControl>
-      <Button Content="Audit"
+      <controls:MptButton Content="Audit"
               Command="{Binding AuditCommand}"
               MinHeight="32"
               MinWidth="76" />
     </StackPanel>
   </Border>
 </UserControl>
+

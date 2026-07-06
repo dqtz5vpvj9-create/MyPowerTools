@@ -1,10 +1,33 @@
 <Styles xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
   <Styles.Resources>
-    <x:Double x:Key="MptDensityControlHeight">32</x:Double>
-    <x:Double x:Key="MptDensityListItemMinHeight">36</x:Double>
-    <x:Double x:Key="MptDensityCardMinHeight">96</x:Double>
-    <x:Double x:Key="MptDensityMetricTileMinWidth">96</x:Double>
+    <x:Double x:Key="MptLayoutSidebarWidth">232</x:Double>
+    <x:Double x:Key="MptLayoutTopBarHeight">56</x:Double>
+    <GridLength x:Key="MptLayoutSidebarGridWidth">232</GridLength>
+    <GridLength x:Key="MptLayoutTopBarGridHeight">56</GridLength>
+    <GridLength x:Key="MptLayoutStatusBarGridHeight">32</GridLength>
+    <GridLength x:Key="MptLayoutMetricLabelGridWidth">96</GridLength>
+    <x:Double x:Key="MptLayoutPageMaxWidth">1180</x:Double>
+    <x:Double x:Key="MptLayoutCardMinWidth">360</x:Double>
+    <x:Double x:Key="MptLayoutPackageCardWidth">720</x:Double>
+    <x:Double x:Key="MptLayoutCardMinHeight">176</x:Double>
+    <x:Double x:Key="MptLayoutContentPadding">28</x:Double>
+    <x:Double x:Key="MptLayoutGridGap">16</x:Double>
+    <x:Double x:Key="MptLayoutOverlayWidth">860</x:Double>
+    <x:Double x:Key="MptLayoutOverlayMaxHeight">620</x:Double>
+    <x:Double x:Key="MptLayoutPermissionPromptWidth">560</x:Double>
+    <x:Double x:Key="MptLayoutStatusBarHeight">32</x:Double>
+    <x:Double x:Key="MptDensityControlHeight">36</x:Double>
+    <x:Double x:Key="MptDensityCompactControlHeight">32</x:Double>
+    <x:Double x:Key="MptDensityActionMinWidth">76</x:Double>
+    <x:Double x:Key="MptDensityListItemMinHeight">40</x:Double>
+    <x:Double x:Key="MptDensityCardMinHeight">176</x:Double>
+    <x:Double x:Key="MptDensityMetricTileMinWidth">120</x:Double>
     <x:Double x:Key="MptDensityMetricTileMinHeight">64</x:Double>
+    <x:Double x:Key="MptPackageSourceInputWidth">360</x:Double>
+    <x:Double x:Key="MptPackageIdInputWidth">220</x:Double>
+    <x:Double x:Key="MptPackageActionWidth">86</x:Double>
+    <x:Double x:Key="MptNavIndicatorWidth">3</x:Double>
+    <x:Double x:Key="MptDisabledOpacity">0.55</x:Double>
   </Styles.Resources>
 </Styles>

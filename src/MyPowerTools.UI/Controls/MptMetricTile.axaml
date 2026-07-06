@@ -1,0 +1,9 @@
+<Styles xmlns="https://github.com/avaloniaui">
+  <Style Selector="Border.MptMetricTile">
+    <Setter Property="MinWidth" Value="{DynamicResource MptDensityMetricTileMinWidth}" />
+    <Setter Property="MinHeight" Value="{DynamicResource MptDensityMetricTileMinHeight}" />
+    <Setter Property="Padding" Value="{DynamicResource MptCompactPadding}" />
+    <Setter Property="CornerRadius" Value="{DynamicResource MptRadiusControl}" />
+    <Setter Property="Background" Value="{DynamicResource MptBrushSurfaceInset}" />
+  </Style>
+</Styles>

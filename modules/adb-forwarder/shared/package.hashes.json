@@ -3,19 +3,19 @@
   "Files": [
     {
       "Path": "AdbForwarder.MyPowerTools.dll",
-      "Sha256": "22ae4354583d5aa3e80757c8135319f1ffe263893b78d7f034124f0eb8f77d93"
+      "Sha256": "eb15eaf088e3f601d70b0a4b3848b21e7eed262ad2f41528dcefc5703d5c18fc"
     },
     {
       "Path": "AdbForwarder.MyPowerTools.pdb",
-      "Sha256": "ea01b9d5341255baff92493f95788478697cf45b445ce1a30aff4f3ed08680a0"
+      "Sha256": "df60105f8f32d011b8f4fde4344f8ac23a811c61a55260a55b5a17a4e6cc70e2"
     },
     {
       "Path": "commands.index.json",
-      "Sha256": "2323a88c0ab8d8de9317c256b2e456cfd202c6d0448bd562c211433112c9684c"
+      "Sha256": "9d71a0deab5039af8fe53cda6e2ebceb4a347ab93bd5f74399ba8e8d2650c48a"
     },
     {
       "Path": "module.json",
-      "Sha256": "0dcb95d761535482c5019ac3e6ee045c5f337b6fdc7956d000f648a6cae38cae"
+      "Sha256": "b943e373c55cb85beeb028178e1186fe6fb5f79b41e248ebb8c25fa60c674607"
     },
     {
       "Path": "ui/dashboard-card.json",

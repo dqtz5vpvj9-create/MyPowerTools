@@ -1,0 +1,15 @@
+<Styles xmlns="https://github.com/avaloniaui">
+  <Style Selector="Border.MptEmptyState">
+    <Setter Property="Padding" Value="{DynamicResource MptCardPadding}" />
+    <Setter Property="CornerRadius" Value="{DynamicResource MptRadiusCard}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MptBrushBorder}" />
+    <Setter Property="BorderThickness" Value="{DynamicResource MptBorderThickness}" />
+    <Setter Property="Background" Value="{DynamicResource MptBrushCardBackground}" />
+  </Style>
+
+  <Style Selector="TextBlock.MptEmptyState">
+    <Setter Property="Foreground" Value="{DynamicResource MptBrushTextSecondary}" />
+    <Setter Property="HorizontalAlignment" Value="Center" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+</Styles>

@@ -1,9 +1,104 @@
-<Styles xmlns="https://github.com/avaloniaui">
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:controls="using:MyPowerTools.UI.Controls">
+  <Style Selector="controls|MptTextBox">
+    <Setter Property="MinHeight" Value="{DynamicResource MptDensityControlHeight}" />
+    <Setter Property="Padding" Value="{DynamicResource MptInputPadding}" />
+    <Setter Property="CornerRadius" Value="{DynamicResource MptRadiusControl}" />
+    <Setter Property="Background" Value="{DynamicResource MptBrushCardBackground}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MptBrushBorderStrong}" />
+    <Setter Property="BorderThickness" Value="{DynamicResource MptBorderThickness}" />
+    <Setter Property="Foreground" Value="{DynamicResource MptBrushTextPrimary}" />
+    <Setter Property="FontSize" Value="{DynamicResource MptFontSizeBody}" />
+  </Style>
+
+  <Style Selector="controls|MptComboBox">
+    <Setter Property="MinHeight" Value="{DynamicResource MptDensityControlHeight}" />
+    <Setter Property="Padding" Value="{DynamicResource MptInputPadding}" />
+    <Setter Property="CornerRadius" Value="{DynamicResource MptRadiusControl}" />
+  </Style>
+
+  <Style Selector="controls|MptCheckBox">
+    <Setter Property="MinHeight" Value="{DynamicResource MptDensityCompactControlHeight}" />
+    <Setter Property="FontSize" Value="{DynamicResource MptFontSizeBody}" />
+    <Setter Property="Foreground" Value="{DynamicResource MptBrushTextPrimary}" />
+  </Style>
+
+  <Style Selector="Button">
+    <Setter Property="MinHeight" Value="{DynamicResource MptDensityCompactControlHeight}" />
+    <Setter Property="Padding" Value="{DynamicResource MptButtonPadding}" />
+    <Setter Property="CornerRadius" Value="{DynamicResource MptRadiusControl}" />
+    <Setter Property="Background" Value="{DynamicResource MptBrushSurfaceRaised}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MptBrushBorderStrong}" />
+    <Setter Property="BorderThickness" Value="{DynamicResource MptBorderThickness}" />
+    <Setter Property="Foreground" Value="{DynamicResource MptBrushTextPrimary}" />
+    <Setter Property="FontSize" Value="{DynamicResource MptFontSizeBody}" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+  </Style>
+
+  <Style Selector="Button:pointerover">
+    <Setter Property="Background" Value="{DynamicResource MptBrushSurfaceMuted}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MptBrushAccent}" />
+  </Style>
+
+  <Style Selector="Button:pressed">
+    <Setter Property="Background" Value="{DynamicResource MptBrushBorder}" />
+  </Style>
+
+  <Style Selector="Button:disabled">
+    <Setter Property="Opacity" Value="0.55" />
+  </Style>
+
+  <Style Selector="Button.MptPrimaryButton">
+    <Setter Property="Background" Value="{DynamicResource MptBrushAccent}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MptBrushAccent}" />
+    <Setter Property="Foreground" Value="{DynamicResource MptBrushAccentText}" />
+  </Style>
+
+  <Style Selector="Button.MptPrimaryButton:pointerover">
+    <Setter Property="Background" Value="{DynamicResource MptBrushAccentHover}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MptBrushAccentHover}" />
+  </Style>
+
+  <Style Selector="Button.MptNavButton">
+    <Setter Property="HorizontalContentAlignment" Value="Left" />
+    <Setter Property="Background" Value="{DynamicResource MptBrushAppBackground}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MptBrushAppBackground}" />
+  </Style>
+
+  <Style Selector="Button.MptNavButton:selected">
+    <Setter Property="Background" Value="{DynamicResource MptBrushSurfaceMuted}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MptBrushAccent}" />
+  </Style>
+
+  <Style Selector="TextBox">
+    <Setter Property="MinHeight" Value="{DynamicResource MptDensityControlHeight}" />
+    <Setter Property="Padding" Value="{DynamicResource MptInputPadding}" />
+    <Setter Property="CornerRadius" Value="{DynamicResource MptRadiusControl}" />
+    <Setter Property="Background" Value="{DynamicResource MptBrushCardBackground}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MptBrushBorderStrong}" />
+    <Setter Property="BorderThickness" Value="{DynamicResource MptBorderThickness}" />
+    <Setter Property="Foreground" Value="{DynamicResource MptBrushTextPrimary}" />
+    <Setter Property="FontSize" Value="{DynamicResource MptFontSizeBody}" />
+  </Style>
+
+  <Style Selector="ComboBox">
+    <Setter Property="MinHeight" Value="{DynamicResource MptDensityControlHeight}" />
+    <Setter Property="Padding" Value="{DynamicResource MptInputPadding}" />
+    <Setter Property="CornerRadius" Value="{DynamicResource MptRadiusControl}" />
+  </Style>
+
+  <Style Selector="CheckBox">
+    <Setter Property="MinHeight" Value="{DynamicResource MptDensityCompactControlHeight}" />
+    <Setter Property="FontSize" Value="{DynamicResource MptFontSizeBody}" />
+    <Setter Property="Foreground" Value="{DynamicResource MptBrushTextPrimary}" />
+  </Style>
+
   <Style Selector="Border.MptCard">
     <Setter Property="Padding" Value="{DynamicResource MptCardPadding}" />
     <Setter Property="CornerRadius" Value="{DynamicResource MptRadiusCard}" />
     <Setter Property="BorderBrush" Value="{DynamicResource MptBrushBorder}" />
-    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="BorderThickness" Value="{DynamicResource MptBorderThickness}" />
     <Setter Property="Background" Value="{DynamicResource MptBrushCardBackground}" />
   </Style>
 
@@ -18,15 +113,17 @@
     <Setter Property="Padding" Value="{DynamicResource MptCardPadding}" />
     <Setter Property="CornerRadius" Value="{DynamicResource MptRadiusCard}" />
     <Setter Property="BorderBrush" Value="{DynamicResource MptBrushBorder}" />
-    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="BorderThickness" Value="{DynamicResource MptBorderThickness}" />
     <Setter Property="Background" Value="{DynamicResource MptBrushCardBackground}" />
   </Style>
 
   <Style Selector="Border.MptStatusBadge">
-    <Setter Property="Padding" Value="8,2" />
+    <Setter Property="Padding" Value="{DynamicResource MptCompactBadgePadding}" />
     <Setter Property="CornerRadius" Value="{DynamicResource MptRadiusBadge}" />
     <Setter Property="BorderBrush" Value="{DynamicResource MptBrushNeutral}" />
-    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="BorderThickness" Value="{DynamicResource MptBorderThickness}" />
+    <Setter Property="HorizontalAlignment" Value="Left" />
+    <Setter Property="VerticalAlignment" Value="Top" />
   </Style>
 
   <Style Selector="Border.MptMetricTile">
@@ -41,7 +138,7 @@
     <Setter Property="Padding" Value="{DynamicResource MptListItemPadding}" />
     <Setter Property="CornerRadius" Value="{DynamicResource MptRadiusControl}" />
     <Setter Property="BorderBrush" Value="{DynamicResource MptBrushBorder}" />
-    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="BorderThickness" Value="{DynamicResource MptBorderThickness}" />
     <Setter Property="Background" Value="{DynamicResource MptBrushCardBackground}" />
   </Style>
 
@@ -49,7 +146,7 @@
     <Setter Property="Padding" Value="{DynamicResource MptCardPadding}" />
     <Setter Property="CornerRadius" Value="{DynamicResource MptRadiusCard}" />
     <Setter Property="BorderBrush" Value="{DynamicResource MptBrushBorder}" />
-    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="BorderThickness" Value="{DynamicResource MptBorderThickness}" />
     <Setter Property="Background" Value="{DynamicResource MptBrushCardBackground}" />
   </Style>
 
@@ -71,7 +168,7 @@
   </Style>
 
   <Style Selector="ListBox.MptLogViewer">
-    <Setter Property="FontFamily" Value="Consolas" />
+    <Setter Property="FontFamily" Value="{DynamicResource MptFontFamilyMono}" />
     <Setter Property="FontSize" Value="{DynamicResource MptFontSizeMeta}" />
   </Style>
 
@@ -79,7 +176,7 @@
     <Setter Property="Padding" Value="{DynamicResource MptListItemPadding}" />
     <Setter Property="CornerRadius" Value="{DynamicResource MptRadiusControl}" />
     <Setter Property="BorderBrush" Value="{DynamicResource MptBrushBorder}" />
-    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="BorderThickness" Value="{DynamicResource MptBorderThickness}" />
     <Setter Property="Background" Value="{DynamicResource MptBrushCardBackground}" />
   </Style>
 
@@ -87,7 +184,7 @@
     <Setter Property="Padding" Value="{DynamicResource MptCardPadding}" />
     <Setter Property="CornerRadius" Value="{DynamicResource MptRadiusCard}" />
     <Setter Property="BorderBrush" Value="{DynamicResource MptBrushWarning}" />
-    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="BorderThickness" Value="{DynamicResource MptBorderThickness}" />
     <Setter Property="Background" Value="{DynamicResource MptBrushWarningBackground}" />
   </Style>
 
@@ -95,7 +192,7 @@
     <Setter Property="Padding" Value="{DynamicResource MptCardPadding}" />
     <Setter Property="CornerRadius" Value="{DynamicResource MptRadiusCard}" />
     <Setter Property="BorderBrush" Value="{DynamicResource MptBrushBorder}" />
-    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="BorderThickness" Value="{DynamicResource MptBorderThickness}" />
     <Setter Property="Background" Value="{DynamicResource MptBrushCardBackground}" />
   </Style>
 
@@ -109,7 +206,7 @@
     <Setter Property="Padding" Value="{DynamicResource MptCardPadding}" />
     <Setter Property="CornerRadius" Value="{DynamicResource MptRadiusCard}" />
     <Setter Property="BorderBrush" Value="{DynamicResource MptBrushDanger}" />
-    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="BorderThickness" Value="{DynamicResource MptBorderThickness}" />
     <Setter Property="Background" Value="{DynamicResource MptBrushCardBackground}" />
   </Style>
 
@@ -133,6 +230,6 @@
 
   <Style Selector="Button.MptActionButton">
     <Setter Property="MinHeight" Value="{DynamicResource MptDensityControlHeight}" />
-    <Setter Property="MinWidth" Value="76" />
+    <Setter Property="MinWidth" Value="{DynamicResource MptDensityActionMinWidth}" />
   </Style>
 </Styles>

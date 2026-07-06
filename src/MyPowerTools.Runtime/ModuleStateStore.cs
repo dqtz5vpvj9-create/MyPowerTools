@@ -83,6 +83,32 @@ public sealed class ModuleStateStore
         Directory.CreateDirectory(Path.GetDirectoryName(_path)!);
         var tempPath = _path + ".tmp";
         File.WriteAllText(tempPath, JsonSerializer.Serialize(snapshot, JsonOptions));
+        MoveTempIntoPlace(tempPath);
+    }
+
+    private void MoveTempIntoPlace(string tempPath)
+    {
+        for (var attempt = 0; attempt < 5; attempt++)
+        {
+            try
+            {
+                if (File.Exists(_path))
+                {
+                    File.Replace(tempPath, _path, destinationBackupFileName: null);
+                }
+                else
+                {
+                    File.Move(tempPath, _path);
+                }
+
+                return;
+            }
+            catch (Exception) when (attempt < 4)
+            {
+                Thread.Sleep(TimeSpan.FromMilliseconds(25 * (attempt + 1)));
+            }
+        }
+
         if (File.Exists(_path))
         {
             File.Replace(tempPath, _path, destinationBackupFileName: null);

@@ -39,6 +39,35 @@ public interface IMptModule
     ValueTask DisposeAsync(CancellationToken cancellationToken);
 }
 
+public interface IMptModuleLifecycle
+{
+    ValueTask EnableAsync(ModuleContext context, CancellationToken cancellationToken)
+    {
+        return ValueTask.CompletedTask;
+    }
+
+    ValueTask DisableAsync(ModuleContext context, CancellationToken cancellationToken)
+    {
+        return ValueTask.CompletedTask;
+    }
+
+    ValueTask StartAsync(ModuleContext context, CancellationToken cancellationToken)
+    {
+        return ValueTask.CompletedTask;
+    }
+
+    ValueTask StopAsync(ModuleContext context, CancellationToken cancellationToken)
+    {
+        return ValueTask.CompletedTask;
+    }
+
+    async ValueTask RestartAsync(ModuleContext context, CancellationToken cancellationToken)
+    {
+        await StopAsync(context, cancellationToken);
+        await StartAsync(context, cancellationToken);
+    }
+}
+
 public record ModuleContext(
     string HostVersion,
     string ProtocolVersion,
@@ -100,7 +129,9 @@ public record MptCommandDescriptor(
     int TimeoutMs = 30000,
     JsonObject? Execution = null,
     IReadOnlyList<CommandParameterDescriptor>? Parameters = null,
-    IReadOnlyList<string>? Constraints = null);
+    IReadOnlyList<string>? Constraints = null,
+    bool SupportsProgress = false,
+    bool SupportsCancellation = false);
 
 public static class MptOperationConstraints
 {

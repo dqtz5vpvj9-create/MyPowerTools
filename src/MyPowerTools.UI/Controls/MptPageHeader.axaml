@@ -1,0 +1,9 @@
+<Styles xmlns="https://github.com/avaloniaui">
+  <Style Selector="Border.MptPageHeader">
+    <Setter Property="Padding" Value="{DynamicResource MptActionBarPadding}" />
+  </Style>
+
+  <Style Selector="StackPanel.MptPageHeader">
+    <Setter Property="Spacing" Value="{DynamicResource MptSpacingXs}" />
+  </Style>
+</Styles>

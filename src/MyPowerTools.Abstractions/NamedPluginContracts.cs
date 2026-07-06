@@ -51,7 +51,10 @@ public sealed record ModuleCommand(
     string Category = "",
     int TimeoutMs = 30000,
     JsonObject? Execution = null,
-    IReadOnlyList<CommandParameter>? Parameters = null);
+    IReadOnlyList<CommandParameter>? Parameters = null,
+    IReadOnlyList<string>? Constraints = null,
+    bool SupportsProgress = false,
+    bool SupportsCancellation = false);
 
 public sealed record CommandParameter(
     string Id,

@@ -20,7 +20,8 @@ public static class ShellKeyboardShortcut
 {
     public static ShellKeyboardShortcutResult Resolve(Key key, KeyModifiers modifiers)
     {
-        if (HasOnly(modifiers, KeyModifiers.Control) && key is Key.K or Key.F)
+        if ((modifiers == (KeyModifiers.Control | KeyModifiers.Alt) && key == Key.Space) ||
+            (HasOnly(modifiers, KeyModifiers.Control) && key is Key.K or Key.F))
         {
             return new ShellKeyboardShortcutResult(ShellKeyboardAction.FocusCommandPalette);
         }
@@ -42,11 +43,12 @@ public static class ShellKeyboardShortcut
             {
                 Key.D1 => "Dashboard",
                 Key.D2 => "Modules",
-                Key.D3 => "Settings",
-                Key.D4 => "Logs",
-                Key.D5 => "Notifications",
-                Key.D6 => "Packages",
-                Key.D7 => "Diagnostics",
+                Key.D3 => "Commands",
+                Key.D4 => "Settings",
+                Key.D5 => "Logs",
+                Key.D6 => "Notifications",
+                Key.D7 => "Packages",
+                Key.D8 => "Diagnostics",
                 _ => null
             };
 

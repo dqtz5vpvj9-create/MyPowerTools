@@ -49,7 +49,8 @@ public static partial class ShellPageViewModelFactory
                 hotkey.State,
                 hotkey.Message,
                 string.Equals(hotkey.State, "conflict", StringComparison.OrdinalIgnoreCase),
-                new AsyncRelayCommand(() => Task.CompletedTask)))
+                null,
+                hotkey.DefaultGesture))
             .ToArray();
 
         return new SettingsCenterViewModel(
@@ -66,24 +67,45 @@ public static partial class ShellPageViewModelFactory
 
     public static JsonObject BuildSettingsPatch(SettingsCenterViewModel viewModel)
     {
+        JsonObject patch;
         if (viewModel.UsesRawJson)
         {
-            return ParseRawSettings(viewModel.RawJson);
+            patch = ParseRawSettings(viewModel.RawJson);
+        }
+        else
+        {
+            patch = new JsonObject();
+            foreach (var field in viewModel.Fields)
+            {
+                patch[field.Key] = field.EditorType switch
+                {
+                    "boolean" => JsonValue.Create(field.BooleanValue),
+                    "integer" => JsonValue.Create(ParseLong(field.Value, field.Key)),
+                    "number" => JsonValue.Create(ParseDouble(field.Value, field.Key)),
+                    "object" => ParseCompositeSetting(field.Value, field.Key, "{}"),
+                    "array" => ParseCompositeSetting(field.Value, field.Key, "[]"),
+                    "enum" => JsonValue.Create(field.SelectedOption),
+                    _ => JsonValue.Create(field.Value)
+                };
+            }
         }
 
-        var patch = new JsonObject();
-        foreach (var field in viewModel.Fields)
+        var hotkeyEdits = new JsonArray();
+        foreach (var hotkey in viewModel.Hotkeys.Where(hotkey => hotkey.IsDirty || hotkey.ResetRequested))
         {
-            patch[field.Key] = field.EditorType switch
+            hotkeyEdits.Add(new JsonObject
             {
-                "boolean" => JsonValue.Create(field.BooleanValue),
-                "integer" => JsonValue.Create(ParseLong(field.Value, field.Key)),
-                "number" => JsonValue.Create(ParseDouble(field.Value, field.Key)),
-                "object" => ParseCompositeSetting(field.Value, field.Key, "{}"),
-                "array" => ParseCompositeSetting(field.Value, field.Key, "[]"),
-                "enum" => JsonValue.Create(field.SelectedOption),
-                _ => JsonValue.Create(field.Value)
-            };
+                ["id"] = hotkey.Id,
+                ["gesture"] = hotkey.Gesture,
+                ["reset"] = hotkey.ResetRequested,
+                ["disabled"] = hotkey.IsDisabled,
+                ["commandArgs"] = new JsonObject()
+            });
+        }
+
+        if (hotkeyEdits.Count > 0)
+        {
+            patch["$hotkeys"] = hotkeyEdits;
         }
 
         return patch;

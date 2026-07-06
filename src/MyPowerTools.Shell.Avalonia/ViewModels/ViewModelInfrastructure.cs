@@ -113,11 +113,16 @@ public sealed class ShellChromeViewModel : ObservableViewModel
 {
     private string _statusText = "";
     private string _runnerStatusText = "";
+    private bool _isCommandPaletteOpen;
+    private bool _isPermissionPromptOpen;
 
     public ShellChromeViewModel(
         IReadOnlyList<string> pageLabels,
         Func<string, Task>? navigate = null,
-        Func<Task>? refresh = null)
+        Func<Task>? refresh = null,
+        Func<Task>? openCommandPalette = null,
+        Func<Task>? closeCommandPalette = null,
+        Func<Task>? dismissPermissionPrompt = null)
     {
         NavigationItems = pageLabels
             .Select(label => new ShellNavigationItemViewModel(
@@ -125,10 +130,16 @@ public sealed class ShellChromeViewModel : ObservableViewModel
                 new AsyncRelayCommand(() => navigate?.Invoke(label) ?? Task.CompletedTask)))
             .ToArray();
         RefreshCommand = new AsyncRelayCommand(() => refresh?.Invoke() ?? Task.CompletedTask);
+        OpenCommandPaletteCommand = new AsyncRelayCommand(() => openCommandPalette?.Invoke() ?? Task.CompletedTask);
+        CloseCommandPaletteCommand = new AsyncRelayCommand(() => closeCommandPalette?.Invoke() ?? Task.CompletedTask);
+        DismissPermissionPromptCommand = new AsyncRelayCommand(() => dismissPermissionPrompt?.Invoke() ?? Task.CompletedTask);
     }
 
     public IReadOnlyList<ShellNavigationItemViewModel> NavigationItems { get; }
     public ICommand RefreshCommand { get; }
+    public ICommand OpenCommandPaletteCommand { get; }
+    public ICommand CloseCommandPaletteCommand { get; }
+    public ICommand DismissPermissionPromptCommand { get; }
 
     public string StatusText
     {
@@ -140,6 +151,18 @@ public sealed class ShellChromeViewModel : ObservableViewModel
     {
         get => _runnerStatusText;
         set => SetProperty(ref _runnerStatusText, value);
+    }
+
+    public bool IsCommandPaletteOpen
+    {
+        get => _isCommandPaletteOpen;
+        set => SetProperty(ref _isCommandPaletteOpen, value);
+    }
+
+    public bool IsPermissionPromptOpen
+    {
+        get => _isPermissionPromptOpen;
+        set => SetProperty(ref _isPermissionPromptOpen, value);
     }
 
     public void SelectPage(string page)

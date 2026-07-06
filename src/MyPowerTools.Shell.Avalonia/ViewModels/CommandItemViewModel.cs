@@ -20,7 +20,7 @@ public sealed record DashboardCardViewModel(
     IReadOnlyList<ShellActionViewModel> Actions,
     ICommand DetailsCommand);
 
-public sealed class CommandItemViewModel : ObservableViewModel
+public sealed partial class CommandItemViewModel : ObservableViewModel
 {
     private readonly Func<string, JsonObject, string, CancellationToken, IAsyncEnumerable<CommandExecutionStatus>>? _executeCommand;
     private readonly Func<string, Task<CommandCancellationStatus>>? _cancelCommand;
@@ -107,8 +107,23 @@ public sealed class CommandItemViewModel : ObservableViewModel
     public bool HasProgressEvents => ProgressEvents.Count > 0;
     public bool IsRunning => ExecutionState is "accepted" or "running" or "cancelling";
     public bool CanCancel => IsRunning && _activeInvocationId.Length > 0;
+    public bool RequiresDangerousConfirmation => RequiresElevation ||
+        DangerLevel.Contains("danger", StringComparison.OrdinalIgnoreCase) ||
+        DangerLevel.Contains("elevated", StringComparison.OrdinalIgnoreCase) ||
+        RiskLabel.Contains("broker", StringComparison.OrdinalIgnoreCase);
+    public string DangerConfirmationText => RequiresDangerousConfirmation
+        ? $"Confirm required before running {CommandId}."
+        : "";
+    public bool HasExpandableError => ExecutionState == "failed" && ExecutionMessage.Length > 0;
+    public string StdoutPreview => ProgressEvents.LastOrDefault(item => item.StateLabel.Contains("stdout", StringComparison.OrdinalIgnoreCase))?.Message ?? "";
+    public string StderrPreview => ProgressEvents.LastOrDefault(item => item.StateLabel.Contains("stderr", StringComparison.OrdinalIgnoreCase))?.Message ?? "";
+    public string ResultSummary => HasExecutionMessage ? ExecutionMessage : ExecutionPreview;
+    public bool HasStdout => StdoutPreview.Length > 0;
+    public bool HasStderr => StderrPreview.Length > 0;
     public string ExecutionStateLabel => ExecutionState switch
     {
+        "stdout" => "stdout",
+        "stderr" => "stderr",
         "running" => "Running",
         "accepted" => "Accepted",
         "cancelling" => "Cancelling",
@@ -143,6 +158,7 @@ public sealed class CommandItemViewModel : ObservableViewModel
                 OnPropertyChanged(nameof(CanCancel));
                 OnPropertyChanged(nameof(ExecuteLabel));
                 OnPropertyChanged(nameof(CancelLabel));
+                OnPropertyChanged(nameof(HasExpandableError));
                 _cancelCommandWrapper.NotifyCanExecuteChanged();
             }
         }
@@ -156,6 +172,8 @@ public sealed class CommandItemViewModel : ObservableViewModel
             if (SetProperty(ref _executionMessage, value))
             {
                 OnPropertyChanged(nameof(HasExecutionMessage));
+                OnPropertyChanged(nameof(ResultSummary));
+                OnPropertyChanged(nameof(HasExpandableError));
             }
         }
     }
@@ -233,6 +251,7 @@ public sealed class CommandItemViewModel : ObservableViewModel
                 ? new CommandCancellationStatus(false, invocationId, "unsupported", "Cancellation is not available for this command.")
                 : await _cancelCommand(invocationId);
             ExecutionMessage = result.Message;
+            AddCancellationProgress(result);
             if (!result.Accepted)
             {
                 ExecutionState = string.Equals(result.State, "completed", StringComparison.OrdinalIgnoreCase)
@@ -269,6 +288,11 @@ public sealed class CommandItemViewModel : ObservableViewModel
             ExecutionMessage,
             result.IsTerminal));
         OnPropertyChanged(nameof(HasProgressEvents));
+        OnPropertyChanged(nameof(StdoutPreview));
+        OnPropertyChanged(nameof(StderrPreview));
+        OnPropertyChanged(nameof(HasStdout));
+        OnPropertyChanged(nameof(HasStderr));
+        OnPropertyChanged(nameof(ResultSummary));
     }
 
     public JsonObject BuildArgs()
@@ -309,19 +333,4 @@ public sealed class CommandItemViewModel : ObservableViewModel
         return messages.Count == 0;
     }
 
-    private string BuildExecutionPreview()
-    {
-        if (!HasParameters)
-        {
-            return $"Preview: run {CommandId}.";
-        }
-
-        var emitted = Parameters
-            .Where(parameter => parameter.ShouldEmit)
-            .Select(parameter => $"{parameter.Id}={parameter.PreviewValue}")
-            .ToArray();
-        return emitted.Length == 0
-            ? $"Preview: run {CommandId} with no arguments."
-            : $"Preview: run {CommandId} with {string.Join(", ", emitted)}.";
-    }
 }

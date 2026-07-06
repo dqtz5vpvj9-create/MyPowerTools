@@ -52,3 +52,8 @@
 - Hardened `LogRouter` concurrent append behavior for parallel CLI/runtime command probes.
 - Completed P8 final production closure with final audit classification, release metadata relative URLs, release hash parity, release Runner/Shell smoke, install/uninstall dry-runs, and zip hygiene verification.
 - Renamed local package trust algorithm metadata to `sha256-manifest-local` and refreshed production package signatures.
+- Fixed release Runner relative `--data-root` handling by normalizing `RuntimePaths` to absolute paths before InProc shadow-copy loading.
+- Added release evidence semantic validation for internal path, assembly, reflection, and runtime failure markers, while allowing only documented external degraded module reasons.
+- Hardened gRPC IPC cancellation so cancel requests reuse an existing initialized host and never start a fresh sidecar for a missing invocation.
+- Suppressed gRPC stream cleanup exceptions after a terminal runtime-unavailable failure has already been emitted.
+- Bounded AndroidTools Remote Commands shell streaming with channel capacity, event count limits, stdout/stderr byte limits, single-line byte limits, `output.truncated` events, and final truncation metadata.

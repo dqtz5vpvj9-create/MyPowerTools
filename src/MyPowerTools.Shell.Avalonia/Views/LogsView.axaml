@@ -1,52 +1,94 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="using:MyPowerTools.UI.Controls"
              xmlns:vm="using:MyPowerTools.Shell.Avalonia.ViewModels"
              x:Class="MyPowerTools.Shell.Avalonia.Views.LogsView"
              x:DataType="vm:LogsViewModel">
   <StackPanel Margin="{DynamicResource MptPagePadding}" Spacing="{DynamicResource MptSpacingM}">
-    <StackPanel Spacing="{DynamicResource MptSpacingXs}">
-      <TextBlock Classes="MptPageTitle" Text="{Binding Title}" />
-      <TextBlock Classes="MptPageSubtitle" Text="{Binding Subtitle}" />
-    </StackPanel>
+    <Grid ColumnDefinitions="*,Auto">
+      <StackPanel Spacing="{DynamicResource MptSpacingXs}">
+        <TextBlock Classes="MptPageTitle" Text="{Binding Title}" />
+        <TextBlock Classes="MptPageSubtitle" Text="{Binding Subtitle}" />
+      </StackPanel>
+      <StackPanel Grid.Column="1" Classes="MptActionBar" Orientation="Horizontal">
+        <controls:MptButton Content="Copy selected"
+                            MinWidth="{DynamicResource MptDensityActionMinWidth}" />
+        <controls:MptButton Content="Export"
+                            MinWidth="{DynamicResource MptDensityActionMinWidth}" />
+      </StackPanel>
+    </Grid>
 
-    <ItemsControl ItemsSource="{Binding Modules}">
-      <ItemsControl.ItemsPanel>
-        <ItemsPanelTemplate>
-          <WrapPanel />
-        </ItemsPanelTemplate>
-      </ItemsControl.ItemsPanel>
-      <ItemsControl.ItemTemplate>
-        <DataTemplate x:DataType="vm:ModulePickerItemViewModel">
-          <Button Command="{Binding SelectCommand}" MinHeight="32" Margin="{DynamicResource MptWrapItemMargin}">
-            <StackPanel Orientation="Horizontal" Spacing="{DynamicResource MptSpacingXs}">
-              <TextBlock Text="{Binding DisplayName}" />
-              <TextBlock Classes="MptMeta" Text="{Binding SelectionText}" IsVisible="{Binding IsSelected}" />
-            </StackPanel>
-          </Button>
-        </DataTemplate>
-      </ItemsControl.ItemTemplate>
-    </ItemsControl>
+    <Border Classes="MptToolbar">
+      <StackPanel Classes="MptToolbar" Orientation="Horizontal">
+        <controls:MptTextBox PlaceholderText="Search logs"
+                             MinWidth="{DynamicResource MptPackageIdInputWidth}" />
+        <controls:MptButton Content="Info"
+                            MinWidth="{DynamicResource MptDensityActionMinWidth}" />
+        <controls:MptButton Content="Warning"
+                            MinWidth="{DynamicResource MptDensityActionMinWidth}" />
+        <controls:MptButton Content="Error"
+                            MinWidth="{DynamicResource MptDensityActionMinWidth}" />
+        <controls:MptButton Content="Wrap"
+                            MinWidth="{DynamicResource MptDensityActionMinWidth}" />
+      </StackPanel>
+    </Border>
 
-    <TextBlock Classes="MptPageSubtitle"
-               Text="No modules."
-               IsVisible="{Binding HasNoModules}" />
+    <Border Classes="MptSettingsSection">
+      <StackPanel Spacing="{DynamicResource MptSpacingS}">
+        <Grid ColumnDefinitions="*,Auto">
+          <TextBlock Classes="MptSectionTitle" Text="Modules" />
+          <TextBlock Grid.Column="1" Classes="MptMeta" Text="filter" />
+        </Grid>
+        <ItemsControl ItemsSource="{Binding Modules}">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate>
+              <WrapPanel />
+            </ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:ModulePickerItemViewModel">
+              <controls:MptButton Command="{Binding SelectCommand}"
+                                  MinHeight="{DynamicResource MptDensityCompactControlHeight}"
+                                  Margin="{DynamicResource MptWrapItemMargin}">
+                <StackPanel Orientation="Horizontal" Spacing="{DynamicResource MptSpacingXs}">
+                  <TextBlock Text="{Binding DisplayName}" />
+                  <TextBlock Classes="MptMeta" Text="{Binding SelectionText}" IsVisible="{Binding IsSelected}" />
+                </StackPanel>
+              </controls:MptButton>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+        <TextBlock Classes="MptPageSubtitle"
+                   Text="No modules."
+                   IsVisible="{Binding HasNoModules}" />
+      </StackPanel>
+    </Border>
 
-    <TextBlock Classes="MptPageSubtitle"
-               Text="No logs."
-               IsVisible="{Binding HasNoLogs}" />
-
-    <ItemsControl ItemsSource="{Binding Lines}">
-      <ItemsControl.ItemTemplate>
-        <DataTemplate x:DataType="vm:LogLineViewModel">
-          <Border Classes="MptLogRow" Margin="{DynamicResource MptGapBottomXs}">
-            <Grid ColumnDefinitions="120,80,*">
-              <TextBlock Classes="MptMeta" Text="{Binding Time}" />
-              <TextBlock Grid.Column="1" Classes="MptMeta" Text="{Binding Level}" />
-              <TextBlock Grid.Column="2" Text="{Binding Message}" TextWrapping="Wrap" />
-            </Grid>
-          </Border>
-        </DataTemplate>
-      </ItemsControl.ItemTemplate>
-    </ItemsControl>
+    <Border Classes="MptLogViewer">
+      <StackPanel Spacing="{DynamicResource MptSpacingXs}">
+        <TextBlock Classes="MptPageSubtitle"
+                   Text="No logs."
+                   IsVisible="{Binding HasNoLogs}" />
+        <ItemsControl ItemsSource="{Binding Lines}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:LogLineViewModel">
+              <Border Classes="MptLogRow" Margin="{DynamicResource MptGapBottomXs}">
+                <Grid ColumnDefinitions="128,84,*" ColumnSpacing="{DynamicResource MptSpacingS}">
+                  <TextBlock Classes="MptMeta" Text="{Binding Time}" />
+                  <Border Grid.Column="1" Classes="MptStatusBadge">
+                    <TextBlock Classes="MptMeta" Text="{Binding Level}" />
+                  </Border>
+                  <TextBlock Grid.Column="2"
+                             FontFamily="{DynamicResource MptFontFamilyMono}"
+                             FontSize="{DynamicResource MptFontSizeMeta}"
+                             Text="{Binding Message}"
+                             TextWrapping="Wrap" />
+                </Grid>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </StackPanel>
+    </Border>
   </StackPanel>
 </UserControl>

@@ -1,0 +1,10 @@
+<Styles xmlns="https://github.com/avaloniaui">
+  <Style Selector="Border.MptCommandPalette">
+    <Setter Property="Padding" Value="{DynamicResource MptOverlayPanelPadding}" />
+    <Setter Property="CornerRadius" Value="{DynamicResource MptRadiusOverlay}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MptBrushBorderStrong}" />
+    <Setter Property="BorderThickness" Value="{DynamicResource MptBorderThickness}" />
+    <Setter Property="Background" Value="{DynamicResource MptBrushCardBackground}" />
+    <Setter Property="BoxShadow" Value="{DynamicResource MptShadowOverlay}" />
+  </Style>
+</Styles>

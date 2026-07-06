@@ -1,0 +1,14 @@
+<Styles xmlns="https://github.com/avaloniaui">
+  <Style Selector="Border.MptNotificationItem">
+    <Setter Property="Padding" Value="{DynamicResource MptListItemPadding}" />
+    <Setter Property="CornerRadius" Value="{DynamicResource MptRadiusControl}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MptBrushBorder}" />
+    <Setter Property="BorderThickness" Value="{DynamicResource MptBorderThickness}" />
+    <Setter Property="Background" Value="{DynamicResource MptBrushCardBackground}" />
+  </Style>
+
+  <Style Selector="Border.MptNotificationItem:pointerover">
+    <Setter Property="Background" Value="{DynamicResource MptBrushSurfaceMuted}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MptBrushAccent}" />
+  </Style>
+</Styles>

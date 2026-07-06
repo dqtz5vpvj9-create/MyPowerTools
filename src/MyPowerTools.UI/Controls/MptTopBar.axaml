@@ -1,0 +1,10 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:controls="using:MyPowerTools.UI.Controls">
+  <Style Selector="controls|MptTopBar">
+    <Setter Property="Margin" Value="{DynamicResource MptTopBarPadding}" />
+  </Style>
+
+  <Style Selector="Grid.MptTopBar">
+    <Setter Property="Margin" Value="{DynamicResource MptTopBarPadding}" />
+  </Style>
+</Styles>

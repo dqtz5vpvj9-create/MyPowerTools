@@ -6,6 +6,7 @@ using MyPowerTools.Runtime;
 using CommandExecutionResult = MyPowerTools.Abstractions.CommandExecutionResult;
 using CommandRequest = MyPowerTools.Abstractions.CommandRequest;
 using HealthCheckSnapshot = MyPowerTools.Abstractions.HealthCheckSnapshot;
+using IMptModuleLifecycle = MyPowerTools.Abstractions.IMptModuleLifecycle;
 using IMptModule = MyPowerTools.Abstractions.IMptModule;
 using ModuleContext = MyPowerTools.Abstractions.ModuleContext;
 using ModuleStatusSnapshot = MyPowerTools.Abstractions.ModuleStatusSnapshot;
@@ -56,6 +57,42 @@ public sealed class InProcDotNetModuleHost : IModuleTransportRuntime, IModuleTra
     public void ApplyRestartPolicy(string poolKey, string restartPolicy, string reason, DateTimeOffset updatedAt, DateTimeOffset? expiresAt)
     {
         // InProc modules share the Runner process, so persisted sidecar restart policies do not apply.
+    }
+
+    public async ValueTask EnableModuleAsync(RuntimeModuleRecord module, ModuleContext context, CancellationToken cancellationToken)
+    {
+        var loaded = await LoadCachedAsync(module.Module, context, cancellationToken);
+        if (loaded is IMptModuleLifecycle lifecycle)
+        {
+            await lifecycle.EnableAsync(context, cancellationToken);
+            await lifecycle.StartAsync(context, cancellationToken);
+        }
+    }
+
+    public async ValueTask DisableModuleAsync(RuntimeModuleRecord module, ModuleContext context, IReadOnlySet<string> enabledModuleIds, CancellationToken cancellationToken)
+    {
+        await _moduleLock.WaitAsync(cancellationToken);
+        try
+        {
+            if (!_loadedModules.TryGetValue(module.Module.Manifest.Id, out var session))
+            {
+                return;
+            }
+
+            if (session.Module is IMptModuleLifecycle lifecycle)
+            {
+                await lifecycle.StopAsync(context, cancellationToken);
+                await lifecycle.DisableAsync(context, cancellationToken);
+            }
+
+            var result = await session.DisposeAndUnloadAsync(cancellationToken);
+            _loadedModules.Remove(session.ModuleId);
+            RecordUnloadResult(result);
+        }
+        finally
+        {
+            _moduleLock.Release();
+        }
     }
 
     public async ValueTask<ModuleStatusSnapshot?> GetStatusAsync(RuntimeModuleRecord module, ModuleContext context, CancellationToken cancellationToken)

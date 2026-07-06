@@ -1,158 +1,212 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="using:MyPowerTools.UI.Controls"
              xmlns:vm="using:MyPowerTools.Shell.Avalonia.ViewModels"
              x:Class="MyPowerTools.Shell.Avalonia.Views.SettingsCenterView"
              x:DataType="vm:SettingsCenterViewModel">
   <StackPanel Margin="{DynamicResource MptPagePadding}" Spacing="{DynamicResource MptSpacingM}">
-    <StackPanel Spacing="{DynamicResource MptSpacingXs}">
-      <TextBlock Classes="MptPageTitle" Text="{Binding Title}" />
-      <TextBlock Classes="MptPageSubtitle" Text="{Binding Subtitle}" />
-    </StackPanel>
-
-    <Border Classes="MptInset">
-      <StackPanel Orientation="Horizontal" Spacing="{DynamicResource MptSpacingS}">
-        <TextBlock Classes="MptMeta" Text="{Binding SelectedModuleId}" />
-        <TextBlock Classes="MptMeta" Text="{Binding Revision}" />
-      </StackPanel>
-    </Border>
-
-    <ItemsControl ItemsSource="{Binding Modules}">
-      <ItemsControl.ItemsPanel>
-        <ItemsPanelTemplate>
-          <WrapPanel />
-        </ItemsPanelTemplate>
-      </ItemsControl.ItemsPanel>
-      <ItemsControl.ItemTemplate>
-        <DataTemplate x:DataType="vm:ModulePickerItemViewModel">
-          <Button Command="{Binding SelectCommand}" MinHeight="32" Margin="{DynamicResource MptWrapItemMargin}">
-            <StackPanel Orientation="Horizontal" Spacing="{DynamicResource MptSpacingXs}">
-              <TextBlock Text="{Binding DisplayName}" />
-              <TextBlock Classes="MptMeta" Text="{Binding SelectionText}" IsVisible="{Binding IsSelected}" />
-            </StackPanel>
-          </Button>
-        </DataTemplate>
-      </ItemsControl.ItemTemplate>
-    </ItemsControl>
-
-    <TextBlock Classes="MptPageSubtitle"
-               Text="No modules."
-               IsVisible="{Binding HasNoModules}" />
-
-    <TextBlock Classes="MptMeta" Text="{Binding StatusText}" />
-    <Border Classes="MptSettingsSection" IsVisible="{Binding HasHotkeys}">
-      <StackPanel Spacing="{DynamicResource MptSpacingS}">
-        <Grid ColumnDefinitions="*,Auto">
-          <TextBlock Classes="MptSectionTitle" Text="Hotkeys" />
-          <TextBlock Grid.Column="1" Classes="MptMeta" Text="{Binding HotkeyStatusText}" />
-        </Grid>
-        <ItemsControl ItemsSource="{Binding Hotkeys}">
-          <ItemsControl.ItemTemplate>
-            <DataTemplate x:DataType="vm:HotkeyBindingViewModel">
-              <Border Classes="MptSettingsField" Margin="{DynamicResource MptGapBottomM}">
-                <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto">
-                  <TextBlock FontWeight="SemiBold" Text="{Binding Gesture}" />
-                  <TextBlock Grid.Column="1" Classes="MptMeta" Text="{Binding State}" />
-                  <TextBlock Grid.Row="1" Grid.ColumnSpan="2" Classes="MptMeta" Text="{Binding CommandId}" />
-                  <TextBlock Grid.Row="2"
-                             Classes="MptMeta"
-                             Text="{Binding Message}"
-                             TextWrapping="Wrap" />
-                  <Button Grid.Row="2"
-                          Grid.Column="1"
-                          Content="Reset"
-                          Command="{Binding ResetCommand}"
-                          MinHeight="32"
-                          MinWidth="72" />
-                </Grid>
-              </Border>
-            </DataTemplate>
-          </ItemsControl.ItemTemplate>
-        </ItemsControl>
-      </StackPanel>
-    </Border>
-    <Border Classes="MptSettingsSection" IsVisible="{Binding HasSaveResult}">
+    <Grid ColumnDefinitions="*,Auto">
       <StackPanel Spacing="{DynamicResource MptSpacingXs}">
-        <Grid ColumnDefinitions="*,Auto">
-          <TextBlock FontWeight="SemiBold" Text="{Binding SaveResultTitle}" />
-          <TextBlock Grid.Column="1" Classes="MptMeta" Text="{Binding SaveResultState}" />
-        </Grid>
-        <TextBlock Classes="MptMeta"
-                   Text="{Binding SaveResultMessage}"
-                   TextWrapping="Wrap" />
-        <TextBlock Classes="MptMeta"
-                   Text="{Binding SaveResultRevision}"
-                   IsVisible="{Binding HasSaveResultRevision}" />
+        <TextBlock Classes="MptPageTitle" Text="{Binding Title}" />
+        <TextBlock Classes="MptPageSubtitle" Text="{Binding Subtitle}" />
       </StackPanel>
-    </Border>
-    <Border Classes="MptSettingsSection">
-      <StackPanel Spacing="{DynamicResource MptSpacingXs}">
+      <Border Grid.Column="1" Classes="MptStatusBadge">
         <TextBlock Classes="MptMeta" Text="{Binding ChangeSummary}" />
-        <TextBlock Classes="MptMeta"
-                   Text="{Binding ValidationMessage}"
-                   IsVisible="{Binding HasValidationErrors}" />
-        <TextBlock Classes="MptMeta"
-                   Text="{Binding PatchPreview}"
-                   IsVisible="{Binding HasPatchPreview}" />
-      </StackPanel>
-    </Border>
+      </Border>
+    </Grid>
 
-    <ItemsControl ItemsSource="{Binding Fields}">
-      <ItemsControl.ItemTemplate>
-        <DataTemplate x:DataType="vm:SettingsFieldViewModel">
-          <Border Classes="MptSettingsField" Margin="{DynamicResource MptGapBottomM}">
+    <Grid ColumnDefinitions="232,*" ColumnSpacing="{DynamicResource MptSpacingM}">
+      <Border Classes="MptSplitPane">
+        <StackPanel Spacing="{DynamicResource MptSpacingS}">
+          <TextBlock Classes="MptSectionTitle" Text="Categories" />
+          <TextBlock Classes="MptTabItemSelected" Text="General" />
+          <TextBlock Classes="MptTabItem" Text="Runner" />
+          <TextBlock Classes="MptTabItem" Text="Appearance" />
+          <TextBlock Classes="MptTabItem" Text="Hotkeys" />
+          <TextBlock Classes="MptTabItem" Text="Modules" />
+          <TextBlock Classes="MptTabItem" Text="Packages" />
+          <TextBlock Classes="MptTabItem" Text="Logs" />
+          <TextBlock Classes="MptTabItem" Text="Advanced" />
+
+          <Border Classes="MptInset" Margin="{DynamicResource MptGapTopL}">
             <StackPanel Spacing="{DynamicResource MptSpacingXs}">
-              <Grid ColumnDefinitions="*,Auto">
-                <TextBlock FontWeight="SemiBold" Text="{Binding Label}" />
-                <TextBlock Grid.Column="1" Classes="MptMeta" Text="{Binding EditorType}" />
-              </Grid>
-              <TextBlock Classes="MptPageSubtitle" Text="{Binding Description}" />
-              <TextBlock Classes="MptMeta"
-                         Text="{Binding DirtySummary}"
-                         IsVisible="{Binding IsDirty}" />
-              <TextBlock Classes="MptMeta"
-                         Text="{Binding ValidationMessage}"
-                         IsVisible="{Binding HasValidationError}" />
-              <TextBox Text="{Binding Value, Mode=TwoWay}"
-                       MinWidth="360"
-                       MinHeight="34"
-                       IsVisible="{Binding IsSingleLineTextEditor}" />
-              <TextBox Text="{Binding Value, Mode=TwoWay}"
-                       AcceptsReturn="True"
-                       TextWrapping="NoWrap"
-                       FontFamily="Consolas"
-                       FontSize="{DynamicResource MptFontSizeMeta}"
-                       MinHeight="120"
-                       IsVisible="{Binding IsMultilineEditor}" />
-              <CheckBox IsChecked="{Binding BooleanValue, Mode=TwoWay}"
-                        Content="{Binding Key}"
-                        MinHeight="32"
-                        IsVisible="{Binding IsBooleanEditor}" />
-              <ComboBox ItemsSource="{Binding Options}"
-                        SelectedItem="{Binding SelectedOption, Mode=TwoWay}"
-                        MinWidth="260"
-                        MinHeight="34"
-                        IsVisible="{Binding IsEnumEditor}" />
+              <TextBlock Classes="MptMeta" Text="Selected module" />
+              <TextBlock FontWeight="SemiBold" Text="{Binding SelectedModuleId}" TextWrapping="Wrap" />
+              <TextBlock Classes="MptMeta" Text="{Binding Revision}" />
             </StackPanel>
           </Border>
-        </DataTemplate>
-      </ItemsControl.ItemTemplate>
-    </ItemsControl>
+        </StackPanel>
+      </Border>
 
-    <Border Classes="MptSettingsSection" IsVisible="{Binding UsesRawJson}">
-      <StackPanel Spacing="{DynamicResource MptSpacingS}">
-        <TextBlock Classes="MptSectionTitle" Text="Raw Settings" />
-        <TextBox Text="{Binding RawJson, Mode=TwoWay}"
-                 AcceptsReturn="True"
-                 TextWrapping="NoWrap"
-                 FontFamily="Consolas"
-                 FontSize="{DynamicResource MptFontSizeMeta}"
-                 MinHeight="280" />
+      <StackPanel Grid.Column="1" Spacing="{DynamicResource MptSpacingM}">
+        <Border Classes="MptToolbar">
+          <StackPanel Classes="MptToolbar" Orientation="Horizontal">
+            <controls:MptTextBox PlaceholderText="Search settings"
+                                 MinWidth="{DynamicResource MptPackageIdInputWidth}" />
+            <controls:MptButton Content="Revert"
+                                MinWidth="{DynamicResource MptDensityActionMinWidth}" />
+            <controls:MptButton Classes="MptPrimaryButton"
+                                Content="Save settings"
+                                Command="{Binding SaveCommand}"
+                                MinWidth="{DynamicResource MptDensityActionMinWidth}" />
+          </StackPanel>
+        </Border>
+
+        <Border Classes="MptSettingsSection">
+          <StackPanel Spacing="{DynamicResource MptSpacingS}">
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock Classes="MptSectionTitle" Text="Modules" />
+              <TextBlock Grid.Column="1" Classes="MptMeta" Text="{Binding StatusText}" />
+            </Grid>
+            <ItemsControl ItemsSource="{Binding Modules}">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <WrapPanel />
+                </ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:ModulePickerItemViewModel">
+                  <controls:MptButton Command="{Binding SelectCommand}"
+                                      MinHeight="{DynamicResource MptDensityCompactControlHeight}"
+                                      Margin="{DynamicResource MptWrapItemMargin}">
+                    <StackPanel Orientation="Horizontal" Spacing="{DynamicResource MptSpacingXs}">
+                      <TextBlock Text="{Binding DisplayName}" />
+                      <TextBlock Classes="MptMeta" Text="{Binding SelectionText}" IsVisible="{Binding IsSelected}" />
+                    </StackPanel>
+                  </controls:MptButton>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <TextBlock Classes="MptPageSubtitle"
+                       Text="No modules."
+                       IsVisible="{Binding HasNoModules}" />
+          </StackPanel>
+        </Border>
+
+        <Border Classes="MptSettingsSection" IsVisible="{Binding HasHotkeys}">
+          <StackPanel Spacing="{DynamicResource MptSpacingS}">
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock Classes="MptSectionTitle" Text="Hotkeys" />
+              <TextBlock Grid.Column="1" Classes="MptMeta" Text="{Binding HotkeyStatusText}" />
+            </Grid>
+            <ItemsControl ItemsSource="{Binding Hotkeys}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:HotkeyBindingViewModel">
+                  <Border Classes="MptSettingsField" Margin="{DynamicResource MptGapBottomM}">
+                    <Grid ColumnDefinitions="*,220,Auto"
+                          RowDefinitions="Auto,Auto"
+                          ColumnSpacing="{DynamicResource MptSpacingS}">
+                      <StackPanel Spacing="{DynamicResource MptSpacingXs}">
+                        <TextBlock FontWeight="SemiBold" Text="{Binding Id}" />
+                        <TextBlock Classes="MptMeta" Text="{Binding CommandId}" TextWrapping="Wrap" />
+                        <TextBlock Classes="MptMeta" Text="{Binding CommandArgsPreview}" TextWrapping="Wrap" />
+                      </StackPanel>
+                      <controls:MptTextBox Grid.Column="1"
+                                           Text="{Binding Gesture, Mode=TwoWay}"
+                                           IsEnabled="{Binding CanEdit}" />
+                      <controls:MptButton Grid.Column="2"
+                                          Content="Reset"
+                                          Command="{Binding ResetCommand}"
+                                          MinWidth="{DynamicResource MptDensityActionMinWidth}" />
+                      <TextBlock Grid.Row="1"
+                                 Grid.ColumnSpan="3"
+                                 Classes="MptMeta"
+                                 Text="{Binding ResultPrompt}"
+                                 IsVisible="{Binding HasResultPrompt}"
+                                 TextWrapping="Wrap" />
+                    </Grid>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+        </Border>
+
+        <Border Classes="MptSettingsSection">
+          <StackPanel Spacing="{DynamicResource MptSpacingS}">
+            <TextBlock Classes="MptSectionTitle" Text="Module Settings" />
+            <TextBlock Classes="MptMeta"
+                       Text="{Binding ValidationMessage}"
+                       IsVisible="{Binding HasValidationErrors}" />
+            <ItemsControl ItemsSource="{Binding Fields}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:SettingsFieldViewModel">
+                  <Border Classes="MptSettingsField" Margin="{DynamicResource MptGapBottomM}">
+                    <Grid ColumnDefinitions="260,*" ColumnSpacing="{DynamicResource MptSpacingM}">
+                      <StackPanel Spacing="{DynamicResource MptSpacingXs}">
+                        <TextBlock FontWeight="SemiBold" Text="{Binding Label}" TextWrapping="Wrap" />
+                        <TextBlock Classes="MptPageSubtitle" Text="{Binding Description}" TextWrapping="Wrap" />
+                        <TextBlock Classes="MptMeta" Text="{Binding EditorType}" />
+                      </StackPanel>
+                      <StackPanel Grid.Column="1" Spacing="{DynamicResource MptSpacingXs}">
+                        <controls:MptTextBox Text="{Binding Value, Mode=TwoWay}"
+                                             IsVisible="{Binding IsSingleLineTextEditor}" />
+                        <controls:MptTextBox Text="{Binding Value, Mode=TwoWay}"
+                                             AcceptsReturn="True"
+                                             TextWrapping="NoWrap"
+                                             FontFamily="Consolas"
+                                             FontSize="{DynamicResource MptFontSizeMeta}"
+                                             MinHeight="120"
+                                             IsVisible="{Binding IsMultilineEditor}" />
+                        <controls:MptCheckBox IsChecked="{Binding BooleanValue, Mode=TwoWay}"
+                                              Content="{Binding Key}"
+                                              IsVisible="{Binding IsBooleanEditor}" />
+                        <controls:MptComboBox ItemsSource="{Binding Options}"
+                                              SelectedItem="{Binding SelectedOption, Mode=TwoWay}"
+                                              MinWidth="{DynamicResource MptPackageIdInputWidth}"
+                                              IsVisible="{Binding IsEnumEditor}" />
+                        <TextBlock Classes="MptMeta"
+                                   Text="{Binding DirtySummary}"
+                                   IsVisible="{Binding IsDirty}" />
+                        <TextBlock Classes="MptMeta"
+                                   Text="{Binding ValidationMessage}"
+                                   IsVisible="{Binding HasValidationError}" />
+                      </StackPanel>
+                    </Grid>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+
+            <Border Classes="MptInset" IsVisible="{Binding UsesRawJson}">
+              <StackPanel Spacing="{DynamicResource MptSpacingS}">
+                <TextBlock Classes="MptSectionTitle" Text="Advanced JSON" />
+                <controls:MptTextBox Text="{Binding RawJson, Mode=TwoWay}"
+                                     AcceptsReturn="True"
+                                     TextWrapping="NoWrap"
+                                     FontFamily="Consolas"
+                                     FontSize="{DynamicResource MptFontSizeMeta}"
+                                     MinHeight="280" />
+              </StackPanel>
+            </Border>
+          </StackPanel>
+        </Border>
+
+        <Border Classes="MptSettingsSection" IsVisible="{Binding HasSaveResult}">
+          <StackPanel Spacing="{DynamicResource MptSpacingXs}">
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock FontWeight="SemiBold" Text="{Binding SaveResultTitle}" />
+              <TextBlock Grid.Column="1" Classes="MptMeta" Text="{Binding SaveResultState}" />
+            </Grid>
+            <TextBlock Classes="MptMeta" Text="{Binding SaveResultMessage}" TextWrapping="Wrap" />
+            <TextBlock Classes="MptMeta" Text="{Binding SaveResultRevision}" IsVisible="{Binding HasSaveResultRevision}" />
+          </StackPanel>
+        </Border>
+
+        <Border Classes="MptStickyFooter">
+          <Grid ColumnDefinitions="*,Auto">
+            <StackPanel Spacing="{DynamicResource MptSpacingXs}">
+              <TextBlock FontWeight="SemiBold" Text="{Binding ChangeSummary}" />
+              <TextBlock Classes="MptMeta" Text="{Binding PatchPreview}" IsVisible="{Binding HasPatchPreview}" TextWrapping="Wrap" />
+            </StackPanel>
+            <controls:MptButton Grid.Column="1"
+                                Classes="MptPrimaryButton"
+                                Content="Save settings"
+                                Command="{Binding SaveCommand}"
+                                MinWidth="{DynamicResource MptDensityActionMinWidth}" />
+          </Grid>
+        </Border>
       </StackPanel>
-    </Border>
-
-    <Button Content="Save settings"
-            Command="{Binding SaveCommand}"
-            MinHeight="34"
-            MinWidth="120" />
+    </Grid>
   </StackPanel>
 </UserControl>

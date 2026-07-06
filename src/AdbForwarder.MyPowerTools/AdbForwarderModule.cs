@@ -117,6 +117,7 @@ public sealed class AdbForwarderModule : IMptModule
 
     public async IAsyncEnumerable<MptModuleEvent> SubscribeEventsAsync(EventCursor cursor, [EnumeratorCancellation] CancellationToken cancellationToken)
     {
+        var seq = Math.Max(2UL, cursor.LastEventSeq);
         if (cursor.LastEventSeq < 1)
         {
             var devices = await RunToolAsync(AdbPath(), ["devices", "-l"], TimeSpan.FromSeconds(5), cancellationToken);
@@ -154,6 +155,46 @@ public sealed class AdbForwarderModule : IMptModule
                     ["available"] = portproxy.Available
                 });
         }
+
+        var fingerprint = await BuildEventFingerprintAsync(cancellationToken);
+        while (true)
+        {
+            await Task.Delay(TimeSpan.FromSeconds(15), cancellationToken);
+            var nextFingerprint = await BuildEventFingerprintAsync(cancellationToken);
+            if (string.Equals(nextFingerprint.Fingerprint, fingerprint.Fingerprint, StringComparison.Ordinal))
+            {
+                continue;
+            }
+
+            fingerprint = nextFingerprint;
+            seq++;
+            yield return new MptModuleEvent(
+                Id,
+                seq,
+                nextFingerprint.DeviceCount > 0 ? "device.connected" : "device.disconnected",
+                DateTimeOffset.UtcNow,
+                new JsonObject
+                {
+                    ["title"] = "ADB forwarding state changed",
+                    ["message"] = $"{nextFingerprint.DeviceCount} ADB device(s); {nextFingerprint.RuleCount} portproxy rule(s).",
+                    ["deviceCount"] = nextFingerprint.DeviceCount,
+                    ["ruleCount"] = nextFingerprint.RuleCount,
+                    ["adbAvailable"] = nextFingerprint.AdbAvailable,
+                    ["portproxyAvailable"] = nextFingerprint.PortProxyAvailable
+                });
+        }
+    }
+
+    private async Task<AdbEventFingerprint> BuildEventFingerprintAsync(CancellationToken cancellationToken)
+    {
+        var devices = await RunToolAsync(AdbPath(), ["devices", "-l"], TimeSpan.FromSeconds(5), cancellationToken);
+        var deviceCount = CountAdbDevices(devices.Stdout);
+        var portproxy = await ReadPortProxyAsync(cancellationToken);
+        var rules = portproxy.Available && portproxy.ExitCode == 0
+            ? PortProxyParser.Parse(portproxy.Stdout)
+            : [];
+        var fingerprint = $"{devices.Available}:{deviceCount}:{devices.Stdout}|{portproxy.Available}:{portproxy.ExitCode}:{portproxy.Stdout}";
+        return new AdbEventFingerprint(fingerprint, deviceCount, rules.Count, devices.Available, portproxy.Available);
     }
 
     public ValueTask<SettingsSchemaDocument> GetSettingsSchemaAsync(CancellationToken cancellationToken)
@@ -622,6 +663,12 @@ public sealed class AdbForwarderModule : IMptModule
         }
     }
 
+    private sealed record AdbEventFingerprint(
+        string Fingerprint,
+        int DeviceCount,
+        int RuleCount,
+        bool AdbAvailable,
+        bool PortProxyAvailable);
+
     private sealed record PortProxyPlanningResult(AdbPortProxyPlan? Plan, ToolResult? CurrentState, IReadOnlyList<string> ValidationMessages);
 }
-

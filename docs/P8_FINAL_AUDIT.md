@@ -14,7 +14,7 @@ This audit tracks the final closure scan required by Phase P8. Findings are clas
 | High-confidence secret patterns | `rg -n -i "Bearer\s+[A-Za-z0-9._~+/=-]{8,}|sk-[A-Za-z0-9]{20,}|AKIA[0-9A-Z]{16}|AIza[0-9A-Za-z_-]{20,}|-----BEGIN (RSA|OPENSSH|PRIVATE) KEY-----" -- ...` | No matches. |
 | Simple secret assignments | `rg -n -i "password\s*[:=]\s*['\"][^'\"]+|token\s*[:=]\s*['\"][^'\"]+|secret\s*[:=]\s*['\"][^'\"]+|api[_-]?key\s*[:=]\s*['\"][^'\"]+" -- ...` | No matches. |
 | Sample modules in production root | `rg -n -i "modules[\\/].*sample|sample.*modules[\\/]" -- modules artifacts\release\win-x64\modules` | No matches. |
-| Release metadata URL parity | Metadata/Scoop hash check against `Get-FileHash artifacts\release\MyPowerTools-win-x64.zip -Algorithm SHA256` | `release-metadata.json` and Scoop `64bit` both use relative URL `MyPowerTools-win-x64.zip`; both hashes match `29BECF13374D92F100E58BA60F9187FD166C136919427B826C0A8979EEA3C670`. |
+| Release metadata URL parity | Metadata/Scoop hash check against `Get-FileHash artifacts\release\MyPowerTools-win-x64.zip -Algorithm SHA256` | `release-metadata.json` and Scoop `64bit` both use relative URL `MyPowerTools-win-x64.zip`; both hashes match `B4F8CFED2E13C0370068B0D4DEBB0F66BCF4A18E74620FD7FEBAAEB93CC84BE5`. |
 
 ## Findings
 
@@ -32,4 +32,6 @@ This audit tracks the final closure scan required by Phase P8. Findings are clas
 
 ## Current P8 Status
 
-The source audit found two internal cleanup items and both were fixed. The full final validation matrix passed on 2026-07-04. The Windows portable release is `artifacts/release/MyPowerTools-win-x64.zip`, SHA256 `29BECF13374D92F100E58BA60F9187FD166C136919427B826C0A8979EEA3C670`, size 171498490 bytes. Remaining limitations are external and are listed in `docs/KNOWN_LIMITATIONS.md`, `docs/OPEN_BLOCKERS.md`, and `docs/EXTERNAL_VALIDATION.md`.
+The source audit found internal cleanup items and they were fixed. The full final validation matrix passed on 2026-07-06 Asia/Shanghai. The Windows portable release is `artifacts/release/MyPowerTools-win-x64.zip`, SHA256 `B4F8CFED2E13C0370068B0D4DEBB0F66BCF4A18E74620FD7FEBAAEB93CC84BE5`, size 223125040 bytes. Remaining limitations are external and are listed in `docs/KNOWN_LIMITATIONS.md`, `docs/OPEN_BLOCKERS.md`, and `docs/EXTERNAL_VALIDATION.md`.
+
+

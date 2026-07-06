@@ -94,13 +94,21 @@ public sealed class UiSurfaceGate
 
         var csharpFiles = Directory
             .EnumerateFiles(shellRoot, "*.cs", SearchOption.AllDirectories)
+            .Concat(Directory.EnumerateFiles(uiRoot, "*.cs", SearchOption.AllDirectories))
             .Where(file => !file.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase))
             .Where(file => !file.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase));
         foreach (var file in csharpFiles)
         {
             var text = File.ReadAllText(file);
-            AddIfMatches(issues, file, text, "Brush\\.Parse\\(\"#|Brushes\\.", "Use theme brush resources instead of raw colors.");
-            AddIfMatches(issues, file, text, "\\bFontSize\\s*=\\s*[0-9]", "Use typography constants instead of raw FontSize literals.");
+            AddIfMatches(issues, file, text, "Brush\\.Parse\\s*\\(", "Use theme brush resources instead of Brush.Parse.");
+            AddIfMatches(issues, file, text, "\\bBrushes\\.[A-Za-z]", "Use theme brush resources instead of raw Brushes.");
+
+            if (!IsTokenFile(file))
+            {
+                AddIfMatches(issues, file, text, "new\\s+Thickness\\s*\\(\\s*[0-9]", "Use spacing tokens instead of raw Thickness literals.");
+                AddIfMatches(issues, file, text, "new\\s+CornerRadius\\s*\\(\\s*[0-9]", "Use radius tokens instead of raw CornerRadius literals.");
+                AddIfMatches(issues, file, text, "\\bFontSize\\w*\\s*(?:=|=>)\\s*[0-9]", "Use typography tokens instead of raw FontSize values.");
+            }
 
             if (Path.GetFileName(file).StartsWith("ShellWorkspaceController", StringComparison.OrdinalIgnoreCase))
             {
@@ -112,7 +120,173 @@ public sealed class UiSurfaceGate
             }
         }
 
+        AddShellSemanticRules(issues, shellRoot, uiRoot);
         return issues;
+    }
+
+    private static void AddShellSemanticRules(List<ValidationIssue> issues, string shellRoot, string uiRoot)
+    {
+        var shellChromePath = Path.Combine(shellRoot, "Views", "ShellChromeView.axaml");
+        var dashboardPath = Path.Combine(shellRoot, "Views", "DashboardView.axaml");
+        var commandPalettePath = Path.Combine(shellRoot, "Views", "CommandPaletteView.axaml");
+        var mainWindowPath = Path.Combine(shellRoot, "MainWindow.cs");
+        var shellProjectPath = Path.Combine(shellRoot, "MyPowerTools.Shell.Avalonia.csproj");
+
+        if (File.Exists(mainWindowPath))
+        {
+            var mainWindowLines = File.ReadLines(mainWindowPath).Count();
+            if (mainWindowLines > 120)
+            {
+                issues.Add(new ValidationIssue(mainWindowPath, "error", $"MPTUI001 MainWindow has {mainWindowLines} lines; keep Shell composition below 120 lines."));
+            }
+        }
+
+        foreach (var viewModelFile in Directory.EnumerateFiles(Path.Combine(shellRoot, "ViewModels"), "*.cs"))
+        {
+            var lineCount = File.ReadLines(viewModelFile).Count();
+            if (lineCount > 350)
+            {
+                issues.Add(new ValidationIssue(viewModelFile, "error", $"MPTUI002 ViewModel file has {lineCount} lines; split page/component state below 350 lines."));
+            }
+        }
+
+        foreach (var controllerFile in Directory.EnumerateFiles(Path.Combine(shellRoot, "Services"), "ShellWorkspaceController*.cs"))
+        {
+            var lineCount = File.ReadLines(controllerFile).Count();
+            if (lineCount > 400)
+            {
+                issues.Add(new ValidationIssue(controllerFile, "error", $"MPTUI003 Shell controller file has {lineCount} lines; split orchestration below 400 lines."));
+            }
+        }
+
+        foreach (var viewPath in Directory.EnumerateFiles(Path.Combine(shellRoot, "Views"), "*.axaml", SearchOption.AllDirectories))
+        {
+            var view = File.ReadAllText(viewPath);
+            var rawControl = Regex.Match(view, @"</?(Button|TextBox|ComboBox|CheckBox)\b");
+            if (rawControl.Success)
+            {
+                issues.Add(new ValidationIssue(viewPath, "error", $"MPTUI012 Shell view must use Mpt input/action controls instead of raw {rawControl.Groups[1].Value}."));
+            }
+        }
+
+        if (File.Exists(shellProjectPath))
+        {
+            var project = File.ReadAllText(shellProjectPath);
+            AddIfMatches(issues, shellProjectPath, project, "AndroidTools|AdbForwarder|DoubaoAgent|ScreenEase|SmartBird", "MPTUI004 Shell project must not reference concrete module projects.");
+        }
+
+        if (File.Exists(shellChromePath))
+        {
+            var chrome = File.ReadAllText(shellChromePath);
+            if (!chrome.Contains("GlobalOverlayHost", StringComparison.Ordinal) ||
+                !chrome.Contains("IsCommandPaletteOpen", StringComparison.Ordinal))
+            {
+                issues.Add(new ValidationIssue(shellChromePath, "error", "MPTUI005 ShellChrome must expose a global command overlay host."));
+            }
+
+            if (Regex.IsMatch(chrome, "ColumnDefinitions\\s*=\\s*\"[^\"]*,\\*,\\s*(?:3[0-9]{2}|[0-9]{3})\"") ||
+                Regex.IsMatch(chrome, "Grid\\.Column\\s*=\\s*\"2\"[\\s\\S]{0,240}CommandPanel"))
+            {
+                issues.Add(new ValidationIssue(shellChromePath, "error", "MPTUI006 Command Palette must not be a permanent dashboard right rail."));
+            }
+
+            if (Regex.IsMatch(chrome, "Text\\s*=\\s*\"MyPowerTools\"[\\s\\S]{0,120}NavigationItems"))
+            {
+                issues.Add(new ValidationIssue(shellChromePath, "error", "MPTUI007 Sidebar brand and page title must not duplicate the same heading."));
+            }
+        }
+
+        if (File.Exists(dashboardPath))
+        {
+            var dashboard = File.ReadAllText(dashboardPath);
+            foreach (var required in new[] { "MptMetricTile", "MptStatusBadge", "MptModuleCard", "MptPrimaryButton" })
+            {
+                if (!dashboard.Contains(required, StringComparison.Ordinal))
+                {
+                    issues.Add(new ValidationIssue(dashboardPath, "error", $"MPTUI008 Dashboard is missing required component class {required}."));
+                }
+            }
+
+            if (dashboard.Contains("Command Palette", StringComparison.Ordinal) ||
+                dashboard.Contains("BrokerAuditView", StringComparison.Ordinal))
+            {
+                issues.Add(new ValidationIssue(dashboardPath, "error", "MPTUI009 Dashboard must not embed Command Palette or broker audit panels."));
+            }
+        }
+
+        if (File.Exists(commandPalettePath))
+        {
+            var commandPalette = File.ReadAllText(commandPalettePath);
+            if (!Regex.IsMatch(commandPalette, "Text\\s*=\\s*\"\\{Binding Label\\}\"[\\s\\S]{0,240}<controls:MptTextBox"))
+            {
+                issues.Add(new ValidationIssue(commandPalettePath, "error", "MPTUI010 Command parameters must show a label before editable input."));
+            }
+        }
+
+        var themeDirectory = Path.Combine(uiRoot, "Themes");
+        foreach (var requiredTheme in new[]
+        {
+            "MptTheme.axaml",
+            "MptColors.axaml",
+            "MptTypography.axaml",
+            "MptSpacing.axaml",
+            "MptRadii.axaml",
+            "MptShadows.axaml",
+            "MptDensity.axaml",
+            "MptAnimations.axaml"
+        })
+        {
+            var path = Path.Combine(themeDirectory, requiredTheme);
+            if (!File.Exists(path))
+            {
+                issues.Add(new ValidationIssue(path, "error", $"MPTUI011 Required theme token file {requiredTheme} is missing."));
+            }
+        }
+
+        var controlsDirectory = Path.Combine(uiRoot, "Controls");
+        foreach (var requiredControl in RequiredControlStyleFiles)
+        {
+            var path = Path.Combine(controlsDirectory, requiredControl);
+            if (!File.Exists(path))
+            {
+                issues.Add(new ValidationIssue(path, "error", $"MPTUI014 Required Shell component style file {requiredControl} is missing."));
+            }
+        }
+    }
+
+    private static readonly string[] RequiredControlStyleFiles =
+    [
+        "MptButton.axaml",
+        "MptIconButton.axaml",
+        "MptSidebar.axaml",
+        "MptTopBar.axaml",
+        "MptSearchBox.axaml",
+        "MptModuleCard.axaml",
+        "MptStatusBadge.axaml",
+        "MptMetricTile.axaml",
+        "MptCommandPalette.axaml",
+        "MptCommandListItem.axaml",
+        "MptCommandParameterForm.axaml",
+        "MptSettingsSection.axaml",
+        "MptSettingsField.axaml",
+        "MptLogViewer.axaml",
+        "MptNotificationItem.axaml",
+        "MptPackageCard.axaml",
+        "MptPermissionPrompt.axaml",
+        "MptEmptyState.axaml",
+        "MptErrorState.axaml",
+        "MptLoadingSkeleton.axaml",
+        "MptPageHeader.axaml",
+        "MptToolbar.axaml",
+        "MptTabStrip.axaml",
+        "MptSplitView.axaml"
+    ];
+
+    private static bool IsTokenFile(string file)
+    {
+        var name = Path.GetFileName(file);
+        return name.Contains("Token", StringComparison.OrdinalIgnoreCase) ||
+            file.Contains($"{Path.DirectorySeparatorChar}Themes{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase);
     }
 
     public string WriteDefaultSnapshotSet(string outputDirectory)
@@ -384,8 +558,8 @@ public sealed class UiSurfaceGate
         "shell.module-detail",
         "shell.logs-viewer",
         "shell.notification-center",
-        "shell.permission-prompt",
-        "shell.degraded-module"
+        "shell.package-manager",
+        "shell.runtime-diagnostics"
     ];
 
     private static IReadOnlyList<MptUiSurfaceManifest> CreateShellSurfaces()
@@ -433,6 +607,7 @@ public sealed class UiSurfaceGate
             ["schemaVersion"] = "1.0",
             ["shortcuts"] = new JsonArray
             {
+                Shortcut("Ctrl+Alt+Space", "focus-command-palette", "shell.command-palette"),
                 Shortcut("Ctrl+K", "focus-command-palette", "shell.command-palette"),
                 Shortcut("Ctrl+F", "focus-command-palette", "shell.command-palette"),
                 Shortcut("Escape", "clear-command-palette", "shell.command-palette"),
@@ -440,11 +615,12 @@ public sealed class UiSurfaceGate
                 Shortcut("Ctrl+R", "refresh-current-page", "shell.dashboard"),
                 Shortcut("Ctrl+1", "navigate-dashboard", "shell.dashboard"),
                 Shortcut("Ctrl+2", "navigate-modules", "shell.module-detail"),
-                Shortcut("Ctrl+3", "navigate-settings", "shell.settings-center"),
-                Shortcut("Ctrl+4", "navigate-logs", "shell.logs-viewer"),
-                Shortcut("Ctrl+5", "navigate-notifications", "shell.notification-center"),
-                Shortcut("Ctrl+6", "navigate-packages", "shell.package-manager"),
-                Shortcut("Ctrl+7", "navigate-diagnostics", "shell.runtime-diagnostics")
+                Shortcut("Ctrl+3", "navigate-commands", "shell.command-palette"),
+                Shortcut("Ctrl+4", "navigate-settings", "shell.settings-center"),
+                Shortcut("Ctrl+5", "navigate-logs", "shell.logs-viewer"),
+                Shortcut("Ctrl+6", "navigate-notifications", "shell.notification-center"),
+                Shortcut("Ctrl+7", "navigate-packages", "shell.package-manager"),
+                Shortcut("Ctrl+8", "navigate-diagnostics", "shell.runtime-diagnostics")
             },
             ["focusStates"] = new JsonArray
             {
@@ -474,15 +650,15 @@ public sealed class UiSurfaceGate
         return surfaceId switch
         {
             "shell.dashboard" => ["F5", "Ctrl+R", "Ctrl+1"],
-            "shell.command-palette" => ["Ctrl+K", "Ctrl+F", "Escape"],
-            "shell.settings-center" => ["Ctrl+3"],
+            "shell.command-palette" => ["Ctrl+Alt+Space", "Ctrl+K", "Ctrl+F", "Ctrl+3", "Escape"],
+            "shell.settings-center" => ["Ctrl+4"],
             "shell.module-detail" => ["Ctrl+2"],
-            "shell.logs-viewer" => ["Ctrl+4"],
-            "shell.notification-center" => ["Ctrl+5"],
+            "shell.logs-viewer" => ["Ctrl+5"],
+            "shell.notification-center" => ["Ctrl+6"],
             "shell.permission-prompt" => ["Ctrl+K", "Escape"],
             "shell.degraded-module" => ["Ctrl+2", "F5"],
-            "shell.package-manager" => ["Ctrl+6"],
-            "shell.runtime-diagnostics" => ["Ctrl+7", "F5"],
+            "shell.package-manager" => ["Ctrl+7"],
+            "shell.runtime-diagnostics" => ["Ctrl+8", "F5"],
             _ => []
         };
     }

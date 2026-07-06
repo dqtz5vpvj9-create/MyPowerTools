@@ -54,7 +54,11 @@ public sealed record RuntimeHotkeyBinding(
     string CommandId,
     string Gesture,
     string Scope,
-    string Reason);
+    string Reason,
+    string DefaultGesture = "",
+    bool IsDefault = true,
+    bool Disabled = false,
+    string CommandArgsJson = "{}");
 
 public sealed record RuntimeHotkeyDiagnostic(
     string Id,
@@ -64,7 +68,8 @@ public sealed record RuntimeHotkeyDiagnostic(
     string Scope,
     string State,
     string Message,
-    bool IsDefault);
+    bool IsDefault,
+    string DefaultGesture = "");
 
 public sealed record HostAlert(string Id, string Level, string Title, string Body);
 
@@ -246,7 +251,10 @@ public sealed record RuntimeModuleDiagnostics(
     string SupervisorAction,
     DateTimeOffset LastObservedAt,
     string TransportSelectionReason,
-    IReadOnlyList<string> TransportSelectionDiagnostics);
+    IReadOnlyList<string> TransportSelectionDiagnostics,
+    string ModuleEnabledState = "",
+    string TransportActiveState = "",
+    string ToolRuntimeState = "");
 
 public sealed record RuntimeModuleSupervisionSnapshot(
     string ModuleId,

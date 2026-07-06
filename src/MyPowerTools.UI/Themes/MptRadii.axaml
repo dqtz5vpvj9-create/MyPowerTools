@@ -1,0 +1,10 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Styles.Resources>
+    <CornerRadius x:Key="MptRadiusControl">6</CornerRadius>
+    <CornerRadius x:Key="MptRadiusCard">8</CornerRadius>
+    <CornerRadius x:Key="MptRadiusPanel">10</CornerRadius>
+    <CornerRadius x:Key="MptRadiusOverlay">14</CornerRadius>
+    <CornerRadius x:Key="MptRadiusBadge">999</CornerRadius>
+  </Styles.Resources>
+</Styles>

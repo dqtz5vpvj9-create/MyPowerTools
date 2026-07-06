@@ -1,16 +1,19 @@
 using System.Text.Json;
 using MyPowerTools.Packaging;
 using MyPowerTools.Platform.Abstractions;
+using Sdk = MyPowerTools.Abstractions;
 
 namespace MyPowerTools.Runtime;
 
 public sealed class TransportSelector
 {
     private readonly PlatformId _platform;
+    private readonly IPlatformPathService _pathService;
 
-    public TransportSelector(PlatformId platform)
+    public TransportSelector(PlatformId platform, IPlatformPathService? pathService = null)
     {
         _platform = platform;
+        _pathService = pathService ?? new PlatformPathService();
     }
 
     public TransportSelectionResult Select(MptPackageDefinition package, MptModuleDefinition module)
@@ -64,6 +67,84 @@ public sealed class TransportSelector
         }
 
         var selectionReason = SelectionReason(module.Manifest.RuntimePolicy, selected);
+        diagnostics.Add(new TransportSelectionDiagnostic(DescribeCandidate(selected), selected.RuntimeId ?? "", "selected", selectionReason));
+        return new TransportSelectionResult(ToSelected(package, module, selected, selectionReason, diagnostics), diagnostics);
+    }
+
+    public TransportSelectionResult SelectForCommand(
+        MptPackageDefinition package,
+        MptModuleDefinition module,
+        Sdk.MptCommandDescriptor command,
+        Sdk.CommandRequest request,
+        IReadOnlySet<string> availableTransportKinds)
+    {
+        var constraints = RuntimeOperationPolicy.GetConstraints(command, request);
+        if (constraints.Count == 0)
+        {
+            return Select(package, module);
+        }
+
+        var diagnostics = new List<TransportSelectionDiagnostic>();
+        var candidates = module.Manifest.Entrypoints
+            .Select(entrypoint => CreateCandidate(package, entrypoint))
+            .ToArray();
+        var viable = new List<EntrypointCandidate>();
+
+        foreach (var candidate in candidates)
+        {
+            var label = DescribeCandidate(candidate);
+            if (candidate.Resolved is null)
+            {
+                diagnostics.Add(Skipped(label, candidate.RuntimeId, "package runtime could not be resolved."));
+                continue;
+            }
+
+            if (!IsPlatformMatch(candidate.Resolved))
+            {
+                diagnostics.Add(Skipped(label, candidate.RuntimeId, $"platform '{_platform.Rid}' is not supported by this entrypoint."));
+                continue;
+            }
+
+            if (!IsAllowedByRuntimePolicy(module, candidate, out var policyReason))
+            {
+                diagnostics.Add(Skipped(label, candidate.RuntimeId, policyReason));
+                continue;
+            }
+
+            if (!IsViable(package, module, candidate.Resolved, out var viabilityReason))
+            {
+                diagnostics.Add(Skipped(label, candidate.RuntimeId, viabilityReason));
+                continue;
+            }
+
+            if (!availableTransportKinds.Contains(candidate.Resolved.Kind))
+            {
+                diagnostics.Add(Skipped(label, candidate.RuntimeId, $"transport runtime '{candidate.Resolved.Kind}' is not registered in this host."));
+                continue;
+            }
+
+            if (!IsAllowedForCommandRoute(module, command, constraints, candidate.Resolved, out var routeReason))
+            {
+                diagnostics.Add(Skipped(label, candidate.RuntimeId, routeReason));
+                continue;
+            }
+
+            diagnostics.Add(new TransportSelectionDiagnostic(label, candidate.RuntimeId ?? "", "eligible", routeReason));
+            viable.Add(candidate);
+        }
+
+        var selected = viable
+            .OrderBy(candidate => PolicyRank(module.Manifest.RuntimePolicy, candidate))
+            .ThenByDescending(candidate => candidate.Resolved!.Priority)
+            .ThenBy(candidate => candidate.Resolved!.StartupCost ?? 0)
+            .FirstOrDefault();
+
+        if (selected is null)
+        {
+            return new TransportSelectionResult(null, diagnostics);
+        }
+
+        var selectionReason = $"command '{command.Id}' route satisfies constraints [{string.Join(", ", constraints)}] via {DescribeCandidate(selected)}.";
         diagnostics.Add(new TransportSelectionDiagnostic(DescribeCandidate(selected), selected.RuntimeId ?? "", "selected", selectionReason));
         return new TransportSelectionResult(ToSelected(package, module, selected, selectionReason, diagnostics), diagnostics);
     }
@@ -245,7 +326,7 @@ public sealed class TransportSelector
             entrypoint.Type,
             entrypoint.Service,
             endpoint?.Transport,
-            endpoint?.Name ?? endpoint?.Path ?? entrypoint.BaseUrl,
+            ExpandEndpointAddress(endpoint?.Name ?? endpoint?.Path ?? entrypoint.BaseUrl),
             TryGetHealthPath(entrypoint),
             selectionReason,
             diagnostics.ToArray(),
@@ -254,6 +335,11 @@ public sealed class TransportSelector
             IsSidecar(candidate) ? policy?.SidecarRules?.RestartLimit : null,
             IsSidecar(candidate) ? policy?.SidecarRules?.RestartWindowSeconds : null,
             IsSidecar(candidate) ? policy?.SidecarRules?.KillProcessTree : null);
+    }
+
+    private string? ExpandEndpointAddress(string? value)
+    {
+        return string.IsNullOrWhiteSpace(value) ? value : _pathService.ExpandRuntimePath(value);
     }
 
     private static string? ResolveCommand(string packageDirectory, string moduleDirectory, string? command)
@@ -443,6 +529,30 @@ public sealed class TransportSelector
     private static TransportSelectionDiagnostic Skipped(string transportKind, string? runtimeId, string reason)
     {
         return new TransportSelectionDiagnostic(transportKind, runtimeId ?? "", "skipped", reason);
+    }
+
+    private static bool IsAllowedForCommandRoute(
+        MptModuleDefinition module,
+        Sdk.MptCommandDescriptor command,
+        IReadOnlyList<string> constraints,
+        MptEntrypointManifest entrypoint,
+        out string reason)
+    {
+        foreach (var constraint in constraints)
+        {
+            var rule = RuntimeOperationPolicy.ResolveRule(module.Manifest.RuntimePolicy?.OperationRules, constraint);
+            if (RuntimeOperationPolicy.IsAllowedForTransport(rule, entrypoint.Kind, command))
+            {
+                continue;
+            }
+
+            var requiredRoute = RuntimeOperationPolicy.RequiredRouteForRule(rule);
+            reason = $"command '{command.Id}' requires constraint '{constraint}' via {requiredRoute}; transport '{entrypoint.Kind}' is unavailable for that route.";
+            return false;
+        }
+
+        reason = $"command '{command.Id}' constraints [{string.Join(", ", constraints)}] are satisfied by transport '{entrypoint.Kind}'.";
+        return true;
     }
 
     private sealed record EntrypointCandidate(MptEntrypointManifest Original, MptEntrypointManifest? Resolved, string? RuntimeId);

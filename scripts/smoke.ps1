@@ -49,12 +49,15 @@ if (-not (Test-Path -LiteralPath $ShellExe)) {
 New-Item -ItemType Directory -Path $SmokeDataRoot -Force | Out-Null
 
 $runnerProcess = $null
+$previousMptDataRoot = $env:MPT_DATA_ROOT
 try {
+    $env:MPT_DATA_ROOT = $SmokeDataRoot
     $startInfo = [System.Diagnostics.ProcessStartInfo]::new()
     $startInfo.FileName = $RunnerExe
     $startInfo.WorkingDirectory = $RepoRoot
     $startInfo.UseShellExecute = $false
     $startInfo.CreateNoWindow = $true
+    $startInfo.Environment['MPT_DATA_ROOT'] = $SmokeDataRoot
     foreach ($argument in @('--modules', (Join-Path $RepoRoot 'modules'), '--data-root', $SmokeDataRoot)) {
         $startInfo.ArgumentList.Add($argument)
     }
@@ -84,6 +87,12 @@ try {
         throw 'Runner did not exit after HostControl QuitRunner.'
     }
 } finally {
+    if ($null -eq $previousMptDataRoot) {
+        Remove-Item Env:\MPT_DATA_ROOT -ErrorAction SilentlyContinue
+    } else {
+        $env:MPT_DATA_ROOT = $previousMptDataRoot
+    }
+
     if ($null -ne $runnerProcess -and -not $runnerProcess.HasExited) {
         $runnerProcess.Kill($true)
         $runnerProcess.WaitForExit()

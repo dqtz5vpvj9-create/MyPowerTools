@@ -1,0 +1,17 @@
+<Styles xmlns="https://github.com/avaloniaui">
+  <Style Selector="Border.MptSplitPane">
+    <Setter Property="Padding" Value="{DynamicResource MptCardPadding}" />
+    <Setter Property="CornerRadius" Value="{DynamicResource MptRadiusCard}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MptBrushBorder}" />
+    <Setter Property="BorderThickness" Value="{DynamicResource MptBorderThickness}" />
+    <Setter Property="Background" Value="{DynamicResource MptBrushCardBackground}" />
+  </Style>
+
+  <Style Selector="Border.MptStickyFooter">
+    <Setter Property="Padding" Value="{DynamicResource MptCompactPadding}" />
+    <Setter Property="CornerRadius" Value="{DynamicResource MptRadiusCard}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MptBrushBorderStrong}" />
+    <Setter Property="BorderThickness" Value="{DynamicResource MptBorderThickness}" />
+    <Setter Property="Background" Value="{DynamicResource MptBrushSurfaceRaised}" />
+  </Style>
+</Styles>

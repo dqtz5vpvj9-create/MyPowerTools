@@ -1,0 +1,21 @@
+<Styles xmlns="https://github.com/avaloniaui">
+  <Style Selector="ListBox.MptLogViewer">
+    <Setter Property="FontFamily" Value="{DynamicResource MptFontFamilyMono}" />
+    <Setter Property="FontSize" Value="{DynamicResource MptFontSizeMeta}" />
+  </Style>
+
+  <Style Selector="Border.MptLogViewer">
+    <Setter Property="Padding" Value="{DynamicResource MptCompactPadding}" />
+    <Setter Property="CornerRadius" Value="{DynamicResource MptRadiusCard}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MptBrushBorder}" />
+    <Setter Property="BorderThickness" Value="{DynamicResource MptBorderThickness}" />
+    <Setter Property="Background" Value="{DynamicResource MptBrushCardBackground}" />
+  </Style>
+
+  <Style Selector="Border.MptLogRow">
+    <Setter Property="MinHeight" Value="{DynamicResource MptDensityListItemMinHeight}" />
+    <Setter Property="Padding" Value="{DynamicResource MptListItemPadding}" />
+    <Setter Property="CornerRadius" Value="{DynamicResource MptRadiusControl}" />
+    <Setter Property="Background" Value="{DynamicResource MptBrushSurfaceInset}" />
+  </Style>
+</Styles>

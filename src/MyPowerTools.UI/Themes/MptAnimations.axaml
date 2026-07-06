@@ -1,0 +1,8 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Styles.Resources>
+    <x:Double x:Key="MptAnimationFastMs">120</x:Double>
+    <x:Double x:Key="MptAnimationNormalMs">180</x:Double>
+    <x:Double x:Key="MptAnimationSlowMs">240</x:Double>
+  </Styles.Resources>
+</Styles>

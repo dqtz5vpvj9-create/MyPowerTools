@@ -9,8 +9,8 @@ using MyPowerTools.Packaging;
 using MyPowerTools.Platform.Abstractions;
 using MyPowerTools.Platform.Windows;
 using MyPowerTools.Protocol;
+using MyPowerTools.Runner;
 using MyPowerTools.Runtime;
-using CommandRequest = MyPowerTools.Abstractions.CommandRequest;
 
 var root = FindRepositoryRoot(AppContext.BaseDirectory);
 var modulesRoot = GetOption(args, "--modules") ?? Path.Combine(root, "modules");
@@ -19,6 +19,7 @@ var platform = PlatformId.Current();
 var windowsPlatform = OperatingSystem.IsWindows() ? new WindowsPlatformPack() : null;
 var dataRoot = GetOption(args, "--data-root") ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MyPowerTools");
 var runtimePaths = RuntimePaths.Create(dataRoot);
+var hostControlToken = HostControlAuthTokenStore.GetOrCreateToken(runtimePaths.Root);
 
 using var guard = SingleInstanceGuard.Acquire("MyPowerTools.Runner");
 if (!guard.OwnsInstance && !once)
@@ -44,9 +45,12 @@ if (once)
     return 0;
 }
 
+runtime.StartModuleEventPump();
+
 var endpoint = IpcEndpoint.RunnerDefault(platform);
 var builder = WebApplication.CreateBuilder(args);
-builder.Services.AddGrpc();
+builder.Services.AddSingleton(new HostControlAuthOptions(hostControlToken));
+builder.Services.AddGrpc(options => options.Interceptors.Add<HostControlAuthServerInterceptor>());
 builder.Services.AddSingleton(runtime);
 builder.Services.AddSingleton(new PackageStore(modulesRoot, Path.Combine(root, "schemas")));
 
@@ -73,14 +77,15 @@ app.MapGrpcService<HostControlGrpcService>();
 app.MapGet("/", () => $"MyPowerTools.Runner {ProtocolConstants.HostVersion} is running.");
 
 Console.WriteLine($"MyPowerTools.Runner serving HostControl on {endpoint.Transport}:{endpoint.Address}");
-var tray = await StartTrayAsync(app, root, args, windowsPlatform);
-var hotkeys = await StartHotkeysAsync(root, args, windowsPlatform, runtime);
+var tray = await StartTrayAsync(app, root, runtimePaths.Root, args, windowsPlatform);
+var hotkeys = await StartHotkeysAsync(root, runtimePaths.Root, args, windowsPlatform, runtime);
 try
 {
     await app.RunAsync();
 }
 finally
 {
+    await runtime.StopModuleEventPumpAsync();
     if (hotkeys is not null)
     {
         await hotkeys.DisposeAsync();
@@ -130,7 +135,7 @@ static IReadOnlyDictionary<string, object> CreateCapabilityProviders(WindowsPlat
     };
 }
 
-static async Task<ITrayService?> StartTrayAsync(WebApplication app, string root, string[] args, WindowsPlatformPack? platform)
+static async Task<ITrayService?> StartTrayAsync(WebApplication app, string root, string dataRoot, string[] args, WindowsPlatformPack? platform)
 {
     if (args.Contains("--no-tray", StringComparer.OrdinalIgnoreCase) ||
         platform is null ||
@@ -153,7 +158,7 @@ static async Task<ITrayService?> StartTrayAsync(WebApplication app, string root,
         {
             if (invocation.ActionId == "open-shell")
             {
-                StartShell(root);
+                StartShell(root, dataRoot);
             }
 
             if (invocation.ActionId == "quit-runner")
@@ -176,7 +181,7 @@ static async Task<ITrayService?> StartTrayAsync(WebApplication app, string root,
     return null;
 }
 
-static async Task<IHotkeyService?> StartHotkeysAsync(string root, string[] args, WindowsPlatformPack? platform, MptHostRuntime runtime)
+static async Task<IHotkeyService?> StartHotkeysAsync(string root, string dataRoot, string[] args, WindowsPlatformPack? platform, MptHostRuntime runtime)
 {
     if (args.Contains("--no-hotkeys", StringComparer.OrdinalIgnoreCase) ||
         platform is null ||
@@ -186,16 +191,14 @@ static async Task<IHotkeyService?> StartHotkeysAsync(string root, string[] args,
     }
 
     var hotkeys = platform.Hotkeys;
-    var commandByHotkeyId = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
-    var registeredModuleHotkeyIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-    var hotkeyGate = new object();
+    var synchronizer = new RunnerHotkeySynchronizer(hotkeys, runtime);
     hotkeys.Pressed += (_, invocation) =>
     {
         if (string.Equals(invocation.Id, "command-palette", StringComparison.OrdinalIgnoreCase))
         {
             try
             {
-                StartShell(root, focusCommandPalette: true);
+                StartShell(root, dataRoot, focusCommandPalette: true);
                 Console.WriteLine($"MyPowerTools.Runner hotkey invoked: {invocation.Gesture}");
             }
             catch (Exception ex)
@@ -206,13 +209,8 @@ static async Task<IHotkeyService?> StartHotkeysAsync(string root, string[] args,
             return;
         }
 
-        string? commandId;
-        lock (hotkeyGate)
-        {
-            commandByHotkeyId.TryGetValue(invocation.Id, out commandId);
-        }
-
-        if (commandId is null)
+        var request = synchronizer.CreateCommandRequest(invocation);
+        if (request is null)
         {
             return;
         }
@@ -221,14 +219,12 @@ static async Task<IHotkeyService?> StartHotkeysAsync(string root, string[] args,
         {
             try
             {
-                var result = await runtime.ExecuteCommandAsync(
-                    new CommandRequest($"hotkey-{Guid.NewGuid():N}", commandId, new JsonObject()),
-                    CancellationToken.None);
-                Console.WriteLine($"MyPowerTools.Runner hotkey command {commandId}: {result.State}");
+                var result = await runtime.ExecuteCommandAsync(request, CancellationToken.None);
+                Console.WriteLine($"MyPowerTools.Runner hotkey command {request.CommandId}: {result.State}");
             }
             catch (Exception ex)
             {
-                Console.WriteLine($"MyPowerTools.Runner hotkey command {commandId} failed: {ex.Message}");
+                Console.WriteLine($"MyPowerTools.Runner hotkey command {request.CommandId} failed: {ex.Message}");
             }
         });
     };
@@ -238,18 +234,15 @@ static async Task<IHotkeyService?> StartHotkeysAsync(string root, string[] args,
             CancellationToken.None);
     Console.WriteLine($"MyPowerTools.Runner hotkey {result.State}: {result.Message}");
 
-    await SyncModuleHotkeysAsync(hotkeys, runtime, commandByHotkeyId, registeredModuleHotkeyIds, hotkeyGate, CancellationToken.None);
-    _ = Task.Run(() => WatchRuntimeHotkeyBindingsAsync(hotkeys, runtime, commandByHotkeyId, registeredModuleHotkeyIds, hotkeyGate));
+    await SyncModuleHotkeysAsync(synchronizer, CancellationToken.None);
+    _ = Task.Run(() => WatchRuntimeHotkeyBindingsAsync(runtime, synchronizer));
 
     return hotkeys;
 }
 
 static async Task WatchRuntimeHotkeyBindingsAsync(
-    IHotkeyService hotkeys,
     MptHostRuntime runtime,
-    Dictionary<string, string> commandByHotkeyId,
-    HashSet<string> registeredModuleHotkeyIds,
-    object hotkeyGate)
+    RunnerHotkeySynchronizer synchronizer)
 {
     var lastEventSeq = 0UL;
     while (true)
@@ -257,15 +250,9 @@ static async Task WatchRuntimeHotkeyBindingsAsync(
         foreach (var evt in runtime.HostEventsSince(lastEventSeq))
         {
             lastEventSeq = evt.Seq;
-            if (RequiresHotkeySync(evt.Type))
+            if (RunnerHotkeySynchronizer.RequiresHotkeySync(evt.Type))
             {
-                await SyncModuleHotkeysAsync(
-                    hotkeys,
-                    runtime,
-                    commandByHotkeyId,
-                    registeredModuleHotkeyIds,
-                    hotkeyGate,
-                    CancellationToken.None);
+                await SyncModuleHotkeysAsync(synchronizer, CancellationToken.None);
             }
         }
 
@@ -274,66 +261,22 @@ static async Task WatchRuntimeHotkeyBindingsAsync(
 }
 
 static async Task SyncModuleHotkeysAsync(
-    IHotkeyService hotkeys,
-    MptHostRuntime runtime,
-    Dictionary<string, string> commandByHotkeyId,
-    HashSet<string> registeredModuleHotkeyIds,
-    object hotkeyGate,
+    RunnerHotkeySynchronizer synchronizer,
     CancellationToken cancellationToken)
 {
-    var bindings = runtime.ListHotkeyBindings();
-    var nextIds = bindings.Select(binding => binding.Id).ToHashSet(StringComparer.OrdinalIgnoreCase);
-    foreach (var id in registeredModuleHotkeyIds.Where(id => !nextIds.Contains(id)).ToArray())
+    foreach (var sync in await synchronizer.SyncAsync(cancellationToken))
     {
-        var result = await hotkeys.UnregisterAsync(id, cancellationToken);
-        lock (hotkeyGate)
-        {
-            registeredModuleHotkeyIds.Remove(id);
-            commandByHotkeyId.Remove(id);
-        }
-
-        Console.WriteLine($"MyPowerTools.Runner module hotkey {result.State}: {result.Message}");
-    }
-
-    foreach (var binding in bindings)
-    {
-        lock (hotkeyGate)
-        {
-            commandByHotkeyId[binding.Id] = binding.CommandId;
-        }
-
-        if (registeredModuleHotkeyIds.Contains(binding.Id))
-        {
-            continue;
-        }
-
-        var result = await hotkeys.RegisterAsync(
-            new HotkeyRegistration(binding.Id, binding.Gesture, binding.Scope, binding.Reason),
-            cancellationToken);
-        if (result.Success)
-        {
-            lock (hotkeyGate)
-            {
-                registeredModuleHotkeyIds.Add(binding.Id);
-            }
-        }
-
-        Console.WriteLine($"MyPowerTools.Runner module hotkey {result.State}: {result.Message}");
+        Console.WriteLine($"MyPowerTools.Runner module hotkey {sync.Operation} {sync.Result.State}: {sync.Result.Message}");
     }
 }
 
-static bool RequiresHotkeySync(string eventType)
+static void StartShell(string root, string dataRoot, bool focusCommandPalette = false)
 {
-    return eventType is "module.enabled" or "module.disabled" or "settings.updated" or "registry.loaded";
-}
-
-static void StartShell(string root, bool focusCommandPalette = false)
-{
-    var startInfo = CreateShellStartInfo(root, focusCommandPalette);
+    var startInfo = CreateShellStartInfo(root, dataRoot, focusCommandPalette);
     Process.Start(startInfo);
 }
 
-static ProcessStartInfo CreateShellStartInfo(string root, bool focusCommandPalette = false)
+static ProcessStartInfo CreateShellStartInfo(string root, string dataRoot, bool focusCommandPalette = false)
 {
     var siblingShell = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "Shell", "MyPowerTools.Shell.Avalonia.exe"));
     if (File.Exists(siblingShell))
@@ -344,6 +287,7 @@ static ProcessStartInfo CreateShellStartInfo(string root, bool focusCommandPalet
             UseShellExecute = false
         };
         AddShellArguments(siblingStartInfo, focusCommandPalette);
+        siblingStartInfo.Environment[HostControlAuthTokenStore.DataRootEnvironmentVariable] = dataRoot;
         return siblingStartInfo;
     }
 
@@ -356,6 +300,7 @@ static ProcessStartInfo CreateShellStartInfo(string root, bool focusCommandPalet
             UseShellExecute = false
         };
         AddShellArguments(debugStartInfo, focusCommandPalette);
+        debugStartInfo.Environment[HostControlAuthTokenStore.DataRootEnvironmentVariable] = dataRoot;
         return debugStartInfo;
     }
 
@@ -366,6 +311,7 @@ static ProcessStartInfo CreateShellStartInfo(string root, bool focusCommandPalet
         WorkingDirectory = root,
         UseShellExecute = false
     };
+    startInfo.Environment[HostControlAuthTokenStore.DataRootEnvironmentVariable] = dataRoot;
     startInfo.ArgumentList.Add("run");
     startInfo.ArgumentList.Add("--project");
     startInfo.ArgumentList.Add(shellProject);

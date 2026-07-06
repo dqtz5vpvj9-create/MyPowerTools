@@ -1,51 +1,115 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="using:MyPowerTools.UI.Controls"
              xmlns:vm="using:MyPowerTools.Shell.Avalonia.ViewModels"
              x:Class="MyPowerTools.Shell.Avalonia.Views.DashboardView"
              x:DataType="vm:DashboardViewModel">
-  <StackPanel Margin="{DynamicResource MptPagePadding}" Spacing="{DynamicResource MptSpacingM}">
-    <StackPanel Spacing="{DynamicResource MptSpacingXs}">
-      <TextBlock Classes="MptPageTitle" Text="{Binding Title}" />
-      <TextBlock Classes="MptPageSubtitle" Text="{Binding Subtitle}" />
-    </StackPanel>
+  <StackPanel Spacing="{DynamicResource MptSpacingL}">
+    <Grid ColumnDefinitions="*,Auto">
+      <StackPanel Spacing="{DynamicResource MptSpacingXs}">
+        <TextBlock Classes="MptPageTitle" Text="MyPowerTools" />
+        <TextBlock Classes="MptPageSubtitle" Text="{Binding Subtitle}" />
+      </StackPanel>
+      <StackPanel Grid.Column="1"
+                  Orientation="Horizontal"
+                  Spacing="{DynamicResource MptSpacingS}">
+        <Border Classes="MptStatusBadge">
+          <TextBlock Classes="MptMeta" Text="Runner connected" />
+        </Border>
+      </StackPanel>
+    </Grid>
 
-    <ItemsControl ItemsSource="{Binding Alerts}">
+    <UniformGrid Columns="4">
+      <Border Classes="MptMetricTile" Margin="{DynamicResource MptGapRightM}">
+        <StackPanel>
+          <TextBlock Classes="MptCardTitle" Text="{Binding RunningCount}" />
+          <TextBlock Classes="MptMeta" Text="Running" />
+        </StackPanel>
+      </Border>
+      <Border Classes="MptMetricTile" Margin="{DynamicResource MptGapRightM}">
+        <StackPanel>
+          <TextBlock Classes="MptCardTitle" Text="{Binding DegradedCount}" />
+          <TextBlock Classes="MptMeta" Text="Degraded" />
+        </StackPanel>
+      </Border>
+      <Border Classes="MptMetricTile" Margin="{DynamicResource MptGapRightM}">
+        <StackPanel>
+          <TextBlock Classes="MptCardTitle" Text="{Binding CommandCount}" />
+          <TextBlock Classes="MptMeta" Text="Quick actions" />
+        </StackPanel>
+      </Border>
+      <Border Classes="MptMetricTile">
+        <StackPanel>
+          <TextBlock Classes="MptCardTitle" Text="{Binding NotificationCount}" />
+          <TextBlock Classes="MptMeta" Text="Notifications" />
+        </StackPanel>
+      </Border>
+    </UniformGrid>
+
+    <ItemsControl ItemsSource="{Binding Alerts}"
+                  IsVisible="{Binding HasAlerts}">
       <ItemsControl.ItemTemplate>
         <DataTemplate x:DataType="vm:ShellAlertViewModel">
           <Border Classes="MptSettingsField" Margin="{DynamicResource MptGapBottomM}">
-            <StackPanel Spacing="{DynamicResource MptSpacingXs}">
-              <TextBlock FontWeight="SemiBold" Text="{Binding Title}" />
-              <TextBlock Classes="MptPageSubtitle" Text="{Binding Body}" />
-            </StackPanel>
+            <Grid ColumnDefinitions="Auto,*">
+              <Border Classes="MptStatusBadge" Margin="{DynamicResource MptGapRightM}">
+                <TextBlock Classes="MptMeta" Text="{Binding Level}" />
+              </Border>
+              <StackPanel Grid.Column="1" Spacing="{DynamicResource MptSpacingXs}">
+                <TextBlock Classes="MptCardTitle" Text="{Binding Title}" />
+                <TextBlock Classes="MptPageSubtitle" Text="{Binding Body}" />
+              </StackPanel>
+            </Grid>
           </Border>
         </DataTemplate>
       </ItemsControl.ItemTemplate>
     </ItemsControl>
 
     <ItemsControl ItemsSource="{Binding Cards}">
+      <ItemsControl.ItemsPanel>
+        <ItemsPanelTemplate>
+          <WrapPanel ItemWidth="{DynamicResource MptLayoutCardMinWidth}" />
+        </ItemsPanelTemplate>
+      </ItemsControl.ItemsPanel>
       <ItemsControl.ItemTemplate>
         <DataTemplate x:DataType="vm:DashboardCardViewModel">
-          <Border Classes="MptModuleCard" Margin="{DynamicResource MptGapBottomL}">
-            <StackPanel Spacing="{DynamicResource MptSpacingS}">
+          <Border Classes="MptModuleCard" Margin="{DynamicResource MptWrapItemMargin}">
+            <Grid RowDefinitions="Auto,Auto,*,Auto">
               <Grid ColumnDefinitions="*,Auto">
-                <TextBlock Classes="MptSectionTitle" Text="{Binding Title}" />
-                <TextBlock Grid.Column="1" Classes="MptMeta" Text="{Binding State}" />
+                <StackPanel Spacing="{DynamicResource MptSpacingXs}">
+                  <TextBlock Classes="MptCardTitle" Text="{Binding Title}" />
+                  <TextBlock Classes="MptMeta" Text="{Binding ModuleId}" />
+                </StackPanel>
+                <Border Grid.Column="1" Classes="MptStatusBadge">
+                  <TextBlock Classes="MptMeta" Text="{Binding State}" />
+                </Border>
               </Grid>
-              <TextBlock Classes="MptPageSubtitle" Text="{Binding Summary}" />
-              <ItemsControl ItemsSource="{Binding Metrics}">
+              <TextBlock Grid.Row="1"
+                         Classes="MptPageSubtitle"
+                         Text="{Binding Summary}"
+                         Margin="{DynamicResource MptGapBottomS}" />
+              <ItemsControl Grid.Row="2" ItemsSource="{Binding Metrics}">
                 <ItemsControl.ItemTemplate>
                   <DataTemplate x:DataType="vm:MetricViewModel">
-                    <Border Classes="MptMetricTile" Margin="{DynamicResource MptGapRightM}">
-                      <StackPanel>
-                        <TextBlock FontWeight="SemiBold" Text="{Binding Value}" />
-                        <TextBlock Classes="MptMeta" Text="{Binding Label}" />
-                      </StackPanel>
-                    </Border>
+                    <Grid Margin="{DynamicResource MptGapBottomXs}">
+                      <Grid.ColumnDefinitions>
+                        <ColumnDefinition Width="{DynamicResource MptLayoutMetricLabelGridWidth}" />
+                        <ColumnDefinition Width="*" />
+                      </Grid.ColumnDefinitions>
+                      <TextBlock Classes="MptMeta" Text="{Binding Label}" />
+                      <TextBlock Grid.Column="1"
+                                 Text="{Binding Value}"
+                                 TextTrimming="CharacterEllipsis" />
+                    </Grid>
                   </DataTemplate>
                 </ItemsControl.ItemTemplate>
               </ItemsControl>
-              <StackPanel Orientation="Horizontal" Spacing="{DynamicResource MptSpacingS}">
-                <Button Content="Details" Command="{Binding DetailsCommand}" MinHeight="32" MinWidth="76" />
+              <StackPanel Grid.Row="3"
+                          Orientation="Horizontal"
+                          Spacing="{DynamicResource MptSpacingS}">
+                <controls:MptButton Classes="MptPrimaryButton"
+                        Content="Details"
+                        Command="{Binding DetailsCommand}" />
                 <ItemsControl ItemsSource="{Binding Actions}">
                   <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
@@ -54,15 +118,17 @@
                   </ItemsControl.ItemsPanel>
                   <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:ShellActionViewModel">
-                      <Button Content="{Binding Title}" Command="{Binding ExecuteCommand}" MinHeight="32" MinWidth="76" />
+                      <controls:MptButton Content="{Binding Title}"
+                              Command="{Binding ExecuteCommand}" />
                     </DataTemplate>
                   </ItemsControl.ItemTemplate>
                 </ItemsControl>
               </StackPanel>
-            </StackPanel>
+            </Grid>
           </Border>
         </DataTemplate>
       </ItemsControl.ItemTemplate>
     </ItemsControl>
   </StackPanel>
 </UserControl>
+

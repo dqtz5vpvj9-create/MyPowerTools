@@ -6,6 +6,16 @@ public interface IModuleTransportRuntime
 {
     string Kind { get; }
 
+    ValueTask EnableModuleAsync(RuntimeModuleRecord module, MyPowerTools.Abstractions.ModuleContext context, CancellationToken cancellationToken)
+    {
+        return ValueTask.CompletedTask;
+    }
+
+    ValueTask DisableModuleAsync(RuntimeModuleRecord module, MyPowerTools.Abstractions.ModuleContext context, IReadOnlySet<string> enabledModuleIds, CancellationToken cancellationToken)
+    {
+        return ValueTask.CompletedTask;
+    }
+
     ValueTask<MyPowerTools.Abstractions.ModuleStatusSnapshot?> GetStatusAsync(RuntimeModuleRecord module, MyPowerTools.Abstractions.ModuleContext context, CancellationToken cancellationToken);
     ValueTask<MyPowerTools.Abstractions.SettingsSchemaDocument> GetSettingsSchemaAsync(RuntimeModuleRecord module, MyPowerTools.Abstractions.ModuleContext context, CancellationToken cancellationToken);
     ValueTask<MyPowerTools.Abstractions.SettingsValidationResult> ValidateSettingsAsync(RuntimeModuleRecord module, MyPowerTools.Abstractions.ModuleContext context, MyPowerTools.Abstractions.SettingsPatch patch, CancellationToken cancellationToken)
@@ -20,6 +30,11 @@ public interface IModuleTransportRuntime
 
     ValueTask<IReadOnlyList<MyPowerTools.Abstractions.MptCommandDescriptor>> ListCommandsAsync(RuntimeModuleRecord module, MyPowerTools.Abstractions.ModuleContext context, CancellationToken cancellationToken);
     ValueTask<MyPowerTools.Abstractions.CommandExecutionResult> ExecuteCommandAsync(RuntimeModuleRecord module, MyPowerTools.Abstractions.ModuleContext context, MyPowerTools.Abstractions.CommandRequest request, CancellationToken cancellationToken);
+    ValueTask<CommandCancellationResult> CancelCommandAsync(RuntimeModuleRecord module, MyPowerTools.Abstractions.ModuleContext context, string invocationId, CancellationToken cancellationToken)
+    {
+        return ValueTask.FromResult(new CommandCancellationResult(false, invocationId, "module-cancel-unsupported", $"Transport '{Kind}' does not support module-level command cancellation."));
+    }
+
     async IAsyncEnumerable<CommandProgressEvent> ExecuteCommandStreamAsync(
         RuntimeModuleRecord module,
         MyPowerTools.Abstractions.ModuleContext context,

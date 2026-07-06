@@ -1,26 +1,35 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="using:MyPowerTools.UI.Controls"
              xmlns:vm="using:MyPowerTools.Shell.Avalonia.ViewModels"
              x:Class="MyPowerTools.Shell.Avalonia.Views.ModuleDetailView"
              x:DataType="vm:ModuleDetailViewModel">
   <StackPanel Margin="{DynamicResource MptPagePadding}" Spacing="{DynamicResource MptSpacingM}">
     <Border Classes="MptModuleCard">
-      <StackPanel Spacing="{DynamicResource MptSpacingS}">
-        <Grid ColumnDefinitions="*,Auto">
-          <StackPanel Spacing="{DynamicResource MptSpacingXs}">
-            <TextBlock Classes="MptPageTitle" Text="{Binding Title}" />
-            <TextBlock Classes="MptPageSubtitle" Text="{Binding Subtitle}" />
-          </StackPanel>
-          <TextBlock Grid.Column="1" Classes="MptMeta" Text="{Binding StateLabel}" />
-        </Grid>
-        <TextBlock Classes="MptPageSubtitle" Text="{Binding Summary}" TextWrapping="Wrap" />
+      <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto">
+        <StackPanel Spacing="{DynamicResource MptSpacingXs}">
+          <TextBlock Classes="MptPageTitle" Text="{Binding Title}" />
+          <TextBlock Classes="MptPageSubtitle" Text="{Binding Summary}" TextWrapping="Wrap" />
+          <TextBlock Classes="MptMeta" Text="{Binding PackageId}" />
+        </StackPanel>
+        <Border Grid.Column="1" Classes="MptStatusBadge">
+          <TextBlock Classes="MptMeta" Text="{Binding StateLabel}" />
+        </Border>
 
-        <ItemsControl ItemsSource="{Binding Metrics}">
+        <ItemsControl Grid.Row="1"
+                      Grid.ColumnSpan="2"
+                      ItemsSource="{Binding Metrics}"
+                      Margin="{DynamicResource MptGapTopL}">
+          <ItemsControl.ItemsPanel>
+            <ItemsPanelTemplate>
+              <WrapPanel />
+            </ItemsPanelTemplate>
+          </ItemsControl.ItemsPanel>
           <ItemsControl.ItemTemplate>
             <DataTemplate x:DataType="vm:MetricViewModel">
-              <Border Classes="MptMetricTile" Margin="{DynamicResource MptGapRightM}">
+              <Border Classes="MptMetricTile" Margin="{DynamicResource MptWrapItemMargin}">
                 <StackPanel>
-                  <TextBlock FontWeight="SemiBold" Text="{Binding Value}" />
+                  <TextBlock Classes="MptCardTitle" Text="{Binding Value}" />
                   <TextBlock Classes="MptMeta" Text="{Binding Label}" />
                 </StackPanel>
               </Border>
@@ -28,114 +37,192 @@
           </ItemsControl.ItemTemplate>
         </ItemsControl>
 
-        <Button Content="{Binding ToggleEnabledLabel}"
-                Command="{Binding ToggleEnabledCommand}"
-                MinHeight="34"
-                MinWidth="86" />
+        <StackPanel Grid.Row="2"
+                    Grid.ColumnSpan="2"
+                    Classes="MptActionBar"
+                    Orientation="Horizontal"
+                    Margin="{DynamicResource MptGapTopL}">
+          <controls:MptButton Classes="MptPrimaryButton"
+                              Content="{Binding ToggleEnabledLabel}"
+                              Command="{Binding ToggleEnabledCommand}"
+                              MinWidth="{DynamicResource MptDensityActionMinWidth}" />
+          <controls:MptButton Content="Open commands"
+                              MinWidth="{DynamicResource MptDensityActionMinWidth}" />
+          <controls:MptButton Content="View logs"
+                              MinWidth="{DynamicResource MptDensityActionMinWidth}" />
+        </StackPanel>
+      </Grid>
+    </Border>
+
+    <Border Classes="MptTabStrip">
+      <StackPanel Orientation="Horizontal" Spacing="{DynamicResource MptSpacingXs}">
+        <TextBlock Classes="MptTabItemSelected" Text="Overview" />
+        <TextBlock Classes="MptTabItem" Text="Commands" />
+        <TextBlock Classes="MptTabItem" Text="Settings" />
+        <TextBlock Classes="MptTabItem" Text="Logs" />
+        <TextBlock Classes="MptTabItem" Text="Diagnostics" />
+        <TextBlock Classes="MptTabItem" Text="Permissions" />
       </StackPanel>
     </Border>
 
-    <Border Classes="MptSettingsSection">
-      <StackPanel Spacing="{DynamicResource MptSpacingS}">
-        <TextBlock Classes="MptSectionTitle" Text="Declared Permissions" />
-        <TextBlock Classes="MptPageSubtitle"
-                   Text="No broker permissions declared."
-                   IsVisible="{Binding HasNoPermissions}" />
-        <ItemsControl ItemsSource="{Binding Permissions}">
-          <ItemsControl.ItemTemplate>
-            <DataTemplate x:DataType="vm:ModulePermissionViewModel">
-              <Border Classes="MptSettingsField" Margin="{DynamicResource MptGapBottomM}">
-                <StackPanel Spacing="{DynamicResource MptSpacingXs}">
-                  <Grid ColumnDefinitions="*,Auto">
-                    <TextBlock FontWeight="SemiBold" Text="{Binding Id}" />
-                    <TextBlock Grid.Column="1" Classes="MptMeta" Text="{Binding Level}" />
-                  </Grid>
-                  <TextBlock Classes="MptMeta" Text="{Binding Capability}" />
-                  <TextBlock Text="{Binding Reason}" TextWrapping="Wrap" />
-                </StackPanel>
+    <Grid ColumnDefinitions="*,360" ColumnSpacing="{DynamicResource MptSpacingM}">
+      <StackPanel Spacing="{DynamicResource MptSpacingM}">
+        <Border Classes="MptSettingsSection">
+          <StackPanel Spacing="{DynamicResource MptSpacingS}">
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock Classes="MptSectionTitle" Text="Overview" />
+              <Border Grid.Column="1" Classes="MptStatusBadge">
+                <TextBlock Classes="MptMeta" Text="{Binding StateLabel}" />
               </Border>
-            </DataTemplate>
-          </ItemsControl.ItemTemplate>
-        </ItemsControl>
-      </StackPanel>
-    </Border>
+            </Grid>
+            <TextBlock Classes="MptPageSubtitle"
+                       Text="{Binding Summary}"
+                       TextWrapping="Wrap" />
+            <TextBlock Classes="MptMeta"
+                       Text="{Binding ModuleId}"
+                       TextWrapping="Wrap" />
+          </StackPanel>
+        </Border>
 
-    <Border Classes="MptSettingsSection">
-      <StackPanel Spacing="{DynamicResource MptSpacingS}">
-        <TextBlock Classes="MptSectionTitle" Text="Capability Requirements" />
-        <TextBlock Classes="MptPageSubtitle"
-                   Text="No capability requirements declared."
-                   IsVisible="{Binding HasNoRequirements}" />
-        <ItemsControl ItemsSource="{Binding Requirements}">
-          <ItemsControl.ItemTemplate>
-            <DataTemplate x:DataType="vm:ModuleRequirementViewModel">
-              <Border Classes="MptSettingsField" Margin="{DynamicResource MptGapBottomM}">
-                <StackPanel Spacing="{DynamicResource MptSpacingXs}">
-                  <Grid ColumnDefinitions="*,Auto">
-                    <TextBlock FontWeight="SemiBold" Text="{Binding Capability}" />
-                    <TextBlock Grid.Column="1" Classes="MptMeta" Text="{Binding StateLabel}" />
-                  </Grid>
-                  <TextBlock Text="{Binding Reason}" TextWrapping="Wrap" />
-                </StackPanel>
-              </Border>
-            </DataTemplate>
-          </ItemsControl.ItemTemplate>
-        </ItemsControl>
-      </StackPanel>
-    </Border>
+        <Border Classes="MptSettingsSection">
+          <StackPanel Spacing="{DynamicResource MptSpacingS}">
+            <Grid ColumnDefinitions="*,Auto">
+              <TextBlock Classes="MptSectionTitle" Text="Commands" />
+              <TextBlock Grid.Column="1" Classes="MptMeta" Text="{Binding Commands.Count}" />
+            </Grid>
+            <Border Classes="MptToolbar">
+              <StackPanel Classes="MptToolbar" Orientation="Horizontal">
+                <controls:MptTextBox PlaceholderText="Search commands"
+                                     MinWidth="{DynamicResource MptPackageIdInputWidth}" />
+                <controls:MptButton Content="Run selected"
+                                    MinWidth="{DynamicResource MptDensityActionMinWidth}" />
+              </StackPanel>
+            </Border>
+            <TextBlock Classes="MptPageSubtitle"
+                       Text="No commands."
+                       IsVisible="{Binding HasNoCommands}" />
+            <ItemsControl ItemsSource="{Binding Commands}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:CommandItemViewModel">
+                  <controls:MptButton Command="{Binding ExecuteCommand}"
+                                      HorizontalContentAlignment="Stretch"
+                                      Margin="{DynamicResource MptGapBottomM}">
+                    <Border Classes="MptCommandItem">
+                      <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto">
+                        <TextBlock FontWeight="SemiBold" Text="{Binding Title}" />
+                        <TextBlock Grid.Column="1" Classes="MptMeta" Text="{Binding RiskLabel}" />
+                        <TextBlock Grid.Row="1" Grid.ColumnSpan="2" Classes="MptPageSubtitle" Text="{Binding Subtitle}" />
+                        <TextBlock Grid.Row="2" Grid.ColumnSpan="2" Classes="MptMeta" Text="{Binding CommandId}" />
+                      </Grid>
+                    </Border>
+                  </controls:MptButton>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+        </Border>
 
-    <Border Classes="MptSettingsSection">
-      <StackPanel Spacing="{DynamicResource MptSpacingS}">
-        <TextBlock Classes="MptSectionTitle" Text="Diagnostics" />
-        <TextBlock Classes="MptPageSubtitle"
-                   Text="No diagnostics."
-                   IsVisible="{Binding HasNoDiagnostics}" />
-        <ItemsControl ItemsSource="{Binding Diagnostics}">
-          <ItemsControl.ItemTemplate>
-            <DataTemplate x:DataType="vm:ModuleDiagnosticItemViewModel">
-              <Border Classes="MptSettingsField" Margin="{DynamicResource MptGapBottomM}">
-                <StackPanel Spacing="{DynamicResource MptSpacingXs}">
-                  <Grid ColumnDefinitions="*,Auto">
-                    <TextBlock FontWeight="SemiBold" Text="{Binding Label}" />
-                    <TextBlock Grid.Column="1" Classes="MptMeta" Text="{Binding State}" />
-                  </Grid>
-                  <TextBlock Text="{Binding Detail}" TextWrapping="Wrap" />
-                </StackPanel>
-              </Border>
-            </DataTemplate>
-          </ItemsControl.ItemTemplate>
-        </ItemsControl>
+        <Border Classes="MptSettingsSection">
+          <StackPanel Spacing="{DynamicResource MptSpacingS}">
+            <TextBlock Classes="MptSectionTitle" Text="Logs" />
+            <Border Classes="MptToolbar">
+              <StackPanel Classes="MptToolbar" Orientation="Horizontal">
+                <controls:MptTextBox PlaceholderText="Filter by invocation id"
+                                     MinWidth="{DynamicResource MptPackageIdInputWidth}" />
+                <controls:MptButton Content="Copy line"
+                                    MinWidth="{DynamicResource MptDensityActionMinWidth}" />
+                <controls:MptButton Content="Wrap"
+                                    MinWidth="{DynamicResource MptDensityActionMinWidth}" />
+              </StackPanel>
+            </Border>
+            <TextBlock Classes="MptPageSubtitle"
+                       Text="Module logs are available from the Logs tab with severity, module and invocation filters."
+                       TextWrapping="Wrap" />
+          </StackPanel>
+        </Border>
       </StackPanel>
-    </Border>
 
-    <Border Classes="MptSettingsSection">
-      <StackPanel Spacing="{DynamicResource MptSpacingS}">
-        <TextBlock Classes="MptSectionTitle" Text="Commands" />
-        <TextBlock Classes="MptPageSubtitle"
-                   Text="No commands."
-                   IsVisible="{Binding HasNoCommands}" />
-        <ItemsControl ItemsSource="{Binding Commands}">
-          <ItemsControl.ItemTemplate>
-            <DataTemplate x:DataType="vm:CommandItemViewModel">
-              <Button Command="{Binding ExecuteCommand}"
-                      HorizontalContentAlignment="Stretch"
-                      MinHeight="58"
-                      Margin="{DynamicResource MptGapBottomM}">
-                <Border Classes="MptCommandItem">
-                  <StackPanel Spacing="{DynamicResource MptSpacingXs}">
-                    <Grid ColumnDefinitions="*,Auto">
-                      <TextBlock FontWeight="SemiBold" Text="{Binding Title}" />
-                      <TextBlock Grid.Column="1" Classes="MptMeta" Text="{Binding RiskLabel}" />
-                    </Grid>
-                    <TextBlock Classes="MptPageSubtitle" Text="{Binding Subtitle}" />
-                    <TextBlock Classes="MptMeta" Text="{Binding CommandId}" />
-                  </StackPanel>
-                </Border>
-              </Button>
-            </DataTemplate>
-          </ItemsControl.ItemTemplate>
-        </ItemsControl>
+      <StackPanel Grid.Column="1" Spacing="{DynamicResource MptSpacingM}">
+        <Border Classes="MptSettingsSection">
+          <StackPanel Spacing="{DynamicResource MptSpacingS}">
+            <TextBlock Classes="MptSectionTitle" Text="Diagnostics" />
+            <TextBlock Classes="MptPageSubtitle"
+                       Text="No diagnostics."
+                       IsVisible="{Binding HasNoDiagnostics}" />
+            <ItemsControl ItemsSource="{Binding Diagnostics}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:ModuleDiagnosticItemViewModel">
+                  <Border Classes="MptSettingsField" Margin="{DynamicResource MptGapBottomM}">
+                    <StackPanel Spacing="{DynamicResource MptSpacingXs}">
+                      <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock FontWeight="SemiBold" Text="{Binding Label}" />
+                        <Border Grid.Column="1" Classes="MptStatusBadge">
+                          <TextBlock Classes="MptMeta" Text="{Binding State}" />
+                        </Border>
+                      </Grid>
+                      <TextBlock Text="{Binding Detail}" TextWrapping="Wrap" />
+                    </StackPanel>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+        </Border>
+
+        <Border Classes="MptSettingsSection">
+          <StackPanel Spacing="{DynamicResource MptSpacingS}">
+            <TextBlock Classes="MptSectionTitle" Text="Permissions" />
+            <TextBlock Classes="MptPageSubtitle"
+                       Text="No broker permissions declared."
+                       IsVisible="{Binding HasNoPermissions}" />
+            <ItemsControl ItemsSource="{Binding Permissions}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:ModulePermissionViewModel">
+                  <Border Classes="MptSettingsField" Margin="{DynamicResource MptGapBottomM}">
+                    <StackPanel Spacing="{DynamicResource MptSpacingXs}">
+                      <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock FontWeight="SemiBold" Text="{Binding Id}" />
+                        <Border Grid.Column="1" Classes="MptStatusBadge">
+                          <TextBlock Classes="MptMeta" Text="{Binding Level}" />
+                        </Border>
+                      </Grid>
+                      <TextBlock Classes="MptMeta" Text="{Binding Capability}" />
+                      <TextBlock Text="{Binding Reason}" TextWrapping="Wrap" />
+                    </StackPanel>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+        </Border>
+
+        <Border Classes="MptSettingsSection">
+          <StackPanel Spacing="{DynamicResource MptSpacingS}">
+            <TextBlock Classes="MptSectionTitle" Text="Capability Requirements" />
+            <TextBlock Classes="MptPageSubtitle"
+                       Text="No capability requirements declared."
+                       IsVisible="{Binding HasNoRequirements}" />
+            <ItemsControl ItemsSource="{Binding Requirements}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:ModuleRequirementViewModel">
+                  <Border Classes="MptSettingsField" Margin="{DynamicResource MptGapBottomM}">
+                    <StackPanel Spacing="{DynamicResource MptSpacingXs}">
+                      <Grid ColumnDefinitions="*,Auto">
+                        <TextBlock FontWeight="SemiBold" Text="{Binding Capability}" />
+                        <Border Grid.Column="1" Classes="MptStatusBadge">
+                          <TextBlock Classes="MptMeta" Text="{Binding StateLabel}" />
+                        </Border>
+                      </Grid>
+                      <TextBlock Text="{Binding Reason}" TextWrapping="Wrap" />
+                    </StackPanel>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+        </Border>
       </StackPanel>
-    </Border>
+    </Grid>
   </StackPanel>
 </UserControl>
+

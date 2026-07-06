@@ -6,12 +6,14 @@ using Grpc.Core;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using MyPowerTools.Protocol;
 using MyPowerTools.Protocol.Module.V1;
+using CommandParameterDescriptor = MyPowerTools.Abstractions.CommandParameterDescriptor;
 using CommandExecutionResult = MyPowerTools.Abstractions.CommandExecutionResult;
 using CommandRequest = MyPowerTools.Abstractions.CommandRequest;
 using EventCursor = MyPowerTools.Abstractions.EventCursor;
 using IMptModule = MyPowerTools.Abstractions.IMptModule;
 using InitializeResult = MyPowerTools.Abstractions.InitializeResult;
 using ModuleContext = MyPowerTools.Abstractions.ModuleContext;
+using MptCommandDescriptor = MyPowerTools.Abstractions.MptCommandDescriptor;
 using MptRuntimeError = MyPowerTools.Abstractions.MptRuntimeError;
 using SettingsPatch = MyPowerTools.Abstractions.SettingsPatch;
 using SettingsSnapshotDocument = MyPowerTools.Abstractions.SettingsSnapshotDocument;
@@ -21,6 +23,7 @@ var builder = WebApplication.CreateBuilder(new WebApplicationOptions { Args = []
 builder.Logging.ClearProviders();
 builder.Services.AddGrpc();
 builder.Services.AddSingleton<AndroidToolsModuleRegistry>();
+builder.Services.AddSingleton<AndroidToolsModuleControlService>();
 builder.WebHost.ConfigureKestrel(options =>
 {
     if (OperatingSystem.IsWindows())
@@ -147,6 +150,7 @@ public sealed class AndroidToolsModuleRegistry
 public sealed class AndroidToolsModuleControlService : ModuleControl.ModuleControlBase
 {
     private readonly AndroidToolsModuleRegistry _registry;
+    private readonly ConcurrentDictionary<string, CancellationTokenSource> _commandCancellations = new(StringComparer.OrdinalIgnoreCase);
 
     public AndroidToolsModuleControlService(AndroidToolsModuleRegistry registry)
     {
@@ -207,21 +211,13 @@ public sealed class AndroidToolsModuleControlService : ModuleControl.ModuleContr
     {
         var commands = await _registry.Get(request.ModuleId).ListCommandsAsync(context.CancellationToken);
         var response = new ListCommandsResponse();
-        response.Commands.AddRange(commands.Select(command => new MptCommand
-        {
-            Id = command.Id,
-            Title = command.Title,
-            Subtitle = command.Subtitle,
-            Kind = command.Kind,
-            RequiresElevation = command.RequiresElevation,
-            Icon = command.Icon
-        }));
+        response.Commands.AddRange(commands.Select(ToGrpcCommand));
         return response;
     }
 
     public override async Task<CommandExecution> ExecuteCommand(ExecuteCommandRequest request, ServerCallContext context)
     {
-        var args = ToJsonArgs(request.Args);
+        var args = ToJsonArgs(request);
         var result = await _registry.Get(request.ModuleId).ExecuteCommandAsync(
             new CommandRequest(request.InvocationId, request.CommandId, args),
             context.CancellationToken);
@@ -231,26 +227,35 @@ public sealed class AndroidToolsModuleControlService : ModuleControl.ModuleContr
 
     public override async Task ExecuteCommandStream(ExecuteCommandRequest request, IServerStreamWriter<CommandExecutionEvent> responseStream, ServerCallContext context)
     {
-        var args = ToJsonArgs(request.Args);
-        await foreach (var evt in _registry.Get(request.ModuleId)
-            .ExecuteCommandStreamAsync(new CommandRequest(request.InvocationId, request.CommandId, args), context.CancellationToken)
-            .WithCancellation(context.CancellationToken))
+        var args = ToJsonArgs(request);
+        using var linkedCancellation = CancellationTokenSource.CreateLinkedTokenSource(context.CancellationToken);
+        _commandCancellations[request.InvocationId] = linkedCancellation;
+        try
         {
-            var response = new CommandExecutionEvent
+            await foreach (var evt in _registry.Get(request.ModuleId)
+                .ExecuteCommandStreamAsync(new CommandRequest(request.InvocationId, request.CommandId, args), linkedCancellation.Token)
+                .WithCancellation(linkedCancellation.Token))
             {
-                InvocationId = evt.InvocationId,
-                CommandId = evt.CommandId,
-                State = evt.State,
-                Message = evt.Message,
-                Sequence = (uint)Math.Max(0, evt.Sequence),
-                Terminal = evt.Terminal
-            };
-            if (evt.FinalResult is not null)
-            {
-                response.FinalResult = ToGrpcCommandExecution(evt.FinalResult);
-            }
+                var response = new CommandExecutionEvent
+                {
+                    InvocationId = evt.InvocationId,
+                    CommandId = evt.CommandId,
+                    State = evt.State,
+                    Message = evt.Message,
+                    Sequence = (uint)Math.Max(0, evt.Sequence),
+                    Terminal = evt.Terminal
+                };
+                if (evt.FinalResult is not null)
+                {
+                    response.FinalResult = ToGrpcCommandExecution(evt.FinalResult);
+                }
 
-            await responseStream.WriteAsync(response, context.CancellationToken);
+                await responseStream.WriteAsync(response, context.CancellationToken);
+            }
+        }
+        finally
+        {
+            _commandCancellations.TryRemove(request.InvocationId, out _);
         }
     }
 
@@ -348,13 +353,44 @@ public sealed class AndroidToolsModuleControlService : ModuleControl.ModuleContr
 
     public override Task<CancelCommandResponse> CancelCommand(CancelCommandRequest request, ServerCallContext context)
     {
-        return Task.FromResult(new CancelCommandResponse { Accepted = false });
+        if (_commandCancellations.TryGetValue(request.InvocationId, out var cancellation))
+        {
+            cancellation.Cancel();
+            return Task.FromResult(new CancelCommandResponse
+            {
+                Accepted = true,
+                State = "module-cancelling",
+                Message = $"Cancellation accepted for {request.InvocationId}."
+            });
+        }
+
+        return Task.FromResult(new CancelCommandResponse
+        {
+            Accepted = false,
+            State = "module-cancel-not-found",
+            Message = $"Invocation {request.InvocationId} is not running in powertoold."
+        });
     }
 
     public override async Task<DisposeResponse> Dispose(DisposeRequest request, ServerCallContext context)
     {
         await _registry.DisposeAsync(request.ModuleId, context.CancellationToken);
         return new DisposeResponse { Ok = true };
+    }
+
+    private static JsonObject ToJsonArgs(ExecuteCommandRequest request)
+    {
+        if (request.TypedArgs.Fields.Count > 0)
+        {
+            return ParseJsonObject(request.TypedArgs.ToString());
+        }
+
+        if (!string.IsNullOrWhiteSpace(request.ArgsJson))
+        {
+            return ParseJsonObject(request.ArgsJson);
+        }
+
+        return ToJsonArgs(request.Args);
     }
 
     private static JsonObject ToJsonArgs(IDictionary<string, string> args)
@@ -399,6 +435,40 @@ public sealed class AndroidToolsModuleControlService : ModuleControl.ModuleContr
         }
 
         return JsonNode.Parse(json)?.AsObject() ?? [];
+    }
+
+    private static MptCommand ToGrpcCommand(MptCommandDescriptor command)
+    {
+        var response = new MptCommand
+        {
+            Id = command.Id,
+            Title = command.Title,
+            Subtitle = command.Subtitle,
+            Kind = command.Kind,
+            RequiresElevation = command.RequiresElevation,
+            Icon = command.Icon,
+            Category = command.Category,
+            DangerLevel = command.DangerLevel,
+            TimeoutMs = (uint)Math.Max(0, command.TimeoutMs),
+            ExecutionJson = command.Execution?.ToJsonString() ?? "",
+            SupportsProgress = command.SupportsProgress,
+            SupportsCancellation = command.SupportsCancellation
+        };
+        response.Parameters.AddRange((command.Parameters ?? []).Select(ToGrpcCommandParameter));
+        response.Constraints.AddRange(command.Constraints ?? []);
+        return response;
+    }
+
+    private static CommandParameter ToGrpcCommandParameter(CommandParameterDescriptor parameter)
+    {
+        return new CommandParameter
+        {
+            Id = parameter.Id,
+            Label = parameter.Label,
+            Type = parameter.Type,
+            Required = parameter.Required,
+            DefaultValue = parameter.DefaultValue ?? ""
+        };
     }
 
     private static ModuleState ToGrpcModuleState(string state)

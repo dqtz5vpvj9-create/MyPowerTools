@@ -31,7 +31,10 @@ public sealed class MainWindow : Window
         var chromeViewModel = new ShellChromeViewModel(
             ShellWorkspaceController.PageLabels,
             page => workspace?.ShowPageAsync(page) ?? Task.CompletedTask,
-            () => workspace?.RefreshAsync() ?? Task.CompletedTask);
+            () => workspace?.RefreshAsync() ?? Task.CompletedTask,
+            () => workspace?.OpenCommandPaletteAsync() ?? Task.CompletedTask,
+            () => workspace?.CloseCommandPaletteAsync() ?? Task.CompletedTask,
+            () => workspace?.DismissPermissionPromptAsync() ?? Task.CompletedTask);
         var chrome = new ShellChromeView
         {
             DataContext = chromeViewModel

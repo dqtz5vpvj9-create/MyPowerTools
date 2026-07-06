@@ -173,16 +173,57 @@ public sealed class SettingsStore
 
     private static void AtomicWrite(string path, string content)
     {
-        var tempPath = path + ".tmp";
+        var directory = Path.GetDirectoryName(path)!;
+        var tempPath = Path.Combine(directory, $"{Path.GetFileName(path)}.{Guid.NewGuid():N}.tmp");
         File.WriteAllText(tempPath, content);
-        if (File.Exists(path))
+        try
         {
-            File.Replace(tempPath, path, destinationBackupFileName: null);
+            const int maxAttempts = 5;
+            for (var attempt = 1; ; attempt++)
+            {
+                try
+                {
+                    if (File.Exists(path))
+                    {
+                        File.Replace(tempPath, path, destinationBackupFileName: null, ignoreMetadataErrors: true);
+                    }
+                    else
+                    {
+                        File.Move(tempPath, path);
+                    }
+
+                    return;
+                }
+                catch (Exception ex) when (IsRetriableAtomicWriteFailure(ex) && attempt < maxAttempts)
+                {
+                    if (!File.Exists(tempPath))
+                    {
+                        File.WriteAllText(tempPath, content);
+                    }
+
+                    System.Threading.Thread.Sleep(25 * attempt);
+                }
+            }
         }
-        else
+        finally
         {
-            File.Move(tempPath, path);
+            if (File.Exists(tempPath))
+            {
+                try
+                {
+                    File.Delete(tempPath);
+                }
+                catch (Exception)
+                {
+                    // A later settings save can supersede this orphaned temp file.
+                }
+            }
         }
+    }
+
+    private static bool IsRetriableAtomicWriteFailure(Exception ex)
+    {
+        return ex is IOException or UnauthorizedAccessException;
     }
 
     private static PersistedSettingsSnapshot ToPersisted(Sdk.SettingsSnapshotDocument snapshot)

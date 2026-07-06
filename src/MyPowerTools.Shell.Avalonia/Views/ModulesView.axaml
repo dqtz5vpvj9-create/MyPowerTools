@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="using:MyPowerTools.UI.Controls"
              xmlns:vm="using:MyPowerTools.Shell.Avalonia.ViewModels"
              x:Class="MyPowerTools.Shell.Avalonia.Views.ModulesView"
              x:DataType="vm:ModulesViewModel">
@@ -26,10 +27,10 @@
               <TextBlock Classes="MptMeta" Text="{Binding Identity}" />
               <TextBlock Classes="MptMeta" Text="{Binding PermissionSummary}" TextWrapping="Wrap" />
               <StackPanel Orientation="Horizontal" Spacing="{DynamicResource MptSpacingS}">
-                <Button Content="Details" Command="{Binding DetailsCommand}" MinHeight="32" MinWidth="76" />
-                <Button Content="Settings" Command="{Binding SettingsCommand}" MinHeight="32" MinWidth="76" />
-                <Button Content="Logs" Command="{Binding LogsCommand}" MinHeight="32" MinWidth="76" />
-                <Button Content="{Binding ToggleLabel}" Command="{Binding ToggleEnabledCommand}" MinHeight="32" MinWidth="76" />
+                <controls:MptButton Content="Details" Command="{Binding DetailsCommand}" MinHeight="32" MinWidth="76" />
+                <controls:MptButton Content="Settings" Command="{Binding SettingsCommand}" MinHeight="32" MinWidth="76" />
+                <controls:MptButton Content="Logs" Command="{Binding LogsCommand}" MinHeight="32" MinWidth="76" />
+                <controls:MptButton Content="{Binding ToggleLabel}" Command="{Binding ToggleEnabledCommand}" MinHeight="32" MinWidth="76" />
               </StackPanel>
             </StackPanel>
           </Border>
@@ -38,3 +39,4 @@
     </ItemsControl>
   </StackPanel>
 </UserControl>
+

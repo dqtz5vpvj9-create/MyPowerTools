@@ -68,8 +68,10 @@ public sealed record MptCommandDescriptor(
     int TimeoutMs = 30000,
     JsonObject? Execution = null,
     IReadOnlyList<MyPowerTools.Abstractions.CommandParameterDescriptor>? Parameters = null,
-    IReadOnlyList<string>? Constraints = null)
-    : MyPowerTools.Abstractions.MptCommandDescriptor(Id, ModuleId, Title, Subtitle, Kind, RequiresElevation, Icon, DangerLevel, Category, TimeoutMs, Execution, Parameters, Constraints);
+    IReadOnlyList<string>? Constraints = null,
+    bool SupportsProgress = false,
+    bool SupportsCancellation = false)
+    : MyPowerTools.Abstractions.MptCommandDescriptor(Id, ModuleId, Title, Subtitle, Kind, RequiresElevation, Icon, DangerLevel, Category, TimeoutMs, Execution, Parameters, Constraints, SupportsProgress, SupportsCancellation);
 
 [Obsolete("Use MyPowerTools.Abstractions.CommandParameterDescriptor.")]
 public sealed record CommandParameterDescriptor(
