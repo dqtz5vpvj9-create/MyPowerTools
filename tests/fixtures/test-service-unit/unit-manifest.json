@@ -1,0 +1,16 @@
+{
+  "id": "test-service-unit",
+  "toolId": "test-tool",
+  "displayName": "Test Service Unit",
+  "exec": "test-service-unit.exe",
+  "arguments": [],
+  "workingDirectory": "",
+  "environment": {},
+  "autostart": false,
+  "restartPolicy": { "maxRestarts": 2, "backoffMs": 500 },
+  "readiness": { "kind": "none", "address": "", "timeoutMs": 3000 },
+  "stopTimeoutMs": 3000,
+  "dataRoots": [],
+  "dependsOn": [],
+  "instanceToken": "test-fixture-token"
+}

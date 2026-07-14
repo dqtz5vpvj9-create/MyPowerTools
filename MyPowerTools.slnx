@@ -1,12 +1,16 @@
 <Solution>
   <Folder Name="/src/">
-    <Project Path="src/AdbForwarder.MyPowerTools/AdbForwarder.MyPowerTools.csproj" />
-    <Project Path="src/AndroidTools.MyPowerTools/AndroidTools.MyPowerTools.csproj" />
-    <Project Path="src/AndroidTools.Powertoold/AndroidTools.Powertoold.csproj" />
-    <Project Path="src/DoubaoAgent.MyPowerTools/DoubaoAgent.MyPowerTools.csproj" />
+    <Project Path="tools/adb-forwarder/current-integration/src/AdbForwarder.MyPowerTools/AdbForwarder.MyPowerTools.csproj" />
+    <Project Path="tools/remote-notifications/current-integration/src/AndroidTools.MyPowerTools/AndroidTools.MyPowerTools.csproj" />
+    <Project Path="tools/remote-notifications/current-integration/src/AndroidTools.Powertoold/AndroidTools.Powertoold.csproj" />
+    <Project Path="tools/doubao-computer-use/current-integration/src/DoubaoAgent.MyPowerTools/DoubaoAgent.MyPowerTools.csproj" />
     <Project Path="src/MyPowerTools.Broker/MyPowerTools.Broker.csproj" />
+    <Project Path="src/MyPowerTools.App/MyPowerTools.App.csproj" />
+    <Project Path="src/MyPowerTools.AvaloniaSdk/MyPowerTools.AvaloniaSdk.csproj" />
     <Project Path="src/MyPowerTools.Cli/MyPowerTools.Cli.csproj" />
+    <Project Path="src/MyPowerTools.ElevatedBroker/MyPowerTools.ElevatedBroker.csproj" />
     <Project Path="src/MyPowerTools.HostControl/MyPowerTools.HostControl.csproj" />
+    <Project Path="src/MyPowerTools.Ipc.Shared/MyPowerTools.Ipc.Shared.csproj" />
     <Project Path="src/MyPowerTools.ModuleHost.GrpcIpc/MyPowerTools.ModuleHost.GrpcIpc.csproj" />
     <Project Path="src/MyPowerTools.ModuleHost.Http/MyPowerTools.ModuleHost.Http.csproj" />
     <Project Path="src/MyPowerTools.ModuleHost.InProcDotNet/MyPowerTools.ModuleHost.InProcDotNet.csproj" />
@@ -22,10 +26,16 @@
     <Project Path="src/MyPowerTools.Runtime/MyPowerTools.Runtime.csproj" />
     <Project Path="src/MyPowerTools.SampleModules.DotNet/MyPowerTools.SampleModules.DotNet.csproj" />
     <Project Path="src/MyPowerTools.SampleSidecar.Grpc/MyPowerTools.SampleSidecar.Grpc.csproj" />
+    <Project Path="src/MyPowerTools.ServiceManager/MyPowerTools.ServiceManager.csproj" />
+    <Project Path="src/MyPowerTools.ServiceManager.Client/MyPowerTools.ServiceManager.Client.csproj" />
+    <Project Path="src/MyPowerTools.ServiceManager.Server/MyPowerTools.ServiceManager.Server.csproj" />
     <Project Path="src/MyPowerTools.Shell.Avalonia/MyPowerTools.Shell.Avalonia.csproj" />
+    <Project Path="tests/architecture-gate/ArchitectureGate.csproj" />
+    <Project Path="tests/fixtures/test-service-unit/TestServiceUnit.csproj" />
     <Project Path="src/MyPowerTools.Tests/MyPowerTools.Tests.csproj" />
     <Project Path="src/MyPowerTools.UI/MyPowerTools.UI.csproj" />
-    <Project Path="src/ScreenEase.MyPowerTools/ScreenEase.MyPowerTools.csproj" />
-    <Project Path="src/SmartBirdThermostat.MyPowerTools/SmartBirdThermostat.MyPowerTools.csproj" />
+    <Project Path="tools/smartbird-thermostat/current-integration/src/MyPowerTools.WebToolHost/MyPowerTools.WebToolHost.csproj" />
+    <Project Path="tools/screenease/current-integration/src/ScreenEase.MyPowerTools/ScreenEase.MyPowerTools.csproj" />
+    <Project Path="tools/smartbird-thermostat/current-integration/src/SmartBirdThermostat.MyPowerTools/SmartBirdThermostat.MyPowerTools.csproj" />
   </Folder>
 </Solution>

@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>true</IsPackable>
+    <PackageId>MyPowerTools.Ipc.Shared</PackageId>
+    <Version>0.2.0</Version>
+    <Authors>MyPowerTools</Authors>
+    <Description>Shared gRPC IPC infrastructure: named-pipe/UDS channel factory, bearer-token auth interceptors and token store.</Description>
+    <PackageTags>mypowertools grpc ipc shared</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Grpc.Net.Client" Version="2.80.0" />
+    <PackageReference Include="Grpc.Core.Api" Version="2.80.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MyPowerTools.Platform.Abstractions\MyPowerTools.Platform.Abstractions.csproj" />
+  </ItemGroup>
+
+</Project>

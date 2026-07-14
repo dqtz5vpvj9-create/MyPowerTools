@@ -13,4 +13,5 @@ public static class MptErrorCodes
     public const string UnsupportedTransport = "MPT_UNSUPPORTED_TRANSPORT";
     public const string ValidationFailed = "MPT_VALIDATION_FAILED";
     public const string NotFound = "MPT_NOT_FOUND";
+    public const string ScopeDenied = "MPT_SCOPE_DENIED";
 }

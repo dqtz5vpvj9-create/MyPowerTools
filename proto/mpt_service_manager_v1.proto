@@ -1,0 +1,161 @@
+syntax = "proto3";
+
+package mypowertools.servicemanager.v1;
+
+import "google/protobuf/struct.proto";
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/duration.proto";
+
+option csharp_namespace = "MyPowerTools.Protocol.ServiceManager.V1";
+
+// ServiceManager owns the lifecycle of long-running Service Units.
+// It is the single process execution plane: Shell and Runner are clients,
+// a unit's life is independent of either. The two UI entry points
+// (tool Surface scoped client + unified Services administration client)
+// share this one control plane and never spawn duplicate processes.
+service ServiceManager {
+  // Lists all known units, optionally filtered by owning tool or state.
+  rpc ListUnits(ListUnitsRequest) returns (ListUnitsResponse);
+  // Returns the current snapshot of a single unit.
+  rpc GetUnit(GetUnitRequest) returns (UnitSnapshot);
+  // Activates a unit (start if inactive). Repeated Start must be idempotent:
+  // an already-active unit keeps the same PID and yields a single instance.
+  rpc Start(UnitOpRequest) returns (UnitSnapshot);
+  // Deactivates a unit (graceful within stop_timeout, then forceful).
+  rpc Stop(UnitOpRequest) returns (UnitSnapshot);
+  // Stops then starts a unit, producing a new PID.
+  rpc Restart(UnitOpRequest) returns (UnitSnapshot);
+  // Reloads unit manifests from the deploy root and reconciles state.
+  rpc Reload(ReloadRequest) returns (ReloadResponse);
+  // Streams recent log lines for a unit (server streaming).
+  rpc TailLogs(TailLogsRequest) returns (stream LogEntry);
+  // Streams unit state-change events from a monotonic cursor (server streaming).
+  rpc SubscribeUnitEvents(SubscribeUnitEventsRequest) returns (stream UnitEvent);
+}
+
+enum UnitState {
+  UNIT_STATE_UNSPECIFIED = 0;
+  UNIT_STATE_INACTIVE = 1;
+  UNIT_STATE_ACTIVATING = 2;
+  UNIT_STATE_ACTIVE = 3;
+  UNIT_STATE_DEGRADED = 4;
+  UNIT_STATE_FAILED = 5;
+  UNIT_STATE_DEACTIVATING = 6;
+}
+
+message ListUnitsRequest {
+  // Restrict to units owned by this tool id. Empty means all (administration).
+  string tool_id = 1;
+  // Optional state filter; UNSPECIFIED means any state.
+  UnitState state = 2;
+}
+
+message ListUnitsResponse {
+  repeated UnitSnapshot units = 1;
+}
+
+message GetUnitRequest {
+  string unit_id = 1;
+}
+
+message UnitOpRequest {
+  string unit_id = 1;
+  // Identity of the caller's tool, used for scope enforcement. The server
+  // rejects operations on units whose tool_id differs from a scoped caller.
+  string caller_tool_id = 2;
+}
+
+message ReloadRequest {}
+
+message ReloadResponse {
+  uint32 unit_count = 1;
+}
+
+message TailLogsRequest {
+  string unit_id = 1;
+  // When non-zero, only entries after this many most-recent ones are streamed.
+  uint32 tail_lines = 2;
+}
+
+message SubscribeUnitEventsRequest {
+  // Monotonic event cursor; events with seq strictly greater are streamed.
+  uint64 last_event_seq = 1;
+  // Optional filter to a single unit. Empty means all units.
+  string unit_id = 2;
+}
+
+// A point-in-time view of a unit's runtime state.
+message UnitSnapshot {
+  string unit_id = 1;
+  string tool_id = 2;
+  string display_name = 3;
+  UnitState state = 4;
+  int32 pid = 5;
+  google.protobuf.Timestamp started_at = 6;
+  google.protobuf.Duration uptime = 7;
+  string version = 8;
+  bool autostart = 9;
+  string restart_policy = 10;
+  int32 restart_count = 11;
+  string last_error = 12;
+  UnitReadiness readiness = 13;
+  int32 exit_code = 14;
+  // Last emitted event sequence, for cursor reconciliation.
+  uint64 event_seq = 15;
+}
+
+message UnitReadiness {
+  bool ok = 1;
+  string message = 2;
+}
+
+// Static definition of a unit, as loaded from a deploy-root manifest.
+message UnitSpec {
+  string unit_id = 1;
+  string tool_id = 2;
+  string display_name = 3;
+  string exec = 4;
+  repeated string arguments = 5;
+  string working_directory = 6;
+  map<string, string> environment = 7;
+  bool autostart = 8;
+  UnitRestartPolicy restart_policy = 9;
+  UnitReadinessProbe readiness = 10;
+  google.protobuf.Duration stop_timeout = 11;
+  repeated string data_roots = 12;
+  repeated string depends_on = 13;
+  // Opaque token used to re-adopt a still-running unit after ServiceManager restart.
+  string instance_token = 14;
+}
+
+message UnitRestartPolicy {
+  int32 max_restarts = 1;
+  google.protobuf.Duration backoff = 2;
+}
+
+message UnitReadinessProbe {
+  // Probe kind, e.g. "pipe", "tcp", "none".
+  string kind = 1;
+  // Address for the probe, e.g. pipe name or host:port.
+  string address = 2;
+  google.protobuf.Duration timeout = 3;
+}
+
+// A unit state change or lifecycle observation. The seq field is monotonic.
+message UnitEvent {
+  uint64 seq = 1;
+  string unit_id = 2;
+  // Event type, e.g. "state-change", "restart", "exit", "readiness".
+  string type = 3;
+  google.protobuf.Timestamp time = 4;
+  google.protobuf.Struct payload = 5;
+}
+
+message LogEntry {
+  google.protobuf.Timestamp time = 1;
+  string level = 2;
+  string category = 3;
+  string message = 4;
+  // "stdout" or "stderr".
+  string stream = 5;
+}

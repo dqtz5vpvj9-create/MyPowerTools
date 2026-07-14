@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>mpt-architecture-gate</AssemblyName>
+    <IsPackable>false</IsPackable>
+    <Description>Driver for the A1-A5 architecture gates. Invoked by scripts/verify-architecture.ps1.</Description>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\..\src\MyPowerTools.ServiceManager.Client\MyPowerTools.ServiceManager.Client.csproj" />
+    <ProjectReference Include="..\..\src\MyPowerTools.ServiceManager.Server\MyPowerTools.ServiceManager.Server.csproj" />
+    <ProjectReference Include="..\..\src\MyPowerTools.Abstractions\MyPowerTools.Abstractions.csproj" />
+  </ItemGroup>
+
+</Project>

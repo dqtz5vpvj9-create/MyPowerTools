@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>true</IsPackable>
+    <PackageId>MyPowerTools.ServiceManager.Server</PackageId>
+    <Version>0.2.0</Version>
+    <Authors>MyPowerTools</Authors>
+    <Description>ServiceManager engine: Service Unit lifecycle, state machine, process re-adoption, logs and the gRPC service implementation.</Description>
+    <PackageTags>mypowertools servicemanager server units</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Grpc.Core.Api" Version="2.80.0" />
+    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MyPowerTools.Abstractions\MyPowerTools.Abstractions.csproj" />
+    <ProjectReference Include="..\MyPowerTools.Protocol\MyPowerTools.Protocol.csproj" />
+    <ProjectReference Include="..\MyPowerTools.Ipc.Shared\MyPowerTools.Ipc.Shared.csproj" />
+    <ProjectReference Include="..\MyPowerTools.Platform.Abstractions\MyPowerTools.Platform.Abstractions.csproj" />
+  </ItemGroup>
+
+</Project>

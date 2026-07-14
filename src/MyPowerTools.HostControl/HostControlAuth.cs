@@ -1,175 +1,58 @@
-using System.Security.Cryptography;
-using System.Text;
-using Grpc.Core;
-using Grpc.Core.Interceptors;
+using MyPowerTools.Ipc;
 
 namespace MyPowerTools.HostControl;
 
-public sealed record HostControlAuthOptions(string Token);
+/// <summary>
+/// HostControl auth options. Carries the historical header name plus the token, and is accepted by
+/// <see cref="HostControlAuthServerInterceptor"/> so existing DI registration
+/// (<c>AddSingleton(new HostControlAuthOptions(token))</c>) keeps working.
+/// </summary>
+public sealed record HostControlAuthOptions(string Token) : IpcAuthOptions(HostControlAuthTokenStore.HeaderName, Token)
+{
+}
 
+/// <summary>
+/// HostControl-specific auth facade. Delegates to the shared <see cref="AuthTokenStore"/>
+/// while preserving the historical static API used across Runner/Shell/CLI/Tests.
+/// The token file path (<c>state/hostcontrol.token</c>) and env var (<c>MPT_DATA_ROOT</c>)
+/// are unchanged so existing data roots keep working.
+/// </summary>
 public static class HostControlAuthTokenStore
 {
     public const string HeaderName = "x-mpt-hostcontrol-token";
     public const string DataRootEnvironmentVariable = "MPT_DATA_ROOT";
 
-    public static string DefaultDataRoot()
+    private static readonly AuthTokenStore _store = new(DataRootEnvironmentVariable, Path.Combine("state", "hostcontrol.token"));
+
+    public static string DefaultDataRoot() => _store.DefaultDataRoot();
+
+    public static string TokenPath(string? dataRoot = null) => _store.TokenPath(dataRoot);
+
+    public static string GetOrCreateToken(string? dataRoot = null) => _store.GetOrCreateToken(dataRoot);
+
+    public static string? TryReadToken(string? dataRoot = null) => _store.TryReadToken(dataRoot);
+
+    internal static AuthTokenStore Store => _store;
+}
+
+/// <summary>
+/// Server interceptor validating the HostControl bearer token. Delegates to
+/// <see cref="BearerTokenAuthServerInterceptor"/> to keep the auth logic in one place.
+/// </summary>
+public sealed class HostControlAuthServerInterceptor : BearerTokenAuthServerInterceptor
+{
+    public HostControlAuthServerInterceptor(HostControlAuthOptions options) : base(options)
     {
-        return Environment.GetEnvironmentVariable(DataRootEnvironmentVariable)
-            ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MyPowerTools");
-    }
-
-    public static string TokenPath(string? dataRoot = null)
-    {
-        return Path.Combine(dataRoot ?? DefaultDataRoot(), "state", "hostcontrol.token");
-    }
-
-    public static string GetOrCreateToken(string? dataRoot = null)
-    {
-        var path = TokenPath(dataRoot);
-        Directory.CreateDirectory(Path.GetDirectoryName(path)!);
-        var existing = TryReadToken(dataRoot);
-        if (!string.IsNullOrWhiteSpace(existing))
-        {
-            return existing;
-        }
-
-        var token = GenerateToken();
-        File.WriteAllText(path, token);
-        try
-        {
-            File.SetAttributes(path, File.GetAttributes(path) | FileAttributes.Hidden);
-        }
-        catch (Exception)
-        {
-            // File attributes are best-effort across platforms.
-        }
-
-        return token;
-    }
-
-    public static string? TryReadToken(string? dataRoot = null)
-    {
-        var path = TokenPath(dataRoot);
-        if (!File.Exists(path))
-        {
-            return null;
-        }
-
-        var token = File.ReadAllText(path).Trim();
-        return token.Length >= 32 ? token : null;
-    }
-
-    private static string GenerateToken()
-    {
-        var bytes = RandomNumberGenerator.GetBytes(32);
-        return Convert.ToBase64String(bytes)
-            .TrimEnd('=')
-            .Replace('+', '-')
-            .Replace('/', '_');
     }
 }
 
-public sealed class HostControlAuthServerInterceptor : Interceptor
+/// <summary>
+/// Client interceptor injecting the HostControl bearer token header. Delegates to
+/// <see cref="BearerTokenAuthClientInterceptor"/> to keep the auth logic in one place.
+/// </summary>
+public sealed class HostControlAuthClientInterceptor : BearerTokenAuthClientInterceptor
 {
-    private readonly HostControlAuthOptions _options;
-
-    public HostControlAuthServerInterceptor(HostControlAuthOptions options)
+    public HostControlAuthClientInterceptor(string? token) : base(HostControlAuthTokenStore.HeaderName, token)
     {
-        _options = options;
-    }
-
-    public override Task<TResponse> UnaryServerHandler<TRequest, TResponse>(
-        TRequest request,
-        ServerCallContext context,
-        UnaryServerMethod<TRequest, TResponse> continuation)
-    {
-        EnsureAuthorized(context);
-        return continuation(request, context);
-    }
-
-    public override Task ServerStreamingServerHandler<TRequest, TResponse>(
-        TRequest request,
-        IServerStreamWriter<TResponse> responseStream,
-        ServerCallContext context,
-        ServerStreamingServerMethod<TRequest, TResponse> continuation)
-    {
-        EnsureAuthorized(context);
-        return continuation(request, responseStream, context);
-    }
-
-    private void EnsureAuthorized(ServerCallContext context)
-    {
-        var supplied = context.RequestHeaders.GetValue(HostControlAuthTokenStore.HeaderName);
-        if (TokenEquals(_options.Token, supplied))
-        {
-            return;
-        }
-
-        throw new RpcException(new Status(StatusCode.Unauthenticated, "HostControl authentication failed."));
-    }
-
-    private static bool TokenEquals(string expected, string? supplied)
-    {
-        if (string.IsNullOrWhiteSpace(expected) || string.IsNullOrWhiteSpace(supplied))
-        {
-            return false;
-        }
-
-        var expectedBytes = Encoding.UTF8.GetBytes(expected);
-        var suppliedBytes = Encoding.UTF8.GetBytes(supplied);
-        return expectedBytes.Length == suppliedBytes.Length &&
-               CryptographicOperations.FixedTimeEquals(expectedBytes, suppliedBytes);
-    }
-}
-
-public sealed class HostControlAuthClientInterceptor : Interceptor
-{
-    private readonly string? _token;
-
-    public HostControlAuthClientInterceptor(string? token)
-    {
-        _token = token;
-    }
-
-    public override AsyncUnaryCall<TResponse> AsyncUnaryCall<TRequest, TResponse>(
-        TRequest request,
-        ClientInterceptorContext<TRequest, TResponse> context,
-        AsyncUnaryCallContinuation<TRequest, TResponse> continuation)
-    {
-        return continuation(request, WithAuth(context));
-    }
-
-    public override AsyncServerStreamingCall<TResponse> AsyncServerStreamingCall<TRequest, TResponse>(
-        TRequest request,
-        ClientInterceptorContext<TRequest, TResponse> context,
-        AsyncServerStreamingCallContinuation<TRequest, TResponse> continuation)
-    {
-        return continuation(request, WithAuth(context));
-    }
-
-    private ClientInterceptorContext<TRequest, TResponse> WithAuth<TRequest, TResponse>(
-        ClientInterceptorContext<TRequest, TResponse> context)
-        where TRequest : class
-        where TResponse : class
-    {
-        if (string.IsNullOrWhiteSpace(_token))
-        {
-            return context;
-        }
-
-        var headers = new Metadata();
-        if (context.Options.Headers is not null)
-        {
-            foreach (var entry in context.Options.Headers)
-            {
-                headers.Add(entry);
-            }
-        }
-
-        headers.Add(HostControlAuthTokenStore.HeaderName, _token);
-        return new ClientInterceptorContext<TRequest, TResponse>(
-            context.Method,
-            context.Host,
-            context.Options.WithHeaders(headers));
     }
 }

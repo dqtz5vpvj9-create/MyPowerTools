@@ -1,11 +1,9 @@
 using System.Runtime.CompilerServices;
-using System.Net.Sockets;
-using System.IO.Pipes;
 using System.Text.Json.Nodes;
 using Google.Protobuf.WellKnownTypes;
 using Grpc.Core;
-using Grpc.Core.Interceptors;
 using Grpc.Net.Client;
+using MyPowerTools.Ipc;
 using MyPowerTools.Platform.Abstractions;
 using MyPowerTools.Protocol;
 using HostProto = MyPowerTools.Protocol.HostControl.V1;
@@ -20,10 +18,7 @@ public sealed class HostControlClient : IDisposable
     private HostControlClient(GrpcChannel channel, string? authToken)
     {
         _channel = channel;
-        var baseInvoker = channel.CreateCallInvoker();
-        CallInvoker invoker = string.IsNullOrWhiteSpace(authToken)
-            ? baseInvoker
-            : baseInvoker.Intercept(new HostControlAuthClientInterceptor(authToken));
+        var invoker = IpcChannelFactory.AuthenticatedInvoker(channel, HostControlAuthTokenStore.HeaderName, authToken);
         _client = new HostProto.HostControl.HostControlClient(invoker);
     }
 
@@ -39,33 +34,7 @@ public sealed class HostControlClient : IDisposable
 
     public static HostControlClient ForEndpoint(IpcEndpoint endpoint, string? authToken)
     {
-        var handler = new SocketsHttpHandler
-        {
-            ConnectCallback = async (_, cancellationToken) =>
-            {
-                if (endpoint.Transport == IpcTransport.NamedPipe)
-                {
-                    var stream = new NamedPipeClientStream(".", endpoint.Address, PipeDirection.InOut, PipeOptions.Asynchronous);
-                    await stream.ConnectAsync(cancellationToken);
-                    return stream;
-                }
-
-                if (endpoint.Transport == IpcTransport.UnixDomainSocket)
-                {
-                    var socket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
-                    await socket.ConnectAsync(new UnixDomainSocketEndPoint(endpoint.Address), cancellationToken);
-                    return new NetworkStream(socket, ownsSocket: true);
-                }
-
-                throw new NotSupportedException($"Unsupported IPC transport: {endpoint.Transport}");
-            }
-        };
-
-        var channel = GrpcChannel.ForAddress("http://localhost", new GrpcChannelOptions
-        {
-            HttpHandler = handler
-        });
-
+        var channel = IpcChannelFactory.ForEndpoint(endpoint);
         return new HostControlClient(channel, authToken);
     }
 
@@ -77,6 +46,35 @@ public sealed class HostControlClient : IDisposable
     public async Task<HostProto.DashboardSnapshot> GetDashboardSnapshotAsync(CancellationToken cancellationToken = default)
     {
         return await _client.GetDashboardSnapshotAsync(new HostProto.DashboardSnapshotRequest { Locale = "" }, cancellationToken: cancellationToken);
+    }
+
+    public async Task<HostProto.ListToolsResponse> ListToolsAsync(bool includeDisabled = false, CancellationToken cancellationToken = default)
+    {
+        return await _client.ListToolsAsync(new HostProto.ListToolsRequest { IncludeDisabled = includeDisabled }, cancellationToken: cancellationToken);
+    }
+
+    public async Task<HostProto.ToolDescriptor> GetToolAsync(string toolId, CancellationToken cancellationToken = default)
+    {
+        return await _client.GetToolAsync(new HostProto.GetToolRequest { ToolId = toolId }, cancellationToken: cancellationToken);
+    }
+
+    public async Task<HostProto.ListToolsResponse> RefreshToolsAsync(CancellationToken cancellationToken = default)
+    {
+        return await _client.RefreshToolsAsync(new HostProto.RefreshToolsRequest(), cancellationToken: cancellationToken);
+    }
+
+    public async Task<HostProto.PublishToolEventResponse> PublishToolEventAsync(
+        string toolId,
+        string topic,
+        string payloadJson,
+        CancellationToken cancellationToken = default)
+    {
+        return await _client.PublishToolEventAsync(new HostProto.PublishToolEventRequest
+        {
+            ToolId = toolId,
+            Topic = topic,
+            PayloadJson = payloadJson
+        }, cancellationToken: cancellationToken);
     }
 
     public async Task<HostProto.ListModulesResponse> ListModulesAsync(CancellationToken cancellationToken = default)
@@ -207,11 +205,40 @@ public sealed class HostControlClient : IDisposable
 
     public async Task<HostProto.ListNotificationsResponse> ListNotificationsAsync(int limit = 50, string moduleId = "", CancellationToken cancellationToken = default)
     {
+        return await ListNotificationsAsync(limit, moduleId, HostProto.NotificationReadFilter.All, cancellationToken);
+    }
+
+    public async Task<HostProto.ListNotificationsResponse> ListNotificationsAsync(
+        int limit,
+        string moduleId,
+        HostProto.NotificationReadFilter readFilter,
+        CancellationToken cancellationToken = default)
+    {
         return await _client.ListNotificationsAsync(new HostProto.ListNotificationsRequest
         {
             ModuleId = moduleId,
-            Limit = (uint)Math.Max(1, limit)
+            Limit = (uint)Math.Max(1, limit),
+            ReadFilter = readFilter
         }, cancellationToken: cancellationToken);
+    }
+
+    public async Task<HostProto.SetNotificationReadStateResponse> SetNotificationReadStateAsync(
+        string notificationId,
+        bool isRead,
+        CancellationToken cancellationToken = default)
+    {
+        return await _client.SetNotificationReadStateAsync(new HostProto.SetNotificationReadStateRequest
+        {
+            NotificationId = notificationId,
+            IsRead = isRead
+        }, cancellationToken: cancellationToken);
+    }
+
+    public Task<HostProto.SetNotificationReadStateResponse> MarkNotificationReadAsync(
+        string notificationId,
+        CancellationToken cancellationToken = default)
+    {
+        return SetNotificationReadStateAsync(notificationId, true, cancellationToken);
     }
 
     public async Task<HostProto.SettingsSnapshot> GetSettingsAsync(string moduleId, CancellationToken cancellationToken = default)

@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>true</IsPackable>
+    <PackageId>MyPowerTools.ServiceManager.Client</PackageId>
+    <Version>0.2.0</Version>
+    <Authors>MyPowerTools</Authors>
+    <Description>Administration client for the ServiceManager process: cross-tool unit listing, control, logs and event streaming.</Description>
+    <PackageTags>mypowertools servicemanager client admin</PackageTags>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MyPowerTools.Ipc.Shared\MyPowerTools.Ipc.Shared.csproj" />
+    <ProjectReference Include="..\MyPowerTools.Protocol\MyPowerTools.Protocol.csproj" />
+    <ProjectReference Include="..\MyPowerTools.Abstractions\MyPowerTools.Abstractions.csproj" />
+    <ProjectReference Include="..\MyPowerTools.Platform.Abstractions\MyPowerTools.Platform.Abstractions.csproj" />
+  </ItemGroup>
+
+</Project>
