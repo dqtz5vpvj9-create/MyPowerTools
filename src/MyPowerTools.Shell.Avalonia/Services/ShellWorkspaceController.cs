@@ -1,6 +1,8 @@
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Threading;
+using MyPowerTools.Runtime;
+using MyPowerTools.Shell.Avalonia.Navigation;
 using MyPowerTools.Shell.Avalonia.ViewModels;
 using MyPowerTools.UI.Controls;
 using HostProto = MyPowerTools.Protocol.HostControl.V1;
@@ -9,14 +11,23 @@ namespace MyPowerTools.Shell.Avalonia.Services;
 
 public sealed partial class ShellWorkspaceController : IAsyncDisposable
 {
+    private const string HomePage = "Home";
+    private const string ToolsPage = "Tools";
+    private const string ActivityPage = "Activity";
+    private const string SystemPage = "System";
     private const string DashboardPage = "Dashboard";
     private const string ModulesPage = "Modules";
     private const string CommandsPage = "Commands";
     private const string SettingsPage = "Settings";
     private const string LogsPage = "Logs";
     private const string NotificationsPage = "Notifications";
+    private const string AdbForwarderPage = "ADB Forwarder";
+    private const string ScreenEasePage = "ScreenEase";
+    private const string DoubaoAgentPage = "Doubao Agent";
+    private const string SmartBirdThermostatPage = "SmartBird";
     private const string PackagesPage = "Packages";
     private const string DiagnosticsPage = "Diagnostics";
+    private const string ServicesPage = "Services";
 
     private readonly MptSearchBox _searchBox;
     private readonly ContentControl _contentHost;
@@ -29,7 +40,27 @@ public sealed partial class ShellWorkspaceController : IAsyncDisposable
     private readonly ShellPageDataService _pageData = new();
     private readonly ShellRunnerEventService _runnerEvents = new();
     private readonly ShellSettingsService _settingsService = new();
-    private string _currentPage = DashboardPage;
+    private readonly ShellAppearanceService _appearance = new();
+    private readonly ShellToolProductService _toolProducts = new();
+    private readonly ShellNavigationService _navigation = new();
+    private readonly ShellWorkspaceIdentity _workspaceIdentity = new();
+    private readonly ShellTerminalFaultRecovery _terminalFaultRecovery = new();
+    private readonly HashSet<string> _handledFaultInvocations = new(StringComparer.Ordinal);
+    private readonly object _handledFaultGate = new();
+    private readonly ShellCommandFaultSink _faultSink;
+    private readonly EventHandler<TextChangedEventArgs> _searchTextChangedHandler;
+    private readonly EventHandler<FocusChangedEventArgs> _searchGotFocusHandler;
+    private readonly Action<string> _runnerStatusChangedHandler;
+    private readonly Action<string> _runnerStateChangedHandler;
+    private readonly Action _runnerRecoveredHandler;
+    private readonly Action<HostProto.HostEvent> _hostEventReceivedHandler;
+    private CancellationTokenSource? _commandSearchCancellation;
+    private CommandPaletteViewModel? _commandPaletteViewModel;
+    private long _commandSearchVersion;
+    private string _currentPage = HomePage;
+    private string _currentToolId = "";
+    private string _currentToolRouteId = "";
+    private int _disposed;
 
     public ShellWorkspaceController(
         ShellChromeViewModel chromeViewModel,
@@ -46,19 +77,42 @@ public sealed partial class ShellWorkspaceController : IAsyncDisposable
         _permissionPanel = permissionPanel;
         _auditPanel = auditPanel;
 
-        _searchBox.TextChanged += async (_, _) => await LoadCommandsAsync(_searchBox.Text ?? "");
-        _searchBox.GotFocus += async (_, _) => await OpenCommandPaletteAsync(focusSearch: false);
-        _runnerEvents.StatusChanged += text => Dispatcher.UIThread.Post(() => SetStatus(text));
-        _runnerEvents.RunnerStatusChanged += text => Dispatcher.UIThread.Post(() => SetRunnerStatus(text));
-        _runnerEvents.RunnerRecovered += () => Dispatcher.UIThread.Post(async () => await RefreshShellDataAsync());
-        _runnerEvents.HostEventReceived += evt => Dispatcher.UIThread.Post(async () => await ApplyHostEventAsync(evt));
+        _faultSink = new ShellCommandFaultSink(_workspaceIdentity.ControllerId);
+        _searchTextChangedHandler = OnSearchTextChanged;
+        _searchGotFocusHandler = OnSearchGotFocus;
+        _runnerStatusChangedHandler = OnRunnerStatusChanged;
+        _runnerStateChangedHandler = OnRunnerStateChanged;
+        _runnerRecoveredHandler = OnRunnerRecovered;
+        _hostEventReceivedHandler = OnHostEventReceived;
+
+        _searchBox.TextChanged += _searchTextChangedHandler;
+        _searchBox.KeyDown += OnCommandSearchKeyDown;
+        _searchBox.GotFocus += _searchGotFocusHandler;
+        _runnerEvents.StatusChanged += _runnerStatusChangedHandler;
+        _runnerEvents.RunnerStatusChanged += _runnerStateChangedHandler;
+        _runnerEvents.RunnerRecovered += _runnerRecoveredHandler;
+        _runnerEvents.HostEventReceived += _hostEventReceivedHandler;
+        _faultSink.Faulted += OnShellCommandFaulted;
+        AttachCurrentFaultOwner(_chromeViewModel);
     }
 
     public static IReadOnlyList<string> PageLabels { get; } =
-        [DashboardPage, ModulesPage, CommandsPage, SettingsPage, LogsPage, NotificationsPage, PackagesPage, DiagnosticsPage];
+        [
+            HomePage,
+            ToolsPage,
+            ActivityPage,
+            NotificationsPage,
+            AdbForwarderPage,
+            ScreenEasePage,
+            DoubaoAgentPage,
+            SmartBirdThermostatPage,
+            SettingsPage,
+            SystemPage
+        ];
 
     public async Task OpenAsync()
     {
+        _pageData.StartBackgroundServices();
         _runnerEvents.Start();
         await RefreshAsync();
     }
@@ -71,6 +125,46 @@ public sealed partial class ShellWorkspaceController : IAsyncDisposable
 
     public async Task ShowPageAsync(string page)
     {
+        if (IsDisposed)
+        {
+            return;
+        }
+
+        if (string.Equals(page, DashboardPage, StringComparison.OrdinalIgnoreCase))
+        {
+            page = HomePage;
+        }
+
+        if (string.Equals(page, NotificationsPage, StringComparison.OrdinalIgnoreCase))
+        {
+            await ShowToolPageAsync(RemoteNotificationsToolId, "inbox");
+            return;
+        }
+
+        if (string.Equals(page, AdbForwarderPage, StringComparison.OrdinalIgnoreCase))
+        {
+            await ShowToolPageAsync(AdbForwarderToolId, "forward");
+            return;
+        }
+
+        if (string.Equals(page, ScreenEasePage, StringComparison.OrdinalIgnoreCase))
+        {
+            await ShowToolPageAsync(ScreenEaseToolId, "profiles");
+            return;
+        }
+
+        if (string.Equals(page, DoubaoAgentPage, StringComparison.OrdinalIgnoreCase))
+        {
+            await ShowToolPageAsync(DoubaoAgentToolId, "services");
+            return;
+        }
+
+        if (string.Equals(page, SmartBirdThermostatPage, StringComparison.OrdinalIgnoreCase))
+        {
+            await ShowToolPageAsync(SmartBirdThermostatToolId, "overview");
+            return;
+        }
+
         if (string.Equals(page, CommandsPage, StringComparison.OrdinalIgnoreCase))
         {
             _chromeViewModel.SelectPage(CommandsPage);
@@ -78,8 +172,13 @@ public sealed partial class ShellWorkspaceController : IAsyncDisposable
             return;
         }
 
+        BeginWorkspace();
         _currentPage = page;
-        _chromeViewModel.SelectPage(page);
+        _currentToolId = "";
+        _currentToolRouteId = "";
+        var navigationPage = IsSystemDestination(page) ? SystemPage : page;
+        _chromeViewModel.SelectPage(navigationPage);
+        _navigation.Navigate(ToShellRoute(page), addToHistory: true);
         if (!string.Equals(page, CommandsPage, StringComparison.OrdinalIgnoreCase))
         {
             _chromeViewModel.IsCommandPaletteOpen = false;
@@ -89,6 +188,18 @@ public sealed partial class ShellWorkspaceController : IAsyncDisposable
 
         switch (page)
         {
+            case HomePage:
+                await LoadHomePageAsync();
+                break;
+            case ToolsPage:
+                await LoadToolsPageAsync();
+                break;
+            case ActivityPage:
+                LoadActivityPage();
+                break;
+            case SystemPage:
+                LoadSystemPage();
+                break;
             case DashboardPage:
                 await LoadDashboardPageAsync();
                 break;
@@ -99,7 +210,7 @@ public sealed partial class ShellWorkspaceController : IAsyncDisposable
                 await OpenCommandPaletteAsync();
                 break;
             case SettingsPage:
-                await LoadSettingsPageAsync();
+                LoadGeneralSettingsPage();
                 break;
             case LogsPage:
                 await LoadLogsPageAsync();
@@ -113,42 +224,92 @@ public sealed partial class ShellWorkspaceController : IAsyncDisposable
             case DiagnosticsPage:
                 await LoadDiagnosticsPageAsync();
                 break;
-        }
-    }
-
-    public async Task HandleKeyDownAsync(KeyEventArgs e)
-    {
-        var shortcut = ShellKeyboardShortcut.Resolve(e.Key, e.KeyModifiers);
-        if (shortcut.Action == ShellKeyboardAction.None)
-        {
-            return;
-        }
-
-        e.Handled = true;
-        try
-        {
-            await ApplyKeyboardShortcutAsync(shortcut);
-        }
-        catch (Exception ex)
-        {
-            SetStatus(ex.Message);
+            case ServicesPage:
+                await LoadServicesPageAsync();
+                break;
         }
     }
 
     public async ValueTask DisposeAsync()
     {
-        await _runnerEvents.DisposeAsync();
+        if (!TryBeginDispose())
+        {
+            return;
+        }
+
+        UnsubscribeShellEvents();
+        _pageData.Dispose();
+        _commandSearchCancellation?.Cancel();
+        _commandSearchCancellation?.Dispose();
+        _commandSearchCancellation = null;
+        TryDispose(_doubaoAgentTools);
+        TryDispose(_smartBirdThermostatTools);
+        try
+        {
+            await _runnerEvents.DisposeAsync();
+        }
+        catch (Exception ex)
+        {
+            ShellCommandFaultLog.Write("Dispose Runner event service", ex, "dispose");
+        }
+        finally
+        {
+            DisposeHostedContent();
+            _faultSink.Dispose();
+        }
     }
 
-    private void SetStatus(string text) => _chromeViewModel.StatusText = text;
+    private void SetStatus(string text)
+    {
+        if (!IsDisposed)
+        {
+            _chromeViewModel.StatusText = text;
+        }
+    }
 
-    private void SetRunnerStatus(string text) => _chromeViewModel.RunnerStatusText = text;
+    private void SetRunnerStatus(string text)
+    {
+        if (!IsDisposed)
+        {
+            _chromeViewModel.RunnerStatusText = text;
+        }
+    }
 
     private async Task RefreshShellDataAsync()
     {
-        await ShowPageAsync(_currentPage);
+        if (!string.IsNullOrWhiteSpace(_currentToolId))
+        {
+            await ShowToolPageAsync(_currentToolId, _currentToolRouteId);
+        }
+        else
+        {
+            await ShowPageAsync(_currentPage);
+        }
         await LoadCommandsAsync(_searchBox.Text ?? "");
         await LoadBrokerAuditAsync();
+    }
+
+    private static bool IsSystemDestination(string page)
+    {
+        return page is ModulesPage or PackagesPage or LogsPage or DiagnosticsPage or ServicesPage;
+    }
+
+    private static ShellRoute ToShellRoute(string page)
+    {
+        return page switch
+        {
+            HomePage => ShellRoute.Home,
+            ToolsPage => ShellRoute.Tools,
+            ActivityPage => ShellRoute.Activity,
+            NotificationsPage => ShellRoute.Notifications,
+            SettingsPage => ShellRoute.Settings,
+            SystemPage => ShellRoute.System,
+            ModulesPage => ShellRoute.Modules,
+            PackagesPage => ShellRoute.Packages,
+            LogsPage => ShellRoute.Logs,
+            DiagnosticsPage => ShellRoute.RuntimeHealth,
+            _ => ShellRoute.System
+        };
     }
 
     private async Task ApplyKeyboardShortcutAsync(ShellKeyboardShortcutResult shortcut)
@@ -173,6 +334,23 @@ public sealed partial class ShellWorkspaceController : IAsyncDisposable
 
     private async Task ApplyHostEventAsync(HostProto.HostEvent evt)
     {
+        if (string.Equals(evt.SourceId, "android-tools.notifications", StringComparison.OrdinalIgnoreCase) &&
+            string.Equals(evt.Type, "message.received", StringComparison.OrdinalIgnoreCase))
+        {
+            var messageIds = evt.Payload.Fields.TryGetValue("messageIds", out var value)
+                ? value.ListValue.Values
+                    .Select(item => item.StringValue)
+                    .Where(item => !string.IsNullOrWhiteSpace(item))
+                    .ToArray()
+                : [];
+            await _pageData.PresentRemoteNotificationsAsync(messageIds);
+            if (string.Equals(_currentToolId, RemoteNotificationsToolId, StringComparison.OrdinalIgnoreCase))
+            {
+                await ShowToolPageAsync(RemoteNotificationsToolId, _currentToolRouteId);
+            }
+            return;
+        }
+
         var plan = ShellPageRefreshRouter.Route(_currentPage, evt);
         if (plan.ReloadBrokerAudit)
         {
@@ -191,7 +369,7 @@ public sealed partial class ShellWorkspaceController : IAsyncDisposable
 
         if (plan.ReloadSettingsModuleId is not null)
         {
-            await LoadSettingsPageAsync(plan.ReloadSettingsModuleId);
+            await LoadModuleSettingsPageAsync(plan.ReloadSettingsModuleId);
         }
 
         if (plan.ReloadDiagnostics)

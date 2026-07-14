@@ -1,0 +1,84 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="using:MyPowerTools.UI.Controls"
+             xmlns:vm="using:MyPowerTools.Shell.Avalonia.ViewModels"
+             x:Class="MyPowerTools.Shell.Avalonia.Views.ServicesView"
+             x:DataType="vm:ServicesViewModel">
+  <StackPanel Margin="{DynamicResource MptPagePadding}" Spacing="{DynamicResource MptSpacingM}">
+    <Grid ColumnDefinitions="*,Auto">
+      <StackPanel Spacing="{DynamicResource MptSpacingXs}">
+        <TextBlock Classes="MptPageTitle" Text="{Binding Title}" />
+        <TextBlock Classes="MptPageSubtitle" Text="{Binding Subtitle}" />
+      </StackPanel>
+      <StackPanel Grid.Column="1" Classes="MptActionBar" Orientation="Horizontal" Spacing="{DynamicResource MptSpacingXs}">
+        <controls:MptButton Content="Reload manifests"
+                            Command="{Binding ReloadManifestsCommand}"
+                            MinWidth="{DynamicResource MptDensityActionMinWidth}" />
+        <controls:MptButton Content="Refresh"
+                            Command="{Binding RefreshCommand}"
+                            MinWidth="{DynamicResource MptDensityActionMinWidth}" />
+      </StackPanel>
+    </Grid>
+
+    <Border Classes="MptEmptyState" IsVisible="{Binding HasNoUnits}">
+      <StackPanel Spacing="{DynamicResource MptSpacingXs}">
+        <TextBlock Classes="MptSectionTitle" Text="No Service Units registered" />
+        <TextBlock Classes="MptMeta"
+                   Text="Deploy a unit manifest to the ServiceManager deploy root, then Reload manifests. If the ServiceManager is not running, this page cannot reach it." />
+      </StackPanel>
+    </Border>
+
+    <ItemsControl ItemsSource="{Binding Units}" IsVisible="{Binding !HasNoUnits}">
+      <ItemsControl.ItemTemplate>
+        <DataTemplate x:DataType="vm:ServiceUnitViewModel">
+          <Border Classes="MptSettingsField">
+            <Grid ColumnDefinitions="*,Auto">
+              <StackPanel Spacing="{DynamicResource MptSpacingXs}">
+                <StackPanel Orientation="Horizontal" Spacing="{DynamicResource MptSpacingXs}">
+                  <Border Classes="MptStatusBadge">
+                    <TextBlock Classes="MptStatusText" Text="{Binding State}" />
+                  </Border>
+                  <TextBlock Classes="MptCardTitle" Text="{Binding DisplayName}" />
+                  <TextBlock Classes="MptMeta" Text="{Binding ToolId}" />
+                </StackPanel>
+                <StackPanel Orientation="Horizontal" Spacing="{DynamicResource MptSpacingM}">
+                  <StackPanel>
+                    <TextBlock Classes="MptMeta" Text="PID" />
+                    <TextBlock Classes="MptValue" Text="{Binding Pid}" />
+                  </StackPanel>
+                  <StackPanel>
+                    <TextBlock Classes="MptMeta" Text="Uptime" />
+                    <TextBlock Classes="MptValue" Text="{Binding Uptime}" />
+                  </StackPanel>
+                  <StackPanel>
+                    <TextBlock Classes="MptMeta" Text="Restarts" />
+                    <TextBlock Classes="MptValue" Text="{Binding RestartCount}" />
+                  </StackPanel>
+                  <StackPanel>
+                    <TextBlock Classes="MptMeta" Text="Autostart" />
+                    <TextBlock Classes="MptValue" Text="{Binding Autostart}" />
+                  </StackPanel>
+                </StackPanel>
+                <TextBlock Classes="MptMeta" Text="{Binding StateSummary}" IsVisible="{Binding !HasError}" />
+                <Border Classes="MptErrorState" Padding="{DynamicResource MptSpacingS}" IsVisible="{Binding HasError}">
+                  <TextBlock Classes="MptMeta" Text="{Binding LastError}" TextWrapping="Wrap" />
+                </Border>
+              </StackPanel>
+              <StackPanel Grid.Column="1" Classes="MptActionBar" Orientation="Vertical" Spacing="{DynamicResource MptSpacingXs}">
+                <controls:MptButton Content="Start"
+                                    Command="{Binding StartCommand}"
+                                    MinWidth="{DynamicResource MptDensityActionMinWidth}" />
+                <controls:MptButton Content="Restart"
+                                    Command="{Binding RestartCommand}"
+                                    MinWidth="{DynamicResource MptDensityActionMinWidth}" />
+                <controls:MptButton Content="Stop"
+                                    Command="{Binding StopCommand}"
+                                    MinWidth="{DynamicResource MptDensityActionMinWidth}" />
+              </StackPanel>
+            </Grid>
+          </Border>
+        </DataTemplate>
+      </ItemsControl.ItemTemplate>
+    </ItemsControl>
+  </StackPanel>
+</UserControl>

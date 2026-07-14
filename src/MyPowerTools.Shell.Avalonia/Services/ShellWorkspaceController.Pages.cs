@@ -1,3 +1,4 @@
+using MyPowerTools.ServiceManager.Client;
 using MyPowerTools.Shell.Avalonia.ViewModels;
 using MyPowerTools.Shell.Avalonia.Views;
 
@@ -13,15 +14,15 @@ public sealed partial class ShellWorkspaceController
                 moduleId => ShowModuleDetailPageAsync(moduleId),
                 commandId => ExecuteCommandAsync(commandId));
 
-            _contentHost.Content = new DashboardView
+            SetOwnedContent(_contentHost, new DashboardView
             {
                 DataContext = result.ViewModel
-            };
+            });
             SetStatus(result.StatusText);
         }
         catch (Exception ex)
         {
-            _contentHost.Content = BuildUnavailablePage(DashboardPage, ex.Message);
+            SetOwnedContent(_contentHost, BuildUnavailablePage(DashboardPage, ex.Message));
             SetStatus(ex.Message);
         }
     }
@@ -32,25 +33,26 @@ public sealed partial class ShellWorkspaceController
         {
             var result = await _pageData.LoadModulesAsync(
                 moduleId => ShowModuleDetailPageAsync(moduleId),
-                moduleId => LoadSettingsPageAsync(moduleId),
-                moduleId => LoadLogsPageAsync(moduleId),
+                moduleId => ShowModuleSettingsPageAsync(moduleId),
+                moduleId => ShowModuleLogsPageAsync(moduleId),
                 (moduleId, enabled) => SetModuleEnabledAsync(moduleId, enabled));
 
-            _contentHost.Content = new ModulesView
+            SetOwnedContent(_contentHost, new ModulesView
             {
                 DataContext = result.ViewModel
-            };
+            });
             SetStatus(result.StatusText);
         }
         catch (Exception ex)
         {
-            _contentHost.Content = BuildUnavailablePage(ModulesPage, ex.Message);
+            SetOwnedContent(_contentHost, BuildUnavailablePage(ModulesPage, ex.Message));
             SetStatus(ex.Message);
         }
     }
 
     private async Task ShowModuleDetailPageAsync(string moduleId)
     {
+        BeginWorkspace();
         _currentPage = ModulesPage;
         _chromeViewModel.SelectPage(ModulesPage);
 
@@ -61,39 +63,60 @@ public sealed partial class ShellWorkspaceController
                 (targetModuleId, enabled) => SetModuleEnabledAsync(targetModuleId, enabled, showDetail: true),
                 commandId => ExecuteCommandAsync(commandId));
 
-            _contentHost.Content = new ModuleDetailView
+            SetOwnedContent(_contentHost, new ModuleDetailView
             {
                 DataContext = result.ViewModel
-            };
+            });
             SetStatus(result.StatusText);
         }
         catch (Exception ex)
         {
-            _contentHost.Content = BuildUnavailablePage("Module Detail", ex.Message);
+            SetOwnedContent(_contentHost, BuildUnavailablePage("Module Detail", ex.Message));
             SetStatus(ex.Message);
         }
     }
 
-    private async Task LoadSettingsPageAsync(string? selectedModuleId = null)
+    private void LoadGeneralSettingsPage()
+    {
+        var viewModel = new GeneralSettingsViewModel(
+            _appearance.CurrentTheme,
+            _appearance.SetThemeAsync,
+            () => ShowPageAsync(SystemPage));
+        SetOwnedContent(_contentHost, new GeneralSettingsView
+        {
+            DataContext = viewModel
+        });
+        SetStatus("Application preferences opened.");
+    }
+
+    private async Task LoadModuleSettingsPageAsync(string selectedModuleId)
     {
         try
         {
             var result = await _pageData.LoadSettingsAsync(
                 selectedModuleId,
-                moduleId => LoadSettingsPageAsync(moduleId),
+                moduleId => LoadModuleSettingsPageAsync(moduleId),
                 SaveSettingsPageAsync);
 
-            _contentHost.Content = new SettingsCenterView
+            SetOwnedContent(_contentHost, new SettingsCenterView
             {
                 DataContext = result.ViewModel
-            };
+            });
             SetStatus(result.StatusText);
         }
         catch (Exception ex)
         {
-            _contentHost.Content = BuildUnavailablePage(SettingsPage, ex.Message);
+            SetOwnedContent(_contentHost, BuildUnavailablePage(SettingsPage, ex.Message));
             SetStatus(ex.Message);
         }
+    }
+
+    private async Task ShowModuleSettingsPageAsync(string moduleId)
+    {
+        BeginWorkspace();
+        _currentPage = ModulesPage;
+        _chromeViewModel.SelectPage(SystemPage);
+        await LoadModuleSettingsPageAsync(moduleId);
     }
 
     private async Task SaveSettingsPageAsync(SettingsCenterViewModel viewModel)
@@ -116,17 +139,25 @@ public sealed partial class ShellWorkspaceController
                 selectedModuleId,
                 moduleId => LoadLogsPageAsync(moduleId));
 
-            _contentHost.Content = new LogsView
+            SetOwnedContent(_contentHost, new LogsView
             {
                 DataContext = result.ViewModel
-            };
+            });
             SetStatus(result.StatusText);
         }
         catch (Exception ex)
         {
-            _contentHost.Content = BuildUnavailablePage(LogsPage, ex.Message);
+            SetOwnedContent(_contentHost, BuildUnavailablePage(LogsPage, ex.Message));
             SetStatus(ex.Message);
         }
+    }
+
+    private async Task ShowModuleLogsPageAsync(string moduleId)
+    {
+        BeginWorkspace();
+        _currentPage = LogsPage;
+        _chromeViewModel.SelectPage(LogsPage);
+        await LoadLogsPageAsync(moduleId);
     }
 
     private async Task LoadNotificationsPageAsync()
@@ -135,15 +166,15 @@ public sealed partial class ShellWorkspaceController
         {
             var result = await _pageData.LoadNotificationsAsync();
 
-            _contentHost.Content = new NotificationsView
+            SetOwnedContent(_contentHost, new NotificationsView
             {
                 DataContext = result.ViewModel
-            };
+            });
             SetStatus(result.StatusText);
         }
         catch (Exception ex)
         {
-            _contentHost.Content = BuildUnavailablePage(NotificationsPage, ex.Message);
+            SetOwnedContent(_contentHost, BuildUnavailablePage(NotificationsPage, ex.Message));
             SetStatus(ex.Message);
         }
     }
@@ -159,15 +190,15 @@ public sealed partial class ShellWorkspaceController
                 packageId => RunPackageOperationAsync("uninstall", packageId),
                 moduleId => ShowModuleDetailPageAsync(moduleId));
 
-            _contentHost.Content = new PackageManagerView
+            SetOwnedContent(_contentHost, new PackageManagerView
             {
                 DataContext = result.ViewModel
-            };
+            });
             SetStatus(result.StatusText);
         }
         catch (Exception ex)
         {
-            _contentHost.Content = BuildUnavailablePage(PackagesPage, ex.Message);
+            SetOwnedContent(_contentHost, BuildUnavailablePage(PackagesPage, ex.Message));
             SetStatus(ex.Message);
         }
     }
@@ -185,16 +216,68 @@ public sealed partial class ShellWorkspaceController
                     expiresAt,
                     reason));
 
-            _contentHost.Content = new DiagnosticsView
+            SetOwnedContent(_contentHost, new DiagnosticsView
             {
                 DataContext = result.ViewModel
-            };
+            });
             SetStatus(result.StatusText);
         }
         catch (Exception ex)
         {
-            _contentHost.Content = BuildUnavailablePage(DiagnosticsPage, ex.Message);
+            SetOwnedContent(_contentHost, BuildUnavailablePage(DiagnosticsPage, ex.Message));
             SetStatus(ex.Message);
         }
     }
+
+    private async Task LoadServicesPageAsync()
+    {
+        try
+        {
+            var result = await _pageData.LoadServicesAsync(
+                startUnit: unitId => InvokeServiceUnitActionAsync(unitId, ServiceUnitAction.Start),
+                stopUnit: unitId => InvokeServiceUnitActionAsync(unitId, ServiceUnitAction.Stop),
+                restartUnit: unitId => InvokeServiceUnitActionAsync(unitId, ServiceUnitAction.Restart),
+                refresh: () => { return LoadServicesPageAsync(); },
+                reloadManifests: ReloadServiceUnitsAsync);
+
+            SetOwnedContent(_contentHost, new ServicesView
+            {
+                DataContext = result.ViewModel
+            });
+            SetStatus(result.StatusText);
+        }
+        catch (Exception ex)
+        {
+            SetOwnedContent(_contentHost, BuildUnavailablePage(ServicesPage, ex.Message));
+            SetStatus(ex.Message);
+        }
+    }
+
+    private async Task InvokeServiceUnitActionAsync(string unitId, ServiceUnitAction action)
+    {
+        using var client = ServiceManagerAdminClient.ForDefaultEndpoint();
+        switch (action)
+        {
+            case ServiceUnitAction.Start:
+                await client.StartAsync(unitId);
+                break;
+            case ServiceUnitAction.Stop:
+                await client.StopAsync(unitId);
+                break;
+            case ServiceUnitAction.Restart:
+                await client.RestartAsync(unitId);
+                break;
+        }
+
+        await LoadServicesPageAsync();
+    }
+
+    private async Task ReloadServiceUnitsAsync()
+    {
+        using var client = ServiceManagerAdminClient.ForDefaultEndpoint();
+        await client.ReloadAsync();
+        await LoadServicesPageAsync();
+    }
+
+    private enum ServiceUnitAction { Start, Stop, Restart }
 }

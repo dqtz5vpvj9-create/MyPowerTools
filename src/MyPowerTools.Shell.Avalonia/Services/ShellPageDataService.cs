@@ -1,14 +1,48 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
+using Avalonia.Threading;
 using Google.Protobuf.WellKnownTypes;
 using MyPowerTools.HostControl;
+using MyPowerTools.ServiceManager.Client;
 using MyPowerTools.Shell.Avalonia.ViewModels;
 using HostProto = MyPowerTools.Protocol.HostControl.V1;
 
 namespace MyPowerTools.Shell.Avalonia.Services;
 
-public sealed class ShellPageDataService
+public sealed class ShellPageDataService : IDisposable
 {
+    private readonly RemoteNotificationsLegacyStore _remoteNotificationStore;
+    private readonly RemoteNotificationsViewModel _remoteNotifications;
+    private readonly DispatcherTimer _remoteNotificationPollTimer;
+    private int _remoteNotificationsStarted;
+    private int _disposed;
+
+    public ShellPageDataService()
+    {
+        _remoteNotificationStore = new RemoteNotificationsLegacyStore();
+        _remoteNotifications = new RemoteNotificationsViewModel(
+            _remoteNotificationStore.Load(),
+            _remoteNotificationStore);
+        _remoteNotificationPollTimer = new DispatcherTimer
+        {
+            Interval = TimeSpan.FromSeconds(_remoteNotifications.PollIntervalSeconds)
+        };
+        _remoteNotificationPollTimer.Tick += OnRemoteNotificationPollTimerTick;
+        _remoteNotifications.PollingConfigurationChanged += OnRemoteNotificationPollingConfigurationChanged;
+    }
+
+    public void StartBackgroundServices()
+    {
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
+        if (Interlocked.Exchange(ref _remoteNotificationsStarted, 1) != 0)
+        {
+            return;
+        }
+
+        _remoteNotificationPollTimer.Start();
+        _ = _remoteNotifications.PollAsync();
+    }
+
     public async Task<ShellPageDataResult<DashboardViewModel>> LoadDashboardAsync(
         Func<string, Task>? showModuleDetails = null,
         Func<string, Task>? executeCommand = null,
@@ -127,6 +161,45 @@ public sealed class ShellPageDataService
             $"{viewModel.Notifications.Count} notifications loaded");
     }
 
+    public Task<ShellPageDataResult<RemoteNotificationsViewModel>> LoadRemoteNotificationsAsync(
+        CancellationToken cancellationToken = default)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(new ShellPageDataResult<RemoteNotificationsViewModel>(
+            _remoteNotifications,
+            $"{_remoteNotifications.Messages.Count} remote notifications available; background sync is active."));
+    }
+
+    public Task<int> PresentRemoteNotificationsAsync(
+        IEnumerable<string> messageIds,
+        CancellationToken cancellationToken = default)
+    {
+        return _remoteNotifications.PresentPersistedAsync(messageIds, cancellationToken);
+    }
+
+    public void Dispose()
+    {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
+        {
+            return;
+        }
+
+        _remoteNotificationPollTimer.Stop();
+        _remoteNotificationPollTimer.Tick -= OnRemoteNotificationPollTimerTick;
+        _remoteNotifications.PollingConfigurationChanged -= OnRemoteNotificationPollingConfigurationChanged;
+    }
+
+    private void OnRemoteNotificationPollTimerTick(object? sender, EventArgs e)
+    {
+        _ = _remoteNotifications.PollAsync();
+    }
+
+    private void OnRemoteNotificationPollingConfigurationChanged(object? sender, EventArgs e)
+    {
+        _remoteNotificationPollTimer.Interval = TimeSpan.FromSeconds(
+            Math.Clamp(_remoteNotifications.PollIntervalSeconds, 5, 3600));
+    }
+
     public async Task<ShellPageDataResult<PackageManagerViewModel>> LoadPackagesAsync(
         Func<string, Task>? installPackage = null,
         Func<string, Task>? rollbackPackage = null,
@@ -167,22 +240,50 @@ public sealed class ShellPageDataService
             $"Diagnostics loaded for {diagnostics.Counts.ModuleCount} modules");
     }
 
+    public async Task<ShellPageDataResult<ServicesViewModel>> LoadServicesAsync(
+        Func<string, Task>? startUnit = null,
+        Func<string, Task>? stopUnit = null,
+        Func<string, Task>? restartUnit = null,
+        Func<Task>? refresh = null,
+        Func<Task>? reloadManifests = null,
+        CancellationToken cancellationToken = default)
+    {
+        using var client = ServiceManagerAdminClient.ForDefaultEndpoint();
+        var response = await client.ListUnitsAsync(cancellationToken: cancellationToken);
+        var viewModel = ShellPageViewModelFactory.FromServiceUnits(
+            response,
+            startUnit,
+            stopUnit,
+            restartUnit,
+            refresh,
+            reloadManifests);
+        return new ShellPageDataResult<ServicesViewModel>(
+            viewModel,
+            response.Units.Count == 0
+                ? "ServiceManager reachable, no units registered."
+                : $"{response.Units.Count} service unit(s) loaded.");
+    }
+
     public async Task<CommandPaletteViewModel> LoadCommandsAsync(
         string query,
         Func<string, JsonObject, string, CancellationToken, IAsyncEnumerable<CommandExecutionStatus>>? executeCommand = null,
         Func<string, Task<CommandCancellationStatus>>? cancelCommand = null,
+        Func<string, string, JsonObject?, Task>? navigateTool = null,
+        IReadOnlySet<string>? searchableToolIds = null,
         CancellationToken cancellationToken = default)
     {
         using var client = HostControlClient.ForDefaultEndpoint();
-        var response = await client.ListCommandsAsync(query, cancellationToken);
-        if (response.Commands.Count > 30)
-        {
-            var limited = new HostProto.ListCommandsResponse();
-            limited.Commands.AddRange(response.Commands.Take(30));
-            response = limited;
-        }
-
-        return ShellPageViewModelFactory.FromCommands(query, response, executeCommand, cancelCommand);
+        var response = await client.ListToolsAsync(
+            includeDisabled: false,
+            cancellationToken: cancellationToken);
+        searchableToolIds ??= response.Tools
+            .Select(tool => tool.ToolId)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+        var commands = ShellPageViewModelFactory.BuildToolSearchCommands(query, response, searchableToolIds);
+        return ShellPageViewModelFactory.FromCommands(
+            query,
+            commands,
+            navigateTool: navigateTool);
     }
 
     public async Task<BrokerAuditViewModel> LoadBrokerAuditAsync(
