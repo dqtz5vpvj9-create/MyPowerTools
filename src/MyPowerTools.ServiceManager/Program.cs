@@ -1,8 +1,21 @@
 using Microsoft.AspNetCore.Server.Kestrel.Core;
+using Microsoft.Win32;
 using MyPowerTools.Ipc;
 using MyPowerTools.Platform.Abstractions;
 using MyPowerTools.ServiceManager.Client;
 using MyPowerTools.ServiceManager.Server;
+
+// Utility modes: register/unregister the ServiceManager as a Windows login autostart entry
+// (HKCU\Software\Microsoft\Windows\CurrentVersion\Run). These run before the host starts and exit.
+if (args.Contains("--register-autostart", StringComparer.OrdinalIgnoreCase))
+{
+    return RegisterAutostart(GetOption(args, "--data-root"));
+}
+
+if (args.Contains("--unregister-autostart", StringComparer.OrdinalIgnoreCase))
+{
+    return UnregisterAutostart();
+}
 
 // The ServiceManager is an independent, long-running process: the single execution plane
 // for Service Units. Shell and Runner are clients. A Runner restart never affects units.
@@ -94,4 +107,56 @@ static string? GetOption(string[] args, string name)
     }
 
     return null;
+}
+
+// Registers the ServiceManager to launch at user login via the HKCU Run key. This keeps the
+// process alive across logoff/logon and reboots independently of the Shell and Runner. The
+// entry launches headless (no tray) against the same data root so it re-adopts running units.
+static int RegisterAutostart(string? dataRoot)
+{
+    if (!OperatingSystem.IsWindows())
+    {
+        Console.WriteLine("Autostart registration is Windows-only.");
+        return 0;
+    }
+
+    dataRoot ??= Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MyPowerTools");
+    var exePath = Environment.ProcessPath!;
+    var argList = new List<string> { "--headless", "--data-root", $"\"{dataRoot}\"" };
+    var command = $"\"{exePath}\" {string.Join(' ', argList)}";
+
+    try
+    {
+        using var key = Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", writable: true);
+        key.SetValue("MyPowerTools.ServiceManager", command, RegistryValueKind.String);
+        Console.WriteLine($"Registered autostart: {command}");
+        return 0;
+    }
+    catch (Exception ex)
+    {
+        Console.Error.WriteLine($"Failed to register autostart: {ex.Message}");
+        return 1;
+    }
+}
+
+static int UnregisterAutostart()
+{
+    if (!OperatingSystem.IsWindows())
+    {
+        Console.WriteLine("Autostart registration is Windows-only.");
+        return 0;
+    }
+
+    try
+    {
+        using var key = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run", writable: true);
+        key?.DeleteValue("MyPowerTools.ServiceManager", throwOnMissingValue: false);
+        Console.WriteLine("Unregistered autostart.");
+        return 0;
+    }
+    catch (Exception ex)
+    {
+        Console.Error.WriteLine($"Failed to unregister autostart: {ex.Message}");
+        return 1;
+    }
 }

@@ -244,6 +244,9 @@ public sealed class ShellPageDataService : IDisposable
         Func<string, Task>? startUnit = null,
         Func<string, Task>? stopUnit = null,
         Func<string, Task>? restartUnit = null,
+        Func<string, Task>? tailLogs = null,
+        Func<string, Task>? openTool = null,
+        Func<string, Task>? toggleAutostart = null,
         Func<Task>? refresh = null,
         Func<Task>? reloadManifests = null,
         CancellationToken cancellationToken = default)
@@ -255,6 +258,9 @@ public sealed class ShellPageDataService : IDisposable
             startUnit,
             stopUnit,
             restartUnit,
+            tailLogs,
+            openTool,
+            toggleAutostart,
             refresh,
             reloadManifests);
         return new ShellPageDataResult<ServicesViewModel>(

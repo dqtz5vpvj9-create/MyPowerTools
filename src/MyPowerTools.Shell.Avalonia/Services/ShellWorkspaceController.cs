@@ -39,6 +39,7 @@ public sealed partial class ShellWorkspaceController : IAsyncDisposable
     private readonly ShellHostActionService _hostActions = new();
     private readonly ShellPageDataService _pageData = new();
     private readonly ShellRunnerEventService _runnerEvents = new();
+    private readonly ServiceUnitEventStreamMonitor _unitEvents = new(new ServiceManagerUnitEventSource());
     private readonly ShellSettingsService _settingsService = new();
     private readonly ShellAppearanceService _appearance = new();
     private readonly ShellToolProductService _toolProducts = new();
@@ -54,6 +55,9 @@ public sealed partial class ShellWorkspaceController : IAsyncDisposable
     private readonly Action<string> _runnerStateChangedHandler;
     private readonly Action _runnerRecoveredHandler;
     private readonly Action<HostProto.HostEvent> _hostEventReceivedHandler;
+    private readonly EventHandler<MyPowerTools.Protocol.ServiceManager.V1.UnitEvent> _unitEventReceivedHandler;
+    private readonly EventHandler<Exception> _unitStreamFaultedHandler;
+    private readonly EventHandler _unitStreamRecoveredHandler;
     private CancellationTokenSource? _commandSearchCancellation;
     private CommandPaletteViewModel? _commandPaletteViewModel;
     private long _commandSearchVersion;
@@ -84,6 +88,9 @@ public sealed partial class ShellWorkspaceController : IAsyncDisposable
         _runnerStateChangedHandler = OnRunnerStateChanged;
         _runnerRecoveredHandler = OnRunnerRecovered;
         _hostEventReceivedHandler = OnHostEventReceived;
+        _unitEventReceivedHandler = OnUnitEventReceived;
+        _unitStreamFaultedHandler = OnUnitStreamFaulted;
+        _unitStreamRecoveredHandler = OnUnitStreamRecovered;
 
         _searchBox.TextChanged += _searchTextChangedHandler;
         _searchBox.KeyDown += OnCommandSearchKeyDown;
@@ -92,6 +99,9 @@ public sealed partial class ShellWorkspaceController : IAsyncDisposable
         _runnerEvents.RunnerStatusChanged += _runnerStateChangedHandler;
         _runnerEvents.RunnerRecovered += _runnerRecoveredHandler;
         _runnerEvents.HostEventReceived += _hostEventReceivedHandler;
+        _unitEvents.UnitEventReceived += _unitEventReceivedHandler;
+        _unitEvents.StreamFaulted += _unitStreamFaultedHandler;
+        _unitEvents.StreamRecovered += _unitStreamRecoveredHandler;
         _faultSink.Faulted += OnShellCommandFaulted;
         AttachCurrentFaultOwner(_chromeViewModel);
     }
@@ -114,6 +124,7 @@ public sealed partial class ShellWorkspaceController : IAsyncDisposable
     {
         _pageData.StartBackgroundServices();
         _runnerEvents.Start();
+        _unitEvents.Start();
         await RefreshAsync();
     }
 
@@ -251,6 +262,15 @@ public sealed partial class ShellWorkspaceController : IAsyncDisposable
         catch (Exception ex)
         {
             ShellCommandFaultLog.Write("Dispose Runner event service", ex, "dispose");
+        }
+
+        try
+        {
+            await _unitEvents.DisposeAsync();
+        }
+        catch (Exception ex)
+        {
+            ShellCommandFaultLog.Write("Dispose ServiceManager unit event monitor", ex, "dispose");
         }
         finally
         {

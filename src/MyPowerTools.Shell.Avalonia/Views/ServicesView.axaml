@@ -20,6 +20,20 @@
       </StackPanel>
     </Grid>
 
+    <!-- Disconnected banner: last snapshot shown, ServiceManager stream faulted -->
+    <Border Classes="MptErrorState" Padding="{DynamicResource MptSpacingS}" IsVisible="{Binding Disconnected}">
+      <StackPanel Orientation="Horizontal" Spacing="{DynamicResource MptSpacingXs}">
+        <TextBlock Classes="MptMeta" Text="ServiceManager connection interrupted — showing last snapshot." />
+        <controls:MptButton Content="Retry" Command="{Binding RefreshCommand}" />
+      </StackPanel>
+    </Border>
+
+    <!-- Search + state filter -->
+    <StackPanel Orientation="Horizontal" Spacing="{DynamicResource MptSpacingS}" IsVisible="{Binding !HasNoUnits}">
+      <TextBox Text="{Binding SearchText}" PlaceholderText="Search units, tools..." Width="280" />
+      <ComboBox ItemsSource="{Binding StateFilters}" SelectedItem="{Binding StateFilter}" MinWidth="120" />
+    </StackPanel>
+
     <Border Classes="MptEmptyState" IsVisible="{Binding HasNoUnits}">
       <StackPanel Spacing="{DynamicResource MptSpacingXs}">
         <TextBlock Classes="MptSectionTitle" Text="No Service Units registered" />
@@ -56,7 +70,7 @@
                   </StackPanel>
                   <StackPanel>
                     <TextBlock Classes="MptMeta" Text="Autostart" />
-                    <TextBlock Classes="MptValue" Text="{Binding Autostart}" />
+                    <TextBlock Classes="MptValue" Text="{Binding AutostartLabel}" />
                   </StackPanel>
                 </StackPanel>
                 <TextBlock Classes="MptMeta" Text="{Binding StateSummary}" IsVisible="{Binding !HasError}" />
@@ -73,6 +87,15 @@
                                     MinWidth="{DynamicResource MptDensityActionMinWidth}" />
                 <controls:MptButton Content="Stop"
                                     Command="{Binding StopCommand}"
+                                    MinWidth="{DynamicResource MptDensityActionMinWidth}" />
+                <controls:MptButton Content="Tail logs"
+                                    Command="{Binding TailLogsCommand}"
+                                    MinWidth="{DynamicResource MptDensityActionMinWidth}" />
+                <controls:MptButton Content="Open tool"
+                                    Command="{Binding OpenToolCommand}"
+                                    MinWidth="{DynamicResource MptDensityActionMinWidth}" />
+                <controls:MptButton Content="Toggle autostart"
+                                    Command="{Binding ToggleAutostartCommand}"
                                     MinWidth="{DynamicResource MptDensityActionMinWidth}" />
               </StackPanel>
             </Grid>

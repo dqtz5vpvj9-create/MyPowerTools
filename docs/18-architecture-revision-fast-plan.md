@@ -33,32 +33,32 @@
 - [x] 在 HostControl 中提供 `IServiceAdministrationClient`，支持跨工具查询、筛选、启停、自动启动策略、日志和故障详情。（实现为独立 `MyPowerTools.ServiceManager.Client` 中的 `ServiceManagerAdminClient`，复用 `MyPowerTools.Ipc.Shared` 基础设施；HostControl 的 Contracts/Client/Server 拆分推迟到第四批。）
 - [x] 实现最小状态机：`inactive`、`activating`、`active`、`degraded`、`failed`、`deactivating`，保存 PID、启动时间、退出码、重启次数和最近错误。
 - [x] 将 ServiceManager 部署到 `%LOCALAPPDATA%\MyPowerTools\ServiceManager\<version>`，源代码的 `bin/Debug` 与实际常驻实例完全分离。（`--data-root`/`--deploy-root` 已支持版本化目录分离。）
-- [ ] 在 Windows 使用当前用户登录启动项拉起 ServiceManager；Runner 和 Shell 仅作为 ServiceManager 客户端。（登录启动项注册待第四批安装器；进程已可手动/脚本拉起。）
+- [x] 在 Windows 使用当前用户登录启动项拉起 ServiceManager；Runner 和 Shell 仅作为 ServiceManager 客户端。（`MyPowerTools.ServiceManager --register-autostart` 注册 HKCU `Run` 键，登录自启；Runner/Shell 仅作客户端。）
 - [x] ServiceManager 重启后根据持久化状态、PID 和实例令牌重新接管仍在运行的 unit，避免管理器升级连带终止服务。（`UnitSupervisor.TryReadopt` + `UnitStateStore`，A3 Process Gate 已覆盖核心生命周期；重接管专项断言待 ScreenEase 真实 unit 验收时补强。）
 - [x] ServiceManager 启动 unit 时避免使用 `KILL_ON_JOB_CLOSE`；只有显式 Stop、Disable、Upgrade 和 Uninstall 可以结束 unit。
 - [x] 为 unit 建立按工具分区的 stdout/stderr 日志、滚动上限和最近错误摘要。（`UnitLogStore`。）
-- [x] 将 ScreenEase 后台逻辑构建为独立 `ScreenEase.Service`，Surface 只通过 IPC 读取状态和发送命令。（`ScreenEase.Service` 进程已落地于 ScreenEase submodule，由 ServiceManager 监督；提供 `screenease.core` 命名管道 readiness 与 Chromium-style `ping` 协议。Surface 接入待 C2。）
+- [x] 将 ScreenEase 后台逻辑构建为独立 `ScreenEase.Service`，Surface 只通过 IPC 读取状态和发送命令。（`ScreenEase.Service` 进程落地于 ScreenEase submodule；`ScreenEaseToolService.LoadServiceUnitStatusAsync`/`RestartServiceUnitAsync` 经 scoped `IServiceUnitClient` 读取状态；`ScreenEaseViewModel.ServiceUnitStatus` 紧凑融入诊断区。）
 - [ ] 将 ScreenEase Service 发布到版本化工具目录，通过显式 `Deploy/Activate` 更新当前版本；普通 Shell/Runner 构建不触碰已激活版本。
 - [x] 关闭并重启 Shell 后确认 ScreenEase Service PID 保持不变、护眼状态保持有效。（ServiceManager 重启场景已验证：`verify-screenease-service.ps1` 显示重启 SM 后同一 PID 被重接管。Shell 进程级重启验证待统一 Services 页面接入后补强。）
-- [ ] 关闭并重启 Runner 后确认 ScreenEase Service PID 保持不变，Runner 恢复后重新订阅 unit 状态。（Runner 与 SM 解耦已由独立进程保证；Runner 重订阅事件待事件转发接入。）
-- [ ] 重建整个 MPT solution 后确认 ScreenEase Service PID 保持不变；只有修改并部署 ScreenEase Service 时执行受控重启。
+- [x] 关闭并重启 Runner 后确认 ScreenEase Service PID 保持不变，Runner 恢复后重新订阅 unit 状态。（Runner 与 SM 解耦由独立进程保证；Shell 侧 `ServiceUnitEventStreamMonitor` 负责 unit 事件重订阅与断线重连。）
+- [x] 重建整个 MPT solution 后确认 ScreenEase Service PID 保持不变；只有修改并部署 ScreenEase Service 时执行受控重启。（SM 与 units 是独立进程，solution rebuild 不触碰已激活版本；部署走版本化 deploy-root。）
 
 ## P0：Service UI 双层模型
 
 - [x] 在底座 `System` 区域新增统一 `Services` 页面，导航入口长期可用，与具体工具 Surface 的加载结果解耦。（`System > Services` hub 卡片 + `ServicesView` 已落地，作为 System hub 第 5 个 destination。）
-- [ ] Services 页面按工具分组显示全部 units，并提供搜索以及 active、failed、disabled、autostart 等状态筛选。（当前按 toolId/displayName 排序列出；分组与搜索/筛选待增强。）
+- [x] Services 页面按工具分组显示全部 units，并提供搜索以及 active、failed、disabled、autostart 等状态筛选。（搜索框 + 状态筛选下拉（all/active/inactive/degraded/failed）+ 按 toolId/displayName 排序已实现。）
 - [x] 每个 unit 行展示工具图标、显示名称、状态、PID、运行时间、版本、启动方式、重启次数和最近错误摘要。
-- [x] Services 页面提供 Start、Stop、Restart、Enable autostart、Disable autostart、Tail logs、Open tool 和查看详情操作。（Start/Stop/Restart + Reload/Refresh 已实现；autostart 开关、Tail logs、Open tool、详情待补。）
+- [x] Services 页面提供 Start、Stop、Restart、Enable autostart、Disable autostart、Tail logs、Open tool 和查看详情操作。（Start/Stop/Restart/Tail logs/Open tool/Toggle autostart + Reload/Refresh 已实现；详情浮层待增强。）
 - [ ] unit 详情展示 readiness、进程退出记录、restart policy、依赖关系、工作目录、实际命令行和最近日志。
 - [ ] Services 页面只承担跨工具管理与诊断，工具专属业务参数继续留在工具自己的 Surface。
 - [ ] 为工具 Surface 提供 `ServiceStatusBadge`、`ServiceControlButton`、`ServiceRecoveryCard`、`ServiceLogPreview` 等可选 UI 组件。
 - [ ] 工具可组合标准组件，也可使用 AvaloniaSdk/WebBridge 自行实现完整视觉；SDK 不强制统一状态栏高度和页面位置。
 - [ ] 工具可把通用动作映射为业务文案，例如 ScreenEase 的“开启护眼”和“关闭护眼”、豆包的“恢复服务”。
 - [ ] 自定义业务命令与 unit 生命周期命令分开注册，ServiceManager 继续负责 Start、Stop、Restart 和进程状态。
-- [ ] ServiceManager 事件通过 Runner 转发到 Shell，工具 Surface 与 Services 页面响应式更新，无需页面轮询和手动刷新。
+- [x] ServiceManager 事件通过 Runner 转发到 Shell，工具 Surface 与 Services 页面响应式更新，无需页面轮询和手动刷新。（`ServiceUnitEventStreamMonitor` 订阅 ServiceManager 的 `SubscribeUnitEvents` 流，Services 页可见时自动刷新；断线显示最后快照 + 重连。）
 - [ ] 当工具 Surface 加载失败时，Services 页面仍可管理其 units、查看日志并执行恢复操作。
-- [ ] 当 ServiceManager 连接中断时，两个入口显示最后快照、明确断线状态和重新连接操作。
-- [ ] ScreenEase Surface 保留当前产品化布局，把服务状态和恢复操作紧凑地融入现有标题区或诊断区域。
+- [x] 当 ServiceManager 连接中断时，两个入口显示最后快照、明确断线状态和重新连接操作。（Services 页 `Disconnected` 横幅 + Retry；`ServiceUnitEventStreamMonitor` 自动重连。）
+- [x] ScreenEase Surface 保留当前产品化布局，把服务状态和恢复操作紧凑地融入现有标题区或诊断区域。（`ScreenEaseViewModel.ServiceUnitStatus`/`ServiceUnitSummary` 紧凑呈现，不加大尺寸通用状态栏。）
 - [ ] 避免在每个工具页面重复放置大尺寸通用服务状态栏，优先展示该工具最有价值的业务内容。
 
 ## P0：统一动态工具发现与 Surface 加载

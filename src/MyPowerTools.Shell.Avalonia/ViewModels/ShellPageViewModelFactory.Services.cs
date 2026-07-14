@@ -10,13 +10,16 @@ public static partial class ShellPageViewModelFactory
         Func<string, Task>? startUnit = null,
         Func<string, Task>? stopUnit = null,
         Func<string, Task>? restartUnit = null,
+        Func<string, Task>? tailLogs = null,
+        Func<string, Task>? openTool = null,
+        Func<string, Task>? toggleAutostart = null,
         Func<Task>? refresh = null,
         Func<Task>? reloadManifests = null)
     {
         var units = response.Units
             .OrderBy(u => u.ToolId, StringComparer.OrdinalIgnoreCase)
             .ThenBy(u => u.DisplayName, StringComparer.OrdinalIgnoreCase)
-            .Select(u => ToServiceUnitViewModel(u, startUnit, stopUnit, restartUnit))
+            .Select(u => ToServiceUnitViewModel(u, startUnit, stopUnit, restartUnit, tailLogs, openTool, toggleAutostart))
             .ToArray();
 
         var refreshCommand = refresh is null ? null : new AsyncRelayCommand(refresh, operationName: "ServicesRefresh");
@@ -33,7 +36,10 @@ public static partial class ShellPageViewModelFactory
         SM.UnitSnapshot unit,
         Func<string, Task>? startUnit,
         Func<string, Task>? stopUnit,
-        Func<string, Task>? restartUnit)
+        Func<string, Task>? restartUnit,
+        Func<string, Task>? tailLogs,
+        Func<string, Task>? openTool,
+        Func<string, Task>? toggleAutostart)
     {
         var state = MapUnitState(unit.State);
         var pid = unit.Pid > 0 ? unit.Pid : 0;
@@ -43,27 +49,36 @@ public static partial class ShellPageViewModelFactory
         var ready = unit.Readiness is not null && unit.Readiness.Ok;
         var lastError = string.IsNullOrWhiteSpace(unit.LastError) ? "" : unit.LastError;
 
-        ICommand? startCmd = startUnit is null ? null : new AsyncRelayCommand(() => startUnit(unit.UnitId), operationName: $"StartUnit:{unit.UnitId}");
-        ICommand? stopCmd = stopUnit is null ? null : new AsyncRelayCommand(() => stopUnit(unit.UnitId), operationName: $"StopUnit:{unit.UnitId}");
-        ICommand? restartCmd = restartUnit is null ? null : new AsyncRelayCommand(() => restartUnit(unit.UnitId), operationName: $"RestartUnit:{unit.UnitId}");
+        ICommand? startCmd = Command(startUnit, unit.UnitId, "StartUnit");
+        ICommand? stopCmd = Command(stopUnit, unit.UnitId, "StopUnit");
+        ICommand? restartCmd = Command(restartUnit, unit.UnitId, "RestartUnit");
+        ICommand? tailCmd = Command(tailLogs, unit.UnitId, "TailUnitLogs");
+        ICommand? openCmd = Command(openTool, unit.ToolId, "OpenTool");
+        ICommand? autostartCmd = Command(toggleAutostart, unit.UnitId, "ToggleAutostart");
 
         return new ServiceUnitViewModel(
-            UnitId: unit.UnitId,
-            ToolId: unit.ToolId,
-            DisplayName: string.IsNullOrWhiteSpace(unit.DisplayName) ? unit.UnitId : unit.DisplayName,
-            State: state,
-            StateSummary: DescribeState(unit.State, pid, ready),
-            Pid: pid,
-            Uptime: uptime,
-            Version: unit.Version,
-            Autostart: unit.Autostart,
-            RestartCount: unit.RestartCount,
-            LastError: lastError,
-            Ready: ready,
-            StartCommand: startCmd,
-            StopCommand: stopCmd,
-            RestartCommand: restartCmd);
+            unit.UnitId,
+            unit.ToolId,
+            string.IsNullOrWhiteSpace(unit.DisplayName) ? unit.UnitId : unit.DisplayName,
+            state,
+            DescribeState(unit.State, pid, ready),
+            pid,
+            uptime,
+            unit.Version,
+            unit.Autostart,
+            unit.RestartCount,
+            lastError,
+            ready,
+            startCmd,
+            stopCmd,
+            restartCmd,
+            tailCmd,
+            openCmd,
+            autostartCmd);
     }
+
+    private static ICommand? Command(Func<string, Task>? action, string id, string name)
+        => action is null ? null : new AsyncRelayCommand(() => action(id), operationName: $"{name}:{id}");
 
     private static string MapUnitState(SM.UnitState state) => state switch
     {
