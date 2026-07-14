@@ -115,19 +115,28 @@ public sealed class UnitSupervisor : IAsyncDisposable
 
             try
             {
-                _process = Process.Start(psi);
+                // Launch the unit detached from this process's job object (CREATE_BREAKAWAY_FROM_JOB
+                // on Windows) so that force-killing or restarting the ServiceManager never cascades
+                // to the unit. This is the concrete realization of the rule that units outlive the
+                // ServiceManager; combined with persisted PID + instance token, a new ServiceManager
+                // re-adopts the still-running unit rather than restarting it.
+                var launched = BreakawayProcessStarter.Start(psi);
+                _process = launched.Process;
+                if (launched.StandardOutput is not null)
+                {
+                    CaptureStream(launched.StandardOutput, "stdout");
+                }
+
+                if (launched.StandardError is not null)
+                {
+                    CaptureStream(launched.StandardError, "stderr");
+                }
             }
             catch (Exception ex)
             {
+                Console.Error.WriteLine($"[ServiceManager] unit '{UnitId}' failed to start: {ex}");
                 _lastError = ex.Message;
                 Transition(ServiceUnitState.Failed, $"failed to start: {ex.Message}");
-                return Snapshot();
-            }
-
-            if (_process is null)
-            {
-                _lastError = "Process.Start returned null";
-                Transition(ServiceUnitState.Failed, "Process.Start returned null");
                 return Snapshot();
             }
 
@@ -135,8 +144,6 @@ public sealed class UnitSupervisor : IAsyncDisposable
             _exitCode = null;
             _process.EnableRaisingEvents = true;
             _process.Exited += OnProcessExited;
-            CaptureStream(_process.StandardOutput, "stdout");
-            CaptureStream(_process.StandardError, "stderr");
 
             PersistState();
             Transition(ServiceUnitState.Active, $"started pid {_process.Id}");
@@ -388,10 +395,29 @@ public sealed class UnitSupervisor : IAsyncDisposable
 
     private void ClearPersistedState() => _stateStore.Delete(UnitId);
 
-    public async ValueTask DisposeAsync()
+    /// <summary>
+    /// Releases the manager's hold on the supervised process WITHOUT stopping it.
+    /// A ServiceManager shutdown (or restart) must never kill still-running units — that is the
+    /// core independence guarantee. The process is left alive so the next ServiceManager instance
+    /// can re-adopt it via <see cref="TryReadopt"/>. Only an explicit Stop/Disable/Upgrade/Uninstall
+    /// ends the process; call <see cref="StopAsync"/> directly for that.
+    /// </summary>
+    public ValueTask DisposeAsync()
     {
         _disposed = true;
-        await StopAsync();
+        try
+        {
+            if (_process is not null)
+            {
+                _process.Exited -= OnProcessExited;
+            }
+        }
+        catch
+        {
+            // event detach is best-effort
+        }
+
         _gate.Dispose();
+        return ValueTask.CompletedTask;
     }
 }

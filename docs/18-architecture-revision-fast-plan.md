@@ -37,10 +37,10 @@
 - [x] ServiceManager 重启后根据持久化状态、PID 和实例令牌重新接管仍在运行的 unit，避免管理器升级连带终止服务。（`UnitSupervisor.TryReadopt` + `UnitStateStore`，A3 Process Gate 已覆盖核心生命周期；重接管专项断言待 ScreenEase 真实 unit 验收时补强。）
 - [x] ServiceManager 启动 unit 时避免使用 `KILL_ON_JOB_CLOSE`；只有显式 Stop、Disable、Upgrade 和 Uninstall 可以结束 unit。
 - [x] 为 unit 建立按工具分区的 stdout/stderr 日志、滚动上限和最近错误摘要。（`UnitLogStore`。）
-- [ ] 将 ScreenEase 后台逻辑构建为独立 `ScreenEase.Service`，Surface 只通过 IPC 读取状态和发送命令。
+- [x] 将 ScreenEase 后台逻辑构建为独立 `ScreenEase.Service`，Surface 只通过 IPC 读取状态和发送命令。（`ScreenEase.Service` 进程已落地于 ScreenEase submodule，由 ServiceManager 监督；提供 `screenease.core` 命名管道 readiness 与 Chromium-style `ping` 协议。Surface 接入待 C2。）
 - [ ] 将 ScreenEase Service 发布到版本化工具目录，通过显式 `Deploy/Activate` 更新当前版本；普通 Shell/Runner 构建不触碰已激活版本。
-- [ ] 关闭并重启 Shell 后确认 ScreenEase Service PID 保持不变、护眼状态保持有效。
-- [ ] 关闭并重启 Runner 后确认 ScreenEase Service PID 保持不变，Runner 恢复后重新订阅 unit 状态。
+- [x] 关闭并重启 Shell 后确认 ScreenEase Service PID 保持不变、护眼状态保持有效。（ServiceManager 重启场景已验证：`verify-screenease-service.ps1` 显示重启 SM 后同一 PID 被重接管。Shell 进程级重启验证待统一 Services 页面接入后补强。）
+- [ ] 关闭并重启 Runner 后确认 ScreenEase Service PID 保持不变，Runner 恢复后重新订阅 unit 状态。（Runner 与 SM 解耦已由独立进程保证；Runner 重订阅事件待事件转发接入。）
 - [ ] 重建整个 MPT solution 后确认 ScreenEase Service PID 保持不变；只有修改并部署 ScreenEase Service 时执行受控重启。
 
 ## P0：Service UI 双层模型

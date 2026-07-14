@@ -108,6 +108,15 @@ public sealed class ServiceManagerAdminClient : IDisposable
         return await _client.ReloadAsync(new SM.ReloadRequest(), cancellationToken: cancellationToken);
     }
 
+    /// <summary>
+    /// Requests a graceful ServiceManager shutdown. Units are left running for re-adoption.
+    /// </summary>
+    public async Task<bool> ShutdownAsync(CancellationToken cancellationToken = default)
+    {
+        var resp = await _client.ShutdownAsync(new SM.ShutdownRequest(), cancellationToken: cancellationToken);
+        return resp.Ok;
+    }
+
     public async Task<IReadOnlyList<SM.LogEntry>> TailLogsAsync(string unitId, uint tailLines = 200, CancellationToken cancellationToken = default)
     {
         using var call = _client.TailLogs(new SM.TailLogsRequest { UnitId = unitId, TailLines = tailLines }, cancellationToken: cancellationToken);

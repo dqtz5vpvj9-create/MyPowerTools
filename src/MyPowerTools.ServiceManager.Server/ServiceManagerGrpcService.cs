@@ -1,5 +1,6 @@
 using Grpc.Core;
 using Google.Protobuf.WellKnownTypes;
+using Microsoft.Extensions.Hosting;
 using MyPowerTools.Abstractions;
 using MyPowerTools.Protocol;
 using MyPowerTools.Protocol.ServiceManager.V1;
@@ -15,10 +16,12 @@ namespace MyPowerTools.ServiceManager.Server;
 public sealed class ServiceManagerGrpcService : SM.ServiceManager.ServiceManagerBase
 {
     private readonly ServiceManagerEngine _engine;
+    private readonly IHostApplicationLifetime? _lifetime;
 
-    public ServiceManagerGrpcService(ServiceManagerEngine engine)
+    public ServiceManagerGrpcService(ServiceManagerEngine engine, IHostApplicationLifetime? lifetime = null)
     {
         _engine = engine;
+        _lifetime = lifetime;
     }
 
     public override Task<ListUnitsResponse> ListUnits(ListUnitsRequest request, ServerCallContext context)
@@ -148,6 +151,31 @@ public sealed class ServiceManagerGrpcService : SM.ServiceManager.ServiceManager
                 break;
             }
         }
+    }
+
+    public override Task<SM.ShutdownResponse> Shutdown(SM.ShutdownRequest request, ServerCallContext context)
+    {
+        // Graceful shutdown: trigger host stop on a background thread so this RPC can return first.
+        // The host's shutdown runs `finally { engine.DisposeAsync() }` which detaches from units
+        // WITHOUT stopping them, leaving them alive for re-adoption by the next ServiceManager.
+        if (_lifetime is null)
+        {
+            return Task.FromResult(new SM.ShutdownResponse { Ok = false });
+        }
+
+        _ = Task.Run(() =>
+        {
+            try
+            {
+                _lifetime.StopApplication();
+            }
+            catch
+            {
+                // best-effort
+            }
+        });
+
+        return Task.FromResult(new SM.ShutdownResponse { Ok = true });
     }
 
     // The caller's tool identity travels in request metadata so the client interceptor

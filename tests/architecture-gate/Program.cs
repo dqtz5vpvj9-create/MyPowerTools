@@ -21,6 +21,27 @@ using SM = MyPowerTools.Protocol.ServiceManager.V1;
 //
 // Output: a JSON result object on stdout; exit code 0 = pass, 1 = fail.
 
+// Utility mode: gracefully shut down the ServiceManager via gRPC (used by verification scripts
+// to test re-adoption without force-killing the process). Exits before the A3 flow.
+var mode = GetOptionalArg("--mode");
+if (string.Equals(mode, "shutdown", StringComparison.OrdinalIgnoreCase))
+{
+    var shutdownDataRoot = RequireArg("--data-root");
+    Environment.SetEnvironmentVariable("MPT_DATA_ROOT", shutdownDataRoot);
+    try
+    {
+        using var admin = ServiceManagerAdminClient.ForDefaultEndpoint();
+        var ok = await admin.ShutdownAsync();
+        Console.WriteLine($"shutdown requested: ok={ok}");
+        return ok ? 0 : 1;
+    }
+    catch (Exception ex)
+    {
+        Console.Error.WriteLine($"shutdown failed: {ex.Message}");
+        return 1;
+    }
+}
+
 var dataRoot = RequireArg("--data-root");
 var unitId = RequireArg("--unit-id");
 var toolId = RequireArg("--tool-id");
@@ -124,6 +145,20 @@ static string RequireArg(string name)
     Console.Error.WriteLine($"Missing required argument {name}");
     Environment.Exit(2);
     return "";
+}
+
+static string? GetOptionalArg(string name)
+{
+    var args = Environment.GetCommandLineArgs();
+    for (var i = 0; i < args.Length - 1; i++)
+    {
+        if (string.Equals(args[i], name, StringComparison.OrdinalIgnoreCase))
+        {
+            return args[i + 1];
+        }
+    }
+
+    return null;
 }
 
 public sealed record GateResult(

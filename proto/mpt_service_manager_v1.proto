@@ -31,6 +31,9 @@ service ServiceManager {
   rpc TailLogs(TailLogsRequest) returns (stream LogEntry);
   // Streams unit state-change events from a monotonic cursor (server streaming).
   rpc SubscribeUnitEvents(SubscribeUnitEventsRequest) returns (stream UnitEvent);
+  // Requests a graceful ServiceManager shutdown. Units are NOT stopped (they outlive the manager);
+  // the manager detaches and exits so a new instance can re-adopt still-running units.
+  rpc Shutdown(ShutdownRequest) returns (ShutdownResponse);
 }
 
 enum UnitState {
@@ -158,4 +161,10 @@ message LogEntry {
   string message = 4;
   // "stdout" or "stderr".
   string stream = 5;
+}
+
+message ShutdownRequest {}
+
+message ShutdownResponse {
+  bool ok = 1;
 }

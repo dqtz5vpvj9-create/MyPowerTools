@@ -43,6 +43,8 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddSingleton(new IpcAuthOptions(ServiceManagerAdminClient.AuthHeaderName, token));
 builder.Services.AddGrpc(options => options.Interceptors.Add<BearerTokenAuthServerInterceptor>());
 builder.Services.AddSingleton(engine);
+// IHostApplicationLifetime is registered automatically by the host; the gRPC Shutdown RPC
+// consumes it to trigger a graceful stop that leaves units running for re-adoption.
 
 builder.WebHost.ConfigureKestrel(options =>
 {
