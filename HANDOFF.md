@@ -143,7 +143,9 @@ ServiceManager（独立安装、独立常驻） ──────────�
 - `proto/mpt_service_manager_v1.proto`：ServiceManager 线协议（ListUnits/GetUnit/Start/Stop/Restart/Reload/TailLogs(stream)/SubscribeUnitEvents(stream)）。
 - `MyPowerTools.Abstractions`：`ServiceUnitManifest`/`Snapshot`/`Event`/`State`/`IServiceUnitClient`/`IServiceUnitClientFactory`/`NullServiceUnitClient`。
 - A3 Process Gate 已绿：`scripts/verify-architecture.ps1 -Tier Process` 驱动 `tests/architecture-gate`，6 项断言全过（list/active/idempotent-PID/scope-isolation/stop/admin-confirm），全 solution build 0 错误。
-- **尚未完成**：登录启动项注册（第四批安装器）、Shell 统一 Services 页面、ScreenEase 真实 unit 切换、重接管在真实 unit 上的二次验收。
+- `scripts/verify-screenease-service.ps1` 已绿：真实 ScreenEase.Service unit 经 ServiceManager 重启后**同一 PID 被重接管**（reattach-same-pid PASS）、单实例、readiness pipe 重启前后均应答。这验证了核心承诺：units 跨 ServiceManager 重启存活。
+- Shell `System > Services` 统一页面已落地：跨工具列出所有 units（状态/PID/运行时间/重启次数/autostart/最近错误），每行 Start/Stop/Restart，页面级 Refresh/Reload manifests；ServiceManager 不可达时显示 unavailable 态而非崩溃。
+- **尚未完成**：登录启动项注册（第四批安装器）、ScreenEase 工具页 scoped client 接入（C2，需改 submodule 的 ScreenEaseToolService）、autostart 开关/Tail logs/Open tool/搜索筛选、事件经 Runner 转发到 Shell（当前手动 Refresh）。
 
 ### 2. 第一方工具仍静态嵌入 Shell
 

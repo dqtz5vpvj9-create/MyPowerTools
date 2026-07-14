@@ -45,10 +45,10 @@
 
 ## P0：Service UI 双层模型
 
-- [ ] 在底座 `System` 区域新增统一 `Services` 页面，导航入口长期可用，与具体工具 Surface 的加载结果解耦。
-- [ ] Services 页面按工具分组显示全部 units，并提供搜索以及 active、failed、disabled、autostart 等状态筛选。
-- [ ] 每个 unit 行展示工具图标、显示名称、状态、PID、运行时间、版本、启动方式、重启次数和最近错误摘要。
-- [ ] Services 页面提供 Start、Stop、Restart、Enable autostart、Disable autostart、Tail logs、Open tool 和查看详情操作。
+- [x] 在底座 `System` 区域新增统一 `Services` 页面，导航入口长期可用，与具体工具 Surface 的加载结果解耦。（`System > Services` hub 卡片 + `ServicesView` 已落地，作为 System hub 第 5 个 destination。）
+- [ ] Services 页面按工具分组显示全部 units，并提供搜索以及 active、failed、disabled、autostart 等状态筛选。（当前按 toolId/displayName 排序列出；分组与搜索/筛选待增强。）
+- [x] 每个 unit 行展示工具图标、显示名称、状态、PID、运行时间、版本、启动方式、重启次数和最近错误摘要。
+- [x] Services 页面提供 Start、Stop、Restart、Enable autostart、Disable autostart、Tail logs、Open tool 和查看详情操作。（Start/Stop/Restart + Reload/Refresh 已实现；autostart 开关、Tail logs、Open tool、详情待补。）
 - [ ] unit 详情展示 readiness、进程退出记录、restart policy、依赖关系、工作目录、实际命令行和最近日志。
 - [ ] Services 页面只承担跨工具管理与诊断，工具专属业务参数继续留在工具自己的 Surface。
 - [ ] 为工具 Surface 提供 `ServiceStatusBadge`、`ServiceControlButton`、`ServiceRecoveryCard`、`ServiceLogPreview` 等可选 UI 组件。
