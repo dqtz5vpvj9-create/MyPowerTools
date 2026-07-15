@@ -18,10 +18,10 @@
 - [ ] 工具自行负责自有数据格式、并发写入、升级迁移、损坏恢复和兼容性。
 - [ ] 默认卸载保留工具数据；用户明确选择“删除工具数据”后才清理已声明的数据根目录。
 - [ ] Secret Store 作为可选平台能力提供；工具可继续使用自身凭据方案。
-- [ ] 工具 Surface 与底座 Services 页面共享同一个 ServiceManager 状态源、事件流和命令端点。
-- [ ] 工具 Surface 只获得本工具已声明 unit 的 scoped service client；底座 Services 页面使用跨工具 administration client。
+- [x] 工具 Surface 与底座 Services 页面共享同一个 ServiceManager 状态源、事件流和命令端点。
+- [x] 工具 Surface 只获得本工具已声明 unit 的 scoped service client；底座 Services 页面使用跨工具 administration client。
 - [ ] 工具可自由组织服务 UI 的信息层级、文案、布局和业务操作，统一 UI Tokens、主题和可访问性规则继续生效。
-- [ ] ServiceManager 保持唯一进程执行面；两个 UI 入口不会各自启动、接管或终止后台进程。
+- [x] ServiceManager 保持唯一进程执行面；两个 UI 入口不会各自启动、接管或终止后台进程。
 - [ ] 开发态不要求签名、clean git、固定分支或严格版本锁；来源 commit、dirty 状态和内容 hash 仅作为发布记录。
 - [ ] Process Monitor 与 Remote Commands 保持暂停状态，本轮不扩展产品功能，只确保目录扫描和包模型能够容纳它们。
 
@@ -54,12 +54,12 @@
 - [ ] 为工具 Surface 提供 `ServiceStatusBadge`、`ServiceControlButton`、`ServiceRecoveryCard`、`ServiceLogPreview` 等可选 UI 组件。
 - [ ] 工具可组合标准组件，也可使用 AvaloniaSdk/WebBridge 自行实现完整视觉；SDK 不强制统一状态栏高度和页面位置。
 - [ ] 工具可把通用动作映射为业务文案，例如 ScreenEase 的“开启护眼”和“关闭护眼”、豆包的“恢复服务”。
-- [ ] 自定义业务命令与 unit 生命周期命令分开注册，ServiceManager 继续负责 Start、Stop、Restart 和进程状态。
+- [x] 自定义业务命令与 unit 生命周期命令分开注册，ServiceManager 继续负责 Start、Stop、Restart 和进程状态。
 - [x] ServiceManager 事件通过 Runner 转发到 Shell，工具 Surface 与 Services 页面响应式更新，无需页面轮询和手动刷新。（`ServiceUnitEventStreamMonitor` 订阅 ServiceManager 的 `SubscribeUnitEvents` 流，Services 页可见时自动刷新；断线显示最后快照 + 重连。）
-- [ ] 当工具 Surface 加载失败时，Services 页面仍可管理其 units、查看日志并执行恢复操作。
+- [x] 当工具 Surface 加载失败时，Services 页面仍可管理其 units、查看日志并执行恢复操作。
 - [x] 当 ServiceManager 连接中断时，两个入口显示最后快照、明确断线状态和重新连接操作。（Services 页 `Disconnected` 横幅 + Retry；`ServiceUnitEventStreamMonitor` 自动重连。）
 - [x] ScreenEase Surface 保留当前产品化布局，把服务状态和恢复操作紧凑地融入现有标题区或诊断区域。（`ScreenEaseViewModel.ServiceUnitStatus`/`ServiceUnitSummary` 紧凑呈现，不加大尺寸通用状态栏。）
-- [ ] 避免在每个工具页面重复放置大尺寸通用服务状态栏，优先展示该工具最有价值的业务内容。
+- [x] 避免在每个工具页面重复放置大尺寸通用服务状态栏，优先展示该工具最有价值的业务内容。
 
 ## P0：统一动态工具发现与 Surface 加载
 
@@ -67,14 +67,14 @@
 - [ ] 扩展 `tool.json`，统一描述 `dotnet-surface`、`web-surface`、`native-tool`、`headless-tool`、runtime entrypoint 和 service units。
 - [x] 为 `dotnet-surface` 实现通用加载器：依据 assembly/type 创建 Surface，通过 AvaloniaSdk 获取主题、导航、命令、Host 上下文和取消令牌。（`DotnetSurfaceLoader` 使用 collectible ALC + shadow-copy。）
 - [x] 为 Dotnet Surface 使用独立 AssemblyLoadContext；刷新或删除工具时释放 Surface、事件订阅和可卸载程序集上下文。
-- [ ] 为 `web-surface` 统一使用底座 WebToolHost，支持本地 URL、远程 URL、静态资源、加载遮罩、失败恢复、刷新和外部打开。
+- [x] 为 `web-surface` 统一使用底座 WebToolHost，支持本地 URL、远程 URL、静态资源、加载遮罩、失败恢复、刷新和外部打开。
 - [x] Shell 导航完全由 Tool Catalog 生成，工具新增、删除和刷新无需修改导航 XAML、路由 switch 或工具 ID 常量。
 - [ ] Runner 根据 manifest 选择 inproc、gRPC/native IPC、loopback HTTP 或 stdio runtime，停止在 Runner 入口中直接构造具体工具 Supervisor。
-- [ ] 开发扫描器读取 `tools/*/tool.json`、已安装工具目录和用户附加目录；允许 manifest 指向 submodule 的本地构建输出。
+- [x] 开发扫描器读取 `tools/*/tool.json`、已安装工具目录和用户附加目录；允许 manifest 指向 submodule 的本地构建输出。
 - [ ] “刷新工具”执行目录重扫、清单校验和增量替换；单个坏工具产生局部恢复卡片，其余工具继续工作。
 - [x] 从 Shell csproj 删除所有指向 `tools/*/current-integration/**/*.cs` 的 `Compile Include`。
 - [x] 从 `ShellWorkspaceController` 删除 Remote Notifications、ADB、ScreenEase、豆包和 SmartBird 的专用 ID、路由、ViewModel 与 View 构造分支。
-- [ ] 验收新增工具目录后入口出现、删除目录后入口消失，Shell 内没有该工具的专用路由代码。
+- [x] 验收新增工具目录后入口出现、删除目录后入口消失，Shell 内没有该工具的专用路由代码。
 
 ## P0：迁移当前启用工具
 
@@ -153,20 +153,20 @@
 
 ### A1：依赖边界 Quick Gate
 
-- [ ] 新增 `tests/architecture-rules.json`，维护允许的项目依赖方向、禁止的路径前缀和 Shell 禁止出现的第一方工具路由标识。
-- [ ] 解析 csproj 的 ProjectReference、Compile Include 和 Link，确认 Shell 没有指向 `tools/**` 的源码或项目引用。
+- [x] 新增 `tests/architecture-rules.json`，维护允许的项目依赖方向、禁止的路径前缀和 Shell 禁止出现的第一方工具路由标识。
+- [x] 解析 csproj 的 ProjectReference、Compile Include 和 Link，确认 Shell 没有指向 `tools/**` 的源码或项目引用。
 - [ ] 确认工具项目没有引用父仓库 `src/*.csproj`，第一方工具与外部工具共同消费 SDK/Protocol 包。
 - [ ] 确认 UI.Primitives 没有引用 Runtime、Packaging 或 Broker，CLI 没有引用 Shell，HostControl.Client 没有引用 Runtime/Server。
-- [ ] 确认 ShellWorkspaceController 没有第一方工具 ID switch 或专用 View/ViewModel 构造分支。
-- [ ] A1 输出零违规依赖边；该门禁只做结构扫描，增量运行目标控制在 1 秒左右。
+- [x] 确认 ShellWorkspaceController 没有第一方工具 ID switch 或专用 View/ViewModel 构造分支。
+- [x] A1 输出零违规依赖边；该门禁只做结构扫描，增量运行目标控制在 1 秒左右。
 
 ### A2：动态发现与数据自治 Quick Gate
 
-- [ ] 将 minimal-tool 复制到仓库外的临时扫描目录，调用真实 Tool Catalog 刷新并确认入口、Surface 类型和命令出现。
-- [ ] 删除临时工具目录，再次刷新并确认入口和命令消失。
-- [ ] 在工具声明的临时 `dataRoots` 写入 sentinel，执行默认卸载后确认 sentinel 保留。
-- [ ] 执行显式 purge 后确认 sentinel 被删除，验证工具数据保留策略闭环。
-- [ ] A2 保存刷新前、加入后和删除后的 Catalog 快照，增量运行目标控制在 3 秒左右。
+- [x] 将 minimal-tool 复制到仓库外的临时扫描目录，调用真实 Tool Catalog 刷新并确认入口、Surface 类型和命令出现。
+- [x] 删除临时工具目录，再次刷新并确认入口和命令消失。
+- [x] 在工具声明的临时 `dataRoots` 写入 sentinel，执行默认卸载后确认 sentinel 保留。
+- [x] 执行显式 purge 后确认 sentinel 被删除，验证工具数据保留策略闭环。
+- [x] A2 保存刷新前、加入后和删除后的 Catalog 快照，增量运行目标控制在 3 秒左右。
 
 ### A3：Service 生命周期与双 UI Process Gate
 
