@@ -63,17 +63,17 @@
 
 ## P0：统一动态工具发现与 Surface 加载
 
-- [ ] 将通用 `MyPowerTools.WebToolHost` 从 SmartBird 子模块迁入底座 `src/`，删除 Shell 对 SmartBird-owned host project 的构建依赖。
+- [x] 将通用 `MyPowerTools.WebToolHost` 从 SmartBird 子模块迁入底座 `src/`，删除 Shell 对 SmartBird-owned host project 的构建依赖。（已迁入 `src/MyPowerTools.WebToolHost/`，Shell csproj 指向新位置。）
 - [ ] 扩展 `tool.json`，统一描述 `dotnet-surface`、`web-surface`、`native-tool`、`headless-tool`、runtime entrypoint 和 service units。
-- [ ] 为 `dotnet-surface` 实现通用加载器：依据 assembly/type 创建 Surface，通过 AvaloniaSdk 获取主题、导航、命令、Host 上下文和取消令牌。
-- [ ] 为 Dotnet Surface 使用独立 AssemblyLoadContext；刷新或删除工具时释放 Surface、事件订阅和可卸载程序集上下文。
+- [x] 为 `dotnet-surface` 实现通用加载器：依据 assembly/type 创建 Surface，通过 AvaloniaSdk 获取主题、导航、命令、Host 上下文和取消令牌。（`DotnetSurfaceLoader` 使用 collectible ALC + shadow-copy。）
+- [x] 为 Dotnet Surface 使用独立 AssemblyLoadContext；刷新或删除工具时释放 Surface、事件订阅和可卸载程序集上下文。
 - [ ] 为 `web-surface` 统一使用底座 WebToolHost，支持本地 URL、远程 URL、静态资源、加载遮罩、失败恢复、刷新和外部打开。
-- [ ] Shell 导航完全由 Tool Catalog 生成，工具新增、删除和刷新无需修改导航 XAML、路由 switch 或工具 ID 常量。
+- [x] Shell 导航完全由 Tool Catalog 生成，工具新增、删除和刷新无需修改导航 XAML、路由 switch 或工具 ID 常量。
 - [ ] Runner 根据 manifest 选择 inproc、gRPC/native IPC、loopback HTTP 或 stdio runtime，停止在 Runner 入口中直接构造具体工具 Supervisor。
 - [ ] 开发扫描器读取 `tools/*/tool.json`、已安装工具目录和用户附加目录；允许 manifest 指向 submodule 的本地构建输出。
 - [ ] “刷新工具”执行目录重扫、清单校验和增量替换；单个坏工具产生局部恢复卡片，其余工具继续工作。
-- [ ] 从 Shell csproj 删除所有指向 `tools/*/current-integration/**/*.cs` 的 `Compile Include`。
-- [ ] 从 `ShellWorkspaceController` 删除 Remote Notifications、ADB、ScreenEase、豆包和 SmartBird 的专用 ID、路由、ViewModel 与 View 构造分支。
+- [x] 从 Shell csproj 删除所有指向 `tools/*/current-integration/**/*.cs` 的 `Compile Include`。
+- [x] 从 `ShellWorkspaceController` 删除 Remote Notifications、ADB、ScreenEase、豆包和 SmartBird 的专用 ID、路由、ViewModel 与 View 构造分支。
 - [ ] 验收新增工具目录后入口出现、删除目录后入口消失，Shell 内没有该工具的专用路由代码。
 
 ## P0：迁移当前启用工具

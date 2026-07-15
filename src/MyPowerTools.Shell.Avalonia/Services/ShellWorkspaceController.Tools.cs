@@ -7,7 +7,7 @@ namespace MyPowerTools.Shell.Avalonia.Services;
 
 public sealed partial class ShellWorkspaceController
 {
-    // No first-party tool IDs, tool service fields, or DeliveredToolIds set.
+    // No first-party tool IDs, tool service fields, or delivered-tool-id set.
     // All tools (first-party and external) are loaded dynamically via the Tool Catalog
     // and the DotnetSurfaceLoader (dotnet-surface) or LoadExternalSdkToolAsync (web/native/headless).
 

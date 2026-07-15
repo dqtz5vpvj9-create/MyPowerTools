@@ -117,6 +117,19 @@ try {
             Write-Bad "A3 gate FAILED (exit $LASTEXITCODE)"
             throw "A3 gate failed"
         }
+    } elseif ($Tier -eq 'Quick') {
+        Write-Step "Building gate driver..."
+        & dotnet build $gateProject --nologo -v quiet 2>&1 | Out-Host
+        if ($LASTEXITCODE -ne 0) { throw "gate driver build failed" }
+
+        Write-Step "Running A1 Quick gate (dependency boundaries)..."
+        & dotnet run --no-build --project $gateProject -- --mode a1 2>&1 | Out-Host
+        if ($LASTEXITCODE -eq 0) {
+            Write-Ok "A1 Quick gate PASSED"
+        } else {
+            Write-Bad "A1 Quick gate FAILED"
+            throw "A1 Quick gate failed"
+        }
     } else {
         Write-Host "Tier '$Tier' is not yet implemented in this batch." -ForegroundColor Yellow
         Write-Host "Result written to $resultPath"

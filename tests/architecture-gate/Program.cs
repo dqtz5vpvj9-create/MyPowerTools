@@ -42,6 +42,98 @@ if (string.Equals(mode, "shutdown", StringComparison.OrdinalIgnoreCase))
     }
 }
 
+// A1 Quick Gate: structural dependency boundary scan. No process launch needed.
+if (string.Equals(mode, "a1", StringComparison.OrdinalIgnoreCase))
+{
+    return RunA1Gate();
+}
+
+static int RunA1Gate()
+{
+    var repoRoot = FindRepoRoot();
+    var records = new List<GateRecord>();
+    var overall = true;
+
+    // A1.1: Shell csproj must not reference tools/** or Surface assemblies.
+    var shellCsproj = Path.Combine(repoRoot, "src", "MyPowerTools.Shell.Avalonia", "MyPowerTools.Shell.Avalonia.csproj");
+    var shellContent = File.ReadAllText(shellCsproj);
+    var shellHasToolRef = shellContent.Contains("tools/", StringComparison.OrdinalIgnoreCase) &&
+                          (shellContent.Contains("Compile Include", StringComparison.OrdinalIgnoreCase) ||
+                           shellContent.Contains("ProjectReference Include=\"..\\..\\tools", StringComparison.OrdinalIgnoreCase));
+    // Check for Compile Include with tools/ paths specifically
+    var compileIncludeToolPattern = "Compile Include=\"";
+    var hasCompileIncludeTool = false;
+    foreach (var line in shellContent.Split('\n'))
+    {
+        if (line.Contains(compileIncludeToolPattern, StringComparison.OrdinalIgnoreCase) && line.Contains("tools", StringComparison.OrdinalIgnoreCase))
+        {
+            hasCompileIncludeTool = true;
+            break;
+        }
+    }
+    records.Add(new("A1.1-shell-no-tool-source-link", !hasCompileIncludeTool,
+        hasCompileIncludeTool ? "Shell csproj has Compile Include pointing at tools/" : "Shell csproj has no tool Compile Include"));
+    overall &= !hasCompileIncludeTool;
+
+    // A1.2: ShellWorkspaceController must not contain tool ID constants.
+    var controllerFiles = new[]
+    {
+        Path.Combine(repoRoot, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellWorkspaceController.Tools.cs"),
+        Path.Combine(repoRoot, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellWorkspaceController.cs")
+    };
+    var forbiddenIds = new[] { "RemoteNotificationsToolId", "AdbForwarderToolId", "ScreenEaseToolId", "DoubaoAgentToolId", "SmartBirdThermostatToolId", "DeliveredToolIds" };
+    var foundIds = new List<string>();
+    foreach (var file in controllerFiles)
+    {
+        if (!File.Exists(file)) continue;
+        var content = File.ReadAllText(file);
+        foreach (var id in forbiddenIds)
+        {
+            if (content.Contains(id, StringComparison.Ordinal))
+            {
+                foundIds.Add(id);
+            }
+        }
+    }
+    var noToolIds = foundIds.Count == 0;
+    records.Add(new("A1.2-shell-no-tool-ids", noToolIds,
+        noToolIds ? "No first-party tool IDs in ShellWorkspaceController" : $"Found forbidden identifiers: {string.Join(", ", foundIds)}"));
+    overall &= noToolIds;
+
+    // A1.3: AvaloniaSdk must not reference Runtime/Packaging/Broker/Shell.
+    var sdkCsproj = Path.Combine(repoRoot, "src", "MyPowerTools.AvaloniaSdk", "MyPowerTools.AvaloniaSdk.csproj");
+    var sdkContent = File.ReadAllText(sdkCsproj);
+    var sdkForbidden = new[] { "MyPowerTools.Runtime", "MyPowerTools.Packaging", "MyPowerTools.Broker", "MyPowerTools.Shell" };
+    var sdkViolations = sdkForbidden.Where(f => sdkContent.Contains(f, StringComparison.OrdinalIgnoreCase)).ToArray();
+    var sdkClean = sdkViolations.Length == 0;
+    records.Add(new("A1.3-sdk-no-upper-deps", sdkClean,
+        sdkClean ? "AvaloniaSdk has no upper-layer dependencies" : $"SDK references forbidden: {string.Join(", ", sdkViolations)}"));
+    overall &= sdkClean;
+
+    foreach (var r in records)
+    {
+        Console.WriteLine($"[{(r.Passed ? "PASS" : "FAIL")}] {r.Id}: {r.Detail}");
+    }
+
+    Console.WriteLine($"A1 gate: {(overall ? "PASS" : "FAIL")}");
+    return overall ? 0 : 1;
+}
+
+static string FindRepoRoot()
+{
+    var dir = new DirectoryInfo(AppContext.BaseDirectory);
+    while (dir is not null)
+    {
+        if (File.Exists(Path.Combine(dir.FullName, "MyPowerTools.slnx")))
+        {
+            return dir.FullName;
+        }
+        dir = dir.Parent;
+    }
+    return Directory.GetCurrentDirectory();
+}
+
+
 var dataRoot = RequireArg("--data-root");
 var unitId = RequireArg("--unit-id");
 var toolId = RequireArg("--tool-id");

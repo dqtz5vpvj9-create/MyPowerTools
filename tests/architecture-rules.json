@@ -1,0 +1,65 @@
+{
+  "version": "1.0",
+  "description": "Architecture dependency rules for MyPowerTools. Enforced by the A1 Quick gate.",
+  "forbiddenProjectReferences": {
+    "MyPowerTools.Shell.Avalonia": {
+      "description": "Shell must not reference any tool source project or Surface assembly",
+      "forbiddenPrefixes": [
+        "tools/"
+      ],
+      "forbiddenProjectNames": [
+        "AdbForwarder.Surface",
+        "ScreenEase.Surface",
+        "RemoteNotifications.Surface",
+        "DoubaoAgent.Surface",
+        "SmartBird.Surface"
+      ]
+    }
+  },
+  "forbiddenCompileIncludes": {
+    "MyPowerTools.Shell.Avalonia": {
+      "description": "Shell csproj must not have Compile Include pointing at tools/**",
+      "forbiddenPathPatterns": [
+        "tools/"
+      ]
+    }
+  },
+  "forbiddenToolIds": {
+    "description": "ShellWorkspaceController must not contain first-party tool ID constants or switch branches",
+    "files": [
+      "src/MyPowerTools.Shell.Avalonia/Services/ShellWorkspaceController.Tools.cs",
+      "src/MyPowerTools.Shell.Avalonia/Services/ShellWorkspaceController.cs"
+    ],
+    "forbiddenIdentifiers": [
+      "RemoteNotificationsToolId",
+      "AdbForwarderToolId",
+      "ScreenEaseToolId",
+      "DoubaoAgentToolId",
+      "SmartBirdThermostatToolId",
+      "DeliveredToolIds"
+    ]
+  },
+  "allowedDependencyDirection": {
+    "description": "Dependencies must flow downward: Shell → SDK/HostControl/Protocol; tools → SDK/Protocol only",
+    "rules": [
+      {
+        "project": "MyPowerTools.AvaloniaSdk",
+        "mustNotReference": [
+          "MyPowerTools.Runtime",
+          "MyPowerTools.Packaging",
+          "MyPowerTools.Broker",
+          "MyPowerTools.Shell.Avalonia"
+        ]
+      },
+      {
+        "project": "MyPowerTools.UI",
+        "mustNotReference": [
+          "MyPowerTools.Runtime",
+          "MyPowerTools.Packaging",
+          "MyPowerTools.Broker",
+          "MyPowerTools.Shell.Avalonia"
+        ]
+      }
+    ]
+  }
+}
