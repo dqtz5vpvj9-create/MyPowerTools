@@ -35,7 +35,7 @@
       <Border Classes="MptMetricTile" Margin="{DynamicResource MptGapRightM}">
         <StackPanel>
           <TextBlock Classes="MptCardTitle" Text="{Binding CommandCount}" />
-          <TextBlock Classes="MptMeta" Text="Quick actions" />
+          <TextBlock Classes="MptMeta" Text="Actions" />
         </StackPanel>
       </Border>
       <Border Classes="MptMetricTile">
@@ -45,25 +45,6 @@
         </StackPanel>
       </Border>
     </UniformGrid>
-
-    <ItemsControl ItemsSource="{Binding Alerts}"
-                  IsVisible="{Binding HasAlerts}">
-      <ItemsControl.ItemTemplate>
-        <DataTemplate x:DataType="vm:ShellAlertViewModel">
-          <Border Classes="MptSettingsField" Margin="{DynamicResource MptGapBottomM}">
-            <Grid ColumnDefinitions="Auto,*">
-              <Border Classes="MptStatusBadge" Margin="{DynamicResource MptGapRightM}">
-                <TextBlock Classes="MptMeta" Text="{Binding Level}" />
-              </Border>
-              <StackPanel Grid.Column="1" Spacing="{DynamicResource MptSpacingXs}">
-                <TextBlock Classes="MptCardTitle" Text="{Binding Title}" />
-                <TextBlock Classes="MptPageSubtitle" Text="{Binding Body}" />
-              </StackPanel>
-            </Grid>
-          </Border>
-        </DataTemplate>
-      </ItemsControl.ItemTemplate>
-    </ItemsControl>
 
     <ItemsControl ItemsSource="{Binding Cards}">
       <ItemsControl.ItemsPanel>
@@ -107,9 +88,6 @@
               <StackPanel Grid.Row="3"
                           Orientation="Horizontal"
                           Spacing="{DynamicResource MptSpacingS}">
-                <controls:MptButton Classes="MptPrimaryButton"
-                        Content="Details"
-                        Command="{Binding DetailsCommand}" />
                 <ItemsControl ItemsSource="{Binding Actions}">
                   <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
@@ -118,7 +96,8 @@
                   </ItemsControl.ItemsPanel>
                   <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:ShellActionViewModel">
-                      <controls:MptButton Content="{Binding Title}"
+                      <controls:MptButton Classes.MptPrimaryButton="{Binding IsPrimary}"
+                              Content="{Binding Title}"
                               Command="{Binding ExecuteCommand}" />
                     </DataTemplate>
                   </ItemsControl.ItemTemplate>
@@ -129,6 +108,28 @@
         </DataTemplate>
       </ItemsControl.ItemTemplate>
     </ItemsControl>
+
+    <StackPanel IsVisible="{Binding HasAlerts}"
+                Spacing="{DynamicResource MptSpacingM}">
+      <TextBlock Classes="MptSectionTitle" Text="{Binding AlertSummary}" />
+      <ItemsControl ItemsSource="{Binding VisibleAlerts}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="vm:ShellAlertViewModel">
+            <Border Classes="MptSettingsField" Margin="{DynamicResource MptGapBottomM}">
+              <Grid ColumnDefinitions="Auto,*">
+                <Border Classes="MptStatusBadge" Margin="{DynamicResource MptGapRightM}">
+                  <TextBlock Classes="MptMeta" Text="{Binding Level}" />
+                </Border>
+                <StackPanel Grid.Column="1" Spacing="{DynamicResource MptSpacingXs}">
+                  <TextBlock Classes="MptCardTitle" Text="{Binding Title}" />
+                  <TextBlock Classes="MptPageSubtitle" Text="{Binding Body}" />
+                </StackPanel>
+              </Grid>
+            </Border>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </StackPanel>
   </StackPanel>
 </UserControl>
 

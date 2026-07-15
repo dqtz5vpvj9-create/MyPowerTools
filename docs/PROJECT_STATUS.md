@@ -7,21 +7,22 @@ Run date: 2026-07-06.
 | Field | Value |
 |---|---|
 | Project | MyPowerTools |
-| Current phase | Internal production closure complete |
+| Current phase | P-UI-Foundation UI and launch UX acceptance complete |
 | Last completed phase | P-UI-Foundation |
-| Next phase | External validation |
+| Next phase | External GPT Pro review of final UI package |
 | SDK | 10.0.301 from `global.json` and `dotnet --version` |
 | Target frameworks | `net10.0` projects across the solution |
 | Production packages | 5: `adb-forwarder`, `android-tools-suite`, `doubao-agent`, `screenease`, `smartbird-thermostat` |
 | Production modules | 7 |
 | Production commands | 81 total, 50 dynamic |
 | Templates | 6 |
-| Tests | 189 passed, 0 failed, 0 skipped |
+| Tests | Latest full suite: 191 passed, 0 failed, 0 skipped. |
 | Release artifact | `artifacts/release/MyPowerTools-win-x64.zip` |
-| Release SHA256 | `B4F8CFED2E13C0370068B0D4DEBB0F66BCF4A18E74620FD7FEBAAEB93CC84BE5` |
-| Review package | `artifacts/review/MyPowerTools-final-code-docs-p-ui-foundation-20260706.zip` |
-| Evidence package | `artifacts/review/MyPowerTools-final-evidence.zip`, SHA256 `ABA4ED23AC71D4727A1FB3619610CD57B996DBCA3A32465CB6A2CD6DCB8A4AF1` |
-| Production closure | `true` for local internal closure; remaining work is external validation for signing, administrator actions, hardware/services, and macOS/Linux hosts. |
+| Release SHA256 | `5FC9666963623756DEF969565C878EDE466CCDA4DFBA7DF43F97BFBF51A82D00` |
+| Review package | `artifacts/review/MyPowerTools-final-code-docs-p-ui-launch-complete-20260706.zip` |
+| Evidence package | Final UI evidence lives under `artifacts/ui-final-*` and is copied into the review package under `review-evidence/`. |
+| Production closure | `false`; P-UI-Foundation is UI-only and does not claim release/hardware/signing production closure. |
+| User launch entry | Start Menu now exposes one shortcut, `MyPowerTools`, targeting `%LOCALAPPDATA%\Programs\MyPowerTools\MyPowerTools.exe`; the portable zip root contains `MyPowerTools.exe`, `START_HERE.md`, and `Start-MyPowerTools.cmd`. |
 
 ## Latest Validation Results
 
@@ -30,14 +31,20 @@ Run date: 2026-07-06.
 | `dotnet --version` | `10.0.301` |
 | `dotnet restore MyPowerTools.slnx` | Succeeded; all projects were up-to-date. |
 | `dotnet build MyPowerTools.slnx --no-restore` | Succeeded with 0 warnings and 0 errors. |
-| `dotnet test MyPowerTools.slnx --no-build` | Passed 189, failed 0, skipped 0. |
+| `dotnet test MyPowerTools.slnx --no-build` | Passed 191, failed 0, skipped 0. |
+| Launch UX focused tests | Passed 3, failed 0, skipped 0. Covered release metadata shortcut shape, installer single Start Menu entry, and Shell Runner bootstrap wiring. |
 | `dotnet test src\MyPowerTools.Tests\MyPowerTools.Tests.csproj --no-build --filter "Foundation=P7"` | Passed 10, failed 0, skipped 0. |
 | `dotnet run --no-build --project src\MyPowerTools.Cli -- validate modules` | 5 production packages valid. |
 | `dotnet run --no-build --project src\MyPowerTools.Cli -- validate contracts` | 5 packages and 7 modules passed contract validation; total commands 81, dynamic commands 50. AndroidTools runs through `grpc-ipc` powertoold with notifications running, remote commands running, process monitor degraded until a watch list is saved, and ScreenEase exposing 14 commands. |
 | `dotnet run --no-build --project src\MyPowerTools.Cli -- package trust modules --strict` | `signature-hook` trust passed for all 5 production packages after local hash/signature refresh. |
 | `dotnet run --no-build --project src\MyPowerTools.Cli -- ui check modules` | UI gate passed. |
-| `dotnet run --no-build --project src\MyPowerTools.Cli -- ui screenshot --mode fixture --full-shell --theme light --size 1366x768 --density normal --out artifacts\ui-acceptance-mpt-controls` | Full Shell screenshots show Dashboard without a permanent right-side Command Palette/Audit rail, Command Palette as a centered overlay, and MPT controls rendered. |
-| `dotnet run --no-build --project src\MyPowerTools.Cli -- ui screenshot --mode live-runner --full-shell --runner-only --theme light --size 1366x768 --density normal --out artifacts\ui-final-live-runner` | Live Runner-backed full Shell screenshots written; manifest has `dataSource=runner-hostcontrol` and `usesHostControlData=true`. |
+| `dotnet run --no-build --project src\MyPowerTools.Cli -- ui screenshot --mode fixture --full-shell --theme light --size 1366x768 --density normal --out artifacts\ui-final-fixture-light` | Final fixture light full Shell screenshots written; manifest has 8 real screenshots. |
+| `dotnet run --no-build --project src\MyPowerTools.Cli -- ui screenshot --mode fixture --full-shell --theme dark --size 1366x768 --density normal --out artifacts\ui-final-fixture-dark` | Final fixture dark full Shell screenshots written; manifest has 8 real screenshots. |
+| `dotnet run --no-build --project src\MyPowerTools.Cli -- ui screenshot --mode fixture --full-shell --theme light --size 1280x720 --density compact --out artifacts\ui-final-fixture-compact` | Final fixture compact full Shell screenshots written; manifest has 8 real screenshots. |
+| `dotnet run --no-build --project src\MyPowerTools.Cli -- ui screenshot --mode fixture --page command-palette --theme dark --size 1280x720 --density compact --out artifacts\ui-final-command-palette-compact` | Compact Command Palette screenshot written; manifest has one screenshot for `shell.command-palette`. |
+| `dotnet run --no-build --project src\MyPowerTools.Cli -- ui screenshot --mode live-runner --full-shell --runner-only --theme light --size 1366x768 --density normal --out artifacts\ui-final-live-runner-light` | Live Runner light screenshots written; manifest has `dataSource=runner-hostcontrol`, `runnerConnected=true`, 7 modules, and 81 commands. |
+| `dotnet run --no-build --project src\MyPowerTools.Cli -- ui screenshot --mode live-runner --full-shell --runner-only --theme dark --size 1366x768 --density normal --out artifacts\ui-final-live-runner-dark` | Live Runner dark screenshots written; manifest has `dataSource=runner-hostcontrol` and `runnerConnected=true`. |
+| `dotnet run --no-build --project src\MyPowerTools.Cli -- ui screenshot --mode live-runner --full-shell --runner-only --theme light --size 1280x720 --density compact --out artifacts\ui-final-live-runner-compact` | Live Runner compact screenshots written; manifest has `dataSource=runner-hostcontrol` and `runnerConnected=true`. |
 | `dotnet run --no-build --project src\MyPowerTools.Cli -- ui snapshot --surface dashboard-card --theme light --size 1366x768 --density normal --out artifacts\ui-snapshots-p6` | Wrote module dashboard-card contract snapshots and PNG pixel snapshots. |
 | `dotnet run --no-build --project src\MyPowerTools.Cli -- ui shell-snapshot --full-shell --theme light --size 1366x768 --density normal --out artifacts\shell-ui-snapshots-p6` | Wrote fixture-backed full Shell real screenshot manifests. |
 | `dotnet run --no-build --project src\MyPowerTools.Cli -- ui shell-snapshot --live-runner --full-shell --runner-only --theme light --size 1366x768 --density normal --out artifacts\shell-ui-snapshots-p6-live-runner` | Wrote real Shell screenshots from live Runner HostControl data. |
@@ -46,7 +53,7 @@ Run date: 2026-07-06.
 | `dotnet run --no-build --project src\MyPowerTools.Cli -- ui shell-snapshot --full-shell --theme light --size 1920x1080 --density normal --out artifacts\shell-ui-snapshots-1920-full` | Full Shell screenshot variant passed for 1920x1080 normal. |
 | `dotnet run --no-build --project src\MyPowerTools.Cli -- ui shell-snapshot --full-shell --theme light --size 1280x720 --density compact --out artifacts\shell-ui-snapshots-1280-compact-full` | Full Shell screenshot variant passed for 1280x720 compact. |
 | `dotnet run --no-build --project src\MyPowerTools.Cli -- ui shell-snapshot --full-shell --theme dark --size 1366x768 --density normal --out artifacts\shell-ui-snapshots-dark-full` | Dark full Shell screenshot variant passed. |
-| `dotnet run --project src\MyPowerTools.Runner -- --once` | 7 modules indexed; AndroidTools Notifications and Remote Commands run through powertoold, AndroidTools Process Monitor reports its watch-list degraded state, and current expected degraded states remain for Doubao partial services, ScreenEase unsupported DDC/CI monitor hardware, and SmartBird Energy Server/FNB-58 dependencies. |
+| `dotnet run --project src\MyPowerTools.Runner -- --once` | 7 modules indexed; AndroidTools Notifications and Remote Commands run through powertoold, AndroidTools Process Monitor reports its watch-list degraded state, and hardware-dependent states remain explicit for ScreenEase and SmartBird. |
 | `dotnet run --no-build --project src\MyPowerTools.Cli -- diagnostics` | Reports 5 packages, 7 modules, 81 commands, 50 dynamic commands, event seq 9, AndroidTools under `grpc-ipc`, one shared process pool, and per-module diagnostics. |
 | Manual Shell HostControl smoke | Temporary Runner started from `src\MyPowerTools.Runner\bin\Debug\net10.0`, Shell smoke connected, reported 7 modules, 7 dashboard cards, 81 commands, requested Runner shutdown, and Runner exited with code 0. |
 | `pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\validate-templates.ps1` | 6 templates passed manifest validation, UI gate, .NET template builds, and Python syntax compilation. |
@@ -55,8 +62,10 @@ Run date: 2026-07-06.
 | `dotnet run --project src\MyPowerTools.Cli -- run screenease.native-writer.status` | Succeeded with Windows DDC/CI writer probe output; current Generic PnP Monitor returns `GetMonitorCapabilities` unsupported. |
 | `dotnet run --project src\MyPowerTools.Cli -- run screenease.profile.apply` | Succeeded with profile plan and safe default `native-host-required` because hardware writes are disabled unless explicitly requested or configured. |
 | P8 audit scans | Placeholder/stub/fake scans found only documentation/history or UI input `PlaceholderText`; `unsupported` findings are explicit degraded states; production module roots contain no sample modules; high-confidence secret scan found no real credential material; release metadata contains no `file:///C:` URL. |
-| `pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\publish-windows.ps1` | Rebuilt `artifacts/release/MyPowerTools-win-x64.zip`, `RELEASE_NOTES.md`, `release-metadata.json`, and the Scoop manifest. ZIP SHA256 `B4F8CFED2E13C0370068B0D4DEBB0F66BCF4A18E74620FD7FEBAAEB93CC84BE5`; size 223125040 bytes. |
-| Release metadata/Scoop manifest check | `release-metadata.json` artifact hash and `package-managers/scoop/mypowertools.json` 64-bit hash both equal `B4F8CFED2E13C0370068B0D4DEBB0F66BCF4A18E74620FD7FEBAAEB93CC84BE5`; both URLs are relative `MyPowerTools-win-x64.zip`; manifest exposes `mpt` as the CLI shim. |
+| `pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\publish-windows.ps1` | Rebuilt `artifacts/release/MyPowerTools-win-x64.zip`, root `MyPowerTools.exe`, `START_HERE.md`, `Start-MyPowerTools.cmd`, `RELEASE_NOTES.md`, `release-metadata.json`, and the Scoop manifest. ZIP SHA256 `5FC9666963623756DEF969565C878EDE466CCDA4DFBA7DF43F97BFBF51A82D00`; size 255336591 bytes. |
+| Release metadata/Scoop manifest check | `release-metadata.json` artifact hash and `package-managers/scoop/mypowertools.json` 64-bit hash both equal `5FC9666963623756DEF969565C878EDE466CCDA4DFBA7DF43F97BFBF51A82D00`; both URLs are relative `MyPowerTools-win-x64.zip`; manifest exposes `mpt` as the CLI shim and `MyPowerTools.exe` as the single GUI shortcut. |
+| Actual Start Menu refresh | The earlier `%LOCALAPPDATA%\Programs\MyPowerTools` validation is superseded by the ADB Broker hardening. Current scripts default to `%ProgramFiles%\MyPowerTools` and require elevation; this preserves the single `MyPowerTools.lnk` while giving `Broker\MyPowerTools.ElevatedBroker.exe` an ACL-protected trust root. |
+| Product launcher smoke | Installed `MyPowerTools.exe --data-root <temp>` exited after launching `MyPowerTools.Shell.Avalonia.exe` and `MyPowerTools.Runner.exe`; both processes were observed from the installed root and then terminated. |
 | `pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\create-review-evidence.ps1` | Passed; saved 27 command outputs, command result index, UI snapshots, Shell screenshots, release evidence, and `artifacts/review/MyPowerTools-final-evidence.zip`. |
 | Release Runner semantic check | `23-release-runner-once.txt` passed with relative `--data-root`; `adb-forwarder` is running; AndroidTools notifications and remote commands are running; process-monitor, Doubao, ScreenEase, and SmartBird degraded reasons are external; no assembly/path/reflection/runtime failure markers were found. |
 | Release zip hygiene check | `MyPowerTools-win-x64.zip` contains no `bin/`, `obj/`, or `modules/modules/` entries. |
@@ -78,7 +87,7 @@ Run date: 2026-07-06.
 | Bounded idempotency | `InvocationExecutionCache` replaces the unbounded `_executions` dictionary with max-count and TTL cleanup for completed invocation results. `Invocation_execution_cache_deduplicates_completed_results_and_evicts_old_entries` verifies dedupe, completed result reuse, max-count trimming, and TTL expiry. |
 | Diagnostics split | `RuntimeModuleDiagnostics` and HostControl proto now expose `ModuleEnabledState`, `TransportActiveState`, and `ToolRuntimeState`. `Runtime_diagnostics_split_module_transport_and_tool_runtime_state` verifies loaded, disabled, and production-module states. |
 | UI lint scope | `UiSurfaceGate.CheckShellSource` scans Shell and `src/MyPowerTools.UI/**/*.cs`. `MptThemeTokens` centralizes colors, font sizes, spacing, and radii; UI controls and Shell screenshot code use named tokens. `Ui_surface_gate_scans_component_csharp_layer_and_requires_tokens` and `ui check modules` pass. |
-| Validation | `dotnet restore`, `dotnet build`, full `dotnet test` 189/0/0, P7 trait tests 10/0/0, `validate modules`, `validate contracts`, `ui check modules`, Runner `--once`, `scripts\validate-templates.ps1`, `scripts\smoke.ps1`, and `scripts\create-review-evidence.ps1` passed. |
+| Validation | `dotnet restore`, `dotnet build`, full `dotnet test` 190/0/0, P7 trait tests 10/0/0, `validate modules`, `validate contracts`, `ui check modules`, Runner `--once`, final UI screenshot matrices, and `scripts\smoke.ps1` passed. |
 
 ## P-Foundation-6 Progress On 2026-07-05
 
@@ -90,7 +99,7 @@ Run date: 2026-07-06.
 | Sidecar readiness | gRPC IPC sidecars now start with package/runtime working directory, receive `MPT_PACKAGE_DIR`, `MPT_MODULE_ID`, `MPT_RUNTIME_ID`, `MPT_ENDPOINT_TRANSPORT`, and `MPT_ENDPOINT_ADDRESS`, and retry readiness before initialize with explicit classification for process exit, endpoint timeout, initialize rejection, and protocol mismatch. `Runtime_grpc_readiness_waits_for_delayed_sidecar_and_preserves_typed_args_and_launch_context` and `Runtime_grpc_readiness_reports_early_sidecar_exit` cover delayed startup, env/working directory propagation, and early exit classification. |
 | Typed command args | `mpt_module_v1.proto` now carries `typed_args` and `args_json` in addition to the legacy string map. `GrpcIpcModuleHost` sends nested JSON as `Struct` and JSON text; `AndroidTools.Powertoold` reads typed args first, then `args_json`, then legacy args. The delayed sidecar test verifies nested port mappings, process watch arrays, numbers, booleans, and strings survive the gRPC round trip. |
 | Test layout | The original 168 acceptance tests were split into 10 domain partial files while keeping shared helpers in `RuntimeAcceptanceTests.cs`. `src/MyPowerTools.Tests/README.md` documents the layout. P-Foundation-6 adds 6 focused tests, bringing the suite to 174 passing tests. |
-| Validation | `dotnet restore MyPowerTools.slnx`, `dotnet build MyPowerTools.slnx --no-restore`, `dotnet test MyPowerTools.slnx --no-build`, module validation, contract validation, UI gate, UI snapshots, fixture and live Runner Shell snapshots, Runner once, Shell HostControl smoke, template validation, module list, and diagnostics passed. Full `scripts\smoke.ps1` was skipped because it refreshes package hashes/signatures through `package sign-local modules`, outside this target boundary. |
+| Validation | `dotnet restore MyPowerTools.slnx`, `dotnet build MyPowerTools.slnx --no-restore`, `dotnet test MyPowerTools.slnx --no-build`, module validation, contract validation, UI gate, UI snapshots, fixture and live Runner Shell snapshots, Runner once, Shell HostControl smoke, template validation, module list, and diagnostics passed. `scripts\smoke.ps1` now skips package signature refresh and strict package trust by default during UI-only validation; pass `-RefreshPackageSignatures` when package metadata refresh and strict trust are intended. |
 
 ## P-Foundation-5 Progress On 2026-07-05
 
@@ -113,7 +122,7 @@ Run date: 2026-07-06.
 | Cleanup fixes | Local package signature algorithm was renamed from `sha256-manifest-placeholder` to `sha256-manifest-local`; `UiSurfaceGate.WriteSnapshotPlaceholder` was renamed to `WriteDefaultSnapshotSet`; production package signatures were refreshed. |
 | Final validation | SDK 10.0.301, restore, build, tests, module validation, contract validation, UI gate, UI snapshots, diagnostics, inspect, module list, Runner once, template validation, smoke, publish, release package trust, release Runner once, release Shell smoke, autostart dry-run, install/uninstall dry-run, metadata hash parity, and zip hygiene all passed for the P8 run. |
 | Release artifact | `artifacts/release/MyPowerTools-win-x64.zip`, SHA256 `B4F8CFED2E13C0370068B0D4DEBB0F66BCF4A18E74620FD7FEBAAEB93CC84BE5`. |
-| Closure | `.codex/project-state.json` marks `productionClosure=true` after P-UI-Foundation acceptance, final evidence, and final code/docs packaging. |
+| Closure | `.codex/project-state.json` now marks `productionClosure=false`; P-UI-Foundation UI acceptance is complete and external production validation remains tracked separately. |
 
 ## P7 Progress On 2026-07-04
 
@@ -156,7 +165,7 @@ Run date: 2026-07-06.
 | `android-tools.process-monitor` | degraded | Served by the shared `powertoold` gRPC IPC sidecar; needs a saved watch list through `android-tools.process-monitor.watch.save`. |
 | `doubao-agent` | degraded | InProc controller checks planner/tool/MCP separately; current local runtime reports 1/3 services reachable. |
 | `screenease` | degraded | Windows DDC/CI native writer exists and is wired behind explicit hardware apply; current monitor reports unsupported DDC/CI capabilities, so status/profile paths work with actionable hardware diagnostics. |
-| `smartbird-thermostat` | degraded | InProc typed facade reads HTTP status/events/config/logs, returns brokered restart details, and reports missing Energy Server/FNB-58 dependency state. |
+| `smartbird-thermostat` | source-backed | Shell embeds the original fixed loopback dashboard; the InProc facade reads its status/events/energy bridge and original log, and returns brokered task-restart details. |
 
 ## Validation Note
 
@@ -186,7 +195,7 @@ Local builds copy module assemblies into `modules/`. When assemblies change, run
 | Acceptance coverage | `DoubaoAgent_inproc_module_reports_planner_tool_and_mcp_services` verifies three local service probes, dynamic commands, self-test redaction, and log summary behavior. |
 | SmartBird typed facade | Added `src/SmartBirdThermostat.MyPowerTools` and an `inproc-dotnet` entrypoint in `modules/smartbird-thermostat/module.json`. |
 | SmartBird command coverage | `smartbird-thermostat.status.summary`, `events.list`, `config.get`, `config.save`, `hardware.diagnostics`, `self-test`, `logs.summary`, and `service.restart` run through the module facade. |
-| SmartBird degraded hardware diagnostics | Current machine output is degraded because Energy Server `19003` times out and FNB-58 serial port is not configured; ADB device identifiers are redacted. |
+| SmartBird source-backed diagnostics | The fixed dashboard at `http://127.0.0.1:19002/` owns Energy Server and HID-meter behavior. Module diagnostics read the real thermostat `/api/energy/status` bridge, whose source default is `http://127.0.0.1:18988`; direct phantom meter probes have been removed. |
 | SmartBird acceptance coverage | `SmartBird_inproc_module_reports_facade_config_and_hardware_degradation` verifies local status/events/config/log probes, config save, brokered restart, self-test redaction, and actionable hardware degradation. |
 | AndroidTools powertoold sidecar | Added `src/AndroidTools.Powertoold`, a package-shared gRPC IPC sidecar for `android-tools.notifications`, `android-tools.remote-commands`, and `android-tools.process-monitor`. |
 | AndroidTools T2 priority | Updated the AndroidTools shared runtime and module manifests so `package-runtime:100` is selected ahead of the InProc fallback when `windows/x64/powertoold.exe` exists. |

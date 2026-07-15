@@ -1,5 +1,6 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="using:MyPowerTools.UI.Controls"
              xmlns:vm="using:MyPowerTools.Shell.Avalonia.ViewModels"
              x:Class="MyPowerTools.Shell.Avalonia.Views.UnavailablePageView"
              x:DataType="vm:UnavailablePageViewModel">
@@ -9,7 +10,19 @@
       <TextBlock Classes="MptMeta" Text="{Binding State}" />
     </StackPanel>
     <Border Classes="MptErrorState">
-      <TextBlock Text="{Binding Message}" TextWrapping="Wrap" />
+      <StackPanel Spacing="{DynamicResource MptSpacingM}">
+        <TextBlock Text="{Binding Message}" TextWrapping="Wrap" />
+        <StackPanel Orientation="Horizontal"
+                    Spacing="{DynamicResource MptSpacingS}"
+                    IsVisible="{Binding HasRetry}">
+          <controls:MptButton Classes="MptPrimaryButton"
+                              Content="Try again"
+                              Command="{Binding RetryCommand}" />
+          <controls:MptButton Content="Return to a safe page"
+                              Command="{Binding ReturnCommand}"
+                              IsVisible="{Binding HasReturnAction}" />
+        </StackPanel>
+      </StackPanel>
     </Border>
   </StackPanel>
 </UserControl>

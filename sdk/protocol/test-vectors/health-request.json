@@ -1,0 +1,6 @@
+{
+  "protocolVersion": "1.0",
+  "requestId": "vector-health-001",
+  "method": "health",
+  "params": {}
+}

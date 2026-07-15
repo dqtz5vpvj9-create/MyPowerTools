@@ -1,0 +1,1 @@
+using Avalonia.Controls; using MyPowerTools.AvaloniaSdk; namespace TemplateDotnet; public sealed class ToolSurfaceFactory : IMptAvaloniaSurfaceFactory { public Control CreateSurface(MptAvaloniaSurfaceContext context) => new Border { Padding = new Avalonia.Thickness(24), Child = new TextBlock { Text = "template.dotnet loaded through MyPowerTools.AvaloniaSdk" } }; }

@@ -1,17 +1,22 @@
 using Avalonia;
 using Avalonia.Controls;
-using Avalonia.Input;
+using Avalonia.Media;
+using Avalonia.Platform;
 using MyPowerTools.Shell.Avalonia.Services;
 using MyPowerTools.Shell.Avalonia.ViewModels;
 using MyPowerTools.Shell.Avalonia.Views;
+using MyPowerTools.UI;
 using MyPowerTools.UI.Controls;
 
 namespace MyPowerTools.Shell.Avalonia;
 
-public sealed class MainWindow : Window
+public sealed partial class MainWindow : Window
 {
+    private const string WindowCaption = "MyPowerTools";
     private readonly ShellWorkspaceController _workspace;
     private readonly ShellStartupOptions _startupOptions;
+    private readonly TaskCompletionSource<bool> _workspaceOpened = new(
+        TaskCreationOptions.RunContinuationsAsynchronously);
 
     public MainWindow()
         : this(ShellStartupOptions.Default)
@@ -21,11 +26,20 @@ public sealed class MainWindow : Window
     public MainWindow(ShellStartupOptions startupOptions)
     {
         _startupOptions = startupOptions;
-        Title = "MyPowerTools";
-        Width = 1180;
-        Height = 760;
-        MinWidth = 920;
-        MinHeight = 620;
+        Title = OperatingSystem.IsWindows() ? "" : WindowCaption;
+        Width = 1280;
+        Height = 800;
+        MinWidth = 640;
+        MinHeight = 480;
+        Background = MptThemeTokens.TransparentBrush;
+        Icon = new WindowIcon(AssetLoader.Open(new Uri("avares://MyPowerTools.Shell.Avalonia/Assets/MyPowerTools.ico")));
+        ExtendClientAreaToDecorationsHint = true;
+        ExtendClientAreaTitleBarHeightHint = MptThemeTokens.LayoutTopBarHeight;
+        TransparencyLevelHint =
+        [
+            WindowTransparencyLevel.Mica,
+            WindowTransparencyLevel.None
+        ];
 
         ShellWorkspaceController? workspace = null;
         var chromeViewModel = new ShellChromeViewModel(
@@ -51,28 +65,50 @@ public sealed class MainWindow : Window
         workspace = _workspace;
 
         KeyDown += OnShellKeyDown;
-        Opened += async (_, _) => await OpenShellAsync();
-        Closed += async (_, _) => await _workspace.DisposeAsync();
+        Opened += OnWindowOpened;
+        ActualThemeVariantChanged += OnActualThemeVariantChanged;
+        Closed += OnWindowClosed;
     }
 
     private async Task OpenShellAsync()
     {
-        await _workspace.OpenAsync();
-        if (_startupOptions.FocusCommandPalette)
+        try
         {
-            await _workspace.FocusCommandPaletteAsync();
+            await _workspace.OpenAsync();
+            if (_startupOptions.FocusCommandPalette)
+            {
+                await _workspace.FocusCommandPaletteAsync();
+            }
+        }
+        finally
+        {
+            // Protocol activation can arrive with the first window Opened event.
+            // Let initial shell navigation finish before selecting the notification
+            // workspace, otherwise the normal Home refresh can overwrite the deep link.
+            _workspaceOpened.TrySetResult(true);
         }
     }
 
-    private async void OnShellKeyDown(object? sender, KeyEventArgs e)
+    private void OnWindowOpened(object? sender, EventArgs args)
     {
-        await _workspace.HandleKeyDownAsync(e);
+        ApplyWindowsChrome();
+        RunWindowUiEvent(OpenShellAsync, "Open Shell workspace");
     }
 
-    private static T RequireControl<T>(Control root, string name)
-        where T : Control
+    private void OnActualThemeVariantChanged(object? sender, EventArgs args)
     {
-        return root.FindControl<T>(name)
-            ?? throw new InvalidOperationException($"Shell chrome control '{name}' was not found.");
+        ApplyWindowsChrome();
     }
+
+    private void OnWindowClosed(object? sender, EventArgs args)
+    {
+        KeyDown -= OnShellKeyDown;
+        Opened -= OnWindowOpened;
+        ActualThemeVariantChanged -= OnActualThemeVariantChanged;
+        Closed -= OnWindowClosed;
+        RunWindowUiEvent(
+            async () => await _workspace.DisposeAsync(),
+            "Dispose Shell workspace");
+    }
+
 }

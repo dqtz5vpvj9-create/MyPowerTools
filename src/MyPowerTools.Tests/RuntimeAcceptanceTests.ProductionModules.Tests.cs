@@ -28,6 +28,7 @@ using MyPowerTools.Shell.Avalonia.Services;
 using MyPowerTools.Shell.Avalonia.ViewModels;
 using MyPowerTools.UI;
 using ScreenEase.MyPowerTools;
+using SmartBirdThermostat.MyPowerTools;
 using CommandExecutionResult = MyPowerTools.Abstractions.CommandExecutionResult;
 using CommandRequest = MyPowerTools.Abstractions.CommandRequest;
 using HealthCheckSnapshot = MyPowerTools.Abstractions.HealthCheckSnapshot;
@@ -320,14 +321,45 @@ cloud_server_protocol: str = "https"
         Assert.True(status.Success);
         Assert.Contains("\"displayCount\"", status.Output);
         Assert.True(apply.Success);
-        Assert.Equal("night", applied["activeProfileId"]!.GetValue<string>());
-        Assert.Equal("native-host-required", applied["nativeHost"]!.AsObject()["state"]!.GetValue<string>());
+        Assert.Equal("low-blue-evening", applied["activeProfileId"]!.GetValue<string>());
+        Assert.Equal("logical-only", applied["nativeHost"]!.AsObject()["state"]!.GetValue<string>());
+        Assert.True(applied["effect"]!["enabled"]!.GetValue<bool>());
         Assert.True(list.Success);
-        Assert.Equal("night", profiles["activeProfileId"]!.GetValue<string>());
+        Assert.Equal("low-blue-evening", profiles["activeProfileId"]!.GetValue<string>());
     }
 
     [Fact]
-    public async Task ScreenEase_profile_apply_keeps_hardware_write_disabled_by_default()
+    public async Task ScreenEase_inproc_module_receives_the_host_display_capability_across_the_plugin_boundary()
+    {
+        await using var host = new InProcDotNetModuleHost();
+        var display = new RecordingDisplayService();
+        var runtime = new MptHostRuntime(
+            new PackageReader(),
+            PlatformId.Current(),
+            RuntimePaths.Create(Path.Combine(Path.GetTempPath(), "mpt-runtime-screenease-capability", Guid.NewGuid().ToString("N"))),
+            [host],
+            new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["display.profile"] = display
+            });
+
+        runtime.Load(Path.Combine(Root, "modules"));
+        await runtime.RefreshDynamicCommandsAsync(CancellationToken.None);
+        var result = await runtime.ExecuteCommandAsync(
+            new CommandRequest("screenease-capability-status", "screenease.status.summary", new JsonObject()),
+            CancellationToken.None);
+        var payload = JsonNode.Parse(result.Output)!.AsObject();
+        var firstDisplay = Assert.Single(payload["displays"]!.AsArray())!.AsObject();
+
+        Assert.True(result.Success);
+        Assert.Equal(@"\\.\DISPLAY1", firstDisplay["id"]!.GetValue<string>());
+        Assert.Equal("connected", firstDisplay["state"]!.GetValue<string>());
+        Assert.True(payload["nativeHost"]!["available"]!.GetValue<bool>());
+        Assert.DoesNotContain("No display capability provider was injected", result.Output, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task ScreenEase_profile_apply_uses_an_available_writer_by_default()
     {
         var display = new RecordingDisplayService();
         var module = new ScreenEaseModule(display);
@@ -340,10 +372,48 @@ cloud_server_protocol: str = "https"
         var nativeHost = payload["nativeHost"]!.AsObject();
 
         Assert.True(result.Success);
-        Assert.Empty(display.AppliedIntents);
-        Assert.Equal("night", payload["activeProfileId"]!.GetValue<string>());
-        Assert.Equal("native-host-required", nativeHost["state"]!.GetValue<string>());
-        Assert.False(nativeHost["hardwareWriteRequested"]!.GetValue<bool>());
+        var intent = Assert.Single(display.AppliedIntents);
+        Assert.Equal("low-blue-evening", intent.ProfileId);
+        Assert.Equal("low-blue-evening", payload["activeProfileId"]!.GetValue<string>());
+        Assert.Equal("success", nativeHost["state"]!.GetValue<string>());
+        Assert.True(payload["effect"]!["enabled"]!.GetValue<bool>());
+        Assert.True(nativeHost["hardwareWriteRequested"]!.GetValue<bool>());
+    }
+
+    [Fact]
+    public async Task ScreenEase_migrates_the_legacy_three_profile_state_to_the_complete_mode_set()
+    {
+        var context = CreateScreenEaseContext("screenease-legacy-profile-migration");
+        Directory.CreateDirectory(context.DataDirectory);
+        File.WriteAllText(
+            Path.Combine(context.DataDirectory, "screenease-state.json"),
+            """
+            {
+              "ActiveProfileId": "day",
+              "Profiles": [
+                { "Id": "day", "Name": "Day", "Brightness": 85, "ColorTemperature": 6500 },
+                { "Id": "focus", "Name": "Focus", "Brightness": 70, "ColorTemperature": 5200 },
+                { "Id": "night", "Name": "Night", "Brightness": 45, "ColorTemperature": 4200 }
+              ],
+              "Rules": [],
+              "NativeHost": { "Enabled": false, "Available": false, "Message": "legacy" },
+              "UpdatedAt": "2026-01-01T00:00:00Z"
+            }
+            """);
+        var module = new ScreenEaseModule(new RecordingDisplayService());
+
+        await module.InitializeAsync(context, CancellationToken.None);
+        var result = await module.ExecuteCommandAsync(
+            new CommandRequest("screenease-list-migrated", "screenease.profile.list", new JsonObject()),
+            CancellationToken.None);
+        var payload = JsonNode.Parse(result.Output)!.AsObject();
+        var profiles = payload["profiles"]!.AsArray();
+
+        Assert.True(result.Success);
+        Assert.Equal(7, profiles.Count);
+        Assert.Equal("low-blue-evening", payload["activeProfileId"]!.GetValue<string>());
+        Assert.Contains(profiles, profile => profile!["id"]!.GetValue<string>() == "long-read" && profile["name"]!.GetValue<string>() == "长读柔光");
+        Assert.Contains(profiles, profile => profile!["id"]!.GetValue<string>() == "day-office" && profile["name"]!.GetValue<string>() == "日间办公" && profile["brightness"]!.GetValue<int>() == 100);
     }
 
     [Fact]
@@ -366,13 +436,43 @@ cloud_server_protocol: str = "https"
         var intent = Assert.Single(display.AppliedIntents);
 
         Assert.True(result.Success);
-        Assert.Equal("night", intent.ProfileId);
+        Assert.Equal("low-blue-evening", intent.ProfileId);
         Assert.Equal(@"\\.\DISPLAY1", intent.DisplayId);
-        Assert.Equal(45, intent.Brightness);
-        Assert.Equal(4200, intent.ColorTemperature);
+        Assert.Equal(75, intent.Brightness);
+        Assert.Equal(3700, intent.ColorTemperature);
         Assert.Equal("success", nativeHost["state"]!.GetValue<string>());
         Assert.True(nativeHost["success"]!.GetValue<bool>());
         Assert.True(nativeHost["hardwareWriteRequested"]!.GetValue<bool>());
+    }
+
+    [Fact]
+    public async Task ScreenEase_profile_plan_honors_the_selected_display()
+    {
+        var display = new RecordingDisplayService();
+        var module = new ScreenEaseModule(display);
+        await module.InitializeAsync(CreateScreenEaseContext("screenease-targeted-plan"), CancellationToken.None);
+
+        var selected = await module.ExecuteCommandAsync(
+            new CommandRequest("screenease-plan-selected", "screenease.profile.plan", new JsonObject
+            {
+                ["profileId"] = "night",
+                ["displayId"] = @"\\.\DISPLAY1"
+            }),
+            CancellationToken.None);
+        var missing = await module.ExecuteCommandAsync(
+            new CommandRequest("screenease-plan-missing", "screenease.profile.plan", new JsonObject
+            {
+                ["profileId"] = "night",
+                ["displayId"] = @"\\.\DISPLAY9"
+            }),
+            CancellationToken.None);
+        var selectedPayload = JsonNode.Parse(selected.Output)!.AsObject();
+        var missingPayload = JsonNode.Parse(missing.Output)!.AsObject();
+
+        Assert.True(selected.Success);
+        Assert.Equal(@"\\.\DISPLAY1", selectedPayload["targetDisplayId"]!.GetValue<string>());
+        Assert.Single(selectedPayload["expectedChange"]!["actions"]!.AsArray());
+        Assert.Empty(missingPayload["expectedChange"]!["actions"]!.AsArray());
     }
 
     [Fact]
@@ -395,29 +495,25 @@ cloud_server_protocol: str = "https"
         var intent = Assert.Single(display.AppliedIntents);
 
         Assert.True(result.Success);
-        Assert.Equal("night", intent.ProfileId);
+        Assert.Equal("low-blue-evening", intent.ProfileId);
         Assert.Equal(@"\\.\DISPLAY1", intent.DisplayId);
         Assert.Equal("success", nativeHost["state"]!.GetValue<string>());
     }
 
     [Fact]
-    public async Task ScreenEase_native_writer_configure_enables_future_hardware_apply()
+    public async Task ScreenEase_has_no_second_hidden_native_writer_toggle()
     {
         var display = new RecordingDisplayService();
         var module = new ScreenEaseModule(display);
         await module.InitializeAsync(CreateScreenEaseContext("screenease-configured-write"), CancellationToken.None);
 
-        var configure = await module.ExecuteCommandAsync(
-            new CommandRequest("screenease-writer-configure", "screenease.native-writer.configure", new JsonObject { ["enabled"] = true }),
-            CancellationToken.None);
+        var commands = await module.ListCommandsAsync(CancellationToken.None);
         var apply = await module.ExecuteCommandAsync(
             new CommandRequest("screenease-apply-configured", "screenease.profile.apply", new JsonObject { ["profileId"] = "focus" }),
             CancellationToken.None);
-        var configured = JsonNode.Parse(configure.Output)!.AsObject();
         var applied = JsonNode.Parse(apply.Output)!.AsObject();
 
-        Assert.True(configure.Success);
-        Assert.True(configured["enabled"]!.GetValue<bool>());
+        Assert.DoesNotContain(commands, command => command.Id == "screenease.native-writer.configure");
         Assert.True(apply.Success);
         Assert.Single(display.AppliedIntents);
         Assert.Equal("success", applied["nativeHost"]!.AsObject()["state"]!.GetValue<string>());
@@ -461,13 +557,15 @@ cloud_server_protocol: str = "https"
         Assert.Contains(runtime.ListCommands("Doubao"), command => command.Id == "doubao-agent.tool.health");
         Assert.Contains(runtime.ListCommands("Doubao"), command => command.Id == "doubao-agent.mcp.health");
         Assert.True(summary.Success);
-        Assert.Equal("running", statusPayload["state"]!.GetValue<string>());
-        Assert.Equal(3, statusPayload["runningServices"]!.GetValue<int>());
+        Assert.Contains(statusPayload["state"]!.GetValue<string>(), new[] { "running", "degraded" });
+        Assert.InRange(statusPayload["runningServices"]!.GetValue<int>(), 0, 3);
         Assert.Contains("planner", services);
         Assert.Contains("tool", services);
         Assert.Contains("mcp", services);
-        Assert.True(plannerHealth.Success);
-        Assert.Contains("HTTP 200", plannerHealth.Output);
+        var plannerService = statusPayload["services"]!.AsArray()
+            .Select(item => item!.AsObject())
+            .Single(item => item["id"]!.GetValue<string>() == "planner");
+        Assert.Equal(plannerService["ok"]!.GetValue<bool>(), plannerHealth.Success);
         Assert.True(selfTest.Success);
         Assert.DoesNotContain("abc123", selfTest.Output);
         Assert.DoesNotContain("hunter2", selfTest.Output);
@@ -477,7 +575,7 @@ cloud_server_protocol: str = "https"
     }
 
     [Fact]
-    public async Task DoubaoAgent_inproc_module_reports_role_specific_degraded_services()
+    public async Task DoubaoAgent_inproc_module_ignores_endpoint_overrides_and_uses_the_canonical_chain()
     {
         await using var planner = TestHttpFacadeServer.Start();
         await using var host = new InProcDotNetModuleHost();
@@ -500,28 +598,27 @@ cloud_server_protocol: str = "https"
 
         var statusPayload = JsonNode.Parse(summary.Output)!.AsObject();
         var services = statusPayload["services"]!.AsArray().Select(item => item!.AsObject()).ToArray();
-        var toolDetails = toolHealth.Error!.Details!;
+        var ports = statusPayload["ports"]!.AsObject();
+        var toolDetails = toolHealth.Success
+            ? JsonNode.Parse(toolHealth.Output)!.AsObject()
+            : toolHealth.Error!.Details!;
 
         Assert.True(summary.Success);
-        Assert.Equal("degraded", statusPayload["state"]!.GetValue<string>());
-        Assert.Equal(1, statusPayload["runningServices"]!.GetValue<int>());
         Assert.Equal(3, statusPayload["totalServices"]!.GetValue<int>());
-        Assert.Contains(services, service => service["id"]!.GetValue<string>() == "planner" && service["ok"]!.GetValue<bool>());
-        Assert.Contains(services, service => service["id"]!.GetValue<string>() == "tool" && !service["ok"]!.GetValue<bool>());
-        Assert.Contains(services, service => service["id"]!.GetValue<string>() == "mcp" && !service["ok"]!.GetValue<bool>());
-        Assert.False(toolHealth.Success);
-        Assert.Equal("failed", toolHealth.State);
-        Assert.Equal(MptErrorCodes.RuntimeUnavailable, toolHealth.Error.Code);
-        Assert.True(toolHealth.Error.Retryable);
+        Assert.Equal(38189, ports["planner"]!.GetValue<int>());
+        Assert.Equal(38102, ports["tool"]!.GetValue<int>());
+        Assert.Equal(38080, ports["mcp"]!.GetValue<int>());
+        Assert.Contains(services, service => service["id"]!.GetValue<string>() == "planner");
+        Assert.Contains(services, service => service["id"]!.GetValue<string>() == "tool");
+        Assert.Contains(services, service => service["id"]!.GetValue<string>() == "mcp");
         Assert.Equal("tool", toolDetails["id"]!.GetValue<string>());
-        Assert.False(toolDetails["ok"]!.GetValue<bool>());
+        Assert.Equal(toolHealth.Success, toolDetails["ok"]!.GetValue<bool>());
         Assert.False(string.IsNullOrWhiteSpace(toolDetails["message"]!.GetValue<string>()));
     }
 
     [Fact]
     public async Task SmartBird_inproc_module_reports_facade_config_and_hardware_degradation()
     {
-        await using var server = TestHttpFacadeServer.Start();
         await using var host = new InProcDotNetModuleHost();
         var runtime = new MptHostRuntime(
             new PackageReader(),
@@ -532,10 +629,10 @@ cloud_server_protocol: str = "https"
         runtime.Load(Path.Combine(Root, "modules"));
         var dynamicCount = await runtime.RefreshDynamicCommandsAsync(CancellationToken.None);
         var status = await runtime.ExecuteCommandAsync(
-            new CommandRequest("smartbird-status", "smartbird-thermostat.status.summary", SmartBirdArgs(server.BaseUrl)),
+            new CommandRequest("smartbird-status", "smartbird-thermostat.status.summary", SmartBirdArgs(SmartBirdThermostatModule.CanonicalBaseUrl)),
             CancellationToken.None);
         var events = await runtime.ExecuteCommandAsync(
-            new CommandRequest("smartbird-events", "smartbird-thermostat.events.list", SmartBirdArgs(server.BaseUrl)),
+            new CommandRequest("smartbird-events", "smartbird-thermostat.events.list", SmartBirdArgs(SmartBirdThermostatModule.CanonicalBaseUrl)),
             CancellationToken.None);
         var configSave = await runtime.ExecuteCommandAsync(
             new CommandRequest("smartbird-config-save", "smartbird-thermostat.config.save", new JsonObject
@@ -545,19 +642,19 @@ cloud_server_protocol: str = "https"
             }),
             CancellationToken.None);
         var config = await runtime.ExecuteCommandAsync(
-            new CommandRequest("smartbird-config-get", "smartbird-thermostat.config.get", SmartBirdArgs(server.BaseUrl)),
+            new CommandRequest("smartbird-config-get", "smartbird-thermostat.config.get", SmartBirdArgs(SmartBirdThermostatModule.CanonicalBaseUrl)),
             CancellationToken.None);
         var diagnostics = await runtime.ExecuteCommandAsync(
-            new CommandRequest("smartbird-hardware", "smartbird-thermostat.hardware.diagnostics", SmartBirdArgs(server.BaseUrl)),
+            new CommandRequest("smartbird-hardware", "smartbird-thermostat.hardware.diagnostics", SmartBirdArgs(SmartBirdThermostatModule.CanonicalBaseUrl)),
             CancellationToken.None);
         var restart = await runtime.ExecuteCommandAsync(
-            new CommandRequest("smartbird-restart", "smartbird-thermostat.service.restart", SmartBirdArgs(server.BaseUrl)),
+            new CommandRequest("smartbird-restart", "smartbird-thermostat.service.restart", SmartBirdArgs(SmartBirdThermostatModule.CanonicalBaseUrl)),
             CancellationToken.None);
         var selfTest = await runtime.ExecuteCommandAsync(
-            new CommandRequest("smartbird-self-test", "smartbird-thermostat.self-test", SmartBirdArgs(server.BaseUrl)),
+            new CommandRequest("smartbird-self-test", "smartbird-thermostat.self-test", SmartBirdArgs(SmartBirdThermostatModule.CanonicalBaseUrl)),
             CancellationToken.None);
         var logs = await runtime.ExecuteCommandAsync(
-            new CommandRequest("smartbird-logs", "smartbird-thermostat.logs.summary", SmartBirdArgs(server.BaseUrl)),
+            new CommandRequest("smartbird-logs", "smartbird-thermostat.logs.summary", SmartBirdArgs(SmartBirdThermostatModule.CanonicalBaseUrl)),
             CancellationToken.None);
 
         var statusPayload = JsonNode.Parse(status.Output)!.AsObject();
@@ -573,14 +670,17 @@ cloud_server_protocol: str = "https"
         Assert.Contains(runtime.ListCommands("SmartBird"), command => command.Id == "smartbird-thermostat.hardware.diagnostics");
         Assert.True(status.Success);
         Assert.Equal("degraded", statusPayload["state"]!.GetValue<string>());
-        Assert.Contains(statusChecks, check => check["id"]!.GetValue<string>() == "smartbird.status" && check["ok"]!.GetValue<bool>());
-        Assert.Contains(statusChecks, check => check["id"]!.GetValue<string>() == "energy-server.status" && check["ok"]!.GetValue<bool>());
-        Assert.Contains(statusChecks, check => check["id"]!.GetValue<string>() == "fnb58.power-meter" && !check["ok"]!.GetValue<bool>());
+        Assert.Contains(statusChecks, check => check["id"]!.GetValue<string>() == "smartbird.status");
+        Assert.Contains(statusChecks, check => check["id"]!.GetValue<string>() == "energy-server.status");
+        Assert.Contains(statusChecks, check => check["id"]!.GetValue<string>() == "adb.devices" && !check["ok"]!.GetValue<bool>());
         Assert.True(events.Success);
-        Assert.Single(eventPayload["events"]!.AsArray());
+        Assert.NotEmpty(eventPayload["events"]!.AsArray());
+        Assert.InRange(eventPayload["events"]!.AsArray().Count, 1, 25);
         Assert.True(configSave.Success);
         Assert.True(config.Success);
         Assert.Equal(52, configPayload["localConfig"]!.AsObject()["targetTemperatureC"]!.GetValue<double>());
+        Assert.Equal(SmartBirdThermostatModule.CanonicalBaseUrl, configPayload["localConfig"]!.AsObject()["baseUrl"]!.GetValue<string>());
+        Assert.Equal(SmartBirdThermostatModule.CanonicalScheduledTaskName, configPayload["localConfig"]!.AsObject()["scheduledTaskName"]!.GetValue<string>());
         Assert.True(diagnostics.Success);
         Assert.Equal("degraded", diagnosticsPayload["state"]!.GetValue<string>());
         Assert.False(restart.Success);

@@ -25,7 +25,12 @@ public sealed class SettingsFieldViewModel : ObservableViewModel
         string value,
         bool booleanValue,
         IReadOnlyList<string> options,
-        string selectedOption)
+        string selectedOption,
+        bool isReadOnly = false,
+        bool isRequired = false,
+        double? minimum = null,
+        double? maximum = null,
+        string constantValue = "")
     {
         Key = key;
         Label = label;
@@ -35,6 +40,11 @@ public sealed class SettingsFieldViewModel : ObservableViewModel
         _booleanValue = booleanValue;
         Options = options;
         _selectedOption = selectedOption;
+        IsReadOnly = isReadOnly;
+        IsRequired = isRequired;
+        Minimum = minimum;
+        Maximum = maximum;
+        ConstantValue = constantValue;
         OriginalValue = value;
         OriginalBooleanValue = booleanValue;
         OriginalSelectedOption = selectedOption;
@@ -46,6 +56,37 @@ public sealed class SettingsFieldViewModel : ObservableViewModel
     public string EditorType { get; }
     public string Description { get; }
     public IReadOnlyList<string> Options { get; }
+    public bool IsReadOnly { get; }
+    public bool IsEditable => !IsReadOnly;
+    public bool IsRequired { get; }
+    public double? Minimum { get; }
+    public double? Maximum { get; }
+    public string ConstantValue { get; }
+    public bool HasConstraintSummary => ConstraintSummary.Length > 0;
+    public string ConstraintSummary
+    {
+        get
+        {
+            var constraints = new List<string>();
+            if (IsReadOnly)
+            {
+                constraints.Add("Read only");
+            }
+            if (IsRequired)
+            {
+                constraints.Add("Required");
+            }
+            if (Minimum is not null)
+            {
+                constraints.Add($"Minimum {Minimum.Value.ToString(CultureInfo.InvariantCulture)}");
+            }
+            if (Maximum is not null)
+            {
+                constraints.Add($"Maximum {Maximum.Value.ToString(CultureInfo.InvariantCulture)}");
+            }
+            return string.Join(" · ", constraints);
+        }
+    }
     public string OriginalValue { get; private set; }
     public bool OriginalBooleanValue { get; private set; }
     public string OriginalSelectedOption { get; private set; }
@@ -53,12 +94,12 @@ public sealed class SettingsFieldViewModel : ObservableViewModel
     public bool IsEnumEditor => EditorType == "enum";
     public bool IsMultilineEditor => EditorType is "object" or "array";
     public bool IsSingleLineTextEditor => !IsBooleanEditor && !IsEnumEditor && !IsMultilineEditor;
-    public bool IsDirty => EditorType switch
+    public bool IsDirty => !IsReadOnly && (EditorType switch
     {
         "boolean" => BooleanValue != OriginalBooleanValue,
         "enum" => !string.Equals(SelectedOption, OriginalSelectedOption, StringComparison.Ordinal),
         _ => !string.Equals(Value, OriginalValue, StringComparison.Ordinal)
-    };
+    });
     public string DirtySummary => IsDirty
         ? $"{Key}: {OriginalEditorValue} -> {CurrentEditorValue}"
         : $"{Key}: unchanged";
@@ -129,6 +170,16 @@ public sealed class SettingsFieldViewModel : ObservableViewModel
 
     public string Validate()
     {
+        if (IsReadOnly)
+        {
+            return "";
+        }
+
+        if (IsRequired && EditorType is not "boolean" && string.IsNullOrWhiteSpace(CurrentEditorValue))
+        {
+            return $"{Label} is required.";
+        }
+
         if (EditorType == "integer" && !long.TryParse(Value, NumberStyles.Integer, CultureInfo.InvariantCulture, out _))
         {
             return $"{Label} must be an integer.";
@@ -152,6 +203,25 @@ public sealed class SettingsFieldViewModel : ObservableViewModel
         if (EditorType == "enum" && Options.Count > 0 && !Options.Contains(SelectedOption, StringComparer.Ordinal))
         {
             return $"{Label} must match one of the declared options.";
+        }
+
+        if (EditorType is "integer" or "number" &&
+            double.TryParse(Value, NumberStyles.Float, CultureInfo.InvariantCulture, out var numericValue))
+        {
+            if (Minimum is not null && numericValue < Minimum.Value)
+            {
+                return $"{Label} must be at least {Minimum.Value.ToString(CultureInfo.InvariantCulture)}.";
+            }
+            if (Maximum is not null && numericValue > Maximum.Value)
+            {
+                return $"{Label} must be at most {Maximum.Value.ToString(CultureInfo.InvariantCulture)}.";
+            }
+        }
+
+        if (ConstantValue.Length > 0 &&
+            !string.Equals(CurrentEditorValue, ConstantValue, StringComparison.Ordinal))
+        {
+            return $"{Label} is fixed to {ConstantValue}.";
         }
 
         return "";

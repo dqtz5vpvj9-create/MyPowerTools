@@ -1,5 +1,6 @@
 using Avalonia;
 using MyPowerTools.HostControl;
+using MyPowerTools.Shell.Avalonia.Services;
 
 namespace MyPowerTools.Shell.Avalonia;
 
@@ -8,11 +9,15 @@ internal static class Program
     [STAThread]
     public static int Main(string[] args)
     {
+        var startupOptions = ShellStartupOptions.FromArgs(args);
         if (args.Contains("--smoke", StringComparer.OrdinalIgnoreCase))
         {
-            return RunHostControlSmokeAsync(args).GetAwaiter().GetResult();
+            return RunHostControlSmokeAsync(args, startupOptions).GetAwaiter().GetResult();
         }
 
+        // Remote Notifications is now a Service Unit; the Shell no longer owns single-instance
+        // activation forwarding or toast-activation pipes.
+        ShellRunnerBootstrapper.EnsureStartedAsync(startupOptions).GetAwaiter().GetResult();
         BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
         return 0;
     }
@@ -24,8 +29,13 @@ internal static class Program
             .WithInterFont();
     }
 
-    private static async Task<int> RunHostControlSmokeAsync(string[] args)
+    private static async Task<int> RunHostControlSmokeAsync(string[] args, ShellStartupOptions startupOptions)
     {
+        if (!string.IsNullOrWhiteSpace(startupOptions.DataRoot))
+        {
+            Environment.SetEnvironmentVariable(HostControlAuthTokenStore.DataRootEnvironmentVariable, startupOptions.DataRoot);
+        }
+
         var timeoutMs = GetIntOption(args, "--timeout-ms", 30000);
         var deadline = DateTimeOffset.UtcNow.AddMilliseconds(Math.Max(1000, timeoutMs));
         Exception? lastError = null;

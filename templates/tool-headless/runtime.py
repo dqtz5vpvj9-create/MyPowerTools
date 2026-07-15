@@ -1,0 +1,1 @@
+import json,sys,time\nseq=0\nfor line in sys.stdin:\n request=json.loads(line); seq+=1\n print(json.dumps({'jsonrpc':'2.0','id':request.get('id'),'result':{'state':'ready','eventSeq':seq,'time':time.time()}}),flush=True)\n

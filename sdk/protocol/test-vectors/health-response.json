@@ -1,0 +1,9 @@
+{
+  "protocolVersion": "1.0",
+  "requestId": "vector-health-001",
+  "result": {
+    "state": "ready",
+    "summary": "runtime reachable",
+    "observedAt": "2026-07-13T00:00:00Z"
+  }
+}

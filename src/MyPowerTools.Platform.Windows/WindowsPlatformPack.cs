@@ -101,13 +101,15 @@ public sealed class WindowsServiceManager : IServiceManager
 public sealed class WindowsNetworkBroker : INetworkBroker
 {
     private static readonly Regex RuleRegex = new(@"^\s*(?<listen>\S+)\s+(?<listenPort>\d+)\s+(?<connect>\S+)\s+(?<connectPort>\d+)\s*$", RegexOptions.Compiled);
+    private static readonly string NetshPath = ResolveTrustedSystemExecutable("netsh.exe");
 
     public async Task<IReadOnlyList<PortProxyRule>> ListPortProxyRulesAsync(CancellationToken cancellationToken)
     {
         var result = await RunNetshAsync(["interface", "portproxy", "show", "v4tov4"], cancellationToken);
         if (result.ExitCode != 0)
         {
-            return [];
+            throw new InvalidOperationException(
+                $"netsh portproxy list failed with code {result.ExitCode}: {Trim(result.Error + result.Output)}");
         }
 
         return result.Output.Split(Environment.NewLine)
@@ -235,7 +237,7 @@ public sealed class WindowsNetworkBroker : INetworkBroker
 
         var psi = new ProcessStartInfo
         {
-            FileName = "netsh.exe",
+            FileName = NetshPath,
             UseShellExecute = false,
             RedirectStandardOutput = true,
             RedirectStandardError = true,
@@ -247,11 +249,48 @@ public sealed class WindowsNetworkBroker : INetworkBroker
             psi.ArgumentList.Add(argument);
         }
 
-        using var process = Process.Start(psi) ?? throw new InvalidOperationException("Could not start netsh.exe.");
-        var outputTask = process.StandardOutput.ReadToEndAsync(timeout.Token);
-        var errorTask = process.StandardError.ReadToEndAsync(timeout.Token);
-        await process.WaitForExitAsync(timeout.Token);
+        using var process = Process.Start(psi) ?? throw new InvalidOperationException($"Could not start {NetshPath}.");
+        var outputTask = process.StandardOutput.ReadToEndAsync();
+        var errorTask = process.StandardError.ReadToEndAsync();
+        try
+        {
+            await process.WaitForExitAsync(timeout.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            TryKillProcessTree(process);
+            throw;
+        }
         return (process.ExitCode, await outputTask, await errorTask);
+    }
+
+    private static string ResolveTrustedSystemExecutable(string fileName)
+    {
+        var systemDirectory = Path.GetFullPath(Environment.SystemDirectory);
+        var path = Path.GetFullPath(Path.Combine(systemDirectory, fileName));
+        var expectedPrefix = systemDirectory.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
+        if (!path.StartsWith(expectedPrefix, StringComparison.OrdinalIgnoreCase) ||
+            !File.Exists(path) ||
+            (File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0)
+        {
+            throw new InvalidOperationException($"Trusted Windows executable is unavailable: {path}");
+        }
+        return path;
+    }
+
+    private static void TryKillProcessTree(Process process)
+    {
+        try
+        {
+            if (!process.HasExited)
+            {
+                process.Kill(entireProcessTree: true);
+                process.WaitForExit(3000);
+            }
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or Win32Exception)
+        {
+        }
     }
 
     private static string Scope(PortProxyRule rule)
@@ -525,7 +564,7 @@ public sealed class WindowsAutostartService : IAutostartService
 }
 
 [SupportedOSPlatform("windows")]
-public sealed class WindowsDisplayService : IDisplayService
+public sealed class WindowsDisplayService : INativeDisplayInventoryService
 {
     private const int MonitorinfofPrimary = 0x00000001;
     private const uint McCapsBrightness = 0x00000002;

@@ -34,7 +34,7 @@ public sealed class SettingsCenterViewModel : ShellPageViewModel
         IReadOnlyList<SettingsFieldViewModel> fields,
         IReadOnlyList<HotkeyBindingViewModel>? hotkeys = null,
         Func<SettingsCenterViewModel, Task>? saveSettings = null)
-        : base("Settings", selectedModuleName, selectedModuleId.Length == 0 ? "empty" : "ready")
+        : base("Module settings", selectedModuleName, selectedModuleId.Length == 0 ? "empty" : "ready")
     {
         SelectedModuleId = selectedModuleId;
         Revision = revision;
@@ -68,10 +68,13 @@ public sealed class SettingsCenterViewModel : ShellPageViewModel
             hotkey.PropertyChanged += (_, args) =>
             {
                 if (args.PropertyName is nameof(HotkeyBindingViewModel.Gesture)
+                    or nameof(HotkeyBindingViewModel.Enabled)
                     or nameof(HotkeyBindingViewModel.ResetRequested)
                     or nameof(HotkeyBindingViewModel.IsDirty))
                 {
                     RefreshStagedChanges();
+                    OnPropertyChanged(nameof(HasHotkeyConflicts));
+                    OnPropertyChanged(nameof(HotkeyStatusText));
                 }
             };
         }
@@ -87,10 +90,10 @@ public sealed class SettingsCenterViewModel : ShellPageViewModel
     public bool HasNoModules => Modules.Count == 0;
     public bool HasFields => Fields.Count > 0;
     public bool HasHotkeys => Hotkeys.Count > 0;
-    public bool HasHotkeyConflicts => Hotkeys.Any(hotkey => hotkey.HasConflict);
+    public bool HasHotkeyConflicts => Hotkeys.Any(hotkey => hotkey.Enabled && hotkey.HasConflict);
     public string HotkeyStatusText => HasHotkeyConflicts
         ? "One or more hotkeys conflict with another runtime binding."
-        : "Hotkey bindings use their default gestures.";
+        : $"{Hotkeys.Count(hotkey => hotkey.Enabled)} of {Hotkeys.Count} shortcuts enabled.";
     public bool UsesRawJson => SelectedModuleId.Length > 0 && Fields.Count == 0;
     public ICommand SaveCommand { get; }
     public bool HasChanges => DirtyCount > 0;
@@ -98,6 +101,7 @@ public sealed class SettingsCenterViewModel : ShellPageViewModel
     public bool HasValidationErrors => ValidationMessage.Length > 0;
     public bool HasSaveResult => SaveResultState.Length > 0 || SaveResultMessage.Length > 0;
     public bool HasSaveResultRevision => SaveResultRevision.Length > 0;
+    public bool IsRawJsonDirty => !string.Equals(RawJson.Trim(), _originalRawJson.Trim(), StringComparison.Ordinal);
     public bool CanSave => SelectedModuleId.Length > 0 && HasChanges && !HasValidationErrors;
     public string ChangeSummary => HasChanges ? $"{DirtyCount} staged change(s)" : "No staged changes.";
 
@@ -221,6 +225,10 @@ public sealed class SettingsCenterViewModel : ShellPageViewModel
             {
                 field.AcceptCurrentValue();
             }
+            foreach (var hotkey in Hotkeys)
+            {
+                hotkey.AcceptCurrentValue();
+            }
 
             RefreshStagedChanges();
         }
@@ -230,7 +238,7 @@ public sealed class SettingsCenterViewModel : ShellPageViewModel
     {
         if (UsesRawJson)
         {
-            var changed = !string.Equals(RawJson.Trim(), _originalRawJson.Trim(), StringComparison.Ordinal);
+            var changed = IsRawJsonDirty;
             var rawDirtyHotkeys = HotkeyDirtySummaries();
             DirtyCount = (changed ? 1 : 0) + rawDirtyHotkeys.Length;
             PatchPreview = string.Join(
@@ -262,7 +270,9 @@ public sealed class SettingsCenterViewModel : ShellPageViewModel
             .Where(hotkey => hotkey.IsDirty || hotkey.ResetRequested)
             .Select(hotkey => hotkey.ResetRequested
                 ? $"{hotkey.Id}: reset to {hotkey.DefaultGesture}"
-                : $"{hotkey.Id}: {hotkey.OriginalGesture} -> {hotkey.Gesture}")
+                : hotkey.OriginalEnabled != hotkey.Enabled
+                    ? $"{hotkey.Id}: {(hotkey.Enabled ? "enable" : "disable")} with {hotkey.Gesture}"
+                    : $"{hotkey.Id}: {hotkey.OriginalGesture} -> {hotkey.Gesture}")
             .ToArray();
     }
 

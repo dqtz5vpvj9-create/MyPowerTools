@@ -42,7 +42,12 @@ public static partial class ShellPageViewModelFactory
 
     public static NotificationsViewModel FromNotifications(HostProto.ListNotificationsResponse response)
     {
-        var notifications = response.Notifications.Select(notification => new NotificationItemViewModel(
+        return new NotificationsViewModel(ToNotificationItems(response));
+    }
+
+    public static IReadOnlyList<NotificationItemViewModel> ToNotificationItems(HostProto.ListNotificationsResponse response)
+    {
+        return response.Notifications.Select(notification => new NotificationItemViewModel(
             notification.Id,
             notification.Time.ToDateTimeOffset().ToString("yyyy-MM-dd HH:mm:ss"),
             notification.ModuleId,
@@ -50,8 +55,6 @@ public static partial class ShellPageViewModelFactory
             notification.Title,
             notification.Body,
             notification.IsRead)).ToArray();
-
-        return new NotificationsViewModel(notifications);
     }
 
     public static DiagnosticsViewModel FromDiagnostics(

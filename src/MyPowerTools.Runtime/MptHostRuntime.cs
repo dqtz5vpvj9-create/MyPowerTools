@@ -14,6 +14,7 @@ namespace MyPowerTools.Runtime;
 public sealed class MptHostRuntime : IAsyncDisposable
 {
     private readonly PackageRegistry _packageRegistry;
+    private readonly ToolRegistry _toolRegistry;
     private readonly CommandIndex _commandIndex = new();
     private readonly RuntimePaths _paths;
     private readonly PlatformId _platform;
@@ -33,6 +34,7 @@ public sealed class MptHostRuntime : IAsyncDisposable
     private readonly IReadOnlyDictionary<string, object> _capabilityProviders;
     private readonly DateTimeOffset _startedAt = DateTimeOffset.UtcNow;
     private string _packageRoot = "";
+    private IReadOnlyList<string> _developmentToolRoots = [];
     private IReadOnlyList<Sdk.MptCommandDescriptor> _dynamicCommands = [];
     private readonly InvocationExecutionCache _executions = new();
     private readonly ConcurrentDictionary<string, CancellationTokenSource> _executionCancellations = new(StringComparer.OrdinalIgnoreCase);
@@ -59,6 +61,7 @@ public sealed class MptHostRuntime : IAsyncDisposable
         _paths = paths;
         _platform = platform;
         _packageRegistry = new PackageRegistry(packageReader, platform);
+        _toolRegistry = new ToolRegistry(packageReader);
         _settingsStore = new SettingsStore(paths.Settings);
         _moduleStateStore = new ModuleStateStore(paths.State);
         _hotkeyStore = new HotkeyStore(paths.State);
@@ -96,10 +99,19 @@ public sealed class MptHostRuntime : IAsyncDisposable
         }
     }
 
-    public void Load(string packageRoot)
+    public void Load(string packageRoot, IEnumerable<string>? developmentToolRoots = null)
     {
         _packageRoot = Path.GetFullPath(packageRoot);
-        _packageRegistry.Load(packageRoot);
+        if (developmentToolRoots is not null)
+        {
+            _developmentToolRoots = developmentToolRoots
+                .Where(path => !string.IsNullOrWhiteSpace(path))
+                .Select(Path.GetFullPath)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+        }
+        _packageRegistry.Load(packageRoot, _developmentToolRoots);
+        _toolRegistry.Load(_packageRegistry.Modules);
         ApplyPersistedModuleState();
         ObserveAllModules();
         _dynamicCommands = [];
@@ -111,6 +123,60 @@ public sealed class MptHostRuntime : IAsyncDisposable
             ["enabledModuleCount"] = EnabledModules().Count
         });
         _logRouter.Append("runner", "runner", "info", $"Loaded {_packageRegistry.Modules.Count} modules from {packageRoot}", eventSeq: _eventBus.CurrentSeq);
+    }
+
+    public async Task<IReadOnlyList<RuntimeToolSnapshot>> RefreshToolCatalogAsync(CancellationToken cancellationToken)
+    {
+        await StopModuleEventPumpAsync();
+        cancellationToken.ThrowIfCancellationRequested();
+        Load(_packageRoot, _developmentToolRoots);
+        await RefreshDynamicCommandsAsync(cancellationToken);
+        StartModuleEventPump();
+        return ListTools(includeDisabled: true);
+    }
+
+    public IReadOnlyList<RuntimeToolSnapshot> ListTools(bool includeDisabled = false)
+    {
+        return _toolRegistry.Tools
+            .Select(tool =>
+            {
+                var module = _packageRegistry.FindModule(tool.OwnerModuleId)
+                    ?? throw new InvalidDataException($"Tool '{tool.ToolId}' owner module '{tool.OwnerModuleId}' is not loaded.");
+                var enabled = _moduleStateStore.IsEnabled(module.Module.Manifest.Id);
+                return new RuntimeToolSnapshot(tool, module.Status.State, module.Status.Summary, enabled);
+            })
+            .Where(tool => includeDisabled || tool.Enabled)
+            .ToArray();
+    }
+
+    public Sdk.MptModuleEvent PublishToolEvent(string toolId, string topic, JsonObject payload)
+    {
+        var tool = GetTool(toolId);
+        if (string.IsNullOrWhiteSpace(topic))
+        {
+            throw new InvalidDataException("Tool event topic is required.");
+        }
+        var published = _eventBus.Publish(tool.Descriptor.OwnerModuleId, topic, payload);
+        _logRouter.Append(
+            tool.Descriptor.ToolId,
+            tool.Descriptor.OwnerModuleId,
+            "info",
+            $"Tool event '{topic}' published.",
+            eventSeq: published.Seq);
+        return published;
+    }
+
+    public RuntimeToolSnapshot GetTool(string toolId)
+    {
+        var descriptor = _toolRegistry.Find(toolId)
+            ?? throw new KeyNotFoundException($"Tool '{toolId}' was not found.");
+        var module = _packageRegistry.FindModule(descriptor.OwnerModuleId)
+            ?? throw new InvalidDataException($"Tool '{toolId}' owner module '{descriptor.OwnerModuleId}' is not loaded.");
+        return new RuntimeToolSnapshot(
+            descriptor,
+            module.Status.State,
+            module.Status.Summary,
+            _moduleStateStore.IsEnabled(module.Module.Manifest.Id));
     }
 
     public DashboardSnapshot GetDashboardSnapshot()
@@ -681,7 +747,7 @@ public sealed class MptHostRuntime : IAsyncDisposable
                     binding.Scope,
                     binding.Disabled ? "disabled" : conflict ? "conflict" : "ok",
                     binding.Disabled
-                        ? "Hotkey override is disabled and will not be registered."
+                        ? "Hotkey is disabled and will not be registered."
                         : conflict
                         ? $"Gesture {binding.Gesture} also maps to {peers}."
                         : "Gesture is available in the runtime binding table.",
@@ -706,7 +772,8 @@ public sealed class MptHostRuntime : IAsyncDisposable
                 }
 
                 var stored = _hotkeyStore.Get(moduleId, hotkey.Id);
-                if (stored?.Disabled == true && !includeDisabledOverrides)
+                var disabled = stored?.Disabled ?? !hotkey.EnabledByDefault;
+                if (disabled && !includeDisabledOverrides)
                 {
                     continue;
                 }
@@ -723,7 +790,7 @@ public sealed class MptHostRuntime : IAsyncDisposable
                     string.IsNullOrWhiteSpace(hotkey.Reason) ? $"Invoke {hotkey.CommandId}." : hotkey.Reason,
                     hotkey.Default,
                     stored is null,
-                    stored?.Disabled == true,
+                    disabled,
                     stored?.CommandArgsJson ?? "{}");
             }
         }
@@ -973,7 +1040,11 @@ public sealed class MptHostRuntime : IAsyncDisposable
         var executionType = command.Execution?["type"]?.GetValue<string>() ?? command.Kind;
         return executionType switch
         {
-            "open" => Succeeded(request, $"Open request recorded for {command.ModuleId}."),
+            "open" => Failed(
+                request,
+                MptErrorCodes.UnsupportedTransport,
+                $"Command {request.CommandId} is a Shell navigation action and must be handled by MyPowerTools Shell.",
+                retryable: false),
             "host.status.refresh" => await RefreshCommandAsync(command, request, timeout.Token),
             "host.logs.tail" => TailLogsCommand(command, request),
             "host.settings.read" => SettingsReadCommand(command, request),
@@ -1495,6 +1566,10 @@ public sealed class MptHostRuntime : IAsyncDisposable
         Directory.CreateDirectory(cacheDir);
         Directory.CreateDirectory(logDir);
 
+        var providers = new Dictionary<string, object>(_capabilityProviders, StringComparer.OrdinalIgnoreCase)
+        {
+            ["runtime.hotkeys"] = new ModuleHotkeyConfigurationService(this, module)
+        };
         return new Sdk.ModuleContext(
             ProtocolConstants.HostVersion,
             ProtocolConstants.ModuleProtocolVersion,
@@ -1505,23 +1580,100 @@ public sealed class MptHostRuntime : IAsyncDisposable
             logDir,
             PlatformId.Current().Rid,
             module.Module.Manifest.Capabilities,
-            _capabilityProviders);
+            providers);
+    }
+
+    private void ApplyModuleHotkeyConfiguration(
+        RuntimeModuleRecord module,
+        IReadOnlyList<ModuleHotkeyConfiguration> hotkeys)
+    {
+        var manifests = module.Module.Manifest.Hotkeys.ToDictionary(item => item.Id, StringComparer.OrdinalIgnoreCase);
+        foreach (var hotkey in hotkeys)
+        {
+            if (!manifests.TryGetValue(hotkey.Id, out var manifest))
+            {
+                throw new InvalidOperationException($"Module '{module.Module.Manifest.Id}' attempted to configure undeclared hotkey '{hotkey.Id}'.");
+            }
+
+            var gesture = string.IsNullOrWhiteSpace(hotkey.Gesture) ? manifest.Default : hotkey.Gesture;
+            _hotkeyStore.Set(
+                module.Module.Manifest.Id,
+                hotkey.Id,
+                gesture,
+                disabled: !hotkey.Enabled,
+                commandArgsJson: hotkey.CommandArgsJson);
+        }
+
+        _eventBus.Publish(module.Module.Manifest.Id, "hotkeys.updated", new JsonObject
+        {
+            ["hotkeyEditCount"] = hotkeys.Count,
+            ["source"] = "module-settings-import"
+        });
+    }
+
+    private sealed class ModuleHotkeyConfigurationService(
+        MptHostRuntime runtime,
+        RuntimeModuleRecord module) : IModuleHotkeyConfigurationService
+    {
+        public Task ApplyAsync(IReadOnlyList<ModuleHotkeyConfiguration> hotkeys, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            runtime.ApplyModuleHotkeyConfiguration(module, hotkeys);
+            return Task.CompletedTask;
+        }
     }
 
     private static Sdk.MptCommandDescriptor NormalizeDynamicCommand(RuntimeModuleRecord module, Sdk.MptCommandDescriptor command)
     {
-        var execution = command.Execution;
-        if (execution is null)
-        {
-            execution = new JsonObject { ["type"] = "module.execute" };
-        }
+        var execution = command.Execution?.DeepClone() as JsonObject
+            ?? new JsonObject { ["type"] = "module.execute" };
+        var parameters = command.Parameters?
+            .Select(parameter => new Sdk.CommandParameterDescriptor(
+                parameter.Id,
+                parameter.Label,
+                parameter.Type,
+                parameter.Required,
+                parameter.DefaultValue))
+            .ToArray();
+        var constraints = command.Constraints?.Select(value => string.Concat(value)).ToArray();
 
-        return command with
-        {
-            ModuleId = string.IsNullOrWhiteSpace(command.ModuleId) ? module.Module.Manifest.Id : command.ModuleId,
-            TimeoutMs = command.TimeoutMs <= 0 ? 30000 : command.TimeoutMs,
-            Execution = execution
-        };
+        // Module records are extensible and their collection-expression backing
+        // types may live in the collectible plugin ALC. Persist only host-owned
+        // DTOs so command indexing cannot pin an unloaded module assembly.
+        return new Sdk.MptCommandDescriptor(
+            command.Id,
+            string.IsNullOrWhiteSpace(command.ModuleId) ? module.Module.Manifest.Id : command.ModuleId,
+            command.Title,
+            command.Subtitle,
+            command.Kind,
+            command.RequiresElevation,
+            command.Icon,
+            command.DangerLevel,
+            command.Category,
+            command.TimeoutMs <= 0 ? 30000 : command.TimeoutMs,
+            execution,
+            parameters,
+            constraints,
+            command.SupportsProgress,
+            command.SupportsCancellation);
+    }
+
+    private static Sdk.ModuleStatusSnapshot DetachModuleStatus(Sdk.ModuleStatusSnapshot status)
+    {
+        var checks = status.Checks
+            .Select(check => new Sdk.HealthCheckSnapshot(
+                check.Id,
+                check.Label,
+                check.Ok,
+                check.Message))
+            .ToArray();
+        return new Sdk.ModuleStatusSnapshot(
+            status.ModuleId,
+            status.State,
+            status.Summary,
+            status.UpdatedAt,
+            checks,
+            status.EventSeq);
     }
 
     private static Sdk.ModuleStatusSnapshot Degraded(RuntimeModuleRecord module, string message)
@@ -1560,6 +1712,7 @@ public sealed class MptHostRuntime : IAsyncDisposable
 
     private void RecordModuleStatus(RuntimeModuleRecord module, MyPowerTools.Abstractions.ModuleStatusSnapshot status)
     {
+        status = DetachModuleStatus(status);
         var previousState = module.Status.State;
         _packageRegistry.UpdateStatus(module.Module.Manifest.Id, status);
         var updated = _packageRegistry.FindModule(module.Module.Manifest.Id) ?? module with { Status = status };
@@ -1677,12 +1830,16 @@ public sealed class MptHostRuntime : IAsyncDisposable
 
     private static Sdk.ModuleStatusSnapshot InitialStatus(RuntimeModuleRecord module)
     {
-        var state = module.Entrypoint is null
+        var state = module.Package.IsDevelopmentTool
+            ? "ready"
+            : module.Entrypoint is null
             ? "unsupported"
             : module.Entrypoint.Kind == "inproc-dotnet"
                 ? "indexed"
                 : "stopped";
-        var summary = module.Entrypoint is null
+        var summary = module.Package.IsDevelopmentTool
+            ? $"Development tool discovered from {module.Package.Directory}."
+            : module.Entrypoint is null
             ? "No compatible runnable entrypoint for this platform."
             : $"Indexed via {module.Entrypoint.Kind}. {module.Entrypoint.SelectionReason}";
 
@@ -1693,7 +1850,11 @@ public sealed class MptHostRuntime : IAsyncDisposable
             DateTimeOffset.UtcNow,
             [
                 new Sdk.HealthCheckSnapshot("manifest", "Manifest", true, "Loaded"),
-                new Sdk.HealthCheckSnapshot("transport", "Transport", module.Entrypoint is not null, module.Entrypoint?.SelectionReason ?? "No compatible entrypoint")
+                new Sdk.HealthCheckSnapshot(
+                    "transport",
+                    "Transport",
+                    module.Package.IsDevelopmentTool || module.Entrypoint is not null,
+                    module.Package.IsDevelopmentTool ? "Loose development tool" : module.Entrypoint?.SelectionReason ?? "No compatible entrypoint")
             ],
             module.Status.EventSeq);
     }
@@ -1910,6 +2071,36 @@ public sealed class MptHostRuntime : IAsyncDisposable
     }
 
     public IReadOnlyList<NotificationRecord> ListNotifications() => _notificationCenter.List();
+
+    public NotificationReadStateUpdate? SetNotificationReadState(string notificationId, bool isRead)
+    {
+        var result = _notificationCenter.SetReadState(notificationId, isRead);
+        if (result is null || !result.Changed)
+        {
+            return result;
+        }
+
+        var notification = result.Notification;
+        var evt = _eventBus.Publish(notification.ModuleId, "notification.read-state-changed", new JsonObject
+        {
+            ["notificationId"] = notification.Id,
+            ["isRead"] = notification.IsRead
+        });
+        var module = _packageRegistry.FindModule(notification.ModuleId);
+        var state = notification.IsRead ? "read" : "unread";
+        _logRouter.Append(
+            module?.Module.Manifest.PackageId ?? notification.ModuleId,
+            notification.ModuleId,
+            "info",
+            $"Notification '{notification.Id}' marked {state}.",
+            eventSeq: evt.Seq);
+        return result;
+    }
+
+    public NotificationReadStateUpdate? MarkNotificationRead(string notificationId)
+    {
+        return SetNotificationReadState(notificationId, true);
+    }
 
     public IReadOnlyList<CommandHistoryRecord> ListCommandHistory(string? moduleId = null) => _commandHistory.List(moduleId);
 

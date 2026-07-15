@@ -96,8 +96,15 @@ public sealed partial class RuntimeAcceptanceTests
             []);
 
         runtime.Load(Path.Combine(Root, "modules"));
-        var original = Assert.Single(runtime.ListHotkeyBindings().Where(binding => binding.ModuleId == "screenease"));
-        var overrideGesture = original.Gesture.Equals("Ctrl+Alt+F12", StringComparison.OrdinalIgnoreCase)
+        var defaults = runtime.ListHotkeyDiagnostics()
+            .Where(binding => binding.ModuleId == "screenease")
+            .ToArray();
+        var target = Assert.Single(defaults.Where(binding => binding.Id == "screenease.toggle-enabled"));
+        Assert.Equal(8, defaults.Length);
+        Assert.All(defaults, binding => Assert.Equal("disabled", binding.State));
+        Assert.Empty(runtime.ListHotkeyBindings().Where(binding => binding.ModuleId == "screenease"));
+
+        var overrideGesture = target.Gesture.Equals("Ctrl+Alt+F12", StringComparison.OrdinalIgnoreCase)
             ? "Ctrl+Alt+F11"
             : "Ctrl+Alt+F12";
         await runtime.UpdateSettingsWithApplyAsync(
@@ -108,7 +115,7 @@ public sealed partial class RuntimeAcceptanceTests
                 {
                     ["$hotkeys"] = new JsonArray(new JsonObject
                     {
-                        ["id"] = original.Id,
+                        ["id"] = target.Id,
                         ["gesture"] = "Ctrl+Alt+Space",
                         ["reset"] = false,
                         ["disabled"] = false
@@ -116,7 +123,7 @@ public sealed partial class RuntimeAcceptanceTests
                 }),
             CancellationToken.None);
 
-        Assert.Equal("conflict", runtime.ListHotkeyDiagnostics().Single(binding => binding.Id == original.Id).State);
+        Assert.Equal("conflict", runtime.ListHotkeyDiagnostics().Single(binding => binding.Id == target.Id).State);
 
         await runtime.UpdateSettingsWithApplyAsync(
             new SettingsPatch(
@@ -126,7 +133,7 @@ public sealed partial class RuntimeAcceptanceTests
                 {
                     ["$hotkeys"] = new JsonArray(new JsonObject
                     {
-                        ["id"] = original.Id,
+                        ["id"] = target.Id,
                         ["gesture"] = overrideGesture,
                         ["reset"] = false,
                         ["disabled"] = false,
@@ -137,7 +144,7 @@ public sealed partial class RuntimeAcceptanceTests
 
         var overridden = Assert.Single(runtime.ListHotkeyBindings().Where(binding => binding.ModuleId == "screenease"));
         Assert.Equal(overrideGesture, overridden.Gesture);
-        Assert.False(runtime.ListHotkeyDiagnostics().Single(binding => binding.Id == original.Id).IsDefault);
+        Assert.False(runtime.ListHotkeyDiagnostics().Single(binding => binding.Id == target.Id).IsDefault);
 
         await using (var reloaded = new MptHostRuntime(
             new PackageReader(),
@@ -163,17 +170,19 @@ public sealed partial class RuntimeAcceptanceTests
                 {
                     ["$hotkeys"] = new JsonArray(new JsonObject
                     {
-                        ["id"] = original.Id,
-                        ["gesture"] = original.DefaultGesture,
+                        ["id"] = target.Id,
+                        ["gesture"] = target.DefaultGesture,
                         ["reset"] = true,
                         ["disabled"] = false
                     })
                 }),
             CancellationToken.None);
 
-        var reset = Assert.Single(runtime.ListHotkeyBindings().Where(binding => binding.ModuleId == "screenease"));
-        Assert.Equal(original.DefaultGesture, reset.Gesture);
-        Assert.True(runtime.ListHotkeyDiagnostics().Single(binding => binding.Id == original.Id).IsDefault);
+        Assert.Empty(runtime.ListHotkeyBindings().Where(binding => binding.ModuleId == "screenease"));
+        var reset = runtime.ListHotkeyDiagnostics().Single(binding => binding.Id == target.Id);
+        Assert.Equal(target.DefaultGesture, reset.Gesture);
+        Assert.Equal("disabled", reset.State);
+        Assert.True(reset.IsDefault);
     }
 
     [Fact]
@@ -297,9 +306,9 @@ public sealed partial class RuntimeAcceptanceTests
         {
             new HostProto.RuntimeHotkeyDiagnostics
             {
-                Id = "screenease.profile.quick-apply",
+                Id = "screenease.toggle-enabled",
                 ModuleId = "screenease",
-                CommandId = "screenease.profile.apply",
+                CommandId = "screenease.effect.toggle",
                 Gesture = "Ctrl+Alt+F9",
                 State = "registered",
                 Message = "Registered.",
@@ -322,6 +331,7 @@ public sealed partial class RuntimeAcceptanceTests
         var editPatch = ShellPageViewModelFactory.BuildSettingsPatch(viewModel);
         var edit = Assert.IsType<JsonObject>(Assert.Single(Assert.IsType<JsonArray>(editPatch["$hotkeys"])));
 
+        Assert.Single(editPatch);
         Assert.True(viewModel.CanSave);
         Assert.Equal("Ctrl+Alt+F12", edit["gesture"]!.GetValue<string>());
         Assert.False(edit["reset"]!.GetValue<bool>());
@@ -331,6 +341,7 @@ public sealed partial class RuntimeAcceptanceTests
         var resetPatch = ShellPageViewModelFactory.BuildSettingsPatch(viewModel);
         var reset = Assert.IsType<JsonObject>(Assert.Single(Assert.IsType<JsonArray>(resetPatch["$hotkeys"])));
 
+        Assert.Single(resetPatch);
         Assert.Equal("Ctrl+Alt+F9", hotkey.Gesture);
         Assert.True(reset["reset"]!.GetValue<bool>());
         Assert.Equal("Ctrl+Alt+F9", reset["gesture"]!.GetValue<string>());

@@ -51,6 +51,8 @@ $metadata = [ordered]@{
             url = $artifactUrl
             sha256 = $zipHash
             size = $zipItem.Length
+            startHere = 'START_HERE.md'
+            portableStart = 'Start-MyPowerTools.cmd'
             installScript = 'install-windows.ps1'
             uninstallScript = 'uninstall-windows.ps1'
         }
@@ -82,9 +84,9 @@ $scoop = [ordered]@{
         ,@('Cli/MyPowerTools.Cli.exe', 'mpt')
     )
     shortcuts = @(
-        ,@('Shell/MyPowerTools.Shell.Avalonia.exe', 'MyPowerTools')
+        ,@('MyPowerTools.exe', 'MyPowerTools')
     )
-    notes = 'Run install-windows.ps1 from the extracted package for shortcuts, autostart, and Runner launch options.'
+    notes = 'Open START_HERE.md after extraction. The installer creates one Start menu shortcut named MyPowerTools; CLI and Runner stay advanced package tools.'
 }
 
 $jsonOptions = @{ Depth = 8 }

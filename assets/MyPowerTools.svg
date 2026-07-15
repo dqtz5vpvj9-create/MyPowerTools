@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" role="img" aria-label="MyPowerTools">
+  <rect x="24" y="24" width="464" height="464" rx="116" fill="#0F6CBD" />
+  <rect x="122" y="122" width="108" height="108" rx="25" fill="#FFFFFF" />
+  <rect x="282" y="122" width="108" height="108" rx="25" fill="#FFFFFF" />
+  <rect x="122" y="282" width="108" height="108" rx="25" fill="#FFFFFF" />
+  <rect x="282" y="282" width="108" height="108" rx="25" fill="#FFFFFF" />
+</svg>

@@ -1,0 +1,42 @@
+<Styles xmlns="https://github.com/avaloniaui">
+  <Style Selector="Border.MptToolCard">
+    <Setter Property="MinWidth" Value="320" />
+    <Setter Property="MinHeight" Value="220" />
+    <Setter Property="Padding" Value="20" />
+    <Setter Property="CornerRadius" Value="{DynamicResource MptRadiusPanel}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MptBrushBorder}" />
+    <Setter Property="BorderThickness" Value="{DynamicResource MptBorderThickness}" />
+    <Setter Property="Background" Value="{DynamicResource MptBrushCardBackground}" />
+    <Setter Property="BoxShadow" Value="{DynamicResource MptShadowNone}" />
+  </Style>
+
+  <Style Selector="Border.MptToolCard:pointerover">
+    <Setter Property="BorderBrush" Value="{DynamicResource MptBrushAccent}" />
+    <Setter Property="BoxShadow" Value="{DynamicResource MptShadowRaised}" />
+  </Style>
+
+  <Style Selector="Border.MptToolIcon">
+    <Setter Property="Width" Value="44" />
+    <Setter Property="Height" Value="44" />
+    <Setter Property="CornerRadius" Value="{DynamicResource MptRadiusControl}" />
+    <Setter Property="Background" Value="{DynamicResource MptBrushSurfaceMuted}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MptBrushBorder}" />
+    <Setter Property="BorderThickness" Value="{DynamicResource MptBorderThickness}" />
+  </Style>
+
+  <Style Selector="TextBlock.MptToolIconGlyph">
+    <Setter Property="FontSize" Value="18" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Foreground" Value="{DynamicResource MptBrushAccent}" />
+    <Setter Property="HorizontalAlignment" Value="Center" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+
+  <Style Selector="Border.MptProductHero">
+    <Setter Property="Padding" Value="24" />
+    <Setter Property="CornerRadius" Value="{DynamicResource MptRadiusPanel}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MptBrushBorderStrong}" />
+    <Setter Property="BorderThickness" Value="{DynamicResource MptBorderThickness}" />
+    <Setter Property="Background" Value="{DynamicResource MptBrushSurfaceMuted}" />
+  </Style>
+</Styles>

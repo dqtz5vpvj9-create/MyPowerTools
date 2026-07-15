@@ -47,6 +47,587 @@ namespace MyPowerTools.Tests;
 public sealed partial class RuntimeAcceptanceTests
 {
     [Fact]
+    public async Task Inproc_direct_host_fault_restart_reclaims_context()
+    {
+        var packageRoot = Path.Combine(Path.GetTempPath(), "mpt-inproc-direct-fault", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(packageRoot);
+        WriteInProcDotNetModulePackage(
+            packageRoot,
+            "sample.dotnet.fault-injection",
+            "sample-dotnet-fault-injection",
+            "Direct fault fixture",
+            typeof(FaultInjectionDotNetModule).FullName!);
+        await SetInProcMaxCallAsync(packageRoot, 1000);
+        await using var host = new InProcDotNetModuleHost();
+        await using var runtime = CreateInProcFixtureRuntime(host, "direct-fault-runtime");
+        runtime.Load(packageRoot);
+        var module = Assert.Single(runtime.Modules);
+        var context = CreateModuleContext(
+            "sample-dotnet-fault-injection",
+            "sample.dotnet.fault-injection",
+            "direct-fault-context",
+            ["status", "commands"]);
+        await host.ListCommandsAsync(module, context, CancellationToken.None);
+        var commands = new[]
+        {
+            "sample.dotnet.fault.throw",
+            "sample.dotnet.fault.timeout",
+            "sample.dotnet.fault.throw"
+        };
+        for (var attempt = 0; attempt < commands.Length; attempt++)
+        {
+            await Assert.ThrowsAnyAsync<Exception>(async () =>
+                await host.ExecuteCommandAsync(
+                    module,
+                    context,
+                    new CommandRequest($"direct-fault-{attempt}", commands[attempt], new JsonObject()),
+                    CancellationToken.None));
+        }
+
+        var restartStopwatch = Stopwatch.StartNew();
+        var restart = await host.RestartProcessAsync("module:sample.dotnet.fault-injection", CancellationToken.None);
+        restartStopwatch.Stop();
+        Assert.True(
+            restart.Success,
+            $"Success={restart.Success}; State={restart.State}; Elapsed={restartStopwatch.Elapsed}; Message={restart.Message}");
+    }
+
+    [Fact]
+    public async Task Inproc_soft_isolation_quarantines_repeated_faults_without_stopping_other_modules()
+    {
+        var packageRoot = Path.Combine(Path.GetTempPath(), "mpt-inproc-soft-isolation", Guid.NewGuid().ToString("N"));
+        var faultRoot = Path.Combine(packageRoot, "fault");
+        var healthyRoot = Path.Combine(packageRoot, "healthy");
+        Directory.CreateDirectory(faultRoot);
+        Directory.CreateDirectory(healthyRoot);
+        WriteInProcDotNetModulePackage(
+            faultRoot,
+            "sample.dotnet.fault-injection",
+            "sample-dotnet-fault-injection",
+            "Fault injection module",
+            typeof(FaultInjectionDotNetModule).FullName!);
+        WriteInProcDotNetModulePackage(
+            healthyRoot,
+            "sample.dotnet",
+            "sample-dotnet",
+            "Healthy sample module",
+            typeof(SampleDotNetModule).FullName!);
+
+        var faultManifestPath = Path.Combine(faultRoot, "module.json");
+        var faultManifest = JsonNode.Parse(await File.ReadAllTextAsync(faultManifestPath))!.AsObject();
+        faultManifest["runtimePolicy"] = new JsonObject
+        {
+            ["preferred"] = "inproc",
+            ["allowInProc"] = true,
+            ["inProcRules"] = new JsonObject
+            {
+                ["maxCallMs"] = 1000,
+                ["allowNativeDll"] = false,
+                ["allowWindow"] = false,
+                ["allowBackgroundThreads"] = false,
+                ["loadContext"] = "collectible",
+                ["shadowCopy"] = true,
+            }
+        };
+        await File.WriteAllTextAsync(
+            faultManifestPath,
+            faultManifest.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+
+        await using var host = new InProcDotNetModuleHost();
+        await using var runtime = new MptHostRuntime(
+            new PackageReader(),
+            PlatformId.Current(),
+            RuntimePaths.Create(Path.Combine(Path.GetTempPath(), "mpt-runtime-soft-isolation", Guid.NewGuid().ToString("N"))),
+            [host]);
+        runtime.Load(packageRoot);
+        await runtime.RefreshDynamicCommandsAsync(CancellationToken.None);
+        var registeredCommands = runtime.ListCommands(null);
+        Assert.Contains(registeredCommands, command => command.Id == "sample.dotnet.fault.throw");
+        Assert.Contains(registeredCommands, command => command.Id == "sample.dotnet.fault.timeout");
+        Assert.Contains(registeredCommands, command => command.Id == "sample.dotnet.fault.ok");
+
+        var firstFault = await runtime.ExecuteCommandAsync(
+            new CommandRequest("fault-1", "sample.dotnet.fault.throw", new JsonObject()),
+            CancellationToken.None);
+        var timeoutFault = await runtime.ExecuteCommandAsync(
+            new CommandRequest("fault-2", "sample.dotnet.fault.timeout", new JsonObject()),
+            CancellationToken.None);
+        var thirdFault = await runtime.ExecuteCommandAsync(
+            new CommandRequest("fault-3", "sample.dotnet.fault.throw", new JsonObject()),
+            CancellationToken.None);
+        var blocked = await runtime.ExecuteCommandAsync(
+            new CommandRequest("fault-blocked", "sample.dotnet.fault.ok", new JsonObject()),
+            CancellationToken.None);
+        var healthy = await runtime.ExecuteCommandAsync(
+            new CommandRequest("healthy", "sample.dotnet.ping", new JsonObject()),
+            CancellationToken.None);
+        var diagnostics = runtime.GetRuntimeDiagnostics();
+
+        Assert.False(firstFault.Success);
+        Assert.False(timeoutFault.Success);
+        Assert.Contains("maxCallMs=1000", timeoutFault.Error?.Message ?? "");
+        Assert.False(thirdFault.Success);
+        Assert.False(blocked.Success);
+        Assert.Contains("quarantined", blocked.Error?.Message ?? "", StringComparison.OrdinalIgnoreCase);
+        Assert.True(healthy.Success, healthy.Error?.Message);
+        Assert.Contains("pong", healthy.Output);
+        Assert.Contains(diagnostics.Processes, process =>
+            process.TransportKind == "inproc-dotnet" &&
+            process.PoolKey == "module:sample.dotnet.fault-injection" &&
+            process.State == "circuit-open" &&
+            process.PolicyReason.Contains("Soft isolation", StringComparison.OrdinalIgnoreCase));
+        Assert.Contains(diagnostics.Processes, process =>
+            process.TransportKind == "inproc-dotnet" &&
+            process.PoolKey == "module:sample.dotnet" &&
+            process.State == "loaded");
+
+        var reset = await runtime.RestartRuntimeProcessAsync(
+            "inproc-dotnet",
+            "module:sample.dotnet.fault-injection",
+            CancellationToken.None);
+        Assert.True(reset.Success, reset.Message);
+        await runtime.RefreshDynamicCommandsAsync(CancellationToken.None);
+        var recovered = await runtime.ExecuteCommandAsync(
+            new CommandRequest("fault-recovered", "sample.dotnet.fault.ok", new JsonObject()),
+            CancellationToken.None);
+
+        Assert.True(recovered.Success, recovered.Error?.Message);
+        Assert.Contains("recovered", recovered.Output);
+    }
+
+    [Fact]
+    public async Task Inproc_timeout_that_ignores_cancellation_opens_circuit_immediately_without_disposing_live_code()
+    {
+        var packageRoot = Path.Combine(Path.GetTempPath(), "mpt-inproc-orphan-isolation", Guid.NewGuid().ToString("N"));
+        var faultRoot = Path.Combine(packageRoot, "fault");
+        var healthyRoot = Path.Combine(packageRoot, "healthy");
+        Directory.CreateDirectory(faultRoot);
+        Directory.CreateDirectory(healthyRoot);
+        WriteInProcDotNetModulePackage(
+            faultRoot,
+            "sample.dotnet.fault-injection",
+            "sample-dotnet-fault-injection",
+            "Fault injection module",
+            typeof(FaultInjectionDotNetModule).FullName!);
+        WriteInProcDotNetModulePackage(
+            healthyRoot,
+            "sample.dotnet",
+            "sample-dotnet",
+            "Healthy sample module",
+            typeof(SampleDotNetModule).FullName!);
+
+        var manifestPath = Path.Combine(faultRoot, "module.json");
+        var manifest = JsonNode.Parse(await File.ReadAllTextAsync(manifestPath))!.AsObject();
+        manifest["runtimePolicy"] = new JsonObject
+        {
+            ["preferred"] = "inproc",
+            ["allowInProc"] = true,
+            ["inProcRules"] = new JsonObject
+            {
+                ["maxCallMs"] = 1000,
+                ["allowNativeDll"] = false,
+                ["allowWindow"] = false,
+                ["allowBackgroundThreads"] = false,
+                ["loadContext"] = "collectible",
+                ["shadowCopy"] = true
+            }
+        };
+        await File.WriteAllTextAsync(
+            manifestPath,
+            manifest.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+
+        await using var host = new InProcDotNetModuleHost();
+        await using var runtime = new MptHostRuntime(
+            new PackageReader(),
+            PlatformId.Current(),
+            RuntimePaths.Create(Path.Combine(Path.GetTempPath(), "mpt-runtime-orphan-isolation", Guid.NewGuid().ToString("N"))),
+            [host]);
+        runtime.Load(packageRoot);
+        await runtime.RefreshDynamicCommandsAsync(CancellationToken.None);
+
+        var timedOut = await runtime.ExecuteCommandAsync(
+            new CommandRequest("orphan-timeout", "sample.dotnet.fault.ignore-timeout", new JsonObject()),
+            CancellationToken.None);
+        var blocked = await runtime.ExecuteCommandAsync(
+            new CommandRequest("orphan-blocked", "sample.dotnet.fault.ok", new JsonObject()),
+            CancellationToken.None);
+        var healthy = await runtime.ExecuteCommandAsync(
+            new CommandRequest("orphan-healthy", "sample.dotnet.ping", new JsonObject()),
+            CancellationToken.None);
+        var faultProcess = Assert.Single(
+            runtime.GetRuntimeDiagnostics().Processes,
+            process => process.PoolKey == "module:sample.dotnet.fault-injection");
+        var restart = await runtime.RestartRuntimeProcessAsync(
+            "inproc-dotnet",
+            "module:sample.dotnet.fault-injection",
+            CancellationToken.None);
+
+        Assert.False(timedOut.Success);
+        Assert.Contains("maxCallMs=1000", timedOut.Error?.Message ?? "");
+        Assert.False(blocked.Success);
+        Assert.True(healthy.Success, healthy.Error?.Message);
+        Assert.Equal("runner-restart-required", faultProcess.State);
+        Assert.Contains("still running", faultProcess.PolicyReason, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("manual-runner-restart", faultProcess.RestartPolicy);
+        Assert.Contains("Restart Runner", faultProcess.PolicyReason, StringComparison.OrdinalIgnoreCase);
+        Assert.False(restart.Success);
+        Assert.Equal("runner-restart-required", restart.State);
+    }
+
+    [Fact]
+    public async Task Inproc_initialization_faults_dispose_every_provisional_instance_before_circuit_reset()
+    {
+        var packageRoot = Path.Combine(Path.GetTempPath(), "mpt-inproc-init-failure", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(packageRoot);
+        WriteInProcDotNetModulePackage(
+            packageRoot,
+            "sample.dotnet.initialize-failure",
+            "sample-dotnet-initialize-failure",
+            "Initialization failure fixture",
+            typeof(InitializeFailureDotNetModule).FullName!);
+        await SetInProcMaxCallAsync(packageRoot, 5000);
+
+        await using var host = new InProcDotNetModuleHost();
+        await using var runtime = CreateInProcFixtureRuntime(host, "init-failure-runtime");
+        runtime.Load(packageRoot);
+        var module = Assert.Single(runtime.Modules);
+        var context = CreateModuleContext(
+            "sample-dotnet-initialize-failure",
+            "sample.dotnet.initialize-failure",
+            "init-failure-context",
+            ["status", "commands"]);
+
+        for (var attempt = 0; attempt < 3; attempt++)
+        {
+            await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+                await host.ListCommandsAsync(module, context, CancellationToken.None));
+        }
+
+        await WaitForFixtureCounterAsync(context.DataDirectory, "disposed-instances.txt", 3, TimeSpan.FromSeconds(3));
+        await WaitForFixtureCounterAsync(context.DataDirectory, "contexts-unloading.txt", 3, TimeSpan.FromSeconds(3));
+        await WaitForFixtureCounterAsync(context.DataDirectory, "finalized-instances.txt", 3, TimeSpan.FromSeconds(3));
+        Assert.Equal(3, ReadFixtureCounter(context.DataDirectory, "initialize-attempts.txt"));
+        Assert.Equal(3, ReadFixtureCounter(context.DataDirectory, "disposed-instances.txt"));
+        Assert.Equal(3, ReadFixtureCounter(context.DataDirectory, "contexts-unloading.txt"));
+        Assert.Equal(3, ReadFixtureCounter(context.DataDirectory, "finalized-instances.txt"));
+        var circuit = Assert.Single(host.GetProcessDiagnostics());
+        Assert.Equal("circuit-open", circuit.State);
+
+        var restart = await host.RestartProcessAsync("module:sample.dotnet.initialize-failure", CancellationToken.None);
+
+        Assert.True(restart.Success, restart.Message);
+        Assert.Equal("circuit-reset", restart.State);
+        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await host.ListCommandsAsync(module, context, CancellationToken.None));
+        await WaitForFixtureCounterAsync(context.DataDirectory, "disposed-instances.txt", 4, TimeSpan.FromSeconds(3));
+        await WaitForFixtureCounterAsync(context.DataDirectory, "contexts-unloading.txt", 4, TimeSpan.FromSeconds(3));
+        await WaitForFixtureCounterAsync(context.DataDirectory, "finalized-instances.txt", 4, TimeSpan.FromSeconds(3));
+        Assert.Equal(4, ReadFixtureCounter(context.DataDirectory, "initialize-attempts.txt"));
+        Assert.Equal(4, ReadFixtureCounter(context.DataDirectory, "disposed-instances.txt"));
+        Assert.Equal(4, ReadFixtureCounter(context.DataDirectory, "contexts-unloading.txt"));
+        Assert.Equal(4, ReadFixtureCounter(context.DataDirectory, "finalized-instances.txt"));
+    }
+
+    [Fact]
+    public async Task Inproc_slow_success_started_before_a_fault_cannot_erase_the_newer_fault()
+    {
+        var packageRoot = Path.Combine(Path.GetTempPath(), "mpt-inproc-fault-order", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(packageRoot);
+        WriteInProcDotNetModulePackage(
+            packageRoot,
+            "sample.dotnet.fault-injection",
+            "sample-dotnet-fault-injection",
+            "Fault ordering fixture",
+            typeof(FaultInjectionDotNetModule).FullName!);
+        await SetInProcMaxCallAsync(packageRoot, 5000);
+
+        await using var host = new InProcDotNetModuleHost();
+        await using var runtime = CreateInProcFixtureRuntime(host, "fault-order-runtime");
+        runtime.Load(packageRoot);
+        var module = Assert.Single(runtime.Modules);
+        var context = CreateModuleContext(
+            "sample-dotnet-fault-injection",
+            "sample.dotnet.fault-injection",
+            "fault-order-context",
+            ["status", "commands"]);
+        await host.ListCommandsAsync(module, context, CancellationToken.None);
+
+        var slowSuccess = host.ExecuteCommandAsync(
+            module,
+            context,
+            new CommandRequest("slow-success", "sample.dotnet.fault.slow-success", new JsonObject()),
+            CancellationToken.None).AsTask();
+        await WaitForFixtureFileAsync(context.DataDirectory, "slow-success.started", TimeSpan.FromSeconds(3));
+        await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+            await host.ExecuteCommandAsync(
+                module,
+                context,
+                new CommandRequest("newer-fault", "sample.dotnet.fault.throw", new JsonObject()),
+                CancellationToken.None));
+        TouchFixtureFile(context.DataDirectory, "slow-success.release");
+        var successfulResult = await slowSuccess.WaitAsync(TimeSpan.FromSeconds(3));
+
+        Assert.True(successfulResult.Success, successfulResult.Error?.Message);
+        var degraded = Assert.Single(host.GetProcessDiagnostics());
+        Assert.Equal("degraded", degraded.State);
+        Assert.Contains("1/3", degraded.PolicyReason);
+
+        for (var attempt = 0; attempt < 2; attempt++)
+        {
+            await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+                await host.ExecuteCommandAsync(
+                    module,
+                    context,
+                    new CommandRequest($"follow-up-fault-{attempt}", "sample.dotnet.fault.throw", new JsonObject()),
+                    CancellationToken.None));
+        }
+
+        var circuit = Assert.Single(host.GetProcessDiagnostics());
+        Assert.Equal("circuit-open", circuit.State);
+    }
+
+    [Theory]
+    [InlineData(0L, "event-open.started", "event-open.release", "events.subscribe.open")]
+    [InlineData(1L, "event-current.started", "event-current.release", "events.subscribe.current")]
+    public async Task Inproc_event_setup_and_current_that_ignore_cancellation_open_runner_restart_circuit(
+        long cursorSequence,
+        string startedFile,
+        string releaseFile,
+        string operation)
+    {
+        var packageRoot = Path.Combine(Path.GetTempPath(), "mpt-inproc-event-fault", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(packageRoot);
+        WriteInProcDotNetModulePackage(
+            packageRoot,
+            "sample.dotnet.event-fault",
+            "sample-dotnet-event-fault",
+            "Event fault fixture",
+            typeof(EventFaultInjectionDotNetModule).FullName!);
+        await SetInProcMaxCallAsync(packageRoot, 1000);
+
+        await using var host = new InProcDotNetModuleHost();
+        await using var runtime = CreateInProcFixtureRuntime(host, $"event-fault-{cursorSequence}");
+        runtime.Load(packageRoot);
+        var module = Assert.Single(runtime.Modules);
+        var context = CreateModuleContext(
+            "sample-dotnet-event-fault",
+            "sample.dotnet.event-fault",
+            $"event-fault-context-{cursorSequence}",
+            ["status", "events"]);
+        await host.GetStatusAsync(module, context, CancellationToken.None);
+        var enumerator = host.SubscribeEventsAsync(
+            module,
+            context,
+            new MyPowerTools.Abstractions.EventCursor((ulong)cursorSequence),
+            CancellationToken.None).GetAsyncEnumerator();
+
+        try
+        {
+            var moveNext = enumerator.MoveNextAsync().AsTask();
+            await WaitForFixtureFileAsync(context.DataDirectory, startedFile, TimeSpan.FromSeconds(3));
+            var failure = await Assert.ThrowsAnyAsync<Exception>(async () =>
+                await moveNext.WaitAsync(TimeSpan.FromSeconds(6)));
+
+            Assert.Contains("maxCallMs=1000", failure.Message);
+            Assert.Contains(operation, failure.Message, StringComparison.OrdinalIgnoreCase);
+            var diagnostic = Assert.Single(host.GetProcessDiagnostics());
+            Assert.Equal("runner-restart-required", diagnostic.State);
+            Assert.Equal("manual-runner-restart", diagnostic.RestartPolicy);
+            Assert.Contains("Restart Runner", diagnostic.PolicyReason, StringComparison.OrdinalIgnoreCase);
+
+            var restart = await host.RestartProcessAsync(
+                "module:sample.dotnet.event-fault",
+                CancellationToken.None).AsTask().WaitAsync(TimeSpan.FromSeconds(4));
+            Assert.False(restart.Success);
+            Assert.Equal("runner-restart-required", restart.State);
+        }
+        finally
+        {
+            TouchFixtureFile(context.DataDirectory, releaseFile);
+            try
+            {
+                await enumerator.DisposeAsync();
+            }
+            catch
+            {
+                // The stream has already crossed its terminal fault boundary.
+            }
+        }
+    }
+
+    [Fact]
+    public async Task Inproc_lingering_context_after_circuit_restart_blocks_a_fresh_instance()
+    {
+        var packageRoot = Path.Combine(Path.GetTempPath(), "mpt-inproc-leaky-circuit", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(packageRoot);
+        WriteInProcDotNetModulePackage(
+            packageRoot,
+            "sample.dotnet.leaky",
+            "sample-dotnet-leaky",
+            "Leaky circuit fixture",
+            typeof(LeakyDotNetModule).FullName!);
+        await SetInProcMaxCallAsync(packageRoot, 1000);
+
+        await using var host = new InProcDotNetModuleHost();
+        await using var runtime = CreateInProcFixtureRuntime(host, "leaky-circuit-runtime");
+        runtime.Load(packageRoot);
+        var module = Assert.Single(runtime.Modules);
+        var context = CreateModuleContext(
+            "sample-dotnet-leaky",
+            "sample.dotnet.leaky",
+            "leaky-circuit-context",
+            ["status", "commands"]);
+        await host.ListCommandsAsync(module, context, CancellationToken.None);
+
+        for (var attempt = 0; attempt < 3; attempt++)
+        {
+            await Assert.ThrowsAsync<InvalidOperationException>(async () =>
+                await host.ExecuteCommandAsync(
+                    module,
+                    context,
+                    new CommandRequest($"leaky-fault-{attempt}", "sample.dotnet.leaky.throw", new JsonObject()),
+                    CancellationToken.None));
+        }
+
+        Assert.Equal(1, ReadFixtureCounter(context.DataDirectory, "instances.txt"));
+        var restartStopwatch = Stopwatch.StartNew();
+        var restart = await host.RestartProcessAsync("module:sample.dotnet.leaky", CancellationToken.None);
+        restartStopwatch.Stop();
+
+        Assert.False(restart.Success);
+        Assert.True(
+            string.Equals("pending-runner-restart", restart.State, StringComparison.Ordinal),
+            $"Expected pending-runner-restart, got '{restart.State}' after {restartStopwatch.Elapsed}. {restart.Message}");
+        await Assert.ThrowsAnyAsync<InvalidOperationException>(async () =>
+            await host.ListCommandsAsync(module, context, CancellationToken.None));
+        Assert.Equal(1, ReadFixtureCounter(context.DataDirectory, "instances.txt"));
+        var pending = Assert.Single(host.GetProcessDiagnostics());
+        Assert.Equal("pending-runner-restart", pending.State);
+        Assert.Equal("manual-runner-restart", pending.RestartPolicy);
+    }
+
+    [Fact]
+    public async Task Inproc_concurrent_dispose_is_idempotent_and_disposes_module_once()
+    {
+        var packageRoot = Path.Combine(Path.GetTempPath(), "mpt-inproc-concurrent-dispose", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(packageRoot);
+        WriteInProcDotNetModulePackage(
+            packageRoot,
+            "sample.dotnet.dispose-tracking",
+            "sample-dotnet-dispose-tracking",
+            "Dispose tracking fixture",
+            typeof(DisposeTrackingDotNetModule).FullName!);
+        var module = new PackageReader().ReadPackageDirectory(packageRoot).Modules.Single();
+        var context = CreateModuleContext(
+            "sample-dotnet-dispose-tracking",
+            "sample.dotnet.dispose-tracking",
+            "concurrent-dispose-context",
+            ["status"]);
+        var host = new InProcDotNetModuleHost();
+        await host.LoadAsync(module, context, CancellationToken.None);
+        using var start = new ManualResetEventSlim(false);
+        var disposals = Enumerable.Range(0, 24)
+            .Select(_ => Task.Run(async () =>
+            {
+                start.Wait();
+                await host.DisposeAsync();
+            }))
+            .ToArray();
+
+        start.Set();
+        await Task.WhenAll(disposals).WaitAsync(TimeSpan.FromSeconds(6));
+
+        Assert.Equal(1, ReadFixtureCounter(context.DataDirectory, "disposed-instances.txt"));
+    }
+
+    [Fact]
+    public async Task Inproc_alc_finalizer_probe_is_bounded_for_the_restart_caller()
+    {
+        var packageRoot = Path.Combine(Path.GetTempPath(), "mpt-inproc-finalizer-probe", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(packageRoot);
+        WriteInProcDotNetModulePackage(
+            packageRoot,
+            "sample.dotnet.blocking-finalizer",
+            "sample-dotnet-blocking-finalizer",
+            "Blocking finalizer fixture",
+            typeof(BlockingFinalizerDotNetModule).FullName!);
+        var module = new PackageReader().ReadPackageDirectory(packageRoot).Modules.Single();
+        var context = CreateModuleContext(
+            "sample-dotnet-blocking-finalizer",
+            "sample.dotnet.blocking-finalizer",
+            "blocking-finalizer-context",
+            ["status"]);
+        await using var host = new InProcDotNetModuleHost();
+        await host.LoadAsync(module, context, CancellationToken.None);
+
+        var restartTask = host.RestartProcessAsync(
+            "module:sample.dotnet.blocking-finalizer",
+            CancellationToken.None).AsTask();
+        await WaitForFixtureFileAsync(context.DataDirectory, "finalizer.started", TimeSpan.FromSeconds(3));
+        Task completed;
+        try
+        {
+            completed = await Task.WhenAny(restartTask, Task.Delay(TimeSpan.FromSeconds(3.5)));
+        }
+        finally
+        {
+            TouchFixtureFile(context.DataDirectory, "finalizer.release");
+        }
+
+        var restart = await restartTask.WaitAsync(TimeSpan.FromSeconds(4));
+        Assert.Same(restartTask, completed);
+        Assert.False(restart.Success);
+        Assert.Equal("pending-runner-restart", restart.State);
+    }
+
+    [Fact]
+    public async Task Inproc_event_consumer_paused_after_yield_blocks_disable_without_disposing_live_module()
+    {
+        var packageRoot = Path.Combine(Path.GetTempPath(), "mpt-inproc-paused-event", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(packageRoot);
+        WriteInProcDotNetModulePackage(
+            packageRoot,
+            "sample.dotnet.event-fault",
+            "sample-dotnet-event-fault",
+            "Paused event fixture",
+            typeof(EventFaultInjectionDotNetModule).FullName!);
+        await SetInProcMaxCallAsync(packageRoot, 1000);
+
+        await using var host = new InProcDotNetModuleHost();
+        await using var runtime = CreateInProcFixtureRuntime(host, "paused-event-runtime");
+        runtime.Load(packageRoot);
+        var module = Assert.Single(runtime.Modules);
+        var context = CreateModuleContext(
+            "sample-dotnet-event-fault",
+            "sample.dotnet.event-fault",
+            "paused-event-context",
+            ["status", "events"]);
+        await host.GetStatusAsync(module, context, CancellationToken.None);
+        var enumerator = host.SubscribeEventsAsync(
+            module,
+            context,
+            new MyPowerTools.Abstractions.EventCursor(2),
+            CancellationToken.None).GetAsyncEnumerator();
+
+        Assert.True(await enumerator.MoveNextAsync());
+        var stopwatch = Stopwatch.StartNew();
+        try
+        {
+            var failure = await Assert.ThrowsAnyAsync<Exception>(async () =>
+                await host.DisableModuleAsync(module, context, new HashSet<string>(), CancellationToken.None)
+                    .AsTask()
+                    .WaitAsync(TimeSpan.FromSeconds(4)));
+            Assert.Contains("active", failure.Message, StringComparison.OrdinalIgnoreCase);
+            Assert.True(stopwatch.Elapsed < TimeSpan.FromSeconds(4));
+            Assert.Equal(0, ReadFixtureCounter(context.DataDirectory, "disposed-instances.txt"));
+        }
+        finally
+        {
+            await enumerator.DisposeAsync();
+        }
+    }
+
+    [Fact]
     public async Task Inproc_already_loaded_fallback_requires_development_flag()
     {
         _ = typeof(SampleDotNetModule).Assembly;
@@ -261,11 +842,11 @@ public sealed partial class RuntimeAcceptanceTests
     {
         var projectFiles = new[]
         {
-            "src/AdbForwarder.MyPowerTools/AdbForwarder.MyPowerTools.csproj",
-            "src/AndroidTools.MyPowerTools/AndroidTools.MyPowerTools.csproj",
-            "src/DoubaoAgent.MyPowerTools/DoubaoAgent.MyPowerTools.csproj",
-            "src/ScreenEase.MyPowerTools/ScreenEase.MyPowerTools.csproj",
-            "src/SmartBirdThermostat.MyPowerTools/SmartBirdThermostat.MyPowerTools.csproj"
+            "tools/adb-forwarder/current-integration/src/AdbForwarder.MyPowerTools/AdbForwarder.MyPowerTools.csproj",
+            "tools/remote-notifications/current-integration/src/AndroidTools.MyPowerTools/AndroidTools.MyPowerTools.csproj",
+            "tools/doubao-computer-use/current-integration/src/DoubaoAgent.MyPowerTools/DoubaoAgent.MyPowerTools.csproj",
+            "tools/screenease/current-integration/src/ScreenEase.MyPowerTools/ScreenEase.MyPowerTools.csproj",
+            "tools/smartbird-thermostat/current-integration/src/SmartBirdThermostat.MyPowerTools/SmartBirdThermostat.MyPowerTools.csproj"
         };
 
         foreach (var projectFile in projectFiles)
@@ -281,11 +862,11 @@ public sealed partial class RuntimeAcceptanceTests
     {
         var sourceRoots = new[]
         {
-            "src/AdbForwarder.MyPowerTools",
-            "src/AndroidTools.MyPowerTools",
-            "src/DoubaoAgent.MyPowerTools",
-            "src/ScreenEase.MyPowerTools",
-            "src/SmartBirdThermostat.MyPowerTools",
+            "tools/adb-forwarder/current-integration/src/AdbForwarder.MyPowerTools",
+            "tools/remote-notifications/current-integration/src/AndroidTools.MyPowerTools",
+            "tools/doubao-computer-use/current-integration/src/DoubaoAgent.MyPowerTools",
+            "tools/screenease/current-integration/src/ScreenEase.MyPowerTools",
+            "tools/smartbird-thermostat/current-integration/src/SmartBirdThermostat.MyPowerTools",
             "src/MyPowerTools.SampleModules.DotNet",
             "templates/dotnet-inproc-module"
         };
@@ -305,8 +886,8 @@ public sealed partial class RuntimeAcceptanceTests
     [Fact]
     public void ScreenEase_module_uses_capability_provider_not_concrete_platform_packs()
     {
-        var project = File.ReadAllText(Path.Combine(Root, "src/ScreenEase.MyPowerTools/ScreenEase.MyPowerTools.csproj"));
-        var source = File.ReadAllText(Path.Combine(Root, "src/ScreenEase.MyPowerTools/ScreenEaseModule.cs"));
+        var project = File.ReadAllText(Path.Combine(Root, "tools/screenease/current-integration/src/ScreenEase.MyPowerTools/ScreenEase.MyPowerTools.csproj"));
+        var source = File.ReadAllText(Path.Combine(Root, "tools/screenease/current-integration/src/ScreenEase.MyPowerTools/ScreenEaseModule.cs"));
         var combined = project + Environment.NewLine + source;
 
         foreach (var forbidden in new[]
@@ -419,5 +1000,79 @@ public sealed partial class RuntimeAcceptanceTests
         Assert.True(result.Success);
         Assert.Contains("pong", result.Output);
         Assert.Contains(snapshot.Cards, card => card.ModuleId == "sample.dotnet" && card.State == "running");
+    }
+
+    private static MptHostRuntime CreateInProcFixtureRuntime(InProcDotNetModuleHost host, string name)
+    {
+        return new MptHostRuntime(
+            new PackageReader(),
+            PlatformId.Current(),
+            RuntimePaths.Create(Path.Combine(Path.GetTempPath(), "mpt-inproc-regression", name, Guid.NewGuid().ToString("N"))),
+            [host]);
+    }
+
+    private static async Task SetInProcMaxCallAsync(string packageRoot, int maxCallMs)
+    {
+        var manifestPath = Path.Combine(packageRoot, "module.json");
+        var manifest = JsonNode.Parse(await File.ReadAllTextAsync(manifestPath))!.AsObject();
+        manifest["runtimePolicy"] = new JsonObject
+        {
+            ["preferred"] = "inproc",
+            ["allowInProc"] = true,
+            ["inProcRules"] = new JsonObject
+            {
+                ["maxCallMs"] = maxCallMs,
+                ["allowNativeDll"] = false,
+                ["allowWindow"] = false,
+                ["allowBackgroundThreads"] = false,
+                ["loadContext"] = "collectible",
+                ["shadowCopy"] = true
+            }
+        };
+        await File.WriteAllTextAsync(
+            manifestPath,
+            manifest.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+    }
+
+    private static int ReadFixtureCounter(string directory, string fileName)
+    {
+        var path = Path.Combine(directory, fileName);
+        return File.Exists(path) && int.TryParse(File.ReadAllText(path), out var value) ? value : 0;
+    }
+
+    private static async Task WaitForFixtureCounterAsync(
+        string directory,
+        string fileName,
+        int expected,
+        TimeSpan timeout)
+    {
+        var deadline = DateTime.UtcNow + timeout;
+        while (ReadFixtureCounter(directory, fileName) < expected && DateTime.UtcNow < deadline)
+        {
+            GC.Collect();
+            await Task.Delay(20);
+        }
+
+        Assert.True(
+            ReadFixtureCounter(directory, fileName) >= expected,
+            $"Fixture counter '{fileName}' did not reach {expected} within {timeout}.");
+    }
+
+    private static async Task WaitForFixtureFileAsync(string directory, string fileName, TimeSpan timeout)
+    {
+        var path = Path.Combine(directory, fileName);
+        var deadline = DateTime.UtcNow + timeout;
+        while (!File.Exists(path) && DateTime.UtcNow < deadline)
+        {
+            await Task.Delay(20);
+        }
+
+        Assert.True(File.Exists(path), $"Fixture marker '{fileName}' was not created within {timeout}.");
+    }
+
+    private static void TouchFixtureFile(string directory, string fileName)
+    {
+        Directory.CreateDirectory(directory);
+        File.WriteAllText(Path.Combine(directory, fileName), "release");
     }
 }

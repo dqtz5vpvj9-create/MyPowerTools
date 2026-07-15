@@ -2,7 +2,8 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
   <Styles.Resources>
     <BoxShadows x:Key="MptShadowNone">0 0 0 0 #00000000</BoxShadows>
-    <BoxShadows x:Key="MptShadowRaised">0 8 24 0 #260F172A</BoxShadows>
-    <BoxShadows x:Key="MptShadowOverlay">0 24 64 0 #330F172A</BoxShadows>
+    <BoxShadows x:Key="MptShadowRaised">0 2 8 0 #1A000000</BoxShadows>
+    <BoxShadows x:Key="MptShadowOverlay">0 8 28 0 #38000000</BoxShadows>
+    <BoxShadows x:Key="MptShadowFocus">0 0 0 2 #660067C0</BoxShadows>
   </Styles.Resources>
 </Styles>

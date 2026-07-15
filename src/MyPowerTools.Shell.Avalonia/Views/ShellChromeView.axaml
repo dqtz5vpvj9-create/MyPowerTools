@@ -1,115 +1,228 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:chrome="using:Avalonia.Controls.Chrome"
              xmlns:controls="using:MyPowerTools.UI.Controls"
              xmlns:vm="using:MyPowerTools.Shell.Avalonia.ViewModels"
              x:Class="MyPowerTools.Shell.Avalonia.Views.ShellChromeView"
              x:DataType="vm:ShellChromeViewModel">
-  <Grid Background="{DynamicResource MptBrushAppBackground}">
+  <UserControl.Resources>
+    <DataTemplate x:Key="ShellNavigationItemTemplate"
+                  x:DataType="vm:ShellNavigationItemViewModel">
+      <controls:MptButton Classes="MptNavButton"
+                          Classes.selected="{Binding IsSelected}"
+                          Command="{Binding NavigateCommand}"
+                          Width="{Binding ItemWidth}"
+                          HorizontalAlignment="Stretch"
+                          HorizontalContentAlignment="Stretch"
+                          MinHeight="{DynamicResource MptDensityNavigationHeight}"
+                          Margin="{DynamicResource MptUniformXs}"
+                          ToolTip.Tip="{Binding DisplayLabel}"
+                          Padding="{DynamicResource MptNoThickness}">
+        <Grid ColumnDefinitions="4,40,*"
+              Margin="{DynamicResource MptGapRightM}">
+          <Border Classes="MptNavIndicator"
+                  Width="3"
+                  Height="20"
+                  IsVisible="{Binding IsSelected}"
+                  HorizontalAlignment="Left"
+                  VerticalAlignment="Center" />
+          <TextBlock Grid.Column="1"
+                     Text="{Binding IconGlyph}"
+                     FontFamily="{DynamicResource MptFontFamilyIcons}"
+                     FontSize="{DynamicResource MptFontSizeCardTitle}"
+                     HorizontalAlignment="Center"
+                     VerticalAlignment="Center" />
+          <TextBlock Grid.Column="2"
+                     Text="{Binding DisplayLabel}"
+                     IsVisible="{Binding IsLabelVisible}"
+                     FontSize="{DynamicResource MptFontSizeBody}"
+                     TextTrimming="CharacterEllipsis"
+                     VerticalAlignment="Center" />
+        </Grid>
+      </controls:MptButton>
+    </DataTemplate>
+  </UserControl.Resources>
+
+  <Grid x:Name="ShellLayoutGrid"
+        Background="{DynamicResource MptBrushAppBackground}">
     <Grid.ColumnDefinitions>
-      <ColumnDefinition Width="{DynamicResource MptLayoutSidebarGridWidth}" />
+      <ColumnDefinition Width="240" />
       <ColumnDefinition Width="*" />
     </Grid.ColumnDefinitions>
     <Grid.RowDefinitions>
       <RowDefinition Height="{DynamicResource MptLayoutTopBarGridHeight}" />
       <RowDefinition Height="*" />
-      <RowDefinition Height="{DynamicResource MptLayoutStatusBarGridHeight}" />
     </Grid.RowDefinitions>
 
-    <controls:MptSidebar x:Name="NavigationHost"
-                         Grid.RowSpan="3">
-      <TextBlock Classes="MptPageTitle"
-                 Text="MPT"
-                 Margin="{DynamicResource MptGapBottomXl}" />
-      <ItemsControl ItemsSource="{Binding NavigationItems}">
-        <ItemsControl.ItemTemplate>
-          <DataTemplate x:DataType="vm:ShellNavigationItemViewModel">
-            <controls:MptButton Classes="MptNavButton"
-                    Command="{Binding NavigateCommand}"
-                    HorizontalContentAlignment="Left"
-                    MinHeight="{DynamicResource MptDensityControlHeight}"
-                    Margin="{DynamicResource MptGapBottomS}">
-              <Grid ColumnDefinitions="Auto,*">
-                <Border Classes="MptNavIndicator"
-                        IsVisible="{Binding IsSelected}" />
-                <TextBlock Grid.Column="1"
-                           Text="{Binding Label}" />
-              </Grid>
-            </controls:MptButton>
-          </DataTemplate>
-        </ItemsControl.ItemTemplate>
-      </ItemsControl>
-    </controls:MptSidebar>
+    <!-- PowerToys-style unified title and search band. -->
+    <Border Grid.ColumnSpan="2"
+            Background="{DynamicResource MptBrushShellChrome}"
+            BorderBrush="{DynamicResource MptBrushDivider}"
+            BorderThickness="0,0,0,1"
+            chrome:WindowDecorationProperties.ElementRole="TitleBar">
+      <Grid x:Name="TitleBarGrid">
+        <Grid.ColumnDefinitions>
+          <ColumnDefinition Width="240" />
+          <ColumnDefinition Width="*" />
+          <ColumnDefinition Width="168" />
+        </Grid.ColumnDefinitions>
+        <Grid x:Name="BrandHost"
+              Margin="{DynamicResource MptShellBrandMargin}"
+              ColumnDefinitions="32,*"
+              ColumnSpacing="12"
+              VerticalAlignment="Center">
+          <Border Width="32"
+                  Height="32"
+                  CornerRadius="{DynamicResource MptRadiusCard}"
+                  Background="{DynamicResource MptBrushAccent}">
+            <Grid Margin="{DynamicResource MptUniformS}"
+                  RowDefinitions="*,*"
+                  ColumnDefinitions="*,*"
+                  RowSpacing="2"
+                  ColumnSpacing="2">
+              <Border CornerRadius="{DynamicResource MptRadiusXs}" Background="{DynamicResource MptBrushAccentText}" />
+              <Border Grid.Column="1" CornerRadius="{DynamicResource MptRadiusXs}" Background="{DynamicResource MptBrushAccentText}" Opacity="0.82" />
+              <Border Grid.Row="1" CornerRadius="{DynamicResource MptRadiusXs}" Background="{DynamicResource MptBrushAccentText}" Opacity="0.82" />
+              <Border Grid.Row="1" Grid.Column="1" CornerRadius="{DynamicResource MptRadiusXs}" Background="{DynamicResource MptBrushAccentText}" />
+            </Grid>
+          </Border>
+          <TextBlock x:Name="BrandTitle"
+                     Grid.Column="1"
+                     Text="MyPowerTools"
+                     FontSize="{DynamicResource MptFontSizeCardTitle}"
+                     FontWeight="SemiBold"
+                     TextTrimming="CharacterEllipsis"
+                     VerticalAlignment="Center" />
+        </Grid>
 
-    <controls:MptTopBar Grid.Column="1"
-                        ColumnDefinitions="*,Auto">
-      <controls:MptSearchBox x:Name="SearchBox" />
-      <StackPanel Grid.Column="1"
-                  Orientation="Horizontal"
-                  Spacing="{DynamicResource MptSpacingS}"
-                  HorizontalAlignment="Right">
-        <controls:MptButton Classes="MptPrimaryButton"
-                Content="Commands"
-                Command="{Binding OpenCommandPaletteCommand}"
-                MinWidth="{DynamicResource MptDensityActionMinWidth}" />
-        <controls:MptButton x:Name="RefreshButton"
-                Content="Refresh"
-                Command="{Binding RefreshCommand}"
-                MinWidth="{DynamicResource MptDensityActionMinWidth}" />
-      </StackPanel>
-    </controls:MptTopBar>
+        <Grid x:Name="TitleSearchHost"
+              Grid.Column="1"
+              MaxWidth="{DynamicResource MptLayoutSearchMaxWidth}"
+              Margin="{DynamicResource MptTitleSearchMargin}"
+              HorizontalAlignment="Center"
+              chrome:WindowDecorationProperties.ElementRole="User">
+          <controls:MptSearchBox x:Name="SearchBox"
+                                 PlaceholderText="Search tools and actions"
+                                 Padding="{DynamicResource MptTitleSearchPadding}" />
+          <TextBlock Text="&#xE721;"
+                     FontFamily="{DynamicResource MptFontFamilyIcons}"
+                     FontSize="{DynamicResource MptFontSizeBody}"
+                     Foreground="{DynamicResource MptBrushTextSecondary}"
+                     Margin="{DynamicResource MptGapLeftM}"
+                     HorizontalAlignment="Left"
+                     VerticalAlignment="Center"
+                     IsHitTestVisible="False" />
+          <Border Padding="{DynamicResource MptCompactBadgePadding}"
+                  Margin="{DynamicResource MptGapRightS}"
+                  CornerRadius="{DynamicResource MptRadiusControl}"
+                  BorderBrush="{DynamicResource MptBrushDivider}"
+                  BorderThickness="1"
+                  Background="{DynamicResource MptBrushSurfaceMuted}"
+                  HorizontalAlignment="Right"
+                  VerticalAlignment="Center"
+                  IsHitTestVisible="False">
+            <TextBlock Text="Ctrl+F"
+                       Classes="MptMeta"
+                       FontSize="{DynamicResource MptFontSizeMeta}" />
+          </Border>
+        </Grid>
+
+        <!-- Reserved for native caption controls when the client area extends into the title bar. -->
+        <Border Grid.Column="2" Background="{DynamicResource MptBrushTransparent}" />
+      </Grid>
+    </Border>
+
+    <Border x:Name="NavigationHost"
+            Grid.Row="1"
+            Background="{DynamicResource MptBrushNavigationBackground}"
+            BorderBrush="{DynamicResource MptBrushDivider}"
+            BorderThickness="0,0,1,0">
+      <Grid RowDefinitions="Auto,*,Auto">
+        <StackPanel x:Name="MainNavigationStack"
+                    Margin="{DynamicResource MptShellNavigationMargin}"
+                    Spacing="{DynamicResource MptSpacingXs}">
+          <ItemsControl ItemsSource="{Binding TopNavigationItems}"
+                        ItemTemplate="{StaticResource ShellNavigationItemTemplate}" />
+
+          <Border Height="1"
+                  Margin="{DynamicResource MptSidebarDividerMargin}"
+                  Background="{DynamicResource MptBrushDivider}" />
+
+          <TextBlock x:Name="ToolSectionLabel"
+                     Text="TOOLS"
+                     Classes="MptMeta"
+                     FontSize="{DynamicResource MptFontSizeCaption}"
+                     FontWeight="SemiBold"
+                     Margin="{DynamicResource MptSectionLabelMargin}" />
+          <ItemsControl ItemsSource="{Binding ToolNavigationItems}"
+                        ItemTemplate="{StaticResource ShellNavigationItemTemplate}" />
+        </StackPanel>
+
+        <StackPanel x:Name="FooterNavigationStack"
+                    Grid.Row="2"
+                    Margin="{DynamicResource MptShellFooterMargin}"
+                    Spacing="{DynamicResource MptSpacingXs}">
+          <Border Height="1"
+                  Margin="{DynamicResource MptFooterDividerMargin}"
+                  Background="{DynamicResource MptBrushDivider}" />
+          <ItemsControl ItemsSource="{Binding FooterNavigationItems}"
+                        ItemTemplate="{StaticResource ShellNavigationItemTemplate}" />
+        </StackPanel>
+      </Grid>
+    </Border>
 
     <ScrollViewer Grid.Column="1"
                   Grid.Row="1"
-                  Margin="{DynamicResource MptPagePadding}">
+                  Margin="{DynamicResource MptPagePadding}"
+                  Background="{DynamicResource MptBrushAppBackground}"
+                  HorizontalContentAlignment="Stretch"
+                  HorizontalScrollBarVisibility="Disabled"
+                  VerticalScrollBarVisibility="Auto">
       <ContentControl x:Name="ContentHost"
                       MaxWidth="{DynamicResource MptLayoutPageMaxWidth}"
-                      HorizontalAlignment="Stretch" />
+                      HorizontalAlignment="Center"
+                      HorizontalContentAlignment="Stretch"
+                      VerticalAlignment="Stretch" />
     </ScrollViewer>
-
-    <Grid Grid.Column="1"
-          Grid.Row="2"
-          ColumnDefinitions="*,Auto"
-          Margin="{DynamicResource MptStatusBarMargin}">
-      <TextBlock x:Name="StatusBar"
-                 Classes="MptMeta"
-                 Text="{Binding StatusText}"
-                 VerticalAlignment="Center" />
-      <TextBlock x:Name="RunnerStatus"
-                 Grid.Column="1"
-                 Classes="MptMeta"
-                 Text="{Binding RunnerStatusText}"
-                 VerticalAlignment="Center" />
-    </Grid>
 
     <Grid x:Name="GlobalOverlayHost"
           Grid.ColumnSpan="2"
-          Grid.RowSpan="3"
-          Background="{DynamicResource MptBrushOverlayScrim}"
+          Grid.RowSpan="2"
           IsVisible="{Binding IsCommandPaletteOpen}">
-      <Border Width="{DynamicResource MptLayoutOverlayWidth}"
-              MaxHeight="{DynamicResource MptLayoutOverlayMaxHeight}"
-              Padding="{DynamicResource MptOverlayPadding}"
+      <Border x:Name="CommandFlyout"
+              Width="{DynamicResource MptLayoutSearchMaxWidth}"
+              MaxHeight="420"
+              Padding="{DynamicResource MptNoThickness}"
               CornerRadius="{DynamicResource MptRadiusOverlay}"
               BorderBrush="{DynamicResource MptBrushBorderStrong}"
               BorderThickness="{DynamicResource MptBorderThickness}"
               Background="{DynamicResource MptBrushCardBackground}"
               BoxShadow="{DynamicResource MptShadowOverlay}"
-              HorizontalAlignment="Center"
-              VerticalAlignment="Center">
-        <Grid RowDefinitions="Auto,*">
-          <controls:MptButton Content="Close"
-                  Command="{Binding CloseCommandPaletteCommand}"
-                  MinWidth="{DynamicResource MptDensityActionMinWidth}"
-                  HorizontalAlignment="Right"
-                  Margin="{DynamicResource MptGapBottomL}" />
-          <ContentControl x:Name="CommandPanel"
-                          Grid.Row="1" />
+              ClipToBounds="True"
+              HorizontalAlignment="Left"
+              VerticalAlignment="Top">
+        <Grid>
+          <ContentControl x:Name="CommandPanel" />
+          <controls:MptButton Width="28"
+                              Height="28"
+                              Margin="{DynamicResource MptOverlayCloseMargin}"
+                              Padding="{DynamicResource MptNoThickness}"
+                              Content="&#xE8BB;"
+                              FontFamily="{DynamicResource MptFontFamilyIcons}"
+                              Background="{DynamicResource MptBrushTransparent}"
+                              BorderBrush="{DynamicResource MptBrushTransparent}"
+                              Command="{Binding CloseCommandPaletteCommand}"
+                              ToolTip.Tip="Close search results"
+                              AutomationProperties.Name="Close search results"
+                              HorizontalAlignment="Right"
+                              VerticalAlignment="Top" />
         </Grid>
       </Border>
     </Grid>
 
-    <Grid Grid.ColumnSpan="2"
-          Grid.RowSpan="3"
+    <Grid x:Name="PermissionOverlayHost"
+          Grid.ColumnSpan="2"
+          Grid.RowSpan="2"
           Background="{DynamicResource MptBrushOverlayScrim}"
           IsVisible="{Binding IsPermissionPromptOpen}">
       <Border Width="{DynamicResource MptLayoutPermissionPromptWidth}"
@@ -126,14 +239,14 @@
                 Margin="{DynamicResource MptGapBottomL}">
             <StackPanel Spacing="{DynamicResource MptSpacingXs}">
               <TextBlock Classes="MptSectionTitle"
-                         Text="Permission Required" />
+                         Text="Permission required" />
               <TextBlock Classes="MptMeta"
-                         Text="Review the requested broker action before continuing." />
+                         Text="Review the requested system action before continuing." />
             </StackPanel>
             <controls:MptButton Grid.Column="1"
-                    Content="Dismiss"
-                    Command="{Binding DismissPermissionPromptCommand}"
-                    MinWidth="{DynamicResource MptDensityActionMinWidth}" />
+                                Content="Dismiss"
+                                Command="{Binding DismissPermissionPromptCommand}"
+                                MinWidth="76" />
           </Grid>
           <ContentControl x:Name="PermissionPanel"
                           Grid.Row="1" />
@@ -141,8 +254,16 @@
       </Border>
     </Grid>
 
+    <!-- Kept as nonvisual state endpoints for controller/test compatibility. -->
+    <Grid IsVisible="False">
+      <controls:MptButton x:Name="RefreshButton"
+                          Command="{Binding RefreshCommand}" />
+      <TextBlock x:Name="StatusBar"
+                 Text="{Binding StatusText}" />
+      <TextBlock x:Name="RunnerStatus"
+                 Text="{Binding RunnerStatusText}" />
+    </Grid>
     <ContentControl x:Name="AuditPanel"
                     IsVisible="False" />
   </Grid>
 </UserControl>
-

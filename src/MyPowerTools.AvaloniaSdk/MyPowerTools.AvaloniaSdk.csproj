@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>true</IsPackable>
+    <PackageId>MyPowerTools.AvaloniaSdk</PackageId>
+    <Version>0.2.0</Version>
+    <Authors>MyPowerTools</Authors>
+    <Description>Stable Avalonia surface host contracts, command and navigation bridge, and theme resources for MyPowerTools.</Description>
+    <PackageTags>mypowertools avalonia sdk surface</PackageTags>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="12.0.5" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\MyPowerTools.Abstractions\MyPowerTools.Abstractions.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <AvaloniaResource Include="Themes\MptSdkTheme.axaml" />
+    <None Include="..\..\docs\sdk\dotnet-surface.md" Pack="true" PackagePath="README.md" />
+  </ItemGroup>
+</Project>

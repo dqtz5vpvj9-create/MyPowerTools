@@ -135,6 +135,17 @@ public interface IHotkeyService : IAsyncDisposable
     Task<HotkeyRegistrationResult> UnregisterAsync(string id, CancellationToken cancellationToken);
 }
 
+public sealed record ModuleHotkeyConfiguration(
+    string Id,
+    string Gesture,
+    bool Enabled,
+    string CommandArgsJson = "{}");
+
+public interface IModuleHotkeyConfigurationService
+{
+    Task ApplyAsync(IReadOnlyList<ModuleHotkeyConfiguration> hotkeys, CancellationToken cancellationToken);
+}
+
 public sealed class UnsupportedHotkeyService : IHotkeyService
 {
     private readonly string _provider;
@@ -458,6 +469,10 @@ public interface IDisplayService
     Task<IReadOnlyList<DisplaySnapshot>> ListDisplaysAsync(CancellationToken cancellationToken);
     Task<DisplayWriterStatus> GetWriterStatusAsync(CancellationToken cancellationToken);
     Task<BrokerOperationResult> ApplyProfileAsync(DisplayProfileIntent intent, CancellationToken cancellationToken);
+}
+
+public interface INativeDisplayInventoryService : IDisplayService
+{
 }
 
 public sealed class UnsupportedDisplayService : IDisplayService

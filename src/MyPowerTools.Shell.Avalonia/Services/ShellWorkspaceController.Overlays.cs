@@ -10,19 +10,19 @@ public sealed partial class ShellWorkspaceController
     public async Task OpenCommandPaletteAsync(bool focusSearch = true)
     {
         _chromeViewModel.IsCommandPaletteOpen = true;
-        _chromeViewModel.SelectPage(CommandsPage);
-        await LoadCommandsAsync(_searchBox.Text ?? "");
         if (focusSearch)
         {
             _searchBox.Focus();
             _searchBox.SelectAll();
         }
 
+        await LoadCommandsAsync(_searchBox.Text ?? "");
         SetStatus("Command Palette opened.");
     }
 
     public Task CloseCommandPaletteAsync()
     {
+        _commandSearchCancellation?.Cancel();
         _chromeViewModel.IsCommandPaletteOpen = false;
         _chromeViewModel.SelectPage(_currentPage);
         _contentHost.Focus();
@@ -32,7 +32,7 @@ public sealed partial class ShellWorkspaceController
 
     public Task DismissPermissionPromptAsync()
     {
-        _permissionPanel.Content = null;
+        SetOwnedContent(_permissionPanel, null);
         _chromeViewModel.IsPermissionPromptOpen = false;
         SetStatus("Permission prompt dismissed.");
         return Task.CompletedTask;

@@ -4,40 +4,10 @@
     {
       "id": "doubao-agent.status.summary",
       "title": "Summarize Doubao runtime status",
-      "subtitle": "Checks planner, tool runtime, and MCP bridge ports",
+      "subtitle": "Checks Planner 38189, Tool Server 38102, and MCP Server 38080",
       "kind": "action",
       "category": "Doubao Agent",
       "timeoutMs": 8000,
-      "parameters": [
-        {
-          "id": "plannerBaseUrl",
-          "label": "Planner base URL",
-          "type": "text",
-          "required": false,
-          "defaultValue": ""
-        },
-        {
-          "id": "toolBaseUrl",
-          "label": "Tool base URL",
-          "type": "text",
-          "required": false,
-          "defaultValue": ""
-        },
-        {
-          "id": "mcpBaseUrl",
-          "label": "MCP base URL",
-          "type": "text",
-          "required": false,
-          "defaultValue": ""
-        },
-        {
-          "id": "healthPath",
-          "label": "Health path",
-          "type": "text",
-          "required": false,
-          "defaultValue": "/health"
-        }
-      ],
       "execution": {
         "type": "module.execute"
       }
@@ -45,7 +15,7 @@
     {
       "id": "doubao-agent.health.check",
       "title": "Check all Doubao runtime services",
-      "subtitle": "Queries planner, tool runtime, and MCP bridge health endpoints",
+      "subtitle": "Queries the three local Computer Use services",
       "kind": "action",
       "category": "Doubao Agent",
       "timeoutMs": 8000,
@@ -56,7 +26,7 @@
     {
       "id": "doubao-agent.planner.health",
       "title": "Check Doubao planner",
-      "subtitle": "Queries the planner service on port 38102",
+      "subtitle": "Queries Agent Planner on port 38189",
       "kind": "action",
       "category": "Doubao Agent",
       "timeoutMs": 8000,
@@ -66,8 +36,8 @@
     },
     {
       "id": "doubao-agent.tool.health",
-      "title": "Check Doubao tool runtime",
-      "subtitle": "Queries the tool runtime service on port 38080",
+      "title": "Check Doubao tool server",
+      "subtitle": "Queries Tool Server on port 38102",
       "kind": "action",
       "category": "Doubao Agent",
       "timeoutMs": 8000,
@@ -77,8 +47,8 @@
     },
     {
       "id": "doubao-agent.mcp.health",
-      "title": "Check Doubao MCP bridge",
-      "subtitle": "Queries the MCP bridge service on port 38189",
+      "title": "Check Doubao MCP server",
+      "subtitle": "Checks the MCP SSE endpoint on port 38080",
       "kind": "action",
       "category": "Doubao Agent",
       "timeoutMs": 8000,
@@ -115,7 +85,9 @@
       "kind": "open",
       "category": "Doubao Agent",
       "execution": {
-        "type": "host.logs.tail"
+        "type": "navigation",
+        "toolId": "doubao-agent",
+        "routeId": "services"
       }
     },
     {

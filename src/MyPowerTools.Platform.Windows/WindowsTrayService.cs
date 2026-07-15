@@ -27,6 +27,9 @@ public sealed class WindowsTrayService : ITrayService
     private const uint TPM_RETURNCMD = 0x0100;
     private const uint MF_STRING = 0x0000;
     private const uint MF_SEPARATOR = 0x0800;
+    private const uint IMAGE_ICON = 1;
+    private const uint LR_LOADFROMFILE = 0x0010;
+    private const uint LR_DEFAULTSIZE = 0x0040;
     private const int IDI_APPLICATION = 32512;
     private const int FirstMenuCommandId = 1000;
     private static readonly uint TrayCallbackMessage = WM_APP + 0x4D;
@@ -39,6 +42,8 @@ public sealed class WindowsTrayService : ITrayService
     private IReadOnlyList<TrayMenuItem> _menuItems = [];
     private string _className = "";
     private IntPtr _windowHandle;
+    private IntPtr _trayIcon;
+    private bool _ownsTrayIcon;
     private string _state = "idle";
     private bool _disposed;
 
@@ -200,6 +205,7 @@ public sealed class WindowsTrayService : ITrayService
             {
                 SetState(addResult.State);
                 started.TrySetResult(addResult);
+                ReleaseTrayIcon();
                 DestroyWindow(handle);
                 return;
             }
@@ -214,6 +220,7 @@ public sealed class WindowsTrayService : ITrayService
             }
 
             DeleteTrayIcon(handle);
+            ReleaseTrayIcon();
             DestroyWindow(handle);
         }
         catch (Exception ex)
@@ -257,9 +264,33 @@ public sealed class WindowsTrayService : ITrayService
         Shell_NotifyIcon(NIM_DELETE, ref data);
     }
 
-    private static NOTIFYICONDATA CreateNotifyIconData(IntPtr handle, TrayOptions options)
+    private NOTIFYICONDATA CreateNotifyIconData(IntPtr handle, TrayOptions options)
     {
-        var icon = LoadIcon(IntPtr.Zero, new IntPtr(IDI_APPLICATION));
+        var icon = IntPtr.Zero;
+        var ownsIcon = false;
+        if (!string.IsNullOrWhiteSpace(options.IconPath) && File.Exists(options.IconPath))
+        {
+            icon = LoadImage(
+                IntPtr.Zero,
+                options.IconPath,
+                IMAGE_ICON,
+                0,
+                0,
+                LR_LOADFROMFILE | LR_DEFAULTSIZE);
+            ownsIcon = icon != IntPtr.Zero;
+        }
+
+        if (icon == IntPtr.Zero)
+        {
+            icon = LoadIcon(IntPtr.Zero, new IntPtr(IDI_APPLICATION));
+        }
+
+        lock (_gate)
+        {
+            _trayIcon = icon;
+            _ownsTrayIcon = ownsIcon;
+        }
+
         return new NOTIFYICONDATA
         {
             cbSize = (uint)Marshal.SizeOf<NOTIFYICONDATA>(),
@@ -272,6 +303,24 @@ public sealed class WindowsTrayService : ITrayService
             szInfo = "",
             szInfoTitle = ""
         };
+    }
+
+    private void ReleaseTrayIcon()
+    {
+        IntPtr icon;
+        bool ownsIcon;
+        lock (_gate)
+        {
+            icon = _trayIcon;
+            ownsIcon = _ownsTrayIcon;
+            _trayIcon = IntPtr.Zero;
+            _ownsTrayIcon = false;
+        }
+
+        if (ownsIcon && icon != IntPtr.Zero)
+        {
+            DestroyIcon(icon);
+        }
     }
 
     private IntPtr WindowProcedure(IntPtr hWnd, uint message, IntPtr wParam, IntPtr lParam)
@@ -525,6 +574,18 @@ public sealed class WindowsTrayService : ITrayService
 
     [DllImport("user32.dll", SetLastError = true)]
     private static extern IntPtr LoadIcon(IntPtr hInstance, IntPtr lpIconName);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern IntPtr LoadImage(
+        IntPtr hInstance,
+        string name,
+        uint type,
+        int desiredWidth,
+        int desiredHeight,
+        uint loadFlags);
+
+    [DllImport("user32.dll", SetLastError = true)]
+    private static extern bool DestroyIcon(IntPtr hIcon);
 
     [DllImport("shell32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     private static extern bool Shell_NotifyIcon(uint dwMessage, ref NOTIFYICONDATA lpData);

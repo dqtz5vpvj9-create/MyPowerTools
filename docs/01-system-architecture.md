@@ -24,6 +24,9 @@ MyPowerTools
 │  ├─ Notification Center
 │  └─ Host Control IPC Client
 │
+├─ MyPowerTools.WebToolHost
+│  └─ SmartBird WebView2 child HWND and same-origin policy
+│
 ├─ MyPowerTools.Runtime
 │  ├─ PackageRegistry
 │  ├─ ModuleRegistry
@@ -113,12 +116,17 @@ MyPowerTools.Runner.exe
 MyPowerTools.Shell.Avalonia.exe
   UI 进程。负责 Dashboard、Settings、Detail、Logs、Command Palette。
 
+MyPowerTools.WebToolHost.exe
+  SmartBird Web UI 的独立 WinExe。负责 WebView2 controller、子 HWND 与固定同源策略；宿主退出后 Shell 显示回退页面。
+
 module sidecar
   工具 package 自己的 runtime。由 Runner 管理，优先 gRPC over native IPC。
 
 privileged broker
   高权限动作边界。按平台实现，不把权限散落到模块代码。
 ```
+
+当前故障边界按能力分层：SmartBird 的 Web UI 已建立独立进程崩溃边界；纯 Avalonia 工具页面仍由 Shell 同进程托管；采用 `inproc-dotnet` 的后端模块共享 Runner 进程，同时获得调用预算、取消代际、顺序化故障计数、熔断、隔离清理和经验证卸载后的实例恢复。超时回调若继续运行，模块会停止接收新工作并要求重启 Runner。需要强隔离的后端模块应选择 gRPC/native-IPC sidecar transport。WebToolHost 与 Shell 使用相同用户令牌和完整性级别；第三方 UI 的安全沙箱需要 AppContainer/低完整性进程、capability 声明与 broker IPC。
 
 Shell 可以退出和重启；Runner 仍维持模块状态、命令索引、事件订阅和后台服务。Runner 可以在无 Shell 的情况下处理 tray、hotkey、通知和健康检查。
 

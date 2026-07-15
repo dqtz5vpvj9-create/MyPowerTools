@@ -1,5 +1,5 @@
 param(
-    [string]$InstallDir = (Join-Path $env:LOCALAPPDATA 'Programs\MyPowerTools'),
+    [string]$InstallDir = (Join-Path $env:ProgramFiles 'MyPowerTools'),
     [string]$DataRoot = (Join-Path $env:LOCALAPPDATA 'MyPowerTools'),
     [switch]$RemoveData,
     [switch]$Force,
@@ -7,6 +7,13 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+
+$currentIdentity = [Security.Principal.WindowsIdentity]::GetCurrent()
+$currentPrincipal = [Security.Principal.WindowsPrincipal]::new($currentIdentity)
+$isAdministrator = $currentPrincipal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+if (-not $DryRun.IsPresent -and -not $isAdministrator) {
+    throw 'Removing MyPowerTools from Program Files requires an elevated PowerShell session.'
+}
 
 function Resolve-FullPath {
     param([Parameter(Mandatory = $true)][string]$Path)
@@ -54,9 +61,11 @@ function Stop-InstalledProcess {
     )
 
     $processNames = @(
+        'MyPowerTools',
         'MyPowerTools.Runner',
         'MyPowerTools.Shell.Avalonia',
-        'MyPowerTools.Cli'
+        'MyPowerTools.Cli',
+        'MyPowerTools.ElevatedBroker'
     )
 
     foreach ($name in $processNames) {
@@ -84,6 +93,27 @@ function Stop-InstalledProcess {
                 Stop-Process -Id $process.Id -Force
             }
         }
+    }
+
+    foreach ($process in Get-Process -ErrorAction SilentlyContinue) {
+        $path = $null
+        try {
+            $path = $process.MainModule.FileName
+        } catch {
+            continue
+        }
+
+        if (-not $path -or -not (Test-IsInsidePath -Parent $Root -Child $path)) {
+            continue
+        }
+
+        if ($DryRun) {
+            Write-Host "Would stop installed child process $($process.ProcessName) ($($process.Id))"
+            continue
+        }
+
+        Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+        Wait-Process -Id $process.Id -Timeout 5 -ErrorAction SilentlyContinue
     }
 }
 

@@ -8,8 +8,9 @@
       "kind": "open",
       "category": "Android Tools",
       "execution": {
-        "type": "open",
-        "surface": "detail"
+        "type": "navigation",
+        "toolId": "remote-notifications",
+        "routeId": "inbox"
       }
     },
     {

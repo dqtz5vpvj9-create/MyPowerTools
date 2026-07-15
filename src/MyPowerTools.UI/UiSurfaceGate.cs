@@ -87,9 +87,9 @@ public sealed class UiSurfaceGate
         foreach (var file in axamlFiles)
         {
             var text = File.ReadAllText(file);
-            AddIfMatches(issues, file, text, "#[0-9A-Fa-f]{3,8}|Brush\\.Parse|Brushes\\.", "Use theme brush resources instead of raw colors.");
-            AddIfMatches(issues, file, text, "\\b(Margin|Padding|Spacing)=\"[0-9]", "Use spacing resources instead of raw spacing literals.");
-            AddIfMatches(issues, file, text, "\\bFontSize=\"[0-9]", "Use typography resources instead of raw FontSize literals.");
+            AddIfMatches(issues, file, text, "#[0-9A-Fa-f]{3,8}|Brush\\.Parse|Brushes\\.", "MPTUI001 raw hex color outside token files. Use theme brush resources instead of raw colors.");
+            AddIfMatches(issues, file, text, "\\b(Margin|Padding|Spacing)=\"[0-9]", "MPTUI002 raw spacing outside token files. Use spacing resources instead of raw spacing literals.");
+            AddIfMatches(issues, file, text, "\\bFontSize=\"[0-9]", "MPTUI003 raw typography outside token files. Use typography resources instead of raw FontSize literals.");
         }
 
         var csharpFiles = Directory
@@ -100,23 +100,14 @@ public sealed class UiSurfaceGate
         foreach (var file in csharpFiles)
         {
             var text = File.ReadAllText(file);
-            AddIfMatches(issues, file, text, "Brush\\.Parse\\s*\\(", "Use theme brush resources instead of Brush.Parse.");
-            AddIfMatches(issues, file, text, "\\bBrushes\\.[A-Za-z]", "Use theme brush resources instead of raw Brushes.");
+            AddIfMatches(issues, file, text, "Brush\\.Parse\\s*\\(", "MPTUI001 raw hex color outside token files. Use theme brush resources instead of Brush.Parse.");
+            AddIfMatches(issues, file, text, "\\bBrushes\\.[A-Za-z]", "MPTUI001 raw hex color outside token files. Use theme brush resources instead of raw Brushes.");
 
             if (!IsTokenFile(file))
             {
-                AddIfMatches(issues, file, text, "new\\s+Thickness\\s*\\(\\s*[0-9]", "Use spacing tokens instead of raw Thickness literals.");
-                AddIfMatches(issues, file, text, "new\\s+CornerRadius\\s*\\(\\s*[0-9]", "Use radius tokens instead of raw CornerRadius literals.");
-                AddIfMatches(issues, file, text, "\\bFontSize\\w*\\s*(?:=|=>)\\s*[0-9]", "Use typography tokens instead of raw FontSize values.");
-            }
-
-            if (Path.GetFileName(file).StartsWith("ShellWorkspaceController", StringComparison.OrdinalIgnoreCase))
-            {
-                var lineCount = File.ReadLines(file).Count();
-                if (lineCount > 240)
-                {
-                    issues.Add(new ValidationIssue(file, "error", $"Shell workspace coordinator file has {lineCount} lines; split page orchestration below 240 lines per file."));
-                }
+                AddIfMatches(issues, file, text, "new\\s+Thickness\\s*\\(\\s*[0-9]", "MPTUI002 raw spacing outside token files. Use spacing tokens instead of raw Thickness literals.");
+                AddIfMatches(issues, file, text, "new\\s+CornerRadius\\s*\\(\\s*[0-9]", "MPTUI002 raw spacing outside token files. Use radius tokens instead of raw CornerRadius literals.");
+                AddIfMatches(issues, file, text, "\\bFontSize\\w*\\s*(?:=|=>)\\s*[0-9]", "MPTUI003 raw typography outside token files. Use typography tokens instead of raw FontSize values.");
             }
         }
 
@@ -137,7 +128,7 @@ public sealed class UiSurfaceGate
             var mainWindowLines = File.ReadLines(mainWindowPath).Count();
             if (mainWindowLines > 120)
             {
-                issues.Add(new ValidationIssue(mainWindowPath, "error", $"MPTUI001 MainWindow has {mainWindowLines} lines; keep Shell composition below 120 lines."));
+                issues.Add(new ValidationIssue(mainWindowPath, "error", $"MPTUI006 MainWindow.cs over 120 lines. MainWindow has {mainWindowLines} lines."));
             }
         }
 
@@ -146,7 +137,7 @@ public sealed class UiSurfaceGate
             var lineCount = File.ReadLines(viewModelFile).Count();
             if (lineCount > 350)
             {
-                issues.Add(new ValidationIssue(viewModelFile, "error", $"MPTUI002 ViewModel file has {lineCount} lines; split page/component state below 350 lines."));
+                issues.Add(new ValidationIssue(viewModelFile, "error", $"MPTUI007 ViewModel over 350 lines. ViewModel file has {lineCount} lines."));
             }
         }
 
@@ -155,7 +146,7 @@ public sealed class UiSurfaceGate
             var lineCount = File.ReadLines(controllerFile).Count();
             if (lineCount > 400)
             {
-                issues.Add(new ValidationIssue(controllerFile, "error", $"MPTUI003 Shell controller file has {lineCount} lines; split orchestration below 400 lines."));
+                issues.Add(new ValidationIssue(controllerFile, "error", $"MPTUI008 controller over 400 lines. Shell controller file has {lineCount} lines."));
             }
         }
 
@@ -165,14 +156,25 @@ public sealed class UiSurfaceGate
             var rawControl = Regex.Match(view, @"</?(Button|TextBox|ComboBox|CheckBox)\b");
             if (rawControl.Success)
             {
-                issues.Add(new ValidationIssue(viewPath, "error", $"MPTUI012 Shell view must use Mpt input/action controls instead of raw {rawControl.Groups[1].Value}."));
+                issues.Add(new ValidationIssue(viewPath, "error", $"MPTUI004 raw Avalonia Button/TextBox in Shell pages. Use MPT controls instead of raw {rawControl.Groups[1].Value}."));
             }
+        }
+
+        foreach (var codeBehindPath in Directory.EnumerateFiles(Path.Combine(shellRoot, "Views"), "*.axaml.cs", SearchOption.AllDirectories))
+        {
+            var codeBehind = File.ReadAllText(codeBehindPath);
+            AddIfMatches(
+                issues,
+                codeBehindPath,
+                codeBehind,
+                "new\\s+(Grid|Button|TextBox|ComboBox|CheckBox|StackPanel|Border|ScrollViewer|ContentControl)\\b",
+                "MPTUI005 production page code-behind creates layout controls. Keep production Shell views in AXAML with thin code-behind.");
         }
 
         if (File.Exists(shellProjectPath))
         {
             var project = File.ReadAllText(shellProjectPath);
-            AddIfMatches(issues, shellProjectPath, project, "AndroidTools|AdbForwarder|DoubaoAgent|ScreenEase|SmartBird", "MPTUI004 Shell project must not reference concrete module projects.");
+            AddIfMatches(issues, shellProjectPath, project, "AndroidTools|AdbForwarder|DoubaoAgent|ScreenEase|SmartBird", "MPTUI009 Shell references concrete module project. Shell must depend on HostControl contracts and shared UI only.");
         }
 
         if (File.Exists(shellChromePath))
@@ -181,36 +183,46 @@ public sealed class UiSurfaceGate
             if (!chrome.Contains("GlobalOverlayHost", StringComparison.Ordinal) ||
                 !chrome.Contains("IsCommandPaletteOpen", StringComparison.Ordinal))
             {
-                issues.Add(new ValidationIssue(shellChromePath, "error", "MPTUI005 ShellChrome must expose a global command overlay host."));
+                issues.Add(new ValidationIssue(shellChromePath, "error", "MPTUI011 dashboard contains permanent command palette rail. ShellChrome must expose a global command overlay host."));
             }
 
             if (Regex.IsMatch(chrome, "ColumnDefinitions\\s*=\\s*\"[^\"]*,\\*,\\s*(?:3[0-9]{2}|[0-9]{3})\"") ||
                 Regex.IsMatch(chrome, "Grid\\.Column\\s*=\\s*\"2\"[\\s\\S]{0,240}CommandPanel"))
             {
-                issues.Add(new ValidationIssue(shellChromePath, "error", "MPTUI006 Command Palette must not be a permanent dashboard right rail."));
+                issues.Add(new ValidationIssue(shellChromePath, "error", "MPTUI011 dashboard contains permanent command palette rail. Command Palette must be global overlay content."));
             }
 
             if (Regex.IsMatch(chrome, "Text\\s*=\\s*\"MyPowerTools\"[\\s\\S]{0,120}NavigationItems"))
             {
-                issues.Add(new ValidationIssue(shellChromePath, "error", "MPTUI007 Sidebar brand and page title must not duplicate the same heading."));
+                issues.Add(new ValidationIssue(shellChromePath, "error", "MPTUI012 duplicate page heading. Sidebar brand and page title must not duplicate the same heading."));
+            }
+
+            if (chrome.Contains("sample-fixture", StringComparison.OrdinalIgnoreCase))
+            {
+                issues.Add(new ValidationIssue(shellChromePath, "error", "MPTUI010 sample-fixture text appears in production screenshot source. Fixture labels belong only in manifests."));
             }
         }
 
         if (File.Exists(dashboardPath))
         {
             var dashboard = File.ReadAllText(dashboardPath);
-            foreach (var required in new[] { "MptMetricTile", "MptStatusBadge", "MptModuleCard", "MptPrimaryButton" })
+            if (!dashboard.Contains("MptStatusBadge", StringComparison.Ordinal))
+            {
+                issues.Add(new ValidationIssue(dashboardPath, "error", "MPTUI014 status without StatusBadge. Dashboard status text must render through MptStatusBadge."));
+            }
+
+            foreach (var required in new[] { "MptMetricTile", "MptModuleCard", "MptPrimaryButton" })
             {
                 if (!dashboard.Contains(required, StringComparison.Ordinal))
                 {
-                    issues.Add(new ValidationIssue(dashboardPath, "error", $"MPTUI008 Dashboard is missing required component class {required}."));
+                    issues.Add(new ValidationIssue(dashboardPath, "error", $"MPTUI015 card without primary action or details action. Dashboard is missing required component class {required}."));
                 }
             }
 
             if (dashboard.Contains("Command Palette", StringComparison.Ordinal) ||
                 dashboard.Contains("BrokerAuditView", StringComparison.Ordinal))
             {
-                issues.Add(new ValidationIssue(dashboardPath, "error", "MPTUI009 Dashboard must not embed Command Palette or broker audit panels."));
+                issues.Add(new ValidationIssue(dashboardPath, "error", "MPTUI011 dashboard contains permanent command palette rail. Dashboard must not embed Command Palette or broker audit panels."));
             }
         }
 
@@ -219,7 +231,7 @@ public sealed class UiSurfaceGate
             var commandPalette = File.ReadAllText(commandPalettePath);
             if (!Regex.IsMatch(commandPalette, "Text\\s*=\\s*\"\\{Binding Label\\}\"[\\s\\S]{0,240}<controls:MptTextBox"))
             {
-                issues.Add(new ValidationIssue(commandPalettePath, "error", "MPTUI010 Command parameters must show a label before editable input."));
+                issues.Add(new ValidationIssue(commandPalettePath, "error", "MPTUI013 command parameter field without label. Command parameters must show a label before editable input."));
             }
         }
 
@@ -239,7 +251,7 @@ public sealed class UiSurfaceGate
             var path = Path.Combine(themeDirectory, requiredTheme);
             if (!File.Exists(path))
             {
-                issues.Add(new ValidationIssue(path, "error", $"MPTUI011 Required theme token file {requiredTheme} is missing."));
+                issues.Add(new ValidationIssue(path, "error", $"MPTUI016 Required theme token file {requiredTheme} is missing."));
             }
         }
 
@@ -249,7 +261,7 @@ public sealed class UiSurfaceGate
             var path = Path.Combine(controlsDirectory, requiredControl);
             if (!File.Exists(path))
             {
-                issues.Add(new ValidationIssue(path, "error", $"MPTUI014 Required Shell component style file {requiredControl} is missing."));
+                issues.Add(new ValidationIssue(path, "error", $"MPTUI017 Required Shell component style file {requiredControl} is missing."));
             }
         }
     }

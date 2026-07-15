@@ -1,9 +1,9 @@
 {
   "Format": "mpt-signature-v1",
   "PackageId": "doubao-agent",
-  "Version": "0.2.0",
+  "Version": "0.3.0",
   "HashManifest": "shared/package.hashes.json",
-  "HashManifestSha256": "0878b6bca7f38c557e71c04032f81da5311b965742a842151558ba24369259af",
+  "HashManifestSha256": "4f37d12ee95dbcb0c6e33af17035a929d66aba614c70ecad9c8e06cf8cbcb9ba",
   "SignatureState": "unsigned-local-trust",
   "Algorithm": "sha256-manifest-local",
   "KeyId": "local-development",

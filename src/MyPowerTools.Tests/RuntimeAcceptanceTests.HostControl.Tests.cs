@@ -48,6 +48,24 @@ namespace MyPowerTools.Tests;
 public sealed partial class RuntimeAcceptanceTests
 {
     [Fact]
+    public async Task HostControl_publishes_canonical_tool_availability()
+    {
+        var runtime = new MptHostRuntime(new PackageReader(), PlatformId.Current());
+        runtime.Load(Path.Combine(Root, "modules"));
+        var service = new HostControlGrpcService(
+            runtime,
+            new AuditLog(Path.Combine(Path.GetTempPath(), "mpt-hostcontrol-tool-availability", Guid.NewGuid().ToString("N"), "audit.jsonl")));
+
+        var response = await service.ListTools(
+            new HostProto.ListToolsRequest { IncludeDisabled = true },
+            new TestServerCallContext());
+
+        Assert.Equal("paused", response.Tools.Single(tool => tool.ToolId == "process-monitor").Availability);
+        Assert.Equal("paused", response.Tools.Single(tool => tool.ToolId == "remote-commands").Availability);
+        Assert.Equal("available", response.Tools.Single(tool => tool.ToolId == "screenease").Availability);
+    }
+
+    [Fact]
     public async Task HostControl_auth_interceptor_requires_local_token()
     {
         const string token = "expected-local-token-for-hostcontrol-auth";

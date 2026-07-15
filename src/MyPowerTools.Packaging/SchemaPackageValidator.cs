@@ -36,6 +36,7 @@ public sealed class SchemaPackageValidator
             foreach (var module in definition.Modules)
             {
                 issues.AddRange(ValidateJson(module.ManifestPath, "module.schema.json"));
+                issues.AddRange(ValidateTools(module));
                 issues.AddRange(ValidateUiSurfaces(module));
                 issues.AddRange(ValidateCommandIndexes(definition, module));
             }
@@ -62,6 +63,18 @@ public sealed class SchemaPackageValidator
         {
             var surfacePath = Path.GetFullPath(Path.Combine(module.Directory, relativePath));
             foreach (var issue in ValidateJson(surfacePath, "ui-surface.schema.json"))
+            {
+                yield return issue;
+            }
+        }
+    }
+
+    private IEnumerable<ValidationIssue> ValidateTools(MptModuleDefinition module)
+    {
+        foreach (var relativePath in module.Manifest.Tools)
+        {
+            var toolPath = Path.GetFullPath(Path.Combine(module.Directory, relativePath));
+            foreach (var issue in ValidateJson(toolPath, "tool.schema.json"))
             {
                 yield return issue;
             }

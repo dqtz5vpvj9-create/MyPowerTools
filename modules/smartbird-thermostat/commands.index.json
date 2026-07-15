@@ -15,7 +15,7 @@
     {
       "id": "smartbird-thermostat.status.summary",
       "title": "Summarize thermostat status",
-      "subtitle": "Reports SmartBird service, Energy Server, FNB-58, and ADB readiness",
+      "subtitle": "Reports SmartBird service, Energy Server, and ADB readiness",
       "kind": "action",
       "category": "SmartBird Thermostat",
       "timeoutMs": 10000,
@@ -37,7 +37,7 @@
     {
       "id": "smartbird-thermostat.logs.summary",
       "title": "Summarize thermostat logs",
-      "subtitle": "Combines Runner-managed module logs with service log diagnostics",
+      "subtitle": "Reads the original scheduled-task service log and Runner-managed module logs",
       "kind": "action",
       "category": "SmartBird Thermostat",
       "timeoutMs": 10000,
@@ -48,7 +48,7 @@
     {
       "id": "smartbird-thermostat.config.get",
       "title": "Read thermostat config",
-      "subtitle": "Reads local module policy plus optional service config",
+      "subtitle": "Reads the local module policy and source-derived runtime configuration",
       "kind": "action",
       "category": "SmartBird Thermostat",
       "timeoutMs": 10000,
@@ -86,7 +86,7 @@
     {
       "id": "smartbird-thermostat.hardware.diagnostics",
       "title": "Check thermostat hardware dependencies",
-      "subtitle": "Checks Energy Server, FNB-58, and ADB dependency readiness",
+      "subtitle": "Checks source-backed Energy Server and ADB dependency readiness",
       "kind": "action",
       "category": "SmartBird Thermostat",
       "timeoutMs": 10000,
@@ -108,7 +108,7 @@
     {
       "id": "smartbird-thermostat.service.restart",
       "title": "Request thermostat service restart",
-      "subtitle": "Builds a ServiceBroker restart request with audit details",
+      "subtitle": "Builds an audited scheduled-task restart request",
       "kind": "action",
       "category": "SmartBird Thermostat",
       "requiresElevation": true,

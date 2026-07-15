@@ -1,0 +1,73 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="using:MyPowerTools.UI.Controls"
+             xmlns:vm="using:MyPowerTools.Shell.Avalonia.ViewModels"
+             x:Class="MyPowerTools.Shell.Avalonia.Views.ExternalSdkToolView"
+             x:DataType="vm:ExternalSdkToolViewModel">
+  <Grid RowDefinitions="Auto,Auto,*" RowSpacing="12">
+    <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto" ColumnSpacing="12">
+      <controls:MptButton Content="All tools" Command="{Binding ReturnToToolsCommand}" />
+      <StackPanel Grid.Column="1" Spacing="2">
+        <TextBlock Classes="MptPageTitle" Text="{Binding Title}" />
+        <TextBlock Classes="MptPageSubtitle" Text="{Binding Subtitle}" />
+      </StackPanel>
+      <controls:MptButton Grid.Column="2" Content="Settings" Command="{Binding OpenSettingsCommand}" IsVisible="{Binding CanOpenSettings}" />
+      <controls:MptButton Grid.Column="3" Content="Open externally" Command="{Binding OpenExternalCommand}" IsVisible="{Binding CanOpenExternal}" />
+      <controls:MptButton Grid.Column="4" Classes="MptPrimaryButton" Content="Refresh" Command="{Binding RefreshCommand}" />
+    </Grid>
+
+    <Border Grid.Row="1" Classes="MptCard" Padding="10,8" IsVisible="{Binding HasCommands}">
+      <ItemsControl ItemsSource="{Binding Commands}">
+        <ItemsControl.ItemsPanel>
+          <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="8" /></ItemsPanelTemplate>
+        </ItemsControl.ItemsPanel>
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="vm:ExternalToolCommandViewModel">
+            <controls:MptButton Content="{Binding Title}" Command="{Binding ExecuteCommand}" ToolTip.Tip="{Binding Description}" />
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+    </Border>
+
+    <Grid Grid.Row="2">
+      <Border IsVisible="{Binding IsWeb}" Classes="MptCard" Padding="24">
+        <StackPanel Spacing="16">
+          <TextBlock Classes="MptSectionTitle" Text="{Binding RouteTitle}" />
+          <TextBlock Classes="MptPageSubtitle" Text="This web surface opens in the tool's own browser control. Use Open externally to launch it, or Refresh to reload the page." TextWrapping="Wrap" />
+          <controls:MptButton Classes="MptPrimaryButton" Content="Open externally" Command="{Binding OpenExternalCommand}" IsVisible="{Binding CanOpenExternal}" HorizontalAlignment="Left" />
+        </StackPanel>
+      </Border>
+
+      <ContentControl x:Name="ManagedSurfaceHost" IsVisible="{Binding IsDotnet}" />
+
+      <Border IsVisible="{Binding IsGeneric}" Classes="MptCard" Padding="24">
+        <StackPanel Spacing="16">
+          <TextBlock Classes="MptSectionTitle" Text="{Binding RouteTitle}" />
+          <TextBlock Classes="MptPageSubtitle" Text="This tool runs through its declared external runtime. Commands, settings, health, events, and logs remain owned by the tool." TextWrapping="Wrap" />
+          <controls:MptButton IsVisible="{Binding IsNative}" Classes="MptPrimaryButton" Content="Launch native tool" Command="{Binding LaunchCommand}" HorizontalAlignment="Left" />
+        </StackPanel>
+      </Border>
+
+      <Border IsVisible="{Binding IsSurfaceFailed}" Classes="MptErrorState" Margin="24" VerticalAlignment="Center">
+        <StackPanel Spacing="12">
+          <TextBlock Classes="MptSectionTitle" Text="The tool is currently unreachable" />
+          <TextBlock Text="{Binding SurfaceMessage}" TextWrapping="Wrap" />
+          <StackPanel Orientation="Horizontal" Spacing="8">
+            <controls:MptButton Classes="MptPrimaryButton" Content="Try again" Command="{Binding RefreshCommand}" />
+            <controls:MptButton Content="Open externally" Command="{Binding OpenExternalCommand}" IsVisible="{Binding CanOpenExternal}" />
+          </StackPanel>
+        </StackPanel>
+      </Border>
+
+      <Border IsVisible="{Binding IsSurfaceLoading}"
+              Background="#F8F9FA"
+              Margin="1"
+              IsHitTestVisible="False">
+        <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="12">
+          <ProgressBar IsIndeterminate="True" Width="220" Height="4" />
+          <TextBlock Text="{Binding SurfaceMessage}" HorizontalAlignment="Center" />
+        </StackPanel>
+      </Border>
+    </Grid>
+  </Grid>
+</UserControl>

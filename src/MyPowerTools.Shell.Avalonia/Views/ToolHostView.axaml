@@ -1,0 +1,168 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="using:MyPowerTools.UI.Controls"
+             xmlns:vm="using:MyPowerTools.Shell.Avalonia.ViewModels"
+             x:Class="MyPowerTools.Shell.Avalonia.Views.ToolHostView"
+             x:DataType="vm:ToolHostViewModel">
+  <StackPanel Spacing="{DynamicResource MptSpacing2Xl}">
+    <Grid ColumnDefinitions="Auto,*,Auto"
+          ColumnSpacing="{DynamicResource MptSpacingM}">
+      <controls:MptButton Content="All tools"
+                          Command="{Binding BrowseAllToolsCommand}"
+                          VerticalAlignment="Center" />
+      <Grid Grid.Column="1"
+            ColumnDefinitions="Auto,*"
+            ColumnSpacing="{DynamicResource MptSpacingM}">
+        <Border Classes="MptToolIcon">
+          <TextBlock Classes="MptToolIconGlyph"
+                     Text="{Binding Tool.IconGlyph}" />
+        </Border>
+        <StackPanel Grid.Column="1"
+                    Spacing="{DynamicResource MptSpacingXs}">
+          <TextBlock Classes="MptPageTitle"
+                     Text="{Binding Title}" />
+          <TextBlock Classes="MptPageSubtitle"
+                     Text="{Binding Subtitle}" />
+        </StackPanel>
+      </Grid>
+      <controls:MptButton Grid.Column="2"
+                          Content="Refresh"
+                          Command="{Binding RefreshCommand}"
+                          VerticalAlignment="Center" />
+    </Grid>
+
+    <StackPanel IsVisible="{Binding IsLoading}"
+                Spacing="{DynamicResource MptSpacingM}">
+      <TextBlock Classes="MptSectionTitle"
+                 Text="Loading tool workspace" />
+      <Border Classes="MptLoadingSkeleton" Height="48" />
+      <Border Classes="MptLoadingSkeleton" Height="260" />
+      <Border Classes="MptLoadingSkeleton" Height="96" />
+    </StackPanel>
+
+    <Border Classes="MptErrorState"
+            IsVisible="{Binding IsFailed}">
+      <StackPanel Spacing="{DynamicResource MptSpacingM}">
+        <TextBlock Classes="MptSectionTitle"
+                   Text="This tool could not be opened" />
+        <TextBlock Classes="MptPageSubtitle"
+                   Text="{Binding ErrorMessage}" />
+        <StackPanel Orientation="Horizontal"
+                    Spacing="{DynamicResource MptSpacingS}">
+          <controls:MptButton Classes="MptPrimaryButton"
+                              Content="Try again"
+                              Command="{Binding RetryCommand}" />
+          <controls:MptButton Content="Return to tools"
+                              Command="{Binding BrowseAllToolsCommand}" />
+        </StackPanel>
+      </StackPanel>
+    </Border>
+
+    <Border Classes="MptEmptyState"
+            IsVisible="{Binding IsEmpty}">
+      <Grid ColumnDefinitions="Auto,*"
+            ColumnSpacing="{DynamicResource MptSpacingL}">
+        <Border Classes="MptToolIcon"
+                Width="56"
+                Height="56">
+          <TextBlock Classes="MptToolIconGlyph"
+                     Text="{Binding Tool.IconGlyph}"
+                     FontSize="{DynamicResource MptFontSizeSection}" />
+        </Border>
+        <StackPanel Grid.Column="1"
+                    Spacing="{DynamicResource MptSpacingM}">
+          <StackPanel Spacing="{DynamicResource MptSpacingXs}">
+            <TextBlock Classes="MptSectionTitle"
+                       Text="{Binding DevelopmentTitle}" />
+            <TextBlock Classes="MptPageSubtitle"
+                       Text="{Binding DevelopmentMessage}" />
+          </StackPanel>
+          <Border Classes="MptStatusBadge degraded">
+            <TextBlock Classes="MptMeta"
+                       Text="Interface in development" />
+          </Border>
+          <StackPanel Orientation="Horizontal"
+                      Spacing="{DynamicResource MptSpacingS}">
+            <controls:MptButton Classes="MptPrimaryButton"
+                                Content="Return to tool catalog"
+                                Command="{Binding BrowseAllToolsCommand}" />
+            <controls:MptButton Content="Check for an update"
+                                Command="{Binding RefreshCommand}" />
+          </StackPanel>
+        </StackPanel>
+      </Grid>
+    </Border>
+
+    <StackPanel IsVisible="{Binding IsReady}"
+                Spacing="{DynamicResource MptSpacingL}">
+      <ItemsControl ItemsSource="{Binding Sections}"
+                    IsVisible="{Binding HasSections}">
+        <ItemsControl.ItemsPanel>
+          <ItemsPanelTemplate>
+            <WrapPanel Orientation="Horizontal" />
+          </ItemsPanelTemplate>
+        </ItemsControl.ItemsPanel>
+        <ItemsControl.ItemTemplate>
+          <DataTemplate x:DataType="vm:ToolSectionNavigationItemViewModel">
+            <controls:MptButton Content="{Binding Label}"
+                                Command="{Binding NavigateCommand}"
+                                Classes.MptPrimaryButton="{Binding IsSelected}"
+                                Margin="{DynamicResource MptWrapItemMargin}" />
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+
+      <Border Classes="MptProductHero">
+        <StackPanel Spacing="{DynamicResource MptSpacingL}">
+          <StackPanel Spacing="{DynamicResource MptSpacingXs}">
+            <TextBlock Classes="MptMeta"
+                       Text="{Binding CurrentWorkspace.Subtitle}" />
+            <TextBlock Classes="MptSectionTitle"
+                       Text="{Binding CurrentWorkspace.Title}" />
+            <TextBlock Classes="MptPageSubtitle"
+                       Text="{Binding CurrentWorkspace.Description}" />
+          </StackPanel>
+
+          <ItemsControl ItemsSource="{Binding CurrentWorkspace.Highlights}"
+                        IsVisible="{Binding CurrentWorkspace.HasHighlights}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <WrapPanel />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:MetricViewModel">
+                <Border Classes="MptMetricTile"
+                        Margin="{DynamicResource MptWrapItemMargin}">
+                  <StackPanel Spacing="{DynamicResource MptSpacingXs}">
+                    <TextBlock Classes="MptMeta"
+                               Text="{Binding Label}" />
+                    <TextBlock Classes="MptCardTitle"
+                               Text="{Binding Value}" />
+                  </StackPanel>
+                </Border>
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+
+          <ItemsControl ItemsSource="{Binding CurrentWorkspace.Actions}"
+                        IsVisible="{Binding CurrentWorkspace.HasActions}">
+            <ItemsControl.ItemsPanel>
+              <ItemsPanelTemplate>
+                <WrapPanel Orientation="Horizontal" />
+              </ItemsPanelTemplate>
+            </ItemsControl.ItemsPanel>
+            <ItemsControl.ItemTemplate>
+              <DataTemplate x:DataType="vm:ProductActionViewModel">
+                <controls:MptButton Content="{Binding Label}"
+                                    Command="{Binding ExecuteCommand}"
+                                    Classes.MptPrimaryButton="{Binding IsPrimary}"
+                                    Margin="{DynamicResource MptWrapItemMargin}" />
+              </DataTemplate>
+            </ItemsControl.ItemTemplate>
+          </ItemsControl>
+        </StackPanel>
+      </Border>
+    </StackPanel>
+  </StackPanel>
+</UserControl>

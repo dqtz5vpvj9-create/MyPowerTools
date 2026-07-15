@@ -1,0 +1,19 @@
+{
+  "schemaVersion": "1.0",
+  "toolId": "remote-notifications",
+  "ownerModuleId": "android-tools.notifications",
+  "title": "Remote Notifications",
+  "description": "Receive signed remote notifications, filter by session, and open complete message details.",
+  "icon": "tool.remote-notifications",
+  "category": "Communication",
+  "primaryRouteId": "inbox",
+  "routes": [
+    { "routeId": "inbox", "surfaceId": "android-tools.notifications.inbox", "title": "Notifications", "icon": "route.inbox" }
+  ],
+  "homeCard": {
+    "summary": "Open the live notification stream and filter messages by Codex or Claude session.",
+    "primaryActionLabel": "Open Notifications",
+    "statusBinding": "module.status",
+    "order": 20
+  }
+}

@@ -11,6 +11,10 @@ option csharp_namespace = "MyPowerTools.Protocol.HostControl.V1";
 service HostControl {
   rpc Ping(PingRequest) returns (PingResponse);
   rpc GetDashboardSnapshot(DashboardSnapshotRequest) returns (DashboardSnapshot);
+  rpc ListTools(ListToolsRequest) returns (ListToolsResponse);
+  rpc GetTool(GetToolRequest) returns (ToolDescriptor);
+  rpc RefreshTools(RefreshToolsRequest) returns (ListToolsResponse);
+  rpc PublishToolEvent(PublishToolEventRequest) returns (PublishToolEventResponse);
   rpc ListPackages(ListPackagesRequest) returns (ListPackagesResponse);
   rpc InstallPackage(InstallPackageRequest) returns (PackageOperationResult);
   rpc RepairPackage(PackageOperationRequest) returns (PackageOperationResult);
@@ -28,6 +32,7 @@ service HostControl {
   rpc CancelCommand(CancelCommandRequest) returns (CancelCommandResponse);
   rpc ListBrokerAudit(ListBrokerAuditRequest) returns (ListBrokerAuditResponse);
   rpc ListNotifications(ListNotificationsRequest) returns (ListNotificationsResponse);
+  rpc SetNotificationReadState(SetNotificationReadStateRequest) returns (SetNotificationReadStateResponse);
   rpc GetSettingsSchema(GetSettingsSchemaRequest) returns (SettingsSchema);
   rpc GetSettings(GetSettingsRequest) returns (SettingsSnapshot);
   rpc UpdateSettings(UpdateSettingsRequest) returns (SettingsSnapshot);
@@ -75,6 +80,112 @@ message QuickAction {
   string command_id = 1;
   string title = 2;
   string style = 3;
+  oneof target {
+    NavigationTarget navigation = 4;
+    CommandTarget command = 5;
+  }
+}
+
+message ListToolsRequest {
+  bool include_disabled = 1;
+}
+
+message ListToolsResponse {
+  repeated ToolDescriptor tools = 1;
+}
+
+message GetToolRequest {
+  string tool_id = 1;
+}
+
+message RefreshToolsRequest {}
+
+message PublishToolEventRequest {
+  string tool_id = 1;
+  string topic = 2;
+  string payload_json = 3;
+}
+
+message PublishToolEventResponse {
+  uint64 event_seq = 1;
+}
+
+message ToolDescriptor {
+  string tool_id = 1;
+  string owner_module_id = 2;
+  string title = 3;
+  string description = 4;
+  string icon = 5;
+  string category = 6;
+  string primary_route_id = 7;
+  repeated ToolRoute routes = 8;
+  ToolHomeCard home_card = 9;
+  string state = 10;
+  string state_summary = 11;
+  string availability = 12;
+  string tool_type = 13;
+  string source_directory = 14;
+  ToolRuntime runtime = 15;
+  ToolSettings settings = 16;
+  repeated ToolCommand commands = 17;
+}
+
+message ToolRoute {
+  string route_id = 1;
+  string surface_id = 2;
+  string title = 3;
+  string icon = 4;
+  string surface_kind = 5;
+  string source = 6;
+  string static_root = 7;
+  string assembly = 8;
+  string type = 9;
+  bool open_external = 10;
+  repeated string allowed_origins = 11;
+}
+
+message ToolRuntime {
+  string transport = 1;
+  string endpoint = 2;
+  string command = 3;
+  repeated string args = 4;
+  string health_path = 5;
+  string logs_path = 6;
+  int32 timeout_ms = 7;
+  bool remote = 8;
+}
+
+message ToolSettings {
+  string schema_path = 1;
+  string values_path = 2;
+  repeated string secrets = 3;
+}
+
+message ToolCommand {
+  string id = 1;
+  string title = 2;
+  string description = 3;
+  string method = 4;
+  string path = 5;
+}
+
+message ToolHomeCard {
+  string summary = 1;
+  string primary_action_label = 2;
+  string status_binding = 3;
+  int32 order = 4;
+}
+
+message NavigationTarget {
+  string tool_id = 1;
+  string route_id = 2;
+  google.protobuf.Struct route_args = 3;
+}
+
+message CommandTarget {
+  string command_id = 1;
+  google.protobuf.Struct preset_args = 2;
+  string result_presentation = 3;
 }
 
 message HostAlert {
@@ -372,6 +483,12 @@ message CommandItem {
   string danger_level = 6;
   bool requires_elevation = 7;
   repeated CommandParameter parameters = 8;
+  string kind = 9;
+  string category = 10;
+  google.protobuf.Struct execution = 11;
+  repeated string constraints = 12;
+  bool supports_progress = 13;
+  bool supports_cancellation = 14;
 }
 
 message CommandParameter {
@@ -446,10 +563,19 @@ message BrokerAuditEntry {
 message ListNotificationsRequest {
   string module_id = 1;
   uint32 limit = 2;
+  NotificationReadFilter read_filter = 3;
 }
 
 message ListNotificationsResponse {
   repeated NotificationItem notifications = 1;
+  uint32 total_count = 2;
+  uint32 unread_count = 3;
+}
+
+enum NotificationReadFilter {
+  NOTIFICATION_READ_FILTER_ALL = 0;
+  NOTIFICATION_READ_FILTER_READ = 1;
+  NOTIFICATION_READ_FILTER_UNREAD = 2;
 }
 
 message NotificationItem {
@@ -460,6 +586,16 @@ message NotificationItem {
   string title = 5;
   string body = 6;
   bool is_read = 7;
+}
+
+message SetNotificationReadStateRequest {
+  string notification_id = 1;
+  bool is_read = 2;
+}
+
+message SetNotificationReadStateResponse {
+  NotificationItem notification = 1;
+  bool changed = 2;
 }
 
 message GetSettingsRequest {
@@ -518,6 +654,7 @@ message HostEvent {
 message OpenShellRequest {
   string surface = 1;
   string target_id = 2;
+  NavigationTarget navigation = 3;
 }
 
 message QuitRunnerRequest {

@@ -20,5 +20,9 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
 
+  <ItemGroup>
+    <None Include="..\..\schemas\tool.schema.json" Link="schemas\tool.schema.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
 </Project>
 

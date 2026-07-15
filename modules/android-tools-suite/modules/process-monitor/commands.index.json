@@ -8,8 +8,9 @@
       "kind": "open",
       "category": "Android Tools",
       "execution": {
-        "type": "open",
-        "surface": "detail"
+        "type": "navigation",
+        "toolId": "process-monitor",
+        "routeId": "watch"
       }
     },
     {
@@ -19,7 +20,9 @@
       "kind": "open",
       "category": "Android Tools",
       "execution": {
-        "type": "host.logs.tail"
+        "type": "navigation",
+        "toolId": "process-monitor",
+        "routeId": "diagnostics"
       }
     }
   ]

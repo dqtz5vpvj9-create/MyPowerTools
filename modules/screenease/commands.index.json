@@ -8,8 +8,9 @@
       "kind": "open",
       "category": "ScreenEase",
       "execution": {
-        "type": "open",
-        "surface": "detail"
+        "type": "navigation",
+        "toolId": "screenease",
+        "routeId": "profiles"
       }
     },
     {
@@ -25,7 +26,7 @@
     {
       "id": "screenease.native-writer.status",
       "title": "Show ScreenEase native writer status",
-      "subtitle": "Probe Windows DDC/CI display write readiness",
+      "subtitle": "Probe Windows gamma-ramp display write readiness",
       "kind": "action",
       "category": "ScreenEase",
       "execution": {
@@ -33,20 +34,179 @@
       }
     },
     {
-      "id": "screenease.native-writer.configure",
-      "title": "Configure ScreenEase native writer",
-      "subtitle": "Enable or disable hardware writes for future profile apply commands",
+      "id": "screenease.effect.status",
+      "title": "Show ScreenEase effect",
+      "subtitle": "Read the persisted logical eye-care state",
       "kind": "action",
       "category": "ScreenEase",
-      "parameters": [
-        {
-          "id": "enabled",
-          "label": "Enabled",
-          "type": "boolean",
-          "required": false,
-          "defaultValue": "true"
-        }
-      ],
+      "execution": {
+        "type": "module.execute"
+      }
+    },
+    {
+      "id": "screenease.effect.apply",
+      "title": "Apply manual ScreenEase values",
+      "subtitle": "Apply manual color temperature and brightness",
+      "kind": "action",
+      "category": "ScreenEase",
+      "execution": {
+        "type": "module.execute"
+      }
+    },
+    {
+      "id": "screenease.effect.disable",
+      "title": "Disable ScreenEase effect",
+      "subtitle": "Disable eye care while retaining the selected profile",
+      "kind": "action",
+      "category": "ScreenEase",
+      "execution": {
+        "type": "module.execute"
+      }
+    },
+    {
+      "id": "screenease.effect.toggle",
+      "title": "Toggle ScreenEase effect",
+      "subtitle": "Enable the current effect or disable it and reset gamma",
+      "kind": "action",
+      "category": "ScreenEase",
+      "execution": { "type": "module.execute" }
+    },
+    {
+      "id": "screenease.effect.brightness.increase",
+      "title": "Increase ScreenEase brightness",
+      "subtitle": "Increase active brightness by five percentage points",
+      "kind": "action",
+      "category": "ScreenEase",
+      "execution": { "type": "module.execute" }
+    },
+    {
+      "id": "screenease.effect.brightness.decrease",
+      "title": "Decrease ScreenEase brightness",
+      "subtitle": "Decrease active brightness by five percentage points",
+      "kind": "action",
+      "category": "ScreenEase",
+      "execution": { "type": "module.execute" }
+    },
+    {
+      "id": "screenease.effect.temperature.increase",
+      "title": "Increase ScreenEase color temperature",
+      "subtitle": "Increase active color temperature by 250 K",
+      "kind": "action",
+      "category": "ScreenEase",
+      "execution": { "type": "module.execute" }
+    },
+    {
+      "id": "screenease.effect.temperature.decrease",
+      "title": "Decrease ScreenEase color temperature",
+      "subtitle": "Decrease active color temperature by 250 K",
+      "kind": "action",
+      "category": "ScreenEase",
+      "execution": { "type": "module.execute" }
+    },
+    {
+      "id": "screenease.profile.apply-long-read",
+      "title": "Apply ScreenEase long-read profile",
+      "subtitle": "Enable the original long-read profile",
+      "kind": "action",
+      "category": "ScreenEase",
+      "execution": { "type": "module.execute" }
+    },
+    {
+      "id": "screenease.profile.apply-low-blue-evening",
+      "title": "Apply ScreenEase low-blue evening profile",
+      "subtitle": "Enable the original low-blue evening profile",
+      "kind": "action",
+      "category": "ScreenEase",
+      "execution": { "type": "module.execute" }
+    },
+    {
+      "id": "screenease.overlay.status",
+      "title": "Show ScreenEase overlay",
+      "subtitle": "Read overlay settings and native window state",
+      "kind": "action",
+      "category": "ScreenEase",
+      "execution": { "type": "module.execute" }
+    },
+    {
+      "id": "screenease.overlay.configure",
+      "title": "Configure ScreenEase overlay",
+      "subtitle": "Set overlay enabled state, opacity, and color",
+      "kind": "action",
+      "category": "ScreenEase",
+      "execution": { "type": "module.execute" }
+    },
+    {
+      "id": "screenease.overlay.toggle",
+      "title": "Toggle ScreenEase overlay",
+      "subtitle": "Toggle the click-through display overlay",
+      "kind": "action",
+      "category": "ScreenEase",
+      "execution": { "type": "module.execute" }
+    },
+    {
+      "id": "screenease.legacy.import",
+      "title": "Import CareUEyes settings",
+      "subtitle": "Import profiles, schedule, transition, and rest settings from INI",
+      "kind": "action",
+      "category": "ScreenEase",
+      "execution": { "type": "module.execute" }
+    },
+    {
+      "id": "screenease.schedule.configure",
+      "title": "Configure ScreenEase day/night schedule",
+      "subtitle": "Save day/night value selection, sunrise, and sunset",
+      "kind": "action",
+      "category": "ScreenEase",
+      "execution": {
+        "type": "module.execute"
+      }
+    },
+    {
+      "id": "screenease.reminder.status",
+      "title": "Show ScreenEase rest timer",
+      "subtitle": "Read the persisted work and break timer state",
+      "kind": "action",
+      "category": "ScreenEase",
+      "execution": {
+        "type": "module.execute"
+      }
+    },
+    {
+      "id": "screenease.reminder.start",
+      "title": "Start ScreenEase rest timer",
+      "subtitle": "Start a persisted focus session",
+      "kind": "action",
+      "category": "ScreenEase",
+      "execution": {
+        "type": "module.execute"
+      }
+    },
+    {
+      "id": "screenease.reminder.pause",
+      "title": "Pause ScreenEase rest timer",
+      "subtitle": "Pause the current persisted focus or break session",
+      "kind": "action",
+      "category": "ScreenEase",
+      "execution": {
+        "type": "module.execute"
+      }
+    },
+    {
+      "id": "screenease.reminder.resume",
+      "title": "Resume ScreenEase rest timer",
+      "subtitle": "Resume the persisted paused session",
+      "kind": "action",
+      "category": "ScreenEase",
+      "execution": {
+        "type": "module.execute"
+      }
+    },
+    {
+      "id": "screenease.reminder.reset",
+      "title": "Reset ScreenEase rest timer",
+      "subtitle": "Reset the persisted timer and completed session count",
+      "kind": "action",
+      "category": "ScreenEase",
       "execution": {
         "type": "module.execute"
       }

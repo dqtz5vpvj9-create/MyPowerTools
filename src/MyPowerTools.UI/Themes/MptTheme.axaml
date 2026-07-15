@@ -12,6 +12,7 @@
   <StyleInclude Source="avares://MyPowerTools.UI/Controls/MptTopBar.axaml" />
   <StyleInclude Source="avares://MyPowerTools.UI/Controls/MptSearchBox.axaml" />
   <StyleInclude Source="avares://MyPowerTools.UI/Controls/MptModuleCard.axaml" />
+  <StyleInclude Source="avares://MyPowerTools.UI/Controls/MptToolCard.axaml" />
   <StyleInclude Source="avares://MyPowerTools.UI/Controls/MptStatusBadge.axaml" />
   <StyleInclude Source="avares://MyPowerTools.UI/Controls/MptMetricTile.axaml" />
   <StyleInclude Source="avares://MyPowerTools.UI/Controls/MptCommandListItem.axaml" />
@@ -31,4 +32,5 @@
   <StyleInclude Source="avares://MyPowerTools.UI/Controls/MptPackageCard.axaml" />
   <StyleInclude Source="avares://MyPowerTools.UI/Controls/MptIconButton.axaml" />
   <StyleInclude Source="avares://MyPowerTools.UI/Controls/MptCommandPalette.axaml" />
+
 </Styles>

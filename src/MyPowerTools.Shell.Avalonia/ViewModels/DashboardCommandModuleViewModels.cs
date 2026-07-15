@@ -21,17 +21,27 @@ public sealed class DashboardViewModel : ShellPageViewModel
 
     public IReadOnlyList<DashboardCardViewModel> Cards { get; }
     public IReadOnlyList<ShellAlertViewModel> Alerts { get; }
+    public IReadOnlyList<ShellAlertViewModel> VisibleAlerts => Alerts.Take(3).ToArray();
     public string RunningCount => Cards.Count(card => string.Equals(card.State, "running", StringComparison.OrdinalIgnoreCase)).ToString(CultureInfo.InvariantCulture);
     public string DegradedCount => Cards.Count(card => string.Equals(card.State, "degraded", StringComparison.OrdinalIgnoreCase)).ToString(CultureInfo.InvariantCulture);
     public string CommandCount => Cards.Sum(card => card.Actions.Count).ToString(CultureInfo.InvariantCulture);
     public string NotificationCount => Alerts.Count.ToString(CultureInfo.InvariantCulture);
     public bool HasAlerts => Alerts.Count > 0;
+    public string AlertSummary => Alerts.Count <= 3
+        ? $"{Alerts.Count} issue(s) need attention"
+        : $"{Alerts.Count} issue(s) need attention, showing first 3";
 }
 
 public sealed class CommandPaletteViewModel : ShellPageViewModel
 {
+    private CommandSearchResultViewModel? _selectedResult;
+    private bool _isDetailsOpen;
+
     public CommandPaletteViewModel(string query, IReadOnlyList<CommandItemViewModel> commands)
-        : base("Command Palette", $"{commands.Count} commands", commands.Count == 0 ? "empty" : "ready")
+        : base(
+            string.IsNullOrWhiteSpace(query) ? "Quick access" : "Search results",
+            $"{commands.Count} results",
+            commands.Count == 0 ? "empty" : "ready")
     {
         Query = query;
         Commands = RankCommands(query, commands);
@@ -48,24 +58,122 @@ public sealed class CommandPaletteViewModel : ShellPageViewModel
             .Take(4)
             .Select(command => new CommandPaletteHistoryItemViewModel(command.CommandId, command.Title, command.ExecutionStateLabel))
             .ToArray();
-        SelectedCommand = Commands.FirstOrDefault();
+        Results = Commands
+            .Select(command => new CommandSearchResultViewModel(command, ActivateResultAsync))
+            .ToArray();
+        VisibleResults = Results
+            .Take(6)
+            .ToArray();
+        BackToResultsCommand = new AsyncRelayCommand(() =>
+        {
+            IsDetailsOpen = false;
+            return Task.CompletedTask;
+        });
+        SelectResult(VisibleResults.FirstOrDefault());
     }
 
     public string Query { get; }
     public IReadOnlyList<CommandItemViewModel> Commands { get; }
     public IReadOnlyList<CommandProviderGroupViewModel> ProviderGroups { get; }
     public IReadOnlyList<CommandPaletteHistoryItemViewModel> RecentCommands { get; }
-    public CommandItemViewModel? SelectedCommand { get; }
-    public bool IsEmpty => Commands.Count == 0;
+    public IReadOnlyList<CommandSearchResultViewModel> Results { get; }
+    public IReadOnlyList<CommandSearchResultViewModel> VisibleResults { get; }
+    public ICommand BackToResultsCommand { get; }
+    public CommandItemViewModel? SelectedCommand => _selectedResult?.Command;
+    public bool IsEmpty => VisibleResults.Count == 0;
     public bool HasSelection => SelectedCommand is not null;
     public bool HasRecentCommands => RecentCommands.Count > 0;
-    public string KeyboardSelectionHint => "Keyboard selection ready";
+    public bool IsResultsVisible => !IsDetailsOpen;
+    public string ResultCountText => Commands.Count == VisibleResults.Count
+        ? $"{Commands.Count} results"
+        : $"{VisibleResults.Count} of {Commands.Count} results";
+    public string KeyboardSelectionHint => "Use Up and Down to select, then press Enter.";
     public string SelectionPreview => SelectedCommand?.ExecutionPreview ?? "No command selected.";
     public string DangerousConfirmationText => SelectedCommand?.DangerConfirmationText ?? "";
     public bool RequiresDangerousConfirmation => SelectedCommand?.RequiresDangerousConfirmation == true;
 
+    public bool IsDetailsOpen
+    {
+        get => _isDetailsOpen;
+        private set
+        {
+            if (SetProperty(ref _isDetailsOpen, value))
+            {
+                OnPropertyChanged(nameof(IsResultsVisible));
+            }
+        }
+    }
+
+    public void MoveSelection(int delta)
+    {
+        if (VisibleResults.Count == 0 || IsDetailsOpen)
+        {
+            return;
+        }
+
+        var currentIndex = _selectedResult is null
+            ? -1
+            : Array.IndexOf(VisibleResults.ToArray(), _selectedResult);
+        var nextIndex = currentIndex < 0
+            ? 0
+            : (currentIndex + delta + VisibleResults.Count) % VisibleResults.Count;
+        SelectResult(VisibleResults[nextIndex]);
+    }
+
+    public Task ActivateSelectedAsync()
+    {
+        return _selectedResult?.ActivateAsync() ?? Task.CompletedTask;
+    }
+
+    private async Task ActivateResultAsync(CommandSearchResultViewModel result)
+    {
+        SelectResult(result);
+        var command = result.Command;
+        if (command.IsNavigation && !result.RequiresReview)
+        {
+            await command.ExecuteAsync();
+            return;
+        }
+
+        IsDetailsOpen = true;
+        if (!result.RequiresReview)
+        {
+            await command.ExecuteAsync();
+        }
+    }
+
+    private void SelectResult(CommandSearchResultViewModel? result)
+    {
+        if (ReferenceEquals(_selectedResult, result))
+        {
+            return;
+        }
+
+        if (_selectedResult is not null)
+        {
+            _selectedResult.IsSelected = false;
+        }
+
+        _selectedResult = result;
+        if (_selectedResult is not null)
+        {
+            _selectedResult.IsSelected = true;
+        }
+
+        OnPropertyChanged(nameof(SelectedCommand));
+        OnPropertyChanged(nameof(HasSelection));
+        OnPropertyChanged(nameof(SelectionPreview));
+        OnPropertyChanged(nameof(DangerousConfirmationText));
+        OnPropertyChanged(nameof(RequiresDangerousConfirmation));
+    }
+
     private static IReadOnlyList<CommandItemViewModel> RankCommands(string query, IReadOnlyList<CommandItemViewModel> commands)
     {
+        if (string.IsNullOrWhiteSpace(query))
+        {
+            return commands;
+        }
+
         return commands
             .Select(command => new { Command = command, Score = FuzzyScore(query, command) })
             .OrderByDescending(item => item.Score)
@@ -104,6 +212,41 @@ public sealed class CommandPaletteViewModel : ShellPageViewModel
         }
 
         return score;
+    }
+}
+
+public sealed class CommandSearchResultViewModel : ObservableViewModel
+{
+    private readonly Func<CommandSearchResultViewModel, Task> _activate;
+    private bool _isSelected;
+
+    public CommandSearchResultViewModel(
+        CommandItemViewModel command,
+        Func<CommandSearchResultViewModel, Task> activate)
+    {
+        Command = command;
+        _activate = activate;
+        ActivateCommand = new AsyncRelayCommand(ActivateAsync);
+    }
+
+    public CommandItemViewModel Command { get; }
+    public string Title => Command.Title;
+    public string Subtitle => Command.Subtitle;
+    public string CategoryLabel => Command.CategoryLabel;
+    public string IconGlyph => Command.IconGlyph;
+    public bool RequiresReview => Command.HasParameters || Command.RequiresDangerousConfirmation;
+    public string ActionHint => RequiresReview ? "Review" : Command.IsNavigation ? "Open" : "Run";
+    public ICommand ActivateCommand { get; }
+
+    public bool IsSelected
+    {
+        get => _isSelected;
+        internal set => SetProperty(ref _isSelected, value);
+    }
+
+    public Task ActivateAsync()
+    {
+        return _activate(this);
     }
 }
 

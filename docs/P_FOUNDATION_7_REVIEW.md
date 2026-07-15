@@ -37,5 +37,5 @@ The later final closure pass extended this slice with HostControl IPC authentica
 
 ## Boundary
 
-The local P-Foundation-7 runtime correctness target is complete. The later P-UI-Foundation review reopened Shell product UX, and that UI gate is now complete; `.codex/project-state.json` records `productionClosure=true` for local internal closure.
+The local P-Foundation-7 runtime correctness target is complete. The later P-UI-Foundation review reopened Shell product UX and has now completed the UI acceptance gate; `.codex/project-state.json` records `productionClosure=false` for the broader release/hardware/signing scope.
 

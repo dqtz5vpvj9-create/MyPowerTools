@@ -10,6 +10,7 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <PackageReference Include="BouncyCastle.Cryptography" Version="2.6.2" />
     <PackageReference Include="coverlet.collector" Version="6.0.0" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
     <PackageReference Include="xunit" Version="2.5.3" />
@@ -18,11 +19,13 @@
 
   <ItemGroup>
     <Using Include="Xunit" />
+    <None Update="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
   <ItemGroup>
-    <ProjectReference Include="..\AdbForwarder.MyPowerTools\AdbForwarder.MyPowerTools.csproj" />
-    <ProjectReference Include="..\AndroidTools.MyPowerTools\AndroidTools.MyPowerTools.csproj" />
+    <ProjectReference Include="..\..\tools\adb-forwarder\current-integration\src\AdbForwarder.MyPowerTools\AdbForwarder.MyPowerTools.csproj" />
+    <ProjectReference Include="..\..\tools\remote-notifications\current-integration\src\AndroidTools.MyPowerTools\AndroidTools.MyPowerTools.csproj" />
+    <ProjectReference Include="..\..\tools\doubao-computer-use\current-integration\src\DoubaoAgent.MyPowerTools\DoubaoAgent.MyPowerTools.csproj" />
     <ProjectReference Include="..\MyPowerTools.Protocol\MyPowerTools.Protocol.csproj" />
     <ProjectReference Include="..\MyPowerTools.Packaging\MyPowerTools.Packaging.csproj" />
     <ProjectReference Include="..\MyPowerTools.Platform.Linux\MyPowerTools.Platform.Linux.csproj" />
@@ -38,7 +41,15 @@
     <ProjectReference Include="..\MyPowerTools.SampleModules.DotNet\MyPowerTools.SampleModules.DotNet.csproj" />
     <ProjectReference Include="..\MyPowerTools.SampleSidecar.Grpc\MyPowerTools.SampleSidecar.Grpc.csproj" />
     <ProjectReference Include="..\MyPowerTools.Broker\MyPowerTools.Broker.csproj" />
-    <ProjectReference Include="..\ScreenEase.MyPowerTools\ScreenEase.MyPowerTools.csproj" />
+    <ProjectReference Include="..\MyPowerTools.ElevatedBroker\MyPowerTools.ElevatedBroker.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\..\tools\screenease\current-integration\src\ScreenEase.MyPowerTools\ScreenEase.MyPowerTools.csproj" />
+    <ProjectReference Include="..\..\tools\smartbird-thermostat\current-integration\src\SmartBirdThermostat.MyPowerTools\SmartBirdThermostat.MyPowerTools.csproj" />
+    <!-- Surface assemblies provide the tool ViewModel/View/Service types that tests reference -->
+    <ProjectReference Include="..\..\tools\adb-forwarder\current-integration\src\AdbForwarder.Surface\AdbForwarder.Surface.csproj" />
+    <ProjectReference Include="..\..\tools\remote-notifications\current-integration\src\RemoteNotifications.Surface\RemoteNotifications.Surface.csproj" />
+    <ProjectReference Include="..\..\tools\screenease\current-integration\src\ScreenEase.Surface\ScreenEase.Surface.csproj" />
+    <ProjectReference Include="..\..\tools\doubao-computer-use\current-integration\src\DoubaoAgent.Surface\DoubaoAgent.Surface.csproj" />
+    <ProjectReference Include="..\..\tools\smartbird-thermostat\current-integration\src\SmartBird.Surface\SmartBird.Surface.csproj" />
   </ItemGroup>
 
 </Project>

@@ -16,11 +16,41 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        # The current file:// submodule URLs are local bootstrap addresses.
+        # Replace them with remote repository URLs before hosted CI can fetch them.
+        with:
+          submodules: recursive
 
       - name: Setup .NET SDK
         uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
+
+      - name: Verify tool submodules
+        shell: pwsh
+        run: |
+          $toolIds = @(
+            'adb-forwarder'
+            'remote-notifications'
+            'remote-commands'
+            'process-monitor'
+            'screenease'
+            'smartbird-thermostat'
+            'doubao-computer-use'
+          )
+          $requiredFiles = @('tool-release.json', 'source-map.json')
+          $missing = foreach ($toolId in $toolIds) {
+            foreach ($requiredFile in $requiredFiles) {
+              $requiredPath = Join-Path 'tools' $toolId $requiredFile
+              if (-not (Test-Path -LiteralPath $requiredPath -PathType Leaf)) {
+                $requiredPath
+              }
+            }
+          }
+          if ($missing) {
+            $missing | ForEach-Object { Write-Error "Missing tool submodule file: $_" }
+            throw 'Tool submodule checkout is incomplete.'
+          }
 
       - name: Restore
         shell: pwsh
@@ -34,29 +64,33 @@ jobs:
         shell: pwsh
         run: dotnet test MyPowerTools.slnx --no-build
 
-      - name: Validate Modules
+      - name: Build tool packages from submodules
         shell: pwsh
-        run: dotnet run --project src\MyPowerTools.Cli -- validate modules
-
-      - name: Validate Module Contracts
-        shell: pwsh
-        run: dotnet run --project src\MyPowerTools.Cli -- validate contracts
+        run: pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\build-tool-packages.ps1 -OutputRoot artifacts\ci-modules
 
       - name: Refresh Package Trust Hooks
         shell: pwsh
-        run: dotnet run --project src\MyPowerTools.Cli -- package sign-local modules
+        run: dotnet run --project src\MyPowerTools.Cli -- package sign-local artifacts\ci-modules
+
+      - name: Validate Modules
+        shell: pwsh
+        run: dotnet run --project src\MyPowerTools.Cli -- validate artifacts\ci-modules
+
+      - name: Validate Module Contracts
+        shell: pwsh
+        run: dotnet run --project src\MyPowerTools.Cli -- validate contracts artifacts\ci-modules
 
       - name: Validate Package Trust
         shell: pwsh
-        run: dotnet run --project src\MyPowerTools.Cli -- package trust modules --strict
+        run: dotnet run --project src\MyPowerTools.Cli -- package trust artifacts\ci-modules --strict
 
       - name: UI Gate
         shell: pwsh
-        run: dotnet run --project src\MyPowerTools.Cli -- ui check modules
+        run: dotnet run --project src\MyPowerTools.Cli -- ui check artifacts\ci-modules
 
       - name: UI Contract Snapshots
         shell: pwsh
-        run: dotnet run --project src\MyPowerTools.Cli -- ui snapshot --surface dashboard-card --theme light --size 1366x768 --density normal --out artifacts\ui-snapshots
+        run: dotnet run --project src\MyPowerTools.Cli -- ui snapshot artifacts\ci-modules --surface dashboard-card --theme light --size 1366x768 --density normal --out artifacts\ui-snapshots
 
       - name: Shell UI Snapshot Matrix
         shell: pwsh
@@ -68,13 +102,14 @@ jobs:
 
       - name: Runner Once
         shell: pwsh
-        run: dotnet run --project src\MyPowerTools.Runner -- --once
+        run: dotnet run --project src\MyPowerTools.Runner -- --once --modules artifacts\ci-modules
 
       - name: Smoke
         shell: pwsh
-        run: pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\smoke.ps1
+        run: pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\smoke.ps1 -ModulesRoot artifacts\ci-modules
 
       - name: Publish Windows Portable
+        if: github.event_name == 'workflow_dispatch'
         shell: pwsh
         run: pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\publish-windows.ps1
 
@@ -85,5 +120,6 @@ jobs:
           path: |
             artifacts/release/MyPowerTools-win-x64.zip
             artifacts/release/RELEASE_NOTES.md
+            artifacts/ci-modules/**
             artifacts/ui-snapshots/**
             artifacts/shell-ui-snapshots/**

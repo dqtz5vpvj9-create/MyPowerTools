@@ -26,15 +26,32 @@ public sealed class NotificationCenter
 
     public void MarkRead(string id)
     {
+        SetReadState(id, true);
+    }
+
+    public NotificationReadStateUpdate? SetReadState(string id, bool isRead)
+    {
         lock (_gate)
         {
             var index = _notifications.FindIndex(item => item.Id == id);
-            if (index >= 0)
+            if (index < 0)
             {
-                _notifications[index] = _notifications[index] with { IsRead = true };
+                return null;
             }
+
+            var current = _notifications[index];
+            if (current.IsRead == isRead)
+            {
+                return new NotificationReadStateUpdate(current, false);
+            }
+
+            var updated = current with { IsRead = isRead };
+            _notifications[index] = updated;
+            return new NotificationReadStateUpdate(updated, true);
         }
     }
 }
 
 public sealed record NotificationRecord(string Id, DateTimeOffset Time, string ModuleId, string Level, string Title, string Body, bool IsRead);
+
+public sealed record NotificationReadStateUpdate(NotificationRecord Notification, bool Changed);

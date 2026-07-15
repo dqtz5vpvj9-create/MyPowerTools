@@ -4,6 +4,18 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <IsPackable>true</IsPackable>
+    <PackageId>MyPowerTools.ToolSdk</PackageId>
+    <Version>0.2.0</Version>
+    <Authors>MyPowerTools</Authors>
+    <Description>Stable contracts for MyPowerTools tools, modules, commands, settings, events, logs, permissions, and host context.</Description>
+    <PackageTags>mypowertools tools sdk plugins</PackageTags>
+    <RepositoryType>git</RepositoryType>
+    <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
+
+  <ItemGroup>
+    <None Include="..\..\docs\sdk\README.md" Pack="true" PackagePath="README.md" />
+  </ItemGroup>
 
 </Project>

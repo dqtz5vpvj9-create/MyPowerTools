@@ -104,6 +104,9 @@
   "staticIndexes": {
     "commands": "commands.index.json"
   },
+  "tools": [
+    "ui/tool.json"
+  ],
   "uiSurfaces": [
     "ui/dashboard-card.json",
     "ui/detail-page.json",

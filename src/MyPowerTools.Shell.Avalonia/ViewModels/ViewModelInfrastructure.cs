@@ -6,75 +6,15 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Windows.Input;
 using Google.Protobuf.WellKnownTypes;
+using MyPowerTools.AvaloniaSdk;
 using HostProto = MyPowerTools.Protocol.HostControl.V1;
 
 namespace MyPowerTools.Shell.Avalonia.ViewModels;
 
-public sealed class AsyncRelayCommand : ICommand
+// Shell-side ObservableViewModel is now a thin alias over the SDK-shared MptObservableViewModel,
+// so dotnet-surface tool ViewModels and Shell ViewModels share the same change-notification base.
+public abstract class ObservableViewModel : MptObservableViewModel
 {
-    private readonly Func<Task> _execute;
-    private readonly Func<bool>? _canExecute;
-    private bool _isRunning;
-
-    public AsyncRelayCommand(Func<Task> execute, Func<bool>? canExecute = null)
-    {
-        _execute = execute;
-        _canExecute = canExecute;
-    }
-
-    public event EventHandler? CanExecuteChanged;
-
-    public void NotifyCanExecuteChanged()
-    {
-        CanExecuteChanged?.Invoke(this, EventArgs.Empty);
-    }
-
-    public bool CanExecute(object? parameter)
-    {
-        return !_isRunning && (_canExecute?.Invoke() ?? true);
-    }
-
-    public async void Execute(object? parameter)
-    {
-        if (!CanExecute(parameter))
-        {
-            return;
-        }
-
-        _isRunning = true;
-        CanExecuteChanged?.Invoke(this, EventArgs.Empty);
-        try
-        {
-            await _execute();
-        }
-        finally
-        {
-            _isRunning = false;
-            CanExecuteChanged?.Invoke(this, EventArgs.Empty);
-        }
-    }
-}
-
-public abstract class ObservableViewModel : INotifyPropertyChanged
-{
-    public event PropertyChangedEventHandler? PropertyChanged;
-
-    protected void OnPropertyChanged([CallerMemberName] string? propertyName = null)
-    {
-        PropertyChanged?.Invoke(this, new PropertyChangedEventArgs(propertyName));
-    }
-
-    protected bool SetProperty<T>(ref T field, T value, [CallerMemberName] string? propertyName = null)
-    {
-        if (EqualityComparer<T>.Default.Equals(field, value))
-        {
-            return false;
-        }
-
-        field = value;
-        OnPropertyChanged(propertyName);
-        return true;
-    }
 }
 
 public abstract class ShellPageViewModel : ObservableViewModel
@@ -129,6 +69,15 @@ public sealed class ShellChromeViewModel : ObservableViewModel
                 label,
                 new AsyncRelayCommand(() => navigate?.Invoke(label) ?? Task.CompletedTask)))
             .ToArray();
+        TopNavigationItems = NavigationItems
+            .Where(item => item.Label is "Home" or "Dashboard" or "Settings")
+            .ToArray();
+        ToolNavigationItems = NavigationItems
+            .Where(item => item.Label is not ("Home" or "Dashboard" or "Settings" or "System" or "Activity"))
+            .ToArray();
+        FooterNavigationItems = NavigationItems
+            .Where(item => item.Label is "System")
+            .ToArray();
         RefreshCommand = new AsyncRelayCommand(() => refresh?.Invoke() ?? Task.CompletedTask);
         OpenCommandPaletteCommand = new AsyncRelayCommand(() => openCommandPalette?.Invoke() ?? Task.CompletedTask);
         CloseCommandPaletteCommand = new AsyncRelayCommand(() => closeCommandPalette?.Invoke() ?? Task.CompletedTask);
@@ -136,6 +85,9 @@ public sealed class ShellChromeViewModel : ObservableViewModel
     }
 
     public IReadOnlyList<ShellNavigationItemViewModel> NavigationItems { get; }
+    public IReadOnlyList<ShellNavigationItemViewModel> TopNavigationItems { get; }
+    public IReadOnlyList<ShellNavigationItemViewModel> ToolNavigationItems { get; }
+    public IReadOnlyList<ShellNavigationItemViewModel> FooterNavigationItems { get; }
     public ICommand RefreshCommand { get; }
     public ICommand OpenCommandPaletteCommand { get; }
     public ICommand CloseCommandPaletteCommand { get; }
@@ -172,11 +124,21 @@ public sealed class ShellChromeViewModel : ObservableViewModel
             item.IsSelected = string.Equals(item.Label, page, StringComparison.OrdinalIgnoreCase);
         }
     }
+
+    public void SetNavigationCompact(bool compact)
+    {
+        foreach (var item in NavigationItems)
+        {
+            item.SetCompact(compact);
+        }
+    }
 }
 
 public sealed class ShellNavigationItemViewModel : ObservableViewModel
 {
     private bool _isSelected;
+    private bool _isLabelVisible = true;
+    private double _itemWidth = 216;
     private string _selectionText = "";
 
     public ShellNavigationItemViewModel(string label, ICommand navigateCommand)
@@ -186,7 +148,49 @@ public sealed class ShellNavigationItemViewModel : ObservableViewModel
     }
 
     public string Label { get; }
+    public string DisplayLabel => Label switch
+    {
+        "Home" => "Dashboard",
+        "Tools" => "All tools",
+        "Notifications" => "Remote notifications",
+        "ADB Forwarder" => "ADB Forwarder",
+        "ScreenEase" => "ScreenEase",
+        "Doubao Agent" => "豆包 Computer Use",
+        "SmartBird" => "SmartBird 温度管理器",
+        "Settings" => "General",
+        _ => Label
+    };
+
+    public string IconGlyph => Label switch
+    {
+        "Home" or "Dashboard" => "\uE80F",
+        "Tools" or "Modules" => "\uE71D",
+        "Activity" => "\uE823",
+        "Notifications" => "\uEA8F",
+        "ADB Forwarder" => "\uE968",
+        "ScreenEase" => "\uE706",
+        "Doubao Agent" => "\uE77B",
+        "SmartBird" => "\uEC15",
+        "Settings" => "\uE713",
+        "System" or "Diagnostics" => "\uE9D9",
+        "Commands" => "\uE756",
+        "Logs" => "\uE8A5",
+        "Packages" => "\uE7B8",
+        _ => "\uE946"
+    };
     public ICommand NavigateCommand { get; }
+
+    public bool IsLabelVisible
+    {
+        get => _isLabelVisible;
+        private set => SetProperty(ref _isLabelVisible, value);
+    }
+
+    public double ItemWidth
+    {
+        get => _itemWidth;
+        private set => SetProperty(ref _itemWidth, value);
+    }
 
     public bool IsSelected
     {
@@ -204,5 +208,11 @@ public sealed class ShellNavigationItemViewModel : ObservableViewModel
     {
         get => _selectionText;
         private set => SetProperty(ref _selectionText, value);
+    }
+
+    internal void SetCompact(bool compact)
+    {
+        IsLabelVisible = !compact;
+        ItemWidth = compact ? 52 : 216;
     }
 }

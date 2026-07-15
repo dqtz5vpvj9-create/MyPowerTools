@@ -1,6 +1,6 @@
 param(
     [string]$PackageRoot = $PSScriptRoot,
-    [string]$InstallDir = (Join-Path $env:LOCALAPPDATA 'Programs\MyPowerTools'),
+    [string]$InstallDir = (Join-Path $env:ProgramFiles 'MyPowerTools'),
     [string]$DataRoot = (Join-Path $env:LOCALAPPDATA 'MyPowerTools'),
     [switch]$NoStartMenuShortcut,
     [switch]$DesktopShortcut,
@@ -10,6 +10,13 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+
+$currentIdentity = [Security.Principal.WindowsIdentity]::GetCurrent()
+$currentPrincipal = [Security.Principal.WindowsPrincipal]::new($currentIdentity)
+$isAdministrator = $currentPrincipal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+if (-not $DryRun.IsPresent -and -not $isAdministrator) {
+    throw 'MyPowerTools installs its elevated Broker under Program Files. Run this installer from an elevated PowerShell session.'
+}
 
 function Resolve-FullPath {
     param([Parameter(Mandatory = $true)][string]$Path)
@@ -39,9 +46,14 @@ function Assert-RequiredPackageContent {
         'Runner\MyPowerTools.Runner.exe',
         'Shell\MyPowerTools.Shell.Avalonia.exe',
         'Cli\MyPowerTools.Cli.exe',
+        'Broker\MyPowerTools.ElevatedBroker.exe',
+        'MyPowerTools.exe',
         'modules',
         'schemas',
-        'ui'
+        'ui',
+        'START_HERE.md',
+        'Start-MyPowerTools.cmd',
+        'assets\MyPowerTools.ico'
     )
 
     foreach ($relative in $required) {
@@ -58,7 +70,8 @@ function New-Shortcut {
         [Parameter(Mandatory = $true)][string]$TargetPath,
         [Parameter(Mandatory = $true)][string]$WorkingDirectory,
         [string]$Arguments = '',
-        [string]$Description = ''
+        [string]$Description = '',
+        [string]$IconLocation = ''
     )
 
     $parent = Split-Path -Parent $Path
@@ -70,7 +83,18 @@ function New-Shortcut {
     $shortcut.WorkingDirectory = $WorkingDirectory
     $shortcut.Arguments = $Arguments
     $shortcut.Description = $Description
+    if (-not [string]::IsNullOrWhiteSpace($IconLocation) -and (Test-Path -LiteralPath $IconLocation)) {
+        $shortcut.IconLocation = $IconLocation
+    }
     $shortcut.Save()
+}
+
+function Clear-StartMenuShortcuts {
+    param([Parameter(Mandatory = $true)][string]$StartMenuDir)
+
+    if (Test-Path -LiteralPath $StartMenuDir) {
+        Remove-Item -LiteralPath $StartMenuDir -Recurse -Force
+    }
 }
 
 function Stop-InstalledProcess {
@@ -82,7 +106,8 @@ function Stop-InstalledProcess {
     $processNames = @(
         'MyPowerTools.Runner',
         'MyPowerTools.Shell.Avalonia',
-        'MyPowerTools.Cli'
+        'MyPowerTools.Cli',
+        'MyPowerTools.ElevatedBroker'
     )
 
     foreach ($name in $processNames) {
@@ -110,6 +135,27 @@ function Stop-InstalledProcess {
                 Stop-Process -Id $process.Id -Force
             }
         }
+    }
+
+    foreach ($process in Get-Process -ErrorAction SilentlyContinue) {
+        $path = $null
+        try {
+            $path = $process.MainModule.FileName
+        } catch {
+            continue
+        }
+
+        if (-not $path -or -not (Test-IsInsidePath -Parent $Root -Child $path)) {
+            continue
+        }
+
+        if ($DryRun) {
+            Write-Host "Would stop installed child process $($process.ProcessName) ($($process.Id))"
+            continue
+        }
+
+        Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+        Wait-Process -Id $process.Id -Timeout 5 -ErrorAction SilentlyContinue
     }
 }
 
@@ -148,9 +194,13 @@ if ($InstallDirFull.Equals($PackageRootFull, [System.StringComparison]::OrdinalI
 $runnerExe = Join-Path $InstallDirFull 'Runner\MyPowerTools.Runner.exe'
 $shellExe = Join-Path $InstallDirFull 'Shell\MyPowerTools.Shell.Avalonia.exe'
 $cliExe = Join-Path $InstallDirFull 'Cli\MyPowerTools.Cli.exe'
+$brokerExe = Join-Path $InstallDirFull 'Broker\MyPowerTools.ElevatedBroker.exe'
+$appExe = Join-Path $InstallDirFull 'MyPowerTools.exe'
 $runnerArguments = "--modules `"$InstallDirFull\modules`" --data-root `"$DataRootFull`""
+$appArguments = "--data-root `"$DataRootFull`""
 $startMenuDir = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\MyPowerTools'
 $desktopShortcutPath = Join-Path ([Environment]::GetFolderPath('DesktopDirectory')) 'MyPowerTools.lnk'
+$iconPath = Join-Path $InstallDirFull 'assets\MyPowerTools.ico'
 $runKeyPath = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
 $installManifestPath = Join-Path $InstallDirFull 'install.manifest.json'
 
@@ -159,9 +209,16 @@ $plan = [ordered]@{
     installDir = $InstallDirFull
     dataRoot = $DataRootFull
     createStartMenuShortcut = -not $NoStartMenuShortcut.IsPresent
+    startMenuShortcutName = 'MyPowerTools.lnk'
     createDesktopShortcut = $DesktopShortcut.IsPresent
     enableAutostart = $EnableAutostart.IsPresent
     startRunner = $StartRunner.IsPresent
+    advancedEntryPoints = @(
+        'Cli\MyPowerTools.Cli.exe',
+        'Broker\MyPowerTools.ElevatedBroker.exe',
+        'Runner\MyPowerTools.Runner.exe',
+        'Shell\MyPowerTools.Shell.Avalonia.exe'
+    )
 }
 
 if ($DryRun) {
@@ -185,10 +242,10 @@ try {
     Stop-InstalledProcess -Root $InstallDirFull
 
     if (Test-Path -LiteralPath $InstallDirFull) {
-        Move-Item -LiteralPath $InstallDirFull -Destination $backupDir
+        [System.IO.Directory]::Move($InstallDirFull, $backupDir)
     }
 
-    Move-Item -LiteralPath $stagingDir -Destination $InstallDirFull
+    [System.IO.Directory]::Move($stagingDir, $InstallDirFull)
 
     $manifest = [ordered]@{
         product = 'MyPowerTools'
@@ -200,18 +257,19 @@ try {
         runner = $runnerExe
         shell = $shellExe
         cli = $cliExe
+        broker = $brokerExe
+        app = $appExe
         autostart = $EnableAutostart.IsPresent
     }
     $manifest | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $installManifestPath -Encoding UTF8
 
+    Clear-StartMenuShortcuts -StartMenuDir $startMenuDir
     if (-not $NoStartMenuShortcut.IsPresent) {
-        New-Shortcut -Path (Join-Path $startMenuDir 'MyPowerTools Shell.lnk') -TargetPath $shellExe -WorkingDirectory $InstallDirFull -Description 'Open MyPowerTools Shell'
-        New-Shortcut -Path (Join-Path $startMenuDir 'MyPowerTools Runner.lnk') -TargetPath $runnerExe -WorkingDirectory $InstallDirFull -Arguments $runnerArguments -Description 'Start MyPowerTools Runner'
-        New-Shortcut -Path (Join-Path $startMenuDir 'MyPowerTools CLI.lnk') -TargetPath $cliExe -WorkingDirectory $InstallDirFull -Description 'Open MyPowerTools CLI'
+        New-Shortcut -Path (Join-Path $startMenuDir 'MyPowerTools.lnk') -TargetPath $appExe -WorkingDirectory $InstallDirFull -Arguments $appArguments -Description 'Open MyPowerTools' -IconLocation $iconPath
     }
 
     if ($DesktopShortcut) {
-        New-Shortcut -Path $desktopShortcutPath -TargetPath $shellExe -WorkingDirectory $InstallDirFull -Description 'Open MyPowerTools Shell'
+        New-Shortcut -Path $desktopShortcutPath -TargetPath $appExe -WorkingDirectory $InstallDirFull -Arguments $appArguments -Description 'Open MyPowerTools' -IconLocation $iconPath
     }
 
     if ($EnableAutostart) {
@@ -228,7 +286,7 @@ try {
     }
 } catch {
     if ((Test-Path -LiteralPath $backupDir) -and -not (Test-Path -LiteralPath $InstallDirFull)) {
-        Move-Item -LiteralPath $backupDir -Destination $InstallDirFull
+        [System.IO.Directory]::Move($backupDir, $InstallDirFull)
     }
 
     throw

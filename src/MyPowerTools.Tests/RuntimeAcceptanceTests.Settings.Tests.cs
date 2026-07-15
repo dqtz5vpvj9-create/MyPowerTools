@@ -23,6 +23,7 @@ using MyPowerTools.Platform.Windows;
 using MyPowerTools.Protocol;
 using MyPowerTools.Runtime;
 using MyPowerTools.SampleModules.DotNet;
+using SmartBirdThermostat.MyPowerTools;
 using MyPowerTools.Shell.Avalonia;
 using MyPowerTools.Shell.Avalonia.Services;
 using MyPowerTools.Shell.Avalonia.ViewModels;
@@ -172,7 +173,7 @@ public sealed partial class RuntimeAcceptanceTests
     }
 
     [Fact]
-    public async Task Settings_apply_through_hostcontrol_changes_doubao_command_behavior()
+    public async Task Settings_apply_through_hostcontrol_rejects_doubao_endpoint_overrides()
     {
         await using var host = new InProcDotNetModuleHost();
         var runtime = new MptHostRuntime(
@@ -185,20 +186,20 @@ public sealed partial class RuntimeAcceptanceTests
         var service = new HostControlGrpcService(runtime, new AuditLog(Path.Combine(Path.GetTempPath(), "mpt-settings-doubao-real-audit", Guid.NewGuid().ToString("N"), "audit.jsonl")));
 
         var current = await service.GetSettings(new HostProto.GetSettingsRequest { ModuleId = "doubao-agent" }, new TestServerCallContext());
-        var saved = await service.UpdateSettings(
-            new HostProto.UpdateSettingsRequest
-            {
-                ModuleId = "doubao-agent",
-                ExpectedRevision = current.Revision,
-                Patch = JsonStructMapper.ToStruct(new JsonObject
+        var rejected = await Assert.ThrowsAsync<RpcException>(() => service.UpdateSettings(
+                new HostProto.UpdateSettingsRequest
                 {
-                    ["plannerBaseUrl"] = "http://127.0.0.1:45678",
-                    ["toolBaseUrl"] = "http://127.0.0.1:45679",
-                    ["mcpBaseUrl"] = "http://127.0.0.1:45680",
-                    ["healthPath"] = "/ready"
-                })
-            },
-            new TestServerCallContext());
+                    ModuleId = "doubao-agent",
+                    ExpectedRevision = current.Revision,
+                    Patch = JsonStructMapper.ToStruct(new JsonObject
+                    {
+                        ["plannerBaseUrl"] = "http://127.0.0.1:45678",
+                        ["toolBaseUrl"] = "http://127.0.0.1:45679",
+                        ["mcpBaseUrl"] = "http://127.0.0.1:45680",
+                        ["toolHealthPath"] = "/ready"
+                    })
+                },
+                new TestServerCallContext()));
         var command = await service.ExecuteCommand(
             new HostProto.ExecuteCommandRequest
             {
@@ -211,11 +212,12 @@ public sealed partial class RuntimeAcceptanceTests
         var payload = JsonNode.Parse(command.Summary)!.AsObject();
         var services = payload["services"]!.AsArray().Select(item => item!.AsObject()).ToArray();
 
-        Assert.Equal("applied", saved.ApplyState);
+        Assert.Equal(StatusCode.InvalidArgument, rejected.StatusCode);
+        Assert.Contains("fixed", rejected.Status.Detail, StringComparison.OrdinalIgnoreCase);
         Assert.Equal("succeeded", command.State);
-        Assert.Contains(services, service => service["id"]!.GetValue<string>() == "planner" && service["baseUrl"]!.GetValue<string>().Contains("45678", StringComparison.Ordinal));
-        Assert.Contains(services, service => service["id"]!.GetValue<string>() == "tool" && service["baseUrl"]!.GetValue<string>().Contains("45679", StringComparison.Ordinal));
-        Assert.Contains(services, service => service["id"]!.GetValue<string>() == "mcp" && service["healthPath"]!.GetValue<string>() == "/ready");
+        Assert.Contains(services, service => service["id"]!.GetValue<string>() == "planner" && service["baseUrl"]!.GetValue<string>() == "http://127.0.0.1:38189");
+        Assert.Contains(services, service => service["id"]!.GetValue<string>() == "tool" && service["baseUrl"]!.GetValue<string>() == "http://127.0.0.1:38102");
+        Assert.Contains(services, service => service["id"]!.GetValue<string>() == "mcp" && service["healthPath"]!.GetValue<string>() == "/sse");
     }
 
     [Fact]
@@ -253,7 +255,6 @@ public sealed partial class RuntimeAcceptanceTests
         var smart = await runtime.UpdateSettingsWithApplyAsync(
             new SettingsPatch("smartbird-thermostat", smartCurrent.Revision, new JsonObject
             {
-                ["baseUrl"] = server.BaseUrl,
                 ["energyServerBaseUrl"] = server.BaseUrl,
                 ["targetTemperatureC"] = 61
             }),
@@ -268,10 +269,10 @@ public sealed partial class RuntimeAcceptanceTests
         Assert.Equal("mpt-missing-adb-from-settings", devicesPayload["tool"]!.GetValue<string>());
         Assert.Equal("applied", screen.ApplyState);
         Assert.True(screenPlan.Success);
-        Assert.Equal("focus", screenPayload["profile"]!.AsObject()["id"]!.GetValue<string>());
+        Assert.Equal("bright-focus", screenPayload["profile"]!.AsObject()["id"]!.GetValue<string>());
         Assert.Equal("applied", smart.ApplyState);
         Assert.True(config.Success);
-        Assert.Equal(server.BaseUrl, configPayload["baseUrl"]!.GetValue<string>());
+        Assert.Equal(SmartBirdThermostatModule.CanonicalBaseUrl, configPayload["baseUrl"]!.GetValue<string>());
         Assert.Equal(61, configPayload["targetTemperatureC"]!.GetValue<double>());
     }
 
@@ -375,6 +376,8 @@ commands:
 
         Assert.Equal("doubao-agent", schema.ModuleId);
         Assert.Contains("plannerBaseUrl", schema.SchemaJson, StringComparison.Ordinal);
+        Assert.Contains("\"const\": \"http://127.0.0.1:38189\"", schema.SchemaJson, StringComparison.Ordinal);
+        Assert.Contains("\"readOnly\": true", schema.SchemaJson, StringComparison.Ordinal);
         Assert.Contains("redactSensitiveOutput", schema.SchemaJson, StringComparison.Ordinal);
     }
 }

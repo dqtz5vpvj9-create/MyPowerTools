@@ -202,7 +202,7 @@ public sealed class TransportSelector
 
             if (rules?.ShadowCopy == false)
             {
-                reason = "runtimePolicy.inProcRules.shadowCopy=false conflicts with the isolated InProc host.";
+                reason = "runtimePolicy.inProcRules.shadowCopy=false conflicts with the collectible soft-isolation InProc host.";
                 return false;
             }
 

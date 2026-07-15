@@ -1,0 +1,26 @@
+{
+  "schemaVersion": "1.0",
+  "version": "0.1.0",
+  "toolId": "template.headless",
+  "ownerModuleId": "template.headless",
+  "title": "template.headless",
+  "description": "A MyPowerTools headless-tool created by the SDK CLI.",
+  "icon": "tool.external",
+  "category": "External tools",
+  "type": "headless-tool",
+  "availability": "available",
+  "primaryRouteId": "main",
+  "routes": [
+    { "routeId": "main", "surfaceId": "template.headless.main", "title": "Overview", "surface": { "kind": "headless" } }
+  ],
+  "homeCard": { "summary": "Open template.headless", "primaryActionLabel": "Open", "order": 500 },
+  "runtime": { "transport": "stdio-jsonrpc", "command": "python", "args": ["runtime.py"] },
+  "settings": { "schema": "settings.schema.json", "values": "settings.json", "secrets": ["apiSecret"] },
+  "commands": [
+    { "id": "template.headless.health", "title": "Check health", "description": "Probe the configured runtime.", "method": "GET", "path": "/api/status" },
+    { "id": "template.headless.refresh", "title": "Refresh", "description": "Refresh tool state.", "method": "POST", "path": "/api/refresh" },
+    { "id": "template.headless.logs", "title": "Tail logs", "description": "Read recent runtime logs.", "method": "GET", "path": "/api/logs" }
+  ],
+  "permissions": [],
+  "development": { "loose": true, "autoRefresh": false }
+}

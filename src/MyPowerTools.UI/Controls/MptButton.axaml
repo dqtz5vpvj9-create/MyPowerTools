@@ -4,19 +4,28 @@
     <Setter Property="MinHeight" Value="{DynamicResource MptDensityControlHeight}" />
     <Setter Property="Padding" Value="{DynamicResource MptButtonPadding}" />
     <Setter Property="CornerRadius" Value="{DynamicResource MptRadiusControl}" />
-    <Setter Property="Background" Value="{DynamicResource MptBrushSurfaceRaised}" />
-    <Setter Property="BorderBrush" Value="{DynamicResource MptBrushBorderStrong}" />
+    <Setter Property="Background" Value="{DynamicResource MptBrushControlFillDefault}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MptBrushControlStrokeDefault}" />
     <Setter Property="BorderThickness" Value="{DynamicResource MptBorderThickness}" />
     <Setter Property="Foreground" Value="{DynamicResource MptBrushTextPrimary}" />
+    <Setter Property="FontSize" Value="{DynamicResource MptFontSizeBody}" />
+    <Setter Property="FontWeight" Value="Normal" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
   </Style>
 
   <Style Selector="controls|MptButton:pointerover">
-    <Setter Property="Background" Value="{DynamicResource MptBrushSurfaceMuted}" />
-    <Setter Property="BorderBrush" Value="{DynamicResource MptBrushAccent}" />
+    <Setter Property="Background" Value="{DynamicResource MptBrushControlFillHover}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MptBrushBorderStrong}" />
   </Style>
 
   <Style Selector="controls|MptButton:pressed">
-    <Setter Property="Background" Value="{DynamicResource MptBrushBorder}" />
+    <Setter Property="Background" Value="{DynamicResource MptBrushControlFillPressed}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MptBrushBorderStrong}" />
+  </Style>
+
+  <Style Selector="controls|MptButton:focus-visible">
+    <Setter Property="BorderBrush" Value="{DynamicResource MptBrushAccent}" />
   </Style>
 
   <Style Selector="controls|MptButton:disabled">
@@ -34,26 +43,58 @@
     <Setter Property="BorderBrush" Value="{DynamicResource MptBrushAccentHover}" />
   </Style>
 
+  <Style Selector="controls|MptButton.MptPrimaryButton:pressed">
+    <Setter Property="Background" Value="{DynamicResource MptBrushAccentPressed}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MptBrushAccentPressed}" />
+  </Style>
+
   <Style Selector="Button.MptButton">
     <Setter Property="MinHeight" Value="{DynamicResource MptDensityControlHeight}" />
     <Setter Property="Padding" Value="{DynamicResource MptButtonPadding}" />
     <Setter Property="CornerRadius" Value="{DynamicResource MptRadiusControl}" />
-    <Setter Property="Background" Value="{DynamicResource MptBrushSurfaceRaised}" />
-    <Setter Property="BorderBrush" Value="{DynamicResource MptBrushBorderStrong}" />
+    <Setter Property="Background" Value="{DynamicResource MptBrushControlFillDefault}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MptBrushControlStrokeDefault}" />
     <Setter Property="BorderThickness" Value="{DynamicResource MptBorderThickness}" />
     <Setter Property="Foreground" Value="{DynamicResource MptBrushTextPrimary}" />
+    <Setter Property="FontSize" Value="{DynamicResource MptFontSizeBody}" />
+    <Setter Property="FontWeight" Value="Normal" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
   </Style>
 
   <Style Selector="Button.MptButton:pointerover">
-    <Setter Property="Background" Value="{DynamicResource MptBrushSurfaceMuted}" />
-    <Setter Property="BorderBrush" Value="{DynamicResource MptBrushAccent}" />
+    <Setter Property="Background" Value="{DynamicResource MptBrushControlFillHover}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MptBrushBorderStrong}" />
   </Style>
 
   <Style Selector="Button.MptButton:pressed">
-    <Setter Property="Background" Value="{DynamicResource MptBrushBorder}" />
+    <Setter Property="Background" Value="{DynamicResource MptBrushControlFillPressed}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MptBrushBorderStrong}" />
+  </Style>
+
+  <Style Selector="Button.MptButton:focus-visible">
+    <Setter Property="BorderBrush" Value="{DynamicResource MptBrushAccent}" />
   </Style>
 
   <Style Selector="Button.MptButton:disabled">
     <Setter Property="Opacity" Value="{DynamicResource MptDisabledOpacity}" />
+  </Style>
+
+  <Style Selector="Button.MptPrimaryButton">
+    <Setter Property="Background" Value="{DynamicResource MptBrushAccent}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MptBrushAccent}" />
+    <Setter Property="Foreground" Value="{DynamicResource MptBrushAccentText}" />
+  </Style>
+
+  <Style Selector="Button.MptPrimaryButton:pointerover">
+    <Setter Property="Background" Value="{DynamicResource MptBrushAccentHover}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MptBrushAccentHover}" />
+    <Setter Property="Foreground" Value="{DynamicResource MptBrushAccentText}" />
+  </Style>
+
+  <Style Selector="Button.MptPrimaryButton:pressed">
+    <Setter Property="Background" Value="{DynamicResource MptBrushAccentPressed}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MptBrushAccentPressed}" />
+    <Setter Property="Foreground" Value="{DynamicResource MptBrushAccentText}" />
   </Style>
 </Styles>

@@ -21,10 +21,8 @@ public sealed partial class ShellWorkspaceController : IAsyncDisposable
     private const string SettingsPage = "Settings";
     private const string LogsPage = "Logs";
     private const string NotificationsPage = "Notifications";
-    private const string AdbForwarderPage = "ADB Forwarder";
-    private const string ScreenEasePage = "ScreenEase";
-    private const string DoubaoAgentPage = "Doubao Agent";
-    private const string SmartBirdThermostatPage = "SmartBird";
+    // Tool page labels removed: navigation is now fully dynamic via the Tool Catalog.
+    // Individual tools are opened by tool id, not by a hardcoded page label.
     private const string PackagesPage = "Packages";
     private const string DiagnosticsPage = "Diagnostics";
     private const string ServicesPage = "Services";
@@ -40,6 +38,8 @@ public sealed partial class ShellWorkspaceController : IAsyncDisposable
     private readonly ShellPageDataService _pageData = new();
     private readonly ShellRunnerEventService _runnerEvents = new();
     private readonly ServiceUnitEventStreamMonitor _unitEvents = new(new ServiceManagerUnitEventSource());
+    private readonly DotnetSurfaceLoader _dotnetSurfaceLoader = new(
+        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MyPowerTools", "state", "surface-shadow"));
     private readonly ShellSettingsService _settingsService = new();
     private readonly ShellAppearanceService _appearance = new();
     private readonly ShellToolProductService _toolProducts = new();
@@ -111,11 +111,6 @@ public sealed partial class ShellWorkspaceController : IAsyncDisposable
             HomePage,
             ToolsPage,
             ActivityPage,
-            NotificationsPage,
-            AdbForwarderPage,
-            ScreenEasePage,
-            DoubaoAgentPage,
-            SmartBirdThermostatPage,
             SettingsPage,
             SystemPage
         ];
@@ -144,36 +139,6 @@ public sealed partial class ShellWorkspaceController : IAsyncDisposable
         if (string.Equals(page, DashboardPage, StringComparison.OrdinalIgnoreCase))
         {
             page = HomePage;
-        }
-
-        if (string.Equals(page, NotificationsPage, StringComparison.OrdinalIgnoreCase))
-        {
-            await ShowToolPageAsync(RemoteNotificationsToolId, "inbox");
-            return;
-        }
-
-        if (string.Equals(page, AdbForwarderPage, StringComparison.OrdinalIgnoreCase))
-        {
-            await ShowToolPageAsync(AdbForwarderToolId, "forward");
-            return;
-        }
-
-        if (string.Equals(page, ScreenEasePage, StringComparison.OrdinalIgnoreCase))
-        {
-            await ShowToolPageAsync(ScreenEaseToolId, "profiles");
-            return;
-        }
-
-        if (string.Equals(page, DoubaoAgentPage, StringComparison.OrdinalIgnoreCase))
-        {
-            await ShowToolPageAsync(DoubaoAgentToolId, "services");
-            return;
-        }
-
-        if (string.Equals(page, SmartBirdThermostatPage, StringComparison.OrdinalIgnoreCase))
-        {
-            await ShowToolPageAsync(SmartBirdThermostatToolId, "overview");
-            return;
         }
 
         if (string.Equals(page, CommandsPage, StringComparison.OrdinalIgnoreCase))
@@ -226,9 +191,6 @@ public sealed partial class ShellWorkspaceController : IAsyncDisposable
             case LogsPage:
                 await LoadLogsPageAsync();
                 break;
-            case NotificationsPage:
-                await LoadNotificationsPageAsync();
-                break;
             case PackagesPage:
                 await LoadPackagesPageAsync();
                 break;
@@ -253,8 +215,6 @@ public sealed partial class ShellWorkspaceController : IAsyncDisposable
         _commandSearchCancellation?.Cancel();
         _commandSearchCancellation?.Dispose();
         _commandSearchCancellation = null;
-        TryDispose(_doubaoAgentTools);
-        TryDispose(_smartBirdThermostatTools);
         try
         {
             await _runnerEvents.DisposeAsync();
@@ -271,6 +231,15 @@ public sealed partial class ShellWorkspaceController : IAsyncDisposable
         catch (Exception ex)
         {
             ShellCommandFaultLog.Write("Dispose ServiceManager unit event monitor", ex, "dispose");
+        }
+
+        try
+        {
+            _dotnetSurfaceLoader.UnloadAll();
+        }
+        catch (Exception ex)
+        {
+            ShellCommandFaultLog.Write("Unload dotnet surfaces", ex, "dispose");
         }
         finally
         {
@@ -321,7 +290,6 @@ public sealed partial class ShellWorkspaceController : IAsyncDisposable
             HomePage => ShellRoute.Home,
             ToolsPage => ShellRoute.Tools,
             ActivityPage => ShellRoute.Activity,
-            NotificationsPage => ShellRoute.Notifications,
             SettingsPage => ShellRoute.Settings,
             SystemPage => ShellRoute.System,
             ModulesPage => ShellRoute.Modules,
@@ -357,16 +325,11 @@ public sealed partial class ShellWorkspaceController : IAsyncDisposable
         if (string.Equals(evt.SourceId, "android-tools.notifications", StringComparison.OrdinalIgnoreCase) &&
             string.Equals(evt.Type, "message.received", StringComparison.OrdinalIgnoreCase))
         {
-            var messageIds = evt.Payload.Fields.TryGetValue("messageIds", out var value)
-                ? value.ListValue.Values
-                    .Select(item => item.StringValue)
-                    .Where(item => !string.IsNullOrWhiteSpace(item))
-                    .ToArray()
-                : [];
-            await _pageData.PresentRemoteNotificationsAsync(messageIds);
-            if (string.Equals(_currentToolId, RemoteNotificationsToolId, StringComparison.OrdinalIgnoreCase))
+            // Remote Notifications is now owned by its Service Unit; the Shell only refreshes the
+            // tool surface when the user is actively viewing it.
+            if (string.Equals(_currentToolId, "remote-notifications", StringComparison.OrdinalIgnoreCase))
             {
-                await ShowToolPageAsync(RemoteNotificationsToolId, _currentToolRouteId);
+                await ShowToolPageAsync("remote-notifications", _currentToolRouteId);
             }
             return;
         }

@@ -1,0 +1,19 @@
+{
+  "schemaVersion": "1.0",
+  "toolId": "smartbird-thermostat",
+  "ownerModuleId": "smartbird-thermostat",
+  "title": "SmartBird 温度管理器",
+  "description": "在原始控制台中查看露点保护、散热器状态、温度曲线和能耗会话。",
+  "icon": "tool.smartbird-thermostat",
+  "category": "设备控制",
+  "primaryRouteId": "overview",
+  "routes": [
+    { "routeId": "overview", "surfaceId": "smartbird-thermostat.overview", "title": "控制台", "icon": "route.overview" }
+  ],
+  "homeCard": {
+    "summary": "打开 SmartBird 原始仪表盘，管理散热器与露点保护。",
+    "primaryActionLabel": "打开温度管理器",
+    "statusBinding": "module.status",
+    "order": 70
+  }
+}

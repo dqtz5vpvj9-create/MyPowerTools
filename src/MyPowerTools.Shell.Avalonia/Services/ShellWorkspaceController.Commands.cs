@@ -1,6 +1,8 @@
 using System.Runtime.CompilerServices;
 using System.Text.Json.Nodes;
 using Avalonia.Controls;
+using Avalonia.Input;
+using Avalonia.Threading;
 using MyPowerTools.Shell.Avalonia.ViewModels;
 using MyPowerTools.Shell.Avalonia.Views;
 using MyPowerTools.UI.Controls;
@@ -9,22 +11,99 @@ namespace MyPowerTools.Shell.Avalonia.Services;
 
 public sealed partial class ShellWorkspaceController
 {
-    private async Task LoadCommandsAsync(string query)
+    private Task LoadCommandsAsync(string query)
     {
+        return LoadCommandsAsync(query, TimeSpan.Zero);
+    }
+
+    private void QueueCommandSearch(string query)
+    {
+        if (!_chromeViewModel.IsCommandPaletteOpen)
+        {
+            return;
+        }
+
+        _ = LoadCommandsAsync(query, TimeSpan.FromMilliseconds(150));
+    }
+
+    private async Task LoadCommandsAsync(string query, TimeSpan debounce)
+    {
+        var cancellation = new CancellationTokenSource();
+        var previous = Interlocked.Exchange(ref _commandSearchCancellation, cancellation);
+        previous?.Cancel();
+        var version = Interlocked.Increment(ref _commandSearchVersion);
         try
         {
+            if (debounce > TimeSpan.Zero)
+            {
+                await Task.Delay(debounce, cancellation.Token);
+            }
+
             var viewModel = await _pageData.LoadCommandsAsync(
                 query,
                 (commandId, args, invocationId, cancellationToken) => ExecuteCommandStreamAsync(commandId, args, invocationId, cancellationToken),
-                invocationId => CancelCommandAsync(invocationId));
-            _commandPanel.Content = new CommandPaletteView
+                invocationId => CancelCommandAsync(invocationId),
+                (toolId, routeId, _) => ShowToolPageAsync(toolId, routeId),
+                searchableToolIds: null,
+                cancellation.Token);
+            if (version != Volatile.Read(ref _commandSearchVersion) || cancellation.IsCancellationRequested)
             {
-                DataContext = viewModel
-            };
+                return;
+            }
+
+            await Dispatcher.UIThread.InvokeAsync(() =>
+            {
+                _commandPaletteViewModel = viewModel;
+                SetOwnedContent(_commandPanel, new CommandPaletteView
+                {
+                    DataContext = viewModel
+                });
+            });
+        }
+        catch (OperationCanceledException) when (cancellation.IsCancellationRequested)
+        {
         }
         catch (Exception ex)
         {
-            _commandPanel.Content = new MptErrorState(ex.Message);
+            if (version == Volatile.Read(ref _commandSearchVersion))
+            {
+                await Dispatcher.UIThread.InvokeAsync(() =>
+                {
+                    _commandPaletteViewModel = null;
+                    SetOwnedContent(_commandPanel, new MptErrorState(ex.Message));
+                });
+            }
+        }
+        finally
+        {
+            _ = Interlocked.CompareExchange(ref _commandSearchCancellation, null, cancellation);
+            cancellation.Dispose();
+        }
+    }
+
+    private void OnCommandSearchKeyDown(object? sender, KeyEventArgs e)
+    {
+        if (!_chromeViewModel.IsCommandPaletteOpen || _commandPaletteViewModel is null)
+        {
+            return;
+        }
+
+        switch (e.Key)
+        {
+            case Key.Down:
+                e.Handled = true;
+                _commandPaletteViewModel.MoveSelection(1);
+                break;
+            case Key.Up:
+                e.Handled = true;
+                _commandPaletteViewModel.MoveSelection(-1);
+                break;
+            case Key.Enter:
+                e.Handled = true;
+                RunUiEvent(
+                    _commandPaletteViewModel.ActivateSelectedAsync,
+                    "Activate selected command palette item");
+                break;
         }
     }
 
@@ -33,29 +112,58 @@ public sealed partial class ShellWorkspaceController
         try
         {
             var viewModel = await _pageData.LoadBrokerAuditAsync();
-            _auditPanel.Content = new BrokerAuditView
+            SetOwnedContent(_auditPanel, new BrokerAuditView
             {
                 DataContext = viewModel
-            };
+            });
         }
         catch (Exception ex)
         {
-            _auditPanel.Content = new BrokerAuditView
+            SetOwnedContent(_auditPanel, new BrokerAuditView
             {
                 DataContext = _pageData.CreateBrokerAuditError(ex.Message)
-            };
+            });
         }
     }
 
-    private Control BuildUnavailablePage(string title, string message)
+    private Control BuildUnavailablePage(
+        string title,
+        string message,
+        Func<Task>? retry = null,
+        Func<Task>? returnToSafety = null)
     {
         return new UnavailablePageView
         {
-            DataContext = new UnavailablePageViewModel(title, message)
+            DataContext = new UnavailablePageViewModel(title, message, retry, returnToSafety)
         };
     }
 
     private async Task<CommandExecutionStatus> ExecuteCommandAsync(
+        string commandId,
+        JsonObject? args = null,
+        string? invocationId = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (IsAdbPortProxyBrokerCommand(commandId))
+        {
+            return await OpenAdbPortProxyBrokerWorkspaceAsync(cancellationToken);
+        }
+
+        if (ShellCommandRouter.TryHandleShellCommand(
+            commandId,
+            moduleId => RefreshModuleStatusAsync(moduleId, cancellationToken),
+            out var shellAction))
+        {
+            await shellAction;
+            var message = ShellCommandRouter.SuccessMessage(commandId);
+            SetStatus(message);
+            return new CommandExecutionStatus("succeeded", message);
+        }
+
+        return await ExecuteRuntimeCommandAsync(commandId, args, invocationId, cancellationToken);
+    }
+
+    private async Task<CommandExecutionStatus> ExecuteRuntimeCommandAsync(
         string commandId,
         JsonObject? args = null,
         string? invocationId = null,
@@ -67,22 +175,18 @@ public sealed partial class ShellWorkspaceController
                 ? await _commandExecutionService.ExecuteAsync(commandId, args, cancellationToken)
                 : await _commandExecutionService.ExecuteAsync(invocationId, commandId, args, cancellationToken);
             SetStatus(result.StatusText);
-            _permissionPanel.Content = null;
+            SetOwnedContent(_permissionPanel, null);
             _chromeViewModel.IsPermissionPromptOpen = false;
             if (result.RequiresPermissionPrompt)
             {
-                _permissionPanel.Content = new PermissionPromptView
+                SetOwnedContent(_permissionPanel, new PermissionPromptView
                 {
                     DataContext = ShellPageViewModelFactory.FromPermissionPrompt(result.Response, LoadBrokerAuditAsync)
-                };
+                });
                 _chromeViewModel.IsPermissionPromptOpen = true;
             }
 
             await LoadBrokerAuditAsync();
-            if (_currentPage == NotificationsPage)
-            {
-                await LoadNotificationsPageAsync();
-            }
 
             return new CommandExecutionStatus(result.Response.State, result.StatusText);
         }
@@ -99,18 +203,44 @@ public sealed partial class ShellWorkspaceController
         string invocationId,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
+        if (IsAdbPortProxyBrokerCommand(commandId))
+        {
+            yield return new CommandExecutionStatus(
+                "running",
+                "Opening the ADB Forwarder approval workspace.",
+                false,
+                1);
+            yield return (await OpenAdbPortProxyBrokerWorkspaceAsync(cancellationToken)) with { Sequence = 2 };
+            yield break;
+        }
+
+        if (ShellCommandRouter.TryHandleShellCommandStream(
+            commandId,
+            moduleId => RefreshModuleStatusAsync(moduleId, cancellationToken),
+            out var shellEvents))
+        {
+            await foreach (var evt in shellEvents.WithCancellation(cancellationToken))
+            {
+                SetStatus(evt.Message);
+                yield return evt;
+            }
+
+            _chromeViewModel.IsCommandPaletteOpen = false;
+            yield break;
+        }
+
         await foreach (var result in _commandExecutionService.ExecuteStreamAsync(invocationId, commandId, args, cancellationToken)
             .WithCancellation(cancellationToken))
         {
             SetStatus(result.StatusText);
-            _permissionPanel.Content = null;
+            SetOwnedContent(_permissionPanel, null);
             _chromeViewModel.IsPermissionPromptOpen = false;
             if (result.RequiresPermissionPrompt && result.Event.FinalResponse is not null)
             {
-                _permissionPanel.Content = new PermissionPromptView
+                SetOwnedContent(_permissionPanel, new PermissionPromptView
                 {
                     DataContext = ShellPageViewModelFactory.FromPermissionPrompt(result.Event.FinalResponse, LoadBrokerAuditAsync)
-                };
+                });
                 _chromeViewModel.IsPermissionPromptOpen = true;
             }
 
@@ -126,6 +256,25 @@ public sealed partial class ShellWorkspaceController
         {
             await LoadNotificationsPageAsync();
         }
+    }
+
+    private static bool IsAdbPortProxyBrokerCommand(string commandId)
+    {
+        return string.Equals(commandId, "adb-forwarder.portproxy.apply", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(commandId, "adb-forwarder.portproxy.revert", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private async Task<CommandExecutionStatus> OpenAdbPortProxyBrokerWorkspaceAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        SetOwnedContent(_permissionPanel, null);
+        _chromeViewModel.IsPermissionPromptOpen = false;
+        _chromeViewModel.IsCommandPaletteOpen = false;
+        await ShowToolPageAsync("adb-forwarder", "rules");
+
+        const string message = "Review the port forwarding change in ADB Forwarder, then use Apply or Revert to request Windows approval.";
+        SetStatus(message);
+        return new CommandExecutionStatus("succeeded", message);
     }
 
     private async Task<CommandCancellationStatus> CancelCommandAsync(string invocationId)
@@ -214,6 +363,19 @@ public sealed partial class ShellWorkspaceController
         catch (Exception ex)
         {
             SetStatus(ex.Message);
+        }
+    }
+
+    private async Task RefreshModuleStatusAsync(string moduleId, CancellationToken cancellationToken = default)
+    {
+        await ExecuteRuntimeCommandAsync($"{moduleId}.status.refresh", cancellationToken: cancellationToken);
+        if (_currentPage == DashboardPage)
+        {
+            await LoadDashboardPageAsync();
+        }
+        else if (_currentPage == ModulesPage)
+        {
+            await ShowModuleDetailPageAsync(moduleId);
         }
     }
 }

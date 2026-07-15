@@ -83,6 +83,34 @@ public sealed class HostControlGrpcService : HostProto.HostControl.HostControlBa
         return response;
     }
 
+    public override Task<HostProto.ListToolsResponse> ListTools(HostProto.ListToolsRequest request, ServerCallContext context)
+    {
+        var response = new HostProto.ListToolsResponse();
+        response.Tools.AddRange(_runtime.ListTools(request.IncludeDisabled).Select(ToProtoTool));
+        return Task.FromResult(response);
+    }
+
+    public override Task<HostProto.ToolDescriptor> GetTool(HostProto.GetToolRequest request, ServerCallContext context)
+    {
+        return Task.FromResult(ToProtoTool(_runtime.GetTool(request.ToolId)));
+    }
+
+    public override async Task<HostProto.ListToolsResponse> RefreshTools(HostProto.RefreshToolsRequest request, ServerCallContext context)
+    {
+        var tools = await _runtime.RefreshToolCatalogAsync(context.CancellationToken);
+        var response = new HostProto.ListToolsResponse();
+        response.Tools.AddRange(tools.Select(ToProtoTool));
+        return response;
+    }
+
+    public override Task<HostProto.PublishToolEventResponse> PublishToolEvent(HostProto.PublishToolEventRequest request, ServerCallContext context)
+    {
+        var payload = JsonNode.Parse(string.IsNullOrWhiteSpace(request.PayloadJson) ? "{}" : request.PayloadJson) as JsonObject
+                      ?? throw new RpcException(new Status(StatusCode.InvalidArgument, "payload_json must contain a JSON object."));
+        var published = _runtime.PublishToolEvent(request.ToolId, request.Topic, payload);
+        return Task.FromResult(new HostProto.PublishToolEventResponse { EventSeq = published.Seq });
+    }
+
     public override Task<HostProto.ListPackagesResponse> ListPackages(HostProto.ListPackagesRequest request, ServerCallContext context)
     {
         var response = new HostProto.ListPackagesResponse();
@@ -305,21 +333,44 @@ public sealed class HostControlGrpcService : HostProto.HostControl.HostControlBa
     public override Task<HostProto.ListNotificationsResponse> ListNotifications(HostProto.ListNotificationsRequest request, ServerCallContext context)
     {
         var limit = request.Limit == 0 ? 50 : Math.Min(request.Limit, 200);
-        var response = new HostProto.ListNotificationsResponse();
-        response.Notifications.AddRange(_runtime.ListNotifications()
+        var moduleNotifications = _runtime.ListNotifications()
             .Where(item => string.IsNullOrWhiteSpace(request.ModuleId) || string.Equals(item.ModuleId, request.ModuleId, StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+        var filteredNotifications = request.ReadFilter switch
+        {
+            HostProto.NotificationReadFilter.Read => moduleNotifications.Where(item => item.IsRead),
+            HostProto.NotificationReadFilter.Unread => moduleNotifications.Where(item => !item.IsRead),
+            _ => moduleNotifications
+        };
+        var response = new HostProto.ListNotificationsResponse();
+        response.TotalCount = (uint)moduleNotifications.Length;
+        response.UnreadCount = (uint)moduleNotifications.Count(item => !item.IsRead);
+        response.Notifications.AddRange(filteredNotifications
             .Take((int)limit)
-            .Select(item => new HostProto.NotificationItem
-            {
-                Id = item.Id,
-                Time = Timestamp.FromDateTimeOffset(item.Time),
-                ModuleId = item.ModuleId,
-                Level = item.Level,
-                Title = item.Title,
-                Body = item.Body,
-                IsRead = item.IsRead
-            }));
+            .Select(ToProtoNotification));
         return Task.FromResult(response);
+    }
+
+    public override Task<HostProto.SetNotificationReadStateResponse> SetNotificationReadState(
+        HostProto.SetNotificationReadStateRequest request,
+        ServerCallContext context)
+    {
+        if (string.IsNullOrWhiteSpace(request.NotificationId))
+        {
+            throw new RpcException(new Status(StatusCode.InvalidArgument, "notification_id is required."));
+        }
+
+        var result = _runtime.SetNotificationReadState(request.NotificationId, request.IsRead);
+        if (result is null)
+        {
+            throw new RpcException(new Status(StatusCode.NotFound, $"Notification '{request.NotificationId}' was not found."));
+        }
+
+        return Task.FromResult(new HostProto.SetNotificationReadStateResponse
+        {
+            Notification = ToProtoNotification(result.Notification),
+            Changed = result.Changed
+        });
     }
 
     public override Task<HostProto.SettingsSnapshot> GetSettings(HostProto.GetSettingsRequest request, ServerCallContext context)
@@ -404,6 +455,20 @@ public sealed class HostControlGrpcService : HostProto.HostControl.HostControlBa
     {
         _applicationLifetime?.StopApplication();
         return Task.FromResult(new Empty());
+    }
+
+    private static HostProto.NotificationItem ToProtoNotification(NotificationRecord notification)
+    {
+        return new HostProto.NotificationItem
+        {
+            Id = notification.Id,
+            Time = Timestamp.FromDateTimeOffset(notification.Time),
+            ModuleId = notification.ModuleId,
+            Level = notification.Level,
+            Title = notification.Title,
+            Body = notification.Body,
+            IsRead = notification.IsRead
+        };
     }
 
     private static HostProto.SettingsSnapshot ToProtoSettings(SettingsSnapshotDocument snapshot, string applyState = "", string applyMessage = "")
@@ -544,6 +609,82 @@ public sealed class HostControlGrpcService : HostProto.HostControl.HostControlBa
         };
     }
 
+    private static HostProto.ToolDescriptor ToProtoTool(RuntimeToolSnapshot snapshot)
+    {
+        var descriptor = snapshot.Descriptor;
+        var response = new HostProto.ToolDescriptor
+        {
+            ToolId = descriptor.ToolId,
+            OwnerModuleId = descriptor.OwnerModuleId,
+            Title = descriptor.Title,
+            Description = descriptor.Description,
+            Icon = descriptor.Icon,
+            Category = descriptor.Category,
+            PrimaryRouteId = descriptor.PrimaryRouteId,
+            Availability = descriptor.Availability,
+            ToolType = descriptor.ToolType,
+            SourceDirectory = descriptor.SourceDirectory,
+            State = snapshot.Enabled ? snapshot.State : "disabled",
+            StateSummary = snapshot.Enabled ? snapshot.StateSummary : "This tool is disabled.",
+            HomeCard = new HostProto.ToolHomeCard
+            {
+                Summary = descriptor.HomeCard.Summary,
+                PrimaryActionLabel = descriptor.HomeCard.PrimaryActionLabel,
+                StatusBinding = descriptor.HomeCard.StatusBinding,
+                Order = descriptor.HomeCard.Order
+            }
+        };
+        response.Routes.AddRange(descriptor.Routes.Select(route => new HostProto.ToolRoute
+        {
+            RouteId = route.RouteId,
+            SurfaceId = route.SurfaceId,
+            Title = route.Title,
+            Icon = route.Icon,
+            SurfaceKind = route.SurfaceKind,
+            Source = route.Source,
+            StaticRoot = route.StaticRoot,
+            Assembly = route.Assembly,
+            Type = route.Type,
+            OpenExternal = route.OpenExternal
+        }));
+        foreach (var route in response.Routes.Zip(descriptor.Routes))
+        {
+            route.First.AllowedOrigins.AddRange(route.Second.AllowedOrigins ?? []);
+        }
+        if (descriptor.Runtime is { } runtime)
+        {
+            response.Runtime = new HostProto.ToolRuntime
+            {
+                Transport = runtime.Transport,
+                Endpoint = runtime.Endpoint,
+                Command = runtime.Command,
+                HealthPath = runtime.HealthPath,
+                LogsPath = runtime.LogsPath,
+                TimeoutMs = runtime.TimeoutMs,
+                Remote = runtime.Remote
+            };
+            response.Runtime.Args.AddRange(runtime.Args);
+        }
+        if (descriptor.Settings is { } settings)
+        {
+            response.Settings = new HostProto.ToolSettings
+            {
+                SchemaPath = settings.SchemaPath,
+                ValuesPath = settings.ValuesPath
+            };
+            response.Settings.Secrets.AddRange(settings.Secrets);
+        }
+        response.Commands.AddRange((descriptor.Commands ?? []).Select(command => new HostProto.ToolCommand
+        {
+            Id = command.Id,
+            Title = command.Title,
+            Description = command.Description,
+            Method = command.Method,
+            Path = command.Path
+        }));
+        return response;
+    }
+
     private static HostProto.ModuleRequirement ToProtoRequirement(MyPowerTools.Packaging.MptRequirementManifest requirement)
     {
         return new HostProto.ModuleRequirement
@@ -564,8 +705,14 @@ public sealed class HostControlGrpcService : HostProto.HostControl.HostControlBa
             Subtitle = command.Subtitle,
             Icon = command.Icon,
             DangerLevel = command.DangerLevel,
-            RequiresElevation = command.RequiresElevation
+            RequiresElevation = command.RequiresElevation,
+            Kind = command.Kind,
+            Category = command.Category,
+            Execution = JsonStructMapper.ToStruct(command.Execution ?? new JsonObject()),
+            SupportsProgress = command.SupportsProgress,
+            SupportsCancellation = command.SupportsCancellation
         };
+        item.Constraints.AddRange(command.Constraints ?? []);
         item.Parameters.AddRange((command.Parameters ?? [])
             .Select(parameter => new HostProto.CommandParameter
             {

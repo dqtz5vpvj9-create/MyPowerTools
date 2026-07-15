@@ -1,0 +1,152 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="using:MyPowerTools.UI.Controls"
+             xmlns:vm="using:MyPowerTools.Shell.Avalonia.ViewModels"
+             x:Class="MyPowerTools.Shell.Avalonia.Views.GeneralSettingsView"
+             x:DataType="vm:GeneralSettingsViewModel">
+  <StackPanel x:Name="GeneralRoot"
+              MaxWidth="{DynamicResource MptLayoutSettingsMaxWidth}"
+              HorizontalAlignment="Center"
+              Spacing="{DynamicResource MptSpacingXl}">
+    <StackPanel Spacing="{DynamicResource MptSpacingXs}">
+      <TextBlock Classes="MptPageTitle" Text="{Binding Title}" />
+      <TextBlock Classes="MptPageSubtitle" Text="{Binding Subtitle}" />
+    </StackPanel>
+
+    <Border Classes="MptSettingsSection">
+      <Grid x:Name="AppearanceLayoutGrid"
+            ColumnDefinitions="*,320"
+            RowDefinitions="Auto"
+            ColumnSpacing="{DynamicResource MptSpacing2Xl}">
+        <StackPanel Spacing="{DynamicResource MptSpacingS}">
+          <TextBlock Classes="MptSectionTitle" Text="Appearance" />
+          <TextBlock Classes="MptPageSubtitle"
+                     Text="Choose the application theme used across MyPowerTools."
+                     MaxWidth="520"
+                     HorizontalAlignment="Left" />
+        </StackPanel>
+
+        <StackPanel x:Name="ThemeControlPanel"
+                    Grid.Column="1"
+                    Spacing="{DynamicResource MptSpacingS}">
+          <TextBlock FontWeight="SemiBold" Text="App theme" />
+          <controls:MptComboBox ItemsSource="{Binding Themes}"
+                                SelectedItem="{Binding SelectedTheme, Mode=TwoWay}"
+                                HorizontalAlignment="Stretch">
+            <controls:MptComboBox.ItemTemplate>
+              <DataTemplate x:DataType="vm:ThemeChoiceViewModel">
+                <TextBlock Text="{Binding Title}" />
+              </DataTemplate>
+            </controls:MptComboBox.ItemTemplate>
+          </controls:MptComboBox>
+          <TextBlock Classes="MptMeta"
+                     Text="{Binding ThemeSummary}"
+                     TextWrapping="Wrap" />
+          <TextBlock Classes="MptMeta"
+                     Text="{Binding ThemeApplyStatus}"
+                     TextWrapping="Wrap" />
+        </StackPanel>
+      </Grid>
+    </Border>
+
+    <Grid x:Name="SecondarySettingsGrid"
+          ColumnDefinitions="*,*"
+          RowDefinitions="Auto"
+          ColumnSpacing="{DynamicResource MptSpacingL}">
+      <Border Classes="MptSettingsSection">
+        <StackPanel Spacing="{DynamicResource MptSpacingL}">
+          <StackPanel Spacing="{DynamicResource MptSpacingXs}">
+            <TextBlock Classes="MptSectionTitle" Text="Background operation" />
+            <TextBlock Classes="MptPageSubtitle"
+                       Text="How the application remains available after its window closes." />
+          </StackPanel>
+
+          <Border BorderBrush="{DynamicResource MptBrushDivider}"
+                  BorderThickness="0,1,0,0"
+                  Padding="{DynamicResource MptListItemPadding}">
+            <Grid ColumnDefinitions="40,*,Auto"
+                  ColumnSpacing="{DynamicResource MptSpacingM}">
+              <TextBlock Text="&#xE7E7;"
+                         FontFamily="{DynamicResource MptFontFamilyIcons}"
+                         FontSize="{DynamicResource MptFontSizeSection}"
+                         Foreground="{DynamicResource MptBrushTextSecondary}"
+                         HorizontalAlignment="Center"
+                         VerticalAlignment="Center" />
+              <StackPanel Grid.Column="1"
+                          Spacing="{DynamicResource MptSpacingXs}">
+                <TextBlock FontWeight="SemiBold" Text="Notification area" />
+                <TextBlock Classes="MptMeta"
+                           Text="Use the tray menu to open or exit MyPowerTools."
+                           TextWrapping="Wrap" />
+              </StackPanel>
+              <TextBlock Grid.Column="2"
+                         Classes="MptMeta"
+                         Text="Available while running"
+                         VerticalAlignment="Center" />
+            </Grid>
+          </Border>
+        </StackPanel>
+      </Border>
+
+      <Border x:Name="KeyboardSettingsCard"
+              Grid.Column="1"
+              Classes="MptSettingsSection">
+        <StackPanel Spacing="{DynamicResource MptSpacingL}">
+          <StackPanel Spacing="{DynamicResource MptSpacingXs}">
+            <TextBlock Classes="MptSectionTitle" Text="Keyboard" />
+            <TextBlock Classes="MptPageSubtitle"
+                       Text="Application-wide shortcuts." />
+          </StackPanel>
+
+          <StackPanel>
+            <Grid MinHeight="44"
+                  ColumnDefinitions="*,Auto"
+                  ColumnSpacing="{DynamicResource MptSpacingM}">
+              <TextBlock FontWeight="SemiBold"
+                         Text="Search tools and settings"
+                         VerticalAlignment="Center" />
+              <Border Grid.Column="1"
+                      Classes="MptStatusBadge"
+                      VerticalAlignment="Center">
+                <TextBlock Classes="MptMono" Text="Ctrl+F" />
+              </Border>
+            </Grid>
+            <Border Height="1" Background="{DynamicResource MptBrushDivider}" />
+            <Grid MinHeight="44"
+                  ColumnDefinitions="*,Auto"
+                  ColumnSpacing="{DynamicResource MptSpacingM}">
+              <TextBlock FontWeight="SemiBold"
+                         Text="Open MyPowerTools search"
+                         VerticalAlignment="Center" />
+              <Border Grid.Column="1"
+                      Classes="MptStatusBadge"
+                      VerticalAlignment="Center">
+                <TextBlock Classes="MptMono" Text="Ctrl+Alt+Space" />
+              </Border>
+            </Grid>
+          </StackPanel>
+        </StackPanel>
+      </Border>
+    </Grid>
+
+    <Border Classes="MptSettingsSection">
+      <Grid x:Name="MaintenanceGrid"
+            ColumnDefinitions="*,Auto"
+            RowDefinitions="Auto"
+            ColumnSpacing="{DynamicResource MptSpacingL}">
+        <StackPanel Spacing="{DynamicResource MptSpacingXs}">
+          <TextBlock Classes="MptCardTitle" Text="System &amp; Maintenance" />
+          <TextBlock Classes="MptMeta"
+                     Text="Manage runtime modules, packages, logs, and support diagnostics in one place."
+                     TextWrapping="Wrap" />
+        </StackPanel>
+        <controls:MptButton x:Name="OpenSystemButton"
+                            Grid.Column="1"
+                            Content="Open System"
+                            Command="{Binding OpenSystemCommand}"
+                            MinWidth="{DynamicResource MptDensityActionMinWidth}"
+                            VerticalAlignment="Center" />
+      </Grid>
+    </Border>
+  </StackPanel>
+</UserControl>

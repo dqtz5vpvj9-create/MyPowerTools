@@ -1,0 +1,26 @@
+{
+  "schemaVersion": "1.0",
+  "version": "0.1.0",
+  "toolId": "template.dotnet",
+  "ownerModuleId": "template.dotnet",
+  "title": "template.dotnet",
+  "description": "A MyPowerTools dotnet-surface created by the SDK CLI.",
+  "icon": "tool.external",
+  "category": "External tools",
+  "type": "dotnet-surface",
+  "availability": "available",
+  "primaryRouteId": "main",
+  "routes": [
+    { "routeId": "main", "surfaceId": "template.dotnet.main", "title": "Overview", "surface": { "kind": "dotnet", "assembly": "bin/Debug/net10.0/TemplateDotnet.dll", "type": "TemplateDotnet.ToolSurfaceFactory" } }
+  ],
+  "homeCard": { "summary": "Open template.dotnet", "primaryActionLabel": "Open", "order": 500 },
+  "runtime": { "transport": "none" },
+  "settings": { "schema": "settings.schema.json", "values": "settings.json", "secrets": ["apiSecret"] },
+  "commands": [
+    { "id": "template.dotnet.health", "title": "Check health", "description": "Probe the configured runtime.", "method": "GET", "path": "/api/status" },
+    { "id": "template.dotnet.refresh", "title": "Refresh", "description": "Refresh tool state.", "method": "POST", "path": "/api/refresh" },
+    { "id": "template.dotnet.logs", "title": "Tail logs", "description": "Read recent runtime logs.", "method": "GET", "path": "/api/logs" }
+  ],
+  "permissions": [],
+  "development": { "loose": true, "autoRefresh": false }
+}

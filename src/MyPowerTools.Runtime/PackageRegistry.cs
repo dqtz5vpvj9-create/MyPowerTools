@@ -18,22 +18,36 @@ public sealed class PackageRegistry
 
     public IReadOnlyList<RuntimeModuleRecord> Modules => _modules;
 
-    public void Load(string packageRoot)
+    public void Load(string packageRoot, IEnumerable<string>? developmentToolRoots = null)
     {
         _modules.Clear();
 
-        foreach (var package in _reader.DiscoverPackages(packageRoot))
+        var packages = _reader.DiscoverPackages(packageRoot)
+            .Concat(_reader.DiscoverDevelopmentTools(developmentToolRoots ?? []));
+        foreach (var package in packages)
         {
             foreach (var module in package.Modules)
             {
+                if (_modules.Any(existing => string.Equals(
+                        existing.Module.Manifest.Id,
+                        module.Manifest.Id,
+                        StringComparison.OrdinalIgnoreCase)))
+                {
+                    throw new InvalidDataException($"Duplicate module id '{module.Manifest.Id}' discovered at {module.ManifestPath}.");
+                }
+
                 var selection = _transportSelector.Select(package, module);
                 var entrypoint = selection.Entrypoint;
-                var state = entrypoint is null
+                var state = package.IsDevelopmentTool && entrypoint is null
+                    ? "ready"
+                    : entrypoint is null
                     ? "unsupported"
                     : entrypoint.Kind == "inproc-dotnet"
                         ? "indexed"
                         : "stopped";
-                var summary = entrypoint is null
+                var summary = package.IsDevelopmentTool && entrypoint is null
+                    ? $"Development tool surface discovered from {package.Directory}."
+                    : entrypoint is null
                     ? "No compatible runnable entrypoint for this platform."
                     : $"Indexed via {entrypoint.Kind}. {entrypoint.SelectionReason}";
 

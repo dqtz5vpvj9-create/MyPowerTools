@@ -48,7 +48,7 @@ The active objective is final external review handoff: MyPowerTools is locally p
 - Refreshed `shared/package.hashes.json` for all 5 production package roots.
 - Added `scripts/smoke.ps1`, `scripts/publish-windows.ps1`, and `CHANGELOG.md`.
 - Added `scripts/release-notes.ps1` and wired it into the Windows publish script so release artifacts include generated notes with SHA256, size, verification commands, and external requirements.
-- Added `scripts/install-windows.ps1` and `scripts/uninstall-windows.ps1`, then wired both scripts into the Windows portable zip root for current-user install, shortcut creation, optional autostart, optional Runner launch, uninstall, and dry-run validation.
+- Added `scripts/install-windows.ps1` and `scripts/uninstall-windows.ps1`, then hardened their default mutation root to `%ProgramFiles%\MyPowerTools` with an explicit administrator requirement. The release publishes a dedicated elevated Broker under `Broker\`; portable/developer layouts retain read workflows and fail closed for ADB portproxy writes.
 - Added `.github/workflows/ci.yml` for Windows restore, build, test, module validation, UI gate, UI contract snapshots, template validation, Runner once, smoke, publish, and artifact upload.
 - Added production `README.md` with architecture, requirements, build/test/run/publish commands, package lifecycle commands, module authoring, and troubleshooting.
 - Added six validated module templates under `templates/` plus `scripts/validate-templates.ps1` for manifest validation, UI gate, .NET template builds, and Python syntax compilation.
@@ -80,7 +80,7 @@ The active objective is final external review handoff: MyPowerTools is locally p
 - Added Shell HostControl event stream consumption: `HostControlClient.SubscribeHostEventsAsync`, `HostControlEventStreamMonitor`, and MainWindow event handling now resume by sequence after faults, skip duplicate replayed events, and refresh affected Shell pages from Runner snapshots. `Shell_event_stream_monitor_resumes_after_fault_and_tracks_seq` verifies the path.
 - Added P0 phase ledger for the active 9-phase objective: `docs/PHASES.md`, `docs/PROJECT_STATUS.md`, `docs/PHASE_HISTORY.md`, `docs/OPEN_BLOCKERS.md`, `docs/EXTERNAL_VALIDATION.md`, and `.codex/project-state.json`.
 - Added `DoubaoAgent.MyPowerTools` as a production InProc controller module. It checks planner `38102`, tool runtime `38080`, and MCP bridge `38189` separately, exposes per-role health commands, status summary, self-test, log summary, runtime settings schema, and degraded status when only part of the runtime is reachable.
-- Added `SmartBirdThermostat.MyPowerTools` as a production InProc typed facade. It wraps SmartBird HTTP status/events/config/log endpoints, exposes config save, self-test, log summary, bounded event output, ServiceBroker restart request details, runtime settings schema, local path redaction, and degraded Energy Server/FNB-58/ADB diagnostics.
+- Added `SmartBirdThermostat.MyPowerTools` as a production InProc typed facade. It reads the source status/events/energy routes and task log, exposes bounded event output and ServiceBroker restart request details, and redacts local paths and ADB identifiers. The Shell embeds the source dashboard at its fixed loopback origin.
 - Hardened `LogRouter` for concurrent CLI/runtime log writes with per-file in-process locking, read-shared/exclusive writer handles, retry, and blank-line-safe tailing.
 - Added P2 closure acceptance coverage for AndroidTools invalid notification endpoint config, AndroidTools empty process watch-list degradation, and Doubao role-specific partial service outages.
 - Marked P2 complete locally; remaining P2 concerns require external hardware, connected devices, or documented production service APIs and are tracked in `docs/OPEN_BLOCKERS.md` plus `docs/EXTERNAL_VALIDATION.md`.
@@ -89,20 +89,20 @@ The active objective is final external review handoff: MyPowerTools is locally p
 - Completed P5 reliability and observability closure locally: `ModuleSupervisor` records module health observations, consecutive failures, supervisor state, last observation time, and next actions; RuntimeDiagnostics, HostControl, CLI diagnostics, Shell Diagnostics, and Dashboard alerts expose the data; `mpt runner process pause . --duration-minutes 1` resolves the first active process pool for smoke-friendly policy validation.
 - Completed P6 packaging, templates, CLI, install, and release closure locally: publish now writes release/update metadata and a Scoop package-manager manifest, release notes list both artifacts, tests cover metadata/hash parity, the portable zip passes hygiene checks, and release Runner/Shell/autostart/install/uninstall dry-runs are verified.
 - Completed P7 cross-platform capability closure locally: added `ILocalIpc`, platform-native endpoint selection, `IHotkeyService`, `IPrivilegeBroker`, Windows broker-required privilege evaluation, Win32 `RegisterHotKey` handling, Mac/Linux degraded providers for hotkey/privilege/notification/autostart/service/network/process surfaces, managed process inspection, and tests for required/optional capability resolution, UDS/Named Pipe endpoint shape, and privilege contract behavior.
-- P8 final production closure is historical evidence, and the later P-UI-Foundation review gate is now complete; `.codex/project-state.json` has `productionClosure=true`.
+- P8 final production closure is historical evidence. The later P-UI-Foundation UI gate is now complete; `.codex/project-state.json` keeps `productionClosure=false` for external release/hardware/signing scope.
 - Completed P-Foundation-5 foundation hardening locally: per-command route selection now carries blocked-route diagnostics, module protocol metadata is preserved through gRPC and powertoold, AndroidTools/ScreenEase/AdbForwarder event streams poll with duplicate prevention, full `ShellChromeView` screenshots cover `--live-runner --full-shell`, fixture-labelled, Runner-backed, 1366x768, 1920x1080, 1280x720 compact, and dark variants, Command Palette has grouped fuzzy search and execution detail UX, module hotkey settings are editable with reset/state/result prompts, platform path expansion feeds transport endpoints, and evidence docs agree on 5 packages, 7 modules, 81 commands, 50 dynamic commands, and 168 passing tests.
 - Completed P-Foundation-6 lifecycle/event/hotkey/readiness closure locally: Runtime enable/disable now delegates real transport lifecycle hooks, Runner starts a continuous supervised module event pump, hotkey overrides persist in `HotkeyStore` and flow through Shell `$hotkeys` patches, gRPC sidecars wait for readiness with package/runtime working directory plus `MPT_*` env propagation, ModuleControl carries nested typed args through `typed_args`/`args_json`, and the original 168 acceptance tests are split into 10 domain partial files with a test layout README.
 - Completed P-Foundation-7 runtime correctness locally: Runner hotkeys now re-register on gesture changes and carry persisted command args, module alert events create `notification.created` host events, Runtime forwards cancellation into module transports and Shell keeps accepted/rejected cancel evidence, gRPC stream crashes emit terminal runtime-unavailable failures without replay, invocation idempotency is bounded by TTL/max count, diagnostics split module enabled/transport/tool state, and UI lint covers the component C# layer through `MptThemeTokens`.
-- P-UI-Foundation is complete: baseline screenshots are in `artifacts/ui-before`; ShellChrome uses sidebar/topbar/content/status/overlay structure; Dashboard no longer has a permanent Command Palette/Audit rail; Command Palette opens as a centered overlay; Shell views use MPT controls; final fixture/dark/compact/live evidence is in `artifacts/ui-final-*p-ui-foundation*`.
+- P-UI-Foundation UI acceptance is complete: baseline screenshots are in `artifacts/ui-before`; ShellChrome uses sidebar/topbar/content/status/overlay structure; Dashboard no longer has a permanent Command Palette/Audit rail; Command Palette opens as a centered overlay; Shell views use MPT controls; real screenshot page filtering and manifest fields were fixed; compact Command Palette parameter clipping is evidenced in `artifacts/ui-final-command-palette-compact`; final fixture/live-runner matrices are under `artifacts/ui-final-*`.
 
 ## Last Verified State
 
 - SDK: `dotnet --version` returns `10.0.301`; `global.json` pins `10.0.301`; all projects target `net10.0`.
 - Restore: `dotnet restore MyPowerTools.slnx` succeeded.
 - Build: `dotnet build MyPowerTools.slnx` succeeded with 0 warnings and 0 errors.
-- Tests: `dotnet test MyPowerTools.slnx --no-build` passed 189 tests, 0 failed, 0 skipped.
+- Tests: latest full suite passed 190 tests, 0 failed, 0 skipped.
 - P7 tests: `dotnet test src\MyPowerTools.Tests\MyPowerTools.Tests.csproj --no-build --filter "Foundation=P7"` passed 10 tests, 0 failed, 0 skipped.
-- Phase state: local internal production closure is complete; `.codex/project-state.json` has `productionClosure=true`, 81 commands, and latest full-test result 189/0/0.
+- Phase state: P-UI-Foundation UI acceptance is complete; `.codex/project-state.json` has `productionClosure=false`, 81 commands, and external validation remains outside this UI gate.
 - Module validation: `dotnet run --project src\MyPowerTools.Cli -- validate modules` passed all 5 production packages.
 - Module contract validation: `dotnet run --project src\MyPowerTools.Cli -- validate contracts` passed all 5 production packages and 7 modules.
 - Package trust: `dotnet run --project src\MyPowerTools.Cli -- package trust modules --strict` reports `signature-hook` for all 5 production packages.
@@ -111,18 +111,18 @@ The active objective is final external review handoff: MyPowerTools is locally p
 - Runtime diagnostics CLI: `dotnet run --no-build --project src\MyPowerTools.Cli -- diagnostics` reports platform `windows-x64`, .NET `10.0.9`, event seq 9, 5 packages, 7 modules, 81 commands, 50 dynamic commands, paths, transports, per-module state, and AndroidTools `grpc-ipc` process pool `package:android-tools-suite:runtime:powertoold` with all three AndroidTools modules.
 - Runner process policy shorthand: `dotnet run --no-build --project src\MyPowerTools.Cli -- runner process pause . --duration-minutes 1` passed against a temporary Runner, selected the AndroidTools shared gRPC process pool, printed expiry/modules, and resume restored automatic policy.
 - UI gate: `dotnet run --project src\MyPowerTools.Cli -- ui check modules` passed.
-- UI snapshots: `dotnet run --project src\MyPowerTools.Cli -- ui snapshot --surface dashboard-card --theme light --size 1366x768 --density normal --out artifacts\ui-snapshots` wrote 7 contract snapshots and 7 PNG pixel snapshots; first PNG reported 21 unique colors and 876888 non-background pixels.
-- Shell UI snapshots: final fixture, 1920, compact, dark, and Runner-backed screenshots are in `artifacts/ui-final-*p-ui-foundation*`; live Runner manifests record `dataSource=runner-hostcontrol` and `usesHostControlData=true`.
+- UI snapshots: current final fixture matrices are in `artifacts/ui-final-fixture-light`, `artifacts/ui-final-fixture-dark`, and `artifacts/ui-final-fixture-compact`; current live-runner matrices are in `artifacts/ui-final-live-runner-light`, `artifacts/ui-final-live-runner-dark`, and `artifacts/ui-final-live-runner-compact`; compact Command Palette page evidence is in `artifacts/ui-final-command-palette-compact`.
+- Current UI snapshot manifests record page, surfaceId, mode, runnerConnected, moduleCount, commandCount, sha256, and imagePath; live-runner manifests record `dataSource=runner-hostcontrol` and `runnerConnected=true`.
 - P-Foundation-6 Shell snapshots: `artifacts\shell-ui-snapshots-p6` and `artifacts\shell-ui-snapshots-p6-live-runner` were generated; the live Runner run used HostControl data and Shell smoke requested Runner shutdown cleanly.
 - Runner autostart: `dotnet run --project src\MyPowerTools.Cli -- runner autostart status` reports the current HKCU Run state through `AutostartBroker`; `dotnet run --project src\MyPowerTools.Cli -- runner autostart enable --dry-run` prints the resolved Runner command without registry writes.
 - Template validation: `pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\validate-templates.ps1` passed for 6 templates.
-- Runner snapshot: `dotnet run --project src\MyPowerTools.Runner -- --once` indexed 7 modules. AdbForwarder, AndroidTools Notifications, and AndroidTools Remote Commands are runnable; AndroidTools modules use powertoold when the packaged sidecar command exists; Doubao Agent is degraded with 1/3 services reachable; AndroidTools Process Monitor is degraded until a watch list is saved; ScreenEase is degraded on the current monitor because DDC/CI capabilities are unsupported; SmartBird is degraded until Energy Server and FNB-58 are configured.
+- Runner snapshot: `dotnet run --project src\MyPowerTools.Runner -- --once` indexed 7 modules. SmartBird status now follows the source thermostat status, energy bridge and ADB checks; its attached-hardware controls stay inside the embedded dashboard.
 - Command execution:
   - `dotnet run --project src\MyPowerTools.Cli -- run adb-forwarder.diagnostics.summary` returned redacted ADB and Windows portproxy diagnostics.
   - `dotnet run --project src\MyPowerTools.Cli -- run adb-forwarder.portproxy.plan` returned structured current Windows portproxy state, default empty desired mappings, warnings, and no planned changes.
   - `dotnet run --project src\MyPowerTools.Cli -- run doubao-agent.health.check` returned typed degraded status with 1/3 Doubao services reachable on the current machine.
   - `dotnet run --project src\MyPowerTools.Cli -- run doubao-agent.self-test` returned settings schema availability, redacted `%LOCALAPPDATA%` paths, role endpoints, and token/secret/password redaction proof.
-  - `dotnet run --project src\MyPowerTools.Cli -- run smartbird-thermostat.status.summary` returned SmartBird HTTP status, redacted local paths and ADB device identifiers, and degraded Energy Server/FNB-58 diagnostics.
+  - `dotnet run --project src\MyPowerTools.Cli -- run smartbird-thermostat.status.summary` returned SmartBird HTTP status, redacted local paths and ADB device identifiers, and source-backed Energy Server diagnostics.
   - `dotnet run --project src\MyPowerTools.Cli -- run smartbird-thermostat.events.list` returned latest 25 of 200 events with `truncated=true`.
   - `dotnet run --project src\MyPowerTools.Cli -- run smartbird-thermostat.service.restart` returned expected `permission-required` ServiceBroker output.
   - `dotnet run --project src\MyPowerTools.Cli -- run screenease.status.summary` returned active profile, 1 detected Windows display, default profiles/rules, and DDC/CI writer status.
@@ -150,14 +150,14 @@ The active objective is final external review handoff: MyPowerTools is locally p
 ## Next Highest-Value Work
 
 1. Validate ScreenEase hardware writes against a monitor that supports DDC/CI brightness/color-temperature controls when hardware is available.
-2. Validate SmartBird against real Energy Server and FNB-58 hardware when those services are available.
+2. Validate SmartBird Read Meter and switch actions against attached Energy Server/HID-meter and switch hardware.
 3. Validate real Doubao planner/tool/MCP endpoint contracts when production health APIs are available.
 4. Validate AndroidTools device notification/remote-command flows against connected ADB devices and notification service state.
 5. Keep production signing and distribution-channel publication classified as external until signing material or a signing service is available.
 
 ## External Requirements To Verify Later
 
-- DDC/CI-capable display hardware for ScreenEase write validation, plus SmartBird, FNB-58, Energy Server, and ADB devices.
+- DDC/CI-capable display hardware for ScreenEase write validation, plus SmartBird switch, Energy Server/HID meter, and ADB thermal targets.
 - Doubao planner/tool/MCP services with documented production health/status endpoint contracts.
 - Windows UAC or helper service packaging for running NetworkBroker outside the normal user token.
 - Legacy secrets to migrate, if existing module installations already stored sensitive settings elsewhere.

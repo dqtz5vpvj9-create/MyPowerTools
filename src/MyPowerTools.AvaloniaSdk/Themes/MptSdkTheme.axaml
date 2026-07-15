@@ -1,0 +1,9 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <Color x:Key="MptSdkAccentColor">#0F6CBD</Color>
+  <SolidColorBrush x:Key="MptSdkAccentBrush" Color="{DynamicResource MptSdkAccentColor}" />
+  <SolidColorBrush x:Key="MptSdkCardBrush" Color="#FFFFFFFF" />
+  <SolidColorBrush x:Key="MptSdkBorderBrush" Color="#1F000000" />
+  <x:Double x:Key="MptSdkCornerRadius">8</x:Double>
+  <Thickness x:Key="MptSdkPagePadding">24</Thickness>
+</ResourceDictionary>

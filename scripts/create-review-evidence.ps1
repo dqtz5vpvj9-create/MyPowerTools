@@ -1,7 +1,9 @@
 param(
     [string] $RepoRoot = (Split-Path -Parent $PSScriptRoot),
     [string] $EvidenceRoot = (Join-Path (Split-Path -Parent $PSScriptRoot) 'artifacts\review-evidence'),
-    [switch] $SkipCommandExecution
+    [switch] $SkipCommandExecution,
+    [switch] $RefreshPackageSignatures,
+    [switch] $IncludeReleaseEvidence
 )
 
 $ErrorActionPreference = 'Stop'
@@ -121,6 +123,43 @@ function Invoke-EvidenceCommand {
     }
 
     return $result
+}
+
+function Add-SkippedEvidenceCommand {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string] $Name,
+
+        [Parameter(Mandatory = $true)]
+        [string] $Reason
+    )
+
+    $script:CommandIndex += 1
+    $safeName = ConvertTo-SafeName $Name
+    $outputPath = Join-Path $CommandOutputRoot ('{0:D2}-{1}.txt' -f $script:CommandIndex, $safeName)
+    $now = [DateTimeOffset]::UtcNow
+    $content = @(
+        "Command: skipped"
+        "StartedAtUtc: $($now.ToString('O'))"
+        "FinishedAtUtc: $($now.ToString('O'))"
+        "ExitCode: 0"
+        ""
+        "STDOUT:"
+        $Reason
+        ""
+        "STDERR:"
+    ) -join [Environment]::NewLine
+    Set-Content -LiteralPath $outputPath -Value $content -Encoding UTF8
+
+    $script:Results.Add([pscustomobject]@{
+        name = $Name
+        command = 'skipped'
+        exitCode = 0
+        expectedExitCodes = @(0)
+        output = $outputPath
+        startedAtUtc = $now.ToString('O')
+        finishedAtUtc = $now.ToString('O')
+    })
 }
 
 function Assert-RunnerOutputSemantics {
@@ -272,8 +311,13 @@ if (-not $SkipCommandExecution) {
     Invoke-EvidenceCommand -Name 'dotnet-test-foundation-p7' -FilePath 'dotnet' -ArgumentList @('test', 'src\MyPowerTools.Tests\MyPowerTools.Tests.csproj', '--no-build', '--filter', 'Foundation=P7') | Out-Null
     Invoke-EvidenceCommand -Name 'validate-modules' -FilePath 'dotnet' -ArgumentList @('run', '--no-build', '--project', 'src\MyPowerTools.Cli', '--', 'validate', 'modules') | Out-Null
     Invoke-EvidenceCommand -Name 'validate-contracts' -FilePath 'dotnet' -ArgumentList @('run', '--no-build', '--project', 'src\MyPowerTools.Cli', '--', 'validate', 'contracts') -TimeoutSeconds 900 | Out-Null
-    Invoke-EvidenceCommand -Name 'package-sign-local' -FilePath 'dotnet' -ArgumentList @('run', '--no-build', '--project', 'src\MyPowerTools.Cli', '--', 'package', 'sign-local', 'modules') | Out-Null
-    Invoke-EvidenceCommand -Name 'package-trust-strict' -FilePath 'dotnet' -ArgumentList @('run', '--no-build', '--project', 'src\MyPowerTools.Cli', '--', 'package', 'trust', 'modules', '--strict') | Out-Null
+    if ($RefreshPackageSignatures) {
+        Invoke-EvidenceCommand -Name 'package-sign-local' -FilePath 'dotnet' -ArgumentList @('run', '--no-build', '--project', 'src\MyPowerTools.Cli', '--', 'package', 'sign-local', 'modules') | Out-Null
+        Invoke-EvidenceCommand -Name 'package-trust-strict' -FilePath 'dotnet' -ArgumentList @('run', '--no-build', '--project', 'src\MyPowerTools.Cli', '--', 'package', 'trust', 'modules', '--strict') | Out-Null
+    } else {
+        Add-SkippedEvidenceCommand -Name 'package-sign-local-skipped' -Reason 'Skipped during P-UI-Foundation because this phase is UI-only; pass -RefreshPackageSignatures to refresh local package signatures.'
+        Add-SkippedEvidenceCommand -Name 'package-trust-strict-skipped' -Reason 'Skipped because solution build can refresh module binaries during UI-only validation; pass -RefreshPackageSignatures to refresh local package signatures and run strict trust.'
+    }
     Invoke-EvidenceCommand -Name 'ui-check' -FilePath 'dotnet' -ArgumentList @('run', '--no-build', '--project', 'src\MyPowerTools.Cli', '--', 'ui', 'check', 'modules') | Out-Null
     Invoke-EvidenceCommand -Name 'module-list-include-disabled' -FilePath 'dotnet' -ArgumentList @('run', '--no-build', '--project', 'src\MyPowerTools.Cli', '--', 'module', 'list', '--include-disabled') | Out-Null
     Invoke-EvidenceCommand -Name 'diagnostics' -FilePath 'dotnet' -ArgumentList @('run', '--no-build', '--project', 'src\MyPowerTools.Cli', '--', 'diagnostics') | Out-Null
@@ -285,14 +329,18 @@ if (-not $SkipCommandExecution) {
     Invoke-EvidenceCommand -Name 'adb-forwarder-portproxy-permission' -FilePath 'dotnet' -ArgumentList @('run', '--no-build', '--project', 'src\MyPowerTools.Cli', '--', 'run', 'adb-forwarder.portproxy.apply') -ExpectedExitCodes @(1) | Out-Null
     Invoke-EvidenceCommand -Name 'validate-templates' -FilePath 'pwsh.exe' -ArgumentList @('-NoLogo', '-NoProfile', '-NonInteractive', '-File', 'scripts\validate-templates.ps1') -TimeoutSeconds 900 | Out-Null
     Invoke-EvidenceCommand -Name 'smoke' -FilePath 'pwsh.exe' -ArgumentList @('-NoLogo', '-NoProfile', '-NonInteractive', '-File', 'scripts\smoke.ps1') -TimeoutSeconds 1800 | Out-Null
-    Invoke-EvidenceCommand -Name 'publish-windows' -FilePath 'pwsh.exe' -ArgumentList @('-NoLogo', '-NoProfile', '-NonInteractive', '-File', 'scripts\publish-windows.ps1') -TimeoutSeconds 1800 | Out-Null
-    Invoke-EvidenceCommand -Name 'release-package-trust' -FilePath (Join-Path $RepoRoot 'artifacts\release\win-x64\Cli\MyPowerTools.Cli.exe') -ArgumentList @('package', 'trust', 'artifacts\release\win-x64\modules', '--strict') | Out-Null
-    $releaseRunnerOnce = Invoke-EvidenceCommand -Name 'release-runner-once' -FilePath (Join-Path $RepoRoot 'artifacts\release\win-x64\Runner\MyPowerTools.Runner.exe') -ArgumentList @('--once', '--data-root', 'artifacts\review-evidence\release-root-once-data')
-    Assert-RunnerOutputSemantics -OutputPath $releaseRunnerOnce.output -Name 'release-runner-once'
-    Invoke-ReleaseShellSmoke
-    Invoke-EvidenceCommand -Name 'release-autostart-dry-run' -FilePath (Join-Path $RepoRoot 'artifacts\release\win-x64\Cli\MyPowerTools.Cli.exe') -ArgumentList @('runner', 'autostart', 'enable', '--dry-run') | Out-Null
-    Invoke-EvidenceCommand -Name 'install-dry-run' -FilePath 'pwsh.exe' -ArgumentList @('-NoLogo', '-NoProfile', '-NonInteractive', '-File', 'scripts\install-windows.ps1', '-PackageRoot', 'artifacts\release\win-x64', '-InstallDir', 'artifacts\install-dryrun', '-DryRun') | Out-Null
-    Invoke-EvidenceCommand -Name 'uninstall-dry-run' -FilePath 'pwsh.exe' -ArgumentList @('-NoLogo', '-NoProfile', '-NonInteractive', '-File', 'scripts\uninstall-windows.ps1', '-InstallDir', 'artifacts\install-dryrun', '-DryRun', '-Force') | Out-Null
+    if ($IncludeReleaseEvidence) {
+        Invoke-EvidenceCommand -Name 'publish-windows' -FilePath 'pwsh.exe' -ArgumentList @('-NoLogo', '-NoProfile', '-NonInteractive', '-File', 'scripts\publish-windows.ps1') -TimeoutSeconds 1800 | Out-Null
+        Invoke-EvidenceCommand -Name 'release-package-trust' -FilePath (Join-Path $RepoRoot 'artifacts\release\win-x64\Cli\MyPowerTools.Cli.exe') -ArgumentList @('package', 'trust', 'artifacts\release\win-x64\modules', '--strict') | Out-Null
+        $releaseRunnerOnce = Invoke-EvidenceCommand -Name 'release-runner-once' -FilePath (Join-Path $RepoRoot 'artifacts\release\win-x64\Runner\MyPowerTools.Runner.exe') -ArgumentList @('--once', '--data-root', 'artifacts\review-evidence\release-root-once-data')
+        Assert-RunnerOutputSemantics -OutputPath $releaseRunnerOnce.output -Name 'release-runner-once'
+        Invoke-ReleaseShellSmoke
+        Invoke-EvidenceCommand -Name 'release-autostart-dry-run' -FilePath (Join-Path $RepoRoot 'artifacts\release\win-x64\Cli\MyPowerTools.Cli.exe') -ArgumentList @('runner', 'autostart', 'enable', '--dry-run') | Out-Null
+        Invoke-EvidenceCommand -Name 'install-dry-run' -FilePath 'pwsh.exe' -ArgumentList @('-NoLogo', '-NoProfile', '-NonInteractive', '-File', 'scripts\install-windows.ps1', '-PackageRoot', 'artifacts\release\win-x64', '-InstallDir', 'artifacts\install-dryrun', '-DryRun') | Out-Null
+        Invoke-EvidenceCommand -Name 'uninstall-dry-run' -FilePath 'pwsh.exe' -ArgumentList @('-NoLogo', '-NoProfile', '-NonInteractive', '-File', 'scripts\uninstall-windows.ps1', '-InstallDir', 'artifacts\install-dryrun', '-DryRun', '-Force') | Out-Null
+    } else {
+        Add-SkippedEvidenceCommand -Name 'release-evidence-skipped' -Reason 'Skipped during P-UI-Foundation because this phase is UI-only; pass -IncludeReleaseEvidence to run Windows publish and release validation.'
+    }
 }
 
 $releaseZip = Join-Path $RepoRoot 'artifacts\release\MyPowerTools-win-x64.zip'
@@ -323,10 +371,11 @@ Generated: $([DateTimeOffset]::UtcNow.ToString('O'))
 
 ## Completion Basis
 
-- Runtime closure is evidenced by restore/build/test, P7 runtime tests, Runner once, diagnostics, HostControl auth tests, module event cursor persistence tests, cancellation tests, and release Runner/Shell smoke.
-- UI closure is evidenced by UI gate, module UI snapshots, full Shell screenshots, Shell smoke, and token-based UI lint.
+- Runtime evidence is collected from restore/build/test, P7 runtime tests, Runner once, diagnostics, HostControl auth tests, module event cursor persistence tests, and cancellation tests.
+- UI evidence is collected from UI gate, module UI snapshots, full Shell screenshots, Shell smoke, and token-based UI lint.
 - Module closure is evidenced by module validation, contract validation, package trust, Runner once, diagnostics, broker permission output, and expected external degraded states.
-- Release closure is evidenced by publish, release trust, release Runner once, release Shell smoke, autostart dry-run, install dry-run, uninstall dry-run, release metadata, and release hash.
+- Package signature refresh is skipped by default during P-UI-Foundation. Pass `-RefreshPackageSignatures` to refresh local package signatures.
+- Release evidence is skipped by default during P-UI-Foundation. Pass `-IncludeReleaseEvidence` to run publish, release trust, release Runner once, release Shell smoke, autostart dry-run, install dry-run, uninstall dry-run, release metadata, and release hash checks.
 
 ## External Checks
 

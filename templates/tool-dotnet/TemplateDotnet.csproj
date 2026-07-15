@@ -1,0 +1,1 @@
+<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable></PropertyGroup><ItemGroup><PackageReference Include="MyPowerTools.AvaloniaSdk" Version="0.2.0"/><PackageReference Include="MyPowerTools.ToolSdk" Version="0.2.0"/></ItemGroup></Project>

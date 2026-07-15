@@ -32,6 +32,7 @@ public sealed partial class CommandItemViewModel : ObservableViewModel
     private string _executionState = "ready";
     private string _executionMessage = "";
     private string _executionPreview;
+    private bool _isDangerousConfirmed;
 
     public CommandItemViewModel(
         string commandId,
@@ -46,7 +47,10 @@ public sealed partial class CommandItemViewModel : ObservableViewModel
         bool hasParameters,
         Func<string, JsonObject, string, CancellationToken, IAsyncEnumerable<CommandExecutionStatus>>? executeCommand,
         Func<string, Task<CommandCancellationStatus>>? cancelCommand = null,
-        IReadOnlyList<CommandParameterViewModel>? parameters = null)
+        IReadOnlyList<CommandParameterViewModel>? parameters = null,
+        string actionKind = "command",
+        string icon = "",
+        string category = "")
     {
         CommandId = commandId;
         ModuleId = moduleId;
@@ -62,10 +66,15 @@ public sealed partial class CommandItemViewModel : ObservableViewModel
             ? $"{Parameters.Count} parameter(s): {string.Join(", ", Parameters.Select(parameter => parameter.Label))}"
             : parameterSummary;
         HasParameters = hasParameters || Parameters.Count > 0;
+        ActionKind = actionKind;
+        Icon = icon;
+        Category = category;
         _executeCommand = executeCommand;
         _cancelCommand = cancelCommand;
         _executionPreview = BuildExecutionPreview();
-        _executeCommandWrapper = new AsyncRelayCommand(ExecuteAsync, () => !HasValidationError);
+        _executeCommandWrapper = new AsyncRelayCommand(
+            ExecuteAsync,
+            () => !HasValidationError && (!RequiresDangerousConfirmation || IsDangerousConfirmed));
         _cancelCommandWrapper = new AsyncRelayCommand(CancelAsync, () => CanCancel);
         ExecuteCommand = _executeCommandWrapper;
         CancelCommand = _cancelCommandWrapper;
@@ -96,11 +105,31 @@ public sealed partial class CommandItemViewModel : ObservableViewModel
     public string RiskLabel { get; }
     public string ParameterSummary { get; }
     public bool HasParameters { get; }
+    public string ActionKind { get; }
+    public string Icon { get; }
+    public string Category { get; }
+    public bool IsNavigation => string.Equals(ActionKind, "navigation", StringComparison.OrdinalIgnoreCase);
+    public string CategoryLabel => string.IsNullOrWhiteSpace(Category)
+        ? IsNavigation ? "Tool" : "Command"
+        : Category;
+    public string IconGlyph => NormalizeIcon(Icon) switch
+    {
+        "settings" or "configuration" => "\uE713",
+        "diagnostics" or "health" => "\uE9D9",
+        "notifications" or "notification" or "bell" => "\uEA8F",
+        "network" or "forward" or "port" => "\uE968",
+        "display" or "screen" => "\uE7F4",
+        "run" or "command" or "terminal" => "\uE756",
+        _ when IsNavigation => "\uE8A7",
+        _ => "\uE945"
+    };
     public IReadOnlyList<CommandParameterViewModel> Parameters { get; }
     public ObservableCollection<CommandProgressItemViewModel> ProgressEvents { get; }
     public ICommand ExecuteCommand { get; }
     public ICommand CancelCommand { get; }
-    public string ExecuteLabel => IsRunning ? "Running" : HasParameters ? "Run with parameters" : "Run";
+    public string ExecuteLabel => IsRunning
+        ? IsNavigation ? "Opening" : "Running"
+        : IsNavigation ? "Open" : HasParameters ? "Run with parameters" : "Run";
     public string CancelLabel => ExecutionState == "cancelling" ? "Cancelling" : "Cancel";
     public bool HasValidationError => ValidationMessage.Length > 0;
     public bool HasExecutionMessage => ExecutionMessage.Length > 0;
@@ -133,6 +162,18 @@ public sealed partial class CommandItemViewModel : ObservableViewModel
         "blocked" => "Needs input",
         _ => "Ready"
     };
+
+    public bool IsDangerousConfirmed
+    {
+        get => _isDangerousConfirmed;
+        set
+        {
+            if (SetProperty(ref _isDangerousConfirmed, value))
+            {
+                _executeCommandWrapper.NotifyCanExecuteChanged();
+            }
+        }
+    }
 
     public string ValidationMessage
     {
@@ -184,153 +225,9 @@ public sealed partial class CommandItemViewModel : ObservableViewModel
         private set => SetProperty(ref _executionPreview, value);
     }
 
-    public async Task ExecuteAsync()
+    private static string NormalizeIcon(string icon)
     {
-        if (!ValidateParameters())
-        {
-            ExecutionState = "blocked";
-            ExecutionMessage = ValidationMessage;
-            _executeCommandWrapper.NotifyCanExecuteChanged();
-            return;
-        }
-
-        _activeInvocationId = Guid.NewGuid().ToString("N");
-        _activeExecution?.Dispose();
-        _activeExecution = new CancellationTokenSource();
-        ClearProgressEvents();
-        ExecutionState = "running";
-        ExecutionMessage = $"Running {Title}.";
-        try
-        {
-            if (_executeCommand is null)
-            {
-                ApplyExecutionStatus(new CommandExecutionStatus("succeeded", $"succeeded: {Title}"));
-            }
-            else
-            {
-                await foreach (var result in _executeCommand(CommandId, BuildArgs(), _activeInvocationId, _activeExecution.Token)
-                    .WithCancellation(_activeExecution.Token))
-                {
-                    ApplyExecutionStatus(result);
-                }
-            }
-        }
-        catch (OperationCanceledException) when (ExecutionState == "cancelling")
-        {
-            ApplyExecutionStatus(new CommandExecutionStatus("cancelled", $"Cancelled {Title}."));
-        }
-        catch (Exception ex)
-        {
-            ApplyExecutionStatus(new CommandExecutionStatus("failed", ex.Message));
-        }
-        finally
-        {
-            _activeExecution?.Dispose();
-            _activeExecution = null;
-            _activeInvocationId = "";
-            _executeCommandWrapper.NotifyCanExecuteChanged();
-            _cancelCommandWrapper.NotifyCanExecuteChanged();
-            OnPropertyChanged(nameof(CanCancel));
-            OnPropertyChanged(nameof(ExecuteLabel));
-        }
-    }
-
-    public async Task CancelAsync()
-    {
-        if (!CanCancel)
-        {
-            return;
-        }
-
-        var invocationId = _activeInvocationId;
-        ExecutionState = "cancelling";
-        ExecutionMessage = $"Cancelling {Title}.";
-        try
-        {
-            var result = _cancelCommand is null
-                ? new CommandCancellationStatus(false, invocationId, "unsupported", "Cancellation is not available for this command.")
-                : await _cancelCommand(invocationId);
-            ExecutionMessage = result.Message;
-            AddCancellationProgress(result);
-            if (!result.Accepted)
-            {
-                ExecutionState = string.Equals(result.State, "completed", StringComparison.OrdinalIgnoreCase)
-                    ? "ready"
-                    : "failed";
-            }
-            else
-            {
-                _activeExecution?.Cancel();
-            }
-        }
-        catch (Exception ex)
-        {
-            ExecutionState = "failed";
-            ExecutionMessage = ex.Message;
-        }
-    }
-
-    private void ClearProgressEvents()
-    {
-        ProgressEvents.Clear();
-        OnPropertyChanged(nameof(HasProgressEvents));
-    }
-
-    private void ApplyExecutionStatus(CommandExecutionStatus result)
-    {
-        ExecutionState = string.IsNullOrWhiteSpace(result.State) ? "succeeded" : result.State;
-        ExecutionMessage = string.IsNullOrWhiteSpace(result.Message)
-            ? $"{ExecutionStateLabel}: {Title}"
-            : result.Message;
-        ProgressEvents.Add(new CommandProgressItemViewModel(
-            result.Sequence <= 0 ? ProgressEvents.Count + 1 : result.Sequence,
-            ExecutionStateLabel,
-            ExecutionMessage,
-            result.IsTerminal));
-        OnPropertyChanged(nameof(HasProgressEvents));
-        OnPropertyChanged(nameof(StdoutPreview));
-        OnPropertyChanged(nameof(StderrPreview));
-        OnPropertyChanged(nameof(HasStdout));
-        OnPropertyChanged(nameof(HasStderr));
-        OnPropertyChanged(nameof(ResultSummary));
-    }
-
-    public JsonObject BuildArgs()
-    {
-        if (!ValidateParameters())
-        {
-            throw new InvalidOperationException(ValidationMessage);
-        }
-
-        var args = new JsonObject();
-        foreach (var parameter in Parameters)
-        {
-            if (!parameter.ShouldEmit)
-            {
-                continue;
-            }
-
-            args[parameter.Id] = parameter.ToJsonNode();
-        }
-
-        return args;
-    }
-
-    public bool ValidateParameters()
-    {
-        var messages = new List<string>();
-        foreach (var parameter in Parameters)
-        {
-            var message = parameter.Validate();
-            parameter.SetValidationMessage(message);
-            if (message.Length > 0)
-            {
-                messages.Add(message);
-            }
-        }
-
-        ValidationMessage = string.Join(" ", messages);
-        return messages.Count == 0;
+        return icon.Trim().ToLowerInvariant();
     }
 
 }

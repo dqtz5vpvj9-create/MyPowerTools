@@ -1,0 +1,19 @@
+{
+  "schemaVersion": "1.0",
+  "toolId": "doubao-agent",
+  "ownerModuleId": "doubao-agent",
+  "title": "豆包 Computer Use",
+  "description": "用豆包视觉模型观察屏幕、规划步骤并执行本机电脑任务。",
+  "icon": "tool.doubao-agent",
+  "category": "自动化",
+  "primaryRouteId": "services",
+  "routes": [
+    { "routeId": "services", "surfaceId": "doubao-agent.services", "title": "电脑任务", "icon": "route.services" }
+  ],
+  "homeCard": {
+    "summary": "输入任务，让豆包视觉代理观察屏幕并执行操作。",
+    "primaryActionLabel": "打开电脑任务",
+    "statusBinding": "module.status",
+    "order": 60
+  }
+}

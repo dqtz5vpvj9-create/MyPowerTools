@@ -1,6 +1,5 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using Avalonia.Threading;
 using Google.Protobuf.WellKnownTypes;
 using MyPowerTools.HostControl;
 using MyPowerTools.ServiceManager.Client;
@@ -11,36 +10,13 @@ namespace MyPowerTools.Shell.Avalonia.Services;
 
 public sealed class ShellPageDataService : IDisposable
 {
-    private readonly RemoteNotificationsLegacyStore _remoteNotificationStore;
-    private readonly RemoteNotificationsViewModel _remoteNotifications;
-    private readonly DispatcherTimer _remoteNotificationPollTimer;
-    private int _remoteNotificationsStarted;
     private int _disposed;
-
-    public ShellPageDataService()
-    {
-        _remoteNotificationStore = new RemoteNotificationsLegacyStore();
-        _remoteNotifications = new RemoteNotificationsViewModel(
-            _remoteNotificationStore.Load(),
-            _remoteNotificationStore);
-        _remoteNotificationPollTimer = new DispatcherTimer
-        {
-            Interval = TimeSpan.FromSeconds(_remoteNotifications.PollIntervalSeconds)
-        };
-        _remoteNotificationPollTimer.Tick += OnRemoteNotificationPollTimerTick;
-        _remoteNotifications.PollingConfigurationChanged += OnRemoteNotificationPollingConfigurationChanged;
-    }
 
     public void StartBackgroundServices()
     {
         ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
-        if (Interlocked.Exchange(ref _remoteNotificationsStarted, 1) != 0)
-        {
-            return;
-        }
-
-        _remoteNotificationPollTimer.Start();
-        _ = _remoteNotifications.PollAsync();
+        // Remote Notifications now runs as a standalone Service Unit; the Shell no longer hosts
+        // a polling timer or a notifications view model here.
     }
 
     public async Task<ShellPageDataResult<DashboardViewModel>> LoadDashboardAsync(
@@ -161,43 +137,12 @@ public sealed class ShellPageDataService : IDisposable
             $"{viewModel.Notifications.Count} notifications loaded");
     }
 
-    public Task<ShellPageDataResult<RemoteNotificationsViewModel>> LoadRemoteNotificationsAsync(
-        CancellationToken cancellationToken = default)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        return Task.FromResult(new ShellPageDataResult<RemoteNotificationsViewModel>(
-            _remoteNotifications,
-            $"{_remoteNotifications.Messages.Count} remote notifications available; background sync is active."));
-    }
-
-    public Task<int> PresentRemoteNotificationsAsync(
-        IEnumerable<string> messageIds,
-        CancellationToken cancellationToken = default)
-    {
-        return _remoteNotifications.PresentPersistedAsync(messageIds, cancellationToken);
-    }
-
     public void Dispose()
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0)
         {
             return;
         }
-
-        _remoteNotificationPollTimer.Stop();
-        _remoteNotificationPollTimer.Tick -= OnRemoteNotificationPollTimerTick;
-        _remoteNotifications.PollingConfigurationChanged -= OnRemoteNotificationPollingConfigurationChanged;
-    }
-
-    private void OnRemoteNotificationPollTimerTick(object? sender, EventArgs e)
-    {
-        _ = _remoteNotifications.PollAsync();
-    }
-
-    private void OnRemoteNotificationPollingConfigurationChanged(object? sender, EventArgs e)
-    {
-        _remoteNotificationPollTimer.Interval = TimeSpan.FromSeconds(
-            Math.Clamp(_remoteNotifications.PollIntervalSeconds, 5, 3600));
     }
 
     public async Task<ShellPageDataResult<PackageManagerViewModel>> LoadPackagesAsync(

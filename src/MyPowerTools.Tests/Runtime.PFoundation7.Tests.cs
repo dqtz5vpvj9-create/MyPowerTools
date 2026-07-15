@@ -39,11 +39,32 @@ public sealed partial class RuntimeAcceptanceTests
         runtime.Load(Path.Combine(Root, "modules"));
         await using var hotkeys = new RecordingHotkeyService();
         var synchronizer = new RunnerHotkeySynchronizer(hotkeys, runtime);
-        var original = Assert.Single(runtime.ListHotkeyBindings().Where(binding => binding.ModuleId == "screenease"));
+        var target = Assert.Single(runtime.ListHotkeyDiagnostics()
+            .Where(binding => binding.Id == "screenease.toggle-enabled"));
 
         var initial = await synchronizer.SyncAsync(CancellationToken.None);
 
-        Assert.Contains(initial, item => item.Id == original.Id && item.Operation == "register");
+        Assert.Empty(initial);
+        Assert.Empty(hotkeys.Registered);
+
+        await runtime.UpdateSettingsWithApplyAsync(
+            new SettingsPatch(
+                "screenease",
+                runtime.GetSettings("screenease").Revision,
+                new JsonObject
+                {
+                    ["$hotkeys"] = new JsonArray(new JsonObject
+                    {
+                        ["id"] = target.Id,
+                        ["gesture"] = target.DefaultGesture,
+                        ["reset"] = false,
+                        ["disabled"] = false
+                    })
+                }),
+            CancellationToken.None);
+        var firstRegistration = await synchronizer.SyncAsync(CancellationToken.None);
+        var original = Assert.Single(runtime.ListHotkeyBindings().Where(binding => binding.ModuleId == "screenease"));
+        Assert.Contains(firstRegistration, item => item.Id == original.Id && item.Operation == "register");
         Assert.Equal(original.Gesture, Assert.Single(hotkeys.Registered.Values).Gesture);
 
         var overrideGesture = original.Gesture.Equals("Ctrl+Alt+F12", StringComparison.OrdinalIgnoreCase)
@@ -93,7 +114,27 @@ public sealed partial class RuntimeAcceptanceTests
             CancellationToken.None);
 
         var reset = await synchronizer.SyncAsync(CancellationToken.None);
-        Assert.Contains(reset, item => item.Id == original.Id && item.Operation == "reregister-register");
+        Assert.Contains(reset, item => item.Id == original.Id && item.Operation == "unregister");
+        Assert.DoesNotContain(original.Id, hotkeys.Registered.Keys);
+        Assert.Equal("disabled", runtime.ListHotkeyDiagnostics().Single(binding => binding.Id == original.Id).State);
+
+        await runtime.UpdateSettingsWithApplyAsync(
+            new SettingsPatch(
+                "screenease",
+                runtime.GetSettings("screenease").Revision,
+                new JsonObject
+                {
+                    ["$hotkeys"] = new JsonArray(new JsonObject
+                    {
+                        ["id"] = original.Id,
+                        ["gesture"] = original.DefaultGesture,
+                        ["reset"] = false,
+                        ["disabled"] = false
+                    })
+                }),
+            CancellationToken.None);
+        var restored = await synchronizer.SyncAsync(CancellationToken.None);
+        Assert.Contains(restored, item => item.Id == original.Id && item.Operation == "register");
         Assert.Equal(original.DefaultGesture, hotkeys.Registered[original.Id].Gesture);
 
         await runtime.SetModuleEnabledAsync("screenease", enabled: false, CancellationToken.None);
@@ -208,6 +249,26 @@ public sealed partial class RuntimeAcceptanceTests
 
         now = now.AddSeconds(6);
         Assert.False(cache.IsCompleted("same"));
+    }
+
+    [Fact]
+    [Trait("Foundation", "P7")]
+    public async Task Invocation_execution_cache_detaches_completed_factory_capture_and_preserves_idempotent_result()
+    {
+        var cache = new InvocationExecutionCache(4, TimeSpan.FromMinutes(5));
+        var (expected, capture) = await CompleteCapturedCacheInvocationAsync(cache);
+
+        await AssertCacheCaptureCollectedAsync(capture);
+        var duplicateFactoryCalls = 0;
+        var duplicate = await cache.GetOrAdd("detached", () =>
+        {
+            duplicateFactoryCalls++;
+            return Task.FromResult(CacheResult("detached", "duplicate"));
+        });
+
+        Assert.Equal(expected, duplicate);
+        Assert.Equal(0, duplicateFactoryCalls);
+        Assert.True(cache.IsCompleted("detached"));
     }
 
     [Fact]
@@ -381,6 +442,49 @@ public sealed partial class RuntimeAcceptanceTests
     {
         return new CommandExecutionResult(invocationId, "cache.test", "succeeded", true, output);
     }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static async Task<(CommandExecutionResult Result, WeakReference Capture)> CompleteCapturedCacheInvocationAsync(
+        InvocationExecutionCache cache)
+    {
+        var capture = new InvocationFactoryCapture("detached-result");
+        var weakReference = new WeakReference(capture, trackResurrection: false);
+        var factory = CreateCapturedCacheFactory(capture);
+        var execution = cache.GetOrAdd("detached", factory);
+        var result = await execution;
+        execution = null!;
+        factory = null!;
+        capture = null!;
+        return (result, weakReference);
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static Func<Task<CommandExecutionResult>> CreateCapturedCacheFactory(InvocationFactoryCapture capture)
+    {
+        return () => CompleteCapturedCacheFactoryAsync(capture);
+    }
+
+    [MethodImpl(MethodImplOptions.NoInlining)]
+    private static async Task<CommandExecutionResult> CompleteCapturedCacheFactoryAsync(InvocationFactoryCapture capture)
+    {
+        await Task.Yield();
+        return CacheResult("detached", capture.Output);
+    }
+
+    private static async Task AssertCacheCaptureCollectedAsync(WeakReference capture)
+    {
+        for (var attempt = 0; attempt < 20 && capture.IsAlive; attempt++)
+        {
+            GC.Collect();
+            GC.WaitForPendingFinalizers();
+            GC.Collect();
+            await Task.Delay(20);
+        }
+
+        Assert.False(capture.IsAlive);
+    }
+
+    private sealed record InvocationFactoryCapture(string Output);
 
     private static async IAsyncEnumerable<CommandExecutionStatus> WaitingCommandStream(
         string commandId,

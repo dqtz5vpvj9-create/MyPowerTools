@@ -1,0 +1,214 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://mypowertools.dev/schemas/tool.schema.json",
+  "title": "MyPowerTools Tool Manifest",
+  "type": "object",
+  "required": [
+    "schemaVersion",
+    "toolId",
+    "title",
+    "description",
+    "icon",
+    "category",
+    "primaryRouteId",
+    "routes",
+    "homeCard"
+  ],
+  "properties": {
+    "schemaVersion": {
+      "type": "string",
+      "minLength": 1
+    },
+    "toolId": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9.-]*$"
+    },
+    "ownerModuleId": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9.-]*$"
+    },
+    "title": {
+      "type": "string",
+      "minLength": 1
+    },
+    "description": {
+      "type": "string",
+      "minLength": 1
+    },
+    "icon": {
+      "type": "string",
+      "minLength": 1
+    },
+    "category": {
+      "type": "string",
+      "minLength": 1
+    },
+    "availability": {
+      "type": "string",
+      "enum": [
+        "available",
+        "paused",
+        "in-development"
+      ],
+      "default": "available"
+    },
+    "type": {
+      "type": "string",
+      "enum": ["dotnet-surface", "web-surface", "native-tool", "headless-tool"]
+    },
+    "primaryRouteId": {
+      "$ref": "#/$defs/routeId"
+    },
+    "routes": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/route"
+      }
+    },
+    "homeCard": {
+      "$ref": "#/$defs/homeCard"
+    },
+    "runtime": {
+      "$ref": "#/$defs/runtime"
+    },
+    "settings": {
+      "$ref": "#/$defs/settings"
+    },
+    "commands": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/command" }
+    },
+    "permissions": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/permission" }
+    },
+    "development": {
+      "type": "object",
+      "properties": {
+        "loose": { "type": "boolean" },
+        "autoRefresh": { "type": "boolean" }
+      },
+      "additionalProperties": true
+    }
+  },
+  "$defs": {
+    "routeId": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._/-]*$"
+    },
+    "route": {
+      "type": "object",
+      "required": [
+        "routeId",
+        "surfaceId"
+      ],
+      "properties": {
+        "routeId": {
+          "$ref": "#/$defs/routeId"
+        },
+        "surfaceId": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9.-]*$"
+        },
+        "title": {
+          "type": "string"
+        },
+        "icon": {
+          "type": "string"
+        },
+        "surface": {
+          "$ref": "#/$defs/surface"
+        }
+      },
+      "additionalProperties": false
+    },
+    "surface": {
+      "type": "object",
+      "required": ["kind"],
+      "properties": {
+        "kind": { "type": "string", "enum": ["web", "dotnet", "native", "headless", "declarative"] },
+        "source": { "type": "string" },
+        "staticRoot": { "type": "string" },
+        "assembly": { "type": "string" },
+        "type": { "type": "string" },
+        "openExternal": { "type": "boolean" },
+        "allowedOrigins": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": true
+    },
+    "runtime": {
+      "type": "object",
+      "properties": {
+        "transport": { "type": "string", "enum": ["stdio-jsonrpc", "named-pipe-grpc", "loopback-http", "remote-http", "none"] },
+        "endpoint": { "type": "string" },
+        "command": { "type": "string" },
+        "args": { "type": "array", "items": { "type": "string" } },
+        "healthPath": { "type": "string" },
+        "logsPath": { "type": "string" },
+        "timeoutMs": { "type": "integer", "minimum": 100, "maximum": 120000 },
+        "remote": { "type": "boolean" }
+      },
+      "additionalProperties": true
+    },
+    "settings": {
+      "type": "object",
+      "properties": {
+        "schema": { "type": "string" },
+        "values": { "type": "string" },
+        "secrets": { "type": "array", "items": { "type": "string" } }
+      },
+      "additionalProperties": true
+    },
+    "command": {
+      "type": "object",
+      "required": ["id", "title"],
+      "properties": {
+        "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]*$" },
+        "title": { "type": "string", "minLength": 1 },
+        "description": { "type": "string" },
+        "method": { "type": "string" },
+        "path": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "permission": {
+      "type": "object",
+      "required": ["id", "level", "reason"],
+      "properties": {
+        "id": { "type": "string" },
+        "level": { "type": "string" },
+        "capability": { "type": "string" },
+        "reason": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "homeCard": {
+      "type": "object",
+      "required": [
+        "summary"
+      ],
+      "properties": {
+        "summary": {
+          "type": "string",
+          "minLength": 1
+        },
+        "primaryActionLabel": {
+          "type": "string",
+          "minLength": 1,
+          "default": "Open"
+        },
+        "statusBinding": {
+          "type": "string"
+        },
+        "order": {
+          "type": "integer",
+          "minimum": 0,
+          "default": 0
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": true
+}

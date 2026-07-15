@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -5,12 +6,15 @@ using System.Windows.Input;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
+using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Skia;
 using Avalonia.Styling;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 using Google.Protobuf.WellKnownTypes;
 using MyPowerTools.HostControl;
+using MyPowerTools.Shell.Avalonia.Services;
 using MyPowerTools.Shell.Avalonia.ViewModels;
 using MyPowerTools.Shell.Avalonia.Views;
 using MyPowerTools.UI;
@@ -20,13 +24,45 @@ namespace MyPowerTools.Shell.Avalonia;
 
 public static class ShellRealScreenshotWriter
 {
+    private const string DefaultInteractionScenario = "default";
+    private const string RemoteNotificationsScreenId = "remote-notifications-inbox";
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
     private static readonly object RenderLock = new();
     private static bool _applicationInitialized;
+    private static IBrush _headlessBackground = MptTheme.AppBackground;
 
-    public static string WriteSnapshotSet(string outputDirectory, string theme, string size, string density)
+    public static string WriteSnapshotSet(string outputDirectory, string theme, string size, string density, string surface = "*")
     {
-        return WriteSnapshotSetCore(outputDirectory, theme, size, density, CreateSampleScreens(), "sample-fixture");
+        return WriteSnapshotSetCore(
+            outputDirectory,
+            theme,
+            size,
+            density,
+            CreateSampleScreens(),
+            "sample-fixture",
+            surface,
+            new ScreenshotManifestStats(ModuleCount: 2, CommandCount: 5, RunnerConnected: false));
+    }
+
+    public static string WriteProductFoundationSnapshotSet(
+        string outputDirectory,
+        string theme,
+        string size,
+        string density,
+        string surface = "*",
+        string scenario = DefaultInteractionScenario)
+    {
+        var normalizedScenario = NormalizeInteractionScenario(scenario);
+        return WriteSnapshotSetCore(
+            outputDirectory,
+            theme,
+            size,
+            density,
+            CreateProductFoundationScreens(normalizedScenario),
+            "product-fixture",
+            surface,
+            new ScreenshotManifestStats(ModuleCount: 7, CommandCount: 0, RunnerConnected: false),
+            normalizedScenario);
     }
 
     public static async Task<string> WriteSnapshotSetFromHostControlAsync(
@@ -38,9 +74,31 @@ public static class ShellRealScreenshotWriter
         string dataSource,
         CancellationToken cancellationToken = default)
     {
-        var data = await ShellHostControlSnapshotData.LoadAsync(client, dataSource, cancellationToken);
-        return WriteSnapshotSetFromHostControlData(outputDirectory, theme, size, density, data);
+        return await WriteSnapshotSetFromHostControlAsync(
+            outputDirectory,
+            theme,
+            size,
+            density,
+            client,
+            dataSource,
+            "*",
+            cancellationToken);
     }
+
+    public static async Task<string> WriteSnapshotSetFromHostControlAsync(
+        string outputDirectory,
+        string theme,
+        string size,
+        string density,
+        HostControlClient client,
+        string dataSource,
+        string surface,
+        CancellationToken cancellationToken = default)
+    {
+        var data = await ShellHostControlSnapshotData.LoadAsync(client, dataSource, cancellationToken);
+        return WriteSnapshotSetFromHostControlData(outputDirectory, theme, size, density, data, surface);
+    }
+
 
     public static string WriteSnapshotSetFromHostControlData(
         string outputDirectory,
@@ -49,7 +107,29 @@ public static class ShellRealScreenshotWriter
         string density,
         ShellHostControlSnapshotData data)
     {
-        return WriteSnapshotSetCore(outputDirectory, theme, size, density, CreateHostControlScreens(data), data.DataSource);
+        return WriteSnapshotSetFromHostControlData(outputDirectory, theme, size, density, data, "*");
+    }
+
+    public static string WriteSnapshotSetFromHostControlData(
+        string outputDirectory,
+        string theme,
+        string size,
+        string density,
+        ShellHostControlSnapshotData data,
+        string surface)
+    {
+        return WriteSnapshotSetCore(
+            outputDirectory,
+            theme,
+            size,
+            density,
+            CreateHostControlScreens(data),
+            data.DataSource,
+            surface,
+            new ScreenshotManifestStats(
+                data.Modules.Modules.Count,
+                data.Commands.Commands.Count,
+                data.DataSource.Contains("runner-hostcontrol", StringComparison.OrdinalIgnoreCase)));
     }
 
     private static string WriteSnapshotSetCore(
@@ -58,7 +138,10 @@ public static class ShellRealScreenshotWriter
         string size,
         string density,
         IReadOnlyList<RealScreen> screens,
-        string dataSource)
+        string dataSource,
+        string surface,
+        ScreenshotManifestStats stats,
+        string interactionScenario = DefaultInteractionScenario)
     {
         lock (RenderLock)
         {
@@ -66,25 +149,61 @@ public static class ShellRealScreenshotWriter
             var (width, height) = ParseSize(size);
             EnsureApplication(theme);
 
-            var entries = new JsonArray();
-            foreach (var screen in screens)
+            var requestedSurface = string.IsNullOrWhiteSpace(surface) ? "*" : surface;
+            var normalizedScenario = NormalizeInteractionScenario(interactionScenario);
+            var filteredScreens = screens
+                .Where(screen => MatchesRealScreenFilter(screen, requestedSurface))
+                .Where(screen => normalizedScenario == DefaultInteractionScenario ||
+                    string.Equals(screen.Id, RemoteNotificationsScreenId, StringComparison.OrdinalIgnoreCase))
+                .ToArray();
+            if (filteredScreens.Length == 0)
             {
-                var fileName = $"real-{screen.Id}.{Sanitize(theme)}.{Sanitize(density)}.{Sanitize(size)}.png";
+                throw new InvalidOperationException(
+                    normalizedScenario == DefaultInteractionScenario
+                        ? $"No real Shell screenshot screen matches surface '{requestedSurface}'."
+                        : $"Interaction scenario '{normalizedScenario}' currently supports only the Remote Notifications product page.");
+            }
+
+            var mode = ModeForDataSource(dataSource);
+            var entries = new JsonArray();
+            foreach (var screen in filteredScreens)
+            {
+                var scenarioSuffix = normalizedScenario == DefaultInteractionScenario
+                    ? ""
+                    : $".{Sanitize(normalizedScenario)}";
+                var fileName = $"real-{screen.Id}{scenarioSuffix}.{Sanitize(theme)}.{Sanitize(density)}.{Sanitize(size)}.png";
                 var path = Path.Combine(outputDirectory, fileName);
                 ApplyTheme(theme);
-                Render(screen.CreateView, path, width, height);
+                var rendered = Render(screen.CreateView, path, width, height, normalizedScenario);
                 var sha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path))).ToLowerInvariant();
+                var interactionSteps = new JsonArray();
+                foreach (var step in rendered.InteractionSteps)
+                {
+                    interactionSteps.Add(step);
+                }
 
                 entries.Add(new JsonObject
                 {
                     ["screenId"] = screen.Id,
+                    ["page"] = screen.Page,
+                    ["surfaceId"] = screen.SurfaceId,
                     ["title"] = screen.Title,
                     ["fileName"] = fileName,
+                    ["imagePath"] = Path.GetFullPath(path),
                     ["sha256"] = sha256,
-                    ["width"] = width,
-                    ["height"] = height,
+                    ["width"] = rendered.Width,
+                    ["height"] = rendered.Height,
+                    ["mode"] = mode,
+                    ["theme"] = theme,
+                    ["density"] = density,
+                    ["size"] = size,
                     ["renderer"] = "Avalonia.Headless",
-                    ["dataSource"] = dataSource
+                    ["scenario"] = normalizedScenario,
+                    ["interactionSteps"] = interactionSteps,
+                    ["dataSource"] = dataSource,
+                    ["runnerConnected"] = stats.RunnerConnected,
+                    ["moduleCount"] = stats.ModuleCount,
+                    ["commandCount"] = stats.CommandCount
                 });
             }
 
@@ -93,11 +212,17 @@ public static class ShellRealScreenshotWriter
             {
                 ["schemaVersion"] = "1.0",
                 ["artifactKind"] = "real-avalonia-screenshot",
+                ["surface"] = requestedSurface,
+                ["mode"] = mode,
                 ["theme"] = theme,
                 ["density"] = density,
                 ["size"] = size,
+                ["scenario"] = normalizedScenario,
                 ["dataSource"] = dataSource,
                 ["usesHostControlData"] = dataSource.Contains("hostcontrol", StringComparison.OrdinalIgnoreCase),
+                ["runnerConnected"] = stats.RunnerConnected,
+                ["moduleCount"] = stats.ModuleCount,
+                ["commandCount"] = stats.CommandCount,
                 ["screenshotCount"] = entries.Count,
                 ["screenshots"] = entries
             };
@@ -129,9 +254,11 @@ public static class ShellRealScreenshotWriter
             return;
         }
 
+        var dark = string.Equals(theme, "dark", StringComparison.OrdinalIgnoreCase);
+        _headlessBackground = MptThemeTokens.Brush(
+            dark ? MptThemeTokens.ColorAppBackgroundDark : MptThemeTokens.ColorAppBackground);
         if (Application.Current is not null)
         {
-            var dark = string.Equals(theme, "dark", StringComparison.OrdinalIgnoreCase);
             Application.Current.RequestedThemeVariant = dark
                 ? ThemeVariant.Dark
                 : ThemeVariant.Light;
@@ -139,48 +266,163 @@ public static class ShellRealScreenshotWriter
         }
     }
 
-    private static void Render(Func<Control> createView, string path, int width, int height)
+    private static RenderedFrame Render(
+        Func<Control> createView,
+        string path,
+        int width,
+        int height,
+        string interactionScenario)
     {
         if (!Dispatcher.UIThread.CheckAccess())
         {
-            Dispatcher.UIThread.Invoke(() => Render(createView, path, width, height));
-            return;
+            RenderedFrame? result = null;
+            Dispatcher.UIThread.Invoke(() => result = Render(createView, path, width, height, interactionScenario));
+            return result ?? throw new InvalidOperationException("Avalonia Headless render did not return a frame.");
         }
 
-        var view = createView();
-        var window = new Window
+        Window? window = null;
+        try
+        {
+            var view = createView();
+            window = new Window
+            {
+                Width = width,
+                Height = height,
+                Content = CreateOpaqueRenderRoot(view),
+                Background = _headlessBackground,
+                ShowInTaskbar = false,
+                CanResize = false
+            };
+
+            window.Show();
+            AvaloniaHeadlessPlatform.ForceRenderTimerTick(4);
+            var interaction = ApplyInteractionScenario(window, view, interactionScenario);
+            if (ReferenceEquals(interaction.CaptureTarget, window))
+            {
+                window = RecreateHeadlessWindow(window, view, width, height);
+                interaction = new InteractionResult(
+                    window,
+                    interaction.Steps.Concat(["recreated-window:full-frame"]).ToArray());
+            }
+            else
+            {
+                AvaloniaHeadlessPlatform.ForceRenderTimerTick(4);
+            }
+
+            using var bitmap = interaction.CaptureTarget.GetLastRenderedFrame() ?? interaction.CaptureTarget.CaptureRenderedFrame()
+                ?? throw new InvalidOperationException("Avalonia Headless did not produce a rendered frame.");
+            using var stream = File.Create(path);
+            bitmap.Save(stream);
+            return new RenderedFrame(
+                bitmap.PixelSize.Width,
+                bitmap.PixelSize.Height,
+                interaction.Steps);
+        }
+        finally
+        {
+            if (window is not null)
+            {
+                foreach (var ownedWindow in window.OwnedWindows.ToArray())
+                {
+                    ownedWindow.Close();
+                }
+            }
+
+            window?.Close();
+            AvaloniaHeadlessPlatform.ForceRenderTimerTick(1);
+        }
+    }
+
+    private static Window RecreateHeadlessWindow(
+        Window current,
+        Control view,
+        int width,
+        int height)
+    {
+        if (current.Content is Border renderRoot && ReferenceEquals(renderRoot.Child, view))
+        {
+            renderRoot.Child = null;
+        }
+        current.Content = null;
+        current.Close();
+        AvaloniaHeadlessPlatform.ForceRenderTimerTick(1);
+
+        var replacement = new Window
         {
             Width = width,
             Height = height,
-            Content = view,
+            Content = CreateOpaqueRenderRoot(view),
+            Background = _headlessBackground,
             ShowInTaskbar = false,
             CanResize = false
         };
-
-        window.Show();
+        replacement.Show();
         AvaloniaHeadlessPlatform.ForceRenderTimerTick(4);
-        var bitmap = window.CaptureRenderedFrame() ?? window.GetLastRenderedFrame()
-            ?? throw new InvalidOperationException("Avalonia Headless did not produce a rendered frame.");
-        using (var stream = File.Create(path))
-        {
-            bitmap.Save(stream);
-        }
+        return replacement;
+    }
 
-        window.Close();
+    private static Border CreateOpaqueRenderRoot(Control view)
+    {
+        return new Border
+        {
+            Background = _headlessBackground,
+            HorizontalAlignment = global::Avalonia.Layout.HorizontalAlignment.Stretch,
+            VerticalAlignment = global::Avalonia.Layout.VerticalAlignment.Stretch,
+            Child = view
+        };
+    }
+
+    private static InteractionResult ApplyInteractionScenario(
+        Window window,
+        Control view,
+        string interactionScenario)
+    {
+        // Tool-specific interaction scenarios (Remote Notifications scroll/filter/detail/activation)
+        // were owned by the tool surface assemblies and are no longer exercised from the Shell.
+        return new InteractionResult(window, []);
+    }
+
+    private static void Click(Window window, Point point)
+    {
+        window.MouseDown(point, MouseButton.Left, RawInputModifiers.None);
+        window.MouseUp(point, MouseButton.Left, RawInputModifiers.None);
+    }
+
+    private static Point CenterInWindow(Control control, Window window)
+    {
+        var center = new Point(control.Bounds.Width / 2, control.Bounds.Height / 2);
+        return control.TranslatePoint(center, window)
+            ?? throw new InvalidOperationException($"Could not translate {control.GetType().Name} coordinates into the headless window.");
     }
 
     private static IReadOnlyList<RealScreen> CreateSampleScreens()
     {
         return
         [
-            new("dashboard", "Dashboard", () => CreateShellChrome("Dashboard", new DashboardView { DataContext = SampleDashboard() })),
-            new("command-palette-with-params", "Command Palette With Parameters", () => CreateShellChrome("Commands", new CommandPaletteView { DataContext = SampleCommandPalette() })),
-            new("settings-dirty-state", "Settings Dirty State", () => CreateShellChrome("Settings", new SettingsCenterView { DataContext = SampleSettings() })),
-            new("module-detail-degraded", "Module Detail Degraded", () => CreateShellChrome("Modules", new ModuleDetailView { DataContext = SampleModuleDetail() })),
-            new("logs-long-lines", "Logs Long Lines", () => CreateShellChrome("Logs", new LogsView { DataContext = SampleLogs() })),
-            new("notifications-list", "Notifications List", () => CreateShellChrome("Notifications", new NotificationsView { DataContext = SampleNotifications() })),
-            new("packages", "Packages", () => CreateShellChrome("Packages", new PackageManagerView { DataContext = SamplePackages() })),
-            new("diagnostics-wide", "Diagnostics Wide", () => CreateShellChrome("Diagnostics", new DiagnosticsView { DataContext = SampleDiagnostics() }))
+            new("dashboard", "dashboard", "shell.dashboard", "Dashboard", () => CreateShellChrome("Dashboard", new DashboardView { DataContext = SampleDashboard() })),
+            new("command-palette-with-params", "command-palette", "shell.command-palette", "Command Palette With Parameters", CreateCommandPaletteSampleShell),
+            new("settings-dirty-state", "settings", "shell.settings-center", "Settings Dirty State", () => CreateShellChrome("Settings", new SettingsCenterView { DataContext = SampleSettings() })),
+            new("module-detail-degraded", "module-detail", "shell.module-detail", "Module Detail Degraded", () => CreateShellChrome("Modules", new ModuleDetailView { DataContext = SampleModuleDetail() })),
+            new("logs-long-lines", "logs", "shell.logs-viewer", "Logs Long Lines", () => CreateShellChrome("Logs", new LogsView { DataContext = SampleLogs() })),
+            new("notifications-list", "notifications", "shell.notification-center", "Notifications List", () => CreateShellChrome("Notifications", new NotificationsView { DataContext = SampleNotifications() })),
+            new("packages", "packages", "shell.package-manager", "Packages", () => CreateShellChrome("Packages", new PackageManagerView { DataContext = SamplePackages() })),
+            new("diagnostics-wide", "diagnostics", "shell.runtime-diagnostics", "Diagnostics Wide", () => CreateShellChrome("Diagnostics", new DiagnosticsView { DataContext = SampleDiagnostics() }))
+        ];
+    }
+
+    private static IReadOnlyList<RealScreen> CreateProductFoundationScreens(string interactionScenario)
+    {
+        return
+        [
+            new("home-ready", "home", "shell.home", "Home", () => CreateProductShellChrome(
+                "Home",
+                new HomeView { DataContext = SampleProductHome() })),
+            new("general-settings", "general", "shell.general", "General", () => CreateProductShellChrome(
+                "Settings",
+                new GeneralSettingsView { DataContext = SampleGeneralSettings() })),
+            new("tools-catalog", "tools", "shell.tools-catalog", "Tools Catalog", () => CreateProductShellChrome(
+                "Tools",
+                new ToolCatalogView { DataContext = SampleToolCatalog() }))
         ];
     }
 
@@ -200,35 +442,35 @@ public static class ShellRealScreenshotWriter
 
         return
         [
-            new("dashboard", "Dashboard", () => CreateShellChrome("Dashboard", new DashboardView
+            new("dashboard", "dashboard", "shell.dashboard", "Dashboard", () => CreateShellChrome("Dashboard", new DashboardView
             {
                 DataContext = ShellPageViewModelFactory.FromDashboard(data.Dashboard)
             }, ShellPageViewModelFactory.FromCommands(CommandQuery(data.Commands), data.Commands), data.DataSource)),
-            new("command-palette-with-params", "Command Palette With Parameters", () => CreateShellChrome("Commands", new CommandPaletteView
+            new("command-palette-with-params", "command-palette", "shell.command-palette", "Command Palette With Parameters", () => CreateShellChrome("Commands", new CommandPaletteView
             {
                 DataContext = ShellPageViewModelFactory.FromCommands(CommandQuery(data.Commands), data.Commands)
             }, ShellPageViewModelFactory.FromCommands(CommandQuery(data.Commands), data.Commands), data.DataSource)),
-            new("settings-dirty-state", "Settings", () => CreateShellChrome("Settings", new SettingsCenterView
+            new("settings-dirty-state", "settings", "shell.settings-center", "Settings", () => CreateShellChrome("Settings", new SettingsCenterView
             {
                 DataContext = settings
             }, ShellPageViewModelFactory.FromCommands(CommandQuery(data.Commands), data.Commands), data.DataSource)),
-            new("module-detail-degraded", "Module Detail", () => CreateShellChrome("Modules", new ModuleDetailView
+            new("module-detail-degraded", "module-detail", "shell.module-detail", "Module Detail", () => CreateShellChrome("Modules", new ModuleDetailView
             {
                 DataContext = ShellPageViewModelFactory.FromModuleDetail(data.ModuleDetail, data.Commands)
             }, ShellPageViewModelFactory.FromCommands(CommandQuery(data.Commands), data.Commands), data.DataSource)),
-            new("logs-long-lines", "Logs", () => CreateShellChrome("Logs", new LogsView
+            new("logs-long-lines", "logs", "shell.logs-viewer", "Logs", () => CreateShellChrome("Logs", new LogsView
             {
                 DataContext = ShellPageViewModelFactory.FromLogs(data.Modules, selected, data.Logs)
             }, ShellPageViewModelFactory.FromCommands(CommandQuery(data.Commands), data.Commands), data.DataSource)),
-            new("notifications-list", "Notifications", () => CreateShellChrome("Notifications", new NotificationsView
+            new("notifications-list", "notifications", "shell.notification-center", "Notifications", () => CreateShellChrome("Notifications", new NotificationsView
             {
                 DataContext = ShellPageViewModelFactory.FromNotifications(data.Notifications)
             }, ShellPageViewModelFactory.FromCommands(CommandQuery(data.Commands), data.Commands), data.DataSource)),
-            new("packages", "Packages", () => CreateShellChrome("Packages", new PackageManagerView
+            new("packages", "packages", "shell.package-manager", "Packages", () => CreateShellChrome("Packages", new PackageManagerView
             {
                 DataContext = ShellPageViewModelFactory.FromPackages(data.Packages)
             }, ShellPageViewModelFactory.FromCommands(CommandQuery(data.Commands), data.Commands), data.DataSource)),
-            new("diagnostics-wide", "Diagnostics", () => CreateShellChrome("Diagnostics", new DiagnosticsView
+            new("diagnostics-wide", "diagnostics", "shell.runtime-diagnostics", "Diagnostics", () => CreateShellChrome("Diagnostics", new DiagnosticsView
             {
                 DataContext = ShellPageViewModelFactory.FromDiagnostics(data.Diagnostics, data.BrokerAudit)
             }, ShellPageViewModelFactory.FromCommands(CommandQuery(data.Commands), data.Commands), data.DataSource))
@@ -255,6 +497,51 @@ public static class ShellRealScreenshotWriter
         SetShellContent(chrome, "CommandPanel", new CommandPaletteView { DataContext = commandPalette ?? SampleCommandPalette() });
         SetShellContent(chrome, "PermissionPanel", CreatePermissionPrompt());
         SetShellContent(chrome, "AuditPanel", CreateAuditSummary(dataSource));
+        return chrome;
+    }
+
+    private static ShellChromeView CreateCommandPaletteSampleShell()
+    {
+        var chrome = CreateProductShellChrome(
+            "Home",
+            new HomeView { DataContext = SampleProductHome() });
+
+        if (chrome.DataContext is ShellChromeViewModel chromeViewModel)
+        {
+            chromeViewModel.IsCommandPaletteOpen = true;
+        }
+
+        return chrome;
+    }
+
+    private static ShellChromeView CreateProductShellChrome(string selectedPage, Control content)
+    {
+        var chromeViewModel = new ShellChromeViewModel(
+            [
+                "Home",
+                "Tools",
+                "Activity",
+                "Notifications",
+                "ADB Forwarder",
+                "ScreenEase",
+                "Doubao Agent",
+                "SmartBird",
+                "Settings",
+                "System"
+            ])
+        {
+            StatusText = "Product UI acceptance snapshot",
+            RunnerStatusText = "7 tools registered",
+            IsCommandPaletteOpen = false,
+            IsPermissionPromptOpen = false
+        };
+        chromeViewModel.SelectPage(selectedPage);
+
+        var chrome = new ShellChromeView { DataContext = chromeViewModel };
+        SetShellContent(chrome, "ContentHost", content);
+        SetShellContent(chrome, "CommandPanel", new CommandPaletteView { DataContext = SampleCommandPalette() });
+        SetShellContent(chrome, "PermissionPanel", CreatePermissionPrompt());
+        SetShellContent(chrome, "AuditPanel", CreateAuditSummary("product-fixture"));
         return chrome;
     }
 
@@ -302,6 +589,130 @@ public static class ShellRealScreenshotWriter
         };
     }
 
+    private static HomeViewModel SampleProductHome()
+    {
+        var tools = SampleProductTools();
+        return new HomeViewModel(
+            tools.Where(tool => tool.ToolId is "remote-notifications" or "adb-forwarder").ToArray(),
+            tools.Where(tool => tool.ToolId is "screenease" or "doubao-agent" or "smartbird-thermostat").ToArray(),
+            [
+                new HomeActivityItemViewModel(
+                    "activity-remote-command",
+                    "Remote Commands",
+                    "Collect Android build information",
+                    "Succeeded",
+                    "2 minutes ago",
+                    "Command completed with a copy-ready result.",
+                    Command()),
+                new HomeActivityItemViewModel(
+                    "activity-portproxy-plan",
+                    "ADB Forwarder",
+                    "Preview port forwarding plan",
+                    "Ready to apply",
+                    "18 minutes ago",
+                    "Three mappings passed validation and are waiting for approval.",
+                    Command())
+            ],
+            tools.Count);
+    }
+
+    private static GeneralSettingsViewModel SampleGeneralSettings()
+    {
+        return new GeneralSettingsViewModel(
+            ShellAppearanceService.SystemTheme,
+            _ => Task.CompletedTask,
+            () => Task.CompletedTask);
+    }
+
+    private static ToolCatalogViewModel SampleToolCatalog()
+    {
+        return new ToolCatalogViewModel(SampleProductTools());
+    }
+
+    private static IReadOnlyList<ToolCardViewModel> SampleProductTools()
+    {
+        return
+        [
+            new ToolCardViewModel(
+                "remote-notifications",
+                "Remote Notifications",
+                "Read and manage messages received from remote services.",
+                "Communication",
+                "RN",
+                "Connected",
+                "12 unread messages · delivery active",
+                ToolAvailability.Available,
+                true,
+                primaryActionLabel: "Open inbox"),
+            new ToolCardViewModel(
+                "adb-forwarder",
+                "ADB Forwarder",
+                "Create, validate, and apply Android port forwarding rules.",
+                "Android",
+                "ADB",
+                "Ready",
+                "2 devices · 3 active mappings",
+                ToolAvailability.Available,
+                true,
+                primaryActionLabel: "Forward device"),
+            new ToolCardViewModel(
+                "remote-commands",
+                "Remote Commands",
+                "Run saved commands with parameters and inspect their output.",
+                "Automation",
+                "RC",
+                "Paused",
+                "Delivery is paused until this workflow is needed again.",
+                ToolAvailability.Paused,
+                false,
+                primaryActionLabel: "Paused"),
+            new ToolCardViewModel(
+                "process-monitor",
+                "Process Monitor",
+                "Watch selected processes and review actionable alerts.",
+                "Monitoring",
+                "PM",
+                "Paused",
+                "Delivery is paused until this workflow is needed again.",
+                ToolAvailability.Paused,
+                false,
+                primaryActionLabel: "Paused"),
+            new ToolCardViewModel(
+                "screenease",
+                "ScreenEase",
+                "Choose display profiles for work, focus, and evening use.",
+                "Display",
+                "SE",
+                "Ready",
+                "Profiles, reminders, schedules, overlay, and shortcuts are available.",
+                ToolAvailability.Available,
+                false,
+                primaryActionLabel: "Open ScreenEase"),
+            new ToolCardViewModel(
+                "doubao-agent",
+                "豆包 Computer Use",
+                "Check service health and run common controller actions.",
+                "Services",
+                "DA",
+                "Needs attention",
+                "The workspace is available; one or more controller services need attention.",
+                ToolAvailability.Available,
+                false,
+                primaryActionLabel: "打开电脑任务"),
+            new ToolCardViewModel(
+                "smartbird-thermostat",
+                "SmartBird 温度管理器",
+                "Review temperature status, events, and service policy.",
+                "Hardware",
+                "ST",
+                "Needs attention",
+                "The dashboard is available; hardware services are currently offline.",
+                ToolAvailability.Available,
+                false,
+                primaryActionLabel: "打开温度管理器")
+        ];
+    }
+
     private static DashboardViewModel SampleDashboard()
     {
         return new DashboardViewModel(
@@ -331,25 +742,88 @@ public static class ShellRealScreenshotWriter
 
     private static CommandPaletteViewModel SampleCommandPalette()
     {
-        var command = new CommandItemViewModel(
-            "adb-forwarder.portproxy.apply",
-            "adb-forwarder",
-            "Apply port proxy plan",
-            "Writes selected ADB forwarding rules through the broker.",
-            "elevated",
-            true,
-            "AdbForwarder",
-            "broker approval required",
-            "",
-            true,
-            null,
-            null,
-            [
-                new CommandParameterViewModel("listenPort", "Listen port", "integer", true, "5555"),
-                new CommandParameterViewModel("connectAddress", "Connect address", "string", true, "127.0.0.1"),
-                new CommandParameterViewModel("dryRun", "Dry run", "boolean", false, "true")
-            ]);
-        return new CommandPaletteViewModel("port proxy", [command]);
+        var commands = new CommandItemViewModel[]
+        {
+            new(
+                "android-tools.notifications.open",
+                "android-tools.notifications",
+                "Open Remote notifications",
+                "View messages mirrored from Android devices.",
+                "safe",
+                false,
+                "Remote notifications",
+                "",
+                "",
+                false,
+                null,
+                actionKind: "navigation",
+                icon: "notifications",
+                category: "Tool"),
+            new(
+                "adb-forwarder.devices.scan",
+                "adb-forwarder",
+                "Scan connected devices",
+                "Refresh the list of Android devices available to ADB.",
+                "safe",
+                false,
+                "ADB Forwarder",
+                "",
+                "",
+                false,
+                null,
+                icon: "diagnostics",
+                category: "Diagnostics"),
+            new(
+                "adb-forwarder.portproxy.apply",
+                "adb-forwarder",
+                "Apply port forwarding",
+                "Create a local forwarding rule for the selected device.",
+                "safe",
+                false,
+                "ADB Forwarder",
+                "",
+                "",
+                true,
+                null,
+                parameters:
+                [
+                    new CommandParameterViewModel("listenPort", "Listen port", "integer", true, "5555"),
+                    new CommandParameterViewModel("connectAddress", "Connect address", "string", true, "127.0.0.1")
+                ],
+                icon: "network",
+                category: "Network"),
+            new(
+                "android-tools.process-monitor.stop",
+                "android-tools.process-monitor",
+                "Stop selected process",
+                "Request an elevated stop for the chosen Android process.",
+                "elevated",
+                true,
+                "Process monitor",
+                "broker approval required",
+                "",
+                false,
+                null,
+                icon: "command",
+                category: "System"),
+            new(
+                "screenease.settings.open",
+                "screenease",
+                "Open ScreenEase settings",
+                "Adjust display profiles and automatic switching rules.",
+                "safe",
+                false,
+                "ScreenEase",
+                "",
+                "",
+                false,
+                null,
+                actionKind: "navigation",
+                icon: "settings",
+                category: "Settings")
+        };
+
+        return new CommandPaletteViewModel("", commands);
     }
 
     private static SettingsCenterViewModel SampleSettings()
@@ -482,7 +956,9 @@ public static class ShellRealScreenshotWriter
 
     private static ShellActionViewModel Action(string commandId, string title, string style)
     {
-        return new ShellActionViewModel(commandId, title, style, Command());
+        var isPrimary = string.Equals(style, "primary", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(style, "accent", StringComparison.OrdinalIgnoreCase);
+        return new ShellActionViewModel(commandId, title, style, isPrimary, isPrimary ? "MptPrimaryButton" : "", Command());
     }
 
     private static ICommand Command()
@@ -537,7 +1013,55 @@ public static class ShellRealScreenshotWriter
         return timestamp is null ? DateTimeOffset.MinValue : timestamp.ToDateTimeOffset();
     }
 
-    private sealed record RealScreen(string Id, string Title, Func<Control> CreateView);
+    private static bool MatchesRealScreenFilter(RealScreen screen, string filter)
+    {
+        return string.IsNullOrWhiteSpace(filter) ||
+            filter == "*" ||
+            string.Equals(screen.SurfaceId, filter, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(screen.Page, filter, StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(screen.Id, filter, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string NormalizeInteractionScenario(string? scenario)
+    {
+        var normalized = string.IsNullOrWhiteSpace(scenario)
+            ? DefaultInteractionScenario
+            : scenario.Trim().ToLowerInvariant();
+        return normalized is DefaultInteractionScenario or "scroll" or "filter" or "detail" or "activation"
+            ? normalized
+            : throw new ArgumentOutOfRangeException(
+                nameof(scenario),
+                scenario,
+                "Interaction scenario must be one of: default, scroll, filter, detail, activation.");
+    }
+
+    private static string ModeForDataSource(string dataSource)
+    {
+        if (dataSource.Contains("live-service", StringComparison.OrdinalIgnoreCase))
+        {
+            return "live-service";
+        }
+
+        if (dataSource.Contains("runner-hostcontrol", StringComparison.OrdinalIgnoreCase))
+        {
+            return "live-runner";
+        }
+
+        if (dataSource.Contains("fixture-hostcontrol", StringComparison.OrdinalIgnoreCase))
+        {
+            return "fixture-hostcontrol";
+        }
+
+        return "fixture";
+    }
+
+    private sealed record ScreenshotManifestStats(int ModuleCount, int CommandCount, bool RunnerConnected);
+
+    private sealed record RenderedFrame(int Width, int Height, IReadOnlyList<string> InteractionSteps);
+
+    private sealed record InteractionResult(Window CaptureTarget, IReadOnlyList<string> Steps);
+
+    private sealed record RealScreen(string Id, string Page, string SurfaceId, string Title, Func<Control> CreateView);
 }
 
 public sealed record ShellHostControlSnapshotData(

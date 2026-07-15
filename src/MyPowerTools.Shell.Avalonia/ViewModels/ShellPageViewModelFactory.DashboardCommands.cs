@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Windows.Input;
 using Google.Protobuf.WellKnownTypes;
+using MyPowerTools.HostControl;
 using HostProto = MyPowerTools.Protocol.HostControl.V1;
 
 namespace MyPowerTools.Shell.Avalonia.ViewModels;
@@ -28,6 +29,8 @@ public static partial class ShellPageViewModelFactory
                 action.CommandId,
                 action.Title,
                 action.Style,
+                IsPrimaryAction(action.Style),
+                ButtonClasses(action.Style),
                 new AsyncRelayCommand(() => executeAction?.Invoke(action.CommandId) ?? Task.CompletedTask))).ToArray(),
             new AsyncRelayCommand(() => showDetails?.Invoke(card.ModuleId) ?? Task.CompletedTask))).ToArray();
 
@@ -40,14 +43,29 @@ public static partial class ShellPageViewModelFactory
         return new DashboardViewModel($"{cards.Length} modules indexed, event seq {snapshot.EventSeq}", cards, alerts);
     }
 
+    private static bool IsPrimaryAction(string style)
+    {
+        return string.Equals(style, "primary", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(style, "accent", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string ButtonClasses(string style)
+    {
+        return IsPrimaryAction(style) ? "MptPrimaryButton" : "";
+    }
+
     public static CommandPaletteViewModel FromCommands(
         string query,
         HostProto.ListCommandsResponse response,
         Func<string, JsonObject, string, CancellationToken, IAsyncEnumerable<CommandExecutionStatus>>? executeCommand = null,
-        Func<string, Task<CommandCancellationStatus>>? cancelCommand = null)
+        Func<string, Task<CommandCancellationStatus>>? cancelCommand = null,
+        Func<string, string, JsonObject?, Task>? navigateTool = null)
     {
-        var commands = response.Commands.Select(command =>
+        var commands = response.Commands
+            .Where(command => !IsLegacyModuleOpenCommand(command))
+            .Select(command =>
         {
+            var isNavigation = TryGetNavigationTarget(command.Execution, out var toolId, out var routeId, out var routeArgs);
             var parameters = command.Parameters
                 .Select(parameter => new CommandParameterViewModel(
                     parameter.Id,
@@ -56,6 +74,16 @@ public static partial class ShellPageViewModelFactory
                     parameter.Required,
                     parameter.DefaultValue))
                 .ToArray();
+
+            Func<string, JsonObject, string, CancellationToken, IAsyncEnumerable<CommandExecutionStatus>>? action = isNavigation
+                ? (_, _, _, cancellationToken) => ExecuteNavigationAsync(
+                    command.Title,
+                    toolId,
+                    routeId,
+                    routeArgs,
+                    navigateTool,
+                    cancellationToken)
+                : executeCommand;
 
             return new CommandItemViewModel(
                 command.CommandId,
@@ -68,12 +96,71 @@ public static partial class ShellPageViewModelFactory
                 command.RequiresElevation ? $"{command.DangerLevel} - elevation" : command.DangerLevel,
                 "",
                 parameters.Length > 0,
-                executeCommand,
+                action,
                 cancelCommand,
-                parameters);
+                parameters,
+                isNavigation ? "navigation" : "command",
+                command.Icon,
+                command.Category);
         }).ToArray();
 
         return new CommandPaletteViewModel(query, commands);
+    }
+
+    private static bool TryGetNavigationTarget(
+        Struct? execution,
+        out string toolId,
+        out string routeId,
+        out JsonObject? routeArgs)
+    {
+        toolId = "";
+        routeId = "";
+        routeArgs = null;
+        if (execution is null ||
+            !execution.Fields.TryGetValue("type", out var type) ||
+            !string.Equals(type.StringValue, "navigation", StringComparison.OrdinalIgnoreCase) ||
+            !execution.Fields.TryGetValue("toolId", out var tool) ||
+            !execution.Fields.TryGetValue("routeId", out var route))
+        {
+            return false;
+        }
+
+        toolId = tool.StringValue;
+        routeId = route.StringValue;
+        if (execution.Fields.TryGetValue("routeArgs", out var args) &&
+            args.KindCase == Value.KindOneofCase.StructValue)
+        {
+            routeArgs = JsonStructMapper.ToJsonObject(args.StructValue);
+        }
+
+        return toolId.Length > 0 && routeId.Length > 0;
+    }
+
+    private static bool IsLegacyModuleOpenCommand(HostProto.CommandItem command)
+    {
+        return command.Execution is not null &&
+               command.Execution.Fields.TryGetValue("type", out var type) &&
+               string.Equals(type.StringValue, "open", StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static async IAsyncEnumerable<CommandExecutionStatus> ExecuteNavigationAsync(
+        string title,
+        string toolId,
+        string routeId,
+        JsonObject? routeArgs,
+        Func<string, string, JsonObject?, Task>? navigateTool,
+        [EnumeratorCancellation] CancellationToken cancellationToken)
+    {
+        yield return new CommandExecutionStatus("running", $"Opening {title}.", false, 1);
+        cancellationToken.ThrowIfCancellationRequested();
+        if (navigateTool is null)
+        {
+            yield return new CommandExecutionStatus("failed", "This destination is unavailable.", true, 2);
+            yield break;
+        }
+
+        await navigateTool(toolId, routeId, routeArgs).ConfigureAwait(true);
+        yield return new CommandExecutionStatus("succeeded", $"Opened {title}.", true, 2);
     }
 
     public static ModulesViewModel FromModules(

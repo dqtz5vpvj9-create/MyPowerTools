@@ -70,12 +70,14 @@ public static partial class ShellPageViewModelFactory
         JsonObject patch;
         if (viewModel.UsesRawJson)
         {
-            patch = ParseRawSettings(viewModel.RawJson);
+            patch = viewModel.IsRawJsonDirty
+                ? ParseRawSettings(viewModel.RawJson)
+                : new JsonObject();
         }
         else
         {
             patch = new JsonObject();
-            foreach (var field in viewModel.Fields)
+            foreach (var field in viewModel.Fields.Where(field => field.IsDirty))
             {
                 patch[field.Key] = field.EditorType switch
                 {

@@ -1,6 +1,4 @@
-using MyPowerTools.Protocol;
 using MyPowerTools.Platform.Abstractions;
-using MyPowerTools.Runtime;
 
 namespace MyPowerTools.Broker;
 
@@ -29,7 +27,7 @@ public sealed class PrivilegedBroker : IPrivilegeBroker
     {
         var normalizedLevel = permissionLevel.Trim();
         var requiresBroker = BrokeredPermissionLevels.Contains(normalizedLevel);
-        var decision = new BrokerDecision(actionId, requiresBroker, requiresBroker ? MptErrorCodes.PermissionRequired : "", reason);
+        var decision = new BrokerDecision(actionId, requiresBroker, requiresBroker ? "permission-required" : "", reason);
         _auditLog.Append(new BrokerAuditEntry(Guid.NewGuid().ToString("N"), DateTimeOffset.UtcNow, moduleId, actionId, normalizedLevel, scope, reason, decision.RequiresBroker, "evaluated", ""));
         return decision;
     }

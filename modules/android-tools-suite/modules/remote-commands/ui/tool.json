@@ -1,0 +1,22 @@
+{
+  "schemaVersion": "1.0",
+  "toolId": "remote-commands",
+  "ownerModuleId": "android-tools.remote-commands",
+  "title": "Remote Commands",
+  "description": "Browse command templates, provide parameters, and inspect execution output.",
+  "icon": "tool.remote-commands",
+  "category": "Automation",
+  "availability": "paused",
+  "primaryRouteId": "catalog",
+  "routes": [
+    { "routeId": "catalog", "surfaceId": "android-tools.remote-commands.catalog", "title": "Catalog", "icon": "route.catalog" },
+    { "routeId": "history", "surfaceId": "android-tools.remote-commands.history", "title": "History", "icon": "route.history" },
+    { "routeId": "diagnostics", "surfaceId": "android-tools.remote-commands.diagnostics", "title": "Troubleshooting", "icon": "route.diagnostics" }
+  ],
+  "homeCard": {
+    "summary": "Delivery is paused; the existing module remains available only for maintenance diagnostics.",
+    "primaryActionLabel": "Paused",
+    "statusBinding": "module.status",
+    "order": 30
+  }
+}

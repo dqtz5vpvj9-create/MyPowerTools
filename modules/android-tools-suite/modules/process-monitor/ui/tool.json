@@ -1,0 +1,22 @@
+{
+  "schemaVersion": "1.0",
+  "toolId": "process-monitor",
+  "ownerModuleId": "android-tools.process-monitor",
+  "title": "Process Monitor",
+  "description": "Maintain a watch list and follow process state changes.",
+  "icon": "tool.process-monitor",
+  "category": "System Monitoring",
+  "availability": "paused",
+  "primaryRouteId": "watch",
+  "routes": [
+    { "routeId": "watch", "surfaceId": "android-tools.process-monitor.watch", "title": "Watched processes", "icon": "route.processes" },
+    { "routeId": "events", "surfaceId": "android-tools.process-monitor.events", "title": "Events", "icon": "route.events" },
+    { "routeId": "diagnostics", "surfaceId": "android-tools.process-monitor.diagnostics", "title": "Troubleshooting", "icon": "route.diagnostics" }
+  ],
+  "homeCard": {
+    "summary": "Delivery is paused; the existing module remains available only for maintenance diagnostics.",
+    "primaryActionLabel": "Paused",
+    "statusBinding": "module.status",
+    "order": 40
+  }
+}

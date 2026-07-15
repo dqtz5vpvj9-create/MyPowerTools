@@ -174,7 +174,7 @@ public sealed partial class ShellWorkspaceController
         }
         catch (Exception ex)
         {
-            SetOwnedContent(_contentHost, BuildUnavailablePage(NotificationsPage, ex.Message));
+            SetOwnedContent(_contentHost, BuildUnavailablePage("Notifications", ex.Message));
             SetStatus(ex.Message);
         }
     }

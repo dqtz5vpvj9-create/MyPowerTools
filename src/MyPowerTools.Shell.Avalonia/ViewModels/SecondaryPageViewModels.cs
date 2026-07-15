@@ -141,11 +141,23 @@ public sealed class BrokerAuditViewModel
 
 public sealed class UnavailablePageViewModel : ShellPageViewModel
 {
-    public UnavailablePageViewModel(string title, string message)
+    public UnavailablePageViewModel(
+        string title,
+        string message,
+        Func<Task>? retry = null,
+        Func<Task>? returnToSafety = null)
         : base(title, "", "error")
     {
         Message = message;
+        HasRetry = retry is not null;
+        HasReturnAction = returnToSafety is not null;
+        RetryCommand = new AsyncRelayCommand(() => retry?.Invoke() ?? Task.CompletedTask, operationName: $"Retry {title}");
+        ReturnCommand = new AsyncRelayCommand(() => returnToSafety?.Invoke() ?? Task.CompletedTask, operationName: $"Leave {title}");
     }
 
     public string Message { get; }
+    public bool HasRetry { get; }
+    public bool HasReturnAction { get; }
+    public ICommand RetryCommand { get; }
+    public ICommand ReturnCommand { get; }
 }

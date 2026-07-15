@@ -207,7 +207,8 @@ public sealed partial class RuntimeAcceptanceTests
                     ["default"] = "Ctrl+Alt+Space",
                     ["commandId"] = "module-hotkey-sample.toggle",
                     ["scope"] = "module",
-                    ["reason"] = "Toggle the sample module."
+                    ["reason"] = "Toggle the sample module.",
+                    ["enabledByDefault"] = true
                 }
             }
         };
@@ -223,6 +224,7 @@ public sealed partial class RuntimeAcceptanceTests
 
         Assert.True(report.IsValid, string.Join(Environment.NewLine, report.Issues.Select(issue => issue.Message)));
         Assert.Equal("quick.toggle", module.Hotkeys.Single().Id);
+        Assert.True(module.Hotkeys.Single().EnabledByDefault);
         Assert.Equal("module-hotkey-sample.quick.toggle", binding.Id);
         Assert.Equal("module-hotkey-sample", binding.ModuleId);
         Assert.Equal("module-hotkey-sample.toggle", binding.CommandId);
@@ -536,16 +538,25 @@ public sealed partial class RuntimeAcceptanceTests
     }
 
     [Fact]
-    public void Production_modules_declare_runtime_hotkey_bindings()
+    public void Production_screenease_hotkeys_match_source_defaults_and_remain_disabled()
     {
         var runtime = new MptHostRuntime(new PackageReader(), PlatformId.Current());
         runtime.Load(Path.Combine(Root, "modules"));
-        var hotkey = Assert.Single(runtime.ListHotkeyBindings().Where(binding => binding.ModuleId == "screenease"));
+        var diagnostics = runtime.ListHotkeyDiagnostics()
+            .Where(binding => binding.ModuleId == "screenease")
+            .ToArray();
 
-        Assert.Equal("screenease.profile.quick-apply", hotkey.Id);
-        Assert.Equal("screenease.profile.apply", hotkey.CommandId);
-        Assert.Equal("Ctrl+Alt+F9", hotkey.Gesture);
-        Assert.True(WindowsHotkeyGesture.TryParse(hotkey.Gesture, out _, out var error), error);
+        Assert.Empty(runtime.ListHotkeyBindings().Where(binding => binding.ModuleId == "screenease"));
+        Assert.Equal(8, diagnostics.Length);
+        Assert.All(diagnostics, hotkey =>
+        {
+            Assert.Equal("disabled", hotkey.State);
+            Assert.True(hotkey.IsDefault);
+            Assert.True(WindowsHotkeyGesture.TryParse(hotkey.Gesture, out _, out var error), error);
+        });
+        var toggle = Assert.Single(diagnostics.Where(hotkey => hotkey.Id == "screenease.toggle-enabled"));
+        Assert.Equal("screenease.effect.toggle", toggle.CommandId);
+        Assert.Equal("Ctrl+Alt+F9", toggle.Gesture);
     }
 
     [Fact]

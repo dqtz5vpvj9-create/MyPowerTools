@@ -6,6 +6,7 @@ public sealed class HotkeyStore
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
     private readonly string _path;
+    private readonly object _gate = new();
     private HotkeyStoreSnapshot? _cache;
 
     public HotkeyStore(string stateDirectory)
@@ -16,32 +17,41 @@ public sealed class HotkeyStore
 
     public HotkeyOverride? Get(string moduleId, string hotkeyId)
     {
-        return Load().Overrides.FirstOrDefault(item =>
-            string.Equals(item.ModuleId, moduleId, StringComparison.OrdinalIgnoreCase) &&
-            string.Equals(item.HotkeyId, hotkeyId, StringComparison.OrdinalIgnoreCase));
+        lock (_gate)
+        {
+            return Load().Overrides.FirstOrDefault(item =>
+                string.Equals(item.ModuleId, moduleId, StringComparison.OrdinalIgnoreCase) &&
+                string.Equals(item.HotkeyId, hotkeyId, StringComparison.OrdinalIgnoreCase));
+        }
     }
 
     public HotkeyStoreSnapshot Set(string moduleId, string hotkeyId, string gesture, bool disabled, string commandArgsJson)
     {
-        var snapshot = Load();
-        var next = snapshot.Overrides
-            .Where(item => !string.Equals(item.ModuleId, moduleId, StringComparison.OrdinalIgnoreCase) ||
-                           !string.Equals(item.HotkeyId, hotkeyId, StringComparison.OrdinalIgnoreCase))
-            .Append(new HotkeyOverride(moduleId, hotkeyId, gesture.Trim(), disabled, string.IsNullOrWhiteSpace(commandArgsJson) ? "{}" : commandArgsJson))
-            .OrderBy(item => item.ModuleId, StringComparer.OrdinalIgnoreCase)
-            .ThenBy(item => item.HotkeyId, StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-        return Save(snapshot with { Revision = snapshot.Revision + 1, UpdatedAt = DateTimeOffset.UtcNow, Overrides = next });
+        lock (_gate)
+        {
+            var snapshot = Load();
+            var next = snapshot.Overrides
+                .Where(item => !string.Equals(item.ModuleId, moduleId, StringComparison.OrdinalIgnoreCase) ||
+                               !string.Equals(item.HotkeyId, hotkeyId, StringComparison.OrdinalIgnoreCase))
+                .Append(new HotkeyOverride(moduleId, hotkeyId, gesture.Trim(), disabled, string.IsNullOrWhiteSpace(commandArgsJson) ? "{}" : commandArgsJson))
+                .OrderBy(item => item.ModuleId, StringComparer.OrdinalIgnoreCase)
+                .ThenBy(item => item.HotkeyId, StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            return Save(snapshot with { Revision = snapshot.Revision + 1, UpdatedAt = DateTimeOffset.UtcNow, Overrides = next });
+        }
     }
 
     public HotkeyStoreSnapshot Reset(string moduleId, string hotkeyId)
     {
-        var snapshot = Load();
-        var next = snapshot.Overrides
-            .Where(item => !string.Equals(item.ModuleId, moduleId, StringComparison.OrdinalIgnoreCase) ||
-                           !string.Equals(item.HotkeyId, hotkeyId, StringComparison.OrdinalIgnoreCase))
-            .ToArray();
-        return Save(snapshot with { Revision = snapshot.Revision + 1, UpdatedAt = DateTimeOffset.UtcNow, Overrides = next });
+        lock (_gate)
+        {
+            var snapshot = Load();
+            var next = snapshot.Overrides
+                .Where(item => !string.Equals(item.ModuleId, moduleId, StringComparison.OrdinalIgnoreCase) ||
+                               !string.Equals(item.HotkeyId, hotkeyId, StringComparison.OrdinalIgnoreCase))
+                .ToArray();
+            return Save(snapshot with { Revision = snapshot.Revision + 1, UpdatedAt = DateTimeOffset.UtcNow, Overrides = next });
+        }
     }
 
     private HotkeyStoreSnapshot Load()

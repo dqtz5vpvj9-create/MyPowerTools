@@ -12,6 +12,8 @@ The project is designed for local, long-term use: modules register through manif
 - Shell subscribes to the HostControl event stream, resumes by event sequence after stream faults, and refreshes affected pages from Runner snapshots.
 - Typed module protocol and host-control protocol from `proto/`.
 - Transport tiers: static manifests, trusted InProc .NET modules, gRPC IPC sidecars, HTTP facades, and stdio compatibility.
+- Trusted `inproc-dotnet` callbacks run behind a soft fault boundary with shadow-copied collectible load contexts, call budgets, per-module cancellation generations, circuit breaking, quarantine, and bounded cleanup. Fatal CLR/native faults still belong to the Runner process boundary.
+- SmartBird's WebView2 surface runs in the separate `MyPowerTools.WebToolHost` process, so a native-control or browser-process failure leaves the Shell available with a recovery surface.
 - Package registry, command index, settings store with revision protection, event bus, notification center, log router, broker audit, package hash manifests, and local package trust hooks.
 - Avalonia Shell pages for Dashboard, Modules, Settings, Logs, Notifications, Packages, Diagnostics, command palette, broker permission prompt, and broker audit.
 - CLI commands for validate, inspect, run, diagnostics, module list/enable/disable, package hash, package sign-local, package trust, install, uninstall, update, rollback, repair, UI gate, UI snapshots, broker audit, broker portproxy, broker secret self-test, and doctor.
@@ -35,13 +37,33 @@ The project is designed for local, long-term use: modules register through manif
 | `adb-forwarder` | `adb-forwarder` | ADB diagnostics, Windows portproxy inspection, brokered apply/revert plan with rollback. |
 | `screenease` | `screenease` | Display enumeration, profile list/plan/apply/save, rules status, and Windows DDC/CI native writer probing for brightness/color-temperature hardware changes. |
 | `doubao-agent` | `doubao-agent` | InProc controller with planner/tool/MCP health separation, self-test, settings schema, and logs summary. |
-| `smartbird-thermostat` | `smartbird-thermostat` | InProc typed facade for HTTP status, events, config, logs, brokered restart, and degraded hardware diagnostics. |
+| `smartbird-thermostat` | `smartbird-thermostat` | InProc typed facade for HTTP status, events, config, logs, brokered restart, and degraded hardware diagnostics; its WebView2 product surface runs in the separate WebToolHost process. |
 
 ## Requirements
 
 - .NET SDK `10.0.301`, locked by `global.json`.
 - PowerShell 7 (`pwsh.exe`) for scripts.
 - Windows for the current production publish path.
+
+## Start MyPowerTools
+
+For normal Windows use, extract the release zip, open PowerShell as administrator in that folder, and install it once:
+
+```powershell
+pwsh.exe -NoLogo -NoProfile -File .\install-windows.ps1 -EnableAutostart -StartRunner -DesktopShortcut
+```
+
+Then open `MyPowerTools` from the Windows Start menu. The installer intentionally creates one user-facing shortcut named `MyPowerTools`; Runner and CLI remain background or advanced tools.
+
+For read-only portable use without installation, run the launcher in the extracted zip root:
+
+```powershell
+.\MyPowerTools.exe
+```
+
+`MyPowerTools.exe` opens the Shell and starts the Runner in the background when needed. The tray icon keeps the Runner available and provides Open MyPowerTools and Quit Runner actions.
+
+The portable/developer layout is user-writable, so ADB portproxy writes are fail-closed there. Install under Program Files to enable the ACL-protected elevated Broker.
 
 ## Build And Test
 
@@ -62,7 +84,7 @@ pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\validate-templates.ps1
 pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\smoke.ps1
 ```
 
-## Run
+## Developer Run
 
 Start the Runner once to validate module indexing:
 
@@ -129,13 +151,13 @@ Outputs:
 - `artifacts/release/package-managers/scoop/mypowertools.json`
 - `artifacts/release/win-x64/templates/`
 
-The zip root includes `install-windows.ps1` and `uninstall-windows.ps1`. After extracting the zip, install the portable app for the current user:
+The zip root includes `MyPowerTools.exe`, `START_HERE.md`, `Start-MyPowerTools.cmd`, `install-windows.ps1`, and `uninstall-windows.ps1`. After extracting the zip, open PowerShell as administrator and install the app:
 
 ```powershell
-pwsh.exe -NoLogo -NoProfile -NonInteractive -File .\install-windows.ps1 -EnableAutostart -StartRunner
+pwsh.exe -NoLogo -NoProfile -File .\install-windows.ps1 -EnableAutostart -StartRunner -DesktopShortcut
 ```
 
-The default install directory is `%LOCALAPPDATA%\Programs\MyPowerTools`; runtime data stays under `%LOCALAPPDATA%\MyPowerTools`. Uninstall the app:
+The default install directory is `%ProgramFiles%\MyPowerTools`; the ACL-protected `Broker\MyPowerTools.ElevatedBroker.exe` is the sole ADB portproxy approval consumer. Per-user runtime data stays under `%LOCALAPPDATA%\MyPowerTools`. The Start menu shows one shortcut named `MyPowerTools`. Open PowerShell as administrator to uninstall the app:
 
 ```powershell
 pwsh.exe -NoLogo -NoProfile -NonInteractive -File .\uninstall-windows.ps1
@@ -174,6 +196,19 @@ Production modules are loaded from `modules/` during local development and from 
 Module enable state is persisted under the runtime data root in `state/modules.enabled.json`. Disabled modules remain visible on the Shell Modules page and `mpt module list --include-disabled`, while Dashboard cards and command palette entries only include enabled modules.
 
 ## Add A Module
+
+New product tools use the standalone Tool SDK and may live in any repository:
+
+```powershell
+.\scripts\build-sdk.ps1
+dotnet run --project src\MyPowerTools.Cli -- create tool --type web --id example.tool --output C:\src\example-tool
+dotnet run --project src\MyPowerTools.Cli -- validate tool C:\src\example-tool
+dotnet run --project src\MyPowerTools.Cli -- pack tool C:\src\example-tool
+```
+
+Add the tool directory to `%LOCALAPPDATA%\MyPowerTools\settings\tool-directories.json`, then click **Refresh tools**. External .NET tools reference the generated NuGet packages; web and other-language runtimes consume the npm bridge or protocol bundle. See [docs/sdk/README.md](docs/sdk/README.md) for the complete workflow.
+
+The package-module flow remains available for platform modules and existing integrations:
 
 1. Create a module directory with `module.json` or a multi-module `package.json`.
 2. Add UI surface files under `ui/`.

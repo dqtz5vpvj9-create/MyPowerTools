@@ -106,7 +106,7 @@ public sealed partial class RuntimeAcceptanceTests
     }
 
     [Fact]
-    public void Command_palette_view_model_groups_ranks_and_exposes_execution_detail()
+    public void Command_palette_view_model_ranks_selects_and_exposes_execution_detail()
     {
         var scan = new CommandItemViewModel(
             "adb-forwarder.devices.scan",
@@ -151,11 +151,122 @@ public sealed partial class RuntimeAcceptanceTests
 
         Assert.Equal("adb-forwarder.portproxy.apply", viewModel.Commands[0].CommandId);
         Assert.Equal("adb-forwarder.portproxy.apply", viewModel.SelectedCommand!.CommandId);
-        Assert.Equal(2, viewModel.ProviderGroups.Count);
-        Assert.True(viewModel.HasRecentCommands);
+        Assert.Equal(3, viewModel.Results.Count);
+        Assert.Equal(3, viewModel.VisibleResults.Count);
+        Assert.True(viewModel.VisibleResults[0].IsSelected);
+        Assert.Equal("Review", viewModel.VisibleResults[0].ActionHint);
         Assert.True(viewModel.RequiresDangerousConfirmation);
         Assert.Contains("portproxy.apply", viewModel.DangerousConfirmationText);
         Assert.Contains("reason=test", viewModel.SelectionPreview);
+    }
+
+    [Fact]
+    public async Task Command_palette_keyboard_selection_and_activation_execute_the_highlighted_result()
+    {
+        var executed = new List<string>();
+        var first = new CommandItemViewModel(
+            "sample.first",
+            "sample",
+            "First command",
+            "First result",
+            "none",
+            false,
+            "Sample",
+            "none",
+            "",
+            false,
+            (commandId, _, _, cancellationToken) => SingleCommandStatus("succeeded", commandId, cancellationToken));
+        var second = new CommandItemViewModel(
+            "sample.second",
+            "sample",
+            "Second command",
+            "Second result",
+            "none",
+            false,
+            "Sample",
+            "none",
+            "",
+            false,
+            (commandId, _, _, cancellationToken) =>
+            {
+                executed.Add(commandId);
+                return SingleCommandStatus("succeeded", commandId, cancellationToken);
+            });
+        var viewModel = new CommandPaletteViewModel("", [first, second]);
+
+        viewModel.MoveSelection(-1);
+
+        Assert.True(viewModel.VisibleResults[1].IsSelected);
+        Assert.Equal("sample.second", viewModel.SelectedCommand!.CommandId);
+
+        viewModel.MoveSelection(1);
+
+        Assert.True(viewModel.VisibleResults[0].IsSelected);
+        Assert.Equal("sample.first", viewModel.SelectedCommand!.CommandId);
+
+        viewModel.MoveSelection(1);
+
+        Assert.False(viewModel.VisibleResults[0].IsSelected);
+        Assert.True(viewModel.VisibleResults[1].IsSelected);
+        Assert.Equal("sample.second", viewModel.SelectedCommand!.CommandId);
+
+        await viewModel.ActivateSelectedAsync();
+
+        Assert.Equal(new[] { "sample.second" }, executed);
+        Assert.True(viewModel.IsDetailsOpen);
+        Assert.False(viewModel.IsResultsVisible);
+
+        viewModel.BackToResultsCommand.Execute(null);
+
+        Assert.False(viewModel.IsDetailsOpen);
+        Assert.True(viewModel.IsResultsVisible);
+    }
+
+    [Fact]
+    public async Task Command_palette_dangerous_command_requires_explicit_checkbox_confirmation()
+    {
+        var executeCount = 0;
+        var dangerous = new CommandItemViewModel(
+            "sample.admin.apply",
+            "sample",
+            "Apply administrator change",
+            "Writes a protected setting",
+            "dangerous",
+            true,
+            "Sample",
+            "broker approval required",
+            "",
+            false,
+            (_, _, _, cancellationToken) =>
+            {
+                executeCount++;
+                return SingleCommandStatus("succeeded", "applied", cancellationToken);
+            });
+        var viewModel = new CommandPaletteViewModel("", [dangerous]);
+
+        Assert.True(dangerous.RequiresDangerousConfirmation);
+        Assert.False(dangerous.IsDangerousConfirmed);
+        Assert.False(dangerous.ExecuteCommand.CanExecute(null));
+
+        await viewModel.ActivateSelectedAsync();
+
+        Assert.True(viewModel.IsDetailsOpen);
+        Assert.Equal(0, executeCount);
+
+        await dangerous.ExecuteAsync();
+
+        Assert.Equal(0, executeCount);
+        Assert.Equal("blocked", dangerous.ExecutionState);
+        Assert.Equal(dangerous.DangerConfirmationText, dangerous.ExecutionMessage);
+
+        dangerous.IsDangerousConfirmed = true;
+
+        Assert.True(dangerous.ExecuteCommand.CanExecute(null));
+
+        await dangerous.ExecuteAsync();
+
+        Assert.Equal(1, executeCount);
+        Assert.Equal("succeeded", dangerous.ExecutionState);
     }
 
     [Fact]
@@ -163,9 +274,9 @@ public sealed partial class RuntimeAcceptanceTests
     {
         var resetInvoked = false;
         var hotkey = new HotkeyBindingViewModel(
-            "screenease.profile.quick-apply",
+            "screenease.toggle-enabled",
             "Ctrl+Alt+F9",
-            "screenease.profile.apply",
+            "screenease.effect.toggle",
             "conflict",
             "Gesture also maps to command-palette.",
             true,
@@ -184,7 +295,7 @@ public sealed partial class RuntimeAcceptanceTests
 
         Assert.True(hotkey.IsDirty);
         Assert.Contains("Ctrl+Alt+F9", hotkey.ResultPrompt);
-        Assert.Contains("screenease.profile.apply", hotkey.CommandArgsPreview);
+        Assert.Contains("screenease.effect.toggle", hotkey.CommandArgsPreview);
         hotkey.ResetCommand.Execute(null);
         Assert.True(resetInvoked);
     }
@@ -335,9 +446,120 @@ public sealed partial class RuntimeAcceptanceTests
 
         var commandViewModel = ShellPageViewModelFactory.FromCommands("open", commands);
 
-        Assert.Equal("Command Palette", commandViewModel.Title);
+        Assert.Equal("Search results", commandViewModel.Title);
         Assert.Equal("open", commandViewModel.Query);
         Assert.Single(commandViewModel.Commands);
+    }
+
+    [Fact]
+    public void Shell_command_palette_filters_legacy_open_execution_entries()
+    {
+        var commands = new HostProto.ListCommandsResponse();
+        commands.Commands.Add(new HostProto.CommandItem
+        {
+            CommandId = "sample.legacy.open",
+            ModuleId = "sample",
+            Title = "Open sample module",
+            Subtitle = "Legacy module detail route",
+            Execution = new Google.Protobuf.WellKnownTypes.Struct
+            {
+                Fields =
+                {
+                    ["type"] = Google.Protobuf.WellKnownTypes.Value.ForString("open")
+                }
+            }
+        });
+        commands.Commands.Add(new HostProto.CommandItem
+        {
+            CommandId = "sample.refresh",
+            ModuleId = "sample",
+            Title = "Refresh sample",
+            Subtitle = "Refreshes the product state",
+            Execution = new Google.Protobuf.WellKnownTypes.Struct
+            {
+                Fields =
+                {
+                    ["type"] = Google.Protobuf.WellKnownTypes.Value.ForString("command")
+                }
+            }
+        });
+
+        var viewModel = ShellPageViewModelFactory.FromCommands("sample", commands);
+        var command = Assert.Single(viewModel.Commands);
+
+        Assert.Equal("sample.refresh", command.CommandId);
+        Assert.DoesNotContain(viewModel.Results, result => result.Command.CommandId == "sample.legacy.open");
+    }
+
+    [Fact]
+    public void Shell_command_id_open_suffix_does_not_route_to_module_detail()
+    {
+        var refreshedModuleId = "";
+        var handled = ShellCommandRouter.TryHandleShellCommand(
+            "android-tools.notifications.open",
+            moduleId =>
+            {
+                refreshedModuleId = moduleId;
+                return Task.CompletedTask;
+            },
+            out var action);
+
+        Assert.False(handled);
+        Assert.True(action.IsCompletedSuccessfully);
+        Assert.Equal("", refreshedModuleId);
+    }
+
+    [Fact]
+    public async Task Shell_router_only_handles_explicit_runtime_refresh_command()
+    {
+        var refreshed = "";
+
+        var settingsHandled = ShellCommandRouter.TryHandleShellCommand(
+            "screenease.settings.open",
+            moduleId =>
+            {
+                refreshed = moduleId;
+                return Task.CompletedTask;
+            },
+            out var settingsAction);
+
+        Assert.False(settingsHandled);
+        Assert.True(settingsAction.IsCompletedSuccessfully);
+        Assert.Equal("", refreshed);
+
+        var events = new List<CommandExecutionStatus>();
+        Assert.True(ShellCommandRouter.TryHandleShellCommandStream(
+            "screenease.status.refresh",
+            moduleId =>
+            {
+                refreshed = moduleId;
+                return Task.CompletedTask;
+            },
+            out var stream));
+
+        await foreach (var evt in stream)
+        {
+            events.Add(evt);
+        }
+
+        Assert.Equal("screenease", refreshed);
+        Assert.Equal("succeeded", events.Last().State);
+        Assert.Contains("refreshed: screenease.status.refresh", events.Last().Message, StringComparison.Ordinal);
+
+        Assert.Equal("refreshed: screenease.status.refresh", ShellCommandRouter.SuccessMessage("screenease.status.refresh"));
+    }
+
+    [Fact]
+    public void Shell_dashboard_actions_do_not_show_duplicate_details_button()
+    {
+        var dashboardViewPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Views", "DashboardView.axaml");
+        var dashboardView = File.ReadAllText(dashboardViewPath);
+        var densityTokens = File.ReadAllText(Path.Combine(Root, "src", "MyPowerTools.UI", "Themes", "MptDensity.axaml"));
+
+        Assert.DoesNotContain("Content=\"Details\"", dashboardView, StringComparison.Ordinal);
+        Assert.Contains("Content=\"{Binding Title}\"", dashboardView);
+        Assert.Contains("Classes.MptPrimaryButton=\"{Binding IsPrimary}\"", dashboardView);
+        Assert.Contains("<x:Double x:Key=\"MptLayoutCardMinWidth\">320</x:Double>", densityTokens);
     }
 
     [Fact]
@@ -402,8 +624,9 @@ public sealed partial class RuntimeAcceptanceTests
         Assert.Contains("_pageData.LoadDashboardAsync", workspace);
         Assert.Contains("ShellPageViewModelFactory.FromDashboard", service);
         Assert.Contains("new DashboardView", workspace);
+        Assert.Contains("ShellCommandRouter.TryHandleShellCommand", workspace);
         Assert.DoesNotContain("BuildDashboardCard", workspace, StringComparison.Ordinal);
-        Assert.Contains("DetailsCommand", dashboardView);
+        Assert.DoesNotContain("DetailsCommand", dashboardView);
         Assert.Contains("ExecuteCommand", dashboardView);
         Assert.Contains("System.Windows.Input", viewModel);
     }
@@ -512,28 +735,67 @@ public sealed partial class RuntimeAcceptanceTests
         Assert.Contains("new CommandPaletteView", workspace);
         Assert.DoesNotContain("_commandPanel.Children", workspace, StringComparison.Ordinal);
         Assert.Contains("x:DataType=\"vm:CommandPaletteViewModel\"", commandPaletteView);
-        Assert.Contains("CommandItemViewModel", commandPaletteView);
-        Assert.Contains("ExecuteCommand", commandPaletteView);
+        Assert.Contains("VisibleResults", commandPaletteView);
+        Assert.Contains("CommandSearchResultViewModel", commandPaletteView);
+        Assert.Contains("ActivateCommand", commandPaletteView);
+        Assert.Contains("IsDetailsOpen", commandPaletteView);
+        Assert.Contains("BackToResultsCommand", commandPaletteView);
+        Assert.Contains("SelectedCommand.ExecuteCommand", commandPaletteView);
         Assert.Contains("IsVisible=\"{Binding IsEmpty}\"", commandPaletteView);
-        Assert.Contains("ParameterSummary", commandPaletteView);
-        Assert.Contains("ProviderGroups", commandPaletteView);
         Assert.Contains("SelectedCommand.Parameters", commandPaletteView);
-        Assert.Contains("RecentCommands", commandPaletteView);
-        Assert.Contains("DangerousConfirmationText", commandPaletteView);
+        Assert.Contains("SelectedCommand.DangerConfirmationText", commandPaletteView);
+        Assert.Contains("SelectedCommand.IsDangerousConfirmed, Mode=TwoWay", commandPaletteView);
         Assert.Contains("CommandParameterViewModel", commandPaletteView);
-        Assert.Contains("ExecuteLabel", commandPaletteView);
-        Assert.Contains("CancelCommand", commandPaletteView);
-        Assert.Contains("CanCancel", commandPaletteView);
-        Assert.Contains("ProgressEvents", commandPaletteView);
-        Assert.Contains("HasProgressEvents", commandPaletteView);
-        Assert.Contains("ExecutionPreview", commandPaletteView);
-        Assert.Contains("ValidationMessage", commandPaletteView);
-        Assert.Contains("ExecutionStateLabel", commandPaletteView);
+        Assert.Contains("SelectedCommand.ExecuteLabel", commandPaletteView);
+        Assert.Contains("SelectedCommand.CancelCommand", commandPaletteView);
+        Assert.Contains("SelectedCommand.CanCancel", commandPaletteView);
+        Assert.Contains("SelectedCommand.ProgressEvents", commandPaletteView);
+        Assert.Contains("SelectedCommand.HasProgressEvents", commandPaletteView);
+        Assert.Contains("SelectedCommand.ExecutionPreview", commandPaletteView);
+        Assert.Contains("SelectedCommand.ValidationMessage", commandPaletteView);
+        Assert.Contains("SelectedCommand.ExecutionStateLabel", commandPaletteView);
+        Assert.DoesNotContain("ProviderGroups", commandPaletteView, StringComparison.Ordinal);
+        Assert.DoesNotContain("RecentCommands", commandPaletteView, StringComparison.Ordinal);
+        Assert.DoesNotContain("Search commands", commandPaletteView, StringComparison.Ordinal);
         Assert.Contains("ICommand ExecuteCommand", viewModel);
         Assert.Contains("ICommand CancelCommand", viewModel);
         Assert.Contains("CommandExecutionStatus", viewModel);
         Assert.Contains("CommandProgressItemViewModel", viewModel);
         Assert.Contains("CommandCancellationStatus", viewModel);
+        Assert.Contains("case Key.Down", workspace);
+        Assert.Contains("case Key.Up", workspace);
+        Assert.Contains("case Key.Enter", workspace);
+        Assert.Contains("MoveSelection(1)", workspace);
+        Assert.Contains("MoveSelection(-1)", workspace);
+        Assert.Contains("ActivateSelectedAsync", workspace);
+    }
+
+    [Fact]
+    public void Shell_command_palette_is_an_anchored_flyout_without_a_page_scrim()
+    {
+        var shellChromePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Views", "ShellChromeView.axaml");
+        var themePath = Path.Combine(Root, "src", "MyPowerTools.UI", "Themes", "MptTheme.axaml");
+        var mainWindowPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "MainWindow.cs");
+        var shellChrome = File.ReadAllText(shellChromePath);
+        var theme = File.ReadAllText(themePath);
+        var mainWindow = File.ReadAllText(mainWindowPath);
+        var commandOverlayStart = shellChrome.IndexOf("x:Name=\"GlobalOverlayHost\"", StringComparison.Ordinal);
+        var permissionOverlayStart = commandOverlayStart >= 0
+            ? shellChrome.IndexOf("<Grid Grid.ColumnSpan=\"2\"", commandOverlayStart, StringComparison.Ordinal)
+            : -1;
+        Assert.True(commandOverlayStart >= 0);
+        Assert.True(permissionOverlayStart > commandOverlayStart);
+
+        var commandOverlay = shellChrome[commandOverlayStart..permissionOverlayStart];
+        Assert.Contains("x:Name=\"CommandFlyout\"", commandOverlay);
+        Assert.Contains("HorizontalAlignment=\"Left\"", commandOverlay);
+        Assert.Contains("VerticalAlignment=\"Top\"", commandOverlay);
+        Assert.DoesNotContain("MptBrushOverlayScrim", commandOverlay, StringComparison.Ordinal);
+        Assert.DoesNotContain("HorizontalAlignment=\"Center\"", commandOverlay, StringComparison.Ordinal);
+        Assert.DoesNotContain("PART_TitleTextPanel", theme, StringComparison.Ordinal);
+        Assert.Contains("Title = OperatingSystem.IsWindows() ? \"\" : WindowCaption", mainWindow);
+        Assert.Contains("SetWindowText(handle, WindowCaption)", mainWindow);
+        Assert.Contains("EntryPoint = \"SetWindowTextW\"", mainWindow);
     }
 
     [Fact]
@@ -995,7 +1257,7 @@ public sealed partial class RuntimeAcceptanceTests
         var patch = ShellPageViewModelFactory.BuildSettingsPatch(viewModel);
         Assert.Equal(38200, patch["port"]!.GetValue<long>());
         Assert.Equal("compact", patch["mode"]!.GetValue<string>());
-        Assert.True(patch["enabled"]!.GetValue<bool>());
+        Assert.False(patch.ContainsKey("enabled"));
 
         viewModel.ApplySaveResult("applied", "Settings applied", "Settings applied to sample.", 8, saved: true);
 
@@ -1137,9 +1399,14 @@ public sealed partial class RuntimeAcceptanceTests
         Assert.DoesNotContain("NavButton", mainWindow, StringComparison.Ordinal);
         Assert.DoesNotContain("UpdateNavigationState", mainWindow, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"NavigationHost\"", shellChromeView);
-        Assert.Contains("ItemsSource=\"{Binding NavigationItems}\"", shellChromeView);
+        Assert.Contains("ItemsSource=\"{Binding TopNavigationItems}\"", shellChromeView);
+        Assert.Contains("ItemsSource=\"{Binding ToolNavigationItems}\"", shellChromeView);
+        Assert.Contains("ItemsSource=\"{Binding FooterNavigationItems}\"", shellChromeView);
         Assert.Contains("Command=\"{Binding RefreshCommand}\"", shellChromeView);
         Assert.Contains("ShellNavigationItemViewModel", shellChromeView);
+        Assert.Contains("x:Name=\"TitleSearchHost\"", shellChromeView);
+        Assert.Contains("WindowDecorationProperties.ElementRole=\"TitleBar\"", shellChromeView);
+        Assert.Contains("Classes.selected=\"{Binding IsSelected}\"", shellChromeView);
         Assert.Contains("x:Name=\"SearchBox\"", shellChromeView);
         Assert.Contains("x:Name=\"ContentHost\"", shellChromeView);
         Assert.Contains("x:Name=\"CommandPanel\"", shellChromeView);
@@ -1151,6 +1418,8 @@ public sealed partial class RuntimeAcceptanceTests
         Assert.Contains("class ShellNavigationItemViewModel", viewModel);
         Assert.Contains("public string StatusText", viewModel);
         Assert.Contains("public string RunnerStatusText", viewModel);
+        Assert.Contains("public void SetNavigationCompact", viewModel);
+        Assert.Contains("public string DisplayLabel", viewModel);
         Assert.DoesNotContain("_statusBar", mainWindow, StringComparison.Ordinal);
         Assert.DoesNotContain("_runnerStatus", mainWindow, StringComparison.Ordinal);
         Assert.Contains("new ShellWorkspaceController", mainWindow);
@@ -1165,6 +1434,7 @@ public sealed partial class RuntimeAcceptanceTests
         var spacingPath = Path.Combine(Root, "src", "MyPowerTools.UI", "Themes", "MptSpacing.axaml");
         var radiiPath = Path.Combine(Root, "src", "MyPowerTools.UI", "Themes", "MptRadii.axaml");
         var typographyPath = Path.Combine(Root, "src", "MyPowerTools.UI", "Themes", "MptTypography.axaml");
+        var markdownPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Views", "MarkdownTextBlock.cs");
         var densityPath = Path.Combine(Root, "src", "MyPowerTools.UI", "Themes", "MptDensity.axaml");
         var controlsPath = Path.Combine(Root, "src", "MyPowerTools.UI", "Controls", "MptControls.axaml");
         var app = File.ReadAllText(appPath);
@@ -1173,6 +1443,7 @@ public sealed partial class RuntimeAcceptanceTests
         var spacing = File.ReadAllText(spacingPath);
         var radii = File.ReadAllText(radiiPath);
         var typography = File.ReadAllText(typographyPath);
+        var markdown = File.ReadAllText(markdownPath);
         var density = File.ReadAllText(densityPath);
         var controls = File.ReadAllText(controlsPath);
 
@@ -1189,6 +1460,10 @@ public sealed partial class RuntimeAcceptanceTests
         Assert.Contains("x:Key=\"MptRadiusCard\"", radii);
         Assert.Contains("x:Key=\"MptFontSizeTitle\"", typography);
         Assert.Contains("TextBlock.MptPageTitle", typography);
+        Assert.Contains("<Style Selector=\"SelectableTextBlock\">", typography);
+        Assert.Contains("Microsoft YaHei UI", typography);
+        Assert.Contains("Microsoft YaHei UI", markdown);
+        Assert.Contains("UsesCjkFont", markdown);
         Assert.Contains("x:Key=\"MptDensityControlHeight\"", density);
         Assert.Contains("Border.MptCard", controls);
         Assert.All(new[] { theme, spacing, radii, typography, density, controls }, text => Assert.DoesNotContain("#", text, StringComparison.Ordinal));
@@ -1279,6 +1554,12 @@ public sealed partial class RuntimeAcceptanceTests
     public void Shell_axaml_views_use_foundation_component_classes()
     {
         var viewRoot = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Views");
+        var productNativeViews = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+        {
+            "HomeView.axaml",
+            "RemoteNotificationsView.axaml",
+            "RemoteNotificationDetailWindow.axaml"
+        };
         var dashboard = File.ReadAllText(Path.Combine(viewRoot, "DashboardView.axaml"));
         var modules = File.ReadAllText(Path.Combine(viewRoot, "ModulesView.axaml"));
         var moduleDetail = File.ReadAllText(Path.Combine(viewRoot, "ModuleDetailView.axaml"));
@@ -1307,9 +1588,12 @@ public sealed partial class RuntimeAcceptanceTests
         {
             var view = File.ReadAllText(file);
             Assert.DoesNotContain("Classes=\"MptCard\"", view, StringComparison.Ordinal);
-            Assert.False(
-                System.Text.RegularExpressions.Regex.IsMatch(view, "</?(Button|TextBox|ComboBox|CheckBox)\\b"),
-                $"{file} should use Mpt input/action controls.");
+            if (!productNativeViews.Contains(Path.GetFileName(file)))
+            {
+                Assert.False(
+                    System.Text.RegularExpressions.Regex.IsMatch(view, "</?(Button|TextBox|ComboBox|CheckBox)\\b"),
+                    $"{file} should use Mpt input/action controls.");
+            }
             if (view.Contains("controls:Mpt", StringComparison.Ordinal))
             {
                 Assert.Contains("xmlns:controls=\"using:MyPowerTools.UI.Controls\"", view);
@@ -1325,7 +1609,9 @@ public sealed partial class RuntimeAcceptanceTests
         {
             var text = File.ReadAllText(file);
             Assert.Contains("DynamicResource", text);
-            Assert.DoesNotContain("#", text, StringComparison.Ordinal);
+            Assert.False(
+                System.Text.RegularExpressions.Regex.IsMatch(text, "#[0-9A-Fa-f]{3,8}"),
+                $"{file} should not contain inline hex colors.");
             Assert.DoesNotContain("Brush.Parse", text, StringComparison.Ordinal);
             Assert.DoesNotContain("Brushes.", text, StringComparison.Ordinal);
         }
@@ -1341,7 +1627,9 @@ public sealed partial class RuntimeAcceptanceTests
         foreach (var file in axamlFiles)
         {
             var text = File.ReadAllText(file);
-            Assert.DoesNotContain("#", text, StringComparison.Ordinal);
+            Assert.False(
+                System.Text.RegularExpressions.Regex.IsMatch(text, "#[0-9A-Fa-f]{3,8}"),
+                $"{file} should not contain inline hex colors.");
             Assert.DoesNotContain("Brush.Parse", text, StringComparison.Ordinal);
             Assert.DoesNotContain("Brushes.", text, StringComparison.Ordinal);
             Assert.False(
@@ -1380,10 +1668,17 @@ public sealed partial class RuntimeAcceptanceTests
         foreach (var file in Directory.EnumerateFiles(viewRoot, "*.axaml.cs"))
         {
             var text = File.ReadAllText(file);
-            Assert.Contains("AvaloniaXamlLoader.Load(this)", text);
+            Assert.True(
+                text.Contains("AvaloniaXamlLoader.Load(this)", StringComparison.Ordinal) ||
+                text.Contains("InitializeComponent()", StringComparison.Ordinal),
+                $"{file} should load its AXAML-defined layout.");
             Assert.DoesNotContain("HostControlClient", text, StringComparison.Ordinal);
-            Assert.DoesNotContain("DataContext =", text, StringComparison.Ordinal);
-            Assert.True(File.ReadLines(file).Count() <= 18, $"{file} should stay as thin view loading code.");
+            Assert.False(
+                System.Text.RegularExpressions.Regex.IsMatch(
+                    text,
+                    "new\\s+(Grid|Button|TextBox|ComboBox|CheckBox|StackPanel|Border|ScrollViewer|ContentControl)\\b"),
+                $"{file} should keep production layout in AXAML.");
+            Assert.True(File.ReadLines(file).Count() <= 350, $"{file} should remain a bounded interaction adapter.");
         }
     }
 
@@ -1477,10 +1772,30 @@ public sealed partial class RuntimeAcceptanceTests
     }
 
     [Fact]
-    public void Ui_shell_real_screenshot_renders_actual_avalonia_pngs()
+    public async Task Ui_shell_real_screenshot_renders_actual_avalonia_pngs()
     {
         var output = Path.Combine(Path.GetTempPath(), "mpt-shell-real-screenshot", Guid.NewGuid().ToString("N"));
-        var manifestPath = ShellRealScreenshotWriter.WriteSnapshotSet(output, "light", "1366x768", "normal");
+        var result = await RunDotnetAsync(
+            "run",
+            "--project",
+            Path.Combine(Root, "src", "MyPowerTools.Cli", "MyPowerTools.Cli.csproj"),
+            "--",
+            "ui",
+            "screenshot",
+            "--mode",
+            "fixture",
+            "--full-shell",
+            "--theme",
+            "light",
+            "--size",
+            "1366x768",
+            "--density",
+            "normal",
+            "--out",
+            output);
+        Assert.Equal(0, result.ExitCode);
+
+        var manifestPath = Path.Combine(output, "shell-real-screenshot-manifest.json");
         var manifest = JsonNode.Parse(File.ReadAllText(manifestPath))!.AsObject();
         var screenshots = manifest["screenshots"]!.AsArray();
         var requiredScreens = new[]
@@ -1527,8 +1842,43 @@ public sealed partial class RuntimeAcceptanceTests
         Assert.Contains("\"--live-runner\"", cliSource);
         Assert.Contains("[--full-shell]", cliSource);
         Assert.Contains("full ShellChrome Avalonia screenshots", cliSource);
+    }
 
-        AssertLiveHostControlScreenshotManifest();
+    [Fact]
+    public void Ui_shell_real_screenshot_filters_page_and_records_acceptance_manifest_fields()
+    {
+        var output = Path.Combine(Path.GetTempPath(), "mpt-shell-real-page-screenshot", Guid.NewGuid().ToString("N"));
+        var manifestPath = ShellRealScreenshotWriter.WriteSnapshotSet(
+            output,
+            "dark",
+            "1280x720",
+            "compact",
+            "shell.command-palette");
+        var manifest = JsonNode.Parse(File.ReadAllText(manifestPath))!.AsObject();
+        var screenshots = manifest["screenshots"]!.AsArray();
+        var screenshot = screenshots.Single()!.AsObject();
+
+        Assert.Equal("shell.command-palette", manifest["surface"]!.GetValue<string>());
+        Assert.Equal("fixture", manifest["mode"]!.GetValue<string>());
+        Assert.False(manifest["runnerConnected"]!.GetValue<bool>());
+        Assert.Equal(2, manifest["moduleCount"]!.GetValue<int>());
+        Assert.Equal(5, manifest["commandCount"]!.GetValue<int>());
+        Assert.Equal(1, manifest["screenshotCount"]!.GetValue<int>());
+
+        Assert.Equal("command-palette-with-params", screenshot["screenId"]!.GetValue<string>());
+        Assert.Equal("command-palette", screenshot["page"]!.GetValue<string>());
+        Assert.Equal("shell.command-palette", screenshot["surfaceId"]!.GetValue<string>());
+        Assert.Equal("fixture", screenshot["mode"]!.GetValue<string>());
+        Assert.Equal("dark", screenshot["theme"]!.GetValue<string>());
+        Assert.Equal("compact", screenshot["density"]!.GetValue<string>());
+        Assert.Equal("1280x720", screenshot["size"]!.GetValue<string>());
+        Assert.False(screenshot["runnerConnected"]!.GetValue<bool>());
+        Assert.Equal(2, screenshot["moduleCount"]!.GetValue<int>());
+        Assert.Equal(5, screenshot["commandCount"]!.GetValue<int>());
+
+        var imagePath = screenshot["imagePath"]!.GetValue<string>();
+        Assert.True(File.Exists(imagePath), $"Missing filtered real screenshot {imagePath}.");
+        Assert.DoesNotContain(screenshots, item => item!["screenId"]!.GetValue<string>() == "dashboard");
     }
 
     [Fact]

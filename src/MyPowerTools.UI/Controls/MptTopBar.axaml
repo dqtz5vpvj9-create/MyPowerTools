@@ -2,9 +2,11 @@
         xmlns:controls="using:MyPowerTools.UI.Controls">
   <Style Selector="controls|MptTopBar">
     <Setter Property="Margin" Value="{DynamicResource MptTopBarPadding}" />
+    <Setter Property="Background" Value="{DynamicResource MptBrushShellChrome}" />
   </Style>
 
   <Style Selector="Grid.MptTopBar">
     <Setter Property="Margin" Value="{DynamicResource MptTopBarPadding}" />
+    <Setter Property="Background" Value="{DynamicResource MptBrushShellChrome}" />
   </Style>
 </Styles>

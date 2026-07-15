@@ -1,0 +1,11 @@
+{
+  "protocolVersion": "1.0",
+  "eventId": "vector-event-001",
+  "sequence": 42,
+  "toolId": "example.external",
+  "topic": "example.external.updated",
+  "time": "2026-07-13T00:00:00Z",
+  "payload": {
+    "value": 1
+  }
+}

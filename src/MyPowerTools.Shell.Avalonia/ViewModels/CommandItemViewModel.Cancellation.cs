@@ -20,6 +20,13 @@ public sealed partial class CommandItemViewModel
 
     private string BuildExecutionPreview()
     {
+        if (IsNavigation)
+        {
+            return Title.StartsWith("Open ", StringComparison.OrdinalIgnoreCase)
+                ? $"{Title}."
+                : $"Open {Title}.";
+        }
+
         if (!HasParameters)
         {
             return $"Preview: run {CommandId}.";

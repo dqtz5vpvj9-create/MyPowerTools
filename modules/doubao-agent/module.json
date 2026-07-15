@@ -2,8 +2,8 @@
   "schemaVersion": "1.0",
   "id": "doubao-agent",
   "packageId": "doubao-agent",
-  "displayName": "Doubao Agent",
-  "version": "0.2.0",
+  "displayName": "豆包 Computer Use",
+  "version": "0.3.0",
   "moduleSdk": "1.0",
   "entrypoints": [
     {
@@ -96,6 +96,9 @@
   "staticIndexes": {
     "commands": "commands.index.json"
   },
+  "tools": [
+    "ui/tool.json"
+  ],
   "uiSurfaces": [
     "ui/dashboard-card.json",
     "ui/detail-page.json",

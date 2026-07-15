@@ -72,10 +72,128 @@ public sealed class MptModuleManifest
     public List<MptPermissionManifest> Permissions { get; init; } = [];
     public List<string> Surfaces { get; init; } = [];
     public List<string> UiSurfaces { get; init; } = [];
+    public List<string> Tools { get; init; } = [];
     public List<MptHotkeyManifest> Hotkeys { get; init; } = [];
     public Dictionary<string, JsonElement>? StaticIndexes { get; init; }
     public MptRuntimePolicyManifest? RuntimePolicy { get; init; }
     public MptDevelopmentManifest? Development { get; init; }
+
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement> ExtensionData { get; init; } = [];
+}
+
+public sealed class MptToolManifest
+{
+    public string SchemaVersion { get; init; } = "";
+    public string ToolId { get; init; } = "";
+    public string OwnerModuleId { get; init; } = "";
+    public string Title { get; init; } = "";
+    public string Description { get; init; } = "";
+    public string Icon { get; init; } = "";
+    public string Category { get; init; } = "";
+    public string Availability { get; init; } = "available";
+    public string Type { get; init; } = "";
+    public string PrimaryRouteId { get; init; } = "";
+    public List<MptToolRouteManifest> Routes { get; init; } = [];
+    public MptToolHomeCardManifest HomeCard { get; init; } = new();
+    public MptToolRuntimeManifest? Runtime { get; init; }
+    public MptToolSettingsManifest? Settings { get; init; }
+    public List<MptToolCommandManifest> Commands { get; init; } = [];
+    public List<MptPermissionManifest> Permissions { get; init; } = [];
+    public MptToolSourceManifest? Source { get; init; }
+    public MptToolDevelopmentManifest? Development { get; init; }
+
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement> ExtensionData { get; init; } = [];
+}
+
+public sealed class MptToolRouteManifest
+{
+    public string RouteId { get; init; } = "";
+    public string SurfaceId { get; init; } = "";
+    public string Title { get; init; } = "";
+    public string Icon { get; init; } = "";
+    public MptToolSurfaceManifest? Surface { get; init; }
+
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement> ExtensionData { get; init; } = [];
+}
+
+public sealed class MptToolSurfaceManifest
+{
+    public string Kind { get; init; } = "";
+    public string Source { get; init; } = "";
+    public string StaticRoot { get; init; } = "";
+    public string Assembly { get; init; } = "";
+    public string Type { get; init; } = "";
+    public bool OpenExternal { get; init; }
+    public List<string> AllowedOrigins { get; init; } = [];
+
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement> ExtensionData { get; init; } = [];
+}
+
+public sealed class MptToolRuntimeManifest
+{
+    public string Transport { get; init; } = "";
+    public string Endpoint { get; init; } = "";
+    public string Command { get; init; } = "";
+    public List<string> Args { get; init; } = [];
+    public string HealthPath { get; init; } = "/api/status";
+    public string LogsPath { get; init; } = "";
+    public int TimeoutMs { get; init; } = 5000;
+    public bool Remote { get; init; }
+
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement> ExtensionData { get; init; } = [];
+}
+
+public sealed class MptToolSettingsManifest
+{
+    public string Schema { get; init; } = "settings.schema.json";
+    public string Values { get; init; } = "settings.json";
+    public List<string> Secrets { get; init; } = [];
+
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement> ExtensionData { get; init; } = [];
+}
+
+public sealed class MptToolCommandManifest
+{
+    public string Id { get; init; } = "";
+    public string Title { get; init; } = "";
+    public string Description { get; init; } = "";
+    public string Method { get; init; } = "";
+    public string Path { get; init; } = "";
+
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement> ExtensionData { get; init; } = [];
+}
+
+public sealed class MptToolSourceManifest
+{
+    public string Repository { get; init; } = "";
+    public string Revision { get; init; } = "";
+
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement> ExtensionData { get; init; } = [];
+}
+
+public sealed class MptToolDevelopmentManifest
+{
+    public bool Loose { get; init; } = true;
+    public bool AutoRefresh { get; init; }
+
+    [JsonExtensionData]
+    public Dictionary<string, JsonElement> ExtensionData { get; init; } = [];
+}
+
+public sealed class MptToolHomeCardManifest
+{
+    public string Summary { get; init; } = "";
+    public string PrimaryActionLabel { get; init; } = "Open";
+    public string StatusBinding { get; init; } = "";
+    public int Order { get; init; }
 
     [JsonExtensionData]
     public Dictionary<string, JsonElement> ExtensionData { get; init; } = [];
@@ -196,6 +314,7 @@ public sealed class MptHotkeyManifest
     public string CommandId { get; init; } = "";
     public string Scope { get; init; } = "module";
     public string Reason { get; init; } = "";
+    public bool EnabledByDefault { get; init; } = true;
 }
 
 public sealed class MptUiSurfaceManifest
@@ -221,7 +340,8 @@ public sealed class MptUiSurfaceLayout
 public sealed record MptPackageDefinition(
     string Directory,
     MptPackageManifest Package,
-    IReadOnlyList<MptModuleDefinition> Modules);
+    IReadOnlyList<MptModuleDefinition> Modules,
+    bool IsDevelopmentTool = false);
 
 public sealed record MptModuleDefinition(
     string Directory,

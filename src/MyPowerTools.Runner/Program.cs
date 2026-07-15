@@ -13,12 +13,14 @@ using MyPowerTools.Runner;
 using MyPowerTools.Runtime;
 
 var root = FindRepositoryRoot(AppContext.BaseDirectory);
+PrependAndroidPlatformToolsToPath(root);
 var modulesRoot = GetOption(args, "--modules") ?? Path.Combine(root, "modules");
 var once = args.Contains("--once", StringComparer.OrdinalIgnoreCase);
 var platform = PlatformId.Current();
 var windowsPlatform = OperatingSystem.IsWindows() ? new WindowsPlatformPack() : null;
 var dataRoot = GetOption(args, "--data-root") ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MyPowerTools");
 var runtimePaths = RuntimePaths.Create(dataRoot);
+var developmentToolRoots = ToolDiscoveryConfiguration.Resolve(root, dataRoot, GetOptions(args, "--tool-dir"));
 var hostControlToken = HostControlAuthTokenStore.GetOrCreateToken(runtimePaths.Root);
 
 using var guard = SingleInstanceGuard.Acquire("MyPowerTools.Runner");
@@ -29,7 +31,7 @@ if (!guard.OwnsInstance && !once)
 }
 
 await using var runtime = new MptHostRuntime(new PackageReader(), platform, runtimePaths, CreateTransportRuntimes(), CreateCapabilityProviders(windowsPlatform));
-runtime.Load(modulesRoot);
+runtime.Load(modulesRoot, developmentToolRoots);
 await runtime.RefreshDynamicCommandsAsync(CancellationToken.None);
 
 if (once)
@@ -79,12 +81,22 @@ app.MapGet("/", () => $"MyPowerTools.Runner {ProtocolConstants.HostVersion} is r
 Console.WriteLine($"MyPowerTools.Runner serving HostControl on {endpoint.Transport}:{endpoint.Address}");
 var tray = await StartTrayAsync(app, root, runtimePaths.Root, args, windowsPlatform);
 var hotkeys = await StartHotkeysAsync(root, runtimePaths.Root, args, windowsPlatform, runtime);
+var doubaoSupervisor = DoubaoRuntimeSupervisor.CreateForInstalledLayout(root, runtimePaths.Root);
+if (doubaoSupervisor is not null)
+{
+    await doubaoSupervisor.StartAsync();
+}
 try
 {
     await app.RunAsync();
 }
 finally
 {
+    if (doubaoSupervisor is not null)
+    {
+        await doubaoSupervisor.DisposeAsync();
+    }
+
     await runtime.StopModuleEventPumpAsync();
     if (hotkeys is not null)
     {
@@ -99,6 +111,22 @@ finally
 
 return 0;
 
+static void PrependAndroidPlatformToolsToPath(string root)
+{
+    var platformTools = Path.Combine(root, "Tools", "AndroidPlatformTools");
+    if (!Directory.Exists(platformTools))
+    {
+        return;
+    }
+
+    var inheritedPath = Environment.GetEnvironmentVariable("PATH");
+    Environment.SetEnvironmentVariable(
+        "PATH",
+        string.IsNullOrWhiteSpace(inheritedPath)
+            ? platformTools
+            : platformTools + Path.PathSeparator + inheritedPath);
+}
+
 static string? GetOption(string[] args, string name)
 {
     for (var i = 0; i < args.Length - 1; i++)
@@ -110,6 +138,19 @@ static string? GetOption(string[] args, string name)
     }
 
     return null;
+}
+
+static IReadOnlyList<string> GetOptions(string[] args, string name)
+{
+    var values = new List<string>();
+    for (var index = 0; index < args.Length - 1; index++)
+    {
+        if (string.Equals(args[index], name, StringComparison.OrdinalIgnoreCase))
+        {
+            values.Add(args[++index]);
+        }
+    }
+    return values;
 }
 
 static IModuleTransportRuntime[] CreateTransportRuntimes()
@@ -147,12 +188,12 @@ static async Task<ITrayService?> StartTrayAsync(WebApplication app, string root,
     var tray = platform.Tray;
     var result = await tray.StartAsync(
         new TrayOptions(
-            "MyPowerTools.Runner",
-            "MyPowerTools Runner",
-            null,
+            "MyPowerTools",
+            "MyPowerTools",
+            Path.Combine(root, "assets", "MyPowerTools.ico"),
             [
                 new TrayMenuItem("open-shell", "Open MyPowerTools", IsDefault: true),
-                new TrayMenuItem("quit-runner", "Quit Runner", SeparatorBefore: true)
+                new TrayMenuItem("exit-application", "Exit MyPowerTools", SeparatorBefore: true)
             ]),
         (invocation, cancellationToken) =>
         {
@@ -161,7 +202,7 @@ static async Task<ITrayService?> StartTrayAsync(WebApplication app, string root,
                 StartShell(root, dataRoot);
             }
 
-            if (invocation.ActionId == "quit-runner")
+            if (invocation.ActionId == "exit-application")
             {
                 app.Lifetime.StopApplication();
             }

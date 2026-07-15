@@ -1,49 +1,94 @@
 <Styles xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
   <Styles.Resources>
-    <Color x:Key="MptColorAppBackgroundLight">#F8FAFC</Color>
+    <Color x:Key="MptColorAppBackgroundLight">#F5F5F5</Color>
+    <Color x:Key="MptColorShellChromeLight">#FFFFFF</Color>
     <Color x:Key="MptColorSurfaceLight">#FFFFFF</Color>
     <Color x:Key="MptColorSurfaceRaisedLight">#FFFFFF</Color>
-    <Color x:Key="MptColorSurfaceMutedLight">#F1F5F9</Color>
-    <Color x:Key="MptColorBorderLight">#E2E8F0</Color>
-    <Color x:Key="MptColorBorderStrongLight">#CBD5E1</Color>
-    <Color x:Key="MptColorTextPrimaryLight">#0F172A</Color>
-    <Color x:Key="MptColorTextSecondaryLight">#475569</Color>
-    <Color x:Key="MptColorTextMutedLight">#64748B</Color>
-    <Color x:Key="MptColorAccent">#2563EB</Color>
-    <Color x:Key="MptColorAccentHover">#1D4ED8</Color>
-    <Color x:Key="MptColorSuccess">#16A34A</Color>
-    <Color x:Key="MptColorWarning">#D97706</Color>
-    <Color x:Key="MptColorDanger">#DC2626</Color>
-    <Color x:Key="MptColorInfo">#0891B2</Color>
-    <Color x:Key="MptColorAppBackgroundDark">#0B1120</Color>
-    <Color x:Key="MptColorSurfaceDark">#111827</Color>
-    <Color x:Key="MptColorSurfaceRaisedDark">#1F2937</Color>
-    <Color x:Key="MptColorSurfaceMutedDark">#0F172A</Color>
-    <Color x:Key="MptColorBorderDark">#273449</Color>
-    <Color x:Key="MptColorTextPrimaryDark">#E5E7EB</Color>
-    <Color x:Key="MptColorTextSecondaryDark">#CBD5E1</Color>
-    <Color x:Key="MptColorTextMutedDark">#94A3B8</Color>
+    <Color x:Key="MptColorSurfaceMutedLight">#F7F7F7</Color>
+    <Color x:Key="MptColorSurfaceInsetLight">#F5F5F5</Color>
+    <Color x:Key="MptColorLayerLight">#F5F5F5</Color>
+    <Color x:Key="MptColorLayerAltLight">#F7F7F7</Color>
+    <Color x:Key="MptColorControlFillLight">#FBFBFB</Color>
+    <Color x:Key="MptColorControlFillHoverLight">#F6F6F6</Color>
+    <Color x:Key="MptColorControlFillPressedLight">#EEEEEE</Color>
+    <Color x:Key="MptColorBorderLight">#E5E5E5</Color>
+    <Color x:Key="MptColorBorderStrongLight">#D1D1D1</Color>
+    <Color x:Key="MptColorControlStrokeLight">#C9C9C9</Color>
+    <Color x:Key="MptColorDividerLight">#E5E5E5</Color>
+    <Color x:Key="MptColorNavigationBackgroundLight">#F5F5F5</Color>
+    <Color x:Key="MptColorNavigationHoverLight">#EFEFEF</Color>
+    <Color x:Key="MptColorNavigationSelectedLight">#E8E8E8</Color>
+    <Color x:Key="MptColorTextPrimaryLight">#1A1A1A</Color>
+    <Color x:Key="MptColorTextSecondaryLight">#5D5D5D</Color>
+    <Color x:Key="MptColorTextMutedLight">#767676</Color>
+    <Color x:Key="MptColorAccent">#0067C0</Color>
+    <Color x:Key="MptColorAccentHover">#005A9E</Color>
+    <Color x:Key="MptColorAccentPressed">#004578</Color>
+    <Color x:Key="MptColorSuccess">#0F7B0F</Color>
+    <Color x:Key="MptColorWarning">#9D5D00</Color>
+    <Color x:Key="MptColorDanger">#C42B1C</Color>
+    <Color x:Key="MptColorInfo">#0067C0</Color>
+    <Color x:Key="MptColorScreenEaseAccent">#197765</Color>
+    <Color x:Key="MptColorScreenEaseAccentHover">#146454</Color>
+    <Color x:Key="MptColorScreenEaseAccentTextMuted">#CFE9E2</Color>
+    <Color x:Key="MptColorAppBackgroundDark">#202020</Color>
+    <Color x:Key="MptColorShellChromeDark">#252525</Color>
+    <Color x:Key="MptColorSurfaceDark">#2B2B2B</Color>
+    <Color x:Key="MptColorSurfaceRaisedDark">#323232</Color>
+    <Color x:Key="MptColorSurfaceMutedDark">#292929</Color>
+    <Color x:Key="MptColorSurfaceInsetDark">#1C1C1C</Color>
+    <Color x:Key="MptColorLayerDark">#2B2B2B</Color>
+    <Color x:Key="MptColorLayerAltDark">#252525</Color>
+    <Color x:Key="MptColorControlFillDark">#323232</Color>
+    <Color x:Key="MptColorControlFillHoverDark">#3A3A3A</Color>
+    <Color x:Key="MptColorControlFillPressedDark">#242424</Color>
+    <Color x:Key="MptColorBorderDark">#3D3D3D</Color>
+    <Color x:Key="MptColorBorderStrongDark">#525252</Color>
+    <Color x:Key="MptColorControlStrokeDark">#5A5A5A</Color>
+    <Color x:Key="MptColorDividerDark">#3D3D3D</Color>
+    <Color x:Key="MptColorNavigationBackgroundDark">#202020</Color>
+    <Color x:Key="MptColorNavigationHoverDark">#303030</Color>
+    <Color x:Key="MptColorNavigationSelectedDark">#383838</Color>
+    <Color x:Key="MptColorTextPrimaryDark">#FFFFFF</Color>
+    <Color x:Key="MptColorTextSecondaryDark">#D6D6D6</Color>
+    <Color x:Key="MptColorTextMutedDark">#9D9D9D</Color>
 
     <SolidColorBrush x:Key="MptBrushAppBackground" Color="{DynamicResource MptColorAppBackgroundLight}" />
+    <SolidColorBrush x:Key="MptBrushShellChrome" Color="{DynamicResource MptColorShellChromeLight}" />
     <SolidColorBrush x:Key="MptBrushCardBackground" Color="{DynamicResource MptColorSurfaceLight}" />
     <SolidColorBrush x:Key="MptBrushSurfaceRaised" Color="{DynamicResource MptColorSurfaceRaisedLight}" />
     <SolidColorBrush x:Key="MptBrushSurfaceMuted" Color="{DynamicResource MptColorSurfaceMutedLight}" />
+    <SolidColorBrush x:Key="MptBrushSurfaceInset" Color="{DynamicResource MptColorSurfaceInsetLight}" />
+    <SolidColorBrush x:Key="MptBrushLayerBackground" Color="{DynamicResource MptColorLayerLight}" />
+    <SolidColorBrush x:Key="MptBrushLayerAltBackground" Color="{DynamicResource MptColorLayerAltLight}" />
+    <SolidColorBrush x:Key="MptBrushControlFillDefault" Color="{DynamicResource MptColorControlFillLight}" />
+    <SolidColorBrush x:Key="MptBrushControlFillHover" Color="{DynamicResource MptColorControlFillHoverLight}" />
+    <SolidColorBrush x:Key="MptBrushControlFillPressed" Color="{DynamicResource MptColorControlFillPressedLight}" />
     <SolidColorBrush x:Key="MptBrushBorder" Color="{DynamicResource MptColorBorderLight}" />
     <SolidColorBrush x:Key="MptBrushBorderStrong" Color="{DynamicResource MptColorBorderStrongLight}" />
-    <SolidColorBrush x:Key="MptBrushAccent" Color="#2563EB" />
-    <SolidColorBrush x:Key="MptBrushAccentHover" Color="#1D4ED8" />
+    <SolidColorBrush x:Key="MptBrushControlStrokeDefault" Color="{DynamicResource MptColorControlStrokeLight}" />
+    <SolidColorBrush x:Key="MptBrushDivider" Color="{DynamicResource MptColorDividerLight}" />
+    <SolidColorBrush x:Key="MptBrushNavigationBackground" Color="{DynamicResource MptColorNavigationBackgroundLight}" />
+    <SolidColorBrush x:Key="MptBrushNavigationHover" Color="{DynamicResource MptColorNavigationHoverLight}" />
+    <SolidColorBrush x:Key="MptBrushNavigationSelected" Color="{DynamicResource MptColorNavigationSelectedLight}" />
+    <SolidColorBrush x:Key="MptBrushAccent" Color="{DynamicResource MptColorAccent}" />
+    <SolidColorBrush x:Key="MptBrushAccentHover" Color="{DynamicResource MptColorAccentHover}" />
+    <SolidColorBrush x:Key="MptBrushAccentPressed" Color="{DynamicResource MptColorAccentPressed}" />
     <SolidColorBrush x:Key="MptBrushAccentText" Color="#FFFFFF" />
     <SolidColorBrush x:Key="MptBrushTextPrimary" Color="{DynamicResource MptColorTextPrimaryLight}" />
     <SolidColorBrush x:Key="MptBrushTextSecondary" Color="{DynamicResource MptColorTextSecondaryLight}" />
     <SolidColorBrush x:Key="MptBrushTextMuted" Color="{DynamicResource MptColorTextMutedLight}" />
-    <SolidColorBrush x:Key="MptBrushSuccess" Color="#16A34A" />
-    <SolidColorBrush x:Key="MptBrushWarning" Color="#D97706" />
-    <SolidColorBrush x:Key="MptBrushWarningBackground" Color="#FFF7ED" />
-    <SolidColorBrush x:Key="MptBrushDanger" Color="#DC2626" />
-    <SolidColorBrush x:Key="MptBrushInfo" Color="#0891B2" />
+    <SolidColorBrush x:Key="MptBrushSuccess" Color="{DynamicResource MptColorSuccess}" />
+    <SolidColorBrush x:Key="MptBrushWarning" Color="{DynamicResource MptColorWarning}" />
+    <SolidColorBrush x:Key="MptBrushWarningBackground" Color="#FFF4CE" />
+    <SolidColorBrush x:Key="MptBrushDanger" Color="{DynamicResource MptColorDanger}" />
+    <SolidColorBrush x:Key="MptBrushInfo" Color="{DynamicResource MptColorInfo}" />
+    <SolidColorBrush x:Key="MptBrushScreenEaseAccent" Color="{DynamicResource MptColorScreenEaseAccent}" />
+    <SolidColorBrush x:Key="MptBrushScreenEaseAccentHover" Color="{DynamicResource MptColorScreenEaseAccentHover}" />
+    <SolidColorBrush x:Key="MptBrushScreenEaseAccentTextMuted" Color="{DynamicResource MptColorScreenEaseAccentTextMuted}" />
     <SolidColorBrush x:Key="MptBrushNeutral" Color="{DynamicResource MptColorTextMutedLight}" />
-    <SolidColorBrush x:Key="MptBrushSurfaceInset" Color="{DynamicResource MptColorSurfaceMutedLight}" />
-    <SolidColorBrush x:Key="MptBrushOverlayScrim" Color="#990F172A" />
+    <SolidColorBrush x:Key="MptBrushOverlayScrim" Color="#66000000" />
+    <SolidColorBrush x:Key="MptBrushTransparent" Color="#00000000" />
   </Styles.Resources>
 </Styles>

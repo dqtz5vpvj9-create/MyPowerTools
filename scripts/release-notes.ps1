@@ -70,6 +70,8 @@ $releaseNotes.Add('## Artifacts')
 $releaseNotes.Add('')
 if ($zipHash) {
     $releaseNotes.Add('- Windows portable zip: `artifacts/release/MyPowerTools-win-x64.zip`')
+    $releaseNotes.Add('- First-run guide: `START_HERE.md` inside the zip root')
+    $releaseNotes.Add('- Portable app launcher: `Start-MyPowerTools.cmd` inside the zip root')
     $releaseNotes.Add('- Module templates: `templates/` inside the zip root')
     $releaseNotes.Add('- Portable installer script: `install-windows.ps1` inside the zip root')
     $releaseNotes.Add('- Portable uninstaller script: `uninstall-windows.ps1` inside the zip root')
@@ -121,7 +123,7 @@ $releaseNotes.Add('## External Requirements')
 $releaseNotes.Add('')
 $releaseNotes.Add('- ScreenEase hardware brightness/color-temperature writes use the Windows DDC/CI native writer when explicitly enabled; unsupported monitors return hardware-level diagnostics.')
 $releaseNotes.Add('- NetworkBroker elevated portproxy writes require an elevated helper or administrator token.')
-$releaseNotes.Add('- SmartBird, FNB-58, Energy Server, and ADB hardware paths depend on local devices and services.')
+$releaseNotes.Add('- SmartBird switch, Energy Server/HID meter, and ADB thermal paths depend on local devices and services.')
 
 Set-Content -LiteralPath $OutputPath -Value $releaseNotes -Encoding UTF8
 Write-Host $OutputPath

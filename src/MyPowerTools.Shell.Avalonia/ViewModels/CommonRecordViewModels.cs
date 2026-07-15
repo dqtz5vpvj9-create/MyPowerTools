@@ -14,13 +14,14 @@ public sealed record ModulePickerItemViewModel(string ModuleId, string DisplayNa
 public sealed record LogLineViewModel(string Time, string Level, string Message);
 public sealed record NotificationItemViewModel(string Id, string Time, string ModuleId, string Level, string Title, string Body, bool IsRead);
 public sealed record ShellAlertViewModel(string Id, string Level, string Title, string Body);
-public sealed record ShellActionViewModel(string CommandId, string Title, string Style, ICommand ExecuteCommand);
+public sealed record ShellActionViewModel(string CommandId, string Title, string Style, bool IsPrimary, string ButtonClasses, ICommand ExecuteCommand);
 public sealed record MetricViewModel(string Label, string Value);
 public sealed class HotkeyBindingViewModel : ObservableViewModel
 {
     private string _gesture;
     private string _resultPrompt = "";
     private bool _resetRequested;
+    private bool _enabled;
 
     public HotkeyBindingViewModel(
         string id,
@@ -34,7 +35,9 @@ public sealed class HotkeyBindingViewModel : ObservableViewModel
     {
         Id = id;
         _gesture = gesture;
+        _enabled = !string.Equals(state, "disabled", StringComparison.OrdinalIgnoreCase);
         OriginalGesture = gesture;
+        OriginalEnabled = _enabled;
         DefaultGesture = string.IsNullOrWhiteSpace(defaultGesture) ? gesture : defaultGesture;
         CommandId = commandId;
         State = state;
@@ -54,7 +57,8 @@ public sealed class HotkeyBindingViewModel : ObservableViewModel
     }
 
     public string Id { get; }
-    public string OriginalGesture { get; }
+    public string OriginalGesture { get; private set; }
+    public bool OriginalEnabled { get; private set; }
     public string DefaultGesture { get; }
     public string CommandId { get; }
     public string State { get; }
@@ -75,17 +79,41 @@ public sealed class HotkeyBindingViewModel : ObservableViewModel
     public string CommandArgsPreview { get; }
     public bool IsRegistered => string.Equals(State, "ok", StringComparison.OrdinalIgnoreCase) ||
         string.Equals(State, "registered", StringComparison.OrdinalIgnoreCase);
-    public bool IsDisabled => string.Equals(State, "disabled", StringComparison.OrdinalIgnoreCase);
-    public bool CanEdit => !IsDisabled;
-    public bool IsDirty => ResetRequested || !string.Equals(Gesture, OriginalGesture, StringComparison.Ordinal);
-    public string StateLabel => IsDisabled
+    public bool IsDisabled => !Enabled;
+    public bool CanEdit => Enabled;
+    public bool IsDirty => ResetRequested ||
+        Enabled != OriginalEnabled ||
+        !string.Equals(Gesture, OriginalGesture, StringComparison.Ordinal);
+    public string StateLabel => !Enabled
         ? "Disabled"
         : HasConflict
             ? "Conflict"
             : IsRegistered
                 ? "Registered"
-                : State;
+                : string.Equals(State, "disabled", StringComparison.OrdinalIgnoreCase)
+                    ? "Pending registration"
+                    : State;
     public bool HasResultPrompt => ResultPrompt.Length > 0;
+
+    public bool Enabled
+    {
+        get => _enabled;
+        set
+        {
+            if (!SetProperty(ref _enabled, value))
+            {
+                return;
+            }
+
+            ResultPrompt = value
+                ? $"Hotkey enabled with gesture {Gesture}."
+                : "Hotkey will be disabled after saving.";
+            OnPropertyChanged(nameof(IsDisabled));
+            OnPropertyChanged(nameof(CanEdit));
+            OnPropertyChanged(nameof(IsDirty));
+            OnPropertyChanged(nameof(StateLabel));
+        }
+    }
 
     public string Gesture
     {
@@ -112,5 +140,17 @@ public sealed class HotkeyBindingViewModel : ObservableViewModel
                 OnPropertyChanged(nameof(HasResultPrompt));
             }
         }
+    }
+
+    public void AcceptCurrentValue()
+    {
+        OriginalGesture = Gesture;
+        OriginalEnabled = Enabled;
+        ResetRequested = false;
+        ResultPrompt = Enabled
+            ? "Shortcut saved; runtime registration status will refresh shortly."
+            : "Shortcut disabled.";
+        OnPropertyChanged(nameof(IsDirty));
+        OnPropertyChanged(nameof(StateLabel));
     }
 }

@@ -48,7 +48,7 @@ The baseline manifest records `dataSource=sample-fixture`, `usesHostControlData=
 | Subgoal | Status | Completion Reason |
 | --- | --- | --- |
 | Baseline screenshots | Complete | `artifacts/ui-before` contains real full-shell PNGs and manifests for the requested pages. |
-| Production closure state | Complete | `.codex/project-state.json` records `currentPhase=Internal production closure complete` and `productionClosure=true` after UI acceptance, full validation, final evidence, and packaging. |
+| Production closure state | Complete for UI scope | `.codex/project-state.json` now records `currentPhase=P-UI-Foundation UI acceptance complete`, `lastCompletedPhase=P-UI-Foundation`, and `productionClosure=false` for the broader release/hardware/signing scope. |
 | Shell IA rebuild | Complete | Updated ShellChrome screenshots show the Dashboard without a permanent command rail and Command Palette as a global overlay. |
 | Token suite | Complete | The eight target AXAML token files are loaded by `MptTheme.axaml`. |
 | Component replacement | Complete | Shell pages use MPT input/action controls and `MPTUI012` blocks raw Shell `Button/TextBox/CheckBox/ComboBox` regressions. |
@@ -57,4 +57,4 @@ The baseline manifest records `dataSource=sample-fixture`, `usesHostControlData=
 
 ## Production Closure Position
 
-P-UI-Foundation acceptance passed on 2026-07-06. Runtime fixes stayed valid, Shell product UI passed final screenshot evidence, full validation passed, and production closure is restored for the current Windows host.
+P-UI-Foundation UI acceptance is complete. Runtime fixes stay preserved as historical support, and this UI-only phase keeps broader production closure false. The completed hardening pass fixed real screenshot page filtering, screenshot manifest coverage, lint rule alignment, compact Command Palette clipping, screenshot test isolation, and refreshed fixture/live-runner visual evidence.

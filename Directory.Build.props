@@ -1,0 +1,6 @@
+<Project>
+  <PropertyGroup>
+    <!-- Tool submodules consume the host SDK through one explicit build contract. -->
+    <MyPowerToolsRepoRoot Condition="'$(MyPowerToolsRepoRoot)' == ''">$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)'))</MyPowerToolsRepoRoot>
+  </PropertyGroup>
+</Project>

@@ -204,8 +204,54 @@ public sealed partial class RuntimeAcceptanceTests
         Assert.Equal(artifact["sha256"]!.GetValue<string>(), scoop64["hash"]!.GetValue<string>());
         Assert.Equal("MyPowerTools-win-x64.zip", artifact["url"]!.GetValue<string>());
         Assert.Equal(artifact["url"]!.GetValue<string>(), scoop64["url"]!.GetValue<string>());
+        Assert.Equal("START_HERE.md", artifact["startHere"]!.GetValue<string>());
+        Assert.Equal("Start-MyPowerTools.cmd", artifact["portableStart"]!.GetValue<string>());
         Assert.Equal("package-managers/scoop/mypowertools.json", metadata["packageManagers"]!["scoop"]!.GetValue<string>());
         Assert.Equal("mpt", scoop["bin"]!.AsArray()[0]!.AsArray()[1]!.GetValue<string>());
+        var shortcut = scoop["shortcuts"]!.AsArray().Single()!.AsArray();
+        Assert.Equal("MyPowerTools.exe", shortcut[0]!.GetValue<string>());
+        Assert.Equal("MyPowerTools", shortcut[1]!.GetValue<string>());
+    }
+
+    [Fact]
+    public void Windows_install_and_release_expose_single_product_start_entry()
+    {
+        var installScript = File.ReadAllText(Path.Combine(Root, "scripts", "install-windows.ps1"));
+        var publishScript = File.ReadAllText(Path.Combine(Root, "scripts", "publish-windows.ps1"));
+        var startScript = File.ReadAllText(Path.Combine(Root, "scripts", "Start-MyPowerTools.cmd"));
+        var startHere = File.ReadAllText(Path.Combine(Root, "START_HERE.md"));
+        var metadataScript = File.ReadAllText(Path.Combine(Root, "scripts", "release-metadata.ps1"));
+
+        Assert.Contains("'MyPowerTools.lnk'", installScript);
+        Assert.Contains("$appExe = Join-Path $InstallDirFull 'MyPowerTools.exe'", installScript);
+        Assert.Contains("Clear-StartMenuShortcuts -StartMenuDir $startMenuDir", installScript);
+        Assert.DoesNotContain("'MyPowerTools Shell.lnk'", installScript);
+        Assert.DoesNotContain("'MyPowerTools Runner.lnk'", installScript);
+        Assert.DoesNotContain("'MyPowerTools CLI.lnk'", installScript);
+        Assert.Contains("'MyPowerTools.exe'", installScript);
+        Assert.Contains("'START_HERE.md'", installScript);
+        Assert.Contains("'Start-MyPowerTools.cmd'", installScript);
+        Assert.Contains("'assets\\MyPowerTools.ico'", installScript);
+        Assert.Contains("foreach ($process in Get-Process", installScript);
+        Assert.Contains("[System.IO.Directory]::Move($InstallDirFull, $backupDir)", installScript);
+        Assert.Contains("Wait-Process -Id $process.Id", installScript);
+
+        Assert.Contains("src\\MyPowerTools.App\\MyPowerTools.App.csproj", publishScript);
+        Assert.Contains("MyPowerTools.exe", publishScript);
+        Assert.Contains("START_HERE.md", publishScript);
+        Assert.Contains("Start-MyPowerTools.cmd", publishScript);
+        Assert.Contains("assets", publishScript);
+
+        Assert.Contains("MyPowerTools.exe", startScript);
+        Assert.Contains("Shell\\MyPowerTools.Shell.Avalonia.exe", startScript);
+        Assert.Contains("one Start menu shortcut named MyPowerTools", metadataScript);
+        Assert.Contains(",@('MyPowerTools.exe', 'MyPowerTools')", metadataScript);
+
+        Assert.Contains("open `MyPowerTools` from the Windows Start menu", startHere);
+        Assert.Contains("The app starts the Runner in the background", startHere);
+        Assert.DoesNotContain("MyPowerTools Shell", startHere);
+        Assert.DoesNotContain("MyPowerTools Runner", startHere);
+        Assert.DoesNotContain("MyPowerTools CLI", startHere);
     }
 
     [Fact]

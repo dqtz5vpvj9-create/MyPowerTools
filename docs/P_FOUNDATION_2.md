@@ -241,7 +241,7 @@ The existing shell has UI snapshot gates, keyboard shortcut tests, centralized c
 | Production module dependency direction | Modules reference abstractions only | Done |
 | Host dependency direction | Runtime/Shell/Host avoid concrete module references | Done |
 | Runtime policy schema | `runtimePolicy.preferred`, `allowInProc`, `inProcRules`, and `sidecarRules` | Done |
-| InProc isolation | Collectible ALC + resolver + shadow copy | Done for disk-backed modules |
+| InProc soft isolation | Collectible ALC + resolver + shadow copy + timeout/fault circuit breaker | Done for disk-backed modules; the Runner process remains a shared fatal-fault domain |
 | InProc dependency isolation | Conflicting dependency versions load side by side | Done |
 | InProc shadow-copy update | Loaded module uses cache while package DLL is replaceable | Done |
 | InProc unload handling | Unload probe and failure surfaced to runtime policy | Done for clean unload and pending-runner-restart diagnostics |

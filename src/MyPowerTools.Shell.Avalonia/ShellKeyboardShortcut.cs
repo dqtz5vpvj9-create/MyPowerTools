@@ -18,6 +18,27 @@ public sealed record ShellKeyboardShortcutResult(ShellKeyboardAction Action, str
 
 public static class ShellKeyboardShortcut
 {
+    public static bool TryParseGesture(string gesture, out Key key, out KeyModifiers modifiers)
+    {
+        (key, modifiers) = gesture switch
+        {
+            "Ctrl+F" => (Key.F, KeyModifiers.Control),
+            "Ctrl+K" => (Key.K, KeyModifiers.Control),
+            "Ctrl+R" => (Key.R, KeyModifiers.Control),
+            "Ctrl+Alt+Space" => (Key.Space, KeyModifiers.Control | KeyModifiers.Alt),
+            "F5" => (Key.F5, KeyModifiers.None),
+            "Escape" => (Key.Escape, KeyModifiers.None),
+            "Ctrl+1" => (Key.D1, KeyModifiers.Control),
+            "Ctrl+2" => (Key.D2, KeyModifiers.Control),
+            "Ctrl+3" => (Key.D3, KeyModifiers.Control),
+            "Ctrl+4" => (Key.D4, KeyModifiers.Control),
+            "Ctrl+5" => (Key.D5, KeyModifiers.Control),
+            "Ctrl+6" => (Key.D6, KeyModifiers.Control),
+            _ => (Key.None, KeyModifiers.None)
+        };
+        return key != Key.None;
+    }
+
     public static ShellKeyboardShortcutResult Resolve(Key key, KeyModifiers modifiers)
     {
         if ((modifiers == (KeyModifiers.Control | KeyModifiers.Alt) && key == Key.Space) ||
@@ -41,14 +62,12 @@ public static class ShellKeyboardShortcut
         {
             var target = key switch
             {
-                Key.D1 => "Dashboard",
-                Key.D2 => "Modules",
-                Key.D3 => "Commands",
-                Key.D4 => "Settings",
-                Key.D5 => "Logs",
-                Key.D6 => "Notifications",
-                Key.D7 => "Packages",
-                Key.D8 => "Diagnostics",
+                Key.D1 => "Home",
+                Key.D2 => "Tools",
+                Key.D3 => "Activity",
+                Key.D4 => "Notifications",
+                Key.D5 => "Settings",
+                Key.D6 => "System",
                 _ => null
             };
 

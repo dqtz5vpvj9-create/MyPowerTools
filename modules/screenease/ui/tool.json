@@ -1,0 +1,19 @@
+{
+  "schemaVersion": "1.0",
+  "toolId": "screenease",
+  "ownerModuleId": "screenease",
+  "title": "ScreenEase",
+  "description": "Adjust eye-care profiles and run rest reminders in one workspace.",
+  "icon": "tool.screenease",
+  "category": "Display",
+  "primaryRouteId": "profiles",
+  "routes": [
+    { "routeId": "profiles", "surfaceId": "screenease.profiles", "title": "Eye care", "icon": "route.profiles" }
+  ],
+  "homeCard": {
+    "summary": "Tune color temperature and brightness, save modes, and run rest reminders.",
+    "primaryActionLabel": "Open ScreenEase",
+    "statusBinding": "module.status",
+    "order": 50
+  }
+}

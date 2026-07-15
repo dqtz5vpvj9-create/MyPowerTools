@@ -23,6 +23,9 @@ public static partial class ShellPageViewModelFactory
         }
 
         var fields = new List<SettingsFieldViewModel>();
+        var requiredKeys = schema.TryGetPropertyValue("required", out var requiredNode) && requiredNode is JsonArray requiredValues
+            ? requiredValues.Select(NodeToEditorText).ToHashSet(StringComparer.Ordinal)
+            : new HashSet<string>(StringComparer.Ordinal);
         foreach (var propertyPair in properties.OrderBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase))
         {
             if (propertyPair.Value is not JsonObject property)
@@ -36,7 +39,8 @@ public static partial class ShellPageViewModelFactory
             var type = GetSchemaString(property, "type", "string").ToLowerInvariant();
             values.TryGetPropertyValue(key, out var currentValue);
             property.TryGetPropertyValue("default", out var defaultValue);
-            var effectiveValue = currentValue ?? defaultValue;
+            property.TryGetPropertyValue("const", out var constantNode);
+            var effectiveValue = currentValue ?? defaultValue ?? constantNode;
             var editorType = type;
             IReadOnlyList<string> options = [];
             var selectedOption = "";
@@ -63,7 +67,12 @@ public static partial class ShellPageViewModelFactory
                 textValue,
                 NodeToBool(effectiveValue),
                 options,
-                selectedOption));
+                selectedOption,
+                isReadOnly: GetSchemaBool(property, "readOnly") || constantNode is not null,
+                isRequired: requiredKeys.Contains(key),
+                minimum: GetSchemaNumber(property, "minimum"),
+                maximum: GetSchemaNumber(property, "maximum"),
+                constantValue: NodeToEditorText(constantNode)));
         }
 
         return fields;
@@ -103,6 +112,29 @@ public static partial class ShellPageViewModelFactory
     private static bool NodeToBool(JsonNode? node)
     {
         return node is JsonValue value && value.TryGetValue<bool>(out var result) && result;
+    }
+
+    private static bool GetSchemaBool(JsonObject schema, string key)
+    {
+        return schema.TryGetPropertyValue(key, out var node) && NodeToBool(node);
+    }
+
+    private static double? GetSchemaNumber(JsonObject schema, string key)
+    {
+        if (!schema.TryGetPropertyValue(key, out var node) || node is not JsonValue value)
+        {
+            return null;
+        }
+
+        if (value.TryGetValue<double>(out var doubleValue))
+        {
+            return doubleValue;
+        }
+        if (value.TryGetValue<long>(out var longValue))
+        {
+            return longValue;
+        }
+        return null;
     }
 
     private static string NodeToEditorText(JsonNode? node)

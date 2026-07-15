@@ -1,0 +1,21 @@
+[submodule "tools/adb-forwarder"]
+	path = tools/adb-forwarder
+	url = file:///C:/Users/lixinrui/repo/MyPowerTools.ToolRepos/adb-forwarder
+[submodule "tools/remote-notifications"]
+	path = tools/remote-notifications
+	url = file:///C:/Users/lixinrui/repo/MyPowerTools.ToolRepos/remote-notifications
+[submodule "tools/remote-commands"]
+	path = tools/remote-commands
+	url = file:///C:/Users/lixinrui/repo/MyPowerTools.ToolRepos/remote-commands
+[submodule "tools/process-monitor"]
+	path = tools/process-monitor
+	url = file:///C:/Users/lixinrui/repo/MyPowerTools.ToolRepos/process-monitor
+[submodule "tools/screenease"]
+	path = tools/screenease
+	url = file:///C:/Users/lixinrui/repo/MyPowerTools.ToolRepos/screenease
+[submodule "tools/smartbird-thermostat"]
+	path = tools/smartbird-thermostat
+	url = file:///C:/Users/lixinrui/repo/MyPowerTools.ToolRepos/smartbird-thermostat
+[submodule "tools/doubao-computer-use"]
+	path = tools/doubao-computer-use
+	url = file:///C:/Users/lixinrui/repo/MyPowerTools.ToolRepos/doubao-computer-use

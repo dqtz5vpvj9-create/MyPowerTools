@@ -1,0 +1,402 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="using:MyPowerTools.UI.Controls"
+             xmlns:vm="using:MyPowerTools.Shell.Avalonia.ViewModels"
+             x:Class="MyPowerTools.Shell.Avalonia.Views.HomeView"
+             x:DataType="vm:HomeViewModel">
+  <UserControl.Styles>
+    <Style Selector="Border.PowerDashboardCard">
+      <Setter Property="Background" Value="{DynamicResource MptBrushCardBackground}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource MptBrushBorder}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="{DynamicResource MptRadiusCard}" />
+      <Setter Property="ClipToBounds" Value="True" />
+    </Style>
+
+    <Style Selector="Border.PowerDashboardDivider">
+      <Setter Property="Height" Value="1" />
+      <Setter Property="Background" Value="{DynamicResource MptBrushBorder}" />
+    </Style>
+
+    <Style Selector="Button.PowerTopLink">
+      <Setter Property="MinHeight" Value="92" />
+      <Setter Property="Padding" Value="{DynamicResource MptNoThickness}" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+      <Setter Property="Background" Value="{DynamicResource MptBrushTransparent}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource MptBrushTransparent}" />
+    </Style>
+
+    <Style Selector="Button.PowerTopLink:pointerover">
+      <Setter Property="Background" Value="{DynamicResource MptBrushSurfaceMuted}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource MptBrushTransparent}" />
+    </Style>
+
+    <Style Selector="Button.PowerCardHeaderAction">
+      <Setter Property="MinHeight" Value="32" />
+      <Setter Property="Padding" Value="{DynamicResource MptChipPadding}" />
+      <Setter Property="Background" Value="{DynamicResource MptBrushTransparent}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource MptBrushTransparent}" />
+      <Setter Property="Foreground" Value="{DynamicResource MptBrushAccent}" />
+    </Style>
+
+    <Style Selector="Button.PowerCardHeaderAction:pointerover">
+      <Setter Property="Background" Value="{DynamicResource MptBrushSurfaceMuted}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource MptBrushTransparent}" />
+    </Style>
+
+    <Style Selector="Button.PowerQuickAction">
+      <Setter Property="Width" Value="148" />
+      <Setter Property="Height" Value="116" />
+      <Setter Property="Margin" Value="{DynamicResource MptWrapItemMargin}" />
+      <Setter Property="Padding" Value="{DynamicResource MptCompactPadding}" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+      <Setter Property="VerticalContentAlignment" Value="Stretch" />
+      <Setter Property="Background" Value="{DynamicResource MptBrushTransparent}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource MptBrushTransparent}" />
+    </Style>
+
+    <Style Selector="Button.PowerQuickAction:pointerover">
+      <Setter Property="Background" Value="{DynamicResource MptBrushSurfaceMuted}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource MptBrushTransparent}" />
+    </Style>
+
+    <Style Selector="Button.PowerDashboardRow">
+      <Setter Property="MinHeight" Value="60" />
+      <Setter Property="Padding" Value="{DynamicResource MptListItemPadding}" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+      <Setter Property="Background" Value="{DynamicResource MptBrushTransparent}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource MptBrushBorder}" />
+      <Setter Property="BorderThickness" Value="0,0,0,1" />
+      <Setter Property="CornerRadius" Value="{DynamicResource MptRadiusNone}" />
+    </Style>
+
+    <Style Selector="Button.PowerDashboardRow:pointerover">
+      <Setter Property="Background" Value="{DynamicResource MptBrushSurfaceMuted}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource MptBrushBorder}" />
+    </Style>
+
+    <Style Selector="Border.PowerDashboardIcon">
+      <Setter Property="Width" Value="34" />
+      <Setter Property="Height" Value="34" />
+      <Setter Property="CornerRadius" Value="{DynamicResource MptRadiusCard}" />
+      <Setter Property="Background" Value="{DynamicResource MptBrushSurfaceMuted}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource MptBrushBorder}" />
+      <Setter Property="BorderThickness" Value="1" />
+    </Style>
+
+    <Style Selector="TextBlock.PowerDashboardIconText">
+      <Setter Property="FontSize" Value="{DynamicResource MptFontSizeMeta}" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Foreground" Value="{DynamicResource MptBrushAccent}" />
+      <Setter Property="HorizontalAlignment" Value="Center" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+
+    <Style Selector="TextBlock.PowerDashboardIconText.symbol">
+      <Setter Property="FontFamily" Value="{DynamicResource MptFontFamilyIcons}" />
+    </Style>
+  </UserControl.Styles>
+
+  <UserControl.Resources>
+    <DataTemplate x:Key="QuickAccessTemplate" x:DataType="vm:HomeDashboardActionViewModel">
+      <controls:MptButton Classes="PowerQuickAction"
+                          Command="{Binding ExecuteCommand}"
+                          ToolTip.Tip="{Binding Detail}">
+        <StackPanel Spacing="{DynamicResource MptSpacingS}"
+                    HorizontalAlignment="Center"
+                    VerticalAlignment="Center">
+          <Border Width="40"
+                  Height="40"
+                  CornerRadius="{DynamicResource MptRadiusCard}"
+                  Background="{DynamicResource MptBrushSurfaceMuted}">
+            <TextBlock Classes="PowerDashboardIconText"
+                       Classes.symbol="{Binding IsSymbolIcon}"
+                       FontSize="{DynamicResource MptFontSizeCardTitle}"
+                       Text="{Binding IconGlyph}" />
+          </Border>
+          <TextBlock Text="{Binding Label}"
+                     TextAlignment="Center"
+                     TextWrapping="Wrap"
+                     LineHeight="18"
+                     MaxWidth="132" />
+          <TextBlock Classes="MptMeta"
+                     Text="{Binding Detail}"
+                     TextAlignment="Center"
+                     TextTrimming="CharacterEllipsis"
+                     MaxWidth="132" />
+        </StackPanel>
+      </controls:MptButton>
+    </DataTemplate>
+
+    <DataTemplate x:Key="ActionShortcutTemplate" x:DataType="vm:ToolCardViewModel">
+      <controls:MptButton Classes="PowerDashboardRow"
+                          Command="{Binding OpenCommand}"
+                          IsEnabled="{Binding CanOpen}"
+                          ToolTip.Tip="{Binding Description}">
+        <Grid ColumnDefinitions="34,*,Auto"
+              ColumnSpacing="12">
+          <Border Classes="PowerDashboardIcon">
+            <TextBlock Classes="PowerDashboardIconText"
+                       Text="{Binding IconGlyph}" />
+          </Border>
+          <StackPanel Grid.Column="1"
+                      VerticalAlignment="Center">
+            <TextBlock Text="{Binding PrimaryActionLabel}"
+                       FontWeight="SemiBold"
+                       TextTrimming="CharacterEllipsis" />
+            <TextBlock Classes="MptMeta"
+                       Text="{Binding Title}"
+                       TextTrimming="CharacterEllipsis" />
+          </StackPanel>
+          <TextBlock Grid.Column="2"
+                     Classes="MptMeta"
+                     Text="{Binding StatusLabel}"
+                     VerticalAlignment="Center" />
+        </Grid>
+      </controls:MptButton>
+    </DataTemplate>
+
+    <DataTemplate x:Key="ModuleTemplate" x:DataType="vm:ToolCardViewModel">
+      <controls:MptButton Classes="PowerDashboardRow"
+                          Command="{Binding OpenCommand}"
+                          ToolTip.Tip="{Binding Description}">
+        <Grid ColumnDefinitions="34,*,Auto,Auto"
+              ColumnSpacing="12">
+          <Border Classes="PowerDashboardIcon">
+            <TextBlock Classes="PowerDashboardIconText"
+                       Text="{Binding IconGlyph}" />
+          </Border>
+          <StackPanel Grid.Column="1"
+                      VerticalAlignment="Center">
+            <TextBlock Text="{Binding Title}"
+                       FontWeight="SemiBold"
+                       TextTrimming="CharacterEllipsis" />
+            <TextBlock Classes="MptMeta"
+                       Text="{Binding PrimaryActionLabel}"
+                       TextTrimming="CharacterEllipsis" />
+          </StackPanel>
+          <Border Grid.Column="2"
+                  Classes="MptStatusBadge"
+                  Classes.running="{Binding IsReadyStatus}"
+                  Classes.degraded="{Binding IsAttentionStatus}"
+                  Classes.error="{Binding IsUnavailable}"
+                  VerticalAlignment="Center">
+            <TextBlock Classes="MptMeta"
+                       Text="{Binding StatusLabel}" />
+          </Border>
+          <TextBlock Grid.Column="3"
+                     Text="›"
+                     IsVisible="{Binding CanOpen}"
+                     FontSize="{DynamicResource MptFontSizeSection}"
+                     Foreground="{DynamicResource MptBrushTextMuted}"
+                     VerticalAlignment="Center" />
+        </Grid>
+      </controls:MptButton>
+    </DataTemplate>
+  </UserControl.Resources>
+
+  <StackPanel x:Name="DashboardRoot"
+              MaxWidth="{DynamicResource MptLayoutDashboardMaxWidth}"
+              HorizontalAlignment="Center"
+              Spacing="{DynamicResource MptSpacingL}">
+    <TextBlock Classes="MptPageTitle"
+               Text="{Binding Title}" />
+
+    <StackPanel IsVisible="{Binding IsLoading}"
+                Spacing="{DynamicResource MptSpacingM}">
+      <TextBlock Classes="MptSectionTitle"
+                 Text="Loading your toolkit" />
+      <Border Classes="MptLoadingSkeleton" Height="80" />
+      <Border Classes="MptLoadingSkeleton" Height="220" />
+    </StackPanel>
+
+    <Border Classes="MptErrorState"
+            IsVisible="{Binding IsFailed}">
+      <StackPanel Spacing="{DynamicResource MptSpacingM}">
+        <TextBlock Classes="MptSectionTitle"
+                   Text="Home could not be loaded" />
+        <TextBlock Classes="MptPageSubtitle"
+                   Text="{Binding ErrorMessage}" />
+        <controls:MptButton Classes="MptPrimaryButton"
+                            Content="Try again"
+                            Command="{Binding RetryCommand}"
+                            HorizontalAlignment="Left" />
+      </StackPanel>
+    </Border>
+
+    <Border Classes="MptEmptyState"
+            IsVisible="{Binding IsEmpty}">
+      <StackPanel Spacing="{DynamicResource MptSpacingM}"
+                  HorizontalAlignment="Center"
+                  MaxWidth="520">
+        <TextBlock Classes="MptSectionTitle"
+                   Text="No tools are registered"
+                   HorizontalAlignment="Center" />
+        <TextBlock Classes="MptPageSubtitle"
+                   Text="Register a tool package, then refresh this page."
+                   TextAlignment="Center" />
+        <controls:MptButton Classes="MptPrimaryButton"
+                            Content="Browse tools"
+                            Command="{Binding BrowseToolsCommand}"
+                            HorizontalAlignment="Center" />
+      </StackPanel>
+    </Border>
+
+    <StackPanel IsVisible="{Binding IsReady}"
+                Spacing="{DynamicResource MptSpacingL}">
+      <Border Classes="PowerDashboardCard"
+              Padding="{DynamicResource MptCardPadding}">
+        <Grid x:Name="OverviewGrid"
+              ColumnDefinitions="*,Auto"
+              RowDefinitions="Auto">
+          <controls:MptButton x:Name="ToolkitOverviewAction"
+                              Classes="PowerTopLink"
+                              Command="{Binding BrowseToolsCommand}">
+            <Grid ColumnDefinitions="92,*"
+                  ColumnSpacing="20">
+              <Border Width="92"
+                      Height="92"
+                      CornerRadius="{DynamicResource MptRadiusLarge}"
+                      Background="{DynamicResource MptBrushSurfaceMuted}"
+                      BorderBrush="{DynamicResource MptBrushBorder}"
+                      BorderThickness="1">
+                <Border Width="48"
+                        Height="48"
+                        CornerRadius="{DynamicResource MptRadiusLarge}"
+                        Background="{DynamicResource MptBrushAccent}"
+                        HorizontalAlignment="Center"
+                        VerticalAlignment="Center">
+                  <TextBlock Text="M"
+                             Foreground="{DynamicResource MptBrushAccentText}"
+                             FontSize="{DynamicResource MptFontSizeSection}"
+                             FontWeight="Bold"
+                             HorizontalAlignment="Center"
+                             VerticalAlignment="Center" />
+                </Border>
+              </Border>
+              <StackPanel Grid.Column="1"
+                          Spacing="{DynamicResource MptSpacingXs}"
+                          VerticalAlignment="Center">
+                <TextBlock Text="Open your toolkit"
+                           FontWeight="SemiBold"
+                           TextTrimming="CharacterEllipsis" />
+                <TextBlock Classes="MptMeta"
+                           Text="{Binding ToolCountSummary}"
+                           TextTrimming="CharacterEllipsis" />
+              </StackPanel>
+            </Grid>
+          </controls:MptButton>
+
+          <Grid x:Name="OverviewStatus"
+                Grid.Column="1"
+                ColumnDefinitions="Auto,*"
+                ColumnSpacing="10"
+                Margin="{DynamicResource MptGapLeft2Xl}"
+                HorizontalAlignment="Left"
+                VerticalAlignment="Center">
+            <Border Width="20"
+                    Height="20"
+                    CornerRadius="{DynamicResource MptRadiusLarge}"
+                    Background="{DynamicResource MptBrushSuccess}">
+              <TextBlock Text="✓"
+                         Foreground="{DynamicResource MptBrushAccentText}"
+                         FontSize="{DynamicResource MptFontSizeMeta}"
+                         HorizontalAlignment="Center"
+                         VerticalAlignment="Center" />
+            </Border>
+            <StackPanel Grid.Column="1"
+                        Spacing="{DynamicResource MptSpacingNone}">
+              <TextBlock Text="{Binding DashboardStatusLabel}"
+                         FontWeight="SemiBold"
+                         TextTrimming="CharacterEllipsis" />
+              <TextBlock Classes="MptMeta"
+                         Text="{Binding DashboardStatusDetail}"
+                         TextTrimming="CharacterEllipsis" />
+            </StackPanel>
+          </Grid>
+        </Grid>
+      </Border>
+
+      <Grid x:Name="DashboardColumns"
+            ColumnDefinitions="5*,3*"
+            RowDefinitions="Auto"
+            ColumnSpacing="{DynamicResource MptSpacingL}">
+        <StackPanel x:Name="PrimaryDashboardColumn"
+                     Grid.Column="0"
+                     Spacing="{DynamicResource MptSpacingL}"
+                     HorizontalAlignment="Stretch">
+          <Border Classes="PowerDashboardCard"
+                  IsVisible="{Binding HasQuickAccessActions}">
+            <Grid RowDefinitions="52,1,Auto">
+              <Grid Margin="{DynamicResource MptCardHeaderMargin}"
+                    ColumnDefinitions="*,Auto">
+                <TextBlock Classes="MptCardTitle"
+                           Text="Quick access"
+                           VerticalAlignment="Center" />
+              </Grid>
+              <Border Grid.Row="1"
+                      Classes="PowerDashboardDivider" />
+              <ItemsControl Grid.Row="2"
+                             Margin="{DynamicResource MptContentInsetMargin}"
+                            ItemsSource="{Binding QuickAccessActions}"
+                            ItemTemplate="{StaticResource QuickAccessTemplate}">
+                <ItemsControl.ItemsPanel>
+                  <ItemsPanelTemplate>
+                    <WrapPanel />
+                  </ItemsPanelTemplate>
+                </ItemsControl.ItemsPanel>
+              </ItemsControl>
+            </Grid>
+          </Border>
+
+          <Border Classes="PowerDashboardCard"
+                  IsVisible="{Binding HasActionableTools}">
+            <Grid RowDefinitions="52,1,Auto">
+              <Grid Margin="{DynamicResource MptCardHeaderMargin}"
+                    ColumnDefinitions="*,Auto">
+                <TextBlock Classes="MptCardTitle"
+                           Text="Action shortcuts"
+                           VerticalAlignment="Center" />
+                <TextBlock Grid.Column="1"
+                           Classes="MptMeta"
+                           Text="Primary tool actions"
+                           VerticalAlignment="Center" />
+              </Grid>
+              <Border Grid.Row="1"
+                      Classes="PowerDashboardDivider" />
+              <ItemsControl Grid.Row="2"
+                            ItemsSource="{Binding ActionableTools}"
+                            ItemTemplate="{StaticResource ActionShortcutTemplate}" />
+            </Grid>
+          </Border>
+        </StackPanel>
+
+        <Border x:Name="ModulesDashboardCard"
+                 Grid.Column="1"
+                 Classes="PowerDashboardCard"
+                 IsVisible="{Binding HasDashboardTools}"
+                 HorizontalAlignment="Stretch"
+                 VerticalAlignment="Top">
+          <Grid RowDefinitions="52,1,Auto">
+            <Grid Margin="{DynamicResource MptCardHeaderCompactMargin}"
+                  ColumnDefinitions="*,Auto">
+              <TextBlock Classes="MptCardTitle"
+                         Text="Tools"
+                         VerticalAlignment="Center" />
+              <controls:MptButton Grid.Column="1"
+                                  Classes="PowerCardHeaderAction"
+                                  Content="View all"
+                                  Command="{Binding BrowseToolsCommand}" />
+            </Grid>
+            <Border Grid.Row="1"
+                    Classes="PowerDashboardDivider" />
+            <ItemsControl Grid.Row="2"
+                          ItemsSource="{Binding DashboardTools}"
+                          ItemTemplate="{StaticResource ModuleTemplate}" />
+          </Grid>
+        </Border>
+      </Grid>
+    </StackPanel>
+  </StackPanel>
+</UserControl>

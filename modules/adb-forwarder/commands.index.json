@@ -2,14 +2,27 @@
   "schemaVersion": "1.0",
   "commands": [
     {
+      "id": "adb-forwarder.forward.open",
+      "title": "Forward an ADB device",
+      "subtitle": "Select a USB device and open the bounded forwarding workflow",
+      "kind": "open",
+      "category": "AdbForwarder",
+      "execution": {
+        "type": "navigation",
+        "toolId": "adb-forwarder",
+        "routeId": "forward"
+      }
+    },
+    {
       "id": "adb-forwarder.diagnostics.open",
       "title": "Open ADB forwarding diagnostics",
       "subtitle": "Navigate to diagnostics and port mapping state",
       "kind": "open",
       "category": "AdbForwarder",
       "execution": {
-        "type": "open",
-        "surface": "detail"
+        "type": "navigation",
+        "toolId": "adb-forwarder",
+        "routeId": "diagnostics"
       }
     },
     {
@@ -75,7 +88,9 @@
       "kind": "open",
       "category": "AdbForwarder",
       "execution": {
-        "type": "host.logs.tail"
+        "type": "navigation",
+        "toolId": "adb-forwarder",
+        "routeId": "diagnostics"
       }
     }
   ]

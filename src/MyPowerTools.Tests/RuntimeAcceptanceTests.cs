@@ -380,12 +380,16 @@ Address         Port        Address         Port
             "light",
             "1366x768",
             "normal",
-            data);
+            data,
+            "shell.dashboard");
         var manifest = JsonNode.Parse(File.ReadAllText(manifestPath))!.AsObject();
+        var screenshots = manifest["screenshots"]!.AsArray();
 
         Assert.True(manifest["usesHostControlData"]!.GetValue<bool>());
         Assert.Equal("fixture-hostcontrol", manifest["dataSource"]!.GetValue<string>());
-        Assert.Equal(8, manifest["screenshotCount"]!.GetValue<int>());
+        Assert.Equal("shell.dashboard", manifest["surface"]!.GetValue<string>());
+        Assert.Equal(1, manifest["screenshotCount"]!.GetValue<int>());
+        Assert.Equal("dashboard", screenshots.Single()!["screenId"]!.GetValue<string>());
     }
 
 
@@ -716,10 +720,13 @@ public sealed class GeneratedModule : IMptModule
             "publish",
             Path.Combine(pluginRoot, $"{assemblyName}.csproj"),
             "--nologo",
+            "--disable-build-servers",
             "-c",
             "Release",
             "-o",
-            packageRoot);
+            packageRoot,
+            "-nr:false",
+            "-p:UseSharedCompilation=false");
         Assert.True(publish.ExitCode == 0, publish.Output);
 
         var manifest = new JsonObject
@@ -1274,6 +1281,11 @@ public sealed class GeneratedModule : IMptModule
 
     private static async Task<(int ExitCode, string Output)> RunDotnetAsync(params string[] arguments)
     {
+        if (TryCreateBuiltProjectStartInfo(arguments, redirectOutput: true, out var projectPsi))
+        {
+            return await RunProcessAsync(projectPsi, TimeSpan.FromMinutes(3));
+        }
+
         var psi = new ProcessStartInfo
         {
             FileName = "dotnet",
@@ -1289,11 +1301,8 @@ public sealed class GeneratedModule : IMptModule
             psi.ArgumentList.Add(argument);
         }
 
-        using var process = Process.Start(psi) ?? throw new InvalidOperationException("Could not start dotnet.");
-        var outputTask = process.StandardOutput.ReadToEndAsync();
-        var errorTask = process.StandardError.ReadToEndAsync();
-        await process.WaitForExitAsync();
-        return (process.ExitCode, await outputTask + await errorTask);
+        DisableBuildServerReuse(psi);
+        return await RunProcessAsync(psi, TimeSpan.FromMinutes(5));
     }
 
     private static async Task<(int ExitCode, string Output)> RunPwshAsync(params string[] arguments)
@@ -1313,15 +1322,16 @@ public sealed class GeneratedModule : IMptModule
             psi.ArgumentList.Add(argument);
         }
 
-        using var process = Process.Start(psi) ?? throw new InvalidOperationException("Could not start pwsh.exe.");
-        var outputTask = process.StandardOutput.ReadToEndAsync();
-        var errorTask = process.StandardError.ReadToEndAsync();
-        await process.WaitForExitAsync();
-        return (process.ExitCode, await outputTask + await errorTask);
+        return await RunProcessAsync(psi, TimeSpan.FromMinutes(5));
     }
 
     private static Process StartDotnetProcess(params string[] arguments)
     {
+        if (TryCreateBuiltProjectStartInfo(arguments, redirectOutput: false, out var projectPsi))
+        {
+            return Process.Start(projectPsi) ?? throw new InvalidOperationException($"Could not start {projectPsi.FileName}.");
+        }
+
         var psi = new ProcessStartInfo
         {
             FileName = "dotnet",
@@ -1336,6 +1346,129 @@ public sealed class GeneratedModule : IMptModule
         }
 
         return Process.Start(psi) ?? throw new InvalidOperationException("Could not start dotnet.");
+    }
+
+    private static async Task<(int ExitCode, string Output)> RunProcessAsync(ProcessStartInfo psi, TimeSpan timeout)
+    {
+        using var process = Process.Start(psi) ?? throw new InvalidOperationException($"Could not start {psi.FileName}.");
+        var outputTask = psi.RedirectStandardOutput ? process.StandardOutput.ReadToEndAsync() : Task.FromResult(string.Empty);
+        var errorTask = psi.RedirectStandardError ? process.StandardError.ReadToEndAsync() : Task.FromResult(string.Empty);
+        using var timeoutSource = new CancellationTokenSource(timeout);
+
+        try
+        {
+            await process.WaitForExitAsync(timeoutSource.Token);
+        }
+        catch (OperationCanceledException)
+        {
+            KillProcessTree(process);
+            var partialOutput = await ReadProcessOutputWithTimeoutAsync(outputTask, errorTask, TimeSpan.FromSeconds(5));
+            return (-1, $"Process timed out after {timeout}.\n{partialOutput}");
+        }
+
+        return (process.ExitCode, await ReadProcessOutputWithTimeoutAsync(outputTask, errorTask, TimeSpan.FromSeconds(5)));
+    }
+
+    private static async Task<string> ReadProcessOutputWithTimeoutAsync(Task<string> outputTask, Task<string> errorTask, TimeSpan timeout)
+    {
+        var combined = Task.WhenAll(outputTask, errorTask);
+        if (await Task.WhenAny(combined, Task.Delay(timeout)) != combined)
+        {
+            return $"Process exited, but redirected output streams did not close within {timeout}.";
+        }
+
+        var output = outputTask.Result;
+        var error = errorTask.Result;
+        return output + error;
+    }
+
+    private static void KillProcessTree(Process process)
+    {
+        try
+        {
+            if (!process.HasExited)
+            {
+                process.Kill(entireProcessTree: true);
+            }
+        }
+        catch (InvalidOperationException)
+        {
+        }
+    }
+
+    private static bool TryCreateBuiltProjectStartInfo(
+        IReadOnlyList<string> dotnetArguments,
+        bool redirectOutput,
+        out ProcessStartInfo psi)
+    {
+        psi = new ProcessStartInfo();
+        if (dotnetArguments.Count < 4 ||
+            !string.Equals(dotnetArguments[0], "run", StringComparison.Ordinal) ||
+            !string.Equals(dotnetArguments[1], "--project", StringComparison.Ordinal))
+        {
+            return false;
+        }
+
+        var projectPath = dotnetArguments[2];
+        var separatorIndex = -1;
+        for (var index = 3; index < dotnetArguments.Count; index++)
+        {
+            if (string.Equals(dotnetArguments[index], "--", StringComparison.Ordinal))
+            {
+                separatorIndex = index;
+                break;
+            }
+        }
+
+        if (separatorIndex < 0)
+        {
+            return false;
+        }
+
+        var projectDirectory = Path.GetDirectoryName(projectPath);
+        if (string.IsNullOrWhiteSpace(projectDirectory))
+        {
+            return false;
+        }
+
+        var projectName = Path.GetFileNameWithoutExtension(projectPath);
+        var outputDirectory = Path.Combine(projectDirectory, "bin", "Debug", "net10.0");
+        var executablePath = Path.Combine(outputDirectory, OperatingSystem.IsWindows() ? $"{projectName}.exe" : projectName);
+        var dllPath = Path.Combine(outputDirectory, $"{projectName}.dll");
+        var useExecutable = File.Exists(executablePath);
+        if (!useExecutable && !File.Exists(dllPath))
+        {
+            return false;
+        }
+
+        psi = new ProcessStartInfo
+        {
+            FileName = useExecutable ? executablePath : "dotnet",
+            WorkingDirectory = Root,
+            UseShellExecute = false,
+            RedirectStandardOutput = redirectOutput,
+            RedirectStandardError = redirectOutput,
+            CreateNoWindow = true
+        };
+        DisableBuildServerReuse(psi);
+
+        if (!useExecutable)
+        {
+            psi.ArgumentList.Add(dllPath);
+        }
+
+        for (var index = separatorIndex + 1; index < dotnetArguments.Count; index++)
+        {
+            psi.ArgumentList.Add(dotnetArguments[index]);
+        }
+
+        return true;
+    }
+
+    private static void DisableBuildServerReuse(ProcessStartInfo psi)
+    {
+        psi.Environment["MSBUILDDISABLENODEREUSE"] = "1";
+        psi.Environment["DOTNET_CLI_TELEMETRY_OPTOUT"] = "1";
     }
 
     private static async Task<HostControlClient> WaitForDefaultHostControlAsync()
@@ -1590,7 +1723,9 @@ public sealed class GeneratedModule : IMptModule
             ["plannerBaseUrl"] = plannerBaseUrl,
             ["toolBaseUrl"] = toolBaseUrl,
             ["mcpBaseUrl"] = mcpBaseUrl,
-            ["healthPath"] = "/health"
+            ["plannerHealthPath"] = "/health",
+            ["toolHealthPath"] = "/health",
+            ["mcpHealthPath"] = "/health"
         };
     }
 
@@ -1600,8 +1735,7 @@ public sealed class GeneratedModule : IMptModule
         {
             ["baseUrl"] = baseUrl,
             ["energyServerBaseUrl"] = baseUrl,
-            ["adbPath"] = "adb-missing-for-smartbird-test",
-            ["fnb58Port"] = ""
+            ["adbPath"] = "adb-missing-for-smartbird-test"
         };
     }
 
@@ -1641,9 +1775,24 @@ public sealed class GeneratedModule : IMptModule
             grantedCapabilities);
     }
 
-    private sealed class RecordingDisplayService : IDisplayService
+    private sealed class RecordingDisplayService : IDisplayService, IScreenEaseDisplayResetService
     {
+        private readonly DisplayWriterStatus _writerStatus;
+        private readonly BrokerOperationResult _applyResult;
+        private readonly BrokerOperationResult _resetResult;
+
+        public RecordingDisplayService(
+            DisplayWriterStatus? writerStatus = null,
+            BrokerOperationResult? applyResult = null,
+            BrokerOperationResult? resetResult = null)
+        {
+            _writerStatus = writerStatus ?? new DisplayWriterStatus(true, "ready", "test writer ready");
+            _applyResult = applyResult ?? new BrokerOperationResult(true, "success", "test profile applied");
+            _resetResult = resetResult ?? new BrokerOperationResult(true, "reset", "test gamma ramp reset");
+        }
+
         public List<DisplayProfileIntent> AppliedIntents { get; } = [];
+        public int ResetCalls { get; private set; }
 
         public Task<IReadOnlyList<DisplaySnapshot>> ListDisplaysAsync(CancellationToken cancellationToken)
         {
@@ -1656,13 +1805,70 @@ public sealed class GeneratedModule : IMptModule
 
         public Task<DisplayWriterStatus> GetWriterStatusAsync(CancellationToken cancellationToken)
         {
-            return Task.FromResult(new DisplayWriterStatus(true, "ready", "test writer ready"));
+            return Task.FromResult(_writerStatus);
         }
 
         public Task<BrokerOperationResult> ApplyProfileAsync(DisplayProfileIntent intent, CancellationToken cancellationToken)
         {
             AppliedIntents.Add(intent);
-            return Task.FromResult(new BrokerOperationResult(true, "success", $"applied {intent.ProfileId}"));
+            return Task.FromResult(_applyResult with { Message = $"{_applyResult.Message}: {intent.ProfileId}" });
+        }
+
+        public Task<BrokerOperationResult> ResetAsync(CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            ResetCalls++;
+            return Task.FromResult(_resetResult);
+        }
+    }
+
+    private sealed class RecordingOverlayService : IScreenEaseOverlayService
+    {
+        private ScreenEaseOverlayState _state = ScreenEaseOverlayState.Hidden();
+        public int ApplyCalls { get; private set; }
+        public int HideCalls { get; private set; }
+        public bool DisposeCalled { get; private set; }
+
+        public Task<ScreenEaseOverlayState> GetStateAsync(CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.FromResult(_state);
+        }
+
+        public Task<ScreenEaseOverlayState> ApplyAsync(ScreenEaseOverlaySettings settings, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            ApplyCalls++;
+            var normalized = ScreenEaseOverlaySettings.Normalize(settings);
+            _state = new ScreenEaseOverlayState(true, normalized.OpacityPercent, normalized.ColorHex, 2, "applied", "test overlay applied");
+            return Task.FromResult(_state);
+        }
+
+        public Task<ScreenEaseOverlayState> HideAsync(CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            HideCalls++;
+            _state = ScreenEaseOverlayState.Hidden(_state.ColorHex);
+            return Task.FromResult(_state);
+        }
+
+        public void Dispose()
+        {
+            DisposeCalled = true;
+        }
+    }
+
+    private sealed class RecordingModuleHotkeyConfigurationService : IModuleHotkeyConfigurationService
+    {
+        public IReadOnlyList<ModuleHotkeyConfiguration> LastApplied { get; private set; } = [];
+        public int ApplyCount { get; private set; }
+
+        public Task ApplyAsync(IReadOnlyList<ModuleHotkeyConfiguration> hotkeys, CancellationToken cancellationToken)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            ApplyCount++;
+            LastApplied = hotkeys.ToArray();
+            return Task.CompletedTask;
         }
     }
 
@@ -1732,8 +1938,7 @@ public sealed class GeneratedModule : IMptModule
             {
                 var line when line.Contains(" /api/status ", StringComparison.Ordinal) => ("200 OK", "{\"state\":\"running\",\"service\":\"local-http-facade\"}"),
                 var line when line.Contains(" /api/events ", StringComparison.Ordinal) => ("200 OK", "{\"events\":[{\"id\":\"evt-1\",\"level\":\"info\",\"message\":\"temperature stable\"}]}"),
-                var line when line.Contains(" /api/logs ", StringComparison.Ordinal) => ("200 OK", "{\"records\":[{\"level\":\"info\",\"message\":\"smartbird log ready\"}]}"),
-                var line when line.Contains(" /api/config ", StringComparison.Ordinal) => ("200 OK", "{\"targetTemperatureC\":45,\"policy\":\"balanced\"}"),
+                var line when line.Contains(" /api/energy/status ", StringComparison.Ordinal) => ("200 OK", "{\"enabled\":true,\"online\":true,\"url\":\"http://127.0.0.1:18988\"}"),
                 var line when line.Contains(" /api/ping ", StringComparison.Ordinal) => ("200 OK", "pong token=abc123"),
                 var line when line.Contains(" /health ", StringComparison.Ordinal) => ("200 OK", "{\"status\":\"ok\",\"service\":\"test-health\"}"),
                 _ => ("404 Not Found", "missing")

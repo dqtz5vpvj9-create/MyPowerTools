@@ -11,4 +11,47 @@
     <Setter Property="Background" Value="{DynamicResource MptBrushSurfaceMuted}" />
     <Setter Property="BorderBrush" Value="{DynamicResource MptBrushAccent}" />
   </Style>
+
+  <Style Selector="Button.MptNotificationRowButton">
+    <Setter Property="MinHeight" Value="84" />
+    <Setter Property="Padding" Value="14" />
+    <Setter Property="CornerRadius" Value="{DynamicResource MptRadiusControl}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MptBrushBorder}" />
+    <Setter Property="BorderThickness" Value="{DynamicResource MptBorderThickness}" />
+    <Setter Property="Background" Value="{DynamicResource MptBrushCardBackground}" />
+    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    <Setter Property="VerticalContentAlignment" Value="Stretch" />
+  </Style>
+
+  <Style Selector="Button.MptNotificationRowButton:pointerover">
+    <Setter Property="Background" Value="{DynamicResource MptBrushSurfaceMuted}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MptBrushAccent}" />
+  </Style>
+
+  <Style Selector="Button.MptNotificationRowButton.unread">
+    <Setter Property="BorderBrush" Value="{DynamicResource MptBrushBorderStrong}" />
+  </Style>
+
+  <Style Selector="Button.MptNotificationRowButton.selected">
+    <Setter Property="Background" Value="{DynamicResource MptBrushSurfaceMuted}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MptBrushAccent}" />
+    <Setter Property="BorderThickness" Value="2" />
+  </Style>
+
+  <Style Selector="Border.MptNotificationToolbar">
+    <Setter Property="Padding" Value="{DynamicResource MptCardPadding}" />
+    <Setter Property="CornerRadius" Value="{DynamicResource MptRadiusPanel}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MptBrushBorder}" />
+    <Setter Property="BorderThickness" Value="{DynamicResource MptBorderThickness}" />
+    <Setter Property="Background" Value="{DynamicResource MptBrushSurfaceMuted}" />
+  </Style>
+
+  <Style Selector="Border.MptNotificationDetail">
+    <Setter Property="Padding" Value="20" />
+    <Setter Property="CornerRadius" Value="{DynamicResource MptRadiusPanel}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MptBrushBorderStrong}" />
+    <Setter Property="BorderThickness" Value="{DynamicResource MptBorderThickness}" />
+    <Setter Property="Background" Value="{DynamicResource MptBrushCardBackground}" />
+    <Setter Property="BoxShadow" Value="{DynamicResource MptShadowRaised}" />
+  </Style>
 </Styles>

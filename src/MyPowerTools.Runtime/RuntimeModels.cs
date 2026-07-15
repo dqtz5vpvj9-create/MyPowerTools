@@ -48,6 +48,12 @@ public sealed record DashboardMetric(string Label, string Value);
 
 public sealed record DashboardAction(string CommandId, string Title, string Style);
 
+public sealed record RuntimeToolSnapshot(
+    MyPowerTools.Abstractions.ToolDescriptor Descriptor,
+    string State,
+    string StateSummary,
+    bool Enabled);
+
 public sealed record RuntimeHotkeyBinding(
     string Id,
     string ModuleId,

@@ -24,10 +24,12 @@ var command = args.FirstOrDefault() ?? "help";
 
 return command switch
 {
+    "create" => Create(args.Skip(1).ToArray(), root),
     "validate" => Validate(args.Skip(1).ToArray(), root),
     "inspect" => Inspect(args.Skip(1).ToArray(), root),
     "run" => RunCommand(args.Skip(1).ToArray(), root),
     "package" => Package(args.Skip(1).ToArray(), root),
+    "pack" => Pack(args.Skip(1).ToArray(), root),
     "install" => Install(args.Skip(1).ToArray(), root),
     "uninstall" => Uninstall(args.Skip(1).ToArray(), root),
     "update" => Install(args.Skip(1).ToArray(), root),
@@ -44,6 +46,10 @@ return command switch
 
 static int Validate(string[] args, string root)
 {
+    if (args.FirstOrDefault() == "tool")
+    {
+        return ToolScaffolder.Validate(args.Skip(1).FirstOrDefault() ?? "", GetToolSchemaDirectory(root));
+    }
     if (args.FirstOrDefault() == "contracts")
     {
         return ValidateContracts(args.Skip(1).ToArray(), root);
@@ -54,6 +60,31 @@ static int Validate(string[] args, string root)
     var validator = new SchemaPackageValidator(schemaDir);
     var reports = validator.ValidatePackageRoot(Path.GetFullPath(packageDir));
     return PrintReports(reports);
+}
+
+static int Create(string[] args, string root)
+{
+    if (!string.Equals(args.FirstOrDefault(), "tool", StringComparison.OrdinalIgnoreCase))
+    {
+        return Help();
+    }
+
+    var type = GetOption(args, "--type") ?? "";
+    var id = GetOption(args, "--id") ?? "";
+    var output = GetOption(args, "--output") ?? "";
+    return ToolScaffolder.Create(type, id, output, GetSdkFeed(root));
+}
+
+static int Pack(string[] args, string root)
+{
+    if (!string.Equals(args.FirstOrDefault(), "tool", StringComparison.OrdinalIgnoreCase))
+    {
+        return Help();
+    }
+
+    var toolDirectory = args.Skip(1).FirstOrDefault(value => !value.StartsWith("--", StringComparison.Ordinal)) ?? "";
+    var output = GetOption(args, "--output");
+    return ToolScaffolder.Pack(toolDirectory, output, GetToolSchemaDirectory(root));
 }
 
 static int ValidateContracts(string[] args, string root)
@@ -557,6 +588,10 @@ static int UiScreenshot(string[] args, string root)
     var page = GetOption(args, "--page");
     if (!string.IsNullOrWhiteSpace(page))
     {
+        if (string.Equals(mode, "fixture", StringComparison.OrdinalIgnoreCase) && IsProductUiPage(page))
+        {
+            normalized.Add("--product-foundation");
+        }
         normalized.Add("--surface");
         normalized.Add(MapUiPageToSurface(page));
     }
@@ -572,11 +607,39 @@ static int UiShellSnapshot(string[] args, string root)
         GetOption(args, "--theme") ?? "light",
         GetOption(args, "--size") ?? "1366x768",
         GetOption(args, "--density") ?? "normal");
-    var path = new UiSurfaceGate().WriteShellSnapshotSet(output, request);
-    var realPath = HasFlag(args, "--live") || HasFlag(args, "--live-runner")
-        ? UiShellSnapshotLiveAsync(args, root, output, request).GetAwaiter().GetResult()
-        : ShellRealScreenshotWriter.WriteSnapshotSet(output, request.Theme, request.Size, request.Density);
-    Console.WriteLine(path);
+    var productFoundation = HasFlag(args, "--product-foundation");
+    var liveRunner = HasFlag(args, "--live") || HasFlag(args, "--live-runner");
+    var interactionScenario = GetOption(args, "--scenario") ?? "default";
+    var liveRemoteNotifications = liveRunner &&
+        (string.Equals(request.Surface, "remote-notifications", StringComparison.OrdinalIgnoreCase) ||
+         string.Equals(request.Surface, "remote-notifications-inbox", StringComparison.OrdinalIgnoreCase) ||
+         string.Equals(request.Surface, "android-tools.notifications.inbox", StringComparison.OrdinalIgnoreCase));
+    if (!productFoundation &&
+        !liveRemoteNotifications &&
+        !string.Equals(interactionScenario, "default", StringComparison.OrdinalIgnoreCase))
+    {
+        throw new InvalidOperationException(
+            "Headless interaction scenarios currently require --product-foundation and the Remote Notifications page.");
+    }
+
+    var path = productFoundation || liveRunner
+        ? null
+        : new UiSurfaceGate().WriteShellSnapshotSet(output, request);
+    var realPath = productFoundation
+        ? ShellRealScreenshotWriter.WriteProductFoundationSnapshotSet(
+            output,
+            request.Theme,
+            request.Size,
+            request.Density,
+            request.Surface,
+            interactionScenario)
+        : liveRunner
+            ? UiShellSnapshotLiveAsync(args, root, output, request).GetAwaiter().GetResult()
+            : ShellRealScreenshotWriter.WriteSnapshotSet(output, request.Theme, request.Size, request.Density, request.Surface);
+    if (path is not null)
+    {
+        Console.WriteLine(path);
+    }
     Console.WriteLine(realPath);
     return 0;
 }
@@ -585,7 +648,16 @@ static string MapUiPageToSurface(string page)
 {
     return page.Trim().ToLowerInvariant() switch
     {
-        "dashboard" => "shell.dashboard",
+        "home" => "shell.home",
+        "general" or "general-settings" => "shell.general",
+        "tools" or "tools-catalog" => "shell.tools-catalog",
+        "remote-notifications" or "remote-notifications-inbox" => "android-tools.notifications.inbox",
+        "adb-forwarder" or "adb-forwarder-forward" => "adb-forwarder.forward",
+        "adb-forwarder-rules" => "adb-forwarder.rules",
+        "screenease" or "screenease-profiles" => "screenease.profiles",
+        "doubao" or "doubao-agent" => "doubao-agent.services",
+        "smartbird" or "smartbird-thermostat" => "smartbird-thermostat.overview",
+        "dashboard" => "shell.home",
         "command-palette" or "commands" => "shell.command-palette",
         "module-detail" or "modules" => "shell.module-detail",
         "settings" or "settings-center" => "shell.settings-center",
@@ -597,15 +669,39 @@ static string MapUiPageToSurface(string page)
     };
 }
 
+static bool IsProductUiPage(string page)
+{
+    return page.Trim().ToLowerInvariant() is
+        "home" or
+        "general" or
+        "general-settings" or
+        "tools" or
+        "tools-catalog" or
+        "remote-notifications" or
+        "remote-notifications-inbox" or
+        "adb-forwarder" or
+        "adb-forwarder-forward" or
+        "adb-forwarder-rules" or
+        "screenease" or
+        "screenease-profiles" or
+        "doubao" or
+        "doubao-agent" or
+        "smartbird" or
+        "smartbird-thermostat";
+}
+
 static async Task<string> UiShellSnapshotLiveAsync(string[] args, string root, string output, UiSnapshotRequest request)
 {
     if (!HasFlag(args, "--fixture-only"))
     {
+        // Tool-specific screenshot paths have been removed: each tool's Surface now owns its own
+        // rendering. The generic host-control screenshot path below captures any visible surface.
         using var runnerTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(40));
         try
         {
             using var client = HostControlClient.ForDefaultEndpoint();
             await client.PingAsync(runnerTimeout.Token);
+
             return await ShellRealScreenshotWriter.WriteSnapshotSetFromHostControlAsync(
                 output,
                 request.Theme,
@@ -613,6 +709,7 @@ static async Task<string> UiShellSnapshotLiveAsync(string[] args, string root, s
                 request.Density,
                 client,
                 "runner-hostcontrol",
+                request.Surface,
                 runnerTimeout.Token);
         }
         catch (Exception ex) when (!HasFlag(args, "--runner-only") && ex is not OperationCanceledException)
@@ -678,6 +775,7 @@ static async Task<string> WriteShellSnapshotFromFixtureHostControlAsync(
             request.Density,
             client,
             "fixture-hostcontrol",
+            request.Surface,
             cancellationToken);
     }
     finally
@@ -789,7 +887,7 @@ static async Task<int> BrokerPortProxy(string[] args)
 {
     var subcommand = args.FirstOrDefault() ?? "list";
     var platform = new WindowsPlatformPack();
-    if (subcommand == "list")
+    if (string.Equals(subcommand, "list", StringComparison.OrdinalIgnoreCase))
     {
         var rules = await platform.Network.ListPortProxyRulesAsync(CancellationToken.None);
         foreach (var rule in rules)
@@ -801,58 +899,8 @@ static async Task<int> BrokerPortProxy(string[] args)
         return 0;
     }
 
-    var moduleId = GetOption(args, "--module") ?? "cli";
-    var reason = GetOption(args, "--reason") ?? $"CLI broker portproxy {subcommand}";
-    var listenAddress = GetOption(args, "--listen-address");
-    var listenPort = GetIntOption(args, "--listen-port");
-    if (string.IsNullOrWhiteSpace(listenAddress) || listenPort is null)
-    {
-        Console.WriteLine("mpt broker portproxy <apply|remove> --listen-address <address> --listen-port <port> [--connect-address <address> --connect-port <port>] [--module <id>] [--reason <text>]");
-        return 2;
-    }
-
-    var broker = new NetworkBroker(platform.Network, CreateDefaultAuditLog());
-
-    if (subcommand == "apply")
-    {
-        var connectAddress = GetOption(args, "--connect-address");
-        var connectPort = GetIntOption(args, "--connect-port");
-        if (string.IsNullOrWhiteSpace(connectAddress) || connectPort is null)
-        {
-            Console.WriteLine("mpt broker portproxy apply --listen-address <address> --listen-port <port> --connect-address <address> --connect-port <port>");
-            return 2;
-        }
-
-        var currentRules = await platform.Network.ListPortProxyRulesAsync(CancellationToken.None);
-        var existing = currentRules.FirstOrDefault(rule =>
-            string.Equals(rule.ListenAddress, listenAddress, StringComparison.OrdinalIgnoreCase) &&
-            rule.ListenPort == listenPort.Value);
-        var changeSet = new PortProxyChangeSet(
-            [new PortProxyRule(listenAddress, listenPort.Value, connectAddress, connectPort.Value)],
-            existing is null ? [] : [existing]);
-        var result = await broker.ApplyChangeSetAsync(moduleId, changeSet, reason, CancellationToken.None);
-        PrintBrokerResult(result);
-        return result.Success ? 0 : 1;
-    }
-
-    if (subcommand == "remove")
-    {
-        var currentRules = await platform.Network.ListPortProxyRulesAsync(CancellationToken.None);
-        var existing = currentRules.FirstOrDefault(rule =>
-            string.Equals(rule.ListenAddress, listenAddress, StringComparison.OrdinalIgnoreCase) &&
-            rule.ListenPort == listenPort.Value);
-        if (existing is null)
-        {
-            Console.WriteLine("noop: no matching portproxy rule found.");
-            return 0;
-        }
-
-        var result = await broker.ApplyChangeSetAsync(moduleId, new PortProxyChangeSet([], [existing]), reason, CancellationToken.None);
-        PrintBrokerResult(result);
-        return result.Success ? 0 : 1;
-    }
-
-    return Help();
+    Console.WriteLine("Portproxy writes are accepted only through the installed MyPowerTools.ElevatedBroker.exe approval workflow.");
+    return 2;
 }
 
 static async Task<int> BrokerSecret(string[] args)
@@ -1041,12 +1089,6 @@ static string? GetOption(string[] args, string name)
     return null;
 }
 
-static int? GetIntOption(string[] args, string name)
-{
-    var value = GetOption(args, name);
-    return int.TryParse(value, out var parsed) ? parsed : null;
-}
-
 static bool HasFlag(string[] args, string name)
 {
     return args.Any(arg => string.Equals(arg, name, StringComparison.OrdinalIgnoreCase));
@@ -1129,6 +1171,9 @@ static void PrintBrokerResult(BrokerOperationResult result)
 
 static int Help()
 {
+    Console.WriteLine("mypowertools create tool --type web|dotnet|native|headless --id <id> --output <dir>");
+    Console.WriteLine("mypowertools validate tool <dir>");
+    Console.WriteLine("mypowertools pack tool <dir> [--output <file.mptpkg>]");
     Console.WriteLine("mpt validate <package-dir> [--schemas <schema-dir>]");
     Console.WriteLine("mpt validate contracts [package-root] [--schemas <schema-dir>] [--data-root <dir>]");
     Console.WriteLine("mpt inspect <package-dir>");
@@ -1148,8 +1193,8 @@ static int Help()
     Console.WriteLine("mpt module disable <module-id> [--modules <package-root>] [--data-root <dir>]");
     Console.WriteLine("mpt ui check <package-dir>");
     Console.WriteLine("mpt ui snapshot [package-dir] [--surface <id|kind>] [--theme <theme>] [--size <width>x<height>] [--density <density>] [--out <dir>]");
-    Console.WriteLine("mpt ui screenshot [--mode fixture|live-runner] [--full-shell] [--page dashboard|command-palette|module-detail|settings|logs|notifications|packages|diagnostics] [--theme <theme>] [--size <width>x<height>] [--density <density>] [--out <dir>]");
-    Console.WriteLine("mpt ui shell-snapshot [--live|--live-runner] [--full-shell] [--fixture-only] [--runner-only] [--surface <id|kind>] [--theme <theme>] [--size <width>x<height>] [--density <density>] [--out <dir>] (writes contract and full ShellChrome Avalonia screenshots)");
+    Console.WriteLine("mpt ui screenshot [--mode fixture|live-runner] [--product-foundation] [--full-shell] [--page home|tools|adb-forwarder|screenease|remote-notifications|dashboard|command-palette|module-detail|settings|logs|notifications|packages|diagnostics] [--scenario default|scroll|filter|detail|activation] [--theme <theme>] [--size <width>x<height>] [--density <density>] [--out <dir>]");
+    Console.WriteLine("mpt ui shell-snapshot [--live|--live-runner] [--product-foundation] [--full-shell] [--fixture-only] [--runner-only] [--surface <id|kind>] [--scenario default|scroll|filter|detail|activation] [--theme <theme>] [--size <width>x<height>] [--density <density>] [--out <dir>] (writes contract and full ShellChrome Avalonia screenshots)");
     Console.WriteLine("mpt broker audit");
     Console.WriteLine("mpt broker secret self-test [--module <id>] [--name <name>]");
     Console.WriteLine("mpt broker portproxy list");
@@ -1180,4 +1225,30 @@ static string FindRepositoryRoot(string start)
     }
 
     return Directory.GetCurrentDirectory();
+}
+
+static string GetToolSchemaDirectory(string root)
+{
+    var repository = Path.Combine(root, "schemas");
+    return File.Exists(Path.Combine(repository, "tool.schema.json"))
+        ? repository
+        : Path.Combine(AppContext.BaseDirectory, "schemas");
+}
+
+static string GetSdkFeed(string root)
+{
+    var configured = Environment.GetEnvironmentVariable("MPT_SDK_FEED");
+    if (!string.IsNullOrWhiteSpace(configured))
+    {
+        return Path.GetFullPath(Environment.ExpandEnvironmentVariables(configured));
+    }
+    var repository = Path.Combine(root, "artifacts", "sdk", "nuget");
+    if (Directory.Exists(repository))
+    {
+        return repository;
+    }
+    var sibling = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "nuget"));
+    return Directory.Exists(sibling)
+        ? sibling
+        : Path.Combine(AppContext.BaseDirectory, "sdk", "nuget");
 }

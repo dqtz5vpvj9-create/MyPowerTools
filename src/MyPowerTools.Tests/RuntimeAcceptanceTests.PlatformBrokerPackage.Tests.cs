@@ -507,6 +507,11 @@ public sealed partial class RuntimeAcceptanceTests
         Assert.Contains("hotkeys.Pressed", runner);
         Assert.Contains("ShellStartupOptions.FromArgs", app);
         Assert.Contains("--command-palette", startupOptions);
+        Assert.Contains("--data-root", startupOptions);
+        Assert.Contains("--modules", startupOptions);
+        Assert.Contains("--no-runner-bootstrap", startupOptions);
+        Assert.Contains("ShellRunnerBootstrapper.EnsureStartedAsync", File.ReadAllText(Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Program.cs")));
+        Assert.Contains("MyPowerTools.Runner.exe", File.ReadAllText(Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "ShellRunnerBootstrapper.cs")));
         Assert.Contains("FocusCommandPaletteAsync", mainWindow);
         Assert.Contains("public async Task FocusCommandPaletteAsync()", workspace);
     }

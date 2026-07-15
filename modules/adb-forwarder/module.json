@@ -17,23 +17,6 @@
       ],
       "assembly": "AdbForwarder.MyPowerTools.dll",
       "type": "AdbForwarder.MyPowerTools.AdbForwarderModule"
-    },
-    {
-      "kind": "grpc-ipc",
-      "priority": 70,
-      "command": "adb-forwarder-helper",
-      "windows": {
-        "transport": "named-pipe",
-        "name": "mypowertools.adb-forwarder.helper"
-      },
-      "linux": {
-        "transport": "unix-domain-socket",
-        "path": "$XDG_RUNTIME_DIR/mypowertools/adb-forwarder/helper.sock"
-      },
-      "macos": {
-        "transport": "unix-domain-socket",
-        "path": "$TMPDIR/mypowertools/adb-forwarder/helper.sock"
-      }
     }
   ],
   "capabilities": [
@@ -46,31 +29,25 @@
     "detailPage"
   ],
   "runtimePolicy": {
-    "preferred": "sidecar",
+    "preferred": "inproc",
     "allowInProc": true,
     "inProcRules": {
-      "maxCallMs": 10000,
+      "maxCallMs": 60000,
       "allowNativeDll": false,
       "allowWindow": false,
       "allowBackgroundThreads": false,
       "loadContext": "collectible",
       "shadowCopy": true
     },
-    "sidecarRules": {
-      "readyTimeoutMs": 8000,
-      "restartLimit": 4,
-      "restartWindowSeconds": 30,
-      "killProcessTree": true
-    },
     "operationRules": {
       "status": "inproc-or-sidecar",
       "settings": "inproc-or-sidecar",
       "commandProvider": "inproc-or-sidecar",
-      "longRunningCommand": "sidecar-required",
+      "longRunningCommand": "inproc-or-sidecar",
       "systemMutation": "broker-required",
       "nativeHardware": "sidecar-required",
       "elevatedWrite": "broker-required",
-      "externalProcess": "sidecar-required"
+      "externalProcess": "inproc-or-sidecar"
     }
   },
   "requires": [
@@ -96,6 +73,9 @@
   "staticIndexes": {
     "commands": "commands.index.json"
   },
+  "tools": [
+    "ui/tool.json"
+  ],
   "uiSurfaces": [
     "ui/dashboard-card.json",
     "ui/detail-page.json",

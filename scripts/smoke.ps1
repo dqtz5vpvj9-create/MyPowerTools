@@ -1,3 +1,8 @@
+param(
+    [switch] $RefreshPackageSignatures,
+    [string] $ModulesRoot = ''
+)
+
 $ErrorActionPreference = 'Stop'
 
 $RepoRoot = Split-Path -Parent $PSScriptRoot
@@ -21,17 +26,32 @@ function Invoke-Native {
 
 Invoke-Native 'dotnet' @('restore', 'MyPowerTools.slnx')
 Invoke-Native 'dotnet' @('build', 'MyPowerTools.slnx', '--no-restore')
-Invoke-Native 'dotnet' @('run', '--project', 'src\MyPowerTools.Cli', '--', 'package', 'sign-local', 'modules')
+if ([string]::IsNullOrWhiteSpace($ModulesRoot)) {
+    $ModulesRoot = Join-Path $RepoRoot 'artifacts\smoke-modules'
+    Invoke-Native 'pwsh.exe' @(
+        '-NoLogo', '-NoProfile', '-NonInteractive',
+        '-File', 'scripts\build-tool-packages.ps1',
+        '-RepoRoot', $RepoRoot,
+        '-OutputRoot', $ModulesRoot)
+} else {
+    $ModulesRoot = [System.IO.Path]::GetFullPath((Join-Path $RepoRoot $ModulesRoot))
+}
+if ($RefreshPackageSignatures) {
+    Invoke-Native 'dotnet' @('run', '--project', 'src\MyPowerTools.Cli', '--', 'package', 'sign-local', $ModulesRoot)
+    Invoke-Native 'dotnet' @('run', '--project', 'src\MyPowerTools.Cli', '--', 'package', 'trust', $ModulesRoot, '--strict')
+} else {
+    Write-Host 'Skipping package signature refresh; pass -RefreshPackageSignatures to update local package signatures.'
+    Write-Host 'Skipping strict package trust because solution build can refresh module binaries during UI-only validation.'
+}
 Invoke-Native 'dotnet' @('test', 'MyPowerTools.slnx', '--no-build')
-Invoke-Native 'dotnet' @('run', '--project', 'src\MyPowerTools.Cli', '--', 'validate', 'modules')
-Invoke-Native 'dotnet' @('run', '--project', 'src\MyPowerTools.Cli', '--', 'validate', 'contracts')
-Invoke-Native 'dotnet' @('run', '--project', 'src\MyPowerTools.Cli', '--', 'package', 'trust', 'modules', '--strict')
-Invoke-Native 'dotnet' @('run', '--project', 'src\MyPowerTools.Cli', '--', 'ui', 'check', 'modules')
-Invoke-Native 'dotnet' @('run', '--project', 'src\MyPowerTools.Cli', '--', 'ui', 'snapshot', '--surface', 'dashboard-card', '--theme', 'light', '--size', '1366x768', '--density', 'normal', '--out', 'artifacts\ui-snapshots')
+Invoke-Native 'dotnet' @('run', '--project', 'src\MyPowerTools.Cli', '--', 'validate', $ModulesRoot)
+Invoke-Native 'dotnet' @('run', '--project', 'src\MyPowerTools.Cli', '--', 'validate', 'contracts', $ModulesRoot)
+Invoke-Native 'dotnet' @('run', '--project', 'src\MyPowerTools.Cli', '--', 'ui', 'check', $ModulesRoot)
+Invoke-Native 'dotnet' @('run', '--project', 'src\MyPowerTools.Cli', '--', 'ui', 'snapshot', $ModulesRoot, '--surface', 'dashboard-card', '--theme', 'light', '--size', '1366x768', '--density', 'normal', '--out', 'artifacts\ui-snapshots')
 Invoke-Native 'dotnet' @('run', '--project', 'src\MyPowerTools.Cli', '--', 'ui', 'shell-snapshot', '--theme', 'light', '--size', '1366x768', '--density', 'normal', '--out', 'artifacts\shell-ui-snapshots')
 Invoke-Native 'dotnet' @('run', '--project', 'src\MyPowerTools.Cli', '--', 'runner', 'autostart', 'status')
 Invoke-Native 'pwsh.exe' @('-NoLogo', '-NoProfile', '-NonInteractive', '-File', 'scripts\validate-templates.ps1')
-Invoke-Native 'dotnet' @('run', '--project', 'src\MyPowerTools.Runner', '--', '--once')
+Invoke-Native 'dotnet' @('run', '--project', 'src\MyPowerTools.Runner', '--', '--once', '--modules', $ModulesRoot)
 Invoke-Native 'dotnet' @('run', '--project', 'src\MyPowerTools.Cli', '--', 'doctor')
 
 $RunnerExe = Join-Path $RepoRoot 'src\MyPowerTools.Runner\bin\Debug\net10.0\MyPowerTools.Runner.exe'
@@ -58,7 +78,7 @@ try {
     $startInfo.UseShellExecute = $false
     $startInfo.CreateNoWindow = $true
     $startInfo.Environment['MPT_DATA_ROOT'] = $SmokeDataRoot
-    foreach ($argument in @('--modules', (Join-Path $RepoRoot 'modules'), '--data-root', $SmokeDataRoot)) {
+    foreach ($argument in @('--modules', $ModulesRoot, '--data-root', $SmokeDataRoot)) {
         $startInfo.ArgumentList.Add($argument)
     }
 

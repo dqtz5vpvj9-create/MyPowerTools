@@ -1,0 +1,1 @@
+$ErrorActionPreference='Stop'; while(($line=[Console]::In.ReadLine()) -ne $null){ $request=$line|ConvertFrom-Json; @{jsonrpc='2.0';id=$request.id;result=@{state='ready';message='template.native native runtime ready'}}|ConvertTo-Json -Compress -Depth 5 }

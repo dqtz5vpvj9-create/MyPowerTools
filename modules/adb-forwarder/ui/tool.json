@@ -1,0 +1,23 @@
+{
+  "schemaVersion": "1.0",
+  "toolId": "adb-forwarder",
+  "ownerModuleId": "adb-forwarder",
+  "title": "ADB Forwarder",
+  "description": "Forward a selected USB ADB device to local, shared Windows, and optional remote AOSP endpoints.",
+  "icon": "tool.adb-forwarder",
+  "category": "Device & Network",
+  "primaryRouteId": "forward",
+  "routes": [
+    { "routeId": "forward", "surfaceId": "adb-forwarder.forward", "title": "Forward device", "icon": "route.forward" },
+    { "routeId": "rules", "surfaceId": "adb-forwarder.rules", "title": "Rules", "icon": "route.rules" },
+    { "routeId": "devices", "surfaceId": "adb-forwarder.devices", "title": "Devices", "icon": "route.devices" },
+    { "routeId": "activity", "surfaceId": "adb-forwarder.activity", "title": "Activity", "icon": "route.activity" },
+    { "routeId": "diagnostics", "surfaceId": "adb-forwarder.diagnostics", "title": "Troubleshooting", "icon": "route.diagnostics" }
+  ],
+  "homeCard": {
+    "summary": "Select a USB ADB device, run a read-only preflight, and establish bounded local or remote forwarding.",
+    "primaryActionLabel": "Forward device",
+    "statusBinding": "module.status",
+    "order": 10
+  }
+}

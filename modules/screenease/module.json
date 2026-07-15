@@ -17,23 +17,6 @@
       ],
       "assembly": "ScreenEase.MyPowerTools.dll",
       "type": "ScreenEase.MyPowerTools.ScreenEaseModule"
-    },
-    {
-      "kind": "grpc-ipc",
-      "priority": 70,
-      "command": "screenease-core",
-      "windows": {
-        "transport": "named-pipe",
-        "name": "mypowertools.screenease.core"
-      },
-      "linux": {
-        "transport": "unix-domain-socket",
-        "path": "$XDG_RUNTIME_DIR/mypowertools/screenease/core.sock"
-      },
-      "macos": {
-        "transport": "unix-domain-socket",
-        "path": "$TMPDIR/mypowertools/screenease/core.sock"
-      }
     }
   ],
   "capabilities": [
@@ -46,13 +29,13 @@
     "detailPage"
   ],
   "runtimePolicy": {
-    "preferred": "sidecar",
+    "preferred": "inproc",
     "allowInProc": true,
     "inProcRules": {
       "maxCallMs": 10000,
-      "allowNativeDll": false,
-      "allowWindow": false,
-      "allowBackgroundThreads": false,
+      "allowNativeDll": true,
+      "allowWindow": true,
+      "allowBackgroundThreads": true,
       "loadContext": "collectible",
       "shadowCopy": true
     },
@@ -68,7 +51,7 @@
       "commandProvider": "inproc-or-sidecar",
       "longRunningCommand": "sidecar-required",
       "systemMutation": "broker-required",
-      "nativeHardware": "sidecar-required",
+      "nativeHardware": "inproc-or-sidecar",
       "elevatedWrite": "broker-required",
       "externalProcess": "sidecar-required"
     }
@@ -88,16 +71,76 @@
   "permissions": [],
   "hotkeys": [
     {
-      "id": "profile.quick-apply",
+      "id": "toggle-enabled",
       "default": "Ctrl+Alt+F9",
-      "commandId": "screenease.profile.apply",
+      "commandId": "screenease.effect.toggle",
       "scope": "module",
-      "reason": "Apply the active ScreenEase profile."
+      "reason": "Toggle the ScreenEase effect.",
+      "enabledByDefault": false
+    },
+    {
+      "id": "brightness-up",
+      "default": "Ctrl+Alt+Up",
+      "commandId": "screenease.effect.brightness.increase",
+      "scope": "module",
+      "reason": "Increase ScreenEase brightness by five percentage points.",
+      "enabledByDefault": false
+    },
+    {
+      "id": "brightness-down",
+      "default": "Ctrl+Alt+Down",
+      "commandId": "screenease.effect.brightness.decrease",
+      "scope": "module",
+      "reason": "Decrease ScreenEase brightness by five percentage points.",
+      "enabledByDefault": false
+    },
+    {
+      "id": "temperature-up",
+      "default": "Ctrl+Alt+Right",
+      "commandId": "screenease.effect.temperature.increase",
+      "scope": "module",
+      "reason": "Increase ScreenEase color temperature by 250 K.",
+      "enabledByDefault": false
+    },
+    {
+      "id": "temperature-down",
+      "default": "Ctrl+Alt+Left",
+      "commandId": "screenease.effect.temperature.decrease",
+      "scope": "module",
+      "reason": "Decrease ScreenEase color temperature by 250 K.",
+      "enabledByDefault": false
+    },
+    {
+      "id": "long-read-profile",
+      "default": "Ctrl+Alt+R",
+      "commandId": "screenease.profile.apply-long-read",
+      "scope": "module",
+      "reason": "Apply the ScreenEase long-read profile.",
+      "enabledByDefault": false
+    },
+    {
+      "id": "low-blue-evening-profile",
+      "default": "Ctrl+Alt+H",
+      "commandId": "screenease.profile.apply-low-blue-evening",
+      "scope": "module",
+      "reason": "Apply the ScreenEase low-blue evening profile.",
+      "enabledByDefault": false
+    },
+    {
+      "id": "toggle-overlay",
+      "default": "Ctrl+Alt+D",
+      "commandId": "screenease.overlay.toggle",
+      "scope": "module",
+      "reason": "Toggle the ScreenEase click-through overlay.",
+      "enabledByDefault": false
     }
   ],
   "staticIndexes": {
     "commands": "commands.index.json"
   },
+  "tools": [
+    "ui/tool.json"
+  ],
   "uiSurfaces": [
     "ui/dashboard-card.json",
     "ui/detail-page.json",

@@ -3,40 +3,72 @@
   <Style Selector="controls|MptSidebar">
     <Setter Property="Spacing" Value="{DynamicResource MptSpacingS}" />
     <Setter Property="Margin" Value="{DynamicResource MptSidebarPadding}" />
+    <Setter Property="Background" Value="{DynamicResource MptBrushNavigationBackground}" />
   </Style>
 
   <Style Selector="controls|MptButton.MptNavButton">
+    <Setter Property="MinHeight" Value="{DynamicResource MptDensityNavigationHeight}" />
+    <Setter Property="Padding" Value="{DynamicResource MptInputPadding}" />
     <Setter Property="HorizontalContentAlignment" Value="Left" />
-    <Setter Property="Background" Value="{DynamicResource MptBrushAppBackground}" />
-    <Setter Property="BorderBrush" Value="{DynamicResource MptBrushAppBackground}" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource MptBrushTextSecondary}" />
   </Style>
 
   <Style Selector="controls|MptButton.MptNavButton:pointerover">
-    <Setter Property="Background" Value="{DynamicResource MptBrushSurfaceMuted}" />
-    <Setter Property="BorderBrush" Value="{DynamicResource MptBrushAccent}" />
+    <Setter Property="Background" Value="{DynamicResource MptBrushNavigationHover}" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource MptBrushTextPrimary}" />
+  </Style>
+
+  <Style Selector="controls|MptButton.MptNavButton.selected">
+    <Setter Property="Background" Value="{DynamicResource MptBrushNavigationSelected}" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource MptBrushTextPrimary}" />
+  </Style>
+
+  <Style Selector="controls|MptButton.MptNavButton.selected:pointerover">
+    <Setter Property="Background" Value="{DynamicResource MptBrushNavigationSelected}" />
+    <Setter Property="BorderBrush" Value="Transparent" />
   </Style>
 
   <Style Selector="StackPanel.MptSidebar">
     <Setter Property="Spacing" Value="{DynamicResource MptSpacingS}" />
     <Setter Property="Margin" Value="{DynamicResource MptSidebarPadding}" />
+    <Setter Property="Background" Value="{DynamicResource MptBrushNavigationBackground}" />
   </Style>
 
   <Style Selector="Button.MptNavButton">
+    <Setter Property="MinHeight" Value="{DynamicResource MptDensityNavigationHeight}" />
+    <Setter Property="Padding" Value="{DynamicResource MptInputPadding}" />
     <Setter Property="HorizontalContentAlignment" Value="Left" />
-    <Setter Property="Background" Value="{DynamicResource MptBrushAppBackground}" />
-    <Setter Property="BorderBrush" Value="{DynamicResource MptBrushAppBackground}" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource MptBrushTextSecondary}" />
   </Style>
 
   <Style Selector="Button.MptNavButton:pointerover">
-    <Setter Property="Background" Value="{DynamicResource MptBrushSurfaceMuted}" />
-    <Setter Property="BorderBrush" Value="{DynamicResource MptBrushAccent}" />
+    <Setter Property="Background" Value="{DynamicResource MptBrushNavigationHover}" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource MptBrushTextPrimary}" />
+  </Style>
+
+  <Style Selector="Button.MptNavButton.selected">
+    <Setter Property="Background" Value="{DynamicResource MptBrushNavigationSelected}" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource MptBrushTextPrimary}" />
+  </Style>
+
+  <Style Selector="Button.MptNavButton.selected:pointerover">
+    <Setter Property="Background" Value="{DynamicResource MptBrushNavigationSelected}" />
+    <Setter Property="BorderBrush" Value="Transparent" />
   </Style>
 
   <Style Selector="Border.MptNavIndicator">
     <Setter Property="Width" Value="{DynamicResource MptNavIndicatorWidth}" />
-    <Setter Property="MinHeight" Value="{DynamicResource MptDensityCompactControlHeight}" />
+    <Setter Property="MinHeight" Value="20" />
     <Setter Property="CornerRadius" Value="{DynamicResource MptRadiusBadge}" />
     <Setter Property="Background" Value="{DynamicResource MptBrushAccent}" />
-    <Setter Property="Margin" Value="{DynamicResource MptGapRightM}" />
+    <Setter Property="Margin" Value="0,0,8,0" />
   </Style>
 </Styles>

@@ -45,6 +45,7 @@ public sealed class InvocationExecutionCache
         Cleanup();
 
         InvocationExecutionEntry entry;
+        Task<Sdk.CommandExecutionResult> waiter;
         lock (_gate)
         {
             if (_entries.TryGetValue(invocationId, out entry!))
@@ -54,10 +55,11 @@ public sealed class InvocationExecutionCache
 
             entry = new InvocationExecutionEntry(_utcNow());
             _entries[invocationId] = entry;
-            entry.Task = RunAndCompleteAsync(invocationId, entry, factory);
+            waiter = entry.Task;
         }
 
-        return entry.Task;
+        StartExecution(invocationId, entry, factory);
+        return waiter;
     }
 
     public bool IsCompleted(string invocationId)
@@ -83,34 +85,65 @@ public sealed class InvocationExecutionCache
         }
     }
 
-    private async Task<Sdk.CommandExecutionResult> RunAndCompleteAsync(
+    private void StartExecution(
         string invocationId,
         InvocationExecutionEntry entry,
         Func<Task<Sdk.CommandExecutionResult>> factory)
     {
+        Task<Sdk.CommandExecutionResult> execution;
         try
         {
-            var result = await factory();
-            lock (_gate)
-            {
-                entry.MarkCompleted(_utcNow());
-                CleanupCore(_utcNow());
-            }
-
-            return result;
+            execution = factory() ?? throw new InvalidOperationException("Invocation execution factory returned null.");
         }
-        catch
+        catch (Exception failure)
         {
-            lock (_gate)
-            {
-                if (ReferenceEquals(_entries.GetValueOrDefault(invocationId), entry))
-                {
-                    _entries.Remove(invocationId);
-                }
-            }
-
-            throw;
+            InvocationExecutionOutcome.Failed(this, invocationId, entry, DetachFailure(failure)).Publish();
+            return;
         }
+
+        var bridge = new InvocationExecutionBridge(this, invocationId, entry);
+        var detached = execution.ContinueWith(
+            static (task, state) => ((InvocationExecutionBridge)state!).Detach(task),
+            bridge,
+            CancellationToken.None,
+            TaskContinuationOptions.ExecuteSynchronously,
+            TaskScheduler.Default);
+        _ = detached.ContinueWith(
+            static task => task.GetAwaiter().GetResult().Publish(),
+            CancellationToken.None,
+            TaskContinuationOptions.ExecuteSynchronously,
+            TaskScheduler.Default);
+    }
+
+    private static Sdk.CommandExecutionResult DetachResult(Sdk.CommandExecutionResult result)
+    {
+        var error = result.Error is null
+            ? null
+            : new Sdk.MptRuntimeError(
+                result.Error.Code,
+                result.Error.Message,
+                result.Error.Retryable,
+                result.Error.Details?.DeepClone() as System.Text.Json.Nodes.JsonObject);
+        return new Sdk.CommandExecutionResult(
+            result.InvocationId,
+            result.CommandId,
+            result.State,
+            result.Success,
+            result.Output,
+            error);
+    }
+
+    private static Exception DetachFailure(Exception failure)
+    {
+        var message = LogRouter.Redact(failure.Message);
+        return failure switch
+        {
+            OperationCanceledException cancelled => new OperationCanceledException(message, cancelled.CancellationToken),
+            ArgumentException argument => new ArgumentException(message, argument.ParamName),
+            InvalidOperationException => new InvalidOperationException(message),
+            TimeoutException => new TimeoutException(message),
+            _ => new InvalidOperationException($"Invocation execution failed: {message}")
+        };
     }
 
     private void CleanupCore(DateTimeOffset now)
@@ -146,18 +179,165 @@ public sealed class InvocationExecutionCache
         {
             CreatedAt = createdAt;
             CompletedAt = DateTimeOffset.MaxValue;
+            Completion = new TaskCompletionSource<Sdk.CommandExecutionResult>(TaskCreationOptions.RunContinuationsAsynchronously);
+            Task = Completion.Task;
         }
 
         public DateTimeOffset CreatedAt { get; }
         public DateTimeOffset CompletedAt { get; private set; }
         public bool IsCompleted { get; private set; }
-        public Task<Sdk.CommandExecutionResult> Task { get; set; } = System.Threading.Tasks.Task.FromException<Sdk.CommandExecutionResult>(
-            new InvalidOperationException("Invocation execution was not initialized."));
+        public TaskCompletionSource<Sdk.CommandExecutionResult>? Completion { get; private set; }
+        public Task<Sdk.CommandExecutionResult> Task { get; private set; }
 
-        public void MarkCompleted(DateTimeOffset completedAt)
+        public void MarkCompleted(DateTimeOffset completedAt, Sdk.CommandExecutionResult detachedResult)
         {
             CompletedAt = completedAt;
             IsCompleted = true;
+            Task = System.Threading.Tasks.Task.FromResult(detachedResult);
+        }
+
+        public TaskCompletionSource<Sdk.CommandExecutionResult>? DetachCompletion()
+        {
+            var completion = Completion;
+            Completion = null;
+            return completion;
+        }
+    }
+
+    private sealed class InvocationExecutionBridge
+    {
+        private readonly InvocationExecutionCache _owner;
+        private readonly string _invocationId;
+        private readonly InvocationExecutionEntry _entry;
+
+        public InvocationExecutionBridge(InvocationExecutionCache owner, string invocationId, InvocationExecutionEntry entry)
+        {
+            _owner = owner;
+            _invocationId = invocationId;
+            _entry = entry;
+        }
+
+        public InvocationExecutionOutcome Detach(Task<Sdk.CommandExecutionResult> execution)
+        {
+            try
+            {
+                return InvocationExecutionOutcome.Succeeded(
+                    _owner,
+                    _invocationId,
+                    _entry,
+                    DetachResult(execution.GetAwaiter().GetResult()));
+            }
+            catch (OperationCanceledException cancelled)
+            {
+                return InvocationExecutionOutcome.Cancelled(
+                    _owner,
+                    _invocationId,
+                    _entry,
+                    cancelled.CancellationToken);
+            }
+            catch (Exception failure)
+            {
+                return InvocationExecutionOutcome.Failed(
+                    _owner,
+                    _invocationId,
+                    _entry,
+                    DetachFailure(failure));
+            }
+            finally
+            {
+                _ = execution.Exception;
+            }
+        }
+    }
+
+    private sealed class InvocationExecutionOutcome
+    {
+        private readonly InvocationExecutionCache _owner;
+        private readonly string _invocationId;
+        private readonly InvocationExecutionEntry _entry;
+        private readonly Sdk.CommandExecutionResult? _result;
+        private readonly Exception? _failure;
+        private readonly CancellationToken _cancellationToken;
+        private readonly bool _cancelled;
+
+        private InvocationExecutionOutcome(
+            InvocationExecutionCache owner,
+            string invocationId,
+            InvocationExecutionEntry entry,
+            Sdk.CommandExecutionResult? result,
+            Exception? failure,
+            CancellationToken cancellationToken,
+            bool cancelled)
+        {
+            _owner = owner;
+            _invocationId = invocationId;
+            _entry = entry;
+            _result = result;
+            _failure = failure;
+            _cancellationToken = cancellationToken;
+            _cancelled = cancelled;
+        }
+
+        public static InvocationExecutionOutcome Succeeded(
+            InvocationExecutionCache owner,
+            string invocationId,
+            InvocationExecutionEntry entry,
+            Sdk.CommandExecutionResult result) =>
+            new(owner, invocationId, entry, result, null, CancellationToken.None, false);
+
+        public static InvocationExecutionOutcome Failed(
+            InvocationExecutionCache owner,
+            string invocationId,
+            InvocationExecutionEntry entry,
+            Exception failure) =>
+            new(owner, invocationId, entry, null, failure, CancellationToken.None, false);
+
+        public static InvocationExecutionOutcome Cancelled(
+            InvocationExecutionCache owner,
+            string invocationId,
+            InvocationExecutionEntry entry,
+            CancellationToken cancellationToken) =>
+            new(owner, invocationId, entry, null, null, cancellationToken, true);
+
+        public void Publish()
+        {
+            if (_result is not null)
+            {
+                TaskCompletionSource<Sdk.CommandExecutionResult>? completion;
+                lock (_owner._gate)
+                {
+                    if (ReferenceEquals(_owner._entries.GetValueOrDefault(_invocationId), _entry))
+                    {
+                        _entry.MarkCompleted(_owner._utcNow(), _result);
+                        _owner.CleanupCore(_owner._utcNow());
+                    }
+
+                    completion = _entry.DetachCompletion();
+                }
+
+                completion?.TrySetResult(_result);
+                return;
+            }
+
+            TaskCompletionSource<Sdk.CommandExecutionResult>? failedCompletion;
+            lock (_owner._gate)
+            {
+                if (ReferenceEquals(_owner._entries.GetValueOrDefault(_invocationId), _entry))
+                {
+                    _owner._entries.Remove(_invocationId);
+                }
+
+                failedCompletion = _entry.DetachCompletion();
+            }
+
+            if (_cancelled)
+            {
+                failedCompletion?.TrySetCanceled(_cancellationToken);
+            }
+            else
+            {
+                failedCompletion?.TrySetException(_failure ?? new InvalidOperationException("Invocation execution failed."));
+            }
         }
     }
 }

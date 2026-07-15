@@ -1,0 +1,26 @@
+{
+  "schemaVersion": "1.0",
+  "version": "0.1.0",
+  "toolId": "template.web",
+  "ownerModuleId": "template.web",
+  "title": "template.web",
+  "description": "A MyPowerTools web-surface created by the SDK CLI.",
+  "icon": "tool.external",
+  "category": "External tools",
+  "type": "web-surface",
+  "availability": "available",
+  "primaryRouteId": "main",
+  "routes": [
+    { "routeId": "main", "surfaceId": "template.web.main", "title": "Overview", "surface": { "kind": "web", "source": "http://127.0.0.1:43110/", "staticRoot": "web", "openExternal": true, "allowedOrigins": ["http://127.0.0.1:43110"] } }
+  ],
+  "homeCard": { "summary": "Open template.web", "primaryActionLabel": "Open", "order": 500 },
+  "runtime": { "transport": "loopback-http", "endpoint": "http://127.0.0.1:43110", "command": "python", "args": ["serve.py"], "healthPath": "/api/status", "logsPath": "/api/logs", "timeoutMs": 5000 },
+  "settings": { "schema": "settings.schema.json", "values": "settings.json", "secrets": ["apiSecret"] },
+  "commands": [
+    { "id": "template.web.health", "title": "Check health", "description": "Probe the configured runtime.", "method": "GET", "path": "/api/status" },
+    { "id": "template.web.refresh", "title": "Refresh", "description": "Refresh tool state.", "method": "POST", "path": "/api/refresh" },
+    { "id": "template.web.logs", "title": "Tail logs", "description": "Read recent runtime logs.", "method": "GET", "path": "/api/logs" }
+  ],
+  "permissions": [],
+  "development": { "loose": true, "autoRefresh": false }
+}

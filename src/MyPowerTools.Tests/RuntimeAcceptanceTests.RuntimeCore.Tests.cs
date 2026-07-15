@@ -102,7 +102,7 @@ public sealed partial class RuntimeAcceptanceTests
     }
 
     [Fact]
-    public void Command_execution_is_idempotent_by_invocation_id()
+    public void Shell_navigation_command_is_not_runtime_fake_success()
     {
         var runtime = new MptHostRuntime(new PackageReader(), PlatformId.Current());
         runtime.Load(Path.Combine(Root, "modules"));
@@ -111,8 +111,12 @@ public sealed partial class RuntimeAcceptanceTests
         var first = runtime.ExecuteCommand(request);
         var second = runtime.ExecuteCommand(request);
 
-        Assert.Equal(first.Output, second.Output);
-        Assert.True(second.Success);
+        Assert.Equal(first.State, second.State);
+        Assert.Equal(first.Error?.Code, second.Error?.Code);
+        Assert.False(second.Success);
+        Assert.Equal(MptErrorCodes.UnsupportedTransport, second.Error!.Code);
+        Assert.Contains("Shell navigation action", second.Error.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("Open request recorded", second.Error.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -230,7 +234,7 @@ commands:
         Assert.Contains(screenApply.Parameters!, parameter => parameter.Id == "hardwareWrite" && parameter.Type == "boolean");
         Assert.Contains(androidShell.Parameters!, parameter => parameter.Id == "execute" && parameter.Type == "boolean");
         Assert.Contains(androidShell.Parameters!, parameter => parameter.Id == "timeoutMs" && parameter.Type == "number");
-        Assert.Contains(doubaoHealth["parameters"]!.AsArray(), parameter => parameter!["id"]!.GetValue<string>() == "plannerBaseUrl");
+        Assert.False(doubaoHealth.ContainsKey("parameters"));
         Assert.Contains(restart["parameters"]!.AsArray(), parameter => parameter!["id"]!.GetValue<string>() == "reason" && parameter["type"]!.GetValue<string>() == "multiline");
         Assert.Contains(apply.Parameters!, parameter => parameter.Id == "reason" && parameter.Type == "multiline");
 
