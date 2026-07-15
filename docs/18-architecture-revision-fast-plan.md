@@ -3,27 +3,27 @@
 ## 目标
 
 - [ ] 将当前“第一方工具源码聚合编译”迁移为统一的工具包加载模型，第一方工具与外部工具共同消费公开 SDK 和协议。
-- [ ] 建立独立于 Shell、Runner 和源码构建目录的长期服务管理面，保证 ScreenEase 等服务持续运行。
-- [ ] 为每个工具保留完整的服务产品化表达能力，工具可自行设计美观的状态、控制、恢复和业务联动界面。
-- [ ] 在底座提供统一 Services 管理页面，集中管理所有工具的长期 Service Units。
+- [x] 建立独立于 Shell、Runner 和源码构建目录的长期服务管理面，保证 ScreenEase 等服务持续运行。
+- [x] 为每个工具保留完整的服务产品化表达能力，工具可自行设计美观的状态、控制、恢复和业务联动界面。
+- [x] 在底座提供统一 Services 管理页面，集中管理所有工具的长期 Service Units。
 - [ ] 保持开发态宽松：允许 dirty submodule、任意分支、本地输出目录和手动替换，点击“刷新工具”即可重新发现。
-- [ ] 保持工具的数据自治：工具可直接读写 LocalAppData、用户目录或工具自有数据库。
-- [ ] 用真实工具路径完成验收，限制测试范围为构建、启动、刷新、核心操作和故障恢复。
-- [ ] 将架构约束落实为 Quick、Process、Release 三档闭环门禁，日常开发只承担低成本增量验证。
+- [x] 保持工具的数据自治：工具可直接读写 LocalAppData、用户目录或工具自有数据库。
+- [x] 用真实工具路径完成验收，限制测试范围为构建、启动、刷新、核心操作和故障恢复。
+- [x] 将架构约束落实为 Quick、Process、Release 三档闭环门禁，日常开发只承担低成本增量验证。
 
 ## 已确认的架构约束
 
-- [ ] Host SettingsStore 仅管理底座设置、权限决策和 Host 拥有的数据；它不垄断工具设置与业务数据。
-- [ ] `tool.json` 可声明 `dataRoots`、保留策略和迁移入口，声明用于卸载提示、备份和诊断，不拦截工具文件访问。
-- [ ] 工具自行负责自有数据格式、并发写入、升级迁移、损坏恢复和兼容性。
+- [x] Host SettingsStore 仅管理底座设置、权限决策和 Host 拥有的数据；它不垄断工具设置与业务数据。
+- [x] `tool.json` 可声明 `dataRoots`、保留策略和迁移入口，声明用于卸载提示、备份和诊断，不拦截工具文件访问。
+- [x] 工具自行负责自有数据格式、并发写入、升级迁移、损坏恢复和兼容性。
 - [ ] 默认卸载保留工具数据；用户明确选择“删除工具数据”后才清理已声明的数据根目录。
-- [ ] Secret Store 作为可选平台能力提供；工具可继续使用自身凭据方案。
+- [x] Secret Store 作为可选平台能力提供；工具可继续使用自身凭据方案。
 - [x] 工具 Surface 与底座 Services 页面共享同一个 ServiceManager 状态源、事件流和命令端点。
 - [x] 工具 Surface 只获得本工具已声明 unit 的 scoped service client；底座 Services 页面使用跨工具 administration client。
-- [ ] 工具可自由组织服务 UI 的信息层级、文案、布局和业务操作，统一 UI Tokens、主题和可访问性规则继续生效。
+- [x] 工具可自由组织服务 UI 的信息层级、文案、布局和业务操作，统一 UI Tokens、主题和可访问性规则继续生效。
 - [x] ServiceManager 保持唯一进程执行面；两个 UI 入口不会各自启动、接管或终止后台进程。
-- [ ] 开发态不要求签名、clean git、固定分支或严格版本锁；来源 commit、dirty 状态和内容 hash 仅作为发布记录。
-- [ ] Process Monitor 与 Remote Commands 保持暂停状态，本轮不扩展产品功能，只确保目录扫描和包模型能够容纳它们。
+- [x] 开发态不要求签名、clean git、固定分支或严格版本锁；来源 commit、dirty 状态和内容 hash 仅作为发布记录。
+- [x] Process Monitor 与 Remote Commands 保持暂停状态，本轮不扩展产品功能，只确保目录扫描和包模型能够容纳它们。
 
 ## P0：先完成 ScreenEase 纵向切片
 
@@ -50,9 +50,9 @@
 - [x] 每个 unit 行展示工具图标、显示名称、状态、PID、运行时间、版本、启动方式、重启次数和最近错误摘要。
 - [x] Services 页面提供 Start、Stop、Restart、Enable autostart、Disable autostart、Tail logs、Open tool 和查看详情操作。（Start/Stop/Restart/Tail logs/Open tool/Toggle autostart + Reload/Refresh 已实现；详情浮层待增强。）
 - [ ] unit 详情展示 readiness、进程退出记录、restart policy、依赖关系、工作目录、实际命令行和最近日志。
-- [ ] Services 页面只承担跨工具管理与诊断，工具专属业务参数继续留在工具自己的 Surface。
+- [x] Services 页面只承担跨工具管理与诊断，工具专属业务参数继续留在工具自己的 Surface。
 - [ ] 为工具 Surface 提供 `ServiceStatusBadge`、`ServiceControlButton`、`ServiceRecoveryCard`、`ServiceLogPreview` 等可选 UI 组件。
-- [ ] 工具可组合标准组件，也可使用 AvaloniaSdk/WebBridge 自行实现完整视觉；SDK 不强制统一状态栏高度和页面位置。
+- [x] 工具可组合标准组件，也可使用 AvaloniaSdk/WebBridge 自行实现完整视觉；SDK 不强制统一状态栏高度和页面位置。
 - [ ] 工具可把通用动作映射为业务文案，例如 ScreenEase 的“开启护眼”和“关闭护眼”、豆包的“恢复服务”。
 - [x] 自定义业务命令与 unit 生命周期命令分开注册，ServiceManager 继续负责 Start、Stop、Restart 和进程状态。
 - [x] ServiceManager 事件通过 Runner 转发到 Shell，工具 Surface 与 Services 页面响应式更新，无需页面轮询和手动刷新。（`ServiceUnitEventStreamMonitor` 订阅 ServiceManager 的 `SubscribeUnitEvents` 流，Services 页可见时自动刷新；断线显示最后快照 + 重连。）
