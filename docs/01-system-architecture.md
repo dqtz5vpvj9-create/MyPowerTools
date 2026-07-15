@@ -4,56 +4,58 @@
 
 ```text
 MyPowerTools
-├─ MyPowerTools.Runner
+├─ MyPowerTools.Runner (HostControl IPC Server + Module Runtime)
 │  ├─ SingleInstance
-│  ├─ Tray
-│  ├─ Hotkey Router
-│  ├─ Runtime Controller
+│  ├─ Tray / Hotkey Router
+│  ├─ Runtime Controller (Catalog + manifest-driven; no tool-specific Supervisor)
 │  ├─ Settings Controller
 │  ├─ EventBus Host
-│  ├─ ModuleHost Supervisor
+│  ├─ ModuleHost Supervisor (InProc / GrpcIpc / StdioCompat)
 │  ├─ Broker Gateway
-│  └─ Host Control IPC Server
+│  └─ Host Control IPC Server (named pipe mypowertools.runner.hostcontrol)
 │
-├─ MyPowerTools.Shell.Avalonia
-│  ├─ Dashboard
-│  ├─ Command Palette
-│  ├─ Settings Center
-│  ├─ Module Detail Page
-│  ├─ Logs Viewer
-│  ├─ Notification Center
-│  └─ Host Control IPC Client
+├─ MyPowerTools.ServiceManager (独立进程 · 唯一服务执行面)
+│  ├─ ServiceUnitCatalog (deploy-root manifest loading)
+│  ├─ UnitSupervisor (state machine · PID/token re-adoption · breakaway)
+│  ├─ UnitLogStore / UnitEventBus
+│  └─ ServiceManager IPC Server (named pipe mypewertools.servicemanager.v1)
 │
-├─ MyPowerTools.WebToolHost
-│  └─ SmartBird WebView2 child HWND and same-origin policy
+├─ MyPowerTools.Shell.Avalonia (可重启 UI)
+│  ├─ Dashboard / Command Palette
+│  ├─ Tool Catalog (dynamic, no hardcoded tool IDs)
+│  ├─ DotnetSurfaceLoader (collectible ALC + shadow-copy)
+│  ├─ System > Services (unified administration page)
+│  ├─ ServiceUnitEventStreamMonitor (reactive unit event forwarding)
+│  └─ Host Control + ServiceManager IPC Clients
+│
+├─ MyPowerTools.WebToolHost (底座基础设施 · WebView2 host process)
+│
+├─ Tool Surface Assemblies (per-tool dotnet-surface packages)
+│  ├─ AdbForwarder.Surface
+│  ├─ ScreenEase.Surface
+│  ├─ RemoteNotifications.Surface
+│  ├─ DoubaoAgent.Surface
+│  └─ SmartBird.Surface
+│
+├─ MyPowerTools.AvaloniaSdk (shared SDK)
+│  ├─ IMptAvaloniaSurfaceFactory + Context
+│  ├─ MptObservableViewModel / MptAsyncRelayCommand
+│  ├─ ToolSurfacePageViewModel / ToolSurfaceState
+│  └─ ServiceStatusBadge / ServiceRecoveryCard / ServiceLogPreview
+│
+├─ MyPowerTools.Ipc.Shared (shared gRPC channel factory + bearer-token auth)
 │
 ├─ MyPowerTools.Runtime
-│  ├─ PackageRegistry
-│  ├─ ModuleRegistry
-│  ├─ ModuleLoader
-│  ├─ ModuleSupervisor
-│  ├─ TransportSelector
-│  ├─ CommandIndex
-│  ├─ SettingsStore
-│  ├─ EventBus
-│  ├─ HealthMonitor
-│  └─ PackageRuntimePool
+│  ├─ PackageRegistry / ToolRegistry (dynamic discovery)
+│  ├─ ModuleSupervisor / TransportSelector
+│  ├─ CommandIndex / SettingsStore / EventBus / HealthMonitor
+│  └─ ScopedServiceUnitClient (IServiceUnitClient)
 │
 ├─ MyPowerTools.Protocol
-│  ├─ Protobuf contracts
-│  ├─ gRPC services
-│  ├─ Module protocol
-│  ├─ Host control protocol
-│  ├─ Error model
-│  ├─ Event model
-│  ├─ Command model
-│  └─ Compatibility adapters
-│
-├─ MyPowerTools.ModuleHost
-│  ├─ InProcDotNetHost
-│  ├─ GrpcIpcModuleHost
-│  ├─ HttpModuleHost
-│  └─ StdioCompatModuleHost
+│  ├─ Module protocol (mpt_module_v1.proto)
+│  ├─ Host control protocol (mpt_host_control_v1.proto)
+│  ├─ Service manager protocol (mpt_service_manager_v1.proto)
+│  └─ Error / Event / Command models
 │
 ├─ MyPowerTools.Platform
 │  ├─ Abstractions
