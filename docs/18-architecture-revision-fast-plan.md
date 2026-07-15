@@ -104,9 +104,9 @@
 
 - [x] 将 `.gitmodules` 中的 `file:///C:/...` 地址替换为可访问 Git URL；本机镜像通过 git config override 使用，不写入共享清单。
 - [x] 保留每个工具独立仓库和独立构建；Suite 仓库只负责 submodule 编排、SDK 包、集成清单和最终安装包。
-- [ ] 为每个工具提供统一入口 `build`、`pack` 和可选 `publish`，实现可由各自语言完成，最终只需产出符合协议的目录。
-- [ ] Suite 构建先生成本地 NuGet/npm/protocol bundle，再调用各 submodule 的构建入口，禁止外部工具引用父仓库源码项目。
-- [ ] Suite 构建把工具包收集到 `artifacts/tools/<tool-id>/<version>/`，生成来源清单并保留 dirty/branch/hash 信息。
+- [x] 为每个工具提供统一入口 `build`、`pack` 和可选 `publish`，实现可由各自语言完成，最终只需产出符合协议的目录。
+- [x] Suite 构建先生成本地 NuGet/npm/protocol bundle，再调用各 submodule 的构建入口，禁止外部工具引用父仓库源码项目。
+- [x] Suite 构建把工具包收集到 `artifacts/tools/<tool-id>/<version>/`，生成来源清单并保留 dirty/branch/hash 信息。
 - [ ] 安装包包含 Shell、Runner、ServiceManager、WebToolHost、SDK runtime 依赖和选定工具包。
 - [ ] 安装过程注册 ServiceManager 登录启动、安装 unit 清单并激活默认服务；升级按工具版本逐项切换，避免整套服务同时停机。
 - [x] 开发态继续支持任意修改 submodule 后手动构建，Shell 中点击“刷新工具”加载新输出。
