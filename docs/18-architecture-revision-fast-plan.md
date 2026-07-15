@@ -6,7 +6,7 @@
 - [x] 建立独立于 Shell、Runner 和源码构建目录的长期服务管理面，保证 ScreenEase 等服务持续运行。
 - [x] 为每个工具保留完整的服务产品化表达能力，工具可自行设计美观的状态、控制、恢复和业务联动界面。
 - [x] 在底座提供统一 Services 管理页面，集中管理所有工具的长期 Service Units。
-- [ ] 保持开发态宽松：允许 dirty submodule、任意分支、本地输出目录和手动替换，点击“刷新工具”即可重新发现。
+- [x] 保持开发态宽松：允许 dirty submodule、任意分支、本地输出目录和手动替换，点击“刷新工具”即可重新发现。
 - [x] 保持工具的数据自治：工具可直接读写 LocalAppData、用户目录或工具自有数据库。
 - [x] 用真实工具路径完成验收，限制测试范围为构建、启动、刷新、核心操作和故障恢复。
 - [x] 将架构约束落实为 Quick、Process、Release 三档闭环门禁，日常开发只承担低成本增量验证。
@@ -16,7 +16,7 @@
 - [x] Host SettingsStore 仅管理底座设置、权限决策和 Host 拥有的数据；它不垄断工具设置与业务数据。
 - [x] `tool.json` 可声明 `dataRoots`、保留策略和迁移入口，声明用于卸载提示、备份和诊断，不拦截工具文件访问。
 - [x] 工具自行负责自有数据格式、并发写入、升级迁移、损坏恢复和兼容性。
-- [ ] 默认卸载保留工具数据；用户明确选择“删除工具数据”后才清理已声明的数据根目录。
+- [x] 默认卸载保留工具数据；用户明确选择“删除工具数据”后才清理已声明的数据根目录。
 - [x] Secret Store 作为可选平台能力提供；工具可继续使用自身凭据方案。
 - [x] 工具 Surface 与底座 Services 页面共享同一个 ServiceManager 状态源、事件流和命令端点。
 - [x] 工具 Surface 只获得本工具已声明 unit 的 scoped service client；底座 Services 页面使用跨工具 administration client。
@@ -53,7 +53,7 @@
 - [x] Services 页面只承担跨工具管理与诊断，工具专属业务参数继续留在工具自己的 Surface。
 - [x] 为工具 Surface 提供 `ServiceStatusBadge`、`ServiceControlButton`、`ServiceRecoveryCard`、`ServiceLogPreview` 等可选 UI 组件。（已加入 AvaloniaSdk：ServiceStatusBadgeViewModel、ServiceRecoveryCardViewModel、ServiceLogPreviewEntry、ServiceUnitDisplayState。）
 - [x] 工具可组合标准组件，也可使用 AvaloniaSdk/WebBridge 自行实现完整视觉；SDK 不强制统一状态栏高度和页面位置。
-- [ ] 工具可把通用动作映射为业务文案，例如 ScreenEase 的“开启护眼”和“关闭护眼”、豆包的“恢复服务”。
+- [x] 工具可把通用动作映射为业务文案，例如 ScreenEase 的“开启护眼”和“关闭护眼”、豆包的“恢复服务”。
 - [x] 自定义业务命令与 unit 生命周期命令分开注册，ServiceManager 继续负责 Start、Stop、Restart 和进程状态。
 - [x] ServiceManager 事件通过 Runner 转发到 Shell，工具 Surface 与 Services 页面响应式更新，无需页面轮询和手动刷新。（`ServiceUnitEventStreamMonitor` 订阅 ServiceManager 的 `SubscribeUnitEvents` 流，Services 页可见时自动刷新；断线显示最后快照 + 重连。）
 - [x] 当工具 Surface 加载失败时，Services 页面仍可管理其 units、查看日志并执行恢复操作。
@@ -84,7 +84,7 @@
 - [x] 豆包服务 Supervisor 迁入 service unit，Surface 首屏立即渲染 ViewModel 快照，网络请求在后台并发更新属性。（DoubaoAgent.Surface 已分离；Supervisor 已从 Runner 移除。）
 - [x] 豆包 Surface 自行呈现 Planner、Tool Runtime、MCP Bridge 等业务服务状态，并把对应 unit 控制映射为产品化操作。
 - [ ] 验收豆包服务离线时切换页面无 2 秒 UI 卡顿，重启按钮作用于真实 unit 并显示真实 readiness 结果。
-- [ ] ADB Forwarder 改为动态 Dotnet Surface，保留“有线设备转发”和“无线设备转发”两个明确主工作区及原有配置读取方式。
+- [x] ADB Forwarder 改为动态 Dotnet Surface，保留“有线设备转发”和“无线设备转发”两个明确主工作区及原有配置读取方式。
 - [x] SmartBird 改为动态 Web Surface，温控服务和凭据继续使用工具自有配置；WebView2 故障留在独立 WebToolHost 进程。（已转为 SmartBird.Surface；WebToolHost 已迁入 src/。）
 - [x] SmartBird WebBridge 获得 scoped service API，使 Web UI 能自行设计服务健康和控制界面，同时接受底座统一管理。
 - [ ] Mihomo Multi Monitor 仅通过外部工具目录和 SDK 接入，修复 `${settings.*}` 插值、真实 URL 导航、恢复页和外部打开。
@@ -124,18 +124,18 @@
 
 ## 最小验收门槛
 
-- [ ] `dotnet build` 能从当前 dirty submodule 工作树完成，开发态无需签名和 git clean。
+- [x] `dotnet build` 能从当前 dirty submodule 工作树完成，开发态无需签名和 git clean。
 - [x] Shell csproj 中不存在来自 `tools/` 的源码链接，ShellWorkspaceController 中不存在第一方工具 ID switch。
-- [ ] ScreenEase Service 在 Shell 构建、Shell 重启和 Runner 重启期间保持同一 PID 与生效状态。
-- [ ] ScreenEase 工具页面具有与其产品风格一致的服务控制；底座 Services 页面能够管理同一个 ScreenEase unit。
-- [ ] 在任一入口执行 Start、Stop 或 Restart 后，另一个入口通过事件自动更新并显示相同状态。
-- [ ] ScreenEase Surface 人为加载失败后，底座 Services 页面仍可查看日志、重启服务并确认 readiness。
-- [ ] Services 页面能够统一管理 ScreenEase、Remote Notifications 和豆包 units，且不会出现重复进程实例。
-- [ ] Remote Notifications 在底座运行且插件已加载期间持续轮询，与当前可见页面无关。
-- [ ] 豆包页面即时显示缓存/加载状态，后台服务离线不会阻塞 UI 线程。
-- [ ] SmartBird WebToolHost 崩溃只影响 SmartBird Surface，Shell 和其他工具继续运行。
+- [x] ScreenEase Service 在 Shell 构建、Shell 重启和 Runner 重启期间保持同一 PID 与生效状态。
+- [x] ScreenEase 工具页面具有与其产品风格一致的服务控制；底座 Services 页面能够管理同一个 ScreenEase unit。
+- [x] 在任一入口执行 Start、Stop 或 Restart 后，另一个入口通过事件自动更新并显示相同状态。
+- [x] ScreenEase Surface 人为加载失败后，底座 Services 页面仍可查看日志、重启服务并确认 readiness。
+- [x] Services 页面能够统一管理 ScreenEase、Remote Notifications 和豆包 units，且不会出现重复进程实例。
+- [x] Remote Notifications 在底座运行且插件已加载期间持续轮询，与当前可见页面无关。
+- [x] 豆包页面即时显示缓存/加载状态，后台服务离线不会阻塞 UI 线程。
+- [x] SmartBird WebToolHost 崩溃只影响 SmartBird Surface，Shell 和其他工具继续运行。
 - [x] 外部工具目录新增后刷新即出现，删除后刷新即消失，父仓库无专用 UI 或路由代码。
-- [ ] ADB 页面明确呈现有线设备和无线设备两条操作路径，并能读取真实设备状态。
+- [x] ADB 页面明确呈现有线设备和无线设备两条操作路径，并能读取真实设备状态。
 - [ ] 完整安装包能在另一台 Windows 机器安装、启动、发现工具并管理 service units。
 - [ ] ScreenEase、Remote Notifications、豆包、ADB、SmartBird 和 Mihomo 各完成一条真实核心功能路径验证。
 
@@ -144,19 +144,19 @@
 - [ ] 新建独立 `tests/MyPowerTools.ArchitectureTests` 项目，只引用 Contracts、Tool Catalog、ServiceManager Client、Packaging 和必要 SDK。
 - [ ] ArchitectureTests 项目不引用 Shell、第一方工具项目或现有全量 `MyPowerTools.Tests`，控制增量编译范围。
 - [ ] 新建 `tests/fixtures/minimal-tool`，提供最小外部工具 manifest、Web Surface、命令和 `dataRoots` 声明。
-- [ ] 新建 `tests/fixtures/test-service-unit`，提供可启动、可停止、持续写 heartbeat 的极小后台进程。
-- [ ] 新建 `scripts/verify-architecture.ps1`，统一支持 `-Tier Quick`、`-Tier Process` 和 `-Tier Release`。
-- [ ] 每次运行输出 `artifacts/architecture-smoke/result.json`，记录测试 ID、动作、观察值、预期值、PID、耗时和证据路径。
-- [ ] 所有进程测试使用独立临时 data root、唯一 pipe 名、唯一 unit ID 和测试专用端口。
-- [ ] 测试清理只终止本次启动的 fixture 进程，日常 smoke 不连接或重启正在使用的 ScreenEase.Service。
-- [ ] 为每个外部进程设置明确启动、readiness、动作和退出超时，超时后保存日志并清理测试资源。
+- [x] 新建 `tests/fixtures/test-service-unit`，提供可启动、可停止、持续写 heartbeat 的极小后台进程。
+- [x] 新建 `scripts/verify-architecture.ps1`，统一支持 `-Tier Quick`、`-Tier Process` 和 `-Tier Release`。
+- [x] 每次运行输出 `artifacts/architecture-smoke/result.json`，记录测试 ID、动作、观察值、预期值、PID、耗时和证据路径。
+- [x] 所有进程测试使用独立临时 data root、唯一 pipe 名、唯一 unit ID 和测试专用端口。
+- [x] 测试清理只终止本次启动的 fixture 进程，日常 smoke 不连接或重启正在使用的 ScreenEase.Service。
+- [x] 为每个外部进程设置明确启动、readiness、动作和退出超时，超时后保存日志并清理测试资源。
 
 ### A1：依赖边界 Quick Gate
 
 - [x] 新增 `tests/architecture-rules.json`，维护允许的项目依赖方向、禁止的路径前缀和 Shell 禁止出现的第一方工具路由标识。
 - [x] 解析 csproj 的 ProjectReference、Compile Include 和 Link，确认 Shell 没有指向 `tools/**` 的源码或项目引用。
-- [ ] 确认工具项目没有引用父仓库 `src/*.csproj`，第一方工具与外部工具共同消费 SDK/Protocol 包。
-- [ ] 确认 UI.Primitives 没有引用 Runtime、Packaging 或 Broker，CLI 没有引用 Shell，HostControl.Client 没有引用 Runtime/Server。
+- [x] 确认工具项目没有引用父仓库 `src/*.csproj`，第一方工具与外部工具共同消费 SDK/Protocol 包。
+- [x] 确认 UI.Primitives 没有引用 Runtime、Packaging 或 Broker，CLI 没有引用 Shell，HostControl.Client 没有引用 Runtime/Server。
 - [x] 确认 ShellWorkspaceController 没有第一方工具 ID switch 或专用 View/ViewModel 构造分支。
 - [x] A1 输出零违规依赖边；该门禁只做结构扫描，增量运行目标控制在 1 秒左右。
 
