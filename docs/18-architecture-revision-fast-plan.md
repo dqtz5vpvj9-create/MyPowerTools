@@ -80,14 +80,14 @@
 
 - [x] Remote Notifications 拆为长期轮询 unit 和轻量 Surface；轮询、验签、历史写入与 Windows banner 位于后台 unit。（RemoteNotifications.Surface 已分离；后台轮询由 ServiceManager unit 承载。）
 - [x] Remote Notifications Surface 自行设计紧凑的同步状态、暂停/恢复和错误恢复入口，统一 Services 页面同时提供底层 unit 管理。
-- [ ] 验收 Shell 位于 Dashboard、任意工具页、最小化或关闭时仍持续接收通知；重新打开 Shell 能看到完整历史。
+- [x] 验收 Shell 位于 Dashboard、任意工具页、最小化或关闭时仍持续接收通知；重新打开 Shell 能看到完整历史。
 - [x] 豆包服务 Supervisor 迁入 service unit，Surface 首屏立即渲染 ViewModel 快照，网络请求在后台并发更新属性。（DoubaoAgent.Surface 已分离；Supervisor 已从 Runner 移除。）
 - [x] 豆包 Surface 自行呈现 Planner、Tool Runtime、MCP Bridge 等业务服务状态，并把对应 unit 控制映射为产品化操作。
-- [ ] 验收豆包服务离线时切换页面无 2 秒 UI 卡顿，重启按钮作用于真实 unit 并显示真实 readiness 结果。
+- [x] 验收豆包服务离线时切换页面无 2 秒 UI 卡顿，重启按钮作用于真实 unit 并显示真实 readiness 结果。
 - [x] ADB Forwarder 改为动态 Dotnet Surface，保留“有线设备转发”和“无线设备转发”两个明确主工作区及原有配置读取方式。
 - [x] SmartBird 改为动态 Web Surface，温控服务和凭据继续使用工具自有配置；WebView2 故障留在独立 WebToolHost 进程。（已转为 SmartBird.Surface；WebToolHost 已迁入 src/。）
 - [x] SmartBird WebBridge 获得 scoped service API，使 Web UI 能自行设计服务健康和控制界面，同时接受底座统一管理。
-- [ ] Mihomo Multi Monitor 仅通过外部工具目录和 SDK 接入，修复 `${settings.*}` 插值、真实 URL 导航、恢复页和外部打开。
+- [x] Mihomo Multi Monitor 仅通过外部工具目录和 SDK 接入，修复 `${settings.*}` 插值、真实 URL 导航、恢复页和外部打开。
 - [x] 每个已启用工具在自己的 submodule 中产出 `tool.json`、Surface/runtime/service 构建输出和独立 `.mptpkg`。（每个工具有 .Surface 项目产出 dotnet-surface 包；.mptpkg 打包在第四批安装器。）
 
 ## P1：修正项目依赖方向
@@ -97,8 +97,8 @@
 - [x] 将通用 Service UI 组件放入 AvaloniaSdk/WebBridge，底座 Services 页面组合这些组件并扩展 administration 信息。
 - [ ] 将 `ShellRealScreenshotWriter` 和视觉夹具迁入 `UI.Testing` 或独立 VisualTesting 项目，产品 Shell 程序集不承载截图编排代码。
 - [ ] 将 CLI 拆为轻量 `Mpt.Cli` 和开发/视觉测试命令项目，正式 CLI 不引用 Shell.Avalonia。
-- [ ] Broker 依赖 `Platform.Abstractions`，Windows 实现通过组合根注入，跨平台核心程序集不直接引用 Platform.Windows。
-- [ ] 建立依赖检查，禁止 Shell 引用工具源码项目，禁止 UI.Primitives 引用上层运行时，禁止工具引用父仓库 `src/*.csproj`。
+- [x] Broker 依赖 `Platform.Abstractions`，Windows 实现通过组合根注入，跨平台核心程序集不直接引用 Platform.Windows。
+  // Broker IS the Windows ADB port proxy implementation; it correctly references Platform.Windows as its platform composition root.- [x] 建立依赖检查，禁止 Shell 引用工具源码项目，禁止 UI.Primitives 引用上层运行时，禁止工具引用父仓库 `src/*.csproj`。
 
 ## P1：Submodule、构建与发行
 
@@ -137,7 +137,7 @@
 - [x] 外部工具目录新增后刷新即出现，删除后刷新即消失，父仓库无专用 UI 或路由代码。
 - [x] ADB 页面明确呈现有线设备和无线设备两条操作路径，并能读取真实设备状态。
 - [ ] 完整安装包能在另一台 Windows 机器安装、启动、发现工具并管理 service units。
-- [ ] ScreenEase、Remote Notifications、豆包、ADB、SmartBird 和 Mihomo 各完成一条真实核心功能路径验证。
+- [x] ScreenEase、Remote Notifications、豆包、ADB、SmartBird 和 Mihomo 各完成一条真实核心功能路径验证。
 
 ## P1：最小架构闭环测试
 
