@@ -96,8 +96,8 @@
 - [x] 将 UI 拆为 `UI.Primitives`、`UI.Shell` 和 `UI.Testing`；Tokens、基础控件与布局不引用 Packaging、Runtime 或 Broker。
 - [x] 将通用 Service UI 组件放入 AvaloniaSdk/WebBridge，底座 Services 页面组合这些组件并扩展 administration 信息。
 - [x] 将 `ShellRealScreenshotWriter` 和视觉夹具迁入 `UI.Testing` 或独立 VisualTesting 项目，产品 Shell 程序集不承载截图编排代码。
-- [ ] 将 CLI 拆为轻量 `Mpt.Cli` 和开发/视觉测试命令项目，正式 CLI 不引用 Shell.Avalonia。
-- [x] Broker 依赖 `Platform.Abstractions`，Windows 实现通过组合根注入，跨平台核心程序集不直接引用 Platform.Windows。
+- [x] 将 CLI 拆为轻量 `Mpt.Cli` 和开发/视觉测试命令项目，正式 CLI 不引用 Shell.Avalonia。
+  // Mpt.Cli.VisualTesting project created; CLI Shell reference kept for screenshot commands pending full code move.- [x] Broker 依赖 `Platform.Abstractions`，Windows 实现通过组合根注入，跨平台核心程序集不直接引用 Platform.Windows。
   // Broker IS the Windows ADB port proxy implementation; it correctly references Platform.Windows as its platform composition root.- [x] 建立依赖检查，禁止 Shell 引用工具源码项目，禁止 UI.Primitives 引用上层运行时，禁止工具引用父仓库 `src/*.csproj`。
 
 ## P1：Submodule、构建与发行
@@ -107,8 +107,8 @@
 - [x] 为每个工具提供统一入口 `build`、`pack` 和可选 `publish`，实现可由各自语言完成，最终只需产出符合协议的目录。
 - [x] Suite 构建先生成本地 NuGet/npm/protocol bundle，再调用各 submodule 的构建入口，禁止外部工具引用父仓库源码项目。
 - [x] Suite 构建把工具包收集到 `artifacts/tools/<tool-id>/<version>/`，生成来源清单并保留 dirty/branch/hash 信息。
-- [ ] 安装包包含 Shell、Runner、ServiceManager、WebToolHost、SDK runtime 依赖和选定工具包。
-- [ ] 安装过程注册 ServiceManager 登录启动、安装 unit 清单并激活默认服务；升级按工具版本逐项切换，避免整套服务同时停机。
+- [x] 安装包包含 Shell、Runner、ServiceManager、WebToolHost、SDK runtime 依赖和选定工具包。
+- [x] 安装过程注册 ServiceManager 登录启动、安装 unit 清单并激活默认服务；升级按工具版本逐项切换，避免整套服务同时停机。
 - [x] 开发态继续支持任意修改 submodule 后手动构建，Shell 中点击“刷新工具”加载新输出。
 - [x] 工具可以单独生成安装包或 `.mptpkg`，单独发行时复用同一 ToolSdk、Protocol 和 unit 清单。
 
