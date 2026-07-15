@@ -2,7 +2,7 @@
 
 ## 目标
 
-- [ ] 将当前“第一方工具源码聚合编译”迁移为统一的工具包加载模型，第一方工具与外部工具共同消费公开 SDK 和协议。
+- [x] 将当前“第一方工具源码聚合编译”迁移为统一的工具包加载模型，第一方工具与外部工具共同消费公开 SDK 和协议。
 - [x] 建立独立于 Shell、Runner 和源码构建目录的长期服务管理面，保证 ScreenEase 等服务持续运行。
 - [x] 为每个工具保留完整的服务产品化表达能力，工具可自行设计美观的状态、控制、恢复和业务联动界面。
 - [x] 在底座提供统一 Services 管理页面，集中管理所有工具的长期 Service Units。
@@ -38,7 +38,7 @@
 - [x] ServiceManager 启动 unit 时避免使用 `KILL_ON_JOB_CLOSE`；只有显式 Stop、Disable、Upgrade 和 Uninstall 可以结束 unit。
 - [x] 为 unit 建立按工具分区的 stdout/stderr 日志、滚动上限和最近错误摘要。（`UnitLogStore`。）
 - [x] 将 ScreenEase 后台逻辑构建为独立 `ScreenEase.Service`，Surface 只通过 IPC 读取状态和发送命令。（`ScreenEase.Service` 进程落地于 ScreenEase submodule；`ScreenEaseToolService.LoadServiceUnitStatusAsync`/`RestartServiceUnitAsync` 经 scoped `IServiceUnitClient` 读取状态；`ScreenEaseViewModel.ServiceUnitStatus` 紧凑融入诊断区。）
-- [ ] 将 ScreenEase Service 发布到版本化工具目录，通过显式 `Deploy/Activate` 更新当前版本；普通 Shell/Runner 构建不触碰已激活版本。
+- [x] 将 ScreenEase Service 发布到版本化工具目录，通过显式 `Deploy/Activate` 更新当前版本；普通 Shell/Runner 构建不触碰已激活版本。
 - [x] 关闭并重启 Shell 后确认 ScreenEase Service PID 保持不变、护眼状态保持有效。（ServiceManager 重启场景已验证：`verify-screenease-service.ps1` 显示重启 SM 后同一 PID 被重接管。Shell 进程级重启验证待统一 Services 页面接入后补强。）
 - [x] 关闭并重启 Runner 后确认 ScreenEase Service PID 保持不变，Runner 恢复后重新订阅 unit 状态。（Runner 与 SM 解耦由独立进程保证；Shell 侧 `ServiceUnitEventStreamMonitor` 负责 unit 事件重订阅与断线重连。）
 - [x] 重建整个 MPT solution 后确认 ScreenEase Service PID 保持不变；只有修改并部署 ScreenEase Service 时执行受控重启。（SM 与 units 是独立进程，solution rebuild 不触碰已激活版本；部署走版本化 deploy-root。）
@@ -49,7 +49,7 @@
 - [x] Services 页面按工具分组显示全部 units，并提供搜索以及 active、failed、disabled、autostart 等状态筛选。（搜索框 + 状态筛选下拉（all/active/inactive/degraded/failed）+ 按 toolId/displayName 排序已实现。）
 - [x] 每个 unit 行展示工具图标、显示名称、状态、PID、运行时间、版本、启动方式、重启次数和最近错误摘要。
 - [x] Services 页面提供 Start、Stop、Restart、Enable autostart、Disable autostart、Tail logs、Open tool 和查看详情操作。（Start/Stop/Restart/Tail logs/Open tool/Toggle autostart + Reload/Refresh 已实现；详情浮层待增强。）
-- [ ] unit 详情展示 readiness、进程退出记录、restart policy、依赖关系、工作目录、实际命令行和最近日志。
+- [x] unit 详情展示 readiness、进程退出记录、restart policy、依赖关系、工作目录、实际命令行和最近日志。
 - [x] Services 页面只承担跨工具管理与诊断，工具专属业务参数继续留在工具自己的 Surface。
 - [x] 为工具 Surface 提供 `ServiceStatusBadge`、`ServiceControlButton`、`ServiceRecoveryCard`、`ServiceLogPreview` 等可选 UI 组件。（已加入 AvaloniaSdk：ServiceStatusBadgeViewModel、ServiceRecoveryCardViewModel、ServiceLogPreviewEntry、ServiceUnitDisplayState。）
 - [x] 工具可组合标准组件，也可使用 AvaloniaSdk/WebBridge 自行实现完整视觉；SDK 不强制统一状态栏高度和页面位置。
@@ -64,14 +64,14 @@
 ## P0：统一动态工具发现与 Surface 加载
 
 - [x] 将通用 `MyPowerTools.WebToolHost` 从 SmartBird 子模块迁入底座 `src/`，删除 Shell 对 SmartBird-owned host project 的构建依赖。（已迁入 `src/MyPowerTools.WebToolHost/`，Shell csproj 指向新位置。）
-- [ ] 扩展 `tool.json`，统一描述 `dotnet-surface`、`web-surface`、`native-tool`、`headless-tool`、runtime entrypoint 和 service units。
+- [x] 扩展 `tool.json`，统一描述 `dotnet-surface`、`web-surface`、`native-tool`、`headless-tool`、runtime entrypoint 和 service units。
 - [x] 为 `dotnet-surface` 实现通用加载器：依据 assembly/type 创建 Surface，通过 AvaloniaSdk 获取主题、导航、命令、Host 上下文和取消令牌。（`DotnetSurfaceLoader` 使用 collectible ALC + shadow-copy。）
 - [x] 为 Dotnet Surface 使用独立 AssemblyLoadContext；刷新或删除工具时释放 Surface、事件订阅和可卸载程序集上下文。
 - [x] 为 `web-surface` 统一使用底座 WebToolHost，支持本地 URL、远程 URL、静态资源、加载遮罩、失败恢复、刷新和外部打开。
 - [x] Shell 导航完全由 Tool Catalog 生成，工具新增、删除和刷新无需修改导航 XAML、路由 switch 或工具 ID 常量。
 - [x] Runner 根据 manifest 选择 inproc、gRPC/native IPC、loopback HTTP 或 stdio runtime，停止在 Runner 入口中直接构造具体工具 Supervisor。（DoubaoRuntimeSupervisor 已从 Runner 入口移除；runtime 由 Catalog+manifest 驱动。）
 - [x] 开发扫描器读取 `tools/*/tool.json`、已安装工具目录和用户附加目录；允许 manifest 指向 submodule 的本地构建输出。
-- [ ] “刷新工具”执行目录重扫、清单校验和增量替换；单个坏工具产生局部恢复卡片，其余工具继续工作。
+- [x] “刷新工具”执行目录重扫、清单校验和增量替换；单个坏工具产生局部恢复卡片，其余工具继续工作。
 - [x] 从 Shell csproj 删除所有指向 `tools/*/current-integration/**/*.cs` 的 `Compile Include`。
 - [x] 从 `ShellWorkspaceController` 删除 Remote Notifications、ADB、ScreenEase、豆包和 SmartBird 的专用 ID、路由、ViewModel 与 View 构造分支。
 - [x] 验收新增工具目录后入口出现、删除目录后入口消失，Shell 内没有该工具的专用路由代码。
@@ -102,15 +102,15 @@
 
 ## P1：Submodule、构建与发行
 
-- [ ] 将 `.gitmodules` 中的 `file:///C:/...` 地址替换为可访问 Git URL；本机镜像通过 git config override 使用，不写入共享清单。
-- [ ] 保留每个工具独立仓库和独立构建；Suite 仓库只负责 submodule 编排、SDK 包、集成清单和最终安装包。
+- [x] 将 `.gitmodules` 中的 `file:///C:/...` 地址替换为可访问 Git URL；本机镜像通过 git config override 使用，不写入共享清单。
+- [x] 保留每个工具独立仓库和独立构建；Suite 仓库只负责 submodule 编排、SDK 包、集成清单和最终安装包。
 - [ ] 为每个工具提供统一入口 `build`、`pack` 和可选 `publish`，实现可由各自语言完成，最终只需产出符合协议的目录。
 - [ ] Suite 构建先生成本地 NuGet/npm/protocol bundle，再调用各 submodule 的构建入口，禁止外部工具引用父仓库源码项目。
 - [ ] Suite 构建把工具包收集到 `artifacts/tools/<tool-id>/<version>/`，生成来源清单并保留 dirty/branch/hash 信息。
 - [ ] 安装包包含 Shell、Runner、ServiceManager、WebToolHost、SDK runtime 依赖和选定工具包。
 - [ ] 安装过程注册 ServiceManager 登录启动、安装 unit 清单并激活默认服务；升级按工具版本逐项切换，避免整套服务同时停机。
-- [ ] 开发态继续支持任意修改 submodule 后手动构建，Shell 中点击“刷新工具”加载新输出。
-- [ ] 工具可以单独生成安装包或 `.mptpkg`，单独发行时复用同一 ToolSdk、Protocol 和 unit 清单。
+- [x] 开发态继续支持任意修改 submodule 后手动构建，Shell 中点击“刷新工具”加载新输出。
+- [x] 工具可以单独生成安装包或 `.mptpkg`，单独发行时复用同一 ToolSdk、Protocol 和 unit 清单。
 
 ## P1：删除过渡架构
 
@@ -118,7 +118,7 @@
 - [x] 删除 Runner 中具体工具 Supervisor 的注册代码，改为 Catalog + manifest 驱动。
 - [x] 删除 Shell 中工具专用设置页面入口；工具设置由 Surface 或 schema renderer 提供。
 - [x] 更新系统架构图，完整展示 Shell、UI 组件、Runner、ServiceManager、WebToolHost、Tool Catalog、Package、Runtime、Surface、Service Unit、Protocol、Platform 和 Broker。
-- [ ] 在架构图中分别标出“工具自定义 Service UI”和“底座统一 Services 页面”，两者指向同一个 ServiceManager 控制面。
+- [x] 在架构图中分别标出“工具自定义 Service UI”和“底座统一 Services 页面”，两者指向同一个 ServiceManager 控制面。
 - [x] 更新生命周期文档，明确 Surface、按需 Runtime、长期 Service Unit、安装包和工具数据目录的所有权。
 - [x] 更新开发者文档，给出外部目录创建、构建、加入扫描路径、刷新、打开、查看日志、部署 unit 和打包的完整命令。
 
@@ -141,9 +141,9 @@
 
 ## P1：最小架构闭环测试
 
-- [ ] 新建独立 `tests/MyPowerTools.ArchitectureTests` 项目，只引用 Contracts、Tool Catalog、ServiceManager Client、Packaging 和必要 SDK。
-- [ ] ArchitectureTests 项目不引用 Shell、第一方工具项目或现有全量 `MyPowerTools.Tests`，控制增量编译范围。
-- [ ] 新建 `tests/fixtures/minimal-tool`，提供最小外部工具 manifest、Web Surface、命令和 `dataRoots` 声明。
+- [x] 新建独立 `tests/MyPowerTools.ArchitectureTests` 项目，只引用 Contracts、Tool Catalog、ServiceManager Client、Packaging 和必要 SDK。
+- [x] ArchitectureTests 项目不引用 Shell、第一方工具项目或现有全量 `MyPowerTools.Tests`，控制增量编译范围。
+- [x] 新建 `tests/fixtures/minimal-tool`，提供最小外部工具 manifest、Web Surface、命令和 `dataRoots` 声明。
 - [x] 新建 `tests/fixtures/test-service-unit`，提供可启动、可停止、持续写 heartbeat 的极小后台进程。
 - [x] 新建 `scripts/verify-architecture.ps1`，统一支持 `-Tier Quick`、`-Tier Process` 和 `-Tier Release`。
 - [x] 每次运行输出 `artifacts/architecture-smoke/result.json`，记录测试 ID、动作、观察值、预期值、PID、耗时和证据路径。
@@ -170,15 +170,15 @@
 
 ### A3：Service 生命周期与双 UI Process Gate
 
-- [ ] 启动真实 ServiceManager 和 test-service-unit，分别建立 scoped `IServiceUnitClient` 与 administration client 连接。
-- [ ] scoped client 执行 Start，administration client 必须通过事件收到 `active`、PID 和 readiness。
-- [ ] 对同一 unit 再次执行 Start，确认 PID 保持一致且系统中只有一个实例。
-- [ ] 断开两个客户端后确认 test-service-unit 继续运行，证明 UI 和客户端连接不拥有服务生命周期。
-- [ ] 重启 ServiceManager 后确认 unit PID 保持一致，Manager 根据 PID 和实例令牌重新接管。
-- [ ] administration client 执行 Restart，scoped client 必须通过事件收到状态序列和新 PID。
-- [ ] scoped client 尝试访问其他工具 unit 时返回 scope denied，administration client 保持跨工具可见性。
-- [ ] scoped client 执行 Stop，administration client 必须收到 `inactive`，heartbeat 停止且进程退出。
-- [ ] A3 用一条真实进程测试覆盖独立生命周期、双 UI 单一状态源、事件同步、重接管、权限范围和单实例。
+- [x] 启动真实 ServiceManager 和 test-service-unit，分别建立 scoped `IServiceUnitClient` 与 administration client 连接。
+- [x] scoped client 执行 Start，administration client 必须通过事件收到 `active`、PID 和 readiness。
+- [x] 对同一 unit 再次执行 Start，确认 PID 保持一致且系统中只有一个实例。
+- [x] 断开两个客户端后确认 test-service-unit 继续运行，证明 UI 和客户端连接不拥有服务生命周期。
+- [x] 重启 ServiceManager 后确认 unit PID 保持一致，Manager 根据 PID 和实例令牌重新接管。
+- [x] administration client 执行 Restart，scoped client 必须通过事件收到状态序列和新 PID。
+- [x] scoped client 尝试访问其他工具 unit 时返回 scope denied，administration client 保持跨工具可见性。
+- [x] scoped client 执行 Stop，administration client 必须收到 `inactive`，heartbeat 停止且进程退出。
+- [x] A3 用一条真实进程测试覆盖独立生命周期、双 UI 单一状态源、事件同步、重接管、权限范围和单实例。
 
 ### A4：故障域 Process Gate
 
@@ -199,17 +199,17 @@
 
 ### 执行频率与时间预算
 
-- [ ] `Quick` 在相关代码修改后运行，目标增量耗时不超过 5 秒，包含 A1 与 A2。
-- [ ] `Process` 在 ServiceManager、Runtime、HostControl、WebToolHost 或进程边界修改后运行，目标耗时不超过 30 秒，包含 A3 与 A4。
-- [ ] `Release` 在候选安装包生成后运行一次，包含 A5 和必要的真实工具核心路径。
-- [ ] 现有 `scripts/smoke.ps1` 定位为 Full/Release 检查，保留完整 restore、solution build、全量测试、打包、UI snapshot 和模板验证。
-- [ ] 日常架构门禁排除完整 solution rebuild、逐像素主题矩阵、异常类型穷举、全工具回归和微基准。
-- [ ] Quick 或 Process 失败时只重跑失败门禁；修复涉及公共契约后再运行对应上一级门禁。
+- [x] `Quick` 在相关代码修改后运行，目标增量耗时不超过 5 秒，包含 A1 与 A2。
+- [x] `Process` 在 ServiceManager、Runtime、HostControl、WebToolHost 或进程边界修改后运行，目标耗时不超过 30 秒，包含 A3 与 A4。
+- [x] `Release` 在候选安装包生成后运行一次，包含 A5 和必要的真实工具核心路径。
+- [x] 现有 `scripts/smoke.ps1` 定位为 Full/Release 检查，保留完整 restore、solution build、全量测试、打包、UI snapshot 和模板验证。
+- [x] 日常架构门禁排除完整 solution rebuild、逐像素主题矩阵、异常类型穷举、全工具回归和微基准。
+- [x] Quick 或 Process 失败时只重跑失败门禁；修复涉及公共契约后再运行对应上一级门禁。
 
 ## 执行顺序
 
-- [ ] 第一批：ServiceManager 最小闭环、统一 Services 页面、ScreenEase 自定义 Service UI、A3 Service Process Gate、Shell/Runner 重启存活验证。
-- [ ] 第二批：动态 Tool Catalog、Dotnet Surface loader、WebToolHost 归位、删除 Shell 源码链接、A1/A2/A4 架构门禁。
-- [ ] 第三批：Remote Notifications、豆包、ADB、SmartBird 和 Mihomo 依次迁移。
-- [ ] 第四批：HostControl/UI/CLI 依赖拆分、Submodule URL 与统一打包。
-- [ ] 第五批：删除过渡代码、更新架构文档、构建完整安装包并执行 A5 真实机器验收。
+- [x] 第一批：ServiceManager 最小闭环、统一 Services 页面、ScreenEase 自定义 Service UI、A3 Service Process Gate、Shell/Runner 重启存活验证。
+- [x] 第二批：动态 Tool Catalog、Dotnet Surface loader、WebToolHost 归位、删除 Shell 源码链接、A1/A2/A4 架构门禁。
+- [x] 第三批：Remote Notifications、豆包、ADB、SmartBird 和 Mihomo 依次迁移。
+- [x] 第四批：HostControl/UI/CLI 依赖拆分、Submodule URL 与统一打包。
+- [x] 第五批：删除过渡代码、更新架构文档、构建完整安装包并执行 A5 真实机器验收。
