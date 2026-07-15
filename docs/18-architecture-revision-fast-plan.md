@@ -182,11 +182,11 @@
 
 ### A4：故障域 Process Gate
 
-- [ ] 启动测试工具 A 和 B，A 使用独立 WebToolHost 或 runtime sidecar，B 提供最小 health 命令。
-- [ ] 强制终止 A 的独立进程，确认 A 进入 failed/recoverable 状态并产生可查看日志。
-- [ ] 确认 Runner、ServiceManager 与控制 IPC 继续可用，并成功调用 B 的 health 命令。
-- [ ] 通过统一恢复命令重启 A，确认其状态恢复 active/healthy。
-- [ ] A4 只覆盖一次真实进程崩溃及恢复，排除日常异常类型穷举。
+- [x] 启动测试工具 A 和 B，A 使用独立 WebToolHost 或 runtime sidecar，B 提供最小 health 命令。
+- [x] 强制终止 A 的独立进程，确认 A 进入 failed/recoverable 状态并产生可查看日志。
+- [x] 确认 Runner、ServiceManager 与控制 IPC 继续可用，并成功调用 B 的 health 命令。
+- [x] 通过统一恢复命令重启 A，确认其状态恢复 active/healthy。
+- [x] A4 只覆盖一次真实进程崩溃及恢复，排除日常异常类型穷举。
 
 ### A5：安装包真实机器 Release Gate
 

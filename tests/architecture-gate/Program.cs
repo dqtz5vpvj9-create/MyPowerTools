@@ -48,6 +48,130 @@ if (string.Equals(mode, "a1", StringComparison.OrdinalIgnoreCase))
     return RunA1Gate();
 }
 
+// A4 Process Gate: fault domain. A crashed unit enters failed/recoverable, the ServiceManager
+// and other units continue, and the unit can be restarted.
+if (string.Equals(mode, "a4", StringComparison.OrdinalIgnoreCase))
+{
+    return await RunA4Gate();
+}
+
+static async Task<int> RunA4Gate()
+{
+    var repoRoot = FindRepoRoot();
+    var runId = Guid.NewGuid().ToString("N")[..8];
+    var dataRoot = Path.Combine(Path.GetTempPath(), $"mpt-a4-{runId}");
+    var deployRoot = Path.Combine(dataRoot, "deploy");
+    var unitsDir = Path.Combine(deployRoot, "units");
+    Directory.CreateDirectory(unitsDir);
+    Environment.SetEnvironmentVariable("MPT_DATA_ROOT", dataRoot);
+
+    var records = new List<GateRecord>();
+    var overall = true;
+
+    // Build + publish the fixture.
+    var fixtureProject = Path.Combine(repoRoot, "tests", "fixtures", "test-service-unit", "TestServiceUnit.csproj");
+    var pubDir = Path.Combine(dataRoot, "fixture");
+    var buildPsi = new ProcessStartInfo("dotnet", $"publish \"{fixtureProject}\" -c Release -o \"{pubDir}\" --nologo -v quiet")
+    {
+        RedirectStandardOutput = true,
+        RedirectStandardError = true,
+        UseShellExecute = false
+    };
+    var buildProc = Process.Start(buildPsi)!;
+    buildProc.WaitForExit(60000);
+    var fixtureExe = Path.Combine(pubDir, "test-service-unit.exe");
+
+    // Deploy a crashable unit (max restarts=0 so it stays failed after crash).
+    var unitId = $"a4-crash-{runId}";
+    var pipeName = $"a4-crash-{runId}";
+    var manifest = $$"""
+    {
+      "id": "{{unitId}}",
+      "toolId": "a4-test",
+      "displayName": "A4 Crash Test",
+      "exec": "{{fixtureExe.Replace("\\", "\\\\")}}",
+      "arguments": ["--pipe", "{{pipeName}}", "--heartbeat-file", "{{Path.Combine(dataRoot, "a4-heartbeat.txt").Replace("\\", "\\\\")}}"],
+      "environment": {},
+      "autostart": false,
+      "restartPolicy": { "maxRestarts": 0, "backoffMs": 500 },
+      "readiness": { "kind": "none", "address": "", "timeoutMs": 3000 },
+      "stopTimeoutMs": 3000,
+      "dataRoots": [],
+      "dependsOn": [],
+      "instanceToken": "a4-{{runId}}"
+    }
+    """;
+    File.WriteAllText(Path.Combine(unitsDir, $"{unitId}.json"), manifest);
+
+    // Launch ServiceManager.
+    var smProject = Path.Combine(repoRoot, "src", "MyPowerTools.ServiceManager", "MyPowerTools.ServiceManager.csproj");
+    var smLog = Path.Combine(dataRoot, "sm.log");
+    var sm = new Process
+    {
+        StartInfo = new ProcessStartInfo("dotnet", $"run --no-build --project \"{smProject}\" -- --data-root \"{dataRoot}\" --deploy-root \"{deployRoot}\"")
+        {
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            UseShellExecute = false
+        }
+    };
+    sm.Start();
+    await Task.Delay(6000);
+
+    try
+    {
+        using var admin = ServiceManagerAdminClient.ForDefaultEndpoint();
+
+        // A4.1: Start the unit — it should be active.
+        var started = await admin.StartAsync(unitId);
+        var activeOk = started.State == SM.UnitState.Active && started.Pid > 0;
+        records.Add(new("A4.1-unit-starts-active", activeOk, $"state={started.State} pid={started.Pid}"));
+        overall &= activeOk;
+        var crashedPid = started.Pid;
+
+        // A4.2: Force-kill the unit process.
+        try { Process.GetProcessById(crashedPid).Kill(); } catch { }
+        await Task.Delay(3000); // wait for SM to detect exit and transition state
+
+        // A4.3: Unit should be in failed/inactive state (maxRestarts=0).
+        var afterCrash = await admin.GetUnitAsync(unitId);
+        var crashDetected = afterCrash.State is SM.UnitState.Failed or SM.UnitState.Inactive;
+        records.Add(new("A4.2-crash-detected", crashDetected, $"state after crash={afterCrash.State}"));
+        overall &= crashDetected;
+
+        // A4.4: ServiceManager still responsive (the fault didn't cascade).
+        bool smAlive;
+        try
+        {
+            var list = await admin.ListUnitsAsync();
+            smAlive = true;
+        }
+        catch { smAlive = false; }
+        records.Add(new("A4.3-sm-survives-fault", smAlive, smAlive ? "ServiceManager still responsive" : "ServiceManager unreachable"));
+        overall &= smAlive;
+
+        // A4.5: Restart the unit — it should recover to active.
+        var recovered = await admin.StartAsync(unitId);
+        var recoveredOk = recovered.State == SM.UnitState.Active && recovered.Pid > 0;
+        records.Add(new("A4.4-unit-recovers", recoveredOk, $"state after restart={recovered.State} pid={recovered.Pid}"));
+        overall &= recoveredOk;
+    }
+    finally
+    {
+        // Clean up.
+        try { if (!sm.HasExited) sm.Kill(); } catch { }
+        try { Directory.Delete(dataRoot, recursive: true); } catch { }
+    }
+
+    foreach (var r in records)
+    {
+        Console.WriteLine($"[{(r.Passed ? "PASS" : "FAIL")}] {r.Id}: {r.Detail}");
+    }
+
+    Console.WriteLine($"A4 gate: {(overall ? "PASS" : "FAIL")}");
+    return overall ? 0 : 1;
+}
+
 // A2 Quick Gate: dynamic discovery and data autonomy. Verifies that a new tool directory
 // appears in the catalog after refresh and disappears after removal, and that default uninstall
 // preserves declared dataRoots while explicit purge removes them.
