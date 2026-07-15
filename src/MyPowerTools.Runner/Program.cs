@@ -22,8 +22,10 @@ var dataRoot = GetOption(args, "--data-root") ?? Path.Combine(Environment.GetFol
 var runtimePaths = RuntimePaths.Create(dataRoot);
 var developmentToolRoots = ToolDiscoveryConfiguration.Resolve(root, dataRoot, GetOptions(args, "--tool-dir"));
 var hostControlToken = HostControlAuthTokenStore.GetOrCreateToken(runtimePaths.Root);
+var runnerInstanceName = GetOption(args, "--instance-name") ?? "MyPowerTools.Runner";
+var endpointAddress = GetOption(args, "--endpoint-address");
 
-using var guard = SingleInstanceGuard.Acquire("MyPowerTools.Runner");
+using var guard = SingleInstanceGuard.Acquire(runnerInstanceName);
 if (!guard.OwnsInstance && !once)
 {
     Console.WriteLine("MyPowerTools.Runner is already running.");
@@ -49,7 +51,11 @@ if (once)
 
 runtime.StartModuleEventPump();
 
-var endpoint = IpcEndpoint.RunnerDefault(platform);
+var endpoint = string.IsNullOrWhiteSpace(endpointAddress)
+    ? IpcEndpoint.RunnerDefault(platform)
+    : new IpcEndpoint(
+        OperatingSystem.IsWindows() ? IpcTransport.NamedPipe : IpcTransport.UnixDomainSocket,
+        endpointAddress);
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddSingleton(new HostControlAuthOptions(hostControlToken));
 builder.Services.AddGrpc(options => options.Interceptors.Add<HostControlAuthServerInterceptor>());

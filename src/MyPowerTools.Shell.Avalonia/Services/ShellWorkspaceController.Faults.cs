@@ -1,7 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Threading;
-using MyPowerTools.Runtime;
+using MyPowerTools.Abstractions;
 using MyPowerTools.Shell.Avalonia.ViewModels;
 using MyPowerTools.UI.Controls;
 using HostProto = MyPowerTools.Protocol.HostControl.V1;
@@ -175,7 +175,7 @@ public sealed partial class ShellWorkspaceController
 
     private static string SafeFaultMessage(Exception exception)
     {
-        var message = LogRouter.Redact(exception.Message);
+        var message = MptLogRedactor.Redact(exception.Message);
         if (string.IsNullOrWhiteSpace(message))
         {
             message = exception.GetType().Name;

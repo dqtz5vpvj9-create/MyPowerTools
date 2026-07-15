@@ -1830,7 +1830,7 @@ public sealed partial class RuntimeAcceptanceTests
             Assert.Equal("Avalonia.Headless", item["renderer"]!.GetValue<string>());
         });
 
-        var writerSource = File.ReadAllText(Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "ShellRealScreenshotWriter.cs"));
+        var writerSource = File.ReadAllText(Path.Combine(Root, "src", "Mpt.Cli.VisualTesting", "ShellRealScreenshotWriter.cs"));
         Assert.Contains("CreateShellChrome(", writerSource);
         Assert.Contains("new ShellChromeView", writerSource);
         Assert.Contains("\"ContentHost\"", writerSource);
@@ -1838,7 +1838,7 @@ public sealed partial class RuntimeAcceptanceTests
         Assert.Contains("\"PermissionPanel\"", writerSource);
         Assert.Contains("\"AuditPanel\"", writerSource);
 
-        var cliSource = File.ReadAllText(Path.Combine(Root, "src", "MyPowerTools.Cli", "Program.cs"));
+        var cliSource = File.ReadAllText(Path.Combine(Root, "src", "Mpt.Cli.VisualTesting", "Program.cs"));
         Assert.Contains("\"--live-runner\"", cliSource);
         Assert.Contains("[--full-shell]", cliSource);
         Assert.Contains("full ShellChrome Avalonia screenshots", cliSource);

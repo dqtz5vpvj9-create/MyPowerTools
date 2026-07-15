@@ -111,7 +111,7 @@ public sealed class AdbForwarderProductTests
         var screenshotWriter = File.ReadAllText(Path.Combine(
             Root,
             "src",
-            "MyPowerTools.Shell.Avalonia",
+            "Mpt.Cli.VisualTesting",
             "ShellRealScreenshotWriter.cs"));
         Assert.Contains("WriteAdbForwarderSnapshotFromRunnerAsync", screenshotWriter);
         Assert.Contains("adb-forwarder-live", screenshotWriter);

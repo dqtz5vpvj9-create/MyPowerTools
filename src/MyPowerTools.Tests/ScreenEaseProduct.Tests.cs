@@ -706,7 +706,7 @@ public sealed class ScreenEaseProductTests
         var screenshotWriter = File.ReadAllText(Path.Combine(
             Root,
             "src",
-            "MyPowerTools.Shell.Avalonia",
+            "Mpt.Cli.VisualTesting",
             "ShellRealScreenshotWriter.cs"));
         Assert.Contains("WriteScreenEaseSnapshotFromRunnerAsync", screenshotWriter);
         Assert.Contains("runner-hostcontrol", screenshotWriter);

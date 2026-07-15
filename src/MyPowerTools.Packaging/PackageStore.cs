@@ -69,7 +69,10 @@ public sealed class PackageStore
         }
     }
 
-    public PackageInstallResult Uninstall(string packageId)
+    public PackageInstallResult Uninstall(
+        string packageId,
+        IEnumerable<string>? declaredDataRoots = null,
+        bool purgeData = false)
     {
         var target = ResolvePackageTarget(packageId);
         if (!Directory.Exists(target))
@@ -84,7 +87,8 @@ public sealed class PackageStore
         }
 
         MoveDirectoryWithRetry(target, rollback);
-        return new PackageInstallResult(true, packageId, rollback, []);
+        var dataIssues = new ToolDataRetentionManager().ApplyUninstallPolicy(declaredDataRoots ?? [], purgeData);
+        return new PackageInstallResult(dataIssues.Count == 0, packageId, rollback, dataIssues);
     }
 
     public PackageInstallResult Rollback(string packageId)
@@ -186,3 +190,88 @@ public sealed class PackageStore
 }
 
 public sealed record PackageInstallResult(bool Success, string PackageId, string TargetPath, IReadOnlyList<ValidationIssue> Issues);
+
+/// <summary>
+/// Applies the explicit data-retention decision made during tool uninstall. A normal uninstall
+/// never touches tool data. Purge accepts only absolute, non-root directories and reports every
+/// rejected or failed path as a validation issue.
+/// </summary>
+public sealed class ToolDataRetentionManager
+{
+    public IReadOnlyList<ValidationIssue> ApplyUninstallPolicy(IEnumerable<string> declaredDataRoots, bool purgeRequested)
+    {
+        if (!purgeRequested)
+        {
+            return [];
+        }
+
+        var issues = new List<ValidationIssue>();
+        foreach (var declaredRoot in declaredDataRoots
+                     .Where(path => !string.IsNullOrWhiteSpace(path))
+                     .Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            var expanded = Environment.ExpandEnvironmentVariables(declaredRoot.Trim());
+            if (!Path.IsPathFullyQualified(expanded))
+            {
+                issues.Add(new ValidationIssue(declaredRoot, "error", "A data root must be an absolute path before it can be purged."));
+                continue;
+            }
+
+            var path = Path.GetFullPath(expanded)
+                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            var volumeRoot = Path.GetPathRoot(path)?.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) ?? "";
+            if (string.Equals(path, volumeRoot, StringComparison.OrdinalIgnoreCase) || IsProtectedProfileRoot(path))
+            {
+                issues.Add(new ValidationIssue(path, "error", "Refusing to purge a filesystem or user-profile root."));
+                continue;
+            }
+
+            if (!Directory.Exists(path))
+            {
+                continue;
+            }
+
+            try
+            {
+                DeleteDirectoryWithRetry(path);
+            }
+            catch (Exception ex)
+            {
+                issues.Add(new ValidationIssue(path, "error", ex.Message));
+            }
+        }
+
+        return issues;
+    }
+
+    private static bool IsProtectedProfileRoot(string path)
+    {
+        var protectedRoots = new[]
+        {
+            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData)
+        };
+        return protectedRoots
+            .Where(root => !string.IsNullOrWhiteSpace(root))
+            .Select(root => Path.GetFullPath(root).TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar))
+            .Any(root => string.Equals(path, root, StringComparison.OrdinalIgnoreCase));
+    }
+
+    private static void DeleteDirectoryWithRetry(string path)
+    {
+        const int attempts = 6;
+        for (var attempt = 1; attempt <= attempts; attempt++)
+        {
+            try
+            {
+                Directory.Delete(path, recursive: true);
+                return;
+            }
+            catch (Exception ex) when ((ex is IOException or UnauthorizedAccessException) && attempt < attempts)
+            {
+                Thread.Sleep(TimeSpan.FromMilliseconds(50 * attempt));
+            }
+        }
+    }
+}

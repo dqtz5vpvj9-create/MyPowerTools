@@ -1,5 +1,6 @@
 using System.Runtime.CompilerServices;
 using System.Text.Json.Nodes;
+using Google.Protobuf;
 using Grpc.Core;
 using Grpc.Core.Interceptors;
 using MyPowerTools.Abstractions;
@@ -108,7 +109,14 @@ public sealed class ScopedServiceUnitClient : IServiceUnitClient
         => ts is null || ts.Seconds == 0 && ts.Nanos == 0 ? DateTimeOffset.UtcNow : ts.ToDateTimeOffset();
 
     private static ServiceUnitEvent FromProto(SM.UnitEvent e)
-        => new(e.UnitId, e.Seq, e.Type, ToDateTimeOffset(e.Time), new JsonObject());
+        => new(
+            e.UnitId,
+            e.Seq,
+            e.Type,
+            ToDateTimeOffset(e.Time),
+            e.Payload is null
+                ? new JsonObject()
+                : JsonNode.Parse(JsonFormatter.Default.Format(e.Payload)) as JsonObject ?? new JsonObject());
 
     private static MptToolLogEntry FromProto(SM.LogEntry e)
         => new(ToDateTimeOffset(e.Time), e.Level, e.Category, e.Message, null);

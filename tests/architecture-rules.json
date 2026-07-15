@@ -3,7 +3,7 @@
   "description": "Architecture dependency rules for MyPowerTools. Enforced by the A1 Quick gate.",
   "forbiddenProjectReferences": {
     "MyPowerTools.Shell.Avalonia": {
-      "description": "Shell must not reference any tool source project or Surface assembly",
+      "description": "Shell consumes client-side host contracts and production UI only",
       "forbiddenPrefixes": [
         "tools/"
       ],
@@ -12,7 +12,17 @@
         "ScreenEase.Surface",
         "RemoteNotifications.Surface",
         "DoubaoAgent.Surface",
-        "SmartBird.Surface"
+        "SmartBird.Surface",
+        "MyPowerTools.HostControl",
+        "MyPowerTools.UI.Testing"
+      ]
+    },
+    "MyPowerTools.Cli": {
+      "description": "The product CLI must not carry the Avalonia Shell or visual-test harness",
+      "forbiddenPrefixes": [],
+      "forbiddenProjectNames": [
+        "MyPowerTools.Shell.Avalonia",
+        "MyPowerTools.UI.Testing"
       ]
     }
   },
@@ -52,14 +62,25 @@
         ]
       },
       {
-        "project": "MyPowerTools.UI",
+        "project": "MyPowerTools.UI.Primitives",
         "mustNotReference": [
           "MyPowerTools.Runtime",
           "MyPowerTools.Packaging",
           "MyPowerTools.Broker",
           "MyPowerTools.Shell.Avalonia"
         ]
+      },
+      {
+        "project": "MyPowerTools.HostControl.Client",
+        "mustNotReference": [
+          "MyPowerTools.Runtime",
+          "MyPowerTools.HostControl.Server"
+        ]
       }
     ]
+  },
+  "externalToolProjects": {
+    "root": "tools",
+    "forbiddenProjectReferenceFragment": "$(MyPowerToolsRepoRoot)\\src\\"
   }
 }

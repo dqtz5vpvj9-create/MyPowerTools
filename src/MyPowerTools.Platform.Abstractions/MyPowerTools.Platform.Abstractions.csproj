@@ -4,6 +4,9 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <IsPackable>true</IsPackable>
+    <PackageId>MyPowerTools.Platform.Abstractions</PackageId>
+    <Version>0.2.0</Version>
   </PropertyGroup>
 
 </Project>

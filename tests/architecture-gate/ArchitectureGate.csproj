@@ -14,6 +14,9 @@
     <ProjectReference Include="..\..\src\MyPowerTools.ServiceManager.Client\MyPowerTools.ServiceManager.Client.csproj" />
     <ProjectReference Include="..\..\src\MyPowerTools.ServiceManager.Server\MyPowerTools.ServiceManager.Server.csproj" />
     <ProjectReference Include="..\..\src\MyPowerTools.Abstractions\MyPowerTools.Abstractions.csproj" />
+    <ProjectReference Include="..\..\src\MyPowerTools.Packaging\MyPowerTools.Packaging.csproj" />
+    <ProjectReference Include="..\..\src\MyPowerTools.Platform.Abstractions\MyPowerTools.Platform.Abstractions.csproj" />
+    <ProjectReference Include="..\..\src\MyPowerTools.Runtime\MyPowerTools.Runtime.csproj" />
   </ItemGroup>
 
 </Project>

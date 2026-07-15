@@ -133,12 +133,34 @@ public sealed class ServiceManagerGrpcService : SM.ServiceManager.ServiceManager
 
     public override async Task SubscribeUnitEvents(SubscribeUnitEventsRequest request, IServerStreamWriter<SM.UnitEvent> responseStream, ServerCallContext context)
     {
+        var callerToolId = CallerToolId(context);
+        if (!string.IsNullOrEmpty(request.UnitId))
+        {
+            try
+            {
+                _engine.GetSnapshot(request.UnitId, callerToolId);
+            }
+            catch (KeyNotFoundException)
+            {
+                throw NotFound(request.UnitId);
+            }
+            catch (ServiceUnitScopeDeniedException ex)
+            {
+                throw ScopeDenied(ex);
+            }
+        }
+
         var lastSeq = request.LastEventSeq;
         while (!context.CancellationToken.IsCancellationRequested)
         {
             foreach (var evt in _engine.Events.Since(lastSeq, string.IsNullOrEmpty(request.UnitId) ? null : request.UnitId))
             {
                 lastSeq = evt.Seq;
+                if (!CanObserve(evt.UnitId, callerToolId))
+                {
+                    continue;
+                }
+
                 await responseStream.WriteAsync(ToProto(evt));
             }
 
@@ -150,6 +172,23 @@ public sealed class ServiceManagerGrpcService : SM.ServiceManager.ServiceManager
             {
                 break;
             }
+        }
+    }
+
+    private bool CanObserve(string unitId, string? callerToolId)
+    {
+        try
+        {
+            _engine.GetSnapshot(unitId, callerToolId);
+            return true;
+        }
+        catch (KeyNotFoundException)
+        {
+            return false;
+        }
+        catch (ServiceUnitScopeDeniedException)
+        {
+            return false;
         }
     }
 
@@ -233,7 +272,8 @@ public sealed class ServiceManagerGrpcService : SM.ServiceManager.ServiceManager
         {
             Seq = e.Seq,
             UnitId = e.UnitId,
-            Type = e.Type
+            Type = e.Type,
+            Payload = Google.Protobuf.JsonParser.Default.Parse<Struct>(e.Payload.ToJsonString())
         };
 
         if (e.Time != default)

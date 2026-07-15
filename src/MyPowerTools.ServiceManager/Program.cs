@@ -29,12 +29,18 @@ Directory.CreateDirectory(dataRoot);
 Directory.CreateDirectory(deployRoot);
 
 var platform = PlatformId.Current();
-var endpoint = IpcEndpoint.ServiceManagerDefault(platform);
+var endpointAddress = GetOption(args, "--endpoint-address");
+var endpoint = string.IsNullOrWhiteSpace(endpointAddress)
+    ? IpcEndpoint.ServiceManagerDefault(platform)
+    : new IpcEndpoint(
+        platform.OperatingSystem == "windows" ? IpcTransport.NamedPipe : IpcTransport.UnixDomainSocket,
+        endpointAddress);
 
 // Separate auth material from HostControl; both live under the same data root.
 var token = ServiceManagerAdminClient.SharedTokenStore.GetOrCreateToken(dataRoot);
 
-using var guard = SingleInstanceGuard.Acquire("MyPowerTools.ServiceManager");
+var instanceName = GetOption(args, "--instance-name") ?? "MyPowerTools.ServiceManager";
+using var guard = SingleInstanceGuard.Acquire(instanceName);
 if (!guard.OwnsInstance)
 {
     Console.WriteLine("MyPowerTools.ServiceManager is already running.");

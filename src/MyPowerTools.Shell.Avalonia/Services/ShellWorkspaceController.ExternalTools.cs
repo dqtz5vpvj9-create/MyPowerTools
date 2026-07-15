@@ -7,6 +7,7 @@ using System.Text.RegularExpressions;
 using Avalonia.Controls;
 using MyPowerTools.Abstractions;
 using MyPowerTools.AvaloniaSdk;
+using MyPowerTools.ServiceManager.Client;
 using MyPowerTools.HostControl;
 using MyPowerTools.Platform.Abstractions;
 using MyPowerTools.Platform.Windows;
@@ -140,6 +141,7 @@ public sealed partial class ShellWorkspaceController
                     success ? null : new MptRuntimeError("command.failed", result.Message));
             },
             (toolId, targetRouteId, _) => ShowToolPageAsync(toolId, targetRouteId),
+            new ScopedServiceUnitClient(_serviceManagerAdmin, descriptor.ToolId),
             entry => SetStatus($"[{entry.Level}] {entry.Message}"))).Control;
     }
 

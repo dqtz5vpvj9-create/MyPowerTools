@@ -36,6 +36,7 @@
     <ProjectReference Include="..\MyPowerTools.UI.Testing\MyPowerTools.UI.Testing.csproj" />
     <ProjectReference Include="..\MyPowerTools.HostControl\MyPowerTools.HostControl.csproj" />
     <ProjectReference Include="..\MyPowerTools.Shell.Avalonia\MyPowerTools.Shell.Avalonia.csproj" />
+    <ProjectReference Include="..\Mpt.Cli.VisualTesting\Mpt.Cli.VisualTesting.csproj" />
     <ProjectReference Include="..\MyPowerTools.ModuleHost.InProcDotNet\MyPowerTools.ModuleHost.InProcDotNet.csproj" />
     <ProjectReference Include="..\MyPowerTools.ModuleHost.GrpcIpc\MyPowerTools.ModuleHost.GrpcIpc.csproj" />
     <ProjectReference Include="..\MyPowerTools.Runner\MyPowerTools.Runner.csproj" />
@@ -54,4 +55,3 @@
   </ItemGroup>
 
 </Project>
-

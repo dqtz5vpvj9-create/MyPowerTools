@@ -2,6 +2,7 @@ using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Threading;
 using MyPowerTools.Runtime;
+using MyPowerTools.ServiceManager.Client;
 using MyPowerTools.Shell.Avalonia.Navigation;
 using MyPowerTools.Shell.Avalonia.ViewModels;
 using MyPowerTools.UI.Controls;
@@ -38,6 +39,7 @@ public sealed partial class ShellWorkspaceController : IAsyncDisposable
     private readonly ShellPageDataService _pageData = new();
     private readonly ShellRunnerEventService _runnerEvents = new();
     private readonly ServiceUnitEventStreamMonitor _unitEvents = new(new ServiceManagerUnitEventSource());
+    private readonly ServiceManagerAdminClient _serviceManagerAdmin = ServiceManagerAdminClient.ForDefaultEndpoint();
     private readonly DotnetSurfaceLoader _dotnetSurfaceLoader = new(
         Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MyPowerTools", "state", "surface-shadow"));
     private readonly ShellSettingsService _settingsService = new();
@@ -243,6 +245,7 @@ public sealed partial class ShellWorkspaceController : IAsyncDisposable
         }
         finally
         {
+            _serviceManagerAdmin.Dispose();
             DisposeHostedContent();
             _faultSink.Dispose();
         }

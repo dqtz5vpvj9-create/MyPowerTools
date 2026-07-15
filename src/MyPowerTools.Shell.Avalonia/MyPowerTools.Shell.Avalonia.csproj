@@ -14,23 +14,20 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Avalonia.HtmlRenderer" Version="12.0.0" />
-    <PackageReference Include="Markdig" Version="1.1.2" />
     <PackageReference Include="Avalonia.Desktop" Version="12.0.5" />
     <PackageReference Include="Avalonia.Fonts.Inter" Version="12.0.5" />
-    <PackageReference Include="Avalonia.Headless" Version="12.0.5" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="12.0.5" />
     <PackageReference Include="BouncyCastle.Cryptography" Version="2.6.2" />
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\MyPowerTools.Abstractions\MyPowerTools.Abstractions.csproj" />
     <ProjectReference Include="..\MyPowerTools.Protocol\MyPowerTools.Protocol.csproj" />
     <ProjectReference Include="..\MyPowerTools.Broker\MyPowerTools.Broker.csproj" />
     <ProjectReference Include="..\MyPowerTools.Platform.Windows\MyPowerTools.Platform.Windows.csproj" />
-    <ProjectReference Include="..\MyPowerTools.HostControl\MyPowerTools.HostControl.csproj" />
+    <ProjectReference Include="..\MyPowerTools.HostControl.Client\MyPowerTools.HostControl.Client.csproj" />
     <ProjectReference Include="..\MyPowerTools.ServiceManager.Client\MyPowerTools.ServiceManager.Client.csproj" />
     <ProjectReference Include="..\MyPowerTools.UI\MyPowerTools.UI.csproj" />
-    <ProjectReference Include="..\MyPowerTools.UI.Testing\MyPowerTools.UI.Testing.csproj" />
     <ProjectReference Include="..\MyPowerTools.AvaloniaSdk\MyPowerTools.AvaloniaSdk.csproj" />
     <ProjectReference Include="$(WebToolHostProject)"
                       ReferenceOutputAssembly="false"

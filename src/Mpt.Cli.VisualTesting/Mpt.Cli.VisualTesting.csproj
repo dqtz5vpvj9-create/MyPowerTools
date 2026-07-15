@@ -8,8 +8,18 @@
     <IsPackable>false</IsPackable>
   </PropertyGroup>
   <ItemGroup>
+    <PackageReference Include="Avalonia.Headless" Version="12.0.5" />
+    <PackageReference Include="Grpc.AspNetCore" Version="2.80.0" />
     <ProjectReference Include="..\MyPowerTools.Shell.Avalonia\MyPowerTools.Shell.Avalonia.csproj" />
     <ProjectReference Include="..\MyPowerTools.HostControl.Client\MyPowerTools.HostControl.Client.csproj" />
+    <ProjectReference Include="..\MyPowerTools.HostControl.Server\MyPowerTools.HostControl.Server.csproj" />
     <ProjectReference Include="..\MyPowerTools.UI.Testing\MyPowerTools.UI.Testing.csproj" />
+    <ProjectReference Include="..\MyPowerTools.Packaging\MyPowerTools.Packaging.csproj" />
+    <ProjectReference Include="..\MyPowerTools.Runtime\MyPowerTools.Runtime.csproj" />
+    <ProjectReference Include="..\MyPowerTools.Broker\MyPowerTools.Broker.csproj" />
+    <ProjectReference Include="..\MyPowerTools.Platform.Windows\MyPowerTools.Platform.Windows.csproj" />
+    <ProjectReference Include="..\MyPowerTools.ModuleHost.InProcDotNet\MyPowerTools.ModuleHost.InProcDotNet.csproj" />
+    <ProjectReference Include="..\MyPowerTools.ModuleHost.GrpcIpc\MyPowerTools.ModuleHost.GrpcIpc.csproj" />
+    <ProjectReference Include="..\MyPowerTools.ModuleHost.StdioCompat\MyPowerTools.ModuleHost.StdioCompat.csproj" />
   </ItemGroup>
 </Project>

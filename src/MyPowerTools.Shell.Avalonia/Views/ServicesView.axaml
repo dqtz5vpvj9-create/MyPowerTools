@@ -30,8 +30,8 @@
 
     <!-- Search + state filter -->
     <StackPanel Orientation="Horizontal" Spacing="{DynamicResource MptSpacingS}" IsVisible="{Binding !HasNoUnits}">
-      <TextBox Text="{Binding SearchText}" PlaceholderText="Search units, tools..." Width="280" />
-      <ComboBox ItemsSource="{Binding StateFilters}" SelectedItem="{Binding StateFilter}" MinWidth="120" />
+      <controls:MptTextBox Text="{Binding SearchText}" PlaceholderText="Search units, tools..." Width="280" />
+      <controls:MptComboBox ItemsSource="{Binding StateFilters}" SelectedItem="{Binding StateFilter}" MinWidth="120" />
     </StackPanel>
 
     <Border Classes="MptEmptyState" IsVisible="{Binding HasNoUnits}">

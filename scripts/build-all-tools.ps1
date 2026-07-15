@@ -34,8 +34,8 @@
   repository root. Must stay under the repository's artifacts directory.
 
 .PARAMETER Version
-  Version label used for the collection directory and the manifest. Defaults to
-  0.2.0, which matches the tool-release.json of every shipped tool.
+  Optional version override for every selected tool. When omitted, each tool's
+  declared release version is used.
 
 .PARAMETER SkipSdk
   Skip the SDK bundle build (use when artifacts/sdk is already up to date).
@@ -56,7 +56,7 @@ param(
 
     [string]$OutputRoot = '',
 
-    [string]$Version = '0.2.0',
+    [string]$Version = '',
 
     [switch]$SkipSdk,
 
@@ -142,6 +142,26 @@ function Copy-DirectoryContents {
     }
 }
 
+function Copy-SurfaceOutput {
+    param(
+        [Parameter(Mandatory = $true)][string]$Source,
+        [Parameter(Mandatory = $true)][string]$Destination,
+        [Parameter(Mandatory = $true)][string]$AssemblyName
+    )
+    if (-not (Test-Path -LiteralPath $Source -PathType Container)) {
+        throw "Surface output is missing: $Source"
+    }
+    New-Item -ItemType Directory -Path $Destination -Force | Out-Null
+    foreach ($extension in @('*.dll', '*.pdb', '*.deps.json')) {
+        Get-ChildItem -LiteralPath $Source -File -Filter $extension |
+            Copy-Item -Destination $Destination -Force
+    }
+    $expectedAssembly = Join-Path $Destination $AssemblyName
+    if (-not (Test-Path -LiteralPath $expectedAssembly -PathType Leaf)) {
+        throw "Surface assembly was not staged: $expectedAssembly"
+    }
+}
+
 # Resolve the dotnet host once. tool build.ps1 scripts resolve it themselves,
 # but the Surface pack step here uses the same one for consistency.
 $dotnet = (Get-Command 'dotnet' -CommandType Application -ErrorAction Stop).Source
@@ -160,32 +180,47 @@ $dotnet = (Get-Command 'dotnet' -CommandType Application -ErrorAction Stop).Sour
 $toolRegistry = @(
     [pscustomobject]@{
         Id               = 'adb-forwarder'
+        Version          = '0.2.0'
         BuildScript      = 'tools\adb-forwarder\build.ps1'
         SurfaceProject   = 'tools\adb-forwarder\current-integration\src\AdbForwarder.Surface\AdbForwarder.Surface.csproj'
+        SurfaceAssembly  = 'AdbForwarder.Surface.dll'
+        SurfaceTarget    = 'ui\surface'
         RuntimeStagePath = 'tools\adb-forwarder\artifacts\package'
     },
     [pscustomobject]@{
         Id               = 'doubao-computer-use'
+        Version          = '0.3.0'
         BuildScript      = 'tools\doubao-computer-use\build.ps1'
         SurfaceProject   = 'tools\doubao-computer-use\current-integration\src\DoubaoAgent.Surface\DoubaoAgent.Surface.csproj'
+        SurfaceAssembly  = 'DoubaoAgent.Surface.dll'
+        SurfaceTarget    = 'ui\surface'
         RuntimeStagePath = 'tools\doubao-computer-use\artifacts\package'
     },
     [pscustomobject]@{
         Id               = 'remote-notifications'
+        Version          = '0.2.0'
         BuildScript      = 'tools\remote-notifications\build.ps1'
         SurfaceProject   = 'tools\remote-notifications\current-integration\src\RemoteNotifications.Surface\RemoteNotifications.Surface.csproj'
+        SurfaceAssembly  = 'RemoteNotifications.Surface.dll'
+        SurfaceTarget    = 'modules\notifications\ui\surface'
         RuntimeStagePath = 'tools\remote-notifications\artifacts\package\android-tools-suite'
     },
     [pscustomobject]@{
         Id               = 'screenease'
+        Version          = '0.2.0'
         BuildScript      = 'tools\screenease\build.ps1'
         SurfaceProject   = 'tools\screenease\current-integration\src\ScreenEase.Surface\ScreenEase.Surface.csproj'
+        SurfaceAssembly  = 'ScreenEase.Surface.dll'
+        SurfaceTarget    = 'ui\surface'
         RuntimeStagePath = 'tools\screenease\artifacts\package'
     },
     [pscustomobject]@{
         Id               = 'smartbird-thermostat'
+        Version          = '0.2.0'
         BuildScript      = 'tools\smartbird-thermostat\build.ps1'
         SurfaceProject   = 'tools\smartbird-thermostat\current-integration\src\SmartBird.Surface\SmartBird.Surface.csproj'
+        SurfaceAssembly  = 'SmartBird.Surface.dll'
+        SurfaceTarget    = 'ui\surface'
         RuntimeStagePath = 'tools\smartbird-thermostat\artifacts\package'
     }
 )
@@ -206,8 +241,18 @@ if ($ToolId.Count -gt 0) {
 # Prepare output
 # ---------------------------------------------------------------------------
 if (Test-Path -LiteralPath $OutputRoot) {
-    # Wipe the previous collection but keep sibling artifact directories intact.
-    Remove-Item -LiteralPath $OutputRoot -Recurse -Force
+    if ($ToolId.Count -eq 0) {
+        # A full suite build produces a fresh, complete collection.
+        Remove-Item -LiteralPath $OutputRoot -Recurse -Force
+    } else {
+        # A targeted developer build replaces only the selected tool outputs.
+        foreach ($tool in $toolRegistry) {
+            $selectedOutput = Join-Path $OutputRoot $tool.Id
+            if (Test-Path -LiteralPath $selectedOutput) {
+                Remove-Item -LiteralPath $selectedOutput -Recurse -Force
+            }
+        }
+    }
 }
 New-Item -ItemType Directory -Path $OutputRoot -Force | Out-Null
 
@@ -234,13 +279,14 @@ if (-not $SkipSdk) {
 $perToolManifest = New-Object System.Collections.ArrayList
 
 foreach ($tool in $toolRegistry) {
-    $toolId           = $tool.Id
+    $currentToolId    = [string]$tool.Id
     $toolBuildScript  = $tool.BuildScript
     $toolSurfaceProj  = $tool.SurfaceProject
     $toolRuntimeStage = $tool.RuntimeStagePath
+    $toolVersion      = if ([string]::IsNullOrWhiteSpace($Version)) { $tool.Version } else { $Version }
 
     Write-Host ''
-    Write-Host "==> [$toolId] runtime package via build.ps1" -ForegroundColor Cyan
+    Write-Host "==> [$currentToolId] runtime package via build.ps1" -ForegroundColor Cyan
 
     $buildScriptPath = Join-Path $repoRoot $toolBuildScript
     if (-not (Test-Path -LiteralPath $buildScriptPath -PathType Leaf)) {
@@ -253,23 +299,33 @@ foreach ($tool in $toolRegistry) {
 
     $runtimeStageFull = [System.IO.Path]::GetFullPath((Join-Path $repoRoot $toolRuntimeStage))
     if (-not (Test-Path -LiteralPath $runtimeStageFull -PathType Container)) {
-        throw "[$toolId] runtime package was not staged where expected: $runtimeStageFull"
+        throw "[$currentToolId] runtime package was not staged where expected: $runtimeStageFull"
     }
 
     # ---- Surface build + pack --------------------------------------------
     $surfaceProjFull = [System.IO.Path]::GetFullPath((Join-Path $repoRoot $toolSurfaceProj))
     $surfaceOutputs  = @()
     if (Test-Path -LiteralPath $surfaceProjFull -PathType Leaf) {
-        Write-Host "==> [$toolId] Surface build + pack" -ForegroundColor Cyan
+        Write-Host "==> [$currentToolId] Surface build + pack" -ForegroundColor Cyan
+        # Local SDK packages deliberately keep a stable development version. Force
+        # NuGet to re-evaluate their dependency graph after each SDK rebuild so a
+        # changed package cannot be hidden by a stale project.assets.json file.
+        Invoke-Native -FilePath $dotnet -ArgumentList @(
+            'restore', $surfaceProjFull,
+            '--force-evaluate',
+            '--nologo',
+            "-p:MyPowerToolsRepoRoot=$repoRoot"
+        ) -Activity "dotnet restore --force-evaluate $toolSurfaceProj"
         Invoke-Native -FilePath $dotnet -ArgumentList @(
             'build', $surfaceProjFull,
             '--configuration', $Configuration,
+            '--no-restore',
             '--nologo',
             "-p:MyPowerToolsRepoRoot=$repoRoot"
         ) -Activity "dotnet build $toolSurfaceProj"
 
         # Pack to a per-tool staging folder so we can collect just the nupkg.
-        $surfacePackOut = [System.IO.Path]::GetFullPath((Join-Path $repoRoot "tools\$toolId\artifacts\surface"))
+        $surfacePackOut = [System.IO.Path]::GetFullPath((Join-Path $repoRoot "tools\$currentToolId\artifacts\surface"))
         if (Test-Path -LiteralPath $surfacePackOut) {
             Remove-Item -LiteralPath $surfacePackOut -Recurse -Force
         }
@@ -286,14 +342,30 @@ foreach ($tool in $toolRegistry) {
         $surfaceOutputs = @(Get-ChildItem -LiteralPath $surfacePackOut -Filter '*.nupkg' |
             ForEach-Object { $_.FullName })
         if ($surfaceOutputs.Count -eq 0) {
-            throw "[$toolId] Surface pack produced no .nupkg under $surfacePackOut"
+            throw "[$currentToolId] Surface pack produced no .nupkg under $surfacePackOut"
         }
+
+        # The runtime package is what Runner discovers. Stage the actual Surface
+        # assembly next to tool.json so the Shell can load the declared factory.
+        $surfaceBuildOut = Join-Path (Split-Path -Parent $surfaceProjFull) "bin\$Configuration\net10.0"
+        $surfaceRuntimeOut = Join-Path $runtimeStageFull $tool.SurfaceTarget
+        Copy-SurfaceOutput -Source $surfaceBuildOut -Destination $surfaceRuntimeOut -AssemblyName $tool.SurfaceAssembly
+
+        # Surface staging changes package contents, so refresh the local package
+        # hash/signature documents before collecting or installing the package.
+        $cliExe = Join-Path $repoRoot 'artifacts\sdk\cli\MyPowerTools.Cli.exe'
+        if (-not (Test-Path -LiteralPath $cliExe -PathType Leaf)) {
+            throw "SDK CLI is missing: $cliExe"
+        }
+        Invoke-Native -FilePath $cliExe -ArgumentList @(
+            'package', 'sign-local', $runtimeStageFull
+        ) -Activity "mpt package sign-local $currentToolId"
     } else {
-        Write-Warning "[$toolId] Surface project not found at $surfaceProjFull; skipping Surface pack."
+        Write-Warning "[$currentToolId] Surface project not found at $surfaceProjFull; skipping Surface pack."
     }
 
     # ---- Collect into artifacts/tools/<id>/<version> ---------------------
-    $collectDir = Join-Path $OutputRoot $toolId $Version
+    $collectDir = Join-Path $OutputRoot $currentToolId $toolVersion
     if (Test-Path -LiteralPath $collectDir) {
         Remove-Item -LiteralPath $collectDir -Recurse -Force
     }
@@ -310,22 +382,27 @@ foreach ($tool in $toolRegistry) {
         }
     }
 
+    $archiveZip = Join-Path $collectDir "$currentToolId-$toolVersion.zip"
+    $packagePath = Join-Path $collectDir "$currentToolId-$toolVersion.mptpkg"
+    Compress-Archive -Path (Join-Path $runtimeCollect '*') -DestinationPath $archiveZip -CompressionLevel Optimal
+    Move-Item -LiteralPath $archiveZip -Destination $packagePath -Force
+
     # ---- Source info for this tool submodule -----------------------------
-    $submodulePath = [System.IO.Path]::GetFullPath((Join-Path $repoRoot "tools\$toolId"))
+    $submodulePath = [System.IO.Path]::GetFullPath((Join-Path $repoRoot "tools\$currentToolId"))
     $srcInfo = Get-SourceInfo -Path $submodulePath
 
-    $artifactsRelative = @('runtime/')
+    $artifactsRelative = @('runtime/', (Split-Path -Leaf $packagePath))
     if ($surfaceOutputs.Count -gt 0) { $artifactsRelative += @('surface/') }
 
     [void]$perToolManifest.Add([ordered]@{
-        toolId    = $toolId
-        version   = $Version
+        toolId    = $currentToolId
+        version   = $toolVersion
         source    = $srcInfo
         artifacts = $artifactsRelative
-        output    = "artifacts/tools/$toolId/$Version"
+        output    = "artifacts/tools/$currentToolId/$toolVersion"
     })
 
-    Write-Host "  OK [$toolId] -> $collectDir" -ForegroundColor Green
+    Write-Host "  OK [$currentToolId] -> $collectDir" -ForegroundColor Green
 }
 
 # ---------------------------------------------------------------------------

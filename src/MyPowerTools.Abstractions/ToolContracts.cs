@@ -20,7 +20,9 @@ public sealed record ToolDescriptor(
     string SourceDirectory = "",
     ToolRuntime? Runtime = null,
     ToolSettings? Settings = null,
-    IReadOnlyList<ToolCommand>? Commands = null);
+    IReadOnlyList<ToolCommand>? Commands = null,
+    IReadOnlyList<string>? DataRoots = null,
+    string DataRetention = "preserve");
 
 /// <summary>
 /// Maps a stable route identifier to a surface supplied by the owning module.

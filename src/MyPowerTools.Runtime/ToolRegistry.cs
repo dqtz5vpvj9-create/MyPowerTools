@@ -174,7 +174,15 @@ public sealed class ToolRegistry
                 command.Title,
                 command.Description,
                 command.Method,
-                command.Path)).ToArray());
+                command.Path)).ToArray(),
+            manifest.DataRoots
+                .Where(root => !string.IsNullOrWhiteSpace(root))
+                .Select(root => ResolveToolValue(toolDirectory, ExpandSettings(root, settingValues)))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray(),
+            string.IsNullOrWhiteSpace(manifest.DataRetention)
+                ? "preserve"
+                : manifest.DataRetention.Trim().ToLowerInvariant());
     }
 
     private static string ResolveToolValue(string toolDirectory, string value)

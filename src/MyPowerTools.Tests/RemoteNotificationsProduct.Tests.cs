@@ -42,12 +42,12 @@ public sealed class RemoteNotificationsProductTests
         var project = File.ReadAllText(Path.Combine(
             Root,
             "src",
-            "MyPowerTools.Shell.Avalonia",
-            "MyPowerTools.Shell.Avalonia.csproj"));
+            "MyPowerTools.UI",
+            "MyPowerTools.UI.csproj"));
         var renderer = File.ReadAllText(Path.Combine(
-            Root, "src", "MyPowerTools.Shell.Avalonia", "Views", "MptMarkdownView.cs"));
+            Root, "src", "MyPowerTools.UI", "Controls", "MptMarkdownView.cs"));
         var integrationRoot = Path.Combine(
-            Root, "tools", "remote-notifications", "current-integration", "src", "MyPowerTools.Shell.Avalonia");
+            Root, "tools", "remote-notifications", "current-integration", "src", "RemoteNotifications.Surface");
         var feed = File.ReadAllText(Path.Combine(integrationRoot, "Views", "RemoteNotificationsView.axaml"));
         var detail = File.ReadAllText(Path.Combine(integrationRoot, "Views", "RemoteNotificationDetailWindow.axaml"));
 
@@ -69,8 +69,8 @@ public sealed class RemoteNotificationsProductTests
         Assert.Contains("_consecutiveClickCount == 3", renderer, StringComparison.Ordinal);
         Assert.Contains("SelectCurrentRenderedLine(pointerPosition, eventArgs)", renderer, StringComparison.Ordinal);
         Assert.Contains("LeadingTitleRegex().Replace(markdown, \"###### $1\\n\\n\", 1)", renderer, StringComparison.Ordinal);
-        Assert.Contains("<local:MptMarkdownView Markdown=\"{Binding DisplayMessage}\"", feed, StringComparison.Ordinal);
-        Assert.Contains("<local:MptMarkdownView Markdown=\"{Binding Message}\"", detail, StringComparison.Ordinal);
+        Assert.Contains("<controls:MptMarkdownView Markdown=\"{Binding DisplayMessage}\"", feed, StringComparison.Ordinal);
+        Assert.Contains("<controls:MptMarkdownView Markdown=\"{Binding Message}\"", detail, StringComparison.Ordinal);
         Assert.Contains("ColumnDefinitions=\"*,320,Auto\"", feed, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"LabelScroller\"", feed, StringComparison.Ordinal);
         Assert.Contains("HorizontalScrollBarVisibility=\"Hidden\"", feed, StringComparison.Ordinal);

@@ -1,4 +1,4 @@
-using MyPowerTools.Runtime;
+using MyPowerTools.Abstractions;
 using MyPowerTools.Shell.Avalonia.ViewModels;
 using HostProto = MyPowerTools.Protocol.HostControl.V1;
 
@@ -185,7 +185,7 @@ public sealed class ShellRunnerEventService : IAsyncDisposable
 
     private static string SafeText(string value)
     {
-        var message = LogRouter.Redact(value).Replace('\r', ' ').Replace('\n', ' ');
+        var message = MptLogRedactor.Redact(value).Replace('\r', ' ').Replace('\n', ' ');
         return message.Length <= 512 ? message : message[..512];
     }
 }

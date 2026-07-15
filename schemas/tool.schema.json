@@ -83,6 +83,17 @@
       "type": "array",
       "items": { "$ref": "#/$defs/permission" }
     },
+    "dataRoots": {
+      "type": "array",
+      "items": { "type": "string", "minLength": 1 },
+      "uniqueItems": true,
+      "description": "Tool-owned data directories. Paths may use settings interpolation and are retained during normal uninstall."
+    },
+    "dataRetention": {
+      "type": "string",
+      "enum": ["preserve", "purge-on-request"],
+      "default": "preserve"
+    },
     "development": {
       "type": "object",
       "properties": {

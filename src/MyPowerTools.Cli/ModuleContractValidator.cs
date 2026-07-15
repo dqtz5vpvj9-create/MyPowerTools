@@ -4,7 +4,6 @@ using MyPowerTools.Packaging;
 using MyPowerTools.Platform.Abstractions;
 using MyPowerTools.Protocol;
 using MyPowerTools.Runtime;
-using MyPowerTools.UI;
 using ModuleContext = MyPowerTools.Abstractions.ModuleContext;
 using MptCommandDescriptor = MyPowerTools.Abstractions.MptCommandDescriptor;
 
@@ -33,7 +32,7 @@ public sealed class ModuleContractValidator
             issues.AddRange(schemaReport.Issues.Where(issue => issue.Severity == "error"));
         }
 
-        var uiGate = new UiSurfaceGate();
+        var uiGate = new UiSurfaceContractValidator();
         foreach (var package in packages)
         {
             issues.AddRange(uiGate.CheckPackage(package).Where(issue => issue.Severity == "error"));

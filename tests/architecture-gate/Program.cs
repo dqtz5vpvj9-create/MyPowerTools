@@ -1,6 +1,11 @@
 using System.Diagnostics;
 using System.Text.Json;
+using System.Text.Json.Nodes;
+using System.Xml.Linq;
 using MyPowerTools.Abstractions;
+using MyPowerTools.Packaging;
+using MyPowerTools.Platform.Abstractions;
+using MyPowerTools.Runtime;
 using MyPowerTools.ServiceManager.Client;
 using Grpc.Core;
 using SM = MyPowerTools.Protocol.ServiceManager.V1;
@@ -48,128 +53,16 @@ if (string.Equals(mode, "a1", StringComparison.OrdinalIgnoreCase))
     return RunA1Gate();
 }
 
+if (string.Equals(mode, "a3", StringComparison.OrdinalIgnoreCase))
+{
+    return await ProcessGateRunner.RunA3Async();
+}
+
 // A4 Process Gate: fault domain. A crashed unit enters failed/recoverable, the ServiceManager
 // and other units continue, and the unit can be restarted.
 if (string.Equals(mode, "a4", StringComparison.OrdinalIgnoreCase))
 {
-    return await RunA4Gate();
-}
-
-static async Task<int> RunA4Gate()
-{
-    var repoRoot = FindRepoRoot();
-    var runId = Guid.NewGuid().ToString("N")[..8];
-    var dataRoot = Path.Combine(Path.GetTempPath(), $"mpt-a4-{runId}");
-    var deployRoot = Path.Combine(dataRoot, "deploy");
-    var unitsDir = Path.Combine(deployRoot, "units");
-    Directory.CreateDirectory(unitsDir);
-    Environment.SetEnvironmentVariable("MPT_DATA_ROOT", dataRoot);
-
-    var records = new List<GateRecord>();
-    var overall = true;
-
-    // Build + publish the fixture.
-    var fixtureProject = Path.Combine(repoRoot, "tests", "fixtures", "test-service-unit", "TestServiceUnit.csproj");
-    var pubDir = Path.Combine(dataRoot, "fixture");
-    var buildPsi = new ProcessStartInfo("dotnet", $"publish \"{fixtureProject}\" -c Release -o \"{pubDir}\" --nologo -v quiet")
-    {
-        RedirectStandardOutput = true,
-        RedirectStandardError = true,
-        UseShellExecute = false
-    };
-    var buildProc = Process.Start(buildPsi)!;
-    buildProc.WaitForExit(60000);
-    var fixtureExe = Path.Combine(pubDir, "test-service-unit.exe");
-
-    // Deploy a crashable unit (max restarts=0 so it stays failed after crash).
-    var unitId = $"a4-crash-{runId}";
-    var pipeName = $"a4-crash-{runId}";
-    var manifest = $$"""
-    {
-      "id": "{{unitId}}",
-      "toolId": "a4-test",
-      "displayName": "A4 Crash Test",
-      "exec": "{{fixtureExe.Replace("\\", "\\\\")}}",
-      "arguments": ["--pipe", "{{pipeName}}", "--heartbeat-file", "{{Path.Combine(dataRoot, "a4-heartbeat.txt").Replace("\\", "\\\\")}}"],
-      "environment": {},
-      "autostart": false,
-      "restartPolicy": { "maxRestarts": 0, "backoffMs": 500 },
-      "readiness": { "kind": "none", "address": "", "timeoutMs": 3000 },
-      "stopTimeoutMs": 3000,
-      "dataRoots": [],
-      "dependsOn": [],
-      "instanceToken": "a4-{{runId}}"
-    }
-    """;
-    File.WriteAllText(Path.Combine(unitsDir, $"{unitId}.json"), manifest);
-
-    // Launch ServiceManager.
-    var smProject = Path.Combine(repoRoot, "src", "MyPowerTools.ServiceManager", "MyPowerTools.ServiceManager.csproj");
-    var smLog = Path.Combine(dataRoot, "sm.log");
-    var sm = new Process
-    {
-        StartInfo = new ProcessStartInfo("dotnet", $"run --no-build --project \"{smProject}\" -- --data-root \"{dataRoot}\" --deploy-root \"{deployRoot}\"")
-        {
-            RedirectStandardOutput = true,
-            RedirectStandardError = true,
-            UseShellExecute = false
-        }
-    };
-    sm.Start();
-    await Task.Delay(6000);
-
-    try
-    {
-        using var admin = ServiceManagerAdminClient.ForDefaultEndpoint();
-
-        // A4.1: Start the unit — it should be active.
-        var started = await admin.StartAsync(unitId);
-        var activeOk = started.State == SM.UnitState.Active && started.Pid > 0;
-        records.Add(new("A4.1-unit-starts-active", activeOk, $"state={started.State} pid={started.Pid}"));
-        overall &= activeOk;
-        var crashedPid = started.Pid;
-
-        // A4.2: Force-kill the unit process.
-        try { Process.GetProcessById(crashedPid).Kill(); } catch { }
-        await Task.Delay(3000); // wait for SM to detect exit and transition state
-
-        // A4.3: Unit should be in failed/inactive state (maxRestarts=0).
-        var afterCrash = await admin.GetUnitAsync(unitId);
-        var crashDetected = afterCrash.State is SM.UnitState.Failed or SM.UnitState.Inactive;
-        records.Add(new("A4.2-crash-detected", crashDetected, $"state after crash={afterCrash.State}"));
-        overall &= crashDetected;
-
-        // A4.4: ServiceManager still responsive (the fault didn't cascade).
-        bool smAlive;
-        try
-        {
-            var list = await admin.ListUnitsAsync();
-            smAlive = true;
-        }
-        catch { smAlive = false; }
-        records.Add(new("A4.3-sm-survives-fault", smAlive, smAlive ? "ServiceManager still responsive" : "ServiceManager unreachable"));
-        overall &= smAlive;
-
-        // A4.5: Restart the unit — it should recover to active.
-        var recovered = await admin.StartAsync(unitId);
-        var recoveredOk = recovered.State == SM.UnitState.Active && recovered.Pid > 0;
-        records.Add(new("A4.4-unit-recovers", recoveredOk, $"state after restart={recovered.State} pid={recovered.Pid}"));
-        overall &= recoveredOk;
-    }
-    finally
-    {
-        // Clean up.
-        try { if (!sm.HasExited) sm.Kill(); } catch { }
-        try { Directory.Delete(dataRoot, recursive: true); } catch { }
-    }
-
-    foreach (var r in records)
-    {
-        Console.WriteLine($"[{(r.Passed ? "PASS" : "FAIL")}] {r.Id}: {r.Detail}");
-    }
-
-    Console.WriteLine($"A4 gate: {(overall ? "PASS" : "FAIL")}");
-    return overall ? 0 : 1;
+    return await ProcessGateRunner.RunA4Async();
 }
 
 // A2 Quick Gate: dynamic discovery and data autonomy. Verifies that a new tool directory
@@ -177,109 +70,220 @@ static async Task<int> RunA4Gate()
 // preserves declared dataRoots while explicit purge removes them.
 if (string.Equals(mode, "a2", StringComparison.OrdinalIgnoreCase))
 {
-    return RunA2Gate();
+    return await RunA2Gate();
 }
 
-static int RunA2Gate()
+static async Task<int> RunA2Gate()
 {
     var repoRoot = FindRepoRoot();
+    var startedAt = Stopwatch.StartNew();
     var records = new List<GateRecord>();
     var overall = true;
+    var runId = Guid.NewGuid().ToString("N")[..8];
+    var tempDir = Path.Combine(Path.GetTempPath(), $"mpt-a2-{runId}");
+    var modulesRoot = Path.Combine(tempDir, "modules");
+    var scanRoot = Path.Combine(tempDir, "external-tools");
+    var toolDir = Path.Combine(scanRoot, "minimal-tool");
+    var dataRoot = Path.Combine(tempDir, "tool-data");
+    var storeRoot = Path.Combine(tempDir, "package-store");
+    var evidenceDir = Path.Combine(repoRoot, "artifacts", "architecture-smoke", "a2");
+    Directory.CreateDirectory(modulesRoot);
+    Directory.CreateDirectory(scanRoot);
+    Directory.CreateDirectory(dataRoot);
+    Directory.CreateDirectory(evidenceDir);
 
-    // A2.1: Tool Catalog can discover a minimal tool.json from a scan directory.
-    // We create a minimal manifest, call the Runner's RefreshTools RPC, and check it appears.
-    var tempDir = Path.Combine(Path.GetTempPath(), $"mpt-a2-{Guid.NewGuid():N}");
-    var toolDir = Path.Combine(tempDir, "minimal-a2-tool");
-    Directory.CreateDirectory(toolDir);
-    var manifestPath = Path.Combine(toolDir, "tool.json");
-    var sentinelDir = Path.Combine(tempDir, "a2-data");
-    Directory.CreateDirectory(sentinelDir);
-    var sentinelFile = Path.Combine(sentinelDir, "sentinel.txt");
-    File.WriteAllText(sentinelFile, "A2 data autonomy sentinel");
-
-    var toolId = $"minimal-a2-{Guid.NewGuid():N}".Substring(0, 20);
-    File.WriteAllText(manifestPath, $$"""
-    {
-      "toolId": "{{toolId}}",
-      "ownerModuleId": "{{toolId}}",
-      "title": "A2 Minimal Tool",
-      "description": "Minimal tool for A2 gate",
-      "type": "dotnet-surface",
-      "primaryRouteId": "main",
-      "routes": [{ "routeId": "main", "surfaceId": "main", "title": "Main", "surface": { "kind": "dotnet" } }],
-      "homeCard": { "summary": "A2 test", "primaryActionLabel": "Open", "order": 99 }
-    }
-    """);
-
-    // A2.1: The tool.json file is valid JSON and has the required fields.
-    var manifestValid = false;
     try
     {
-        using var doc = JsonDocument.Parse(File.ReadAllText(manifestPath));
-        manifestValid = doc.RootElement.TryGetProperty("toolId", out _) && doc.RootElement.TryGetProperty("type", out _);
+        await using var runtime = new MptHostRuntime(
+            new PackageReader(),
+            PlatformId.Current(),
+            RuntimePaths.Create(Path.Combine(tempDir, "runtime-data")));
+        runtime.Load(modulesRoot, [scanRoot]);
+
+        var before = runtime.ListTools(includeDisabled: true);
+        var beforePath = Path.Combine(evidenceDir, $"catalog-before-{runId}.json");
+        await WriteCatalogSnapshotAsync(beforePath, before);
+        var startsEmpty = before.Count == 0;
+        records.Add(new("A2.1-catalog-starts-empty", startsEmpty, $"count={before.Count}; evidence={beforePath}"));
+        overall &= startsEmpty;
+
+        Directory.CreateDirectory(toolDir);
+        await File.WriteAllTextAsync(Path.Combine(toolDir, "index.html"), "<h1>A2 external tool</h1>");
+        var toolId = $"architecture.a2.{runId}";
+        var manifest = new
+        {
+            schemaVersion = "1.0",
+            version = "0.1.0",
+            toolId,
+            ownerModuleId = toolId,
+            title = "A2 External Tool",
+            description = "Real external Tool Catalog fixture.",
+            icon = "tool.test",
+            category = "Tests",
+            type = "web-surface",
+            availability = "available",
+            primaryRouteId = "main",
+            routes = new[]
+            {
+                new
+                {
+                    routeId = "main",
+                    surfaceId = $"{toolId}.main",
+                    title = "Main",
+                    surface = new { kind = "web", source = "index.html", openExternal = false }
+                }
+            },
+            homeCard = new { summary = "A2 real catalog fixture", primaryActionLabel = "Open", order = 900 },
+            commands = new[] { new { id = $"{toolId}.refresh", title = "Refresh", description = "Refresh fixture", method = "POST", path = "/refresh" } },
+            dataRoots = new[] { dataRoot },
+            dataRetention = "preserve",
+            permissions = Array.Empty<object>()
+        };
+        await File.WriteAllTextAsync(
+            Path.Combine(toolDir, "tool.json"),
+            JsonSerializer.Serialize(manifest, new JsonSerializerOptions { WriteIndented = true }));
+
+        var afterAdd = await runtime.RefreshToolCatalogAsync(CancellationToken.None);
+        var afterAddPath = Path.Combine(evidenceDir, $"catalog-after-add-{runId}.json");
+        await WriteCatalogSnapshotAsync(afterAddPath, afterAdd);
+        var discovered = afterAdd.SingleOrDefault(tool => string.Equals(tool.Descriptor.ToolId, toolId, StringComparison.OrdinalIgnoreCase));
+        var discoveryOk = discovered is not null &&
+                          discovered.Descriptor.ToolType == "web-surface" &&
+                          discovered.Descriptor.Commands?.Any(command => command.Id == $"{toolId}.refresh") == true &&
+                          discovered.Descriptor.DataRoots?.SequenceEqual([Path.GetFullPath(dataRoot)], StringComparer.OrdinalIgnoreCase) == true;
+        records.Add(new("A2.2-real-refresh-discovers-tool", discoveryOk,
+            $"tool={discovered?.Descriptor.ToolId ?? "missing"}; type={discovered?.Descriptor.ToolType ?? "missing"}; evidence={afterAddPath}"));
+        overall &= discoveryOk;
+
+        Directory.Delete(toolDir, recursive: true);
+        var afterRemove = await runtime.RefreshToolCatalogAsync(CancellationToken.None);
+        var afterRemovePath = Path.Combine(evidenceDir, $"catalog-after-remove-{runId}.json");
+        await WriteCatalogSnapshotAsync(afterRemovePath, afterRemove);
+        var removed = afterRemove.All(tool => !string.Equals(tool.Descriptor.ToolId, toolId, StringComparison.OrdinalIgnoreCase));
+        records.Add(new("A2.3-real-refresh-removes-tool", removed, $"count={afterRemove.Count}; evidence={afterRemovePath}"));
+        overall &= removed;
+
+        var sentinelFile = Path.Combine(dataRoot, "sentinel.txt");
+        await File.WriteAllTextAsync(sentinelFile, "A2 data autonomy sentinel");
+        var store = new PackageStore(storeRoot, Path.Combine(repoRoot, "schemas"));
+        var fixturePackage = Path.Combine(repoRoot, "tests", "fixtures", "modules", "sample-dotnet");
+        var installed = store.Install(fixturePackage);
+        var defaultUninstall = installed.Success
+            ? store.Uninstall("sample-dotnet", [dataRoot], purgeData: false)
+            : installed;
+        var preserved = defaultUninstall.Success && File.Exists(sentinelFile);
+        records.Add(new("A2.4-default-uninstall-preserves-data", preserved,
+            $"install={installed.Success}; uninstall={defaultUninstall.Success}; sentinel={File.Exists(sentinelFile)}"));
+        overall &= preserved;
+
+        var rolledBack = defaultUninstall.Success && store.Rollback("sample-dotnet").Success;
+        var purgeUninstall = rolledBack
+            ? store.Uninstall("sample-dotnet", [dataRoot], purgeData: true)
+            : new PackageInstallResult(false, "sample-dotnet", "", [new ValidationIssue(dataRoot, "error", "Rollback failed before purge test.")]);
+        var purged = purgeUninstall.Success && !Directory.Exists(dataRoot);
+        records.Add(new("A2.5-explicit-purge-removes-data", purged,
+            $"rollback={rolledBack}; uninstall={purgeUninstall.Success}; dataRootExists={Directory.Exists(dataRoot)}"));
+        overall &= purged;
     }
-    catch { }
-    records.Add(new("A2.1-minimal-manifest-valid", manifestValid, $"tool.json at {manifestPath}"));
-    overall &= manifestValid;
-
-    // A2.2: Data autonomy — default uninstall preserves dataRoots sentinel.
-    // The sentinel file exists; simulating default uninstall (which should NOT delete it).
-    var sentinelSurvivesUninstall = File.Exists(sentinelFile);
-    records.Add(new("A2.2-data-autonomy-sentinel-survives", sentinelSurvivesUninstall,
-        $"sentinel at {sentinelFile} preserved after simulated default uninstall"));
-    overall &= sentinelSurvivesUninstall;
-
-    // A2.3: Explicit purge removes the sentinel.
-    // Simulate purge by deleting the dataRoot.
-    if (Directory.Exists(sentinelDir))
+    catch (Exception ex)
     {
-        Directory.Delete(sentinelDir, recursive: true);
+        records.Add(new("A2.exception", false, $"{ex.GetType().Name}: {ex.Message}"));
+        overall = false;
     }
-    var sentinelRemovedByPurge = !File.Exists(sentinelFile);
-    records.Add(new("A2.3-purge-removes-sentinel", sentinelRemovedByPurge,
-        "sentinel removed after explicit purge"));
-    overall &= sentinelRemovedByPurge;
-
-    // Cleanup
-    try { Directory.Delete(tempDir, recursive: true); } catch { }
+    finally
+    {
+        try { Directory.Delete(tempDir, recursive: true); } catch { }
+    }
 
     foreach (var r in records)
     {
         Console.WriteLine($"[{(r.Passed ? "PASS" : "FAIL")}] {r.Id}: {r.Detail}");
     }
 
-    Console.WriteLine($"A2 gate: {(overall ? "PASS" : "FAIL")}");
+    Console.WriteLine($"A2 gate: {(overall ? "PASS" : "FAIL")} ({startedAt.ElapsedMilliseconds} ms)");
     return overall ? 0 : 1;
+}
+
+static async Task WriteCatalogSnapshotAsync(string path, IReadOnlyList<RuntimeToolSnapshot> tools)
+{
+    var payload = tools.Select(tool => new
+    {
+        tool.Descriptor.ToolId,
+        tool.Descriptor.ToolType,
+        tool.Descriptor.SourceDirectory,
+        Routes = tool.Descriptor.Routes.Select(route => new { route.RouteId, route.SurfaceKind, route.Source }),
+        Commands = tool.Descriptor.Commands?.Select(command => command.Id) ?? [],
+        DataRoots = tool.Descriptor.DataRoots ?? []
+    });
+    await File.WriteAllTextAsync(path, JsonSerializer.Serialize(payload, new JsonSerializerOptions { WriteIndented = true }));
 }
 
 static int RunA1Gate()
 {
     var repoRoot = FindRepoRoot();
+    var stopwatch = Stopwatch.StartNew();
     var records = new List<GateRecord>();
     var overall = true;
 
-    // A1.1: Shell csproj must not reference tools/** or Surface assemblies.
-    var shellCsproj = Path.Combine(repoRoot, "src", "MyPowerTools.Shell.Avalonia", "MyPowerTools.Shell.Avalonia.csproj");
-    var shellContent = File.ReadAllText(shellCsproj);
-    var shellHasToolRef = shellContent.Contains("tools/", StringComparison.OrdinalIgnoreCase) &&
-                          (shellContent.Contains("Compile Include", StringComparison.OrdinalIgnoreCase) ||
-                           shellContent.Contains("ProjectReference Include=\"..\\..\\tools", StringComparison.OrdinalIgnoreCase));
-    // Check for Compile Include with tools/ paths specifically
-    var compileIncludeToolPattern = "Compile Include=\"";
-    var hasCompileIncludeTool = false;
-    foreach (var line in shellContent.Split('\n'))
-    {
-        if (line.Contains(compileIncludeToolPattern, StringComparison.OrdinalIgnoreCase) && line.Contains("tools", StringComparison.OrdinalIgnoreCase))
-        {
-            hasCompileIncludeTool = true;
-            break;
-        }
-    }
-    records.Add(new("A1.1-shell-no-tool-source-link", !hasCompileIncludeTool,
-        hasCompileIncludeTool ? "Shell csproj has Compile Include pointing at tools/" : "Shell csproj has no tool Compile Include"));
-    overall &= !hasCompileIncludeTool;
+    var rulePath = Path.Combine(repoRoot, "tests", "architecture-rules.json");
+    var rulesParse = JsonNode.Parse(File.ReadAllText(rulePath)) is JsonObject;
+    records.Add(new("A1.1-rules-load", rulesParse, $"rules={rulePath}"));
+    overall &= rulesParse;
 
-    // A1.2: ShellWorkspaceController must not contain tool ID constants.
+    var shellCsproj = Path.Combine(repoRoot, "src", "MyPowerTools.Shell.Avalonia", "MyPowerTools.Shell.Avalonia.csproj");
+    var shellItems = ReadProjectItems(shellCsproj);
+    var toolLinks = shellItems
+        .Where(item => item.ItemType is "Compile" or "ProjectReference" && ContainsToolsPath(item.Include))
+        .ToArray();
+    var noToolLinks = toolLinks.Length == 0;
+    records.Add(new("A1.2-shell-no-tool-source-or-project-link", noToolLinks,
+        noToolLinks ? "zero tools/** Compile/ProjectReference items" : string.Join("; ", toolLinks.Select(item => $"{item.ItemType}:{item.Include}"))));
+    overall &= noToolLinks;
+
+    var shellForbiddenRefs = FindForbiddenProjectReferences(
+        shellItems,
+        ["AdbForwarder.Surface", "ScreenEase.Surface", "RemoteNotifications.Surface", "DoubaoAgent.Surface", "SmartBird.Surface", "MyPowerTools.HostControl", "MyPowerTools.UI.Testing"]);
+    var shellDepsClean = shellForbiddenRefs.Length == 0;
+    records.Add(new("A1.3-shell-production-dependencies", shellDepsClean,
+        shellDepsClean ? "Shell references client/production assemblies only" : $"forbidden={string.Join(", ", shellForbiddenRefs)}"));
+    overall &= shellDepsClean;
+
+    var cliCsproj = Path.Combine(repoRoot, "src", "MyPowerTools.Cli", "MyPowerTools.Cli.csproj");
+    var cliForbiddenRefs = FindForbiddenProjectReferences(ReadProjectItems(cliCsproj), ["MyPowerTools.Shell.Avalonia", "MyPowerTools.UI.Testing"]);
+    var cliClean = cliForbiddenRefs.Length == 0;
+    records.Add(new("A1.4-cli-no-shell-or-visual-harness", cliClean,
+        cliClean ? "product CLI is independent from Shell/visual testing" : $"forbidden={string.Join(", ", cliForbiddenRefs)}"));
+    overall &= cliClean;
+
+    var clientItems = ReadProjectItems(Path.Combine(repoRoot, "src", "MyPowerTools.HostControl.Client", "MyPowerTools.HostControl.Client.csproj"));
+    var clientForbidden = FindForbiddenProjectReferences(clientItems, ["MyPowerTools.Runtime", "MyPowerTools.HostControl.Server"]);
+    var clientClean = clientForbidden.Length == 0;
+    records.Add(new("A1.5-hostcontrol-client-direction", clientClean,
+        clientClean ? "client has no Runtime/Server dependency" : $"forbidden={string.Join(", ", clientForbidden)}"));
+    overall &= clientClean;
+
+    var primitiveItems = ReadProjectItems(Path.Combine(repoRoot, "src", "MyPowerTools.UI.Primitives", "MyPowerTools.UI.Primitives.csproj"));
+    var primitiveForbidden = FindForbiddenProjectReferences(primitiveItems, ["MyPowerTools.Runtime", "MyPowerTools.Packaging", "MyPowerTools.Broker", "MyPowerTools.Shell.Avalonia"]);
+    var primitivesClean = primitiveForbidden.Length == 0;
+    records.Add(new("A1.6-ui-primitives-direction", primitivesClean,
+        primitivesClean ? "UI.Primitives has no upper-layer dependency" : $"forbidden={string.Join(", ", primitiveForbidden)}"));
+    overall &= primitivesClean;
+
+    var toolCsprojFiles = Directory.EnumerateFiles(Path.Combine(repoRoot, "tools"), "*.csproj", SearchOption.AllDirectories)
+        .Where(path => !path.Contains($"{Path.DirectorySeparatorChar}original-source{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase))
+        .Where(path => !path.Contains($"{Path.DirectorySeparatorChar}tests{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase))
+        .Where(path => !Path.GetFileNameWithoutExtension(path).Contains("Tests", StringComparison.OrdinalIgnoreCase))
+        .ToArray();
+    var parentSourceReferences = toolCsprojFiles
+        .SelectMany(path => ReadProjectItems(path)
+            .Where(item => item.ItemType == "ProjectReference" && item.Include.Contains("$(MyPowerToolsRepoRoot)\\src\\", StringComparison.OrdinalIgnoreCase))
+            .Select(item => $"{Path.GetRelativePath(repoRoot, path)} -> {item.Include}"))
+        .ToArray();
+    var externalBoundaryClean = parentSourceReferences.Length == 0;
+    records.Add(new("A1.7-tools-use-packages", externalBoundaryClean,
+        externalBoundaryClean ? $"scanned {toolCsprojFiles.Length} tool projects; zero parent src references" : string.Join("; ", parentSourceReferences)));
+    overall &= externalBoundaryClean;
+
     var controllerFiles = new[]
     {
         Path.Combine(repoRoot, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellWorkspaceController.Tools.cs"),
@@ -300,27 +304,108 @@ static int RunA1Gate()
         }
     }
     var noToolIds = foundIds.Count == 0;
-    records.Add(new("A1.2-shell-no-tool-ids", noToolIds,
+    records.Add(new("A1.8-shell-no-tool-ids", noToolIds,
         noToolIds ? "No first-party tool IDs in ShellWorkspaceController" : $"Found forbidden identifiers: {string.Join(", ", foundIds)}"));
     overall &= noToolIds;
 
-    // A1.3: AvaloniaSdk must not reference Runtime/Packaging/Broker/Shell.
     var sdkCsproj = Path.Combine(repoRoot, "src", "MyPowerTools.AvaloniaSdk", "MyPowerTools.AvaloniaSdk.csproj");
-    var sdkContent = File.ReadAllText(sdkCsproj);
-    var sdkForbidden = new[] { "MyPowerTools.Runtime", "MyPowerTools.Packaging", "MyPowerTools.Broker", "MyPowerTools.Shell" };
-    var sdkViolations = sdkForbidden.Where(f => sdkContent.Contains(f, StringComparison.OrdinalIgnoreCase)).ToArray();
+    var sdkViolations = FindForbiddenProjectReferences(ReadProjectItems(sdkCsproj), ["MyPowerTools.Runtime", "MyPowerTools.Packaging", "MyPowerTools.Broker", "MyPowerTools.Shell"]);
     var sdkClean = sdkViolations.Length == 0;
-    records.Add(new("A1.3-sdk-no-upper-deps", sdkClean,
+    records.Add(new("A1.9-sdk-no-upper-deps", sdkClean,
         sdkClean ? "AvaloniaSdk has no upper-layer dependencies" : $"SDK references forbidden: {string.Join(", ", sdkViolations)}"));
     overall &= sdkClean;
+
+    var writerInShell = File.Exists(Path.Combine(repoRoot, "src", "MyPowerTools.Shell.Avalonia", "ShellRealScreenshotWriter.cs"));
+    var writerInVisualProject = File.Exists(Path.Combine(repoRoot, "src", "Mpt.Cli.VisualTesting", "ShellRealScreenshotWriter.cs"));
+    var visualSplit = !writerInShell && writerInVisualProject;
+    records.Add(new("A1.10-screenshot-writer-outside-product-shell", visualSplit,
+        $"inShell={writerInShell}; inVisualTesting={writerInVisualProject}"));
+    overall &= visualSplit;
+
+    var firstPartyToolManifests = new[]
+    {
+        "tools/adb-forwarder/current-integration/modules/adb-forwarder/ui/tool.json",
+        "tools/doubao-computer-use/current-integration/modules/doubao-agent/ui/tool.json",
+        "tools/remote-notifications/current-integration/modules/android-tools-suite/modules/notifications/ui/tool.json",
+        "tools/screenease/current-integration/modules/screenease/ui/tool.json",
+        "tools/smartbird-thermostat/current-integration/modules/smartbird-thermostat/ui/tool.json"
+    };
+    var surfaceManifestErrors = new List<string>();
+    foreach (var relativePath in firstPartyToolManifests)
+    {
+        var manifestPath = Path.Combine(repoRoot, relativePath.Replace('/', Path.DirectorySeparatorChar));
+        if (JsonNode.Parse(File.ReadAllText(manifestPath)) is not JsonObject manifest ||
+            !string.Equals(manifest["type"]?.GetValue<string>(), "dotnet-surface", StringComparison.Ordinal))
+        {
+            surfaceManifestErrors.Add($"{relativePath}:type");
+            continue;
+        }
+
+        if (manifest["routes"] is not JsonArray routes || routes.Count == 0)
+        {
+            surfaceManifestErrors.Add($"{relativePath}:routes");
+            continue;
+        }
+
+        foreach (var route in routes.OfType<JsonObject>())
+        {
+            if (route["surface"] is not JsonObject surface ||
+                !string.Equals(surface["kind"]?.GetValue<string>(), "dotnet", StringComparison.Ordinal) ||
+                string.IsNullOrWhiteSpace(surface["assembly"]?.GetValue<string>()) ||
+                string.IsNullOrWhiteSpace(surface["type"]?.GetValue<string>()))
+            {
+                surfaceManifestErrors.Add($"{relativePath}:{route["routeId"]?.GetValue<string>() ?? "route"}");
+            }
+        }
+    }
+    var surfaceManifestsReady = surfaceManifestErrors.Count == 0;
+    records.Add(new("A1.11-first-party-surface-contracts", surfaceManifestsReady,
+        surfaceManifestsReady
+            ? $"{firstPartyToolManifests.Length} first-party tools declare loadable dotnet surfaces"
+            : string.Join("; ", surfaceManifestErrors)));
+    overall &= surfaceManifestsReady;
 
     foreach (var r in records)
     {
         Console.WriteLine($"[{(r.Passed ? "PASS" : "FAIL")}] {r.Id}: {r.Detail}");
     }
 
-    Console.WriteLine($"A1 gate: {(overall ? "PASS" : "FAIL")}");
+    Console.WriteLine($"A1 gate: {(overall ? "PASS" : "FAIL")} ({stopwatch.ElapsedMilliseconds} ms)");
     return overall ? 0 : 1;
+}
+
+static ProjectItem[] ReadProjectItems(string projectPath)
+{
+    var document = XDocument.Load(projectPath, LoadOptions.PreserveWhitespace);
+    return document.Descendants()
+        .Where(element => element.Name.LocalName is "ProjectReference" or "Compile" or "Link")
+        .Select(element => new ProjectItem(
+            element.Name.LocalName,
+            element.Attribute("Include")?.Value ?? element.Value))
+        .Where(item => !string.IsNullOrWhiteSpace(item.Include))
+        .ToArray();
+}
+
+static string[] FindForbiddenProjectReferences(IEnumerable<ProjectItem> items, IReadOnlyList<string> forbiddenProjectNames)
+{
+    return items
+        .Where(item => item.ItemType == "ProjectReference")
+        .Select(item => item.Include)
+        .Where(include => forbiddenProjectNames.Any(name =>
+        {
+            var fileName = Path.GetFileNameWithoutExtension(include.Replace('\\', Path.DirectorySeparatorChar).Replace('/', Path.DirectorySeparatorChar));
+            return string.Equals(fileName, name, StringComparison.OrdinalIgnoreCase);
+        }))
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .ToArray();
+}
+
+static bool ContainsToolsPath(string value)
+{
+    var normalized = value.Replace('\\', '/');
+    return normalized.Contains("/tools/", StringComparison.OrdinalIgnoreCase) ||
+           normalized.StartsWith("tools/", StringComparison.OrdinalIgnoreCase) ||
+           normalized.Contains("../tools/", StringComparison.OrdinalIgnoreCase);
 }
 
 static string FindRepoRoot()
@@ -467,3 +552,4 @@ public sealed record GateResult(
     IReadOnlyList<GateRecord> Records);
 
 public sealed record GateRecord(string Id, bool Passed, string Detail);
+public sealed record ProjectItem(string ItemType, string Include);

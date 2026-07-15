@@ -1,5 +1,6 @@
 using Avalonia;
 using MyPowerTools.HostControl;
+using MyPowerTools.Platform.Abstractions;
 using MyPowerTools.Shell.Avalonia.Services;
 
 namespace MyPowerTools.Shell.Avalonia;
@@ -37,6 +38,12 @@ internal static class Program
         }
 
         var timeoutMs = GetIntOption(args, "--timeout-ms", 30000);
+        var endpointAddress = GetOption(args, "--endpoint-address");
+        var endpoint = string.IsNullOrWhiteSpace(endpointAddress)
+            ? IpcEndpoint.RunnerDefault(PlatformId.Current())
+            : new IpcEndpoint(
+                OperatingSystem.IsWindows() ? IpcTransport.NamedPipe : IpcTransport.UnixDomainSocket,
+                endpointAddress);
         var deadline = DateTimeOffset.UtcNow.AddMilliseconds(Math.Max(1000, timeoutMs));
         Exception? lastError = null;
 
@@ -45,7 +52,7 @@ internal static class Program
             using var attemptTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
             try
             {
-                using var client = HostControlClient.ForDefaultEndpoint();
+                using var client = HostControlClient.ForEndpoint(endpoint);
                 var ping = await client.PingAsync(attemptTimeout.Token);
                 var dashboard = await client.GetDashboardSnapshotAsync(attemptTimeout.Token);
                 var modules = await client.ListModulesAsync(attemptTimeout.Token);
@@ -84,5 +91,18 @@ internal static class Program
         }
 
         return defaultValue;
+    }
+
+    private static string? GetOption(string[] args, string name)
+    {
+        for (var i = 0; i < args.Length - 1; i++)
+        {
+            if (string.Equals(args[i], name, StringComparison.OrdinalIgnoreCase))
+            {
+                return args[i + 1];
+            }
+        }
+
+        return null;
     }
 }

@@ -3,7 +3,7 @@ using System.Reflection;
 using System.Text;
 using System.Text.RegularExpressions;
 using Avalonia.Controls;
-using MyPowerTools.Runtime;
+using MyPowerTools.Abstractions;
 
 namespace MyPowerTools.Shell.Avalonia.ViewModels;
 
@@ -197,8 +197,8 @@ internal static class ShellCommandFaultLog
 
     internal static string Format(string operation, Exception exception, string category)
     {
-        var safeOperation = OneLine(LogRouter.Redact(operation));
-        var safeMessage = OneLine(LogRouter.Redact(exception.Message));
+        var safeOperation = OneLine(MptLogRedactor.Redact(operation));
+        var safeMessage = OneLine(MptLogRedactor.Redact(exception.Message));
         var line = $"{DateTimeOffset.UtcNow:O}\t{OneLine(category)}\t{safeOperation}\t{exception.GetType().Name}\t{safeMessage}";
         return line.Length <= MaximumLineCharacters
             ? line

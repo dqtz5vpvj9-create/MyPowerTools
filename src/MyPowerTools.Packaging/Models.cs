@@ -100,6 +100,8 @@ public sealed class MptToolManifest
     public MptToolSettingsManifest? Settings { get; init; }
     public List<MptToolCommandManifest> Commands { get; init; } = [];
     public List<MptPermissionManifest> Permissions { get; init; } = [];
+    public List<string> DataRoots { get; init; } = [];
+    public string DataRetention { get; init; } = "preserve";
     public MptToolSourceManifest? Source { get; init; }
     public MptToolDevelopmentManifest? Development { get; init; }
 

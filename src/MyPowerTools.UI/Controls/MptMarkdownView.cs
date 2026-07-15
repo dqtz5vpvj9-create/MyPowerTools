@@ -9,7 +9,7 @@ using Avalonia.Styling;
 using Markdig;
 using TheArtOfDev.HtmlRenderer.Avalonia;
 
-namespace MyPowerTools.Shell.Avalonia.Views;
+namespace MyPowerTools.UI.Controls;
 
 public sealed partial class MptMarkdownView : HtmlLabel
 {
@@ -31,8 +31,6 @@ public sealed partial class MptMarkdownView : HtmlLabel
 
     public MptMarkdownView()
     {
-        Background = Brushes.Transparent;
-        BorderThickness = new Thickness(0);
         AutoSizeHeightOnly = true;
         Focusable = true;
         Cursor = new Cursor(StandardCursorType.Ibeam);

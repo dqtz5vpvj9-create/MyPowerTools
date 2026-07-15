@@ -1,17 +1,15 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <ItemGroup>
-    <PackageReference Include="Grpc.AspNetCore" Version="2.80.0" />
     <ProjectReference Include="..\MyPowerTools.Packaging\MyPowerTools.Packaging.csproj" />
     <ProjectReference Include="..\MyPowerTools.Runtime\MyPowerTools.Runtime.csproj" />
-    <ProjectReference Include="..\MyPowerTools.UI\MyPowerTools.UI.csproj" />
-    <ProjectReference Include="..\MyPowerTools.UI.Testing\MyPowerTools.UI.Testing.csproj" />
     <ProjectReference Include="..\MyPowerTools.Broker\MyPowerTools.Broker.csproj" />
     <ProjectReference Include="..\MyPowerTools.Platform.Windows\MyPowerTools.Platform.Windows.csproj" />
     <ProjectReference Include="..\MyPowerTools.ModuleHost.InProcDotNet\MyPowerTools.ModuleHost.InProcDotNet.csproj" />
     <ProjectReference Include="..\MyPowerTools.ModuleHost.GrpcIpc\MyPowerTools.ModuleHost.GrpcIpc.csproj" />
     <ProjectReference Include="..\MyPowerTools.ModuleHost.StdioCompat\MyPowerTools.ModuleHost.StdioCompat.csproj" />
-    <ProjectReference Include="..\MyPowerTools.Shell.Avalonia\MyPowerTools.Shell.Avalonia.csproj" />
+    <ProjectReference Include="..\MyPowerTools.HostControl.Client\MyPowerTools.HostControl.Client.csproj" />
+    <ProjectReference Include="..\MyPowerTools.ServiceManager.Client\MyPowerTools.ServiceManager.Client.csproj" />
   </ItemGroup>
 
   <PropertyGroup>
@@ -26,4 +24,3 @@
   </ItemGroup>
 
 </Project>
-

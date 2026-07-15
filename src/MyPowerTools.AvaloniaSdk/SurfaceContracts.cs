@@ -19,6 +19,7 @@ public sealed record MptAvaloniaSurfaceContext(
     string Theme,
     Func<string, JsonObject?, CancellationToken, Task<CommandExecutionResult>> ExecuteCommandAsync,
     Func<string, string, JsonObject?, Task> NavigateAsync,
+    IServiceUnitClient ServiceUnits,
     Action<MptSurfaceLogEntry> Log);
 
 public sealed record MptSurfaceLogEntry(

@@ -1,22 +1,16 @@
 using MyPowerTools.Packaging;
 using MyPowerTools.Platform.Abstractions;
 using MyPowerTools.Runtime;
-using MyPowerTools.UI;
 using MyPowerTools.Broker;
 using MyPowerTools.Cli;
 using MyPowerTools.ModuleHost.GrpcIpc;
 using MyPowerTools.ModuleHost.InProcDotNet;
 using MyPowerTools.ModuleHost.StdioCompat;
 using MyPowerTools.Platform.Windows;
-using MyPowerTools.Shell.Avalonia;
 using System.Globalization;
 using System.Text.Json.Nodes;
-using Microsoft.AspNetCore.Builder;
-using Microsoft.AspNetCore.Hosting;
-using Microsoft.AspNetCore.Server.Kestrel.Core;
-using Microsoft.Extensions.DependencyInjection;
-using Microsoft.Extensions.Logging;
 using MyPowerTools.HostControl;
+using MyPowerTools.ServiceManager.Client;
 using CommandRequest = MyPowerTools.Abstractions.CommandRequest;
 
 var root = FindRepositoryRoot(AppContext.BaseDirectory);
@@ -37,7 +31,8 @@ return command switch
     "repair" => Repair(args.Skip(1).ToArray(), root),
     "runner" => Runner(args.Skip(1).ToArray(), root),
     "module" => Module(args.Skip(1).ToArray(), root),
-    "ui" => Ui(args.Skip(1).ToArray(), root),
+    "service" => Service(args.Skip(1).ToArray()),
+    "ui" => LaunchVisualTesting(args.Skip(1).ToArray(), root),
     "broker" => Broker(args.Skip(1).ToArray(), root),
     "diagnostics" => Diagnostics(args.Skip(1).ToArray(), root),
     "doctor" => Doctor(root),
@@ -60,6 +55,85 @@ static int Validate(string[] args, string root)
     var validator = new SchemaPackageValidator(schemaDir);
     var reports = validator.ValidatePackageRoot(Path.GetFullPath(packageDir));
     return PrintReports(reports);
+}
+
+static int Service(string[] args)
+{
+    var operation = args.FirstOrDefault()?.ToLowerInvariant() ?? "list";
+    try
+    {
+        using var client = ServiceManagerAdminClient.ForDefaultEndpoint();
+        switch (operation)
+        {
+            case "list":
+            {
+                var response = client.ListUnitsAsync().GetAwaiter().GetResult();
+                var units = response.Units.Select(unit => new
+                {
+                    unitId = unit.UnitId,
+                    toolId = unit.ToolId,
+                    displayName = unit.DisplayName,
+                    state = unit.State.ToString(),
+                    unit.Pid,
+                    unit.Version,
+                    unit.Autostart,
+                    unit.RestartCount,
+                    unit.LastError,
+                    readiness = new { unit.Readiness.Ok, unit.Readiness.Message }
+                }).ToArray();
+                Console.WriteLine(System.Text.Json.JsonSerializer.Serialize(units, new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
+                return 0;
+            }
+            case "status":
+            case "start":
+            case "stop":
+            case "restart":
+            {
+                var unitId = args.Skip(1).FirstOrDefault(value => !value.StartsWith("--", StringComparison.Ordinal));
+                if (string.IsNullOrWhiteSpace(unitId))
+                {
+                    Console.Error.WriteLine($"mpt service {operation} <unit-id>");
+                    return 2;
+                }
+
+                var snapshot = operation switch
+                {
+                    "status" => client.GetUnitAsync(unitId).GetAwaiter().GetResult(),
+                    "start" => client.StartAsync(unitId).GetAwaiter().GetResult(),
+                    "stop" => client.StopAsync(unitId).GetAwaiter().GetResult(),
+                    _ => client.RestartAsync(unitId).GetAwaiter().GetResult()
+                };
+                Console.WriteLine(System.Text.Json.JsonSerializer.Serialize(new
+                {
+                    unitId = snapshot.UnitId,
+                    toolId = snapshot.ToolId,
+                    state = snapshot.State.ToString(),
+                    snapshot.Pid,
+                    snapshot.Autostart,
+                    snapshot.RestartCount,
+                    snapshot.LastError,
+                    readiness = new { snapshot.Readiness.Ok, snapshot.Readiness.Message }
+                }, new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
+                return 0;
+            }
+            case "reload":
+                var reload = client.ReloadAsync().GetAwaiter().GetResult();
+                Console.WriteLine($"units={reload.UnitCount}");
+                return 0;
+            case "shutdown":
+                var stopped = client.ShutdownAsync().GetAwaiter().GetResult();
+                Console.WriteLine($"shutdown={stopped}");
+                return stopped ? 0 : 1;
+            default:
+                Console.Error.WriteLine("mpt service list|status|start|stop|restart|reload|shutdown [unit-id]");
+                return 2;
+        }
+    }
+    catch (Exception ex)
+    {
+        Console.Error.WriteLine($"ServiceManager request failed: {ex.Message}");
+        return 1;
+    }
 }
 
 static int Create(string[] args, string root)
@@ -507,6 +581,70 @@ static int ModuleEnable(string[] args, string root, bool enabled)
     }
 }
 
+static int LaunchVisualTesting(string[] visualArgs, string root)
+{
+    var configured = Environment.GetEnvironmentVariable("MPT_VISUAL_TEST_EXE");
+    var siblingExe = Path.Combine(AppContext.BaseDirectory, "mpt-visual-test.exe");
+    var siblingDll = Path.Combine(AppContext.BaseDirectory, "mpt-visual-test.dll");
+    var packagedExe = Path.Combine(AppContext.BaseDirectory, "visual", "mpt-visual-test.exe");
+    var packagedDll = Path.Combine(AppContext.BaseDirectory, "visual", "mpt-visual-test.dll");
+    var releaseExe = Path.Combine(root, "src", "Mpt.Cli.VisualTesting", "bin", "Release", "net10.0", "mpt-visual-test.exe");
+    var debugExe = Path.Combine(root, "src", "Mpt.Cli.VisualTesting", "bin", "Debug", "net10.0", "mpt-visual-test.exe");
+    var visualProject = Path.Combine(root, "src", "Mpt.Cli.VisualTesting", "Mpt.Cli.VisualTesting.csproj");
+
+    var startInfo = new System.Diagnostics.ProcessStartInfo { UseShellExecute = false };
+    if (!string.IsNullOrWhiteSpace(configured) && File.Exists(configured))
+    {
+        startInfo.FileName = configured;
+    }
+    else if (File.Exists(siblingExe))
+    {
+        startInfo.FileName = siblingExe;
+    }
+    else if (File.Exists(siblingDll))
+    {
+        startInfo.FileName = "dotnet";
+        startInfo.ArgumentList.Add(siblingDll);
+    }
+    else if (File.Exists(packagedExe))
+    {
+        startInfo.FileName = packagedExe;
+    }
+    else if (File.Exists(packagedDll))
+    {
+        startInfo.FileName = "dotnet";
+        startInfo.ArgumentList.Add(packagedDll);
+    }
+    else if (File.Exists(releaseExe) || File.Exists(debugExe))
+    {
+        startInfo.FileName = File.Exists(releaseExe) ? releaseExe : debugExe;
+    }
+    else if (File.Exists(visualProject))
+    {
+        startInfo.FileName = "dotnet";
+        startInfo.ArgumentList.Add("run");
+        startInfo.ArgumentList.Add("--project");
+        startInfo.ArgumentList.Add(visualProject);
+        startInfo.ArgumentList.Add("--");
+    }
+    else
+    {
+        Console.Error.WriteLine("mpt-visual-test is unavailable. Build src/Mpt.Cli.VisualTesting or set MPT_VISUAL_TEST_EXE.");
+        return 2;
+    }
+
+    foreach (var argument in visualArgs) startInfo.ArgumentList.Add(argument);
+    using var process = System.Diagnostics.Process.Start(startInfo);
+    if (process is null)
+    {
+        Console.Error.WriteLine("Failed to start mpt-visual-test.");
+        return 1;
+    }
+    process.WaitForExit();
+    return process.ExitCode;
+}
+
+#if MPT_LEGACY_VISUAL_HARNESS
 static int Ui(string[] args, string root)
 {
     var subcommand = args.FirstOrDefault() ?? "check";
@@ -796,6 +934,7 @@ static IpcEndpoint CreateFixtureHostControlEndpoint()
             IpcTransport.UnixDomainSocket,
             Path.Combine(Path.GetTempPath(), $"mypowertools.shell.snapshot.{Guid.NewGuid():N}.sock"));
 }
+#endif
 
 static int Broker(string[] args, string root)
 {
@@ -1191,6 +1330,7 @@ static int Help()
     Console.WriteLine("mpt module list [--include-disabled] [--modules <package-root>] [--data-root <dir>]");
     Console.WriteLine("mpt module enable <module-id> [--modules <package-root>] [--data-root <dir>]");
     Console.WriteLine("mpt module disable <module-id> [--modules <package-root>] [--data-root <dir>]");
+    Console.WriteLine("mpt service list|status|start|stop|restart|reload|shutdown [unit-id]");
     Console.WriteLine("mpt ui check <package-dir>");
     Console.WriteLine("mpt ui snapshot [package-dir] [--surface <id|kind>] [--theme <theme>] [--size <width>x<height>] [--density <density>] [--out <dir>]");
     Console.WriteLine("mpt ui screenshot [--mode fixture|live-runner] [--product-foundation] [--full-shell] [--page home|tools|adb-forwarder|screenease|remote-notifications|dashboard|command-palette|module-detail|settings|logs|notifications|packages|diagnostics] [--scenario default|scroll|filter|detail|activation] [--theme <theme>] [--size <width>x<height>] [--density <density>] [--out <dir>]");
