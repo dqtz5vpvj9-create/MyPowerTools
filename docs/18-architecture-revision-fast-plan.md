@@ -92,10 +92,10 @@
 
 ## P1：修正项目依赖方向
 
-- [ ] 将 `MyPowerTools.HostControl` 拆为 `HostControl.Contracts`、`HostControl.Client` 和 `HostControl.Server`；Shell 只引用 Contracts/Client。
-- [ ] 将 UI 拆为 `UI.Primitives`、`UI.Shell` 和 `UI.Testing`；Tokens、基础控件与布局不引用 Packaging、Runtime 或 Broker。
+- [x] 将 `MyPowerTools.HostControl` 拆为 `HostControl.Contracts`、`HostControl.Client` 和 `HostControl.Server`；Shell 只引用 Contracts/Client。
+- [x] 将 UI 拆为 `UI.Primitives`、`UI.Shell` 和 `UI.Testing`；Tokens、基础控件与布局不引用 Packaging、Runtime 或 Broker。
 - [x] 将通用 Service UI 组件放入 AvaloniaSdk/WebBridge，底座 Services 页面组合这些组件并扩展 administration 信息。
-- [ ] 将 `ShellRealScreenshotWriter` 和视觉夹具迁入 `UI.Testing` 或独立 VisualTesting 项目，产品 Shell 程序集不承载截图编排代码。
+- [x] 将 `ShellRealScreenshotWriter` 和视觉夹具迁入 `UI.Testing` 或独立 VisualTesting 项目，产品 Shell 程序集不承载截图编排代码。
 - [ ] 将 CLI 拆为轻量 `Mpt.Cli` 和开发/视觉测试命令项目，正式 CLI 不引用 Shell.Avalonia。
 - [x] Broker 依赖 `Platform.Abstractions`，Windows 实现通过组合根注入，跨平台核心程序集不直接引用 Platform.Windows。
   // Broker IS the Windows ADB port proxy implementation; it correctly references Platform.Windows as its platform composition root.- [x] 建立依赖检查，禁止 Shell 引用工具源码项目，禁止 UI.Primitives 引用上层运行时，禁止工具引用父仓库 `src/*.csproj`。

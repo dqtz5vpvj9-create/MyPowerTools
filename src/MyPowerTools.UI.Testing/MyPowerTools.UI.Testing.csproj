@@ -1,20 +1,17 @@
 <Project Sdk="Microsoft.NET.Sdk">
-
   <PropertyGroup>
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <PackageId>MyPowerTools.UI.Testing</PackageId>
+    <Version>0.2.0</Version>
   </PropertyGroup>
-
   <ItemGroup>
     <PackageReference Include="Avalonia" Version="12.0.5" />
   </ItemGroup>
-
   <ItemGroup>
-    <!-- UI now references Primitives for tokens/controls. Packaging/Protocol remain for MptTheme. -->
     <ProjectReference Include="..\MyPowerTools.UI.Primitives\MyPowerTools.UI.Primitives.csproj" />
     <ProjectReference Include="..\MyPowerTools.Packaging\MyPowerTools.Packaging.csproj" />
-    <ProjectReference Include="..\MyPowerTools.Protocol\MyPowerTools.Protocol.csproj" />
   </ItemGroup>
-
 </Project>

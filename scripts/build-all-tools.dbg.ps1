@@ -154,50 +154,49 @@ $dotnet = (Get-Command 'dotnet' -CommandType Application -ErrorAction Stop).Sour
 # tool root (remote-notifications writes one level deeper under
 # android-tools-suite). These mirror scripts/build-tool-packages.ps1.
 # ---------------------------------------------------------------------------
-# Using [pscustomobject] (not hashtable) so that property access is type-safe
-# and ConvertTo-Json serializes values deterministically (hashtable iteration
-# under strict mode can wrap single string values in one-element arrays).
 $toolRegistry = @(
-    [pscustomobject]@{
-        Id               = 'adb-forwarder'
-        BuildScript      = 'tools\adb-forwarder\build.ps1'
-        SurfaceProject   = 'tools\adb-forwarder\current-integration\src\AdbForwarder.Surface\AdbForwarder.Surface.csproj'
-        RuntimeStagePath = 'tools\adb-forwarder\artifacts\package'
+    @{
+        Id                = 'adb-forwarder'
+        BuildScript       = 'tools\adb-forwarder\build.ps1'
+        SurfaceProject    = 'tools\adb-forwarder\current-integration\src\AdbForwarder.Surface\AdbForwarder.Surface.csproj'
+        RuntimeStagePath  = 'tools\adb-forwarder\artifacts\package'
     },
-    [pscustomobject]@{
-        Id               = 'doubao-computer-use'
-        BuildScript      = 'tools\doubao-computer-use\build.ps1'
-        SurfaceProject   = 'tools\doubao-computer-use\current-integration\src\DoubaoAgent.Surface\DoubaoAgent.Surface.csproj'
-        RuntimeStagePath = 'tools\doubao-computer-use\artifacts\package'
+    @{
+        Id                = 'doubao-computer-use'
+        BuildScript       = 'tools\doubao-computer-use\build.ps1'
+        SurfaceProject    = 'tools\doubao-computer-use\current-integration\src\DoubaoAgent.Surface\DoubaoAgent.Surface.csproj'
+        RuntimeStagePath  = 'tools\doubao-computer-use\artifacts\package'
     },
-    [pscustomobject]@{
-        Id               = 'remote-notifications'
-        BuildScript      = 'tools\remote-notifications\build.ps1'
-        SurfaceProject   = 'tools\remote-notifications\current-integration\src\RemoteNotifications.Surface\RemoteNotifications.Surface.csproj'
-        RuntimeStagePath = 'tools\remote-notifications\artifacts\package\android-tools-suite'
+    @{
+        Id                = 'remote-notifications'
+        BuildScript       = 'tools\remote-notifications\build.ps1'
+        SurfaceProject    = 'tools\remote-notifications\current-integration\src\RemoteNotifications.Surface\RemoteNotifications.Surface.csproj'
+        RuntimeStagePath  = 'tools\remote-notifications\artifacts\package\android-tools-suite'
     },
-    [pscustomobject]@{
-        Id               = 'screenease'
-        BuildScript      = 'tools\screenease\build.ps1'
-        SurfaceProject   = 'tools\screenease\current-integration\src\ScreenEase.Surface\ScreenEase.Surface.csproj'
-        RuntimeStagePath = 'tools\screenease\artifacts\package'
+    @{
+        Id                = 'screenease'
+        BuildScript       = 'tools\screenease\build.ps1'
+        SurfaceProject    = 'tools\screenease\current-integration\src\ScreenEase.Surface\ScreenEase.Surface.csproj'
+        RuntimeStagePath  = 'tools\screenease\artifacts\package'
     },
-    [pscustomobject]@{
-        Id               = 'smartbird-thermostat'
-        BuildScript      = 'tools\smartbird-thermostat\build.ps1'
-        SurfaceProject   = 'tools\smartbird-thermostat\current-integration\src\SmartBird.Surface\SmartBird.Surface.csproj'
-        RuntimeStagePath = 'tools\smartbird-thermostat\artifacts\package'
+    @{
+        Id                = 'smartbird-thermostat'
+        BuildScript       = 'tools\smartbird-thermostat\build.ps1'
+        SurfaceProject    = 'tools\smartbird-thermostat\current-integration\src\SmartBird.Surface\SmartBird.Surface.csproj'
+        RuntimeStagePath  = 'tools\smartbird-thermostat\artifacts\package'
     }
 )
 
 if ($ToolId.Count -gt 0) {
     $wanted = New-Object 'System.Collections.Generic.HashSet[string]' ([System.StringComparer]::OrdinalIgnoreCase)
     foreach ($id in $ToolId) { [void]$wanted.Add($id) }
-    # Wrap in @(...) so a single match stays a 1-element array.
-    $toolRegistry = @($toolRegistry | Where-Object { $wanted.Contains($_.Id) })
-    $knownIds = @($toolRegistry | ForEach-Object { $_.Id })
-    $missing = @($ToolId | Where-Object { $knownIds -notcontains $_ })
-    if ($missing.Count -gt 0) {
+    # Wrap in @(...) so a single match stays a 1-element array; otherwise
+    # foreach would iterate the hashtable's dictionary entries instead of the
+    # single hashtable item.
+    $toolRegistry = @($toolRegistry | Where-Object { $wanted.Contains([string]$_['Id']) })
+    $knownIds = $toolRegistry | ForEach-Object { [string]$_['Id'] }
+    $missing = $ToolId | Where-Object { $knownIds -notcontains $_ }
+    if ($missing) {
         throw "Unknown -ToolId value(s): $($missing -join ', '). Known: $($knownIds -join ', ')"
     }
 }
@@ -234,12 +233,16 @@ if (-not $SkipSdk) {
 $perToolManifest = New-Object System.Collections.ArrayList
 
 foreach ($tool in $toolRegistry) {
-    $toolId           = $tool.Id
-    $toolBuildScript  = $tool.BuildScript
-    $toolSurfaceProj  = $tool.SurfaceProject
-    $toolRuntimeStage = $tool.RuntimeStagePath
+    # Use indexer access, not dotted syntax: dotted access on a hashtable
+    # returns the value but is fragile under ConvertTo-Json in some PowerShell
+    # versions (it can wrap a single string value in a one-element array).
+    $toolId            = [string]$tool['Id']
+    $toolBuildScript   = [string]$tool['BuildScript']
+    $toolSurfaceProj   = [string]$tool['SurfaceProject']
+    $toolRuntimeStage  = [string]$tool['RuntimeStagePath']
 
     Write-Host ''
+    Write-Host "DBG toolId=[$toolId] toolIdType=$($toolId.GetType().FullName) toolType=$($tool.GetType().FullName) regCount=$($toolRegistry.Count)" -ForegroundColor Yellow
     Write-Host "==> [$toolId] runtime package via build.ps1" -ForegroundColor Cyan
 
     $buildScriptPath = Join-Path $repoRoot $toolBuildScript

@@ -7,16 +7,12 @@
   </PropertyGroup>
 
   <ItemGroup>
-    <PackageReference Include="Grpc.Net.Client" Version="2.80.0" />
-    <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.0" />
-  </ItemGroup>
-
-  <ItemGroup>
-    <ProjectReference Include="..\MyPowerTools.Ipc.Shared\MyPowerTools.Ipc.Shared.csproj" />
-    <ProjectReference Include="..\MyPowerTools.Protocol\MyPowerTools.Protocol.csproj" />
-    <ProjectReference Include="..\MyPowerTools.Runtime\MyPowerTools.Runtime.csproj" />
-    <ProjectReference Include="..\MyPowerTools.Broker\MyPowerTools.Broker.csproj" />
+    <!-- HostControl is now split into Contracts/Client/Server. This project is a compatibility
+         facade that type-forwards to the split assemblies so existing references keep working
+         during the migration. New code should reference the specific split assembly. -->
+    <ProjectReference Include="..\MyPowerTools.HostControl.Contracts\MyPowerTools.HostControl.Contracts.csproj" />
+    <ProjectReference Include="..\MyPowerTools.HostControl.Client\MyPowerTools.HostControl.Client.csproj" />
+    <ProjectReference Include="..\MyPowerTools.HostControl.Server\MyPowerTools.HostControl.Server.csproj" />
   </ItemGroup>
 
 </Project>
-

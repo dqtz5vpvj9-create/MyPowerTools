@@ -7,6 +7,9 @@
     <Project Path="src/MyPowerTools.Cli/MyPowerTools.Cli.csproj" />
     <Project Path="src/MyPowerTools.ElevatedBroker/MyPowerTools.ElevatedBroker.csproj" />
     <Project Path="src/MyPowerTools.HostControl/MyPowerTools.HostControl.csproj" />
+    <Project Path="src/MyPowerTools.HostControl.Contracts/MyPowerTools.HostControl.Contracts.csproj" />
+    <Project Path="src/MyPowerTools.HostControl.Client/MyPowerTools.HostControl.Client.csproj" />
+    <Project Path="src/MyPowerTools.HostControl.Server/MyPowerTools.HostControl.Server.csproj" />
     <Project Path="src/MyPowerTools.Ipc.Shared/MyPowerTools.Ipc.Shared.csproj" />
     <Project Path="src/MyPowerTools.ModuleHost.GrpcIpc/MyPowerTools.ModuleHost.GrpcIpc.csproj" />
     <Project Path="src/MyPowerTools.ModuleHost.Http/MyPowerTools.ModuleHost.Http.csproj" />
@@ -28,6 +31,8 @@
     <Project Path="src/MyPowerTools.Shell.Avalonia/MyPowerTools.Shell.Avalonia.csproj" />
     <Project Path="src/MyPowerTools.Tests/MyPowerTools.Tests.csproj" />
     <Project Path="src/MyPowerTools.UI/MyPowerTools.UI.csproj" />
+    <Project Path="src/MyPowerTools.UI.Primitives/MyPowerTools.UI.Primitives.csproj" />
+    <Project Path="src/MyPowerTools.UI.Testing/MyPowerTools.UI.Testing.csproj" />
     <Project Path="src/MyPowerTools.WebToolHost/MyPowerTools.WebToolHost.csproj" />
   </Folder>
   <Folder Name="/tools/">

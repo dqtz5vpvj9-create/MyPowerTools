@@ -30,6 +30,7 @@
     <ProjectReference Include="..\MyPowerTools.HostControl\MyPowerTools.HostControl.csproj" />
     <ProjectReference Include="..\MyPowerTools.ServiceManager.Client\MyPowerTools.ServiceManager.Client.csproj" />
     <ProjectReference Include="..\MyPowerTools.UI\MyPowerTools.UI.csproj" />
+    <ProjectReference Include="..\MyPowerTools.UI.Testing\MyPowerTools.UI.Testing.csproj" />
     <ProjectReference Include="..\MyPowerTools.AvaloniaSdk\MyPowerTools.AvaloniaSdk.csproj" />
     <ProjectReference Include="$(WebToolHostProject)"
                       ReferenceOutputAssembly="false"
