@@ -1,6 +1,31 @@
 # MyPowerTools 架构重构交接
 
-更新时间：2026-07-15（Asia/Shanghai）
+更新时间：2026-07-15（Asia/Shanghai）— 架构重构重大进展
+
+## 计划完成进度：146/160（91%）
+
+### 已完成的核心架构变更
+
+1. **ServiceManager 独立进程**（Batch-1 完成）：状态机、重接管、断开/重连、事件流
+2. **5 个第一方工具全部转为动态 dotnet-surface**（Batch-2 完成）：AdbForwarder.Surface, ScreenEase.Surface, RemoteNotifications.Surface, DoubaoAgent.Surface, SmartBird.Surface — 各自实现 `IMptAvaloniaSurfaceFactory`
+3. **Shell 不再编译任何工具源码**：Shell csproj 无 `Compile Include` 指向 `tools/**`，ShellWorkspaceController 无工具 ID 常量或路由分支
+4. **WebToolHost 迁入 `src/`**：不再归 SmartBird 子模块所有
+5. **DotnetSurfaceLoader**：collectible AssemblyLoadContext + shadow-copy + unload
+6. **A1/A2/A3/A4 门禁全部通过**：依赖边界、动态发现、Service 生命周期、故障域
+7. **Runner 不再构造工具 Supervisor**：DoubaoRuntimeSupervisor 已移除
+8. **.gitmodules**：本地路径已替换为可访问 URL
+9. **统一 Services 页面**：搜索/筛选、Start/Stop/Restart/Tail logs/Open tool/Toggle autostart、断线重连
+10. **事件转发到 Shell**：ServiceUnitEventStreamMonitor 响应式更新
+11. **Windows 登录自启**：`--register-autostart` 注册 HKCU Run 键
+12. **构建脚本**：`scripts/build-all-tools.ps1` 编排全部工具构建+收集+来源清单
+
+### 剩余 13 项（需后续会话）
+- **Batch-4 依赖拆分**（4 项）：HostControl → Contracts/Client/Server；UI → Primitives/Shell/Testing；ScreenshotWriter 迁出 Shell；CLI → Mpt.Cli + 视觉测试
+- **安装包**（2 项）：MSI/WiX 安装器，安装注册 ServiceManager 登录启动+unit 清单
+- **A5 真实机器验收**（7 项）：需要独立 Windows 测试机执行安装、工具核心路径、截图
+
+### 构建环境注意
+`dotnet build MyPowerTools.slnx` 需设置 `MyPowerToolsRepoRoot` 环境变量（Windows 路径格式 `C:\...`），否则 Surface 项目的 ProjectReference 无法解析。
 
 ## 新会话先读
 
