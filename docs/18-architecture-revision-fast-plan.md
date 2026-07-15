@@ -69,7 +69,7 @@
 - [x] 为 Dotnet Surface 使用独立 AssemblyLoadContext；刷新或删除工具时释放 Surface、事件订阅和可卸载程序集上下文。
 - [x] 为 `web-surface` 统一使用底座 WebToolHost，支持本地 URL、远程 URL、静态资源、加载遮罩、失败恢复、刷新和外部打开。
 - [x] Shell 导航完全由 Tool Catalog 生成，工具新增、删除和刷新无需修改导航 XAML、路由 switch 或工具 ID 常量。
-- [ ] Runner 根据 manifest 选择 inproc、gRPC/native IPC、loopback HTTP 或 stdio runtime，停止在 Runner 入口中直接构造具体工具 Supervisor。
+- [x] Runner 根据 manifest 选择 inproc、gRPC/native IPC、loopback HTTP 或 stdio runtime，停止在 Runner 入口中直接构造具体工具 Supervisor。（DoubaoRuntimeSupervisor 已从 Runner 入口移除；runtime 由 Catalog+manifest 驱动。）
 - [x] 开发扫描器读取 `tools/*/tool.json`、已安装工具目录和用户附加目录；允许 manifest 指向 submodule 的本地构建输出。
 - [ ] “刷新工具”执行目录重扫、清单校验和增量替换；单个坏工具产生局部恢复卡片，其余工具继续工作。
 - [x] 从 Shell csproj 删除所有指向 `tools/*/current-integration/**/*.cs` 的 `Compile Include`。
@@ -85,7 +85,7 @@
 - [ ] 豆包 Surface 自行呈现 Planner、Tool Runtime、MCP Bridge 等业务服务状态，并把对应 unit 控制映射为产品化操作。
 - [ ] 验收豆包服务离线时切换页面无 2 秒 UI 卡顿，重启按钮作用于真实 unit 并显示真实 readiness 结果。
 - [ ] ADB Forwarder 改为动态 Dotnet Surface，保留“有线设备转发”和“无线设备转发”两个明确主工作区及原有配置读取方式。
-- [ ] SmartBird 改为动态 Web Surface，温控服务和凭据继续使用工具自有配置；WebView2 故障留在独立 WebToolHost 进程。
+- [x] SmartBird 改为动态 Web Surface，温控服务和凭据继续使用工具自有配置；WebView2 故障留在独立 WebToolHost 进程。（已转为 SmartBird.Surface；WebToolHost 已迁入 src/。）
 - [ ] SmartBird WebBridge 获得 scoped service API，使 Web UI 能自行设计服务健康和控制界面，同时接受底座统一管理。
 - [ ] Mihomo Multi Monitor 仅通过外部工具目录和 SDK 接入，修复 `${settings.*}` 插值、真实 URL 导航、恢复页和外部打开。
 - [ ] 每个已启用工具在自己的 submodule 中产出 `tool.json`、Surface/runtime/service 构建输出和独立 `.mptpkg`。
@@ -115,7 +115,7 @@
 ## P1：删除过渡架构
 
 - [ ] 删除父仓库中的第一方工具专用 View/ViewModel/Service 残留副本和失效 current-integration 复制路径。
-- [ ] 删除 Runner 中具体工具 Supervisor 的注册代码，改为 Catalog + manifest 驱动。
+- [x] 删除 Runner 中具体工具 Supervisor 的注册代码，改为 Catalog + manifest 驱动。
 - [ ] 删除 Shell 中工具专用设置页面入口；工具设置由 Surface 或 schema renderer 提供。
 - [ ] 更新系统架构图，完整展示 Shell、UI 组件、Runner、ServiceManager、WebToolHost、Tool Catalog、Package、Runtime、Surface、Service Unit、Protocol、Platform 和 Broker。
 - [ ] 在架构图中分别标出“工具自定义 Service UI”和“底座统一 Services 页面”，两者指向同一个 ServiceManager 控制面。
@@ -125,7 +125,7 @@
 ## 最小验收门槛
 
 - [ ] `dotnet build` 能从当前 dirty submodule 工作树完成，开发态无需签名和 git clean。
-- [ ] Shell csproj 中不存在来自 `tools/` 的源码链接，ShellWorkspaceController 中不存在第一方工具 ID switch。
+- [x] Shell csproj 中不存在来自 `tools/` 的源码链接，ShellWorkspaceController 中不存在第一方工具 ID switch。
 - [ ] ScreenEase Service 在 Shell 构建、Shell 重启和 Runner 重启期间保持同一 PID 与生效状态。
 - [ ] ScreenEase 工具页面具有与其产品风格一致的服务控制；底座 Services 页面能够管理同一个 ScreenEase unit。
 - [ ] 在任一入口执行 Start、Stop 或 Restart 后，另一个入口通过事件自动更新并显示相同状态。
@@ -134,7 +134,7 @@
 - [ ] Remote Notifications 在底座运行且插件已加载期间持续轮询，与当前可见页面无关。
 - [ ] 豆包页面即时显示缓存/加载状态，后台服务离线不会阻塞 UI 线程。
 - [ ] SmartBird WebToolHost 崩溃只影响 SmartBird Surface，Shell 和其他工具继续运行。
-- [ ] 外部工具目录新增后刷新即出现，删除后刷新即消失，父仓库无专用 UI 或路由代码。
+- [x] 外部工具目录新增后刷新即出现，删除后刷新即消失，父仓库无专用 UI 或路由代码。
 - [ ] ADB 页面明确呈现有线设备和无线设备两条操作路径，并能读取真实设备状态。
 - [ ] 完整安装包能在另一台 Windows 机器安装、启动、发现工具并管理 service units。
 - [ ] ScreenEase、Remote Notifications、豆包、ADB、SmartBird 和 Mihomo 各完成一条真实核心功能路径验证。
