@@ -84,8 +84,7 @@ if (Test-Path -LiteralPath $stage) {
     Remove-Item -LiteralPath $stage -Recurse -Force
 }
 New-Item -ItemType Directory -Force -Path (Join-Path $stage 'proto'), (Join-Path $stage 'schema'), (Join-Path $stage 'test-vectors') | Out-Null
-Copy-Item -LiteralPath (Join-Path $repo 'proto\mpt_module_v1.proto') -Destination (Join-Path $stage 'proto')
-Copy-Item -LiteralPath (Join-Path $repo 'proto\mpt_host_control_v1.proto') -Destination (Join-Path $stage 'proto')
+Copy-Item -Path (Join-Path $repo 'proto\*.proto') -Destination (Join-Path $stage 'proto')
 Copy-Item -Path (Join-Path $repo 'schemas\*.json') -Destination (Join-Path $stage 'schema')
 Copy-Item -LiteralPath (Join-Path $repo 'sdk\protocol\README.md') -Destination $stage
 Copy-Item -Path (Join-Path $repo 'sdk\protocol\test-vectors\*.json') -Destination (Join-Path $stage 'test-vectors')

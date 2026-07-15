@@ -144,11 +144,6 @@ public sealed partial class ShellWorkspaceController
         string? invocationId = null,
         CancellationToken cancellationToken = default)
     {
-        if (IsAdbPortProxyBrokerCommand(commandId))
-        {
-            return await OpenAdbPortProxyBrokerWorkspaceAsync(cancellationToken);
-        }
-
         if (ShellCommandRouter.TryHandleShellCommand(
             commandId,
             moduleId => RefreshModuleStatusAsync(moduleId, cancellationToken),
@@ -203,17 +198,6 @@ public sealed partial class ShellWorkspaceController
         string invocationId,
         [EnumeratorCancellation] CancellationToken cancellationToken = default)
     {
-        if (IsAdbPortProxyBrokerCommand(commandId))
-        {
-            yield return new CommandExecutionStatus(
-                "running",
-                "Opening the ADB Forwarder approval workspace.",
-                false,
-                1);
-            yield return (await OpenAdbPortProxyBrokerWorkspaceAsync(cancellationToken)) with { Sequence = 2 };
-            yield break;
-        }
-
         if (ShellCommandRouter.TryHandleShellCommandStream(
             commandId,
             moduleId => RefreshModuleStatusAsync(moduleId, cancellationToken),
@@ -256,25 +240,6 @@ public sealed partial class ShellWorkspaceController
         {
             await LoadNotificationsPageAsync();
         }
-    }
-
-    private static bool IsAdbPortProxyBrokerCommand(string commandId)
-    {
-        return string.Equals(commandId, "adb-forwarder.portproxy.apply", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(commandId, "adb-forwarder.portproxy.revert", StringComparison.OrdinalIgnoreCase);
-    }
-
-    private async Task<CommandExecutionStatus> OpenAdbPortProxyBrokerWorkspaceAsync(CancellationToken cancellationToken)
-    {
-        cancellationToken.ThrowIfCancellationRequested();
-        SetOwnedContent(_permissionPanel, null);
-        _chromeViewModel.IsPermissionPromptOpen = false;
-        _chromeViewModel.IsCommandPaletteOpen = false;
-        await ShowToolPageAsync("adb-forwarder", "rules");
-
-        const string message = "Review the port forwarding change in ADB Forwarder, then use Apply or Revert to request Windows approval.";
-        SetStatus(message);
-        return new CommandExecutionStatus("succeeded", message);
     }
 
     private async Task<CommandCancellationStatus> CancelCommandAsync(string invocationId)

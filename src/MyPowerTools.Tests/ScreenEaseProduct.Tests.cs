@@ -664,7 +664,7 @@ public sealed class ScreenEaseProductTests
     }
 
     [Fact]
-    public void Shell_uses_the_original_screenease_single_workspace()
+    public void Dynamic_screenease_surface_preserves_the_original_single_workspace()
     {
         var controller = File.ReadAllText(Path.Combine(
             Root,
@@ -672,15 +672,20 @@ public sealed class ScreenEaseProductTests
             "MyPowerTools.Shell.Avalonia",
             "Services",
             "ShellWorkspaceController.Tools.cs"));
+        var surfaceFactory = File.ReadAllText(Path.Combine(
+            Root,
+            "tools", "screenease", "current-integration", "src",
+            "ScreenEase.Surface", "ScreenEaseSurfaceFactory.cs"));
         var view = File.ReadAllText(Path.Combine(
             Root,
-            "src",
-            "MyPowerTools.Shell.Avalonia",
-            "Views",
-            "ScreenEaseView.axaml"));
+            "tools", "screenease", "current-integration", "src",
+            "ScreenEase.Surface", "Views", "ScreenEaseView.axaml"));
 
-        Assert.Contains("LoadScreenEaseToolAsync", controller);
-        Assert.Contains("new ScreenEaseView", controller);
+        Assert.Contains("LoadExternalSdkToolAsync", controller);
+        Assert.DoesNotContain("LoadScreenEaseToolAsync", controller);
+        Assert.DoesNotContain("new ScreenEaseView", controller);
+        Assert.Contains("new ScreenEaseToolService(context.ServiceUnits)", surfaceFactory);
+        Assert.Contains("new ScreenEaseView", surfaceFactory);
         Assert.Contains("护眼调节", view);
         Assert.Contains("休息提醒", view);
         Assert.Contains("UseNightValues", view);
@@ -708,20 +713,25 @@ public sealed class ScreenEaseProductTests
             "src",
             "Mpt.Cli.VisualTesting",
             "ShellRealScreenshotWriter.cs"));
-        Assert.Contains("WriteScreenEaseSnapshotFromRunnerAsync", screenshotWriter);
+        Assert.Contains("WriteSnapshotSetFromHostControlAsync", screenshotWriter);
         Assert.Contains("runner-hostcontrol", screenshotWriter);
     }
 
     [Fact]
     public void ScreenEase_implementation_tracks_the_original_source_state_contract()
     {
-        var module = File.ReadAllText(Path.Combine(Root, "src", "ScreenEase.MyPowerTools", "ScreenEaseModule.cs"));
+        var module = File.ReadAllText(Path.Combine(
+            Root,
+            "tools", "screenease", "current-integration", "src",
+            "ScreenEase.MyPowerTools", "ScreenEaseModule.cs"));
+        var proxy = File.ReadAllText(Path.Combine(
+            Root,
+            "tools", "screenease", "current-integration", "src",
+            "ScreenEase.MyPowerTools", "ScreenEaseServiceProxyModule.cs"));
         var viewModel = File.ReadAllText(Path.Combine(
             Root,
-            "src",
-            "MyPowerTools.Shell.Avalonia",
-            "ViewModels",
-            "ScreenEaseViewModels.cs"));
+            "tools", "screenease", "current-integration", "src",
+            "ScreenEase.Surface", "ViewModels", "ScreenEaseViewModels.cs"));
 
         foreach (var required in new[]
                  {
@@ -731,8 +741,11 @@ public sealed class ScreenEaseProductTests
                      "screenease.reminder.resume", "screenease.reminder.reset"
                  })
         {
-            Assert.Contains(required, module + viewModel, StringComparison.Ordinal);
+            Assert.Contains(required, module + proxy + viewModel, StringComparison.Ordinal);
         }
+
+        Assert.Contains("ServiceUnitClientFactory", proxy, StringComparison.Ordinal);
+        Assert.DoesNotContain("ScreenEaseModule(context)", proxy, StringComparison.Ordinal);
 
         var originalRoot = Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),

@@ -79,6 +79,56 @@ public sealed class ToolProductFoundationTests
     }
 
     [Fact]
+    public async Task Command_palette_uses_declarative_activation_without_changing_runtime_execution()
+    {
+        var openedToolId = "";
+        var openedRouteId = "";
+        var runtimeExecution = new Google.Protobuf.WellKnownTypes.Struct
+        {
+            Fields =
+            {
+                ["type"] = Google.Protobuf.WellKnownTypes.Value.ForString("broker.request"),
+                ["actionId"] = Google.Protobuf.WellKnownTypes.Value.ForString("network.portproxy.apply"),
+                ["activation"] = Google.Protobuf.WellKnownTypes.Value.ForStruct(new Google.Protobuf.WellKnownTypes.Struct
+                {
+                    Fields =
+                    {
+                        ["type"] = Google.Protobuf.WellKnownTypes.Value.ForString("navigation"),
+                        ["toolId"] = Google.Protobuf.WellKnownTypes.Value.ForString("fixture-tool"),
+                        ["routeId"] = Google.Protobuf.WellKnownTypes.Value.ForString("review")
+                    }
+                })
+            }
+        };
+        var response = new HostProto.ListCommandsResponse();
+        response.Commands.Add(new HostProto.CommandItem
+        {
+            CommandId = "fixture.apply",
+            ModuleId = "fixture",
+            Title = "Review and apply",
+            Execution = runtimeExecution
+        });
+
+        var palette = ShellPageViewModelFactory.FromCommands(
+            "apply",
+            response,
+            navigateTool: (toolId, routeId, _) =>
+            {
+                openedToolId = toolId;
+                openedRouteId = routeId;
+                return Task.CompletedTask;
+            });
+
+        var command = Assert.Single(palette.Commands);
+        await command.ExecuteAsync();
+
+        Assert.Equal("fixture-tool", openedToolId);
+        Assert.Equal("review", openedRouteId);
+        Assert.Equal("broker.request", runtimeExecution.Fields["type"].StringValue);
+        Assert.Equal("network.portproxy.apply", runtimeExecution.Fields["actionId"].StringValue);
+    }
+
+    [Fact]
     public void Catalog_marks_paused_and_planned_tools_as_non_actionable()
     {
         var processMonitor = CreateTool(
@@ -113,22 +163,13 @@ public sealed class ToolProductFoundationTests
     }
 
     [Fact]
-    public void Shell_registers_five_delivered_user_workspaces()
+    public void Shell_has_no_compiled_delivered_tool_registry()
     {
         var field = typeof(ShellWorkspaceController).GetField(
             "DeliveredToolIds",
             BindingFlags.NonPublic | BindingFlags.Static);
-        var delivered = Assert.IsAssignableFrom<IReadOnlySet<string>>(field?.GetValue(null));
 
-        Assert.Equal(
-            [
-                "adb-forwarder",
-                "doubao-agent",
-                "remote-notifications",
-                "screenease",
-                "smartbird-thermostat"
-            ],
-            delivered.OrderBy(id => id, StringComparer.OrdinalIgnoreCase));
+        Assert.Null(field);
     }
 
     [Theory]

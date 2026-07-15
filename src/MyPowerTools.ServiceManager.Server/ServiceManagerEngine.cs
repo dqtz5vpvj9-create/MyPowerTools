@@ -15,6 +15,7 @@ public sealed class ServiceManagerEngine : IAsyncDisposable
     private readonly UnitEventBus _events;
     private readonly UnitStateStore _stateStore;
     private readonly ConcurrentDictionary<string, UnitSupervisor> _supervisors = new(StringComparer.OrdinalIgnoreCase);
+    private readonly SemaphoreSlim _reloadGate = new(1, 1);
     private int _disposed;
 
     public ServiceManagerEngine(ServiceUnitCatalog catalog, UnitEventBus events, UnitStateStore stateStore)
@@ -26,16 +27,43 @@ public sealed class ServiceManagerEngine : IAsyncDisposable
 
     public UnitEventBus Events => _events;
 
-    public int Reload()
+    public async Task<int> ReloadAsync(CancellationToken cancellationToken = default)
     {
-        var count = _catalog.Reload();
-        // Ensure a supervisor exists for every known manifest.
-        foreach (var manifest in _catalog.Manifests)
+        await _reloadGate.WaitAsync(cancellationToken);
+        try
         {
-            _supervisors.GetOrAdd(manifest.Id, id => new UnitSupervisor(manifest, _events, _stateStore));
-        }
+            var count = _catalog.Reload();
+            var manifests = _catalog.Manifests.ToDictionary(item => item.Id, StringComparer.OrdinalIgnoreCase);
 
-        return count;
+            foreach (var unitId in _supervisors.Keys.Where(unitId => !manifests.ContainsKey(unitId)).ToArray())
+            {
+                if (_supervisors.TryRemove(unitId, out var removed))
+                {
+                    await removed.StopAsync(cancellationToken);
+                    await removed.DisposeAsync();
+                }
+            }
+
+            foreach (var manifest in manifests.Values)
+            {
+                if (!_supervisors.TryGetValue(manifest.Id, out var existing))
+                {
+                    _supervisors[manifest.Id] = new UnitSupervisor(manifest, _events, _stateStore);
+                    continue;
+                }
+
+                if (!ManifestEquals(existing.Manifest, manifest))
+                {
+                    await existing.ApplyManifestAsync(manifest, cancellationToken);
+                }
+            }
+
+            return count;
+        }
+        finally
+        {
+            _reloadGate.Release();
+        }
     }
 
     /// <summary>
@@ -44,11 +72,11 @@ public sealed class ServiceManagerEngine : IAsyncDisposable
     /// </summary>
     public async Task ReconcileAsync(CancellationToken cancellationToken = default)
     {
-        Reload();
+        await ReloadAsync(cancellationToken);
         foreach (var (unitId, supervisor) in _supervisors)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (supervisor.TryReadopt())
+            if (await supervisor.TryReadoptAsync(cancellationToken))
             {
                 continue;
             }
@@ -148,6 +176,48 @@ public sealed class ServiceManagerEngine : IAsyncDisposable
         }
 
         _supervisors.Clear();
+        _reloadGate.Dispose();
+    }
+
+    private static bool ManifestEquals(ServiceUnitManifest left, ServiceUnitManifest right)
+    {
+        return string.Equals(left.Id, right.Id, StringComparison.OrdinalIgnoreCase) &&
+               string.Equals(left.ToolId, right.ToolId, StringComparison.OrdinalIgnoreCase) &&
+               string.Equals(left.DisplayName, right.DisplayName, StringComparison.Ordinal) &&
+               PathEquals(left.Exec, right.Exec) &&
+               left.Arguments.SequenceEqual(right.Arguments, StringComparer.Ordinal) &&
+               PathEquals(left.WorkingDirectory, right.WorkingDirectory) &&
+               DictionaryEquals(left.Environment, right.Environment) &&
+               left.Autostart == right.Autostart &&
+               left.EffectiveRestartPolicy == right.EffectiveRestartPolicy &&
+               left.EffectiveReadiness == right.EffectiveReadiness &&
+               left.StopTimeout == right.StopTimeout &&
+               SequenceEquals(left.DataRoots, right.DataRoots, PathComparer) &&
+               SequenceEquals(left.DependsOn, right.DependsOn, StringComparer.OrdinalIgnoreCase) &&
+               string.Equals(left.InstanceToken, right.InstanceToken, StringComparison.Ordinal);
+    }
+
+    private static StringComparer PathComparer => OperatingSystem.IsWindows()
+        ? StringComparer.OrdinalIgnoreCase
+        : StringComparer.Ordinal;
+
+    private static bool PathEquals(string? left, string? right)
+        => PathComparer.Equals(left ?? string.Empty, right ?? string.Empty);
+
+    private static bool SequenceEquals(
+        IReadOnlyList<string>? left,
+        IReadOnlyList<string>? right,
+        StringComparer comparer)
+        => (left ?? Array.Empty<string>()).SequenceEqual(right ?? Array.Empty<string>(), comparer);
+
+    private static bool DictionaryEquals(
+        IReadOnlyDictionary<string, string>? left,
+        IReadOnlyDictionary<string, string>? right)
+    {
+        left ??= new Dictionary<string, string>();
+        right ??= new Dictionary<string, string>();
+        return left.Count == right.Count &&
+               left.All(pair => right.TryGetValue(pair.Key, out var value) && string.Equals(pair.Value, value, StringComparison.Ordinal));
     }
 }
 

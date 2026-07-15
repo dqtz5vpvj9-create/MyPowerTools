@@ -1,141 +1,152 @@
 # MyPowerTools 架构闭环交接
 
-更新时间：2026-07-15（Asia/Shanghai）
+更新时间：2026-07-16（Asia/Shanghai）
 
-实现执行者：外部 Agent
+## 我们在做什么
 
-审核与修正负责人：主 Codex
+MyPowerTools 正在收敛为 PowerToys 式工具底座：工具源码位于独立 submodule，可单独发行；父仓库提供公开 SDK、协议、动态发现、Shell、Runner、ServiceManager、安装器和发布门禁。
 
-## 任务
+本轮核心任务是建立具有独立生命周期、由 MPT 统一管理的 Service Unit 模型。长期轮询、硬件效果和子进程监督进入独立进程，Surface 保留工具自有 UI 与控制体验。
 
-把 MyPowerTools 收敛为可安装、可动态发现工具、可托管长期 Service Units 的 PowerToys 式底座。工具保留 submodule 与独立发行能力，父仓库提供 SDK、协议、Shell、Runner、ServiceManager、安装器和门禁。
+权威计划：[`docs/18-architecture-revision-fast-plan.md`](docs/18-architecture-revision-fast-plan.md)
 
-外部 Agent 负责繁杂编码、脚本执行、远程部署和证据采集。主 Codex 逐批审查 diff、复跑最小门禁、修正实现并更新完成状态。
+## 已经完成什么
 
-权威执行计划：[`docs/18-architecture-revision-fast-plan.md`](docs/18-architecture-revision-fast-plan.md)
+### 1. 独立 ServiceManager
 
-## 当前真实状态
+- `MyPowerTools.ServiceManager.exe` 拥有独立 named-pipe gRPC 控制面、bearer token、单实例保护、清单目录、日志和运行状态。
+- Shell 使用 admin client 展示统一 `System > Services` 页面，支持 start、stop、restart、reload、日志和打开所属工具。
+- 工具 Surface 接收 scoped `IServiceUnitClient`，服务端按 `toolId` 做授权。
+- ServiceManager restart 会重领养仍存活的 worker，并验证 PID 启动时间、可执行路径和 instance token。
+- 清单变更会停止旧进程并启动新版；清单删除会停止进程并移除 supervisor。
+- `UnitReadiness.kind/address/timeout` 已进入 proto、server 和 scoped client。ServiceManager 控制面先于 startup reconcile 开放，并用标准 framed `ping` 区分 `Active` 与 `Degraded`。
 
-- Quick/A1：11 项通过。
-- Quick/A2：5 项通过。
-- Process/A3：13 项通过，证据：`artifacts/architecture-smoke/a3/result.json`。
-- Process/A4：6 项通过，证据：`artifacts/architecture-smoke/a4/result.json`。
-- Release/A5 本地阶段通过 7 项，不可变证据：`artifacts/architecture-smoke/a5/result-18065254.json`。
-- Release/A5 远程阶段已有一次通过记录 `result-65aef22b.json`，随后一次并发复跑 `result-ff61fff8.json` 失败；远程闭环等待主 Codex 复核与稳定复跑。
-- 五个工具已产出动态 Surface DLL 和独立 `.mptpkg`。
-- Shell 已移除工具源码编译链接；CLI 视觉测试已迁入 `Mpt.Cli.VisualTesting`。
-- 产品 CLI 已包含 `service list/status/start/stop/restart/reload/shutdown`。
-- Runner 已支持 `--endpoint-address` 与 `--instance-name`，供隔离远程验收使用。
-- 当前候选包：`artifacts/install/MyPowerTools-0.2.0-win-x64.zip`。
-- 候选包正在被 A5 执行者重建；最终 SHA-256 必须从静止后的 zip 重新计算并写入执行报告。
-- 当前大小：521,998,368 bytes（497.8 MiB）。
-- 最新候选构建已包含 installer stdout 收敛修复；后续 A5 仍会按 runId 重建候选包。
+### 2. 三个真实 Service Units
 
-## 最关键的事实校正
+- ScreenEase：真实 `ScreenEaseModule`、设置、逻辑效果、护眼循环和恢复状态位于 `ScreenEase.Service.exe`；Runner 模块改为代理。
+- Remote Notifications：签名拉取、去重、历史持久化、主题索引和 Windows banner 位于 `RemoteNotifications.Service.exe`。
+- Doubao Computer Use：受管子进程控制、身份验证、健康探测、退避、崩溃看门狗和缓存快照位于 `DoubaoAgent.Controller.Service.exe`。
+- 三个业务服务端与客户端均使用 current-user-only named pipe；日志省略 token 与 Secret。
 
-- ScreenEase 已有独立 `ScreenEase.Service` 与 unit manifest。
-- Remote Notifications 仍由 Surface 内服务执行轮询、验证、历史和 banner；独立 Service Unit 尚未实现。
-- Doubao 的服务控制与子进程监督仍位于 Surface；独立 controller Service Unit 尚未实现。
-- 安装器当前只部署真实 ScreenEase Service Unit，动态收集全部工具 units 尚未完成。
-- 远程 A5 曾启动 ScreenEase 测试 unit，随后因 installer 输出解析问题停止；测试进程与临时文件已精确清理。
-- `src/MyPowerTools.Cli/Program.cs` 仍含 `#if MPT_LEGACY_VISUAL_HARNESS` 死代码，产品构建未包含该块，后续需要删除。
+### 3. 动态 Shell 和工具包
 
-## 下一步唯一任务
+- Shell、Runner 产品项目无 `tools/*/*.csproj` 引用。
+- A1 扫描 10 个 `ShellWorkspaceController` partial，确认无第一方工具 ID。
+- ADB command palette 行为由 `commands.index.json` 的 `execution.activation.navigation` 声明；外层 `broker.request` 继续供工具 Surface 执行真实审批。
+- Remote Notifications Surface 自行读取 Service Unit 与持久化历史；Shell 无通知工具特判。
+- 五个工具都产出动态 Dotnet Surface 与独立 `.mptpkg`。
 
-执行计划中的 **Batch 0：闭合远程 A5 驱动**。
+### 4. 安装和发布
 
-1. 重建 `0.2.0` 候选包。
-2. 复跑本地 Release/A5。
-3. 使用隔离 endpoint 与 instance 在 `veeam` 执行远程 A5。
-4. 保存远程 JSON 证据。
-5. 精确清理本轮 runId 资源。
-6. 把执行报告交给主 Codex；保持计划验收框为未勾选状态。
+- `build-all-tools.ps1` 发布每个工具声明的 Service Units。
+- `.mptpkg`、module runtime 和 Suite unit 使用独立 staging，worker payload 无嵌套三份复制。
+- `build-installer.ps1` 动态收集任意 unit，安装脚本改写实例资源并按 autostart 启动。
+- 远程 verifier 使用上传脚本、SSH keepalive、阶段日志、原生命令真实重试、GUI 显式等待和 `try/finally` 清理。
+- 清理器按测试根内可执行文件路径处理派生进程，已覆盖 `powertoold.exe`。
 
-Batch 0 经主 Codex 审核后，再领取 Remote Notifications Service Unit 的 Batch 1。
+### 5. SDK 与文档
 
-## 远程环境事实
+- 13 个 NuGet 包均携带 README，最终 `build-sdk.ps1` 无 package-readme advisory。
+- protocol bundle 包含 `mpt_module_v1.proto`、`mpt_host_control_v1.proto`、`mpt_service_manager_v1.proto`、全部 schema 与测试向量。
+- `docs/sdk/service-unit-development.md` 明确区分 scoped lifecycle client 和工具 typed business pipe。
+- 版本兼容、生命周期、命令 activation 文档已同步。
 
-- SSH alias：`veeam`，当前解析到 `10.33.0.183`。
-- 远程主机名：`WIN-9RQATO3GN18`。
-- 日常 Shell PID：`596364`，安装路径位于 `C:\Program Files\MyPowerTools\Shell\...`。
-- 日常 Runner PID：`639168`，安装路径位于 `C:\Program Files\MyPowerTools\Runner\...`。
-- 远程还有日常 SmartBird/Doubao runtime 进程。
-- 上述日常进程、安装目录、设置和数据均在验收保护范围内。
-- 远程测试只能使用独立 TEMP 根、独立 Runner endpoint、独立 instance name、独立日志和带 runId 的资源名。
+## 最终验证结果
 
-## 当前证据与产物
+| 验证 | 结果 | 证据 |
+| --- | --- | --- |
+| Quick A1 | 12/12 | 最终复跑通过；controller partials 扫描 10 个文件 |
+| Quick A2 | 5/5 | `artifacts/architecture-smoke/a2/catalog-after-add-5fd16605.json` 等 |
+| Process A3 | 18/18 | `artifacts/architecture-smoke/a3/result-8505aca1.json` |
+| Process A4 | 6/6 | `artifacts/architecture-smoke/a4/result-780b2439.json` |
+| RN Service | 13/13 | `artifacts/remote-notifications-verify-ce9c9281.json` |
+| Doubao Service | 10/10 | `artifacts/doubao-controller-verify-4a3410de.json` |
+| ScreenEase Service | 11/11 | `artifacts/screenease-service-verify-6653ab26.json` |
+| 架构相关产品测试 | 92/92 | `ToolProductFoundation + ServiceUnit + RN + Doubao + ScreenEase` filter；2026-07-16 最终复跑 |
+| Solution Release | 0 warning / 0 error | `dotnet build MyPowerTools.slnx -c Release` |
+| A5 local | 全部通过 | `artifacts/architecture-smoke/a5/result-b0e8d3a6.json` |
+| A5 remote | R1–R7 全部通过 | `artifacts/architecture-smoke/a5/result-619dff7d.json` |
 
-- A3：`C:\Users\lixinrui\repo\MyPowerTools\artifacts\architecture-smoke\a3\result.json`
-- A4：`C:\Users\lixinrui\repo\MyPowerTools\artifacts\architecture-smoke\a4\result.json`
-- A5 local：`C:\Users\lixinrui\repo\MyPowerTools\artifacts\architecture-smoke\a5\result-18065254.json`
-- A5 remote pass：`C:\Users\lixinrui\repo\MyPowerTools\artifacts\architecture-smoke\a5\result-65aef22b.json`
-- A5 latest failed rerun：`C:\Users\lixinrui\repo\MyPowerTools\artifacts\architecture-smoke\a5\result-ff61fff8.json`
-- Candidate root：`C:\Users\lixinrui\repo\MyPowerTools\artifacts\install\0.2.0`
+补充审计：完整历史测试程序集当前为 405/447，通过架构相关筛选的 92 项全部为绿。其余 42 项包含迁移后仍引用旧 Shell/工具源码路径的静态断言、共享 Avalonia Headless 全局状态冲突及既有产品债务；本轮未将“全仓历史测试全绿”写入完成声明。
+
+远程 A5 的关键事实：
+
+- veeam 隔离安装根中三个 units 均为 Active。
+- Runner 发现五个已交付工具；Shell smoke 得到 7 modules、7 dashboard cards、102 commands。
+- 日常 Shell PID `596364`、Runner PID `639168` 的路径与启动时间前后完全一致。
+- 测试派生 `powertoold.exe` 已停止；`residualTestProcesses=[]`、`cleanupErrors=[]`、`executionError=null`。
+
+## 当前产物
+
 - Candidate zip：`C:\Users\lixinrui\repo\MyPowerTools\artifacts\install\MyPowerTools-0.2.0-win-x64.zip`
-- 五个工具包：`C:\Users\lixinrui\repo\MyPowerTools\artifacts\install\0.2.0\payload\packages`
+- SHA-256：`796527064abcc30d21291be695150be82645cb99a2e0101a3b1fd9bd639f68ae`
+- 大小：712,388,900 bytes（679.4 MiB）
+- Candidate root：`C:\Users\lixinrui\repo\MyPowerTools\artifacts\install\0.2.0`
+- NuGet：`C:\Users\lixinrui\repo\MyPowerTools\artifacts\sdk\nuget`
+- npm：`C:\Users\lixinrui\repo\MyPowerTools\artifacts\sdk\npm\mypowertools-web-bridge-0.2.0.tgz`
+- Protocol：`C:\Users\lixinrui\repo\MyPowerTools\artifacts\sdk\protocol\mypowertools-protocol-0.2.0.zip`
+- 五个 `.mptpkg`：`C:\Users\lixinrui\repo\MyPowerTools\artifacts\install\0.2.0\payload\packages`
+- 三个 Suite units：`C:\Users\lixinrui\repo\MyPowerTools\artifacts\install\0.2.0\payload\service-units`
 
-## 最小门禁命令
+Submodule commits：
+
+- `tools/adb-forwarder`：`521dffd`
+- `tools/remote-notifications`：`81e62cd`
+- `tools/doubao-computer-use`：`bdc1113`
+- `tools/screenease`：`4a046e9`
+
+## 当前卡点与下一步
+
+程序化架构工作已闭环。剩余工作集中在产品级 GUI、硬件和真实凭据环境：
+
+- Remote Notifications：真实签名消息、Windows banner、Dashboard 与关窗重开观测。
+- Doubao：真实 Python runtime restart，记录受管子进程 PID 与 readiness 恢复；交互式首帧计时。
+- ADB：真实有线设备和无线设备转发。
+- ScreenEase：非 RDP 显示会话中的硬件 gamma 写入。
+- SmartBird：实际 panel URL 的 loading、成功、失败恢复、刷新和外部打开。
+- 五工具最终截图组。
+
+体积优化也留作独立工作包。当前 679.4 MiB 主要来自多个 self-contained .NET 进程。共享 runtime 部署可以继续降低体积。
+
+## 新会话直接执行什么
+
+若目标是继续产品验收，直接从上述六项残余路径开始，沿用当前候选，完成一项便把 `docs/18-architecture-revision-fast-plan.md` 中对应 `blocked-by-environment` 改为 `[x]` 并附证据。
+
+若修改了协议、ServiceManager、Runner、Shell、工具 Surface 或 unit worker，依次执行：
 
 ```powershell
 pwsh -NoProfile -File .\scripts\verify-architecture.ps1 -Tier Quick
 pwsh -NoProfile -File .\scripts\verify-architecture.ps1 -Tier Process
-pwsh -NoProfile -File .\scripts\build-installer.ps1 -Version 0.2.0 -RuntimeIdentifier win-x64
+pwsh -NoProfile -File .\scripts\verify-remote-notifications-service.ps1
+pwsh -NoProfile -File .\scripts\verify-doubao-controller-service.ps1
+pwsh -NoProfile -File .\scripts\verify-screenease-service.ps1
+dotnet build MyPowerTools.slnx -c Release
+pwsh -NoProfile -File .\scripts\build-installer.ps1
 pwsh -NoProfile -File .\scripts\verify-architecture.ps1 -Tier Release -CandidateRoot .\artifacts\install\0.2.0
 pwsh -NoProfile -File .\scripts\verify-architecture.ps1 -Tier Release -CandidateRoot .\artifacts\install\0.2.0 -RemoteHost veeam
 ```
 
-## 工作树保护
-
-当前父仓库与五个 submodule 均有大量既有改动和未跟踪文件。外部 Agent 必须：
-
-- 先运行 `git status --short` 与 `git submodule status`，保存到执行报告。
-- 只改当前 Batch 列出的文件和对应工具 submodule。
-- 保留用户改动，严禁 reset、checkout、clean、stash、批量覆盖和历史重写。
-- submodule 内的改动直接留在该 submodule，父仓库显示 `m` 属于预期状态。
-- 远程递归删除前解析绝对路径，并验证目标位于本轮测试根。
-
-## 外部 Agent 报告模板
-
-```markdown
-## Batch <n> execution report
-
-- Scope:
-- Parent repo changed files:
-- Submodule changed files:
-- Commands and exit codes:
-- Evidence paths:
-- Remote PIDs before/after:
-- Residual work:
-- Risks:
-```
-
-## 审核规则
-
-- 外部 Agent 不修改计划勾选状态。
-- 主 Codex 检查 diff、进程边界、IPC、真实业务路径与证据 JSON。
-- 主 Codex 复跑该 Batch 的最小相关门禁。
-- 主 Codex 修正发现的问题，再勾选通过项。
-- 任何 `blocked-by-environment` 条目继续保持未完成。
-
 ## 踩过的坑，严禁重复
 
-- Surface 内后台轮询器无法提供独立生命周期；Remote Notifications 必须迁入 Service Unit。
-- Surface 内子进程监督器会随 UI 生命周期中断；Doubao 必须迁入 Service Unit。
-- 本地 A5 通过仅覆盖候选清单、哈希、UI 契约与本地 Runner discovery。
-- installer stdout 若混入自启注册输出，远程 verifier 会把多行数组当成结果路径。
-- 远程命令长度会触发 Windows/OpenSSH 限制；上传 `.ps1` 后执行。
-- `PowerShell` 变量名大小写不敏感；`$ToolId` 与 `$toolId` 会冲突。
-- WebView 空白页、静态壳、诊断页和按钮存在均无法证明产品路径完成。
-- 远程清理只接受 runId 精确目标；现有 Program Files MPT 属于用户日常实例。
-- 候选包目前重复携带运行时，体积达到 497.8 MiB；安装器动态化后处理体积。
+- Surface 内的 timer、poller 和 subprocess supervisor 缺少独立生命周期，不能登记为 Service Unit 完成证据。
+- ServiceManager proto 曾丢失 readiness address，隔离安装会回退到默认管道并在 10 秒后超时。A3.2b 已覆盖该缺陷。
+- ServiceManager 曾把进程存活直接视为 ready。当前启动与重领养都会执行标准 framed `ping`；A3.2c 以无响应管道验证 `Degraded` 状态。
+- ServiceManager 曾在开放控制管道前等待全部 startup readiness。当前控制面先启动；A3.0 验证 5000 ms 故障探测期间控制面在 274 ms 可用。
+- 延迟崩溃重启曾可能与 stop、manifest 替换或删除竞争。当前 generation cancellation 会让过期重启任务失效。
+- ServiceManager reload 曾保留陈旧 supervisor。A3.14 与 A3.15 已覆盖升级和删除。
+- installer 曾在 module runtime、`.mptpkg`、Suite payload 三处重复嵌套 worker。
+- PowerShell `$ErrorActionPreference='Stop'` 会把瞬时原生命令 stderr 升级为终止错误；重试循环需要显式处理退出码。
+- Windows PowerShell 5.1 启动 GUI 子系统程序会提前返回；使用 `Start-Process` 和 `WaitForExit()`。
+- 远程内联脚本过长且异常路径容易跳过清理；上传独立 `.ps1`。
+- 固定进程名清理会遗漏派生 executable；按已规范化测试根中的 executable path 枚举。
+- candidate 测试必须保护 Program Files 下的日常 MPT，并比对 PID、路径和启动时间。
+- SDK protocol bundle 曾漏掉 ServiceManager proto；当前脚本复制 `proto\*.proto`。
+- 命令面板的工具专用特判会破坏动态发现；使用声明式 `execution.activation.navigation`。
+- RN 专项测试早期污染过用户 HKCU 历史；清理前注册表备份位于 `artifacts/audit/remote-notifications-registry-before-test-cleanup.reg`。测试必须使用隔离数据根。
 
-## Suggested skills
+## 工作树和提交保护
 
-- `powershell-safe-invocation`：所有 Windows、PowerShell、SSH 和远程脚本任务。
-- `plan-doc`：仅在主 Codex审核后更新本执行计划。
-- `computer-use`：仅用于真实 GUI 核心路径与截图验收。
-- `browser:control-in-app-browser`：仅用于本地 Web Surface 页面交互验收；涉及用户现有 Edge 会话时遵循根 `AGENTS.md` 的扩展浏览器要求。
-
-## 交接完成条件
-
-新会话读完本文件与权威计划后，可直接执行 Batch 0。无需重新规划架构，禁止重新扫描整个仓库来生成另一份方案。
+- 四个工具 submodule 已各自提交，父仓库只记录 gitlink。
+- `sdk/web-bridge/node_modules` 当前包含 npm/换行噪声，父仓库提交应排除这些路径。
+- 禁止 reset、checkout、clean、stash 和历史重写。
+- 父仓库最终提交应包含计划、HANDOFF、协议、ServiceManager、Shell/Runner、脚本、测试、文档和四个 submodule gitlink。

@@ -116,18 +116,29 @@ public static partial class ShellPageViewModelFactory
         toolId = "";
         routeId = "";
         routeArgs = null;
-        if (execution is null ||
-            !execution.Fields.TryGetValue("type", out var type) ||
+        if (execution is null)
+        {
+            return false;
+        }
+
+        var activation = execution;
+        if (execution.Fields.TryGetValue("activation", out var activationValue) &&
+            activationValue.KindCase == Value.KindOneofCase.StructValue)
+        {
+            activation = activationValue.StructValue;
+        }
+
+        if (!activation.Fields.TryGetValue("type", out var type) ||
             !string.Equals(type.StringValue, "navigation", StringComparison.OrdinalIgnoreCase) ||
-            !execution.Fields.TryGetValue("toolId", out var tool) ||
-            !execution.Fields.TryGetValue("routeId", out var route))
+            !activation.Fields.TryGetValue("toolId", out var tool) ||
+            !activation.Fields.TryGetValue("routeId", out var route))
         {
             return false;
         }
 
         toolId = tool.StringValue;
         routeId = route.StringValue;
-        if (execution.Fields.TryGetValue("routeArgs", out var args) &&
+        if (activation.Fields.TryGetValue("routeArgs", out var args) &&
             args.KindCase == Value.KindOneofCase.StructValue)
         {
             routeArgs = JsonStructMapper.ToJsonObject(args.StructValue);

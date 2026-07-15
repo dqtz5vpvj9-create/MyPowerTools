@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Xml.Linq;
 using MyPowerTools.Abstractions;
+using MyPowerTools.Ipc;
 using MyPowerTools.Packaging;
 using MyPowerTools.Platform.Abstractions;
 using MyPowerTools.Runtime;
@@ -35,7 +36,14 @@ if (string.Equals(mode, "shutdown", StringComparison.OrdinalIgnoreCase))
     Environment.SetEnvironmentVariable("MPT_DATA_ROOT", shutdownDataRoot);
     try
     {
-        using var admin = ServiceManagerAdminClient.ForDefaultEndpoint();
+        var shutdownEndpointAddress = GetOptionalArg("--endpoint-address");
+        using var admin = string.IsNullOrWhiteSpace(shutdownEndpointAddress)
+            ? ServiceManagerAdminClient.ForDefaultEndpoint()
+            : ServiceManagerAdminClient.ForEndpoint(new IpcEndpoint(
+                PlatformId.Current().OperatingSystem == "windows"
+                    ? IpcTransport.NamedPipe
+                    : IpcTransport.UnixDomainSocket,
+                shutdownEndpointAddress));
         var ok = await admin.ShutdownAsync();
         Console.WriteLine($"shutdown requested: ok={ok}");
         return ok ? 0 : 1;
@@ -284,12 +292,25 @@ static int RunA1Gate()
         externalBoundaryClean ? $"scanned {toolCsprojFiles.Length} tool projects; zero parent src references" : string.Join("; ", parentSourceReferences)));
     overall &= externalBoundaryClean;
 
-    var controllerFiles = new[]
+    var controllerFiles = Directory.GetFiles(
+        Path.Combine(repoRoot, "src", "MyPowerTools.Shell.Avalonia", "Services"),
+        "ShellWorkspaceController*.cs",
+        SearchOption.TopDirectoryOnly);
+    var forbiddenIds = new[]
     {
-        Path.Combine(repoRoot, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellWorkspaceController.Tools.cs"),
-        Path.Combine(repoRoot, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellWorkspaceController.cs")
+        "RemoteNotificationsToolId",
+        "AdbForwarderToolId",
+        "ScreenEaseToolId",
+        "DoubaoAgentToolId",
+        "SmartBirdThermostatToolId",
+        "DeliveredToolIds",
+        "\"adb-forwarder\"",
+        "\"remote-notifications\"",
+        "\"android-tools.notifications\"",
+        "\"screenease\"",
+        "\"doubao-agent\"",
+        "\"smartbird-thermostat\""
     };
-    var forbiddenIds = new[] { "RemoteNotificationsToolId", "AdbForwarderToolId", "ScreenEaseToolId", "DoubaoAgentToolId", "SmartBirdThermostatToolId", "DeliveredToolIds" };
     var foundIds = new List<string>();
     foreach (var file in controllerFiles)
     {
@@ -305,7 +326,7 @@ static int RunA1Gate()
     }
     var noToolIds = foundIds.Count == 0;
     records.Add(new("A1.8-shell-no-tool-ids", noToolIds,
-        noToolIds ? "No first-party tool IDs in ShellWorkspaceController" : $"Found forbidden identifiers: {string.Join(", ", foundIds)}"));
+        noToolIds ? $"No first-party tool IDs across {controllerFiles.Length} ShellWorkspaceController partials" : $"Found forbidden identifiers: {string.Join(", ", foundIds)}"));
     overall &= noToolIds;
 
     var sdkCsproj = Path.Combine(repoRoot, "src", "MyPowerTools.AvaloniaSdk", "MyPowerTools.AvaloniaSdk.csproj");
@@ -364,6 +385,53 @@ static int RunA1Gate()
             ? $"{firstPartyToolManifests.Length} first-party tools declare loadable dotnet surfaces"
             : string.Join("; ", surfaceManifestErrors)));
     overall &= surfaceManifestsReady;
+
+    var serviceIntegrations = new[]
+    {
+        new
+        {
+            ToolManifest = "tools/remote-notifications/current-integration/modules/android-tools-suite/modules/notifications/ui/tool.json",
+            UnitManifest = "tools/remote-notifications/current-integration/src/RemoteNotifications.Service/unit-manifest.json",
+            SurfaceFactory = "tools/remote-notifications/current-integration/src/RemoteNotifications.Surface/RemoteNotificationsSurfaceFactory.cs"
+        },
+        new
+        {
+            ToolManifest = "tools/doubao-computer-use/current-integration/modules/doubao-agent/ui/tool.json",
+            UnitManifest = "tools/doubao-computer-use/current-integration/src/DoubaoAgent.Controller.Service/unit-manifest.json",
+            SurfaceFactory = "tools/doubao-computer-use/current-integration/src/DoubaoAgent.Surface/DoubaoAgentSurfaceFactory.cs"
+        },
+        new
+        {
+            ToolManifest = "tools/screenease/current-integration/modules/screenease/ui/tool.json",
+            UnitManifest = "tools/screenease/current-integration/src/ScreenEase.Service/unit-manifest.json",
+            SurfaceFactory = "tools/screenease/current-integration/src/ScreenEase.Surface/ScreenEaseSurfaceFactory.cs"
+        }
+    };
+    var serviceIntegrationErrors = new List<string>();
+    foreach (var integration in serviceIntegrations)
+    {
+        var toolManifestPath = Path.Combine(repoRoot, integration.ToolManifest.Replace('/', Path.DirectorySeparatorChar));
+        var unitManifestPath = Path.Combine(repoRoot, integration.UnitManifest.Replace('/', Path.DirectorySeparatorChar));
+        var surfaceFactoryPath = Path.Combine(repoRoot, integration.SurfaceFactory.Replace('/', Path.DirectorySeparatorChar));
+        var toolManifest = JsonNode.Parse(File.ReadAllText(toolManifestPath)) as JsonObject;
+        var unitManifest = JsonNode.Parse(File.ReadAllText(unitManifestPath)) as JsonObject;
+        var toolId = toolManifest?["toolId"]?.GetValue<string>();
+        var unitToolId = unitManifest?["toolId"]?.GetValue<string>();
+        if (string.IsNullOrWhiteSpace(toolId) || !string.Equals(toolId, unitToolId, StringComparison.Ordinal))
+        {
+            serviceIntegrationErrors.Add($"{integration.UnitManifest}:toolId={unitToolId ?? "missing"}; expected={toolId ?? "missing"}");
+        }
+        if (!File.ReadAllText(surfaceFactoryPath).Contains("context.ServiceUnits", StringComparison.Ordinal))
+        {
+            serviceIntegrationErrors.Add($"{integration.SurfaceFactory}:scoped-client-missing");
+        }
+    }
+    var serviceIntegrationsReady = serviceIntegrationErrors.Count == 0;
+    records.Add(new("A1.12-first-party-service-unit-wiring", serviceIntegrationsReady,
+        serviceIntegrationsReady
+            ? $"{serviceIntegrations.Length} Service Unit tool scopes match their Surfaces"
+            : string.Join("; ", serviceIntegrationErrors)));
+    overall &= serviceIntegrationsReady;
 
     foreach (var r in records)
     {

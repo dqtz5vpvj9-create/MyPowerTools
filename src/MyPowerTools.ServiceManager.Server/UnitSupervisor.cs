@@ -1,5 +1,8 @@
+using System.Buffers.Binary;
 using System.Diagnostics;
+using System.Globalization;
 using System.IO.Pipes;
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using MyPowerTools.Abstractions;
 
@@ -17,7 +20,7 @@ namespace MyPowerTools.ServiceManager.Server;
 /// </summary>
 public sealed class UnitSupervisor : IAsyncDisposable
 {
-    private readonly ServiceUnitManifest _manifest;
+    private ServiceUnitManifest _manifest;
     private readonly UnitEventBus _events;
     private readonly UnitLogStore _logs;
     private readonly UnitStateStore _stateStore;
@@ -31,6 +34,9 @@ public sealed class UnitSupervisor : IAsyncDisposable
     private int? _exitCode;
     private bool _stopping; // explicit stop in progress; suppress auto-restart
     private bool _disposed;
+    private readonly CancellationTokenSource _lifetimeCancellation = new();
+    private long _restartGeneration;
+    private Task _scheduledRestart = Task.CompletedTask;
 
     public UnitSupervisor(ServiceUnitManifest manifest, UnitEventBus events, UnitStateStore stateStore)
     {
@@ -70,6 +76,50 @@ public sealed class UnitSupervisor : IAsyncDisposable
     public IReadOnlyList<MptToolLogEntry> TailLogs(int count) => _logs.Tail(count);
 
     /// <summary>
+    /// Replaces the unit definition while holding the same lifecycle gate used by Start/Stop.
+    /// A live unit is stopped with its old definition and then relaunched with the new one, so
+    /// an installer reload cannot leave an old executable or readiness endpoint active.
+    /// </summary>
+    public async Task<ServiceUnitSnapshot> ApplyManifestAsync(
+        ServiceUnitManifest manifest,
+        CancellationToken cancellationToken = default)
+    {
+        if (!string.Equals(manifest.Id, UnitId, StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ArgumentException(
+                $"Manifest '{manifest.Id}' cannot replace supervisor '{UnitId}'.",
+                nameof(manifest));
+        }
+
+        CancelScheduledRestart();
+        await _gate.WaitAsync(cancellationToken);
+        try
+        {
+            ThrowIfDisposed();
+            var wasRunning = _process is { HasExited: false } ||
+                             _state is ServiceUnitState.Active or ServiceUnitState.Degraded or ServiceUnitState.Activating;
+            if (wasRunning)
+            {
+                await StopCoreAsync();
+            }
+
+            _manifest = manifest;
+            _restartCount = 0;
+            _lastError = null;
+            _exitCode = null;
+            Transition(ServiceUnitState.Inactive, "manifest updated");
+
+            return wasRunning
+                ? await StartCoreAsync(cancellationToken)
+                : Snapshot();
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    /// <summary>
     /// Launches the unit process if inactive. Idempotent: an already-active unit keeps its PID.
     /// </summary>
     public async Task<ServiceUnitSnapshot> StartAsync(CancellationToken cancellationToken = default)
@@ -77,77 +127,8 @@ public sealed class UnitSupervisor : IAsyncDisposable
         await _gate.WaitAsync(cancellationToken);
         try
         {
-            if (_process is { HasExited: false })
-            {
-                return Snapshot();
-            }
-
-            _stopping = false;
-            Transition(ServiceUnitState.Activating, "start requested");
-
-            var psi = new ProcessStartInfo
-            {
-                FileName = _manifest.Exec,
-                UseShellExecute = false,
-                CreateNoWindow = true,
-                RedirectStandardOutput = true,
-                RedirectStandardError = true,
-                RedirectStandardInput = false,
-                WorkingDirectory = string.IsNullOrWhiteSpace(_manifest.WorkingDirectory)
-                    ? Environment.CurrentDirectory
-                    : _manifest.WorkingDirectory
-            };
-
-            // Critical: do NOT assign this process into a job object that kills children on close.
-            // The unit must outlive the ServiceManager. We rely on explicit Stop only.
-            foreach (var arg in _manifest.Arguments)
-            {
-                psi.ArgumentList.Add(arg);
-            }
-
-            if (_manifest.Environment is not null)
-            {
-                foreach (var (key, value) in _manifest.Environment)
-                {
-                    psi.Environment[key] = value;
-                }
-            }
-
-            try
-            {
-                // Launch the unit detached from this process's job object (CREATE_BREAKAWAY_FROM_JOB
-                // on Windows) so that force-killing or restarting the ServiceManager never cascades
-                // to the unit. This is the concrete realization of the rule that units outlive the
-                // ServiceManager; combined with persisted PID + instance token, a new ServiceManager
-                // re-adopts the still-running unit rather than restarting it.
-                var launched = BreakawayProcessStarter.Start(psi);
-                _process = launched.Process;
-                if (launched.StandardOutput is not null)
-                {
-                    CaptureStream(launched.StandardOutput, "stdout");
-                }
-
-                if (launched.StandardError is not null)
-                {
-                    CaptureStream(launched.StandardError, "stderr");
-                }
-            }
-            catch (Exception ex)
-            {
-                Console.Error.WriteLine($"[ServiceManager] unit '{UnitId}' failed to start: {ex}");
-                _lastError = ex.Message;
-                Transition(ServiceUnitState.Failed, $"failed to start: {ex.Message}");
-                return Snapshot();
-            }
-
-            _startedAt = DateTimeOffset.UtcNow;
-            _exitCode = null;
-            _process.EnableRaisingEvents = true;
-            _process.Exited += OnProcessExited;
-
-            PersistState();
-            Transition(ServiceUnitState.Active, $"started pid {_process.Id}");
-            return Snapshot();
+            ThrowIfDisposed();
+            return await StartCoreAsync(cancellationToken);
         }
         finally
         {
@@ -161,49 +142,12 @@ public sealed class UnitSupervisor : IAsyncDisposable
     /// </summary>
     public async Task<ServiceUnitSnapshot> StopAsync(CancellationToken cancellationToken = default)
     {
+        CancelScheduledRestart();
         await _gate.WaitAsync(cancellationToken);
         try
         {
-            if (_process is null || _process.HasExited)
-            {
-                _stopping = false;
-                ClearPersistedState();
-                Transition(ServiceUnitState.Inactive, "already stopped");
-                return Snapshot();
-            }
-
-            _stopping = true;
-            Transition(ServiceUnitState.Deactivating, "stop requested");
-
-            try
-            {
-                _process.Exited -= OnProcessExited;
-            }
-            catch
-            {
-                // Event unsubscribe is best-effort.
-            }
-
-            // Request graceful termination first.
-            try
-            {
-                _process.CloseMainWindow();
-                if (!_process.WaitForExit((int)_manifest.StopTimeout.TotalMilliseconds))
-                {
-                    _process.Kill(entireProcessTree: false);
-                    _process.WaitForExit();
-                }
-            }
-            catch (Exception ex)
-            {
-                _lastError = ex.Message;
-            }
-
-            _exitCode = _process.HasExited ? _process.ExitCode : null;
-            ClearPersistedState();
-            _stopping = false;
-            Transition(ServiceUnitState.Inactive, "stopped");
-            return Snapshot();
+            ThrowIfDisposed();
+            return await StopCoreAsync();
         }
         finally
         {
@@ -222,7 +166,26 @@ public sealed class UnitSupervisor : IAsyncDisposable
     /// Attempts to re-adopt a previously-running process using persisted PID + instance token.
     /// Returns true if a live process was found and adopted without restarting it.
     /// </summary>
-    public bool TryReadopt()
+    public async Task<bool> TryReadoptAsync(CancellationToken cancellationToken = default)
+    {
+        await _gate.WaitAsync(cancellationToken);
+        try
+        {
+            ThrowIfDisposed();
+            if (_process is { HasExited: false })
+            {
+                return true;
+            }
+
+            return await TryReadoptCoreAsync(cancellationToken);
+        }
+        finally
+        {
+            _gate.Release();
+        }
+    }
+
+    private async Task<bool> TryReadoptCoreAsync(CancellationToken cancellationToken)
     {
         var persisted = _stateStore.Load(UnitId);
         if (persisted is null || persisted.Pid <= 0)
@@ -256,14 +219,322 @@ public sealed class UnitSupervisor : IAsyncDisposable
             return false;
         }
 
+        if (!ProcessIdentityMatches(candidate, persisted))
+        {
+            return false;
+        }
+
         _process = candidate;
         _process.EnableRaisingEvents = true;
         _process.Exited += OnProcessExited;
         _startedAt = persisted.StartedAt;
         _restartCount = persisted.RestartCount;
         CaptureExistingStreamIfPossible();
-        Transition(ServiceUnitState.Active, $"re-adopted pid {candidate.Id}");
+        var readiness = await WaitForReadinessAsync(cancellationToken);
+        if (candidate.HasExited)
+        {
+            return true;
+        }
+
+        if (readiness.Ready)
+        {
+            _lastError = null;
+            Transition(ServiceUnitState.Active, $"re-adopted pid {candidate.Id}; {readiness.Message}");
+        }
+        else
+        {
+            _lastError = readiness.Message;
+            Transition(ServiceUnitState.Degraded, $"re-adopted pid {candidate.Id}; {readiness.Message}");
+        }
         return true;
+    }
+
+    private async Task<ServiceUnitSnapshot> StartCoreAsync(CancellationToken cancellationToken)
+    {
+        if (_process is { HasExited: false })
+        {
+            return Snapshot();
+        }
+
+        _stopping = false;
+        Transition(ServiceUnitState.Activating, "start requested");
+
+        var psi = new ProcessStartInfo
+        {
+            FileName = _manifest.Exec,
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true,
+            RedirectStandardInput = false,
+            WorkingDirectory = string.IsNullOrWhiteSpace(_manifest.WorkingDirectory)
+                ? Environment.CurrentDirectory
+                : _manifest.WorkingDirectory
+        };
+
+        foreach (var arg in _manifest.Arguments)
+        {
+            psi.ArgumentList.Add(arg);
+        }
+
+        if (_manifest.Environment is not null)
+        {
+            foreach (var (key, value) in _manifest.Environment)
+            {
+                psi.Environment[key] = value;
+            }
+        }
+
+        try
+        {
+            var launched = BreakawayProcessStarter.Start(psi);
+            _process = launched.Process;
+            if (launched.StandardOutput is not null)
+            {
+                CaptureStream(launched.StandardOutput, "stdout");
+            }
+
+            if (launched.StandardError is not null)
+            {
+                CaptureStream(launched.StandardError, "stderr");
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"[ServiceManager] unit '{UnitId}' failed to start: {ex}");
+            _lastError = ex.Message;
+            Transition(ServiceUnitState.Failed, $"failed to start: {ex.Message}");
+            return Snapshot();
+        }
+
+        _startedAt = DateTimeOffset.UtcNow;
+        _exitCode = null;
+        _process.EnableRaisingEvents = true;
+        _process.Exited += OnProcessExited;
+
+        PersistState();
+        var readiness = await WaitForReadinessAsync(cancellationToken);
+        if (_process.HasExited)
+        {
+            return Snapshot();
+        }
+
+        if (readiness.Ready)
+        {
+            _lastError = null;
+            Transition(ServiceUnitState.Active, $"started pid {_process.Id}; {readiness.Message}");
+        }
+        else
+        {
+            _lastError = readiness.Message;
+            Transition(ServiceUnitState.Degraded, $"started pid {_process.Id}; {readiness.Message}");
+        }
+        return Snapshot();
+    }
+
+    private async Task<ServiceUnitSnapshot> StopCoreAsync()
+    {
+        if (_process is null || _process.HasExited)
+        {
+            CancelScheduledRestart();
+            _stopping = false;
+            ClearPersistedState();
+            Transition(ServiceUnitState.Inactive, "already stopped");
+            return Snapshot();
+        }
+
+        _stopping = true;
+        Transition(ServiceUnitState.Deactivating, "stop requested");
+
+        try
+        {
+            _process.Exited -= OnProcessExited;
+        }
+        catch
+        {
+            // Event unsubscribe is best-effort.
+        }
+
+        try
+        {
+            _process.CloseMainWindow();
+            if (!await WaitForExitAsync(_process, _manifest.StopTimeout))
+            {
+                _process.Kill(entireProcessTree: false);
+                await _process.WaitForExitAsync();
+            }
+        }
+        catch (Exception ex)
+        {
+            _lastError = ex.Message;
+        }
+
+        _exitCode = _process.HasExited ? _process.ExitCode : null;
+        ClearPersistedState();
+        CancelScheduledRestart();
+        _stopping = false;
+        Transition(ServiceUnitState.Inactive, "stopped");
+        return Snapshot();
+    }
+
+    private async Task<(bool Ready, string Message)> WaitForReadinessAsync(CancellationToken cancellationToken)
+    {
+        var readiness = _manifest.EffectiveReadiness;
+        if (string.Equals(readiness.Kind, "none", StringComparison.OrdinalIgnoreCase) ||
+            string.IsNullOrWhiteSpace(readiness.Kind))
+        {
+            return (true, "process readiness");
+        }
+
+        if (!string.Equals(readiness.Kind, "pipe", StringComparison.OrdinalIgnoreCase))
+        {
+            return (false, $"unsupported readiness kind '{readiness.Kind}'");
+        }
+
+        if (!OperatingSystem.IsWindows())
+        {
+            return (false, "pipe readiness requires Windows named pipes");
+        }
+
+        if (string.IsNullOrWhiteSpace(readiness.Address))
+        {
+            return (false, "pipe readiness address is empty");
+        }
+
+        var timeout = readiness.Timeout > TimeSpan.Zero ? readiness.Timeout : TimeSpan.FromSeconds(5);
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(timeout);
+        Exception? lastError = null;
+
+        while (!deadline.IsCancellationRequested)
+        {
+            try
+            {
+                await using var pipe = new NamedPipeClientStream(
+                    ".",
+                    readiness.Address,
+                    PipeDirection.InOut,
+                    PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
+                await pipe.ConnectAsync(deadline.Token);
+
+                var payload = JsonSerializer.SerializeToUtf8Bytes(new { command = "ping" });
+                var header = new byte[4];
+                BinaryPrimitives.WriteInt32LittleEndian(header, payload.Length);
+                await pipe.WriteAsync(header, deadline.Token);
+                await pipe.WriteAsync(payload, deadline.Token);
+                await pipe.FlushAsync(deadline.Token);
+
+                await ReadExactlyAsync(pipe, header, deadline.Token);
+                var responseLength = BinaryPrimitives.ReadInt32LittleEndian(header);
+                if (responseLength <= 0 || responseLength > 1024 * 1024)
+                {
+                    throw new InvalidDataException($"readiness response length {responseLength} is invalid");
+                }
+
+                var responsePayload = new byte[responseLength];
+                await ReadExactlyAsync(pipe, responsePayload, deadline.Token);
+                using var response = JsonDocument.Parse(responsePayload);
+                if (response.RootElement.TryGetProperty("ok", out var ok) && ok.GetBoolean())
+                {
+                    return (true, $"pipe '{readiness.Address}' ready");
+                }
+
+                throw new InvalidDataException("readiness response did not report ok=true");
+            }
+            catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+            {
+                break;
+            }
+            catch (Exception ex)
+            {
+                lastError = ex;
+                try
+                {
+                    await Task.Delay(TimeSpan.FromMilliseconds(100), deadline.Token);
+                }
+                catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+                {
+                    break;
+                }
+            }
+        }
+
+        cancellationToken.ThrowIfCancellationRequested();
+        return (false, $"pipe '{readiness.Address}' readiness timed out after {timeout.TotalMilliseconds:0} ms: {lastError?.Message ?? "no response"}");
+    }
+
+    private static async Task ReadExactlyAsync(Stream stream, Memory<byte> buffer, CancellationToken cancellationToken)
+    {
+        var offset = 0;
+        while (offset < buffer.Length)
+        {
+            var read = await stream.ReadAsync(buffer[offset..], cancellationToken);
+            if (read == 0)
+            {
+                throw new EndOfStreamException("readiness pipe closed before the complete response arrived");
+            }
+
+            offset += read;
+        }
+    }
+
+    private bool ProcessIdentityMatches(Process candidate, UnitRuntimeState persisted)
+    {
+        if (DateTimeOffset.TryParse(
+                persisted.ProcessStartTimeIso,
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.RoundtripKind,
+                out var expectedStart))
+        {
+            try
+            {
+                var actualStart = candidate.StartTime.ToUniversalTime();
+                if (Math.Abs((actualStart - expectedStart.UtcDateTime).TotalSeconds) > 1)
+                {
+                    return false;
+                }
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        if (Path.IsPathRooted(_manifest.Exec))
+        {
+            try
+            {
+                var actualExec = candidate.MainModule?.FileName;
+                if (string.IsNullOrWhiteSpace(actualExec) ||
+                    !string.Equals(
+                        Path.GetFullPath(actualExec),
+                        Path.GetFullPath(_manifest.Exec),
+                        OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
+                {
+                    return false;
+                }
+            }
+            catch
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static async Task<bool> WaitForExitAsync(Process process, TimeSpan timeout)
+    {
+        using var cancellation = new CancellationTokenSource(timeout <= TimeSpan.Zero ? TimeSpan.FromSeconds(5) : timeout);
+        try
+        {
+            await process.WaitForExitAsync(cancellation.Token);
+            return true;
+        }
+        catch (OperationCanceledException)
+        {
+            return process.HasExited;
+        }
     }
 
     private void OnProcessExited(object? sender, EventArgs e)
@@ -294,20 +565,39 @@ public sealed class UnitSupervisor : IAsyncDisposable
 
         _lastError = $"process exited (code {_exitCode}); scheduling restart {_restartCount + 1}/{policy.MaxRestarts}";
         Transition(ServiceUnitState.Degraded, _lastError);
-        _ = ScheduleRestartAsync(policy.Backoff);
+        var restartGeneration = Volatile.Read(ref _restartGeneration);
+        _scheduledRestart = ScheduleRestartAsync(
+            policy.Backoff,
+            restartGeneration,
+            _lifetimeCancellation.Token);
     }
 
-    private async Task ScheduleRestartAsync(TimeSpan backoff)
+    private async Task ScheduleRestartAsync(
+        TimeSpan backoff,
+        long restartGeneration,
+        CancellationToken cancellationToken)
     {
         try
         {
             if (backoff > TimeSpan.Zero)
             {
-                await Task.Delay(backoff);
+                await Task.Delay(backoff, cancellationToken);
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+            if (_disposed ||
+                _stopping ||
+                restartGeneration != Volatile.Read(ref _restartGeneration))
+            {
+                return;
             }
 
             _restartCount++;
-            await StartAsync();
+            await StartAsync(cancellationToken);
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            // Explicit stop, manifest replacement, removal, or manager disposal cancels stale restarts.
         }
         catch (Exception ex)
         {
@@ -395,16 +685,28 @@ public sealed class UnitSupervisor : IAsyncDisposable
 
     private void ClearPersistedState() => _stateStore.Delete(UnitId);
 
+    private void CancelScheduledRestart()
+    {
+        Interlocked.Increment(ref _restartGeneration);
+    }
+
+    private void ThrowIfDisposed()
+    {
+        ObjectDisposedException.ThrowIf(_disposed, this);
+    }
+
     /// <summary>
     /// Releases the manager's hold on the supervised process WITHOUT stopping it.
     /// A ServiceManager shutdown (or restart) must never kill still-running units — that is the
     /// core independence guarantee. The process is left alive so the next ServiceManager instance
-    /// can re-adopt it via <see cref="TryReadopt"/>. Only an explicit Stop/Disable/Upgrade/Uninstall
+    /// can re-adopt it via <see cref="TryReadoptAsync"/>. Only an explicit Stop/Disable/Upgrade/Uninstall
     /// ends the process; call <see cref="StopAsync"/> directly for that.
     /// </summary>
-    public ValueTask DisposeAsync()
+    public async ValueTask DisposeAsync()
     {
         _disposed = true;
+        CancelScheduledRestart();
+        _lifetimeCancellation.Cancel();
         try
         {
             if (_process is not null)
@@ -417,7 +719,15 @@ public sealed class UnitSupervisor : IAsyncDisposable
             // event detach is best-effort
         }
 
+        try
+        {
+            await _scheduledRestart;
+        }
+        catch (OperationCanceledException)
+        {
+        }
+
+        _lifetimeCancellation.Dispose();
         _gate.Dispose();
-        return ValueTask.CompletedTask;
     }
 }

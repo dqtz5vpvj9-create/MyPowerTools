@@ -100,7 +100,12 @@ public sealed class ScopedServiceUnitClient : IServiceUnitClient
             RestartPolicy: new ServiceUnitRestartPolicy(maxRestarts, TimeSpan.FromMilliseconds(backoffMs)),
             RestartCount: s.RestartCount,
             LastError: string.IsNullOrEmpty(s.LastError) ? null : s.LastError,
-            Readiness: null,
+            Readiness: s.Readiness is null
+                ? null
+                : new ServiceUnitReadiness(
+                    string.IsNullOrWhiteSpace(s.Readiness.Kind) ? s.Readiness.Message : s.Readiness.Kind,
+                    string.IsNullOrWhiteSpace(s.Readiness.Address) ? null : s.Readiness.Address,
+                    s.Readiness.Timeout is null ? TimeSpan.Zero : s.Readiness.Timeout.ToTimeSpan()),
             ExitCode: s.ExitCode != 0 ? s.ExitCode : null,
             EventSeq: s.EventSeq);
     }

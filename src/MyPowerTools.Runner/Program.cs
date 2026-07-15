@@ -11,6 +11,7 @@ using MyPowerTools.Platform.Windows;
 using MyPowerTools.Protocol;
 using MyPowerTools.Runner;
 using MyPowerTools.Runtime;
+using MyPowerTools.ServiceManager.Client;
 
 var root = FindRepositoryRoot(AppContext.BaseDirectory);
 PrependAndroidPlatformToolsToPath(root);
@@ -20,6 +21,10 @@ var platform = PlatformId.Current();
 var windowsPlatform = OperatingSystem.IsWindows() ? new WindowsPlatformPack() : null;
 var dataRoot = GetOption(args, "--data-root") ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MyPowerTools");
 var runtimePaths = RuntimePaths.Create(dataRoot);
+// ServiceManager token discovery must follow the Runner's selected data root.
+// Isolated installs pass --data-root without mutating the parent environment, so
+// bind the process-local SDK setting before capability providers create clients.
+Environment.SetEnvironmentVariable(ServiceManagerAdminClient.DataRootEnvironmentVariable, runtimePaths.Root);
 var developmentToolRoots = ToolDiscoveryConfiguration.Resolve(root, dataRoot, GetOptions(args, "--tool-dir"));
 var hostControlToken = HostControlAuthTokenStore.GetOrCreateToken(runtimePaths.Root);
 var runnerInstanceName = GetOption(args, "--instance-name") ?? "MyPowerTools.Runner";
@@ -164,15 +169,17 @@ static IModuleTransportRuntime[] CreateTransportRuntimes()
 
 static IReadOnlyDictionary<string, object> CreateCapabilityProviders(WindowsPlatformPack? windowsPlatform)
 {
-    if (windowsPlatform is null || !OperatingSystem.IsWindows())
+    var providers = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase)
     {
-        return new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase);
+        ["service.units"] = new ServiceUnitClientFactory(ServiceManagerAdminClient.ForDefaultEndpoint())
+    };
+
+    if (windowsPlatform is not null && OperatingSystem.IsWindows())
+    {
+        providers["display.profile"] = windowsPlatform.Display;
     }
 
-    return new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase)
-    {
-        ["display.profile"] = windowsPlatform.Display
-    };
+    return providers;
 }
 
 static async Task<ITrayService?> StartTrayAsync(WebApplication app, string root, string dataRoot, string[] args, WindowsPlatformPack? platform)

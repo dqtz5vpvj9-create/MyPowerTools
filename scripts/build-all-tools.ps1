@@ -186,6 +186,7 @@ $toolRegistry = @(
         SurfaceAssembly  = 'AdbForwarder.Surface.dll'
         SurfaceTarget    = 'ui\surface'
         RuntimeStagePath = 'tools\adb-forwarder\artifacts\package'
+        ServiceUnits     = @()
     },
     [pscustomobject]@{
         Id               = 'doubao-computer-use'
@@ -195,6 +196,13 @@ $toolRegistry = @(
         SurfaceAssembly  = 'DoubaoAgent.Surface.dll'
         SurfaceTarget    = 'ui\surface'
         RuntimeStagePath = 'tools\doubao-computer-use\artifacts\package'
+        ServiceUnits     = @(
+            [pscustomobject]@{
+                Project = 'tools\doubao-computer-use\current-integration\src\DoubaoAgent.Controller.Service\DoubaoAgent.Controller.Service.csproj'
+                Manifest = 'tools\doubao-computer-use\current-integration\src\DoubaoAgent.Controller.Service\unit-manifest.json'
+                UnitId   = 'doubao-agent.controller.service'
+            }
+        )
     },
     [pscustomobject]@{
         Id               = 'remote-notifications'
@@ -204,6 +212,13 @@ $toolRegistry = @(
         SurfaceAssembly  = 'RemoteNotifications.Surface.dll'
         SurfaceTarget    = 'modules\notifications\ui\surface'
         RuntimeStagePath = 'tools\remote-notifications\artifacts\package\android-tools-suite'
+        ServiceUnits     = @(
+            [pscustomobject]@{
+                Project = 'tools\remote-notifications\current-integration\src\RemoteNotifications.Service\RemoteNotifications.Service.csproj'
+                Manifest = 'tools\remote-notifications\current-integration\src\RemoteNotifications.Service\unit-manifest.json'
+                UnitId   = 'remote-notifications.service'
+            }
+        )
     },
     [pscustomobject]@{
         Id               = 'screenease'
@@ -213,6 +228,13 @@ $toolRegistry = @(
         SurfaceAssembly  = 'ScreenEase.Surface.dll'
         SurfaceTarget    = 'ui\surface'
         RuntimeStagePath = 'tools\screenease\artifacts\package'
+        ServiceUnits     = @(
+            [pscustomobject]@{
+                Project = 'tools\screenease\current-integration\src\ScreenEase.Service\ScreenEase.Service.csproj'
+                Manifest = 'tools\screenease\current-integration\src\ScreenEase.Service\unit-manifest.json'
+                UnitId   = 'screenease.service'
+            }
+        )
     },
     [pscustomobject]@{
         Id               = 'smartbird-thermostat'
@@ -222,6 +244,7 @@ $toolRegistry = @(
         SurfaceAssembly  = 'SmartBird.Surface.dll'
         SurfaceTarget    = 'ui\surface'
         RuntimeStagePath = 'tools\smartbird-thermostat\artifacts\package'
+        ServiceUnits     = @()
     }
 )
 
@@ -351,15 +374,6 @@ foreach ($tool in $toolRegistry) {
         $surfaceRuntimeOut = Join-Path $runtimeStageFull $tool.SurfaceTarget
         Copy-SurfaceOutput -Source $surfaceBuildOut -Destination $surfaceRuntimeOut -AssemblyName $tool.SurfaceAssembly
 
-        # Surface staging changes package contents, so refresh the local package
-        # hash/signature documents before collecting or installing the package.
-        $cliExe = Join-Path $repoRoot 'artifacts\sdk\cli\MyPowerTools.Cli.exe'
-        if (-not (Test-Path -LiteralPath $cliExe -PathType Leaf)) {
-            throw "SDK CLI is missing: $cliExe"
-        }
-        Invoke-Native -FilePath $cliExe -ArgumentList @(
-            'package', 'sign-local', $runtimeStageFull
-        ) -Activity "mpt package sign-local $currentToolId"
     } else {
         Write-Warning "[$currentToolId] Surface project not found at $surfaceProjFull; skipping Surface pack."
     }
@@ -382,10 +396,74 @@ foreach ($tool in $toolRegistry) {
         }
     }
 
+    # ---- Service Units ---------------------------------------------------
+    # Publish each tool's declared Service Unit worker into the collection under
+    # service-units/<unit-id>/ (bin + unit-manifest.json). The Suite consumes this
+    # deployable payload directly; a separate package staging directory receives the
+    # same layout below so the .mptpkg remains independently distributable without
+    # duplicating workers inside the Runner module catalog.
+    $serviceUnitIds = @()
+    if ($tool.PSObject.Properties['ServiceUnits'] -and $tool.ServiceUnits.Count -gt 0) {
+        foreach ($unit in $tool.ServiceUnits) {
+            $unitProject  = Join-Path $repoRoot $unit.Project
+            $unitManifest = Join-Path $repoRoot $unit.Manifest
+            if (-not (Test-Path -LiteralPath $unitProject -PathType Leaf)) {
+                throw "[$currentToolId] Service Unit project not found: $unitProject"
+            }
+            if (-not (Test-Path -LiteralPath $unitManifest -PathType Leaf)) {
+                throw "[$currentToolId] Service Unit manifest not found: $unitManifest"
+            }
+
+            $unitCollectDir = Join-Path $collectDir "service-units\$($unit.UnitId)"
+            $unitBinDir = Join-Path $unitCollectDir 'bin'
+            Write-Host "==> [$currentToolId] Service Unit: $($unit.UnitId)" -ForegroundColor Cyan
+            # Self-contained + RID so the worker runs on a clean Windows host with no
+            # global .NET install (portable guarantee). The cost is the bundled runtime
+            # per unit; a future shared-runtime deployment will deduplicate that.
+            Invoke-Native -FilePath $dotnet -ArgumentList @(
+                'publish', $unitProject,
+                '--configuration', $Configuration,
+                '--runtime', 'win-x64',
+                '--output', $unitBinDir,
+                '--self-contained', 'true',
+                '--nologo', '--verbosity', 'minimal',
+                '/p:DebugType=None',
+                '/p:DebugSymbols=false',
+                "-p:MyPowerToolsRepoRoot=$repoRoot"
+            ) -Activity "dotnet publish Service Unit $($unit.UnitId)"
+            Copy-Item -LiteralPath $unitManifest -Destination (Join-Path $unitCollectDir 'unit-manifest.json') -Force
+            $serviceUnitIds += $unit.UnitId
+        }
+    }
+
+    # Sign the module runtime exactly as Runner consumes it.
+    $cliExe = Join-Path $repoRoot 'artifacts\sdk\cli\MyPowerTools.Cli.exe'
+    if (-not (Test-Path -LiteralPath $cliExe -PathType Leaf)) {
+        throw "SDK CLI is missing: $cliExe"
+    }
+    Invoke-Native -FilePath $cliExe -ArgumentList @(
+        'package', 'sign-local', $runtimeCollect
+    ) -Activity "mpt package sign-local $currentToolId"
+
+    # Build the independent package in its own staging root. It contains the signed
+    # runtime plus every declared Service Unit and receives a fresh signature after
+    # those files are added. The staging root is removed after compression.
+    $packageStaging = Join-Path $collectDir '.package-staging'
+    Copy-DirectoryContents -Source $runtimeCollect -Destination $packageStaging
+    foreach ($unitId in $serviceUnitIds) {
+        Copy-DirectoryContents `
+            -Source (Join-Path $collectDir "service-units\$unitId") `
+            -Destination (Join-Path $packageStaging "service-units\$unitId")
+    }
+    Invoke-Native -FilePath $cliExe -ArgumentList @(
+        'package', 'sign-local', $packageStaging
+    ) -Activity "mpt package sign-local independent $currentToolId"
+
     $archiveZip = Join-Path $collectDir "$currentToolId-$toolVersion.zip"
     $packagePath = Join-Path $collectDir "$currentToolId-$toolVersion.mptpkg"
-    Compress-Archive -Path (Join-Path $runtimeCollect '*') -DestinationPath $archiveZip -CompressionLevel Optimal
+    Compress-Archive -Path (Join-Path $packageStaging '*') -DestinationPath $archiveZip -CompressionLevel Optimal
     Move-Item -LiteralPath $archiveZip -Destination $packagePath -Force
+    Remove-Item -LiteralPath $packageStaging -Recurse -Force
 
     # ---- Source info for this tool submodule -----------------------------
     $submodulePath = [System.IO.Path]::GetFullPath((Join-Path $repoRoot "tools\$currentToolId"))
@@ -393,13 +471,15 @@ foreach ($tool in $toolRegistry) {
 
     $artifactsRelative = @('runtime/', (Split-Path -Leaf $packagePath))
     if ($surfaceOutputs.Count -gt 0) { $artifactsRelative += @('surface/') }
+    if ($serviceUnitIds.Count -gt 0) { $artifactsRelative += @('service-units/') }
 
     [void]$perToolManifest.Add([ordered]@{
-        toolId    = $currentToolId
-        version   = $toolVersion
-        source    = $srcInfo
-        artifacts = $artifactsRelative
-        output    = "artifacts/tools/$currentToolId/$toolVersion"
+        toolId       = $currentToolId
+        version      = $toolVersion
+        source       = $srcInfo
+        artifacts    = $artifactsRelative
+        serviceUnits = $serviceUnitIds
+        output       = "artifacts/tools/$currentToolId/$toolVersion"
     })
 
     Write-Host "  OK [$currentToolId] -> $collectDir" -ForegroundColor Green

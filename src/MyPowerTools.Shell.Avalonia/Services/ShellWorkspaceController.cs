@@ -325,18 +325,6 @@ public sealed partial class ShellWorkspaceController : IAsyncDisposable
 
     private async Task ApplyHostEventAsync(HostProto.HostEvent evt)
     {
-        if (string.Equals(evt.SourceId, "android-tools.notifications", StringComparison.OrdinalIgnoreCase) &&
-            string.Equals(evt.Type, "message.received", StringComparison.OrdinalIgnoreCase))
-        {
-            // Remote Notifications is now owned by its Service Unit; the Shell only refreshes the
-            // tool surface when the user is actively viewing it.
-            if (string.Equals(_currentToolId, "remote-notifications", StringComparison.OrdinalIgnoreCase))
-            {
-                await ShowToolPageAsync("remote-notifications", _currentToolRouteId);
-            }
-            return;
-        }
-
         var plan = ShellPageRefreshRouter.Route(_currentPage, evt);
         if (plan.ReloadBrokerAudit)
         {

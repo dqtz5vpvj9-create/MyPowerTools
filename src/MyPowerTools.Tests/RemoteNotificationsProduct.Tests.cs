@@ -508,7 +508,7 @@ public sealed class RemoteNotificationsProductTests
             "remote-notifications",
             "current-integration",
             "src",
-            "MyPowerTools.Shell.Avalonia");
+            "RemoteNotifications.Surface");
         var store = File.ReadAllText(Path.Combine(
             integrationRoot, "Services", "RemoteNotificationsLegacyStore.cs"));
         var viewModel = File.ReadAllText(Path.Combine(
@@ -525,8 +525,16 @@ public sealed class RemoteNotificationsProductTests
             integrationRoot, "Views", "RemoteNotificationDetailWindow.axaml"));
         var toastPlatform = File.ReadAllText(Path.Combine(
             integrationRoot, "Services", "WindowsRemoteNotificationToastPlatform.cs"));
-        var program = File.ReadAllText(Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Program.cs"));
-        var app = File.ReadAllText(Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "App.cs"));
+        var serviceClient = File.ReadAllText(Path.Combine(
+            integrationRoot, "Services", "RemoteNotificationsServiceClient.cs"));
+        var worker = File.ReadAllText(Path.Combine(
+            Root,
+            "tools",
+            "remote-notifications",
+            "current-integration",
+            "src",
+            "RemoteNotifications.Service",
+            "Program.cs"));
 
         Assert.Contains("MaximumMessages = 500", store, StringComparison.Ordinal);
         Assert.Contains("MaximumRecentHashes = 200", store, StringComparison.Ordinal);
@@ -544,14 +552,12 @@ public sealed class RemoteNotificationsProductTests
         Assert.Contains("WindowStartupLocation=\"CenterScreen\"", detailView, StringComparison.Ordinal);
         Assert.Contains("WindowsToastAbi.Show", toastPlatform, StringComparison.Ordinal);
         Assert.Contains("SetCurrentProcessExplicitAppUserModelID", toastPlatform, StringComparison.Ordinal);
-        Assert.Contains("TryForwardToRunningShellAsync", program, StringComparison.Ordinal);
-        Assert.Contains("RemoteNotificationShellInstanceLock.Acquire", program, StringComparison.Ordinal);
-        Assert.True(
-            program.IndexOf("--smoke", StringComparison.Ordinal) <
-            program.IndexOf("RemoteNotificationShellInstanceLock.Acquire", StringComparison.Ordinal));
-        Assert.Contains("RemoteNotificationActivationCoordinator", app, StringComparison.Ordinal);
-        Assert.Contains("detailOnlyStartup", app, StringComparison.Ordinal);
-        Assert.Contains("mainWindow is null ? null : mainWindow.FocusCommandPaletteAsync", app, StringComparison.Ordinal);
+        Assert.Contains("IServiceUnitClient", serviceClient, StringComparison.Ordinal);
+        Assert.Contains("ResolvePipeName", serviceClient, StringComparison.Ordinal);
+        Assert.Contains("_serviceClient.PollAsync", viewModel, StringComparison.Ordinal);
+        Assert.Contains("ObserveServiceAsync", viewModel, StringComparison.Ordinal);
+        Assert.Contains("RunOnePollCycle", worker, StringComparison.Ordinal);
+        Assert.Contains("ServeControlPipe", worker, StringComparison.Ordinal);
 
         var originalRoot = Path.Combine(Root, "..", "androidtools");
         if (!Directory.Exists(originalRoot))

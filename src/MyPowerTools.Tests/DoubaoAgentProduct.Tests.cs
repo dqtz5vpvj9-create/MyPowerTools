@@ -59,19 +59,39 @@ public sealed class DoubaoAgentProductTests
     [Fact]
     public void Doubao_navigation_mounts_cached_state_without_awaiting_business_probes()
     {
-        var source = File.ReadAllText(Path.Combine(
+        var factory = File.ReadAllText(Path.Combine(
             Root,
+            "tools",
+            "doubao-computer-use",
+            "current-integration",
             "src",
-            "MyPowerTools.Shell.Avalonia",
+            "DoubaoAgent.Surface",
+            "DoubaoAgentSurfaceFactory.cs"));
+        var service = File.ReadAllText(Path.Combine(
+            Root,
+            "tools",
+            "doubao-computer-use",
+            "current-integration",
+            "src",
+            "DoubaoAgent.Surface",
             "Services",
-            "ShellWorkspaceController.Tools.cs"));
-        var start = source.IndexOf("private Task LoadDoubaoAgentToolAsync", StringComparison.Ordinal);
-        var end = source.IndexOf("private async Task LoadSmartBirdThermostatToolAsync", start, StringComparison.Ordinal);
-        var method = source[start..end];
+            "DoubaoAgentToolService.cs"));
+        var operations = File.ReadAllText(Path.Combine(
+            Root,
+            "tools",
+            "doubao-computer-use",
+            "current-integration",
+            "src",
+            "DoubaoAgent.Surface",
+            "ViewModels",
+            "DoubaoAgentViewModel.Operations.cs"));
 
-        Assert.Contains("_doubaoAgentTools.CurrentSnapshot", method, StringComparison.Ordinal);
-        Assert.Contains("SetOwnedContent", method, StringComparison.Ordinal);
-        Assert.DoesNotContain("_doubaoAgentTools.LoadAsync", method, StringComparison.Ordinal);
+        Assert.Contains("var snapshot = tools.CurrentSnapshot", factory, StringComparison.Ordinal);
+        Assert.Contains("new DoubaoAgentViewModel(snapshot, tools", factory, StringComparison.Ordinal);
+        Assert.DoesNotContain("await tools.RefreshAsync", factory, StringComparison.Ordinal);
+        Assert.Contains("GetCachedSnapshotAsync", service, StringComparison.Ordinal);
+        Assert.Contains("public void Activate()", operations, StringComparison.Ordinal);
+        Assert.Contains("await _service.RefreshAsync(cancellationToken)", operations, StringComparison.Ordinal);
     }
 
     [Fact]

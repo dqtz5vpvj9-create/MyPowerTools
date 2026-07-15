@@ -97,7 +97,7 @@ public sealed class ServiceUnitCatalog
             {
                 if (item.ValueKind == JsonValueKind.String && item.GetString() is { } a)
                 {
-                    arguments.Add(a);
+                    arguments.Add(Expand(a));
                 }
             }
         }
@@ -109,7 +109,7 @@ public sealed class ServiceUnitCatalog
         {
             foreach (var prop in envEl.EnumerateObject())
             {
-                environment[prop.Name] = prop.Value.GetString() ?? "";
+                environment[prop.Name] = Expand(prop.Value.GetString() ?? "");
             }
         }
 
@@ -178,6 +178,7 @@ public sealed class ServiceUnitCatalog
 
     private static string ResolvePath(string path, string? relativeTo)
     {
+        path = Expand(path);
         if (string.IsNullOrWhiteSpace(path))
         {
             return path;
@@ -198,9 +199,20 @@ public sealed class ServiceUnitCatalog
             return path;
         }
 
-        return path
-            .Replace("%LOCALAPPDATA%", Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), StringComparison.OrdinalIgnoreCase)
-            .Replace("%APPDATA%", Environment.GetFolderPath(Environment.SpecialFolder.ApplicationData), StringComparison.OrdinalIgnoreCase)
-            .Replace("~", Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), StringComparison.OrdinalIgnoreCase);
+        var expanded = Environment.ExpandEnvironmentVariables(path);
+        if (expanded == "~")
+        {
+            return Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+        }
+
+        if (expanded.StartsWith("~/", StringComparison.Ordinal) ||
+            expanded.StartsWith("~\\", StringComparison.Ordinal))
+        {
+            return Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
+                expanded[2..]);
+        }
+
+        return expanded;
     }
 }

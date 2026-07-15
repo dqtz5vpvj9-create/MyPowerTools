@@ -164,34 +164,130 @@ foreach ($tool in $selectedTools) {
     })
 }
 
-# ScreenEase is currently the only first-party product with a real independently
-# managed Service Unit executable. Other products stay out of the unit catalog
-# until their dedicated worker/controller process is shipped.
-$serviceUnitRoot = Join-Path $payloadRoot 'service-units\screenease.service'
-$serviceBinaryRoot = Join-Path $serviceUnitRoot 'bin'
-Invoke-Native -FilePath 'dotnet' -ArgumentList @(
-    'publish', (Join-Path $repoRoot 'tools\screenease\current-integration\src\ScreenEase.Service\ScreenEase.Service.csproj'),
-    '--configuration', 'Release',
-    '--runtime', $RuntimeIdentifier,
-    '--output', $serviceBinaryRoot,
-    '--self-contained', $selfContained.ToString().ToLowerInvariant(),
-    '--nologo', '--verbosity', 'minimal'
-) -Activity 'publish ScreenEase Service Unit'
-Copy-Item -LiteralPath (Join-Path $repoRoot 'tools\screenease\current-integration\src\ScreenEase.Service\unit-manifest.json') -Destination (Join-Path $serviceUnitRoot 'unit-manifest.json') -Force
+# Collect Service Units dynamically from the tool artifacts. build-all-tools.ps1
+# already published each tool's declared units into artifacts/tools/<id>/<ver>/service-units/<unit-id>/.
+# The installer copies whichever units exist — no first-party tool id is hard-coded here.
+$payloadServiceUnitsRoot = Join-Path $payloadRoot 'service-units'
+$collectedUnitIds = [System.Collections.Generic.List[string]]::new()
+foreach ($tool in $selectedTools) {
+    $artifactDirectory = Join-Path $repoRoot ($tool.output -replace '/', '\')
+    $toolServiceUnitsRoot = Join-Path $artifactDirectory 'service-units'
+    if (-not (Test-Path -LiteralPath $toolServiceUnitsRoot -PathType Container)) {
+        continue
+    }
+    foreach ($unitDir in Get-ChildItem -LiteralPath $toolServiceUnitsRoot -Directory) {
+        $unitManifestPath = Join-Path $unitDir.FullName 'unit-manifest.json'
+        if (-not (Test-Path -LiteralPath $unitManifestPath -PathType Leaf)) {
+            continue
+        }
+        $unitManifest = Get-Content -LiteralPath $unitManifestPath -Raw | ConvertFrom-Json
+        $unitId = [string]$unitManifest.id
+        $destination = Join-Path $payloadServiceUnitsRoot $unitId
+        Copy-DirectoryContents -Source $unitDir.FullName -Destination $destination
+        $collectedUnitIds.Add($unitId)
+        Write-Host "  + Service Unit collected: $unitId (toolId=$($unitManifest.toolId))" -ForegroundColor DarkGray
+    }
+}
 
 $installerTemplate = @'
 [CmdletBinding()]
 param(
     [string]$InstallBase = (Join-Path $env:LOCALAPPDATA 'Programs\MyPowerTools'),
     [string]$DataRoot = (Join-Path $env:LOCALAPPDATA 'MyPowerTools'),
+    [string]$ServiceManagerEndpoint = '',
+    [string]$ServiceManagerInstanceName = '',
+    [string]$ServiceUnitInstanceName = '',
     [switch]$NoLaunch
 )
 
 $ErrorActionPreference = 'Stop'
+function Invoke-NativeQuiet {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$FilePath,
+
+        [string[]]$ArgumentList = @()
+    )
+
+    $savedErrorActionPreference = $ErrorActionPreference
+    $nativePreference = Get-Variable -Name PSNativeCommandUseErrorActionPreference -ErrorAction SilentlyContinue
+    if ($null -ne $nativePreference) {
+        $savedNativePreference = $nativePreference.Value
+        Set-Variable -Name PSNativeCommandUseErrorActionPreference -Value $false
+    }
+
+    $ErrorActionPreference = 'Continue'
+    try {
+        & $FilePath @ArgumentList *> $null
+        $nativeExitCode = $LASTEXITCODE
+    }
+    catch {
+        $nativeExitCode = 1
+    }
+    finally {
+        $ErrorActionPreference = $savedErrorActionPreference
+        if ($null -ne $nativePreference) {
+            Set-Variable -Name PSNativeCommandUseErrorActionPreference -Value $savedNativePreference
+        }
+    }
+
+    return [int]$nativeExitCode
+}
+
+function Invoke-NativeCapture {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory)]
+        [string]$FilePath,
+
+        [string[]]$ArgumentList = @()
+    )
+
+    $savedErrorActionPreference = $ErrorActionPreference
+    $nativePreference = Get-Variable -Name PSNativeCommandUseErrorActionPreference -ErrorAction SilentlyContinue
+    if ($null -ne $nativePreference) {
+        $savedNativePreference = $nativePreference.Value
+        Set-Variable -Name PSNativeCommandUseErrorActionPreference -Value $false
+    }
+
+    $ErrorActionPreference = 'Continue'
+    try {
+        $nativeOutput = @(& $FilePath @ArgumentList 2>&1)
+        $nativeExitCode = $LASTEXITCODE
+    }
+    catch {
+        $nativeOutput = @($_.Exception.Message)
+        $nativeExitCode = 1
+    }
+    finally {
+        $ErrorActionPreference = $savedErrorActionPreference
+        if ($null -ne $nativePreference) {
+            Set-Variable -Name PSNativeCommandUseErrorActionPreference -Value $savedNativePreference
+        }
+    }
+
+    return [pscustomobject]@{
+        ExitCode = [int]$nativeExitCode
+        Output = $nativeOutput
+    }
+}
+
 $version = '__VERSION__'
 $sourcePayload = Join-Path $PSScriptRoot 'payload'
 $installRoot = Join-Path ([IO.Path]::GetFullPath($InstallBase)) $version
 $dataRootFull = [IO.Path]::GetFullPath($DataRoot)
+$smEndpointArg = @()
+$cliEndpointArg = @()
+if (-not [string]::IsNullOrWhiteSpace($ServiceManagerEndpoint)) {
+    $smEndpointArg = @('--endpoint-address', $ServiceManagerEndpoint)
+    $cliEndpointArg = @('--endpoint-address', $ServiceManagerEndpoint)
+}
+$smInstanceArg = @()
+if (-not [string]::IsNullOrWhiteSpace($ServiceManagerInstanceName)) {
+    $smInstanceArg = @('--instance-name', $ServiceManagerInstanceName)
+}
+$isolatedManager = $smEndpointArg.Count -gt 0 -or $smInstanceArg.Count -gt 0
 
 New-Item -ItemType Directory -Path $installRoot, $dataRootFull -Force | Out-Null
 foreach ($item in Get-ChildItem -LiteralPath $sourcePayload -Force) {
@@ -200,43 +296,192 @@ foreach ($item in Get-ChildItem -LiteralPath $sourcePayload -Force) {
 
 $managerDeployRoot = Join-Path $dataRootFull 'ServiceManager'
 $managerUnitsRoot = Join-Path $managerDeployRoot 'units'
-$unitVersionRoot = Join-Path $managerDeployRoot "versions\$version\screenease.service"
-New-Item -ItemType Directory -Path $managerUnitsRoot, $unitVersionRoot -Force | Out-Null
-foreach ($item in Get-ChildItem -LiteralPath (Join-Path $installRoot 'service-units\screenease.service\bin') -Force) {
-    Copy-Item -LiteralPath $item.FullName -Destination $unitVersionRoot -Recurse -Force
+New-Item -ItemType Directory -Path $managerUnitsRoot -Force | Out-Null
+
+# Deploy every Service Unit shipped in the payload. Each unit lives under
+# service-units/<unit-id>/ (bin + unit-manifest.json). The exec path, working
+# directory, pipe/address, heartbeat, token and dataRoots are rewritten to the
+# install-specific versioned directory; when an isolated instance name is given
+# the pipe name and token are namespaced so test runs never collide with the
+# user's daily units. No tool id is hard-coded.
+$payloadUnitsRoot = Join-Path $installRoot 'service-units'
+$deployedUnitIds = @()
+$deployedUnits = @()
+$unitStatusRecords = @()
+$managedUnitsStatePath = Join-Path $dataRootFull 'state\installed-service-units.json'
+$previousManagedUnitIds = @()
+if (Test-Path -LiteralPath $managedUnitsStatePath -PathType Leaf) {
+    try {
+        $previousManagedUnitIds = @((Get-Content -LiteralPath $managedUnitsStatePath -Raw | ConvertFrom-Json).unitIds)
+    }
+    catch {
+        $previousManagedUnitIds = @()
+    }
+}
+if (Test-Path -LiteralPath $payloadUnitsRoot -PathType Container) {
+    foreach ($unitDir in Get-ChildItem -LiteralPath $payloadUnitsRoot -Directory) {
+        $unitTemplatePath = Join-Path $unitDir.FullName 'unit-manifest.json'
+        if (-not (Test-Path -LiteralPath $unitTemplatePath -PathType Leaf)) {
+            continue
+        }
+        $unitManifest = Get-Content -LiteralPath $unitTemplatePath -Raw | ConvertFrom-Json
+        $unitId = [string]$unitManifest.id
+        $unitVersionRoot = Join-Path $managerDeployRoot "versions\$version\$unitId"
+        New-Item -ItemType Directory -Path $unitVersionRoot -Force | Out-Null
+        foreach ($binItem in Get-ChildItem -LiteralPath (Join-Path $unitDir.FullName 'bin') -Force) {
+            Copy-Item -LiteralPath $binItem.FullName -Destination $unitVersionRoot -Recurse -Force
+        }
+
+        # The original exec is a bare filename (e.g. ScreenEase.Service.exe); resolve it
+        # against the published bin output now staged in the versioned directory.
+        $execName = [string]$unitManifest.exec
+        $resolvedExec = Join-Path $unitVersionRoot $execName
+        if (-not (Test-Path -LiteralPath $resolvedExec -PathType Leaf)) {
+            # Fall back to the first .exe in the bin dir if the declared exec name differs.
+            $firstExe = Get-ChildItem -LiteralPath $unitVersionRoot -Filter '*.exe' -File | Select-Object -First 1
+            if ($null -ne $firstExe) { $resolvedExec = $firstExe.FullName }
+        }
+        $unitManifest.exec = $resolvedExec
+        $unitManifest.workingDirectory = $unitVersionRoot
+
+        # Namespace pipe / token for isolated test instances. The manifest's declared
+        # readiness address and environment pipe name are updated to match.
+        $unitPipe = $null
+        $unitToken = [string]$unitManifest.instanceToken
+        $unitHeartbeat = Join-Path $dataRootFull "state\$unitId.heartbeat"
+        if ($unitManifest.readiness -and [string]$unitManifest.readiness.kind -eq 'pipe') {
+            $unitPipe = [string]$unitManifest.readiness.address
+        }
+        if (-not [string]::IsNullOrWhiteSpace($ServiceUnitInstanceName)) {
+            $safeInstanceName = $ServiceUnitInstanceName -replace '[^A-Za-z0-9_.-]', '-'
+            if ([string]::IsNullOrWhiteSpace($safeInstanceName)) {
+                throw 'ServiceUnitInstanceName does not contain a usable character.'
+            }
+            if ($null -ne $unitPipe -and $unitPipe.Length -gt 0) {
+                $unitPipe = "$unitPipe.$safeInstanceName"
+            }
+            $unitToken = "$unitToken-$safeInstanceName"
+        }
+
+        # Rewrite the manifest arguments so --pipe / --heartbeat-file / --instance-token
+        # point at the install-specific values. Only known flags are rewritten; units that
+        # declare additional flags keep them untouched.
+        $rewrittenArgs = [System.Collections.Generic.List[string]]::new()
+        $args = @($unitManifest.arguments)
+        for ($i = 0; $i -lt $args.Count; $i++) {
+            $flag = [string]$args[$i]
+            if ($flag -eq '--pipe' -and $null -ne $unitPipe -and $unitPipe.Length -gt 0) {
+                $rewrittenArgs.Add('--pipe'); $rewrittenArgs.Add($unitPipe); $i++; continue
+            }
+            if ($flag -eq '--heartbeat-file') {
+                $rewrittenArgs.Add('--heartbeat-file'); $rewrittenArgs.Add($unitHeartbeat); $i++; continue
+            }
+            if ($flag -eq '--instance-token') {
+                $rewrittenArgs.Add('--instance-token'); $rewrittenArgs.Add($unitToken); $i++; continue
+            }
+            $rewrittenArgs.Add($flag)
+        }
+        $unitManifest.arguments = $rewrittenArgs.ToArray()
+        if ($null -ne $unitPipe -and $unitPipe.Length -gt 0) {
+            $unitManifest.readiness.address = $unitPipe
+        }
+        $unitManifest.instanceToken = $unitToken
+        # Rewrite dataRoots to live under the install data root.
+        $toolDataRoot = Join-Path $dataRootFull "state\tools\$([string]$unitManifest.toolId)"
+        $unitManifest.dataRoots = @($toolDataRoot)
+        $unitEnvironment = @{}
+        if ($null -ne $unitManifest.environment) {
+            foreach ($property in $unitManifest.environment.PSObject.Properties) {
+                $unitEnvironment[$property.Name] = [string]$property.Value
+            }
+        }
+        $unitEnvironment['MPT_DATA_ROOT'] = $dataRootFull
+        $unitEnvironment['MPT_TOOL_DATA_ROOT'] = $toolDataRoot
+        $unitManifest.environment = $unitEnvironment
+
+        $unitManifest | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $managerUnitsRoot "$unitId.json") -Encoding UTF8
+        $deployedUnitIds += $unitId
+        $deployedUnits += [pscustomobject]@{
+            unitId = $unitId
+            autostart = [bool]$unitManifest.autostart
+        }
+    }
 }
 
-$unitTemplatePath = Join-Path $installRoot 'service-units\screenease.service\unit-manifest.json'
-$unitManifest = Get-Content -LiteralPath $unitTemplatePath -Raw | ConvertFrom-Json
-$unitManifest.exec = Join-Path $unitVersionRoot 'ScreenEase.Service.exe'
-$unitManifest.workingDirectory = $unitVersionRoot
-$unitManifest | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $managerUnitsRoot 'screenease.service.json') -Encoding UTF8
+# Remove only units recorded as managed by an earlier MyPowerTools installation.
+# User-authored manifests that share the deploy root remain untouched.
+foreach ($staleUnitId in @($previousManagedUnitIds | Where-Object { $_ -and $_ -notin $deployedUnitIds })) {
+    $staleManifestPath = Join-Path $managerUnitsRoot "$staleUnitId.json"
+    if (Test-Path -LiteralPath $staleManifestPath -PathType Leaf) {
+        Remove-Item -LiteralPath $staleManifestPath -Force
+    }
+}
 
 $serviceManager = Join-Path $installRoot 'ServiceManager\MyPowerTools.ServiceManager.exe'
-& $serviceManager --register-autostart --data-root $dataRootFull *> $null
-if ($LASTEXITCODE -ne 0) { throw 'ServiceManager autostart registration failed.' }
+if (-not $isolatedManager) {
+    $registerExitCode = Invoke-NativeQuiet -FilePath $serviceManager -ArgumentList @('--register-autostart', '--data-root', $dataRootFull)
+    if ($registerExitCode -ne 0) { throw 'ServiceManager autostart registration failed.' }
+}
 
-$managerProcess = Get-Process -Name 'MyPowerTools.ServiceManager' -ErrorAction SilentlyContinue | Select-Object -First 1
+$managerProcess = $null
+if (-not $isolatedManager) {
+    $managerProcess = Get-Process -Name 'MyPowerTools.ServiceManager' -ErrorAction SilentlyContinue | Select-Object -First 1
+}
 if ($null -eq $managerProcess) {
-    $managerProcess = Start-Process -FilePath $serviceManager -ArgumentList @('--data-root', $dataRootFull, '--deploy-root', $managerDeployRoot) -WorkingDirectory $installRoot -WindowStyle Hidden -PassThru
+    $managerLogRoot = Join-Path $dataRootFull 'logs'
+    New-Item -ItemType Directory -Path $managerLogRoot -Force | Out-Null
+    $managerArguments = @('--data-root', $dataRootFull, '--deploy-root', $managerDeployRoot) + $smEndpointArg + $smInstanceArg
+    $managerProcess = Start-Process -FilePath $serviceManager -ArgumentList $managerArguments -WorkingDirectory $installRoot -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $managerLogRoot 'servicemanager.stdout.log') -RedirectStandardError (Join-Path $managerLogRoot 'servicemanager.stderr.log')
 }
 
 $env:MPT_DATA_ROOT = $dataRootFull
+if (-not [string]::IsNullOrWhiteSpace($ServiceManagerEndpoint)) {
+    $env:MPT_SERVICEMANAGER_ENDPOINT = $ServiceManagerEndpoint
+}
 $cli = Join-Path $installRoot 'Cli\MyPowerTools.Cli.exe'
 $managerReady = $false
+$reloadExitCode = -1
 for ($attempt = 0; $attempt -lt 30; $attempt++) {
-    & $cli service reload *> $null
-    if ($LASTEXITCODE -eq 0) {
+    $reloadExitCode = Invoke-NativeQuiet -FilePath $cli -ArgumentList (@('service', 'reload') + $cliEndpointArg)
+    if ($reloadExitCode -eq 0) {
         $managerReady = $true
         break
     }
+
+    $managerProcess.Refresh()
+    if ($managerProcess.HasExited) {
+        break
+    }
+
     Start-Sleep -Milliseconds 500
 }
-if (-not $managerReady) { throw 'ServiceManager did not become ready after installation.' }
+if (-not $managerReady) {
+    $tokenPath = Join-Path $dataRootFull 'state\servicemanager.token'
+    throw "ServiceManager did not become ready after installation. reloadExit=$reloadExitCode; managerExited=$($managerProcess.HasExited); tokenExists=$(Test-Path -LiteralPath $tokenPath)"
+}
 
-& $cli service start screenease.service *> $null
-if ($LASTEXITCODE -ne 0) { throw 'ScreenEase Service Unit activation failed.' }
-$unitStatus = & $cli service status screenease.service | ConvertFrom-Json
+# Reload performs an atomic stop/update/start for changed live units. Start remains idempotent
+# and activates newly installed units whose manifests opt into autostart.
+foreach ($unit in $deployedUnits) {
+    $unitId = [string]$unit.unitId
+    if ([bool]$unit.autostart) {
+        $startExitCode = Invoke-NativeQuiet -FilePath $cli -ArgumentList (@('service', 'start', $unitId) + $cliEndpointArg)
+        if ($startExitCode -ne 0) { throw "Service Unit activation failed: $unitId" }
+    }
+    $statusResult = Invoke-NativeCapture -FilePath $cli -ArgumentList (@('service', 'status', $unitId) + $cliEndpointArg)
+    if ($statusResult.ExitCode -ne 0) { throw "Service Unit status query failed: $unitId" }
+    $unitStatus = ($statusResult.Output | Out-String) | ConvertFrom-Json
+    $unitStatusRecords += [pscustomobject]@{
+        unitId = $unitId
+        state = $unitStatus.state
+        pid = $unitStatus.Pid
+    }
+}
+
+New-Item -ItemType Directory -Path (Split-Path -Parent $managedUnitsStatePath) -Force | Out-Null
+[ordered]@{ unitIds = @($deployedUnitIds); updatedAt = [DateTimeOffset]::UtcNow.ToString('O') } |
+    ConvertTo-Json -Depth 4 |
+    Set-Content -LiteralPath $managedUnitsStatePath -Encoding UTF8
 
 $result = [ordered]@{
     version = $version
@@ -245,9 +490,11 @@ $result = [ordered]@{
     dataRoot = $dataRootFull
     serviceManager = $serviceManager
     serviceManagerPid = $managerProcess.Id
-    units = @('screenease.service')
-    serviceUnitState = $unitStatus.state
-    serviceUnitPid = $unitStatus.Pid
+    serviceManagerEndpoint = $ServiceManagerEndpoint
+    serviceManagerInstanceName = $ServiceManagerInstanceName
+    units = $deployedUnitIds
+    unitStatuses = $unitStatusRecords
+    serviceUnitInstanceName = $ServiceUnitInstanceName
 }
 $resultPath = Join-Path $installRoot 'install-result.json'
 $result | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath $resultPath -Encoding UTF8
@@ -276,7 +523,7 @@ $candidateManifest = [ordered]@{
     selfContained = $selfContained
     generatedAt = [DateTimeOffset]::UtcNow.ToString('O')
     tools = $installedTools
-    serviceUnits = @('screenease.service')
+    serviceUnits = $collectedUnitIds
     files = $fileHashes
 }
 $candidateManifest | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $candidateRoot 'candidate-manifest.json') -Encoding UTF8

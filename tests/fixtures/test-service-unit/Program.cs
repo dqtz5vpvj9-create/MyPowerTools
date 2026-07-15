@@ -1,10 +1,12 @@
+using System.Buffers.Binary;
 using System.IO.Pipes;
+using System.Text.Json;
 
 // Minimal Service Unit fixture for the A3 Process Gate.
 // Behaviour required by the gate:
 //   - writes a heartbeat line (with PID) to stdout every second
 //   - writes the same heartbeat to <heartbeatFile> if provided, so the gate can observe liveness externally
-//   - when --pipe <name> is given, answers a named-pipe readiness probe by replying "pong" to any line
+//   - when --pipe <name> is given, answers the standard framed { command: "ping" } readiness probe
 //   - exits cleanly on CTRL_C / SIGINT (graceful stop path)
 var heartbeatFile = GetOption(args, "--heartbeat-file");
 var pipeName = GetOption(args, "--pipe");
@@ -66,16 +68,36 @@ static async Task ServeReadinessPipe(string name, CancellationToken cancellation
         NamedPipeServerStream? server = null;
         try
         {
-            server = new NamedPipeServerStream(name, PipeDirection.InOut, 1, PipeTransmissionMode.Byte, PipeOptions.Asynchronous);
+            server = new NamedPipeServerStream(
+                name,
+                PipeDirection.InOut,
+                1,
+                PipeTransmissionMode.Byte,
+                PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
             await server.WaitForConnectionAsync(cancellationToken);
-            // Read one line, reply pong.
-            using var reader = new StreamReader(server);
-            using var writer = new StreamWriter(server) { AutoFlush = true };
-            var line = await reader.ReadLineAsync(cancellationToken);
-            if (!string.IsNullOrEmpty(line))
+
+            var header = new byte[4];
+            await ReadExactlyAsync(server, header, cancellationToken);
+            var length = BinaryPrimitives.ReadInt32LittleEndian(header);
+            if (length <= 0 || length > 1024 * 1024)
             {
-                await writer.WriteLineAsync("pong");
+                throw new InvalidDataException($"Invalid readiness request length {length}.");
             }
+
+            var requestPayload = new byte[length];
+            await ReadExactlyAsync(server, requestPayload, cancellationToken);
+            using var request = JsonDocument.Parse(requestPayload);
+            var command = request.RootElement.TryGetProperty("command", out var commandElement)
+                ? commandElement.GetString()
+                : null;
+            object response = string.Equals(command, "ping", StringComparison.Ordinal)
+                ? new { ok = true, data = new { pong = true }, error = (string?)null }
+                : new { ok = false, data = (object?)null, error = $"Unknown command '{command}'." };
+            var responsePayload = JsonSerializer.SerializeToUtf8Bytes(response);
+            BinaryPrimitives.WriteInt32LittleEndian(header, responsePayload.Length);
+            await server.WriteAsync(header, cancellationToken);
+            await server.WriteAsync(responsePayload, cancellationToken);
+            await server.FlushAsync(cancellationToken);
         }
         catch (OperationCanceledException)
         {
@@ -89,6 +111,21 @@ static async Task ServeReadinessPipe(string name, CancellationToken cancellation
         {
             server?.Dispose();
         }
+    }
+}
+
+static async Task ReadExactlyAsync(Stream stream, Memory<byte> buffer, CancellationToken cancellationToken)
+{
+    var offset = 0;
+    while (offset < buffer.Length)
+    {
+        var read = await stream.ReadAsync(buffer[offset..], cancellationToken);
+        if (read == 0)
+        {
+            throw new EndOfStreamException();
+        }
+
+        offset += read;
     }
 }
 

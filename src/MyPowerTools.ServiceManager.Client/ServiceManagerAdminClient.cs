@@ -26,6 +26,9 @@ public sealed class ServiceManagerAdminClient : IDisposable
     /// <summary>Env var overriding the data root for ServiceManager token discovery.</summary>
     public const string DataRootEnvironmentVariable = "MPT_DATA_ROOT";
 
+    /// <summary>Optional endpoint address override used by isolated installs and test instances.</summary>
+    public const string EndpointEnvironmentVariable = "MPT_SERVICEMANAGER_ENDPOINT";
+
     private static readonly AuthTokenStore TokenStore =
         new(DataRootEnvironmentVariable, Path.Combine("state", "servicemanager.token"));
 
@@ -49,7 +52,15 @@ public sealed class ServiceManagerAdminClient : IDisposable
     }
 
     public static ServiceManagerAdminClient ForDefaultEndpoint()
-        => ForEndpoint(IpcEndpoint.ServiceManagerDefault(PlatformId.Current()));
+    {
+        var address = Environment.GetEnvironmentVariable(EndpointEnvironmentVariable);
+        var endpoint = string.IsNullOrWhiteSpace(address)
+            ? IpcEndpoint.ServiceManagerDefault(PlatformId.Current())
+            : new IpcEndpoint(
+                OperatingSystem.IsWindows() ? IpcTransport.NamedPipe : IpcTransport.UnixDomainSocket,
+                address);
+        return ForEndpoint(endpoint);
+    }
 
     public static ServiceManagerAdminClient ForEndpoint(IpcEndpoint endpoint)
         => ForEndpoint(endpoint, TokenStore.TryReadToken());

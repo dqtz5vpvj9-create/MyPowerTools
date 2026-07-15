@@ -110,6 +110,12 @@ message UnitSnapshot {
 message UnitReadiness {
   bool ok = 1;
   string message = 2;
+  // Probe kind supplied by the unit manifest, e.g. "pipe", "tcp", or "none".
+  string kind = 3;
+  // Concrete business/readiness endpoint. Scoped tool clients need this value
+  // because isolated deployments suffix pipe names per candidate instance.
+  string address = 4;
+  google.protobuf.Duration timeout = 5;
 }
 
 // Static definition of a unit, as loaded from a deploy-root manifest.

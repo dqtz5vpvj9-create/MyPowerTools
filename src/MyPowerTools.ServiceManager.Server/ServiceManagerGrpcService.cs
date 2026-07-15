@@ -99,10 +99,10 @@ public sealed class ServiceManagerGrpcService : SM.ServiceManager.ServiceManager
         }
     }
 
-    public override Task<ReloadResponse> Reload(ReloadRequest request, ServerCallContext context)
+    public override async Task<ReloadResponse> Reload(ReloadRequest request, ServerCallContext context)
     {
-        var count = _engine.Reload();
-        return Task.FromResult(new ReloadResponse { UnitCount = (uint)count });
+        var count = await _engine.ReloadAsync(context.CancellationToken);
+        return new ReloadResponse { UnitCount = (uint)count };
     }
 
     public override async Task TailLogs(TailLogsRequest request, IServerStreamWriter<SM.LogEntry> responseStream, ServerCallContext context)
@@ -260,7 +260,14 @@ public sealed class ServiceManagerGrpcService : SM.ServiceManager.ServiceManager
 
         if (s.Readiness is not null)
         {
-            proto.Readiness = new SM.UnitReadiness { Ok = s.State == Abstractions.ServiceUnitState.Active, Message = s.Readiness.Kind };
+            proto.Readiness = new SM.UnitReadiness
+            {
+                Ok = s.State == Abstractions.ServiceUnitState.Active,
+                Message = s.Readiness.Kind,
+                Kind = s.Readiness.Kind,
+                Address = s.Readiness.Address ?? string.Empty,
+                Timeout = Duration.FromTimeSpan(s.Readiness.Timeout)
+            };
         }
 
         return proto;

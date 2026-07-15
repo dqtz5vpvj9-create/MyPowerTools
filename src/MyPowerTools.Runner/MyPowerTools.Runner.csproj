@@ -22,6 +22,7 @@
     <ProjectReference Include="..\MyPowerTools.ModuleHost.StdioCompat\MyPowerTools.ModuleHost.StdioCompat.csproj" />
     <ProjectReference Include="..\MyPowerTools.Broker\MyPowerTools.Broker.csproj" />
     <ProjectReference Include="..\MyPowerTools.Platform.Windows\MyPowerTools.Platform.Windows.csproj" />
+    <ProjectReference Include="..\MyPowerTools.ServiceManager.Client\MyPowerTools.ServiceManager.Client.csproj" />
   </ItemGroup>
 
 </Project>

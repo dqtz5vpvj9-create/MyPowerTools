@@ -45,8 +45,29 @@ function Add-Record {
 
 function Invoke-Captured {
     param([string]$FilePath, [string[]]$ArgumentList, [string]$OutputPath)
-    $output = & $FilePath @ArgumentList 2>&1 | Out-String
-    $exitCode = $LASTEXITCODE
+    $savedErrorActionPreference = $ErrorActionPreference
+    $nativePreference = Get-Variable -Name PSNativeCommandUseErrorActionPreference -ErrorAction SilentlyContinue
+    if ($null -ne $nativePreference) {
+        $savedNativePreference = $nativePreference.Value
+        Set-Variable -Name PSNativeCommandUseErrorActionPreference -Value $false
+    }
+
+    $ErrorActionPreference = 'Continue'
+    try {
+        $output = & $FilePath @ArgumentList 2>&1 | Out-String
+        $exitCode = $LASTEXITCODE
+    }
+    catch {
+        $output = $_.Exception.ToString()
+        $exitCode = 1
+    }
+    finally {
+        $ErrorActionPreference = $savedErrorActionPreference
+        if ($null -ne $nativePreference) {
+            Set-Variable -Name PSNativeCommandUseErrorActionPreference -Value $savedNativePreference
+        }
+    }
+
     $output | Set-Content -LiteralPath $OutputPath -Encoding UTF8
     return [pscustomobject]@{ ExitCode = $exitCode; Output = $output }
 }
@@ -85,21 +106,87 @@ $actualTools = @($manifest.tools | ForEach-Object { [string]$_.toolId })
 $toolInventoryOk = $actualTools.Count -eq $expectedTools.Count -and @($expectedTools | Where-Object { $actualTools -notcontains $_ }).Count -eq 0
 Add-Record 'A5.1-candidate-tool-inventory' $toolInventoryOk "tools=$($actualTools -join ',')" $manifestPath
 
+$expectedServiceUnits = @('doubao-agent.controller.service', 'remote-notifications.service', 'screenease.service')
+$actualServiceUnits = @($manifest.serviceUnits | ForEach-Object { [string]$_ })
+$serviceUnitInventoryOk = $actualServiceUnits.Count -eq $expectedServiceUnits.Count -and
+    @($expectedServiceUnits | Where-Object { $actualServiceUnits -notcontains $_ }).Count -eq 0
+Add-Record 'A5.1b-service-unit-inventory' $serviceUnitInventoryOk "units=$($actualServiceUnits -join ',')" $manifestPath
+
 $criticalPaths = @(
     'Shell\MyPowerTools.Shell.Avalonia.exe',
     'Runner\MyPowerTools.Runner.exe',
     'ServiceManager\MyPowerTools.ServiceManager.exe',
-    'Cli\MyPowerTools.Cli.exe',
-    'service-units\screenease.service\bin\ScreenEase.Service.exe'
+    'Cli\MyPowerTools.Cli.exe'
 )
+$unitExecById = @{}
+$unitManifestErrors = [Collections.Generic.List[string]]::new()
+foreach ($unitId in $expectedServiceUnits) {
+    $unitManifestRelative = "service-units\$unitId\unit-manifest.json"
+    $unitManifestPath = Join-Path $payloadRoot $unitManifestRelative
+    $criticalPaths += $unitManifestRelative
+    if (-not (Test-Path -LiteralPath $unitManifestPath -PathType Leaf)) {
+        $unitManifestErrors.Add("${unitId}:manifest-missing")
+        continue
+    }
+
+    $unitManifest = Get-Content -LiteralPath $unitManifestPath -Raw | ConvertFrom-Json
+    if (-not [string]::Equals([string]$unitManifest.id, $unitId, [StringComparison]::Ordinal)) {
+        $unitManifestErrors.Add("${unitId}:manifest-id=$($unitManifest.id)")
+        continue
+    }
+
+    $execName = [IO.Path]::GetFileName([string]$unitManifest.exec)
+    if ([string]::IsNullOrWhiteSpace($execName)) {
+        $unitManifestErrors.Add("${unitId}:exec-missing")
+        continue
+    }
+
+    $unitExecById[$unitId] = $execName
+    $criticalPaths += "service-units\$unitId\bin\$execName"
+}
+$criticalPaths = @($criticalPaths | Select-Object -Unique)
 $missingCritical = @($criticalPaths | Where-Object { -not (Test-Path -LiteralPath (Join-Path $payloadRoot $_) -PathType Leaf) })
-Add-Record 'A5.2-critical-process-payloads' ($missingCritical.Count -eq 0) "missing=$($missingCritical -join ',')" $payloadRoot
+Add-Record 'A5.2-critical-process-payloads' ($missingCritical.Count -eq 0 -and $unitManifestErrors.Count -eq 0) "missing=$($missingCritical -join ','); manifestErrors=$($unitManifestErrors -join ',')" $payloadRoot
 
 $surfaceDlls = @(Get-ChildItem -LiteralPath (Join-Path $payloadRoot 'modules') -Recurse -File -Filter '*.Surface.dll')
 Add-Record 'A5.3-five-loadable-surfaces' ($surfaceDlls.Count -eq 5) "surfaceDlls=$($surfaceDlls.Count)" (($surfaceDlls.FullName) -join ';')
 
 $packages = @(Get-ChildItem -LiteralPath (Join-Path $payloadRoot 'packages') -File -Filter '*.mptpkg')
 Add-Record 'A5.4-five-independent-packages' ($packages.Count -eq 5) "packages=$($packages.Count)" (($packages.FullName) -join ';')
+
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+$packageUnitErrors = [Collections.Generic.List[string]]::new()
+foreach ($unitId in $expectedServiceUnits) {
+    if (-not $unitExecById.ContainsKey($unitId)) {
+        $packageUnitErrors.Add("${unitId}:exec-unknown")
+        continue
+    }
+
+    $manifestEntryName = "service-units/$unitId/unit-manifest.json"
+    $execEntryName = "service-units/$unitId/bin/$($unitExecById[$unitId])"
+    $matchingPackages = [Collections.Generic.List[string]]::new()
+    foreach ($package in $packages) {
+        $archive = [IO.Compression.ZipFile]::OpenRead($package.FullName)
+        try {
+            $entryNames = @($archive.Entries | ForEach-Object { $_.FullName.Replace('\', '/') })
+            $hasManifest = $entryNames -contains $manifestEntryName
+            $hasExec = $entryNames -contains $execEntryName
+            if ($hasManifest -and $hasExec) {
+                $matchingPackages.Add($package.Name)
+            }
+            elseif ($hasManifest -or $hasExec) {
+                $packageUnitErrors.Add("${unitId}:$($package.Name):partial")
+            }
+        }
+        finally {
+            $archive.Dispose()
+        }
+    }
+    if ($matchingPackages.Count -ne 1) {
+        $packageUnitErrors.Add("${unitId}:package-count=$($matchingPackages.Count)")
+    }
+}
+Add-Record 'A5.4b-service-units-in-independent-packages' ($packageUnitErrors.Count -eq 0) "errors=$($packageUnitErrors -join ',')" (($packages.FullName) -join ';')
 
 $hashIndex = @{}
 foreach ($entry in $manifest.files) { $hashIndex[[string]$entry.path] = [string]$entry.sha256 }
@@ -152,98 +239,35 @@ $remoteArchiveName = "MyPowerTools-A5-$runId.zip"
 $remoteScriptName = "MyPowerTools-A5-$runId.ps1"
 
 Write-Host "Copying candidate to $RemoteHost..." -ForegroundColor Cyan
-& scp -q $archive "${RemoteHost}:$remoteArchiveName"
+$candidateScpArguments = @('-q', $archive, "${RemoteHost}:$remoteArchiveName")
+& scp @candidateScpArguments
 if ($LASTEXITCODE -ne 0) { throw "scp failed with exit code $LASTEXITCODE" }
 
-$remoteScript = @"
-`$ErrorActionPreference = 'Stop'
-`$runId = '$runId'
-`$archive = Join-Path `$HOME '$remoteArchiveName'
-`$testRoot = Join-Path `$env:TEMP "MyPowerTools-A5-`$runId"
-`$stage = Join-Path `$testRoot 'candidate'
-`$installBase = Join-Path `$testRoot 'installed'
-`$dataRoot = Join-Path `$testRoot 'data'
-`$remoteRecords = [Collections.Generic.List[object]]::new()
-function Add-RemoteRecord([string]`$id, [bool]`$passed, [string]`$detail) {
-  `$remoteRecords.Add([ordered]@{ id = `$id; passed = `$passed; detail = `$detail })
+$remoteScriptSource = Join-Path $PSScriptRoot 'verify-release-candidate.remote.ps1'
+if (-not (Test-Path -LiteralPath $remoteScriptSource -PathType Leaf)) {
+    throw "Remote verifier source is missing: $remoteScriptSource"
 }
-# Pre-clean any orphaned test ServiceManager / Service Unit from a prior run whose
-# command line references an isolated A5 TEMP root. The daily ServiceManager (under
-# Program Files) is never touched because its path does not contain MyPowerTools-A5-.
-`$dailyInstallRoot = 'C:\Program Files\MyPowerTools'
-`$orphanCandidates = Get-CimInstance Win32_Process -Filter "Name='MyPowerTools.ServiceManager.exe' OR Name='ScreenEase.Service.exe'" -ErrorAction SilentlyContinue
-foreach (`$proc in @(`$orphanCandidates)) {
-  if (`$null -ne `$proc.CommandLine -and `$proc.CommandLine -match 'MyPowerTools-A5-' -and `$proc.CommandLine -notlike "*`$dailyInstallRoot*") {
-    Stop-Process -Id `$proc.ProcessId -Force -ErrorAction SilentlyContinue
-  }
-}
-Start-Sleep -Milliseconds 500
-# A ServiceManager bound to the default named pipe from a prior run will reject this
-# run's token (Unauthenticated). Only fail if a Program Files / daily manager holds it.
-`$existingManager = @(Get-Process -Name 'MyPowerTools.ServiceManager' -ErrorAction SilentlyContinue | Where-Object { `$null -ne `$_.Path -and `$_.Path -like "`$dailyInstallRoot*" })
-if (`$existingManager.Count -gt 0) { throw "Existing daily ServiceManager process detected: `$(`$existingManager.Id -join ',')" }
-if (Test-Path -LiteralPath `$testRoot) { Remove-Item -LiteralPath `$testRoot -Recurse -Force }
-New-Item -ItemType Directory -Path `$stage -Force | Out-Null
-Expand-Archive -LiteralPath `$archive -DestinationPath `$stage -Force
-`$installOutput = @(& (Join-Path `$stage 'install.ps1') -InstallBase `$installBase -DataRoot `$dataRoot -NoLaunch)
-`$installResultPath = `$installOutput[-1]
-`$installResult = Get-Content -LiteralPath `$installResultPath -Raw | ConvertFrom-Json
-Add-RemoteRecord 'A5.R1-install-completes' (Test-Path -LiteralPath `$installResult.installRoot) "root=`$(`$installResult.installRoot)"
-`$env:MPT_DATA_ROOT = `$dataRoot
-`$cli = Join-Path `$installResult.installRoot 'Cli\MyPowerTools.Cli.exe'
-`$servicesJson = & `$cli service list
-if (`$LASTEXITCODE -ne 0) { throw 'service list failed' }
-`$services = @(`$servicesJson | ConvertFrom-Json)
-`$screenEase = `$services | Where-Object { `$_.unitId -eq 'screenease.service' } | Select-Object -First 1
-Add-RemoteRecord 'A5.R2-service-unit-enumerated' (`$null -ne `$screenEase) "count=`$(`$services.Count)"
-Add-RemoteRecord 'A5.R3-screenease-unit-active' (`$null -ne `$screenEase -and `$screenEase.state -eq 'Active' -and `$screenEase.Pid -gt 0) "state=`$(`$screenEase.state); pid=`$(`$screenEase.Pid)"
-`$runner = Join-Path `$installResult.installRoot 'Runner\MyPowerTools.Runner.exe'
-`$modules = Join-Path `$installResult.installRoot 'modules'
-`$onceOutput = & `$runner --once --modules `$modules --data-root `$dataRoot 2>&1 | Out-String
-`$onceExit = `$LASTEXITCODE
-`$catalogOk = @('adb-forwarder','android-tools.notifications','doubao-agent','screenease','smartbird-thermostat') | Where-Object { `$onceOutput -match [regex]::Escape(`$_) }
-Add-RemoteRecord 'A5.R4-installed-catalog-discovery' (`$onceExit -eq 0 -and `$catalogOk.Count -eq 5) "exit=`$onceExit; tools=`$(`$catalogOk -join ',')"
-`$runnerOut = Join-Path `$testRoot 'runner.out.log'
-`$runnerErr = Join-Path `$testRoot 'runner.err.log'
-`$endpoint = "mypowertools.a5.`$runId"
-`$instanceName = "MyPowerTools.Runner.A5.`$runId"
-`$runnerProcess = Start-Process -FilePath `$runner -ArgumentList @('--modules',`$modules,'--data-root',`$dataRoot,'--endpoint-address',`$endpoint,'--instance-name',`$instanceName) -WindowStyle Hidden -PassThru -RedirectStandardOutput `$runnerOut -RedirectStandardError `$runnerErr
-Start-Sleep -Seconds 4
-`$shell = Join-Path `$installResult.installRoot 'Shell\MyPowerTools.Shell.Avalonia.exe'
-`$shellOutput = & `$shell --smoke --timeout-ms 20000 --quit-runner --data-root `$dataRoot --endpoint-address `$endpoint 2>&1 | Out-String
-`$shellExit = `$LASTEXITCODE
-Add-RemoteRecord 'A5.R5-shell-runner-control-path' (`$shellExit -eq 0 -and `$shellOutput -match 'smoke connected') "exit=`$shellExit; output=`$shellOutput"
-if (-not `$runnerProcess.HasExited) { Stop-Process -Id `$runnerProcess.Id -Force -ErrorAction SilentlyContinue }
-& `$cli service stop screenease.service *> `$null
-& `$cli service shutdown *> `$null
-Start-Sleep -Milliseconds 700
-& (Join-Path `$installResult.installRoot 'ServiceManager\MyPowerTools.ServiceManager.exe') --unregister-autostart --data-root `$dataRoot *> `$null
-`$passed = @(`$remoteRecords | Where-Object { -not `$_.passed }).Count -eq 0
-`$result = [ordered]@{
-  passed = `$passed
-  host = `$env:COMPUTERNAME
-  os = [Environment]::OSVersion.VersionString
-  installRoot = `$installResult.installRoot
-  dataRoot = `$dataRoot
-  suiteVersion = '$($manifest.suiteVersion)'
-  records = `$remoteRecords
-  runnerOnceOutput = `$onceOutput
-  shellSmokeOutput = `$shellOutput
-}
-Write-Output ('A5_RESULT=' + (`$result | ConvertTo-Json -Depth 10 -Compress))
-Remove-Item -LiteralPath `$archive -Force -ErrorAction SilentlyContinue
-`$testRootFull = [IO.Path]::GetFullPath(`$testRoot)
-`$tempRoot = [IO.Path]::GetFullPath(`$env:TEMP)
-if (`$testRootFull.StartsWith((Join-Path `$tempRoot 'MyPowerTools-A5-'), [StringComparison]::OrdinalIgnoreCase)) {
-  Remove-Item -LiteralPath `$testRootFull -Recurse -Force -ErrorAction SilentlyContinue
-}
-"@
-
 $remoteScriptPath = Join-Path $EvidenceRoot "remote-script-$runId.ps1"
-$remoteScript | Set-Content -LiteralPath $remoteScriptPath -Encoding UTF8
-& scp -q $remoteScriptPath "${RemoteHost}:$remoteScriptName"
+Copy-Item -LiteralPath $remoteScriptSource -Destination $remoteScriptPath -Force
+$scriptScpArguments = @('-q', $remoteScriptPath, "${RemoteHost}:$remoteScriptName")
+& scp @scriptScpArguments
 if ($LASTEXITCODE -ne 0) { throw "remote verifier scp failed with exit code $LASTEXITCODE" }
-$remoteOutput = & ssh -o BatchMode=yes -o ConnectTimeout=10 $RemoteHost powershell.exe -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ".\$remoteScriptName" 2>&1 | Out-String
+$sshArguments = @(
+    '-o', 'BatchMode=yes',
+    '-o', 'ConnectTimeout=10',
+    '-o', 'ServerAliveInterval=15',
+    '-o', 'ServerAliveCountMax=4',
+    $RemoteHost,
+    'powershell.exe',
+    '-NoLogo',
+    '-NoProfile',
+    '-NonInteractive',
+    '-File', ".\$remoteScriptName",
+    '-RunId', $runId,
+    '-ArchiveName', $remoteArchiveName,
+    '-SuiteVersion', [string]$manifest.suiteVersion
+)
+$remoteOutput = & ssh @sshArguments 2>&1 | Out-String
 $remoteExit = $LASTEXITCODE
 $remoteLog = Join-Path $EvidenceRoot "remote-$runId.log"
 $remoteOutput | Set-Content -LiteralPath $remoteLog -Encoding UTF8

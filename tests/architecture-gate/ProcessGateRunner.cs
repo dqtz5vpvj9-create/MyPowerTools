@@ -23,10 +23,29 @@ internal static class ProcessGateRunner
             var unitId = $"a3-service-{context.RunId}";
             var toolId = $"a3-tool-{context.RunId}";
             var otherToolId = $"a3-other-{context.RunId}";
-            context.WriteUnitManifest(unitId, toolId, heartbeat, maxRestarts: 1);
+            var readinessPipe = $"mpt-a3-readiness-{context.RunId}";
+            context.WriteUnitManifest(unitId, toolId, heartbeat, maxRestarts: 1, readinessPipe: readinessPipe);
 
+            var unreadyUnitId = $"a3-unready-{context.RunId}";
+            var advertisedPipe = $"mpt-a3-unready-{context.RunId}";
+            var workerPipe = $"mpt-a3-different-{context.RunId}";
+            context.WriteUnitManifest(
+                unreadyUnitId,
+                $"a3-unready-tool-{context.RunId}",
+                Path.Combine(context.DataRoot, "unready-heartbeat.txt"),
+                maxRestarts: 0,
+                readinessPipe: advertisedPipe,
+                workerPipe: workerPipe,
+                autostart: true,
+                readinessTimeoutMs: 5000);
+
+            var managerStart = Stopwatch.StartNew();
             firstManager = context.StartServiceManager("first");
             using var firstAdmin = await context.WaitForClientAsync(firstManager);
+            managerStart.Stop();
+            Add(records, "A3.0-control-plane-precedes-worker-readiness",
+                managerStart.Elapsed < TimeSpan.FromSeconds(4),
+                $"controlPlaneMs={managerStart.Elapsed.TotalMilliseconds:0}; blockedWorkerTimeoutMs=5000");
             Add(records, "A3.1-real-manager-catalog", (await firstAdmin.ListUnitsAsync()).Units.Any(unit => unit.UnitId == unitId), unitId);
 
             var scoped = new ScopedServiceUnitClient(firstAdmin, toolId);
@@ -34,6 +53,30 @@ internal static class ProcessGateRunner
             var firstPid = started.Pid ?? 0;
             if (firstPid > 0) trackedPids.Add(firstPid);
             Add(records, "A3.2-scoped-start-active", started.State == ServiceUnitState.Active && firstPid > 0, $"state={started.State}; pid={firstPid}");
+            var readinessRoundTrip = started.Readiness is not null &&
+                                     string.Equals(started.Readiness.Kind, "pipe", StringComparison.Ordinal) &&
+                                     string.Equals(started.Readiness.Address, readinessPipe, StringComparison.Ordinal) &&
+                                     started.Readiness.Timeout == TimeSpan.FromMilliseconds(1000);
+            Add(records, "A3.2b-readiness-contract-roundtrip", readinessRoundTrip,
+                started.Readiness is null
+                    ? "readiness missing"
+                    : $"kind={started.Readiness.Kind}; address={started.Readiness.Address}; timeout={started.Readiness.Timeout.TotalMilliseconds}ms");
+
+            var unready = await WaitForSnapshotAsync(
+                firstAdmin,
+                unreadyUnitId,
+                snapshot => snapshot.State == SM.UnitState.Degraded,
+                TimeSpan.FromSeconds(7)) ?? throw new InvalidOperationException("Unresponsive startup unit never entered Degraded state.");
+            if (unready.Pid > 0) trackedPids.Add(unready.Pid);
+            Add(records, "A3.2c-unresponsive-readiness-is-degraded",
+                unready.State == SM.UnitState.Degraded &&
+                unready.Readiness is { Ok: false } &&
+                unready.LastError.Contains("readiness timed out", StringComparison.OrdinalIgnoreCase),
+                $"state={unready.State}; ready={unready.Readiness?.Ok}; error={unready.LastError}");
+            await firstAdmin.StopAsync(unreadyUnitId);
+            context.DeleteUnitManifest(unreadyUnitId);
+            await firstAdmin.ReloadAsync();
+
             Add(records, "A3.3-heartbeat-ready", await WaitForFileGrowthAsync(heartbeat, 0, TimeSpan.FromSeconds(5)), heartbeat);
 
             var repeated = await scoped.StartAsync(unitId);
@@ -87,6 +130,32 @@ internal static class ProcessGateRunner
             await Task.Delay(700);
             var stoppedCleanly = stopped.State == ServiceUnitState.Inactive && !ProcessIsAlive(secondPid) && FileLength(heartbeat) == stoppedAt;
             Add(records, "A3.13-explicit-stop-owned-lifecycle", stoppedCleanly, $"state={stopped.State}; pidAlive={ProcessIsAlive(secondPid)}");
+
+            var beforeUpgrade = await secondScoped.StartAsync(unitId);
+            var beforeUpgradePid = beforeUpgrade.Pid ?? 0;
+            if (beforeUpgradePid > 0) trackedPids.Add(beforeUpgradePid);
+            var upgradedHeartbeat = Path.Combine(context.DataRoot, "lifecycle-heartbeat-upgraded.txt");
+            context.WriteUnitManifest(unitId, toolId, upgradedHeartbeat, maxRestarts: 1, readinessPipe);
+            await secondAdmin.ReloadAsync();
+            var upgraded = await WaitForSnapshotAsync(
+                secondAdmin,
+                unitId,
+                snapshot => snapshot.State == SM.UnitState.Active && snapshot.Pid > 0 && snapshot.Pid != beforeUpgradePid,
+                TimeSpan.FromSeconds(6));
+            var upgradedPid = upgraded?.Pid ?? 0;
+            if (upgradedPid > 0) trackedPids.Add(upgradedPid);
+            var upgradedManifestApplied = upgraded is not null &&
+                                          !ProcessIsAlive(beforeUpgradePid) &&
+                                          await WaitForFileGrowthAsync(upgradedHeartbeat, 0, TimeSpan.FromSeconds(5));
+            Add(records, "A3.14-reload-applies-upgraded-manifest", upgradedManifestApplied,
+                $"old={beforeUpgradePid}; new={upgradedPid}; oldAlive={ProcessIsAlive(beforeUpgradePid)}; heartbeat={FileLength(upgradedHeartbeat)}");
+
+            context.DeleteUnitManifest(unitId);
+            await secondAdmin.ReloadAsync();
+            var afterRemoval = await secondAdmin.ListUnitsAsync();
+            var removedCleanly = afterRemoval.Units.All(unit => unit.UnitId != unitId) && !ProcessIsAlive(upgradedPid);
+            Add(records, "A3.15-reload-removes-unit-and-process", removedCleanly,
+                $"visible={afterRemoval.Units.Any(unit => unit.UnitId == unitId)}; pid={upgradedPid}; alive={ProcessIsAlive(upgradedPid)}");
 
             await secondAdmin.ShutdownAsync();
             await secondManager.WaitForExitAsync(TimeSpan.FromSeconds(10));
@@ -357,21 +426,41 @@ internal static class ProcessGateRunner
             return new GateContext(gate, repoRoot, runId, dataRoot, deployRoot, "dotnet", [fixtureDll]);
         }
 
-        public void WriteUnitManifest(string unitId, string toolId, string heartbeatFile, int maxRestarts)
+        public void WriteUnitManifest(
+            string unitId,
+            string toolId,
+            string heartbeatFile,
+            int maxRestarts,
+            string? readinessPipe = null,
+            string? workerPipe = null,
+            bool autostart = false,
+            int readinessTimeoutMs = 1000)
         {
-            var arguments = FixturePrefixArgs.Concat(["--heartbeat-file", heartbeatFile, "--interval-ms", "150"]).ToArray();
+            var arguments = FixturePrefixArgs.Concat(["--heartbeat-file", heartbeatFile, "--interval-ms", "150"]).ToList();
+            var effectiveWorkerPipe = workerPipe ?? readinessPipe;
+            if (!string.IsNullOrWhiteSpace(effectiveWorkerPipe))
+            {
+                arguments.AddRange(["--pipe", effectiveWorkerPipe]);
+            }
+
+            var readiness = new
+            {
+                kind = string.IsNullOrWhiteSpace(readinessPipe) ? "none" : "pipe",
+                address = readinessPipe ?? string.Empty,
+                timeoutMs = readinessTimeoutMs
+            };
             var manifest = new
             {
                 id = unitId,
                 toolId,
                 displayName = $"Architecture fixture {unitId}",
                 exec = FixtureExec,
-                arguments,
+                arguments = arguments.ToArray(),
                 workingDirectory = Path.GetDirectoryName(FixtureExec) ?? DataRoot,
                 environment = new Dictionary<string, string>(),
-                autostart = false,
+                autostart,
                 restartPolicy = new { maxRestarts, backoffMs = 200 },
-                readiness = new { kind = "none", address = "", timeoutMs = 1000 },
+                readiness,
                 stopTimeoutMs = 600,
                 dataRoots = Array.Empty<string>(),
                 dependsOn = Array.Empty<string>(),
@@ -379,6 +468,12 @@ internal static class ProcessGateRunner
             };
             var path = Path.Combine(DeployRoot, "units", $"{unitId}.json");
             File.WriteAllText(path, JsonSerializer.Serialize(manifest, new JsonSerializerOptions { WriteIndented = true }));
+        }
+
+        public void DeleteUnitManifest(string unitId)
+        {
+            var path = Path.Combine(DeployRoot, "units", $"{unitId}.json");
+            if (File.Exists(path)) File.Delete(path);
         }
 
         public RunningServiceManager StartServiceManager(string label)

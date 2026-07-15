@@ -55,9 +55,6 @@ var eventBus = new UnitEventBus();
 var stateStore = new UnitStateStore(stateRoot);
 var engine = new ServiceManagerEngine(catalog, eventBus, stateStore);
 
-// Re-adopt any still-running units, then autostart the rest. Never restarts a live process.
-await engine.ReconcileAsync(CancellationToken.None);
-
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddSingleton(new IpcAuthOptions(ServiceManagerAdminClient.AuthHeaderName, token));
 builder.Services.AddGrpc(options => options.Interceptors.Add<BearerTokenAuthServerInterceptor>());
@@ -83,20 +80,26 @@ builder.WebHost.ConfigureKestrel(options =>
     options.ListenUnixSocket(socketPath, listen => listen.Protocols = HttpProtocols.Http2);
 });
 
-var app = builder.Build();
+await using var app = builder.Build();
 app.MapGrpcService<ServiceManagerGrpcService>();
 app.MapGet("/", () => $"MyPowerTools.ServiceManager is running on {endpoint.Transport}:{endpoint.Address}.");
 
 Console.WriteLine($"MyPowerTools.ServiceManager serving on {endpoint.Transport}:{endpoint.Address}");
 Console.WriteLine($"MyPowerTools.ServiceManager deploy root: {deployRoot}");
-Console.WriteLine($"MyPowerTools.ServiceManager reconciled {catalog.Manifests.Count} unit manifest(s).");
 
+await app.StartAsync();
 try
 {
-    await app.RunAsync();
+    // Expose the control plane before probing workers. A broken unit can consume its full
+    // readiness timeout without making lifecycle/status RPCs unavailable. Reload RPCs serialize
+    // with this startup reconciliation through ServiceManagerEngine's reload gate.
+    await engine.ReconcileAsync(app.Lifetime.ApplicationStopping);
+    Console.WriteLine($"MyPowerTools.ServiceManager reconciled {catalog.Manifests.Count} unit manifest(s).");
+    await app.WaitForShutdownAsync();
 }
 finally
 {
+    await app.StopAsync(CancellationToken.None);
     await engine.DisposeAsync();
 }
 

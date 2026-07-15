@@ -1,186 +1,191 @@
 <#
 .SYNOPSIS
-  Verifies the ScreenEase.Service unit survives ServiceManager restart (re-adoption)
-  and answers its named-pipe readiness probe. This proves the core Batch-1 promise:
-  long-running units are independent of the ServiceManager process.
-
-  Uses isolated temp resources. Never touches the user's running ScreenEase.CoreService
-  (PID may exist) or the in-proc ScreenEase module.
+  Verifies that ScreenEase state and command execution live in ScreenEase.Service, survive a
+  ServiceManager restart, and recover after the worker is killed. The run is fully isolated and
+  uses logical display mode, so it never writes the user's Gamma ramp.
 #>
 [CmdletBinding()]
 param()
 
 $ErrorActionPreference = 'Stop'
 $repoRoot = (Get-Item $MyInvocation.MyCommand.Path).Directory.Parent.FullName
-$runId = [System.Guid]::NewGuid().ToString('N').Substring(0, 8)
+$runId = [Guid]::NewGuid().ToString('N').Substring(0, 8)
 $dataRoot = Join-Path $env:TEMP "mpt-screenease-verify-$runId"
 $deployRoot = Join-Path $dataRoot 'deploy'
-$unitsDir = Join-Path $deployRoot 'units'
-$unitId = "screenease.service-$runId"
+$unitsRoot = Join-Path $deployRoot 'units'
+$toolDataRoot = Join-Path $dataRoot 'tool-data'
 $pipeName = "screenease-core-$runId"
-$resultPath = Join-Path (Join-Path $repoRoot 'artifacts') "screenease-verify-$runId.json"
-$smProject = Join-Path (Join-Path (Join-Path $repoRoot 'src') 'MyPowerTools.ServiceManager') 'MyPowerTools.ServiceManager.csproj'
+$endpoint = "mypowertools.servicemanager.screenease-$runId"
+$instanceName = "MyPowerTools.ServiceManager.ScreenEase.$runId"
+$resultPath = Join-Path $repoRoot "artifacts\screenease-service-verify-$runId.json"
+$managerProject = Join-Path $repoRoot 'src\MyPowerTools.ServiceManager\MyPowerTools.ServiceManager.csproj'
 $gateProject = Join-Path $repoRoot 'tests\architecture-gate\ArchitectureGate.csproj'
-$serviceProject = Join-Path (Join-Path (Join-Path (Join-Path $repoRoot 'tools') 'screenease') 'current-integration') 'src' | ForEach-Object { Join-Path $_ 'ScreenEase.Service' } | ForEach-Object { Join-Path $_ 'ScreenEase.Service.csproj' }
-
-# fix: rebuild the path cleanly
 $serviceProject = Join-Path $repoRoot 'tools\screenease\current-integration\src\ScreenEase.Service\ScreenEase.Service.csproj'
-
-$smProcess = $null
+$manager = $null
 $records = @()
 
-function Add-Record($id, $passed, $detail) {
-    $script:records += [pscustomobject]@{ Id = $id; Passed = $passed; Detail = $detail }
-    $color = if ($passed) { 'Green' } else { 'Red' }
-    Write-Host ("  [{0}] {1}: {2}" -f ($(if($passed){'PASS'}else{'FAIL'})), $id, $detail) -ForegroundColor $color
+function Add-Record([string]$Id, [bool]$Passed, [string]$Detail) {
+    $script:records += [pscustomobject]@{ Id = $Id; Passed = $Passed; Detail = $Detail }
+    Write-Host ("  [{0}] {1}: {2}" -f $(if ($Passed) { 'PASS' } else { 'FAIL' }), $Id, $Detail) -ForegroundColor $(if ($Passed) { 'Green' } else { 'Red' })
 }
 
-function Start-ServiceManager {
-    param([string]$DataRoot, [string]$DeployRoot, [string]$LogPath)
-    $env:MPT_DATA_ROOT = $DataRoot
-    $p = Start-Process -FilePath 'dotnet' -ArgumentList @('run','--no-build','--project',$smProject,'--','--data-root',$DataRoot,'--deploy-root',$DeployRoot) -WindowStyle Hidden -PassThru -RedirectStandardOutput $LogPath -RedirectStandardError (Join-Path $DataRoot 'sm.err')
-    Start-Sleep -Seconds 6
-    return $p
+function Start-Manager([string]$LogName) {
+    $env:MPT_DATA_ROOT = $dataRoot
+    $process = Start-Process -FilePath 'dotnet' -ArgumentList @(
+        'run', '--no-build', '-c', 'Release', '--project', $managerProject, '--',
+        '--data-root', $dataRoot,
+        '--deploy-root', $deployRoot,
+        '--endpoint-address', $endpoint,
+        '--instance-name', $instanceName
+    ) -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $dataRoot $LogName) -RedirectStandardError (Join-Path $dataRoot "$LogName.err")
+    Start-Sleep -Seconds 5
+    return $process
 }
 
-function Stop-ServiceManagerGraceful {
-    param($Process, [string]$DataRoot, [int]$TimeoutSeconds = 20)
-    # Request a graceful shutdown via the gRPC Shutdown RPC (invoked through the architecture-gate
-    # driver with --mode shutdown). This runs the host's `finally { engine.DisposeAsync() }`, which
-    # detaches from units WITHOUT stopping them, so the unit survives and the next ServiceManager
-    # re-adopts it. This mirrors the production shutdown path and avoids PowerShell job-cascade kills.
-    $env:MPT_DATA_ROOT = $DataRoot
-    & dotnet run --no-build --project $gateProject -- --mode shutdown --data-root $DataRoot 2>&1 | Out-Null
-    if (-not $Process.WaitForExit($TimeoutSeconds * 1000)) {
-        # RPC graceful stop did not complete in time; force-kill the SM host only as a last resort.
+function Stop-ManagerGracefully($Process) {
+    $env:MPT_DATA_ROOT = $dataRoot
+    & dotnet run --no-build -c Release --project $gateProject -- --mode shutdown --data-root $dataRoot --endpoint-address $endpoint 2>&1 | Out-Null
+    if (-not $Process.WaitForExit(15000)) {
         Stop-Process -Id $Process.Id -Force -ErrorAction SilentlyContinue
     }
-    Start-Sleep -Seconds 2
+    Start-Sleep -Seconds 1
 }
 
-function Get-UnitPid {
-    param([string]$PipeName)
-    # Find the ScreenEase.Service.exe whose command line references our unique pipe name.
-    $proc = Get-CimInstance Win32_Process -Filter "Name='ScreenEase.Service.exe'" -ErrorAction SilentlyContinue |
-        Where-Object { $_.CommandLine -like "*$PipeName*" } |
-        Sort-Object ProcessId | Select-Object -First 1
-    if ($proc) { return [string]$proc.ProcessId }
-    return $null
+function Get-WorkerPid {
+    $process = Get-CimInstance Win32_Process -Filter "Name='ScreenEase.Service.exe'" -ErrorAction SilentlyContinue |
+        Where-Object { $_.CommandLine -like "*$pipeName*" } |
+        Sort-Object ProcessId |
+        Select-Object -First 1
+    if ($process) { return [int]$process.ProcessId }
+    return 0
 }
 
-function Send-Ping {
-    param([string]$PipeName, [int]$TimeoutMs = 5000)
-    # Chromium-style framed ping over the named pipe. Returns $true if pong received.
+function Send-Request([object]$Request, [int]$TimeoutMs = 10000) {
+    $pipe = [IO.Pipes.NamedPipeClientStream]::new('.', $pipeName, [IO.Pipes.PipeDirection]::InOut, [IO.Pipes.PipeOptions]::Asynchronous)
     try {
-        $pipe = New-Object System.IO.Pipes.NamedPipeClientStream('.',$PipeName,[System.IO.Pipes.PipeDirection]::InOut,[System.IO.Pipes.PipeOptions]::Asynchronous)
         $pipe.Connect($TimeoutMs)
-        $json = [System.Text.Encoding]::UTF8.GetBytes('{"command":"ping"}')
-        $header = [BitConverter]::GetBytes([int32]$json.Length)
-        $pipe.Write($header,0,4)
-        $pipe.Write($json,0,$json.Length)
+        $payload = [Text.Encoding]::UTF8.GetBytes(($Request | ConvertTo-Json -Depth 12 -Compress))
+        $header = [BitConverter]::GetBytes([int32]$payload.Length)
+        $pipe.Write($header, 0, 4)
+        $pipe.Write($payload, 0, $payload.Length)
         $pipe.Flush()
-        # read response header
-        $h = New-Object byte[] 4
-        $read = 0
-        while ($read -lt 4) { $n = $pipe.Read($h, $read, 4-$read); if ($n -eq 0) { break }; $read += $n }
-        if ($read -lt 4) { $pipe.Dispose(); return $false }
-        $len = [BitConverter]::ToInt32($h,0)
-        $payload = New-Object byte[] $len
-        $read = 0
-        while ($read -lt $len) { $n = $pipe.Read($payload, $read, $len-$read); if ($n -eq 0) { break }; $read += $n }
+
+        $responseHeader = New-Object byte[] 4
+        Read-Exactly -Stream $pipe -Buffer $responseHeader
+        $length = [BitConverter]::ToInt32($responseHeader, 0)
+        if ($length -le 0 -or $length -gt 4194304) { throw "Invalid response length $length" }
+        $responsePayload = New-Object byte[] $length
+        Read-Exactly -Stream $pipe -Buffer $responsePayload
+        return [Text.Encoding]::UTF8.GetString($responsePayload) | ConvertFrom-Json
+    }
+    finally {
         $pipe.Dispose()
-        $resp = [System.Text.Encoding]::UTF8.GetString($payload,0,$read)
-        return $resp -match '"ok":true' -and $resp -match 'pong'
-    } catch {
-        return $false
+    }
+}
+
+function Read-Exactly([IO.Stream]$Stream, [byte[]]$Buffer) {
+    $offset = 0
+    while ($offset -lt $Buffer.Length) {
+        $read = $Stream.Read($Buffer, $offset, $Buffer.Length - $offset)
+        if ($read -eq 0) { throw 'Unexpected end of pipe response.' }
+        $offset += $read
     }
 }
 
 try {
-    Write-Host "==> ScreenEase.Service liveness verification runId=$runId" -ForegroundColor Cyan
-    Write-Host "==> dataRoot=$dataRoot"
-    New-Item -ItemType Directory -Force -Path $dataRoot,$deployRoot,$unitsDir | Out-Null
+    Write-Host "==> ScreenEase.Service product verification runId=$runId" -ForegroundColor Cyan
+    New-Item -ItemType Directory -Force -Path $dataRoot, $deployRoot, $unitsRoot, $toolDataRoot | Out-Null
 
-    # Build + publish the ScreenEase.Service exe.
-    Write-Host "==> Building + publishing ScreenEase.Service..." -ForegroundColor Cyan
-    & dotnet build $gateProject --nologo -v quiet 2>&1 | Out-Null
-    if ($LASTEXITCODE -ne 0) { throw "architecture-gate build failed" }
-    & dotnet build $serviceProject --nologo -v quiet 2>&1 | Out-Null
-    if ($LASTEXITCODE -ne 0) { throw "ScreenEase.Service build failed" }
-    $pubDir = Join-Path $dataRoot 'service'
-    & dotnet publish $serviceProject -c Release -o $pubDir --nologo -v quiet 2>&1 | Out-Null
-    if ($LASTEXITCODE -ne 0) { throw "ScreenEase.Service publish failed" }
-    $serviceExe = Join-Path $pubDir 'ScreenEase.Service.exe'
-    Add-Record "build-service-exe" (Test-Path $serviceExe) "exe at $serviceExe"
+    & dotnet build $managerProject -c Release --nologo -v quiet 2>&1 | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw 'ServiceManager build failed.' }
+    & dotnet build $gateProject -c Release --nologo -v quiet 2>&1 | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw 'Architecture gate build failed.' }
+    $serviceOutput = Join-Path $dataRoot 'service'
+    & dotnet publish $serviceProject -c Release -o $serviceOutput --nologo -v quiet 2>&1 | Out-Null
+    if ($LASTEXITCODE -ne 0) { throw 'ScreenEase.Service publish failed.' }
+    $serviceExe = Join-Path $serviceOutput 'ScreenEase.Service.exe'
+    Add-Record 'service-published' (Test-Path -LiteralPath $serviceExe -PathType Leaf) $serviceExe
 
-    # Deploy a unit manifest with a UNIQUE pipe name (so we never collide with the user's screenease.core).
     $manifest = @{
-        id = $unitId
-        toolId = "screenease"
-        displayName = "ScreenEase Service"
+        id = 'screenease.service'
+        toolId = 'screenease'
+        displayName = 'ScreenEase Service verification'
         exec = $serviceExe
-        arguments = @("--pipe", $pipeName, "--heartbeat-file", (Join-Path $dataRoot 'screenease.heartbeat'), "--instance-token", "verify-$runId")
-        workingDirectory = ""
-        environment = @{ "ScreenEase__Transport" = "pipe" }
+        arguments = @('--pipe', $pipeName, '--heartbeat-file', (Join-Path $dataRoot 'heartbeat.log'), '--logical-only')
+        workingDirectory = $serviceOutput
+        environment = @{ MPT_TOOL_DATA_ROOT = $toolDataRoot }
         autostart = $true
-        restartPolicy = @{ maxRestarts = 5; backoffMs = 2000 }
-        readiness = @{ kind = "none"; address = ""; timeoutMs = 5000 }
-        stopTimeoutMs = 5000
-        dataRoots = @()
+        restartPolicy = @{ maxRestarts = 5; backoffMs = 300 }
+        readiness = @{ kind = 'pipe'; address = $pipeName; timeoutMs = 8000 }
+        stopTimeoutMs = 1000
+        dataRoots = @($toolDataRoot)
         dependsOn = @()
-        instanceToken = "verify-$runId"
+        instanceToken = "screenease-verify-$runId"
     }
-    $manifest | ConvertTo-Json -Depth 5 | Set-Content -Path (Join-Path $unitsDir "$unitId.json") -Encoding UTF8
+    $manifest | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $unitsRoot 'screenease.service.json') -Encoding UTF8
 
-    # ---- Launch ServiceManager (autostarts the unit) ----
-    Write-Host "==> Launching ServiceManager (autostarts the unit)..." -ForegroundColor Cyan
-    $smProcess = Start-ServiceManager -DataRoot $dataRoot -DeployRoot $deployRoot -LogPath (Join-Path $dataRoot 'sm1.log')
-    Add-Record "sm-running" (-not $smProcess.HasExited) "ServiceManager PID=$($smProcess.Id)"
+    $manager = Start-Manager 'manager-1.log'
+    Add-Record 'manager-started' (-not $manager.HasExited) "pid=$($manager.Id)"
+    $firstPid = Get-WorkerPid
+    Add-Record 'service-autostarted' ($firstPid -gt 0) "pid=$firstPid"
 
-    # Query the unit PID directly from the process table (matched by the unique pipe name in its command line).
-    Start-Sleep -Seconds 2
-    $firstPid = Get-UnitPid -PipeName $pipeName
-    Add-Record "unit-autostarted" ($null -ne $firstPid) "first unit PID=$firstPid"
+    $ping = Send-Request @{ command = 'ping' }
+    Add-Record 'readiness-ping' ($ping.ok -eq $true -and $ping.data.pong -eq $true) "pipe=$pipeName"
+    $status = Send-Request @{ command = 'execute'; invocationId = "status-$runId"; commandId = 'screenease.status.summary'; args = @{} }
+    Add-Record 'real-module-status' ($status.ok -eq $true -and $status.data.success -eq $true -and $status.data.output -match 'profiles') 'ScreenEaseModule answered through service pipe'
 
-    # Verify readiness via the pipe.
-    $pong = Send-Ping -PipeName $pipeName
-    Add-Record "readiness-ping" $pong "pipe $pipeName answered ping"
-
-    # ---- THE CORE TEST: restart ServiceManager, confirm unit PID unchanged (re-adoption) ----
-    Write-Host "==> Restarting ServiceManager to verify re-adoption..." -ForegroundColor Cyan
-    Stop-ServiceManagerGraceful -Process $smProcess -DataRoot $dataRoot
-    $smProcess = Start-ServiceManager -DataRoot $dataRoot -DeployRoot $deployRoot -LogPath (Join-Path $dataRoot 'sm2.log')
-    Start-Sleep -Seconds 3   # give ReconcileAsync time to re-adopt
-
-    $secondPid = Get-UnitPid -PipeName $pipeName
-    $samePid = ($null -ne $firstPid) -and ($secondPid -eq $firstPid)
-    Add-Record "reattach-same-pid" $samePid "first=$firstPid second=$secondPid (must be equal)"
-
-    # Confirm exactly one instance exists (no duplicate spawned by the re-adopt path).
-    $instanceCount = @(Get-CimInstance Win32_Process -Filter "Name='ScreenEase.Service.exe'" -ErrorAction SilentlyContinue | Where-Object { $_.CommandLine -like "*$pipeName*" }).Count
-    Add-Record "single-instance" ($instanceCount -eq 1) "found $instanceCount instance(s) (expect 1)"
-
-    # Unit should still answer ping after manager restart.
-    $pong2 = Send-Ping -PipeName $pipeName
-    Add-Record "readiness-after-restart" $pong2 "pipe still answering after SM restart"
-
-    $passed = ($records | Where-Object { -not $_.Passed }).Count -eq 0
-    $result = [pscustomobject]@{
-        Gate = "ScreenEase-Service-Liveness"
-        Passed = $passed
-        RunId = $runId
-        UnitId = $unitId
-        FirstPid = $firstPid
-        SecondPid = $secondPid
-        Records = $records
+    $beforeSettings = Send-Request @{ command = 'getSettings' }
+    $beforeRevision = [uint64]$beforeSettings.data.revision
+    $updatedSettings = Send-Request @{
+        command = 'updateSettings'
+        expectedRevision = $beforeRevision
+        patch = @{ advanced = @{ smoothTransitions = $false; transitionDurationMs = 1234 } }
     }
-    $result | ConvertTo-Json -Depth 5 | Set-Content -Path $resultPath -Encoding UTF8
+    Add-Record 'settings-updated' ($updatedSettings.ok -eq $true -and [uint64]$updatedSettings.data.revision -eq ($beforeRevision + 1)) "revision=$($updatedSettings.data.revision)"
 
-    Write-Host ""
-    Write-Host "==> ScreenEase.Service liveness: $(if($passed){'PASS'}else{'FAIL'})" -ForegroundColor $(if($passed){'Green'}else{'Red'})
+    $apply = Send-Request @{
+        command = 'execute'
+        invocationId = "apply-$runId"
+        commandId = 'screenease.effect.apply'
+        args = @{ colorTemperatureKelvin = 4321; brightnessPercent = 67; displayId = 'all'; hardwareWrite = $false }
+    }
+    $applyOutput = if ($apply.data.output) { $apply.data.output | ConvertFrom-Json } else { $null }
+    Add-Record 'logical-effect-applied' ($apply.ok -eq $true -and $apply.data.success -eq $true -and $applyOutput.effect.colorTemperatureKelvin -eq 4321 -and $applyOutput.effect.brightnessPercent -eq 67) '4321 K / 67% persisted by service runtime'
+
+    Stop-ManagerGracefully $manager
+    $manager = Start-Manager 'manager-2.log'
+    $secondPid = Get-WorkerPid
+    Add-Record 'manager-restart-readopts-worker' ($secondPid -eq $firstPid -and $secondPid -gt 0) "first=$firstPid second=$secondPid"
+
+    Stop-Process -Id $secondPid -Force
+    $thirdPid = 0
+    for ($attempt = 0; $attempt -lt 80; $attempt++) {
+        Start-Sleep -Milliseconds 250
+        $candidate = Get-WorkerPid
+        if ($candidate -gt 0 -and $candidate -ne $secondPid) { $thirdPid = $candidate; break }
+    }
+    Add-Record 'worker-crash-recovered' ($thirdPid -gt 0) "crashed=$secondPid recovered=$thirdPid"
+
+    $afterSettings = Send-Request @{ command = 'getSettings' }
+    $advanced = $afterSettings.data.values.advanced
+    Add-Record 'settings-survive-recovery' ([uint64]$afterSettings.data.revision -eq ($beforeRevision + 1) -and $advanced.smoothTransitions -eq $false -and $advanced.transitionDurationMs -eq 1234) "revision=$($afterSettings.data.revision)"
+    $effect = Send-Request @{ command = 'execute'; invocationId = "effect-$runId"; commandId = 'screenease.effect.status'; args = @{} }
+    $effectOutput = $effect.data.output | ConvertFrom-Json
+    Add-Record 'effect-survives-recovery' ($effect.data.success -eq $true -and $effectOutput.colorTemperatureKelvin -eq 4321 -and $effectOutput.brightnessPercent -eq 67) 'service restart restored persisted logical effect'
+
+    $passed = @($records | Where-Object { -not $_.Passed }).Count -eq 0
+    [ordered]@{
+        gate = 'ScreenEase-Service-Product'
+        passed = $passed
+        runId = $runId
+        firstPid = $firstPid
+        secondPid = $secondPid
+        thirdPid = $thirdPid
+        records = $records
+    } | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $resultPath -Encoding UTF8
+    Write-Host "==> ScreenEase.Service: $(if ($passed) { 'PASS' } else { 'FAIL' })" -ForegroundColor $(if ($passed) { 'Green' } else { 'Red' })
     Write-Host "==> Result: $resultPath"
     if (-not $passed) { exit 1 }
-    exit 0
 }
 catch {
     Write-Host "FAIL: $_" -ForegroundColor Red
@@ -188,14 +193,13 @@ catch {
     exit 1
 }
 finally {
-    if ($smProcess -and -not $smProcess.HasExited) {
-        try { Stop-Process -Id $smProcess.Id -Force -ErrorAction SilentlyContinue } catch {}
+    if ($manager -and -not $manager.HasExited) {
+        Stop-Process -Id $manager.Id -Force -ErrorAction SilentlyContinue
     }
-    # Kill the unit process we started (by matching our unique pipe / token). Never touch screenease.core proper.
-    Get-CimInstance Win32_Process -Filter "Name='ScreenEase.Service.exe'" -ErrorAction SilentlyContinue | Where-Object { $_.CommandLine -like "*$pipeName*" } | ForEach-Object {
-        try { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue } catch {}
-    }
-    if (Test-Path $dataRoot) {
-        try { Remove-Item -Recurse -Force $dataRoot -ErrorAction SilentlyContinue } catch {}
+    Get-CimInstance Win32_Process -Filter "Name='ScreenEase.Service.exe'" -ErrorAction SilentlyContinue |
+        Where-Object { $_.CommandLine -like "*$pipeName*" } |
+        ForEach-Object { Stop-Process -Id $_.ProcessId -Force -ErrorAction SilentlyContinue }
+    if (Test-Path -LiteralPath $dataRoot) {
+        Remove-Item -LiteralPath $dataRoot -Recurse -Force -ErrorAction SilentlyContinue
     }
 }

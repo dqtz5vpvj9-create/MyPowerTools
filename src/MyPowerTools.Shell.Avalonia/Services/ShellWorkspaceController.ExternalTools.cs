@@ -113,13 +113,7 @@ public sealed partial class ShellWorkspaceController
             throw new InvalidDataException("Dotnet surface type is required.");
         }
 
-        var dataDirectory = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "MyPowerTools",
-            "state",
-            "tools",
-            descriptor.ToolId);
-        Directory.CreateDirectory(dataDirectory);
+        var dataDirectory = ResolveExternalToolDataDirectory(descriptor.ToolId);
 
         // Load into a collectible, shadow-copied AssemblyLoadContext so the surface can be unloaded
         // on refresh or removal without leaking assemblies into the default context.
