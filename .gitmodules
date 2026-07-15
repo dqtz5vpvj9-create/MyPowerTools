@@ -1,21 +1,21 @@
 [submodule "tools/adb-forwarder"]
 	path = tools/adb-forwarder
-	url = file:///C:/Users/lixinrui/repo/MyPowerTools.ToolRepos/adb-forwarder
+	url = https://github.com/MyPowerTools/adb-forwarder.git
 [submodule "tools/remote-notifications"]
 	path = tools/remote-notifications
-	url = file:///C:/Users/lixinrui/repo/MyPowerTools.ToolRepos/remote-notifications
+	url = https://github.com/MyPowerTools/remote-notifications.git
 [submodule "tools/remote-commands"]
 	path = tools/remote-commands
-	url = file:///C:/Users/lixinrui/repo/MyPowerTools.ToolRepos/remote-commands
+	url = https://github.com/MyPowerTools/remote-commands.git
 [submodule "tools/process-monitor"]
 	path = tools/process-monitor
-	url = file:///C:/Users/lixinrui/repo/MyPowerTools.ToolRepos/process-monitor
+	url = https://github.com/MyPowerTools/process-monitor.git
 [submodule "tools/screenease"]
 	path = tools/screenease
-	url = file:///C:/Users/lixinrui/repo/MyPowerTools.ToolRepos/screenease
+	url = https://github.com/MyPowerTools/screenease.git
 [submodule "tools/smartbird-thermostat"]
 	path = tools/smartbird-thermostat
-	url = file:///C:/Users/lixinrui/repo/MyPowerTools.ToolRepos/smartbird-thermostat
+	url = https://github.com/MyPowerTools/smartbird-thermostat.git
 [submodule "tools/doubao-computer-use"]
 	path = tools/doubao-computer-use
-	url = file:///C:/Users/lixinrui/repo/MyPowerTools.ToolRepos/doubao-computer-use
+	url = https://github.com/MyPowerTools/doubao-computer-use.git

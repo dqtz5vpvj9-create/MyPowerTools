@@ -81,22 +81,15 @@ app.MapGet("/", () => $"MyPowerTools.Runner {ProtocolConstants.HostVersion} is r
 Console.WriteLine($"MyPowerTools.Runner serving HostControl on {endpoint.Transport}:{endpoint.Address}");
 var tray = await StartTrayAsync(app, root, runtimePaths.Root, args, windowsPlatform);
 var hotkeys = await StartHotkeysAsync(root, runtimePaths.Root, args, windowsPlatform, runtime);
-var doubaoSupervisor = DoubaoRuntimeSupervisor.CreateForInstalledLayout(root, runtimePaths.Root);
-if (doubaoSupervisor is not null)
-{
-    await doubaoSupervisor.StartAsync();
-}
+// No tool-specific Supervisor is constructed in the Runner entry point. Long-running tool
+// services (Doubao, Remote Notifications, etc.) are managed as ServiceManager units, and
+// on-demand tool runtimes are selected by manifest via the transport runtime hosts.
 try
 {
     await app.RunAsync();
 }
 finally
 {
-    if (doubaoSupervisor is not null)
-    {
-        await doubaoSupervisor.DisposeAsync();
-    }
-
     await runtime.StopModuleEventPumpAsync();
     if (hotkeys is not null)
     {
