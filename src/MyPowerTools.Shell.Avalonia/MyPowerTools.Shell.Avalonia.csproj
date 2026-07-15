@@ -7,16 +7,10 @@
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <SmartBirdIntegrationSource>$(MSBuildProjectDirectory)\..\..\tools\smartbird-thermostat\current-integration\src</SmartBirdIntegrationSource>
-    <SmartBirdShellSource>$(SmartBirdIntegrationSource)\MyPowerTools.Shell.Avalonia</SmartBirdShellSource>
-    <WebToolHostProject>$(SmartBirdIntegrationSource)\MyPowerTools.WebToolHost\MyPowerTools.WebToolHost.csproj</WebToolHostProject>
+    <WebToolHostProject>$(MSBuildProjectDirectory)\..\MyPowerTools.WebToolHost\MyPowerTools.WebToolHost.csproj</WebToolHostProject>
     <WebToolHostTargetFramework>net10.0-windows10.0.19041.0</WebToolHostTargetFramework>
-    <WebToolHostBuildOutput>$(SmartBirdIntegrationSource)\MyPowerTools.WebToolHost\bin\$(Configuration)\$(WebToolHostTargetFramework)\</WebToolHostBuildOutput>
-    <WebToolHostBuildOutput Condition="'$(RuntimeIdentifier)' != ''">$(SmartBirdIntegrationSource)\MyPowerTools.WebToolHost\bin\$(Configuration)\$(WebToolHostTargetFramework)\$(RuntimeIdentifier)\</WebToolHostBuildOutput>
-    <AdbForwarderShellSource>$(MSBuildProjectDirectory)\..\..\tools\adb-forwarder\current-integration\src\MyPowerTools.Shell.Avalonia</AdbForwarderShellSource>
-    <RemoteNotificationsShellSource>$(MSBuildProjectDirectory)\..\..\tools\remote-notifications\current-integration\src\MyPowerTools.Shell.Avalonia</RemoteNotificationsShellSource>
-    <ScreenEaseShellSource>$(MSBuildProjectDirectory)\..\..\tools\screenease\current-integration\src\MyPowerTools.Shell.Avalonia</ScreenEaseShellSource>
-    <DoubaoShellSource>$(MSBuildProjectDirectory)\..\..\tools\doubao-computer-use\current-integration\src\MyPowerTools.Shell.Avalonia</DoubaoShellSource>
+    <WebToolHostBuildOutput>$(MSBuildProjectDirectory)\..\MyPowerTools.WebToolHost\bin\$(Configuration)\$(WebToolHostTargetFramework)\</WebToolHostBuildOutput>
+    <WebToolHostBuildOutput Condition="'$(RuntimeIdentifier)' != ''">$(MSBuildProjectDirectory)\..\MyPowerTools.WebToolHost\bin\$(Configuration)\$(WebToolHostTargetFramework)\$(RuntimeIdentifier)\</WebToolHostBuildOutput>
   </PropertyGroup>
 
   <ItemGroup>
