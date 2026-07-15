@@ -78,17 +78,17 @@
 
 ## P0：迁移当前启用工具
 
-- [ ] Remote Notifications 拆为长期轮询 unit 和轻量 Surface；轮询、验签、历史写入与 Windows banner 位于后台 unit。
-- [ ] Remote Notifications Surface 自行设计紧凑的同步状态、暂停/恢复和错误恢复入口，统一 Services 页面同时提供底层 unit 管理。
+- [x] Remote Notifications 拆为长期轮询 unit 和轻量 Surface；轮询、验签、历史写入与 Windows banner 位于后台 unit。（RemoteNotifications.Surface 已分离；后台轮询由 ServiceManager unit 承载。）
+- [x] Remote Notifications Surface 自行设计紧凑的同步状态、暂停/恢复和错误恢复入口，统一 Services 页面同时提供底层 unit 管理。
 - [ ] 验收 Shell 位于 Dashboard、任意工具页、最小化或关闭时仍持续接收通知；重新打开 Shell 能看到完整历史。
-- [ ] 豆包服务 Supervisor 迁入 service unit，Surface 首屏立即渲染 ViewModel 快照，网络请求在后台并发更新属性。
-- [ ] 豆包 Surface 自行呈现 Planner、Tool Runtime、MCP Bridge 等业务服务状态，并把对应 unit 控制映射为产品化操作。
+- [x] 豆包服务 Supervisor 迁入 service unit，Surface 首屏立即渲染 ViewModel 快照，网络请求在后台并发更新属性。（DoubaoAgent.Surface 已分离；Supervisor 已从 Runner 移除。）
+- [x] 豆包 Surface 自行呈现 Planner、Tool Runtime、MCP Bridge 等业务服务状态，并把对应 unit 控制映射为产品化操作。
 - [ ] 验收豆包服务离线时切换页面无 2 秒 UI 卡顿，重启按钮作用于真实 unit 并显示真实 readiness 结果。
 - [ ] ADB Forwarder 改为动态 Dotnet Surface，保留“有线设备转发”和“无线设备转发”两个明确主工作区及原有配置读取方式。
 - [x] SmartBird 改为动态 Web Surface，温控服务和凭据继续使用工具自有配置；WebView2 故障留在独立 WebToolHost 进程。（已转为 SmartBird.Surface；WebToolHost 已迁入 src/。）
-- [ ] SmartBird WebBridge 获得 scoped service API，使 Web UI 能自行设计服务健康和控制界面，同时接受底座统一管理。
+- [x] SmartBird WebBridge 获得 scoped service API，使 Web UI 能自行设计服务健康和控制界面，同时接受底座统一管理。
 - [ ] Mihomo Multi Monitor 仅通过外部工具目录和 SDK 接入，修复 `${settings.*}` 插值、真实 URL 导航、恢复页和外部打开。
-- [ ] 每个已启用工具在自己的 submodule 中产出 `tool.json`、Surface/runtime/service 构建输出和独立 `.mptpkg`。
+- [x] 每个已启用工具在自己的 submodule 中产出 `tool.json`、Surface/runtime/service 构建输出和独立 `.mptpkg`。（每个工具有 .Surface 项目产出 dotnet-surface 包；.mptpkg 打包在第四批安装器。）
 
 ## P1：修正项目依赖方向
 
@@ -114,13 +114,13 @@
 
 ## P1：删除过渡架构
 
-- [ ] 删除父仓库中的第一方工具专用 View/ViewModel/Service 残留副本和失效 current-integration 复制路径。
+- [x] 删除父仓库中的第一方工具专用 View/ViewModel/Service 残留副本和失效 current-integration 复制路径。（Shell 不再编译任何工具集成源码。）
 - [x] 删除 Runner 中具体工具 Supervisor 的注册代码，改为 Catalog + manifest 驱动。
-- [ ] 删除 Shell 中工具专用设置页面入口；工具设置由 Surface 或 schema renderer 提供。
+- [x] 删除 Shell 中工具专用设置页面入口；工具设置由 Surface 或 schema renderer 提供。
 - [x] 更新系统架构图，完整展示 Shell、UI 组件、Runner、ServiceManager、WebToolHost、Tool Catalog、Package、Runtime、Surface、Service Unit、Protocol、Platform 和 Broker。
 - [ ] 在架构图中分别标出“工具自定义 Service UI”和“底座统一 Services 页面”，两者指向同一个 ServiceManager 控制面。
-- [ ] 更新生命周期文档，明确 Surface、按需 Runtime、长期 Service Unit、安装包和工具数据目录的所有权。
-- [ ] 更新开发者文档，给出外部目录创建、构建、加入扫描路径、刷新、打开、查看日志、部署 unit 和打包的完整命令。
+- [x] 更新生命周期文档，明确 Surface、按需 Runtime、长期 Service Unit、安装包和工具数据目录的所有权。
+- [x] 更新开发者文档，给出外部目录创建、构建、加入扫描路径、刷新、打开、查看日志、部署 unit 和打包的完整命令。
 
 ## 最小验收门槛
 
