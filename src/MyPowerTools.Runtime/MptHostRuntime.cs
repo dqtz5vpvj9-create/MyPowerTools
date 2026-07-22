@@ -55,7 +55,8 @@ public sealed class MptHostRuntime : IAsyncDisposable
         PlatformId platform,
         RuntimePaths? paths = null,
         IEnumerable<IModuleTransportRuntime>? transportRuntimes = null,
-        IReadOnlyDictionary<string, object>? capabilityProviders = null)
+        IReadOnlyDictionary<string, object>? capabilityProviders = null,
+        IEnumerable<string>? initialEnabledModules = null)
     {
         paths ??= RuntimePaths.Create(Path.Combine(Path.GetTempPath(), "MyPowerTools", "runtime-tests"));
         _paths = paths;
@@ -63,7 +64,7 @@ public sealed class MptHostRuntime : IAsyncDisposable
         _packageRegistry = new PackageRegistry(packageReader, platform);
         _toolRegistry = new ToolRegistry(packageReader);
         _settingsStore = new SettingsStore(paths.Settings);
-        _moduleStateStore = new ModuleStateStore(paths.State);
+        _moduleStateStore = new ModuleStateStore(paths.State, initialEnabledModules);
         _hotkeyStore = new HotkeyStore(paths.State);
         _processPolicyStore = new RuntimeProcessPolicyStore(paths.State);
         _moduleEventStore = new ModuleEventStore(paths.State);
@@ -143,10 +144,22 @@ public sealed class MptHostRuntime : IAsyncDisposable
                 var module = _packageRegistry.FindModule(tool.OwnerModuleId)
                     ?? throw new InvalidDataException($"Tool '{tool.ToolId}' owner module '{tool.OwnerModuleId}' is not loaded.");
                 var enabled = _moduleStateStore.IsEnabled(module.Module.Manifest.Id);
-                return new RuntimeToolSnapshot(tool, module.Status.State, module.Status.Summary, enabled);
+                return CreateToolSnapshot(tool, module, enabled);
             })
             .Where(tool => includeDisabled || tool.Enabled)
             .ToArray();
+    }
+
+    private static RuntimeToolSnapshot CreateToolSnapshot(
+        MyPowerTools.Abstractions.ToolDescriptor tool,
+        RuntimeModuleRecord module,
+        bool enabled)
+    {
+        // A tool whose manifest never loaded reports as an error regardless of its
+        // module's state, so catalogs and dashboards render a failure card.
+        var state = tool.LoadError is { Length: > 0 } ? "error" : module.Status.State;
+        var summary = tool.LoadError is { Length: > 0 } ? tool.LoadError : module.Status.Summary;
+        return new RuntimeToolSnapshot(tool, state, summary, enabled);
     }
 
     public Sdk.MptModuleEvent PublishToolEvent(string toolId, string topic, JsonObject payload)
@@ -172,10 +185,9 @@ public sealed class MptHostRuntime : IAsyncDisposable
             ?? throw new KeyNotFoundException($"Tool '{toolId}' was not found.");
         var module = _packageRegistry.FindModule(descriptor.OwnerModuleId)
             ?? throw new InvalidDataException($"Tool '{toolId}' owner module '{descriptor.OwnerModuleId}' is not loaded.");
-        return new RuntimeToolSnapshot(
+        return CreateToolSnapshot(
             descriptor,
-            module.Status.State,
-            module.Status.Summary,
+            module,
             _moduleStateStore.IsEnabled(module.Module.Manifest.Id));
     }
 
@@ -1692,12 +1704,11 @@ public sealed class MptHostRuntime : IAsyncDisposable
 
     private void ApplyPersistedModuleState()
     {
-        var disabled = _moduleStateStore.DisabledModules();
         foreach (var module in _packageRegistry.Modules.ToArray())
         {
-            var status = disabled.Contains(module.Module.Manifest.Id)
-                ? DisabledStatus(module)
-                : InitialStatus(module);
+            var status = _moduleStateStore.IsEnabled(module.Module.Manifest.Id)
+                ? InitialStatus(module)
+                : DisabledStatus(module);
             _packageRegistry.UpdateStatus(module.Module.Manifest.Id, status);
         }
     }

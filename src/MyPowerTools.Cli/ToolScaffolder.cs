@@ -10,7 +10,7 @@ using MyPowerTools.Packaging;
 
 namespace MyPowerTools.Cli;
 
-internal static class ToolScaffolder
+public static class ToolScaffolder
 {
     private static readonly HashSet<string> Types = new(StringComparer.OrdinalIgnoreCase)
     {
@@ -141,10 +141,19 @@ internal static class ToolScaffolder
 
     private static IReadOnlyDictionary<string, string> Files(string type, string id, string sdkFeed)
     {
-        var toolType = type + (type is "web" or "dotnet" ? "-surface" : "-tool");
+        // Web template shares its defaults with the quick-panel normalizer
+        // (WebSurfaceDefaults) so the scaffolded tool and the minimal
+        // { "title", "url" } file agree on the contract. Scaffold extras
+        // (staticRoot, allowedOrigins, commands, serve.py) stay template-only.
+        var toolType = type switch
+        {
+            "web" => MyPowerTools.Packaging.WebSurfaceDefaults.ToolType,
+            "dotnet" => "dotnet-surface",
+            _ => type + "-tool"
+        };
         var surface = type switch
         {
-            "web" => """{ "kind": "web", "source": "http://127.0.0.1:43110/", "staticRoot": "web", "openExternal": true, "allowedOrigins": ["http://127.0.0.1:43110"] }""",
+            "web" => $$"""{ "kind": "{{MyPowerTools.Packaging.WebSurfaceDefaults.SurfaceKind}}", "source": "http://127.0.0.1:43110/", "staticRoot": "web", "openExternal": {{(MyPowerTools.Packaging.WebSurfaceDefaults.SurfaceOpenExternal ? "true" : "false")}}, "allowedOrigins": ["http://127.0.0.1:43110"] }""",
             "dotnet" => """{ "kind": "dotnet", "assembly": "bin/Debug/net10.0/__CLASS__.dll", "type": "__CLASS__.ToolSurfaceFactory" }""",
             "native" => """{ "kind": "native", "source": "runtime.ps1" }""",
             _ => """{ "kind": "headless" }"""
@@ -166,15 +175,15 @@ internal static class ToolScaffolder
               "ownerModuleId": "__ID__",
               "title": "__ID__",
               "description": "A MyPowerTools {{toolType}} created by the SDK CLI.",
-              "icon": "tool.external",
+              "icon": "{{MyPowerTools.Packaging.WebSurfaceDefaults.Icon}}",
               "category": "External tools",
               "type": "{{toolType}}",
-              "availability": "available",
-              "primaryRouteId": "main",
+              "availability": "{{MyPowerTools.Packaging.WebSurfaceDefaults.Availability}}",
+              "primaryRouteId": "{{MyPowerTools.Packaging.WebSurfaceDefaults.PrimaryRouteId}}",
               "routes": [
-                { "routeId": "main", "surfaceId": "__ID__.main", "title": "Overview", "surface": {{surface}} }
+                { "routeId": "{{MyPowerTools.Packaging.WebSurfaceDefaults.PrimaryRouteId}}", "surfaceId": "__ID__.main", "title": "{{MyPowerTools.Packaging.WebSurfaceDefaults.RouteTitle}}", "surface": {{surface}} }
               ],
-              "homeCard": { "summary": "Open __ID__", "primaryActionLabel": "Open", "order": 500 },
+              "homeCard": { "summary": "Open __ID__", "primaryActionLabel": "{{MyPowerTools.Packaging.WebSurfaceDefaults.HomeCardPrimaryActionLabel}}", "order": {{MyPowerTools.Packaging.WebSurfaceDefaults.HomeCardOrder}} },
               "runtime": {{runtime}},
               "settings": { "schema": "settings.schema.json", "values": "settings.json", "secrets": ["apiSecret"] },
               "commands": [

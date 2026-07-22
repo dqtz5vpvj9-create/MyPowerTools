@@ -348,7 +348,8 @@ public sealed record MptPackageDefinition(
 public sealed record MptModuleDefinition(
     string Directory,
     string ManifestPath,
-    MptModuleManifest Manifest);
+    MptModuleManifest Manifest,
+    string? LoadError = null);
 
 public sealed record ValidationIssue(string Path, string Severity, string Message);
 

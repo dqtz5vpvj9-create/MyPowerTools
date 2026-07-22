@@ -25,17 +25,39 @@ public sealed class ToolRegistry
         _tools.Clear();
         foreach (var module in modules)
         {
+            // Module that never loaded (malformed development tool): surface it as an
+            // error-card descriptor instead of dropping it silently.
+            if (module.Module.LoadError is not null)
+            {
+                _tools.Add(CreateErrorDescriptor(module, module.Module.LoadError));
+                continue;
+            }
+
             foreach (var relativePath in module.Module.Manifest.Tools)
             {
-                var manifestPath = ResolveManifestPath(module.Module.Directory, relativePath);
-                var manifest = _reader.ReadJson<MptToolManifest>(manifestPath);
-                var descriptor = ToDescriptor(module, manifest, manifestPath);
-                if (_tools.Any(tool => string.Equals(tool.ToolId, descriptor.ToolId, StringComparison.OrdinalIgnoreCase)))
+                try
                 {
-                    throw new InvalidDataException($"Duplicate tool id '{descriptor.ToolId}' declared by {manifestPath}.");
-                }
+                    var manifestPath = ResolveManifestPath(module.Module.Directory, relativePath);
+                    // Development manifests go through the same normalization-aware read
+                    // as discovery (quick-panel minimal shape → full manifest); installed
+                    // packages stay strict.
+                    var manifest = module.Package.IsDevelopmentTool
+                        ? _reader.ReadDevelopmentToolManifest(manifestPath, module.Module.Directory)
+                        : _reader.ReadJson<MptToolManifest>(manifestPath);
+                    var descriptor = ToDescriptor(module, manifest, manifestPath);
+                    if (_tools.Any(tool => string.Equals(tool.ToolId, descriptor.ToolId, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        throw new InvalidDataException($"Duplicate tool id '{descriptor.ToolId}' declared by {manifestPath}.");
+                    }
 
-                _tools.Add(descriptor);
+                    _tools.Add(descriptor);
+                }
+                catch (Exception exception) when (module.Package.IsDevelopmentTool)
+                {
+                    // One broken development tool must not empty the catalog: it becomes
+                    // an error card. Installed/signed packages keep the strict throw.
+                    _tools.Add(CreateErrorDescriptor(module, exception.GetBaseException().Message));
+                }
             }
         }
 
@@ -46,6 +68,42 @@ public sealed class ToolRegistry
                 ? byOrder
                 : StringComparer.OrdinalIgnoreCase.Compare(left.Title, right.Title);
         });
+    }
+
+    private ToolDescriptor CreateErrorDescriptor(RuntimeModuleRecord module, string message)
+    {
+        var moduleId = module.Module.Manifest.Id;
+        var toolId = moduleId.StartsWith("dev.", StringComparison.OrdinalIgnoreCase)
+            ? moduleId["dev.".Length..]
+            : moduleId;
+        if (string.IsNullOrWhiteSpace(toolId))
+        {
+            toolId = "custom.error";
+        }
+
+        var uniqueToolId = toolId;
+        var suffix = 1;
+        while (_tools.Any(tool => string.Equals(tool.ToolId, uniqueToolId, StringComparison.OrdinalIgnoreCase)))
+        {
+            uniqueToolId = $"{toolId}.error{suffix++}";
+        }
+
+        var title = string.IsNullOrWhiteSpace(module.Module.Manifest.DisplayName)
+            ? Path.GetFileName(module.Module.Directory)
+            : module.Module.Manifest.DisplayName;
+
+        return new ToolDescriptor(
+            uniqueToolId,
+            moduleId,
+            title,
+            message,
+            Packaging.WebSurfaceDefaults.Icon,
+            "Development",
+            "main",
+            [],
+            new ToolHomeCard("Failed to load"),
+            SourceDirectory: module.Module.Directory,
+            LoadError: message);
     }
 
     public ToolDescriptor? Find(string toolId)

@@ -612,6 +612,14 @@ public sealed class HostControlGrpcService : HostProto.HostControl.HostControlBa
     private static HostProto.ToolDescriptor ToProtoTool(RuntimeToolSnapshot snapshot)
     {
         var descriptor = snapshot.Descriptor;
+        // A tool whose manifest never loaded surfaces as an error card regardless of
+        // its module's state or enabled flag.
+        var state = !string.IsNullOrWhiteSpace(descriptor.LoadError)
+            ? "error"
+            : snapshot.Enabled ? snapshot.State : "disabled";
+        var stateSummary = !string.IsNullOrWhiteSpace(descriptor.LoadError)
+            ? descriptor.LoadError
+            : snapshot.Enabled ? snapshot.StateSummary : "This tool is disabled.";
         var response = new HostProto.ToolDescriptor
         {
             ToolId = descriptor.ToolId,
@@ -624,8 +632,8 @@ public sealed class HostControlGrpcService : HostProto.HostControl.HostControlBa
             Availability = descriptor.Availability,
             ToolType = descriptor.ToolType,
             SourceDirectory = descriptor.SourceDirectory,
-            State = snapshot.Enabled ? snapshot.State : "disabled",
-            StateSummary = snapshot.Enabled ? snapshot.StateSummary : "This tool is disabled.",
+            State = state,
+            StateSummary = stateSummary,
             HomeCard = new HostProto.ToolHomeCard
             {
                 Summary = descriptor.HomeCard.Summary,

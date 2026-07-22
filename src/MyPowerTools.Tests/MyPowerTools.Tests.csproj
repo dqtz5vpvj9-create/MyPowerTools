@@ -23,6 +23,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\MyPowerTools.Abstractions\MyPowerTools.Abstractions.csproj" />
     <ProjectReference Include="..\..\tools\adb-forwarder\current-integration\src\AdbForwarder.MyPowerTools\AdbForwarder.MyPowerTools.csproj" />
     <ProjectReference Include="..\..\tools\remote-notifications\current-integration\src\AndroidTools.MyPowerTools\AndroidTools.MyPowerTools.csproj" />
     <ProjectReference Include="..\..\tools\doubao-computer-use\current-integration\src\DoubaoAgent.MyPowerTools\DoubaoAgent.MyPowerTools.csproj" />
@@ -36,10 +37,12 @@
     <ProjectReference Include="..\MyPowerTools.UI.Testing\MyPowerTools.UI.Testing.csproj" />
     <ProjectReference Include="..\MyPowerTools.HostControl\MyPowerTools.HostControl.csproj" />
     <ProjectReference Include="..\MyPowerTools.Shell.Avalonia\MyPowerTools.Shell.Avalonia.csproj" />
+    <ProjectReference Include="..\MyPowerTools.WebSurface.Avalonia\MyPowerTools.WebSurface.Avalonia.csproj" />
     <ProjectReference Include="..\Mpt.Cli.VisualTesting\Mpt.Cli.VisualTesting.csproj" />
     <ProjectReference Include="..\MyPowerTools.ModuleHost.InProcDotNet\MyPowerTools.ModuleHost.InProcDotNet.csproj" />
     <ProjectReference Include="..\MyPowerTools.ModuleHost.GrpcIpc\MyPowerTools.ModuleHost.GrpcIpc.csproj" />
     <ProjectReference Include="..\MyPowerTools.Runner\MyPowerTools.Runner.csproj" />
+    <ProjectReference Include="..\MyPowerTools.Cli\MyPowerTools.Cli.csproj" />
     <ProjectReference Include="..\MyPowerTools.SampleModules.DotNet\MyPowerTools.SampleModules.DotNet.csproj" />
     <ProjectReference Include="..\MyPowerTools.SampleSidecar.Grpc\MyPowerTools.SampleSidecar.Grpc.csproj" />
     <ProjectReference Include="..\MyPowerTools.Broker\MyPowerTools.Broker.csproj" />

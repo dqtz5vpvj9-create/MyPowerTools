@@ -15,7 +15,9 @@ public static class ShellPageRefreshRouter
             "settings.updated" when currentPage == "Settings" => new(ReloadSettingsModuleId: evt.SourceId),
             "module.enabled" or "module.disabled" or "registry.loaded" or "commands.dynamic.refreshed" => new(
                 ReloadCommands: true,
-                ReloadCurrentPage: currentPage is "Dashboard" or "Modules" or "Packages" or "Diagnostics"),
+                ReloadHomeTools: evt.Type == "registry.loaded",
+                ReloadCurrentPage: currentPage is "Dashboard" or "Modules" or "Packages" or "Diagnostics"
+                    or "Tools"),
             "runtime.process.restart" or "runtime.process.policy" or "runtime.process.policy.expired"
                 when currentPage == "Diagnostics" => new(ReloadDiagnostics: true),
             "module.health.changed" => new(ReloadCurrentPage: currentPage is "Dashboard" or "Modules" or "Diagnostics"),
@@ -28,6 +30,7 @@ public sealed record ShellPageRefreshPlan(
     bool ReloadNotifications = false,
     bool ReloadBrokerAudit = false,
     bool ReloadCommands = false,
+    bool ReloadHomeTools = false,
     bool ReloadCurrentPage = false,
     bool ReloadDiagnostics = false,
     string? ReloadSettingsModuleId = null)

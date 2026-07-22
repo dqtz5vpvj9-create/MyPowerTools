@@ -6,6 +6,16 @@ public static class ToolDiscoveryConfiguration
 {
     public const string EnvironmentVariable = "MPT_TOOL_DIRS";
 
+    /// <summary>
+    /// The default user-writable drop folder for custom tools and quick web panels
+    /// (single-file { "title", "url" } manifests). Always discovered, created by the
+    /// Runner at startup.
+    /// </summary>
+    public const string CustomToolsDirectoryName = "custom-tools";
+
+    public static string CustomToolsDirectory(string dataRoot) =>
+        Path.Combine(dataRoot, CustomToolsDirectoryName);
+
     public static IReadOnlyList<string> Resolve(
         string applicationRoot,
         string dataRoot,
@@ -13,6 +23,7 @@ public static class ToolDiscoveryConfiguration
     {
         var paths = new List<string>();
         Add(paths, Path.Combine(applicationRoot, "tools"));
+        Add(paths, CustomToolsDirectory(dataRoot));
 
         var configuredPath = Path.Combine(dataRoot, "settings", "tool-directories.json");
         if (File.Exists(configuredPath))

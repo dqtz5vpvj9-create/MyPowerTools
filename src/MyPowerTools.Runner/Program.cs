@@ -2,12 +2,13 @@ using System.Diagnostics;
 using System.Text.Json.Nodes;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
 using MyPowerTools.HostControl;
+using MyPowerTools.Ipc;
 using MyPowerTools.ModuleHost.GrpcIpc;
 using MyPowerTools.ModuleHost.InProcDotNet;
 using MyPowerTools.ModuleHost.StdioCompat;
 using MyPowerTools.Packaging;
+using MyPowerTools.Platform;
 using MyPowerTools.Platform.Abstractions;
-using MyPowerTools.Platform.Windows;
 using MyPowerTools.Protocol;
 using MyPowerTools.Runner;
 using MyPowerTools.Runtime;
@@ -18,7 +19,8 @@ PrependAndroidPlatformToolsToPath(root);
 var modulesRoot = GetOption(args, "--modules") ?? Path.Combine(root, "modules");
 var once = args.Contains("--once", StringComparer.OrdinalIgnoreCase);
 var platform = PlatformId.Current();
-var windowsPlatform = OperatingSystem.IsWindows() ? new WindowsPlatformPack() : null;
+var platformPack = PlatformPackFactory.Create();
+var initialEnabledModules = ResolveInitialEnabledModules(args, platform);
 var dataRoot = GetOption(args, "--data-root") ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MyPowerTools");
 var runtimePaths = RuntimePaths.Create(dataRoot);
 // ServiceManager token discovery must follow the Runner's selected data root.
@@ -26,6 +28,16 @@ var runtimePaths = RuntimePaths.Create(dataRoot);
 // bind the process-local SDK setting before capability providers create clients.
 Environment.SetEnvironmentVariable(ServiceManagerAdminClient.DataRootEnvironmentVariable, runtimePaths.Root);
 var developmentToolRoots = ToolDiscoveryConfiguration.Resolve(root, dataRoot, GetOptions(args, "--tool-dir"));
+// Default drop folder for custom tools and quick web panels ({ "title", "url" } files).
+// Ensuring it exists gives users a discoverable location and lets the catalog watcher attach.
+try
+{
+    Directory.CreateDirectory(ToolDiscoveryConfiguration.CustomToolsDirectory(dataRoot));
+}
+catch (IOException)
+{
+    // Tool discovery roots are optional; startup must not fail on an unwritable data root.
+}
 var hostControlToken = HostControlAuthTokenStore.GetOrCreateToken(runtimePaths.Root);
 var runnerInstanceName = GetOption(args, "--instance-name") ?? "MyPowerTools.Runner";
 var endpointAddress = GetOption(args, "--endpoint-address");
@@ -37,7 +49,13 @@ if (!guard.OwnsInstance && !once)
     return 2;
 }
 
-await using var runtime = new MptHostRuntime(new PackageReader(), platform, runtimePaths, CreateTransportRuntimes(), CreateCapabilityProviders(windowsPlatform));
+await using var runtime = new MptHostRuntime(
+    new PackageReader(),
+    platform,
+    runtimePaths,
+    CreateTransportRuntimes(),
+    CreateCapabilityProviders(platformPack),
+    initialEnabledModules);
 runtime.Load(modulesRoot, developmentToolRoots);
 await runtime.RefreshDynamicCommandsAsync(CancellationToken.None);
 
@@ -56,6 +74,25 @@ if (once)
 
 runtime.StartModuleEventPump();
 
+// Hot-reload development tools (tool.json folders and *.mpt.json quick web panels)
+// when their files change on disk. Debounced; a manual Refresh remains as fallback.
+DevelopmentToolCatalogWatcher? toolCatalogWatcher = null;
+if (!args.Contains("--no-watch", StringComparer.OrdinalIgnoreCase))
+{
+    toolCatalogWatcher = new DevelopmentToolCatalogWatcher(
+        developmentToolRoots,
+        async cancellationToken =>
+        {
+            await runtime.RefreshToolCatalogAsync(cancellationToken);
+            Console.WriteLine("Tool catalog refreshed (development tool files changed).");
+        });
+    toolCatalogWatcher.Start();
+    if (toolCatalogWatcher.WatchedRootCount > 0)
+    {
+        Console.WriteLine($"Watching {toolCatalogWatcher.WatchedRootCount} tool director{(toolCatalogWatcher.WatchedRootCount == 1 ? "y" : "ies")} for changes.");
+    }
+}
+
 var endpoint = string.IsNullOrWhiteSpace(endpointAddress)
     ? IpcEndpoint.RunnerDefault(platform)
     : new IpcEndpoint(
@@ -67,6 +104,10 @@ builder.Services.AddGrpc(options => options.Interceptors.Add<HostControlAuthServ
 builder.Services.AddSingleton(runtime);
 builder.Services.AddSingleton(new PackageStore(modulesRoot, Path.Combine(root, "schemas")));
 
+if (OperatingSystem.IsWindows())
+{
+    builder.WebHost.UseNamedPipes(MptNamedPipePolicy.Configure);
+}
 builder.WebHost.ConfigureKestrel(options =>
 {
     if (endpoint.Transport == IpcTransport.NamedPipe)
@@ -90,8 +131,12 @@ app.MapGrpcService<HostControlGrpcService>();
 app.MapGet("/", () => $"MyPowerTools.Runner {ProtocolConstants.HostVersion} is running.");
 
 Console.WriteLine($"MyPowerTools.Runner serving HostControl on {endpoint.Transport}:{endpoint.Address}");
-var tray = await StartTrayAsync(app, root, runtimePaths.Root, args, windowsPlatform);
-var hotkeys = await StartHotkeysAsync(root, runtimePaths.Root, args, windowsPlatform, runtime);
+var tray = await StartTrayAsync(app, root, runtimePaths.Root, args, platformPack);
+var hotkeys = await StartHotkeysAsync(root, runtimePaths.Root, args, platformPack, runtime);
+if (!args.Contains("--no-shell-prewarm", StringComparer.OrdinalIgnoreCase))
+{
+    TryPrewarmShell(root, runtimePaths.Root);
+}
 // No tool-specific Supervisor is constructed in the Runner entry point. Long-running tool
 // services (Doubao, Remote Notifications, etc.) are managed as ServiceManager units, and
 // on-demand tool runtimes are selected by manifest via the transport runtime hosts.
@@ -101,6 +146,11 @@ try
 }
 finally
 {
+    if (toolCatalogWatcher is not null)
+    {
+        await toolCatalogWatcher.DisposeAsync();
+    }
+
     await runtime.StopModuleEventPumpAsync();
     if (hotkeys is not null)
     {
@@ -157,6 +207,28 @@ static IReadOnlyList<string> GetOptions(string[] args, string name)
     return values;
 }
 
+static IReadOnlyList<string>? ResolveInitialEnabledModules(string[] args, PlatformId platform)
+{
+    var requested = GetOptions(args, "--default-enabled-module");
+    if (requested.Count > 0)
+    {
+        return requested;
+    }
+
+    var configured = Environment.GetEnvironmentVariable("MPT_DEFAULT_ENABLED_MODULES");
+    if (!string.IsNullOrWhiteSpace(configured))
+    {
+        return configured
+            .Split([',', ';'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    return string.Equals(platform.OperatingSystem, "macos", StringComparison.OrdinalIgnoreCase)
+        ? ["android-tools.notifications"]
+        : null;
+}
+
 static IModuleTransportRuntime[] CreateTransportRuntimes()
 {
     return
@@ -167,26 +239,30 @@ static IModuleTransportRuntime[] CreateTransportRuntimes()
     ];
 }
 
-static IReadOnlyDictionary<string, object> CreateCapabilityProviders(WindowsPlatformPack? windowsPlatform)
+static IReadOnlyDictionary<string, object> CreateCapabilityProviders(IPlatformPack platformPack)
 {
     var providers = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase)
     {
         ["service.units"] = new ServiceUnitClientFactory(ServiceManagerAdminClient.ForDefaultEndpoint())
     };
 
-    if (windowsPlatform is not null && OperatingSystem.IsWindows())
+    if (platformPack.Capabilities.Resolve("display.profile").Supported)
     {
-        providers["display.profile"] = windowsPlatform.Display;
+        providers["display.profile"] = platformPack.Display;
+    }
+    if (platformPack.Capabilities.Resolve("notification.desktop").Supported)
+    {
+        providers["notification.desktop"] = platformPack.Notifications;
     }
 
     return providers;
 }
 
-static async Task<ITrayService?> StartTrayAsync(WebApplication app, string root, string dataRoot, string[] args, WindowsPlatformPack? platform)
+static async Task<ITrayService?> StartTrayAsync(WebApplication app, string root, string dataRoot, string[] args, IPlatformPack platform)
 {
     if (args.Contains("--no-tray", StringComparer.OrdinalIgnoreCase) ||
-        platform is null ||
-        !OperatingSystem.IsWindows())
+        platform.TrayHost != PlatformTrayHost.Runner ||
+        !platform.Capabilities.Resolve("tray").Supported)
     {
         return null;
     }
@@ -210,6 +286,7 @@ static async Task<ITrayService?> StartTrayAsync(WebApplication app, string root,
 
             if (invocation.ActionId == "exit-application")
             {
+                StartShell(root, dataRoot, shutdownShell: true);
                 app.Lifetime.StopApplication();
             }
 
@@ -228,11 +305,10 @@ static async Task<ITrayService?> StartTrayAsync(WebApplication app, string root,
     return null;
 }
 
-static async Task<IHotkeyService?> StartHotkeysAsync(string root, string dataRoot, string[] args, WindowsPlatformPack? platform, MptHostRuntime runtime)
+static async Task<IHotkeyService?> StartHotkeysAsync(string root, string dataRoot, string[] args, IPlatformPack platform, MptHostRuntime runtime)
 {
     if (args.Contains("--no-hotkeys", StringComparer.OrdinalIgnoreCase) ||
-        platform is null ||
-        !OperatingSystem.IsWindows())
+        !platform.Capabilities.Resolve("hotkey.global").Supported)
     {
         return null;
     }
@@ -241,6 +317,7 @@ static async Task<IHotkeyService?> StartHotkeysAsync(string root, string dataRoo
     var synchronizer = new RunnerHotkeySynchronizer(hotkeys, runtime);
     hotkeys.Pressed += (_, invocation) =>
     {
+        var hotkeyReceivedUtc = DateTimeOffset.UtcNow;
         if (string.Equals(invocation.Id, "command-palette", StringComparison.OrdinalIgnoreCase))
         {
             try
@@ -261,11 +338,14 @@ static async Task<IHotkeyService?> StartHotkeysAsync(string root, string dataRoo
         {
             return;
         }
+        request.Args["__mptHotkeyReceivedUtc"] = hotkeyReceivedUtc.ToString("O");
+        request.Args["__mptHotkeyGesture"] = invocation.Gesture;
 
         _ = Task.Run(async () =>
         {
             try
             {
+                request.Args["__mptCommandDispatchUtc"] = DateTimeOffset.UtcNow.ToString("O");
                 var result = await runtime.ExecuteCommandAsync(request, CancellationToken.None);
                 Console.WriteLine($"MyPowerTools.Runner hotkey command {request.CommandId}: {result.State}");
             }
@@ -317,15 +397,85 @@ static async Task SyncModuleHotkeysAsync(
     }
 }
 
-static void StartShell(string root, string dataRoot, bool focusCommandPalette = false)
+static void TryPrewarmShell(string root, string dataRoot)
 {
-    var startInfo = CreateShellStartInfo(root, dataRoot, focusCommandPalette);
+    if (IsShellResident())
+    {
+        return;
+    }
+
+    try
+    {
+        StartShell(root, dataRoot, prewarm: true);
+        Console.WriteLine("MyPowerTools.Runner started hidden Shell prewarm.");
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"MyPowerTools.Runner Shell prewarm failed: {ex.Message}");
+    }
+}
+
+static bool IsShellResident()
+{
+    try
+    {
+        var mutexName = OperatingSystem.IsWindows() ? @"Local\MyPowerTools.Shell" : "MyPowerTools.Shell";
+        if (!Mutex.TryOpenExisting(mutexName, out var shellMutex))
+        {
+            return false;
+        }
+
+        shellMutex.Dispose();
+        return true;
+    }
+    catch (WaitHandleCannotBeOpenedException)
+    {
+        return false;
+    }
+    catch (UnauthorizedAccessException)
+    {
+        return true;
+    }
+}
+
+static void StartShell(
+    string root,
+    string dataRoot,
+    bool focusCommandPalette = false,
+    bool prewarm = false,
+    bool shutdownShell = false)
+{
+    var startInfo = CreateShellStartInfo(
+        root,
+        dataRoot,
+        focusCommandPalette,
+        prewarm,
+        shutdownShell);
     Process.Start(startInfo);
 }
 
-static ProcessStartInfo CreateShellStartInfo(string root, string dataRoot, bool focusCommandPalette = false)
+static ProcessStartInfo CreateShellStartInfo(
+    string root,
+    string dataRoot,
+    bool focusCommandPalette = false,
+    bool prewarm = false,
+    bool shutdownShell = false)
 {
-    var siblingShell = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "Shell", "MyPowerTools.Shell.Avalonia.exe"));
+    var siblingLauncher = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", ExecutableName("MyPowerTools")));
+    if (!focusCommandPalette && !prewarm && !shutdownShell && File.Exists(siblingLauncher))
+    {
+        var launcherStartInfo = new ProcessStartInfo
+        {
+            FileName = siblingLauncher,
+            WorkingDirectory = Path.GetDirectoryName(siblingLauncher)!,
+            UseShellExecute = false
+        };
+        launcherStartInfo.ArgumentList.Add("--data-root");
+        launcherStartInfo.ArgumentList.Add(dataRoot);
+        return launcherStartInfo;
+    }
+
+    var siblingShell = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "Shell", ExecutableName("MyPowerTools.Shell.Avalonia")));
     if (File.Exists(siblingShell))
     {
         var siblingStartInfo = new ProcessStartInfo
@@ -333,12 +483,12 @@ static ProcessStartInfo CreateShellStartInfo(string root, string dataRoot, bool 
             FileName = siblingShell,
             UseShellExecute = false
         };
-        AddShellArguments(siblingStartInfo, focusCommandPalette);
+        AddShellArguments(siblingStartInfo, focusCommandPalette, prewarm, shutdownShell);
         siblingStartInfo.Environment[HostControlAuthTokenStore.DataRootEnvironmentVariable] = dataRoot;
         return siblingStartInfo;
     }
 
-    var debugShell = Path.Combine(root, "src", "MyPowerTools.Shell.Avalonia", "bin", "Debug", "net10.0", "MyPowerTools.Shell.Avalonia.exe");
+    var debugShell = Path.Combine(root, "src", "MyPowerTools.Shell.Avalonia", "bin", "Debug", "net10.0", ExecutableName("MyPowerTools.Shell.Avalonia"));
     if (File.Exists(debugShell))
     {
         var debugStartInfo = new ProcessStartInfo
@@ -346,7 +496,7 @@ static ProcessStartInfo CreateShellStartInfo(string root, string dataRoot, bool 
             FileName = debugShell,
             UseShellExecute = false
         };
-        AddShellArguments(debugStartInfo, focusCommandPalette);
+        AddShellArguments(debugStartInfo, focusCommandPalette, prewarm, shutdownShell);
         debugStartInfo.Environment[HostControlAuthTokenStore.DataRootEnvironmentVariable] = dataRoot;
         return debugStartInfo;
     }
@@ -362,13 +512,23 @@ static ProcessStartInfo CreateShellStartInfo(string root, string dataRoot, bool 
     startInfo.ArgumentList.Add("run");
     startInfo.ArgumentList.Add("--project");
     startInfo.ArgumentList.Add(shellProject);
-    AddShellArguments(startInfo, focusCommandPalette, throughDotnetRun: true);
+    AddShellArguments(
+        startInfo,
+        focusCommandPalette,
+        prewarm,
+        shutdownShell,
+        throughDotnetRun: true);
     return startInfo;
 }
 
-static void AddShellArguments(ProcessStartInfo startInfo, bool focusCommandPalette, bool throughDotnetRun = false)
+static void AddShellArguments(
+    ProcessStartInfo startInfo,
+    bool focusCommandPalette,
+    bool prewarm,
+    bool shutdownShell,
+    bool throughDotnetRun = false)
 {
-    if (!focusCommandPalette)
+    if (!focusCommandPalette && !prewarm && !shutdownShell)
     {
         return;
     }
@@ -378,7 +538,20 @@ static void AddShellArguments(ProcessStartInfo startInfo, bool focusCommandPalet
         startInfo.ArgumentList.Add("--");
     }
 
-    startInfo.ArgumentList.Add("--command-palette");
+    if (focusCommandPalette)
+    {
+        startInfo.ArgumentList.Add("--command-palette");
+    }
+
+    if (prewarm)
+    {
+        startInfo.ArgumentList.Add("--prewarm");
+    }
+
+    if (shutdownShell)
+    {
+        startInfo.ArgumentList.Add("--shutdown-shell");
+    }
 }
 
 static string FindRepositoryRoot(string start)
@@ -402,3 +575,6 @@ static string FindRepositoryRoot(string start)
 
     return Directory.GetCurrentDirectory();
 }
+
+static string ExecutableName(string baseName) =>
+    OperatingSystem.IsWindows() ? baseName + ".exe" : baseName;
