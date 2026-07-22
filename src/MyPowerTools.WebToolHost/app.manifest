@@ -20,6 +20,11 @@
 
   <application xmlns="urn:schemas-microsoft-com:asm.v3">
     <windowsSettings>
+      <!-- WebView2 child windows must track per-monitor DPI or they blur/misalign
+           on mixed-DPI displays. ApplicationHighDpiMode in the csproj does not flow
+           into the manifest for a non-WindowsDesktop SDK project, so declare it here. -->
+      <dpiAware xmlns="http://schemas.microsoft.com/SMI/2005/WindowsSettings">PerMonitorV2,PerMonitor</dpiAware>
+      <dpiAwareness xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">PerMonitorV2,PerMonitor</dpiAwareness>
       <longPathAware xmlns="http://schemas.microsoft.com/SMI/2016/WindowsSettings">true</longPathAware>
     </windowsSettings>
   </application>

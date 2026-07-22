@@ -6,6 +6,7 @@ using MyPowerTools.Shell.Avalonia.Navigation;
 using MyPowerTools.Shell.Avalonia.Services;
 using MyPowerTools.Shell.Avalonia.ViewModels;
 using System.Reflection;
+using System.Text.RegularExpressions;
 using HostProto = MyPowerTools.Protocol.HostControl.V1;
 
 namespace MyPowerTools.Tests;
@@ -13,6 +14,128 @@ namespace MyPowerTools.Tests;
 public sealed class ToolProductFoundationTests
 {
     private static readonly string RepositoryRoot = FindRepositoryRoot();
+
+    [Fact]
+    public void Tool_catalog_exposes_an_accessible_compact_refresh_button()
+    {
+        var view = File.ReadAllText(Path.Combine(
+            RepositoryRoot,
+            "src",
+            "MyPowerTools.Shell.Avalonia",
+            "Views",
+            "ToolCatalogView.axaml"));
+
+        Assert.Contains("<controls:MptIconButton", view, StringComparison.Ordinal);
+        Assert.Contains("Content=\"&#xE72C;\"", view, StringComparison.Ordinal);
+        Assert.Contains("FontFamily=\"{DynamicResource MptFontFamilyIcons}\"", view, StringComparison.Ordinal);
+        Assert.Contains("Command=\"{Binding RefreshCommand}\"", view, StringComparison.Ordinal);
+        Assert.Contains("ToolTip.Tip=\"Refresh tools\"", view, StringComparison.Ordinal);
+        Assert.Contains("AutomationProperties.Name=\"Refresh tools\"", view, StringComparison.Ordinal);
+        Assert.DoesNotContain("Content=\"Refresh tools\"", view, StringComparison.Ordinal);
+        Assert.DoesNotContain("Content=\"↻\"", view, StringComparison.Ordinal);
+        Assert.Single(Regex.Matches(view, "Text=\"\\{Binding ResultSummary\\}\"").Cast<Match>());
+
+        var viewModel = new ToolCatalogViewModel([]);
+        Assert.Equal("All tools", viewModel.Title);
+    }
+
+    [Fact]
+    public void Dotnet_surface_uses_its_own_header_and_restores_host_header_for_load_failure()
+    {
+        var view = File.ReadAllText(Path.Combine(
+            RepositoryRoot,
+            "src",
+            "MyPowerTools.Shell.Avalonia",
+            "Views",
+            "ExternalSdkToolView.axaml"));
+        var viewModel = CreateExternalSdkToolViewModel("dotnet-surface", withCommands: true);
+        var changedProperties = new List<string?>();
+        viewModel.PropertyChanged += (_, eventArgs) => changedProperties.Add(eventArgs.PropertyName);
+
+        Assert.False(viewModel.IsHostHeaderVisible);
+        Assert.False(viewModel.IsHostCommandBarVisible);
+
+        viewModel.ReportSurface("ready");
+        Assert.False(viewModel.IsHostHeaderVisible);
+        Assert.False(viewModel.IsHostCommandBarVisible);
+
+        viewModel.ReportSurface("failed", "Surface assembly could not be loaded.");
+        Assert.True(viewModel.IsHostHeaderVisible);
+        Assert.False(viewModel.IsHostCommandBarVisible);
+        Assert.Contains(nameof(ExternalSdkToolViewModel.IsHostHeaderVisible), changedProperties);
+        Assert.Contains("<Grid RowDefinitions=\"Auto,Auto,*\">", view, StringComparison.Ordinal);
+        Assert.Contains("IsVisible=\"{Binding IsHostHeaderVisible}\"", view, StringComparison.Ordinal);
+        Assert.Contains("IsVisible=\"{Binding IsHostCommandBarVisible}\"", view, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("web-surface")]
+    [InlineData("native-tool")]
+    [InlineData("headless-tool")]
+    public void External_surface_types_keep_host_header_and_declared_commands(string toolType)
+    {
+        var withoutCommands = CreateExternalSdkToolViewModel(toolType);
+        var withCommands = CreateExternalSdkToolViewModel(toolType, withCommands: true);
+
+        Assert.True(withoutCommands.IsHostHeaderVisible);
+        Assert.False(withoutCommands.IsHostCommandBarVisible);
+        Assert.True(withCommands.IsHostHeaderVisible);
+        Assert.True(withCommands.IsHostCommandBarVisible);
+    }
+
+    private static ExternalSdkToolViewModel CreateExternalSdkToolViewModel(
+        string toolType,
+        bool withCommands = false) =>
+        new(
+            "sample-tool",
+            "Sample tool",
+            "Sample subtitle",
+            toolType,
+            "Overview",
+            source: null,
+            openExternal: false,
+            withCommands
+                ? [new ExternalToolCommandViewModel("Run", "Run command", () => Task.CompletedTask)]
+                : [],
+            settingsPath: null,
+            _ => Task.FromResult("{}"),
+            () => Task.CompletedTask,
+            () => Task.CompletedTask);
+
+    [Fact]
+    public void Dotnet_surface_factories_do_not_synchronously_wait_for_async_initialization()
+    {
+        var violations = Directory
+            .EnumerateFiles(Path.Combine(RepositoryRoot, "tools"), "*SurfaceFactory.cs", SearchOption.AllDirectories)
+            .Where(path => File.ReadAllText(path).Contains("GetAwaiter().GetResult()", StringComparison.Ordinal))
+            .Select(path => Path.GetRelativePath(RepositoryRoot, path))
+            .ToArray();
+
+        Assert.Empty(violations);
+    }
+
+    [Fact]
+    public void Thickness_properties_use_thickness_resources_in_product_axaml()
+    {
+        var pattern = new Regex(
+            "\\b(?:Margin|Padding|BorderThickness)\\s*=\\s*\"\\{DynamicResource\\s+MptSpacing[^}\"]+\\}\"",
+            RegexOptions.CultureInvariant);
+        var violations = new List<string>();
+
+        foreach (var sourceRoot in new[] { "src", "tools" })
+        {
+            var absoluteRoot = Path.Combine(RepositoryRoot, sourceRoot);
+            foreach (var path in Directory.EnumerateFiles(absoluteRoot, "*.axaml", SearchOption.AllDirectories))
+            {
+                foreach (Match match in pattern.Matches(File.ReadAllText(path)))
+                {
+                    violations.Add($"{Path.GetRelativePath(RepositoryRoot, path)}: {match.Value}");
+                }
+            }
+        }
+
+        Assert.Empty(violations);
+    }
 
     [Fact]
     public void Navigation_action_uses_explicit_tool_route_without_open_suffix_convention()
@@ -151,6 +274,7 @@ public sealed class ToolProductFoundationTests
         Assert.Equal(ToolAvailability.Paused, processCard.Availability);
         Assert.Equal("Paused", processCard.StatusLabel);
         Assert.Equal("Paused", processCard.PrimaryActionLabel);
+        Assert.False(ShellToolProductService.IsVisibleInProduct(processMonitor));
         Assert.False(processCard.CanOpen);
         Assert.False(processCard.OpenCommand.CanExecute(null));
         Assert.True(processCard.IsAttentionStatus);
@@ -306,7 +430,7 @@ public sealed class ToolProductFoundationTests
     }
 
     [Fact]
-    public async Task Seven_production_tools_each_resolve_one_unique_primary_route()
+    public async Task Production_tools_each_resolve_one_unique_primary_route()
     {
         var dataRoot = Path.Combine(
             Path.GetTempPath(),
@@ -326,6 +450,7 @@ public sealed class ToolProductFoundationTests
             {
                 "adb-forwarder",
                 "doubao-agent",
+                "paste-image",
                 "process-monitor",
                 "remote-commands",
                 "remote-notifications",

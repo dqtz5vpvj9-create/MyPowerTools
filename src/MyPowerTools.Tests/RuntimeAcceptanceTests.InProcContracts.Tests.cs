@@ -852,8 +852,14 @@ public sealed partial class RuntimeAcceptanceTests
         foreach (var projectFile in projectFiles)
         {
             var content = File.ReadAllText(Path.Combine(Root, projectFile));
-            Assert.Contains("MyPowerTools.Abstractions.csproj", content);
+            // The abstractions contract may come from a project reference or from the
+            // MyPowerTools.ToolSdk package (the current module packaging strategy).
+            Assert.True(
+                content.Contains("MyPowerTools.Abstractions.csproj", StringComparison.Ordinal) ||
+                content.Contains("\"MyPowerTools.ToolSdk\"", StringComparison.Ordinal),
+                $"{projectFile} must reference the abstractions contract (project reference or MyPowerTools.ToolSdk package).");
             Assert.DoesNotContain("MyPowerTools.Runtime.csproj", content);
+            Assert.DoesNotContain("\"MyPowerTools.Runtime\"", content);
         }
     }
 

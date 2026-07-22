@@ -1,7 +1,9 @@
 using System.Net;
 using System.Text;
 using System.Text.Json.Nodes;
+using Avalonia.Controls;
 using Avalonia.Input;
+using MyPowerTools.AvaloniaSdk;
 using MyPowerTools.ModuleHost.InProcDotNet;
 using MyPowerTools.Packaging;
 using MyPowerTools.Platform.Abstractions;
@@ -11,6 +13,7 @@ using MyPowerTools.Shell.Avalonia;
 using MyPowerTools.Shell.Avalonia.Services;
 using MyPowerTools.Shell.Avalonia.ViewModels;
 using MyPowerTools.Shell.Avalonia.Views;
+using MyPowerTools.WebSurface.Avalonia;
 using SmartBird.Surface.Services;
 using SmartBird.Surface.ViewModels;
 using SmartBird.Surface.Views;
@@ -121,26 +124,23 @@ public sealed class SmartBirdThermostatProductTests
     }
 
     [Fact]
-    public void Webview_navigation_keeps_every_document_inside_the_dashboard_origin()
+    public void Web_surface_policy_normalizes_the_dashboard_origin()
     {
         var dashboard = new Uri("http://127.0.0.1:19002/");
 
-        Assert.True(SmartBirdWebNavigationPolicy.IsSupportedWebUri(dashboard));
-        Assert.True(SmartBirdWebNavigationPolicy.HasSameOrigin(
-            dashboard,
+        Assert.True(WebSurfaceNavigationPolicy.IsSupportedWebUri(dashboard));
+        Assert.Equal(dashboard, WebSurfaceNavigationPolicy.NormalizeOrigin(
             new Uri("http://127.0.0.1:19002/ui?range=24h")));
-        Assert.False(SmartBirdWebNavigationPolicy.HasSameOrigin(
-            dashboard,
-            new Uri("http://127.0.0.1:18988/")));
-        Assert.False(SmartBirdWebNavigationPolicy.IsSupportedWebUri(
+        Assert.True(WebSurfaceNavigationPolicy.IsSupportedWebUri(
             new Uri("http://localhost:19002/")));
-        Assert.False(SmartBirdWebNavigationPolicy.IsSupportedWebUri(
+        Assert.True(WebSurfaceNavigationPolicy.IsSupportedWebUri(
             new Uri("https://127.0.0.1:19002/")));
-        Assert.False(SmartBirdWebNavigationPolicy.HasSameOrigin(
-            dashboard,
-            new Uri("https://example.com/")));
-        Assert.False(SmartBirdWebNavigationPolicy.IsSupportedWebUri(
+        Assert.True(WebSurfaceNavigationPolicy.IsSupportedWebUri(
             new Uri("file:///C:/Windows/System32/drivers/etc/hosts")));
+        Assert.False(WebSurfaceNavigationPolicy.IsSupportedWebUri(
+            new Uri("ftp://example.com/panel")));
+        Assert.False(WebSurfaceNavigationPolicy.IsSupportedWebUri(
+            new Uri("https://user:secret@example.com/panel")));
     }
 
     [Fact]
@@ -256,23 +256,27 @@ public sealed class SmartBirdThermostatProductTests
     }
 
     [Fact]
-    public void Product_view_hosts_the_original_dashboard_in_an_isolated_process()
+    public void Product_view_uses_the_sdk_web_surface_host_capability()
     {
-        var view = File.ReadAllText(Path.Combine(
+        var surfaceRoot = Path.Combine(
+            Root,
+            "tools",
+            "smartbird-thermostat",
+            "current-integration",
+            "src",
+            "SmartBird.Surface");
+        var view = File.ReadAllText(Path.Combine(surfaceRoot, "Views", "SmartBirdThermostatView.axaml"));
+        var viewCode = File.ReadAllText(Path.Combine(surfaceRoot, "Views", "SmartBirdThermostatView.axaml.cs"));
+        var sessionController = File.ReadAllText(Path.Combine(surfaceRoot, "Views", "SmartBirdWebSurfaceSessionController.cs"));
+        var factory = File.ReadAllText(Path.Combine(surfaceRoot, "SmartBirdSurfaceFactory.cs"));
+        var webSurfaceClient = File.ReadAllText(Path.Combine(
             Root,
             "src",
-            "MyPowerTools.Shell.Avalonia",
-            "Views",
-            "SmartBirdThermostatView.axaml"));
-        var nativeHost = File.ReadAllText(Path.Combine(
-            Root,
-            "src",
-            "MyPowerTools.Shell.Avalonia",
-            "Views",
-            "SmartBirdWebView.cs"));
+            "MyPowerTools.WebSurface.Avalonia",
+            "AvaloniaWebSurfaceService.cs"));
         var hostRoot = Path.Combine(Root, "src", "MyPowerTools.WebToolHost");
         var hostProject = File.ReadAllText(Path.Combine(hostRoot, "MyPowerTools.WebToolHost.csproj"));
-        var hostWindow = File.ReadAllText(Path.Combine(hostRoot, "SmartBirdHostWindow.cs"));
+        var hostWindow = File.ReadAllText(Path.Combine(hostRoot, "WebSurfaceHostWindow.cs"));
         var hostProgram = File.ReadAllText(Path.Combine(hostRoot, "Program.cs"));
         var shellChrome = File.ReadAllText(Path.Combine(
             Root,
@@ -281,25 +285,23 @@ public sealed class SmartBirdThermostatProductTests
             "Views",
             "ShellChromeView.axaml.cs"));
 
-        Assert.Contains("SmartBirdWebView", view);
-        Assert.Contains("Source=\"{Binding DashboardUri}\"", view);
+        Assert.Contains("EmbeddedBrowserHost", view);
+        Assert.DoesNotContain("SmartBirdWebView", view);
         Assert.Contains("在浏览器中打开", view);
         Assert.Contains("Focusable=\"True\"", view);
         Assert.Contains("AutomationProperties.Name=\"SmartBird 温度管理器网页控制台\"", view);
-        Assert.Contains("public sealed class SmartBirdWebView : Control", nativeHost);
-        Assert.DoesNotContain("NativeControlHost", nativeHost);
-        Assert.DoesNotContain("Microsoft.Web.WebView2", nativeHost);
-        Assert.Contains("MyPowerTools.WebToolHost.exe", nativeHost);
-        Assert.Contains("CreateNoWindow = true", nativeHost);
-        Assert.Contains("RedirectStandardInput = true", nativeHost);
-        Assert.Contains("process.Exited", nativeHost);
-        Assert.Contains("Kill(entireProcessTree: true)", nativeHost);
-        Assert.Contains("MaximumHostFrameLength", nativeHost);
-        Assert.Contains("protocolVersion", nativeHost);
-        Assert.Contains("ClipToBounds", nativeHost);
-        Assert.Contains("ShellOverlayVisible", nativeHost);
-        Assert.Contains("TryMoveFocus", nativeHost);
-        Assert.Contains("SetShellOverlayVisible", shellChrome);
+        Assert.Contains("context.WebSurfaces", factory);
+        Assert.Contains("IMptWebSurfaceService", viewCode);
+        Assert.Contains("CreateSession(new MptWebSurfaceRequest", sessionController);
+        Assert.Contains("MyPowerTools.WebToolHost.exe", webSurfaceClient);
+        Assert.Contains("CreateNoWindow = true", webSurfaceClient);
+        Assert.Contains("RedirectStandardInput = true", webSurfaceClient);
+        Assert.Contains("process.Exited", webSurfaceClient);
+        Assert.Contains("Kill(entireProcessTree: true)", webSurfaceClient);
+        Assert.Contains("MaximumHostFrameLength", webSurfaceClient);
+        Assert.Contains("protocolVersion", webSurfaceClient);
+        Assert.Contains("TryMoveFocus", webSurfaceClient);
+        Assert.Contains("WebSurfaceOcclusion", shellChrome);
         Assert.Contains("<OutputType>WinExe</OutputType>", hostProject);
         Assert.Contains("Microsoft.Web.WebView2", hostProject);
         Assert.Contains("CoreWebView2Environment.CreateAsync", hostWindow);
@@ -307,7 +309,9 @@ public sealed class SmartBirdThermostatProductTests
         Assert.Contains("ProcessFailed", hostWindow);
         Assert.Contains("WebResourceRequested", hostWindow);
         Assert.Contains("CoreWebView2PermissionState.Deny", hostWindow);
-        Assert.Contains("FixedDashboardUrl = \"http://127.0.0.1:19002/\"", hostWindow);
+        Assert.Contains("_allowedOrigins", hostWindow);
+        Assert.Contains("IsOriginAllowed", hostWindow);
+        Assert.Contains("_toolId", hostWindow);
         Assert.Contains("GetWindowThreadProcessId", hostWindow);
         Assert.Contains("AcceleratorKeyPressed", hostWindow);
         Assert.Contains("MoveFocusRequested", hostWindow);
@@ -318,6 +322,8 @@ public sealed class SmartBirdThermostatProductTests
         Assert.DoesNotContain("_controller.IsVisible = command.Visible", hostWindow);
         Assert.Contains("--parent-hwnd", hostProgram);
         Assert.Contains("--parent-pid", hostProgram);
+        Assert.Contains("--source", hostProgram);
+        Assert.Contains("--allowed-origin", hostProgram);
         Assert.Contains("--isolation-probe", hostProgram);
         Assert.Contains("--isolation-crash-probe", hostProgram);
     }
@@ -350,7 +356,9 @@ public sealed class SmartBirdThermostatProductTests
             "MyPowerTools.Shell.Avalonia.csproj"));
         var manifest = File.ReadAllText(Path.Combine(projectDirectory, "app.manifest"));
 
-        Assert.Contains("<ApplicationManifest>app.manifest</ApplicationManifest>", project);
+        // The ApplicationManifest element may carry a Condition attribute for
+        // non-Windows build hosts, so match the closing half of the element.
+        Assert.Contains("app.manifest</ApplicationManifest>", project);
         Assert.Contains("{8e0f7a12-bfb3-4fe8-b9a5-48fd50a15a9a}", manifest);
         Assert.Contains("<requestedExecutionLevel level=\"asInvoker\"", manifest);
         Assert.Contains("PerMonitorV2", manifest);
@@ -398,8 +406,11 @@ public sealed class SmartBirdThermostatProductTests
     {
         var serviceSource = File.ReadAllText(Path.Combine(
             Root,
+            "tools",
+            "smartbird-thermostat",
+            "current-integration",
             "src",
-            "MyPowerTools.Shell.Avalonia",
+            "SmartBird.Surface",
             "Services",
             "SmartBirdThermostatToolService.cs"));
 
@@ -415,6 +426,9 @@ public sealed class SmartBirdThermostatProductTests
     {
         var module = File.ReadAllText(Path.Combine(
             Root,
+            "tools",
+            "smartbird-thermostat",
+            "current-integration",
             "src",
             "SmartBirdThermostat.MyPowerTools",
             "SmartBirdThermostatModule.cs"));
@@ -427,6 +441,9 @@ public sealed class SmartBirdThermostatProductTests
         Assert.Contains("must be a loopback HTTP URL without credentials", module);
         Assert.Contains("smartbird_thermostat_service.log", module);
         Assert.Contains("SmartBirdThermostat", module);
+        Assert.Contains("RunScheduledTaskCommandAsync", module);
+        Assert.Contains("[\"/Run\", \"/TN\", options.ScheduledTaskName]", module);
+        Assert.DoesNotContain("requiresElevation: true", module, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -588,6 +605,62 @@ public sealed class SmartBirdThermostatProductTests
         Assert.Contains("127.0.0.1:19002", output);
     }
 
+    [Fact]
+    public void Sdk_web_surface_session_is_reused_reloaded_replaced_and_disposed()
+    {
+        var service = new FakeWebSurfaceService();
+        var states = new List<MptWebSurfaceState>();
+        Control? embeddedView = null;
+        var firstSource = new Uri("http://127.0.0.1:19002/");
+        var secondSource = new Uri("http://127.0.0.1:19003/");
+
+        using (var controller = new SmartBirdWebSurfaceSessionController(
+                   service,
+                   "smartbird-thermostat",
+                   "overview",
+                   view => embeddedView = view,
+                   (state, _) => states.Add(state)))
+        {
+            controller.SetSource(firstSource);
+            var first = Assert.Single(service.Sessions);
+            Assert.Equal("smartbird-thermostat", Assert.Single(service.Requests).ToolId);
+            Assert.Equal(firstSource, controller.Source);
+            Assert.Null(embeddedView);
+
+            first.Raise(MptWebSurfaceState.Ready, "ready");
+            controller.Reload(firstSource);
+            Assert.Equal(1, first.ReloadCount);
+            Assert.Single(service.Sessions);
+
+            controller.SetSource(secondSource);
+            Assert.True(first.IsDisposed);
+            Assert.Equal(2, service.Sessions.Count);
+            Assert.Equal(secondSource, controller.Source);
+        }
+
+        Assert.True(service.Sessions[1].IsDisposed);
+        Assert.Contains(MptWebSurfaceState.Loading, states);
+        Assert.Contains(MptWebSurfaceState.Ready, states);
+    }
+
+    [Fact]
+    public void Missing_sdk_web_surface_capability_keeps_the_browser_fallback_idle()
+    {
+        var stateChanges = 0;
+        using var controller = new SmartBirdWebSurfaceSessionController(
+            null,
+            "smartbird-thermostat",
+            "overview",
+            _ => throw new InvalidOperationException("No embedded view should be installed."),
+            (_, _) => stateChanges++);
+
+        controller.SetSource(new Uri("http://127.0.0.1:19002/"));
+        controller.Reload(new Uri("http://127.0.0.1:19002/"));
+
+        Assert.Null(controller.Source);
+        Assert.Equal(0, stateChanges);
+    }
+
     private static HttpResponseMessage JsonResponse(string json)
     {
         return new HttpResponseMessage(HttpStatusCode.OK)
@@ -648,5 +721,38 @@ public sealed class SmartBirdThermostatProductTests
         {
             return Task.FromResult(respond(request));
         }
+    }
+
+    private sealed class FakeWebSurfaceService : IMptWebSurfaceService
+    {
+        public List<MptWebSurfaceRequest> Requests { get; } = [];
+        public List<FakeWebSurfaceSession> Sessions { get; } = [];
+
+        public IMptWebSurfaceSession CreateSession(MptWebSurfaceRequest request)
+        {
+            Requests.Add(request);
+            var session = new FakeWebSurfaceSession();
+            Sessions.Add(session);
+            return session;
+        }
+    }
+
+    private sealed class FakeWebSurfaceSession : IMptWebSurfaceSession
+    {
+        public Control View => null!;
+        public MptWebSurfaceState State { get; private set; } = MptWebSurfaceState.Loading;
+        public int ReloadCount { get; private set; }
+        public bool IsDisposed { get; private set; }
+        public event EventHandler<MptWebSurfaceStateChangedEventArgs>? StateChanged;
+
+        public void Reload() => ReloadCount++;
+
+        public void Raise(MptWebSurfaceState state, string message)
+        {
+            State = state;
+            StateChanged?.Invoke(this, new MptWebSurfaceStateChangedEventArgs(state, message));
+        }
+
+        public void Dispose() => IsDisposed = true;
     }
 }

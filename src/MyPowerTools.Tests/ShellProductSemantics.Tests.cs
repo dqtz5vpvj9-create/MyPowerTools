@@ -111,7 +111,9 @@ public sealed class ShellProductSemanticsTests
         Assert.Contains("SelectedItem=\"{Binding SelectedTheme, Mode=TwoWay}\"", general);
         Assert.Contains("ThemeApplyStatus", general);
         Assert.DoesNotContain("ItemsControl ItemsSource=\"{Binding Themes}\"", general, StringComparison.Ordinal);
-        Assert.DoesNotContain("Classes=\"MptSettingsField\"", general, StringComparison.Ordinal);
+        // MptSettingsField is a real theme control (MyPowerTools.UI/Controls/MptSettingsField.axaml,
+        // included by MptThemeDeferred): the settings page must use it, not ad-hoc styling.
+        Assert.Contains("Classes=\"MptSettingsField\"", general, StringComparison.Ordinal);
         Assert.Contains("Available while running", general);
         Assert.Contains("TwoColumnMinWidth", generalCode);
         Assert.Contains("ApplyThemeAsync", viewModel);
@@ -316,6 +318,79 @@ public sealed class ShellProductSemanticsTests
 
         Assert.True(workspace.IsDisposed);
         Assert.False(chrome.IsCommandPaletteOpen);
+    }
+
+    [Fact]
+    public void Discovered_tools_are_projected_into_shell_navigation()
+    {
+        var chrome = new ShellChromeViewModel(ShellWorkspaceController.PageLabels);
+        var ready = new ToolCardViewModel(
+            "sample.ready",
+            "示例工具",
+            "Ready sample",
+            "Test",
+            "ST",
+            "Ready",
+            "Ready",
+            ToolAvailability.Available,
+            false);
+        var paused = new ToolCardViewModel(
+            "sample.paused",
+            "暂停工具",
+            "Paused sample",
+            "Test",
+            "PT",
+            "Paused",
+            "Paused",
+            ToolAvailability.Paused,
+            false);
+
+        chrome.SetDiscoveredTools([ready, paused], _ => Task.CompletedTask);
+
+        Assert.Collection(
+            chrome.ToolNavigationItems,
+            item => Assert.Equal("All tools", item.DisplayLabel),
+            item =>
+            {
+                Assert.Equal("示例工具", item.DisplayLabel);
+                Assert.True(item.IsMonogram);
+                Assert.True(item.IsEnabled);
+            },
+            item =>
+            {
+                Assert.Equal("暂停工具", item.DisplayLabel);
+                Assert.False(item.IsEnabled);
+            });
+
+        chrome.SelectTool("sample.ready");
+        Assert.True(chrome.ToolNavigationItems[1].IsSelected);
+        Assert.False(chrome.ToolNavigationItems[0].IsSelected);
+    }
+
+    [Fact]
+    public void Home_keeps_full_catalog_data_with_a_bounded_first_screen_projection()
+    {
+        var tools = Enumerable.Range(1, 9)
+            .Select(index => new ToolCardViewModel(
+                $"sample.{index}",
+                $"Sample {index}",
+                "Sample tool",
+                "Test",
+                $"S{index}",
+                "Ready",
+                "Ready",
+                ToolAvailability.Available,
+                false))
+            .ToArray();
+
+        var home = new HomeViewModel([], tools, [], tools.Length);
+
+        Assert.Equal(9, home.AllTools.Count);
+        Assert.Equal(5, home.DashboardTools.Count);
+        Assert.Equal(3, home.ActionableTools.Count);
+        Assert.Equal(2, home.QuickAccessActions.Count);
+        Assert.Equal(9, home.ReadyToolCount);
+        Assert.Equal("9 tools registered", home.ToolCountSummary);
     }
 
     [Fact]

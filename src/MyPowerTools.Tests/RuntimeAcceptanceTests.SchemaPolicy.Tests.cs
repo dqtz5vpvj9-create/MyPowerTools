@@ -574,7 +574,7 @@ public sealed partial class RuntimeAcceptanceTests
             dataRoot);
 
         Assert.Equal(0, result.ExitCode);
-        Assert.Contains("Module contract validation passed: 5 packages, 7 modules.", result.Output);
+        Assert.Contains("Module contract validation passed: 6 packages, 8 modules.", result.Output);
         Assert.Contains("contract: adb-forwarder", result.Output);
         Assert.Contains("contract: android-tools.remote-commands", result.Output);
         Assert.Contains("contract: screenease", result.Output);
