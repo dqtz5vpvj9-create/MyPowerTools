@@ -8,7 +8,7 @@ namespace MyPowerTools.Tests;
 public sealed partial class RuntimeAcceptanceTests
 {
     private static readonly Lazy<JsonSchema> ToolContractManifestSchema = new(
-        () => JsonSchema.FromText(File.ReadAllText(Path.Combine(Root, "schemas", "tool.schema.json"))));
+        () => MptJsonSchemas.FromFile(Path.Combine(Root, "schemas", "tool.schema.json")));
 
     [Fact]
     public void Module_manifest_tools_are_optional_and_map_as_relative_paths()

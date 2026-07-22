@@ -66,7 +66,7 @@ public static class ToolScaffolder
 
         try
         {
-            var schema = JsonSchema.FromText(File.ReadAllText(Path.Combine(schemaDirectory, "tool.schema.json")));
+            var schema = LoadToolSchema(schemaDirectory);
             using var document = JsonDocument.Parse(File.ReadAllText(toolPath));
             var result = schema.Evaluate(document.RootElement, new EvaluationOptions { OutputFormat = OutputFormat.List });
             if (!result.IsValid)
@@ -246,6 +246,11 @@ class Handler(SimpleHTTPRequestHandler):
         return super().do_GET()
 ThreadingHTTPServer(('127.0.0.1',43110),Handler).serve_forever()
 """;
+
+    private static JsonSchema LoadToolSchema(string schemaDirectory)
+    {
+        return MptJsonSchemas.FromFile(Path.Combine(schemaDirectory, "tool.schema.json"));
+    }
 
     private static bool IsId(string value) =>
         !string.IsNullOrWhiteSpace(value) && value.All(character => char.IsLower(character) || char.IsDigit(character) || character is '.' or '-');

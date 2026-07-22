@@ -1,12 +1,10 @@
 using System.Text.Json;
-using System.Collections.Concurrent;
 using Json.Schema;
 
 namespace MyPowerTools.Packaging;
 
 public sealed class SchemaPackageValidator
 {
-    private static readonly ConcurrentDictionary<string, Lazy<JsonSchema>> SchemaCache = new(StringComparer.OrdinalIgnoreCase);
     private readonly string _schemaDirectory;
 
     public SchemaPackageValidator(string schemaDirectory)
@@ -180,10 +178,8 @@ public sealed class SchemaPackageValidator
         }
     }
 
-    private JsonSchema GetSchema(string schemaPath)
+    private static JsonSchema GetSchema(string schemaPath)
     {
-        return SchemaCache.GetOrAdd(
-            Path.GetFullPath(schemaPath),
-            path => new Lazy<JsonSchema>(() => JsonSchema.FromText(File.ReadAllText(path)))).Value;
+        return MptJsonSchemas.FromFile(schemaPath);
     }
 }
