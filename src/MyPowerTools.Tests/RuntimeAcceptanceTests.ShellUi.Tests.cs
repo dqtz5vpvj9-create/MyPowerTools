@@ -1393,7 +1393,12 @@ public sealed partial class RuntimeAcceptanceTests
         var mainWindowPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "MainWindow.cs");
         var shellChromeViewPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Views", "ShellChromeView.axaml");
         var codeBehindPath = shellChromeViewPath + ".cs";
-        var mainWindow = File.ReadAllText(mainWindowPath);
+        // MainWindow is split across partial files; the chrome construction lives in
+        // MainWindow.cs and the workspace construction in MainWindow.Startup.cs.
+        var mainWindow = string.Concat(
+            File.ReadAllText(mainWindowPath),
+            File.ReadAllText(Path.Combine(Path.GetDirectoryName(mainWindowPath)!, "MainWindow.Startup.cs")),
+            File.ReadAllText(Path.Combine(Path.GetDirectoryName(mainWindowPath)!, "MainWindow.Lifecycle.cs")));
         var shellChromeView = File.ReadAllText(shellChromeViewPath);
         var codeBehind = File.ReadAllText(codeBehindPath);
         var viewModel = ReadShellViewModelsText();
