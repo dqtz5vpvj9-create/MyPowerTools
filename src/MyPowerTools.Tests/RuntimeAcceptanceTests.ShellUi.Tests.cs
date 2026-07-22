@@ -306,7 +306,7 @@ public sealed partial class RuntimeAcceptanceTests
         var files = new[]
             {
                 Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "MainWindow.cs"),
-                Path.Combine(Root, "src", "MyPowerTools.UI", "Controls", "MptControls.cs")
+                Path.Combine(Root, "src", "MyPowerTools.UI.Primitives", "MptControls.cs")
             }
             .Concat(Directory.EnumerateFiles(
                 Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services"),
@@ -1021,7 +1021,7 @@ public sealed partial class RuntimeAcceptanceTests
         var staticReaderPath = Path.Combine(Root, "src", "MyPowerTools.Runtime", "StaticCommandIndexReader.cs");
         var runtimePath = Path.Combine(Root, "src", "MyPowerTools.Runtime", "MptHostRuntime.cs");
         var grpcHostPath = Path.Combine(Root, "src", "MyPowerTools.ModuleHost.GrpcIpc", "GrpcIpcModuleHost.cs");
-        var powertooldPath = Path.Combine(Root, "src", "AndroidTools.Powertoold", "Program.cs");
+        var powertooldPath = Path.Combine(Root, "tools", "remote-notifications", "current-integration", "src", "AndroidTools.Powertoold", "Program.cs");
         var hostServicePath = Path.Combine(Root, "src", "MyPowerTools.HostControl.Server", "HostControlGrpcService.cs");
         var hostClientPath = Path.Combine(Root, "src", "MyPowerTools.HostControl.Client", "HostControlClient.cs");
         var commandServicePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellCommandExecutionService.cs");
@@ -1492,9 +1492,9 @@ public sealed partial class RuntimeAcceptanceTests
     [Fact]
     public void Shell_ui_component_styles_cover_foundation_controls()
     {
-        var controlsPath = Path.Combine(Root, "src", "MyPowerTools.UI", "Controls", "MptControls.cs");
+        var controlsPath = Path.Combine(Root, "src", "MyPowerTools.UI.Primitives", "MptControls.cs");
         var controlsAxamlPath = Path.Combine(Root, "src", "MyPowerTools.UI", "Controls", "MptControls.axaml");
-        var themeTokensPath = Path.Combine(Root, "src", "MyPowerTools.UI", "MptThemeTokens.cs");
+        var themeTokensPath = Path.Combine(Root, "src", "MyPowerTools.UI.Primitives", "MptThemeTokens.cs");
         var controlsCode = File.ReadAllText(controlsPath);
         var controlsStyles = File.ReadAllText(controlsAxamlPath);
         var themeTokens = File.ReadAllText(themeTokensPath);
@@ -1667,7 +1667,7 @@ public sealed partial class RuntimeAcceptanceTests
         var csharpFiles = new[]
             {
                 Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "MainWindow.cs"),
-                Path.Combine(Root, "src", "MyPowerTools.UI", "Controls", "MptControls.cs")
+                Path.Combine(Root, "src", "MyPowerTools.UI.Primitives", "MptControls.cs")
             }
             .Concat(Directory.EnumerateFiles(
                 Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services"),

@@ -421,8 +421,8 @@ public sealed partial class RuntimeAcceptanceTests
     [Trait("Foundation", "P7")]
     public void Ui_surface_gate_scans_component_csharp_layer_and_requires_tokens()
     {
-        var gateSource = File.ReadAllText(Path.Combine(Root, "src", "MyPowerTools.UI", "UiSurfaceGate.cs"));
-        var controlsSource = File.ReadAllText(Path.Combine(Root, "src", "MyPowerTools.UI", "Controls", "MptControls.cs"));
+        var gateSource = File.ReadAllText(Path.Combine(Root, "src", "MyPowerTools.UI.Testing", "UiSurfaceGate.cs"));
+        var controlsSource = File.ReadAllText(Path.Combine(Root, "src", "MyPowerTools.UI.Primitives", "MptControls.cs"));
         var themeSource = File.ReadAllText(Path.Combine(Root, "src", "MyPowerTools.UI", "MptTheme.cs"));
         var issues = new UiSurfaceGate()
             .CheckShellSource(Root)
