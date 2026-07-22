@@ -447,6 +447,25 @@ public sealed class InProcDotNetModuleHost : IModuleTransportRuntime, IModuleTra
                 new UnboundedChannelOptions { SingleWriter = false }));
         var generation = _relayGenerations.GetOrAdd(moduleId, static _ => new CancellationTokenSource());
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, generation.Token);
+        // Ensure a session is loaded and its fan-in is feeding the relay: a
+        // subscription must not wait on an empty relay for a module nobody loaded.
+        var loadMaxCallMs = module.Entrypoint?.InProcMaxCallMs;
+        using var loadSetupTimeout = new CancellationTokenSource();
+        if (loadMaxCallMs is > 0)
+        {
+            loadSetupTimeout.CancelAfter(TimeSpan.FromMilliseconds(loadMaxCallMs.Value));
+        }
+
+        _ = await LoadForStreamAsync(
+            module,
+            context,
+            "events.subscribe",
+            cancellationToken,
+            linked.Token,
+            GetModuleCancellationToken(moduleId),
+            loadSetupTimeout.Token,
+            timeoutMs: loadMaxCallMs,
+            invocationSequence: Interlocked.Increment(ref _invocationSequence));
         ThrowRecordedRelayFault(moduleId);
         var reader = relay.Reader.ReadAllAsync(linked.Token).GetAsyncEnumerator(linked.Token);
         try

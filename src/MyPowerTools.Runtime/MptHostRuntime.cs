@@ -113,6 +113,7 @@ public sealed class MptHostRuntime : IAsyncDisposable
         }
         _packageRegistry.Load(packageRoot, _developmentToolRoots);
         _toolRegistry.Load(_packageRegistry.Modules);
+        ResetRestartLifetimeCursors();
         ApplyPersistedModuleState();
         ObserveAllModules();
         _dynamicCommands = [];
@@ -1436,21 +1437,42 @@ public sealed class MptHostRuntime : IAsyncDisposable
         }
     }
 
+    private bool _restartLifetimeCursorsReset;
+
+    private void ResetRestartLifetimeCursors()
+    {
+        // Runs once per Runner process (the first catalog load). In-proc module
+        // instances share the Runner's lifetime: every Runner restart starts their
+        // event sequence over at 1, so a persisted cursor from a previous
+        // generation would silently drop every event until the sequence climbs
+        // past the stale high-water mark — for low-frequency publishers (e.g.
+        // paste-image uploads) that means never. Sidecar/external transports and
+        // their persisted cursors are untouched: their modules can outlive a
+        // Runner restart, and replay protection across restarts must hold. Later
+        // catalog refreshes keep the in-memory cursors: the host fan-in re-stamps
+        // events with a host-global sequence that advances across refreshes, and
+        // the cursor dedup relies on that continuity.
+        if (_restartLifetimeCursorsReset)
+        {
+            return;
+        }
+
+        _restartLifetimeCursorsReset = true;
+        foreach (var module in _packageRegistry.Modules)
+        {
+            if (string.Equals(module.Entrypoint?.Kind, "inproc-dotnet", StringComparison.OrdinalIgnoreCase))
+            {
+                _moduleEventCursors.TryRemove(module.Module.Manifest.Id, out _);
+            }
+        }
+    }
+
     private ulong ResolveEventStreamCursor(RuntimeModuleRecord module)
     {
-        // Persisted cursors are high-water marks over a module's sequence space. Only
-        // external grpc-ipc modules (sidecars, service units) can outlive a Runner
-        // restart, so re-adopting their cursor avoids replaying already-seen events.
-        // Every other transport (in-process assemblies, Runner-owned stdio children,
-        // loopback http) starts a fresh process — and therefore restarts its event
-        // sequence at 1 — whenever the Runner starts. Feeding those modules a cursor
-        // from a previous Runner generation silently drops every event until the
-        // module's sequence climbs past the stale high-water mark, which for
-        // low-frequency publishers (e.g. upload notifications) means never.
-        var kind = module.Entrypoint?.Kind ?? "";
-        return string.Equals(kind, "grpc-ipc", StringComparison.OrdinalIgnoreCase)
-            ? _moduleEventCursors.GetValueOrDefault(module.Module.Manifest.Id)
-            : 0;
+        // Cursor high-water marks advance as events are published; stale cursors
+        // from previous Runner generations are cleared in Load for every transport
+        // whose modules restart with the Runner (see ResetRestartLifetimeCursors).
+        return _moduleEventCursors.GetValueOrDefault(module.Module.Manifest.Id);
     }
 
     private async Task DelayEventPumpRetryAsync(string moduleId, CancellationToken cancellationToken)

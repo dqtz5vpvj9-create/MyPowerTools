@@ -213,9 +213,14 @@ public sealed partial class RuntimeAcceptanceTests
         reloaded.Load(Path.Combine(Root, "modules", "screenease"));
         var duplicate = await reloaded.CollectModuleEventsAsync(TimeSpan.FromMilliseconds(250), CancellationToken.None);
 
-        Assert.Equal(0, duplicate);
-        Assert.Equal([1UL], reloadedTransport.RequestedCursors);
-        Assert.DoesNotContain(reloaded.HostEventsSince(0), evt => evt.Type == "watch.alert");
+        // Restart-lifetime (in-proc) modules restart their event sequence with the
+        // Runner process: the persisted cursor is intentionally reset on the first
+        // load of a new Runner generation, so the replayed event is published once
+        // again (downstream consumers dedup — e.g. the paste-image surface dedups
+        // uploads by remote path). Stale-cursor silence was the original bug.
+        Assert.Equal(1, duplicate);
+        Assert.Equal([0UL], reloadedTransport.RequestedCursors);
+        Assert.Contains(reloaded.HostEventsSince(0), evt => evt.Type == "watch.alert");
     }
 
     [Fact]
