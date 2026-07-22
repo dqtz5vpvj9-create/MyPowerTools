@@ -339,18 +339,24 @@ public sealed partial class RuntimeAcceptanceTests
     public void Shell_workspace_controller_owns_shell_orchestration()
     {
         var mainWindowPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "MainWindow.cs");
+        var startupPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "MainWindow.Startup.cs");
         var workspacePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellWorkspaceController.cs");
-        var mainWindow = File.ReadAllText(mainWindowPath);
+        var mainWindow = string.Concat(File.ReadAllText(mainWindowPath), File.ReadAllText(startupPath));
         var workspace = ReadShellWorkspaceControllerText();
 
         Assert.Contains("new ShellWorkspaceController", mainWindow);
         Assert.Contains("ShellWorkspaceController.PageLabels", mainWindow);
-        Assert.Contains("_workspace.OpenAsync()", mainWindow);
-        Assert.Contains("_workspace.DisposeAsync()", mainWindow);
-        Assert.Contains("_workspace.HandleKeyDownAsync(e)", mainWindow);
+        Assert.Contains("workspace.OpenAsync(startupTools)", mainWindow);
+        Assert.Contains("workspace.DisposeAsync()", mainWindow);
+        Assert.Contains("workspace.HandleKeyDownAsync(e)", File.ReadAllText(Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "MainWindow.Interactions.cs")));
+        Assert.Contains("Dispatcher.UIThread.Post(InitializeWorkspace, DispatcherPriority.Background)", mainWindow);
+        Assert.Contains("_workspace.ShowStartupPage()", mainWindow);
+        Assert.Contains("await _runnerBootstrapTask.ConfigureAwait(true)", mainWindow);
         Assert.Contains("public async Task RefreshAsync()", workspace);
         Assert.Contains("public async Task ShowPageAsync(string page)", workspace);
-        Assert.Contains("public async Task HandleKeyDownAsync(KeyEventArgs e)", workspace);
+        Assert.Contains("public async Task HandleKeyDownAsync(KeyEventArgs eventArguments)", workspace);
+        Assert.Contains("RefreshShellDataAsync(includeAuxiliaryData: false)", workspace);
+        Assert.Contains("Dispatcher.UIThread.Post(StartEventMonitors, DispatcherPriority.Background)", workspace);
         Assert.Contains("ApplyHostEventAsync", workspace);
         Assert.Contains("ShellPageRefreshRouter.Route(_currentPage, evt)", workspace);
         Assert.Contains("_pageData.LoadDashboardAsync", workspace);
@@ -1016,8 +1022,8 @@ public sealed partial class RuntimeAcceptanceTests
         var runtimePath = Path.Combine(Root, "src", "MyPowerTools.Runtime", "MptHostRuntime.cs");
         var grpcHostPath = Path.Combine(Root, "src", "MyPowerTools.ModuleHost.GrpcIpc", "GrpcIpcModuleHost.cs");
         var powertooldPath = Path.Combine(Root, "src", "AndroidTools.Powertoold", "Program.cs");
-        var hostServicePath = Path.Combine(Root, "src", "MyPowerTools.HostControl", "HostControlGrpcService.cs");
-        var hostClientPath = Path.Combine(Root, "src", "MyPowerTools.HostControl", "HostControlClient.cs");
+        var hostServicePath = Path.Combine(Root, "src", "MyPowerTools.HostControl.Server", "HostControlGrpcService.cs");
+        var hostClientPath = Path.Combine(Root, "src", "MyPowerTools.HostControl.Client", "HostControlClient.cs");
         var commandServicePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellCommandExecutionService.cs");
         var workspacePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellWorkspaceController.cs");
         var proto = File.ReadAllText(protoPath);
@@ -1401,6 +1407,9 @@ public sealed partial class RuntimeAcceptanceTests
         Assert.Contains("x:Name=\"NavigationHost\"", shellChromeView);
         Assert.Contains("ItemsSource=\"{Binding TopNavigationItems}\"", shellChromeView);
         Assert.Contains("ItemsSource=\"{Binding ToolNavigationItems}\"", shellChromeView);
+        Assert.Contains("<ScrollViewer Grid.Row=\"1\"", shellChromeView);
+        Assert.Contains("x:Name=\"FooterNavigationStack\"", shellChromeView);
+        Assert.Contains("Grid.Row=\"2\"", shellChromeView);
         Assert.Contains("ItemsSource=\"{Binding FooterNavigationItems}\"", shellChromeView);
         Assert.Contains("Command=\"{Binding RefreshCommand}\"", shellChromeView);
         Assert.Contains("ShellNavigationItemViewModel", shellChromeView);
@@ -1429,16 +1438,23 @@ public sealed partial class RuntimeAcceptanceTests
     public void Shell_theme_resource_dictionary_is_loaded_and_defines_design_tokens()
     {
         var appPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "App.cs");
+        var programPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Program.cs");
         var themePath = Path.Combine(Root, "src", "MyPowerTools.UI", "Themes", "MptTheme.axaml");
+        var criticalThemePath = Path.Combine(Root, "src", "MyPowerTools.UI", "Themes", "MptThemeCritical.axaml");
+        var deferredThemePath = Path.Combine(Root, "src", "MyPowerTools.UI", "Themes", "MptThemeDeferred.axaml");
         var colorsPath = Path.Combine(Root, "src", "MyPowerTools.UI", "Themes", "MptColors.axaml");
         var spacingPath = Path.Combine(Root, "src", "MyPowerTools.UI", "Themes", "MptSpacing.axaml");
         var radiiPath = Path.Combine(Root, "src", "MyPowerTools.UI", "Themes", "MptRadii.axaml");
         var typographyPath = Path.Combine(Root, "src", "MyPowerTools.UI", "Themes", "MptTypography.axaml");
-        var markdownPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Views", "MarkdownTextBlock.cs");
+        var markdownPath = Path.Combine(Root, "src", "MyPowerTools.UI", "Controls", "MptMarkdownView.cs");
         var densityPath = Path.Combine(Root, "src", "MyPowerTools.UI", "Themes", "MptDensity.axaml");
         var controlsPath = Path.Combine(Root, "src", "MyPowerTools.UI", "Controls", "MptControls.axaml");
         var app = File.ReadAllText(appPath);
-        var theme = File.ReadAllText(themePath);
+        var program = File.ReadAllText(programPath);
+        var theme = string.Concat(
+            File.ReadAllText(themePath),
+            File.ReadAllText(criticalThemePath),
+            File.ReadAllText(deferredThemePath));
         var colors = File.ReadAllText(colorsPath);
         var spacing = File.ReadAllText(spacingPath);
         var radii = File.ReadAllText(radiiPath);
@@ -1447,7 +1463,9 @@ public sealed partial class RuntimeAcceptanceTests
         var density = File.ReadAllText(densityPath);
         var controls = File.ReadAllText(controlsPath);
 
-        Assert.Contains("avares://MyPowerTools.UI/Themes/MptTheme.axaml", app);
+        Assert.Contains("avares://MyPowerTools.UI/Themes/MptThemeCritical.axaml", app);
+        Assert.Contains("avares://MyPowerTools.UI/Themes/MptThemeDeferred.axaml", app);
+        Assert.Contains("ScheduleDeferredStyles", app);
         Assert.Contains("MptColors.axaml", theme);
         Assert.Contains("MptSpacing.axaml", theme);
         Assert.Contains("MptRadii.axaml", theme);
@@ -1462,8 +1480,10 @@ public sealed partial class RuntimeAcceptanceTests
         Assert.Contains("TextBlock.MptPageTitle", typography);
         Assert.Contains("<Style Selector=\"SelectableTextBlock\">", typography);
         Assert.Contains("Microsoft YaHei UI", typography);
+        Assert.Contains(">Microsoft YaHei UI, Segoe UI Variable, Segoe UI, Segoe UI Emoji, Segoe UI Symbol</FontFamily>", typography);
+        Assert.DoesNotContain("WithInterFont", program, StringComparison.Ordinal);
         Assert.Contains("Microsoft YaHei UI", markdown);
-        Assert.Contains("UsesCjkFont", markdown);
+        Assert.Contains("font-family: \"Microsoft YaHei UI\", \"Segoe UI Variable\"", markdown);
         Assert.Contains("x:Key=\"MptDensityControlHeight\"", density);
         Assert.Contains("Border.MptCard", controls);
         Assert.All(new[] { theme, spacing, radii, typography, density, controls }, text => Assert.DoesNotContain("#", text, StringComparison.Ordinal));
@@ -1515,7 +1535,11 @@ public sealed partial class RuntimeAcceptanceTests
     public void Shell_ui_component_style_files_cover_p_ui_foundation_list()
     {
         var controlsRoot = Path.Combine(Root, "src", "MyPowerTools.UI", "Controls");
-        var theme = File.ReadAllText(Path.Combine(Root, "src", "MyPowerTools.UI", "Themes", "MptTheme.axaml"));
+        var themeRoot = Path.Combine(Root, "src", "MyPowerTools.UI", "Themes");
+        var theme = string.Concat(
+            File.ReadAllText(Path.Combine(themeRoot, "MptTheme.axaml")),
+            File.ReadAllText(Path.Combine(themeRoot, "MptThemeCritical.axaml")),
+            File.ReadAllText(Path.Combine(themeRoot, "MptThemeDeferred.axaml")));
         foreach (var componentFile in new[]
         {
             "MptButton.axaml",
