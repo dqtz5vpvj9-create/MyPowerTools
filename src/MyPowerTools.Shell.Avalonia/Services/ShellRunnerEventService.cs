@@ -180,6 +180,11 @@ public sealed class ShellRunnerEventService : IAsyncDisposable
 
     private static string SafeMessage(Exception exception)
     {
+        if (ShellFailurePresenter.IsRpcFailure(exception))
+        {
+            return ShellFailurePresenter.Present(exception).StatusMessage;
+        }
+
         return SafeText(exception.Message);
     }
 

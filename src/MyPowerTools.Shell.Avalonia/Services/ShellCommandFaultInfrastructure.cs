@@ -4,8 +4,9 @@ using System.Text;
 using System.Text.RegularExpressions;
 using Avalonia.Controls;
 using MyPowerTools.Abstractions;
+using MyPowerTools.Shell.Avalonia.ViewModels;
 
-namespace MyPowerTools.Shell.Avalonia.ViewModels;
+namespace MyPowerTools.Shell.Avalonia.Services;
 
 internal sealed record ShellCommandFaultOwner(
     ShellCommandFaultSink Sink,

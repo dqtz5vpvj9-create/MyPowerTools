@@ -11,9 +11,25 @@ public sealed class ShellToolProductService
         IReadOnlySet<string>? deliveredToolIds = null,
         CancellationToken cancellationToken = default)
     {
+        var descriptors = await LoadToolDescriptorsAsync(cancellationToken);
+        return BuildToolCards(descriptors, openTool, deliveredToolIds);
+    }
+
+    public async Task<IReadOnlyList<HostProto.ToolDescriptor>> LoadToolDescriptorsAsync(
+        CancellationToken cancellationToken = default)
+    {
         using var client = HostControlClient.ForDefaultEndpoint();
         var response = await client.ListToolsAsync(includeDisabled: true, cancellationToken);
-        return response.Tools
+        return response.Tools.ToArray();
+    }
+
+    public IReadOnlyList<ToolCardViewModel> BuildToolCards(
+        IEnumerable<HostProto.ToolDescriptor> descriptors,
+        Func<string, Task> openTool,
+        IReadOnlySet<string>? deliveredToolIds = null)
+    {
+        return descriptors
+            .Where(IsVisibleInProduct)
             .Select(tool => new
             {
                 Descriptor = tool,
@@ -27,6 +43,11 @@ public sealed class ShellToolProductService
             .ThenBy(item => item.Descriptor.Title, StringComparer.OrdinalIgnoreCase)
             .Select(item => item.Card)
             .ToArray();
+    }
+
+    public static bool IsVisibleInProduct(HostProto.ToolDescriptor tool)
+    {
+        return !string.Equals(tool.Availability, "paused", StringComparison.OrdinalIgnoreCase);
     }
 
     public async Task<HostProto.ToolDescriptor> LoadToolAsync(string toolId, CancellationToken cancellationToken = default)

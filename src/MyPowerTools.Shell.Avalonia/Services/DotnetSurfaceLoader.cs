@@ -67,7 +67,16 @@ internal sealed class DotnetSurfaceLoader
         }
 
         var control = factory.CreateSurface(context);
-        var loaded = new LoadedSurface(descriptor.ToolId, route.RouteId, control, loadContext);
+        if (_loaded.Remove(cacheKey, out var previous))
+        {
+            previous.UnloadCore();
+        }
+        var loaded = new LoadedSurface(
+            descriptor.ToolId,
+            route.RouteId,
+            control,
+            loadContext,
+            surface => Release(cacheKey, surface));
         _loaded[cacheKey] = loaded;
         return loaded;
     }
@@ -80,7 +89,7 @@ internal sealed class DotnetSurfaceLoader
         {
             if (_loaded.Remove(key, out var surface))
             {
-                surface.Unload();
+                surface.UnloadCore();
             }
         }
     }
@@ -90,10 +99,19 @@ internal sealed class DotnetSurfaceLoader
     {
         foreach (var surface in _loaded.Values)
         {
-            surface.Unload();
+            surface.UnloadCore();
         }
 
         _loaded.Clear();
+    }
+
+    private void Release(string cacheKey, LoadedSurface surface)
+    {
+        if (_loaded.TryGetValue(cacheKey, out var current) && ReferenceEquals(current, surface))
+        {
+            _loaded.Remove(cacheKey);
+        }
+        surface.UnloadCore();
     }
 
     private static string BuildCacheKey(string toolId, string assemblyPath)
@@ -138,32 +156,49 @@ internal sealed class DotnetSurfaceLoader
     {
         private readonly SurfaceLoadContext _loadContext;
         private readonly WeakReference _weakRef;
+        private readonly Action<LoadedSurface> _release;
         private int _unloaded;
 
-        public LoadedSurface(string toolId, string routeId, Control control, SurfaceLoadContext loadContext)
+        public LoadedSurface(
+            string toolId,
+            string routeId,
+            Control control,
+            SurfaceLoadContext loadContext,
+            Action<LoadedSurface> release)
         {
             ToolId = toolId;
             RouteId = routeId;
             Control = control;
             _loadContext = loadContext;
             _weakRef = new WeakReference(loadContext);
+            _release = release;
         }
 
         public string ToolId { get; }
         public string RouteId { get; }
         public Control Control { get; }
 
-        public void Unload()
+        internal void UnloadCore()
         {
             if (Interlocked.Exchange(ref _unloaded, 1) != 0)
             {
                 return;
             }
 
+            var dataContext = Control.DataContext;
+            Control.DataContext = null;
+            if (dataContext is IDisposable disposableDataContext)
+            {
+                try { disposableDataContext.Dispose(); } catch { }
+            }
+            if (Control is IDisposable disposableControl && !ReferenceEquals(disposableControl, dataContext))
+            {
+                try { disposableControl.Dispose(); } catch { }
+            }
             try { _loadContext.Unload(); } catch { }
         }
 
-        public void Dispose() => Unload();
+        public void Dispose() => _release(this);
     }
 
     /// <summary>

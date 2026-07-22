@@ -1,3 +1,4 @@
+using MyPowerTools.Shell.Avalonia.Services;
 using System.Windows.Input;
 
 namespace MyPowerTools.Shell.Avalonia.ViewModels;

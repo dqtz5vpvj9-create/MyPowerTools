@@ -10,13 +10,17 @@ public sealed partial class MainWindow
     public async Task FocusCommandPaletteAsync()
     {
         await _workspaceOpened.Task.ConfigureAwait(true);
-        await _workspace.FocusCommandPaletteAsync().ConfigureAwait(true);
+        var workspace = _workspace;
+        if (workspace is not null)
+        {
+            await workspace.FocusCommandPaletteAsync().ConfigureAwait(true);
+        }
     }
 
     internal Task HandleForwardedWebToolShortcutAsync(string gesture)
     {
         return ShellKeyboardShortcut.TryParseGesture(gesture, out var key, out var modifiers)
-            ? _workspace.HandleShortcutAsync(key, modifiers)
+            ? _workspace?.HandleShortcutAsync(key, modifiers) ?? Task.CompletedTask
             : Task.CompletedTask;
     }
 
@@ -27,14 +31,18 @@ public sealed partial class MainWindow
             return;
         }
 
-        RunWindowUiEvent(
-            () => _workspace.HandleKeyDownAsync(e),
-            "Handle Shell keyboard input");
+        var workspace = _workspace;
+        if (workspace is not null)
+        {
+            RunWindowUiEvent(
+                () => workspace.HandleKeyDownAsync(e),
+                "Handle Shell keyboard input");
+        }
     }
 
     private void RunWindowUiEvent(Func<Task> action, string operation)
     {
-        _workspace.RunScopedUiEvent(action, operation);
+        _workspace?.RunScopedUiEvent(action, operation);
     }
 
     private void ApplyWindowsChrome()

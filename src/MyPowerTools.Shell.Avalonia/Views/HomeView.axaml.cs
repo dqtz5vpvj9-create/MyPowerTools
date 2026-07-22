@@ -17,7 +17,9 @@ public sealed partial class HomeView : UserControl
     private readonly Grid _dashboardColumns;
     private readonly StackPanel _primaryDashboardColumn;
     private readonly Border _modulesDashboardCard;
-    private bool? _usesCompactLayout;
+    // The XAML is already the expanded layout. Treat it as initialized so the
+    // first wide SizeChanged event does not rebuild both grids and trigger a second layout pass.
+    private bool _usesCompactLayout;
 
     public HomeView()
     {

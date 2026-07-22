@@ -1,3 +1,5 @@
+using MyPowerTools.Shell.Avalonia.Services;
+
 namespace MyPowerTools.Shell.Avalonia.ViewModels;
 
 public sealed record ShellCommandFaultContext(

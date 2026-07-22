@@ -5,6 +5,9 @@ namespace MyPowerTools.Shell.Avalonia.ViewModels;
 
 public sealed class HomeViewModel : ToolProductPageViewModel
 {
+    private const int MaxActionShortcuts = 3;
+    private const int MaxDashboardTools = 5;
+
     public HomeViewModel(
         IReadOnlyList<ToolCardViewModel> favoriteTools,
         IReadOnlyList<ToolCardViewModel> recentTools,
@@ -31,41 +34,39 @@ public sealed class HomeViewModel : ToolProductPageViewModel
         RefreshCommand = new AsyncRelayCommand(() => refresh?.Invoke() ?? Task.CompletedTask);
         RetryCommand = new AsyncRelayCommand(() => retry?.Invoke() ?? refresh?.Invoke() ?? Task.CompletedTask);
 
-        DashboardTools = favoriteTools
+        AllTools = favoriteTools
             .Concat(recentTools)
             .DistinctBy(tool => tool.ToolId, StringComparer.OrdinalIgnoreCase)
             .ToArray();
-        ActionableTools = DashboardTools
+        DashboardTools = AllTools
+            .Take(MaxDashboardTools)
+            .ToArray();
+        ActionableTools = AllTools
             .Where(tool => tool.CanOpen)
+            .Take(MaxActionShortcuts)
             .ToArray();
 
-        var quickAccessActions = DashboardTools
-            .Where(tool => tool.IsAvailable)
-            .Take(2)
-            .Select(tool => new HomeDashboardActionViewModel(
-                tool.PrimaryActionLabel,
-                tool.Title,
-                tool.IconGlyph,
-                tool.OpenCommand))
-            .ToList();
-        quickAccessActions.Add(new HomeDashboardActionViewModel(
-            "Browse tools",
-            $"{totalToolCount.ToString(CultureInfo.InvariantCulture)} registered",
-            "\uE71D",
-            BrowseToolsCommand,
-            IsSymbolIcon: true));
-        quickAccessActions.Add(new HomeDashboardActionViewModel(
-            "Refresh status",
-            "Check availability",
-            "\uE72C",
-            RefreshCommand,
-            IsSymbolIcon: true));
-        QuickAccessActions = quickAccessActions;
+        QuickAccessActions =
+        [
+            new HomeDashboardActionViewModel(
+                "Browse tools",
+                $"{totalToolCount.ToString(CultureInfo.InvariantCulture)} registered",
+                "\uE71D",
+                BrowseToolsCommand,
+                IsSymbolIcon: true),
+            new HomeDashboardActionViewModel(
+                "Refresh status",
+                "Check availability",
+                "\uE72C",
+                RefreshCommand,
+                IsSymbolIcon: true)
+        ];
     }
 
     public IReadOnlyList<ToolCardViewModel> FavoriteTools { get; }
     public IReadOnlyList<ToolCardViewModel> RecentTools { get; }
     public IReadOnlyList<HomeActivityItemViewModel> Activities { get; }
+    public IReadOnlyList<ToolCardViewModel> AllTools { get; }
     public IReadOnlyList<ToolCardViewModel> DashboardTools { get; }
     public IReadOnlyList<ToolCardViewModel> ActionableTools { get; }
     public IReadOnlyList<HomeDashboardActionViewModel> QuickAccessActions { get; }
@@ -80,10 +81,10 @@ public sealed class HomeViewModel : ToolProductPageViewModel
     public bool HasDashboardTools => DashboardTools.Count > 0;
     public bool HasActionableTools => ActionableTools.Count > 0;
     public bool HasQuickAccessActions => QuickAccessActions.Count > 0;
-    public int ReadyToolCount => DashboardTools.Count(tool => tool.IsAvailable);
-    public int PendingToolCount => DashboardTools.Count(tool => tool.IsInDevelopment);
-    public int PausedToolCount => DashboardTools.Count(tool => tool.IsPaused);
-    public int UnavailableToolCount => DashboardTools.Count(tool => tool.IsUnavailable);
+    public int ReadyToolCount => AllTools.Count(tool => tool.IsAvailable);
+    public int PendingToolCount => AllTools.Count(tool => tool.IsInDevelopment);
+    public int PausedToolCount => AllTools.Count(tool => tool.IsPaused);
+    public int UnavailableToolCount => AllTools.Count(tool => tool.IsUnavailable);
     public string ToolCountSummary => TotalToolCount == 1
         ? "1 tool is ready to open"
         : $"{TotalToolCount.ToString(CultureInfo.InvariantCulture)} tools registered";
@@ -145,7 +146,7 @@ public sealed class ToolCatalogViewModel : ToolProductPageViewModel
         Func<Task>? refresh = null,
         Func<Task>? retry = null)
         : base(
-            "Tools",
+            "All tools",
             "Open a tool to complete a task. Runtime modules and diagnostics live in System & Maintenance.",
             productState == ToolProductState.Ready && tools.Count == 0 ? ToolProductState.Empty : productState,
             errorMessage)

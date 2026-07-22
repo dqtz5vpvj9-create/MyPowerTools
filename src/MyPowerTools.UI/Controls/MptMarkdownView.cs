@@ -206,7 +206,7 @@ public sealed partial class MptMarkdownView : HtmlLabel
           padding: 0;
           background-color: #ffffff;
           color: #333333;
-          font-family: "Segoe UI Variable", "Microsoft YaHei UI", "Open Sans", "Helvetica Neue", Arial, sans-serif;
+          font-family: "Microsoft YaHei UI", "Segoe UI Variable", "Segoe UI", "Segoe UI Emoji", "Segoe UI Symbol", sans-serif;
           font-size: 15px;
           line-height: 1.6;
         }
@@ -241,7 +241,7 @@ public sealed partial class MptMarkdownView : HtmlLabel
         th, td { border: 1px solid #dfe2e5; padding: 6px 13px; text-align: left; }
         th { font-weight: bold; }
         code, tt {
-          font-family: "Cascadia Mono", Consolas, "Microsoft YaHei UI", monospace;
+          font-family: "Cascadia Mono", Consolas, "Microsoft YaHei UI", "Segoe UI Emoji", monospace;
           font-size: 0.9em;
           border: 1px solid #e7eaed;
           background-color: #f3f4f4;
@@ -249,7 +249,7 @@ public sealed partial class MptMarkdownView : HtmlLabel
           padding: 2px 4px;
         }
         pre {
-          font-family: "Cascadia Mono", Consolas, "Microsoft YaHei UI", monospace;
+          font-family: "Cascadia Mono", Consolas, "Microsoft YaHei UI", "Segoe UI Emoji", monospace;
           font-size: 0.9em;
           line-height: 1.45;
           border: 1px solid #e7eaed;
@@ -268,7 +268,7 @@ public sealed partial class MptMarkdownView : HtmlLabel
           padding: 0;
           background-color: #2b2b2b;
           color: #e6edf3;
-          font-family: "Segoe UI Variable", "Microsoft YaHei UI", "Open Sans", "Helvetica Neue", Arial, sans-serif;
+          font-family: "Microsoft YaHei UI", "Segoe UI Variable", "Segoe UI", "Segoe UI Emoji", "Segoe UI Symbol", sans-serif;
           font-size: 15px;
           line-height: 1.6;
         }
@@ -302,7 +302,7 @@ public sealed partial class MptMarkdownView : HtmlLabel
         th, td { border: 1px solid #3d444d; padding: 6px 13px; text-align: left; }
         th { font-weight: bold; }
         code, tt {
-          font-family: "Cascadia Mono", Consolas, "Microsoft YaHei UI", monospace;
+          font-family: "Cascadia Mono", Consolas, "Microsoft YaHei UI", "Segoe UI Emoji", monospace;
           font-size: 0.9em;
           border: 1px solid #3d444d;
           background-color: #202020;
@@ -311,7 +311,7 @@ public sealed partial class MptMarkdownView : HtmlLabel
           padding: 2px 4px;
         }
         pre {
-          font-family: "Cascadia Mono", Consolas, "Microsoft YaHei UI", monospace;
+          font-family: "Cascadia Mono", Consolas, "Microsoft YaHei UI", "Segoe UI Emoji", monospace;
           font-size: 0.9em;
           line-height: 1.45;
           border: 1px solid #3d444d;

@@ -4,8 +4,11 @@
              xmlns:vm="using:MyPowerTools.Shell.Avalonia.ViewModels"
              x:Class="MyPowerTools.Shell.Avalonia.Views.ExternalSdkToolView"
              x:DataType="vm:ExternalSdkToolViewModel">
-  <Grid RowDefinitions="Auto,Auto,*" RowSpacing="{DynamicResource MptSpacingM}">
-    <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto" ColumnSpacing="{DynamicResource MptSpacingM}">
+  <Grid RowDefinitions="Auto,Auto,*">
+    <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto"
+          ColumnSpacing="{DynamicResource MptSpacingM}"
+          Margin="{DynamicResource MptGapBottomM}"
+          IsVisible="{Binding IsHostHeaderVisible}">
       <controls:MptButton Content="All tools" Command="{Binding ReturnToToolsCommand}" />
       <StackPanel Grid.Column="1" Spacing="{DynamicResource MptSpacingXs}">
         <TextBlock Classes="MptPageTitle" Text="{Binding Title}" />
@@ -16,31 +19,33 @@
       <controls:MptButton Grid.Column="4" Classes="MptPrimaryButton" Content="Refresh" Command="{Binding RefreshCommand}" />
     </Grid>
 
-    <Border Grid.Row="1" Classes="MptCard" Padding="{DynamicResource MptCompactPadding}" IsVisible="{Binding HasCommands}">
+    <Border Grid.Row="1"
+            Classes="MptToolCommandBar"
+            Padding="{DynamicResource MptCompactPadding}"
+            Margin="{DynamicResource MptGapBottomM}"
+            IsVisible="{Binding IsHostCommandBarVisible}">
       <ItemsControl ItemsSource="{Binding Commands}">
         <ItemsControl.ItemsPanel>
           <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="{DynamicResource MptSpacingS}" /></ItemsPanelTemplate>
         </ItemsControl.ItemsPanel>
         <ItemsControl.ItemTemplate>
           <DataTemplate x:DataType="vm:ExternalToolCommandViewModel">
-            <controls:MptButton Content="{Binding Title}" Command="{Binding ExecuteCommand}" ToolTip.Tip="{Binding Description}" />
+            <StackPanel Spacing="{DynamicResource MptSpacingXs}" MaxWidth="520">
+              <controls:MptButton Content="{Binding Title}" Command="{Binding ExecuteCommand}" ToolTip.Tip="{Binding Description}" />
+              <TextBlock Classes="MptMeta"
+                         Text="{Binding Output}"
+                         IsVisible="{Binding HasOutput}"
+                         TextWrapping="Wrap" />
+            </StackPanel>
           </DataTemplate>
         </ItemsControl.ItemTemplate>
       </ItemsControl>
     </Border>
 
     <Grid Grid.Row="2">
-      <Border IsVisible="{Binding IsWeb}" Classes="MptCard" Padding="{DynamicResource MptSpacing2Xl}">
-        <StackPanel Spacing="{DynamicResource MptSpacingL}">
-          <TextBlock Classes="MptSectionTitle" Text="{Binding RouteTitle}" />
-          <TextBlock Classes="MptPageSubtitle" Text="This web surface opens in the tool's own browser control. Use Open externally to launch it, or Refresh to reload the page." TextWrapping="Wrap" />
-          <controls:MptButton Classes="MptPrimaryButton" Content="Open externally" Command="{Binding OpenExternalCommand}" IsVisible="{Binding CanOpenExternal}" HorizontalAlignment="Left" />
-        </StackPanel>
-      </Border>
+      <ContentControl x:Name="ManagedSurfaceHost" IsVisible="{Binding IsHostedSurface}" />
 
-      <ContentControl x:Name="ManagedSurfaceHost" IsVisible="{Binding IsDotnet}" />
-
-      <Border IsVisible="{Binding IsGeneric}" Classes="MptCard" Padding="{DynamicResource MptSpacing2Xl}">
+      <Border IsVisible="{Binding IsGeneric}" Classes="MptToolPanel" Padding="{DynamicResource MptUniform2Xl}">
         <StackPanel Spacing="{DynamicResource MptSpacingL}">
           <TextBlock Classes="MptSectionTitle" Text="{Binding RouteTitle}" />
           <TextBlock Classes="MptPageSubtitle" Text="This tool runs through its declared external runtime. Commands, settings, health, events, and logs remain owned by the tool." TextWrapping="Wrap" />
@@ -48,7 +53,7 @@
         </StackPanel>
       </Border>
 
-      <Border IsVisible="{Binding IsSurfaceFailed}" Classes="MptErrorState" Margin="{DynamicResource MptSpacing2Xl}" VerticalAlignment="Center">
+      <Border IsVisible="{Binding IsSurfaceFailed}" Classes="MptErrorState" Margin="{DynamicResource MptUniform2Xl}" VerticalAlignment="Center">
         <StackPanel Spacing="{DynamicResource MptSpacingM}">
           <TextBlock Classes="MptSectionTitle" Text="The tool is currently unreachable" />
           <TextBlock Text="{Binding SurfaceMessage}" TextWrapping="Wrap" />

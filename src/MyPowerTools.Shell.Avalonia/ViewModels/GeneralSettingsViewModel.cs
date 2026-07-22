@@ -12,7 +12,8 @@ public sealed class GeneralSettingsViewModel : ShellPageViewModel
     public GeneralSettingsViewModel(
         string selectedTheme,
         Func<string, Task> selectTheme,
-        Func<Task> openSystem)
+        Func<Task> openSystem,
+        DevSourceSyncService? devSource = null)
         : base("General", "Application preferences for MyPowerTools.", "ready")
     {
         _selectTheme = selectTheme ?? throw new ArgumentNullException(nameof(selectTheme));
@@ -38,10 +39,12 @@ public sealed class GeneralSettingsViewModel : ShellPageViewModel
             string.Equals(choice.Id, selectedTheme, StringComparison.OrdinalIgnoreCase))
             ?? Themes[0];
         OpenSystemCommand = new AsyncRelayCommand(openSystem);
+        DevSource = devSource is null ? null : new DevSourceSettingsViewModel(devSource);
     }
 
     public IReadOnlyList<ThemeChoiceViewModel> Themes { get; }
     public ICommand OpenSystemCommand { get; }
+    public DevSourceSettingsViewModel? DevSource { get; }
     public string ThemeSummary => SelectedTheme.Description;
 
     public ThemeChoiceViewModel SelectedTheme

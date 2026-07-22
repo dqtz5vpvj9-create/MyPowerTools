@@ -228,6 +228,7 @@ public sealed class ShellPageDataService : IDisposable
             includeDisabled: false,
             cancellationToken: cancellationToken);
         searchableToolIds ??= response.Tools
+            .Where(ShellToolProductService.IsVisibleInProduct)
             .Select(tool => tool.ToolId)
             .ToHashSet(StringComparer.OrdinalIgnoreCase);
         var commands = ShellPageViewModelFactory.BuildToolSearchCommands(query, response, searchableToolIds);

@@ -26,8 +26,8 @@ public static partial class ShellPageViewModelFactory
         var reloadCommand = reloadManifests is null ? null : new AsyncRelayCommand(reloadManifests, operationName: "ServicesReload");
 
         var subtitle = units.Length == 0
-            ? "No Service Units registered."
-            : $"{units.Length} unit(s) · {units.Count(u => string.Equals(u.State, "active", StringComparison.OrdinalIgnoreCase))} active";
+            ? "No background services are registered."
+            : "Background services keep running independently from the Shell and Runner.";
 
         return new ServicesViewModel(subtitle, units, refreshCommand, reloadCommand);
     }

@@ -19,6 +19,7 @@ public sealed partial class ShellWorkspaceController
 
     private void BeginWorkspace(bool rebindCurrentContent = false)
     {
+        Interlocked.Exchange(ref _homeLoadDeferred, 0);
         _workspaceIdentity.BeginNavigation();
         _terminalFaultRecovery.Reset();
         lock (_handledFaultGate)
@@ -219,7 +220,7 @@ public sealed partial class ShellWorkspaceController
 
     private void OnRunnerRecovered()
     {
-        PostUiEvent(RefreshShellDataAsync, "Refresh after Runner recovery");
+        PostUiEvent(() => RefreshShellDataAsync(), "Refresh after Runner recovery");
     }
 
     private void OnHostEventReceived(HostProto.HostEvent evt)
@@ -286,10 +287,16 @@ public sealed partial class ShellWorkspaceController
         _searchBox.TextChanged -= _searchTextChangedHandler;
         _searchBox.KeyDown -= OnCommandSearchKeyDown;
         _searchBox.GotFocus -= _searchGotFocusHandler;
-        _runnerEvents.StatusChanged -= _runnerStatusChangedHandler;
-        _runnerEvents.RunnerStatusChanged -= _runnerStateChangedHandler;
-        _runnerEvents.RunnerRecovered -= _runnerRecoveredHandler;
-        _runnerEvents.HostEventReceived -= _hostEventReceivedHandler;
+        if (Volatile.Read(ref _eventSubscriptionsAttached) != 0)
+        {
+            _runnerEvents.StatusChanged -= _runnerStatusChangedHandler;
+            _runnerEvents.RunnerStatusChanged -= _runnerStateChangedHandler;
+            _runnerEvents.RunnerRecovered -= _runnerRecoveredHandler;
+            _runnerEvents.HostEventReceived -= _hostEventReceivedHandler;
+            _unitEvents.UnitEventReceived -= _unitEventReceivedHandler;
+            _unitEvents.StreamFaulted -= _unitStreamFaultedHandler;
+            _unitEvents.StreamRecovered -= _unitStreamRecoveredHandler;
+        }
         _faultSink.Faulted -= OnShellCommandFaulted;
     }
 

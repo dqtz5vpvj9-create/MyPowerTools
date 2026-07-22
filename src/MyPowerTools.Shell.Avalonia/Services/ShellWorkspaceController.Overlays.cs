@@ -20,14 +20,17 @@ public sealed partial class ShellWorkspaceController
         SetStatus("Command Palette opened.");
     }
 
-    public Task CloseCommandPaletteAsync()
+    public async Task CloseCommandPaletteAsync()
     {
         _commandSearchCancellation?.Cancel();
         _chromeViewModel.IsCommandPaletteOpen = false;
         _chromeViewModel.SelectPage(_currentPage);
         _contentHost.Focus();
         SetStatus("Command Palette closed.");
-        return Task.CompletedTask;
+        if (Interlocked.Exchange(ref _homeLoadDeferred, 0) != 0)
+        {
+            await ShowPageAsync(HomePage);
+        }
     }
 
     public Task DismissPermissionPromptAsync()

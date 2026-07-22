@@ -1,12 +1,16 @@
 using System.Diagnostics;
 using System.Windows.Input;
+using MyPowerTools.AvaloniaSdk;
 
 namespace MyPowerTools.Shell.Avalonia.ViewModels;
 
-public sealed class ExternalSdkToolViewModel : ShellPageViewModel
+public sealed class ExternalSdkToolViewModel : ShellPageViewModel, IDisposable
 {
     private string _surfaceState = "loading";
     private string _surfaceMessage = "Connecting to the tool surface.";
+    private IDisposable? _ownedSurface;
+    private IMptWebSurfaceSession? _webSurfaceSession;
+    private int _disposed;
 
     public ExternalSdkToolViewModel(
         string toolId,
@@ -48,9 +52,12 @@ public sealed class ExternalSdkToolViewModel : ShellPageViewModel
     public bool IsNative => ToolType == "native-tool";
     public bool IsHeadless => ToolType == "headless-tool";
     public bool IsGeneric => IsNative || IsHeadless;
+    public bool IsHostedSurface => IsWeb || IsDotnet;
     public bool CanOpenExternal { get; }
     public IReadOnlyList<ExternalToolCommandViewModel> Commands { get; }
     public bool HasCommands => Commands.Count > 0;
+    public bool IsHostHeaderVisible => !IsDotnet || IsSurfaceFailed;
+    public bool IsHostCommandBarVisible => !IsDotnet && HasCommands;
     public string? SettingsPath { get; }
     public bool CanOpenSettings => !string.IsNullOrWhiteSpace(SettingsPath) && File.Exists(SettingsPath);
     public ICommand RefreshCommand { get; }
@@ -70,6 +77,7 @@ public sealed class ExternalSdkToolViewModel : ShellPageViewModel
                 OnPropertyChanged(nameof(IsSurfaceLoading));
                 OnPropertyChanged(nameof(IsSurfaceFailed));
                 OnPropertyChanged(nameof(IsSurfaceReady));
+                OnPropertyChanged(nameof(IsHostHeaderVisible));
             }
         }
     }
@@ -91,6 +99,51 @@ public sealed class ExternalSdkToolViewModel : ShellPageViewModel
             ? state == "ready" ? "Connected." : "The tool surface is unavailable."
             : message;
     }
+
+    public void SetWebSurfaceSession(IMptWebSurfaceSession session)
+    {
+        ArgumentNullException.ThrowIfNull(session);
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
+        ReleaseOwnedSurface();
+        _webSurfaceSession = session;
+        _ownedSurface = session;
+        session.StateChanged += OnWebSurfaceStateChanged;
+        ReportSurface(ToSurfaceState(session.State));
+    }
+
+    public void SetOwnedSurface(IDisposable surface)
+    {
+        ArgumentNullException.ThrowIfNull(surface);
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
+        ReleaseOwnedSurface();
+        _ownedSurface = surface;
+    }
+
+    public void Dispose()
+    {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
+        {
+            return;
+        }
+        ReleaseOwnedSurface();
+    }
+
+    private void OnWebSurfaceStateChanged(object? sender, MptWebSurfaceStateChangedEventArgs eventArguments)
+    {
+        ReportSurface(ToSurfaceState(eventArguments.State), eventArguments.Message);
+    }
+
+    private void ReleaseOwnedSurface()
+    {
+        if (_webSurfaceSession is not null)
+        {
+            _webSurfaceSession.StateChanged -= OnWebSurfaceStateChanged;
+            _webSurfaceSession = null;
+        }
+        Interlocked.Exchange(ref _ownedSurface, null)?.Dispose();
+    }
+
+    private static string ToSurfaceState(MptWebSurfaceState state) => state.ToString().ToLowerInvariant();
 
     private Task OpenExternalAsync()
     {
@@ -115,16 +168,92 @@ public sealed class ExternalSdkToolViewModel : ShellPageViewModel
     }
 }
 
-public sealed class ExternalToolCommandViewModel
+public sealed class ExternalToolCommandViewModel : ObservableViewModel
 {
+    private const int MaximumOutputLength = 64 * 1024;
+    private readonly Func<Task<string>> _execute;
+    private readonly Action<string>? _reportStatus;
+    private string _state = "idle";
+    private string _output = "";
+
     public ExternalToolCommandViewModel(string title, string description, Func<Task> execute)
+        : this(title, description, async () =>
+        {
+            await execute();
+            return "Completed.";
+        })
+    {
+    }
+
+    public ExternalToolCommandViewModel(
+        string title,
+        string description,
+        Func<Task<string>> execute,
+        Action<string>? reportStatus = null)
     {
         Title = title;
         Description = description;
-        ExecuteCommand = new AsyncRelayCommand(execute);
+        _execute = execute;
+        _reportStatus = reportStatus;
+        ExecuteCommand = new AsyncRelayCommand(ExecuteAsync);
     }
 
     public string Title { get; }
     public string Description { get; }
     public ICommand ExecuteCommand { get; }
+
+    public string State
+    {
+        get => _state;
+        private set
+        {
+            if (SetProperty(ref _state, value))
+            {
+                OnPropertyChanged(nameof(IsRunning));
+            }
+        }
+    }
+
+    public string Output
+    {
+        get => _output;
+        private set
+        {
+            if (SetProperty(ref _output, value))
+            {
+                OnPropertyChanged(nameof(HasOutput));
+            }
+        }
+    }
+
+    public bool IsRunning => State == "running";
+    public bool HasOutput => !string.IsNullOrWhiteSpace(Output);
+
+    private async Task ExecuteAsync()
+    {
+        State = "running";
+        Output = "";
+        try
+        {
+            Output = Bound(await _execute());
+            State = "succeeded";
+        }
+        catch (Exception ex)
+        {
+            Output = Bound(ex.GetBaseException().Message);
+            State = "failed";
+        }
+        _reportStatus?.Invoke(Output);
+    }
+
+    private static string Bound(string value)
+    {
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return "Completed.";
+        }
+        return value.Length <= MaximumOutputLength
+            ? value
+            : value[..MaximumOutputLength] + "…";
+    }
 }

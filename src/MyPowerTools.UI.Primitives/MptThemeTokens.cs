@@ -18,6 +18,7 @@ public static class MptThemeTokens
     public const double FontSizeCardTitle = 16;
     public const double FontSizeBody = 15;
     public const double FontSizeMeta = 13;
+    public const double FontSizePageHeading = 20;
     public const double ControlHeight = 36;
 
     public const uint ColorAppBackground = 0xfff5f5f5;
@@ -79,6 +80,7 @@ public static class MptThemeTokens
     public static readonly IBrush TransparentBrush = Brush(0x00000000);
 
     public static readonly Thickness ShellMargin = new(12);
+    public static readonly Thickness PageMessageMargin = new(32);
     public static readonly Thickness NoThickness = new(0);
     public static readonly Thickness TopBarMargin = new(12, 8);
     public static readonly Thickness ModuleCardMargin = new(0, 0, 12, 12);

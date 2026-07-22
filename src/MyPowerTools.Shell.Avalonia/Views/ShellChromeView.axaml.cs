@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Markup.Xaml;
 using MyPowerTools.Shell.Avalonia.ViewModels;
 using MyPowerTools.UI;
+using MyPowerTools.WebSurface.Avalonia;
 
 namespace MyPowerTools.Shell.Avalonia.Views;
 
@@ -30,7 +31,20 @@ public sealed partial class ShellChromeView : UserControl
     private readonly TextBlock _toolSectionLabel;
     private readonly StackPanel _mainNavigationStack;
     private readonly StackPanel _footerNavigationStack;
-    private bool? _isCompact;
+    // The XAML defaults match the expanded shell. Avoid rewriting the same navigation
+    // properties during the first wide layout pass.
+    private bool _isCompact;
+    private WebSurfaceOcclusionState? _webSurfaceOcclusion;
+
+    public WebSurfaceOcclusionState? WebSurfaceOcclusion
+    {
+        get => _webSurfaceOcclusion;
+        set
+        {
+            _webSurfaceOcclusion = value;
+            UpdateNativeWebSurfaceVisibility();
+        }
+    }
 
     public ShellChromeView()
     {
@@ -81,7 +95,7 @@ public sealed partial class ShellChromeView : UserControl
 
     private void UpdateNativeWebSurfaceVisibility()
     {
-        NativeWebSurfaceCoordinator.SetShellOverlayVisible(
+        _webSurfaceOcclusion?.SetOccluded(
             _globalOverlayHost.IsVisible || _permissionOverlayHost.IsVisible);
     }
 

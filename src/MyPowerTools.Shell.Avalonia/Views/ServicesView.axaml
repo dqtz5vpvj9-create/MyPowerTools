@@ -4,100 +4,238 @@
              xmlns:vm="using:MyPowerTools.Shell.Avalonia.ViewModels"
              x:Class="MyPowerTools.Shell.Avalonia.Views.ServicesView"
              x:DataType="vm:ServicesViewModel">
-  <StackPanel Margin="{DynamicResource MptPagePadding}" Spacing="{DynamicResource MptSpacingM}">
-    <Grid ColumnDefinitions="*,Auto">
+  <UserControl.Styles>
+    <Style Selector="Border.ServiceOverview">
+      <Setter Property="Padding" Value="20,16" />
+      <Setter Property="CornerRadius" Value="{DynamicResource MptRadiusCard}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource MptBrushBorder}" />
+      <Setter Property="BorderThickness" Value="{DynamicResource MptBorderThickness}" />
+      <Setter Property="Background" Value="{DynamicResource MptBrushCardBackground}" />
+    </Style>
+    <Style Selector="Border.ServiceCard">
+      <Setter Property="Padding" Value="16,14" />
+      <Setter Property="CornerRadius" Value="{DynamicResource MptRadiusCard}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource MptBrushBorder}" />
+      <Setter Property="BorderThickness" Value="{DynamicResource MptBorderThickness}" />
+      <Setter Property="Background" Value="{DynamicResource MptBrushCardBackground}" />
+      <Setter Property="Margin" Value="0,0,0,8" />
+    </Style>
+    <Style Selector="Border.ServiceGlyph">
+      <Setter Property="Width" Value="40" />
+      <Setter Property="Height" Value="40" />
+      <Setter Property="CornerRadius" Value="{DynamicResource MptRadiusCard}" />
+      <Setter Property="Background" Value="{DynamicResource MptBrushSurfaceInset}" />
+    </Style>
+    <Style Selector="Border.ServiceStateBadge">
+      <Setter Property="Padding" Value="10,2" />
+      <Setter Property="CornerRadius" Value="{DynamicResource MptRadiusBadge}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource MptBrushWarning}" />
+      <Setter Property="BorderThickness" Value="{DynamicResource MptBorderThickness}" />
+      <Setter Property="VerticalAlignment" Value="Center" />
+    </Style>
+    <Style Selector="Border.ServiceStateBadge.healthy">
+      <Setter Property="BorderBrush" Value="{DynamicResource MptBrushSuccess}" />
+    </Style>
+    <Style Selector="Border.ServiceStateBadge.failed">
+      <Setter Property="BorderBrush" Value="{DynamicResource MptBrushDanger}" />
+    </Style>
+    <Style Selector="TextBlock.ServiceMetricValue">
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="FontSize" Value="{DynamicResource MptFontSizeBody}" />
+      <Setter Property="LineHeight" Value="{DynamicResource MptLineHeightBody}" />
+    </Style>
+  </UserControl.Styles>
+
+  <StackPanel Margin="{DynamicResource MptPagePadding}"
+              Spacing="{DynamicResource MptSpacingM}">
+    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{DynamicResource MptSpacingL}">
       <StackPanel Spacing="{DynamicResource MptSpacingXs}">
         <TextBlock Classes="MptPageTitle" Text="{Binding Title}" />
         <TextBlock Classes="MptPageSubtitle" Text="{Binding Subtitle}" />
       </StackPanel>
-      <StackPanel Grid.Column="1" Classes="MptActionBar" Orientation="Horizontal" Spacing="{DynamicResource MptSpacingXs}">
+      <StackPanel Grid.Column="1"
+                  Orientation="Horizontal"
+                  Spacing="{DynamicResource MptSpacingS}"
+                  VerticalAlignment="Center">
         <controls:MptButton Content="Reload manifests"
-                            Command="{Binding ReloadManifestsCommand}"
-                            MinWidth="{DynamicResource MptDensityActionMinWidth}" />
-        <controls:MptButton Content="Refresh"
-                            Command="{Binding RefreshCommand}"
-                            MinWidth="{DynamicResource MptDensityActionMinWidth}" />
+                            Command="{Binding ReloadManifestsCommand}" />
+        <controls:MptButton Classes="MptPrimaryButton"
+                            Content="Refresh"
+                            Command="{Binding RefreshCommand}" />
       </StackPanel>
     </Grid>
 
-    <!-- Disconnected banner: last snapshot shown, ServiceManager stream faulted -->
-    <Border Classes="MptErrorState" Padding="{DynamicResource MptSpacingS}" IsVisible="{Binding Disconnected}">
-      <StackPanel Orientation="Horizontal" Spacing="{DynamicResource MptSpacingXs}">
-        <TextBlock Classes="MptMeta" Text="ServiceManager connection interrupted — showing last snapshot." />
-        <controls:MptButton Content="Retry" Command="{Binding RefreshCommand}" />
-      </StackPanel>
+    <Border Classes="MptErrorState"
+            Padding="{DynamicResource MptUniformS}"
+            IsVisible="{Binding Disconnected}">
+      <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{DynamicResource MptSpacingS}">
+        <StackPanel Orientation="Horizontal"
+                    Spacing="{DynamicResource MptSpacingS}"
+                    VerticalAlignment="Center">
+          <TextBlock Text="&#xEA39;"
+                     FontFamily="{DynamicResource MptFontFamilyIcons}"
+                     Foreground="{DynamicResource MptBrushDanger}" />
+          <TextBlock Classes="MptBody"
+                     Text="ServiceManager connection interrupted. The last known state remains visible." />
+        </StackPanel>
+        <controls:MptButton Grid.Column="1"
+                            Content="Reconnect"
+                            Command="{Binding RefreshCommand}" />
+      </Grid>
     </Border>
 
-    <!-- Search + state filter -->
-    <StackPanel Orientation="Horizontal" Spacing="{DynamicResource MptSpacingS}" IsVisible="{Binding !HasNoUnits}">
-      <controls:MptTextBox Text="{Binding SearchText}" PlaceholderText="Search units, tools..." Width="280" />
-      <controls:MptComboBox ItemsSource="{Binding StateFilters}" SelectedItem="{Binding StateFilter}" MinWidth="120" />
-    </StackPanel>
+    <Border Classes="ServiceOverview">
+      <Grid RowDefinitions="Auto,Auto" RowSpacing="{DynamicResource MptSpacingM}">
+        <Grid ColumnDefinitions="*,Auto,Auto,Auto" ColumnSpacing="{DynamicResource MptSpacing2Xl}">
+          <StackPanel Spacing="{DynamicResource MptSpacingXs}">
+            <TextBlock Classes="MptCardTitle" Text="Service manager" />
+            <TextBlock Classes="MptMeta"
+                       Text="Services keep their own lifetime while MyPowerTools provides one control surface." />
+          </StackPanel>
+          <StackPanel Grid.Column="1" MinWidth="72">
+            <TextBlock Classes="MptMeta" Text="Services" />
+            <TextBlock Classes="ServiceMetricValue" Text="{Binding TotalCount}" />
+          </StackPanel>
+          <StackPanel Grid.Column="2" MinWidth="72">
+            <TextBlock Classes="MptMeta" Text="Running" />
+            <TextBlock Classes="ServiceMetricValue"
+                       Foreground="{DynamicResource MptBrushSuccess}"
+                       Text="{Binding ActiveCount}" />
+          </StackPanel>
+          <StackPanel Grid.Column="3" MinWidth="72">
+            <TextBlock Classes="MptMeta" Text="Attention" />
+            <TextBlock Classes="ServiceMetricValue"
+                       Foreground="{DynamicResource MptBrushWarning}"
+                       Text="{Binding AttentionCount}" />
+          </StackPanel>
+        </Grid>
+
+        <Grid Grid.Row="1"
+              ColumnDefinitions="*,160,Auto"
+              ColumnSpacing="{DynamicResource MptSpacingS}"
+              IsVisible="{Binding !HasNoUnits}">
+          <controls:MptTextBox Text="{Binding SearchText}"
+                               PlaceholderText="Search services or tools" />
+          <controls:MptComboBox Grid.Column="1"
+                                ItemsSource="{Binding StateFilters}"
+                                SelectedItem="{Binding StateFilter}" />
+          <TextBlock Grid.Column="2"
+                     Classes="MptMeta"
+                     Text="{Binding VisibleCount, StringFormat='{}{0} shown'}"
+                     VerticalAlignment="Center" />
+        </Grid>
+      </Grid>
+    </Border>
 
     <Border Classes="MptEmptyState" IsVisible="{Binding HasNoUnits}">
       <StackPanel Spacing="{DynamicResource MptSpacingXs}">
-        <TextBlock Classes="MptSectionTitle" Text="No Service Units registered" />
+        <TextBlock Classes="MptSectionTitle" Text="No services registered" />
         <TextBlock Classes="MptMeta"
-                   Text="Deploy a unit manifest to the ServiceManager deploy root, then Reload manifests. If the ServiceManager is not running, this page cannot reach it." />
+                   Text="Deploy a Service Unit manifest, then choose Reload manifests." />
       </StackPanel>
     </Border>
 
-    <ItemsControl ItemsSource="{Binding Units}" IsVisible="{Binding !HasNoUnits}">
+    <Border Classes="MptEmptyState" IsVisible="{Binding HasNoResults}">
+      <StackPanel Spacing="{DynamicResource MptSpacingXs}">
+        <TextBlock Classes="MptSectionTitle" Text="No matching services" />
+        <TextBlock Classes="MptMeta" Text="Change the search text or state filter." />
+      </StackPanel>
+    </Border>
+
+    <ItemsControl ItemsSource="{Binding Units}"
+                  IsVisible="{Binding HasVisibleUnits}">
+      <ItemsControl.Styles>
+        <Style Selector="ContentPresenter">
+          <Setter Property="HorizontalAlignment" Value="Stretch" />
+        </Style>
+      </ItemsControl.Styles>
       <ItemsControl.ItemTemplate>
         <DataTemplate x:DataType="vm:ServiceUnitViewModel">
-          <Border Classes="MptSettingsField">
-            <Grid ColumnDefinitions="*,Auto">
-              <StackPanel Spacing="{DynamicResource MptSpacingXs}">
-                <StackPanel Orientation="Horizontal" Spacing="{DynamicResource MptSpacingXs}">
-                  <Border Classes="MptStatusBadge">
-                    <TextBlock Classes="MptStatusText" Text="{Binding State}" />
-                  </Border>
+          <Border Classes="ServiceCard">
+            <Grid RowDefinitions="Auto,Auto"
+                  ColumnDefinitions="40,*,Auto,Auto"
+                  ColumnSpacing="{DynamicResource MptSpacingM}"
+                  RowSpacing="{DynamicResource MptSpacingM}">
+              <Border Classes="ServiceGlyph">
+                <TextBlock Text="&#xE713;"
+                           FontFamily="{DynamicResource MptFontFamilyIcons}"
+                           FontSize="{DynamicResource MptFontSizeHeader}"
+                           Foreground="{DynamicResource MptBrushAccent}"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center" />
+              </Border>
+
+              <StackPanel Grid.Column="1"
+                          Spacing="{DynamicResource MptSpacingXs}"
+                          VerticalAlignment="Center">
+                <StackPanel Orientation="Horizontal" Spacing="{DynamicResource MptSpacingS}">
                   <TextBlock Classes="MptCardTitle" Text="{Binding DisplayName}" />
-                  <TextBlock Classes="MptMeta" Text="{Binding ToolId}" />
+                  <TextBlock Classes="MptMeta"
+                             Text="{Binding ToolId}"
+                             VerticalAlignment="Center" />
                 </StackPanel>
-                <StackPanel Orientation="Horizontal" Spacing="{DynamicResource MptSpacingM}">
-                  <StackPanel>
-                    <TextBlock Classes="MptMeta" Text="PID" />
-                    <TextBlock Classes="MptValue" Text="{Binding Pid}" />
-                  </StackPanel>
-                  <StackPanel>
-                    <TextBlock Classes="MptMeta" Text="Uptime" />
-                    <TextBlock Classes="MptValue" Text="{Binding Uptime}" />
-                  </StackPanel>
-                  <StackPanel>
-                    <TextBlock Classes="MptMeta" Text="Restarts" />
-                    <TextBlock Classes="MptValue" Text="{Binding RestartCount}" />
-                  </StackPanel>
-                  <StackPanel>
-                    <TextBlock Classes="MptMeta" Text="Autostart" />
-                    <TextBlock Classes="MptValue" Text="{Binding AutostartLabel}" />
-                  </StackPanel>
-                </StackPanel>
-                <TextBlock Classes="MptMeta" Text="{Binding StateSummary}" IsVisible="{Binding !HasError}" />
-                <Border Classes="MptErrorState" Padding="{DynamicResource MptSpacingS}" IsVisible="{Binding HasError}">
-                  <TextBlock Classes="MptMeta" Text="{Binding LastError}" TextWrapping="Wrap" />
-                </Border>
+                <TextBlock Classes="MptMeta" Text="{Binding StateSummary}" />
               </StackPanel>
-              <StackPanel Grid.Column="1" Classes="MptActionBar" Orientation="Vertical" Spacing="{DynamicResource MptSpacingXs}">
+
+              <Border Grid.Column="2"
+                      Classes="ServiceStateBadge"
+                      Classes.healthy="{Binding IsHealthy}"
+                      Classes.failed="{Binding IsFailed}">
+                <TextBlock Classes="MptMeta" Text="{Binding StatusLabel}" />
+              </Border>
+
+              <StackPanel Grid.Column="3"
+                          Orientation="Horizontal"
+                          Spacing="{DynamicResource MptSpacingS}"
+                          VerticalAlignment="Center">
                 <controls:MptButton Content="Start"
+                                    Classes="MptPrimaryButton"
                                     Command="{Binding StartCommand}"
-                                    MinWidth="{DynamicResource MptDensityActionMinWidth}" />
-                <controls:MptButton Content="Restart"
-                                    Command="{Binding RestartCommand}"
-                                    MinWidth="{DynamicResource MptDensityActionMinWidth}" />
+                                    IsVisible="{Binding CanStart}" />
                 <controls:MptButton Content="Stop"
                                     Command="{Binding StopCommand}"
-                                    MinWidth="{DynamicResource MptDensityActionMinWidth}" />
-                <controls:MptButton Content="Tail logs"
-                                    Command="{Binding TailLogsCommand}"
-                                    MinWidth="{DynamicResource MptDensityActionMinWidth}" />
+                                    IsVisible="{Binding CanStop}" />
+                <controls:MptButton Content="Restart"
+                                    Command="{Binding RestartCommand}"
+                                    IsEnabled="{Binding CanRestart}" />
+                <controls:MptButton Content="Logs"
+                                    Command="{Binding TailLogsCommand}" />
                 <controls:MptButton Content="Open tool"
-                                    Command="{Binding OpenToolCommand}"
-                                    MinWidth="{DynamicResource MptDensityActionMinWidth}" />
-                <controls:MptButton Content="Toggle autostart"
-                                    Command="{Binding ToggleAutostartCommand}"
-                                    MinWidth="{DynamicResource MptDensityActionMinWidth}" />
+                                    Classes="MptPrimaryButton"
+                                    Command="{Binding OpenToolCommand}" />
               </StackPanel>
+
+              <Grid Grid.Row="1"
+                    Grid.Column="1"
+                    Grid.ColumnSpan="3"
+                    ColumnDefinitions="90,110,90,*,Auto"
+                    ColumnSpacing="{DynamicResource MptSpacingL}">
+                <StackPanel>
+                  <TextBlock Classes="MptMeta" Text="PID" />
+                  <TextBlock Classes="ServiceMetricValue" Text="{Binding Pid}" />
+                </StackPanel>
+                <StackPanel Grid.Column="1">
+                  <TextBlock Classes="MptMeta" Text="Uptime" />
+                  <TextBlock Classes="ServiceMetricValue" Text="{Binding Uptime}" />
+                </StackPanel>
+                <StackPanel Grid.Column="2">
+                  <TextBlock Classes="MptMeta" Text="Restarts" />
+                  <TextBlock Classes="ServiceMetricValue" Text="{Binding RestartCount}" />
+                </StackPanel>
+                <StackPanel Grid.Column="3" IsVisible="{Binding HasError}">
+                  <TextBlock Classes="MptMeta"
+                             Foreground="{DynamicResource MptBrushDanger}"
+                             Text="Last error" />
+                  <TextBlock Classes="MptMeta"
+                             Text="{Binding LastError}"
+                             TextWrapping="Wrap"
+                             MaxLines="2" />
+                </StackPanel>
+                <controls:MptButton Grid.Column="4"
+                                    Content="{Binding AutostartLabel}"
+                                    Command="{Binding ToggleAutostartCommand}"
+                                    VerticalAlignment="Center" />
+              </Grid>
             </Grid>
           </Border>
         </DataTemplate>

@@ -129,6 +129,109 @@
       </Border>
     </Grid>
 
+   <Border Classes="MptSettingsSection">
+      <Grid ColumnDefinitions="*,Auto"
+            RowDefinitions="Auto,Auto,Auto,Auto"
+            RowSpacing="{DynamicResource MptSpacingS}"
+            ColumnSpacing="{DynamicResource MptSpacingL}"
+            IsVisible="{Binding !!DevSource}">
+        <StackPanel Grid.Row="0"
+                    Grid.ColumnSpan="2"
+                    Spacing="{DynamicResource MptSpacingXs}">
+          <TextBlock Classes="MptSectionTitle" Text="Developer sources" />
+          <TextBlock Classes="MptPageSubtitle"
+                     Text="Sync build outputs from local source folders into the installed module directory on every tool refresh."
+                     TextWrapping="Wrap"
+                     MaxWidth="720"
+                     HorizontalAlignment="Left" />
+        </StackPanel>
+
+        <Grid Grid.Row="1"
+              Grid.ColumnSpan="2"
+              ColumnDefinitions="*,*"
+              ColumnSpacing="{DynamicResource MptSpacingL}">
+          <Border Classes="MptSettingsField">
+            <StackPanel Spacing="{DynamicResource MptSpacingXs}">
+              <TextBlock FontWeight="SemiBold" Text="Enable source sync" />
+              <TextBlock Classes="MptMeta"
+                         Text="When on, configured folders are checked on every dotnet-surface tool refresh."
+                         TextWrapping="Wrap" />
+              <controls:MptCheckBox Content="Enable developer source sync"
+                        IsChecked="{Binding DevSource.Enabled, Mode=TwoWay}"
+                        Margin="{DynamicResource MptGapTopXs}" />
+            </StackPanel>
+          </Border>
+          <Border Grid.Column="1"
+                  Classes="MptSettingsField">
+            <StackPanel Spacing="{DynamicResource MptSpacingXs}">
+              <TextBlock FontWeight="SemiBold" Text="Sync on refresh" />
+              <TextBlock Classes="MptMeta"
+                         Text="Keep this on to pull latest files each time you click a tool's refresh button."
+                         TextWrapping="Wrap" />
+              <controls:MptCheckBox Content="Sync from developer sources when refreshing tools"
+                        IsChecked="{Binding DevSource.SyncOnRefresh, Mode=TwoWay}"
+                        Margin="{DynamicResource MptGapTopXs}" />
+            </StackPanel>
+          </Border>
+        </Grid>
+
+        <Border Grid.Row="2"
+                Grid.ColumnSpan="2"
+                Classes="MptSettingsField">
+          <StackPanel Spacing="{DynamicResource MptSpacingS}">
+            <TextBlock FontWeight="SemiBold" Text="Add a source mapping" />
+           <Grid ColumnDefinitions="*,*,*,Auto"
+                 ColumnSpacing="{DynamicResource MptSpacingS}">
+            <controls:MptTextBox PlaceholderText="Name (optional)"
+                     Text="{Binding DevSource.NewName, Mode=TwoWay}" />
+            <controls:MptTextBox Grid.Column="1"
+                     PlaceholderText="Tool id (optional, e.g. remote-notifications)"
+                     Text="{Binding DevSource.NewToolId, Mode=TwoWay}" />
+              <controls:MptButton Grid.Column="2"
+                                Content="Add"
+                                Command="{Binding DevSource.AddMappingCommand}"
+                                VerticalAlignment="Bottom" />
+           </Grid>
+            <controls:MptTextBox PlaceholderText="Source directory (build output, e.g. ...\bin\Release\net10.0)"
+                     Text="{Binding DevSource.NewSourceDir, Mode=TwoWay}" />
+            <controls:MptTextBox PlaceholderText="Target directory (installed module path)"
+                     Text="{Binding DevSource.NewTargetDir, Mode=TwoWay}" />
+            <controls:MptTextBox PlaceholderText="File patterns (comma-separated), e.g. *.dll,*.pdb,*.deps.json"
+                     Text="{Binding DevSource.NewPatterns, Mode=TwoWay}" />
+          </StackPanel>
+        </Border>
+
+        <ItemsControl Grid.Row="3"
+                      Grid.ColumnSpan="2"
+                      ItemsSource="{Binding DevSource.Mappings}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:DevSourceMappingViewModel">
+              <Border Classes="MptSettingsField"
+                      Margin="{DynamicResource MptGapBottomXs}">
+                <Grid ColumnDefinitions="*,Auto"
+                      ColumnSpacing="{DynamicResource MptSpacingM}">
+                  <StackPanel Spacing="{DynamicResource MptSpacing2Xs}">
+                    <TextBlock FontWeight="SemiBold" Text="{Binding Name}" />
+                    <TextBlock Classes="MptMeta" Text="{Binding SourceDir}" TextWrapping="Wrap" />
+                    <TextBlock Classes="MptMeta" Text="{Binding TargetDir}" TextWrapping="Wrap" />
+                    <TextBlock Classes="MptMeta"
+                               Text="{Binding ToolId, StringFormat='Tool: {0}'}"
+                               IsVisible="{Binding !!ToolId}" />
+                    <TextBlock Classes="MptMeta"
+                               Text="{Binding Patterns, StringFormat='Patterns: {0}'}" />
+                </StackPanel>
+                <controls:MptButton Grid.Column="1"
+                                  Content="Remove"
+                                  Command="{Binding RemoveCommand}"
+                                  VerticalAlignment="Top" />
+                </Grid>
+              </Border>
+            </DataTemplate>
+              </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </Grid>
+    </Border>
+
     <Border Classes="MptSettingsSection">
       <Grid x:Name="MaintenanceGrid"
             ColumnDefinitions="*,Auto"

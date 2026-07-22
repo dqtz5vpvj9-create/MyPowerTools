@@ -55,6 +55,7 @@ public sealed class ShellChromeViewModel : ObservableViewModel
     private string _runnerStatusText = "";
     private bool _isCommandPaletteOpen;
     private bool _isPermissionPromptOpen;
+    private string _selectedNavigationKey = "Home";
 
     public ShellChromeViewModel(
         IReadOnlyList<string> pageLabels,
@@ -72,9 +73,8 @@ public sealed class ShellChromeViewModel : ObservableViewModel
         TopNavigationItems = NavigationItems
             .Where(item => item.Label is "Home" or "Dashboard" or "Settings")
             .ToArray();
-        ToolNavigationItems = NavigationItems
-            .Where(item => item.Label is not ("Home" or "Dashboard" or "Settings" or "System" or "Activity"))
-            .ToArray();
+        ToolNavigationItems = new ObservableCollection<ShellNavigationItemViewModel>(
+            NavigationItems.Where(item => item.Label is "Tools"));
         FooterNavigationItems = NavigationItems
             .Where(item => item.Label is "System")
             .ToArray();
@@ -86,7 +86,7 @@ public sealed class ShellChromeViewModel : ObservableViewModel
 
     public IReadOnlyList<ShellNavigationItemViewModel> NavigationItems { get; }
     public IReadOnlyList<ShellNavigationItemViewModel> TopNavigationItems { get; }
-    public IReadOnlyList<ShellNavigationItemViewModel> ToolNavigationItems { get; }
+    public ObservableCollection<ShellNavigationItemViewModel> ToolNavigationItems { get; }
     public IReadOnlyList<ShellNavigationItemViewModel> FooterNavigationItems { get; }
     public ICommand RefreshCommand { get; }
     public ICommand OpenCommandPaletteCommand { get; }
@@ -119,19 +119,67 @@ public sealed class ShellChromeViewModel : ObservableViewModel
 
     public void SelectPage(string page)
     {
-        foreach (var item in NavigationItems)
+        _selectedNavigationKey = page;
+        ApplyNavigationSelection();
+    }
+
+    public void SelectTool(string toolId)
+    {
+        _selectedNavigationKey = ToolNavigationKey(toolId);
+        ApplyNavigationSelection();
+    }
+
+    public void SetDiscoveredTools(
+        IReadOnlyList<ToolCardViewModel> tools,
+        Func<string, Task> navigateTool)
+    {
+        var allTools = NavigationItems.First(item => item.Label is "Tools");
+        ToolNavigationItems.Clear();
+        ToolNavigationItems.Add(allTools);
+
+        foreach (var tool in tools.DistinctBy(item => item.ToolId, StringComparer.OrdinalIgnoreCase))
         {
-            item.IsSelected = string.Equals(item.Label, page, StringComparison.OrdinalIgnoreCase);
+            var toolId = tool.ToolId;
+            ToolNavigationItems.Add(new ShellNavigationItemViewModel(
+                ToolNavigationKey(toolId),
+                new AsyncRelayCommand(() => navigateTool(toolId), operationName: $"NavigateTool:{toolId}"),
+                displayLabel: tool.Title,
+                iconGlyph: tool.IconGlyph,
+                isMonogram: true,
+                isEnabled: tool.CanOpen));
         }
+
+        ApplyNavigationSelection();
     }
 
     public void SetNavigationCompact(bool compact)
     {
-        foreach (var item in NavigationItems)
+        foreach (var item in EnumerateNavigationItems())
         {
             item.SetCompact(compact);
         }
     }
+
+    private void ApplyNavigationSelection()
+    {
+        foreach (var item in EnumerateNavigationItems())
+        {
+            item.IsSelected = string.Equals(
+                item.Label,
+                _selectedNavigationKey,
+                StringComparison.OrdinalIgnoreCase);
+        }
+    }
+
+    private IEnumerable<ShellNavigationItemViewModel> EnumerateNavigationItems()
+    {
+        return TopNavigationItems
+            .Concat(ToolNavigationItems)
+            .Concat(FooterNavigationItems)
+            .Distinct();
+    }
+
+    private static string ToolNavigationKey(string toolId) => $"tool:{toolId}";
 }
 
 public sealed class ShellNavigationItemViewModel : ObservableViewModel
@@ -141,14 +189,30 @@ public sealed class ShellNavigationItemViewModel : ObservableViewModel
     private double _itemWidth = 216;
     private string _selectionText = "";
 
-    public ShellNavigationItemViewModel(string label, ICommand navigateCommand)
+    public ShellNavigationItemViewModel(
+        string label,
+        ICommand navigateCommand,
+        string? displayLabel = null,
+        string? iconGlyph = null,
+        bool isMonogram = false,
+        bool isEnabled = true)
     {
         Label = label;
         NavigateCommand = navigateCommand;
+        DisplayLabel = displayLabel ?? ResolveDisplayLabel(label);
+        IconGlyph = iconGlyph ?? ResolveIconGlyph(label);
+        IsMonogram = isMonogram;
+        IsEnabled = isEnabled;
     }
 
     public string Label { get; }
-    public string DisplayLabel => Label switch
+    public string DisplayLabel { get; }
+    public string IconGlyph { get; }
+    public bool IsMonogram { get; }
+    public bool IsEnabled { get; }
+    public ICommand NavigateCommand { get; }
+
+    private static string ResolveDisplayLabel(string label) => label switch
     {
         "Home" => "Dashboard",
         "Tools" => "All tools",
@@ -158,10 +222,10 @@ public sealed class ShellNavigationItemViewModel : ObservableViewModel
         "Doubao Agent" => "豆包 Computer Use",
         "SmartBird" => "SmartBird 温度管理器",
         "Settings" => "General",
-        _ => Label
+        _ => label
     };
 
-    public string IconGlyph => Label switch
+    private static string ResolveIconGlyph(string label) => label switch
     {
         "Home" or "Dashboard" => "\uE80F",
         "Tools" or "Modules" => "\uE71D",
@@ -178,7 +242,6 @@ public sealed class ShellNavigationItemViewModel : ObservableViewModel
         "Packages" => "\uE7B8",
         _ => "\uE946"
     };
-    public ICommand NavigateCommand { get; }
 
     public bool IsLabelVisible
     {

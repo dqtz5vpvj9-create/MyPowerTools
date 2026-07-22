@@ -16,17 +16,17 @@ public sealed partial class ExternalSdkToolView : UserControl
 
     public void SetManagedSurface(Control control)
     {
+        SetHostedSurface(control);
+        (DataContext as ExternalSdkToolViewModel)?.ReportSurface("ready", "Dotnet surface loaded.");
+    }
+
+    public Control? ManagedSurface => _managedSurfaceHost?.Content as Control;
+
+    public void SetHostedSurface(Control control)
+    {
         if (_managedSurfaceHost is not null)
         {
             _managedSurfaceHost.Content = control;
         }
-        (DataContext as ExternalSdkToolViewModel)?.ReportSurface("ready", "Dotnet surface loaded.");
-    }
-
-    public void ReloadWebSurface()
-    {
-        // The embedded web view control is now owned by tool surface packages; web-surface tools
-        // refresh by reloading the tool page rather than through an in-shell browser control.
-        (DataContext as ExternalSdkToolViewModel)?.ReportSurface("loading", "Refreshing the tool surface.");
     }
 }

@@ -61,7 +61,24 @@ public sealed class ServiceUnitViewModel : ObservableViewModel
     public bool Ready { get; }
 
     private string _state;
-    public string State { get => _state; set => SetProperty(ref _state, value); }
+    public string State
+    {
+        get => _state;
+        set
+        {
+            if (SetProperty(ref _state, value))
+            {
+                OnPropertyChanged(nameof(StatusLabel));
+                OnPropertyChanged(nameof(IsActive));
+                OnPropertyChanged(nameof(IsInactive));
+                OnPropertyChanged(nameof(IsFailed));
+                OnPropertyChanged(nameof(IsHealthy));
+                OnPropertyChanged(nameof(CanStart));
+                OnPropertyChanged(nameof(CanStop));
+                OnPropertyChanged(nameof(CanRestart));
+            }
+        }
+    }
 
     private bool _autostart;
     public bool Autostart { get => _autostart; set => SetProperty(ref _autostart, value); }
@@ -76,6 +93,23 @@ public sealed class ServiceUnitViewModel : ObservableViewModel
     public bool HasError => !string.IsNullOrWhiteSpace(LastError);
     public bool IsControlEnabled => StartCommand is not null;
     public string AutostartLabel => Autostart ? "Autostart: on" : "Autostart: off";
+    public string StatusLabel => State switch
+    {
+        "active" => Ready ? "Running" : "Starting",
+        "inactive" => "Stopped",
+        "activating" => "Starting",
+        "deactivating" => "Stopping",
+        "degraded" => "Needs attention",
+        "failed" => "Failed",
+        _ => "Unknown"
+    };
+    public bool IsActive => string.Equals(State, "active", StringComparison.OrdinalIgnoreCase);
+    public bool IsInactive => string.Equals(State, "inactive", StringComparison.OrdinalIgnoreCase);
+    public bool IsFailed => string.Equals(State, "failed", StringComparison.OrdinalIgnoreCase);
+    public bool IsHealthy => IsActive && Ready && !HasError;
+    public bool CanStart => IsInactive || IsFailed;
+    public bool CanStop => IsActive || string.Equals(State, "degraded", StringComparison.OrdinalIgnoreCase);
+    public bool CanRestart => CanStop;
 }
 
 /// <summary>One tailed log line shown in the unit detail / logs flyout.</summary>

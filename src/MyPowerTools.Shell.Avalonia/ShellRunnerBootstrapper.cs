@@ -1,5 +1,11 @@
 using System.Diagnostics;
+using System.IO.Pipes;
+using System.Net.Sockets;
 using MyPowerTools.HostControl;
+using MyPowerTools.Ipc;
+using MyPowerTools.Platform.Abstractions;
+using MyPowerTools.Shell.Avalonia.Services;
+using HostProto = MyPowerTools.Protocol.HostControl.V1;
 
 namespace MyPowerTools.Shell.Avalonia;
 
@@ -9,14 +15,45 @@ public static class ShellRunnerBootstrapper
         ShellStartupOptions options,
         CancellationToken cancellationToken = default)
     {
+        return await EnsureStartedAsync(
+            options,
+            loadHomeTools: false,
+            cancellationToken);
+    }
+
+    internal static async Task<ShellRunnerBootstrapResult> EnsureStartedAsync(
+        ShellStartupOptions options,
+        bool loadHomeTools,
+        CancellationToken cancellationToken = default)
+    {
+        ApplyDataRootEnvironment(options);
+        var readyResult = await EnsureRunnerReadyAsync(options, cancellationToken).ConfigureAwait(false);
+        if (!loadHomeTools)
+        {
+            return readyResult;
+        }
+
+        var startupTools = await TryLoadStartupToolsAsync(
+            TimeSpan.FromMilliseconds(700),
+            cancellationToken);
+        if (startupTools is not null)
+        {
+            return readyResult with { StartupTools = startupTools };
+        }
+
+        return readyResult;
+    }
+
+    private static async Task<ShellRunnerBootstrapResult> EnsureRunnerReadyAsync(
+        ShellStartupOptions options,
+        CancellationToken cancellationToken)
+    {
         if (!options.RunnerBootstrap)
         {
-            ApplyDataRootEnvironment(options);
             return new ShellRunnerBootstrapResult("disabled", "Runner bootstrap disabled.");
         }
 
-        ApplyDataRootEnvironment(options);
-        if (await CanPingRunnerAsync(cancellationToken))
+        if (await CanReachRunnerAsync(TimeSpan.FromMilliseconds(50), cancellationToken))
         {
             return new ShellRunnerBootstrapResult("already-running", "Runner is already available.");
         }
@@ -33,15 +70,56 @@ public static class ShellRunnerBootstrapper
         while (DateTimeOffset.UtcNow < deadline)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (await CanPingRunnerAsync(cancellationToken))
+            if (await CanReachRunnerAsync(TimeSpan.FromMilliseconds(250), cancellationToken))
             {
                 return new ShellRunnerBootstrapResult("started", "Runner started.");
             }
 
-            await Task.Delay(250, cancellationToken);
+            await Task.Delay(50, cancellationToken);
         }
 
         return new ShellRunnerBootstrapResult("starting", "Runner was started but HostControl is still warming up.");
+    }
+
+    private static async Task<bool> CanReachRunnerAsync(
+        TimeSpan timeoutDuration,
+        CancellationToken cancellationToken)
+    {
+        var endpoint = IpcEndpoint.RunnerDefault(PlatformId.Current());
+        try
+        {
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeout.CancelAfter(timeoutDuration);
+            switch (endpoint.Transport)
+            {
+                case IpcTransport.NamedPipe:
+                    await using (var pipe = new NamedPipeClientStream(
+                        ".",
+                        endpoint.Address,
+                        PipeDirection.InOut,
+                        MptNamedPipePolicy.ClientOptions))
+                    {
+                        await pipe.ConnectAsync(timeout.Token);
+                    }
+                    return true;
+                case IpcTransport.UnixDomainSocket:
+                    using (var socket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified))
+                    {
+                        await socket.ConnectAsync(new UnixDomainSocketEndPoint(endpoint.Address), timeout.Token);
+                    }
+                    return true;
+                default:
+                    return false;
+            }
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private static void ApplyDataRootEnvironment(ShellStartupOptions options)
@@ -52,19 +130,25 @@ public static class ShellRunnerBootstrapper
         }
     }
 
-    private static async Task<bool> CanPingRunnerAsync(CancellationToken cancellationToken)
+    private static async Task<IReadOnlyList<HostProto.ToolDescriptor>?> TryLoadStartupToolsAsync(
+        TimeSpan timeoutDuration,
+        CancellationToken cancellationToken)
     {
         try
         {
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            timeout.CancelAfter(TimeSpan.FromMilliseconds(700));
+            timeout.CancelAfter(timeoutDuration);
             using var client = HostControlClient.ForDefaultEndpoint();
-            await client.PingAsync(timeout.Token);
-            return true;
+            var response = await client.ListToolsAsync(includeDisabled: true, timeout.Token);
+            return response.Tools.ToArray();
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
         }
         catch
         {
-            return false;
+            return null;
         }
     }
 
@@ -72,7 +156,7 @@ public static class ShellRunnerBootstrapper
     {
         var modulesRoot = options.ModulesRoot ?? Path.Combine(appRoot, "modules");
         var dataRoot = options.DataRoot ?? HostControlAuthTokenStore.DefaultDataRoot();
-        var releaseRunner = Path.Combine(appRoot, "Runner", "MyPowerTools.Runner.exe");
+        var releaseRunner = Path.Combine(appRoot, "Runner", ExecutableName("MyPowerTools.Runner"));
         if (File.Exists(releaseRunner))
         {
             return CreateRunnerStartInfo(releaseRunner, appRoot, modulesRoot, dataRoot);
@@ -85,7 +169,7 @@ public static class ShellRunnerBootstrapper
         }
 
         modulesRoot = options.ModulesRoot ?? Path.Combine(repositoryRoot, "modules");
-        var debugRunner = Path.Combine(repositoryRoot, "src", "MyPowerTools.Runner", "bin", "Debug", "net10.0", "MyPowerTools.Runner.exe");
+        var debugRunner = Path.Combine(repositoryRoot, "src", "MyPowerTools.Runner", "bin", "Debug", "net10.0", ExecutableName("MyPowerTools.Runner"));
         if (File.Exists(debugRunner))
         {
             return CreateRunnerStartInfo(debugRunner, repositoryRoot, modulesRoot, dataRoot);
@@ -135,7 +219,7 @@ public static class ShellRunnerBootstrapper
         }
     }
 
-    private static string FindApplicationRoot(string start)
+    internal static string FindApplicationRoot(string start)
     {
         var directory = new DirectoryInfo(start);
         while (directory is not null)
@@ -168,6 +252,12 @@ public static class ShellRunnerBootstrapper
 
         return null;
     }
+
+    internal static string ExecutableName(string baseName) =>
+        OperatingSystem.IsWindows() ? baseName + ".exe" : baseName;
 }
 
-public sealed record ShellRunnerBootstrapResult(string State, string Message);
+public sealed record ShellRunnerBootstrapResult(
+    string State,
+    string Message,
+    IReadOnlyList<HostProto.ToolDescriptor>? StartupTools = null);

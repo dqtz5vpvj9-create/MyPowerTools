@@ -10,7 +10,6 @@ using MyPowerTools.AvaloniaSdk;
 using MyPowerTools.ServiceManager.Client;
 using MyPowerTools.HostControl;
 using MyPowerTools.Platform.Abstractions;
-using MyPowerTools.Platform.Windows;
 using MyPowerTools.Shell.Avalonia.ViewModels;
 using MyPowerTools.Shell.Avalonia.Views;
 using HostProto = MyPowerTools.Protocol.HostControl.V1;
@@ -31,37 +30,27 @@ public sealed partial class ShellWorkspaceController
                     ?? descriptor.Routes.FirstOrDefault()
                     ?? throw new InvalidDataException($"Tool '{descriptor.ToolId}' has no route.");
         var source = ResolveExternalSurfaceUri(descriptor, route);
+        var isWebSurface = descriptor.ToolType == "web-surface" || route.SurfaceKind == "web";
+        var effectiveToolType = isWebSurface ? "web-surface" : descriptor.ToolType;
         Func<Task>? launch = route.SurfaceKind == "native" && !string.IsNullOrWhiteSpace(route.Source)
             ? () => LaunchExternalAsync(route.Source)
             : null;
-        ExternalSdkToolViewModel? viewModel = null;
-        ExternalSdkToolView? view = null;
+        IMptWebSurfaceSession? webSurfaceSession = null;
         var commands = descriptor.Commands
-            .Where(command => descriptor.ToolType != "web-surface" ||
+            .Where(command => !isWebSurface ||
                               !(command.Id.EndsWith(".refresh", StringComparison.OrdinalIgnoreCase) ||
                                 command.Id.EndsWith(".open-external", StringComparison.OrdinalIgnoreCase)))
             .Select(command => new ExternalToolCommandViewModel(
-            command.Title,
-            command.Description,
-            async () =>
-            {
-                try
-                {
-                    var message = await InvokeExternalToolCommandAsync(descriptor, route, command, CancellationToken.None);
-                    viewModel?.ReportSurface("ready", message);
-                    SetStatus($"{descriptor.Title}: {message}");
-                }
-                catch (Exception ex)
-                {
-                    viewModel?.ReportSurface("failed", ex.GetBaseException().Message);
-                    SetStatus($"{descriptor.Title}: {ex.GetBaseException().Message}");
-                }
-            })).ToArray();
-        viewModel = new ExternalSdkToolViewModel(
+                command.Title,
+                command.Description,
+                () => InvokeExternalToolCommandAsync(descriptor, route, command, CancellationToken.None),
+                message => SetStatus($"{descriptor.Title}: {message}")))
+            .ToArray();
+        var viewModel = new ExternalSdkToolViewModel(
             descriptor.ToolId,
             descriptor.Title,
             descriptor.Description,
-            descriptor.ToolType,
+            effectiveToolType,
             string.IsNullOrWhiteSpace(route.Title) ? descriptor.Title : route.Title,
             source,
             route.OpenExternal,
@@ -70,22 +59,54 @@ public sealed partial class ShellWorkspaceController
             request => HandleExternalWebBridgeRequestAsync(descriptor, route, request),
             refresh: () =>
             {
-                if (view is not null && descriptor.ToolType == "web-surface")
+                if (webSurfaceSession is not null)
                 {
-                    view.ReloadWebSurface();
+                    webSurfaceSession.Reload();
                     return Task.CompletedTask;
                 }
                 return ShowToolPageAsync(descriptor.ToolId, route.RouteId);
             },
             returnToTools: () => ShowPageAsync(ToolsPage),
             launch: launch);
-        view = new ExternalSdkToolView { DataContext = viewModel };
+        var view = new ExternalSdkToolView { DataContext = viewModel };
 
-        if (descriptor.ToolType == "dotnet-surface")
+        if (isWebSurface)
         {
             try
             {
-                view.SetManagedSurface(CreateExternalDotnetSurface(descriptor, route));
+                if (source is null)
+                {
+                    throw new InvalidDataException("The web surface source is not configured or its static entry point is missing.");
+                }
+                if (_webSurfaceService is null)
+                {
+                    viewModel.ReportSurface("unavailable", "This Shell does not provide the Web Surface host capability.");
+                }
+                else
+                {
+                    webSurfaceSession = _webSurfaceService.CreateSession(CreateExternalWebSurfaceRequest(
+                        descriptor,
+                        route,
+                        source,
+                        (request, _) => HandleExternalWebBridgeRequestAsync(descriptor, route, request)));
+                    viewModel.SetWebSurfaceSession(webSurfaceSession);
+                    view.SetHostedSurface(webSurfaceSession.View);
+                }
+            }
+            catch (Exception ex)
+            {
+                webSurfaceSession?.Dispose();
+                webSurfaceSession = null;
+                viewModel.ReportSurface("failed", ex.GetBaseException().Message);
+            }
+        }
+        else if (descriptor.ToolType == "dotnet-surface")
+        {
+            try
+            {
+                var loadedSurface = CreateExternalDotnetSurface(descriptor, route);
+                viewModel.SetOwnedSurface(loadedSurface);
+                view.SetManagedSurface(loadedSurface.Control);
             }
             catch (Exception ex)
             {
@@ -102,7 +123,28 @@ public sealed partial class ShellWorkspaceController
         await Task.CompletedTask;
     }
 
-    private Control CreateExternalDotnetSurface(HostProto.ToolDescriptor descriptor, HostProto.ToolRoute route)
+    internal static MptWebSurfaceRequest CreateExternalWebSurfaceRequest(
+        HostProto.ToolDescriptor descriptor,
+        HostProto.ToolRoute route,
+        Uri source,
+        Func<string, CancellationToken, Task<string>> handleBridgeRequestAsync)
+    {
+        ArgumentNullException.ThrowIfNull(descriptor);
+        ArgumentNullException.ThrowIfNull(route);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(handleBridgeRequestAsync);
+
+        return new MptWebSurfaceRequest(
+            descriptor.ToolId,
+            route.RouteId,
+            source,
+            ResolveExternalAllowedOrigins(descriptor, route),
+            handleBridgeRequestAsync);
+    }
+
+    private DotnetSurfaceLoader.LoadedSurface CreateExternalDotnetSurface(
+        HostProto.ToolDescriptor descriptor,
+        HostProto.ToolRoute route)
     {
         if (string.IsNullOrWhiteSpace(route.Assembly) || !File.Exists(route.Assembly))
         {
@@ -117,7 +159,7 @@ public sealed partial class ShellWorkspaceController
 
         // Load into a collectible, shadow-copied AssemblyLoadContext so the surface can be unloaded
         // on refresh or removal without leaking assemblies into the default context.
-        return _dotnetSurfaceLoader.Load(descriptor, route, new MptAvaloniaSurfaceContext(
+        var context = new MptAvaloniaSurfaceContext(
             descriptor.ToolId,
             route.RouteId,
             dataDirectory,
@@ -136,7 +178,56 @@ public sealed partial class ShellWorkspaceController
             },
             (toolId, targetRouteId, _) => ShowToolPageAsync(toolId, targetRouteId),
             new ScopedServiceUnitClient(_serviceManagerAdmin, descriptor.ToolId),
-            entry => SetStatus($"[{entry.Level}] {entry.Message}"))).Control;
+            entry => SetStatus($"[{entry.Level}] {entry.Message}"),
+            callback => SubscribeSurfaceEvents(descriptor.OwnerModuleId, callback))
+        {
+            WebSurfaces = _webSurfaceService
+       };
+       try
+       {
+           if (_devSource.SyncOnRefresh)
+           {
+                var outcome = _devSource.SyncForToolAsync(descriptor.ToolId, enabledOnly: true).GetAwaiter().GetResult();
+               if (outcome.UpdatedFiles > 0)
+                {
+                    SetStatus($"Synced {outcome.UpdatedFiles} file(s) from developer sources for {descriptor.ToolId}.");
+                }
+            }
+        }
+        catch (Exception devSourceEx)
+        {
+            SetStatus($"Developer source sync skipped: {devSourceEx.Message}");
+        }
+       return _dotnetSurfaceLoader.Load(descriptor, route, context);
+    }
+
+    private IDisposable SubscribeSurfaceEvents(string sourceId, Action<MptSurfaceEvent> callback)
+    {
+        Action<HostProto.HostEvent> bridge = evt =>
+        {
+            if (!string.Equals(evt.SourceId, sourceId, StringComparison.OrdinalIgnoreCase))
+            {
+                return;
+            }
+
+            var payload = JsonStructMapper.ToJsonObject(evt.Payload);
+            payload["shellBridgeReceivedUtc"] = DateTimeOffset.UtcNow.ToString("O");
+            callback(new MptSurfaceEvent(
+                evt.Seq,
+                evt.SourceId,
+                evt.Type,
+                evt.Time.ToDateTimeOffset(),
+                payload));
+        };
+        _runnerEvents.HostEventReceived += bridge;
+        return new CallbackDisposable(() => _runnerEvents.HostEventReceived -= bridge);
+    }
+
+    private sealed class CallbackDisposable(Action callback) : IDisposable
+    {
+        private Action? _callback = callback;
+
+        public void Dispose() => Interlocked.Exchange(ref _callback, null)?.Invoke();
     }
 
     private static Uri? ResolveExternalSurfaceUri(HostProto.ToolDescriptor descriptor, HostProto.ToolRoute route)
@@ -165,6 +256,26 @@ public sealed partial class ShellWorkspaceController
             }
         }
         return null;
+    }
+
+    private static IReadOnlyList<Uri> ResolveExternalAllowedOrigins(
+        HostProto.ToolDescriptor descriptor,
+        HostProto.ToolRoute route)
+    {
+        var settings = LoadExternalToolSettings(descriptor);
+        var origins = new List<Uri>();
+        foreach (var value in route.AllowedOrigins)
+        {
+            var expanded = ExpandExternalToolSettings(value, settings);
+            if (!Uri.TryCreate(expanded, UriKind.Absolute, out var origin) ||
+                (origin.Scheme is not ("http" or "https") && !origin.IsFile) ||
+                !string.IsNullOrEmpty(origin.UserInfo))
+            {
+                throw new InvalidDataException($"Tool '{descriptor.ToolId}' declares an invalid allowed web origin.");
+            }
+            origins.Add(origin);
+        }
+        return origins;
     }
 
     private static IReadOnlyDictionary<string, string> LoadExternalToolSettings(HostProto.ToolDescriptor descriptor)
@@ -239,7 +350,7 @@ public sealed partial class ShellWorkspaceController
             response.EnsureSuccessStatusCode();
             return string.IsNullOrWhiteSpace(body)
                 ? $"{command.Title} completed ({(int)response.StatusCode})."
-                : body.Length <= 240 ? body : body[..240] + "…";
+                : body;
         }
 
         var result = await ExecuteRuntimeCommandAsync(command.Id, new JsonObject(), cancellationToken: cancellationToken);
@@ -250,139 +361,4 @@ public sealed partial class ShellWorkspaceController
         return result.Message;
     }
 
-    private async Task<string> HandleExternalWebBridgeRequestAsync(
-        HostProto.ToolDescriptor descriptor,
-        HostProto.ToolRoute route,
-        string requestJson)
-    {
-        using var document = JsonDocument.Parse(requestJson);
-        var root = document.RootElement;
-        var id = root.TryGetProperty("id", out var idNode) ? idNode.GetString() ?? "" : "";
-        var type = root.TryGetProperty("type", out var typeNode) ? typeNode.GetString() ?? "" : "";
-        try
-        {
-            JsonNode? result = type switch
-            {
-                "command.invoke" => await InvokeBridgeCommandAsync(descriptor, route, root),
-                "settings.get" => ReadBridgeSetting(descriptor, root),
-                "settings.set" => WriteBridgeSetting(descriptor, root),
-                "secrets.get" => await ReadBridgeSecretAsync(descriptor, root),
-                "secrets.set" => await WriteBridgeSecretAsync(descriptor, root),
-                "navigation.openExternal" => OpenBridgeExternal(root),
-                "event.publish" => await PublishBridgeEventAsync(descriptor, root),
-                _ => throw new InvalidOperationException($"Unsupported WebBridge request '{type}'.")
-            };
-            return new JsonObject
-            {
-                ["version"] = "1.0",
-                ["id"] = id,
-                ["type"] = type + ".result",
-                ["payload"] = result
-            }.ToJsonString();
-        }
-        catch (Exception ex)
-        {
-            return new JsonObject
-            {
-                ["version"] = "1.0",
-                ["id"] = id,
-                ["type"] = type + ".result",
-                ["error"] = new JsonObject
-                {
-                    ["code"] = "bridge.request.failed",
-                    ["message"] = ex.GetBaseException().Message
-                }
-            }.ToJsonString();
-        }
-    }
-
-    private async Task<JsonNode?> InvokeBridgeCommandAsync(HostProto.ToolDescriptor descriptor, HostProto.ToolRoute route, JsonElement root)
-    {
-        var payload = root.GetProperty("payload");
-        var commandId = payload.GetProperty("commandId").GetString() ?? throw new InvalidDataException("commandId is required.");
-        var command = descriptor.Commands.FirstOrDefault(item => string.Equals(item.Id, commandId, StringComparison.OrdinalIgnoreCase))
-                      ?? throw new KeyNotFoundException($"Command '{commandId}' is not declared by {descriptor.ToolId}.");
-        return JsonValue.Create(await InvokeExternalToolCommandAsync(descriptor, route, command, CancellationToken.None));
-    }
-
-    private static JsonNode? ReadBridgeSetting(HostProto.ToolDescriptor descriptor, JsonElement root)
-    {
-        var name = root.GetProperty("payload").GetProperty("name").GetString() ?? "";
-        var values = LoadBridgeSettings(descriptor);
-        return values[name]?.DeepClone();
-    }
-
-    private static JsonNode? WriteBridgeSetting(HostProto.ToolDescriptor descriptor, JsonElement root)
-    {
-        var payload = root.GetProperty("payload");
-        var name = payload.GetProperty("name").GetString() ?? throw new InvalidDataException("Setting name is required.");
-        var values = LoadBridgeSettings(descriptor);
-        values[name] = JsonNode.Parse(payload.GetProperty("value").GetRawText());
-        var path = descriptor.Settings?.ValuesPath ?? throw new InvalidDataException("Tool settings are not configured.");
-        File.WriteAllText(path, values.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
-        return null;
-    }
-
-    private static JsonObject LoadBridgeSettings(HostProto.ToolDescriptor descriptor)
-    {
-        var path = descriptor.Settings?.ValuesPath ?? throw new InvalidDataException("Tool settings are not configured.");
-        return File.Exists(path) && JsonNode.Parse(File.ReadAllText(path)) is JsonObject values ? values : new JsonObject();
-    }
-
-    private static async Task<JsonNode?> ReadBridgeSecretAsync(HostProto.ToolDescriptor descriptor, JsonElement root)
-    {
-        if (!OperatingSystem.IsWindows())
-        {
-            throw new PlatformNotSupportedException("The current platform Secret Store is unavailable.");
-        }
-        var name = ValidateBridgeSecretName(descriptor, root);
-        var value = await new WindowsPlatformPack().Secrets.ReadAsync(SecretReference.Create(descriptor.ToolId, name), CancellationToken.None);
-        return value is null ? null : JsonValue.Create(value);
-    }
-
-    private static async Task<JsonNode?> WriteBridgeSecretAsync(HostProto.ToolDescriptor descriptor, JsonElement root)
-    {
-        if (!OperatingSystem.IsWindows())
-        {
-            throw new PlatformNotSupportedException("The current platform Secret Store is unavailable.");
-        }
-        var name = ValidateBridgeSecretName(descriptor, root);
-        var value = root.GetProperty("payload").GetProperty("value").GetString() ?? "";
-        await new WindowsPlatformPack().Secrets.SaveAsync(descriptor.ToolId, name, value, CancellationToken.None);
-        return null;
-    }
-
-    private static string ValidateBridgeSecretName(HostProto.ToolDescriptor descriptor, JsonElement root)
-    {
-        var name = root.GetProperty("payload").GetProperty("name").GetString() ?? "";
-        if (descriptor.Settings is null || !descriptor.Settings.Secrets.Contains(name))
-        {
-            throw new UnauthorizedAccessException($"Secret '{name}' is not declared by {descriptor.ToolId}.");
-        }
-        return name;
-    }
-
-    private static JsonNode? OpenBridgeExternal(JsonElement root)
-    {
-        var value = root.GetProperty("payload").GetProperty("url").GetString() ?? "";
-        if (!Uri.TryCreate(value, UriKind.Absolute, out var uri) || uri.Scheme is not ("http" or "https") || !string.IsNullOrEmpty(uri.UserInfo))
-        {
-            throw new InvalidDataException("External navigation requires an HTTP(S) URL without embedded credentials.");
-        }
-        Process.Start(new ProcessStartInfo(uri.AbsoluteUri) { UseShellExecute = true });
-        return null;
-    }
-
-    private async Task<JsonNode?> PublishBridgeEventAsync(HostProto.ToolDescriptor descriptor, JsonElement root)
-    {
-        var payload = root.GetProperty("payload");
-        var topic = payload.TryGetProperty("type", out var topicNode) ? topicNode.GetString() ?? "event" : "event";
-        var eventPayload = payload.TryGetProperty("payload", out var eventNode) && eventNode.ValueKind == JsonValueKind.Object
-            ? eventNode.GetRawText()
-            : "{}";
-        using var client = HostControlClient.ForDefaultEndpoint();
-        var published = await client.PublishToolEventAsync(descriptor.ToolId, topic, eventPayload);
-        SetStatus($"{descriptor.Title}: {topic} (event {published.EventSeq})");
-        return JsonValue.Create(published.EventSeq);
-    }
 }

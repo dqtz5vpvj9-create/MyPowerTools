@@ -1,4 +1,5 @@
 using Avalonia;
+using MyPowerTools.Abstractions;
 using MyPowerTools.HostControl;
 using MyPowerTools.Platform.Abstractions;
 using MyPowerTools.Shell.Avalonia.Services;
@@ -10,24 +11,57 @@ internal static class Program
     [STAThread]
     public static int Main(string[] args)
     {
+        ShellStartupDiagnostics.Mark("managed-entry");
         var startupOptions = ShellStartupOptions.FromArgs(args);
         if (args.Contains("--smoke", StringComparer.OrdinalIgnoreCase))
         {
             return RunHostControlSmokeAsync(args, startupOptions).GetAwaiter().GetResult();
         }
 
-        // Remote Notifications is now a Service Unit; the Shell no longer owns single-instance
-        // activation forwarding or toast-activation pipes.
-        ShellRunnerBootstrapper.EnsureStartedAsync(startupOptions).GetAwaiter().GetResult();
-        BuildAvaloniaApp().StartWithClassicDesktopLifetime(args);
+        var toolActivation = ToolActivationProtocol.Parse(args);
+        var prewarmShell = args.Contains("--prewarm", StringComparer.OrdinalIgnoreCase);
+        var shutdownShell = args.Contains("--shutdown-shell", StringComparer.OrdinalIgnoreCase);
+        using var instanceLock = ShellInstanceLock.Acquire();
+        if (!instanceLock.Acquired)
+        {
+            var request = shutdownShell
+                ? ShellActivationRequest.Shutdown
+                : toolActivation is not null
+                    ? ShellActivationRequest.ForTool(toolActivation)
+                    : prewarmShell
+                        ? ShellActivationRequest.PrewarmShell
+                        : ShellActivationRequest.FocusShell;
+            return ShellActivationPipe.TryForwardAsync(request).GetAwaiter().GetResult() ? 0 : 2;
+        }
+
+        if (shutdownShell)
+        {
+            return 0;
+        }
+
+        App.StartupActivationRequest = toolActivation is not null
+            ? ShellActivationRequest.ForTool(toolActivation)
+            : prewarmShell
+                ? ShellActivationRequest.PrewarmShell
+                : null;
+        var opensHome = toolActivation is null && !startupOptions.FocusCommandPalette;
+        var cachedHomeSnapshotTask = opensHome
+            ? ShellHomeSnapshotCache.TryReadAsync(startupOptions.DataRoot)
+            : Task.FromResult<ShellHomeSnapshot?>(null);
+        App.CachedHomeSnapshotTask = cachedHomeSnapshotTask;
+        App.RunnerBootstrapTask = ShellRunnerBootstrapper.EnsureStartedAsync(
+            startupOptions,
+            loadHomeTools: opensHome);
+        BuildAvaloniaApp().StartWithClassicDesktopLifetime(
+            args,
+            global::Avalonia.Controls.ShutdownMode.OnExplicitShutdown);
         return 0;
     }
 
     private static AppBuilder BuildAvaloniaApp()
     {
         return AppBuilder.Configure<App>()
-            .UsePlatformDetect()
-            .WithInterFont();
+            .UsePlatformDetect();
     }
 
     private static async Task<int> RunHostControlSmokeAsync(string[] args, ShellStartupOptions startupOptions)

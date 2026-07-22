@@ -18,31 +18,36 @@
       <Setter Property="Background" Value="{DynamicResource MptBrushLayerAltBackground}" />
       <Setter Property="BorderBrush" Value="{DynamicResource MptBrushBorderStrong}" />
     </Style>
-    <Style Selector="controls|MptButton.MptCompactIconButton">
-      <Setter Property="MinWidth" Value="{DynamicResource MptDensityControlHeight}" />
-      <Setter Property="Width" Value="{DynamicResource MptDensityControlHeight}" />
-      <Setter Property="Padding" Value="0" />
-      <Setter Property="FontSize" Value="16" />
-    </Style>
   </UserControl.Styles>
 
   <StackPanel MaxWidth="{DynamicResource MptLayoutPageMaxWidth}"
               HorizontalAlignment="Stretch"
-              Spacing="{DynamicResource MptSpacingL}">
+              Spacing="{DynamicResource MptSpacingM}">
     <Grid ColumnDefinitions="*,Auto"
           ColumnSpacing="{DynamicResource MptSpacingM}">
-      <StackPanel Spacing="{DynamicResource MptSpacingXs}">
-        <TextBlock Classes="MptPageTitle"
-                   Text="{Binding Title}" />
-        <TextBlock Classes="MptPageSubtitle"
-                   Text="{Binding Subtitle}" />
+      <StackPanel Orientation="Horizontal"
+                  Spacing="{DynamicResource MptSpacingS}"
+                  VerticalAlignment="Center">
+        <TextBlock Classes="MptSectionTitle"
+                   Text="{Binding Title}"
+                   VerticalAlignment="Center" />
+        <TextBlock Classes="MptMeta"
+                   Text="{Binding ResultSummary}"
+                   IsVisible="{Binding IsReady}"
+                   VerticalAlignment="Center" />
       </StackPanel>
-      <controls:MptButton Grid.Column="1"
-                          Classes="MptCompactIconButton"
-                          Content="↻"
-                          Command="{Binding RefreshCommand}"
-                          ToolTip.Tip="Refresh tools"
-                          VerticalAlignment="Top" />
+      <controls:MptIconButton Grid.Column="1"
+                              Width="{DynamicResource MptDensityControlHeight}"
+                              Height="{DynamicResource MptDensityControlHeight}"
+                              Padding="{DynamicResource MptNoThickness}"
+                              Content="&#xE72C;"
+                              FontFamily="{DynamicResource MptFontFamilyIcons}"
+                              FontSize="{DynamicResource MptFontSizeCardTitle}"
+                              Command="{Binding RefreshCommand}"
+                              ToolTip.Tip="Refresh tools"
+                              AutomationProperties.Name="Refresh tools"
+                              Margin="{DynamicResource MptGapRightS}"
+                              VerticalAlignment="Center" />
     </Grid>
 
     <StackPanel IsVisible="{Binding IsLoading}"
@@ -98,15 +103,6 @@
         <controls:MptButton Grid.Column="1"
                             Content="Clear"
                             Command="{Binding ClearSearchCommand}" />
-      </Grid>
-
-      <Grid ColumnDefinitions="*,Auto">
-        <TextBlock Classes="MptSectionTitle"
-                   Text="All tools" />
-        <TextBlock Grid.Column="1"
-                   Classes="MptMeta"
-                   Text="{Binding ResultSummary}"
-                   VerticalAlignment="Center" />
       </Grid>
 
       <Border Classes="MptEmptyState"

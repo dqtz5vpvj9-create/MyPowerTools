@@ -1,3 +1,4 @@
+using MyPowerTools.Shell.Avalonia.Navigation;
 using MyPowerTools.ServiceManager.Client;
 using MyPowerTools.Shell.Avalonia.ViewModels;
 using MyPowerTools.Shell.Avalonia.Views;
@@ -22,8 +23,8 @@ public sealed partial class ShellWorkspaceController
         }
         catch (Exception ex)
         {
-            SetOwnedContent(_contentHost, BuildUnavailablePage(DashboardPage, ex.Message));
-            SetStatus(ex.Message);
+            var failure = ReportPageFailure(nameof(LoadDashboardPageAsync), ex);
+            SetOwnedContent(_contentHost, BuildUnavailablePage(DashboardPage, failure.Message));
         }
     }
 
@@ -45,8 +46,8 @@ public sealed partial class ShellWorkspaceController
         }
         catch (Exception ex)
         {
-            SetOwnedContent(_contentHost, BuildUnavailablePage(ModulesPage, ex.Message));
-            SetStatus(ex.Message);
+            var failure = ReportPageFailure(nameof(LoadModulesPageAsync), ex);
+            SetOwnedContent(_contentHost, BuildUnavailablePage(ModulesPage, failure.Message));
         }
     }
 
@@ -71,17 +72,18 @@ public sealed partial class ShellWorkspaceController
         }
         catch (Exception ex)
         {
-            SetOwnedContent(_contentHost, BuildUnavailablePage("Module Detail", ex.Message));
-            SetStatus(ex.Message);
+            var failure = ReportPageFailure(nameof(ShowModuleDetailPageAsync), ex);
+            SetOwnedContent(_contentHost, BuildUnavailablePage("Module Detail", failure.Message));
         }
     }
 
     private void LoadGeneralSettingsPage()
     {
-        var viewModel = new GeneralSettingsViewModel(
-            _appearance.CurrentTheme,
-            _appearance.SetThemeAsync,
-            () => ShowPageAsync(SystemPage));
+       var viewModel = new GeneralSettingsViewModel(
+           _appearance.CurrentTheme,
+           _appearance.SetThemeAsync,
+            () => ShowPageAsync(SystemPage),
+            _devSource);
         SetOwnedContent(_contentHost, new GeneralSettingsView
         {
             DataContext = viewModel
@@ -106,8 +108,8 @@ public sealed partial class ShellWorkspaceController
         }
         catch (Exception ex)
         {
-            SetOwnedContent(_contentHost, BuildUnavailablePage(SettingsPage, ex.Message));
-            SetStatus(ex.Message);
+            var failure = ReportPageFailure(nameof(LoadModuleSettingsPageAsync), ex);
+            SetOwnedContent(_contentHost, BuildUnavailablePage(SettingsPage, failure.Message));
         }
     }
 
@@ -147,8 +149,8 @@ public sealed partial class ShellWorkspaceController
         }
         catch (Exception ex)
         {
-            SetOwnedContent(_contentHost, BuildUnavailablePage(LogsPage, ex.Message));
-            SetStatus(ex.Message);
+            var failure = ReportPageFailure(nameof(LoadLogsPageAsync), ex);
+            SetOwnedContent(_contentHost, BuildUnavailablePage(LogsPage, failure.Message));
         }
     }
 
@@ -174,8 +176,8 @@ public sealed partial class ShellWorkspaceController
         }
         catch (Exception ex)
         {
-            SetOwnedContent(_contentHost, BuildUnavailablePage("Notifications", ex.Message));
-            SetStatus(ex.Message);
+            var failure = ReportPageFailure(nameof(LoadNotificationsPageAsync), ex);
+            SetOwnedContent(_contentHost, BuildUnavailablePage("Notifications", failure.Message));
         }
     }
 
@@ -198,8 +200,8 @@ public sealed partial class ShellWorkspaceController
         }
         catch (Exception ex)
         {
-            SetOwnedContent(_contentHost, BuildUnavailablePage(PackagesPage, ex.Message));
-            SetStatus(ex.Message);
+            var failure = ReportPageFailure(nameof(LoadPackagesPageAsync), ex);
+            SetOwnedContent(_contentHost, BuildUnavailablePage(PackagesPage, failure.Message));
         }
     }
 
@@ -224,8 +226,8 @@ public sealed partial class ShellWorkspaceController
         }
         catch (Exception ex)
         {
-            SetOwnedContent(_contentHost, BuildUnavailablePage(DiagnosticsPage, ex.Message));
-            SetStatus(ex.Message);
+            var failure = ReportPageFailure(nameof(LoadDiagnosticsPageAsync), ex);
+            SetOwnedContent(_contentHost, BuildUnavailablePage(DiagnosticsPage, failure.Message));
         }
     }
 
@@ -251,9 +253,25 @@ public sealed partial class ShellWorkspaceController
         }
         catch (Exception ex)
         {
-            SetOwnedContent(_contentHost, BuildUnavailablePage(ServicesPage, ex.Message));
-            SetStatus(ex.Message);
+            var failure = ReportPageFailure(
+                nameof(LoadServicesPageAsync),
+                ex,
+                ShellFailureSource.ServiceManager);
+            SetOwnedContent(_contentHost, BuildUnavailablePage(
+                ServicesPage,
+                failure.Message,
+                retry: TryStartServiceManagerThenLoadAsync));
         }
+    }
+
+    private async Task TryStartServiceManagerThenLoadAsync()
+    {
+        // Spawns the ServiceManager process if it is not already reachable, then reloads the page.
+        // If startup still fails, LoadServicesPageAsync re-enters its catch and re-renders the
+        // unavailable page with the same Try-again affordance, so the user can retry repeatedly.
+        var result = await ShellServiceManagerBootstrapper.EnsureStartedAsync();
+        SetStatus(result.Message);
+        await LoadServicesPageAsync();
     }
 
     private async Task TailServiceUnitLogsAsync(string unitId)
@@ -339,4 +357,5 @@ public sealed partial class ShellWorkspaceController
     }
 
     private enum ServiceUnitAction { Start, Stop, Restart }
+
 }

@@ -34,11 +34,16 @@ public sealed class ServicesViewModel : ShellPageViewModel
     public ICommand? RefreshCommand { get; }
     public ICommand? ReloadManifestsCommand { get; }
 
-    public bool HasNoUnits => Units.Count == 0;
+    public int TotalCount => _allUnits.Length;
+    public bool HasNoUnits => _allUnits.Length == 0;
+    public bool HasNoResults => _allUnits.Length > 0 && Units.Count == 0;
+    public bool HasVisibleUnits => Units.Count > 0;
+    public int VisibleCount => Units.Count;
 
     public int ActiveCount => _allUnits.Count(u => string.Equals(u.State, "active", StringComparison.OrdinalIgnoreCase));
     public int FailedCount => _allUnits.Count(u => string.Equals(u.State, "failed", StringComparison.OrdinalIgnoreCase));
     public int InactiveCount => _allUnits.Count(u => string.Equals(u.State, "inactive", StringComparison.OrdinalIgnoreCase));
+    public int AttentionCount => _allUnits.Count(u => !u.IsHealthy);
 
     /// <summary>True when the ServiceManager stream is faulted and showing the last snapshot.</summary>
     public bool Disconnected
@@ -99,5 +104,8 @@ public sealed class ServicesViewModel : ShellPageViewModel
         }
 
         OnPropertyChanged(nameof(HasNoUnits));
+        OnPropertyChanged(nameof(HasNoResults));
+        OnPropertyChanged(nameof(HasVisibleUnits));
+        OnPropertyChanged(nameof(VisibleCount));
     }
 }

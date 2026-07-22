@@ -1,0 +1,16 @@
+<Styles xmlns="https://github.com/avaloniaui">
+  <StyleInclude Source="avares://MyPowerTools.UI/Themes/MptColors.axaml" />
+  <StyleInclude Source="avares://MyPowerTools.UI/Themes/MptTypography.axaml" />
+  <StyleInclude Source="avares://MyPowerTools.UI/Themes/MptSpacing.axaml" />
+  <StyleInclude Source="avares://MyPowerTools.UI/Themes/MptRadii.axaml" />
+  <StyleInclude Source="avares://MyPowerTools.UI/Themes/MptShadows.axaml" />
+  <StyleInclude Source="avares://MyPowerTools.UI/Themes/MptDensity.axaml" />
+  <StyleInclude Source="avares://MyPowerTools.UI/Controls/MptControls.axaml" />
+  <StyleInclude Source="avares://MyPowerTools.UI/Controls/MptButton.axaml" />
+  <StyleInclude Source="avares://MyPowerTools.UI/Controls/MptSidebar.axaml" />
+  <StyleInclude Source="avares://MyPowerTools.UI/Controls/MptSearchBox.axaml" />
+  <StyleInclude Source="avares://MyPowerTools.UI/Controls/MptStatusBadge.axaml" />
+  <StyleInclude Source="avares://MyPowerTools.UI/Controls/MptEmptyState.axaml" />
+  <StyleInclude Source="avares://MyPowerTools.UI/Controls/MptErrorState.axaml" />
+  <StyleInclude Source="avares://MyPowerTools.UI/Controls/MptLoadingSkeleton.axaml" />
+</Styles>

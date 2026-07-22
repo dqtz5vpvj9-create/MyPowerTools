@@ -11,6 +11,7 @@
       <controls:MptButton Classes="MptNavButton"
                           Classes.selected="{Binding IsSelected}"
                           Command="{Binding NavigateCommand}"
+                          IsEnabled="{Binding IsEnabled}"
                           Width="{Binding ItemWidth}"
                           HorizontalAlignment="Stretch"
                           HorizontalContentAlignment="Stretch"
@@ -26,12 +27,32 @@
                   IsVisible="{Binding IsSelected}"
                   HorizontalAlignment="Left"
                   VerticalAlignment="Center" />
-          <TextBlock Grid.Column="1"
-                     Text="{Binding IconGlyph}"
-                     FontFamily="{DynamicResource MptFontFamilyIcons}"
-                     FontSize="{DynamicResource MptFontSizeCardTitle}"
-                     HorizontalAlignment="Center"
-                     VerticalAlignment="Center" />
+          <Grid Grid.Column="1"
+                Width="30"
+                Height="30"
+                HorizontalAlignment="Center"
+                VerticalAlignment="Center">
+            <TextBlock Text="{Binding IconGlyph}"
+                       FontFamily="{DynamicResource MptFontFamilyIcons}"
+                       FontSize="{DynamicResource MptFontSizeCardTitle}"
+                       IsVisible="{Binding !IsMonogram}"
+                       HorizontalAlignment="Center"
+                       VerticalAlignment="Center" />
+            <Border Width="28"
+                    Height="28"
+                    CornerRadius="{DynamicResource MptRadiusControl}"
+                    Background="{DynamicResource MptBrushSurfaceInset}"
+                    IsVisible="{Binding IsMonogram}">
+              <TextBlock Text="{Binding IconGlyph}"
+                         FontFamily="{DynamicResource MptFontFamilyBody}"
+                         FontSize="{DynamicResource MptFontSizeMicro}"
+                         FontWeight="SemiBold"
+                         Foreground="{DynamicResource MptBrushAccent}"
+                         TextTrimming="CharacterEllipsis"
+                         HorizontalAlignment="Center"
+                         VerticalAlignment="Center" />
+            </Border>
+          </Grid>
           <TextBlock Grid.Column="2"
                      Text="{Binding DisplayLabel}"
                      IsVisible="{Binding IsLabelVisible}"
@@ -69,7 +90,7 @@
         <Grid x:Name="BrandHost"
               Margin="{DynamicResource MptShellBrandMargin}"
               ColumnDefinitions="32,*"
-              ColumnSpacing="12"
+              ColumnSpacing="{DynamicResource MptSpacingM}"
               VerticalAlignment="Center">
           <Border Width="32"
                   Height="32"
@@ -78,8 +99,8 @@
             <Grid Margin="{DynamicResource MptUniformS}"
                   RowDefinitions="*,*"
                   ColumnDefinitions="*,*"
-                  RowSpacing="2"
-                  ColumnSpacing="2">
+                  RowSpacing="{DynamicResource MptSpacing2Xs}"
+                  ColumnSpacing="{DynamicResource MptSpacing2Xs}">
               <Border CornerRadius="{DynamicResource MptRadiusXs}" Background="{DynamicResource MptBrushAccentText}" />
               <Border Grid.Column="1" CornerRadius="{DynamicResource MptRadiusXs}" Background="{DynamicResource MptBrushAccentText}" Opacity="0.82" />
               <Border Grid.Row="1" CornerRadius="{DynamicResource MptRadiusXs}" Background="{DynamicResource MptBrushAccentText}" Opacity="0.82" />
@@ -154,9 +175,14 @@
                      FontSize="{DynamicResource MptFontSizeCaption}"
                      FontWeight="SemiBold"
                      Margin="{DynamicResource MptSectionLabelMargin}" />
+        </StackPanel>
+
+        <ScrollViewer Grid.Row="1"
+                      HorizontalScrollBarVisibility="Disabled"
+                      VerticalScrollBarVisibility="Auto">
           <ItemsControl ItemsSource="{Binding ToolNavigationItems}"
                         ItemTemplate="{StaticResource ShellNavigationItemTemplate}" />
-        </StackPanel>
+        </ScrollViewer>
 
         <StackPanel x:Name="FooterNavigationStack"
                     Grid.Row="2"

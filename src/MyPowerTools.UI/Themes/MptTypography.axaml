@@ -1,8 +1,10 @@
 <Styles xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
   <Styles.Resources>
-    <FontFamily x:Key="MptFontFamilyBody">Segoe UI Variable, Segoe UI, Microsoft YaHei UI, Microsoft YaHei, system-ui</FontFamily>
-    <FontFamily x:Key="MptFontFamilyMono">Cascadia Mono, Consolas, Microsoft YaHei UI, Microsoft YaHei, monospace</FontFamily>
+    <!-- Keep one Windows CJK face at the head of the chain. This prevents controls
+         backed by different text presenters from choosing different Han fallbacks. -->
+    <FontFamily x:Key="MptFontFamilyBody">Microsoft YaHei UI, Segoe UI Variable, Segoe UI, Segoe UI Emoji, Segoe UI Symbol</FontFamily>
+    <FontFamily x:Key="MptFontFamilyMono">Cascadia Mono, Consolas, Microsoft YaHei UI, Microsoft YaHei, Segoe UI Emoji, monospace</FontFamily>
     <FontFamily x:Key="MptFontFamilyIcons">Segoe Fluent Icons, Segoe MDL2 Assets</FontFamily>
     <x:Double x:Key="MptFontSizeTitle">30</x:Double>
     <x:Double x:Key="MptFontSizeSection">22</x:Double>
@@ -10,6 +12,8 @@
     <x:Double x:Key="MptFontSizeBody">15</x:Double>
     <x:Double x:Key="MptFontSizeCaption">13</x:Double>
     <x:Double x:Key="MptFontSizeMeta">13</x:Double>
+    <x:Double x:Key="MptFontSizeHeader">18</x:Double>
+    <x:Double x:Key="MptFontSizeMicro">10</x:Double>
     <x:Double x:Key="MptLineHeightTitle">40</x:Double>
     <x:Double x:Key="MptLineHeightSection">30</x:Double>
     <x:Double x:Key="MptLineHeightCardTitle">22</x:Double>
@@ -29,6 +33,26 @@
     <Setter Property="FontSize" Value="{DynamicResource MptFontSizeBody}" />
     <Setter Property="LineHeight" Value="{DynamicResource MptLineHeightBody}" />
     <Setter Property="Foreground" Value="{DynamicResource MptBrushTextPrimary}" />
+  </Style>
+
+  <Style Selector="Button">
+    <Setter Property="FontFamily" Value="{DynamicResource MptFontFamilyBody}" />
+  </Style>
+
+  <Style Selector="TextBox">
+    <Setter Property="FontFamily" Value="{DynamicResource MptFontFamilyBody}" />
+  </Style>
+
+  <Style Selector="ComboBox">
+    <Setter Property="FontFamily" Value="{DynamicResource MptFontFamilyBody}" />
+  </Style>
+
+  <Style Selector="CheckBox">
+    <Setter Property="FontFamily" Value="{DynamicResource MptFontFamilyBody}" />
+  </Style>
+
+  <Style Selector="ToggleSwitch">
+    <Setter Property="FontFamily" Value="{DynamicResource MptFontFamilyBody}" />
   </Style>
 
   <Style Selector="TextBlock.MptPageTitle">

@@ -1,7 +1,14 @@
+using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Media;
+using Avalonia.Threading;
+using MyPowerTools.Abstractions;
+using MyPowerTools.AvaloniaSdk;
 using MyPowerTools.Shell.Avalonia.Navigation;
+using MyPowerTools.UI;
 using MyPowerTools.Shell.Avalonia.ViewModels;
 using MyPowerTools.Shell.Avalonia.Views;
+using HostProto = MyPowerTools.Protocol.HostControl.V1;
 
 namespace MyPowerTools.Shell.Avalonia.Services;
 
@@ -11,11 +18,61 @@ public sealed partial class ShellWorkspaceController
     // All tools (first-party and external) are loaded dynamically via the Tool Catalog
     // and the DotnetSurfaceLoader (dotnet-surface) or LoadExternalSdkToolAsync (web/native/headless).
 
+    internal void ShowStartupPage()
+    {
+        ShowStartupPage(
+            HomePage,
+            "Loading your toolkit",
+            "Loading Home");
+    }
+
+    internal void ShowCommandPaletteStartupPage()
+    {
+        ShowStartupPage(
+            HomePage,
+            "Start typing to search commands",
+            "Loading commands");
+        Interlocked.Exchange(ref _homeLoadDeferred, 1);
+    }
+
+    internal void ShowToolStartupPage(string toolId)
+    {
+        ShowStartupPage(
+            ToolsPage,
+            $"Opening {toolId}",
+            $"Loading {toolId}");
+    }
+
+    private void ShowStartupPage(string page, string message, string status)
+    {
+        if (IsDisposed)
+        {
+            return;
+        }
+
+        BeginWorkspace();
+        _currentPage = page;
+        _currentToolId = "";
+        _currentToolRouteId = "";
+        _chromeViewModel.SelectPage(page);
+        SetOwnedContent(_contentHost, new TextBlock
+        {
+            Text = message,
+            Margin = MptThemeTokens.PageMessageMargin,
+            FontSize = MptThemeTokens.FontSizePageHeading,
+            FontWeight = FontWeight.SemiBold
+        });
+        SetStatus(status);
+    }
+
     private async Task LoadHomePageAsync()
     {
         try
         {
-            var tools = await _toolProducts.LoadToolCardsAsync(ShowToolPageAsync, null);
+            var startupTools = Interlocked.Exchange(ref _startupToolDescriptors, null);
+            var tools = startupTools is null
+                ? await _toolProducts.LoadToolCardsAsync(ShowToolPageAsync, null)
+                : _toolProducts.BuildToolCards(startupTools, ShowToolPageAsync, null);
             var viewModel = new HomeViewModel(
                 favoriteTools: [],
                 recentTools: tools,
@@ -27,21 +84,31 @@ public sealed partial class ShellWorkspaceController
                 retry: LoadHomePageAsync);
             SetOwnedContent(_contentHost, new HomeView { DataContext = viewModel });
             SetStatus($"{tools.Count} tools registered.");
+            ShellStartupDiagnostics.Mark("home-content-bound");
+            Dispatcher.UIThread.Post(
+                () =>
+                {
+                    if (!IsDisposed)
+                    {
+                        _chromeViewModel.SetDiscoveredTools(tools, ShowToolPageAsync);
+                    }
+                },
+                DispatcherPriority.Background);
         }
         catch (Exception ex)
         {
+            var failure = ReportPageFailure(nameof(LoadHomePageAsync), ex);
             var viewModel = new HomeViewModel(
                 [],
                 [],
                 [],
                 0,
                 ToolProductState.Failed,
-                ex.Message,
+                failure.Message,
                 browseTools: () => ShowPageAsync(ToolsPage),
                 refresh: RefreshHomePageAsync,
                 retry: LoadHomePageAsync);
             SetOwnedContent(_contentHost, new HomeView { DataContext = viewModel });
-            SetStatus(ex.Message);
         }
     }
 
@@ -50,6 +117,7 @@ public sealed partial class ShellWorkspaceController
         try
         {
             var tools = await _toolProducts.LoadToolCardsAsync(ShowToolPageAsync, null);
+            _chromeViewModel.SetDiscoveredTools(tools, ShowToolPageAsync);
             var viewModel = new ToolCatalogViewModel(
                 tools,
                 refresh: RefreshToolsPageAsync,
@@ -59,15 +127,35 @@ public sealed partial class ShellWorkspaceController
         }
         catch (Exception ex)
         {
+            var failure = ReportPageFailure(nameof(LoadToolsPageAsync), ex);
             var viewModel = new ToolCatalogViewModel(
                 [],
                 ToolProductState.Failed,
-                ex.Message,
+                failure.Message,
                 refresh: RefreshToolsPageAsync,
                 retry: LoadToolsPageAsync);
             SetOwnedContent(_contentHost, new ToolCatalogView { DataContext = viewModel });
-            SetStatus(ex.Message);
         }
+    }
+
+    internal async Task ReconcileHomeToolsAsync(IReadOnlyList<HostProto.ToolDescriptor> tools)
+    {
+        if (IsDisposed)
+        {
+            return;
+        }
+
+        if (!string.Equals(_currentPage, HomePage, StringComparison.Ordinal) ||
+            !string.IsNullOrWhiteSpace(_currentToolId))
+        {
+            _chromeViewModel.SetDiscoveredTools(
+                _toolProducts.BuildToolCards(tools, ShowToolPageAsync, null),
+                ShowToolPageAsync);
+            return;
+        }
+
+        _startupToolDescriptors = tools;
+        await ShowPageAsync(HomePage);
     }
 
     private async Task RefreshHomePageAsync()
@@ -89,8 +177,40 @@ public sealed partial class ShellWorkspaceController
             return;
         }
 
-        var descriptor = await _toolProducts.LoadToolAsync(toolId);
-        await ShowToolPageAsync(toolId, descriptor.PrimaryRouteId);
+        var descriptor = await TryLoadToolDescriptorAsync(toolId);
+        if (descriptor is null)
+        {
+            return;
+        }
+
+        await ShowToolPageAsync(descriptor, descriptor.PrimaryRouteId);
+    }
+
+    internal async Task ActivateToolAsync(ToolActivationRequest activation)
+    {
+        ArgumentNullException.ThrowIfNull(activation);
+
+        var descriptor = await TryLoadToolDescriptorAsync(activation.ToolId);
+        if (descriptor is null)
+        {
+            return;
+        }
+
+        var routeId = string.IsNullOrWhiteSpace(activation.RouteId)
+            ? descriptor.PrimaryRouteId
+            : activation.RouteId;
+        await ShowToolPageAsync(descriptor, routeId);
+        if (_contentHost.Content is not ExternalSdkToolView externalView ||
+            externalView.ManagedSurface is not IMptAvaloniaSurfaceActivationHandler handler)
+        {
+            SetStatus($"{activation.ToolId} does not handle external activations.");
+            return;
+        }
+
+        var handled = await handler.ActivateAsync(activation);
+        SetStatus(handled
+            ? $"Activated {activation.ToolId}."
+            : $"{activation.ToolId} could not resolve the activation target.");
     }
 
     /// <summary>
@@ -106,19 +226,48 @@ public sealed partial class ShellWorkspaceController
             return;
         }
 
+        var descriptor = await TryLoadToolDescriptorAsync(toolId);
+        if (descriptor is null)
+        {
+            return;
+        }
+
+        await ShowToolPageAsync(descriptor, routeId);
+    }
+
+    private async Task<HostProto.ToolDescriptor?> TryLoadToolDescriptorAsync(string toolId)
+    {
+        try
+        {
+            return await _toolProducts.LoadToolAsync(toolId);
+        }
+        catch (Exception ex)
+        {
+            var failure = ReportPageFailure(nameof(ShowToolPageAsync), ex);
+            SetOwnedContent(_contentHost, BuildUnavailablePage("Tool", failure.Message));
+            return null;
+        }
+    }
+
+    private async Task ShowToolPageAsync(HostProto.ToolDescriptor descriptor, string routeId)
+    {
+        if (IsDisposed)
+        {
+            return;
+        }
+
+        var toolId = descriptor.ToolId;
         BeginWorkspace();
         _currentPage = ToolsPage;
         _currentToolId = toolId;
         _currentToolRouteId = routeId;
-        _chromeViewModel.SelectPage(ToolsPage);
+        _chromeViewModel.SelectTool(toolId);
         _navigation.Navigate(ShellRoute.ForTool(toolId, routeId), addToHistory: true);
         _chromeViewModel.IsCommandPaletteOpen = false;
         SetStatus($"Loading {toolId}");
 
         try
         {
-            var descriptor = await _toolProducts.LoadToolAsync(toolId);
-
             // All tools — first-party and external — go through the dynamic surface loader.
             if (ShellToolProductService.IsSdkTool(descriptor))
             {
@@ -150,8 +299,8 @@ public sealed partial class ShellWorkspaceController
         }
         catch (Exception ex)
         {
-            SetOwnedContent(_contentHost, BuildUnavailablePage("Tool", ex.Message));
-            SetStatus(ex.Message);
+            var failure = ReportPageFailure(nameof(ShowToolPageAsync), ex);
+            SetOwnedContent(_contentHost, BuildUnavailablePage("Tool", failure.Message));
         }
     }
 }

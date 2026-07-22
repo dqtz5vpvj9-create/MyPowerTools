@@ -1,4 +1,5 @@
 using MyPowerTools.HostControl;
+using MyPowerTools.Shell.Avalonia.Services;
 
 namespace MyPowerTools.Shell.Avalonia;
 
@@ -184,8 +185,13 @@ public sealed class HostControlConnectionMonitor : IAsyncDisposable
 
     private static string FriendlyMessage(Exception ex)
     {
-        return ex is OperationCanceledException
-            ? "Runner HostControl connection timed out."
+        if (ex is OperationCanceledException)
+        {
+            return "Runner HostControl connection timed out.";
+        }
+
+        return ShellFailurePresenter.IsRpcFailure(ex)
+            ? ShellFailurePresenter.Present(ex).StatusMessage
             : ex.Message;
     }
 }
