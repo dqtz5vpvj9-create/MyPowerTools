@@ -62,11 +62,14 @@ public sealed class PackageReader
 
                 // A malformed development tool must not empty the whole catalog: the
                 // failure becomes an error-card package (see SynthesizeFailedDevelopmentPackage).
-                packages.Add(ReadDevelopmentToolCandidate(
-                    directory,
-                    Path.GetFileName(directory),
-                    toolPath,
-                    () => ReadDevelopmentToolDirectory(directory)));
+                if (ReadDevelopmentToolCandidate(
+                        directory,
+                        Path.GetFileName(directory),
+                        toolPath,
+                        () => ReadDevelopmentToolDirectory(directory)) is { } toolPackage)
+                {
+                    packages.Add(toolPackage);
+                }
             }
 
             // Quick web panels: standalone *.mpt.json files directly under the root.
@@ -79,22 +82,26 @@ public sealed class PackageReader
                     continue;
                 }
 
-                packages.Add(ReadDevelopmentToolCandidate(
+                var panel = ReadDevelopmentToolCandidate(
                     Path.GetDirectoryName(filePath)!,
                     QuickPanelStem(filePath),
                     filePath,
-                    () => ReadQuickPanelFile(filePath)));
+                    () => ReadQuickPanelFile(filePath));
+                if (panel is not null)
+                {
+                    packages.Add(panel);
+                }
             }
         }
 
         return packages;
     }
 
-    private static MptPackageDefinition ReadDevelopmentToolCandidate(
+    private static MptPackageDefinition? ReadDevelopmentToolCandidate(
         string sourceDirectory,
         string identityName,
         string sourcePath,
-        Func<MptPackageDefinition> read)
+        Func<MptPackageDefinition?> read)
     {
         try
         {
@@ -108,12 +115,34 @@ public sealed class PackageReader
 
     /// <summary>
     /// Reads a standalone quick-panel file ("foo.mpt.json" → toolId "custom.foo").
-    /// Full manifests in the same shape are passed through unchanged.
+    /// Full manifests in the same shape are passed through unchanged. Returns null
+    /// when the file carries no tool signal at all (no url/toolId/routes) — other
+    /// products use *.mpt.json for settings files, and those must not become
+    /// phantom error cards.
     /// </summary>
-    public MptPackageDefinition ReadQuickPanelFile(string filePath)
+    public MptPackageDefinition? ReadQuickPanelFile(string filePath)
     {
         filePath = Path.GetFullPath(filePath);
         var directory = Path.GetDirectoryName(filePath)!;
+
+        JsonNode? parsed;
+        try
+        {
+            parsed = JsonNode.Parse(File.ReadAllText(filePath));
+        }
+        catch (JsonException exception)
+        {
+            throw new InvalidDataException($"Invalid JSON in {filePath}: {exception.Message}", exception);
+        }
+
+        if (parsed is JsonObject probe &&
+            !probe.ContainsKey("url") &&
+            !probe.ContainsKey("toolId") &&
+            !probe.ContainsKey("routes"))
+        {
+            return null;
+        }
+
         var tool = ReadAndNormalizeToolManifest(filePath, QuickPanelStem(filePath));
         if (string.IsNullOrWhiteSpace(tool.ToolId))
         {

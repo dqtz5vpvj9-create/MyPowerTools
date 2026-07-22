@@ -164,6 +164,13 @@ public sealed class QuickWebPanelTests
         var broken = allTools.FirstOrDefault(tool => tool.Descriptor.ToolId == "custom.broken");
         Assert.NotNull(broken);
         Assert.Equal("error", broken!.State);
+
+        // The dashboard (module-level state) must agree: the persisted-state pass must
+        // not overwrite a load failure with an initial "ready" status.
+        var dashboard = runtime.GetDashboardSnapshot();
+        var brokenCard = dashboard.Cards.FirstOrDefault(card => card.ModuleId == "dev.custom.broken");
+        Assert.NotNull(brokenCard);
+        Assert.Equal("error", brokenCard!.State);
     }
 
     [Fact]
@@ -190,6 +197,34 @@ public sealed class QuickWebPanelTests
         var afterRemoval = await runtime.RefreshToolCatalogAsync(CancellationToken.None);
 
         Assert.Empty(afterRemoval);
+    }
+
+    [Fact]
+    public async Task Settings_like_mpt_json_files_are_not_treated_as_tools()
+    {
+        var root = TempRoot();
+        var modules = Path.Combine(root, "modules");
+        var tools = Path.Combine(root, "tools");
+        Directory.CreateDirectory(modules);
+        Directory.CreateDirectory(tools);
+        // A settings file that happens to match the *.mpt.json glob (a convention used
+        // by other tooling) carries no tool signal and must be ignored, not an error card.
+        await File.WriteAllTextAsync(Path.Combine(tools, "settings.mpt.json"), """
+            { "connectionTimeoutMs": 5000, "autoRefresh": true }
+            """);
+        await File.WriteAllTextAsync(Path.Combine(tools, "real.mpt.json"), """
+            { "title": "Real Panel", "url": "http://127.0.0.1:7070/" }
+            """);
+
+        await using var runtime = new MptHostRuntime(
+            new PackageReader(),
+            PlatformId.Current(),
+            RuntimePaths.Create(Path.Combine(root, "data")));
+        runtime.Load(modules, [tools]);
+
+        var tool = Assert.Single(runtime.ListTools(includeDisabled: true));
+        Assert.Equal("custom.real", tool.Descriptor.ToolId);
+        Assert.Null(tool.Descriptor.LoadError);
     }
 
     [Fact]
