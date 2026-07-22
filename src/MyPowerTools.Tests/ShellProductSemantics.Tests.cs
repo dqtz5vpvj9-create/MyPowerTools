@@ -459,4 +459,36 @@ public sealed class ShellProductSemanticsTests
             yield break;
         }
     }
+
+    [Fact]
+    public void Global_hotkey_overview_maps_registration_states_like_powertoys()
+    {
+        var active = new GlobalHotkeyViewModel(
+            "screenease", "screenease.toggle", "screenease.toggle", "Ctrl+Alt+S", "registered", "", true, "Ctrl+Alt+S");
+        var conflict = new GlobalHotkeyViewModel(
+            "runner", "command-palette", "shell.command-palette.open", "Ctrl+Alt+Space", "conflict", "Gesture is used twice.", false, "Ctrl+Alt+Space");
+        var disabled = new GlobalHotkeyViewModel(
+            "paste-image", "paste-image.upload", "paste-image.upload", "", "disabled", "", true, "Ctrl+Alt+V");
+
+        Assert.True(active.IsRegistered);
+        Assert.Equal("Active", active.StateLabel);
+        Assert.True(conflict.IsConflict);
+        Assert.Equal("Conflict", conflict.StateLabel);
+        Assert.True(conflict.HasMessage);
+        Assert.True(disabled.IsDisabled);
+        Assert.Equal("Disabled", disabled.StateLabel);
+        Assert.Equal("(unassigned)", disabled.Gesture);
+
+        var viewModel = new GeneralSettingsViewModel(
+            "system",
+            theme => Task.CompletedTask,
+            () => Task.CompletedTask,
+            null,
+            [active, conflict, disabled]);
+
+        Assert.True(viewModel.HasGlobalHotkeys);
+        Assert.Equal(3, viewModel.GlobalHotkeys.Count);
+        Assert.Contains("1 conflict", viewModel.GlobalHotkeyStatusText);
+    }
+
 }

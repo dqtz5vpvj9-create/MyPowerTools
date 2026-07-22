@@ -286,6 +286,25 @@ public sealed class ShellPageDataService : IDisposable
             return value.ToString();
         }
     }
+
+    public async Task<IReadOnlyList<GlobalHotkeyViewModel>> LoadGlobalHotkeysAsync(CancellationToken cancellationToken = default)
+    {
+        using var client = HostControlClient.ForDefaultEndpoint();
+        var diagnostics = await client.GetRuntimeDiagnosticsAsync(cancellationToken);
+        return diagnostics.Hotkeys
+            .Select(hotkey => new GlobalHotkeyViewModel(
+                hotkey.ModuleId,
+                hotkey.Id,
+                hotkey.CommandId,
+                hotkey.Gesture,
+                hotkey.State,
+                hotkey.Message,
+                hotkey.IsDefault,
+                hotkey.DefaultGesture))
+            .OrderBy(hotkey => hotkey.Owner, StringComparer.OrdinalIgnoreCase)
+            .ThenBy(hotkey => hotkey.Id, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
 }
 
 public sealed record ShellPageDataResult<TViewModel>(TViewModel ViewModel, string StatusText);

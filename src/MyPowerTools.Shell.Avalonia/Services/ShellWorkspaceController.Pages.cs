@@ -77,13 +77,26 @@ public sealed partial class ShellWorkspaceController
         }
     }
 
-    private void LoadGeneralSettingsPage()
+    private async Task LoadGeneralSettingsPage()
     {
-       var viewModel = new GeneralSettingsViewModel(
-           _appearance.CurrentTheme,
-           _appearance.SetThemeAsync,
+        IReadOnlyList<MyPowerTools.Shell.Avalonia.ViewModels.GlobalHotkeyViewModel> hotkeys = [];
+        try
+        {
+            hotkeys = await _pageData.LoadGlobalHotkeysAsync();
+        }
+        catch (Exception ex)
+        {
+            // The shortcuts overview is best-effort; settings must open even when
+            // the Runner diagnostics are unavailable.
+            ShellCommandFaultLog.Write("Load global hotkeys", ex, "settings");
+        }
+
+        var viewModel = new GeneralSettingsViewModel(
+            _appearance.CurrentTheme,
+            _appearance.SetThemeAsync,
             () => ShowPageAsync(SystemPage),
-            _devSource);
+            _devSource,
+            hotkeys);
         SetOwnedContent(_contentHost, new GeneralSettingsView
         {
             DataContext = viewModel

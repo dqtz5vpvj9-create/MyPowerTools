@@ -13,7 +13,8 @@ public sealed class GeneralSettingsViewModel : ShellPageViewModel
         string selectedTheme,
         Func<string, Task> selectTheme,
         Func<Task> openSystem,
-        DevSourceSyncService? devSource = null)
+        DevSourceSyncService? devSource = null,
+        IReadOnlyList<GlobalHotkeyViewModel>? globalHotkeys = null)
         : base("General", "Application preferences for MyPowerTools.", "ready")
     {
         _selectTheme = selectTheme ?? throw new ArgumentNullException(nameof(selectTheme));
@@ -40,7 +41,21 @@ public sealed class GeneralSettingsViewModel : ShellPageViewModel
             ?? Themes[0];
         OpenSystemCommand = new AsyncRelayCommand(openSystem);
         DevSource = devSource is null ? null : new DevSourceSettingsViewModel(devSource);
+        GlobalHotkeys = globalHotkeys ?? [];
+        var conflicts = GlobalHotkeys.Count(hotkey => hotkey.IsConflict);
+        GlobalHotkeyStatusText = conflicts > 0
+            ? $"{GlobalHotkeys.Count} shortcuts - {conflicts} conflict{(conflicts == 1 ? "" : "s")}"
+            : $"{GlobalHotkeys.Count} shortcut{(GlobalHotkeys.Count == 1 ? "" : "s")}";
     }
+
+    /// <summary>
+    /// Every registered global hotkey across modules plus the built-in command
+    /// palette (PowerToys Keyboard Manager style overview). Editing happens on
+    /// each module's settings page.
+    /// </summary>
+    public IReadOnlyList<GlobalHotkeyViewModel> GlobalHotkeys { get; }
+    public bool HasGlobalHotkeys => GlobalHotkeys.Count > 0;
+    public string GlobalHotkeyStatusText { get; }
 
     public IReadOnlyList<ThemeChoiceViewModel> Themes { get; }
     public ICommand OpenSystemCommand { get; }

@@ -61,7 +61,7 @@ public sealed partial class ShellWorkspaceController
                 await OpenCommandPaletteAsync();
                 break;
             case SettingsPage:
-                LoadGeneralSettingsPage();
+                await LoadGeneralSettingsPage();
                 break;
             case LogsPage:
                 await LoadLogsPageAsync();

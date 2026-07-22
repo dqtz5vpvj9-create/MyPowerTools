@@ -16,6 +16,61 @@ public sealed record NotificationItemViewModel(string Id, string Time, string Mo
 public sealed record ShellAlertViewModel(string Id, string Level, string Title, string Body);
 public sealed record ShellActionViewModel(string CommandId, string Title, string Style, bool IsPrimary, string ButtonClasses, ICommand ExecuteCommand);
 public sealed record MetricViewModel(string Label, string Value);
+/// <summary>
+/// Read-only overview row for the global keyboard shortcuts section (PowerToys
+/// Keyboard Manager style): every registered hotkey across all modules plus the
+/// built-in command palette, with its registration state. Per-module editing
+/// lives on each module's settings page.
+/// </summary>
+public sealed class GlobalHotkeyViewModel
+{
+    public GlobalHotkeyViewModel(
+        string owner,
+        string id,
+        string commandId,
+        string gesture,
+        string state,
+        string message,
+        bool isDefault,
+        string defaultGesture)
+    {
+        Owner = string.IsNullOrWhiteSpace(owner) ? "MyPowerTools" : owner;
+        Id = id;
+        CommandId = commandId;
+        Gesture = string.IsNullOrWhiteSpace(gesture) ? "(unassigned)" : gesture;
+        State = state;
+        Message = message;
+        IsDefault = isDefault;
+        DefaultGesture = defaultGesture;
+        IsDisabled = string.Equals(state, "disabled", StringComparison.OrdinalIgnoreCase);
+        IsConflict = string.Equals(state, "conflict", StringComparison.OrdinalIgnoreCase);
+        IsRegistered = string.Equals(state, "ok", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(state, "registered", StringComparison.OrdinalIgnoreCase);
+        StateLabel = IsDisabled
+            ? "Disabled"
+            : IsConflict
+                ? "Conflict"
+                : IsRegistered
+                    ? "Active"
+                    : string.IsNullOrWhiteSpace(state) ? "Pending" : state;
+    }
+
+    public string Owner { get; }
+    public string OwnerLabel => $"Owner: {Owner}";
+    public string Id { get; }
+    public string CommandId { get; }
+    public string Gesture { get; }
+    public string State { get; }
+    public string Message { get; }
+    public bool IsDefault { get; }
+    public string DefaultGesture { get; }
+    public bool IsDisabled { get; }
+    public bool IsConflict { get; }
+    public bool IsRegistered { get; }
+    public string StateLabel { get; }
+    public bool HasMessage => !string.IsNullOrWhiteSpace(Message);
+}
+
 public sealed class HotkeyBindingViewModel : ObservableViewModel
 {
     private string _gesture;

@@ -232,6 +232,45 @@
       </Grid>
     </Border>
 
+    <Border Classes="MptSettingsSection" IsVisible="{Binding HasGlobalHotkeys}">
+      <StackPanel Spacing="{DynamicResource MptSpacingS}">
+        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{DynamicResource MptSpacingS}">
+          <TextBlock Classes="MptSectionTitle" Text="Keyboard shortcuts" />
+          <TextBlock Grid.Column="1" Classes="MptMeta" Text="{Binding GlobalHotkeyStatusText}" />
+        </Grid>
+        <TextBlock Classes="MptMeta"
+                   Text="Every global shortcut across modules and the command palette. Enable, disable, or rebind a shortcut on its module's settings page."
+                   TextWrapping="Wrap" />
+        <ItemsControl ItemsSource="{Binding GlobalHotkeys}">
+          <ItemsControl.ItemTemplate>
+            <DataTemplate x:DataType="vm:GlobalHotkeyViewModel">
+              <Border Classes="MptSettingsField" Margin="{DynamicResource MptGapBottomM}">
+                <Grid ColumnDefinitions="*,Auto,220" ColumnSpacing="{DynamicResource MptSpacingS}">
+                  <StackPanel Spacing="{DynamicResource MptSpacingXs}">
+                    <TextBlock FontWeight="SemiBold" Text="{Binding Id}" />
+                    <TextBlock Classes="MptMeta" Text="{Binding OwnerLabel}" />
+                    <TextBlock Classes="MptMeta"
+                               Text="{Binding Message}"
+                               IsVisible="{Binding HasMessage}"
+                               TextWrapping="Wrap" />
+                  </StackPanel>
+                  <TextBlock Grid.Column="1"
+                             Classes="MptMeta"
+                             Text="{Binding StateLabel}"
+                             VerticalAlignment="Center" />
+                  <TextBlock Grid.Column="2"
+                             Text="{Binding Gesture}"
+                             FontWeight="SemiBold"
+                             HorizontalAlignment="Right"
+                             VerticalAlignment="Center" />
+                </Grid>
+              </Border>
+            </DataTemplate>
+          </ItemsControl.ItemTemplate>
+        </ItemsControl>
+      </StackPanel>
+    </Border>
+
     <Border Classes="MptSettingsSection">
       <Grid x:Name="MaintenanceGrid"
             ColumnDefinitions="*,Auto"
