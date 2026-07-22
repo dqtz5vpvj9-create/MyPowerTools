@@ -390,13 +390,26 @@ public sealed class EventFaultInjectionDotNetModule : IMptModule
     public IAsyncEnumerable<MptModuleEvent> SubscribeEventsAsync(EventCursor cursor, CancellationToken cancellationToken)
     {
         var dataDirectory = _dataDirectory ?? throw new InvalidOperationException("Fixture was not initialized.");
-        var mode = cursor.LastEventSeq switch
+        // The host's event relay consumes this stream with its own cursor, so the
+        // blocking phase is selected by a control file instead of the cursor value.
+        var mode = ReadBlockingMode(dataDirectory);
+        return new BlockingEventEnumerable(Id, dataDirectory, mode);
+    }
+
+    private static BlockingEventMode ReadBlockingMode(string dataDirectory)
+    {
+        var path = Path.Combine(dataDirectory, "blocking-mode.txt");
+        if (!File.Exists(path))
         {
-            0 => BlockingEventMode.Open,
-            1 => BlockingEventMode.Current,
+            return BlockingEventMode.None;
+        }
+
+        return File.ReadAllText(path).Trim() switch
+        {
+            "open" => BlockingEventMode.Open,
+            "current" => BlockingEventMode.Current,
             _ => BlockingEventMode.None
         };
-        return new BlockingEventEnumerable(Id, dataDirectory, mode);
     }
 
     public ValueTask<SettingsSchemaDocument> GetSettingsSchemaAsync(CancellationToken cancellationToken) =>

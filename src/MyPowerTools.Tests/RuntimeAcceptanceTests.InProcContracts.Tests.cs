@@ -414,6 +414,12 @@ public sealed partial class RuntimeAcceptanceTests
             "sample.dotnet.event-fault",
             $"event-fault-context-{cursorSequence}",
             ["status", "events"]);
+        // The host event relay consumes the module stream with its own cursor; the
+        // fixture selects its blocking phase via a control file.
+        Directory.CreateDirectory(context.DataDirectory);
+        await File.WriteAllTextAsync(
+            Path.Combine(context.DataDirectory, "blocking-mode.txt"),
+            operation.Contains("current", StringComparison.OrdinalIgnoreCase) ? "current" : "open");
         await host.GetStatusAsync(module, context, CancellationToken.None);
         var enumerator = host.SubscribeEventsAsync(
             module,
@@ -602,11 +608,17 @@ public sealed partial class RuntimeAcceptanceTests
             "sample.dotnet.event-fault",
             "paused-event-context",
             ["status", "events"]);
+        // Relay-friendly fixture mode: yield one event without blocking. Cursor 0:
+        // relay consumers filter in host sequence space, which starts at 1.
+        Directory.CreateDirectory(context.DataDirectory);
+        await File.WriteAllTextAsync(
+            Path.Combine(context.DataDirectory, "blocking-mode.txt"),
+            "none");
         await host.GetStatusAsync(module, context, CancellationToken.None);
         var enumerator = host.SubscribeEventsAsync(
             module,
             context,
-            new MyPowerTools.Abstractions.EventCursor(2),
+            new MyPowerTools.Abstractions.EventCursor(0),
             CancellationToken.None).GetAsyncEnumerator();
 
         Assert.True(await enumerator.MoveNextAsync());

@@ -49,6 +49,7 @@ public sealed class InProcDotNetModuleHost : IModuleTransportRuntime, IModuleTra
     private long _invocationSequence;
     private readonly ConcurrentDictionary<string, Channel<MyPowerTools.Abstractions.MptModuleEvent>> _moduleEventRelays = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, CancellationTokenSource> _relayGenerations = new(StringComparer.OrdinalIgnoreCase);
+    private readonly ConcurrentDictionary<string, Exception> _relayFaults = new(StringComparer.OrdinalIgnoreCase);
     private long _relaySequence;
 
     public string Kind => "inproc-dotnet";
@@ -345,7 +346,7 @@ public sealed class InProcDotNetModuleHost : IModuleTransportRuntime, IModuleTra
                     streamToken,
                     moveTimeout.Token);
                 if (!await MoveNextGuardedAsync(
-                        module,
+                        moduleId,
                         "command.stream",
                         enumerator,
                         recordSuccess: false,
@@ -370,7 +371,7 @@ public sealed class InProcDotNetModuleHost : IModuleTransportRuntime, IModuleTra
                     streamToken,
                     currentTimeout.Token);
                 var evt = await ReadStreamCurrentGuardedAsync(
-                    module,
+                    moduleId,
                     "command.stream.current",
                     enumerator,
                     cancellationToken,
@@ -421,31 +422,71 @@ public sealed class InProcDotNetModuleHost : IModuleTransportRuntime, IModuleTra
         MyPowerTools.Abstractions.EventCursor cursor,
         [EnumeratorCancellation] CancellationToken cancellationToken)
     {
-        // Events are served from a host-owned relay per module rather than from the
-        // loaded session's own channel. In-proc sessions are replaceable (fault
-        // recovery, restarts, load-context churn) while this stream is live, and a
-        // subscription bound to one session silently stops seeing events emitted by
-        // its successor — which is exactly how upload notifications went missing.
-        // StartEventFanIn feeds the relay from whichever session is current and
-        // re-stamps every event with a host-global sequence; the runtime's cursor
-        // dedup filters replays after a pump resubscribe.
+        // Events are served from a host-owned relay per module rather than directly
+        // from one loaded session: in-proc sessions are replaceable (fault recovery,
+        // restarts, concurrent load races), and a subscription bound to one session
+        // silently stops seeing events written by its successor - which is how upload
+        // notifications went missing. StartEventFanIn feeds the relay from every
+        // published session with guarded, budgeted module calls; host-global sequence
+        // numbers keep relay events monotonic across sessions and the runtime cursor
+        // dedup filters replays.
+        //
+        // The consumer still participates in the module invocation accounting: it
+        // occupies a tracker lifetime, so a paused consumer counts as an active
+        // callback for disable/restart draining (drain fails -> quarantine; the live
+        // module is not disposed), and recorded fan-in faults (setup/current budget
+        // timeouts, circuit breaks) are rethrown here so callers observe exactly the
+        // failure the old per-session stream produced.
         var moduleId = module.Module.Manifest.Id;
+        await EnsureModuleCallAllowedAsync(moduleId, "events.subscribe", cancellationToken);
+        var streamTracker = _invocationTrackers.GetOrAdd(moduleId, static _ => new InProcInvocationTracker());
+        using var streamLifetime = streamTracker.EnterLifetime();
         var relay = _moduleEventRelays.GetOrAdd(
             moduleId,
             static _ => Channel.CreateUnbounded<MyPowerTools.Abstractions.MptModuleEvent>(
                 new UnboundedChannelOptions { SingleWriter = false }));
-        // The relay outlives sessions; this subscription ends with the caller's
-        // cancellation or the module's current lifecycle generation (disable,
-        // restart, quarantine end the generation so consumers observe completion
-        // just like the old per-session stream did).
         var generation = _relayGenerations.GetOrAdd(moduleId, static _ => new CancellationTokenSource());
         using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, generation.Token);
-        await foreach (var moduleEvent in relay.Reader.ReadAllAsync(linked.Token))
+        ThrowRecordedRelayFault(moduleId);
+        var reader = relay.Reader.ReadAllAsync(linked.Token).GetAsyncEnumerator(linked.Token);
+        try
         {
-            if (moduleEvent.Seq > cursor.LastEventSeq)
+            while (true)
             {
-                yield return moduleEvent;
+                bool moved;
+                try
+                {
+                    moved = await reader.MoveNextAsync().ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (generation.IsCancellationRequested)
+                {
+                    ThrowRecordedRelayFault(moduleId);
+                    throw;
+                }
+
+                if (!moved)
+                {
+                    yield break;
+                }
+
+                var current = reader.Current;
+                if (current.Seq > cursor.LastEventSeq)
+                {
+                    yield return current;
+                }
             }
+        }
+        finally
+        {
+            await reader.DisposeAsync().ConfigureAwait(false);
+        }
+    }
+
+    private void ThrowRecordedRelayFault(string moduleId)
+    {
+        if (_relayFaults.TryRemove(moduleId, out var fault))
+        {
+            throw fault;
         }
     }
 
@@ -459,26 +500,42 @@ public sealed class InProcDotNetModuleHost : IModuleTransportRuntime, IModuleTra
         }
     }
 
-    private void StartEventFanIn(string moduleId, InProcModuleSession session)
+    private void StartEventFanIn(string moduleId, MptModuleDefinition moduleDefinition, InProcModuleSession session)
     {
-        // Each published session feeds the module relay from its own event channel.
-        // Fan-ins are deliberately NOT cancelled when a newer session replaces an
-        // older one: an in-flight command can still be executing on the older
-        // instance, and its events must reach the relay too. Each fan-in reads only
-        // its own session's channel (no reader contention) and completes when the
-        // module disables/disposes (module disposal completes the channel writer) or
-        // the module's soft-isolation boundary is cancelled. Host-global sequence
-        // numbers keep relay events monotonic across sessions even though each
-        // module instance restarts its own sequence at 1; the runtime's cursor
-        // dedup filters replays after a pump resubscribe.
-        var fanInCancellation = CancellationTokenSource.CreateLinkedTokenSource(GetModuleCancellationToken(moduleId));
+        // Every published session feeds the module relay from its own event channel,
+        // with the same guarded, budgeted invocation accounting the direct stream
+        // used: setup/current budget timeouts record module faults and open the
+        // circuit, and the recorded fault is surfaced to relay consumers. Fan-ins
+        // are deliberately NOT cancelled when a newer session replaces an older one:
+        // an in-flight command can still be executing on the older instance, and its
+        // events must reach the relay too. Each fan-in reads only its own session
+        // channel and completes when the module disables/disposes (module disposal
+        // completes the channel writer) or the soft-isolation boundary is cancelled.
         var relay = _moduleEventRelays.GetOrAdd(
             moduleId,
             static _ => Channel.CreateUnbounded<MyPowerTools.Abstractions.MptModuleEvent>(
                 new UnboundedChannelOptions { SingleWriter = false }));
+        var maxCallMs = moduleDefinition.Manifest.RuntimePolicy?.InProcRules?.MaxCallMs;
 
         _ = Task.Run(async () =>
         {
+            var streamSequence = Interlocked.Increment(ref _invocationSequence);
+            var moduleCancellationToken = GetModuleCancellationToken(moduleId);
+            using var fanInCancellation = CancellationTokenSource.CreateLinkedTokenSource(moduleCancellationToken);
+            var streamToken = fanInCancellation.Token;
+            using var setupTimeout = new CancellationTokenSource();
+            if (maxCallMs is > 0)
+            {
+                setupTimeout.CancelAfter(TimeSpan.FromMilliseconds(maxCallMs.Value));
+            }
+
+            using var setupCancellation = CancellationTokenSource.CreateLinkedTokenSource(streamToken, setupTimeout.Token);
+            var setupToken = setupCancellation.Token;
+            IAsyncEnumerator<MyPowerTools.Abstractions.MptModuleEvent>? enumerator = null;
+            var streamInvocationState = new InProcStreamInvocationState();
+            var streamStartedAt = DateTimeOffset.UtcNow;
+            var stabilityRecorded = false;
+            var streamCompletedNormally = false;
             try
             {
                 if (!session.TryGetModule(out var moduleInstance) || moduleInstance is null)
@@ -486,26 +543,96 @@ public sealed class InProcDotNetModuleHost : IModuleTransportRuntime, IModuleTra
                     return;
                 }
 
-                await foreach (var moduleEvent in moduleInstance
-                    .SubscribeEventsAsync(new MyPowerTools.Abstractions.EventCursor(0), fanInCancellation.Token)
-                    .WithCancellation(fanInCancellation.Token))
+                var capturedInstance = moduleInstance;
+                enumerator = await CreateStreamEnumeratorGuardedAsync(
+                    moduleId,
+                    "events.subscribe.open",
+                    () => capturedInstance
+                        .SubscribeEventsAsync(new MyPowerTools.Abstractions.EventCursor(0), streamToken)
+                        .GetAsyncEnumerator(streamToken),
+                    CancellationToken.None,
+                    setupToken,
+                    moduleCancellationToken,
+                    setupTimeout.Token,
+                    maxCallMs,
+                    Interlocked.Increment(ref _invocationSequence));
+                while (await MoveNextGuardedAsync(
+                           moduleId,
+                           "events.subscribe",
+                           enumerator,
+                           recordSuccess: false,
+                           callerCancellationToken: CancellationToken.None,
+                           effectiveCancellationToken: streamToken,
+                           moduleCancellationToken: moduleCancellationToken,
+                           timeoutCancellationToken: CancellationToken.None,
+                           streamInvocationState,
+                           timeoutMs: null,
+                           invocationSequence: Interlocked.Increment(ref _invocationSequence)))
                 {
+                    if (!stabilityRecorded && DateTimeOffset.UtcNow - streamStartedAt >= TimeSpan.FromSeconds(30))
+                    {
+                        await RecordModuleSuccessAsync(moduleId, "events.subscribe", streamSequence);
+                        stabilityRecorded = true;
+                    }
+
+                    using var currentTimeout = new CancellationTokenSource();
+                    if (maxCallMs is > 0)
+                    {
+                        currentTimeout.CancelAfter(TimeSpan.FromMilliseconds(maxCallMs.Value));
+                    }
+
+                    using var currentCancellation = CancellationTokenSource.CreateLinkedTokenSource(
+                        streamToken,
+                        currentTimeout.Token);
+                    var moduleEvent = await ReadStreamCurrentGuardedAsync(
+                        moduleId,
+                        "events.subscribe.current",
+                        enumerator,
+                        CancellationToken.None,
+                        currentCancellation.Token,
+                        moduleCancellationToken,
+                        currentTimeout.Token,
+                        streamInvocationState,
+                        maxCallMs,
+                        Interlocked.Increment(ref _invocationSequence));
                     var hostSequence = (ulong)Interlocked.Increment(ref _relaySequence);
                     relay.Writer.TryWrite(moduleEvent with { Seq = hostSequence });
                 }
+
+                await RecordModuleSuccessAsync(moduleId, "events.subscribe", streamSequence);
+                streamCompletedNormally = true;
             }
-            catch (OperationCanceledException)
+            catch (OperationCanceledException) when (fanInCancellation.IsCancellationRequested)
             {
-                // Module disabled or soft-isolated.
+                // Session ended: module disabled/soft-isolated/boundary cancelled.
             }
-            catch
+            catch (Exception ex)
             {
-                // A faulted module stream must not fault the host. Call-path circuit
-                // breakers track module faults independently.
+                // The guarded helpers already recorded the module fault and opened the
+                // circuit; surface the same failure to relay consumers (the old
+                // per-session stream threw it directly at its caller).
+                _relayFaults[moduleId] = ex;
+                EndRelayGeneration(moduleId);
             }
             finally
             {
-                fanInCancellation.Dispose();
+                if (enumerator is not null && !streamInvocationState.HasOutstandingCallback)
+                {
+                    try
+                    {
+                        await DisposeStreamGuardedAsync(
+                            moduleId,
+                            "events.subscribe.dispose",
+                            enumerator,
+                            CancellationToken.None,
+                            moduleCancellationToken,
+                            Interlocked.Increment(ref _invocationSequence));
+                    }
+                    catch when (!streamCompletedNormally)
+                    {
+                        // Preserve the original stream failure after recording cleanup.
+                    }
+                }
             }
         }, CancellationToken.None);
     }
@@ -620,7 +747,7 @@ public sealed class InProcDotNetModuleHost : IModuleTransportRuntime, IModuleTra
                     MarkKnown(candidate.PoolKey, moduleId);
                     _loadedModules.Add(moduleId, candidate);
                     _unloadRecords.Remove(candidate.PoolKey);
-                    StartEventFanIn(moduleId, candidate);
+                    StartEventFanIn(moduleId, module, candidate);
                 }
             }
             finally
@@ -1339,7 +1466,7 @@ public sealed class InProcDotNetModuleHost : IModuleTransportRuntime, IModuleTra
     }
 
     private async ValueTask<bool> MoveNextGuardedAsync<T>(
-        RuntimeModuleRecord module,
+        string moduleId,
         string operation,
         IAsyncEnumerator<T> enumerator,
         bool recordSuccess,
@@ -1351,7 +1478,6 @@ public sealed class InProcDotNetModuleHost : IModuleTransportRuntime, IModuleTra
         int? timeoutMs,
         long invocationSequence)
     {
-        var moduleId = module.Module.Manifest.Id;
         await EnsureModuleCallAllowedAsync(moduleId, operation, callerCancellationToken);
         Task<bool>? moveNext = null;
         try
@@ -1427,7 +1553,7 @@ public sealed class InProcDotNetModuleHost : IModuleTransportRuntime, IModuleTra
     }
 
     private async ValueTask<T> ReadStreamCurrentGuardedAsync<T>(
-        RuntimeModuleRecord module,
+        string moduleId,
         string operation,
         IAsyncEnumerator<T> enumerator,
         CancellationToken callerCancellationToken,
@@ -1438,7 +1564,6 @@ public sealed class InProcDotNetModuleHost : IModuleTransportRuntime, IModuleTra
         int? timeoutMs,
         long invocationSequence)
     {
-        var moduleId = module.Module.Manifest.Id;
         await EnsureModuleCallAllowedAsync(moduleId, operation, callerCancellationToken);
         Task<T>? read = null;
         try
