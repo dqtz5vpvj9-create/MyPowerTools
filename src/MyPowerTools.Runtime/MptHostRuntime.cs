@@ -1403,7 +1403,7 @@ public sealed class MptHostRuntime : IAsyncDisposable
             try
             {
                 var context = CreateModuleContext(module);
-                var cursor = new Sdk.EventCursor(_moduleEventCursors.GetValueOrDefault(moduleId));
+                var cursor = new Sdk.EventCursor(ResolveEventStreamCursor(module));
                 await foreach (var evt in runtime.SubscribeEventsAsync(module, context, cursor, moduleCancellation.Token).WithCancellation(moduleCancellation.Token))
                 {
                     PublishModuleEvent(evt);
@@ -1434,6 +1434,23 @@ public sealed class MptHostRuntime : IAsyncDisposable
                 moduleCancellation.Dispose();
             }
         }
+    }
+
+    private ulong ResolveEventStreamCursor(RuntimeModuleRecord module)
+    {
+        // Persisted cursors are high-water marks over a module's sequence space. Only
+        // external grpc-ipc modules (sidecars, service units) can outlive a Runner
+        // restart, so re-adopting their cursor avoids replaying already-seen events.
+        // Every other transport (in-process assemblies, Runner-owned stdio children,
+        // loopback http) starts a fresh process — and therefore restarts its event
+        // sequence at 1 — whenever the Runner starts. Feeding those modules a cursor
+        // from a previous Runner generation silently drops every event until the
+        // module's sequence climbs past the stale high-water mark, which for
+        // low-frequency publishers (e.g. upload notifications) means never.
+        var kind = module.Entrypoint?.Kind ?? "";
+        return string.Equals(kind, "grpc-ipc", StringComparison.OrdinalIgnoreCase)
+            ? _moduleEventCursors.GetValueOrDefault(module.Module.Manifest.Id)
+            : 0;
     }
 
     private async Task DelayEventPumpRetryAsync(string moduleId, CancellationToken cancellationToken)
@@ -1706,6 +1723,13 @@ public sealed class MptHostRuntime : IAsyncDisposable
     {
         foreach (var module in _packageRegistry.Modules.ToArray())
         {
+            if (module.Module.LoadError is not null)
+            {
+                // The module status already reflects the load failure; an initial or
+                // persisted status must not hide it (dashboards render this state).
+                continue;
+            }
+
             var status = _moduleStateStore.IsEnabled(module.Module.Manifest.Id)
                 ? InitialStatus(module)
                 : DisabledStatus(module);
@@ -2060,7 +2084,7 @@ public sealed class MptHostRuntime : IAsyncDisposable
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             timeout.CancelAfter(perModuleWindow);
             var moduleId = module.Module.Manifest.Id;
-            var cursor = new Sdk.EventCursor(_moduleEventCursors.GetValueOrDefault(moduleId));
+            var cursor = new Sdk.EventCursor(ResolveEventStreamCursor(module));
             try
             {
                 var context = CreateModuleContext(module);
