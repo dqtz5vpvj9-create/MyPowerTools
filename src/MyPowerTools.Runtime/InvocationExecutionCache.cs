@@ -187,13 +187,17 @@ public sealed class InvocationExecutionCache
         public DateTimeOffset CompletedAt { get; private set; }
         public bool IsCompleted { get; private set; }
         public TaskCompletionSource<Sdk.CommandExecutionResult>? Completion { get; private set; }
-        public Task<Sdk.CommandExecutionResult> Task { get; private set; }
+        public Task<Sdk.CommandExecutionResult> Task { get; }
 
-        public void MarkCompleted(DateTimeOffset completedAt, Sdk.CommandExecutionResult detachedResult)
+        public void MarkCompleted(DateTimeOffset completedAt)
         {
             CompletedAt = completedAt;
             IsCompleted = true;
-            Task = System.Threading.Tasks.Task.FromResult(detachedResult);
+            // Task stays Completion.Task: every waiter (including callers that
+            // arrived before completion) observes the same Task instance, and
+            // Publish completes the completion source with the detached result.
+            // Swapping Task here made concurrent callers receive different Task
+            // instances for the same invocation, breaking dedup identity.
         }
 
         public TaskCompletionSource<Sdk.CommandExecutionResult>? DetachCompletion()
@@ -308,7 +312,7 @@ public sealed class InvocationExecutionCache
                 {
                     if (ReferenceEquals(_owner._entries.GetValueOrDefault(_invocationId), _entry))
                     {
-                        _entry.MarkCompleted(_owner._utcNow(), _result);
+                        _entry.MarkCompleted(_owner._utcNow());
                         _owner.CleanupCore(_owner._utcNow());
                     }
 
