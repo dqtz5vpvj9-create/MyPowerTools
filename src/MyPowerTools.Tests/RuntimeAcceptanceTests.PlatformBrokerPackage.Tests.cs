@@ -482,12 +482,13 @@ public sealed partial class RuntimeAcceptanceTests
         var hotkeySynchronizerPath = Path.Combine(Root, "src", "MyPowerTools.Runner", "RunnerHotkeySynchronizer.cs");
         var appPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "App.cs");
         var mainWindowPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "MainWindow.cs");
+        var startupPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "MainWindow.Startup.cs");
         var workspacePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellWorkspaceController.cs");
         var startupOptionsPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "ShellStartupOptions.cs");
         var runner = File.ReadAllText(runnerPath);
         var hotkeySynchronizer = File.ReadAllText(hotkeySynchronizerPath);
         var app = File.ReadAllText(appPath);
-        var mainWindow = File.ReadAllText(mainWindowPath);
+        var mainWindow = string.Concat(File.ReadAllText(mainWindowPath), File.ReadAllText(startupPath));
         var workspace = ReadShellWorkspaceControllerText();
         var startupOptions = File.ReadAllText(startupOptionsPath);
 
@@ -510,8 +511,14 @@ public sealed partial class RuntimeAcceptanceTests
         Assert.Contains("--data-root", startupOptions);
         Assert.Contains("--modules", startupOptions);
         Assert.Contains("--no-runner-bootstrap", startupOptions);
-        Assert.Contains("ShellRunnerBootstrapper.EnsureStartedAsync", File.ReadAllText(Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Program.cs")));
-        Assert.Contains("MyPowerTools.Runner.exe", File.ReadAllText(Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "ShellRunnerBootstrapper.cs")));
+        var shellProgram = File.ReadAllText(Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Program.cs"));
+        Assert.Contains("var opensHome = toolActivation is null && !startupOptions.FocusCommandPalette", shellProgram);
+        Assert.Contains("? ShellHomeSnapshotCache.TryReadAsync", shellProgram);
+        Assert.Contains("App.CachedHomeSnapshotTask = cachedHomeSnapshotTask", shellProgram);
+        Assert.Contains("ShellRunnerBootstrapper.EnsureStartedAsync", shellProgram);
+        Assert.Contains("loadHomeTools: opensHome", shellProgram);
+        Assert.DoesNotContain("ShellRunnerBootstrapper.EnsureStartedAsync(startupOptions).GetAwaiter().GetResult()", shellProgram, StringComparison.Ordinal);
+        Assert.Contains("ExecutableName(\"MyPowerTools.Runner\")", File.ReadAllText(Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "ShellRunnerBootstrapper.cs")));
         Assert.Contains("FocusCommandPaletteAsync", mainWindow);
         Assert.Contains("public async Task FocusCommandPaletteAsync()", workspace);
     }

@@ -227,7 +227,7 @@ public sealed partial class RuntimeAcceptanceTests
             new MyPowerTools.Protocol.HostControl.V1.ListPackagesRequest { IncludeDisabled = true },
             new TestServerCallContext());
 
-        Assert.Equal(5, response.Packages.Count);
+        Assert.Equal(6, response.Packages.Count);
         var androidTools = response.Packages.Single(package => package.PackageId == "android-tools-suite");
         Assert.Equal(3u, androidTools.ModuleCount);
         Assert.Contains("android-tools.remote-commands", androidTools.ModuleIds);
