@@ -44,8 +44,11 @@ public sealed partial class RuntimeAcceptanceTests
 
         var initial = await synchronizer.SyncAsync(CancellationToken.None);
 
-        Assert.Empty(initial);
-        Assert.Empty(hotkeys.Registered);
+        // paste-image declares a default-enabled global hotkey (Ctrl+Alt+V), so it
+        // registers on the first sync. screenease's hotkey starts disabled and is
+        // exercised by the enable/update/reset sequence below.
+        Assert.All(initial, result => Assert.Equal("paste-image.upload-clipboard-image", result.Id));
+        Assert.Equal("paste-image.upload-clipboard-image", Assert.Single(hotkeys.Registered.Keys));
 
         await runtime.UpdateSettingsWithApplyAsync(
             new SettingsPatch(
@@ -65,7 +68,7 @@ public sealed partial class RuntimeAcceptanceTests
         var firstRegistration = await synchronizer.SyncAsync(CancellationToken.None);
         var original = Assert.Single(runtime.ListHotkeyBindings().Where(binding => binding.ModuleId == "screenease"));
         Assert.Contains(firstRegistration, item => item.Id == original.Id && item.Operation == "register");
-        Assert.Equal(original.Gesture, Assert.Single(hotkeys.Registered.Values).Gesture);
+        Assert.Equal(original.Gesture, hotkeys.Registered[original.Id].Gesture);
 
         var overrideGesture = original.Gesture.Equals("Ctrl+Alt+F12", StringComparison.OrdinalIgnoreCase)
             ? "Ctrl+Alt+F11"

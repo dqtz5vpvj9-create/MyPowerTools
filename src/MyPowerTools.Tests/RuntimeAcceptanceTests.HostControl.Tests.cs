@@ -338,8 +338,8 @@ public sealed partial class RuntimeAcceptanceTests
 
         Assert.Equal("0.2.0", diagnostics.RunnerVersion);
         Assert.Equal("1.0", diagnostics.HostControlProtocolVersion);
-        Assert.Equal(5u, diagnostics.Counts.PackageCount);
-        Assert.Equal(7u, diagnostics.Counts.ModuleCount);
+        Assert.Equal(6u, diagnostics.Counts.PackageCount);
+        Assert.Equal(8u, diagnostics.Counts.ModuleCount);
         Assert.Equal((uint)runtime.CurrentEventSeq, diagnostics.CurrentEventSeq);
         Assert.Equal(dataRoot, diagnostics.Paths.Root);
         Assert.Contains(diagnostics.Transports, transport => transport.Kind == "inproc-dotnet" && transport.RuntimeRegistered);
