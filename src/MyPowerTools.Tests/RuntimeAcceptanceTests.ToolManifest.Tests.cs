@@ -27,6 +27,24 @@ public sealed partial class RuntimeAcceptanceTests
 
         manifest["tools"] = new JsonArray("tools/remote-notifications.tool.json");
         File.WriteAllText(manifestPath, manifest.ToJsonString());
+        Directory.CreateDirectory(Path.Combine(packageRoot, "tools"));
+        File.WriteAllText(Path.Combine(packageRoot, "tools", "remote-notifications.tool.json"), """
+        {
+          "schemaVersion": "1.0",
+          "toolId": "remote-notifications",
+          "ownerModuleId": "sample-module",
+          "title": "Remote Notifications",
+          "description": "Notifications from a remote device.",
+          "icon": "notifications",
+          "category": "Connectivity",
+          "primaryRouteId": "inbox",
+          "routes": [
+            { "routeId": "inbox", "surfaceId": "remote-notifications.inbox",
+              "surface": { "kind": "declarative" } }
+          ],
+          "homeCard": { "summary": "Review notifications." }
+        }
+        """);
 
         var module = reader.ReadModuleDefinition(manifestPath).Manifest;
         var report = new SchemaPackageValidator(Path.Combine(Root, "schemas")).ValidatePackageDirectory(packageRoot);

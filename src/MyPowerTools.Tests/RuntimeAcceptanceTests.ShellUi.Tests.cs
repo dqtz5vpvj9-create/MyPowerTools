@@ -97,9 +97,12 @@ public sealed partial class RuntimeAcceptanceTests
         var overlay = ShellKeyboardShortcut.Resolve(Key.Space, KeyModifiers.Control | KeyModifiers.Alt);
         Assert.Equal(ShellKeyboardAction.FocusCommandPalette, overlay.Action);
 
-        var diagnostics = ShellKeyboardShortcut.Resolve(Key.D8, KeyModifiers.Control);
-        Assert.Equal(ShellKeyboardAction.Navigate, diagnostics.Action);
-        Assert.Equal("Diagnostics", diagnostics.TargetPage);
+        var system = ShellKeyboardShortcut.Resolve(Key.D6, KeyModifiers.Control);
+        Assert.Equal(ShellKeyboardAction.Navigate, system.Action);
+        Assert.Equal("System", system.TargetPage);
+
+        var outOfRange = ShellKeyboardShortcut.Resolve(Key.D8, KeyModifiers.Control);
+        Assert.Equal(ShellKeyboardAction.None, outOfRange.Action);
 
         var ignored = ShellKeyboardShortcut.Resolve(Key.K, KeyModifiers.Control | KeyModifiers.Shift);
         Assert.Equal(ShellKeyboardAction.None, ignored.Action);
