@@ -1,6 +1,7 @@
 using System.Buffers.Binary;
 using System.IO.Pipes;
 using System.Text.Json;
+using MyPowerTools.Ipc;
 
 // Minimal Service Unit fixture for the A3 Process Gate.
 // Behaviour required by the gate:
@@ -68,12 +69,7 @@ static async Task ServeReadinessPipe(string name, CancellationToken cancellation
         NamedPipeServerStream? server = null;
         try
         {
-            server = new NamedPipeServerStream(
-                name,
-                PipeDirection.InOut,
-                1,
-                PipeTransmissionMode.Byte,
-                PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
+            server = MptNamedPipePolicy.CreateServer(name, maxInstances: 1);
             await server.WaitForConnectionAsync(cancellationToken);
 
             var header = new byte[4];

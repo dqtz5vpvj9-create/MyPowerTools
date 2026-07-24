@@ -10,4 +10,8 @@
     <Description>Minimal fixture process for the A3 Service Process Gate: writes heartbeats and serves a named-pipe readiness probe.</Description>
   </PropertyGroup>
 
+  <ItemGroup>
+    <ProjectReference Include="..\..\..\src\MyPowerTools.Ipc.Shared\MyPowerTools.Ipc.Shared.csproj" />
+  </ItemGroup>
+
 </Project>

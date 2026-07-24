@@ -200,6 +200,14 @@ public sealed class ServiceUnitCatalog
         }
 
         var expanded = Environment.ExpandEnvironmentVariables(path);
+        var temporaryRoot = Path.GetTempPath().TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        var userRoot = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile)
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        expanded = expanded
+            .Replace("$TMPDIR", temporaryRoot, StringComparison.Ordinal)
+            .Replace("${TMPDIR}", temporaryRoot, StringComparison.Ordinal)
+            .Replace("$HOME", userRoot, StringComparison.Ordinal)
+            .Replace("${HOME}", userRoot, StringComparison.Ordinal);
         if (expanded == "~")
         {
             return Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);

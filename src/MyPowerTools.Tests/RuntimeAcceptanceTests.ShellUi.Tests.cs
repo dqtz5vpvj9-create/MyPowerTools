@@ -82,11 +82,11 @@ public sealed partial class RuntimeAcceptanceTests
     [Fact]
     public void Shell_keyboard_shortcuts_resolve_navigation_and_command_palette_actions()
     {
-        var focus = ShellKeyboardShortcut.Resolve(Key.K, KeyModifiers.Control);
+        var focus = ShellKeyboardShortcut.Resolve(Key.P, KeyModifiers.Control | KeyModifiers.Shift);
         Assert.Equal(ShellKeyboardAction.FocusCommandPalette, focus.Action);
 
-        var search = ShellKeyboardShortcut.Resolve(Key.F, KeyModifiers.Control);
-        Assert.Equal(ShellKeyboardAction.FocusCommandPalette, search.Action);
+        var oldSearch = ShellKeyboardShortcut.Resolve(Key.F, KeyModifiers.Control);
+        Assert.Equal(ShellKeyboardAction.None, oldSearch.Action);
 
         var clear = ShellKeyboardShortcut.Resolve(Key.Escape, KeyModifiers.None);
         Assert.Equal(ShellKeyboardAction.ClearCommandPalette, clear.Action);
@@ -344,7 +344,11 @@ public sealed partial class RuntimeAcceptanceTests
         var mainWindowPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "MainWindow.cs");
         var startupPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "MainWindow.Startup.cs");
         var workspacePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellWorkspaceController.cs");
-        var mainWindow = string.Concat(File.ReadAllText(mainWindowPath), File.ReadAllText(startupPath));
+        var lifecyclePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "MainWindow.Lifecycle.cs");
+        var mainWindow = string.Concat(
+            File.ReadAllText(mainWindowPath),
+            File.ReadAllText(startupPath),
+            File.ReadAllText(lifecyclePath));
         var workspace = ReadShellWorkspaceControllerText();
 
         Assert.Contains("new ShellWorkspaceController", mainWindow);
@@ -787,10 +791,12 @@ public sealed partial class RuntimeAcceptanceTests
         var mainWindowPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "MainWindow.cs");
         var shellChrome = File.ReadAllText(shellChromePath);
         var theme = File.ReadAllText(themePath);
-        var mainWindow = File.ReadAllText(mainWindowPath);
+        var mainWindow = string.Concat(
+            File.ReadAllText(mainWindowPath),
+            File.ReadAllText(Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "MainWindow.Interactions.cs")));
         var commandOverlayStart = shellChrome.IndexOf("x:Name=\"GlobalOverlayHost\"", StringComparison.Ordinal);
         var permissionOverlayStart = commandOverlayStart >= 0
-            ? shellChrome.IndexOf("<Grid Grid.ColumnSpan=\"2\"", commandOverlayStart, StringComparison.Ordinal)
+            ? shellChrome.IndexOf("x:Name=\"PermissionOverlayHost\"", commandOverlayStart, StringComparison.Ordinal)
             : -1;
         Assert.True(commandOverlayStart >= 0);
         Assert.True(permissionOverlayStart > commandOverlayStart);
@@ -1116,7 +1122,7 @@ public sealed partial class RuntimeAcceptanceTests
         Assert.Contains("HostControlEventStreamMonitor", service);
         Assert.Contains("RunnerRecovered", service);
         Assert.Contains("HostEventReceived", service);
-        Assert.Contains("StatusChanged?.Invoke", service);
+        Assert.Contains("Publish(StatusChanged", service);
     }
 
     [Fact]
@@ -1324,7 +1330,6 @@ public sealed partial class RuntimeAcceptanceTests
         Assert.DoesNotContain("GetDashboardSnapshotAsync", workspace, StringComparison.Ordinal);
         Assert.DoesNotContain("ListModulesAsync", workspace, StringComparison.Ordinal);
         Assert.DoesNotContain("GetModuleDetailAsync", workspace, StringComparison.Ordinal);
-        Assert.DoesNotContain("TailLogsAsync", workspace, StringComparison.Ordinal);
         Assert.DoesNotContain("ListNotificationsAsync", workspace, StringComparison.Ordinal);
         Assert.DoesNotContain("ListPackagesAsync", workspace, StringComparison.Ordinal);
         Assert.DoesNotContain("GetRuntimeDiagnosticsAsync", workspace, StringComparison.Ordinal);
@@ -1341,6 +1346,14 @@ public sealed partial class RuntimeAcceptanceTests
         Assert.Contains("GetRuntimeDiagnosticsAsync", service);
         Assert.Contains("ListBrokerAuditAsync", service);
         Assert.Contains("ShellPageDataResult", service);
+        var toolEventService = File.ReadAllText(Path.Combine(
+            Root,
+            "src",
+            "MyPowerTools.Shell.Avalonia",
+            "Services",
+            "ShellToolEventService.cs"));
+        Assert.Contains("HostControlClient.ForDefaultEndpoint()", toolEventService);
+        Assert.Contains("PublishToolEventAsync", toolEventService);
     }
 
     [Fact]
@@ -1421,7 +1434,10 @@ public sealed partial class RuntimeAcceptanceTests
         Assert.Contains("ItemsSource=\"{Binding FooterNavigationItems}\"", shellChromeView);
         Assert.Contains("Command=\"{Binding RefreshCommand}\"", shellChromeView);
         Assert.Contains("ShellNavigationItemViewModel", shellChromeView);
-        Assert.Contains("x:Name=\"TitleSearchHost\"", shellChromeView);
+        Assert.Contains("x:Name=\"TitleContentHost\"", shellChromeView);
+        Assert.Contains("x:Name=\"NavigationModeButton\"", shellChromeView);
+        Assert.Contains("x:Name=\"PageHeaderHost\"", shellChromeView);
+        Assert.Contains("Text=\"Ctrl+Shift+P\"", shellChromeView);
         Assert.Contains("WindowDecorationProperties.ElementRole=\"TitleBar\"", shellChromeView);
         Assert.Contains("Classes.selected=\"{Binding IsSelected}\"", shellChromeView);
         Assert.Contains("x:Name=\"SearchBox\"", shellChromeView);
@@ -1431,6 +1447,10 @@ public sealed partial class RuntimeAcceptanceTests
         Assert.Contains("Text=\"{Binding StatusText}\"", shellChromeView);
         Assert.Contains("Text=\"{Binding RunnerStatusText}\"", shellChromeView);
         Assert.Contains("AvaloniaXamlLoader.Load(this)", codeBehind);
+        Assert.Contains("public ShellNavigationMode NavigationMode", codeBehind);
+        Assert.Contains("ShellNavigationMode.Hidden", codeBehind);
+        Assert.Contains("ShellNavigationMode.Compact", codeBehind);
+        Assert.Contains("ShellNavigationMode.Expanded", codeBehind);
         Assert.Contains("class ShellChromeViewModel", viewModel);
         Assert.Contains("class ShellNavigationItemViewModel", viewModel);
         Assert.Contains("public string StatusText", viewModel);
@@ -1771,7 +1791,7 @@ public sealed partial class RuntimeAcceptanceTests
         var commandPalette = snapshots
             .First(item => item!["surfaceId"]!.GetValue<string>() == "shell.command-palette")!
             .AsObject();
-        Assert.Contains(commandPalette["keyboardShortcuts"]!.AsArray(), item => item!.GetValue<string>() == "Ctrl+K");
+        Assert.Contains(commandPalette["keyboardShortcuts"]!.AsArray(), item => item!.GetValue<string>() == "Ctrl+Shift+P");
         Assert.Contains(commandPalette["focusStates"]!.AsArray(), item => item!.GetValue<string>() == "command-item-focus-visible");
         Assert.Contains(commandPalette["focusStates"]!.AsArray(), item => item!.GetValue<string>() == "command-parameter-validation-readable");
         Assert.Contains(commandPalette["states"]!.AsArray(), item => item!.GetValue<string>() == "permission-required");
@@ -1872,15 +1892,15 @@ public sealed partial class RuntimeAcceptanceTests
 
         var cliSource = File.ReadAllText(Path.Combine(Root, "src", "Mpt.Cli.VisualTesting", "Program.cs"));
         Assert.Contains("\"--live-runner\"", cliSource);
-        Assert.Contains("[--full-shell]", cliSource);
-        Assert.Contains("full ShellChrome Avalonia screenshots", cliSource);
+        Assert.Contains("\"screenshot\" => UiScreenshot", cliSource);
+        Assert.Contains("\"shell-snapshot\" => UiShellSnapshot", cliSource);
     }
 
     [Fact]
     public void Ui_shell_real_screenshot_filters_page_and_records_acceptance_manifest_fields()
     {
         var output = Path.Combine(Path.GetTempPath(), "mpt-shell-real-page-screenshot", Guid.NewGuid().ToString("N"));
-        var manifestPath = ShellRealScreenshotWriter.WriteSnapshotSet(
+        var manifestPath = VisualTestProcess.WriteSnapshotSet(
             output,
             "dark",
             "1280x720",

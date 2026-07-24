@@ -1,0 +1,56 @@
+{
+  "schemaVersion": "1.0",
+  "commands": [
+    {
+      "id": "paste-image.upload",
+      "title": "Upload clipboard image",
+      "subtitle": "Upload over OpenSSH and copy the remote path",
+      "kind": "action",
+      "category": "Clipboard",
+      "constraints": ["runsExternalProcesses"],
+      "execution": {
+        "type": "module.execute"
+      }
+    },
+    {
+      "id": "paste-image.inspect",
+      "title": "Inspect Paste Image",
+      "subtitle": "Read the configured destination and OpenSSH readiness",
+      "kind": "action",
+      "category": "Clipboard",
+      "execution": {
+        "type": "module.execute"
+      }
+    },
+    {
+      "id": "paste-image.history",
+      "title": "Recent Paste Image uploads",
+      "subtitle": "Read recent upload records and local preview paths",
+      "kind": "action",
+      "category": "Clipboard",
+      "execution": {
+        "type": "module.execute"
+      }
+    },
+    {
+      "id": "paste-image.clipboard.probe",
+      "title": "Probe clipboard image",
+      "subtitle": "Read and encode the current clipboard image without uploading it",
+      "kind": "action",
+      "category": "Clipboard",
+      "execution": {
+        "type": "module.execute"
+      }
+    },
+    {
+      "id": "paste-image.notification.test",
+      "title": "Test Paste Image notification",
+      "subtitle": "Show a native Windows notification without uploading an image",
+      "kind": "action",
+      "category": "Clipboard",
+      "execution": {
+        "type": "module.execute"
+      }
+    }
+  ]
+}

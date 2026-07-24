@@ -12,6 +12,10 @@ jobs:
   windows:
     name: Windows build, test, validate, package
     runs-on: windows-latest
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: 1
+      DOTNET_NOLOGO: true
+      NUGET_XMLDOC_MODE: skip
 
     steps:
       - name: Checkout
@@ -25,6 +29,16 @@ jobs:
         uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
+
+      - name: Restore dependency caches
+        uses: actions/cache@v4
+        with:
+          path: |
+            artifacts/sdk/global-packages
+            ~/AppData/Local/npm-cache
+          key: windows-dependencies-${{ hashFiles('global.json', 'NuGet.Config', '**/*.csproj', 'sdk/web-bridge/package-lock.json') }}
+          restore-keys: |
+            windows-dependencies-
 
       - name: Verify tool submodules
         shell: pwsh
@@ -58,7 +72,7 @@ jobs:
 
       - name: Build
         shell: pwsh
-        run: dotnet build MyPowerTools.slnx --no-restore
+        run: dotnet build MyPowerTools.slnx --no-restore --maxcpucount
 
       - name: Test
         shell: pwsh
@@ -70,31 +84,31 @@ jobs:
 
       - name: Refresh Package Trust Hooks
         shell: pwsh
-        run: dotnet run --project src\MyPowerTools.Cli -- package sign-local artifacts\ci-modules
+        run: dotnet run --no-build --project src\MyPowerTools.Cli -- package sign-local artifacts\ci-modules
 
       - name: Validate Modules
         shell: pwsh
-        run: dotnet run --project src\MyPowerTools.Cli -- validate artifacts\ci-modules
+        run: dotnet run --no-build --project src\MyPowerTools.Cli -- validate artifacts\ci-modules
 
       - name: Validate Module Contracts
         shell: pwsh
-        run: dotnet run --project src\MyPowerTools.Cli -- validate contracts artifacts\ci-modules
+        run: dotnet run --no-build --project src\MyPowerTools.Cli -- validate contracts artifacts\ci-modules
 
       - name: Validate Package Trust
         shell: pwsh
-        run: dotnet run --project src\MyPowerTools.Cli -- package trust artifacts\ci-modules --strict
+        run: dotnet run --no-build --project src\MyPowerTools.Cli -- package trust artifacts\ci-modules --strict
 
       - name: UI Gate
         shell: pwsh
-        run: dotnet run --project src\MyPowerTools.Cli -- ui check artifacts\ci-modules
+        run: dotnet run --no-build --project src\MyPowerTools.Cli -- ui check artifacts\ci-modules
 
       - name: UI Contract Snapshots
         shell: pwsh
-        run: dotnet run --project src\MyPowerTools.Cli -- ui snapshot artifacts\ci-modules --surface dashboard-card --theme light --size 1366x768 --density normal --out artifacts\ui-snapshots
+        run: dotnet run --no-build --project src\MyPowerTools.Cli -- ui snapshot artifacts\ci-modules --surface dashboard-card --theme light --size 1366x768 --density normal --out artifacts\ui-snapshots
 
       - name: Shell UI Snapshot Matrix
         shell: pwsh
-        run: dotnet run --project src\MyPowerTools.Cli -- ui shell-snapshot --theme light --size 1366x768 --density normal --out artifacts\shell-ui-snapshots
+        run: dotnet run --no-build --project src\MyPowerTools.Cli -- ui shell-snapshot --theme light --size 1366x768 --density normal --out artifacts\shell-ui-snapshots
 
       - name: Validate Templates
         shell: pwsh
@@ -102,11 +116,11 @@ jobs:
 
       - name: Runner Once
         shell: pwsh
-        run: dotnet run --project src\MyPowerTools.Runner -- --once --modules artifacts\ci-modules
+        run: dotnet run --no-build --project src\MyPowerTools.Runner -- --once --modules artifacts\ci-modules
 
       - name: Smoke
         shell: pwsh
-        run: pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\smoke.ps1 -ModulesRoot artifacts\ci-modules
+        run: pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\smoke.ps1 -ModulesRoot artifacts\ci-modules -NoRestore -NoBuild -NoTest -NoTemplateValidation
 
       - name: Publish Windows Portable
         if: github.event_name == 'workflow_dispatch'

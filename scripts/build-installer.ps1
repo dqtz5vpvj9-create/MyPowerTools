@@ -99,7 +99,8 @@ $publishProjects = @(
     [pscustomobject]@{ Name = 'Shell'; Project = 'src\MyPowerTools.Shell.Avalonia\MyPowerTools.Shell.Avalonia.csproj'; Output = 'Shell' },
     [pscustomobject]@{ Name = 'Runner'; Project = 'src\MyPowerTools.Runner\MyPowerTools.Runner.csproj'; Output = 'Runner' },
     [pscustomobject]@{ Name = 'ServiceManager'; Project = 'src\MyPowerTools.ServiceManager\MyPowerTools.ServiceManager.csproj'; Output = 'ServiceManager' },
-    [pscustomobject]@{ Name = 'CLI'; Project = 'src\MyPowerTools.Cli\MyPowerTools.Cli.csproj'; Output = 'Cli' }
+    [pscustomobject]@{ Name = 'CLI'; Project = 'src\MyPowerTools.Cli\MyPowerTools.Cli.csproj'; Output = 'Cli' },
+    [pscustomobject]@{ Name = 'Elevated Broker'; Project = 'src\MyPowerTools.ElevatedBroker\MyPowerTools.ElevatedBroker.csproj'; Output = 'Broker' }
 )
 foreach ($project in $publishProjects) {
     $output = Join-Path $payloadRoot $project.Output
@@ -197,6 +198,7 @@ param(
     [string]$ServiceManagerEndpoint = '',
     [string]$ServiceManagerInstanceName = '',
     [string]$ServiceUnitInstanceName = '',
+    [switch]$IsolatedVerification,
     [switch]$NoLaunch
 )
 
@@ -275,7 +277,17 @@ function Invoke-NativeCapture {
 
 $version = '__VERSION__'
 $sourcePayload = Join-Path $PSScriptRoot 'payload'
-$installRoot = Join-Path ([IO.Path]::GetFullPath($InstallBase)) $version
+$installBaseFull = [IO.Path]::GetFullPath($InstallBase)
+$canonicalInstallBase = [IO.Path]::GetFullPath((Join-Path $env:LOCALAPPDATA 'Programs\MyPowerTools'))
+$hasIsolatedVerificationContext = $IsolatedVerification.IsPresent -and
+    -not [string]::IsNullOrWhiteSpace($ServiceManagerEndpoint) -and
+    -not [string]::IsNullOrWhiteSpace($ServiceManagerInstanceName) -and
+    -not [string]::IsNullOrWhiteSpace($ServiceUnitInstanceName)
+if (-not $installBaseFull.Equals($canonicalInstallBase, [StringComparison]::OrdinalIgnoreCase) -and
+    -not $hasIsolatedVerificationContext) {
+    throw "MyPowerTools must be installed for the current user under $canonicalInstallBase. InstallBase=$installBaseFull"
+}
+$installRoot = Join-Path $installBaseFull $version
 $dataRootFull = [IO.Path]::GetFullPath($DataRoot)
 $smEndpointArg = @()
 $cliEndpointArg = @()
@@ -397,6 +409,7 @@ if (Test-Path -LiteralPath $payloadUnitsRoot -PathType Container) {
         }
         $unitEnvironment['MPT_DATA_ROOT'] = $dataRootFull
         $unitEnvironment['MPT_TOOL_DATA_ROOT'] = $toolDataRoot
+        $unitEnvironment['MPT_INSTALL_ROOT'] = $installRoot
         $unitManifest.environment = $unitEnvironment
 
         $unitManifest | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $managerUnitsRoot "$unitId.json") -Encoding UTF8

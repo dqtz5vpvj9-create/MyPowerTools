@@ -1,0 +1,9 @@
+{
+  "schemaVersion": "1.0",
+  "surfaceId": "paste-image.settings",
+  "moduleId": "paste-image",
+  "kind": "settings",
+  "layout": { "mode": "schema" },
+  "uses": ["MptSettingsSection", "MptSettingRow"],
+  "states": ["loading", "ready", "error", "disabled"]
+}

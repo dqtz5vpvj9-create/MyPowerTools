@@ -1,0 +1,86 @@
+{
+  "schemaVersion": "1.0",
+  "id": "paste-image",
+  "packageId": "paste-image",
+  "displayName": "Paste Image",
+  "version": "0.1.0",
+  "moduleSdk": "1.0",
+  "entrypoints": [
+    {
+      "kind": "inproc-dotnet",
+      "priority": 100,
+      "platforms": ["windows-x64", "windows-arm64", "macos-arm64", "macos-x64"],
+      "assembly": "PasteImage.MyPowerTools.dll",
+      "type": "PasteImage.MyPowerTools.PasteImageModule"
+    }
+  ],
+  "capabilities": [
+    "lifecycle",
+    "status",
+    "commands",
+    "settings",
+    "logs",
+    "dashboardCard",
+    "detailPage"
+  ],
+  "runtimePolicy": {
+    "preferred": "inproc",
+    "allowInProc": true,
+    "inProcRules": {
+      "maxCallMs": 60000,
+      "allowNativeDll": true,
+      "allowWindow": false,
+      "allowBackgroundThreads": true,
+      "loadContext": "collectible",
+      "shadowCopy": true
+    },
+    "operationRules": {
+      "status": "inproc-or-sidecar",
+      "settings": "inproc-or-sidecar",
+      "commandProvider": "inproc-or-sidecar",
+      "longRunningCommand": "inproc-or-sidecar",
+      "systemMutation": "broker-required",
+      "nativeHardware": "inproc-or-sidecar",
+      "elevatedWrite": "broker-required",
+      "externalProcess": "inproc-or-sidecar"
+    }
+  },
+  "requires": [
+    {
+      "capability": "clipboard.image",
+      "required": true,
+      "reason": "Read the current clipboard image and replace it with the uploaded path."
+    },
+    {
+      "capability": "network.ssh",
+      "required": true,
+      "reason": "Upload the PNG through the platform OpenSSH client."
+    },
+    {
+      "capability": "notification.desktop",
+      "required": false,
+      "reason": "Report upload success or failure."
+    }
+  ],
+  "permissions": [],
+  "hotkeys": [
+    {
+      "id": "upload-clipboard-image",
+      "default": "Ctrl+Alt+V",
+      "commandId": "paste-image.upload",
+      "scope": "module",
+      "reason": "Upload the clipboard image and copy its remote path.",
+      "enabledByDefault": true
+    }
+  ],
+  "staticIndexes": {
+    "commands": "commands.index.json"
+  },
+  "tools": ["ui/tool.json"],
+  "uiSurfaces": [
+    "ui/dashboard-card.json",
+    "ui/detail-page.json",
+    "ui/settings.json",
+    "ui/logs.json"
+  ]
+}

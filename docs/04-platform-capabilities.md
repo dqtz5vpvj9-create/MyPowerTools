@@ -19,6 +19,9 @@ Module 接收结果
 | `tray` | Windows tray | Status Item | AppIndicator | `ITrayService` |
 | `hotkey.global` | Win32 hook | Event tap | X11/Wayland provider | `IHotkeyService` |
 | `notification.desktop` | Windows notification | UserNotifications | freedesktop notifications | `INotificationService` |
+| `clipboard.image` | Win32 Clipboard | NSPasteboard | Wayland/X11 planned | `IClipboardImageService` |
+| `network.ssh` | Windows OpenSSH | `/usr/bin/ssh` | OpenSSH | Platform process provider |
+| `web.surface` | WebView2 | WKWebView | WebKitGTK planned | `IMptWebSurfaceService` |
 | `autostart.user` | Startup / Task Scheduler | launchd agent | systemd user / desktop autostart | `IAutostartService` |
 | `service.user` | Task Scheduler / Windows Service | launchd agent | systemd user | `IServiceManager` |
 | `service.system` | Windows Service | launchd daemon | systemd service | `IServiceManager` |
@@ -84,6 +87,7 @@ src/MyPowerTools.Platform.Abstractions
   ITrayService.cs
   IHotkeyService.cs
   INotificationService.cs
+  IClipboardImageService.cs
   IServiceManager.cs
   IPrivilegeBroker.cs
   IDisplayService.cs
@@ -94,6 +98,7 @@ src/MyPowerTools.Platform.Abstractions
 src/MyPowerTools.Platform.Windows
 src/MyPowerTools.Platform.Mac
 src/MyPowerTools.Platform.Linux
+src/MyPowerTools.Platform
 ```
 
 ## 当前实现状态
@@ -102,11 +107,13 @@ src/MyPowerTools.Platform.Linux
 |---|---|
 | Windows IPC | `LocalIpcService` uses Named Pipe endpoints. |
 | macOS/Linux IPC | `LocalIpcService` uses Unix Domain Socket paths. |
+| Web surfaces | Windows dispatches to the process-isolated WebView2 host. macOS dispatches to an in-process native `WKWebView` hosted through Avalonia `NativeControlHost`, with origin policy, CSP injection, bridge messages, shortcuts, loading state, and occlusion handling. |
+| macOS native providers | Desktop notifications use `UserNotifications`; clipboard image/text access uses `NSPasteboard`; secrets use Keychain; current-user autostart and services use launchd; the Shell tray uses an AppKit `NSStatusItem` with a native 64px Retina Codex quota ring and reset tooltip. |
 | Hotkey providers | `IHotkeyService` exists across platform packs. Windows uses a real Win32 `RegisterHotKey` provider with Runner-owned command palette registration; macOS/Linux return explicit `unsupported` states for Event tap and X11/Wayland providers. |
 | Privilege broker providers | `IPrivilegeBroker` exists across platform packs. Windows returns `permission-required` through a broker-required provider and `PrivilegedBroker` implements the same contract; macOS/Linux return explicit `unsupported` states for privileged helper/polkit providers. |
-| macOS degraded providers | Notification, autostart, service, network, display, tray, hotkey, privilege, and secret providers return explicit unsupported state/messages; process inspection uses the managed runtime. |
+| macOS remaining degraded providers | Network, display, hotkey, and privilege providers return explicit unsupported state/messages; process inspection uses the managed runtime. |
 | Linux degraded providers | Notification, autostart, service, network, display, tray, hotkey, privilege, and secret providers return explicit unsupported state/messages; process inspection uses the managed runtime. |
-| Remaining native validation | Native macOS/Linux Runner, Shell, and UDS gRPC smoke require those OS hosts. |
+| Remaining native validation | Managed `osx-arm64` and `osx-x64` bundles are cross-publish validated. Native dylib compilation, codesign verification, Shell/WKWebView rendering, dynamic Codex quota status item, NSPasteboard, notification activation, launchd, and UDS smoke require a macOS host with Xcode command-line tools. |
 
 ## 权限动作流程
 

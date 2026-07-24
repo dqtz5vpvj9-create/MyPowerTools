@@ -620,8 +620,7 @@ public sealed class UiSurfaceGate
             ["shortcuts"] = new JsonArray
             {
                 Shortcut("Ctrl+Alt+Space", "focus-command-palette", "shell.command-palette"),
-                Shortcut("Ctrl+K", "focus-command-palette", "shell.command-palette"),
-                Shortcut("Ctrl+F", "focus-command-palette", "shell.command-palette"),
+                Shortcut("Ctrl+Shift+P", "focus-command-palette", "shell.command-palette"),
                 Shortcut("Escape", "clear-command-palette", "shell.command-palette"),
                 Shortcut("F5", "refresh-current-page", "shell.dashboard"),
                 Shortcut("Ctrl+R", "refresh-current-page", "shell.dashboard"),
@@ -662,12 +661,12 @@ public sealed class UiSurfaceGate
         return surfaceId switch
         {
             "shell.dashboard" => ["F5", "Ctrl+R", "Ctrl+1"],
-            "shell.command-palette" => ["Ctrl+Alt+Space", "Ctrl+K", "Ctrl+F", "Ctrl+3", "Escape"],
+            "shell.command-palette" => ["Ctrl+Alt+Space", "Ctrl+Shift+P", "Ctrl+3", "Escape"],
             "shell.settings-center" => ["Ctrl+4"],
             "shell.module-detail" => ["Ctrl+2"],
             "shell.logs-viewer" => ["Ctrl+5"],
             "shell.notification-center" => ["Ctrl+6"],
-            "shell.permission-prompt" => ["Ctrl+K", "Escape"],
+            "shell.permission-prompt" => ["Ctrl+Shift+P", "Escape"],
             "shell.degraded-module" => ["Ctrl+2", "F5"],
             "shell.package-manager" => ["Ctrl+7"],
             "shell.runtime-diagnostics" => ["Ctrl+8", "F5"],

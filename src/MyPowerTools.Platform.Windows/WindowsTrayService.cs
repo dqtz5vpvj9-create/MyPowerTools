@@ -5,7 +5,7 @@ using MyPowerTools.Platform.Abstractions;
 namespace MyPowerTools.Platform.Windows;
 
 [SupportedOSPlatform("windows")]
-public sealed class WindowsTrayService : ITrayService
+public sealed class WindowsTrayService : ITrayService, INotificationService
 {
     private const uint NIM_ADD = 0x00000000;
     private const uint NIM_MODIFY = 0x00000001;
@@ -14,6 +14,8 @@ public sealed class WindowsTrayService : ITrayService
     private const uint NIF_MESSAGE = 0x00000001;
     private const uint NIF_ICON = 0x00000002;
     private const uint NIF_TIP = 0x00000004;
+    private const uint NIF_INFO = 0x00000010;
+    private const uint NIIF_INFO = 0x00000001;
     private const uint NOTIFYICON_VERSION_4 = 4;
     private const uint WM_CLOSE = 0x0010;
     private const uint WM_DESTROY = 0x0002;
@@ -37,6 +39,7 @@ public sealed class WindowsTrayService : ITrayService
     private readonly object _gate = new();
     private readonly WndProc _wndProc;
     private Thread? _thread;
+    private Task? _quotaMonitorTask;
     private CancellationTokenSource? _cts;
     private Func<TrayActionInvocation, CancellationToken, Task>? _handler;
     private IReadOnlyList<TrayMenuItem> _menuItems = [];
@@ -62,6 +65,45 @@ public sealed class WindowsTrayService : ITrayService
             }
         }
     }
+
+    public Task PublishAsync(string title, string body, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        IntPtr handle;
+        lock (_gate)
+        {
+            if (_disposed)
+            {
+                throw new ObjectDisposedException(nameof(WindowsTrayService));
+            }
+            if (_state != "running" || _windowHandle == IntPtr.Zero)
+            {
+                throw new InvalidOperationException("Windows tray notification provider is not running.");
+            }
+            handle = _windowHandle;
+        }
+
+        var data = new NOTIFYICONDATA
+        {
+            cbSize = (uint)Marshal.SizeOf<NOTIFYICONDATA>(),
+            hWnd = handle,
+            uID = 1,
+            uFlags = NIF_INFO,
+            szTip = "",
+            szInfo = TruncateNotificationText(body, 255),
+            uTimeoutOrVersion = 5000,
+            szInfoTitle = TruncateNotificationText(title, 63),
+            dwInfoFlags = NIIF_INFO
+        };
+        if (!Shell_NotifyIcon(NIM_MODIFY, ref data))
+        {
+            throw new InvalidOperationException($"Windows notification failed with Win32 error {Marshal.GetLastWin32Error()}.");
+        }
+        return Task.CompletedTask;
+    }
+
+    private static string TruncateNotificationText(string value, int maxLength) =>
+        string.IsNullOrEmpty(value) || value.Length <= maxLength ? value : value[..maxLength];
 
     public async Task<TrayStartResult> StartAsync(
         TrayOptions options,
@@ -112,6 +154,7 @@ public sealed class WindowsTrayService : ITrayService
     public async ValueTask DisposeAsync()
     {
         Thread? thread;
+        Task? quotaMonitorTask;
         CancellationTokenSource? cts;
         IntPtr windowHandle;
 
@@ -125,11 +168,22 @@ public sealed class WindowsTrayService : ITrayService
             _disposed = true;
             _state = "stopping";
             thread = _thread;
+            quotaMonitorTask = _quotaMonitorTask;
             cts = _cts;
             windowHandle = _windowHandle;
         }
 
         cts?.Cancel();
+        if (quotaMonitorTask is not null)
+        {
+            try
+            {
+                await quotaMonitorTask;
+            }
+            catch (OperationCanceledException)
+            {
+            }
+        }
         if (windowHandle != IntPtr.Zero)
         {
             PostMessage(windowHandle, WM_CLOSE, IntPtr.Zero, IntPtr.Zero);
@@ -145,6 +199,7 @@ public sealed class WindowsTrayService : ITrayService
         {
             _state = "stopped";
             _thread = null;
+            _quotaMonitorTask = null;
             _windowHandle = IntPtr.Zero;
             _cts = null;
         }
@@ -210,6 +265,13 @@ public sealed class WindowsTrayService : ITrayService
                 return;
             }
 
+            lock (_gate)
+            {
+                var quotaCancellationToken = _cts?.Token ?? CancellationToken.None;
+                _quotaMonitorTask = Task.Run(
+                    () => MonitorCodexQuotaAsync(handle, options.ToolTip, quotaCancellationToken),
+                    CancellationToken.None);
+            }
             SetState("running");
             started.TrySetResult(addResult);
 
@@ -321,6 +383,114 @@ public sealed class WindowsTrayService : ITrayService
         {
             DestroyIcon(icon);
         }
+    }
+
+    private async Task MonitorCodexQuotaAsync(
+        IntPtr handle,
+        string baseToolTip,
+        CancellationToken cancellationToken)
+    {
+        var retryDelay = TimeSpan.FromMinutes(1);
+        while (!cancellationToken.IsCancellationRequested)
+        {
+            var delay = TimeSpan.FromMinutes(5);
+            try
+            {
+                var snapshot = await CodexQuotaReader.ReadAsync(cancellationToken);
+                var window = snapshot.DisplayWindow;
+                if (window is not null)
+                {
+                    var updated = UpdateQuotaIcon(
+                        handle,
+                        window.RemainingPercent,
+                        BuildQuotaToolTip(baseToolTip, snapshot));
+                    if (!updated)
+                    {
+                        delay = retryDelay;
+                    }
+                }
+            }
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+            {
+                return;
+            }
+            catch
+            {
+                delay = retryDelay;
+            }
+
+            await Task.Delay(delay, cancellationToken);
+        }
+    }
+
+    private bool UpdateQuotaIcon(IntPtr handle, int remainingPercent, string toolTip)
+    {
+        var icon = CodexQuotaIconRenderer.CreateIcon(remainingPercent);
+        var data = new NOTIFYICONDATA
+        {
+            cbSize = (uint)Marshal.SizeOf<NOTIFYICONDATA>(),
+            hWnd = handle,
+            uID = 1,
+            uFlags = NIF_ICON | NIF_TIP,
+            hIcon = icon,
+            szTip = Trim(toolTip, 127),
+            szInfo = "",
+            szInfoTitle = ""
+        };
+        if (!Shell_NotifyIcon(NIM_MODIFY, ref data))
+        {
+            DestroyIcon(icon);
+            return false;
+        }
+
+        IntPtr previousIcon;
+        bool ownedPreviousIcon;
+        lock (_gate)
+        {
+            previousIcon = _trayIcon;
+            ownedPreviousIcon = _ownsTrayIcon;
+            _trayIcon = icon;
+            _ownsTrayIcon = true;
+        }
+
+        if (ownedPreviousIcon && previousIcon != IntPtr.Zero)
+        {
+            DestroyIcon(previousIcon);
+        }
+        return true;
+    }
+
+    private static string BuildQuotaToolTip(string baseToolTip, CodexQuotaSnapshot snapshot)
+    {
+        var parts = new List<string> { Trim(baseToolTip, 40) };
+        if (snapshot.WeeklyWindow is { } weekly)
+        {
+            parts.Add($"Codex 7d {weekly.RemainingPercent}% left{FormatReset(weekly.ResetsAt)}");
+        }
+        if (snapshot.ShortWindow is { } shortWindow)
+        {
+            parts.Add($"Codex 5h {shortWindow.RemainingPercent}% left{FormatReset(shortWindow.ResetsAt)}");
+        }
+        return string.Join(" | ", parts);
+    }
+
+    private static string FormatReset(DateTimeOffset? resetsAt)
+    {
+        if (resetsAt is null)
+        {
+            return "";
+        }
+
+        var remaining = resetsAt.Value - DateTimeOffset.UtcNow;
+        if (remaining <= TimeSpan.Zero)
+        {
+            return " · resetting";
+        }
+        if (remaining.TotalDays >= 1)
+        {
+            return $" · resets in {(int)remaining.TotalDays}d {remaining.Hours}h";
+        }
+        return $" · resets in {(int)remaining.TotalHours}h {remaining.Minutes}m";
     }
 
     private IntPtr WindowProcedure(IntPtr hWnd, uint message, IntPtr wParam, IntPtr lParam)

@@ -69,6 +69,10 @@ public sealed partial class ShellWorkspaceController
             returnToTools: () => ShowPageAsync(ToolsPage),
             launch: launch);
         var view = new ExternalSdkToolView { DataContext = viewModel };
+        if (isWebSurface)
+        {
+            _chromeViewModel.HeaderContent = viewModel;
+        }
 
         if (isWebSurface)
         {

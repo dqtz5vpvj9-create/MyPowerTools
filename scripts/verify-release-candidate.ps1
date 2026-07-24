@@ -101,7 +101,7 @@ if (-not (Test-Path -LiteralPath $manifestPath -PathType Leaf)) {
 $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
 $payloadRoot = Join-Path $CandidateRoot 'payload'
 
-$expectedTools = @('adb-forwarder', 'doubao-computer-use', 'remote-notifications', 'screenease', 'smartbird-thermostat')
+$expectedTools = @('adb-forwarder', 'doubao-computer-use', 'paste-image', 'remote-notifications', 'screenease', 'smartbird-thermostat')
 $actualTools = @($manifest.tools | ForEach-Object { [string]$_.toolId })
 $toolInventoryOk = $actualTools.Count -eq $expectedTools.Count -and @($expectedTools | Where-Object { $actualTools -notcontains $_ }).Count -eq 0
 Add-Record 'A5.1-candidate-tool-inventory' $toolInventoryOk "tools=$($actualTools -join ',')" $manifestPath
@@ -152,7 +152,7 @@ $surfaceDlls = @(Get-ChildItem -LiteralPath (Join-Path $payloadRoot 'modules') -
 Add-Record 'A5.3-five-loadable-surfaces' ($surfaceDlls.Count -eq 5) "surfaceDlls=$($surfaceDlls.Count)" (($surfaceDlls.FullName) -join ';')
 
 $packages = @(Get-ChildItem -LiteralPath (Join-Path $payloadRoot 'packages') -File -Filter '*.mptpkg')
-Add-Record 'A5.4-five-independent-packages' ($packages.Count -eq 5) "packages=$($packages.Count)" (($packages.FullName) -join ';')
+Add-Record 'A5.4-six-independent-packages' ($packages.Count -eq 6) "packages=$($packages.Count)" (($packages.FullName) -join ';')
 
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 $packageUnitErrors = [Collections.Generic.List[string]]::new()
@@ -214,9 +214,9 @@ try {
     $runnerResult = Invoke-Captured -FilePath (Join-Path $payloadRoot 'Runner\MyPowerTools.Runner.exe') -ArgumentList @(
         '--once', '--modules', (Join-Path $payloadRoot 'modules'), '--data-root', $localDataRoot
     ) -OutputPath $runnerLog
-    $discovered = @('adb-forwarder', 'android-tools.notifications', 'doubao-agent', 'screenease', 'smartbird-thermostat') |
+    $discovered = @('adb-forwarder', 'android-tools.notifications', 'doubao-agent', 'paste-image', 'screenease', 'smartbird-thermostat') |
         Where-Object { $runnerResult.Output -match [regex]::Escape($_) }
-    Add-Record 'A5.7-local-runner-discovery' ($runnerResult.ExitCode -eq 0 -and $discovered.Count -eq 5) "exit=$($runnerResult.ExitCode); discovered=$($discovered -join ',')" $runnerLog
+    Add-Record 'A5.7-local-runner-discovery' ($runnerResult.ExitCode -eq 0 -and $discovered.Count -eq 6) "exit=$($runnerResult.ExitCode); discovered=$($discovered -join ',')" $runnerLog
 }
 finally {
     if (Test-Path -LiteralPath $localDataRoot) { Remove-Item -LiteralPath $localDataRoot -Recurse -Force -ErrorAction SilentlyContinue }

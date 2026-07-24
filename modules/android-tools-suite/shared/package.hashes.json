@@ -107,7 +107,7 @@
     },
     {
       "Path": "package.json",
-      "Sha256": "3d0d21c187395534c057b3473bfbd0ae3547abbe7f6c535f5f40556aff09e5a8"
+      "Sha256": "1ab892dfe5d844a969a493b9e43eac5eb83ea89cbcf69b2b3c1b88d2e8759205"
     },
     {
       "Path": "shared/powertool/commands.yaml",

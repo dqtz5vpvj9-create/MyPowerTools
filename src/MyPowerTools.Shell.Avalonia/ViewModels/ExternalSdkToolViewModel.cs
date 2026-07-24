@@ -57,7 +57,8 @@ public sealed class ExternalSdkToolViewModel : ShellPageViewModel, IDisposable
     public IReadOnlyList<ExternalToolCommandViewModel> Commands { get; }
     public bool HasCommands => Commands.Count > 0;
     public bool IsHostHeaderVisible => !IsDotnet || IsSurfaceFailed;
-    public bool IsHostCommandBarVisible => !IsDotnet && HasCommands;
+    public bool IsInlineHeaderVisible => IsHostHeaderVisible && !IsWeb;
+    public bool IsHostCommandBarVisible => IsGeneric && HasCommands;
     public string? SettingsPath { get; }
     public bool CanOpenSettings => !string.IsNullOrWhiteSpace(SettingsPath) && File.Exists(SettingsPath);
     public ICommand RefreshCommand { get; }

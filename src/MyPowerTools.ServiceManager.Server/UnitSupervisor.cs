@@ -2,6 +2,7 @@ using System.Buffers.Binary;
 using System.Diagnostics;
 using System.Globalization;
 using System.IO.Pipes;
+using System.Net.Sockets;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using MyPowerTools.Abstractions;
@@ -386,14 +387,11 @@ public sealed class UnitSupervisor : IAsyncDisposable
             return (true, "process readiness");
         }
 
-        if (!string.Equals(readiness.Kind, "pipe", StringComparison.OrdinalIgnoreCase))
+        var isPipe = string.Equals(readiness.Kind, "pipe", StringComparison.OrdinalIgnoreCase);
+        var isUnixSocket = string.Equals(readiness.Kind, "unix-socket", StringComparison.OrdinalIgnoreCase);
+        if (!isPipe && !isUnixSocket)
         {
             return (false, $"unsupported readiness kind '{readiness.Kind}'");
-        }
-
-        if (!OperatingSystem.IsWindows())
-        {
-            return (false, "pipe readiness requires Windows named pipes");
         }
 
         if (string.IsNullOrWhiteSpace(readiness.Address))
@@ -410,21 +408,19 @@ public sealed class UnitSupervisor : IAsyncDisposable
         {
             try
             {
-                await using var pipe = new NamedPipeClientStream(
-                    ".",
+                await using var stream = await ConnectReadinessStreamAsync(
+                    readiness.Kind,
                     readiness.Address,
-                    PipeDirection.InOut,
-                    PipeOptions.Asynchronous | PipeOptions.CurrentUserOnly);
-                await pipe.ConnectAsync(deadline.Token);
+                    deadline.Token);
 
                 var payload = JsonSerializer.SerializeToUtf8Bytes(new { command = "ping" });
                 var header = new byte[4];
                 BinaryPrimitives.WriteInt32LittleEndian(header, payload.Length);
-                await pipe.WriteAsync(header, deadline.Token);
-                await pipe.WriteAsync(payload, deadline.Token);
-                await pipe.FlushAsync(deadline.Token);
+                await stream.WriteAsync(header, deadline.Token);
+                await stream.WriteAsync(payload, deadline.Token);
+                await stream.FlushAsync(deadline.Token);
 
-                await ReadExactlyAsync(pipe, header, deadline.Token);
+                await ReadExactlyAsync(stream, header, deadline.Token);
                 var responseLength = BinaryPrimitives.ReadInt32LittleEndian(header);
                 if (responseLength <= 0 || responseLength > 1024 * 1024)
                 {
@@ -432,11 +428,11 @@ public sealed class UnitSupervisor : IAsyncDisposable
                 }
 
                 var responsePayload = new byte[responseLength];
-                await ReadExactlyAsync(pipe, responsePayload, deadline.Token);
+                await ReadExactlyAsync(stream, responsePayload, deadline.Token);
                 using var response = JsonDocument.Parse(responsePayload);
                 if (response.RootElement.TryGetProperty("ok", out var ok) && ok.GetBoolean())
                 {
-                    return (true, $"pipe '{readiness.Address}' ready");
+                    return (true, $"{readiness.Kind} '{readiness.Address}' ready");
                 }
 
                 throw new InvalidDataException("readiness response did not report ok=true");
@@ -460,7 +456,44 @@ public sealed class UnitSupervisor : IAsyncDisposable
         }
 
         cancellationToken.ThrowIfCancellationRequested();
-        return (false, $"pipe '{readiness.Address}' readiness timed out after {timeout.TotalMilliseconds:0} ms: {lastError?.Message ?? "no response"}");
+        return (false, $"{readiness.Kind} '{readiness.Address}' readiness timed out after {timeout.TotalMilliseconds:0} ms: {lastError?.Message ?? "no response"}");
+    }
+
+    private static async Task<Stream> ConnectReadinessStreamAsync(
+        string kind,
+        string address,
+        CancellationToken cancellationToken)
+    {
+        if (string.Equals(kind, "unix-socket", StringComparison.OrdinalIgnoreCase))
+        {
+            var socket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
+            try
+            {
+                await socket.ConnectAsync(new UnixDomainSocketEndPoint(address), cancellationToken);
+                return new NetworkStream(socket, ownsSocket: true);
+            }
+            catch
+            {
+                socket.Dispose();
+                throw;
+            }
+        }
+
+        var pipe = new NamedPipeClientStream(
+            ".",
+            address,
+            PipeDirection.InOut,
+            PipeOptions.Asynchronous);
+        try
+        {
+            await pipe.ConnectAsync(cancellationToken);
+            return pipe;
+        }
+        catch
+        {
+            await pipe.DisposeAsync();
+            throw;
+        }
     }
 
     private static async Task ReadExactlyAsync(Stream stream, Memory<byte> buffer, CancellationToken cancellationToken)

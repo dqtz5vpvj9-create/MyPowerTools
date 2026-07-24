@@ -174,6 +174,12 @@ $toolRegistry = @(
         RuntimeStagePath  = 'tools\remote-notifications\artifacts\package\android-tools-suite'
     },
     @{
+        Id                = 'paste-image'
+        BuildScript       = 'tools\paste-image\build.ps1'
+        SurfaceProject    = 'tools\paste-image\current-integration\src\PasteImage.Surface\PasteImage.Surface.csproj'
+        RuntimeStagePath  = 'tools\paste-image\artifacts\package'
+    },
+    @{
         Id                = 'screenease'
         BuildScript       = 'tools\screenease\build.ps1'
         SurfaceProject    = 'tools\screenease\current-integration\src\ScreenEase.Surface\ScreenEase.Surface.csproj'

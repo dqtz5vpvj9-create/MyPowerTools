@@ -20,6 +20,7 @@ public sealed partial class ShellWorkspaceController
     private void BeginWorkspace(bool rebindCurrentContent = false)
     {
         Interlocked.Exchange(ref _homeLoadDeferred, 0);
+        _chromeViewModel.HeaderContent = null;
         _workspaceIdentity.BeginNavigation();
         _terminalFaultRecovery.Reset();
         lock (_handledFaultGate)

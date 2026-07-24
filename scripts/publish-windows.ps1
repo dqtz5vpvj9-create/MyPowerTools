@@ -1,3 +1,45 @@
+<#
+.SYNOPSIS
+  Publishes the Windows product layout (portable package, optional Inno Setup installer,
+  source bundle) under artifacts/release/.
+
+.DESCRIPTION
+  Orchestrates the full Windows release publish:
+
+    1. Builds the local SDK bundles (build-sdk.ps1) and every first-party tool package
+       (build-tool-packages.ps1) under artifacts/release/module-packages.
+    2. Publishes Runner, Shell (ReadyToRun composite), Cli, ElevatedBroker (Native AOT),
+       ServiceManager and the App launcher (Native AOT) as self-contained win-x64.
+    3. Stages Service Units, modules, schemas, ui, assets, templates and the user-facing
+       maintenance scripts into artifacts/release/win-x64, validates the module packages
+       and writes build-provenance.json.
+    4. Produces MyPowerTools-win-x64.zip (+ SHA256), release metadata/notes and, unless
+       -PortableOnly is set, the Inno Setup installer and a source bundle.
+
+.NOTES
+  The ElevatedBroker and App publishes use Native AOT and need the MSVC linker from the
+  Visual Studio "Desktop development with C++" workload
+  (https://aka.ms/nativeaot-prerequisites). This script auto-configures that toolchain
+  when it is missing: it locates Visual Studio through vswhere.exe, imports the
+  vcvarsall environment and sets IlcUseEnvironmentalTools=true so the ILCompiler link
+  step uses the environment tools directly (its findvcvarsall.bat fallback corrupts the
+  linker command line when vswhere.exe is not on PATH). Running from a Visual Studio
+  developer shell also works. If the C++ workload cannot be found the publish fails fast
+  with a prerequisite error instead of a broken linker command.
+
+.PARAMETER PortableOnly
+  Skip the Inno Setup installer and source bundle; produce only the portable layout + ZIP.
+
+.EXAMPLE
+  pwsh scripts/publish-windows.ps1
+.EXAMPLE
+  pwsh scripts/publish-windows.ps1 -PortableOnly
+#>
+[CmdletBinding()]
+param(
+    [switch]$PortableOnly
+)
+
 $ErrorActionPreference = 'Stop'
 
 $RepoRoot = Split-Path -Parent $PSScriptRoot
@@ -112,7 +154,81 @@ function Assert-DirectoryMatches {
     }
 }
 
+function Ensure-NativeBuildTools {
+    # The ElevatedBroker and App publishes use Native AOT, which links with MSVC's
+    # link.exe. The ILCompiler targets normally resolve the toolchain through
+    # findvcvarsall.bat, but that batch embeds vswhere.exe's "command not found" error
+    # text into the linker command line when vswhere.exe is not on PATH (MSB3073,
+    # exit code 123). Prefer the environment tools instead: make sure link.exe resolves
+    # to the MSVC toolchain, keep vswhere.exe reachable for bare callers, and set
+    # IlcUseEnvironmentalTools so ILCompiler skips findvcvarsall.bat entirely.
+    #
+    # Note: do not trust a bare `Get-Command link.exe` — unrelated tools (for example
+    # GNU coreutils) also ship a link.exe. The MSVC linker must live under
+    # VCToolsInstallDir.
+
+    $installerDirectory = Join-Path ([Environment]::GetFolderPath('ProgramFilesX86')) 'Microsoft Visual Studio\Installer'
+    if ((";$env:PATH;").IndexOf(";$installerDirectory;", [StringComparison]::OrdinalIgnoreCase) -lt 0 -and
+        (Test-Path -LiteralPath (Join-Path $installerDirectory 'vswhere.exe') -PathType Leaf)) {
+        $env:PATH = "$installerDirectory;$env:PATH"
+    }
+
+    if (Test-MsvcLinkerOnPath) {
+        $env:IlcUseEnvironmentalTools = 'true'
+        return
+    }
+
+    $vswhere = Join-Path $installerDirectory 'vswhere.exe'
+    if (-not (Test-Path -LiteralPath $vswhere -PathType Leaf)) {
+        throw 'Native AOT publishing requires the Visual Studio "Desktop development with C++" workload (https://aka.ms/nativeaot-prerequisites). Install it, or run this script from a Visual Studio developer shell.'
+    }
+
+    $vsInstallPath = (& $vswhere -latest -prerelease -products * `
+            -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 `
+            -property installationPath | Select-Object -First 1)
+    if ([string]::IsNullOrWhiteSpace($vsInstallPath) -or
+        -not (Test-Path -LiteralPath $vsInstallPath -PathType Container)) {
+        throw 'No Visual Studio installation with the "Desktop development with C++" workload was found (https://aka.ms/nativeaot-prerequisites).'
+    }
+
+    $vcvarsall = Join-Path $vsInstallPath 'VC\Auxiliary\Build\vcvarsall.bat'
+    if (-not (Test-Path -LiteralPath $vcvarsall -PathType Leaf)) {
+        throw "vcvarsall.bat was not found under $vsInstallPath; repair the C++ workload."
+    }
+
+    $vcArch = if ("$env:PROCESSOR_ARCHITECTURE" -eq 'ARM64') { 'arm64_amd64' } else { 'amd64' }
+    & cmd.exe /c "`"$vcvarsall`" $vcArch >NUL && set" | ForEach-Object {
+        if ($_ -match '^([^=]+)=(.*)$') {
+            [Environment]::SetEnvironmentVariable($matches[1], $matches[2], 'Process')
+        }
+    }
+
+    if (-not (Test-MsvcLinkerOnPath)) {
+        throw "vcvarsall.bat ($vcArch) did not put the MSVC link.exe on PATH; check the C++ workload under $vsInstallPath."
+    }
+
+    $env:IlcUseEnvironmentalTools = 'true'
+    Write-Host "Native build tools: imported VC environment from $vsInstallPath ($vcArch)."
+}
+
+function Test-MsvcLinkerOnPath {
+    # True only when link.exe resolves into the MSVC toolchain (VCToolsInstallDir),
+    # never for an unrelated link.exe (e.g. GNU coreutils) earlier on PATH.
+    if ([string]::IsNullOrWhiteSpace($env:VCToolsInstallDir)) {
+        return $false
+    }
+
+    $linkCommand = Get-Command 'link.exe' -CommandType Application -ErrorAction SilentlyContinue
+    if (-not $linkCommand) {
+        return $false
+    }
+
+    $vcToolsRoot = [System.IO.Path]::GetFullPath($env:VCToolsInstallDir).TrimEnd('\') + '\'
+    return $linkCommand.Source.StartsWith($vcToolsRoot, [StringComparison]::OrdinalIgnoreCase)
+}
+
 Set-Location -LiteralPath $RepoRoot
+Ensure-NativeBuildTools
 New-Item -ItemType Directory -Path $Artifacts -Force | Out-Null
 
 $ArtifactsFull = [System.IO.Path]::GetFullPath($Artifacts)
@@ -128,20 +244,47 @@ if (-not $ModuleStagingRootFull.StartsWith($ArtifactsFull, [System.StringCompari
 }
 Invoke-Native -FilePath 'pwsh.exe' -ArgumentList @(
     '-NoLogo', '-NoProfile', '-NonInteractive',
+    '-File', (Join-Path $PSScriptRoot 'build-sdk.ps1'))
+Invoke-Native -FilePath 'pwsh.exe' -ArgumentList @(
+    '-NoLogo', '-NoProfile', '-NonInteractive',
     '-File', (Join-Path $PSScriptRoot 'build-tool-packages.ps1'),
     '-RepoRoot', $RepoRoot,
-    '-OutputRoot', $ModuleStagingRootFull)
+    '-OutputRoot', $ModuleStagingRootFull,
+    '-SkipSdk')
 
 Invoke-Native -FilePath 'dotnet' -ArgumentList @(
     'run', '--project', 'src\MyPowerTools.Cli\MyPowerTools.Cli.csproj', '--',
     'package', 'sign-local', $ModuleStagingRootFull)
 Invoke-Native -FilePath 'dotnet' -ArgumentList @('publish', 'src\MyPowerTools.Runner\MyPowerTools.Runner.csproj', '-c', 'Release', '-r', 'win-x64', '--self-contained', 'true', '-o', (Join-Path $PublishRoot 'Runner'))
-Invoke-Native -FilePath 'dotnet' -ArgumentList @('publish', 'src\MyPowerTools.Shell.Avalonia\MyPowerTools.Shell.Avalonia.csproj', '-c', 'Release', '-r', 'win-x64', '--self-contained', 'true', '-o', (Join-Path $PublishRoot 'Shell'))
+Invoke-Native -FilePath 'dotnet' -ArgumentList @('publish', 'src\MyPowerTools.Shell.Avalonia\MyPowerTools.Shell.Avalonia.csproj', '-c', 'Release', '-r', 'win-x64', '--self-contained', 'true', '-p:PublishReadyToRun=true', '-p:PublishReadyToRunComposite=true', '-o', (Join-Path $PublishRoot 'Shell'))
 Invoke-Native -FilePath 'dotnet' -ArgumentList @('publish', 'src\MyPowerTools.Cli\MyPowerTools.Cli.csproj', '-c', 'Release', '-r', 'win-x64', '--self-contained', 'true', '-o', (Join-Path $PublishRoot 'Cli'))
 Invoke-Native -FilePath 'dotnet' -ArgumentList @('publish', 'src\MyPowerTools.ElevatedBroker\MyPowerTools.ElevatedBroker.csproj', '-c', 'Release', '-r', 'win-x64', '--self-contained', 'true', '-p:PublishAot=true', '-p:DebugType=None', '-p:DebugSymbols=false', '-o', (Join-Path $PublishRoot 'Broker'))
 Invoke-Native -FilePath 'pwsh.exe' -ArgumentList @('-NoLogo', '-NoProfile', '-NonInteractive', '-File', (Join-Path $PSScriptRoot 'validate-elevated-broker.ps1'), '-BrokerDirectory', (Join-Path $PublishRoot 'Broker'))
+Invoke-Native -FilePath 'dotnet' -ArgumentList @('publish', 'src\MyPowerTools.ServiceManager\MyPowerTools.ServiceManager.csproj', '-c', 'Release', '-r', 'win-x64', '--self-contained', 'true', '-p:DebugType=None', '-p:DebugSymbols=false', '-o', (Join-Path $PublishRoot 'ServiceManager'))
+
+$toolBuildManifestPath = Join-Path $RepoRoot 'artifacts\tool-package-build\source-manifest.json'
+if (-not (Test-Path -LiteralPath $toolBuildManifestPath -PathType Leaf)) {
+    throw "Fresh tool build manifest is missing: $toolBuildManifestPath"
+}
+$toolBuildManifest = Get-Content -LiteralPath $toolBuildManifestPath -Raw | ConvertFrom-Json
+$publishedServiceUnitsRoot = Join-Path $PublishRoot 'service-units'
+New-Item -ItemType Directory -Path $publishedServiceUnitsRoot -Force | Out-Null
+foreach ($tool in @($toolBuildManifest.tools)) {
+    $toolOutput = Join-Path $RepoRoot ([string]$tool.output -replace '/', '\')
+    $toolServiceUnits = Join-Path $toolOutput 'service-units'
+    if (-not (Test-Path -LiteralPath $toolServiceUnits -PathType Container)) {
+        continue
+    }
+    foreach ($unitDirectory in Get-ChildItem -LiteralPath $toolServiceUnits -Directory) {
+        $destination = Join-Path $publishedServiceUnitsRoot $unitDirectory.Name
+        if (Test-Path -LiteralPath $destination) {
+            throw "Duplicate Service Unit id in release payload: $($unitDirectory.Name)"
+        }
+        Copy-Item -LiteralPath $unitDirectory.FullName -Destination $destination -Recurse -Force
+    }
+}
 $LauncherPublishRoot = Join-Path $PublishRoot 'App'
-Invoke-Native -FilePath 'dotnet' -ArgumentList @('publish', 'src\MyPowerTools.App\MyPowerTools.App.csproj', '-c', 'Release', '-r', 'win-x64', '--self-contained', 'true', '-p:PublishSingleFile=true', '-p:EnableCompressionInSingleFile=true', '-p:DebugType=None', '-p:DebugSymbols=false', '-o', $LauncherPublishRoot)
+Invoke-Native -FilePath 'dotnet' -ArgumentList @('publish', 'src\MyPowerTools.App\MyPowerTools.App.csproj', '-c', 'Release', '-r', 'win-x64', '--self-contained', 'true', '-p:PublishAot=true', '-p:OptimizationPreference=Speed', '-p:DebugType=None', '-p:DebugSymbols=false', '-o', $LauncherPublishRoot)
 Copy-Item -LiteralPath (Join-Path $LauncherPublishRoot 'MyPowerTools.exe') -Destination (Join-Path $PublishRoot 'MyPowerTools.exe') -Force
 Remove-Item -LiteralPath $LauncherPublishRoot -Recurse -Force
 
@@ -154,6 +297,11 @@ Copy-DirectoryWithoutBuildArtifacts -Source (Join-Path $RepoRoot 'assets') -Dest
 Copy-DirectoryWithoutBuildArtifacts -Source (Join-Path $RepoRoot 'templates') -Destination (Join-Path $PublishRoot 'templates')
 Copy-Item -LiteralPath (Join-Path $RepoRoot 'scripts\install-windows.ps1') -Destination (Join-Path $PublishRoot 'install-windows.ps1') -Force
 Copy-Item -LiteralPath (Join-Path $RepoRoot 'scripts\uninstall-windows.ps1') -Destination (Join-Path $PublishRoot 'uninstall-windows.ps1') -Force
+Copy-Item -LiteralPath (Join-Path $RepoRoot 'scripts\configure-user-services.ps1') -Destination (Join-Path $PublishRoot 'configure-user-services.ps1') -Force
+Copy-Item -LiteralPath (Join-Path $RepoRoot 'scripts\start-user-runtime.ps1') -Destination (Join-Path $PublishRoot 'start-user-runtime.ps1') -Force
+Copy-Item -LiteralPath (Join-Path $RepoRoot 'scripts\new-ota-file-manifest.ps1') -Destination (Join-Path $PublishRoot 'new-ota-file-manifest.ps1') -Force
+Copy-Item -LiteralPath (Join-Path $RepoRoot 'scripts\new-ota-delta-package.ps1') -Destination (Join-Path $PublishRoot 'new-ota-delta-package.ps1') -Force
+Copy-Item -LiteralPath (Join-Path $RepoRoot 'scripts\invoke-ota-update.ps1') -Destination (Join-Path $PublishRoot 'invoke-ota-update.ps1') -Force
 Copy-Item -LiteralPath (Join-Path $RepoRoot 'scripts\Start-MyPowerTools.cmd') -Destination (Join-Path $PublishRoot 'Start-MyPowerTools.cmd') -Force
 Copy-Item -LiteralPath (Join-Path $RepoRoot 'scripts\Manage-DoubaoRuntime.ps1') -Destination (Join-Path $PublishRoot 'Manage-DoubaoRuntime.ps1') -Force
 Copy-Item -LiteralPath (Join-Path $RepoRoot 'START_HERE.md') -Destination (Join-Path $PublishRoot 'START_HERE.md') -Force
@@ -171,6 +319,7 @@ $packageByTool = @{
     'remote-notifications' = 'android-tools-suite'
     'remote-commands' = 'android-tools-suite'
     'process-monitor' = 'android-tools-suite'
+    'paste-image' = 'paste-image'
     'screenease' = 'screenease'
     'smartbird-thermostat' = 'smartbird-thermostat'
     'doubao-computer-use' = 'doubao-agent'
@@ -195,12 +344,23 @@ $toolProvenance = foreach ($toolId in $packageByTool.Keys | Sort-Object) {
     }
 }
 $provenance = [ordered]@{
-    schemaVersion = 1
+    schemaVersion = 2
     generatedAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
     buildSource = 'tools/* submodules'
     shellToolSource = 'linked from tools/*/current-integration'
     smartBirdRuntimeSource = 'tools/smartbird-thermostat/original-source'
     doubaoRuntimeSource = 'tools/doubao-computer-use/original-source/computer_use'
+    windowsShell = [ordered]@{
+        runtimeIdentifier = 'win-x64'
+        selfContained = $true
+        publishReadyToRun = $true
+        publishReadyToRunComposite = $true
+        files = [ordered]@{
+            executableSha256 = (Get-FileHash -LiteralPath (Join-Path $PublishRoot 'Shell\MyPowerTools.Shell.Avalonia.exe') -Algorithm SHA256).Hash.ToLowerInvariant()
+            assemblySha256 = (Get-FileHash -LiteralPath (Join-Path $PublishRoot 'Shell\MyPowerTools.Shell.Avalonia.dll') -Algorithm SHA256).Hash.ToLowerInvariant()
+            runtimeConfigSha256 = (Get-FileHash -LiteralPath (Join-Path $PublishRoot 'Shell\MyPowerTools.Shell.Avalonia.runtimeconfig.json') -Algorithm SHA256).Hash.ToLowerInvariant()
+        }
+    }
     tools = @($toolProvenance)
 }
 $provenance | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $PublishRoot 'build-provenance.json') -Encoding UTF8
@@ -219,6 +379,12 @@ Compress-Archive -Path (Join-Path $PublishRoot '*') -DestinationPath $ZipPath
 Write-Sha256File -Path $ZipPath
 Invoke-Native -FilePath 'pwsh.exe' -ArgumentList @('-NoLogo', '-NoProfile', '-NonInteractive', '-File', (Join-Path $PSScriptRoot 'release-metadata.ps1'), '-RepoRoot', $RepoRoot, '-ArtifactsRoot', $Artifacts)
 Invoke-Native -FilePath 'pwsh.exe' -ArgumentList @('-NoLogo', '-NoProfile', '-NonInteractive', '-File', (Join-Path $PSScriptRoot 'release-notes.ps1'), '-RepoRoot', $RepoRoot, '-ArtifactsRoot', $Artifacts)
+
+if ($PortableOnly) {
+    Write-Host "Portable package ready at $PublishRoot"
+    Write-Host $ZipPath
+    return
+}
 
 $innoCompiler = Find-InnoCompiler
 if ($innoCompiler) {

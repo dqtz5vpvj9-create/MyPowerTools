@@ -1,0 +1,17 @@
+{
+  "Format": "mpt-signature-v1",
+  "PackageId": "paste-image",
+  "Version": "0.1.0",
+  "HashManifest": "shared/package.hashes.json",
+  "HashManifestSha256": "ba4fd4d7342625cfa73e68452265b9353239a21a705bb912ffc295e1451119bc",
+  "SignatureState": "unsigned-local-trust",
+  "Algorithm": "sha256-manifest-local",
+  "KeyId": "local-development",
+  "Signer": "lixinrui",
+  "CreatedAt": "2026-07-24T08:18:37.2247459+00:00",
+  "FutureAlgorithms": [
+    "ed25519-detached",
+    "x509-rsa-sha256",
+    "sigstore-bundle"
+  ]
+}

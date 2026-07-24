@@ -1,4 +1,5 @@
 using System.Globalization;
+using System.Collections.Concurrent;
 using System.Security.Cryptography;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -27,9 +28,9 @@ public static class ShellRealScreenshotWriter
     private const string DefaultInteractionScenario = "default";
     private const string RemoteNotificationsScreenId = "remote-notifications-inbox";
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
-    private static readonly object RenderLock = new();
+    private static readonly Lazy<RenderThreadDispatcher> RenderThread = new(static () => new());
     private static bool _applicationInitialized;
-    private static IBrush _headlessBackground = MptTheme.AppBackground;
+    private static IBrush _headlessBackground = null!;
 
     public static string WriteSnapshotSet(string outputDirectory, string theme, string size, string density, string surface = "*")
     {
@@ -143,91 +144,155 @@ public static class ShellRealScreenshotWriter
         ScreenshotManifestStats stats,
         string interactionScenario = DefaultInteractionScenario)
     {
-        lock (RenderLock)
+        return RenderThread.Value.Invoke(() => WriteSnapshotSetCoreOnRenderThread(
+            outputDirectory,
+            theme,
+            size,
+            density,
+            screens,
+            dataSource,
+            surface,
+            stats,
+            interactionScenario));
+    }
+
+    private static string WriteSnapshotSetCoreOnRenderThread(
+        string outputDirectory,
+        string theme,
+        string size,
+        string density,
+        IReadOnlyList<RealScreen> screens,
+        string dataSource,
+        string surface,
+        ScreenshotManifestStats stats,
+        string interactionScenario)
+    {
+        Directory.CreateDirectory(outputDirectory);
+        var (width, height) = ParseSize(size);
+        EnsureApplication(theme);
+
+        var requestedSurface = string.IsNullOrWhiteSpace(surface) ? "*" : surface;
+        var normalizedScenario = NormalizeInteractionScenario(interactionScenario);
+        var filteredScreens = screens
+            .Where(screen => MatchesRealScreenFilter(screen, requestedSurface))
+            .Where(screen => normalizedScenario == DefaultInteractionScenario ||
+                string.Equals(screen.Id, RemoteNotificationsScreenId, StringComparison.OrdinalIgnoreCase))
+            .ToArray();
+        if (filteredScreens.Length == 0)
         {
-            Directory.CreateDirectory(outputDirectory);
-            var (width, height) = ParseSize(size);
-            EnsureApplication(theme);
+            throw new InvalidOperationException(
+                normalizedScenario == DefaultInteractionScenario
+                    ? $"No real Shell screenshot screen matches surface '{requestedSurface}'."
+                    : $"Interaction scenario '{normalizedScenario}' currently supports only the Remote Notifications product page.");
+        }
 
-            var requestedSurface = string.IsNullOrWhiteSpace(surface) ? "*" : surface;
-            var normalizedScenario = NormalizeInteractionScenario(interactionScenario);
-            var filteredScreens = screens
-                .Where(screen => MatchesRealScreenFilter(screen, requestedSurface))
-                .Where(screen => normalizedScenario == DefaultInteractionScenario ||
-                    string.Equals(screen.Id, RemoteNotificationsScreenId, StringComparison.OrdinalIgnoreCase))
-                .ToArray();
-            if (filteredScreens.Length == 0)
+        var mode = ModeForDataSource(dataSource);
+        var entries = new JsonArray();
+        foreach (var screen in filteredScreens)
+        {
+            var scenarioSuffix = normalizedScenario == DefaultInteractionScenario
+                ? ""
+                : $".{Sanitize(normalizedScenario)}";
+            var fileName = $"real-{screen.Id}{scenarioSuffix}.{Sanitize(theme)}.{Sanitize(density)}.{Sanitize(size)}.png";
+            var path = Path.Combine(outputDirectory, fileName);
+            ApplyTheme(theme);
+            var rendered = Render(screen.CreateView, path, width, height, normalizedScenario);
+            var sha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path))).ToLowerInvariant();
+            var interactionSteps = new JsonArray();
+            foreach (var step in rendered.InteractionSteps)
             {
-                throw new InvalidOperationException(
-                    normalizedScenario == DefaultInteractionScenario
-                        ? $"No real Shell screenshot screen matches surface '{requestedSurface}'."
-                        : $"Interaction scenario '{normalizedScenario}' currently supports only the Remote Notifications product page.");
+                interactionSteps.Add(step);
             }
 
-            var mode = ModeForDataSource(dataSource);
-            var entries = new JsonArray();
-            foreach (var screen in filteredScreens)
+            entries.Add(new JsonObject
             {
-                var scenarioSuffix = normalizedScenario == DefaultInteractionScenario
-                    ? ""
-                    : $".{Sanitize(normalizedScenario)}";
-                var fileName = $"real-{screen.Id}{scenarioSuffix}.{Sanitize(theme)}.{Sanitize(density)}.{Sanitize(size)}.png";
-                var path = Path.Combine(outputDirectory, fileName);
-                ApplyTheme(theme);
-                var rendered = Render(screen.CreateView, path, width, height, normalizedScenario);
-                var sha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path))).ToLowerInvariant();
-                var interactionSteps = new JsonArray();
-                foreach (var step in rendered.InteractionSteps)
-                {
-                    interactionSteps.Add(step);
-                }
-
-                entries.Add(new JsonObject
-                {
-                    ["screenId"] = screen.Id,
-                    ["page"] = screen.Page,
-                    ["surfaceId"] = screen.SurfaceId,
-                    ["title"] = screen.Title,
-                    ["fileName"] = fileName,
-                    ["imagePath"] = Path.GetFullPath(path),
-                    ["sha256"] = sha256,
-                    ["width"] = rendered.Width,
-                    ["height"] = rendered.Height,
-                    ["mode"] = mode,
-                    ["theme"] = theme,
-                    ["density"] = density,
-                    ["size"] = size,
-                    ["renderer"] = "Avalonia.Headless",
-                    ["scenario"] = normalizedScenario,
-                    ["interactionSteps"] = interactionSteps,
-                    ["dataSource"] = dataSource,
-                    ["runnerConnected"] = stats.RunnerConnected,
-                    ["moduleCount"] = stats.ModuleCount,
-                    ["commandCount"] = stats.CommandCount
-                });
-            }
-
-            var manifestPath = Path.Combine(outputDirectory, "shell-real-screenshot-manifest.json");
-            var manifest = new JsonObject
-            {
-                ["schemaVersion"] = "1.0",
-                ["artifactKind"] = "real-avalonia-screenshot",
-                ["surface"] = requestedSurface,
+                ["screenId"] = screen.Id,
+                ["page"] = screen.Page,
+                ["surfaceId"] = screen.SurfaceId,
+                ["title"] = screen.Title,
+                ["fileName"] = fileName,
+                ["imagePath"] = Path.GetFullPath(path),
+                ["sha256"] = sha256,
+                ["width"] = rendered.Width,
+                ["height"] = rendered.Height,
                 ["mode"] = mode,
                 ["theme"] = theme,
                 ["density"] = density,
                 ["size"] = size,
+                ["renderer"] = "Avalonia.Headless",
                 ["scenario"] = normalizedScenario,
+                ["interactionSteps"] = interactionSteps,
                 ["dataSource"] = dataSource,
-                ["usesHostControlData"] = dataSource.Contains("hostcontrol", StringComparison.OrdinalIgnoreCase),
                 ["runnerConnected"] = stats.RunnerConnected,
                 ["moduleCount"] = stats.ModuleCount,
-                ["commandCount"] = stats.CommandCount,
-                ["screenshotCount"] = entries.Count,
-                ["screenshots"] = entries
+                ["commandCount"] = stats.CommandCount
+            });
+        }
+
+        var manifestPath = Path.Combine(outputDirectory, "shell-real-screenshot-manifest.json");
+        var manifest = new JsonObject
+        {
+            ["schemaVersion"] = "1.0",
+            ["artifactKind"] = "real-avalonia-screenshot",
+            ["surface"] = requestedSurface,
+            ["mode"] = mode,
+            ["theme"] = theme,
+            ["density"] = density,
+            ["size"] = size,
+            ["scenario"] = normalizedScenario,
+            ["dataSource"] = dataSource,
+            ["usesHostControlData"] = dataSource.Contains("hostcontrol", StringComparison.OrdinalIgnoreCase),
+            ["runnerConnected"] = stats.RunnerConnected,
+            ["moduleCount"] = stats.ModuleCount,
+            ["commandCount"] = stats.CommandCount,
+            ["screenshotCount"] = entries.Count,
+            ["screenshots"] = entries
+        };
+        File.WriteAllText(manifestPath, manifest.ToJsonString(JsonOptions));
+        return manifestPath;
+    }
+
+    private sealed class RenderThreadDispatcher
+    {
+        private readonly BlockingCollection<Action> _work = new();
+
+        public RenderThreadDispatcher()
+        {
+            var thread = new Thread(Run)
+            {
+                IsBackground = true,
+                Name = "MyPowerTools.HeadlessRenderer"
             };
-            File.WriteAllText(manifestPath, manifest.ToJsonString(JsonOptions));
-            return manifestPath;
+            if (OperatingSystem.IsWindows())
+            {
+                thread.SetApartmentState(ApartmentState.STA);
+            }
+            thread.Start();
+        }
+
+        public T Invoke<T>(Func<T> action)
+        {
+            var completion = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
+            _work.Add(() =>
+            {
+                try
+                {
+                    completion.TrySetResult(action());
+                }
+                catch (Exception exception)
+                {
+                    completion.TrySetException(exception);
+                }
+            });
+            return completion.Task.GetAwaiter().GetResult();
+        }
+
+        private void Run()
+        {
+            foreach (var action in _work.GetConsumingEnumerable())
+            {
+                action();
+            }
         }
     }
 

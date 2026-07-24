@@ -17,11 +17,9 @@ public sealed class AdbForwarderProductTests
             _ => { });
 
         Assert.False(editor.TryBuild(out _));
-        Assert.Contains("监听端口", editor.ValidationMessage);
-        Assert.Contains("目标端口", editor.ValidationMessage);
+        Assert.Contains("共享端口", editor.ValidationMessage);
 
-        editor.ListenPort = "15555";
-        editor.ConnectPort = "30555";
+        editor.SharedPort = "15555";
 
         Assert.True(editor.TryBuild(out var mapping));
         Assert.Equal(15555, mapping.ListenPort);
@@ -65,39 +63,19 @@ public sealed class AdbForwarderProductTests
     [Fact]
     public void Shell_wires_adb_forwarder_to_a_dedicated_product_view()
     {
-        var controller = File.ReadAllText(Path.Combine(
+        var surfaceFactory = File.ReadAllText(Path.Combine(
             Root,
-            "src",
-            "MyPowerTools.Shell.Avalonia",
-            "Services",
-            "ShellWorkspaceController.Tools.cs"));
-        var workspaceController = File.ReadAllText(Path.Combine(
-            Root,
-            "src",
-            "MyPowerTools.Shell.Avalonia",
-            "Services",
-            "ShellWorkspaceController.cs"));
-        var commandController = File.ReadAllText(Path.Combine(
-            Root,
-            "src",
-            "MyPowerTools.Shell.Avalonia",
-            "Services",
-            "ShellWorkspaceController.Commands.cs"));
+            "tools", "adb-forwarder", "current-integration", "src",
+            "AdbForwarder.Surface", "AdbForwarderSurfaceFactory.cs"));
         var view = File.ReadAllText(Path.Combine(
             Root,
-            "src",
-            "MyPowerTools.Shell.Avalonia",
-            "Views",
+            "tools", "adb-forwarder", "current-integration", "src",
+            "AdbForwarder.Surface", "Views",
             "AdbForwarderView.axaml"));
 
-        Assert.Contains("AdbForwarderToolId", controller);
-        Assert.Contains("LoadAdbForwarderToolAsync", controller);
-        Assert.Contains("new AdbForwarderView", controller);
-        Assert.Contains("ShowToolPageAsync(AdbForwarderToolId, \"forward\")", workspaceController);
-        Assert.DoesNotContain("ShowToolPageAsync(AdbForwarderToolId, \"rules\")", workspaceController);
-        Assert.Contains("IsAdbPortProxyBrokerCommand(commandId)", commandController);
-        Assert.Contains("OpenAdbPortProxyBrokerWorkspaceAsync", commandController);
-        Assert.Contains("ShowToolPageAsync(AdbForwarderToolId, \"rules\")", commandController);
+        Assert.Contains("IMptAvaloniaSurfaceFactory", surfaceFactory);
+        Assert.Contains("new AdbForwarderView", surfaceFactory);
+        Assert.Contains("AdbForwarderServiceClient", surfaceFactory);
         Assert.Contains("已管理的映射", view);
         Assert.Contains("更改预览", view);
         Assert.Contains("一次性审批", view);
@@ -107,54 +85,49 @@ public sealed class AdbForwarderProductTests
         Assert.DoesNotContain("Content=\"All tools\"", view, StringComparison.Ordinal);
         Assert.DoesNotContain("NetworkBroker", view, StringComparison.Ordinal);
         Assert.DoesNotContain("Interface in development", view, StringComparison.Ordinal);
+        Assert.DoesNotContain("Text=\"{Binding ConnectPort", view, StringComparison.Ordinal);
+        Assert.DoesNotContain("Text=\"{Binding ConnectAddress", view, StringComparison.Ordinal);
 
         var screenshotWriter = File.ReadAllText(Path.Combine(
             Root,
             "src",
             "Mpt.Cli.VisualTesting",
             "ShellRealScreenshotWriter.cs"));
-        Assert.Contains("WriteAdbForwarderSnapshotFromRunnerAsync", screenshotWriter);
-        Assert.Contains("adb-forwarder-live", screenshotWriter);
-        Assert.Contains("adb-forwarder.forward", screenshotWriter);
-        Assert.Contains("return Task.Run", screenshotWriter);
+        Assert.Contains("WriteSnapshotSetFromHostControlAsync", screenshotWriter);
+        Assert.Contains("ShellHostControlSnapshotData.LoadAsync", screenshotWriter);
     }
 
     [Fact]
     public void Manifest_and_shell_route_describe_the_execution_path_that_is_shipped()
     {
-        var manifest = JsonNode.Parse(File.ReadAllText(Path.Combine(Root, "modules", "adb-forwarder", "module.json")))!.AsObject();
-        var tool = JsonNode.Parse(File.ReadAllText(Path.Combine(Root, "modules", "adb-forwarder", "ui", "tool.json")))!.AsObject();
+        var integrationRoot = Path.Combine(Root, "tools", "adb-forwarder", "current-integration");
+        var manifest = JsonNode.Parse(File.ReadAllText(Path.Combine(integrationRoot, "modules", "adb-forwarder", "module.json")))!.AsObject();
+        var tool = JsonNode.Parse(File.ReadAllText(Path.Combine(integrationRoot, "modules", "adb-forwarder", "ui", "tool.json")))!.AsObject();
         var policy = manifest["runtimePolicy"]!.AsObject();
         var operationRules = policy["operationRules"]!.AsObject();
         var entrypoints = manifest["entrypoints"]!.AsArray();
         var toolService = File.ReadAllText(Path.Combine(
-            Root,
-            "src",
-            "MyPowerTools.Shell.Avalonia",
-            "Services",
+            integrationRoot,
+            "src", "AdbForwarder.Surface", "Services",
             "AdbForwarderToolService.cs"));
         var moduleSource = File.ReadAllText(Path.Combine(
-            Root,
-            "src",
-            "AdbForwarder.MyPowerTools",
-            "AdbForwarderModule.cs"));
+            integrationRoot,
+            "src", "AdbForwarder.MyPowerTools", "AdbForwarderServiceProxyModule.cs"));
         var elevationSource = File.ReadAllText(Path.Combine(
-            Root,
-            "src",
-            "MyPowerTools.Shell.Avalonia",
-            "Services",
+            integrationRoot,
+            "src", "AdbForwarder.Surface", "Services",
             "AdbForwarderElevationService.cs"));
 
         Assert.Equal("forward", tool["primaryRouteId"]!.GetValue<string>());
         Assert.Equal("inproc", policy["preferred"]!.GetValue<string>());
         Assert.Null(policy["sidecarRules"]);
-        Assert.Equal("inproc-or-sidecar", operationRules["externalProcess"]!.GetValue<string>());
+        Assert.Equal("sidecar-required", operationRules["externalProcess"]!.GetValue<string>());
         Assert.Single(entrypoints);
         Assert.Equal("inproc-dotnet", entrypoints[0]!["kind"]!.GetValue<string>());
         Assert.Contains("GetSettingsAsync(ModuleId", toolService);
         Assert.Contains("new AdbForwardingWorkflowService(adbPath: _workflowAdbPath)", toolService);
-        Assert.Contains("arguments.Contains(\"devices\"", moduleSource);
-        Assert.DoesNotContain("string.Equals(fileName, \"adb\"", moduleSource);
+        Assert.Contains("adb-forwarder.service", moduleSource);
+        Assert.Contains("NamedPipeClientStream", moduleSource);
         Assert.Contains("MyPowerTools.ElevatedBroker.exe", elevationSource);
         Assert.Contains("WindowsProtectedExecutable.IsTrusted", elevationSource);
         Assert.Contains("FileName = launch.ExecutablePath", elevationSource);

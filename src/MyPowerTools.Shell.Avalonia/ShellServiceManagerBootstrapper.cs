@@ -156,7 +156,7 @@ public static class ShellServiceManagerBootstrapper
         return dotnetStartInfo;
     }
 
-    private static ProcessStartInfo CreateStartInfo(string exePath, string workingDirectory)
+    internal static ProcessStartInfo CreateStartInfo(string exePath, string workingDirectory)
     {
         var startInfo = new ProcessStartInfo
         {
@@ -168,6 +168,12 @@ public static class ShellServiceManagerBootstrapper
         startInfo.Environment[ServiceManagerAdminClient.DataRootEnvironmentVariable] = ResolveDataRoot();
         startInfo.ArgumentList.Add("--data-root");
         startInfo.ArgumentList.Add(ResolveDataRoot());
+        var deployRoot = Path.Combine(workingDirectory, "ServiceUnits");
+        if (Directory.Exists(Path.Combine(deployRoot, "units")))
+        {
+            startInfo.ArgumentList.Add("--deploy-root");
+            startInfo.ArgumentList.Add(deployRoot);
+        }
         return startInfo;
     }
 

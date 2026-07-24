@@ -13,6 +13,7 @@
     <ProjectReference Include="..\MyPowerTools.Shell.Avalonia\MyPowerTools.Shell.Avalonia.csproj" />
     <ProjectReference Include="..\MyPowerTools.HostControl.Client\MyPowerTools.HostControl.Client.csproj" />
     <ProjectReference Include="..\MyPowerTools.HostControl.Server\MyPowerTools.HostControl.Server.csproj" />
+    <ProjectReference Include="..\MyPowerTools.Ipc.Shared\MyPowerTools.Ipc.Shared.csproj" />
     <ProjectReference Include="..\MyPowerTools.UI.Testing\MyPowerTools.UI.Testing.csproj" />
     <ProjectReference Include="..\MyPowerTools.Packaging\MyPowerTools.Packaging.csproj" />
     <ProjectReference Include="..\MyPowerTools.Runtime\MyPowerTools.Runtime.csproj" />

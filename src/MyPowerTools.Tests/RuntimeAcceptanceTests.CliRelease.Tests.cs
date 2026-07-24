@@ -136,7 +136,10 @@ public sealed partial class RuntimeAcceptanceTests
 
         Assert.Equal(0, result.ExitCode);
         Assert.Contains("runner: 0.2.0", result.Output);
-        Assert.Contains("modules: 7 enabled=7 disabled=0", result.Output);
+        var moduleCount = new PackageReader()
+            .DiscoverPackages(Path.Combine(Root, "modules"))
+            .Sum(package => package.Modules.Count);
+        Assert.Contains($"modules: {moduleCount} enabled={moduleCount} disabled=0", result.Output);
         Assert.Contains("transport: inproc-dotnet", result.Output);
         Assert.Contains("module: screenease", result.Output);
         Assert.Contains("supervisor=", result.Output);
@@ -221,6 +224,8 @@ public sealed partial class RuntimeAcceptanceTests
         var startScript = File.ReadAllText(Path.Combine(Root, "scripts", "Start-MyPowerTools.cmd"));
         var startHere = File.ReadAllText(Path.Combine(Root, "START_HERE.md"));
         var metadataScript = File.ReadAllText(Path.Combine(Root, "scripts", "release-metadata.ps1"));
+        var launcherSource = File.ReadAllText(Path.Combine(Root, "src", "MyPowerTools.App", "Program.cs"));
+        var launcherProject = File.ReadAllText(Path.Combine(Root, "src", "MyPowerTools.App", "MyPowerTools.App.csproj"));
 
         Assert.Contains("'MyPowerTools.lnk'", installScript);
         Assert.Contains("$appExe = Join-Path $InstallDirFull 'MyPowerTools.exe'", installScript);
@@ -231,15 +236,47 @@ public sealed partial class RuntimeAcceptanceTests
         Assert.Contains("'MyPowerTools.exe'", installScript);
         Assert.Contains("'START_HERE.md'", installScript);
         Assert.Contains("'Start-MyPowerTools.cmd'", installScript);
+        Assert.Contains("'start-user-runtime.ps1'", installScript);
+        Assert.Contains("'new-ota-file-manifest.ps1'", installScript);
+        Assert.Contains("'new-ota-delta-package.ps1'", installScript);
+        Assert.Contains("'invoke-ota-update.ps1'", installScript);
         Assert.Contains("'assets\\MyPowerTools.ico'", installScript);
+        Assert.Contains("'build-provenance.json'", installScript);
+        Assert.Contains("Portable package Shell integrity check failed", installScript);
+        Assert.Contains("$provenance.windowsShell", installScript);
+        Assert.Contains("$CreateDesktopShortcut = -not $NoDesktopShortcut.IsPresent", installScript);
+        Assert.Contains("$EnableAutostartEffective = -not $NoAutostart.IsPresent", installScript);
+        Assert.Contains("$StartRunnerEffective = -not $NoStartRunner.IsPresent", installScript);
+        Assert.Contains("$OpenAppEffective = -not $NoOpenApp.IsPresent", installScript);
+        Assert.Contains("$appStartInfo.ArgumentList.Add('--data-root')", installScript);
         Assert.Contains("foreach ($process in Get-Process", installScript);
         Assert.Contains("[System.IO.Directory]::Move($InstallDirFull, $backupDir)", installScript);
         Assert.Contains("Wait-Process -Id $process.Id", installScript);
+        Assert.Contains("Invoke-SourcePortableBuild", installScript);
+        Assert.Contains("$PSBoundParameters.ContainsKey('PackageRoot')", installScript);
+        Assert.Contains("'artifacts\\release\\win-x64'", installScript);
+        Assert.Contains("'-PortableOnly'", installScript);
 
         Assert.Contains("src\\MyPowerTools.App\\MyPowerTools.App.csproj", publishScript);
+        Assert.Contains("[switch]$PortableOnly", publishScript);
+        Assert.Contains("if ($PortableOnly)", publishScript);
+        Assert.Contains("(Join-Path $PSScriptRoot 'build-sdk.ps1')", publishScript);
+        Assert.Contains("-p:PublishAot=true", publishScript);
+        Assert.Contains("-p:PublishReadyToRun=true", publishScript);
+        Assert.Contains("-p:PublishReadyToRunComposite=true", publishScript);
+        Assert.Contains("schemaVersion = 2", publishScript);
+        Assert.Contains("windowsShell = [ordered]@{", publishScript);
+        Assert.Contains("selfContained = $true", publishScript);
+        Assert.Contains("publishReadyToRunComposite = $true", publishScript);
+        Assert.Contains("runtimeConfigSha256", publishScript);
+        Assert.DoesNotContain("EnableCompressionInSingleFile", publishScript);
         Assert.Contains("MyPowerTools.exe", publishScript);
         Assert.Contains("START_HERE.md", publishScript);
         Assert.Contains("Start-MyPowerTools.cmd", publishScript);
+        Assert.Contains("start-user-runtime.ps1", publishScript);
+        Assert.Contains("new-ota-file-manifest.ps1", publishScript);
+        Assert.Contains("new-ota-delta-package.ps1", publishScript);
+        Assert.Contains("invoke-ota-update.ps1", publishScript);
         Assert.Contains("assets", publishScript);
 
         Assert.Contains("MyPowerTools.exe", startScript);
@@ -247,11 +284,48 @@ public sealed partial class RuntimeAcceptanceTests
         Assert.Contains("one Start menu shortcut named MyPowerTools", metadataScript);
         Assert.Contains(",@('MyPowerTools.exe', 'MyPowerTools')", metadataScript);
 
+        Assert.Contains("TryActivateRunningShell(toolActivation)", launcherSource);
+        Assert.Contains("NamedPipeClientStream", launcherSource);
+        Assert.Contains("MyPowerTools.ShellActivation", launcherSource);
+        Assert.Contains("ActivationConnectTimeoutMilliseconds = 40", launcherSource);
+        Assert.True(
+            launcherSource.IndexOf("TryActivateRunningShell(toolActivation)", StringComparison.Ordinal) <
+            launcherSource.IndexOf("FindApplicationRoot(AppContext.BaseDirectory)", StringComparison.Ordinal),
+            "The resident Shell activation path must run before installation-layout file system probes.");
+        Assert.Contains("<PublishAot Condition=", launcherProject);
+        Assert.Contains(">true</PublishAot>", launcherProject);
+        Assert.Contains("<OptimizationPreference>Speed</OptimizationPreference>", launcherProject);
+
         Assert.Contains("open `MyPowerTools` from the Windows Start menu", startHere);
         Assert.Contains("The app starts the Runner in the background", startHere);
         Assert.DoesNotContain("MyPowerTools Shell", startHere);
         Assert.DoesNotContain("MyPowerTools Runner", startHere);
         Assert.DoesNotContain("MyPowerTools CLI", startHere);
+    }
+
+    [Fact]
+    public async Task Windows_ota_package_transfers_only_changed_files_and_rejects_target_drift()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var result = await RunPwshAsync(
+            "-NoLogo",
+            "-NoProfile",
+            "-NonInteractive",
+            "-File",
+            Path.Combine(Root, "scripts", "verify-ota-update.ps1"));
+
+        Assert.Equal(0, result.ExitCode);
+        Assert.Contains("\"Success\": true", result.Output, StringComparison.Ordinal);
+        Assert.Contains("\"CopyCount\": 2", result.Output, StringComparison.Ordinal);
+        Assert.Contains("\"DeleteCount\": 1", result.Output, StringComparison.Ordinal);
+        Assert.Contains("\"Idempotent\": true", result.Output, StringComparison.Ordinal);
+        Assert.Contains("\"DriftRejected\": true", result.Output, StringComparison.Ordinal);
+        Assert.Contains("\"HashMismatchRejected\": true", result.Output, StringComparison.Ordinal);
+        Assert.Contains("\"UnsafePathRejected\": true", result.Output, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -405,8 +479,9 @@ public sealed partial class RuntimeAcceptanceTests
         Assert.Equal(0, trust.ExitCode);
         Assert.Contains("sample-dotnet: signature-hook", trust.Output);
         Assert.Equal(0, doctor.ExitCode);
-        Assert.Contains("packages: 5 checked, errors: 0", doctor.Output);
-        Assert.Contains("modules: 7", doctor.Output);
+        var packages = new PackageReader().DiscoverPackages(Path.Combine(Root, "modules"));
+        Assert.Contains($"packages: {packages.Count} checked, errors: 0", doctor.Output);
+        Assert.Contains($"modules: {packages.Sum(package => package.Modules.Count)}", doctor.Output);
     }
 
     [Fact]
@@ -419,6 +494,8 @@ public sealed partial class RuntimeAcceptanceTests
         WriteGrpcSidecarModuleManifest(packageRoot, sidecarCommand, pipeName);
 
         var dataRoot = Path.Combine(Path.GetTempPath(), "mpt-cli-runner-grpc-restart-data", Guid.NewGuid().ToString("N"));
+        var endpointAddress = "mypowertools.runner.test." + Guid.NewGuid().ToString("N");
+        var instanceName = "MyPowerTools.Runner.Test." + Guid.NewGuid().ToString("N");
         var previousDataRoot = Environment.GetEnvironmentVariable(HostControlAuthTokenStore.DataRootEnvironmentVariable);
         Environment.SetEnvironmentVariable(HostControlAuthTokenStore.DataRootEnvironmentVariable, dataRoot);
         var runner = StartDotnetProcess(
@@ -430,11 +507,15 @@ public sealed partial class RuntimeAcceptanceTests
             packageRoot,
             "--data-root",
             dataRoot,
+            "--endpoint-address",
+            endpointAddress,
+            "--instance-name",
+            instanceName,
             "--no-tray");
 
         try
         {
-            using var client = await WaitForDefaultHostControlAsync();
+            using var client = await WaitForHostControlAsync(endpointAddress);
             var diagnostics = await client.GetRuntimeDiagnosticsAsync();
             var process = Assert.Single(diagnostics.Processes);
 
@@ -447,10 +528,12 @@ public sealed partial class RuntimeAcceptanceTests
                 "process",
                 "restart",
                 process.TransportKind,
-                process.PoolKey);
+                process.PoolKey,
+                "--endpoint-address",
+                endpointAddress);
             var afterRestart = await client.GetRuntimeDiagnosticsAsync();
 
-            Assert.Equal(0, restart.ExitCode);
+            Assert.True(restart.ExitCode == 0, restart.Output);
             Assert.Contains("grpc-ipc module:sample.grpc: restarting", restart.Output);
             if (afterRestart.Processes.Count > 0)
             {
@@ -475,7 +558,9 @@ public sealed partial class RuntimeAcceptanceTests
                 "--reason",
                 "cli maintenance",
                 "--duration-minutes",
-                "30");
+                "30",
+                "--endpoint-address",
+                endpointAddress);
             var policyDiagnostics = await client.GetRuntimeDiagnosticsAsync();
             var crash = await client.ExecuteCommandAsync("sample.grpc.crash");
             await Task.Delay(500);
@@ -490,11 +575,13 @@ public sealed partial class RuntimeAcceptanceTests
                 "process",
                 "resume",
                 repopulatedProcess.TransportKind,
-                repopulatedProcess.PoolKey);
+                repopulatedProcess.PoolKey,
+                "--endpoint-address",
+                endpointAddress);
             var recovered = await client.ExecuteCommandAsync("sample.grpc.ping");
 
             Assert.Equal("succeeded", repopulated.State);
-            Assert.Equal(0, pause.ExitCode);
+            Assert.True(pause.ExitCode == 0, pause.Output);
             Assert.Contains("paused", pause.Output);
             Assert.Contains("expires:", pause.Output);
             Assert.Contains(policyDiagnostics.ProcessPolicyHistory, entry => entry.Source == "cli" && entry.RestartPolicy == "paused");
@@ -505,7 +592,7 @@ public sealed partial class RuntimeAcceptanceTests
             Assert.Equal("paused", pausedProcess.State);
             Assert.Equal("paused", pausedProcess.RestartPolicy);
             Assert.Contains("sample.grpc", pausedProcess.ModuleIds);
-            Assert.Equal(0, resume.ExitCode);
+            Assert.True(resume.ExitCode == 0, resume.Output);
             Assert.Contains("Automatic restart is enabled", resume.Output);
             Assert.Equal("succeeded", recovered.State);
 

@@ -6,11 +6,26 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AssemblyName>MyPowerTools</AssemblyName>
-    <ApplicationIcon>..\..\assets\MyPowerTools.ico</ApplicationIcon>
+    <ApplicationIcon Condition="'$(OS)' == 'Windows_NT'">..\..\assets\MyPowerTools.ico</ApplicationIcon>
+    <PublishAot Condition="!$([System.String]::Copy('$(RuntimeIdentifier)').StartsWith('osx-'))">true</PublishAot>
+    <PublishAot Condition="$([System.String]::Copy('$(RuntimeIdentifier)').StartsWith('osx-'))">false</PublishAot>
+    <SelfContained>true</SelfContained>
+    <PublishSingleFile>true</PublishSingleFile>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <OptimizationPreference>Speed</OptimizationPreference>
+    <StripSymbols>true</StripSymbols>
+    <DebugType>None</DebugType>
+    <DebugSymbols>false</DebugSymbols>
+    <EventSourceSupport>false</EventSourceSupport>
+    <HttpActivityPropagationSupport>false</HttpActivityPropagationSupport>
   </PropertyGroup>
 
   <ItemGroup>
     <None Include="..\..\assets\MyPowerTools.ico" Link="MyPowerTools.ico" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MyPowerTools.Abstractions\MyPowerTools.Abstractions.csproj" />
   </ItemGroup>
 
 </Project>

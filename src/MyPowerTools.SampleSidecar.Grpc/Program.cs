@@ -1,6 +1,8 @@
 using Grpc.Core;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
+using MyPowerTools.Ipc;
 using MyPowerTools.Protocol.Module.V1;
+using System.Diagnostics;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 
@@ -22,6 +24,10 @@ if (startupDelayMs > 0)
 
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddGrpc();
+if (OperatingSystem.IsWindows())
+{
+    builder.WebHost.UseNamedPipes(MptNamedPipePolicy.Configure);
+}
 builder.WebHost.ConfigureKestrel(options =>
 {
     if (OperatingSystem.IsWindows())
@@ -43,7 +49,42 @@ builder.WebHost.ConfigureKestrel(options =>
 var app = builder.Build();
 app.MapGrpcService<SampleModuleControlService>();
 app.MapGet("/", () => "MyPowerTools sample gRPC sidecar");
-await app.RunAsync();
+using var hostMonitorCancellation = new CancellationTokenSource();
+var hostMonitor = MonitorHostProcessAsync(app.Lifetime, hostMonitorCancellation.Token);
+try
+{
+    await app.RunAsync();
+}
+finally
+{
+    hostMonitorCancellation.Cancel();
+    await hostMonitor;
+}
+
+static async Task MonitorHostProcessAsync(IHostApplicationLifetime lifetime, CancellationToken cancellationToken)
+{
+    var value = Environment.GetEnvironmentVariable("MPT_HOST_PROCESS_ID");
+    if (!int.TryParse(value, out var hostProcessId) || hostProcessId <= 0 || hostProcessId == Environment.ProcessId)
+    {
+        return;
+    }
+
+    try
+    {
+        using var hostProcess = Process.GetProcessById(hostProcessId);
+        await hostProcess.WaitForExitAsync(cancellationToken);
+    }
+    catch (ArgumentException)
+    {
+        // The host exited before the sidecar acquired its process handle.
+    }
+    catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+    {
+        return;
+    }
+
+    lifetime.StopApplication();
+}
 
 public sealed class SampleModuleControlService : ModuleControl.ModuleControlBase
 {
@@ -169,7 +210,8 @@ public sealed class SampleModuleControlService : ModuleControl.ModuleControlBase
                 ["MPT_MODULE_ID"] = Environment.GetEnvironmentVariable("MPT_MODULE_ID") ?? "",
                 ["MPT_RUNTIME_ID"] = Environment.GetEnvironmentVariable("MPT_RUNTIME_ID") ?? "",
                 ["MPT_ENDPOINT_TRANSPORT"] = Environment.GetEnvironmentVariable("MPT_ENDPOINT_TRANSPORT") ?? "",
-                ["MPT_ENDPOINT_ADDRESS"] = Environment.GetEnvironmentVariable("MPT_ENDPOINT_ADDRESS") ?? ""
+                ["MPT_ENDPOINT_ADDRESS"] = Environment.GetEnvironmentVariable("MPT_ENDPOINT_ADDRESS") ?? "",
+                ["MPT_HOST_PROCESS_ID"] = Environment.GetEnvironmentVariable("MPT_HOST_PROCESS_ID") ?? ""
             },
             ["argsJson"] = request.ArgsJson,
             ["typedArgs"] = typedArgs,

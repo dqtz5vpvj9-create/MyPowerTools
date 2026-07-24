@@ -1,6 +1,10 @@
 param(
     [switch] $RefreshPackageSignatures,
-    [string] $ModulesRoot = ''
+    [string] $ModulesRoot = '',
+    [switch] $NoRestore,
+    [switch] $NoBuild,
+    [switch] $NoTest,
+    [switch] $NoTemplateValidation
 )
 
 $ErrorActionPreference = 'Stop'
@@ -24,8 +28,12 @@ function Invoke-Native {
     }
 }
 
-Invoke-Native 'dotnet' @('restore', 'MyPowerTools.slnx')
-Invoke-Native 'dotnet' @('build', 'MyPowerTools.slnx', '--no-restore')
+if (-not $NoRestore) {
+    Invoke-Native 'dotnet' @('restore', 'MyPowerTools.slnx')
+}
+if (-not $NoBuild) {
+    Invoke-Native 'dotnet' @('build', 'MyPowerTools.slnx', '--no-restore', '--maxcpucount')
+}
 if ([string]::IsNullOrWhiteSpace($ModulesRoot)) {
     $ModulesRoot = Join-Path $RepoRoot 'artifacts\smoke-modules'
     Invoke-Native 'pwsh.exe' @(
@@ -37,22 +45,26 @@ if ([string]::IsNullOrWhiteSpace($ModulesRoot)) {
     $ModulesRoot = [System.IO.Path]::GetFullPath((Join-Path $RepoRoot $ModulesRoot))
 }
 if ($RefreshPackageSignatures) {
-    Invoke-Native 'dotnet' @('run', '--project', 'src\MyPowerTools.Cli', '--', 'package', 'sign-local', $ModulesRoot)
-    Invoke-Native 'dotnet' @('run', '--project', 'src\MyPowerTools.Cli', '--', 'package', 'trust', $ModulesRoot, '--strict')
+    Invoke-Native 'dotnet' @('run', '--no-build', '--project', 'src\MyPowerTools.Cli', '--', 'package', 'sign-local', $ModulesRoot)
+    Invoke-Native 'dotnet' @('run', '--no-build', '--project', 'src\MyPowerTools.Cli', '--', 'package', 'trust', $ModulesRoot, '--strict')
 } else {
     Write-Host 'Skipping package signature refresh; pass -RefreshPackageSignatures to update local package signatures.'
     Write-Host 'Skipping strict package trust because solution build can refresh module binaries during UI-only validation.'
 }
-Invoke-Native 'dotnet' @('test', 'MyPowerTools.slnx', '--no-build')
-Invoke-Native 'dotnet' @('run', '--project', 'src\MyPowerTools.Cli', '--', 'validate', $ModulesRoot)
-Invoke-Native 'dotnet' @('run', '--project', 'src\MyPowerTools.Cli', '--', 'validate', 'contracts', $ModulesRoot)
-Invoke-Native 'dotnet' @('run', '--project', 'src\MyPowerTools.Cli', '--', 'ui', 'check', $ModulesRoot)
-Invoke-Native 'dotnet' @('run', '--project', 'src\MyPowerTools.Cli', '--', 'ui', 'snapshot', $ModulesRoot, '--surface', 'dashboard-card', '--theme', 'light', '--size', '1366x768', '--density', 'normal', '--out', 'artifacts\ui-snapshots')
-Invoke-Native 'dotnet' @('run', '--project', 'src\MyPowerTools.Cli', '--', 'ui', 'shell-snapshot', '--theme', 'light', '--size', '1366x768', '--density', 'normal', '--out', 'artifacts\shell-ui-snapshots')
-Invoke-Native 'dotnet' @('run', '--project', 'src\MyPowerTools.Cli', '--', 'runner', 'autostart', 'status')
-Invoke-Native 'pwsh.exe' @('-NoLogo', '-NoProfile', '-NonInteractive', '-File', 'scripts\validate-templates.ps1')
-Invoke-Native 'dotnet' @('run', '--project', 'src\MyPowerTools.Runner', '--', '--once', '--modules', $ModulesRoot)
-Invoke-Native 'dotnet' @('run', '--project', 'src\MyPowerTools.Cli', '--', 'doctor')
+if (-not $NoTest) {
+    Invoke-Native 'dotnet' @('test', 'MyPowerTools.slnx', '--no-build')
+}
+Invoke-Native 'dotnet' @('run', '--no-build', '--project', 'src\MyPowerTools.Cli', '--', 'validate', $ModulesRoot)
+Invoke-Native 'dotnet' @('run', '--no-build', '--project', 'src\MyPowerTools.Cli', '--', 'validate', 'contracts', $ModulesRoot)
+Invoke-Native 'dotnet' @('run', '--no-build', '--project', 'src\MyPowerTools.Cli', '--', 'ui', 'check', $ModulesRoot)
+Invoke-Native 'dotnet' @('run', '--no-build', '--project', 'src\MyPowerTools.Cli', '--', 'ui', 'snapshot', $ModulesRoot, '--surface', 'dashboard-card', '--theme', 'light', '--size', '1366x768', '--density', 'normal', '--out', 'artifacts\ui-snapshots')
+Invoke-Native 'dotnet' @('run', '--no-build', '--project', 'src\MyPowerTools.Cli', '--', 'ui', 'shell-snapshot', '--theme', 'light', '--size', '1366x768', '--density', 'normal', '--out', 'artifacts\shell-ui-snapshots')
+Invoke-Native 'dotnet' @('run', '--no-build', '--project', 'src\MyPowerTools.Cli', '--', 'runner', 'autostart', 'status')
+if (-not $NoTemplateValidation) {
+    Invoke-Native 'pwsh.exe' @('-NoLogo', '-NoProfile', '-NonInteractive', '-File', 'scripts\validate-templates.ps1')
+}
+Invoke-Native 'dotnet' @('run', '--no-build', '--project', 'src\MyPowerTools.Runner', '--', '--once', '--modules', $ModulesRoot)
+Invoke-Native 'dotnet' @('run', '--no-build', '--project', 'src\MyPowerTools.Cli', '--', 'doctor')
 
 $RunnerExe = Join-Path $RepoRoot 'src\MyPowerTools.Runner\bin\Debug\net10.0\MyPowerTools.Runner.exe'
 $ShellExe = Join-Path $RepoRoot 'src\MyPowerTools.Shell.Avalonia\bin\Debug\net10.0\MyPowerTools.Shell.Avalonia.exe'

@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "toolId": "paste-image",
+  "sourceClassification": "native-mypowertools-module",
+  "sourceNote": "Implemented directly from the supplied AutoHotkey behavior; the referenced paste-image.ps1 source was not provided.",
+  "originalSnapshotPath": null,
+  "selectedEntries": [],
+  "currentIntegrationSnapshot": "current-integration",
+  "currentIntegrationGlobs": [
+    "modules/paste-image/**",
+    "src/PasteImage.MyPowerTools/**"
+  ]
+}

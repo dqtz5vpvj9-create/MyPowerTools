@@ -13,7 +13,8 @@
         "windows-x64",
         "windows-arm64",
         "linux-x64",
-        "macos-arm64"
+        "macos-arm64",
+        "macos-x64"
       ],
       "assembly": "AdbForwarder.MyPowerTools.dll",
       "type": "AdbForwarder.MyPowerTools.AdbForwarderModule"

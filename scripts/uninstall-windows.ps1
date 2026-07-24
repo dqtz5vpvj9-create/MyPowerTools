@@ -1,5 +1,6 @@
+[CmdletBinding()]
 param(
-    [string]$InstallDir = (Join-Path $env:ProgramFiles 'MyPowerTools'),
+    [string]$InstallDir = (Join-Path $env:LOCALAPPDATA 'Programs\MyPowerTools'),
     [string]$DataRoot = (Join-Path $env:LOCALAPPDATA 'MyPowerTools'),
     [switch]$RemoveData,
     [switch]$Force,
@@ -7,13 +8,6 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
-
-$currentIdentity = [Security.Principal.WindowsIdentity]::GetCurrent()
-$currentPrincipal = [Security.Principal.WindowsPrincipal]::new($currentIdentity)
-$isAdministrator = $currentPrincipal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
-if (-not $DryRun.IsPresent -and -not $isAdministrator) {
-    throw 'Removing MyPowerTools from Program Files requires an elevated PowerShell session.'
-}
 
 function Resolve-FullPath {
     param([Parameter(Mandatory = $true)][string]$Path)
@@ -119,6 +113,14 @@ function Stop-InstalledProcess {
 
 $InstallDirFull = Resolve-FullPath $InstallDir
 $DataRootFull = Resolve-FullPath $DataRoot
+$programFilesFull = Resolve-FullPath $env:ProgramFiles
+$currentIdentity = [Security.Principal.WindowsIdentity]::GetCurrent()
+$currentPrincipal = [Security.Principal.WindowsPrincipal]::new($currentIdentity)
+$isAdministrator = $currentPrincipal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+$requiresAdministrator = Test-IsInsidePath -Parent $programFilesFull -Child $InstallDirFull
+if (-not $DryRun.IsPresent -and $requiresAdministrator -and -not $isAdministrator) {
+    throw "Removing MyPowerTools from $InstallDirFull requires an elevated PowerShell session."
+}
 $startMenuDir = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\MyPowerTools'
 $desktopShortcutPath = Join-Path ([Environment]::GetFolderPath('DesktopDirectory')) 'MyPowerTools.lnk'
 $runKeyPath = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
@@ -140,6 +142,29 @@ $plan = [ordered]@{
 if ($DryRun) {
     $plan | ConvertTo-Json -Depth 4
     return
+}
+
+$serviceConfigurationScript = Join-Path $InstallDirFull 'configure-user-services.ps1'
+if (Test-Path -LiteralPath $serviceConfigurationScript -PathType Leaf) {
+    $pwsh = Get-Command 'pwsh.exe' -CommandType Application -ErrorAction Stop |
+        Select-Object -First 1
+    $configurationArguments = @(
+        '-NoLogo'
+        '-NoProfile'
+        '-NonInteractive'
+        '-File'
+        $serviceConfigurationScript
+        '-Mode'
+        'Uninstall'
+        '-InstallRoot'
+        $InstallDirFull
+        '-DataRoot'
+        $DataRootFull
+    )
+    & $pwsh.Source @configurationArguments
+    if ($LASTEXITCODE -ne 0) {
+        throw "User service shutdown failed with exit code $LASTEXITCODE."
+    }
 }
 
 Stop-InstalledProcess -Root $InstallDirFull

@@ -13,12 +13,25 @@ public sealed class AdbBrokerSecurityTests
     private static readonly string Root = FindRepositoryRoot();
 
     [Fact]
-    public void Development_build_fails_closed_without_a_protected_release_broker()
+    public void Installed_resolver_accepts_the_user_level_release_broker()
     {
         var availability = new AdbForwarderElevationService().GetAvailability();
 
-        Assert.False(availability.IsAvailable);
-        Assert.Contains("安全禁用", availability.Message, StringComparison.Ordinal);
+        if (availability.IsAvailable)
+        {
+            var launch = new InstalledAdbForwarderBrokerLaunchResolver().Resolve();
+            Assert.True(Path.IsPathFullyQualified(launch.ExecutablePath));
+            Assert.True(WindowsProtectedExecutable.IsTrusted(launch.ExecutablePath, out _));
+            Assert.StartsWith(
+                Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "Programs", "MyPowerTools"),
+                launch.ExecutablePath,
+                StringComparison.OrdinalIgnoreCase);
+            Assert.Equal(64, launch.Sha256.Length);
+        }
+        else
+        {
+            Assert.Contains("管理员组件尚未安装", availability.Message, StringComparison.Ordinal);
+        }
     }
 
     [Fact]
@@ -334,19 +347,28 @@ public sealed class AdbBrokerSecurityTests
     }
 
     [Fact]
-    public void Source_gates_use_absolute_system_netsh_and_a_dedicated_release_broker()
+    public void Source_gates_use_user_installation_and_an_always_elevated_release_broker()
     {
         var networkSource = File.ReadAllText(Path.Combine(
             Root, "src", "MyPowerTools.Platform.Windows", "WindowsPlatformPack.cs"));
         var elevationSource = File.ReadAllText(Path.Combine(
-            Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "AdbForwarderElevationService.cs"));
+            Root, "tools", "adb-forwarder", "current-integration", "src",
+            "AdbForwarder.Surface", "Services", "AdbForwarderElevationService.cs"));
         var cliSource = File.ReadAllText(Path.Combine(Root, "src", "MyPowerTools.Cli", "Program.cs"));
         var installer = File.ReadAllText(Path.Combine(Root, "scripts", "install-windows.ps1"));
+        var candidateBuilder = File.ReadAllText(Path.Combine(Root, "scripts", "build-installer.ps1"));
+        var toolBuilder = File.ReadAllText(Path.Combine(Root, "scripts", "build-all-tools.ps1"));
+        var publisher = File.ReadAllText(Path.Combine(Root, "scripts", "publish-windows.ps1"));
+        var serviceConfigurator = File.ReadAllText(Path.Combine(Root, "scripts", "configure-user-services.ps1"));
+        var runtimeStarter = File.ReadAllText(Path.Combine(Root, "scripts", "start-user-runtime.ps1"));
+        var innoInstaller = File.ReadAllText(Path.Combine(Root, "installer", "MyPowerTools.iss"));
         var uninstaller = File.ReadAllText(Path.Combine(Root, "scripts", "uninstall-windows.ps1"));
         var brokerProject = File.ReadAllText(Path.Combine(
             Root, "src", "MyPowerTools.ElevatedBroker", "MyPowerTools.ElevatedBroker.csproj"));
         var brokerProgram = File.ReadAllText(Path.Combine(
             Root, "src", "MyPowerTools.ElevatedBroker", "Program.cs"));
+        var brokerManifest = File.ReadAllText(Path.Combine(
+            Root, "src", "MyPowerTools.ElevatedBroker", "app.manifest"));
         var validationScript = File.ReadAllText(Path.Combine(
             Root, "scripts", "validate-elevated-broker.ps1"));
 
@@ -356,20 +378,50 @@ public sealed class AdbBrokerSecurityTests
         Assert.Contains("netsh portproxy list failed", networkSource);
         Assert.Contains("throw new InvalidOperationException", networkSource);
         Assert.Contains("MyPowerTools.ElevatedBroker.exe", elevationSource);
+        Assert.Contains("SpecialFolder.LocalApplicationData", elevationSource);
+        Assert.DoesNotContain("SpecialFolder.ProgramFiles", elevationSource, StringComparison.Ordinal);
+        Assert.Contains("Verb = \"runas\"", elevationSource);
         Assert.DoesNotContain("dotnet.exe", elevationSource, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("Portproxy writes are accepted only through the installed MyPowerTools.ElevatedBroker.exe", cliSource);
         Assert.DoesNotContain("ApplyChangeSetAsync", cliSource, StringComparison.Ordinal);
         Assert.DoesNotContain("#if false", cliSource, StringComparison.Ordinal);
-        Assert.Contains("Join-Path $env:ProgramFiles 'MyPowerTools'", installer);
-        Assert.Contains("Run this installer from an elevated PowerShell session", installer);
+        Assert.Contains("Join-Path $env:LOCALAPPDATA 'Programs\\MyPowerTools'", installer);
+        Assert.Contains("$CanonicalInstallDir", installer);
+        Assert.Contains("must be installed for the current user", installer);
+        Assert.DoesNotContain("Run this installer from an elevated PowerShell session", installer, StringComparison.Ordinal);
+        Assert.Contains("$canonicalInstallBase", candidateBuilder);
+        Assert.Contains("IsolatedVerification", candidateBuilder);
+        Assert.Contains("GetRelativePath($repoRoot, $collectDir)", toolBuilder);
+        Assert.DoesNotContain("output       = \"artifacts/tools/", toolBuilder, StringComparison.Ordinal);
+        Assert.Contains("MyPowerTools.ServiceManager\\MyPowerTools.ServiceManager.csproj", publisher);
+        Assert.Contains("$publishedServiceUnitsRoot", publisher);
+        Assert.Contains("configure-user-services.ps1", publisher);
+        Assert.Contains("MPT_INSTALL_ROOT", serviceConfigurator);
+        Assert.Contains("installed-service-units.json", serviceConfigurator);
+        Assert.Contains("service-units", serviceConfigurator);
+        Assert.Contains("runtime launch is blocked in Windows Session 0", serviceConfigurator);
+        Assert.Contains("$currentSessionId -ne 0", serviceConfigurator);
+        Assert.Contains("-RegisterOnly", installer);
+        Assert.Contains("Invoke-InteractiveRuntimeBootstrap", installer);
+        Assert.Contains("-LogonType Interactive", installer);
+        Assert.Contains("runtime launch is blocked in Windows Session 0", runtimeStarter);
+        Assert.Contains("$sessionId -eq 0", runtimeStarter);
+        Assert.Contains("start-user-runtime.ps1", publisher);
+        Assert.Contains("DefaultDirName={localappdata}\\Programs\\MyPowerTools", innoInstaller);
+        Assert.Contains("PrivilegesRequired=lowest", innoInstaller);
+        Assert.Contains("DisableDirPage=yes", innoInstaller);
+        Assert.Contains("UsePreviousAppDir=no", innoInstaller);
+        Assert.Contains("configure-user-services.ps1", innoInstaller);
         Assert.Contains("foreach ($process in Get-Process -ErrorAction SilentlyContinue)", uninstaller);
         Assert.Contains("Test-IsInsidePath -Parent $Root -Child $path", uninstaller);
         Assert.Contains("<PublishAot>true</PublishAot>", brokerProject);
         Assert.Contains("<PublishSingleFile>true</PublishSingleFile>", brokerProject);
+        Assert.Contains("<ApplicationManifest>app.manifest</ApplicationManifest>", brokerProject);
+        Assert.Contains("level=\"requireAdministrator\"", brokerManifest);
         Assert.Contains("new AuditLog(auditPath, brokerRoot)", brokerProgram);
         Assert.Contains("CLR header", validationScript);
-        Assert.Contains("DOTNET_STARTUP_HOOKS", validationScript);
-        Assert.Contains("CORECLR_ENABLE_PROFILING", validationScript);
+        Assert.Contains("requireAdministrator", validationScript);
+        Assert.DoesNotContain("Start-Process -FilePath $brokerExe", validationScript, StringComparison.Ordinal);
     }
 
     private static ExecutorRequest CreateExecutorRequest(

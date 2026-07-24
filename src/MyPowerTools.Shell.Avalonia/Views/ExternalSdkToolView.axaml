@@ -8,7 +8,7 @@
     <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto"
           ColumnSpacing="{DynamicResource MptSpacingM}"
           Margin="{DynamicResource MptGapBottomM}"
-          IsVisible="{Binding IsHostHeaderVisible}">
+          IsVisible="{Binding IsInlineHeaderVisible}">
       <controls:MptButton Content="All tools" Command="{Binding ReturnToToolsCommand}" />
       <StackPanel Grid.Column="1" Spacing="{DynamicResource MptSpacingXs}">
         <TextBlock Classes="MptPageTitle" Text="{Binding Title}" />

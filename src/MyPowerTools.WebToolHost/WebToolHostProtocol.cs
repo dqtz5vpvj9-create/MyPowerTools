@@ -52,11 +52,16 @@ internal sealed record HostEvent(
 
 internal static class WebToolHostProtocol
 {
+    public const int MaximumFrameLength = 16 * 1024;
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web);
     private static readonly object OutputLock = new();
 
     public static HostCommand? ParseCommand(string line)
     {
+        if (line.Length > MaximumFrameLength)
+        {
+            return null;
+        }
         try
         {
             return JsonSerializer.Deserialize<HostCommand>(line, JsonOptions);

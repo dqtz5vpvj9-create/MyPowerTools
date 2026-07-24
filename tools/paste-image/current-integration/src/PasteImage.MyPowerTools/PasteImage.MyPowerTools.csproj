@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <ModulePackageRoot Condition="'$(ModulePackageRoot)' == ''">$(MSBuildProjectDirectory)\..\..\modules\paste-image</ModulePackageRoot>
+    <RepositoryModuleRoot>$(MyPowerToolsRepoRoot)\modules\paste-image</RepositoryModuleRoot>
+  </PropertyGroup>
+
+  <ItemGroup Condition="!Exists('$(MyPowerToolsRepoRoot)\src\MyPowerTools.Abstractions\MyPowerTools.Abstractions.csproj')">
+    <PackageReference Include="MyPowerTools.ToolSdk" Version="0.2.0" />
+    <PackageReference Include="MyPowerTools.Protocol" Version="0.2.0" />
+    <PackageReference Include="MyPowerTools.Platform.Abstractions" Version="0.2.0" />
+  </ItemGroup>
+
+  <ItemGroup Condition="Exists('$(MyPowerToolsRepoRoot)\src\MyPowerTools.Abstractions\MyPowerTools.Abstractions.csproj')">
+    <ProjectReference Include="$(MyPowerToolsRepoRoot)\src\MyPowerTools.Abstractions\MyPowerTools.Abstractions.csproj" />
+    <ProjectReference Include="$(MyPowerToolsRepoRoot)\src\MyPowerTools.Protocol\MyPowerTools.Protocol.csproj" />
+    <ProjectReference Include="$(MyPowerToolsRepoRoot)\src\MyPowerTools.Platform.Abstractions\MyPowerTools.Platform.Abstractions.csproj" />
+  </ItemGroup>
+
+  <Target Name="CopyModuleAssemblyToPackage" AfterTargets="Build">
+    <MakeDir Directories="$(ModulePackageRoot)" />
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(ModulePackageRoot)" />
+    <Copy SourceFiles="$(TargetDir)$(TargetName).pdb" DestinationFolder="$(ModulePackageRoot)" Condition="Exists('$(TargetDir)$(TargetName).pdb')" />
+    <Copy SourceFiles="$(TargetDir)$(TargetName).deps.json" DestinationFolder="$(ModulePackageRoot)" Condition="Exists('$(TargetDir)$(TargetName).deps.json')" />
+  </Target>
+
+  <Target Name="StageRepositoryModule"
+          AfterTargets="CopyModuleAssemblyToPackage"
+          Condition="'$(MyPowerToolsRepoRoot)' != '' and '$(StageRepositoryModule)' != 'false'">
+    <ItemGroup>
+      <RepositoryModuleFiles Include="$(ModulePackageRoot)\**\*" />
+    </ItemGroup>
+    <MakeDir Directories="$(RepositoryModuleRoot)" />
+    <Copy SourceFiles="@(RepositoryModuleFiles)"
+          DestinationFiles="@(RepositoryModuleFiles->'$(RepositoryModuleRoot)\%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+  </Target>
+
+</Project>

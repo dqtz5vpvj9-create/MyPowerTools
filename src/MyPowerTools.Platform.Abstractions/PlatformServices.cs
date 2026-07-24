@@ -233,6 +233,55 @@ public sealed class UnsupportedPrivilegeBroker : IPrivilegeBroker
 public interface INotificationService
 {
     Task PublishAsync(string title, string body, CancellationToken cancellationToken);
+
+    Task PublishAsync(DesktopNotificationRequest request, CancellationToken cancellationToken)
+    {
+        ArgumentNullException.ThrowIfNull(request);
+        return PublishAsync(request.Title, request.Body, cancellationToken);
+    }
+}
+
+public sealed record DesktopNotificationRequest(
+    string Id,
+    string Title,
+    string Body,
+    string? ActivationUri = null);
+
+public sealed record ClipboardImagePayload(
+    byte[] PngBytes,
+    int Width,
+    int Height,
+    bool UsedNativePng = true);
+
+public interface IClipboardImageService
+{
+    Task<ClipboardImagePayload> ReadPngAsync(CancellationToken cancellationToken);
+    Task WriteTextAsync(string value, CancellationToken cancellationToken);
+}
+
+public sealed class UnsupportedClipboardImageService : IClipboardImageService
+{
+    private readonly string _provider;
+    private readonly string _message;
+
+    public UnsupportedClipboardImageService(string provider, string message)
+    {
+        _provider = provider;
+        _message = message;
+    }
+
+    public Task<ClipboardImagePayload> ReadPngAsync(CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromException<ClipboardImagePayload>(
+            new PlatformNotSupportedException($"{_provider}: {_message}"));
+    }
+
+    public Task WriteTextAsync(string value, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromException(new PlatformNotSupportedException($"{_provider}: {_message}"));
+    }
 }
 
 public sealed class UnsupportedNotificationService : INotificationService

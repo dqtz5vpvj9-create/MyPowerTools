@@ -569,6 +569,7 @@ public sealed class GrpcIpcModuleHost : IAsyncDisposable
         psi.Environment["MPT_RUNTIME_ID"] = entrypoint.RuntimeId ?? "";
         psi.Environment["MPT_ENDPOINT_TRANSPORT"] = endpoint.Transport.ToString();
         psi.Environment["MPT_ENDPOINT_ADDRESS"] = endpoint.Address;
+        psi.Environment["MPT_HOST_PROCESS_ID"] = Environment.ProcessId.ToString(System.Globalization.CultureInfo.InvariantCulture);
 
         foreach (var arg in entrypoint.Args)
         {

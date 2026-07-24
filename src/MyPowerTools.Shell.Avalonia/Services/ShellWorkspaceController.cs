@@ -38,6 +38,7 @@ public sealed partial class ShellWorkspaceController : IAsyncDisposable
     private readonly Lazy<ShellCommandExecutionService> _commandExecutionServiceFactory = new(static () => new());
     private readonly Lazy<ShellHostActionService> _hostActionsFactory = new(static () => new());
     private readonly Lazy<ShellPageDataService> _pageDataFactory = new(static () => new());
+    private readonly Lazy<ShellToolEventService> _toolEventsFactory = new(static () => new());
     private readonly Lazy<ShellRunnerEventService> _runnerEventsFactory = new(static () => new());
     private readonly Lazy<ServiceUnitEventStreamMonitor> _unitEventsFactory =
         new(static () => new ServiceUnitEventStreamMonitor(new ServiceManagerUnitEventSource()));
@@ -86,6 +87,7 @@ public sealed partial class ShellWorkspaceController : IAsyncDisposable
     private ShellCommandExecutionService _commandExecutionService => _commandExecutionServiceFactory.Value;
     private ShellHostActionService _hostActions => _hostActionsFactory.Value;
     private ShellPageDataService _pageData => _pageDataFactory.Value;
+    private ShellToolEventService _toolEvents => _toolEventsFactory.Value;
     private ShellSettingsService _settingsService => _settingsServiceFactory.Value;
     private IMptWebSurfaceService? _webSurfaceService => _webSurfaceServiceFactory.Value;
 

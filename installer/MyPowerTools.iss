@@ -7,10 +7,12 @@ AppId={{6A1532EA-A2F5-4C1F-AB7C-B119C9C3B54B}
 AppName=MyPowerTools
 AppVersion={#MyAppVersion}
 AppPublisher=MyPowerTools
-DefaultDirName={autopf}\MyPowerTools
+DefaultDirName={localappdata}\Programs\MyPowerTools
 DefaultGroupName=MyPowerTools
+DisableDirPage=yes
 DisableProgramGroupPage=yes
-PrivilegesRequired=admin
+PrivilegesRequired=lowest
+UsePreviousAppDir=no
 ArchitecturesAllowed=x64compatible
 ArchitecturesInstallIn64BitMode=x64compatible
 OutputDir=..\artifacts\release
@@ -40,11 +42,14 @@ Name: "{autodesktop}\MyPowerTools"; Filename: "{app}\MyPowerTools.exe"; Paramete
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "MyPowerTools"; ValueData: """{app}\Runner\MyPowerTools.Runner.exe"" --modules ""{app}\modules"" --data-root ""{localappdata}\MyPowerTools"""; Flags: uninsdeletevalue; Tasks: autostart
 
 [Run]
+Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ""{app}\configure-user-services.ps1"" -Mode Uninstall -InstallRoot ""{app}"" -DataRoot ""{localappdata}\MyPowerTools"""; StatusMsg: "Stopping existing MyPowerTools user services..."; Flags: runhidden waituntilterminated ignoreerrors
+Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ""{app}\configure-user-services.ps1"" -Mode Install -InstallRoot ""{app}"" -DataRoot ""{localappdata}\MyPowerTools"""; StatusMsg: "Installing MyPowerTools user services..."; Flags: runhidden waituntilterminated
 Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoLogo -NoProfile -NonInteractive -File ""{app}\Runtimes\SmartBird\scripts\install-smartbird-thermostat-task.ps1"" -Mode Install -RepoRoot ""{app}\Runtimes\SmartBird"" -PythonPath ""{app}\Runtimes\Python312\python.exe"" -DataRoot ""{localappdata}\MyPowerTools\SmartBird"" -StartAfterInstall"; StatusMsg: "Installing and starting SmartBird Thermostat..."; Flags: runhidden waituntilterminated
 Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoLogo -NoProfile -NonInteractive -File ""{app}\Runtimes\SmartBird\scripts\install-energy-server-task.ps1"" -Mode Install -RepoRoot ""{app}\Runtimes\SmartBird"" -PythonPath ""{app}\Runtimes\Python312\python.exe"" -DataRoot ""{localappdata}\MyPowerTools\SmartBird"" -SettingsFile ""{localappdata}\MyPowerTools\SmartBird\settings.json"""; StatusMsg: "Registering SmartBird Energy Server..."; Flags: runhidden waituntilterminated
 Filename: "{app}\MyPowerTools.exe"; Parameters: "--data-root ""{localappdata}\MyPowerTools"""; Description: "Launch MyPowerTools"; Flags: nowait postinstall skipifsilent
 
 [UninstallRun]
+Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ""{app}\configure-user-services.ps1"" -Mode Uninstall -InstallRoot ""{app}"" -DataRoot ""{localappdata}\MyPowerTools"""; RunOnceId: "RemoveMyPowerToolsUserServices"; Flags: runhidden waituntilterminated
 Filename: "{app}\Shell\MyPowerTools.Shell.Avalonia.exe"; Parameters: "--doubao-runtime stop --doubao-runtime-root ""{app}\Runtimes\Doubao"" --doubao-data-root ""{localappdata}\MyPowerTools\Doubao"""; RunOnceId: "StopDoubaoComputerUse"; Flags: runhidden waituntilterminated
 Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoLogo -NoProfile -NonInteractive -File ""{app}\Runtimes\SmartBird\scripts\install-energy-server-task.ps1"" -Mode Uninstall -RepoRoot ""{app}\Runtimes\SmartBird"" -DataRoot ""{localappdata}\MyPowerTools\SmartBird"""; RunOnceId: "RemoveSmartBirdEnergyServerTask"; Flags: runhidden waituntilterminated
 Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoLogo -NoProfile -NonInteractive -File ""{app}\Runtimes\SmartBird\scripts\install-smartbird-thermostat-task.ps1"" -Mode Uninstall -RepoRoot ""{app}\Runtimes\SmartBird"" -DataRoot ""{localappdata}\MyPowerTools\SmartBird"""; RunOnceId: "RemoveSmartBirdThermostatTask"; Flags: runhidden waituntilterminated
@@ -53,6 +58,17 @@ Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoLogo -N
 Type: filesandordirs; Name: "{localappdata}\MyPowerTools\Doubao"
 
 [Code]
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+var
+  ExpectedDir: String;
+begin
+  ExpectedDir := ExpandConstant('{localappdata}\Programs\MyPowerTools');
+  if CompareText(RemoveBackslashUnlessRoot(ExpandConstant('{app}')), RemoveBackslashUnlessRoot(ExpectedDir)) <> 0 then
+    Result := 'MyPowerTools must be installed for the current user at ' + ExpectedDir + '.'
+  else
+    Result := '';
+end;
+
 procedure RewriteDoubaoVenvConfig(const ServiceName: String);
 var
   ConfigPath: String;

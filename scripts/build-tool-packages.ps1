@@ -1,7 +1,8 @@
 [CmdletBinding()]
 param(
     [string]$RepoRoot = (Split-Path -Parent $PSScriptRoot),
-    [string]$OutputRoot = ''
+    [string]$OutputRoot = '',
+    [switch]$SkipSdk
 )
 
 $ErrorActionPreference = 'Stop'
@@ -46,36 +47,70 @@ function Copy-DirectoryContents {
     }
 }
 
+function Assert-DotnetSurfaceAssemblies {
+    param([Parameter(Mandatory = $true)][string]$PackageRoot)
+
+    $toolManifests = @(Get-ChildItem -LiteralPath $PackageRoot -Recurse -File -Filter 'tool.json')
+    foreach ($toolManifest in $toolManifests) {
+        $tool = Get-Content -Raw -LiteralPath $toolManifest.FullName | ConvertFrom-Json
+        foreach ($route in @($tool.routes)) {
+            if (-not [string]::Equals([string]$route.surface.kind, 'dotnet', [System.StringComparison]::OrdinalIgnoreCase)) {
+                continue
+            }
+
+            $assembly = [string]$route.surface.assembly
+            if ([string]::IsNullOrWhiteSpace($assembly)) {
+                throw "Dotnet surface route '$($route.routeId)' has no assembly in $($toolManifest.FullName)"
+            }
+
+            $assemblyPath = [System.IO.Path]::GetFullPath((Join-Path $toolManifest.DirectoryName $assembly))
+            if (-not (Test-Path -LiteralPath $assemblyPath -PathType Leaf)) {
+                throw "Dotnet surface assembly is missing for route '$($route.routeId)': $assemblyPath"
+            }
+        }
+    }
+}
+
 if (Test-Path -LiteralPath $OutputRoot) {
     Remove-Item -LiteralPath $OutputRoot -Recurse -Force
 }
 New-Item -ItemType Directory -Path $OutputRoot -Force | Out-Null
 
-foreach ($toolId in @(
-    'adb-forwarder',
-    'remote-notifications',
-    'doubao-computer-use',
-    'screenease',
-    'smartbird-thermostat'
-)) {
-    $buildScript = Join-Path $RepoRoot "tools\$toolId\build.ps1"
-    if (-not (Test-Path -LiteralPath $buildScript -PathType Leaf)) {
-        throw "Required tool build entry is missing: $buildScript"
-    }
-    Invoke-Native -FilePath 'pwsh.exe' -ArgumentList @(
-        '-NoLogo', '-NoProfile', '-NonInteractive', '-File', $buildScript,
-        '-MyPowerToolsRepoRoot', $RepoRoot)
+$toolArtifactsRoot = Join-Path $RepoRoot 'artifacts\tool-package-build'
+$buildArguments = @(
+    '-NoLogo', '-NoProfile', '-NonInteractive',
+    '-File', (Join-Path $RepoRoot 'scripts\build-all-tools.ps1'),
+    '-Configuration', 'Release',
+    '-OutputRoot', $toolArtifactsRoot)
+if ($SkipSdk) {
+    $buildArguments += '-SkipSdk'
+}
+Invoke-Native -FilePath 'pwsh.exe' -ArgumentList $buildArguments
+
+$sourceManifestPath = Join-Path $toolArtifactsRoot 'source-manifest.json'
+if (-not (Test-Path -LiteralPath $sourceManifestPath -PathType Leaf)) {
+    throw "Tool source manifest is missing: $sourceManifestPath"
 }
 
-$packageSources = [ordered]@{
-    'adb-forwarder' = Join-Path $RepoRoot 'tools\adb-forwarder\artifacts\package'
-    'android-tools-suite' = Join-Path $RepoRoot 'tools\remote-notifications\artifacts\package\android-tools-suite'
-    'doubao-agent' = Join-Path $RepoRoot 'tools\doubao-computer-use\artifacts\package'
-    'screenease' = Join-Path $RepoRoot 'tools\screenease\artifacts\package'
-    'smartbird-thermostat' = Join-Path $RepoRoot 'tools\smartbird-thermostat\artifacts\package'
-}
-foreach ($entry in $packageSources.GetEnumerator()) {
-    Copy-DirectoryContents -Source $entry.Value -Destination (Join-Path $OutputRoot $entry.Key)
+$sourceManifest = Get-Content -Raw -LiteralPath $sourceManifestPath | ConvertFrom-Json
+foreach ($tool in @($sourceManifest.tools)) {
+    $artifactDirectory = Join-Path $RepoRoot ([string]$tool.output -replace '/', '\')
+    $runtimeDirectory = Join-Path $artifactDirectory 'runtime'
+    $packageManifest = Join-Path $runtimeDirectory 'package.json'
+    $moduleManifest = Join-Path $runtimeDirectory 'module.json'
+    if (Test-Path -LiteralPath $packageManifest -PathType Leaf) {
+        $packageId = [string](Get-Content -Raw -LiteralPath $packageManifest | ConvertFrom-Json).id
+    }
+    elseif (Test-Path -LiteralPath $moduleManifest -PathType Leaf) {
+        $packageId = [string](Get-Content -Raw -LiteralPath $moduleManifest | ConvertFrom-Json).packageId
+    }
+    else {
+        throw "Runtime package has no package.json or module.json: $runtimeDirectory"
+    }
+
+    $packageDestination = Join-Path $OutputRoot $packageId
+    Copy-DirectoryContents -Source $runtimeDirectory -Destination $packageDestination
+    Assert-DotnetSurfaceAssemblies -PackageRoot $packageDestination
 }
 
 Write-Host $OutputRoot

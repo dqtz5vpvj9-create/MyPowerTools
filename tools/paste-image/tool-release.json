@@ -1,0 +1,24 @@
+{
+  "schemaVersion": 1,
+  "toolId": "paste-image",
+  "packageId": "paste-image",
+  "version": "0.1.0",
+  "moduleIds": ["paste-image"],
+  "adapter": {
+    "project": "current-integration/src/PasteImage.MyPowerTools/PasteImage.MyPowerTools.csproj",
+    "assembly": "PasteImage.MyPowerTools.dll",
+    "configuration": "Release",
+    "requiredMsbuildProperties": ["MyPowerToolsRepoRoot"],
+    "suiteProjectReferences": [
+      "src/MyPowerTools.Abstractions/MyPowerTools.Abstractions.csproj",
+      "src/MyPowerTools.Protocol/MyPowerTools.Protocol.csproj",
+      "src/MyPowerTools.Platform.Abstractions/MyPowerTools.Platform.Abstractions.csproj"
+    ]
+  },
+  "package": {
+    "template": "current-integration/modules/paste-image",
+    "output": "artifacts/package",
+    "integrityRequiresRefresh": true
+  },
+  "buildScript": "build.ps1"
+}

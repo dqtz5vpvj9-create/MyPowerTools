@@ -1,6 +1,7 @@
 using RemoteNotifications.Surface.Services;
 using RemoteNotifications.Surface.ViewModels;
 using RemoteNotifications.Surface.Views;
+using MyPowerTools.AvaloniaSdk;
 using MyPowerTools.RemoteNotifications.Configuration;
 
 namespace MyPowerTools.Tests;
@@ -75,6 +76,9 @@ public sealed class RemoteNotificationsProductTests
         Assert.Contains("x:Name=\"LabelScroller\"", feed, StringComparison.Ordinal);
         Assert.Contains("HorizontalScrollBarVisibility=\"Hidden\"", feed, StringComparison.Ordinal);
         Assert.Contains("PointerMoved=\"OnLabelScrollerPointerMoved\"", feed, StringComparison.Ordinal);
+        Assert.Contains("PointerWheelChanged=\"OnLabelScrollerPointerWheelChanged\"", feed, StringComparison.Ordinal);
+        Assert.Contains("Content=\"Search\"", feed, StringComparison.Ordinal);
+        Assert.Contains("UpdateSourceTrigger=PropertyChanged", feed, StringComparison.Ordinal);
         Assert.Contains("<StackPanel Orientation=\"Horizontal\" />", feed, StringComparison.Ordinal);
         Assert.DoesNotContain("<WrapPanel", feed, StringComparison.Ordinal);
     }
@@ -115,6 +119,60 @@ public sealed class RemoteNotificationsProductTests
         Assert.Equal(
             expected,
             RemoteNotificationLabelDrag.CalculateOffset(startOffset, pointerDelta, extent, viewport));
+    }
+
+    [Theory]
+    [InlineData(200, 1, 1000, 400, 128)]
+    [InlineData(200, -1, 1000, 400, 272)]
+    [InlineData(20, 1, 1000, 400, 0)]
+    [InlineData(580, -1, 1000, 400, 600)]
+    [InlineData(100, -1, 300, 400, 0)]
+    public void Label_strip_maps_vertical_wheel_motion_to_horizontal_offset(
+        double currentOffset,
+        double wheelDelta,
+        double extent,
+        double viewport,
+        double expected)
+    {
+        Assert.Equal(
+            expected,
+            RemoteNotificationLabelWheel.CalculateOffset(currentOffset, wheelDelta, extent, viewport));
+    }
+
+    [Fact]
+    public void Search_filters_message_content_immediately_and_respects_the_topic_filter()
+    {
+        var viewModel = new RemoteNotificationsViewModel(
+            new RemoteNotificationsSnapshot(
+                [
+                    Message("alpha-pass", "[alpha] Build PASSED", DateTimeOffset.UtcNow.AddMinutes(-3)),
+                    Message("alpha-fail", "[alpha] Build failed", DateTimeOffset.UtcNow.AddMinutes(-2)),
+                    Message("beta-pass", "[beta] Deploy passed", DateTimeOffset.UtcNow.AddMinutes(-1))
+                ],
+                ["alpha", "beta"],
+                null,
+                false),
+            new FakeStore(),
+            new FakePoller());
+
+        viewModel.OpenSearch();
+        viewModel.SearchQuery = "PASSED";
+
+        Assert.True(viewModel.IsSearchVisible);
+        Assert.Equal(["beta-pass", "alpha-pass"], viewModel.VisibleMessages.Select(message => message.Id));
+        Assert.Equal("2 results", viewModel.SearchResultText);
+        Assert.Equal("2 of 3 messages", viewModel.MessageCountText);
+
+        viewModel.Chips.Single(chip => chip.Label == "alpha").SelectCommand.Execute(null);
+
+        Assert.Equal("alpha-pass", Assert.Single(viewModel.VisibleMessages).Id);
+        Assert.Equal("1 result", viewModel.SearchResultText);
+
+        viewModel.CloseSearch();
+
+        Assert.False(viewModel.IsSearchVisible);
+        Assert.Equal("", viewModel.SearchQuery);
+        Assert.Equal(2, viewModel.VisibleMessages.Count);
     }
 
     [Fact]
@@ -417,6 +475,13 @@ public sealed class RemoteNotificationsProductTests
     }
 
     [Fact]
+    public void Remote_notification_surface_accepts_host_activation_requests()
+    {
+        Assert.True(typeof(IMptAvaloniaSurfaceActivationHandler).IsAssignableFrom(
+            typeof(RemoteNotificationsView)));
+    }
+
+    [Fact]
     public async Task Activation_pipe_forwards_the_exact_message_to_the_running_shell_endpoint()
     {
         if (!OperatingSystem.IsWindows())
@@ -535,6 +600,30 @@ public sealed class RemoteNotificationsProductTests
             "src",
             "RemoteNotifications.Service",
             "Program.cs"));
+        var workerProject = File.ReadAllText(Path.Combine(
+            Root,
+            "tools",
+            "remote-notifications",
+            "current-integration",
+            "src",
+            "RemoteNotifications.Service",
+            "RemoteNotifications.Service.csproj"));
+        var workerToast = File.ReadAllText(Path.Combine(
+            Root,
+            "tools",
+            "remote-notifications",
+            "current-integration",
+            "src",
+            "RemoteNotifications.Service",
+            "ToastRuntime.cs"));
+        var productActivationLauncher = File.ReadAllText(Path.Combine(
+            Root,
+            "tools",
+            "remote-notifications",
+            "current-integration",
+            "src",
+            "RemoteNotifications.Service",
+            "ProductActivationLauncher.cs"));
 
         Assert.Contains("MaximumMessages = 500", store, StringComparison.Ordinal);
         Assert.Contains("MaximumRecentHashes = 200", store, StringComparison.Ordinal);
@@ -545,19 +634,40 @@ public sealed class RemoteNotificationsProductTests
         Assert.Contains("mypowertools://remote-notification?id=", toast, StringComparison.Ordinal);
         Assert.Contains("MyPowerTools.RemoteNotificationActivation", activation, StringComparison.Ordinal);
         Assert.Contains("_detailWindows.TryOpen(request.MessageId)", activation, StringComparison.Ordinal);
-        Assert.Contains("detail.Show();", detailWindows, StringComparison.Ordinal);
+        Assert.Contains("Present(detail);", detailWindows, StringComparison.Ordinal);
+        Assert.Contains("SetForegroundWindow(handle)", detailWindows, StringComparison.Ordinal);
+        Assert.Contains("BringWindowToTop(handle)", detailWindows, StringComparison.Ordinal);
+        Assert.Contains("SetWindowPos(handle, HwndTopmost", detailWindows, StringComparison.Ordinal);
+        Assert.Contains("SetWindowPos(handle, HwndNotTopmost", detailWindows, StringComparison.Ordinal);
         Assert.Contains("_detailWindows.Open(message)", notificationView, StringComparison.Ordinal);
+        Assert.Contains("IMptAvaloniaSurfaceActivationHandler", notificationView, StringComparison.Ordinal);
         Assert.DoesNotContain("ShowDialog(owner)", notificationView, StringComparison.Ordinal);
         Assert.DoesNotContain("detail.Show(owner)", notificationView, StringComparison.Ordinal);
         Assert.Contains("WindowStartupLocation=\"CenterScreen\"", detailView, StringComparison.Ordinal);
         Assert.Contains("WindowsToastAbi.Show", toastPlatform, StringComparison.Ordinal);
         Assert.Contains("SetCurrentProcessExplicitAppUserModelID", toastPlatform, StringComparison.Ordinal);
+        Assert.Contains("var shortcutExists = File.Exists(path);", toastPlatform, StringComparison.Ordinal);
+        Assert.Contains("if (!shortcutExists)", toastPlatform, StringComparison.Ordinal);
         Assert.Contains("IServiceUnitClient", serviceClient, StringComparison.Ordinal);
-        Assert.Contains("ResolvePipeName", serviceClient, StringComparison.Ordinal);
+        Assert.Contains("ConnectAsync", serviceClient, StringComparison.Ordinal);
+        Assert.Contains("\"unix-socket\"", serviceClient, StringComparison.Ordinal);
         Assert.Contains("_serviceClient.PollAsync", viewModel, StringComparison.Ordinal);
         Assert.Contains("ObserveServiceAsync", viewModel, StringComparison.Ordinal);
         Assert.Contains("RunOnePollCycle", worker, StringComparison.Ordinal);
         Assert.Contains("ServeControlPipe", worker, StringComparison.Ordinal);
+        Assert.Contains("ServeControlSocket", worker, StringComparison.Ordinal);
+        Assert.Contains("MacUserNotificationService", worker, StringComparison.Ordinal);
+        Assert.Contains("WorkerToastPlatform.EnsureRegistered()", worker, StringComparison.Ordinal);
+        Assert.Contains("ProductActivationLauncher.GetLaunchUri(args)", worker, StringComparison.Ordinal);
+        Assert.Contains("<OutputType>WinExe</OutputType>", workerProject, StringComparison.Ordinal);
+        Assert.Contains("RegisterProtocol(workerExecutable)", workerToast, StringComparison.Ordinal);
+        Assert.Contains("var shortcutExists = File.Exists(path);", workerToast, StringComparison.Ordinal);
+        Assert.Contains("if (!shortcutExists)", workerToast, StringComparison.Ordinal);
+        Assert.Contains("SetStringProperty(propertyStore, PropertyKeys.AppUserModelId, AppUserModelId);", workerToast, StringComparison.Ordinal);
+        Assert.Contains("ToolActivationProtocol.ArgumentName", productActivationLauncher, StringComparison.Ordinal);
+        Assert.Contains("new ToolActivationRequest(ToolId, RouteId, launchUri)", productActivationLauncher, StringComparison.Ordinal);
+        Assert.Contains("SuppressShellWindow = true", productActivationLauncher, StringComparison.Ordinal);
+        Assert.Contains("AllowSetForegroundWindow((uint)processId)", productActivationLauncher, StringComparison.Ordinal);
 
         var originalRoot = Path.Combine(Root, "..", "androidtools");
         if (!Directory.Exists(originalRoot))

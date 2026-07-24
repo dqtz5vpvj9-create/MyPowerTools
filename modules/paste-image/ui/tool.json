@@ -1,0 +1,30 @@
+{
+  "schemaVersion": "1.0",
+  "toolId": "paste-image",
+  "ownerModuleId": "paste-image",
+  "title": "Paste Image",
+  "description": "Upload a clipboard image over SSH, then paste its remote path anywhere.",
+  "icon": "tool.paste-image",
+  "category": "Clipboard",
+  "type": "dotnet-surface",
+  "availability": "available",
+  "primaryRouteId": "main",
+  "routes": [
+    {
+      "routeId": "main",
+      "surfaceId": "paste-image.detail",
+      "title": "Overview",
+      "surface": {
+        "kind": "dotnet",
+        "assembly": "surface/PasteImage.Surface.dll",
+        "type": "PasteImage.Surface.PasteImageSurfaceFactory"
+      }
+    }
+  ],
+  "homeCard": {
+    "summary": "Press Ctrl+Alt+V to upload the clipboard image and copy its remote path.",
+    "primaryActionLabel": "Open Paste Image",
+    "statusBinding": "module.status",
+    "order": 60
+  }
+}

@@ -254,6 +254,10 @@ static IReadOnlyDictionary<string, object> CreateCapabilityProviders(IPlatformPa
     {
         providers["notification.desktop"] = platformPack.Notifications;
     }
+    if (platformPack.Capabilities.Resolve("clipboard.image").Supported)
+    {
+        providers["clipboard.image"] = platformPack.ClipboardImages;
+    }
 
     return providers;
 }

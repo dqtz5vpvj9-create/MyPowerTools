@@ -1,0 +1,9 @@
+{
+  "schemaVersion": "1.0",
+  "surfaceId": "paste-image.dashboard",
+  "moduleId": "paste-image",
+  "kind": "dashboard-card",
+  "layout": { "mode": "component" },
+  "uses": ["MptDashboardCard", "MptStatusPill", "MptActionBar"],
+  "states": ["loading", "ready", "degraded", "error", "disabled"]
+}

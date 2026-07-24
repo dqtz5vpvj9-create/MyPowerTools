@@ -12,6 +12,17 @@ public interface IMptAvaloniaSurfaceFactory
     Control CreateSurface(MptAvaloniaSurfaceContext context);
 }
 
+/// <summary>
+/// Optional contract for a surface that can consume an external activation after the Shell
+/// dynamically loads and navigates to it.
+/// </summary>
+public interface IMptAvaloniaSurfaceActivationHandler
+{
+    ValueTask<bool> ActivateAsync(
+        ToolActivationRequest request,
+        CancellationToken cancellationToken = default);
+}
+
 public sealed record MptAvaloniaSurfaceContext(
     string ToolId,
     string RouteId,
@@ -20,7 +31,63 @@ public sealed record MptAvaloniaSurfaceContext(
     Func<string, JsonObject?, CancellationToken, Task<CommandExecutionResult>> ExecuteCommandAsync,
     Func<string, string, JsonObject?, Task> NavigateAsync,
     IServiceUnitClient ServiceUnits,
-    Action<MptSurfaceLogEntry> Log);
+    Action<MptSurfaceLogEntry> Log,
+    Func<Action<MptSurfaceEvent>, IDisposable>? SubscribeEvents = null)
+{
+    /// <summary>
+    /// Optional host capability for embedding a process-isolated web surface. Older hosts leave
+    /// this property <see langword="null"/> and tools should offer their external-browser path.
+    /// </summary>
+    public IMptWebSurfaceService? WebSurfaces { get; init; }
+}
+
+public enum MptWebSurfaceState
+{
+    Loading,
+    Ready,
+    Unavailable,
+    Failed
+}
+
+public sealed record MptWebSurfaceRequest(
+    string ToolId,
+    string RouteId,
+    Uri Source,
+    IReadOnlyList<Uri> AllowedOrigins,
+    Func<string, CancellationToken, Task<string>>? HandleBridgeRequestAsync = null);
+
+public sealed class MptWebSurfaceStateChangedEventArgs(
+    MptWebSurfaceState state,
+    string message = "") : EventArgs
+{
+    public MptWebSurfaceState State { get; } = state;
+    public string Message { get; } = message;
+}
+
+public interface IMptWebSurfaceSession : IDisposable
+{
+    Control View { get; }
+    MptWebSurfaceState State { get; }
+    event EventHandler<MptWebSurfaceStateChangedEventArgs>? StateChanged;
+    void Reload();
+}
+
+public interface IMptWebSurfaceService
+{
+    IMptWebSurfaceSession CreateSession(MptWebSurfaceRequest request);
+}
+
+/// <summary>
+/// A lightweight projection of the Runner host-event stream for the active tool surface.
+/// The Shell reuses its existing stream, so surfaces receive module updates without polling
+/// or opening another IPC connection.
+/// </summary>
+public sealed record MptSurfaceEvent(
+    ulong Sequence,
+    string SourceId,
+    string Type,
+    DateTimeOffset Time,
+    JsonObject Payload);
 
 public sealed record MptSurfaceLogEntry(
     string Level,

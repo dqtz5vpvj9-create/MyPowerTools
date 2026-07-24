@@ -1,0 +1,9 @@
+{
+  "schemaVersion": "1.0",
+  "surfaceId": "paste-image.logs",
+  "moduleId": "paste-image",
+  "kind": "logs",
+  "layout": { "mode": "component" },
+  "uses": ["MptLogViewer", "MptErrorView", "MptEmptyState"],
+  "states": ["loading", "ready", "empty", "error", "disabled"]
+}

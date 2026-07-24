@@ -43,7 +43,7 @@ public static class IpcChannelFactory
             {
                 if (endpoint.Transport == IpcTransport.NamedPipe)
                 {
-                    var stream = new NamedPipeClientStream(".", endpoint.Address, PipeDirection.InOut, PipeOptions.Asynchronous);
+                    var stream = new NamedPipeClientStream(".", endpoint.Address, PipeDirection.InOut, MptNamedPipePolicy.ClientOptions);
                     await stream.ConnectAsync(cancellationToken);
                     return stream;
                 }

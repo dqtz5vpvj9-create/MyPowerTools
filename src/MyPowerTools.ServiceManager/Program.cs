@@ -1,4 +1,5 @@
 using Microsoft.AspNetCore.Server.Kestrel.Core;
+using Microsoft.AspNetCore.Server.Kestrel.Transport.NamedPipes;
 using Microsoft.Win32;
 using MyPowerTools.Ipc;
 using MyPowerTools.Platform.Abstractions;
@@ -61,6 +62,11 @@ builder.Services.AddGrpc(options => options.Interceptors.Add<BearerTokenAuthServ
 builder.Services.AddSingleton(engine);
 // IHostApplicationLifetime is registered automatically by the host; the gRPC Shutdown RPC
 // consumes it to trigger a graceful stop that leaves units running for re-adoption.
+
+if (OperatingSystem.IsWindows())
+{
+    builder.WebHost.UseNamedPipes(MptNamedPipePolicy.Configure);
+}
 
 builder.WebHost.ConfigureKestrel(options =>
 {

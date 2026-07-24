@@ -12,9 +12,9 @@ Run date: 2026-07-06.
 | Next phase | External GPT Pro review of final UI package |
 | SDK | 10.0.301 from `global.json` and `dotnet --version` |
 | Target frameworks | `net10.0` projects across the solution |
-| Production packages | 5: `adb-forwarder`, `android-tools-suite`, `doubao-agent`, `screenease`, `smartbird-thermostat` |
-| Production modules | 7 |
-| Production commands | 81 total, 50 dynamic |
+| Production packages | 6: `adb-forwarder`, `android-tools-suite`, `doubao-agent`, `paste-image`, `screenease`, `smartbird-thermostat` |
+| Production modules | 8 |
+| Production commands | 82 total, 51 dynamic |
 | Templates | 6 |
 | Tests | Latest full suite: 191 passed, 0 failed, 0 skipped. |
 | Release artifact | `artifacts/release/MyPowerTools-win-x64.zip` |
@@ -64,7 +64,7 @@ Run date: 2026-07-06.
 | P8 audit scans | Placeholder/stub/fake scans found only documentation/history or UI input `PlaceholderText`; `unsupported` findings are explicit degraded states; production module roots contain no sample modules; high-confidence secret scan found no real credential material; release metadata contains no `file:///C:` URL. |
 | `pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\publish-windows.ps1` | Rebuilt `artifacts/release/MyPowerTools-win-x64.zip`, root `MyPowerTools.exe`, `START_HERE.md`, `Start-MyPowerTools.cmd`, `RELEASE_NOTES.md`, `release-metadata.json`, and the Scoop manifest. ZIP SHA256 `5FC9666963623756DEF969565C878EDE466CCDA4DFBA7DF43F97BFBF51A82D00`; size 255336591 bytes. |
 | Release metadata/Scoop manifest check | `release-metadata.json` artifact hash and `package-managers/scoop/mypowertools.json` 64-bit hash both equal `5FC9666963623756DEF969565C878EDE466CCDA4DFBA7DF43F97BFBF51A82D00`; both URLs are relative `MyPowerTools-win-x64.zip`; manifest exposes `mpt` as the CLI shim and `MyPowerTools.exe` as the single GUI shortcut. |
-| Actual Start Menu refresh | The earlier `%LOCALAPPDATA%\Programs\MyPowerTools` validation is superseded by the ADB Broker hardening. Current scripts default to `%ProgramFiles%\MyPowerTools` and require elevation; this preserves the single `MyPowerTools.lnk` while giving `Broker\MyPowerTools.ElevatedBroker.exe` an ACL-protected trust root. |
+| Actual Start Menu refresh | Current scripts and the Inno Setup package install under `%LOCALAPPDATA%\Programs\MyPowerTools` without installer elevation and preserve the single `MyPowerTools.lnk`. `Broker\MyPowerTools.ElevatedBroker.exe` embeds `requireAdministrator`, and the ADB approval flow launches it with `runas` so Windows UAC appears exactly when a privileged port change is executed. |
 | Product launcher smoke | Installed `MyPowerTools.exe --data-root <temp>` exited after launching `MyPowerTools.Shell.Avalonia.exe` and `MyPowerTools.Runner.exe`; both processes were observed from the installed root and then terminated. |
 | `pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\create-review-evidence.ps1` | Passed; saved 27 command outputs, command result index, UI snapshots, Shell screenshots, release evidence, and `artifacts/review/MyPowerTools-final-evidence.zip`. |
 | Release Runner semantic check | `23-release-runner-once.txt` passed with relative `--data-root`; `adb-forwarder` is running; AndroidTools notifications and remote commands are running; process-monitor, Doubao, ScreenEase, and SmartBird degraded reasons are external; no assembly/path/reflection/runtime failure markers were found. |
@@ -129,9 +129,9 @@ Run date: 2026-07-06.
 | Area | Evidence |
 |---|---|
 | Platform abstractions | Added `ILocalIpc`, `LocalIpcService`, `IHotkeyService`, `IPrivilegeBroker`, unsupported provider implementations for notification, autostart, service, network, process, hotkey, and privilege surfaces, plus managed process inspection. |
-| macOS/Linux packs | `MacPlatformPack` and `LinuxPlatformPack` now expose local IPC, notification, autostart, service, network, process, display, tray, secret, hotkey, and privilege services. Unsupported providers return explicit `unsupported` state/messages; process inspection uses the managed runtime where supported. |
-| Windows pack | `WindowsPlatformPack` exposes `LocalIpc`, `Hotkeys`, and `Privileges`; Windows Runner IPC remains Named Pipe based, `Hotkeys` registers real Win32 `RegisterHotKey` gestures for the Runner command palette shortcut, and privilege evaluation returns broker-required. |
-| Acceptance coverage | Added tests for required capability failure -> `unsupported`, optional capability failure -> `degraded`, platform-native IPC endpoint shapes, Mac/Linux degraded service behavior, hotkey/privilege provider surfaces, and `PrivilegedBroker` implementing the platform privilege contract. |
+| macOS/Linux packs | `MacPlatformPack` now supplies WKWebView, UserNotifications, NSPasteboard, Keychain, launchd, NSStatusItem, local IPC, OpenSSH, and managed process inspection. Its AppKit status item renders the preferred Codex weekly remaining percentage as a native Retina ring, includes reset countdowns, refreshes every five minutes, and retries failures after one minute. Display, global hotkey, privilege, and elevated network providers remain degraded. `LinuxPlatformPack` keeps explicit degraded native providers with managed process inspection, local IPC, and OpenSSH capability reporting. |
+| Windows pack | `WindowsPlatformPack` exposes `LocalIpc`, `Hotkeys`, and `Privileges`; Windows Runner IPC remains Named Pipe based, `Hotkeys` registers real Win32 `RegisterHotKey` gestures for the Runner command palette shortcut, and privilege evaluation returns broker-required. Windows and macOS share the Codex `account/rateLimits/read` reader and recent-session JSONL fallback while retaining platform-native icon renderers. |
+| Acceptance coverage | Added tests for required capability failure -> `unsupported`, optional capability failure -> `degraded`, platform-native IPC endpoint shapes, macOS native provider wiring and release catalog, Linux degraded service behavior, hotkey/privilege provider surfaces, Codex quota bucket/window/session parsing, macOS quota tooltip/refresh/native-rendering contracts, and `PrivilegedBroker` implementing the platform privilege contract. |
 | P7 validation | Build passed with 0 warnings, tests passed, module inspection shows requirements and broker permissions, diagnostics reports Windows `grpc-ipc` runtime process state, contract validation passed, strict package trust passed, and `scripts/smoke.ps1` passed. |
 
 ## P6 Progress On 2026-07-04

@@ -107,11 +107,10 @@
     },
     {
       "id": "smartbird-thermostat.service.restart",
-      "title": "Request thermostat service restart",
-      "subtitle": "Builds an audited scheduled-task restart request",
+      "title": "Restart thermostat service",
+      "subtitle": "Restarts the current-user SmartBird scheduled task",
       "kind": "action",
       "category": "SmartBird Thermostat",
-      "requiresElevation": true,
       "dangerLevel": "medium",
       "timeoutMs": 10000,
       "parameters": [
@@ -123,13 +122,8 @@
           "defaultValue": "Restart SmartBird thermostat service after degraded diagnostics."
         }
       ],
-      "constraints": [
-        "mutatesSystemState",
-        "requiresElevatedWrites"
-      ],
       "execution": {
-        "type": "module.execute",
-        "brokerApprovalOnly": true
+        "type": "module.execute"
       }
     }
   ]

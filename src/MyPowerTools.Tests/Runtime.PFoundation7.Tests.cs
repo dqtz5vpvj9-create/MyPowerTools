@@ -296,7 +296,7 @@ public sealed partial class RuntimeAcceptanceTests
         var running = runtime.GetRuntimeDiagnostics().Modules.Single(module => module.ModuleId == "screenease");
         Assert.Equal("enabled", running.ModuleEnabledState);
         Assert.Equal("loaded", running.TransportActiveState);
-        Assert.Equal("partial", running.ToolRuntimeState);
+        Assert.Equal("running", running.ToolRuntimeState);
 
         await runtime.SetModuleEnabledAsync("screenease", enabled: false, CancellationToken.None);
         var disabled = runtime.GetRuntimeDiagnostics().Modules.Single(module => module.ModuleId == "screenease");

@@ -5,6 +5,7 @@ using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using MyPowerTools.Broker;
 using MyPowerTools.HostControl;
+using MyPowerTools.Ipc;
 using MyPowerTools.ModuleHost.GrpcIpc;
 using MyPowerTools.ModuleHost.InProcDotNet;
 using MyPowerTools.ModuleHost.StdioCompat;
@@ -163,6 +164,10 @@ static async Task<string> WriteShellSnapshotFromFixtureHostControlAsync(
     builder.Services.AddGrpc();
     builder.Services.AddSingleton(runtime);
     builder.Services.AddSingleton(CreateDefaultAuditLog());
+    if (OperatingSystem.IsWindows())
+    {
+        builder.WebHost.UseNamedPipes(MptNamedPipePolicy.Configure);
+    }
     builder.WebHost.ConfigureKestrel(options =>
     {
         if (endpoint.Transport == IpcTransport.NamedPipe)

@@ -11,16 +11,22 @@ using MyPowerTools.Platform.Abstractions;
 namespace MyPowerTools.Platform.Windows;
 
 [SupportedOSPlatform("windows")]
-public sealed class WindowsPlatformPack
+public sealed class WindowsPlatformPack : IPlatformPack
 {
-    private static readonly PlatformId Platform = new("windows", PlatformId.Current().Architecture);
+    private static readonly PlatformId CurrentPlatform = new("windows", PlatformId.Current().Architecture);
     private readonly Lazy<IHotkeyService> _hotkeys = new(CreateHotkeyService);
+
+    public PlatformId Platform => CurrentPlatform;
+    public PlatformTrayHost TrayHost => PlatformTrayHost.Runner;
 
     public ICapabilityRegistry Capabilities { get; } = new CapabilityRegistry(
     [
         new("tray", "user", true, "Windows tray", "Windows tray provider available."),
         new("hotkey.global", "user", true, "Win32 RegisterHotKey", "Global hotkey provider registers Win32 user hotkeys."),
         new("notification.desktop", "user", true, "Windows notification", "Desktop notification provider available."),
+        new("clipboard.image", "sensitive", true, "Win32 Clipboard", "Native Win32 clipboard image and text provider available."),
+        new("network.ssh", "user", true, "Windows OpenSSH", "The system OpenSSH client is used for SSH transfers."),
+        new("web.surface", "user", true, "WebView2", "Process-isolated WebView2 surface provider available."),
         new("autostart.user", "user", true, "Startup folder", "User autostart provider available."),
         new("service.user", "user", true, "sc.exe / Task Scheduler", "User service diagnostics available."),
         new("service.system", "elevated", true, "Windows Service", "System service actions require Broker approval."),
@@ -40,9 +46,11 @@ public sealed class WindowsPlatformPack
     public IDisplayService Display { get; } = new WindowsDisplayService();
     public IAutostartService Autostart { get; } = new WindowsAutostartService();
     public ITrayService Tray { get; } = new WindowsTrayService();
+    public INotificationService Notifications => (INotificationService)Tray;
+    public IClipboardImageService ClipboardImages { get; } = new WindowsClipboardImageService();
     public IHotkeyService Hotkeys => _hotkeys.Value;
     public IPrivilegeBroker Privileges { get; } = new BrokerRequiredPrivilegeBroker("UAC broker", "Elevated actions require MyPowerTools Broker approval and audit.");
-    public ILocalIpc LocalIpc { get; } = new LocalIpcService(Platform);
+    public ILocalIpc LocalIpc { get; } = new LocalIpcService(CurrentPlatform);
 
     private static IHotkeyService CreateHotkeyService()
     {

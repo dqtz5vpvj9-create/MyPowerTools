@@ -102,6 +102,41 @@ public sealed partial class RuntimeAcceptanceTests
     }
 
     [Fact]
+    public void Module_state_allowlist_profile_is_seeded_once_and_remains_user_editable()
+    {
+        var stateRoot = Path.Combine(
+            Path.GetTempPath(),
+            "mpt-runtime-module-allowlist",
+            Guid.NewGuid().ToString("N"));
+        var initial = new ModuleStateStore(stateRoot, ["android-tools.notifications"]);
+
+        Assert.True(initial.IsEnabled("android-tools.notifications"));
+        Assert.False(initial.IsEnabled("android-tools.remote-commands"));
+        Assert.True(File.Exists(Path.Combine(stateRoot, "modules.enabled.json")));
+
+        initial.SetModuleEnabled("android-tools.remote-commands", enabled: true);
+        var reloaded = new ModuleStateStore(stateRoot);
+
+        Assert.True(reloaded.IsEnabled("android-tools.notifications"));
+        Assert.True(reloaded.IsEnabled("android-tools.remote-commands"));
+        Assert.False(reloaded.IsEnabled("process-monitor"));
+    }
+
+    [Fact]
+    public void Mac_platform_pack_exposes_native_notification_web_keychain_and_launchd_capabilities()
+    {
+        IPlatformPack platform = new MacPlatformPack();
+
+        Assert.True(platform.Capabilities.Resolve("notification.desktop").Supported);
+        Assert.Equal("UserNotifications", platform.Capabilities.Resolve("notification.desktop").Provider);
+        Assert.True(platform.Capabilities.Resolve("web.surface").Supported);
+        Assert.Equal("WKWebView", platform.Capabilities.Resolve("web.surface").Provider);
+        Assert.True(platform.Capabilities.Resolve("secret.store").Supported);
+        Assert.True(platform.Capabilities.Resolve("autostart.user").Supported);
+        Assert.True(platform.Capabilities.Resolve("service.user").Supported);
+    }
+
+    [Fact]
     public void Shell_navigation_command_is_not_runtime_fake_success()
     {
         var runtime = new MptHostRuntime(new PackageReader(), PlatformId.Current());

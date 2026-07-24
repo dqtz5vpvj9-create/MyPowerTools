@@ -4,6 +4,8 @@ namespace MyPowerTools.Broker;
 
 public sealed class PrivilegedBroker : IPrivilegeBroker
 {
+    private const string PermissionRequiredErrorCode = "MPT_PERMISSION_REQUIRED";
+
     private static readonly HashSet<string> BrokeredPermissionLevels = new(StringComparer.OrdinalIgnoreCase)
     {
         "elevated",
@@ -27,7 +29,7 @@ public sealed class PrivilegedBroker : IPrivilegeBroker
     {
         var normalizedLevel = permissionLevel.Trim();
         var requiresBroker = BrokeredPermissionLevels.Contains(normalizedLevel);
-        var decision = new BrokerDecision(actionId, requiresBroker, requiresBroker ? "permission-required" : "", reason);
+        var decision = new BrokerDecision(actionId, requiresBroker, requiresBroker ? PermissionRequiredErrorCode : "", reason);
         _auditLog.Append(new BrokerAuditEntry(Guid.NewGuid().ToString("N"), DateTimeOffset.UtcNow, moduleId, actionId, normalizedLevel, scope, reason, decision.RequiresBroker, "evaluated", ""));
         return decision;
     }

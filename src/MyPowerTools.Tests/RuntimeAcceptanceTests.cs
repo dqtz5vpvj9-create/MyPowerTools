@@ -1432,7 +1432,12 @@ public sealed class GeneratedModule : IMptModule
         }
 
         var projectName = Path.GetFileNameWithoutExtension(projectPath);
-        var outputDirectory = Path.Combine(projectDirectory, "bin", "Debug", "net10.0");
+#if DEBUG
+        const string buildConfiguration = "Debug";
+#else
+        const string buildConfiguration = "Release";
+#endif
+        var outputDirectory = Path.Combine(projectDirectory, "bin", buildConfiguration, "net10.0");
         var executablePath = Path.Combine(outputDirectory, OperatingSystem.IsWindows() ? $"{projectName}.exe" : projectName);
         var dllPath = Path.Combine(outputDirectory, $"{projectName}.dll");
         var useExecutable = File.Exists(executablePath);
@@ -1471,15 +1476,18 @@ public sealed class GeneratedModule : IMptModule
         psi.Environment["DOTNET_CLI_TELEMETRY_OPTOUT"] = "1";
     }
 
-    private static async Task<HostControlClient> WaitForDefaultHostControlAsync()
+    private static async Task<HostControlClient> WaitForHostControlAsync(string endpointAddress)
     {
+        var endpoint = new IpcEndpoint(
+            OperatingSystem.IsWindows() ? IpcTransport.NamedPipe : IpcTransport.UnixDomainSocket,
+            endpointAddress);
         Exception? lastError = null;
         for (var attempt = 0; attempt < 60; attempt++)
         {
             HostControlClient? client = null;
             try
             {
-                client = HostControlClient.ForDefaultEndpoint();
+                client = HostControlClient.ForEndpoint(endpoint);
                 using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(2));
                 await client.PingAsync(timeout.Token);
                 return client;

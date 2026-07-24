@@ -56,6 +56,7 @@ public sealed class ShellChromeViewModel : ObservableViewModel
     private bool _isCommandPaletteOpen;
     private bool _isPermissionPromptOpen;
     private string _selectedNavigationKey = "Home";
+    private ExternalSdkToolViewModel? _headerContent;
 
     public ShellChromeViewModel(
         IReadOnlyList<string> pageLabels,
@@ -116,6 +117,20 @@ public sealed class ShellChromeViewModel : ObservableViewModel
         get => _isPermissionPromptOpen;
         set => SetProperty(ref _isPermissionPromptOpen, value);
     }
+
+    public ExternalSdkToolViewModel? HeaderContent
+    {
+        get => _headerContent;
+        set
+        {
+            if (SetProperty(ref _headerContent, value))
+            {
+                OnPropertyChanged(nameof(HasHeaderContent));
+            }
+        }
+    }
+
+    public bool HasHeaderContent => HeaderContent is not null;
 
     public void SelectPage(string page)
     {

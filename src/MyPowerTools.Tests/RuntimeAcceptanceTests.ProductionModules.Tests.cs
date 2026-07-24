@@ -198,15 +198,23 @@ commands:
     {
         var root = Path.Combine(Path.GetTempPath(), "mpt-android-notifications-invalid", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(root);
-        var configPath = Path.Combine(root, "simple_http_notification_conf.py");
-        await File.WriteAllTextAsync(configPath, """
-cloud_server_ip: str = ""
-cloud_server_port: int = 0
-cloud_server_protocol: str = "https"
+        var settingsPath = Path.Combine(root, "settings.json");
+        var keyPath = Path.Combine(root, "test-key");
+        await File.WriteAllTextAsync(keyPath, "test key");
+        await File.WriteAllTextAsync(settingsPath, $$"""
+{
+  "protocol": "https",
+  "host": "",
+  "port": 8888,
+  "channel": "test",
+  "pollIntervalSeconds": 5,
+  "privateKeyPath": {{JsonSerializer.Serialize(keyPath)}},
+  "keepWindowsBanners": false
+}
 """);
 
-        var previous = Environment.GetEnvironmentVariable("MPT_ANDROIDTOOLS_NOTIFICATION_CONF");
-        Environment.SetEnvironmentVariable("MPT_ANDROIDTOOLS_NOTIFICATION_CONF", configPath);
+        var previous = Environment.GetEnvironmentVariable("MPT_TOOL_DATA_ROOT");
+        Environment.SetEnvironmentVariable("MPT_TOOL_DATA_ROOT", root);
         try
         {
             var module = new AndroidToolsNotificationsModule();
@@ -227,17 +235,17 @@ cloud_server_protocol: str = "https"
             var endpoint = inboxPayload["endpoint"]!.AsObject();
 
             Assert.Equal("degraded", status.State);
-            Assert.Contains(status.Checks, check => check.Id == "notification.config" && !check.Ok && check.Message.Contains("host or port", StringComparison.OrdinalIgnoreCase));
+            Assert.Contains(status.Checks, check => check.Id == "notification.config" && !check.Ok && check.Message.Contains("host", StringComparison.OrdinalIgnoreCase));
             Assert.True(serverCheck.Success);
             Assert.False(serverPayload["found"]!.GetValue<bool>());
-            Assert.Contains("host or port", serverPayload["message"]!.GetValue<string>(), StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("host", serverPayload["message"]!.GetValue<string>(), StringComparison.OrdinalIgnoreCase);
             Assert.True(inbox.Success);
             Assert.False(endpoint["found"]!.GetValue<bool>());
             Assert.Contains("legacyHistory", inboxPayload.Select(item => item.Key));
         }
         finally
         {
-            Environment.SetEnvironmentVariable("MPT_ANDROIDTOOLS_NOTIFICATION_CONF", previous);
+            Environment.SetEnvironmentVariable("MPT_TOOL_DATA_ROOT", previous);
         }
     }
 
@@ -662,7 +670,6 @@ cloud_server_protocol: str = "https"
         var eventPayload = JsonNode.Parse(events.Output)!.AsObject();
         var configPayload = JsonNode.Parse(config.Output)!.AsObject();
         var diagnosticsPayload = JsonNode.Parse(diagnostics.Output)!.AsObject();
-        var restartDetails = restart.Error!.Details!;
         var logsPayload = JsonNode.Parse(logs.Output)!.AsObject();
 
         Assert.True(dynamicCount > 0);
@@ -684,8 +691,9 @@ cloud_server_protocol: str = "https"
         Assert.True(diagnostics.Success);
         Assert.Equal("degraded", diagnosticsPayload["state"]!.GetValue<string>());
         Assert.False(restart.Success);
-        Assert.Equal("permission-required", restart.State);
-        Assert.Equal("ServiceBroker", restartDetails["broker"]!.GetValue<string>());
+        Assert.Equal("failed", restart.State);
+        Assert.Equal(MptErrorCodes.RuntimeUnavailable, restart.Error!.Code);
+        Assert.Contains("installed MyPowerTools user layout", restart.Error.Message, StringComparison.Ordinal);
         Assert.True(selfTest.Success);
         Assert.DoesNotContain("abc123", selfTest.Output);
         Assert.Contains("token=****", selfTest.Output);

@@ -253,6 +253,7 @@ public sealed partial class RuntimeAcceptanceTests
         Assert.Equal("sample.grpc", env["MPT_MODULE_ID"]!.GetValue<string>());
         Assert.False(string.IsNullOrWhiteSpace(env["MPT_ENDPOINT_TRANSPORT"]!.GetValue<string>()));
         Assert.Contains(pipeName, env["MPT_ENDPOINT_ADDRESS"]!.GetValue<string>());
+        Assert.Equal(Environment.ProcessId.ToString(), env["MPT_HOST_PROCESS_ID"]!.GetValue<string>());
         Assert.True(typedArgs["enabled"]!.GetValue<bool>());
         Assert.Equal(3, typedArgs["retryCount"]!.GetValue<int>());
         Assert.Equal(5555, listen["port"]!.GetValue<int>());

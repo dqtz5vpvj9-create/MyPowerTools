@@ -1,9 +1,19 @@
 # Start MyPowerTools
 
-For normal use, open PowerShell as administrator in this folder, run `install-windows.ps1` once, then open `MyPowerTools` from the Windows Start menu. The app installs to `%ProgramFiles%\MyPowerTools`; user data remains in `%LOCALAPPDATA%\MyPowerTools`.
+For normal use, install once from a regular PowerShell window, then open `MyPowerTools` from the Windows Start menu. The app installs to `%LOCALAPPDATA%\Programs\MyPowerTools`; user data remains in `%LOCALAPPDATA%\MyPowerTools`.
+
+From a source checkout, the installer builds the current portable package first:
 
 ```powershell
-pwsh.exe -NoLogo -NoProfile -File .\install-windows.ps1 -EnableAutostart -StartRunner -DesktopShortcut
+pwsh scripts/install-windows.ps1
+```
+
+This single command performs a clean publish, validates the package, installs it for the current user, configures startup, starts the runtime, and opens MyPowerTools.
+
+From an extracted portable package:
+
+```powershell
+pwsh ./install-windows.ps1
 ```
 
 After installation, the Start menu shows a single entry:
@@ -20,7 +30,7 @@ MyPowerTools.exe
 
 `Start-MyPowerTools.cmd` is also available for environments that prefer a script entry point.
 
-ADB portproxy writes are disabled in portable and developer layouts because those directories do not provide the ACL-protected Broker trust root.
+ADB portproxy writes are enabled in the installed user layout. The dedicated Broker requests Windows UAC automatically when an approved port change needs administrator rights. Portable and developer layouts keep privileged writes disabled.
 
 The app starts the Runner in the background and opens the Shell. The tray icon keeps MyPowerTools running, with menu actions for opening MyPowerTools and quitting the Runner.
 

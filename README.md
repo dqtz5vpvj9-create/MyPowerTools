@@ -7,27 +7,27 @@ The project is designed for local, long-term use: modules register through manif
 ## Current Capabilities
 
 - Runner / Shell split with HostControl gRPC over local IPC.
-- Runner tray integration on Windows with Open Shell and Quit Runner actions, plus explicit degraded tray services on macOS/Linux.
+- Windows tray and the native macOS `NSStatusItem` include a Codex quota icon with a remaining-percent ring, reset tooltip, five-minute refresh, and one-minute failure retry; Linux reports an explicit degraded tray state.
 - Shell smoke mode validates HostControl IPC without opening the interactive Avalonia window.
 - Shell subscribes to the HostControl event stream, resumes by event sequence after stream faults, and refreshes affected pages from Runner snapshots.
 - Typed module protocol and host-control protocol from `proto/`.
 - Transport tiers: static manifests, trusted InProc .NET modules, gRPC IPC sidecars, HTTP facades, and stdio compatibility.
 - Trusted `inproc-dotnet` callbacks run behind a soft fault boundary with shadow-copied collectible load contexts, call budgets, per-module cancellation generations, circuit breaking, quarantine, and bounded cleanup. Fatal CLR/native faults still belong to the Runner process boundary.
-- SmartBird's WebView2 surface runs in the separate `MyPowerTools.WebToolHost` process, so a native-control or browser-process failure leaves the Shell available with a recovery surface.
+- SmartBird uses the platform web surface: process-isolated WebView2 on Windows and an in-process native WKWebView on macOS.
 - Package registry, command index, settings store with revision protection, event bus, notification center, log router, broker audit, package hash manifests, and local package trust hooks.
 - Avalonia Shell pages for Dashboard, Modules, Settings, Logs, Notifications, Packages, Diagnostics, command palette, broker permission prompt, and broker audit.
 - CLI commands for validate, inspect, run, diagnostics, module list/enable/disable, package hash, package sign-local, package trust, install, uninstall, update, rollback, repair, UI gate, UI snapshots, broker audit, broker portproxy, broker secret self-test, and doctor.
 - Runner autostart status, enable, and disable flow through `AutostartBroker`, the Windows HKCU Run provider, and broker audit.
 - Module capability requirements and declared permissions are exposed through typed HostControl IPC, visible on Shell module pages, and inspectable through `mpt inspect modules`.
 - Package trust state, local policy, signature hook path, trust issue counts, and package lifecycle operations are exposed through HostControl and the Shell Packages page.
-- SecretBroker stores sensitive values through platform secret stores. Windows uses Credential Manager, tests use an in-memory provider, and macOS/Linux expose compile-ready degraded providers.
+- SecretBroker stores sensitive values through platform secret stores. Windows uses Credential Manager, macOS uses Keychain, tests use an in-memory provider, and Linux exposes a compile-ready degraded provider.
 - Runtime diagnostics report active gRPC IPC process pools with pool key, PID, endpoint, start count, restart limit, last start time, and module membership.
 - Runtime process controls can restart, pause, and resume gRPC IPC pools through Shell Diagnostics or `mpt runner process <restart|pause|resume>`.
 - Restart-policy decisions persist under the runtime state root and appear in Runtime Diagnostics with source-aware policy history and optional maintenance-window expiry.
 - UI snapshots write paired contract JSON and deterministic PNG pixel artifacts with SHA256 and nonblank image metrics.
 - Module contract validation checks every production module for schema validity, dashboard/settings/log surfaces, indexed commands, typed health state, runtime settings schema, and log provider readiness.
 - Six validated module templates for .NET InProc, .NET gRPC sidecar, Python gRPC sidecar, HTTP facade, WebView, and stdio compatibility modules.
-- Windows self-contained portable publish, install/uninstall scripts, and release notes generation.
+- Windows self-contained portable publish plus arm64/x64 macOS application-bundle publishing and installation scripts.
 
 ## Production Modules
 
@@ -37,23 +37,24 @@ The project is designed for local, long-term use: modules register through manif
 | `adb-forwarder` | `adb-forwarder` | ADB diagnostics, Windows portproxy inspection, brokered apply/revert plan with rollback. |
 | `screenease` | `screenease` | Display enumeration, profile list/plan/apply/save, rules status, and Windows DDC/CI native writer probing for brightness/color-temperature hardware changes. |
 | `doubao-agent` | `doubao-agent` | InProc controller with planner/tool/MCP health separation, self-test, settings schema, and logs summary. |
-| `smartbird-thermostat` | `smartbird-thermostat` | InProc typed facade for HTTP status, events, config, logs, brokered restart, and degraded hardware diagnostics; its WebView2 product surface runs in the separate WebToolHost process. |
+| `paste-image` | `paste-image` | Clipboard image upload through the platform OpenSSH client with native Win32 Clipboard/NSPasteboard input and remote-path clipboard replacement. |
+| `smartbird-thermostat` | `smartbird-thermostat` | InProc typed facade for HTTP status, events, config, logs, brokered restart, and degraded hardware diagnostics; its product surface uses WebView2 on Windows and WKWebView on macOS. |
 
 ## Requirements
 
 - .NET SDK `10.0.301`, locked by `global.json`.
 - PowerShell 7 (`pwsh.exe`) for scripts.
-- Windows for the current production publish path.
+- Windows or macOS for the corresponding production publish path; Xcode Command Line Tools are required for native macOS packaging.
 
 ## Start MyPowerTools
 
-For normal Windows use, extract the release zip, open PowerShell as administrator in that folder, and install it once:
+For normal Windows use, extract the release zip, open a regular PowerShell window in that folder, and install it once:
 
 ```powershell
-pwsh.exe -NoLogo -NoProfile -File .\install-windows.ps1 -EnableAutostart -StartRunner -DesktopShortcut
+pwsh ./install-windows.ps1
 ```
 
-Then open `MyPowerTools` from the Windows Start menu. The installer intentionally creates one user-facing shortcut named `MyPowerTools`; Runner and CLI remain background or advanced tools.
+The installer configures the user-level runtime and opens `MyPowerTools`. It intentionally creates one user-facing shortcut named `MyPowerTools`; Runner and CLI remain background or advanced tools.
 
 For read-only portable use without installation, run the launcher in the extracted zip root:
 
@@ -63,7 +64,7 @@ For read-only portable use without installation, run the launcher in the extract
 
 `MyPowerTools.exe` opens the Shell and starts the Runner in the background when needed. The tray icon keeps the Runner available and provides Open MyPowerTools and Quit Runner actions.
 
-The portable/developer layout is user-writable, so ADB portproxy writes are fail-closed there. Install under Program Files to enable the ACL-protected elevated Broker.
+ADB portproxy writes are available from the installed user layout. The dedicated Broker automatically requests Windows UAC for approved port changes. Portable and developer layouts keep privileged writes disabled.
 
 ## Build And Test
 
@@ -151,13 +152,13 @@ Outputs:
 - `artifacts/release/package-managers/scoop/mypowertools.json`
 - `artifacts/release/win-x64/templates/`
 
-The zip root includes `MyPowerTools.exe`, `START_HERE.md`, `Start-MyPowerTools.cmd`, `install-windows.ps1`, and `uninstall-windows.ps1`. After extracting the zip, open PowerShell as administrator and install the app:
+The zip root includes `MyPowerTools.exe`, `START_HERE.md`, `Start-MyPowerTools.cmd`, `install-windows.ps1`, and `uninstall-windows.ps1`. After extracting the zip, install the app from a regular PowerShell window:
 
 ```powershell
-pwsh.exe -NoLogo -NoProfile -File .\install-windows.ps1 -EnableAutostart -StartRunner -DesktopShortcut
+pwsh ./install-windows.ps1
 ```
 
-The default install directory is `%ProgramFiles%\MyPowerTools`; the ACL-protected `Broker\MyPowerTools.ElevatedBroker.exe` is the sole ADB portproxy approval consumer. Per-user runtime data stays under `%LOCALAPPDATA%\MyPowerTools`. The Start menu shows one shortcut named `MyPowerTools`. Open PowerShell as administrator to uninstall the app:
+The install directory is fixed at `%LOCALAPPDATA%\Programs\MyPowerTools`; `Broker\MyPowerTools.ElevatedBroker.exe` is the sole ADB portproxy approval consumer and carries a `requireAdministrator` manifest. Per-user runtime data stays under `%LOCALAPPDATA%\MyPowerTools`. The Start menu shows one shortcut named `MyPowerTools`. Uninstall from a regular PowerShell window:
 
 ```powershell
 pwsh.exe -NoLogo -NoProfile -NonInteractive -File .\uninstall-windows.ps1
@@ -334,4 +335,4 @@ Expected degraded states:
 - ScreenEase hardware writes use the Windows DDC/CI native writer when explicitly enabled; monitors without DDC/CI brightness/color-temperature support return actionable hardware diagnostics.
 - AndroidTools Process Monitor reports degraded until a watch list is saved.
 - NetworkBroker portproxy apply requires administrator rights or an elevated helper.
-- macOS/Linux secret providers compile and report unsupported until Keychain/Secret Service implementations are added.
+- Linux Secret Service integration remains pending; macOS secrets use the native Keychain provider.

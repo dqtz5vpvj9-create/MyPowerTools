@@ -1,22 +1,35 @@
+[CmdletBinding()]
 param(
     [string]$PackageRoot = $PSScriptRoot,
-    [string]$InstallDir = (Join-Path $env:ProgramFiles 'MyPowerTools'),
+    [string]$InstallDir = (Join-Path $env:LOCALAPPDATA 'Programs\MyPowerTools'),
     [string]$DataRoot = (Join-Path $env:LOCALAPPDATA 'MyPowerTools'),
     [switch]$NoStartMenuShortcut,
     [switch]$DesktopShortcut,
     [switch]$EnableAutostart,
     [switch]$StartRunner,
+    [switch]$NoDesktopShortcut,
+    [switch]$NoAutostart,
+    [switch]$NoStartRunner,
+    [switch]$NoOpenApp,
     [switch]$DryRun
 )
 
 $ErrorActionPreference = 'Stop'
 
-$currentIdentity = [Security.Principal.WindowsIdentity]::GetCurrent()
-$currentPrincipal = [Security.Principal.WindowsPrincipal]::new($currentIdentity)
-$isAdministrator = $currentPrincipal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
-if (-not $DryRun.IsPresent -and -not $isAdministrator) {
-    throw 'MyPowerTools installs its elevated Broker under Program Files. Run this installer from an elevated PowerShell session.'
+if ($DesktopShortcut -and $NoDesktopShortcut) {
+    throw 'DesktopShortcut and NoDesktopShortcut cannot be used together.'
 }
+if ($EnableAutostart -and $NoAutostart) {
+    throw 'EnableAutostart and NoAutostart cannot be used together.'
+}
+if ($StartRunner -and $NoStartRunner) {
+    throw 'StartRunner and NoStartRunner cannot be used together.'
+}
+
+$CreateDesktopShortcut = -not $NoDesktopShortcut.IsPresent
+$EnableAutostartEffective = -not $NoAutostart.IsPresent
+$StartRunnerEffective = -not $NoStartRunner.IsPresent
+$OpenAppEffective = -not $NoOpenApp.IsPresent
 
 function Resolve-FullPath {
     param([Parameter(Mandatory = $true)][string]$Path)
@@ -47,13 +60,21 @@ function Assert-RequiredPackageContent {
         'Shell\MyPowerTools.Shell.Avalonia.exe',
         'Cli\MyPowerTools.Cli.exe',
         'Broker\MyPowerTools.ElevatedBroker.exe',
+        'ServiceManager\MyPowerTools.ServiceManager.exe',
+        'service-units',
         'MyPowerTools.exe',
         'modules',
         'schemas',
         'ui',
         'START_HERE.md',
         'Start-MyPowerTools.cmd',
-        'assets\MyPowerTools.ico'
+        'configure-user-services.ps1',
+        'start-user-runtime.ps1',
+        'new-ota-file-manifest.ps1',
+        'new-ota-delta-package.ps1',
+        'invoke-ota-update.ps1',
+        'assets\MyPowerTools.ico',
+        'build-provenance.json'
     )
 
     foreach ($relative in $required) {
@@ -61,6 +82,60 @@ function Assert-RequiredPackageContent {
         if (-not (Test-Path -LiteralPath $path)) {
             throw "Portable package is missing $relative at $Root"
         }
+    }
+
+    $provenancePath = Join-Path $Root 'build-provenance.json'
+    $provenance = Get-Content -LiteralPath $provenancePath -Raw | ConvertFrom-Json
+    $shellContract = $provenance.windowsShell
+    if ($provenance.schemaVersion -lt 2 -or $null -eq $shellContract) {
+        throw "Portable package has no verifiable Windows Shell build contract at $provenancePath"
+    }
+    if ($shellContract.runtimeIdentifier -ne 'win-x64' -or
+        $shellContract.selfContained -ne $true -or
+        $shellContract.publishReadyToRun -ne $true -or
+        $shellContract.publishReadyToRunComposite -ne $true) {
+        throw "Portable package Windows Shell build contract is incompatible at $provenancePath"
+    }
+
+    $shellHashes = [ordered]@{
+        executableSha256 = 'Shell\MyPowerTools.Shell.Avalonia.exe'
+        assemblySha256 = 'Shell\MyPowerTools.Shell.Avalonia.dll'
+        runtimeConfigSha256 = 'Shell\MyPowerTools.Shell.Avalonia.runtimeconfig.json'
+    }
+    foreach ($hashProperty in $shellHashes.Keys) {
+        $relative = $shellHashes[$hashProperty]
+        $actualHash = (Get-FileHash -LiteralPath (Join-Path $Root $relative) -Algorithm SHA256).Hash
+        $expectedHash = [string]$shellContract.files.$hashProperty
+        if ([string]::IsNullOrWhiteSpace($expectedHash) -or
+            -not $actualHash.Equals($expectedHash, [System.StringComparison]::OrdinalIgnoreCase)) {
+            throw "Portable package Shell integrity check failed for $relative. Rebuild with scripts\publish-windows.ps1 -PortableOnly."
+        }
+    }
+}
+
+function Invoke-SourcePortableBuild {
+    param([Parameter(Mandatory = $true)][string]$RepositoryRoot)
+
+    $publishScript = Join-Path $RepositoryRoot 'scripts\publish-windows.ps1'
+    if (-not (Test-Path -LiteralPath $publishScript -PathType Leaf)) {
+        throw "Source checkout is missing its Windows publish script: $publishScript"
+    }
+
+    $pwsh = Get-Command 'pwsh.exe' -CommandType Application -ErrorAction Stop |
+        Select-Object -First 1
+    $publishArguments = @(
+        '-NoLogo'
+        '-NoProfile'
+        '-NonInteractive'
+        '-File'
+        $publishScript
+        '-PortableOnly'
+    )
+    Write-Host "Building the portable package from $RepositoryRoot"
+    & $pwsh.Source @publishArguments
+    $publishExitCode = $LASTEXITCODE
+    if ($publishExitCode -ne 0) {
+        throw "Portable package build failed with exit code $publishExitCode."
     }
 }
 
@@ -167,6 +242,10 @@ function Start-RunnerHidden {
         [Parameter(Mandatory = $true)][string]$DataRoot
     )
 
+    if ((Get-Process -Id $PID).SessionId -eq 0) {
+        throw 'MyPowerTools Runner launch is blocked in Windows Session 0.'
+    }
+
     $processStartInfo = [System.Diagnostics.ProcessStartInfo]::new()
     $processStartInfo.FileName = $RunnerExe
     $processStartInfo.WorkingDirectory = $WorkingDirectory
@@ -180,9 +259,142 @@ function Start-RunnerHidden {
     [System.Diagnostics.Process]::Start($processStartInfo) | Out-Null
 }
 
+function Invoke-UserServiceConfiguration {
+    param(
+        [Parameter(Mandatory = $true)][ValidateSet('Install', 'Uninstall')][string]$Mode,
+        [Parameter(Mandatory = $true)][string]$ConfigurationScript,
+        [Parameter(Mandatory = $true)][string]$InstallRoot,
+        [Parameter(Mandatory = $true)][string]$DataRoot,
+        [switch]$RegisterOnly
+    )
+
+    $pwsh = Get-Command 'pwsh.exe' -CommandType Application -ErrorAction Stop |
+        Select-Object -First 1
+    $arguments = @(
+        '-NoLogo'
+        '-NoProfile'
+        '-NonInteractive'
+        '-File'
+        $ConfigurationScript
+        '-Mode'
+        $Mode
+        '-InstallRoot'
+        $InstallRoot
+        '-DataRoot'
+        $DataRoot
+    )
+    if ($RegisterOnly) {
+        $arguments += '-RegisterOnly'
+    }
+    & $pwsh.Source @arguments
+    if ($LASTEXITCODE -ne 0) {
+        throw "User service configuration failed in $Mode mode with exit code $LASTEXITCODE."
+    }
+}
+
+function Invoke-InteractiveRuntimeBootstrap {
+    param(
+        [Parameter(Mandatory = $true)][string]$RuntimeScript,
+        [Parameter(Mandatory = $true)][string]$InstallRoot,
+        [Parameter(Mandatory = $true)][string]$DataRoot,
+        [switch]$StartRunner
+    )
+
+    $interactiveUser = [string](Get-CimInstance Win32_ComputerSystem -ErrorAction Stop).UserName
+    $currentUser = [Security.Principal.WindowsIdentity]::GetCurrent().Name
+    if ([string]::IsNullOrWhiteSpace($interactiveUser) -or
+        -not $interactiveUser.Equals($currentUser, [StringComparison]::OrdinalIgnoreCase)) {
+        Write-Warning "MyPowerTools was installed without launching its runtime because $currentUser has no active interactive desktop. Autostart will launch it at the next sign-in."
+        return $false
+    }
+
+    $windowsPowerShell = Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
+    $taskName = "MyPowerToolsInteractiveBootstrap-$PID-$([Guid]::NewGuid().ToString('N'))"
+    $actionArguments = "-NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -File `"$RuntimeScript`" -InstallRoot `"$InstallRoot`" -DataRoot `"$DataRoot`""
+    if ($StartRunner) {
+        $actionArguments += ' -StartRunner'
+    }
+
+    $action = New-ScheduledTaskAction `
+        -Execute $windowsPowerShell `
+        -Argument $actionArguments `
+        -WorkingDirectory $InstallRoot
+    $principal = New-ScheduledTaskPrincipal `
+        -UserId $interactiveUser `
+        -LogonType Interactive `
+        -RunLevel Limited
+    $settings = New-ScheduledTaskSettingsSet `
+        -AllowStartIfOnBatteries `
+        -DontStopIfGoingOnBatteries `
+        -ExecutionTimeLimit (New-TimeSpan -Minutes 5)
+    $registeredAt = Get-Date
+    $taskRegistered = $false
+
+    try {
+        Register-ScheduledTask `
+            -TaskName $taskName `
+            -Action $action `
+            -Principal $principal `
+            -Settings $settings `
+            -Description 'One-time MyPowerTools interactive-session bootstrap' `
+            -Force | Out-Null
+        $taskRegistered = $true
+        Start-ScheduledTask -TaskName $taskName
+
+        $deadline = (Get-Date).AddSeconds(90)
+        while ((Get-Date) -lt $deadline) {
+            $task = Get-ScheduledTask -TaskName $taskName -ErrorAction Stop
+            $info = Get-ScheduledTaskInfo -TaskName $taskName -ErrorAction Stop
+            if ($task.State -ne 'Running' -and $info.LastRunTime -ge $registeredAt.AddSeconds(-1)) {
+                if ($info.LastTaskResult -eq 0) {
+                    return $true
+                }
+                Write-Warning "Interactive MyPowerTools bootstrap failed with task result $($info.LastTaskResult). Autostart remains registered for the next sign-in."
+                return $false
+            }
+            Start-Sleep -Milliseconds 500
+        }
+
+        Write-Warning 'Interactive MyPowerTools bootstrap timed out. Autostart remains registered for the next sign-in.'
+        return $false
+    }
+    catch {
+        Write-Warning "Interactive MyPowerTools bootstrap failed: $($_.Exception.Message). Autostart remains registered for the next sign-in."
+        return $false
+    }
+    finally {
+        if ($taskRegistered) {
+            Unregister-ScheduledTask -TaskName $taskName -Confirm:$false -ErrorAction SilentlyContinue
+        }
+    }
+}
+
+$packageRootWasExplicit = $PSBoundParameters.ContainsKey('PackageRoot')
+$repositoryRoot = Resolve-FullPath (Join-Path $PSScriptRoot '..')
+$runningFromSource = -not $packageRootWasExplicit -and
+    (Test-Path -LiteralPath (Join-Path $repositoryRoot 'MyPowerTools.slnx') -PathType Leaf) -and
+    (Test-Path -LiteralPath (Join-Path $repositoryRoot 'scripts\publish-windows.ps1') -PathType Leaf)
+if ($runningFromSource) {
+    $sourcePackageRoot = Join-Path $repositoryRoot 'artifacts\release\win-x64'
+    if (-not $DryRun.IsPresent) {
+        Invoke-SourcePortableBuild -RepositoryRoot $repositoryRoot
+    }
+    elseif (-not (Test-Path -LiteralPath $sourcePackageRoot -PathType Container)) {
+        throw "DryRun cannot resolve a source-built package because $sourcePackageRoot is missing. Run scripts\publish-windows.ps1 -PortableOnly first."
+    }
+    $PackageRoot = $sourcePackageRoot
+}
+
 $PackageRootFull = Resolve-FullPath $PackageRoot
 $InstallDirFull = Resolve-FullPath $InstallDir
 $DataRootFull = Resolve-FullPath $DataRoot
+$CanonicalInstallDir = Resolve-FullPath (Join-Path $env:LOCALAPPDATA 'Programs\MyPowerTools')
+$CurrentSessionId = (Get-Process -Id $PID).SessionId
+
+if (-not $DryRun.IsPresent -and
+    -not $InstallDirFull.Equals($CanonicalInstallDir, [System.StringComparison]::OrdinalIgnoreCase)) {
+    throw "MyPowerTools must be installed for the current user at $CanonicalInstallDir. InstallDir=$InstallDirFull"
+}
 
 Assert-RequiredPackageContent -Root $PackageRootFull
 
@@ -207,15 +419,20 @@ $installManifestPath = Join-Path $InstallDirFull 'install.manifest.json'
 $plan = [ordered]@{
     packageRoot = $PackageRootFull
     installDir = $InstallDirFull
+    canonicalInstallDir = $CanonicalInstallDir
     dataRoot = $DataRootFull
     createStartMenuShortcut = -not $NoStartMenuShortcut.IsPresent
     startMenuShortcutName = 'MyPowerTools.lnk'
-    createDesktopShortcut = $DesktopShortcut.IsPresent
-    enableAutostart = $EnableAutostart.IsPresent
-    startRunner = $StartRunner.IsPresent
+    createDesktopShortcut = $CreateDesktopShortcut
+    enableAutostart = $EnableAutostartEffective
+    startRunner = $StartRunnerEffective
+    openApp = $OpenAppEffective
+    installerSessionId = $CurrentSessionId
+    sessionZeroLaunchBlocked = $true
     advancedEntryPoints = @(
         'Cli\MyPowerTools.Cli.exe',
         'Broker\MyPowerTools.ElevatedBroker.exe',
+        'ServiceManager\MyPowerTools.ServiceManager.exe',
         'Runner\MyPowerTools.Runner.exe',
         'Shell\MyPowerTools.Shell.Avalonia.exe'
     )
@@ -239,6 +456,15 @@ try {
         Copy-Item -LiteralPath $_.FullName -Destination $stagingDir -Recurse -Force
     }
 
+    $serviceConfigurationScript = Join-Path $PackageRootFull 'configure-user-services.ps1'
+    if (Test-Path -LiteralPath $InstallDirFull -PathType Container) {
+        Invoke-UserServiceConfiguration `
+            -Mode Uninstall `
+            -ConfigurationScript $serviceConfigurationScript `
+            -InstallRoot $InstallDirFull `
+            -DataRoot $DataRootFull
+    }
+
     Stop-InstalledProcess -Root $InstallDirFull
 
     if (Test-Path -LiteralPath $InstallDirFull) {
@@ -259,7 +485,7 @@ try {
         cli = $cliExe
         broker = $brokerExe
         app = $appExe
-        autostart = $EnableAutostart.IsPresent
+        autostart = $EnableAutostartEffective
     }
     $manifest | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $installManifestPath -Encoding UTF8
 
@@ -268,17 +494,47 @@ try {
         New-Shortcut -Path (Join-Path $startMenuDir 'MyPowerTools.lnk') -TargetPath $appExe -WorkingDirectory $InstallDirFull -Arguments $appArguments -Description 'Open MyPowerTools' -IconLocation $iconPath
     }
 
-    if ($DesktopShortcut) {
+    if ($CreateDesktopShortcut) {
         New-Shortcut -Path $desktopShortcutPath -TargetPath $appExe -WorkingDirectory $InstallDirFull -Arguments $appArguments -Description 'Open MyPowerTools' -IconLocation $iconPath
     }
 
-    if ($EnableAutostart) {
+    if ($EnableAutostartEffective) {
         New-Item -Path $runKeyPath -Force | Out-Null
         Set-ItemProperty -Path $runKeyPath -Name 'MyPowerTools' -Value "`"$runnerExe`" $runnerArguments"
+    } else {
+        Remove-ItemProperty -Path $runKeyPath -Name 'MyPowerTools' -ErrorAction SilentlyContinue
     }
 
-    if ($StartRunner) {
-        Start-RunnerHidden -RunnerExe $runnerExe -WorkingDirectory $InstallDirFull -ModulesRoot (Join-Path $InstallDirFull 'modules') -DataRoot $DataRootFull
+    $installedConfigurationScript = Join-Path $InstallDirFull 'configure-user-services.ps1'
+    $installedRuntimeScript = Join-Path $InstallDirFull 'start-user-runtime.ps1'
+    if ($CurrentSessionId -eq 0) {
+        Invoke-UserServiceConfiguration `
+            -Mode Install `
+            -ConfigurationScript $installedConfigurationScript `
+            -InstallRoot $InstallDirFull `
+            -DataRoot $DataRootFull `
+            -RegisterOnly
+        [void](Invoke-InteractiveRuntimeBootstrap `
+            -RuntimeScript $installedRuntimeScript `
+            -InstallRoot $InstallDirFull `
+            -DataRoot $DataRootFull `
+            -StartRunner:$StartRunnerEffective)
+    }
+    else {
+        & $installedRuntimeScript `
+            -InstallRoot $InstallDirFull `
+            -DataRoot $DataRootFull `
+            -StartRunner:$StartRunnerEffective | Out-Null
+
+        if ($OpenAppEffective) {
+            $appStartInfo = [System.Diagnostics.ProcessStartInfo]::new()
+            $appStartInfo.FileName = $appExe
+            $appStartInfo.WorkingDirectory = $InstallDirFull
+            $appStartInfo.UseShellExecute = $false
+            $appStartInfo.ArgumentList.Add('--data-root')
+            $appStartInfo.ArgumentList.Add($DataRootFull)
+            [System.Diagnostics.Process]::Start($appStartInfo) | Out-Null
+        }
     }
 
     if (Test-Path -LiteralPath $backupDir) {

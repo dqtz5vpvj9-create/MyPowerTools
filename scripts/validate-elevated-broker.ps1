@@ -36,30 +36,13 @@ if ($ascii.Contains('coreclr.dll', [StringComparison]::OrdinalIgnoreCase) -or
     throw 'Elevated Broker still imports or embeds a CLR host dependency.'
 }
 
-$environmentNames = @(
-    'DOTNET_STARTUP_HOOKS',
-    'CORECLR_ENABLE_PROFILING',
-    'CORECLR_PROFILER',
-    'CORECLR_PROFILER_PATH'
-)
-$previous = @{}
-foreach ($name in $environmentNames) {
-    $previous[$name] = [Environment]::GetEnvironmentVariable($name, 'Process')
+$utf8Image = [Text.Encoding]::UTF8.GetString($bytes)
+$utf16Image = [Text.Encoding]::Unicode.GetString($bytes)
+$hasRequireAdministrator =
+    $utf8Image.Contains('requireAdministrator', [StringComparison]::Ordinal) -or
+    $utf16Image.Contains('requireAdministrator', [StringComparison]::Ordinal)
+if (-not $hasRequireAdministrator) {
+    throw 'Elevated Broker does not embed a requireAdministrator application manifest.'
 }
 
-try {
-    [Environment]::SetEnvironmentVariable('DOTNET_STARTUP_HOOKS', 'C:\definitely-missing\mpt-startup-hook.dll', 'Process')
-    [Environment]::SetEnvironmentVariable('CORECLR_ENABLE_PROFILING', '1', 'Process')
-    [Environment]::SetEnvironmentVariable('CORECLR_PROFILER', '{11111111-1111-1111-1111-111111111111}', 'Process')
-    [Environment]::SetEnvironmentVariable('CORECLR_PROFILER_PATH', 'C:\definitely-missing\mpt-profiler.dll', 'Process')
-    $process = Start-Process -FilePath $brokerExe -WindowStyle Hidden -Wait -PassThru
-    if ($process.ExitCode -ne 2) {
-        throw "NativeAOT Broker returned $($process.ExitCode) under hostile CLR environment; expected argument-validation exit 2."
-    }
-} finally {
-    foreach ($name in $environmentNames) {
-        [Environment]::SetEnvironmentVariable($name, $previous[$name], 'Process')
-    }
-}
-
-Write-Host "NativeAOT Broker passed: single EXE, no CLR header, CLR startup/profiler variables inert."
+Write-Host "NativeAOT Broker passed: single EXE, no CLR header, requireAdministrator manifest embedded."

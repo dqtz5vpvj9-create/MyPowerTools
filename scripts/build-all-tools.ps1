@@ -186,7 +186,13 @@ $toolRegistry = @(
         SurfaceAssembly  = 'AdbForwarder.Surface.dll'
         SurfaceTarget    = 'ui\surface'
         RuntimeStagePath = 'tools\adb-forwarder\artifacts\package'
-        ServiceUnits     = @()
+        ServiceUnits     = @(
+            [pscustomobject]@{
+                Project = 'tools\adb-forwarder\current-integration\src\AdbForwarder.Service\AdbForwarder.Service.csproj'
+                Manifest = 'tools\adb-forwarder\current-integration\src\AdbForwarder.Service\unit-manifest.json'
+                UnitId   = 'adb-forwarder.service'
+            }
+        )
     },
     [pscustomobject]@{
         Id               = 'doubao-computer-use'
@@ -219,6 +225,16 @@ $toolRegistry = @(
                 UnitId   = 'remote-notifications.service'
             }
         )
+    },
+    [pscustomobject]@{
+        Id               = 'paste-image'
+        Version          = '0.1.0'
+        BuildScript      = 'tools\paste-image\build.ps1'
+        SurfaceProject   = 'tools\paste-image\current-integration\src\PasteImage.Surface\PasteImage.Surface.csproj'
+        SurfaceAssembly  = 'PasteImage.Surface.dll'
+        SurfaceTarget    = 'ui\surface'
+        RuntimeStagePath = 'tools\paste-image\artifacts\package'
+        ServiceUnits     = @()
     },
     [pscustomobject]@{
         Id               = 'screenease'
@@ -343,6 +359,7 @@ foreach ($tool in $toolRegistry) {
             'build', $surfaceProjFull,
             '--configuration', $Configuration,
             '--no-restore',
+            '--maxcpucount',
             '--nologo',
             "-p:MyPowerToolsRepoRoot=$repoRoot"
         ) -Activity "dotnet build $toolSurfaceProj"
@@ -426,6 +443,7 @@ foreach ($tool in $toolRegistry) {
                 '--runtime', 'win-x64',
                 '--output', $unitBinDir,
                 '--self-contained', 'true',
+                '--maxcpucount',
                 '--nologo', '--verbosity', 'minimal',
                 '/p:DebugType=None',
                 '/p:DebugSymbols=false',
@@ -479,7 +497,7 @@ foreach ($tool in $toolRegistry) {
         source       = $srcInfo
         artifacts    = $artifactsRelative
         serviceUnits = $serviceUnitIds
-        output       = "artifacts/tools/$currentToolId/$toolVersion"
+        output       = [System.IO.Path]::GetRelativePath($repoRoot, $collectDir).Replace('\', '/')
     })
 
     Write-Host "  OK [$currentToolId] -> $collectDir" -ForegroundColor Green

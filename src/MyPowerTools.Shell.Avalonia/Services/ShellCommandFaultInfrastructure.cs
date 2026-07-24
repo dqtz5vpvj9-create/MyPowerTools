@@ -77,10 +77,7 @@ internal static class ShellCommandFaultOwnership
             }
 
             var type = current.GetType();
-            if (!string.Equals(
-                    type.Namespace,
-                    typeof(ShellCommandFaultOwnership).Namespace,
-                    StringComparison.Ordinal))
+            if (type.Assembly != typeof(ShellCommandFaultOwnership).Assembly)
             {
                 continue;
             }

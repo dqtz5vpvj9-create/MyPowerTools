@@ -166,9 +166,8 @@ public sealed partial class ShellWorkspaceController
                            eventNode.ValueKind == JsonValueKind.Object
             ? eventNode.GetRawText()
             : "{}";
-        using var client = HostControlClient.ForDefaultEndpoint();
-        var published = await client.PublishToolEventAsync(descriptor.ToolId, topic, eventPayload);
-        SetStatus($"{descriptor.Title}: {topic} (event {published.EventSeq})");
-        return JsonValue.Create(published.EventSeq);
+        var eventSeq = await _toolEvents.PublishAsync(descriptor.ToolId, topic, eventPayload);
+        SetStatus($"{descriptor.Title}: {topic} (event {eventSeq})");
+        return JsonValue.Create(eventSeq);
     }
 }

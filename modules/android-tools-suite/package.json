@@ -50,6 +50,18 @@
               "transport": "unix-domain-socket",
               "path": "$TMPDIR/mypowertools/android-tools-suite/powertoold.sock"
             }
+          },
+          {
+            "kind": "grpc-ipc",
+            "priority": 100,
+            "command": "macos/x64/powertoold",
+            "platforms": [
+              "macos-x64"
+            ],
+            "macos": {
+              "transport": "unix-domain-socket",
+              "path": "$TMPDIR/mypowertools/android-tools-suite/powertoold.sock"
+            }
           }
         ]
       }

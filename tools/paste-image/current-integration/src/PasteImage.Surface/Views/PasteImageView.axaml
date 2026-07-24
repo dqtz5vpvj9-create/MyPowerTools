@@ -1,0 +1,185 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:PasteImage.Surface.ViewModels"
+             x:Class="PasteImage.Surface.Views.PasteImageView"
+             x:DataType="vm:PasteImageViewModel">
+  <UserControl.Styles>
+    <Style Selector="Border.card">
+      <Setter Property="BorderBrush" Value="#D8D8D8" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="10" />
+      <Setter Property="Padding" Value="20" />
+    </Style>
+    <Style Selector="TextBlock.secondary">
+      <Setter Property="Foreground" Value="#666666" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+    <Style Selector="TextBlock.section-title">
+      <Setter Property="FontSize" Value="18" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+  </UserControl.Styles>
+
+  <Border Padding="40,24,40,40"
+          HorizontalAlignment="Stretch"
+          VerticalAlignment="Top">
+    <StackPanel Spacing="16" MaxWidth="1100">
+      <Border Background="#EFF6FC"
+              BorderBrush="#C7E0F4"
+              BorderThickness="1"
+              CornerRadius="12"
+              Padding="24,20">
+        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="24">
+          <StackPanel Spacing="6">
+            <TextBlock Text="复制、上传、粘贴"
+                       FontSize="22"
+                       FontWeight="SemiBold" />
+            <TextBlock Text="优先复用剪贴板中的原生 PNG，单次 SSH 连接完成上传，远端路径随后写回剪贴板。"
+                       Classes="secondary"
+                       MaxWidth="720" />
+          </StackPanel>
+          <Border Grid.Column="1"
+                  Background="White"
+                  BorderBrush="#C7E0F4"
+                  BorderThickness="1"
+                  CornerRadius="6"
+                  Padding="12,7"
+                  VerticalAlignment="Center">
+            <TextBlock Text="Ctrl + Alt + V"
+                       FontFamily="Consolas"
+                       FontWeight="SemiBold"
+                       Foreground="#0F6CBD" />
+          </Border>
+        </Grid>
+      </Border>
+
+      <Grid ColumnDefinitions="*,*" ColumnSpacing="14">
+        <Border Classes="card" MinHeight="132">
+          <StackPanel Spacing="10">
+            <TextBlock Text="上传目标" Classes="secondary" />
+            <TextBlock Text="{Binding Destination}"
+                       FontSize="16"
+                       FontWeight="Medium"
+                       TextWrapping="Wrap" />
+            <TextBlock Text="SSH 配置中的主机与远端目录"
+                       FontSize="12"
+                       Classes="secondary" />
+          </StackPanel>
+        </Border>
+        <Border Grid.Column="1" Classes="card" MinHeight="132">
+          <StackPanel Spacing="10">
+            <TextBlock Text="连接状态" Classes="secondary" />
+            <StackPanel Orientation="Horizontal" Spacing="8">
+              <Border Width="10"
+                      Height="10"
+                      CornerRadius="5"
+                      Background="{Binding StatusBrush}"
+                      VerticalAlignment="Center" />
+              <TextBlock Text="{Binding ConnectionStatus}"
+                         Foreground="{Binding StatusBrush}"
+                         FontWeight="SemiBold"
+                         VerticalAlignment="Center" />
+            </StackPanel>
+            <TextBlock Text="{Binding Health}" TextWrapping="Wrap" />
+            <TextBlock Text="检查 Windows OpenSSH 与目标配置"
+                       FontSize="12"
+                       Classes="secondary" />
+          </StackPanel>
+        </Border>
+      </Grid>
+
+      <StackPanel Orientation="Horizontal" Spacing="10">
+        <Button Content="上传剪贴板图片"
+                Command="{Binding UploadCommand}"
+                IsEnabled="{Binding CanUpload}"
+                Classes="accent"
+                Padding="22,11"
+                FontWeight="SemiBold" />
+        <Button Content="重新检查"
+                Command="{Binding RefreshCommand}"
+                Padding="16,10" />
+      </StackPanel>
+
+      <ProgressBar IsIndeterminate="True"
+                   IsVisible="{Binding IsBusy}"
+                   Width="150"
+                   Height="3"
+                   HorizontalAlignment="Left" />
+
+      <Border Background="{Binding MessageBackground}"
+              BorderBrush="{Binding MessageForeground}"
+              BorderThickness="0"
+              CornerRadius="8"
+              Padding="16,12">
+        <Grid ColumnDefinitions="24,*" ColumnSpacing="8">
+          <TextBlock Text="{Binding MessageIcon}"
+                     FontWeight="Bold"
+                     Foreground="{Binding MessageForeground}"
+                     VerticalAlignment="Top" />
+          <TextBlock Grid.Column="1"
+                     Text="{Binding Message}"
+                     TextWrapping="Wrap"
+                     VerticalAlignment="Center" />
+        </Grid>
+      </Border>
+
+      <Grid ColumnDefinitions="1.15*,0.85*" ColumnSpacing="14">
+        <Border Classes="card">
+          <StackPanel Spacing="8">
+            <TextBlock Text="最近上传图片" Classes="section-title" />
+            <TextBlock Text="热键或页面上传完成后立即更新" FontSize="12" Classes="secondary" />
+            <Grid MinHeight="230">
+              <Image Source="{Binding Preview}"
+                     IsVisible="{Binding HasPreview}"
+                     Stretch="Uniform"
+                     MaxHeight="280"
+                     HorizontalAlignment="Center"
+                     VerticalAlignment="Center" />
+              <TextBlock Text="上传一张图片后，这里会显示最近预览。"
+                         IsVisible="{Binding IsPreviewEmpty}"
+                         Classes="secondary"
+                         HorizontalAlignment="Center"
+                         VerticalAlignment="Center" />
+            </Grid>
+            <TextBlock Text="{Binding PreviewMeta}"
+                       FontSize="12"
+                       Classes="secondary" />
+          </StackPanel>
+        </Border>
+
+        <Border Grid.Column="1" Classes="card">
+          <StackPanel Spacing="8">
+            <TextBlock Text="最近上传记录" Classes="section-title" />
+            <TextBlock Text="显示最近 5 次成功上传" FontSize="12" Classes="secondary" />
+            <TextBlock Text="暂无上传记录"
+                       IsVisible="{Binding IsHistoryEmpty}"
+                       Classes="secondary"
+                       Margin="0,12" />
+            <ItemsControl ItemsSource="{Binding History}" IsVisible="{Binding HasHistory}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:UploadHistoryRow">
+                  <Border BorderBrush="#D8D8D8"
+                          BorderThickness="0,1,0,0"
+                          Padding="0,11">
+                    <StackPanel Spacing="3">
+                      <TextBlock Text="{Binding RemotePath}"
+                                 FontWeight="Medium"
+                                 TextTrimming="CharacterEllipsis"
+                                 MaxWidth="380" />
+                      <TextBlock Text="{Binding UploadedAtText}"
+                                 Foreground="#666666"
+                                 FontSize="12" />
+                    </StackPanel>
+                  </Border>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+        </Border>
+      </Grid>
+
+      <TextBlock Text="远端主机、目录和上传超时可在 Paste Image 设置中修改。"
+                 Classes="secondary" />
+    </StackPanel>
+  </Border>
+</UserControl>

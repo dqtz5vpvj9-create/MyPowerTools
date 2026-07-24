@@ -43,7 +43,7 @@
   </UserControl.Styles>
 
   <Grid>
-    <!-- The title-bar SearchBox is the only query input. This view only renders its results. -->
+    <!-- Query input is hosted by the command flyout chrome; this view renders results. -->
     <Grid IsVisible="{Binding IsResultsVisible}"
           RowDefinitions="Auto,*,Auto">
       <Border Padding="{DynamicResource MptCompactPadding}"

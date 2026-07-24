@@ -64,15 +64,17 @@ public sealed class ToolProductFoundationTests
         Assert.False(viewModel.IsHostCommandBarVisible);
         Assert.Contains(nameof(ExternalSdkToolViewModel.IsHostHeaderVisible), changedProperties);
         Assert.Contains("<Grid RowDefinitions=\"Auto,Auto,*\">", view, StringComparison.Ordinal);
-        Assert.Contains("IsVisible=\"{Binding IsHostHeaderVisible}\"", view, StringComparison.Ordinal);
+        Assert.Contains("IsVisible=\"{Binding IsInlineHeaderVisible}\"", view, StringComparison.Ordinal);
         Assert.Contains("IsVisible=\"{Binding IsHostCommandBarVisible}\"", view, StringComparison.Ordinal);
     }
 
     [Theory]
-    [InlineData("web-surface")]
-    [InlineData("native-tool")]
-    [InlineData("headless-tool")]
-    public void External_surface_types_keep_host_header_and_declared_commands(string toolType)
+    [InlineData("web-surface", false)]
+    [InlineData("native-tool", true)]
+    [InlineData("headless-tool", true)]
+    public void External_surface_types_keep_host_header_and_only_generic_tools_show_declared_commands(
+        string toolType,
+        bool commandBarVisible)
     {
         var withoutCommands = CreateExternalSdkToolViewModel(toolType);
         var withCommands = CreateExternalSdkToolViewModel(toolType, withCommands: true);
@@ -80,7 +82,7 @@ public sealed class ToolProductFoundationTests
         Assert.True(withoutCommands.IsHostHeaderVisible);
         Assert.False(withoutCommands.IsHostCommandBarVisible);
         Assert.True(withCommands.IsHostHeaderVisible);
-        Assert.True(withCommands.IsHostCommandBarVisible);
+        Assert.Equal(commandBarVisible, withCommands.IsHostCommandBarVisible);
     }
 
     private static ExternalSdkToolViewModel CreateExternalSdkToolViewModel(

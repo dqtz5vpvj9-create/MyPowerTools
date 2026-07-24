@@ -11,19 +11,32 @@ public sealed class ModuleStateStore
 
     private readonly object _gate = new();
     private readonly string _path;
+    private readonly IReadOnlyList<string>? _initialEnabledModules;
     private ModuleStateSnapshot? _snapshot;
 
-    public ModuleStateStore(string stateDirectory)
+    public ModuleStateStore(string stateDirectory, IEnumerable<string>? initialEnabledModules = null)
     {
         Directory.CreateDirectory(stateDirectory);
         _path = Path.Combine(stateDirectory, "modules.enabled.json");
+        _initialEnabledModules = initialEnabledModules?
+            .Where(moduleId => !string.IsNullOrWhiteSpace(moduleId))
+            .Select(moduleId => moduleId.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(moduleId => moduleId, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
     }
 
     public bool IsEnabled(string moduleId)
     {
         lock (_gate)
         {
-            return !Load().DisabledModules.Contains(moduleId, StringComparer.OrdinalIgnoreCase);
+            var snapshot = Load();
+            if (string.Equals(snapshot.DefaultMode, "allowlist", StringComparison.OrdinalIgnoreCase))
+            {
+                return (snapshot.EnabledModules ?? []).Contains(moduleId, StringComparer.OrdinalIgnoreCase) &&
+                       !snapshot.DisabledModules.Contains(moduleId, StringComparer.OrdinalIgnoreCase);
+            }
+            return !snapshot.DisabledModules.Contains(moduleId, StringComparer.OrdinalIgnoreCase);
         }
     }
 
@@ -41,19 +54,39 @@ public sealed class ModuleStateStore
         {
             var current = Load();
             var disabled = current.DisabledModules.ToHashSet(StringComparer.OrdinalIgnoreCase);
-            if (enabled)
+            var enabledModules = (current.EnabledModules ?? [])
+                .ToHashSet(StringComparer.OrdinalIgnoreCase);
+            if (string.Equals(current.DefaultMode, "allowlist", StringComparison.OrdinalIgnoreCase))
             {
-                disabled.Remove(moduleId);
+                if (enabled)
+                {
+                    enabledModules.Add(moduleId);
+                    disabled.Remove(moduleId);
+                }
+                else
+                {
+                    enabledModules.Remove(moduleId);
+                    disabled.Add(moduleId);
+                }
             }
             else
             {
-                disabled.Add(moduleId);
+                if (enabled)
+                {
+                    disabled.Remove(moduleId);
+                }
+                else
+                {
+                    disabled.Add(moduleId);
+                }
             }
 
             var next = new ModuleStateSnapshot(
                 current.Revision + 1,
                 disabled.OrderBy(id => id, StringComparer.OrdinalIgnoreCase).ToArray(),
-                DateTimeOffset.UtcNow);
+                DateTimeOffset.UtcNow,
+                current.DefaultMode,
+                enabledModules.OrderBy(id => id, StringComparer.OrdinalIgnoreCase).ToArray());
             _snapshot = next;
             Save(next);
             return next;
@@ -69,7 +102,18 @@ public sealed class ModuleStateStore
 
         if (!File.Exists(_path))
         {
-            _snapshot = new ModuleStateSnapshot(1, [], DateTimeOffset.UtcNow);
+            _snapshot = _initialEnabledModules is null
+                ? new ModuleStateSnapshot(1, [], DateTimeOffset.UtcNow)
+                : new ModuleStateSnapshot(
+                    1,
+                    [],
+                    DateTimeOffset.UtcNow,
+                    "allowlist",
+                    _initialEnabledModules);
+            if (_initialEnabledModules is not null)
+            {
+                Save(_snapshot);
+            }
             return _snapshot;
         }
 
@@ -120,4 +164,9 @@ public sealed class ModuleStateStore
     }
 }
 
-public sealed record ModuleStateSnapshot(ulong Revision, IReadOnlyList<string> DisabledModules, DateTimeOffset UpdatedAt);
+public sealed record ModuleStateSnapshot(
+    ulong Revision,
+    IReadOnlyList<string> DisabledModules,
+    DateTimeOffset UpdatedAt,
+    string DefaultMode = "enabled",
+    IReadOnlyList<string>? EnabledModules = null);

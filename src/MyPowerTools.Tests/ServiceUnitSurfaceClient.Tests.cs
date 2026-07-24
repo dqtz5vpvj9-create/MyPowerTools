@@ -1,5 +1,6 @@
 using System.Buffers.Binary;
 using System.IO.Pipes;
+using System.Net.Sockets;
 using System.Runtime.CompilerServices;
 using System.Text.Json;
 using DoubaoAgent.Surface.Services;
@@ -38,6 +39,35 @@ public sealed class ServiceUnitSurfaceClientTests
     }
 
     [Fact]
+    public async Task Remote_notifications_uses_the_readiness_unix_socket_from_the_scoped_snapshot()
+    {
+        Assert.True(Socket.OSSupportsUnixDomainSockets);
+        var socketPath = Path.Combine(Path.GetTempPath(), $"mpt-rn-{Guid.NewGuid():N}.sock");
+        var snapshot = Unit(
+            RemoteNotificationsServiceClient.UnitId,
+            "remote-notifications",
+            socketPath,
+            "unix-socket");
+        var server = ServeUnixSocketOnceAsync(socketPath, new
+        {
+            connectionState = "connected",
+            lastPoll = "2026-07-18T00:00:00Z",
+            lastError = "none",
+            latest = "2026-07-18T00:00:00Z",
+            fetched = 1,
+            shown = 1,
+            pollIntervalSeconds = 45
+        });
+
+        var state = await new RemoteNotificationsServiceClient(new FakeServiceUnitClient(snapshot))
+            .GetStateAsync();
+        await server;
+
+        Assert.Equal("connected", state.ConnectionState);
+        Assert.Equal(45, state.PollIntervalSeconds);
+    }
+
+    [Fact]
     public async Task Doubao_surface_client_uses_the_readiness_pipe_from_the_scoped_snapshot()
     {
         var pipeName = $"mpt-doubao-surface-{Guid.NewGuid():N}";
@@ -67,7 +97,11 @@ public sealed class ServiceUnitSurfaceClientTests
         Assert.Equal("C:\\runtime", state.RuntimeRoot);
     }
 
-    private static ServiceUnitSnapshot Unit(string unitId, string toolId, string pipeName) => new(
+    private static ServiceUnitSnapshot Unit(
+        string unitId,
+        string toolId,
+        string address,
+        string readinessKind = "pipe") => new(
         unitId,
         toolId,
         unitId,
@@ -80,7 +114,7 @@ public sealed class ServiceUnitSurfaceClientTests
         ServiceUnitRestartPolicy.Default,
         0,
         null,
-        new ServiceUnitReadiness("pipe", pipeName, TimeSpan.FromSeconds(5)),
+        new ServiceUnitReadiness(readinessKind, address, TimeSpan.FromSeconds(5)),
         null,
         1);
 
@@ -93,6 +127,35 @@ public sealed class ServiceUnitSurfaceClientTests
             PipeTransmissionMode.Byte,
             PipeOptions.Asynchronous);
         await server.WaitForConnectionAsync().WaitAsync(TimeSpan.FromSeconds(10));
+        await ServeControlExchangeAsync(server, data);
+    }
+
+    private static async Task ServeUnixSocketOnceAsync(string socketPath, object data)
+    {
+        if (File.Exists(socketPath))
+        {
+            File.Delete(socketPath);
+        }
+        using var listener = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
+        try
+        {
+            listener.Bind(new UnixDomainSocketEndPoint(socketPath));
+            listener.Listen(1);
+            using var client = await listener.AcceptAsync().WaitAsync(TimeSpan.FromSeconds(10));
+            await using var stream = new NetworkStream(client, ownsSocket: false);
+            await ServeControlExchangeAsync(stream, data);
+        }
+        finally
+        {
+            if (File.Exists(socketPath))
+            {
+                File.Delete(socketPath);
+            }
+        }
+    }
+
+    private static async Task ServeControlExchangeAsync(Stream server, object data)
+    {
         var header = new byte[4];
         await ReadExactlyAsync(server, header);
         var requestLength = BinaryPrimitives.ReadInt32LittleEndian(header);

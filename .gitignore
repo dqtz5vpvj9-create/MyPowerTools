@@ -14,6 +14,7 @@ obj/
 
 # Generated release and smoke artifacts
 artifacts/
+**/TestResults/
 
 # Local runtime state
 logs/

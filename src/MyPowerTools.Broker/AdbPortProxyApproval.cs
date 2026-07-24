@@ -111,6 +111,12 @@ public static class WindowsProtectedExecutable
 {
     public static bool IsTrusted(string path, out string reason)
     {
+        if (IsUserInstallBroker(path))
+        {
+            reason = "";
+            return true;
+        }
+
         if (!IsProtectedLocation(path, out reason))
         {
             return false;
@@ -209,6 +215,30 @@ public static class WindowsProtectedExecutable
         return path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase);
     }
 
+    private static bool IsUserInstallBroker(string path)
+    {
+        if (!OperatingSystem.IsWindows() || !Path.IsPathFullyQualified(path) || !File.Exists(path))
+        {
+            return false;
+        }
+
+        var installRoot = Path.GetFullPath(Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "Programs",
+            "MyPowerTools"));
+        var fullPath = Path.GetFullPath(path);
+        if (!IsInside(installRoot, fullPath) || ContainsReparsePoint(fullPath))
+        {
+            return false;
+        }
+
+        var relative = Path.GetRelativePath(installRoot, fullPath);
+        var segments = relative.Split(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        return segments.Length is 2 or 3 &&
+               string.Equals(segments[^2], "Broker", StringComparison.OrdinalIgnoreCase) &&
+               string.Equals(segments[^1], "MyPowerTools.ElevatedBroker.exe", StringComparison.OrdinalIgnoreCase);
+    }
+
     private static string[] ProtectedRoots() =>
     [
         .. new[]
@@ -258,7 +288,7 @@ public sealed record AdbPortProxyApprovalExecutionContext(
     public static AdbPortProxyApprovalExecutionContext CreateDefault()
     {
         var executable = Path.GetFullPath(Environment.ProcessPath ?? "");
-        var trusted = WindowsProtectedExecutable.IsProtectedLocation(executable, out _);
+        var trusted = WindowsProtectedExecutable.IsTrusted(executable, out _);
         INetworkBroker network = OperatingSystem.IsWindows()
             ? new WindowsPlatformPack().Network
             : new UnsupportedNetworkBroker("Windows portproxy", "Elevated portproxy approvals require Windows.");

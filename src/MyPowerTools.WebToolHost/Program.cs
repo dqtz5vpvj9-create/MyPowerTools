@@ -25,7 +25,9 @@ internal static class Program
                 arguments,
                 out var parentWindow,
                 out var parentProcessId,
-                out var dashboardUri))
+                out var toolId,
+                out var sourceUri,
+                out var allowedOrigins))
         {
             return 2;
         }
@@ -35,7 +37,12 @@ internal static class Program
             Application.SetHighDpiMode(HighDpiMode.PerMonitorV2);
             Application.EnableVisualStyles();
             Application.SetCompatibleTextRenderingDefault(false);
-            using var host = SmartBirdHostWindow.Create(parentWindow, parentProcessId, dashboardUri);
+            using var host = WebSurfaceHostWindow.Create(
+                parentWindow,
+                parentProcessId,
+                toolId,
+                sourceUri,
+                allowedOrigins);
             WebToolHostProtocol.WriteState("loading", phase: "attached");
             _ = Task.Run(() => RunCommandLoopAsync(host));
             _ = Task.Run(() => MonitorParentAsync(parentProcessId));
@@ -48,19 +55,24 @@ internal static class Program
         {
             WebToolHostProtocol.WriteState(
                 "failed",
-                "SmartBird 独立 WebView 宿主启动失败。Shell 仍可继续使用。",
+                "WebToolHost 启动失败。Shell 仍可继续使用。",
                 "host-start-failed");
             Console.Error.WriteLine(ex);
             return 1;
         }
     }
 
-    private static async Task RunCommandLoopAsync(SmartBirdHostWindow host)
+    private static async Task RunCommandLoopAsync(WebSurfaceHostWindow host)
     {
         try
         {
             while (await Console.In.ReadLineAsync() is { } line)
             {
+                if (line.Length > WebToolHostProtocol.MaximumFrameLength)
+                {
+                    WebToolHostProtocol.WriteState("failed", "Shell command frame exceeded the WebToolHost protocol limit.", "protocol-frame-too-large");
+                    return;
+                }
                 var command = WebToolHostProtocol.ParseCommand(line);
                 if (command is null)
                 {
@@ -115,7 +127,7 @@ internal static class Program
         return false;
     }
 
-    private static void ApplyCommand(SmartBirdHostWindow host, HostCommand command)
+    private static void ApplyCommand(WebSurfaceHostWindow host, HostCommand command)
     {
         switch (command.Type.ToLowerInvariant())
         {
@@ -141,14 +153,18 @@ internal static class Program
         IReadOnlyList<string> arguments,
         out nint parentWindow,
         out uint parentProcessId,
-        out Uri dashboardUri)
+        out string toolId,
+        out Uri sourceUri,
+        out IReadOnlyList<Uri> allowedOrigins)
     {
         parentWindow = 0;
         parentProcessId = 0;
-        dashboardUri = new Uri(SmartBirdHostWindow.FixedDashboardUrl);
-        var tool = "";
+        toolId = "";
+        sourceUri = new Uri(WebSurfaceHostWindow.ProbeSourceUrl);
+        var originValues = new List<Uri>();
         var sourceProvided = false;
         var sourceValid = false;
+        var allowedOriginsValid = true;
         for (var index = 0; index < arguments.Count; index++)
         {
             if (string.Equals(arguments[index], "--parent-hwnd", StringComparison.OrdinalIgnoreCase) &&
@@ -166,26 +182,43 @@ internal static class Program
             else if (string.Equals(arguments[index], "--tool", StringComparison.OrdinalIgnoreCase) &&
                      index + 1 < arguments.Count)
             {
-                tool = arguments[++index];
+                toolId = arguments[++index];
             }
             else if (string.Equals(arguments[index], "--source", StringComparison.OrdinalIgnoreCase) &&
                      index + 1 < arguments.Count)
             {
                 sourceProvided = true;
                 sourceValid = Uri.TryCreate(arguments[++index], UriKind.Absolute, out var source) &&
-                              SmartBirdHostWindow.IsSupportedDashboardUri(source);
+                              WebSurfaceHostWindow.IsSupportedWebUri(source);
                 if (sourceValid)
                 {
-                    dashboardUri = source!;
+                    sourceUri = source!;
+                }
+            }
+            else if (string.Equals(arguments[index], "--allowed-origin", StringComparison.OrdinalIgnoreCase))
+            {
+                if (index + 1 >= arguments.Count ||
+                    !Uri.TryCreate(arguments[++index], UriKind.Absolute, out var origin) ||
+                    !WebSurfaceHostWindow.IsSupportedWebUri(origin))
+                {
+                    allowedOriginsValid = false;
+                }
+                else
+                {
+                    originValues.Add(WebSurfaceHostWindow.NormalizeOrigin(origin));
                 }
             }
         }
+        allowedOrigins = originValues.Count == 0
+            ? [WebSurfaceHostWindow.NormalizeOrigin(sourceUri)]
+            : originValues.DistinctBy(value => value.AbsoluteUri, StringComparer.OrdinalIgnoreCase).ToArray();
         return parentWindow != 0 &&
                parentProcessId != 0 &&
-               !string.IsNullOrWhiteSpace(tool) &&
+               WebSurfaceHostWindow.IsSupportedToolId(toolId) &&
                sourceProvided &&
                sourceValid &&
-               SmartBirdHostWindow.IsSupportedDashboardUri(dashboardUri);
+               allowedOriginsValid &&
+               WebSurfaceHostWindow.IsSupportedWebUri(sourceUri);
     }
 }
 
@@ -243,6 +276,10 @@ internal static class IsolationProbe
             startInfo.ArgumentList.Add(parent.ToInt64().ToString(CultureInfo.InvariantCulture));
             startInfo.ArgumentList.Add("--parent-pid");
             startInfo.ArgumentList.Add(Environment.ProcessId.ToString(CultureInfo.InvariantCulture));
+            startInfo.ArgumentList.Add("--source");
+            startInfo.ArgumentList.Add(WebSurfaceHostWindow.ProbeSourceUrl);
+            startInfo.ArgumentList.Add("--allowed-origin");
+            startInfo.ArgumentList.Add(WebSurfaceHostWindow.ProbeSourceUrl);
             process = Process.Start(startInfo);
             if (process is null)
             {

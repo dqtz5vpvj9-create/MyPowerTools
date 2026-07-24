@@ -124,7 +124,7 @@ public static class SettingsJson
         var array = new JsonArray();
         foreach (var value in values)
         {
-            array.Add(value);
+            array.Insert(array.Count, JsonValue.Create(value));
         }
 
         return array;

@@ -15,6 +15,7 @@ $npm = Join-Path $OutputRoot 'npm'
 $protocol = Join-Path $OutputRoot 'protocol'
 $cli = Join-Path $OutputRoot 'cli'
 $localPackageCache = Join-Path $OutputRoot 'global-packages'
+$npmExecutable = if ($IsWindows) { 'npm.cmd' } else { 'npm' }
 
 New-Item -ItemType Directory -Force -Path $nuget, $npm, $protocol | Out-Null
 
@@ -42,20 +43,20 @@ $projects = @(
     'src\MyPowerTools.AvaloniaSdk\MyPowerTools.AvaloniaSdk.csproj'
 )
 foreach ($project in $projects) {
-    $arguments = @('pack', (Join-Path $repo $project), '--configuration', $Configuration, '--output', $nuget)
+    $arguments = @('pack', (Join-Path $repo $project), '--configuration', $Configuration, '--output', $nuget, '--maxcpucount')
     & dotnet @arguments
     if ($LASTEXITCODE -ne 0) { throw "dotnet pack failed: $project" }
 }
 
 $cliProject = Join-Path $repo 'src\MyPowerTools.Cli\MyPowerTools.Cli.csproj'
-& dotnet build $cliProject --configuration $Configuration
+& dotnet build $cliProject --configuration $Configuration --maxcpucount
 if ($LASTEXITCODE -ne 0) { throw 'CLI build failed.' }
 if (Test-Path -LiteralPath $cli) { Remove-Item -LiteralPath $cli -Recurse -Force }
 New-Item -ItemType Directory -Force -Path $cli | Out-Null
 Copy-Item -Path (Join-Path $repo "src\MyPowerTools.Cli\bin\$Configuration\net10.0\*") -Destination $cli -Recurse
 
 $visualProject = Join-Path $repo 'src\Mpt.Cli.VisualTesting\Mpt.Cli.VisualTesting.csproj'
-& dotnet build $visualProject --configuration $Configuration
+& dotnet build $visualProject --configuration $Configuration --maxcpucount
 if ($LASTEXITCODE -ne 0) { throw 'VisualTesting CLI build failed.' }
 $visual = Join-Path $cli 'visual'
 New-Item -ItemType Directory -Force -Path $visual | Out-Null
@@ -65,14 +66,14 @@ $webBridge = Join-Path $repo 'sdk\web-bridge'
 Push-Location $webBridge
 try {
     if (Test-Path -LiteralPath (Join-Path $webBridge 'package-lock.json')) {
-        & npm.cmd ci
+        & $npmExecutable ci
     } else {
-        & npm.cmd install
+        & $npmExecutable install
     }
     if ($LASTEXITCODE -ne 0) { throw 'npm dependency restore failed.' }
-    & npm.cmd run build
+    & $npmExecutable run build
     if ($LASTEXITCODE -ne 0) { throw 'WebBridge TypeScript build failed.' }
-    & npm.cmd pack --pack-destination $npm
+    & $npmExecutable pack --pack-destination $npm
     if ($LASTEXITCODE -ne 0) { throw 'WebBridge npm pack failed.' }
 }
 finally {

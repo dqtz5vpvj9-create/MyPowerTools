@@ -433,6 +433,82 @@ static int RunA1Gate()
             : string.Join("; ", serviceIntegrationErrors)));
     overall &= serviceIntegrationsReady;
 
+    var webSurfaceImplementationPath = Path.Combine(
+        repoRoot,
+        "src",
+        "MyPowerTools.WebSurface.Avalonia",
+        "AvaloniaWebSurfaceService.cs");
+    var webSurfaceImplementation = File.Exists(webSurfaceImplementationPath)
+        ? File.ReadAllText(webSurfaceImplementationPath)
+        : "";
+    var forbiddenWebHostMarkers = new[]
+    {
+        "SmartBirdWebView",
+        "NativeWebSurfaceCoordinator",
+        "WebToolHostProtocol",
+        "HostProcessEventKind",
+        "MaximumHostFrameLength",
+        "MyPowerTools.WebToolHost.exe"
+    };
+    var toolWebHostViolations = Directory.EnumerateFiles(Path.Combine(repoRoot, "tools"), "*.*", SearchOption.AllDirectories)
+        .Where(path => Path.GetExtension(path) is ".cs" or ".csproj")
+        .Where(path => !path.Contains($"{Path.DirectorySeparatorChar}original-source{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase))
+        .Where(path => !path.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase))
+        .Where(path => !path.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase))
+        .SelectMany(path => forbiddenWebHostMarkers
+            .Where(marker => File.ReadAllText(path).Contains(marker, StringComparison.Ordinal))
+            .Select(marker => $"{Path.GetRelativePath(repoRoot, path)}:{marker}"))
+        .ToArray();
+    var toolHostReferences = toolCsprojFiles
+        .SelectMany(path => FindForbiddenProjectReferences(ReadProjectItems(path), ["MyPowerTools.Shell.Avalonia", "MyPowerTools.WebToolHost"])
+            .Select(reference => $"{Path.GetRelativePath(repoRoot, path)}:{reference}"))
+        .ToArray();
+    var webSurfaceBoundaryReady =
+        webSurfaceImplementation.Contains("Process.Start(startInfo)", StringComparison.Ordinal) &&
+        webSurfaceImplementation.Contains("--allowed-origin", StringComparison.Ordinal) &&
+        toolWebHostViolations.Length == 0 &&
+        toolHostReferences.Length == 0 &&
+        !File.Exists(Path.Combine(repoRoot, "src", "MyPowerTools.Shell.Avalonia", "Views", "NativeWebSurfaceCoordinator.cs"));
+    records.Add(new("A1.13-web-surface-host-boundary", webSurfaceBoundaryReady,
+        webSurfaceBoundaryReady
+            ? "SDK contract + single Shell-side WebToolHost client; tool projects contain no host protocol copies"
+            : string.Join("; ", toolWebHostViolations.Concat(toolHostReferences))));
+    overall &= webSurfaceBoundaryReady;
+
+    var productionSources = EnumerateProductionCSharpFiles(repoRoot);
+    var namedPipePolicyPath = Path.Combine(
+        repoRoot,
+        "src",
+        "MyPowerTools.Ipc.Shared",
+        "MptNamedPipePolicy.cs");
+    var currentUserOnlyViolations = productionSources
+        .Where(path => !string.Equals(path, namedPipePolicyPath, StringComparison.OrdinalIgnoreCase))
+        .Where(path => File.ReadAllText(path).Contains("CurrentUserOnly", StringComparison.Ordinal))
+        .Select(path => Path.GetRelativePath(repoRoot, path))
+        .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+        .ToArray();
+    var currentUserOnlyRemoved = currentUserOnlyViolations.Length == 0;
+    records.Add(new("A1.14-no-current-user-only-pipes", currentUserOnlyRemoved,
+        currentUserOnlyRemoved
+            ? $"scanned {productionSources.Length} production C# files"
+            : string.Join("; ", currentUserOnlyViolations)));
+    overall &= currentUserOnlyRemoved;
+
+    var kestrelNamedPipeFiles = productionSources
+        .Where(path => File.ReadAllText(path).Contains("ListenNamedPipe(", StringComparison.Ordinal))
+        .ToArray();
+    var kestrelPolicyViolations = kestrelNamedPipeFiles
+        .Where(path => !ProjectConfiguresNamedPipePolicy(path, repoRoot))
+        .Select(path => Path.GetRelativePath(repoRoot, path))
+        .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+        .ToArray();
+    var kestrelPolicyReady = kestrelPolicyViolations.Length == 0;
+    records.Add(new("A1.15-kestrel-named-pipes-use-shared-policy", kestrelPolicyReady,
+        kestrelPolicyReady
+            ? $"validated {kestrelNamedPipeFiles.Length} Kestrel named-pipe registrations"
+            : string.Join("; ", kestrelPolicyViolations)));
+    overall &= kestrelPolicyReady;
+
     foreach (var r in records)
     {
         Console.WriteLine($"[{(r.Passed ? "PASS" : "FAIL")}] {r.Id}: {r.Detail}");
@@ -474,6 +550,56 @@ static bool ContainsToolsPath(string value)
     return normalized.Contains("/tools/", StringComparison.OrdinalIgnoreCase) ||
            normalized.StartsWith("tools/", StringComparison.OrdinalIgnoreCase) ||
            normalized.Contains("../tools/", StringComparison.OrdinalIgnoreCase);
+}
+
+static string[] EnumerateProductionCSharpFiles(string repoRoot)
+{
+    var roots = new[]
+    {
+        Path.Combine(repoRoot, "src"),
+        Path.Combine(repoRoot, "tools"),
+        Path.Combine(repoRoot, "templates")
+    };
+    return roots
+        .Where(Directory.Exists)
+        .SelectMany(root => Directory.EnumerateFiles(root, "*.cs", SearchOption.AllDirectories))
+        .Where(IsProductionSource)
+        .ToArray();
+}
+
+static bool IsProductionSource(string path)
+{
+    var segments = Path.GetRelativePath(Directory.GetCurrentDirectory(), path)
+        .Split([Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar], StringSplitOptions.RemoveEmptyEntries);
+    return segments.All(segment =>
+        !string.Equals(segment, "bin", StringComparison.OrdinalIgnoreCase) &&
+        !string.Equals(segment, "obj", StringComparison.OrdinalIgnoreCase) &&
+        !string.Equals(segment, "tests", StringComparison.OrdinalIgnoreCase) &&
+        !string.Equals(segment, "test", StringComparison.OrdinalIgnoreCase) &&
+        !string.Equals(segment, "fixtures", StringComparison.OrdinalIgnoreCase) &&
+        !string.Equals(segment, "original-source", StringComparison.OrdinalIgnoreCase) &&
+        !segment.EndsWith(".Tests", StringComparison.OrdinalIgnoreCase));
+}
+
+static bool ProjectConfiguresNamedPipePolicy(string registrationFile, string repoRoot)
+{
+    var directory = new DirectoryInfo(Path.GetDirectoryName(registrationFile)!);
+    while (directory is not null &&
+           directory.FullName.StartsWith(repoRoot, StringComparison.OrdinalIgnoreCase))
+    {
+        if (directory.EnumerateFiles("*.csproj", SearchOption.TopDirectoryOnly).Any())
+        {
+            return directory
+                .EnumerateFiles("*.cs", SearchOption.AllDirectories)
+                .Where(path => IsProductionSource(path.FullName))
+                .Select(path => File.ReadAllText(path.FullName))
+                .Any(content =>
+                    content.Contains("UseNamedPipes(", StringComparison.Ordinal) &&
+                    content.Contains("MptNamedPipePolicy.Configure", StringComparison.Ordinal));
+        }
+        directory = directory.Parent;
+    }
+    return false;
 }
 
 static string FindRepoRoot()

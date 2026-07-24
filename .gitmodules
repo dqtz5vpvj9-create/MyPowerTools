@@ -1,21 +1,21 @@
 [submodule "tools/adb-forwarder"]
 	path = tools/adb-forwarder
-	url = https://github.com/MyPowerTools/adb-forwarder.git
+	url = https://github.com/dqtz5vpvj9-create/MyPowerTools-adb-forwarder.git
 [submodule "tools/remote-notifications"]
 	path = tools/remote-notifications
-	url = https://github.com/MyPowerTools/remote-notifications.git
+	url = https://github.com/dqtz5vpvj9-create/MyPowerTools-remote-notifications.git
 [submodule "tools/remote-commands"]
 	path = tools/remote-commands
-	url = https://github.com/MyPowerTools/remote-commands.git
+	url = https://github.com/dqtz5vpvj9-create/MyPowerTools-remote-commands.git
 [submodule "tools/process-monitor"]
 	path = tools/process-monitor
-	url = https://github.com/MyPowerTools/process-monitor.git
+	url = https://github.com/dqtz5vpvj9-create/MyPowerTools-process-monitor.git
 [submodule "tools/screenease"]
 	path = tools/screenease
-	url = https://github.com/MyPowerTools/screenease.git
+	url = https://github.com/dqtz5vpvj9-create/MyPowerTools-screenease.git
 [submodule "tools/smartbird-thermostat"]
 	path = tools/smartbird-thermostat
-	url = https://github.com/MyPowerTools/smartbird-thermostat.git
+	url = https://github.com/dqtz5vpvj9-create/MyPowerTools-smartbird-thermostat.git
 [submodule "tools/doubao-computer-use"]
 	path = tools/doubao-computer-use
-	url = https://github.com/MyPowerTools/doubao-computer-use.git
+	url = https://github.com/dqtz5vpvj9-create/MyPowerTools-doubao-computer-use.git

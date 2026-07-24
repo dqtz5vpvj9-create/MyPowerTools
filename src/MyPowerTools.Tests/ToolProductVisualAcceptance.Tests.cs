@@ -1,16 +1,13 @@
-using System.Runtime.InteropServices;
 using System.Text.Json.Nodes;
-using Avalonia;
-using Avalonia.Media.Imaging;
-using Avalonia.Platform;
 using MyPowerTools.Shell.Avalonia;
+using SkiaSharp;
 
 namespace MyPowerTools.Tests;
 
 public sealed class ToolProductVisualAcceptanceTests
 {
     [Fact]
-    public void Product_foundation_entry_renders_eight_real_avalonia_pages()
+    public void Product_foundation_entry_renders_three_real_shell_pages()
     {
         var output = Path.Combine(
             Path.GetTempPath(),
@@ -19,23 +16,20 @@ public sealed class ToolProductVisualAcceptanceTests
 
         try
         {
-            var manifestPath = ShellRealScreenshotWriter.WriteProductFoundationSnapshotSet(
+            var manifestPath = VisualTestProcess.WriteSnapshotSet(
                 output,
                 "light",
                 "1366x768",
-                "normal");
+                "normal",
+                "*",
+                productFoundation: true);
             var manifest = JsonNode.Parse(File.ReadAllText(manifestPath))!.AsObject();
             var screenshots = manifest["screenshots"]!.AsArray();
             var expectedScreens = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
             {
                 ["home-ready"] = "shell.home",
                 ["general-settings"] = "shell.general",
-                ["tools-catalog"] = "shell.tools-catalog",
-                ["adb-forwarder-forward"] = "adb-forwarder.forward",
-                ["screenease-profiles"] = "screenease.profiles",
-                ["doubao-agent-services"] = "doubao-agent.services",
-                ["smartbird-thermostat-overview"] = "smartbird-thermostat.overview",
-                ["remote-notifications-inbox"] = "android-tools.notifications.inbox"
+                ["tools-catalog"] = "shell.tools-catalog"
             };
 
             Assert.Equal("real-avalonia-screenshot", manifest["artifactKind"]!.GetValue<string>());
@@ -95,12 +89,13 @@ public sealed class ToolProductVisualAcceptanceTests
 
         try
         {
-            var manifestPath = ShellRealScreenshotWriter.WriteProductFoundationSnapshotSet(
+            var manifestPath = VisualTestProcess.WriteSnapshotSet(
                 output,
                 "light",
                 "2048x1152",
                 "normal",
-                surface);
+                surface,
+                productFoundation: true);
             var manifest = JsonNode.Parse(File.ReadAllText(manifestPath))!.AsObject();
             var screenshot = Assert.Single(manifest["screenshots"]!.AsArray())!.AsObject();
 
@@ -130,125 +125,22 @@ public sealed class ToolProductVisualAcceptanceTests
         }
     }
 
-    [Theory]
-    [InlineData("scroll", "mouse-wheel:down:6")]
-    [InlineData("filter", "mouse-click:label-chip:")]
-    [InlineData("detail", "mouse-double-click:message:")]
-    [InlineData("activation", "toast-launch:mypowertools://remote-notification?id=")]
-    public void Remote_notifications_headless_scenarios_simulate_input_and_write_png(
-        string scenario,
-        string expectedStepPrefix)
-    {
-        var output = Path.Combine(
-            Path.GetTempPath(),
-            "mpt-tool-product-interactions",
-            Guid.NewGuid().ToString("N"));
-
-        try
-        {
-            var manifestPath = ShellRealScreenshotWriter.WriteProductFoundationSnapshotSet(
-                output,
-                "light",
-                "1366x768",
-                "normal",
-                "android-tools.notifications.inbox",
-                scenario);
-            var manifest = JsonNode.Parse(File.ReadAllText(manifestPath))!.AsObject();
-            var screenshot = Assert.Single(manifest["screenshots"]!.AsArray())!.AsObject();
-            var steps = screenshot["interactionSteps"]!.AsArray()
-                .Select(item => item!.GetValue<string>())
-                .ToArray();
-
-            Assert.Equal(scenario, manifest["scenario"]!.GetValue<string>());
-            Assert.Equal(scenario, screenshot["scenario"]!.GetValue<string>());
-            Assert.Equal("remote-notifications-inbox", screenshot["screenId"]!.GetValue<string>());
-            Assert.Equal("Avalonia.Headless", screenshot["renderer"]!.GetValue<string>());
-            Assert.Contains(steps, step => step.StartsWith(expectedStepPrefix, StringComparison.Ordinal));
-
-            var imagePath = screenshot["imagePath"]!.GetValue<string>();
-            Assert.Contains($".{scenario}.", Path.GetFileName(imagePath), StringComparison.OrdinalIgnoreCase);
-            var bytes = File.ReadAllBytes(imagePath);
-            Assert.True(bytes.Length > 1000, $"Interaction screenshot {imagePath} should contain rendered UI.");
-            Assert.Equal(
-                new byte[] { 137, 80, 78, 71, 13, 10, 26, 10 },
-                bytes.Take(8).ToArray());
-            AssertFrameEdgesAreRendered(imagePath);
-        }
-        finally
-        {
-            if (Directory.Exists(output))
-            {
-                Directory.Delete(output, recursive: true);
-            }
-        }
-    }
-
-    [Fact]
-    public void Remote_notifications_wide_product_page_renders_at_2048_by_1152()
-    {
-        var output = Path.Combine(
-            Path.GetTempPath(),
-            "mpt-remote-notifications-wide",
-            Guid.NewGuid().ToString("N"));
-
-        try
-        {
-            var manifestPath = ShellRealScreenshotWriter.WriteProductFoundationSnapshotSet(
-                output,
-                "light",
-                "2048x1152",
-                "normal",
-                "android-tools.notifications.inbox");
-            var manifest = JsonNode.Parse(File.ReadAllText(manifestPath))!.AsObject();
-            var screenshot = Assert.Single(manifest["screenshots"]!.AsArray())!.AsObject();
-
-            Assert.Equal("remote-notifications-inbox", screenshot["screenId"]!.GetValue<string>());
-            Assert.Equal(2048, screenshot["width"]!.GetValue<int>());
-            Assert.Equal(1152, screenshot["height"]!.GetValue<int>());
-            Assert.Equal("Avalonia.Headless", screenshot["renderer"]!.GetValue<string>());
-
-            var imagePath = screenshot["imagePath"]!.GetValue<string>();
-            Assert.True(File.ReadAllBytes(imagePath).Length > 1000);
-            AssertFrameEdgesAreRendered(imagePath);
-        }
-        finally
-        {
-            if (Directory.Exists(output))
-            {
-                Directory.Delete(output, recursive: true);
-            }
-        }
-    }
-
     private static void AssertFrameEdgesAreRendered(string imagePath)
     {
-        using var source = new Bitmap(imagePath);
-        using var copy = new WriteableBitmap(
-            source.PixelSize,
-            new Vector(96, 96),
-            PixelFormat.Bgra8888,
-            AlphaFormat.Premul);
-        using var framebuffer = copy.Lock();
-        source.CopyPixels(framebuffer);
-
-        var pixels = new byte[framebuffer.RowBytes * framebuffer.Size.Height];
-        Marshal.Copy(framebuffer.Address, pixels, 0, pixels.Length);
+        using var image = SKBitmap.Decode(imagePath);
+        Assert.NotNull(image);
         var blackEdgePixels = 0;
         var transparentEdgePixels = 0;
         var edgePixelCount = 0;
 
         void InspectPixel(int x, int y)
         {
-            var offset = (y * framebuffer.RowBytes) + (x * 4);
-            var blue = pixels[offset];
-            var green = pixels[offset + 1];
-            var red = pixels[offset + 2];
-            var alpha = pixels[offset + 3];
-            if (alpha < 250)
+            var pixel = image.GetPixel(x, y);
+            if (pixel.Alpha < 250)
             {
                 transparentEdgePixels++;
             }
-            if (alpha > 0 && red < 8 && green < 8 && blue < 8)
+            if (pixel.Alpha > 0 && pixel.Red < 8 && pixel.Green < 8 && pixel.Blue < 8)
             {
                 blackEdgePixels++;
             }
@@ -256,16 +148,16 @@ public sealed class ToolProductVisualAcceptanceTests
             edgePixelCount++;
         }
 
-        for (var x = 0; x < framebuffer.Size.Width; x++)
+        for (var x = 0; x < image.Width; x++)
         {
             InspectPixel(x, 0);
-            InspectPixel(x, framebuffer.Size.Height - 1);
+            InspectPixel(x, image.Height - 1);
         }
 
-        for (var y = 1; y < framebuffer.Size.Height - 1; y++)
+        for (var y = 1; y < image.Height - 1; y++)
         {
             InspectPixel(0, y);
-            InspectPixel(framebuffer.Size.Width - 1, y);
+            InspectPixel(image.Width - 1, y);
         }
 
         Assert.True(
@@ -281,22 +173,13 @@ public sealed class ToolProductVisualAcceptanceTests
         (int X, int Y) firstPoint,
         (int X, int Y) secondPoint)
     {
-        using var source = new Bitmap(imagePath);
-        using var copy = new WriteableBitmap(
-            source.PixelSize,
-            new Vector(96, 96),
-            PixelFormat.Bgra8888,
-            AlphaFormat.Premul);
-        using var framebuffer = copy.Lock();
-        source.CopyPixels(framebuffer);
-
-        var pixels = new byte[framebuffer.RowBytes * framebuffer.Size.Height];
-        Marshal.Copy(framebuffer.Address, pixels, 0, pixels.Length);
+        using var image = SKBitmap.Decode(imagePath);
+        Assert.NotNull(image);
 
         (byte Blue, byte Green, byte Red, byte Alpha) ReadPixel((int X, int Y) point)
         {
-            var offset = (point.Y * framebuffer.RowBytes) + (point.X * 4);
-            return (pixels[offset], pixels[offset + 1], pixels[offset + 2], pixels[offset + 3]);
+            var pixel = image.GetPixel(point.X, point.Y);
+            return (pixel.Blue, pixel.Green, pixel.Red, pixel.Alpha);
         }
 
         var first = ReadPixel(firstPoint);

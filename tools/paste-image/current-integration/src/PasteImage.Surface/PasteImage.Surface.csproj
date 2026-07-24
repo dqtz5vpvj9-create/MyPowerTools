@@ -1,0 +1,19 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>PasteImage.Surface</AssemblyName>
+    <RootNamespace>PasteImage.Surface</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="12.0.5" />
+  </ItemGroup>
+  <ItemGroup Condition="!Exists('$(MyPowerToolsRepoRoot)\src\MyPowerTools.AvaloniaSdk\MyPowerTools.AvaloniaSdk.csproj')">
+    <PackageReference Include="MyPowerTools.ToolSdk" Version="0.2.0" />
+    <PackageReference Include="MyPowerTools.AvaloniaSdk" Version="0.2.0" />
+  </ItemGroup>
+  <ItemGroup Condition="Exists('$(MyPowerToolsRepoRoot)\src\MyPowerTools.AvaloniaSdk\MyPowerTools.AvaloniaSdk.csproj')">
+    <ProjectReference Include="$(MyPowerToolsRepoRoot)\src\MyPowerTools.AvaloniaSdk\MyPowerTools.AvaloniaSdk.csproj" />
+  </ItemGroup>
+</Project>

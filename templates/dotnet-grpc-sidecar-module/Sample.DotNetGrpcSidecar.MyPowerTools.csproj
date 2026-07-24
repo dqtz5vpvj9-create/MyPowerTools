@@ -12,6 +12,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <ProjectReference Include="..\..\src\MyPowerTools.Ipc.Shared\MyPowerTools.Ipc.Shared.csproj" />
     <ProjectReference Include="..\..\src\MyPowerTools.Protocol\MyPowerTools.Protocol.csproj" />
   </ItemGroup>
 

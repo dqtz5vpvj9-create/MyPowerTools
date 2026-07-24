@@ -1,15 +1,16 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using MyPowerTools.Shell.Avalonia.ViewModels;
 using MyPowerTools.UI;
+using MyPowerTools.UI.Controls;
 using MyPowerTools.WebSurface.Avalonia;
 
 namespace MyPowerTools.Shell.Avalonia.Views;
 
 public sealed partial class ShellChromeView : UserControl
 {
-    private const double CompactBreakpoint = 1080;
     private const double CompactNavigationWidth = 64;
     private const double ExpandedNavigationWidth = MptThemeTokens.LayoutSidebarWidth;
     private const double CaptionReserveWidth = 168;
@@ -19,7 +20,6 @@ public sealed partial class ShellChromeView : UserControl
     private const double ContentHorizontalMargin = 56;
     private const double TopBarHeight = MptThemeTokens.LayoutTopBarHeight;
 
-    private readonly Grid _titleSearchHost;
     private readonly Grid _globalOverlayHost;
     private readonly Grid _permissionOverlayHost;
     private readonly Border _commandFlyout;
@@ -31,9 +31,9 @@ public sealed partial class ShellChromeView : UserControl
     private readonly TextBlock _toolSectionLabel;
     private readonly StackPanel _mainNavigationStack;
     private readonly StackPanel _footerNavigationStack;
-    // The XAML defaults match the expanded shell. Avoid rewriting the same navigation
-    // properties during the first wide layout pass.
-    private bool _isCompact;
+    private readonly Border _navigationHost;
+    private readonly MptButton _navigationModeButton;
+    private ShellNavigationMode _navigationMode = ShellNavigationMode.Expanded;
     private WebSurfaceOcclusionState? _webSurfaceOcclusion;
 
     public WebSurfaceOcclusionState? WebSurfaceOcclusion
@@ -49,8 +49,6 @@ public sealed partial class ShellChromeView : UserControl
     public ShellChromeView()
     {
         AvaloniaXamlLoader.Load(this);
-        _titleSearchHost = this.FindControl<Grid>("TitleSearchHost")
-            ?? throw new InvalidOperationException("Shell title search host was not found.");
         _commandFlyout = this.FindControl<Border>("CommandFlyout")
             ?? throw new InvalidOperationException("Shell command flyout was not found.");
         _globalOverlayHost = this.FindControl<Grid>("GlobalOverlayHost")
@@ -73,8 +71,12 @@ public sealed partial class ShellChromeView : UserControl
             ?? throw new InvalidOperationException("Shell main navigation stack was not found.");
         _footerNavigationStack = this.FindControl<StackPanel>("FooterNavigationStack")
             ?? throw new InvalidOperationException("Shell footer navigation stack was not found.");
+        _navigationHost = this.FindControl<Border>("NavigationHost")
+            ?? throw new InvalidOperationException("Shell navigation host was not found.");
+        _navigationModeButton = this.FindControl<MptButton>("NavigationModeButton")
+            ?? throw new InvalidOperationException("Shell navigation mode button was not found.");
         SizeChanged += OnShellSizeChanged;
-        DataContextChanged += (_, _) => ApplyResponsiveLayout(Bounds.Width);
+        DataContextChanged += (_, _) => ApplyLayout(Bounds.Width);
         _globalOverlayHost.PropertyChanged += OnOverlayVisibilityChanged;
         _permissionOverlayHost.PropertyChanged += OnOverlayVisibilityChanged;
         UpdateNativeWebSurfaceVisibility();
@@ -82,7 +84,7 @@ public sealed partial class ShellChromeView : UserControl
 
     private void OnShellSizeChanged(object? sender, SizeChangedEventArgs e)
     {
-        ApplyResponsiveLayout(e.NewSize.Width);
+        ApplyLayout(e.NewSize.Width);
     }
 
     private void OnOverlayVisibilityChanged(object? sender, AvaloniaPropertyChangedEventArgs eventArguments)
@@ -99,37 +101,62 @@ public sealed partial class ShellChromeView : UserControl
             _globalOverlayHost.IsVisible || _permissionOverlayHost.IsVisible);
     }
 
-    private void ApplyResponsiveLayout(double width)
+    private void OnNavigationModeButtonClick(object? sender, RoutedEventArgs eventArguments)
+    {
+        NavigationMode = NavigationMode switch
+        {
+            ShellNavigationMode.Expanded => ShellNavigationMode.Compact,
+            ShellNavigationMode.Compact => ShellNavigationMode.Hidden,
+            _ => ShellNavigationMode.Expanded
+        };
+    }
+
+    public ShellNavigationMode NavigationMode
+    {
+        get => _navigationMode;
+        set
+        {
+            if (_navigationMode == value)
+            {
+                return;
+            }
+
+            _navigationMode = value;
+            ApplyLayout(Bounds.Width);
+        }
+    }
+
+    private void ApplyLayout(double width)
     {
         if (width <= 0)
         {
             return;
         }
 
-        var compact = width < CompactBreakpoint;
-        var navigationWidth = compact ? CompactNavigationWidth : ExpandedNavigationWidth;
+        var compact = NavigationMode == ShellNavigationMode.Compact;
+        var hidden = NavigationMode == ShellNavigationMode.Hidden;
+        var navigationWidth = NavigationMode switch
+        {
+            ShellNavigationMode.Expanded => ExpandedNavigationWidth,
+            ShellNavigationMode.Compact => CompactNavigationWidth,
+            _ => 0
+        };
         _shellLayoutGrid.ColumnDefinitions[0].Width = new GridLength(navigationWidth);
         _titleBarGrid.ColumnDefinitions[0].Width = new GridLength(navigationWidth);
-        _titleSearchHost.Width = Math.Clamp(
+        _commandFlyout.Width = Math.Clamp(
             width - navigationWidth - CaptionReserveWidth - 48,
             SearchMinWidth,
             SearchMaxWidth);
-        _commandFlyout.Width = _titleSearchHost.Width;
         _contentHost.Width = Math.Min(
             Math.Max(0, width - navigationWidth - ContentHorizontalMargin),
             ContentMaxWidth);
         var titleContentWidth = Math.Max(0, width - navigationWidth - CaptionReserveWidth);
         var commandFlyoutLeft = navigationWidth + Math.Max(0, (titleContentWidth - _commandFlyout.Width) / 2);
         _commandFlyout.Margin = new Thickness(commandFlyoutLeft, TopBarHeight, 0, 0);
-
-        if (_isCompact == compact)
-        {
-            return;
-        }
-
-        _isCompact = compact;
-        _brandTitle.IsVisible = !compact;
-        _toolSectionLabel.IsVisible = !compact;
+        _navigationHost.IsVisible = !hidden;
+        _brandHost.IsVisible = !hidden;
+        _brandTitle.IsVisible = !compact && !hidden;
+        _toolSectionLabel.IsVisible = !compact && !hidden;
         _brandHost.ColumnSpacing = compact ? 0 : 12;
         _brandHost.Margin = compact
             ? MptThemeTokens.ShellBrandCompactMargin
@@ -143,7 +170,24 @@ public sealed partial class ShellChromeView : UserControl
 
         if (DataContext is ShellChromeViewModel viewModel)
         {
-            viewModel.SetNavigationCompact(compact);
+            viewModel.SetNavigationCompact(compact || hidden);
         }
+
+        ToolTip.SetTip(_navigationModeButton, NavigationMode switch
+        {
+            ShellNavigationMode.Expanded => "Navigation: expanded. Activate for icons only.",
+            ShellNavigationMode.Compact => "Navigation: icons only. Activate to hide.",
+            _ => "Navigation: hidden. Activate to expand."
+        });
+        _navigationModeButton.Content = NavigationMode == ShellNavigationMode.Hidden
+            ? "\uE76E"
+            : "\uE700";
     }
+}
+
+public enum ShellNavigationMode
+{
+    Hidden,
+    Compact,
+    Expanded
 }

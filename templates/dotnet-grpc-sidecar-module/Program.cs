@@ -1,10 +1,16 @@
 using Grpc.Core;
 using Microsoft.AspNetCore.Server.Kestrel.Core;
+using MyPowerTools.Ipc;
 using MyPowerTools.Protocol.Module.V1;
+using System.Diagnostics;
 
 var pipeName = args.Length > 0 ? args[0] : "mypowertools.template.dotnet-grpc";
 var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddGrpc();
+if (OperatingSystem.IsWindows())
+{
+    builder.WebHost.UseNamedPipes(MptNamedPipePolicy.Configure);
+}
 builder.WebHost.ConfigureKestrel(options =>
 {
     if (OperatingSystem.IsWindows())
@@ -25,7 +31,42 @@ builder.WebHost.ConfigureKestrel(options =>
 var app = builder.Build();
 app.MapGrpcService<TemplateModuleService>();
 app.MapGet("/", () => "MyPowerTools .NET gRPC sidecar template");
-await app.RunAsync();
+using var hostMonitorCancellation = new CancellationTokenSource();
+var hostMonitor = MonitorHostProcessAsync(app.Lifetime, hostMonitorCancellation.Token);
+try
+{
+    await app.RunAsync();
+}
+finally
+{
+    hostMonitorCancellation.Cancel();
+    await hostMonitor;
+}
+
+static async Task MonitorHostProcessAsync(IHostApplicationLifetime lifetime, CancellationToken cancellationToken)
+{
+    var value = Environment.GetEnvironmentVariable("MPT_HOST_PROCESS_ID");
+    if (!int.TryParse(value, out var hostProcessId) || hostProcessId <= 0 || hostProcessId == Environment.ProcessId)
+    {
+        return;
+    }
+
+    try
+    {
+        using var hostProcess = Process.GetProcessById(hostProcessId);
+        await hostProcess.WaitForExitAsync(cancellationToken);
+    }
+    catch (ArgumentException)
+    {
+        // The host exited before the sidecar acquired its process handle.
+    }
+    catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+    {
+        return;
+    }
+
+    lifetime.StopApplication();
+}
 
 public sealed class TemplateModuleService : ModuleControl.ModuleControlBase
 {

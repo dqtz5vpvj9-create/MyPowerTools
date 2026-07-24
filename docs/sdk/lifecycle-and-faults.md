@@ -4,7 +4,7 @@ Discovery parses and validates the manifest without starting the runtime. Openin
 
 Runtime boundaries:
 
-- `web-surface`: Web content runs in `MyPowerTools.WebToolHost.exe`. Navigation failure or WebView failure produces a recovery page while Shell stays alive.
+- `web-surface`: Web content runs in `MyPowerTools.WebToolHost.exe` through the Shell's SDK host-capability implementation. Navigation failure or WebView failure produces a recovery page while Shell stays alive. Optional command failures keep a ready surface visible.
 - `dotnet-surface`: the UI factory loads in the Shell process. Factory construction and surface creation are caught at the route boundary. Long-running and failure-prone logic belongs in an external runtime.
 - `native-tool`: Shell launches the declared native entry point; process exit does not close Shell.
 - `headless-tool`: Runner supervises the declared transport and publishes state, logs, commands, and events.

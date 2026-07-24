@@ -14,7 +14,7 @@ No internal UI blocker remains for P-UI-Foundation. Runtime and release evidence
 | SmartBird manual attached-hardware validation | Original-dashboard embedding, status/events/energy reads, task recovery and failure fallback pass locally. | SmartBird switch, Energy Server/HID meter, and ADB thermal targets for Read Meter and switch POST acceptance. |
 | ADB and AndroidTools device/service validation | AndroidTools modules validate through powertoold; local degraded paths are covered. | Connected ADB devices, notification service state, and expected command catalog. |
 | Doubao planner/tool/MCP endpoint contract validation | Doubao controller probes planner/tool/MCP separately and tests role-specific partial outage. | Running Doubao services with documented production health/status APIs. |
-| Native macOS/Linux runtime validation | Platform packs compile and tests verify degraded provider behavior. | macOS and Linux validation hosts. |
+| Native macOS/Linux runtime validation | arm64/x64 macOS managed bundles cross-publish successfully; tests verify native-provider wiring and Linux degraded behavior. | macOS host for dylib/codesign/UI/launchd/NSPasteboard smoke and Linux host for native runtime smoke. |
 
 ## Internal Phase Gaps
 

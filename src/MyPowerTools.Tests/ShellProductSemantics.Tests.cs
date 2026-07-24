@@ -188,7 +188,7 @@ public sealed class ShellProductSemanticsTests
         ShellCommandFaultOwnership.Attach(firstViewModel, firstSink, firstIdentity.Capture());
         ShellCommandFaultOwnership.Attach(secondViewModel, secondSink, secondIdentity.Capture());
 
-        firstViewModel.RetryCommand.Execute(null);
+        await ((AsyncRelayCommand)firstViewModel.RetryCommand).ExecuteAsync(null);
         var observed = await firstObserved.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         Assert.Equal("controller-a", observed.Context.ControllerId);
@@ -253,6 +253,8 @@ public sealed class ShellProductSemanticsTests
         var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
         var completed = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var start = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        using var attempted = new CountdownEvent(32);
         var executions = 0;
         var command = new AsyncRelayCommand(async () =>
         {
@@ -262,9 +264,20 @@ public sealed class ShellProductSemanticsTests
             completed.TrySetResult();
         });
 
-        await Task.WhenAll(Enumerable.Range(0, 32).Select(_ => Task.Run(() => command.Execute(null))));
+        var attempts = Enumerable.Range(0, 32)
+            .Select(_ => Task.Run(async () =>
+            {
+                await start.Task;
+                var execution = command.ExecuteAsync(null);
+                attempted.Signal();
+                await execution;
+            }))
+            .ToArray();
+        start.TrySetResult();
+        Assert.True(attempted.Wait(TimeSpan.FromSeconds(5)));
         await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
         release.TrySetResult();
+        await Task.WhenAll(attempts).WaitAsync(TimeSpan.FromSeconds(5));
         await completed.Task.WaitAsync(TimeSpan.FromSeconds(5));
 
         Assert.Equal(1, Volatile.Read(ref executions));

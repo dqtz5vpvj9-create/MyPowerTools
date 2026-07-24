@@ -63,7 +63,12 @@ public sealed class AsyncRelayCommand : ICommand
         }
     }
 
-    public async void Execute(object? parameter)
+    public void Execute(object? parameter)
+    {
+        _ = ExecuteAsync(parameter);
+    }
+
+    internal async Task ExecuteAsync(object? parameter)
     {
         if (Interlocked.CompareExchange(ref _isRunning, 1, 0) != 0)
         {

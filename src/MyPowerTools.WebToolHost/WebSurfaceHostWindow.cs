@@ -2,13 +2,14 @@ using Microsoft.Web.WebView2.Core;
 
 namespace MyPowerTools.WebToolHost;
 
-internal sealed class SmartBirdHostWindow : Form
+internal sealed class WebSurfaceHostWindow : Form
 {
-    public const string FixedDashboardUrl = "http://127.0.0.1:19002/";
+    public const string ProbeSourceUrl = "http://127.0.0.1:19002/";
 
     private readonly nint _parent;
-    private readonly Uri _dashboardUri;
-    private readonly Uri _origin;
+    private readonly string _toolId;
+    private readonly Uri _sourceUri;
+    private readonly IReadOnlyList<Uri> _allowedOrigins;
     private CoreWebView2Environment? _environment;
     private CoreWebView2Controller? _controller;
     private CoreWebView2? _webView;
@@ -18,15 +19,19 @@ internal sealed class SmartBirdHostWindow : Form
     private bool _navigationReady;
     private bool _surfaceVisible;
 
-    private SmartBirdHostWindow(nint parent, Uri dashboardUri)
+    private WebSurfaceHostWindow(
+        nint parent,
+        string toolId,
+        Uri sourceUri,
+        IReadOnlyList<Uri> allowedOrigins)
     {
         _parent = parent;
-        _dashboardUri = dashboardUri;
-        _origin = new UriBuilder(
-            dashboardUri.Scheme,
-            dashboardUri.Host,
-            dashboardUri.Port,
-            "/").Uri;
+        _toolId = toolId;
+        _sourceUri = sourceUri;
+        _allowedOrigins = allowedOrigins
+            .Select(NormalizeOrigin)
+            .DistinctBy(origin => origin.AbsoluteUri, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
         AutoScaleMode = AutoScaleMode.Dpi;
         BackColor = Color.White;
         FormBorderStyle = FormBorderStyle.None;
@@ -56,10 +61,12 @@ internal sealed class SmartBirdHostWindow : Form
         base.SetVisibleCore(value && _shellAllowsVisibility);
     }
 
-    public static SmartBirdHostWindow Create(
+    public static WebSurfaceHostWindow Create(
         nint parent,
         uint expectedParentProcessId,
-        Uri dashboardUri)
+        string toolId,
+        Uri sourceUri,
+        IReadOnlyList<Uri> allowedOrigins)
     {
         if (!OperatingSystem.IsWindows())
         {
@@ -69,9 +76,17 @@ internal sealed class SmartBirdHostWindow : Form
         {
             throw new InvalidOperationException("The Shell parent window is unavailable.");
         }
-        if (!IsSupportedDashboardUri(dashboardUri))
+        if (!IsSupportedToolId(toolId))
         {
-            throw new InvalidOperationException("The SmartBird dashboard URL is outside the local HTTP policy.");
+            throw new InvalidOperationException("The Web Surface tool id is invalid.");
+        }
+        if (!IsSupportedWebUri(sourceUri))
+        {
+            throw new InvalidOperationException("The Web Surface source URI is outside the host policy.");
+        }
+        if (allowedOrigins.Count == 0 || allowedOrigins.Any(origin => !IsSupportedWebUri(origin)))
+        {
+            throw new InvalidOperationException("The Web Surface bridge origin list is invalid.");
         }
 
         _ = Win32Native.GetWindowThreadProcessId(parent, out var actualParentProcessId);
@@ -81,7 +96,7 @@ internal sealed class SmartBirdHostWindow : Form
             throw new InvalidOperationException("The Shell parent window identity did not match the launch contract.");
         }
 
-        var result = new SmartBirdHostWindow(parent, dashboardUri);
+        var result = new WebSurfaceHostWindow(parent, toolId, sourceUri, allowedOrigins);
         _ = result.Handle;
         if (Win32Native.GetParent(result.Handle) != parent)
         {
@@ -112,7 +127,7 @@ internal sealed class SmartBirdHostWindow : Form
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                 "MyPowerTools",
                 "WebView2",
-                "SmartBird",
+                _toolId,
                 "WebToolHost");
             Directory.CreateDirectory(userDataFolder);
             _environment = await CoreWebView2Environment.CreateAsync(
@@ -154,7 +169,7 @@ internal sealed class SmartBirdHostWindow : Form
             UpdateControllerBounds();
             _controllerReady = true;
             WebToolHostProtocol.WriteState("loading", phase: "controller-ready");
-            webView.Navigate(_dashboardUri.AbsoluteUri);
+            webView.Navigate(_sourceUri.AbsoluteUri);
         }
         catch (WebView2RuntimeNotFoundException)
         {
@@ -229,7 +244,7 @@ internal sealed class SmartBirdHostWindow : Form
 
     private void OnWebMessageReceived(object? sender, CoreWebView2WebMessageReceivedEventArgs eventArguments)
     {
-        if (!Uri.TryCreate(eventArguments.Source, UriKind.Absolute, out var source) || !HasSameOrigin(source))
+        if (!Uri.TryCreate(eventArguments.Source, UriKind.Absolute, out var source) || !IsOriginAllowed(source))
         {
             return;
         }
@@ -270,31 +285,55 @@ internal sealed class SmartBirdHostWindow : Form
         Application.ExitThread();
     }
 
-    public static bool IsSupportedDashboardUri(Uri? target)
+    public static bool IsSupportedWebUri(Uri? target)
     {
         return target is { IsAbsoluteUri: true } &&
                (target.IsFile || target.Scheme is "http" or "https") &&
                string.IsNullOrEmpty(target.UserInfo);
     }
 
-    private bool HasSameOrigin(Uri target)
+    public static bool IsSupportedToolId(string? toolId)
     {
-        if (_dashboardUri.IsFile && target.IsFile)
+        return !string.IsNullOrWhiteSpace(toolId) &&
+               toolId.Length <= 80 &&
+               toolId.All(character => char.IsAsciiLetterOrDigit(character) || character is '.' or '_' or '-');
+    }
+
+    public static Uri NormalizeOrigin(Uri uri)
+    {
+        if (!IsSupportedWebUri(uri))
         {
-            var root = Path.GetDirectoryName(_dashboardUri.LocalPath)!
-                .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
-                + Path.DirectorySeparatorChar;
-            return Path.GetFullPath(target.LocalPath).StartsWith(root, StringComparison.OrdinalIgnoreCase);
+            throw new ArgumentException("Unsupported Web Surface origin.", nameof(uri));
         }
-        return IsSupportedDashboardUri(target) &&
-               string.Equals(target.Scheme, _origin.Scheme, StringComparison.OrdinalIgnoreCase) &&
-               string.Equals(target.Host, _origin.Host, StringComparison.Ordinal) &&
-               target.Port == _origin.Port;
+        if (uri.IsFile)
+        {
+            var directory = Directory.Exists(uri.LocalPath)
+                ? Path.GetFullPath(uri.LocalPath)
+                : Path.GetDirectoryName(Path.GetFullPath(uri.LocalPath))
+                  ?? throw new ArgumentException("File origin has no parent directory.", nameof(uri));
+            return new Uri(directory.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar) + Path.DirectorySeparatorChar);
+        }
+        return new UriBuilder(uri.Scheme, uri.Host, uri.Port, "/").Uri;
+    }
+
+    private bool IsOriginAllowed(Uri target)
+    {
+        if (!IsSupportedWebUri(target))
+        {
+            return false;
+        }
+        return _allowedOrigins.Any(origin =>
+            origin.IsFile
+                ? target.IsFile && Path.GetFullPath(target.LocalPath).StartsWith(origin.LocalPath, StringComparison.OrdinalIgnoreCase)
+                : !target.IsFile &&
+                  string.Equals(target.Scheme, origin.Scheme, StringComparison.OrdinalIgnoreCase) &&
+                  string.Equals(target.Host, origin.Host, StringComparison.OrdinalIgnoreCase) &&
+                  target.Port == origin.Port);
     }
 
     private void OnNavigationStarting(object? sender, CoreWebView2NavigationStartingEventArgs args)
     {
-        if (!Uri.TryCreate(args.Uri, UriKind.Absolute, out var target) || !HasSameOrigin(target))
+        if (!Uri.TryCreate(args.Uri, UriKind.Absolute, out var target) || !IsOriginAllowed(target))
         {
             args.Cancel = true;
             return;
@@ -374,7 +413,7 @@ internal sealed class SmartBirdHostWindow : Form
         args.Handled = true;
         if (_webView is not null &&
             Uri.TryCreate(args.Uri, UriKind.Absolute, out var target) &&
-            HasSameOrigin(target))
+            IsOriginAllowed(target))
         {
             _webView.Navigate(target.AbsoluteUri);
         }
@@ -382,7 +421,7 @@ internal sealed class SmartBirdHostWindow : Form
 
     private void OnWebResourceRequested(object? sender, CoreWebView2WebResourceRequestedEventArgs args)
     {
-        if (Uri.TryCreate(args.Request.Uri, UriKind.Absolute, out var resourceUri) && HasSameOrigin(resourceUri))
+        if (Uri.TryCreate(args.Request.Uri, UriKind.Absolute, out var resourceUri) && IsOriginAllowed(resourceUri))
         {
             return;
         }
@@ -391,7 +430,7 @@ internal sealed class SmartBirdHostWindow : Form
             args.Response = _environment.CreateWebResourceResponse(
                 Stream.Null,
                 403,
-                "Blocked by SmartBird same-origin policy",
+                "Blocked by MyPowerTools Web Surface origin policy",
                 "Content-Type: text/plain; charset=utf-8");
         }
     }
@@ -438,14 +477,13 @@ internal sealed class SmartBirdHostWindow : Form
         var shift = IsKeyDown(Win32Native.VkShift);
         var virtualKey = args.VirtualKey;
         string? gesture = null;
-        if (control && !alt && !shift && virtualKey is 0x46 or 0x4B or 0x52)
+        if (control && !alt && !shift && virtualKey == 0x52)
         {
-            gesture = virtualKey switch
-            {
-                0x46 => "Ctrl+F",
-                0x4B => "Ctrl+K",
-                _ => "Ctrl+R"
-            };
+            gesture = "Ctrl+R";
+        }
+        else if (control && !alt && shift && virtualKey == 0x50)
+        {
+            gesture = "Ctrl+Shift+P";
         }
         else if (control && alt && !shift && virtualKey == 0x20)
         {
@@ -518,6 +556,7 @@ internal sealed class SmartBirdHostWindow : Form
             webView.DownloadStarting -= OnDownloadStarting;
             webView.WebResourceRequested -= OnWebResourceRequested;
             webView.ProcessFailed -= OnProcessFailed;
+            webView.WebMessageReceived -= OnWebMessageReceived;
         }
         if (_controller is not null)
         {

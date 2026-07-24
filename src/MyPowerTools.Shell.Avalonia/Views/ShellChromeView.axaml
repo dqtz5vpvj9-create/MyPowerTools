@@ -62,6 +62,47 @@
         </Grid>
       </controls:MptButton>
     </DataTemplate>
+
+    <DataTemplate x:Key="WebSurfaceHeaderTemplate"
+                  x:DataType="vm:ExternalSdkToolViewModel">
+      <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto"
+            ColumnSpacing="{DynamicResource MptSpacingS}"
+            VerticalAlignment="Center">
+        <controls:MptButton Content="All tools"
+                            Command="{Binding ReturnToToolsCommand}"
+                            MinHeight="32"
+                            Padding="{DynamicResource MptCompactBadgePadding}" />
+        <StackPanel Grid.Column="1"
+                    Spacing="{DynamicResource MptSpacing2Xs}"
+                    VerticalAlignment="Center">
+          <TextBlock Text="{Binding Title}"
+                     FontSize="{DynamicResource MptFontSizeSection}"
+                     FontWeight="SemiBold"
+                     TextTrimming="CharacterEllipsis" />
+          <TextBlock Text="{Binding Subtitle}"
+                     Classes="MptMeta"
+                     TextTrimming="CharacterEllipsis" />
+        </StackPanel>
+        <controls:MptButton Grid.Column="2"
+                            Content="Settings"
+                            Command="{Binding OpenSettingsCommand}"
+                            IsVisible="{Binding CanOpenSettings}"
+                            MinHeight="32"
+                            Padding="{DynamicResource MptCompactBadgePadding}" />
+        <controls:MptButton Grid.Column="3"
+                            Content="Open externally"
+                            Command="{Binding OpenExternalCommand}"
+                            IsVisible="{Binding CanOpenExternal}"
+                            MinHeight="32"
+                            Padding="{DynamicResource MptCompactBadgePadding}" />
+        <controls:MptButton Grid.Column="4"
+                            Classes="MptPrimaryButton"
+                            Content="Refresh"
+                            Command="{Binding RefreshCommand}"
+                            MinHeight="32"
+                            Padding="{DynamicResource MptCompactBadgePadding}" />
+      </Grid>
+    </DataTemplate>
   </UserControl.Resources>
 
   <Grid x:Name="ShellLayoutGrid"
@@ -116,36 +157,33 @@
                      VerticalAlignment="Center" />
         </Grid>
 
-        <Grid x:Name="TitleSearchHost"
+        <Grid x:Name="TitleContentHost"
               Grid.Column="1"
-              MaxWidth="{DynamicResource MptLayoutSearchMaxWidth}"
               Margin="{DynamicResource MptTitleSearchMargin}"
-              HorizontalAlignment="Center"
+              ColumnDefinitions="40,*"
+              ColumnSpacing="{DynamicResource MptSpacingS}"
               chrome:WindowDecorationProperties.ElementRole="User">
-          <controls:MptSearchBox x:Name="SearchBox"
-                                 PlaceholderText="Search tools and actions"
-                                 Padding="{DynamicResource MptTitleSearchPadding}" />
-          <TextBlock Text="&#xE721;"
-                     FontFamily="{DynamicResource MptFontFamilyIcons}"
-                     FontSize="{DynamicResource MptFontSizeBody}"
-                     Foreground="{DynamicResource MptBrushTextSecondary}"
-                     Margin="{DynamicResource MptGapLeftM}"
-                     HorizontalAlignment="Left"
-                     VerticalAlignment="Center"
-                     IsHitTestVisible="False" />
-          <Border Padding="{DynamicResource MptCompactBadgePadding}"
-                  Margin="{DynamicResource MptGapRightS}"
-                  CornerRadius="{DynamicResource MptRadiusControl}"
-                  BorderBrush="{DynamicResource MptBrushDivider}"
-                  BorderThickness="1"
-                  Background="{DynamicResource MptBrushSurfaceMuted}"
-                  HorizontalAlignment="Right"
-                  VerticalAlignment="Center"
-                  IsHitTestVisible="False">
-            <TextBlock Text="Ctrl+F"
-                       Classes="MptMeta"
-                       FontSize="{DynamicResource MptFontSizeMeta}" />
-          </Border>
+          <controls:MptButton x:Name="NavigationModeButton"
+                              Width="36"
+                              Height="36"
+                              MinHeight="36"
+                              Padding="{DynamicResource MptNoThickness}"
+                              Content="&#xE700;"
+                              FontFamily="{DynamicResource MptFontFamilyIcons}"
+                              Background="{DynamicResource MptBrushTransparent}"
+                              BorderBrush="{DynamicResource MptBrushTransparent}"
+                              Click="OnNavigationModeButtonClick"
+                              ToolTip.Tip="Navigation: expanded"
+                              AutomationProperties.Name="Change navigation mode"
+                              HorizontalAlignment="Center"
+                              VerticalAlignment="Center" />
+          <ContentControl x:Name="PageHeaderHost"
+                          Grid.Column="1"
+                          Content="{Binding HeaderContent}"
+                          ContentTemplate="{StaticResource WebSurfaceHeaderTemplate}"
+                          IsVisible="{Binding HasHeaderContent}"
+                          HorizontalContentAlignment="Stretch"
+                          VerticalContentAlignment="Center" />
         </Grid>
 
         <!-- Reserved for native caption controls when the client area extends into the title bar. -->
@@ -228,20 +266,51 @@
               HorizontalAlignment="Left"
               VerticalAlignment="Top">
         <Grid>
-          <ContentControl x:Name="CommandPanel" />
-          <controls:MptButton Width="28"
-                              Height="28"
-                              Margin="{DynamicResource MptOverlayCloseMargin}"
-                              Padding="{DynamicResource MptNoThickness}"
-                              Content="&#xE8BB;"
-                              FontFamily="{DynamicResource MptFontFamilyIcons}"
-                              Background="{DynamicResource MptBrushTransparent}"
-                              BorderBrush="{DynamicResource MptBrushTransparent}"
-                              Command="{Binding CloseCommandPaletteCommand}"
-                              ToolTip.Tip="Close search results"
-                              AutomationProperties.Name="Close search results"
-                              HorizontalAlignment="Right"
-                              VerticalAlignment="Top" />
+          <Grid RowDefinitions="Auto,*">
+            <Grid Margin="{DynamicResource MptUniformS}"
+                  ColumnDefinitions="*,Auto,Auto"
+                  ColumnSpacing="{DynamicResource MptSpacingS}">
+              <controls:MptSearchBox x:Name="SearchBox"
+                                     Grid.ColumnSpan="3"
+                                     PlaceholderText="Search tools and actions"
+                                     Padding="{DynamicResource MptTitleSearchPadding}" />
+              <TextBlock Text="&#xE721;"
+                         FontFamily="{DynamicResource MptFontFamilyIcons}"
+                         FontSize="{DynamicResource MptFontSizeBody}"
+                         Foreground="{DynamicResource MptBrushTextSecondary}"
+                         Margin="{DynamicResource MptGapLeftM}"
+                         HorizontalAlignment="Left"
+                         VerticalAlignment="Center"
+                         IsHitTestVisible="False" />
+              <Border Padding="{DynamicResource MptCompactBadgePadding}"
+                      Grid.Column="1"
+                      CornerRadius="{DynamicResource MptRadiusControl}"
+                      BorderBrush="{DynamicResource MptBrushDivider}"
+                      BorderThickness="1"
+                      Background="{DynamicResource MptBrushSurfaceMuted}"
+                      HorizontalAlignment="Right"
+                      VerticalAlignment="Center"
+                      IsHitTestVisible="False">
+                <TextBlock Text="Ctrl+Shift+P"
+                           Classes="MptMeta"
+                           FontSize="{DynamicResource MptFontSizeMeta}" />
+              </Border>
+              <controls:MptButton Grid.Column="2"
+                                  Width="28"
+                                  Height="28"
+                                  Padding="{DynamicResource MptNoThickness}"
+                                  Content="&#xE8BB;"
+                                  FontFamily="{DynamicResource MptFontFamilyIcons}"
+                                  Background="{DynamicResource MptBrushTransparent}"
+                                  BorderBrush="{DynamicResource MptBrushTransparent}"
+                                  Command="{Binding CloseCommandPaletteCommand}"
+                                  ToolTip.Tip="Close search results"
+                                  AutomationProperties.Name="Close search results"
+                                  VerticalAlignment="Center" />
+            </Grid>
+            <ContentControl x:Name="CommandPanel"
+                            Grid.Row="1" />
+          </Grid>
         </Grid>
       </Border>
     </Grid>

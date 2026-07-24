@@ -329,8 +329,7 @@ public sealed class SmartBirdThermostatProductTests
     }
 
     [Theory]
-    [InlineData("Ctrl+F")]
-    [InlineData("Ctrl+K")]
+    [InlineData("Ctrl+Shift+P")]
     [InlineData("Ctrl+R")]
     [InlineData("Ctrl+Alt+Space")]
     [InlineData("F5")]
