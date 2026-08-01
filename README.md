@@ -117,7 +117,7 @@ pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\update-windows-dev.ps1
 
 The fast path requires an existing complete installation and the local .NET SDK. The generated
 `dev-update.manifest.json` records the active development overlay. `install-windows.ps1` remains
-the clean release path for the NativeAOT launcher and elevated broker, self-contained/ReadyToRun
+the clean release path for the managed self-contained launcher and elevated broker, ReadyToRun
 output, complete runtime and Service Unit staging, shortcuts, ZIP generation, and final
 installed-layout verification.
 

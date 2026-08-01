@@ -261,7 +261,7 @@ public sealed partial class RuntimeAcceptanceTests
         Assert.Contains("[switch]$PortableOnly", publishScript);
         Assert.Contains("if ($PortableOnly)", publishScript);
         Assert.Contains("(Join-Path $PSScriptRoot 'build-sdk.ps1')", publishScript);
-        Assert.Contains("-p:PublishAot=true", publishScript);
+        Assert.Contains("-p:PublishAot=false", publishScript);
         Assert.Contains("-p:PublishReadyToRun=true", publishScript);
         Assert.Contains("-p:PublishReadyToRunComposite=true", publishScript);
         Assert.Contains("schemaVersion = 2", publishScript);
@@ -292,8 +292,7 @@ public sealed partial class RuntimeAcceptanceTests
             launcherSource.IndexOf("TryActivateRunningShell(toolActivation)", StringComparison.Ordinal) <
             launcherSource.IndexOf("FindApplicationRoot(AppContext.BaseDirectory)", StringComparison.Ordinal),
             "The resident Shell activation path must run before installation-layout file system probes.");
-        Assert.Contains("<PublishAot Condition=", launcherProject);
-        Assert.Contains(">true</PublishAot>", launcherProject);
+        Assert.Contains("<PublishAot>false</PublishAot>", launcherProject);
         Assert.Contains("<OptimizationPreference>Speed</OptimizationPreference>", launcherProject);
 
         Assert.Contains("open `MyPowerTools` from the Windows Start menu", startHere);

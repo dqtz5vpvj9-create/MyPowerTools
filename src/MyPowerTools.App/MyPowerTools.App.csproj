@@ -7,8 +7,7 @@
     <Nullable>enable</Nullable>
     <AssemblyName>MyPowerTools</AssemblyName>
     <ApplicationIcon Condition="'$(OS)' == 'Windows_NT'">..\..\assets\MyPowerTools.ico</ApplicationIcon>
-    <PublishAot Condition="!$([System.String]::Copy('$(RuntimeIdentifier)').StartsWith('osx-'))">true</PublishAot>
-    <PublishAot Condition="$([System.String]::Copy('$(RuntimeIdentifier)').StartsWith('osx-'))">false</PublishAot>
+    <PublishAot>false</PublishAot>
     <SelfContained>true</SelfContained>
     <PublishSingleFile>true</PublishSingleFile>
     <InvariantGlobalization>true</InvariantGlobalization>

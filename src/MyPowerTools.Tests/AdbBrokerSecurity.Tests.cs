@@ -414,13 +414,13 @@ public sealed class AdbBrokerSecurityTests
         Assert.Contains("configure-user-services.ps1", innoInstaller);
         Assert.Contains("foreach ($process in Get-Process -ErrorAction SilentlyContinue)", uninstaller);
         Assert.Contains("Test-IsInsidePath -Parent $Root -Child $path", uninstaller);
-        Assert.Contains("<PublishAot>true</PublishAot>", brokerProject);
+        Assert.Contains("<PublishAot>false</PublishAot>", brokerProject);
         Assert.Contains("<PublishSingleFile>true</PublishSingleFile>", brokerProject);
         Assert.Contains("<ApplicationManifest>app.manifest</ApplicationManifest>", brokerProject);
         Assert.Contains("level=\"requireAdministrator\"", brokerManifest);
         Assert.Contains("WindowsProtectedExecutable.IsProtectedLocation", brokerProgram);
         Assert.Contains("var audit = new AuditLog(auditPath, auditRoot)", brokerProgram);
-        Assert.Contains("CLR header", validationScript);
+        Assert.Contains("Managed Broker passed", validationScript);
         Assert.Contains("requireAdministrator", validationScript);
         Assert.DoesNotContain("Start-Process -FilePath $brokerExe", validationScript, StringComparison.Ordinal);
     }

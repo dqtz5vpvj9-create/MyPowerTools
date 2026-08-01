@@ -7,7 +7,7 @@
     <Nullable>enable</Nullable>
     <AssemblyName>MyPowerTools.ElevatedBroker</AssemblyName>
     <ApplicationManifest>app.manifest</ApplicationManifest>
-    <PublishAot>true</PublishAot>
+    <PublishAot>false</PublishAot>
     <SelfContained>true</SelfContained>
     <PublishSingleFile>true</PublishSingleFile>
     <InvariantGlobalization>true</InvariantGlobalization>

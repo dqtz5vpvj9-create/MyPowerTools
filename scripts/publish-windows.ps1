@@ -8,8 +8,8 @@
 
     1. Builds the local SDK bundles (build-sdk.ps1) and every first-party tool package
        (build-tool-packages.ps1) under artifacts/release/module-packages.
-    2. Publishes Runner, Shell (ReadyToRun composite), Cli, ElevatedBroker (Native AOT),
-       ServiceManager and the App launcher (Native AOT) as self-contained win-x64.
+    2. Publishes Runner, Shell (ReadyToRun composite), Cli, ElevatedBroker,
+       ServiceManager and the App launcher as managed self-contained win-x64.
     3. Stages Service Units, modules, schemas, ui, assets, templates and the user-facing
        maintenance scripts into artifacts/release/win-x64, validates the module packages
        and writes build-provenance.json.
@@ -17,15 +17,8 @@
        -PortableOnly is set, the Inno Setup installer and a source bundle.
 
 .NOTES
-  The ElevatedBroker and App publishes use Native AOT and need the MSVC linker from the
-  Visual Studio "Desktop development with C++" workload
-  (https://aka.ms/nativeaot-prerequisites). This script auto-configures that toolchain
-  when it is missing: it locates Visual Studio through vswhere.exe, imports the
-  vcvarsall environment and sets IlcUseEnvironmentalTools=true so the ILCompiler link
-  step uses the environment tools directly (its findvcvarsall.bat fallback corrupts the
-  linker command line when vswhere.exe is not on PATH). Running from a Visual Studio
-  developer shell also works. If the C++ workload cannot be found the publish fails fast
-  with a prerequisite error instead of a broken linker command.
+  The App launcher and ElevatedBroker are managed, self-contained single-file executables.
+  The Windows release does not require the .NET runtime or the Visual C++ build workload.
 
 .PARAMETER PortableOnly
   Skip the Inno Setup installer and source bundle; produce only the portable layout + ZIP.
@@ -243,7 +236,6 @@ function Test-MsvcLinkerOnPath {
 }
 
 Set-Location -LiteralPath $RepoRoot
-Ensure-NativeBuildTools
 New-Item -ItemType Directory -Path $Artifacts -Force | Out-Null
 
 $ArtifactsFull = [System.IO.Path]::GetFullPath($Artifacts)
@@ -273,7 +265,7 @@ Invoke-Native -FilePath 'dotnet' -ArgumentList @(
 Invoke-Native -FilePath 'dotnet' -ArgumentList @('publish', 'src\MyPowerTools.Runner\MyPowerTools.Runner.csproj', '-c', 'Release', '-r', 'win-x64', '--self-contained', 'true', '-o', (Join-Path $PublishRoot 'Runner'))
 Invoke-Native -FilePath 'dotnet' -ArgumentList @('publish', 'src\MyPowerTools.Shell.Avalonia\MyPowerTools.Shell.Avalonia.csproj', '-c', 'Release', '-r', 'win-x64', '--self-contained', 'true', '-p:PublishReadyToRun=true', '-p:PublishReadyToRunComposite=true', '-o', (Join-Path $PublishRoot 'Shell'))
 Invoke-Native -FilePath 'dotnet' -ArgumentList @('publish', 'src\MyPowerTools.Cli\MyPowerTools.Cli.csproj', '-c', 'Release', '-r', 'win-x64', '--self-contained', 'true', '-o', (Join-Path $PublishRoot 'Cli'))
-Invoke-Native -FilePath 'dotnet' -ArgumentList @('publish', 'src\MyPowerTools.ElevatedBroker\MyPowerTools.ElevatedBroker.csproj', '-c', 'Release', '-r', 'win-x64', '--self-contained', 'true', '-p:PublishAot=true', '-p:DebugType=None', '-p:DebugSymbols=false', '-o', (Join-Path $PublishRoot 'Broker'))
+Invoke-Native -FilePath 'dotnet' -ArgumentList @('publish', 'src\MyPowerTools.ElevatedBroker\MyPowerTools.ElevatedBroker.csproj', '-c', 'Release', '-r', 'win-x64', '--self-contained', 'true', '-p:PublishAot=false', '-p:PublishSingleFile=true', '-p:DebugType=None', '-p:DebugSymbols=false', '-o', (Join-Path $PublishRoot 'Broker'))
 Invoke-Native -FilePath 'pwsh.exe' -ArgumentList @('-NoLogo', '-NoProfile', '-NonInteractive', '-File', (Join-Path $PSScriptRoot 'validate-elevated-broker.ps1'), '-BrokerDirectory', (Join-Path $PublishRoot 'Broker'))
 Invoke-Native -FilePath 'dotnet' -ArgumentList @('publish', 'src\MyPowerTools.ServiceManager\MyPowerTools.ServiceManager.csproj', '-c', 'Release', '-r', 'win-x64', '--self-contained', 'true', '-p:DebugType=None', '-p:DebugSymbols=false', '-o', (Join-Path $PublishRoot 'ServiceManager'))
 
@@ -299,7 +291,7 @@ foreach ($tool in @($toolBuildManifest.tools)) {
     }
 }
 $LauncherPublishRoot = Join-Path $PublishRoot 'App'
-Invoke-Native -FilePath 'dotnet' -ArgumentList @('publish', 'src\MyPowerTools.App\MyPowerTools.App.csproj', '-c', 'Release', '-r', 'win-x64', '--self-contained', 'true', '-p:PublishAot=true', '-p:OptimizationPreference=Speed', '-p:DebugType=None', '-p:DebugSymbols=false', '-o', $LauncherPublishRoot)
+Invoke-Native -FilePath 'dotnet' -ArgumentList @('publish', 'src\MyPowerTools.App\MyPowerTools.App.csproj', '-c', 'Release', '-r', 'win-x64', '--self-contained', 'true', '-p:PublishAot=false', '-p:PublishSingleFile=true', '-p:OptimizationPreference=Speed', '-p:DebugType=None', '-p:DebugSymbols=false', '-o', $LauncherPublishRoot)
 Copy-Item -LiteralPath (Join-Path $LauncherPublishRoot 'MyPowerTools.exe') -Destination (Join-Path $PublishRoot 'MyPowerTools.exe') -Force
 Remove-Item -LiteralPath $LauncherPublishRoot -Recurse -Force
 
