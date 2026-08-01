@@ -98,14 +98,23 @@ foreach ($tool in @($sourceManifest.tools)) {
     $runtimeDirectory = Join-Path $artifactDirectory 'runtime'
     $packageManifest = Join-Path $runtimeDirectory 'package.json'
     $moduleManifest = Join-Path $runtimeDirectory 'module.json'
+    $toolManifest = Join-Path $runtimeDirectory 'tool.json'
     if (Test-Path -LiteralPath $packageManifest -PathType Leaf) {
         $packageId = [string](Get-Content -Raw -LiteralPath $packageManifest | ConvertFrom-Json).id
     }
     elseif (Test-Path -LiteralPath $moduleManifest -PathType Leaf) {
         $packageId = [string](Get-Content -Raw -LiteralPath $moduleManifest | ConvertFrom-Json).packageId
     }
+    elseif (Test-Path -LiteralPath $toolManifest -PathType Leaf) {
+        $tool = Get-Content -Raw -LiteralPath $toolManifest | ConvertFrom-Json
+        $packageId = if ([string]::IsNullOrWhiteSpace([string]$tool.ownerModuleId)) {
+            [string]$tool.toolId
+        } else {
+            [string]$tool.ownerModuleId
+        }
+    }
     else {
-        throw "Runtime package has no package.json or module.json: $runtimeDirectory"
+        throw "Runtime package has no package.json, module.json, or tool.json: $runtimeDirectory"
     }
 
     $packageDestination = Join-Path $OutputRoot $packageId
