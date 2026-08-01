@@ -136,6 +136,36 @@ if (Test-Path -LiteralPath $artifactRuntime) {
 }
 Add-Type -AssemblyName System.IO.Compression.FileSystem
 [System.IO.Compression.ZipFile]::ExtractToDirectory($artifactPackage, $artifactRuntime)
+$toolManifestPath = Join-Path $artifactRuntime 'tool.json'
+$toolManifest = Get-Content -LiteralPath $toolManifestPath -Raw | ConvertFrom-Json
+$moduleId = if ([string]::IsNullOrWhiteSpace([string]$toolManifest.ownerModuleId)) {
+    [string]$toolManifest.toolId
+} else {
+    [string]$toolManifest.ownerModuleId
+}
+$moduleManifest = [ordered]@{
+    schemaVersion = '1.0'
+    id = $moduleId
+    packageId = $moduleId
+    displayName = [string]$toolManifest.title
+    version = [string]$toolManifest.version
+    moduleSdk = '1.0'
+    entrypoints = @(
+        [ordered]@{
+            kind = 'jsonrpc-stdio'
+            priority = 100
+            platforms = @('windows-x64')
+            command = [string]$toolManifest.runtime.command
+            args = @($toolManifest.runtime.args)
+            compat = $true
+        }
+    )
+    capabilities = @('status', 'commands', 'settings', 'logs', 'events', 'detailPage')
+    permissions = @($toolManifest.permissions)
+    tools = @('tool.json')
+}
+$moduleManifest | ConvertTo-Json -Depth 10 |
+    Set-Content -LiteralPath (Join-Path $artifactRuntime 'module.json') -Encoding UTF8
 
 Write-Output "Standalone CLI staged at $artifactCli"
 Write-Output "SDK tool built at $expectedSdkTool"
