@@ -123,6 +123,21 @@ function Copy-DirectoryWithoutBuildArtifacts {
     }
 }
 
+function Copy-DirectoryContents {
+    param(
+        [Parameter(Mandatory = $true)][string]$Source,
+        [Parameter(Mandatory = $true)][string]$Destination
+    )
+
+    if (-not (Test-Path -LiteralPath $Source -PathType Container)) {
+        throw "Source directory is missing: $Source"
+    }
+    New-Item -ItemType Directory -Path $Destination -Force | Out-Null
+    foreach ($item in Get-ChildItem -LiteralPath $Source -Force) {
+        Copy-Item -LiteralPath $item.FullName -Destination $Destination -Recurse -Force
+    }
+}
+
 function Assert-DirectoryMatches {
     param(
         [Parameter(Mandatory = $true)][string]$Source,
@@ -288,7 +303,7 @@ Invoke-Native -FilePath 'dotnet' -ArgumentList @('publish', 'src\MyPowerTools.Ap
 Copy-Item -LiteralPath (Join-Path $LauncherPublishRoot 'MyPowerTools.exe') -Destination (Join-Path $PublishRoot 'MyPowerTools.exe') -Force
 Remove-Item -LiteralPath $LauncherPublishRoot -Recurse -Force
 
-Copy-DirectoryWithoutBuildArtifacts -Source $ModuleStagingRootFull -Destination (Join-Path $PublishRoot 'modules')
+Copy-DirectoryContents -Source $ModuleStagingRootFull -Destination (Join-Path $PublishRoot 'modules')
 Copy-Item -Path (Join-Path $RepoRoot 'schemas') -Destination (Join-Path $PublishRoot 'schemas') -Recurse -Force
 Copy-Item -Path (Join-Path $RepoRoot 'ui') -Destination (Join-Path $PublishRoot 'ui') -Recurse -Force
 Assert-DirectoryMatches -Source $ModuleStagingRootFull -Destination (Join-Path $PublishRoot 'modules')
