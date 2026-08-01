@@ -233,7 +233,7 @@ New-Item -ItemType Directory -Path $OutputRoot -Force | Out-Null
 $superprojectCopy = Copy-GitWorkingTree `
     -SourceRoot $RepoRoot `
     -DestinationRoot (Join-Path $OutputRoot 'superproject') `
-    -ExcludedTopLevel @('artifacts', 'modules', 'tools')
+    -ExcludedTopLevel @('artifacts', 'modules')
 
 $toolManifest = [System.Collections.Generic.List[object]]::new()
 foreach ($toolId in $toolIds) {
@@ -255,7 +255,7 @@ $manifest = [ordered]@{
     schemaVersion = 2
     generatedAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
     layout = 'materialized-submodules'
-    buildInstructions = 'Extract the archive, enter superproject, and run pwsh scripts/publish-windows.ps1. All seven submodule worktrees are already materialized under superproject/tools.'
+    buildInstructions = 'Extract the archive, enter superproject, and run pwsh scripts/publish-windows.ps1. Seven submodule worktrees and two in-tree tools are materialized under superproject/tools.'
     superproject = [ordered]@{
         git = Get-GitMetadata -WorkingTree $RepoRoot
         snapshot = $superprojectCopy
@@ -267,10 +267,10 @@ $manifest | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $Outpu
 $readme = @'
 # MyPowerTools complete source bundle
 
-This archive contains the current MyPowerTools superproject and materialized source snapshots for all seven tool submodules.
+This archive contains the current MyPowerTools superproject, seven materialized tool submodules, and two in-tree tools.
 
 - `superproject/` contains the suite host, Shell, build scripts, schemas, assets, installer source, and materialized tool submodules.
-- `superproject/tools/<tool-id>/` contains each tool's full tracked and non-ignored working tree, including its original source, native UI integration, package template, and independent build contract.
+- `superproject/tools/<tool-id>/` contains each tool's tracked source, native UI integration, package template, and independent build contract.
 - `bundle-manifest.json` records every repository commit and dirty state at packaging time.
 - `files.sha256` verifies every bundled source file.
 

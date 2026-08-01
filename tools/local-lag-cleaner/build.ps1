@@ -23,6 +23,7 @@ $mptCliExecutable = Join-Path $repoRoot "src\MyPowerTools.Cli\bin\$Configuration
 $artifactsRoot = Join-Path $toolRoot 'artifacts'
 $artifactCli = Join-Path $artifactsRoot 'cli'
 $artifactPackage = Join-Path $artifactsRoot 'local-lag-cleaner.mptpkg'
+$artifactRuntime = Join-Path $artifactsRoot 'package'
 
 if (-not (Test-Path -LiteralPath (Join-Path $repoRoot 'MyPowerTools.slnx') -PathType Leaf) -or
     -not (Test-Path -LiteralPath $mptCliProject -PathType Leaf)) {
@@ -123,7 +124,21 @@ foreach ($expectedPath in @($expectedStandalone, $expectedSdkTool, $expectedRunt
     }
 }
 
+if (Test-Path -LiteralPath $artifactRuntime) {
+    $artifactRuntimeFull = [System.IO.Path]::GetFullPath($artifactRuntime)
+    $artifactsPrefix = [System.IO.Path]::GetFullPath($artifactsRoot).TrimEnd(
+        [System.IO.Path]::DirectorySeparatorChar,
+        [System.IO.Path]::AltDirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar
+    if (-not $artifactRuntimeFull.StartsWith($artifactsPrefix, [System.StringComparison]::OrdinalIgnoreCase)) {
+        throw "Refusing to replace runtime staging outside '$artifactsRoot': $artifactRuntimeFull"
+    }
+    Remove-Item -LiteralPath $artifactRuntimeFull -Recurse -Force
+}
+Add-Type -AssemblyName System.IO.Compression.FileSystem
+[System.IO.Compression.ZipFile]::ExtractToDirectory($artifactPackage, $artifactRuntime)
+
 Write-Output "Standalone CLI staged at $artifactCli"
 Write-Output "SDK tool built at $expectedSdkTool"
 Write-Output "Isolated runtime built at $expectedRuntime"
 Write-Output "SDK package written to $artifactPackage"
+Write-Output "Runtime package staged at $artifactRuntime"

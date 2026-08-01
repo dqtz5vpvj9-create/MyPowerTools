@@ -320,6 +320,7 @@ $packageByTool = @{
     'remote-commands' = 'android-tools-suite'
     'process-monitor' = 'android-tools-suite'
     'paste-image' = 'paste-image'
+    'local-lag-cleaner' = 'local-lag-cleaner'
     'screenease' = 'screenease'
     'smartbird-thermostat' = 'smartbird-thermostat'
     'doubao-computer-use' = 'doubao-agent'

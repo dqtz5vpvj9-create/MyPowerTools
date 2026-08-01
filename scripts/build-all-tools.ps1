@@ -237,6 +237,16 @@ $toolRegistry = @(
         ServiceUnits     = @()
     },
     [pscustomobject]@{
+        Id               = 'local-lag-cleaner'
+        Version          = '0.3.0'
+        BuildScript      = 'tools\local-lag-cleaner\build.ps1'
+        SurfaceProject   = ''
+        SurfaceAssembly  = ''
+        SurfaceTarget    = ''
+        RuntimeStagePath = 'tools\local-lag-cleaner\artifacts\package'
+        ServiceUnits     = @()
+    },
+    [pscustomobject]@{
         Id               = 'screenease'
         Version          = '0.2.0'
         BuildScript      = 'tools\screenease\build.ps1'
