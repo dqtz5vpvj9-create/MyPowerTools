@@ -52,12 +52,17 @@ public sealed partial class ShellWorkspaceController
         }
 
         var previous = host.Content as Control;
+        if (ReferenceEquals(host, _contentHost))
+        {
+            DeactivateCachedWebTools();
+        }
         if (content is not null)
         {
             AttachCurrentFaultOwner(content.DataContext);
         }
         host.Content = content;
-        if (!ReferenceEquals(previous?.DataContext, content?.DataContext))
+        if (!ReferenceEquals(previous?.DataContext, content?.DataContext) &&
+            !IsCachedWebToolDataContext(previous?.DataContext))
         {
             DisposeControlDataContext(previous);
         }

@@ -64,8 +64,14 @@ public sealed class ShellChromeViewModel : ObservableViewModel
         Func<Task>? refresh = null,
         Func<Task>? openCommandPalette = null,
         Func<Task>? closeCommandPalette = null,
-        Func<Task>? dismissPermissionPrompt = null)
+        Func<Task>? dismissPermissionPrompt = null,
+        string runtimeModeLabel = "INSTALLED",
+        string runtimeLocation = "",
+        string runtimeIdentityText = "INSTALLED")
     {
+        RuntimeModeLabel = runtimeModeLabel;
+        RuntimeLocation = runtimeLocation;
+        RuntimeIdentityText = runtimeIdentityText;
         NavigationItems = pageLabels
             .Select(label => new ShellNavigationItemViewModel(
                 label,
@@ -93,6 +99,10 @@ public sealed class ShellChromeViewModel : ObservableViewModel
     public ICommand OpenCommandPaletteCommand { get; }
     public ICommand CloseCommandPaletteCommand { get; }
     public ICommand DismissPermissionPromptCommand { get; }
+    public string RuntimeModeLabel { get; }
+    public string RuntimeLocation { get; }
+    public string RuntimeIdentityText { get; }
+    public bool HasRuntimeLocation => !string.IsNullOrWhiteSpace(RuntimeLocation);
 
     public string StatusText
     {
@@ -146,7 +156,10 @@ public sealed class ShellChromeViewModel : ObservableViewModel
 
     public void SetDiscoveredTools(
         IReadOnlyList<ToolCardViewModel> tools,
-        Func<string, Task> navigateTool)
+        Func<string, Task> navigateTool,
+        Func<string, Task>? closeWebTool = null,
+        Func<string, bool>? isWebToolOpen = null,
+        Func<string, string?>? resolveOpenTitle = null)
     {
         var allTools = NavigationItems.First(item => item.Label is "Tools");
         ToolNavigationItems.Clear();
@@ -161,7 +174,14 @@ public sealed class ShellChromeViewModel : ObservableViewModel
                 displayLabel: tool.Title,
                 iconGlyph: tool.IconGlyph,
                 isMonogram: true,
-                isEnabled: tool.CanOpen));
+                isEnabled: tool.CanOpen,
+                closeCommand: tool.IsWebSurface && closeWebTool is not null
+                    ? new AsyncRelayCommand(
+                        () => closeWebTool(toolId),
+                        operationName: $"CloseWebTool:{toolId}")
+                    : null,
+                isClosable: tool.IsWebSurface && isWebToolOpen?.Invoke(toolId) == true,
+                openTitle: resolveOpenTitle?.Invoke(toolId)));
         }
 
         ApplyNavigationSelection();
@@ -173,6 +193,23 @@ public sealed class ShellChromeViewModel : ObservableViewModel
         {
             item.SetCompact(compact);
         }
+    }
+
+    public void SetWebToolOpenState(string toolId, bool isOpen)
+    {
+        var item = ToolNavigationItems.FirstOrDefault(candidate =>
+            string.Equals(candidate.Label, ToolNavigationKey(toolId), StringComparison.OrdinalIgnoreCase));
+        if (item is not null)
+        {
+            item.IsClosable = isOpen;
+        }
+    }
+
+    public void RenameOpenTool(string toolId, string title)
+    {
+        var item = ToolNavigationItems.FirstOrDefault(candidate =>
+            string.Equals(candidate.Label, ToolNavigationKey(toolId), StringComparison.OrdinalIgnoreCase));
+        item?.SetOpenTitle(title);
     }
 
     private void ApplyNavigationSelection()
@@ -195,102 +232,4 @@ public sealed class ShellChromeViewModel : ObservableViewModel
     }
 
     private static string ToolNavigationKey(string toolId) => $"tool:{toolId}";
-}
-
-public sealed class ShellNavigationItemViewModel : ObservableViewModel
-{
-    private bool _isSelected;
-    private bool _isLabelVisible = true;
-    private double _itemWidth = 216;
-    private string _selectionText = "";
-
-    public ShellNavigationItemViewModel(
-        string label,
-        ICommand navigateCommand,
-        string? displayLabel = null,
-        string? iconGlyph = null,
-        bool isMonogram = false,
-        bool isEnabled = true)
-    {
-        Label = label;
-        NavigateCommand = navigateCommand;
-        DisplayLabel = displayLabel ?? ResolveDisplayLabel(label);
-        IconGlyph = iconGlyph ?? ResolveIconGlyph(label);
-        IsMonogram = isMonogram;
-        IsEnabled = isEnabled;
-    }
-
-    public string Label { get; }
-    public string DisplayLabel { get; }
-    public string IconGlyph { get; }
-    public bool IsMonogram { get; }
-    public bool IsEnabled { get; }
-    public ICommand NavigateCommand { get; }
-
-    private static string ResolveDisplayLabel(string label) => label switch
-    {
-        "Home" => "Dashboard",
-        "Tools" => "All tools",
-        "Notifications" => "Remote notifications",
-        "ADB Forwarder" => "ADB Forwarder",
-        "ScreenEase" => "ScreenEase",
-        "Doubao Agent" => "豆包 Computer Use",
-        "SmartBird" => "SmartBird 温度管理器",
-        "Settings" => "General",
-        _ => label
-    };
-
-    private static string ResolveIconGlyph(string label) => label switch
-    {
-        "Home" or "Dashboard" => "\uE80F",
-        "Tools" or "Modules" => "\uE71D",
-        "Activity" => "\uE823",
-        "Notifications" => "\uEA8F",
-        "ADB Forwarder" => "\uE968",
-        "ScreenEase" => "\uE706",
-        "Doubao Agent" => "\uE77B",
-        "SmartBird" => "\uEC15",
-        "Settings" => "\uE713",
-        "System" or "Diagnostics" => "\uE9D9",
-        "Commands" => "\uE756",
-        "Logs" => "\uE8A5",
-        "Packages" => "\uE7B8",
-        _ => "\uE946"
-    };
-
-    public bool IsLabelVisible
-    {
-        get => _isLabelVisible;
-        private set => SetProperty(ref _isLabelVisible, value);
-    }
-
-    public double ItemWidth
-    {
-        get => _itemWidth;
-        private set => SetProperty(ref _itemWidth, value);
-    }
-
-    public bool IsSelected
-    {
-        get => _isSelected;
-        set
-        {
-            if (SetProperty(ref _isSelected, value))
-            {
-                SelectionText = value ? "Selected" : "";
-            }
-        }
-    }
-
-    public string SelectionText
-    {
-        get => _selectionText;
-        private set => SetProperty(ref _selectionText, value);
-    }
-
-    internal void SetCompact(bool compact)
-    {
-        IsLabelVisible = !compact;
-        ItemWidth = compact ? 52 : 216;
-    }
 }

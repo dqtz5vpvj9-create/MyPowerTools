@@ -418,7 +418,8 @@ public sealed class AdbBrokerSecurityTests
         Assert.Contains("<PublishSingleFile>true</PublishSingleFile>", brokerProject);
         Assert.Contains("<ApplicationManifest>app.manifest</ApplicationManifest>", brokerProject);
         Assert.Contains("level=\"requireAdministrator\"", brokerManifest);
-        Assert.Contains("new AuditLog(auditPath, brokerRoot)", brokerProgram);
+        Assert.Contains("WindowsProtectedExecutable.IsProtectedLocation", brokerProgram);
+        Assert.Contains("var audit = new AuditLog(auditPath, auditRoot)", brokerProgram);
         Assert.Contains("CLR header", validationScript);
         Assert.Contains("requireAdministrator", validationScript);
         Assert.DoesNotContain("Start-Process -FilePath $brokerExe", validationScript, StringComparison.Ordinal);

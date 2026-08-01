@@ -25,6 +25,9 @@
   <ItemGroup>
     <ProjectReference Include="..\MyPowerTools.Abstractions\MyPowerTools.Abstractions.csproj" />
     <ProjectReference Include="..\..\tools\adb-forwarder\current-integration\src\AdbForwarder.MyPowerTools\AdbForwarder.MyPowerTools.csproj" />
+    <ProjectReference Include="..\..\tools\local-lag-cleaner\sdk-tool\src\LocalLagCleaner.Core\LocalLagCleaner.Core.csproj" />
+    <ProjectReference Include="..\..\tools\local-lag-cleaner\sdk-tool\src\LocalLagCleaner.Runtime\LocalLagCleaner.Runtime.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\..\tools\local-lag-cleaner\sdk-tool\src\LocalLagCleaner.Tool\LocalLagCleaner.Tool.csproj" />
     <ProjectReference Include="..\..\tools\remote-notifications\current-integration\src\AndroidTools.MyPowerTools\AndroidTools.MyPowerTools.csproj" />
     <ProjectReference Include="..\..\tools\doubao-computer-use\current-integration\src\DoubaoAgent.MyPowerTools\DoubaoAgent.MyPowerTools.csproj" />
     <ProjectReference Include="..\MyPowerTools.Protocol\MyPowerTools.Protocol.csproj" />

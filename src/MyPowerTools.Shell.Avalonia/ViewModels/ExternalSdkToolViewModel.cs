@@ -8,8 +8,12 @@ public sealed class ExternalSdkToolViewModel : ShellPageViewModel, IDisposable
 {
     private string _surfaceState = "loading";
     private string _surfaceMessage = "Connecting to the tool surface.";
+    private string _address;
+    private string _addressError = "";
     private IDisposable? _ownedSurface;
     private IMptWebSurfaceSession? _webSurfaceSession;
+    private readonly Func<Uri, Task>? _navigate;
+    private readonly Action<string>? _titleChanged;
     private int _disposed;
 
     public ExternalSdkToolViewModel(
@@ -25,13 +29,18 @@ public sealed class ExternalSdkToolViewModel : ShellPageViewModel, IDisposable
         Func<string, Task<string>> handleBridgeRequest,
         Func<Task> refresh,
         Func<Task> returnToTools,
-        Func<Task>? launch = null)
+        Func<Task>? launch = null,
+        Func<Uri, Task>? navigate = null,
+        Action<string>? titleChanged = null)
         : base(title, subtitle)
     {
         ToolId = toolId;
         ToolType = toolType;
         RouteTitle = routeTitle;
         Source = source;
+        _address = source?.AbsoluteUri ?? "";
+        _navigate = navigate;
+        _titleChanged = titleChanged;
         CanOpenExternal = openExternal && source is not null;
         Commands = commands;
         SettingsPath = settingsPath;
@@ -41,6 +50,7 @@ public sealed class ExternalSdkToolViewModel : ShellPageViewModel, IDisposable
         OpenExternalCommand = new AsyncRelayCommand(OpenExternalAsync, () => CanOpenExternal);
         OpenSettingsCommand = new AsyncRelayCommand(OpenSettingsAsync, () => CanOpenSettings);
         LaunchCommand = new AsyncRelayCommand(launch ?? (() => Task.CompletedTask), () => launch is not null);
+        NavigateCommand = new AsyncRelayCommand(NavigateAsync, () => IsWeb);
     }
 
     public string ToolId { get; }
@@ -66,6 +76,7 @@ public sealed class ExternalSdkToolViewModel : ShellPageViewModel, IDisposable
     public ICommand OpenExternalCommand { get; }
     public ICommand OpenSettingsCommand { get; }
     public ICommand LaunchCommand { get; }
+    public ICommand NavigateCommand { get; }
     public Func<string, Task<string>> HandleBridgeRequestAsync { get; }
 
     public string SurfaceState
@@ -92,6 +103,46 @@ public sealed class ExternalSdkToolViewModel : ShellPageViewModel, IDisposable
     public bool IsSurfaceLoading => SurfaceState == "loading";
     public bool IsSurfaceFailed => SurfaceState is "failed" or "unavailable";
     public bool IsSurfaceReady => SurfaceState == "ready";
+    public bool HasAddressError => AddressError.Length > 0;
+
+    public string EditableTitle
+    {
+        get => Title;
+        set
+        {
+            var title = value ?? "";
+            if (string.Equals(Title, title, StringComparison.Ordinal))
+            {
+                return;
+            }
+            Title = title;
+            _titleChanged?.Invoke(title);
+        }
+    }
+
+    public string Address
+    {
+        get => _address;
+        set
+        {
+            if (SetProperty(ref _address, value ?? ""))
+            {
+                AddressError = "";
+            }
+        }
+    }
+
+    public string AddressError
+    {
+        get => _addressError;
+        private set
+        {
+            if (SetProperty(ref _addressError, value))
+            {
+                OnPropertyChanged(nameof(HasAddressError));
+            }
+        }
+    }
 
     public void ReportSurface(string state, string message = "")
     {
@@ -148,15 +199,53 @@ public sealed class ExternalSdkToolViewModel : ShellPageViewModel, IDisposable
 
     private Task OpenExternalAsync()
     {
-        if (Source is not null)
+        if (TryNormalizeAddress(Address, out var target))
         {
-            if (Source.Scheme is not ("http" or "https") && !(Source.IsFile && File.Exists(Source.LocalPath)))
+            if (target.Scheme is not ("http" or "https") && !(target.IsFile && File.Exists(target.LocalPath)))
             {
                 throw new InvalidOperationException("The configured external target is invalid.");
             }
-            Process.Start(new ProcessStartInfo(Source.AbsoluteUri) { UseShellExecute = true });
+            Process.Start(new ProcessStartInfo(target.AbsoluteUri) { UseShellExecute = true });
         }
         return Task.CompletedTask;
+    }
+
+    private async Task NavigateAsync()
+    {
+        if (_navigate is null)
+        {
+            return;
+        }
+        if (!TryNormalizeAddress(Address, out var target))
+        {
+            AddressError = "Enter an absolute HTTP, HTTPS, or file address.";
+            return;
+        }
+
+        Address = target.AbsoluteUri;
+        AddressError = "";
+        await _navigate(target);
+    }
+
+    private static bool TryNormalizeAddress(string value, out Uri target)
+    {
+        var candidate = value.Trim();
+        if (!candidate.Contains("://", StringComparison.Ordinal) &&
+            !Path.IsPathFullyQualified(candidate))
+        {
+            candidate = "https://" + candidate;
+        }
+        if (Uri.TryCreate(candidate, UriKind.Absolute, out var parsed) &&
+            parsed.IsAbsoluteUri &&
+            (parsed.IsFile || parsed.Scheme is "http" or "https") &&
+            string.IsNullOrEmpty(parsed.UserInfo))
+        {
+            target = parsed;
+            return true;
+        }
+
+        target = null!;
+        return false;
     }
 
     private Task OpenSettingsAsync()

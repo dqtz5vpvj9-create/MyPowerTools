@@ -60,6 +60,7 @@ static NSArray<NSURL *> *MptParseOrigins(NSString *json) {
 @interface MPTWebViewHost : NSView <WKNavigationDelegate, WKUIDelegate, WKScriptMessageHandler>
 @property(nonatomic, strong) WKWebView *webView;
 @property(nonatomic, copy) NSArray<NSURL *> *allowedOrigins;
+@property(nonatomic, assign) BOOL manualNavigationEnabled;
 @property(nonatomic, assign) MptWebViewCallback callback;
 @property(nonatomic, assign) void *callbackContext;
 - (instancetype)initWithSource:(NSString *)source
@@ -67,6 +68,7 @@ static NSArray<NSURL *> *MptParseOrigins(NSString *json) {
                        callback:(MptWebViewCallback)callback
                         context:(void *)context;
 - (void)reloadSurface;
+- (void)navigateSurface:(NSString *)source;
 - (void)sendBridgeResponse:(NSString *)json;
 - (void)focusSurface:(NSInteger)direction;
 - (void)shutdown;
@@ -145,9 +147,17 @@ static NSArray<NSURL *> *MptParseOrigins(NSString *json) {
         sourceList, sourceList, sourceList, sourceList, sourceList];
     NSData *cspData = [NSJSONSerialization dataWithJSONObject:@[csp] options:0 error:nil];
     NSString *cspJson = [[NSString alloc] initWithData:cspData encoding:NSUTF8StringEncoding];
+    NSArray<NSString *> *originValues = [self.allowedOrigins valueForKey:@"absoluteString"];
+    NSData *originsData = [NSJSONSerialization dataWithJSONObject:originValues options:0 error:nil];
+    NSString *originsJson = [[NSString alloc] initWithData:originsData encoding:NSUTF8StringEncoding];
 
     NSString *scriptTemplate = MptString(R"JS(
 (() => {
+  const trustedOrigins = %@;
+  const trusted = trustedOrigins.some(origin => origin.startsWith('file:')
+    ? location.href.startsWith(origin)
+    : location.origin === origin.replace(/\/$/, ''));
+  if (!trusted) return;
   const csp = %@[0];
   const installCsp = () => {
     if (document.querySelector('meta[data-mpt-origin-policy]')) return;
@@ -188,7 +198,10 @@ static NSArray<NSURL *> *MptParseOrigins(NSString *json) {
   }, true);
 })();
 )JS");
-    return [NSString stringWithFormat:scriptTemplate, cspJson ?: @"[\"default-src 'self'; object-src 'none'\"]"];
+    return [NSString stringWithFormat:
+        scriptTemplate,
+        originsJson ?: @"[]",
+        cspJson ?: @"[\"default-src 'self'; object-src 'none'\"]"];
 }
 
 - (BOOL)isAllowedURL:(NSURL *)url {
@@ -221,9 +234,32 @@ static NSArray<NSURL *> *MptParseOrigins(NSString *json) {
     return NO;
 }
 
+- (BOOL)isNavigableURL:(NSURL *)url {
+    NSString *scheme = url.scheme.lowercaseString;
+    if (!([scheme isEqualToString:@"http"] || [scheme isEqualToString:@"https"])) {
+        return NO;
+    }
+    return url.user.length == 0 && url.password.length == 0;
+}
+
 - (void)reloadSurface {
     MptEmit(self.callback, self.callbackContext, MptWebViewEventLoading, @"");
     [self.webView reload];
+}
+
+- (void)navigateSurface:(NSString *)source {
+    NSURL *url = [NSURL URLWithString:source];
+    if (url == nil || !([self isNavigableURL:url] || [self isAllowedURL:url])) {
+        return;
+    }
+    self.manualNavigationEnabled = [self isNavigableURL:url] && ![self isAllowedURL:url];
+    MptEmit(self.callback, self.callbackContext, MptWebViewEventLoading, @"");
+    if (url.isFileURL) {
+        NSURL *readRoot = [url URLByDeletingLastPathComponent];
+        [self.webView loadFileURL:url allowingReadAccessToURL:readRoot];
+    } else {
+        [self.webView loadRequest:[NSURLRequest requestWithURL:url]];
+    }
 }
 
 - (void)sendBridgeResponse:(NSString *)json {
@@ -256,7 +292,9 @@ static NSArray<NSURL *> *MptParseOrigins(NSString *json) {
     decidePolicyForNavigationAction:(WKNavigationAction *)navigationAction
     decisionHandler:(void (^)(WKNavigationActionPolicy))decisionHandler {
     NSURL *url = navigationAction.request.URL;
-    decisionHandler(url != nil && [self isAllowedURL:url]
+    decisionHandler(url != nil && (self.manualNavigationEnabled
+        ? ([self isNavigableURL:url] || [self isAllowedURL:url])
+        : [self isAllowedURL:url])
         ? WKNavigationActionPolicyAllow
         : WKNavigationActionPolicyCancel);
 }
@@ -265,7 +303,10 @@ static NSArray<NSURL *> *MptParseOrigins(NSString *json) {
     decidePolicyForNavigationResponse:(WKNavigationResponse *)navigationResponse
     decisionHandler:(void (^)(WKNavigationResponsePolicy))decisionHandler {
     NSURL *url = navigationResponse.response.URL;
-    decisionHandler(url != nil && navigationResponse.canShowMIMEType && [self isAllowedURL:url]
+    decisionHandler(url != nil && navigationResponse.canShowMIMEType &&
+        (self.manualNavigationEnabled
+            ? ([self isNavigableURL:url] || [self isAllowedURL:url])
+            : [self isAllowedURL:url])
         ? WKNavigationResponsePolicyAllow
         : WKNavigationResponsePolicyCancel);
 }
@@ -295,7 +336,9 @@ static NSArray<NSURL *> *MptParseOrigins(NSString *json) {
     forNavigationAction:(WKNavigationAction *)navigationAction
     windowFeatures:(WKWindowFeatures *)windowFeatures {
     NSURL *url = navigationAction.request.URL;
-    if (url != nil && [self isAllowedURL:url]) {
+    if (url != nil && (self.manualNavigationEnabled
+        ? ([self isNavigableURL:url] || [self isAllowedURL:url])
+        : [self isAllowedURL:url])) {
         [webView loadRequest:navigationAction.request];
     }
     return nil;
@@ -673,6 +716,12 @@ void mpt_status_item_destroy(void *handle) {
 void mpt_webview_reload(void *handle) {
     MPTWebViewHost *host = (__bridge MPTWebViewHost *)handle;
     dispatch_async(dispatch_get_main_queue(), ^{ [host reloadSurface]; });
+}
+
+void mpt_webview_navigate(void *handle, const char *source) {
+    MPTWebViewHost *host = (__bridge MPTWebViewHost *)handle;
+    NSString *value = MptString(source);
+    dispatch_async(dispatch_get_main_queue(), ^{ [host navigateSurface:value]; });
 }
 
 void mpt_webview_send_bridge_response(void *handle, const char *json) {

@@ -32,9 +32,10 @@ public sealed class CommandHistory
             var index = _records.FindIndex(record => record.InvocationId == result.InvocationId);
             if (index >= 0)
             {
-                var summary = string.IsNullOrWhiteSpace(result.Output)
+                var rawSummary = string.IsNullOrWhiteSpace(result.Output)
                     ? result.Error?.Message ?? ""
                     : result.Output;
+                var summary = LogRouter.Redact(rawSummary);
                 _records[index] = _records[index] with { State = result.State, Summary = summary };
             }
         }

@@ -7,6 +7,8 @@ namespace MyPowerTools.Shell.Avalonia.Services;
 
 public sealed class ShellCommandExecutionService
 {
+    private const int MaxInlineStatusLength = 240;
+
     public async Task<ShellCommandExecutionResult> ExecuteAsync(string commandId, JsonObject? args = null, CancellationToken cancellationToken = default)
     {
         return await ExecuteAsync(Guid.NewGuid().ToString("N"), commandId, args, cancellationToken);
@@ -19,7 +21,7 @@ public sealed class ShellCommandExecutionService
             ? await client.ExecuteCommandAsync(invocationId, commandId, new JsonObject(), cancellationToken)
             : await client.ExecuteCommandAsync(invocationId, commandId, args, cancellationToken);
         return new ShellCommandExecutionResult(
-            $"{response.State}: {response.Summary}",
+            FormatStatusText(response.State, response.Summary),
             response,
             string.Equals(response.State, "permission-required", StringComparison.OrdinalIgnoreCase));
     }
@@ -30,12 +32,28 @@ public sealed class ShellCommandExecutionService
         await foreach (var evt in client.ExecuteCommandStreamAsync(invocationId, commandId, args ?? new JsonObject(), cancellationToken))
         {
             var final = evt.FinalResponse;
-            var statusText = $"{evt.State}: {evt.Message}";
+            var statusText = FormatStatusText(evt.State, evt.Message);
             yield return new ShellCommandExecutionEvent(
                 statusText,
                 evt,
                 final is not null && string.Equals(final.State, "permission-required", StringComparison.OrdinalIgnoreCase));
         }
+    }
+
+    internal static string FormatStatusText(string state, string summary)
+    {
+        var normalizedState = string.IsNullOrWhiteSpace(state) ? "unknown" : state.Trim();
+        var normalizedSummary = summary?.Trim() ?? "";
+        var isStructured = normalizedSummary.StartsWith('{') ||
+                           normalizedSummary.StartsWith('[');
+        if (isStructured || normalizedSummary.Length > MaxInlineStatusLength)
+        {
+            return $"{normalizedState}: command completed; output is available in the tool.";
+        }
+
+        return string.IsNullOrWhiteSpace(normalizedSummary)
+            ? normalizedState
+            : $"{normalizedState}: {normalizedSummary}";
     }
 
     public async Task<ShellCommandCancellationResult> CancelAsync(string invocationId, CancellationToken cancellationToken = default)

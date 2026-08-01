@@ -38,6 +38,9 @@ internal sealed record HostCommand
     [JsonPropertyName("direction")]
     public string Direction { get; init; } = "";
 
+    [JsonPropertyName("source")]
+    public string Source { get; init; } = "";
+
     [JsonPropertyName("payload")]
     public JsonElement Payload { get; init; }
 }

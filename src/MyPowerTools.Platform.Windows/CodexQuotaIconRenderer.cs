@@ -36,6 +36,8 @@ internal static class CodexQuotaIconRenderer
             StartCap = LineCap.Round,
             EndCap = LineCap.Round
         };
+        using var centerBrush = new SolidBrush(Color.FromArgb(245, 17, 22, 29));
+        graphics.FillEllipse(centerBrush, new RectangleF(10f, 10f, 44f, 44f));
         graphics.DrawEllipse(trackPen, ringBounds);
         if (remainingPercent > 0)
         {
@@ -43,18 +45,35 @@ internal static class CodexQuotaIconRenderer
         }
 
         var text = remainingPercent.ToString(System.Globalization.CultureInfo.InvariantCulture);
-        var fontSize = remainingPercent >= 100 ? 19f : 24f;
-        using var font = new Font("Segoe UI", fontSize, FontStyle.Bold, GraphicsUnit.Pixel);
-        using var shadowBrush = new SolidBrush(Color.FromArgb(210, 0, 0, 0));
-        using var textBrush = new SolidBrush(Color.White);
-        using var format = new StringFormat
+        var fontSize = text.Length switch
         {
-            Alignment = StringAlignment.Center,
-            LineAlignment = StringAlignment.Center
+            1 => 40f,
+            2 => 36f,
+            _ => 27f
         };
-        var textBounds = new RectangleF(1f, 1f, CanvasSize - 2f, CanvasSize - 2f);
-        graphics.DrawString(text, font, shadowBrush, textBounds with { X = 2f, Y = 2f }, format);
-        graphics.DrawString(text, font, textBrush, textBounds, format);
+        using var fontFamily = new FontFamily("Segoe UI");
+        using var textPath = new GraphicsPath();
+        textPath.AddString(
+            text,
+            fontFamily,
+            (int)FontStyle.Bold,
+            fontSize,
+            PointF.Empty,
+            StringFormat.GenericTypographic);
+        var pathBounds = textPath.GetBounds();
+        using var transform = new Matrix();
+        transform.Translate(
+            (CanvasSize - pathBounds.Width) / 2f - pathBounds.X,
+            (CanvasSize - pathBounds.Height) / 2f - pathBounds.Y - 1f);
+        textPath.Transform(transform);
+
+        using var outlinePen = new Pen(Color.FromArgb(255, 0, 0, 0), 2.5f)
+        {
+            LineJoin = LineJoin.Round
+        };
+        using var textBrush = new SolidBrush(Color.White);
+        graphics.DrawPath(outlinePen, textPath);
+        graphics.FillPath(textBrush, textPath);
         return bitmap.GetHicon();
     }
 }

@@ -8,94 +8,118 @@
   <UserControl.Resources>
     <DataTemplate x:Key="ShellNavigationItemTemplate"
                   x:DataType="vm:ShellNavigationItemViewModel">
-      <controls:MptButton Classes="MptNavButton"
-                          Classes.selected="{Binding IsSelected}"
-                          Command="{Binding NavigateCommand}"
-                          IsEnabled="{Binding IsEnabled}"
-                          Width="{Binding ItemWidth}"
-                          HorizontalAlignment="Stretch"
-                          HorizontalContentAlignment="Stretch"
-                          MinHeight="{DynamicResource MptDensityNavigationHeight}"
-                          Margin="{DynamicResource MptUniformXs}"
-                          ToolTip.Tip="{Binding DisplayLabel}"
-                          Padding="{DynamicResource MptNoThickness}">
-        <Grid ColumnDefinitions="4,40,*"
-              Margin="{DynamicResource MptGapRightM}">
-          <Border Classes="MptNavIndicator"
-                  Width="3"
-                  Height="20"
-                  IsVisible="{Binding IsSelected}"
-                  HorizontalAlignment="Left"
-                  VerticalAlignment="Center" />
-          <Grid Grid.Column="1"
-                Width="30"
-                Height="30"
-                HorizontalAlignment="Center"
-                VerticalAlignment="Center">
-            <TextBlock Text="{Binding IconGlyph}"
-                       FontFamily="{DynamicResource MptFontFamilyIcons}"
-                       FontSize="{DynamicResource MptFontSizeCardTitle}"
-                       IsVisible="{Binding !IsMonogram}"
-                       HorizontalAlignment="Center"
-                       VerticalAlignment="Center" />
-            <Border Width="28"
-                    Height="28"
-                    CornerRadius="{DynamicResource MptRadiusControl}"
-                    Background="{DynamicResource MptBrushSurfaceInset}"
-                    IsVisible="{Binding IsMonogram}">
+      <Grid Width="{Binding ItemWidth}"
+            Margin="{DynamicResource MptUniformXs}">
+        <controls:MptButton Classes="MptNavButton"
+                            Classes.selected="{Binding IsSelected}"
+                            Command="{Binding NavigateCommand}"
+                            IsEnabled="{Binding IsEnabled}"
+                            HorizontalAlignment="Stretch"
+                            HorizontalContentAlignment="Stretch"
+                            MinHeight="{DynamicResource MptDensityNavigationHeight}"
+                            ToolTip.Tip="{Binding DisplayLabel}"
+                            Padding="{DynamicResource MptNoThickness}">
+          <Grid ColumnDefinitions="4,40,*"
+                Margin="{DynamicResource MptGapRightM}">
+            <Border Classes="MptNavIndicator"
+                    Width="3"
+                    Height="20"
+                    IsVisible="{Binding IsSelected}"
+                    HorizontalAlignment="Left"
+                    VerticalAlignment="Center" />
+            <Grid Grid.Column="1"
+                  Width="30"
+                  Height="30"
+                  HorizontalAlignment="Center"
+                  VerticalAlignment="Center">
               <TextBlock Text="{Binding IconGlyph}"
-                         FontFamily="{DynamicResource MptFontFamilyBody}"
-                         FontSize="{DynamicResource MptFontSizeMicro}"
-                         FontWeight="SemiBold"
-                         Foreground="{DynamicResource MptBrushAccent}"
-                         TextTrimming="CharacterEllipsis"
+                         FontFamily="{DynamicResource MptFontFamilyIcons}"
+                         FontSize="{DynamicResource MptFontSizeCardTitle}"
+                         IsVisible="{Binding !IsMonogram}"
                          HorizontalAlignment="Center"
                          VerticalAlignment="Center" />
-            </Border>
+              <Border Width="28"
+                      Height="28"
+                      CornerRadius="{DynamicResource MptRadiusControl}"
+                      Background="{DynamicResource MptBrushSurfaceInset}"
+                      IsVisible="{Binding IsMonogram}">
+                <TextBlock Text="{Binding IconGlyph}"
+                           FontFamily="{DynamicResource MptFontFamilyBody}"
+                           FontSize="{DynamicResource MptFontSizeMicro}"
+                           FontWeight="SemiBold"
+                           Foreground="{DynamicResource MptBrushAccent}"
+                           TextTrimming="CharacterEllipsis"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center" />
+              </Border>
+            </Grid>
+            <TextBlock Grid.Column="2"
+                       Text="{Binding DisplayLabel}"
+                       IsVisible="{Binding IsLabelVisible}"
+                       Margin="{DynamicResource MptGapRightL}"
+                       FontSize="{DynamicResource MptFontSizeBody}"
+                       TextTrimming="CharacterEllipsis"
+                       VerticalAlignment="Center" />
           </Grid>
-          <TextBlock Grid.Column="2"
-                     Text="{Binding DisplayLabel}"
-                     IsVisible="{Binding IsLabelVisible}"
-                     FontSize="{DynamicResource MptFontSizeBody}"
-                     TextTrimming="CharacterEllipsis"
-                     VerticalAlignment="Center" />
-        </Grid>
-      </controls:MptButton>
+        </controls:MptButton>
+        <controls:MptButton Width="24"
+                            Height="24"
+                            MinHeight="24"
+                            Padding="{DynamicResource MptNoThickness}"
+                            Margin="{DynamicResource MptGapRightS}"
+                            Content="×"
+                            FontFamily="{DynamicResource MptFontFamilyBody}"
+                            FontSize="{DynamicResource MptFontSizeBody}"
+                            FontWeight="SemiBold"
+                            Foreground="{DynamicResource MptBrushTextSecondary}"
+                            Command="{Binding CloseCommand}"
+                            IsVisible="{Binding IsCloseButtonVisible}"
+                            Background="{DynamicResource MptBrushTransparent}"
+                            BorderBrush="{DynamicResource MptBrushTransparent}"
+                            ToolTip.Tip="Close web page"
+                            AutomationProperties.Name="Close web page"
+                            HorizontalAlignment="Right"
+                            VerticalAlignment="Center" />
+      </Grid>
     </DataTemplate>
 
     <DataTemplate x:Key="WebSurfaceHeaderTemplate"
                   x:DataType="vm:ExternalSdkToolViewModel">
-      <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto"
+      <Grid ColumnDefinitions="Auto,180,*,Auto,Auto,Auto,Auto"
             ColumnSpacing="{DynamicResource MptSpacingS}"
             VerticalAlignment="Center">
         <controls:MptButton Content="All tools"
                             Command="{Binding ReturnToToolsCommand}"
                             MinHeight="32"
                             Padding="{DynamicResource MptCompactBadgePadding}" />
-        <StackPanel Grid.Column="1"
-                    Spacing="{DynamicResource MptSpacing2Xs}"
-                    VerticalAlignment="Center">
-          <TextBlock Text="{Binding Title}"
-                     FontSize="{DynamicResource MptFontSizeSection}"
-                     FontWeight="SemiBold"
-                     TextTrimming="CharacterEllipsis" />
-          <TextBlock Text="{Binding Subtitle}"
-                     Classes="MptMeta"
-                     TextTrimming="CharacterEllipsis" />
-        </StackPanel>
-        <controls:MptButton Grid.Column="2"
+        <controls:MptSearchBox Grid.Column="1"
+                               Text="{Binding EditableTitle, Mode=TwoWay}"
+                               PlaceholderText="Page title"
+                               ToolTip.Tip="Edit page title"
+                               VerticalContentAlignment="Center" />
+        <controls:MptSearchBox Grid.Column="2"
+                               Text="{Binding Address, Mode=TwoWay}"
+                               PlaceholderText="Enter an HTTP or HTTPS address"
+                               ToolTip.Tip="{Binding AddressError}"
+                               VerticalContentAlignment="Center" />
+        <controls:MptButton Grid.Column="3"
+                            Content="Go"
+                            Command="{Binding NavigateCommand}"
+                            MinHeight="32"
+                            Padding="{DynamicResource MptCompactBadgePadding}" />
+        <controls:MptButton Grid.Column="4"
                             Content="Settings"
                             Command="{Binding OpenSettingsCommand}"
                             IsVisible="{Binding CanOpenSettings}"
                             MinHeight="32"
                             Padding="{DynamicResource MptCompactBadgePadding}" />
-        <controls:MptButton Grid.Column="3"
+        <controls:MptButton Grid.Column="5"
                             Content="Open externally"
                             Command="{Binding OpenExternalCommand}"
                             IsVisible="{Binding CanOpenExternal}"
                             MinHeight="32"
                             Padding="{DynamicResource MptCompactBadgePadding}" />
-        <controls:MptButton Grid.Column="4"
+        <controls:MptButton Grid.Column="6"
                             Classes="MptPrimaryButton"
                             Content="Refresh"
                             Command="{Binding RefreshCommand}"
@@ -160,7 +184,7 @@
         <Grid x:Name="TitleContentHost"
               Grid.Column="1"
               Margin="{DynamicResource MptTitleSearchMargin}"
-              ColumnDefinitions="40,*"
+              ColumnDefinitions="40,*,Auto"
               ColumnSpacing="{DynamicResource MptSpacingS}"
               chrome:WindowDecorationProperties.ElementRole="User">
           <controls:MptButton x:Name="NavigationModeButton"
@@ -184,6 +208,34 @@
                           IsVisible="{Binding HasHeaderContent}"
                           HorizontalContentAlignment="Stretch"
                           VerticalContentAlignment="Center" />
+          <Border Grid.Column="2"
+                  MaxWidth="420"
+                  Padding="{DynamicResource MptCompactBadgePadding}"
+                  CornerRadius="{DynamicResource MptRadiusControl}"
+                  Background="{DynamicResource MptBrushSurfaceInset}"
+                  ToolTip.Tip="{Binding RuntimeIdentityText}"
+                  VerticalAlignment="Center">
+            <Grid ColumnDefinitions="Auto,Auto"
+                  ColumnSpacing="{DynamicResource MptSpacingS}">
+              <Border Padding="{DynamicResource MptCompactBadgePadding}"
+                      CornerRadius="{DynamicResource MptRadiusControl}"
+                      Background="{DynamicResource MptBrushAccent}">
+                <TextBlock Text="{Binding RuntimeModeLabel}"
+                           FontSize="{DynamicResource MptFontSizeMicro}"
+                           FontWeight="SemiBold"
+                           Foreground="{DynamicResource MptBrushAccentText}"
+                           VerticalAlignment="Center" />
+              </Border>
+              <TextBlock Grid.Column="1"
+                         MaxWidth="300"
+                         Text="{Binding RuntimeLocation}"
+                         IsVisible="{Binding HasRuntimeLocation}"
+                         FontSize="{DynamicResource MptFontSizeCaption}"
+                         Foreground="{DynamicResource MptBrushTextSecondary}"
+                         TextTrimming="CharacterEllipsis"
+                         VerticalAlignment="Center" />
+            </Grid>
+          </Border>
         </Grid>
 
         <!-- Reserved for native caption controls when the client area extends into the title bar. -->
@@ -235,19 +287,25 @@
       </Grid>
     </Border>
 
-    <ScrollViewer Grid.Column="1"
-                  Grid.Row="1"
-                  Margin="{DynamicResource MptPagePadding}"
-                  Background="{DynamicResource MptBrushAppBackground}"
-                  HorizontalContentAlignment="Stretch"
-                  HorizontalScrollBarVisibility="Disabled"
-                  VerticalScrollBarVisibility="Auto">
-      <ContentControl x:Name="ContentHost"
-                      MaxWidth="{DynamicResource MptLayoutPageMaxWidth}"
-                      HorizontalAlignment="Center"
-                      HorizontalContentAlignment="Stretch"
-                      VerticalAlignment="Stretch" />
-    </ScrollViewer>
+    <Grid Grid.Column="1"
+          Grid.Row="1"
+          Background="{DynamicResource MptBrushAppBackground}">
+      <ScrollViewer Margin="{DynamicResource MptPagePadding}"
+                    HorizontalContentAlignment="Stretch"
+                    HorizontalScrollBarVisibility="Disabled"
+                    VerticalScrollBarVisibility="Auto">
+        <ContentControl x:Name="ContentHost"
+                        MaxWidth="{DynamicResource MptLayoutPageMaxWidth}"
+                        HorizontalAlignment="Center"
+                        HorizontalContentAlignment="Stretch"
+                        VerticalAlignment="Stretch" />
+      </ScrollViewer>
+      <Grid x:Name="WebSurfaceHost"
+            Margin="{DynamicResource MptPagePadding}"
+            IsVisible="False"
+            HorizontalAlignment="Stretch"
+            VerticalAlignment="Stretch" />
+    </Grid>
 
     <Grid x:Name="GlobalOverlayHost"
           Grid.ColumnSpan="2"

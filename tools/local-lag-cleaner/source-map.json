@@ -1,0 +1,14 @@
+{
+  "schemaVersion": 1,
+  "toolId": "local-lag-cleaner",
+  "sourceClassification": "standalone-mypowertools-sdk-tool",
+  "sourceNote": "Implemented from the supplied live-machine diagnosis and cleanup priorities.",
+  "originalSnapshotPath": "original-source",
+  "selectedEntries": [
+    "src/LocalLagCleaner.Cli/**"
+  ],
+  "sdkToolSnapshot": "sdk-tool",
+  "sdkToolGlobs": [
+    "**"
+  ]
+}

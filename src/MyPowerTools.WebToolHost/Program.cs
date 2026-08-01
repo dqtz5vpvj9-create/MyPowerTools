@@ -137,6 +137,9 @@ internal static class Program
             case "reload":
                 host.Reload();
                 break;
+            case "navigate":
+                host.Navigate(command.Source);
+                break;
             case "focus":
                 host.FocusWebView(command.Direction);
                 break;

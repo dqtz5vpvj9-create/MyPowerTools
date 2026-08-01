@@ -64,7 +64,7 @@ public sealed partial class MainWindow
         var captionColor = isDark ? 0x00202020 : 0x00F3F3F3;
         var textColor = isDark ? 0x00FFFFFF : 0x001A1A1A;
 
-        _ = SetWindowText(handle, WindowCaption);
+        _ = SetWindowText(handle, _windowCaption);
         SetDwmAttribute(handle, 20, darkMode);          // DWMWA_USE_IMMERSIVE_DARK_MODE
         SetDwmAttribute(handle, 33, cornerPreference);  // DWMWA_WINDOW_CORNER_PREFERENCE
         SetDwmAttribute(handle, 35, captionColor);      // DWMWA_CAPTION_COLOR

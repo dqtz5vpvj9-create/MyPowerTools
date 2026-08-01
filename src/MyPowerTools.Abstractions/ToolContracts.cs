@@ -70,7 +70,8 @@ public sealed record ToolCommand(
     string Title,
     string Description,
     string Method,
-    string Path);
+    string Path,
+    JsonObject? ExtensionData = null);
 
 /// <summary>
 /// Navigates inside the product shell without invoking a module command.

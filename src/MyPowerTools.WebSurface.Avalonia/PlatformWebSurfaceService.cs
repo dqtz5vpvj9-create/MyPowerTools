@@ -55,7 +55,7 @@ public sealed class MacWebSurfaceService : IMptWebSurfaceService
     }
 }
 
-internal sealed class NativeWebSurfaceSession : IMptWebSurfaceSession
+internal sealed class NativeWebSurfaceSession : IMptWebSurfaceSession, IPersistentWebSurfaceSession
 {
     private readonly MacWebSurfaceControl _control;
     private int _disposed;
@@ -71,10 +71,22 @@ internal sealed class NativeWebSurfaceSession : IMptWebSurfaceSession
     public MptWebSurfaceState State { get; private set; }
     public event EventHandler<MptWebSurfaceStateChangedEventArgs>? StateChanged;
 
+    public void Navigate(Uri source)
+    {
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
+        _control.Navigate(source);
+    }
+
     public void Reload()
     {
         ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
         _control.Reload();
+    }
+
+    public void SetActive(bool active)
+    {
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
+        _control.SetActive(active);
     }
 
     public void Dispose()
@@ -108,6 +120,7 @@ internal sealed class MacWebSurfaceControl : NativeControlHost, IDisposable
     private CancellationTokenSource? _loadingCancellation;
     private int _state = (int)MptWebSurfaceState.Loading;
     private int _disposed;
+    private bool _active = true;
 
     public MacWebSurfaceControl(
         MptWebSurfaceRequest request,
@@ -135,6 +148,31 @@ internal sealed class MacWebSurfaceControl : NativeControlHost, IDisposable
         MacWebViewNative.Reload(_nativeHandle);
     }
 
+    public void Navigate(Uri source)
+    {
+        if (_nativeHandle == 0 ||
+            Volatile.Read(ref _disposed) != 0 ||
+            !WebSurfaceNavigationPolicy.IsSupportedWebUri(source))
+        {
+            return;
+        }
+        BeginLoadingTimeout();
+        MacWebViewNative.Navigate(_nativeHandle, source.AbsoluteUri);
+    }
+
+    public void SetActive(bool active)
+    {
+        if (Volatile.Read(ref _disposed) != 0 || _active == active)
+        {
+            return;
+        }
+        _active = active;
+        if (_nativeHandle != 0)
+        {
+            MacWebViewNative.SetVisible(_nativeHandle, active && !_occlusionState.IsOccluded);
+        }
+    }
+
     protected override IPlatformHandle CreateNativeControlCore(IPlatformHandle parent)
     {
         if (!OperatingSystem.IsMacOS())
@@ -155,7 +193,7 @@ internal sealed class MacWebSurfaceControl : NativeControlHost, IDisposable
             {
                 throw new InvalidOperationException("WKWebView returned an empty NSView handle.");
             }
-            MacWebViewNative.SetVisible(_nativeHandle, !_occlusionState.IsOccluded);
+            MacWebViewNative.SetVisible(_nativeHandle, _active && !_occlusionState.IsOccluded);
             BeginLoadingTimeout();
             return new MacWebViewPlatformHandle(_nativeHandle, ReleaseNativeHandle);
         }
@@ -203,7 +241,7 @@ internal sealed class MacWebSurfaceControl : NativeControlHost, IDisposable
     {
         if (_nativeHandle != 0)
         {
-            MacWebViewNative.SetVisible(_nativeHandle, !_occlusionState.IsOccluded);
+            MacWebViewNative.SetVisible(_nativeHandle, _active && !_occlusionState.IsOccluded);
         }
     }
 
@@ -411,6 +449,11 @@ internal static class MacWebViewNative
     [DllImport("MptMacNative", EntryPoint = "mpt_webview_reload", CallingConvention = CallingConvention.Cdecl)]
     public static extern void Reload(nint handle);
 
+    [DllImport("MptMacNative", EntryPoint = "mpt_webview_navigate", CallingConvention = CallingConvention.Cdecl)]
+    public static extern void Navigate(
+        nint handle,
+        [MarshalAs(UnmanagedType.LPUTF8Str)] string source);
+
     [DllImport("MptMacNative", EntryPoint = "mpt_webview_send_bridge_response", CallingConvention = CallingConvention.Cdecl)]
     public static extern void SendBridgeResponse(
         nint handle,
@@ -432,7 +475,7 @@ internal sealed class UnavailableWebSurfaceService(string message) : IMptWebSurf
         new UnavailableWebSurfaceSession(message);
 }
 
-internal sealed class UnavailableWebSurfaceSession : IMptWebSurfaceSession
+internal sealed class UnavailableWebSurfaceSession : IMptWebSurfaceSession, IPersistentWebSurfaceSession
 {
     public UnavailableWebSurfaceSession(string message)
     {
@@ -450,6 +493,8 @@ internal sealed class UnavailableWebSurfaceSession : IMptWebSurfaceSession
         add { }
         remove { }
     }
+    public void Navigate(Uri source) { }
     public void Reload() { }
+    public void SetActive(bool active) { }
     public void Dispose() { }
 }

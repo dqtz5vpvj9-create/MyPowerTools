@@ -1,0 +1,594 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:LocalLagCleaner.Tool"
+             x:Class="LocalLagCleaner.Tool.LocalLagCleanerView"
+             x:DataType="vm:LocalLagCleanerViewModel">
+  <UserControl.Styles>
+    <Style Selector="Border.card">
+      <Setter Property="Background" Value="{DynamicResource MptBrushCardBackground}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource MptBrushBorder}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="10" />
+      <Setter Property="Padding" Value="18" />
+    </Style>
+    <Style Selector="Border.metric">
+      <Setter Property="Background" Value="{DynamicResource MptBrushSurfaceMuted}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource MptBrushBorder}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="Padding" Value="14" />
+      <Setter Property="Margin" Value="4" />
+      <Setter Property="MinHeight" Value="88" />
+    </Style>
+    <Style Selector="TextBlock.secondary">
+      <Setter Property="Foreground" Value="{DynamicResource MptBrushTextSecondary}" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+    <Style Selector="TextBlock.section-title">
+      <Setter Property="FontSize" Value="18" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="TextBlock.metric-value">
+      <Setter Property="FontSize" Value="20" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+  </UserControl.Styles>
+
+  <Grid RowDefinitions="Auto,Auto,*"
+        Background="{DynamicResource MptBrushAppBackground}">
+    <Border Grid.Row="0"
+            Margin="28,20,28,12"
+            Background="{DynamicResource MptBrushSurfaceMuted}"
+            BorderBrush="{DynamicResource MptBrushBorderStrong}"
+            BorderThickness="1"
+            CornerRadius="12"
+            Padding="22,18">
+      <Grid ColumnDefinitions="*,Auto" ColumnSpacing="20">
+        <StackPanel Spacing="5">
+          <TextBlock Text="本机卡顿专清"
+                     FontSize="25"
+                     FontWeight="SemiBold" />
+          <TextBlock Text="多阶段采样 CPU 调度、分页、磁盘延迟、GPU、进程 I/O、内核资源与稳定性事件，并将证据绑定到精确处置计划。"
+                     Classes="secondary" />
+          <TextBlock Text="{Binding StatusText}"
+                     FontSize="12"
+                     Classes="secondary" />
+        </StackPanel>
+        <StackPanel Grid.Column="1"
+                    Orientation="Horizontal"
+                    Spacing="10"
+                    VerticalAlignment="Center">
+          <Border Background="{DynamicResource MptBrushCardBackground}"
+                  BorderBrush="{Binding SeverityBrush}"
+                  BorderThickness="1"
+                  CornerRadius="7"
+                  Padding="13,8">
+            <TextBlock Text="{Binding SeverityLabel}"
+                       Foreground="{Binding SeverityBrush}"
+                       FontWeight="SemiBold" />
+          </Border>
+          <Button Content="5 秒快速扫描"
+                  Command="{Binding QuickScanCommand}"
+                  IsEnabled="{Binding CanInteract}"
+                  Padding="16,9" />
+          <Button Content="15 秒深度扫描"
+                  Command="{Binding DeepScanCommand}"
+                  IsEnabled="{Binding CanInteract}"
+                  Classes="accent"
+                  Padding="16,9" />
+          <Button Content="管理员 File 归因"
+                  Command="{Binding ElevatedFileScanCommand}"
+                  IsEnabled="{Binding CanInteract}"
+                  Padding="16,9"
+                  ToolTip.Tip="触发 Windows UAC，由受控 Broker 只读抽样最多 512 个 PID 4 File 句柄。" />
+        </StackPanel>
+      </Grid>
+    </Border>
+
+    <ProgressBar Grid.Row="1"
+                 IsIndeterminate="True"
+                 IsVisible="{Binding IsBusy}"
+                 Height="3"
+                 Margin="28,0"
+                 HorizontalAlignment="Stretch" />
+
+    <TabControl Grid.Row="2" Margin="28,12,28,28">
+      <TabItem Header="总览">
+        <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+          <StackPanel Spacing="14" Margin="0,12,0,24">
+            <UniformGrid Columns="4">
+              <Border Classes="metric">
+                <StackPanel Spacing="7">
+                  <TextBlock Text="综合健康分" Classes="secondary" />
+                  <TextBlock Text="{Binding HealthScore}" Classes="metric-value" />
+                </StackPanel>
+              </Border>
+              <Border Classes="metric">
+                <StackPanel Spacing="7">
+                  <TextBlock Text="整机 CPU" Classes="secondary" />
+                  <TextBlock Text="{Binding Cpu}" Classes="metric-value" />
+                </StackPanel>
+              </Border>
+              <Border Classes="metric">
+                <StackPanel Spacing="7">
+                  <TextBlock Text="物理内存" Classes="secondary" />
+                  <TextBlock Text="{Binding PhysicalMemory}" Classes="metric-value" />
+                </StackPanel>
+              </Border>
+              <Border Classes="metric">
+                <StackPanel Spacing="7">
+                  <TextBlock Text="调度 / DPC" Classes="secondary" />
+                  <TextBlock Text="{Binding Scheduler}" Classes="metric-value" />
+                </StackPanel>
+              </Border>
+              <Border Classes="metric">
+                <StackPanel Spacing="7">
+                  <TextBlock Text="硬分页" Classes="secondary" />
+                  <TextBlock Text="{Binding Paging}" Classes="metric-value" />
+                </StackPanel>
+              </Border>
+              <Border Classes="metric">
+                <StackPanel Spacing="7">
+                  <TextBlock Text="磁盘延迟 / 队列" Classes="secondary" />
+                  <TextBlock Text="{Binding Storage}" Classes="metric-value" />
+                </StackPanel>
+              </Border>
+              <Border Classes="metric">
+                <StackPanel Spacing="7">
+                  <TextBlock Text="GPU / 温度" Classes="secondary" />
+                  <TextBlock Text="{Binding Gpu}" Classes="metric-value" />
+                </StackPanel>
+              </Border>
+              <Border Classes="metric">
+                <StackPanel Spacing="7">
+                  <TextBlock Text="内核池" Classes="secondary" />
+                  <TextBlock Text="{Binding KernelPool}" Classes="metric-value" />
+                </StackPanel>
+              </Border>
+              <Border Classes="metric">
+                <StackPanel Spacing="7">
+                  <TextBlock Text="System 句柄" Classes="secondary" />
+                  <TextBlock Text="{Binding SystemHandles}" Classes="metric-value" />
+                </StackPanel>
+              </Border>
+              <Border Classes="metric">
+                <StackPanel Spacing="7">
+                  <TextBlock Text="进程 / 线程" Classes="secondary" />
+                  <TextBlock Text="{Binding Processes}" Classes="metric-value" />
+                </StackPanel>
+              </Border>
+              <Border Classes="metric">
+                <StackPanel Spacing="7">
+                  <TextBlock Text="静置状态 / 电源" Classes="secondary" />
+                  <TextBlock Text="{Binding IdleState}" Classes="metric-value" />
+                  <TextBlock Text="{Binding PowerPlan}" FontSize="11" Classes="secondary" />
+                </StackPanel>
+              </Border>
+              <Border Classes="metric">
+                <StackPanel Spacing="7">
+                  <TextBlock Text="MCP 候选 / 开机时长" Classes="secondary" />
+                  <TextBlock Text="{Binding McpCandidates}" Classes="metric-value" />
+                  <TextBlock Text="{Binding Uptime}" FontSize="11" Classes="secondary" />
+                </StackPanel>
+              </Border>
+            </UniformGrid>
+
+            <Border Classes="card">
+              <StackPanel Spacing="10">
+                <TextBlock Text="八个诊断域" Classes="section-title" />
+                <TextBlock Text="每个领域单独计算发现、严重度和扣分，避免用单一 CPU/内存值概括整机卡顿。"
+                           FontSize="12"
+                           Classes="secondary" />
+                <ItemsControl ItemsSource="{Binding Domains}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:DomainHealthRow">
+                      <Grid ColumnDefinitions="150,74,52,*"
+                            ColumnSpacing="12"
+                            Margin="0,7">
+                        <TextBlock Text="{Binding Domain}" FontWeight="SemiBold" />
+                        <TextBlock Grid.Column="1"
+                                   Text="{Binding Severity}"
+                                   Foreground="{Binding SeverityBrush}" />
+                        <TextBlock Grid.Column="2"
+                                   Text="{Binding Score}"
+                                   Classes="secondary" />
+                        <TextBlock Grid.Column="3"
+                                   Text="{Binding Summary}"
+                                   Classes="secondary" />
+                      </Grid>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+            </Border>
+
+            <TextBlock Text="{Binding ReportPath}"
+                       Classes="secondary"
+                       FontSize="12"
+                       TextTrimming="CharacterEllipsis" />
+          </StackPanel>
+        </ScrollViewer>
+      </TabItem>
+
+      <TabItem Header="证据与进程">
+        <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+          <StackPanel Spacing="14" Margin="0,12,0,24">
+            <Border Classes="card">
+              <StackPanel Spacing="8">
+                <TextBlock Text="诊断发现与因果链" Classes="section-title" />
+                <ItemsControl ItemsSource="{Binding Findings}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:LagFindingRow">
+                      <Border BorderBrush="{DynamicResource MptBrushDivider}"
+                              BorderThickness="0,1,0,0"
+                              Padding="0,13">
+                        <Grid ColumnDefinitions="72,*" ColumnSpacing="12">
+                          <StackPanel Spacing="3">
+                            <TextBlock Text="{Binding Severity}"
+                                       Foreground="{Binding SeverityBrush}"
+                                       FontWeight="SemiBold" />
+                            <TextBlock Text="{Binding Domain}"
+                                       FontSize="11"
+                                       Classes="secondary" />
+                            <TextBlock Text="{Binding Confidence, StringFormat='可信度 {0}'}"
+                                       FontSize="11"
+                                       Classes="secondary" />
+                          </StackPanel>
+                          <StackPanel Grid.Column="1" Spacing="5">
+                            <Grid ColumnDefinitions="*,Auto">
+                              <TextBlock Text="{Binding Title}" FontWeight="SemiBold" />
+                              <TextBlock Grid.Column="1"
+                                         Text="{Binding Risk, StringFormat='处置风险 {0}'}"
+                                         FontSize="11"
+                                         Classes="secondary" />
+                            </Grid>
+                            <TextBlock Text="{Binding Evidence}" Classes="secondary" />
+                            <TextBlock Text="{Binding CausalChain, StringFormat='因果链：{0}'}"
+                                       FontSize="12"
+                                       Classes="secondary" />
+                            <TextBlock Text="{Binding Recommendation, StringFormat='建议：{0}'}"
+                                       FontSize="12"
+                                       Classes="secondary" />
+                          </StackPanel>
+                        </Grid>
+                      </Border>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+            </Border>
+
+            <Border Classes="card">
+              <StackPanel Spacing="9">
+                <TextBlock Text="进程证据（CPU、提交、I/O、句柄、线程）"
+                           Classes="section-title" />
+                <Grid ColumnDefinitions="150,60,170,70,100,100,74,74"
+                      ColumnSpacing="8">
+                  <TextBlock Text="进程" FontWeight="SemiBold" />
+                  <TextBlock Grid.Column="1" Text="PID" FontWeight="SemiBold" />
+                  <TextBlock Grid.Column="2" Text="角色" FontWeight="SemiBold" />
+                  <TextBlock Grid.Column="3" Text="CPU" FontWeight="SemiBold" />
+                  <TextBlock Grid.Column="4" Text="私有提交" FontWeight="SemiBold" />
+                  <TextBlock Grid.Column="5" Text="I/O / 秒" FontWeight="SemiBold" />
+                  <TextBlock Grid.Column="6" Text="句柄" FontWeight="SemiBold" />
+                  <TextBlock Grid.Column="7" Text="线程" FontWeight="SemiBold" />
+                </Grid>
+                <ItemsControl ItemsSource="{Binding ProcessesDetail}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:ProcessDetailRow">
+                      <Grid ColumnDefinitions="150,60,170,70,100,100,74,74"
+                            ColumnSpacing="8"
+                            Margin="0,5">
+                        <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                        <TextBlock Grid.Column="1" Text="{Binding ProcessId}" Classes="secondary" />
+                        <TextBlock Grid.Column="2" Text="{Binding Role}" TextTrimming="CharacterEllipsis" Classes="secondary" />
+                        <TextBlock Grid.Column="3" Text="{Binding Cpu}" />
+                        <TextBlock Grid.Column="4" Text="{Binding PrivateMemory}" />
+                        <TextBlock Grid.Column="5" Text="{Binding IoPerSecond}" />
+                        <TextBlock Grid.Column="6" Text="{Binding Handles}" />
+                        <TextBlock Grid.Column="7" Text="{Binding Threads}" />
+                      </Grid>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+            </Border>
+
+            <Border Classes="card">
+              <StackPanel Spacing="9">
+                <TextBlock Text="System 句柄类型拆分"
+                           Classes="section-title" />
+                <TextBlock Text="对 PID 4 的内核句柄表做一次聚合，显示对象类型、占比及全机同类型数量；高句柄场景自动采集。"
+                           FontSize="12"
+                           Classes="secondary" />
+                <Grid ColumnDefinitions="180,80,120,100,140"
+                      ColumnSpacing="10">
+                  <TextBlock Text="对象类型" FontWeight="SemiBold" />
+                  <TextBlock Grid.Column="1" Text="类型索引" FontWeight="SemiBold" />
+                  <TextBlock Grid.Column="2" Text="PID 4" FontWeight="SemiBold" />
+                  <TextBlock Grid.Column="3" Text="占比" FontWeight="SemiBold" />
+                  <TextBlock Grid.Column="4" Text="全机同类型" FontWeight="SemiBold" />
+                </Grid>
+                <ItemsControl ItemsSource="{Binding SystemHandleTypes}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:SystemHandleTypeRow">
+                      <Grid ColumnDefinitions="180,80,120,100,140"
+                            ColumnSpacing="10"
+                            Margin="0,5">
+                        <TextBlock Text="{Binding TypeName}" />
+                        <TextBlock Grid.Column="1" Text="{Binding TypeIndex}" Classes="secondary" />
+                        <TextBlock Grid.Column="2" Text="{Binding SystemCount}" />
+                        <TextBlock Grid.Column="3" Text="{Binding SystemShare}" />
+                        <TextBlock Grid.Column="4" Text="{Binding AllProcessCount}" />
+                      </Grid>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+            </Border>
+
+            <Border Classes="card">
+              <StackPanel Spacing="10">
+                <TextBlock Text="File 进一步归因"
+                           Classes="section-title" />
+                <TextBlock Text="{Binding FileAttributionStatus}"
+                           TextWrapping="Wrap"
+                           FontSize="12"
+                           Classes="secondary" />
+
+                <TextBlock Text="访问模式"
+                           Margin="0,5,0,0"
+                           FontWeight="SemiBold" />
+                <Grid ColumnDefinitions="120,*,120,100"
+                      ColumnSpacing="10">
+                  <TextBlock Text="GrantedAccess" FontWeight="SemiBold" />
+                  <TextBlock Grid.Column="1" Text="权限" FontWeight="SemiBold" />
+                  <TextBlock Grid.Column="2" Text="句柄" FontWeight="SemiBold" />
+                  <TextBlock Grid.Column="3" Text="File 占比" FontWeight="SemiBold" />
+                </Grid>
+                <ItemsControl ItemsSource="{Binding FileAccessPatterns}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:FileAccessPatternRow">
+                      <Grid ColumnDefinitions="120,*,120,100"
+                            ColumnSpacing="10"
+                            Margin="0,4">
+                        <TextBlock Text="{Binding AccessMask}" />
+                        <TextBlock Grid.Column="1" Text="{Binding Rights}" TextWrapping="Wrap" />
+                        <TextBlock Grid.Column="2" Text="{Binding HandleCount}" />
+                        <TextBlock Grid.Column="3" Text="{Binding Share}" />
+                      </Grid>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <TextBlock Text="路径 / 设备抽样"
+                           Margin="0,7,0,0"
+                           FontWeight="SemiBold" />
+                <ItemsControl ItemsSource="{Binding FilePathGroups}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:FilePathGroupRow">
+                      <Grid ColumnDefinitions="260,90,80,80,*"
+                            ColumnSpacing="10"
+                            Margin="0,4">
+                        <TextBlock Text="{Binding PathGroup}" />
+                        <TextBlock Grid.Column="1" Text="{Binding FileKind}" />
+                        <TextBlock Grid.Column="2" Text="{Binding SampleCount}" />
+                        <TextBlock Grid.Column="3" Text="{Binding Share}" />
+                        <TextBlock Grid.Column="4"
+                                   Text="{Binding Examples}"
+                                   TextTrimming="CharacterEllipsis"
+                                   Classes="secondary" />
+                      </Grid>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <TextBlock Text="文件系统过滤驱动来源候选"
+                           Margin="0,7,0,0"
+                           FontWeight="SemiBold" />
+                <Grid ColumnDefinitions="120,70,150,170,90,150,*"
+                      ColumnSpacing="9">
+                  <TextBlock Text="服务" FontWeight="SemiBold" />
+                  <TextBlock Grid.Column="1" Text="状态" FontWeight="SemiBold" />
+                  <TextBlock Grid.Column="2" Text="来源判断" FontWeight="SemiBold" />
+                  <TextBlock Grid.Column="3" Text="加载组" FontWeight="SemiBold" />
+                  <TextBlock Grid.Column="4" Text="Altitude" FontWeight="SemiBold" />
+                  <TextBlock Grid.Column="5" Text="厂商" FontWeight="SemiBold" />
+                  <TextBlock Grid.Column="6" Text="证据" FontWeight="SemiBold" />
+                </Grid>
+                <ItemsControl ItemsSource="{Binding FileSystemFilters}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:FileSystemFilterRow">
+                      <Grid ColumnDefinitions="120,70,150,170,90,150,*"
+                            ColumnSpacing="9"
+                            Margin="0,5">
+                        <TextBlock Text="{Binding ServiceName}" />
+                        <TextBlock Grid.Column="1" Text="{Binding State}" />
+                        <TextBlock Grid.Column="2" Text="{Binding Likelihood}" TextWrapping="Wrap" />
+                        <TextBlock Grid.Column="3" Text="{Binding LoadOrderGroup}" TextWrapping="Wrap" />
+                        <TextBlock Grid.Column="4" Text="{Binding Altitudes}" />
+                        <TextBlock Grid.Column="5" Text="{Binding Company}" TextTrimming="CharacterEllipsis" />
+                        <TextBlock Grid.Column="6"
+                                   Text="{Binding Evidence}"
+                                   TextWrapping="Wrap"
+                                   Classes="secondary" />
+                      </Grid>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+
+                <TextBlock Text="管理员实时挂载实例"
+                           Margin="0,9,0,0"
+                           FontWeight="SemiBold" />
+                <Grid ColumnDefinitions="130,260,90,180,70,*"
+                      ColumnSpacing="9">
+                  <TextBlock Text="过滤器" FontWeight="SemiBold" />
+                  <TextBlock Grid.Column="1" Text="卷" FontWeight="SemiBold" />
+                  <TextBlock Grid.Column="2" Text="Altitude" FontWeight="SemiBold" />
+                  <TextBlock Grid.Column="3" Text="实例" FontWeight="SemiBold" />
+                  <TextBlock Grid.Column="4" Text="Frame" FontWeight="SemiBold" />
+                  <TextBlock Grid.Column="5" Text="卷状态" FontWeight="SemiBold" />
+                </Grid>
+                <ItemsControl ItemsSource="{Binding FileSystemFilterInstances}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:FileSystemFilterInstanceRow">
+                      <Grid ColumnDefinitions="130,260,90,180,70,*"
+                            ColumnSpacing="9"
+                            Margin="0,4">
+                        <TextBlock Text="{Binding FilterName}" />
+                        <TextBlock Grid.Column="1"
+                                   Text="{Binding VolumeName}"
+                                   TextTrimming="CharacterEllipsis" />
+                        <TextBlock Grid.Column="2" Text="{Binding Altitude}" />
+                        <TextBlock Grid.Column="3"
+                                   Text="{Binding InstanceName}"
+                                   TextTrimming="CharacterEllipsis" />
+                        <TextBlock Grid.Column="4" Text="{Binding Frame}" />
+                        <TextBlock Grid.Column="5" Text="{Binding VolumeStatus}" />
+                      </Grid>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+            </Border>
+
+            <Border Classes="card">
+              <StackPanel Spacing="8">
+                <TextBlock Text="探针覆盖与降级原因" Classes="section-title" />
+                <ItemsControl ItemsSource="{Binding Coverage}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:CoverageRow">
+                      <Grid ColumnDefinitions="160,70,*"
+                            ColumnSpacing="10"
+                            Margin="0,5">
+                        <TextBlock Text="{Binding Probe}" FontWeight="SemiBold" />
+                        <TextBlock Grid.Column="1"
+                                   Text="{Binding State}"
+                                   Foreground="{Binding StateBrush}" />
+                        <TextBlock Grid.Column="2"
+                                   Text="{Binding Message}"
+                                   Classes="secondary" />
+                      </Grid>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+            </Border>
+          </StackPanel>
+        </ScrollViewer>
+      </TabItem>
+
+      <TabItem Header="专清计划">
+        <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+          <StackPanel Spacing="14" Margin="0,12,0,24">
+            <Border Classes="card">
+              <StackPanel Spacing="12">
+                <TextBlock Text="单动作、精确目标、执行前复核"
+                           Classes="section-title" />
+                <TextBlock Text="每份计划只包含一种动作。进程按 PID、名称与启动时间复核；服务动作重新推导权限和断连风险。"
+                           Classes="secondary" />
+                <WrapPanel Orientation="Horizontal">
+                  <Button Content="旧 MCP 会话"
+                          Command="{Binding PlanMcpCommand}"
+                          IsEnabled="{Binding CanInteract}"
+                          Margin="0,0,8,8"
+                          Padding="13,8" />
+                  <Button Content="高 CPU WeFlow"
+                          Command="{Binding PlanWeFlowCommand}"
+                          IsEnabled="{Binding CanInteract}"
+                          Margin="0,0,8,8"
+                          Padding="13,8" />
+                  <Button Content="Delivery Optimization"
+                          Command="{Binding PlanDeliveryOptimizationCommand}"
+                          IsEnabled="{Binding CanInteract}"
+                          Margin="0,0,8,8"
+                          Padding="13,8" />
+                  <Button Content="NVIDIA Container"
+                          Command="{Binding PlanNvidiaCommand}"
+                          IsEnabled="{Binding CanInteract}"
+                          Margin="0,0,8,8"
+                          Padding="13,8" />
+                  <Button Content="Windows Search"
+                          Command="{Binding PlanWindowsSearchCommand}"
+                          IsEnabled="{Binding CanInteract}"
+                          Margin="0,0,8,8"
+                          Padding="13,8" />
+                  <Button Content="Remote Desktop"
+                          Command="{Binding PlanRemoteDesktopCommand}"
+                          IsEnabled="{Binding CanInteract}"
+                          Margin="0,0,8,8"
+                          Padding="13,8" />
+                </WrapPanel>
+              </StackPanel>
+            </Border>
+
+            <Border Classes="card" IsVisible="{Binding HasPlan}">
+              <StackPanel Spacing="11">
+                <TextBlock Text="待执行计划" Classes="section-title" />
+                <TextBlock Text="{Binding PlanSummary}" TextWrapping="Wrap" />
+                <Border Background="{DynamicResource MptBrushWarningBackground}"
+                        BorderBrush="{DynamicResource MptBrushWarning}"
+                        BorderThickness="1"
+                        CornerRadius="8"
+                        Padding="14">
+                  <StackPanel Spacing="5">
+                    <TextBlock Text="八位计划令牌" FontSize="12" Classes="secondary" />
+                    <TextBlock Text="{Binding PlanToken}"
+                               FontSize="22"
+                               FontFamily="Consolas"
+                               FontWeight="SemiBold"
+                               Foreground="{DynamicResource MptBrushWarning}" />
+                  </StackPanel>
+                </Border>
+                <CheckBox Content="允许重启计划中声明的服务"
+                          IsChecked="{Binding AllowServiceRestart}"
+                          IsVisible="{Binding PlanRequiresServiceRestart}" />
+                <CheckBox Content="我已准备好当前远程会话断开，并具有带外恢复路径"
+                          IsChecked="{Binding AllowSessionDisconnect}"
+                          IsVisible="{Binding PlanMayDisconnect}" />
+                <TextBox PlaceholderText="输入八位计划令牌"
+                         Text="{Binding TokenInput, Mode=TwoWay}" />
+                <Button Content="执行并验证该计划"
+                        Command="{Binding ApplyPlanCommand}"
+                        IsEnabled="{Binding CanApply}"
+                        Classes="accent"
+                        Padding="18,10"
+                        HorizontalAlignment="Left" />
+              </StackPanel>
+            </Border>
+
+            <Border Classes="card">
+              <StackPanel Spacing="9">
+                <TextBlock Text="执行结果与恢复状态" Classes="section-title" />
+                <TextBlock Text="{Binding ActionMessage}" TextWrapping="Wrap" />
+                <ItemsControl ItemsSource="{Binding ExecutionItems}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:ExecutionResultRow">
+                      <Grid ColumnDefinitions="70,180,*"
+                            ColumnSpacing="10"
+                            Margin="0,5">
+                        <TextBlock Text="{Binding State}"
+                                   Foreground="{Binding StateBrush}"
+                                   FontWeight="SemiBold" />
+                        <TextBlock Grid.Column="1"
+                                   Text="{Binding Target}"
+                                   TextTrimming="CharacterEllipsis" />
+                        <TextBlock Grid.Column="2"
+                                   Text="{Binding Message}"
+                                   Classes="secondary" />
+                      </Grid>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <TextBlock Text="驱动更新、PoolTag 深度分析、分页文件调整与系统重启保留为独立维护步骤；专清不会执行清空 standby list 或强制 trim working set。"
+                           FontSize="12"
+                           Classes="secondary" />
+              </StackPanel>
+            </Border>
+          </StackPanel>
+        </ScrollViewer>
+      </TabItem>
+    </TabControl>
+  </Grid>
+</UserControl>

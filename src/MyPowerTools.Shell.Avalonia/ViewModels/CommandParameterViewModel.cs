@@ -111,7 +111,12 @@ public sealed class CommandParameterViewModel : ObservableViewModel
     }
 }
 
-public sealed record CommandExecutionStatus(string State, string Message, bool IsTerminal = true, int Sequence = 0);
+public sealed record CommandExecutionStatus(
+    string State,
+    string Message,
+    bool IsTerminal = true,
+    int Sequence = 0,
+    string Output = "");
 
 public sealed record CommandProgressItemViewModel(int Sequence, string StateLabel, string Message, bool IsTerminal);
 

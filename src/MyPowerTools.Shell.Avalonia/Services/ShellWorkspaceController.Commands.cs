@@ -183,13 +183,22 @@ public sealed partial class ShellWorkspaceController
 
             await LoadBrokerAuditAsync();
 
-            return new CommandExecutionStatus(result.Response.State, result.StatusText);
+            return ToCommandExecutionStatus(result);
         }
         catch (Exception ex)
         {
             SetStatus(ex.Message);
             return new CommandExecutionStatus("failed", ex.Message);
         }
+    }
+
+    internal static CommandExecutionStatus ToCommandExecutionStatus(
+        ShellCommandExecutionResult result)
+    {
+        return new CommandExecutionStatus(
+            result.Response.State,
+            result.StatusText,
+            Output: result.Response.Summary);
     }
 
     private async IAsyncEnumerable<CommandExecutionStatus> ExecuteCommandStreamAsync(

@@ -1,0 +1,154 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "quickSampleSeconds": {
+      "type": "integer",
+      "minimum": 3,
+      "maximum": 15,
+      "default": 5,
+      "title": "快速扫描秒数"
+    },
+    "deepSampleSeconds": {
+      "type": "integer",
+      "minimum": 10,
+      "maximum": 60,
+      "default": 15,
+      "title": "深度扫描秒数"
+    },
+    "sampleIntervalMilliseconds": {
+      "type": "integer",
+      "minimum": 1000,
+      "maximum": 5000,
+      "default": 1000,
+      "title": "采样间隔（毫秒）"
+    },
+    "staleMcpMinutes": {
+      "type": "integer",
+      "minimum": 5,
+      "maximum": 1440,
+      "default": 30,
+      "title": "MCP 静置门槛（分钟）"
+    },
+    "preserveNewestMcpGroups": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 10,
+      "default": 2,
+      "title": "保留最新 MCP 会话组"
+    },
+    "idleMcpCorePercentThreshold": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 25,
+      "default": 2,
+      "title": "MCP 静置单核 CPU 上限"
+    },
+    "weFlowCorePercentThreshold": {
+      "type": "number",
+      "minimum": 1,
+      "maximum": 800,
+      "default": 25,
+      "title": "WeFlow 单核 CPU 门槛"
+    },
+    "cpuSustainedWarningPercent": {
+      "type": "number",
+      "minimum": 1,
+      "maximum": 100,
+      "default": 70,
+      "title": "持续 CPU 告警门槛（%）"
+    },
+    "cpuSustainedCriticalPercent": {
+      "type": "number",
+      "minimum": 1,
+      "maximum": 100,
+      "default": 90,
+      "title": "持续 CPU 严重门槛（%）"
+    },
+    "dpcInterruptWarningPercent": {
+      "type": "number",
+      "minimum": 0.1,
+      "maximum": 100,
+      "default": 8,
+      "title": "DPC 与中断告警门槛（%）"
+    },
+    "diskLatencyWarningMilliseconds": {
+      "type": "number",
+      "minimum": 1,
+      "maximum": 5000,
+      "default": 35,
+      "title": "磁盘延迟告警门槛（毫秒）"
+    },
+    "diskLatencyCriticalMilliseconds": {
+      "type": "number",
+      "minimum": 1,
+      "maximum": 10000,
+      "default": 100,
+      "title": "磁盘延迟严重门槛（毫秒）"
+    },
+    "hardPagingWarningPagesPerSecond": {
+      "type": "number",
+      "minimum": 1,
+      "maximum": 1000000,
+      "default": 100,
+      "title": "硬分页告警门槛（Pages Input/sec）"
+    },
+    "systemDriveFreeWarningPercent": {
+      "type": "number",
+      "minimum": 1,
+      "maximum": 50,
+      "default": 10,
+      "title": "系统盘剩余空间告警门槛（%）"
+    },
+    "pagedPoolWarningMiB": {
+      "type": "integer",
+      "minimum": 128,
+      "maximum": 65536,
+      "default": 2048,
+      "title": "分页池告警门槛（MiB）"
+    },
+    "nonPagedPoolWarningMiB": {
+      "type": "integer",
+      "minimum": 128,
+      "maximum": 65536,
+      "default": 2048,
+      "title": "非分页池告警门槛（MiB）"
+    },
+    "kernelPoolCriticalMiB": {
+      "type": "integer",
+      "minimum": 128,
+      "maximum": 131072,
+      "default": 8192,
+      "title": "内核池合计严重门槛（MiB）"
+    },
+    "systemHandleWarningCount": {
+      "type": "integer",
+      "minimum": 10000,
+      "maximum": 10000000,
+      "default": 500000,
+      "title": "System 句柄告警门槛"
+    },
+    "systemHandleCriticalCount": {
+      "type": "integer",
+      "minimum": 10000,
+      "maximum": 20000000,
+      "default": 1000000,
+      "title": "System 句柄严重门槛"
+    },
+    "processWarningCount": {
+      "type": "integer",
+      "minimum": 50,
+      "maximum": 10000,
+      "default": 400,
+      "title": "进程数告警门槛"
+    },
+    "processCriticalCount": {
+      "type": "integer",
+      "minimum": 50,
+      "maximum": 20000,
+      "default": 600,
+      "title": "进程数严重门槛"
+    }
+  },
+  "additionalProperties": false
+}

@@ -90,7 +90,7 @@ public sealed partial class ShellWorkspaceController
                 {
                     if (!IsDisposed)
                     {
-                        _chromeViewModel.SetDiscoveredTools(tools, ShowToolPageAsync);
+                        SetDiscoveredTools(tools);
                     }
                 },
                 DispatcherPriority.Background);
@@ -117,7 +117,7 @@ public sealed partial class ShellWorkspaceController
         try
         {
             var tools = await _toolProducts.LoadToolCardsAsync(ShowToolPageAsync, null);
-            _chromeViewModel.SetDiscoveredTools(tools, ShowToolPageAsync);
+            SetDiscoveredTools(tools);
             var viewModel = new ToolCatalogViewModel(
                 tools,
                 refresh: RefreshToolsPageAsync,
@@ -148,14 +148,22 @@ public sealed partial class ShellWorkspaceController
         if (!string.Equals(_currentPage, HomePage, StringComparison.Ordinal) ||
             !string.IsNullOrWhiteSpace(_currentToolId))
         {
-            _chromeViewModel.SetDiscoveredTools(
-                _toolProducts.BuildToolCards(tools, ShowToolPageAsync, null),
-                ShowToolPageAsync);
+            SetDiscoveredTools(_toolProducts.BuildToolCards(tools, ShowToolPageAsync, null));
             return;
         }
 
         _startupToolDescriptors = tools;
         await ShowPageAsync(HomePage);
+    }
+
+    private void SetDiscoveredTools(IReadOnlyList<ToolCardViewModel> tools)
+    {
+        _chromeViewModel.SetDiscoveredTools(
+            tools,
+            ShowToolPageAsync,
+            CloseWebToolAsync,
+            HasOpenWebTool,
+            ResolveOpenWebToolTitle);
     }
 
     private async Task RefreshHomePageAsync()
@@ -200,7 +208,7 @@ public sealed partial class ShellWorkspaceController
             ? descriptor.PrimaryRouteId
             : activation.RouteId;
         await ShowToolPageAsync(descriptor, routeId);
-        if (_contentHost.Content is not ExternalSdkToolView externalView ||
+        if (GetCurrentExternalSdkToolView() is not { } externalView ||
             externalView.ManagedSurface is not IMptAvaloniaSurfaceActivationHandler handler)
         {
             SetStatus($"{activation.ToolId} does not handle external activations.");

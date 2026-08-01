@@ -38,6 +38,7 @@ The project is designed for local, long-term use: modules register through manif
 | `screenease` | `screenease` | Display enumeration, profile list/plan/apply/save, rules status, and Windows DDC/CI native writer probing for brightness/color-temperature hardware changes. |
 | `doubao-agent` | `doubao-agent` | InProc controller with planner/tool/MCP health separation, self-test, settings schema, and logs summary. |
 | `paste-image` | `paste-image` | Clipboard image upload through the platform OpenSSH client with native Win32 Clipboard/NSPasteboard input and remote-path clipboard replacement. |
+| `local-lag-cleaner` | `local-lag-cleaner` | Isolated Windows multi-sample diagnostics for scheduling, paging, storage, GPU, kernel pools, PID 4 handle-type breakdowns, process I/O, reliability events, and same-boot trends; expiring identity-checked plans cover superseded MCP sessions, WeFlow, and selected service recovery. |
 | `smartbird-thermostat` | `smartbird-thermostat` | InProc typed facade for HTTP status, events, config, logs, brokered restart, and degraded hardware diagnostics; its product surface uses WebView2 on Windows and WKWebView on macOS. |
 
 ## Requirements
@@ -86,6 +87,39 @@ pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\smoke.ps1
 ```
 
 ## Developer Run
+
+On Windows, use the fast development update entry point for the normal edit/build/run loop:
+
+```powershell
+pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\update-windows-dev.ps1
+```
+
+The default `Core` scope publishes only Shell/WebToolHost and Runner as framework-dependent
+development components. It stages those components beside the canonical installation, briefly
+closes Shell and Runner, transactionally replaces their installed directories, and restarts the
+normal installed application. The active processes therefore keep using the complete installed
+layout: installed modules, schemas, runtimes, service units, launcher, Broker, and ServiceManager.
+The script verifies WebToolHost isolation, HostControl connectivity, installed process paths, and
+the preserved module/runtime inventory. A failed swap restores the previous component directories.
+
+Use a narrower scope for focused work:
+
+```powershell
+# AXAML, Shell, WebSurface, or WebToolHost changes; publish only the installed Shell component.
+pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\update-windows-dev.ps1 -Scope Shell
+
+# Build selected tools, overlay package output into the installed module catalog, then restart.
+pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\update-windows-dev.ps1 -Scope Tools -ToolId paste-image
+
+# Inspect the process/build plan without changing runtime state.
+pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\update-windows-dev.ps1 -DryRun
+```
+
+The fast path requires an existing complete installation and the local .NET SDK. The generated
+`dev-update.manifest.json` records the active development overlay. `install-windows.ps1` remains
+the clean release path for the NativeAOT launcher and elevated broker, self-contained/ReadyToRun
+output, complete runtime and Service Unit staging, shortcuts, ZIP generation, and final
+installed-layout verification.
 
 Start the Runner once to validate module indexing:
 

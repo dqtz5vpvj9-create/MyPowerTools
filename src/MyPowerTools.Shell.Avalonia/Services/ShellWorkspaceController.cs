@@ -34,6 +34,7 @@ public sealed partial class ShellWorkspaceController : IAsyncDisposable
     private readonly ContentControl _commandPanel;
     private readonly ContentControl _permissionPanel;
     private readonly ContentControl _auditPanel;
+    private readonly Panel? _webSurfaceHost;
     private readonly ShellChromeViewModel _chromeViewModel;
     private readonly Lazy<ShellCommandExecutionService> _commandExecutionServiceFactory = new(static () => new());
     private readonly Lazy<ShellHostActionService> _hostActionsFactory = new(static () => new());
@@ -56,6 +57,8 @@ public sealed partial class ShellWorkspaceController : IAsyncDisposable
     private readonly Lazy<IMptWebSurfaceService?> _webSurfaceServiceFactory;
     private readonly HashSet<string> _handledFaultInvocations = new(StringComparer.Ordinal);
     private readonly object _handledFaultGate = new();
+    private readonly Dictionary<string, CachedWebToolPage> _cachedWebTools =
+        new(StringComparer.OrdinalIgnoreCase);
     private readonly ShellCommandFaultSink _faultSink;
     private readonly EventHandler<TextChangedEventArgs> _searchTextChangedHandler;
     private readonly EventHandler<FocusChangedEventArgs> _searchGotFocusHandler;
@@ -98,7 +101,8 @@ public sealed partial class ShellWorkspaceController : IAsyncDisposable
         ContentControl commandPanel,
         ContentControl permissionPanel,
         ContentControl auditPanel,
-        Func<IMptWebSurfaceService?>? webSurfaceServiceFactory = null)
+        Func<IMptWebSurfaceService?>? webSurfaceServiceFactory = null,
+        Panel? webSurfaceHost = null)
     {
         _chromeViewModel = chromeViewModel;
         _searchBox = searchBox;
@@ -106,6 +110,7 @@ public sealed partial class ShellWorkspaceController : IAsyncDisposable
         _commandPanel = commandPanel;
         _permissionPanel = permissionPanel;
         _auditPanel = auditPanel;
+        _webSurfaceHost = webSurfaceHost;
         _webSurfaceServiceFactory = new Lazy<IMptWebSurfaceService?>(
             () => webSurfaceServiceFactory?.Invoke());
 
@@ -211,6 +216,7 @@ public sealed partial class ShellWorkspaceController : IAsyncDisposable
             {
                 _serviceManagerAdmin.Dispose();
             }
+            DisposeCachedWebTools();
             DisposeHostedContent();
             _faultSink.Dispose();
         }

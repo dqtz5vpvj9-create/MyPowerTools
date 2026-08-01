@@ -12,6 +12,7 @@ using MyPowerTools.HostControl;
 using MyPowerTools.Platform.Abstractions;
 using MyPowerTools.Shell.Avalonia.ViewModels;
 using MyPowerTools.Shell.Avalonia.Views;
+using MyPowerTools.WebSurface.Avalonia;
 using HostProto = MyPowerTools.Protocol.HostControl.V1;
 
 namespace MyPowerTools.Shell.Avalonia.Services;
@@ -32,6 +33,11 @@ public sealed partial class ShellWorkspaceController
         var source = ResolveExternalSurfaceUri(descriptor, route);
         var isWebSurface = descriptor.ToolType == "web-surface" || route.SurfaceKind == "web";
         var effectiveToolType = isWebSurface ? "web-surface" : descriptor.ToolType;
+        if (isWebSurface && TryGetCachedWebTool(descriptor.ToolId, route.RouteId, out var cachedWebTool))
+        {
+            ShowCachedWebTool(cachedWebTool);
+            return;
+        }
         Func<Task>? launch = route.SurfaceKind == "native" && !string.IsNullOrWhiteSpace(route.Source)
             ? () => LaunchExternalAsync(route.Source)
             : null;
@@ -67,7 +73,13 @@ public sealed partial class ShellWorkspaceController
                 return ShowToolPageAsync(descriptor.ToolId, route.RouteId);
             },
             returnToTools: () => ShowPageAsync(ToolsPage),
-            launch: launch);
+            launch: launch,
+            navigate: target =>
+            {
+                (webSurfaceSession as IPersistentWebSurfaceSession)?.Navigate(target);
+                return Task.CompletedTask;
+            },
+            titleChanged: title => _chromeViewModel.RenameOpenTool(descriptor.ToolId, title));
         var view = new ExternalSdkToolView { DataContext = viewModel };
         if (isWebSurface)
         {
@@ -95,6 +107,14 @@ public sealed partial class ShellWorkspaceController
                         (request, _) => HandleExternalWebBridgeRequestAsync(descriptor, route, request)));
                     viewModel.SetWebSurfaceSession(webSurfaceSession);
                     view.SetHostedSurface(webSurfaceSession.View);
+                    CacheWebTool(
+                        descriptor.ToolId,
+                        route.RouteId,
+                        view,
+                        viewModel,
+                        webSurfaceSession);
+                    ShowCachedWebTool(_cachedWebTools[WebToolKey(descriptor.ToolId, route.RouteId)]);
+                    return;
                 }
             }
             catch (Exception ex)
@@ -170,15 +190,13 @@ public sealed partial class ShellWorkspaceController
             _appearance.CurrentTheme,
             async (commandId, args, cancellationToken) =>
             {
-                var result = await ExecuteRuntimeCommandAsync(commandId, args, cancellationToken: cancellationToken);
-                var success = result.State is "succeeded" or "success" or "ready";
-                return new CommandExecutionResult(
-                    Guid.NewGuid().ToString("N"),
+                var invocationId = Guid.NewGuid().ToString("N");
+                var result = await ExecuteRuntimeCommandAsync(
                     commandId,
-                    result.State,
-                    success,
-                    result.Message,
-                    success ? null : new MptRuntimeError("command.failed", result.Message));
+                    args,
+                    invocationId,
+                    cancellationToken);
+                return ToSurfaceCommandExecutionResult(invocationId, commandId, result);
             },
             (toolId, targetRouteId, _) => ShowToolPageAsync(toolId, targetRouteId),
             new ScopedServiceUnitClient(_serviceManagerAdmin, descriptor.ToolId),
@@ -203,6 +221,21 @@ public sealed partial class ShellWorkspaceController
             SetStatus($"Developer source sync skipped: {devSourceEx.Message}");
         }
        return _dotnetSurfaceLoader.Load(descriptor, route, context);
+    }
+
+    internal static CommandExecutionResult ToSurfaceCommandExecutionResult(
+        string invocationId,
+        string commandId,
+        CommandExecutionStatus result)
+    {
+        var success = result.State is "succeeded" or "success" or "ready";
+        return new CommandExecutionResult(
+            invocationId,
+            commandId,
+            result.State,
+            success,
+            string.IsNullOrWhiteSpace(result.Output) ? result.Message : result.Output,
+            success ? null : new MptRuntimeError("command.failed", result.Message));
     }
 
     private IDisposable SubscribeSurfaceEvents(string sourceId, Action<MptSurfaceEvent> callback)
@@ -364,5 +397,4 @@ public sealed partial class ShellWorkspaceController
         }
         return result.Message;
     }
-
 }

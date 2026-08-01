@@ -808,8 +808,8 @@ public sealed partial class RuntimeAcceptanceTests
         Assert.DoesNotContain("MptBrushOverlayScrim", commandOverlay, StringComparison.Ordinal);
         Assert.DoesNotContain("HorizontalAlignment=\"Center\"", commandOverlay, StringComparison.Ordinal);
         Assert.DoesNotContain("PART_TitleTextPanel", theme, StringComparison.Ordinal);
-        Assert.Contains("Title = OperatingSystem.IsWindows() ? \"\" : WindowCaption", mainWindow);
-        Assert.Contains("SetWindowText(handle, WindowCaption)", mainWindow);
+        Assert.Contains("Title = OperatingSystem.IsWindows() ? \"\" : _windowCaption", mainWindow);
+        Assert.Contains("SetWindowText(handle, _windowCaption)", mainWindow);
         Assert.Contains("EntryPoint = \"SetWindowTextW\"", mainWindow);
     }
 

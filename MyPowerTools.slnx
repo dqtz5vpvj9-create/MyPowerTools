@@ -40,6 +40,10 @@
   <Folder Name="/tools/">
     <Project Path="tools/adb-forwarder/current-integration/src/AdbForwarder.MyPowerTools/AdbForwarder.MyPowerTools.csproj" />
     <Project Path="tools/adb-forwarder/current-integration/src/AdbForwarder.Surface/AdbForwarder.Surface.csproj" />
+    <Project Path="tools/local-lag-cleaner/original-source/src/LocalLagCleaner.Cli/LocalLagCleaner.Cli.csproj" />
+    <Project Path="tools/local-lag-cleaner/sdk-tool/src/LocalLagCleaner.Core/LocalLagCleaner.Core.csproj" />
+    <Project Path="tools/local-lag-cleaner/sdk-tool/src/LocalLagCleaner.Runtime/LocalLagCleaner.Runtime.csproj" />
+    <Project Path="tools/local-lag-cleaner/sdk-tool/src/LocalLagCleaner.Tool/LocalLagCleaner.Tool.csproj" />
     <Project Path="tools/paste-image/current-integration/src/PasteImage.MyPowerTools/PasteImage.MyPowerTools.csproj" />
     <Project Path="tools/paste-image/current-integration/src/PasteImage.Surface/PasteImage.Surface.csproj" />
     <Project Path="tools/doubao-computer-use/current-integration/src/DoubaoAgent.MyPowerTools/DoubaoAgent.MyPowerTools.csproj" />

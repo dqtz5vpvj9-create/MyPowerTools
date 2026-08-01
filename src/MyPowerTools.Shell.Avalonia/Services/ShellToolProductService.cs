@@ -111,7 +111,9 @@ public sealed class ShellToolProductService
             availability,
             isFavorite: false,
             openTool,
-            primaryActionLabel: primaryActionLabel);
+            primaryActionLabel: primaryActionLabel,
+            isWebSurface: tool.ToolType == "web-surface" ||
+                          tool.Routes.Any(route => route.SurfaceKind == "web"));
     }
 
     public static IReadOnlyList<ToolWorkspaceViewModel> BuildPlaceholderWorkspaces(HostProto.ToolDescriptor tool)

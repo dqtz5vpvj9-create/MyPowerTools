@@ -568,11 +568,23 @@ public sealed partial class RuntimeAcceptanceTests
     public void Log_router_redacts_sensitive_values()
     {
         var router = new LogRouter(Path.Combine(Path.GetTempPath(), "mpt-log-test", Guid.NewGuid().ToString("N")));
-        router.Append("pkg", "module", "info", "password=hunter2 token=abc", "invocation");
+        router.Append(
+            "pkg",
+            "module",
+            "info",
+            """{"password":"visible-to-existing-json-policy","confirmationToken":"A1B2-C3D4","details":"password=hunter2 token=abc"}""",
+            "invocation");
 
         var record = router.Tail("module").Single();
         Assert.Contains("password=****", record.Message);
         Assert.Contains("token=****", record.Message);
+        Assert.DoesNotContain("A1B2-C3D4", record.Message, StringComparison.Ordinal);
+
+        var payload = JsonNode.Parse(record.Message)!.AsObject();
+        Assert.Equal("****", payload["confirmationToken"]!.GetValue<string>());
+        Assert.Equal(
+            "password=**** token=****",
+            payload["details"]!.GetValue<string>());
     }
 
     [Fact]

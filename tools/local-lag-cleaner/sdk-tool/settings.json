@@ -1,0 +1,23 @@
+{
+  "quickSampleSeconds": 5,
+  "deepSampleSeconds": 15,
+  "sampleIntervalMilliseconds": 1000,
+  "staleMcpMinutes": 30,
+  "preserveNewestMcpGroups": 2,
+  "idleMcpCorePercentThreshold": 2,
+  "weFlowCorePercentThreshold": 25,
+  "cpuSustainedWarningPercent": 70,
+  "cpuSustainedCriticalPercent": 90,
+  "dpcInterruptWarningPercent": 8,
+  "diskLatencyWarningMilliseconds": 35,
+  "diskLatencyCriticalMilliseconds": 100,
+  "hardPagingWarningPagesPerSecond": 100,
+  "systemDriveFreeWarningPercent": 10,
+  "pagedPoolWarningMiB": 2048,
+  "nonPagedPoolWarningMiB": 2048,
+  "kernelPoolCriticalMiB": 8192,
+  "systemHandleWarningCount": 500000,
+  "systemHandleCriticalCount": 1000000,
+  "processWarningCount": 400,
+  "processCriticalCount": 600
+}

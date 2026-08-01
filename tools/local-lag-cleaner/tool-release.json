@@ -1,0 +1,26 @@
+{
+  "schemaVersion": 1,
+  "toolId": "local-lag-cleaner",
+  "packageId": "local-lag-cleaner",
+  "version": "0.3.0",
+  "standalone": {
+    "project": "original-source/src/LocalLagCleaner.Cli/LocalLagCleaner.Cli.csproj",
+    "assembly": "local-lag-cleaner.exe",
+    "configuration": "Release"
+  },
+  "sdkTool": {
+    "directory": "sdk-tool",
+    "manifest": "sdk-tool/tool.json",
+    "project": "sdk-tool/src/LocalLagCleaner.Tool/LocalLagCleaner.Tool.csproj",
+    "assembly": "sdk-tool/src/LocalLagCleaner.Tool/bin/Release/net10.0/LocalLagCleaner.Tool.dll",
+    "runtimeProject": "sdk-tool/src/LocalLagCleaner.Runtime/LocalLagCleaner.Runtime.csproj",
+    "runtimeAssembly": "sdk-tool/src/LocalLagCleaner.Runtime/bin/Release/net10.0/LocalLagCleaner.Runtime.exe",
+    "runtimeTransport": "stdio-jsonrpc",
+    "package": "artifacts/local-lag-cleaner.mptpkg",
+    "sdkPackages": [
+      "MyPowerTools.AvaloniaSdk",
+      "MyPowerTools.ToolSdk"
+    ]
+  },
+  "buildScript": "build.ps1"
+}

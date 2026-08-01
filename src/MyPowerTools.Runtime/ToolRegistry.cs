@@ -232,7 +232,8 @@ public sealed class ToolRegistry
                 command.Title,
                 command.Description,
                 command.Method,
-                command.Path)).ToArray(),
+                command.Path,
+                ReadCommandExtensionData(command))).ToArray(),
             manifest.DataRoots
                 .Where(root => !string.IsNullOrWhiteSpace(root))
                 .Select(root => ResolveToolValue(toolDirectory, ExpandSettings(root, settingValues)))
@@ -241,6 +242,17 @@ public sealed class ToolRegistry
             string.IsNullOrWhiteSpace(manifest.DataRetention)
                 ? "preserve"
                 : manifest.DataRetention.Trim().ToLowerInvariant());
+    }
+
+    private static JsonObject ReadCommandExtensionData(MptToolCommandManifest command)
+    {
+        var result = new JsonObject();
+        foreach (var (name, value) in command.ExtensionData)
+        {
+            result[name] = JsonNode.Parse(value.GetRawText());
+        }
+
+        return result;
     }
 
     private static string ResolveToolValue(string toolDirectory, string value)

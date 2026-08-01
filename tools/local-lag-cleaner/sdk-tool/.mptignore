@@ -1,0 +1,9 @@
+src/*/bin/Debug/*
+src/*/obj/*
+src/*/*.cs
+src/*/*.csproj
+src/*/*.axaml
+src/*/bin/Release/*/*.pdb
+src/LocalLagCleaner.Core/bin/Release/*/*
+NuGet.config
+*.mptpkg

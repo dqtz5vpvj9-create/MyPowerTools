@@ -117,7 +117,7 @@ public sealed class MptHostRuntime : IAsyncDisposable
         ApplyPersistedModuleState();
         ObserveAllModules();
         _dynamicCommands = [];
-        _commandIndex.Rebuild(EnabledModules());
+        _commandIndex.Rebuild(EnabledModules(), tools: _toolRegistry.Tools);
         RegisterProcessPoolsAndApplyPolicies();
         _eventBus.Publish("runner", "registry.loaded", new JsonObject
         {
@@ -280,7 +280,7 @@ public sealed class MptHostRuntime : IAsyncDisposable
         }
 
         _dynamicCommands = commands;
-        _commandIndex.Rebuild(EnabledModules(), _dynamicCommands);
+        _commandIndex.Rebuild(EnabledModules(), _dynamicCommands, _toolRegistry.Tools);
         _eventBus.Publish("runner", "commands.dynamic.refreshed", new JsonObject
         {
             ["commandCount"] = _dynamicCommands.Count
@@ -588,7 +588,7 @@ public sealed class MptHostRuntime : IAsyncDisposable
             await DisableModuleResourcesAsync(module, cancellationToken);
         }
 
-        _commandIndex.Rebuild(EnabledModules(), _dynamicCommands);
+        _commandIndex.Rebuild(EnabledModules(), _dynamicCommands, _toolRegistry.Tools);
         var evt = _eventBus.Publish(moduleId, enabled ? "module.enabled" : "module.disabled", new JsonObject
         {
             ["enabled"] = enabled
@@ -1862,7 +1862,7 @@ public sealed class MptHostRuntime : IAsyncDisposable
         _dynamicCommands = _dynamicCommands
             .Where(command => !moduleIdSet.Contains(command.ModuleId))
             .ToArray();
-        _commandIndex.Rebuild(EnabledModules(), _dynamicCommands);
+        _commandIndex.Rebuild(EnabledModules(), _dynamicCommands, _toolRegistry.Tools);
         GC.Collect();
         GC.WaitForPendingFinalizers();
         GC.Collect();

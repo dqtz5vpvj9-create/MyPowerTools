@@ -144,7 +144,7 @@ internal sealed class WebSurfaceLoadingAttemptTracker
     }
 }
 
-internal sealed class AvaloniaWebSurfaceSession : IMptWebSurfaceSession
+internal sealed class AvaloniaWebSurfaceSession : IMptWebSurfaceSession, IPersistentWebSurfaceSession
 {
     private readonly WebSurfaceControl _control;
     private int _disposed;
@@ -160,10 +160,22 @@ internal sealed class AvaloniaWebSurfaceSession : IMptWebSurfaceSession
     public MptWebSurfaceState State { get; private set; }
     public event EventHandler<MptWebSurfaceStateChangedEventArgs>? StateChanged;
 
+    public void Navigate(Uri source)
+    {
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
+        _control.Navigate(source);
+    }
+
     public void Reload()
     {
         ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
         _control.Reload();
+    }
+
+    public void SetActive(bool active)
+    {
+        ObjectDisposedException.ThrowIf(Volatile.Read(ref _disposed) != 0, this);
+        _control.SetActive(active);
     }
 
     public void Dispose()
@@ -205,6 +217,7 @@ internal sealed class WebSurfaceControl : Control, IDisposable
     private int _currentState = (int)MptWebSurfaceState.Loading;
     private int _disposed;
     private bool _attached;
+    private bool _active = true;
     private bool _terminalStateReported;
 
     public WebSurfaceControl(
@@ -255,6 +268,48 @@ internal sealed class WebSurfaceControl : Control, IDisposable
         StartHost();
     }
 
+    public void Navigate(Uri source)
+    {
+        if (Volatile.Read(ref _disposed) != 0 ||
+            !WebSurfaceNavigationPolicy.IsSupportedWebUri(source))
+        {
+            return;
+        }
+        if (_hostProcess is not { HasExited: false } process)
+        {
+            StartHost();
+            return;
+        }
+
+        var generation = _generation;
+        var loadingAttempt = _loadingAttempts.Begin();
+        NotifyState(MptWebSurfaceState.Loading);
+        _ = SendCommandAsync(new { type = "navigate", source = source.AbsoluteUri }, generation);
+        _ = WatchHostLoadingAsync(
+            process,
+            generation,
+            loadingAttempt,
+            _hostCancellation?.Token ?? CancellationToken.None);
+    }
+
+    public void SetActive(bool active)
+    {
+        if (Volatile.Read(ref _disposed) != 0 || _active == active)
+        {
+            return;
+        }
+
+        _active = active;
+        if (active)
+        {
+            StartHostIfEligible();
+        }
+        else
+        {
+            UpdateHostBounds();
+        }
+    }
+
     public void Dispose()
     {
         if (Interlocked.Exchange(ref _disposed, 1) != 0)
@@ -291,10 +346,22 @@ internal sealed class WebSurfaceControl : Control, IDisposable
         if (_attached)
         {
             _occlusionState.Changed -= OnOcclusionChanged;
+            _ = SendCommandAsync(new
+            {
+                type = "bounds",
+                x = 0,
+                y = 0,
+                width = 1,
+                height = 1,
+                clipX = 0,
+                clipY = 0,
+                clipWidth = 0,
+                clipHeight = 0,
+                visible = false
+            }, _generation);
         }
         _attached = false;
         _topLevel = null;
-        StopHost();
         base.OnDetachedFromVisualTree(eventArguments);
     }
 
@@ -311,7 +378,7 @@ internal sealed class WebSurfaceControl : Control, IDisposable
         }
         else
         {
-            StopHost();
+            UpdateHostBounds();
         }
     }
 
@@ -330,7 +397,7 @@ internal sealed class WebSurfaceControl : Control, IDisposable
 
     private void StartHostIfEligible()
     {
-        if (!_attached || !IsVisible || Volatile.Read(ref _disposed) != 0)
+        if (!_attached || !_active || !IsVisible || Volatile.Read(ref _disposed) != 0)
         {
             return;
         }
@@ -680,7 +747,7 @@ internal sealed class WebSurfaceControl : Control, IDisposable
             ClipY: Math.Max(0, (int)Math.Round((visibleRect.Y - controlRect.Y) * scaling)),
             ClipWidth: Math.Max(0, (int)Math.Round(visibleRect.Width * scaling)),
             ClipHeight: Math.Max(0, (int)Math.Round(visibleRect.Height * scaling)),
-            Visible: IsVisible && !_occlusionState.IsOccluded && visibleRect.Width > 0 && visibleRect.Height > 0);
+            Visible: _active && IsVisible && !_occlusionState.IsOccluded && visibleRect.Width > 0 && visibleRect.Height > 0);
         if (bounds == _lastBounds)
         {
             return;

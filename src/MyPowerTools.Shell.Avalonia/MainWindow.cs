@@ -14,7 +14,7 @@ namespace MyPowerTools.Shell.Avalonia;
 
 public sealed partial class MainWindow : Window
 {
-    private const string WindowCaption = "MyPowerTools";
+    private readonly string _windowCaption;
     private readonly ShellStartupOptions _startupOptions;
     private readonly Task<ShellRunnerBootstrapResult> _runnerBootstrapTask;
     private readonly Task<ShellHomeSnapshot?> _cachedHomeSnapshotTask;
@@ -50,7 +50,9 @@ public sealed partial class MainWindow : Window
         _startupOptions = startupOptions;
         _runnerBootstrapTask = runnerBootstrapTask;
         _cachedHomeSnapshotTask = cachedHomeSnapshotTask;
-        Title = OperatingSystem.IsWindows() ? "" : WindowCaption;
+        var runtimeIdentity = ShellRuntimeIdentityResolver.Resolve(AppContext.BaseDirectory);
+        _windowCaption = runtimeIdentity.WindowCaption;
+        Title = OperatingSystem.IsWindows() ? "" : _windowCaption;
         Width = 1280;
         Height = 800;
         MinWidth = 640;
@@ -75,7 +77,10 @@ public sealed partial class MainWindow : Window
             () => _workspace?.RefreshAsync() ?? Task.CompletedTask,
             () => _workspace?.OpenCommandPaletteAsync() ?? Task.CompletedTask,
             () => _workspace?.CloseCommandPaletteAsync() ?? Task.CompletedTask,
-            () => _workspace?.DismissPermissionPromptAsync() ?? Task.CompletedTask);
+            () => _workspace?.DismissPermissionPromptAsync() ?? Task.CompletedTask,
+            runtimeIdentity.ModeLabel,
+            runtimeIdentity.LocationLabel,
+            runtimeIdentity.DisplayText);
         _chrome = new ShellChromeView
         {
             DataContext = _chromeViewModel,

@@ -18,6 +18,7 @@ internal sealed class WebSurfaceHostWindow : Form
     private bool _shellAllowsVisibility;
     private bool _navigationReady;
     private bool _surfaceVisible;
+    private bool _manualNavigationEnabled;
 
     private WebSurfaceHostWindow(
         nint parent,
@@ -234,6 +235,24 @@ internal sealed class WebSurfaceHostWindow : Form
         _ = InitializeAsync();
     }
 
+    public void Navigate(string source)
+    {
+        if (!_controllerReady ||
+            _webView is null ||
+            !Uri.TryCreate(source, UriKind.Absolute, out var target) ||
+            !IsSupportedWebUri(target) ||
+            target.IsFile && !IsBridgeOriginAllowed(target))
+        {
+            return;
+        }
+
+        _manualNavigationEnabled = !IsBridgeOriginAllowed(target);
+        _navigationReady = false;
+        HideSurface();
+        WebToolHostProtocol.WriteState("loading", phase: "navigate");
+        _webView.Navigate(target.AbsoluteUri);
+    }
+
     public void PostBridgeResponse(System.Text.Json.JsonElement payload)
     {
         if (_webView is not null && payload.ValueKind is not System.Text.Json.JsonValueKind.Undefined)
@@ -244,7 +263,7 @@ internal sealed class WebSurfaceHostWindow : Form
 
     private void OnWebMessageReceived(object? sender, CoreWebView2WebMessageReceivedEventArgs eventArguments)
     {
-        if (!Uri.TryCreate(eventArguments.Source, UriKind.Absolute, out var source) || !IsOriginAllowed(source))
+        if (!Uri.TryCreate(eventArguments.Source, UriKind.Absolute, out var source) || !IsBridgeOriginAllowed(source))
         {
             return;
         }
@@ -317,6 +336,12 @@ internal sealed class WebSurfaceHostWindow : Form
     }
 
     private bool IsOriginAllowed(Uri target)
+    {
+        return _manualNavigationEnabled && target.Scheme is "http" or "https" ||
+               IsBridgeOriginAllowed(target);
+    }
+
+    private bool IsBridgeOriginAllowed(Uri target)
     {
         if (!IsSupportedWebUri(target))
         {

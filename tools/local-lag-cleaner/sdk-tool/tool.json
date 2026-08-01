@@ -1,0 +1,258 @@
+{
+  "schemaVersion": "1.0",
+  "version": "0.3.0",
+  "toolId": "local-lag-cleaner",
+  "ownerModuleId": "local-lag-cleaner",
+  "title": "本机卡顿专清",
+  "description": "多阶段扫描 CPU 调度、分页、磁盘延迟、GPU、进程 I/O、内核资源与稳定性事件，并通过精确计划安全处置。",
+  "icon": "system.health",
+  "category": "System",
+  "type": "dotnet-surface",
+  "availability": "available",
+  "primaryRouteId": "overview",
+  "routes": [
+    {
+      "routeId": "overview",
+      "surfaceId": "local-lag-cleaner.overview",
+      "title": "诊断与清理",
+      "icon": "diagnostics",
+      "surface": {
+        "kind": "dotnet",
+        "assembly": "src/LocalLagCleaner.Tool/bin/Release/net10.0/LocalLagCleaner.Tool.dll",
+        "type": "LocalLagCleaner.Tool.LocalLagCleanerSurfaceFactory"
+      }
+    }
+  ],
+  "homeCard": {
+    "summary": "隔离 Runtime 多样本诊断调度、存储、分页、GPU、驱动与进程资源，输出因果链和验证式专清计划。",
+    "primaryActionLabel": "多阶段诊断",
+    "order": 2
+  },
+  "runtime": {
+    "transport": "stdio-jsonrpc",
+    "command": "src/LocalLagCleaner.Runtime/bin/Release/net10.0/LocalLagCleaner.Runtime.exe",
+    "args": [],
+    "timeoutMs": 120000
+  },
+  "settings": {
+    "schema": "settings.schema.json",
+    "values": "settings.json",
+    "secrets": []
+  },
+  "commands": [
+    {
+      "id": "local-lag-cleaner.health",
+      "title": "检查专清 Runtime",
+      "description": "验证隔离诊断 Runtime 可启动。"
+    },
+    {
+      "id": "local-lag-cleaner.scan.quick",
+      "title": "本机卡顿快速扫描",
+      "description": "执行五秒多指标扫描并生成报告。",
+      "kind": "action",
+      "requiresElevation": false,
+      "dangerLevel": "low",
+      "category": "Diagnostics",
+      "timeoutMs": 120000,
+      "execution": {
+        "type": "module.execute"
+      },
+      "constraints": [],
+      "supportsProgress": false,
+      "supportsCancellation": true
+    },
+    {
+      "id": "local-lag-cleaner.scan.deep",
+      "title": "本机卡顿深度扫描",
+      "description": "执行十五秒多样本扫描、稳定性事件汇总和趋势分析。",
+      "kind": "action",
+      "requiresElevation": false,
+      "dangerLevel": "low",
+      "category": "Diagnostics",
+      "timeoutMs": 120000,
+      "execution": {
+        "type": "module.execute"
+      },
+      "constraints": [],
+      "supportsProgress": false,
+      "supportsCancellation": true
+    },
+    {
+      "id": "local-lag-cleaner.scan.file-handles-elevated",
+      "title": "管理员 File 句柄归因",
+      "description": "通过受控管理员 Broker 均匀抽样 PID 4 File 句柄并解析设备、卷和路径来源。",
+      "kind": "action",
+      "requiresElevation": false,
+      "dangerLevel": "medium",
+      "category": "Diagnostics",
+      "timeoutMs": 180000,
+      "execution": {
+        "type": "module.execute",
+        "runsExternalProcesses": true
+      },
+      "constraints": [
+        "runsExternalProcesses"
+      ],
+      "supportsProgress": false,
+      "supportsCancellation": true
+    },
+    {
+      "id": "local-lag-cleaner.plan.mcp",
+      "title": "计划清理旧 MCP 会话",
+      "description": "生成仅包含明确 MCP 成员 PID 的双确认计划。",
+      "kind": "action",
+      "requiresElevation": false,
+      "dangerLevel": "low",
+      "category": "Cleanup Plans",
+      "timeoutMs": 30000,
+      "execution": {
+        "type": "module.execute"
+      },
+      "constraints": [],
+      "supportsProgress": false,
+      "supportsCancellation": true
+    },
+    {
+      "id": "local-lag-cleaner.plan.weflow",
+      "title": "计划退出高 CPU WeFlow",
+      "description": "为持续高 CPU 的 WeFlow 实例生成退出计划。",
+      "kind": "action",
+      "requiresElevation": false,
+      "dangerLevel": "low",
+      "category": "Cleanup Plans",
+      "timeoutMs": 30000,
+      "execution": {
+        "type": "module.execute"
+      },
+      "constraints": [],
+      "supportsProgress": false,
+      "supportsCancellation": true
+    },
+    {
+      "id": "local-lag-cleaner.plan.delivery-optimization",
+      "title": "计划重启 Delivery Optimization",
+      "description": "生成 Delivery Optimization 服务重启计划。",
+      "kind": "action",
+      "requiresElevation": false,
+      "dangerLevel": "low",
+      "category": "Cleanup Plans",
+      "timeoutMs": 30000,
+      "execution": {
+        "type": "module.execute"
+      },
+      "constraints": [],
+      "supportsProgress": false,
+      "supportsCancellation": true
+    },
+    {
+      "id": "local-lag-cleaner.plan.nvidia-container",
+      "title": "计划重启 NVIDIA Container",
+      "description": "生成 NVIDIA Display Container 服务重启计划。",
+      "kind": "action",
+      "requiresElevation": false,
+      "dangerLevel": "low",
+      "category": "Cleanup Plans",
+      "timeoutMs": 30000,
+      "execution": {
+        "type": "module.execute"
+      },
+      "constraints": [],
+      "supportsProgress": false,
+      "supportsCancellation": true
+    },
+    {
+      "id": "local-lag-cleaner.plan.windows-search",
+      "title": "计划重启 Windows Search",
+      "description": "生成 Windows Search 服务重启计划。",
+      "kind": "action",
+      "requiresElevation": false,
+      "dangerLevel": "low",
+      "category": "Cleanup Plans",
+      "timeoutMs": 30000,
+      "execution": {
+        "type": "module.execute"
+      },
+      "constraints": [],
+      "supportsProgress": false,
+      "supportsCancellation": true
+    },
+    {
+      "id": "local-lag-cleaner.plan.remote-desktop",
+      "title": "计划重启 Remote Desktop Services",
+      "description": "生成可能断开当前会话的远程桌面服务重启计划。",
+      "kind": "action",
+      "requiresElevation": false,
+      "dangerLevel": "low",
+      "category": "Cleanup Plans",
+      "timeoutMs": 30000,
+      "execution": {
+        "type": "module.execute"
+      },
+      "constraints": [],
+      "supportsProgress": false,
+      "supportsCancellation": true
+    },
+    {
+      "id": "local-lag-cleaner.cleanup.pending",
+      "title": "读取待执行专清计划",
+      "description": "读取尚未过期的单动作处置计划。"
+    },
+    {
+      "id": "local-lag-cleaner.cleanup.apply",
+      "title": "执行已确认专清计划",
+      "description": "复核精确目标、执行单动作并验证结果。",
+      "kind": "action",
+      "requiresElevation": false,
+      "dangerLevel": "high",
+      "category": "Cleanup",
+      "timeoutMs": 120000,
+      "execution": {
+        "type": "module.execute",
+        "mutatesSystemState": true,
+        "runsExternalProcesses": true,
+        "brokerApprovalOnly": true
+      },
+      "constraints": [
+        "mutatesSystemState",
+        "runsExternalProcesses"
+      ],
+      "supportsProgress": false,
+      "supportsCancellation": true
+    }
+  ],
+  "permissions": [
+    {
+      "id": "system-diagnostics",
+      "level": "user",
+      "capability": "system.process.read",
+      "reason": "读取本机 CPU、内存、内核池、句柄、服务与进程树状态。"
+    },
+    {
+      "id": "system-file-handle-paths",
+      "level": "elevated",
+      "capability": "system.handle.path.read",
+      "reason": "通过受控管理员 Broker 启用 SeDebugPrivilege，仅复制最多 512 个 PID 4 File 句柄并读取打开路径。"
+    },
+    {
+      "id": "terminate-confirmed-processes",
+      "level": "broker",
+      "capability": "system.process.terminate",
+      "reason": "仅在计划令牌匹配且 PID、名称、启动时间复核通过后结束明确列出的旧 MCP 或 WeFlow 进程。"
+    },
+    {
+      "id": "restart-confirmed-services",
+      "level": "elevated",
+      "capability": "system.service.control",
+      "reason": "仅在计划令牌、管理员权限和服务影响确认完成后重启明确服务。"
+    }
+  ],
+  "dataRoots": [
+    "reports",
+    "pending-cleanup.json"
+  ],
+  "dataRetention": "preserve",
+  "development": {
+    "loose": true,
+    "autoRefresh": true
+  }
+}

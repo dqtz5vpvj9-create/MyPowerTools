@@ -93,7 +93,8 @@ public sealed class ToolCardViewModel : ObservableViewModel
         bool isFavorite,
         Func<string, Task>? openTool = null,
         Func<string, bool, Task>? setFavorite = null,
-        string primaryActionLabel = "Open tool")
+        string primaryActionLabel = "Open tool",
+        bool isWebSurface = false)
     {
         ToolId = toolId;
         Title = title;
@@ -105,6 +106,7 @@ public sealed class ToolCardViewModel : ObservableViewModel
         Availability = availability;
         _isFavorite = isFavorite;
         PrimaryActionLabel = primaryActionLabel;
+        IsWebSurface = isWebSurface;
 
         OpenCommand = new AsyncRelayCommand(
             () => openTool?.Invoke(ToolId) ?? Task.CompletedTask,
@@ -130,6 +132,7 @@ public sealed class ToolCardViewModel : ObservableViewModel
     public string StatusDetail { get; }
     public ToolAvailability Availability { get; }
     public string PrimaryActionLabel { get; }
+    public bool IsWebSurface { get; }
     public ICommand OpenCommand { get; }
     public ICommand ToggleFavoriteCommand { get; }
     public bool IsAvailable => Availability == ToolAvailability.Available;

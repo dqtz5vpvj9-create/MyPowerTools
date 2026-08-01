@@ -288,6 +288,81 @@ public sealed class WebSurfaceHostTests
     }
 
     [Fact]
+    public async Task Editable_web_title_and_address_update_the_open_page()
+    {
+        Uri? navigatedTo = null;
+        string? renamedTo = null;
+        using var viewModel = new ExternalSdkToolViewModel(
+            "example.tool",
+            "Example",
+            "Example web surface",
+            "web-surface",
+            "Main",
+            new Uri("https://example.test/"),
+            true,
+            [],
+            null,
+            request => Task.FromResult(request),
+            () => Task.CompletedTask,
+            () => Task.CompletedTask,
+            navigate: target =>
+            {
+                navigatedTo = target;
+                return Task.CompletedTask;
+            },
+            titleChanged: title => renamedTo = title);
+
+        viewModel.EditableTitle = "Operations";
+        viewModel.Address = "status.example.test/health";
+        viewModel.NavigateCommand.Execute(null);
+        await WaitUntilAsync(() => navigatedTo is not null);
+
+        Assert.Equal("Operations", viewModel.Title);
+        Assert.Equal("Operations", renamedTo);
+        Assert.Equal("https://status.example.test/health", navigatedTo!.AbsoluteUri);
+        Assert.Equal(navigatedTo.AbsoluteUri, viewModel.Address);
+        Assert.False(viewModel.HasAddressError);
+    }
+
+    [Fact]
+    public async Task Open_web_tool_navigation_item_exposes_close_and_edited_title()
+    {
+        var closed = new TaskCompletionSource<string>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var chrome = new ShellChromeViewModel(["Home", "Tools", "Settings", "System"]);
+        var tool = new ToolCardViewModel(
+            "example.tool",
+            "Example",
+            "Example web surface",
+            "Web",
+            "EX",
+            "Ready",
+            "Ready",
+            ToolAvailability.Available,
+            false,
+            isWebSurface: true);
+
+        chrome.SetDiscoveredTools(
+            [tool],
+            _ => Task.CompletedTask,
+            toolId =>
+            {
+                closed.TrySetResult(toolId);
+                return Task.CompletedTask;
+            },
+            _ => true,
+            _ => "Operations");
+        var item = Assert.Single(chrome.ToolNavigationItems.Where(candidate => candidate.CanClose));
+
+        Assert.True(item.IsCloseButtonVisible);
+        Assert.Equal("Operations", item.DisplayLabel);
+        item.CloseCommand!.Execute(null);
+        Assert.Equal("example.tool", await closed.Task.WaitAsync(TimeSpan.FromSeconds(5)));
+
+        chrome.SetWebToolOpenState("example.tool", false);
+        Assert.False(item.IsCloseButtonVisible);
+    }
+
+    [Fact]
     public async Task Command_failure_keeps_a_ready_surface_and_bounds_the_command_output()
     {
         var command = new ExternalToolCommandViewModel(
@@ -347,18 +422,24 @@ public sealed class WebSurfaceHostTests
         Assert.True(predicate());
     }
 
-    private sealed class FakeWebSurfaceSession : IMptWebSurfaceSession
+    private sealed class FakeWebSurfaceSession : IMptWebSurfaceSession, IPersistentWebSurfaceSession
     {
         public Control View => null!;
         public MptWebSurfaceState State { get; private set; } = MptWebSurfaceState.Loading;
         public bool IsDisposed { get; private set; }
         public int ReloadCount { get; private set; }
+        public Uri? NavigatedTo { get; private set; }
+        public bool IsActive { get; private set; } = true;
         public event EventHandler<MptWebSurfaceStateChangedEventArgs>? StateChanged;
+
+        public void Navigate(Uri source) => NavigatedTo = source;
 
         public void Reload()
         {
             ReloadCount++;
         }
+
+        public void SetActive(bool active) => IsActive = active;
 
         public void Raise(MptWebSurfaceState state, string message)
         {
