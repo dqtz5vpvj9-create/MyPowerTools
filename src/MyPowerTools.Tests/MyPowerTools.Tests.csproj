@@ -55,6 +55,7 @@
     <!-- Surface assemblies provide the tool ViewModel/View/Service types that tests reference -->
     <ProjectReference Include="..\..\tools\adb-forwarder\current-integration\src\AdbForwarder.Surface\AdbForwarder.Surface.csproj" />
     <ProjectReference Include="..\..\tools\remote-notifications\current-integration\src\RemoteNotifications.Surface\RemoteNotifications.Surface.csproj" />
+    <ProjectReference Include="..\..\tools\remote-commands\current-integration\src\RemoteCommands.Surface\RemoteCommands.Surface.csproj" />
     <ProjectReference Include="..\..\tools\screenease\current-integration\src\ScreenEase.Surface\ScreenEase.Surface.csproj" />
     <ProjectReference Include="..\..\tools\doubao-computer-use\current-integration\src\DoubaoAgent.Surface\DoubaoAgent.Surface.csproj" />
     <ProjectReference Include="..\..\tools\smartbird-thermostat\current-integration\src\SmartBird.Surface\SmartBird.Surface.csproj" />

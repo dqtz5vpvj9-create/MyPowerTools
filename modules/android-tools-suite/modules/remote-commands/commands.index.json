@@ -10,7 +10,7 @@
       "execution": {
         "type": "navigation",
         "toolId": "remote-commands",
-        "routeId": "catalog"
+        "routeId": "workspace"
       }
     },
     {
@@ -22,7 +22,7 @@
       "execution": {
         "type": "navigation",
         "toolId": "remote-commands",
-        "routeId": "history"
+        "routeId": "workspace"
       }
     }
   ]

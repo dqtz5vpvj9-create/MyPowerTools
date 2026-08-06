@@ -227,6 +227,16 @@ $toolRegistry = @(
         )
     },
     [pscustomobject]@{
+        Id               = 'remote-commands'
+        Version          = '0.2.0'
+        BuildScript      = 'tools\remote-commands\build.ps1'
+        SurfaceProject   = 'tools\remote-commands\current-integration\src\RemoteCommands.Surface\RemoteCommands.Surface.csproj'
+        SurfaceAssembly  = 'RemoteCommands.Surface.dll'
+        SurfaceTarget    = 'modules\remote-commands\ui\surface'
+        RuntimeStagePath = 'tools\remote-notifications\artifacts\package\android-tools-suite'
+        ServiceUnits     = @()
+    },
+    [pscustomobject]@{
         Id               = 'paste-image'
         Version          = '0.1.0'
         BuildScript      = 'tools\paste-image\build.ps1'
@@ -326,7 +336,12 @@ if (-not $SkipSdk) {
 # 2 + 3) Per-tool runtime build (delegated) + Surface build/pack
 # ---------------------------------------------------------------------------
 $perToolManifest = New-Object System.Collections.ArrayList
+$toolBuildStates = New-Object System.Collections.ArrayList
 
+# Phase A: run each tool's build.ps1 and stage its Surface into the shared runtime
+# package. Tools that share a RuntimeStagePath (the android-tools-suite package) all
+# write into the same directory; collection happens in Phase B after every writer has
+# finished, so the suite is collected with every tool's Surface present.
 foreach ($tool in $toolRegistry) {
     $currentToolId    = [string]$tool.Id
     $toolBuildScript  = $tool.BuildScript
@@ -404,6 +419,23 @@ foreach ($tool in $toolRegistry) {
     } else {
         Write-Warning "[$currentToolId] Surface project not found at $surfaceProjFull; skipping Surface pack."
     }
+
+    [void]$toolBuildStates.Add([pscustomobject]@{
+        Tool             = $tool
+        ToolId           = $currentToolId
+        Version          = $toolVersion
+        RuntimeStageFull = $runtimeStageFull
+        SurfaceOutputs   = $surfaceOutputs
+    })
+}
+
+# Phase B: collect every staged runtime package + Surface nupkg into artifacts/tools/<id>/<version>.
+foreach ($state in $toolBuildStates) {
+    $tool              = $state.Tool
+    $currentToolId     = [string]$state.ToolId
+    $toolVersion       = [string]$state.Version
+    $runtimeStageFull  = [string]$state.RuntimeStageFull
+    $surfaceOutputs    = @($state.SurfaceOutputs)
 
     # ---- Collect into artifacts/tools/<id>/<version> ---------------------
     $collectDir = Join-Path $OutputRoot $currentToolId $toolVersion

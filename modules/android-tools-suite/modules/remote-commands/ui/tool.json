@@ -3,19 +3,17 @@
   "toolId": "remote-commands",
   "ownerModuleId": "android-tools.remote-commands",
   "title": "Remote Commands",
-  "description": "Browse command templates, provide parameters, and inspect execution output.",
+  "description": "Run remote command templates over SSH, apply text transforms, and keep an execution history.",
   "icon": "tool.remote-commands",
   "category": "Automation",
-  "availability": "paused",
-  "primaryRouteId": "catalog",
+  "type": "dotnet-surface",
+  "primaryRouteId": "workspace",
   "routes": [
-    { "routeId": "catalog", "surfaceId": "android-tools.remote-commands.catalog", "title": "Catalog", "icon": "route.catalog" },
-    { "routeId": "history", "surfaceId": "android-tools.remote-commands.history", "title": "History", "icon": "route.history" },
-    { "routeId": "diagnostics", "surfaceId": "android-tools.remote-commands.diagnostics", "title": "Troubleshooting", "icon": "route.diagnostics" }
+    { "routeId": "workspace", "surfaceId": "android-tools.remote-commands.workspace", "title": "Remote Commands", "icon": "route.workspace", "surface": { "kind": "dotnet", "assembly": "surface/RemoteCommands.Surface.dll", "type": "RemoteCommands.Surface.RemoteCommandsSurfaceFactory" } }
   ],
   "homeCard": {
-    "summary": "Delivery is paused; the existing module remains available only for maintenance diagnostics.",
-    "primaryActionLabel": "Paused",
+    "summary": "Browse command templates, provide inputs, and run them on a remote host over SSH.",
+    "primaryActionLabel": "Open Remote Commands",
     "statusBinding": "module.status",
     "order": 30
   }

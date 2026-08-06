@@ -61,7 +61,7 @@ public sealed partial class RuntimeAcceptanceTests
             new TestServerCallContext());
 
         Assert.Equal("paused", response.Tools.Single(tool => tool.ToolId == "process-monitor").Availability);
-        Assert.Equal("paused", response.Tools.Single(tool => tool.ToolId == "remote-commands").Availability);
+        Assert.Equal("available", response.Tools.Single(tool => tool.ToolId == "remote-commands").Availability);
         Assert.Equal("available", response.Tools.Single(tool => tool.ToolId == "screenease").Availability);
     }
 

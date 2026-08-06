@@ -38,40 +38,39 @@ public sealed class RemoteNotificationsProductTests
     }
 
     [Fact]
-    public void Markdown_renderer_uses_typora_github_html_theme_with_safe_content()
+    public void Remote_notification_detail_window_renders_markdown_through_native_web_view()
     {
-        var project = File.ReadAllText(Path.Combine(
-            Root,
-            "src",
-            "MyPowerTools.UI",
-            "MyPowerTools.UI.csproj"));
-        var renderer = File.ReadAllText(Path.Combine(
-            Root, "src", "MyPowerTools.UI", "Controls", "MptMarkdownView.cs"));
         var integrationRoot = Path.Combine(
             Root, "tools", "remote-notifications", "current-integration", "src", "RemoteNotifications.Surface");
+        var project = File.ReadAllText(Path.Combine(integrationRoot, "RemoteNotifications.Surface.csproj"));
         var feed = File.ReadAllText(Path.Combine(integrationRoot, "Views", "RemoteNotificationsView.axaml"));
         var detail = File.ReadAllText(Path.Combine(integrationRoot, "Views", "RemoteNotificationDetailWindow.axaml"));
+        var detailCode = File.ReadAllText(Path.Combine(integrationRoot, "Views", "RemoteNotificationDetailWindow.axaml.cs"));
+        var service = File.ReadAllText(Path.Combine(integrationRoot, "Services", "RemoteNotificationDetailWindowService.cs"));
+        var viewCode = File.ReadAllText(Path.Combine(integrationRoot, "Views", "RemoteNotificationsView.axaml.cs"));
+        var factory = File.ReadAllText(Path.Combine(integrationRoot, "RemoteNotificationsSurfaceFactory.cs"));
 
-        Assert.Contains("Avalonia.HtmlRenderer\" Version=\"12.0.0", project, StringComparison.Ordinal);
-        Assert.Contains("Markdig\" Version=\"1.1.2", project, StringComparison.Ordinal);
-        Assert.Contains("MptMarkdownView : HtmlLabel", renderer, StringComparison.Ordinal);
-        Assert.Contains(".UseAdvancedExtensions()", renderer, StringComparison.Ordinal);
-        Assert.Contains(".DisableHtml()", renderer, StringComparison.Ordinal);
-        Assert.Contains("ImageTagRegex().Replace", renderer, StringComparison.Ordinal);
-        Assert.Contains("uri.Scheme is \"http\" or \"https\"", renderer, StringComparison.Ordinal);
-        Assert.Contains("color: #333333", renderer, StringComparison.Ordinal);
-        Assert.Contains("color: #4183c4", renderer, StringComparison.Ordinal);
-        Assert.Contains("padding: 6px 13px", renderer, StringComparison.Ordinal);
-        Assert.Contains("Focusable = true", renderer, StringComparison.Ordinal);
-        Assert.Contains("PointerPressed += InitializeSelectionAtPointerDown", renderer, StringComparison.Ordinal);
-        Assert.Contains("Container.HandleMouseMove(this, _selectionStartPoint.Value)", renderer, StringComparison.Ordinal);
-        Assert.Contains("clipboard.SetTextAsync(selectedText)", renderer, StringComparison.Ordinal);
-        Assert.Contains("ContextMenu = CreateSelectionContextMenu()", renderer, StringComparison.Ordinal);
-        Assert.Contains("_consecutiveClickCount == 3", renderer, StringComparison.Ordinal);
-        Assert.Contains("SelectCurrentRenderedLine(pointerPosition, eventArgs)", renderer, StringComparison.Ordinal);
-        Assert.Contains("LeadingTitleRegex().Replace(markdown, \"###### $1\\n\\n\", 1)", renderer, StringComparison.Ordinal);
+        Assert.Contains("Avalonia.Controls.WebView", project, StringComparison.Ordinal);
+        Assert.Contains("Markdig", project, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"MarkdownWebView\"", detail, StringComparison.Ordinal);
+        Assert.Contains("NativeWebView", detail, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"FallbackViewer\"", detail, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"FallbackStatus\"", detail, StringComparison.Ordinal);
+        Assert.DoesNotContain("MarkdownViewerHost", detail, StringComparison.Ordinal);
+        Assert.DoesNotContain("MptMarkdownView", detail, StringComparison.Ordinal);
+        Assert.Contains("NavigateToString", detailCode, StringComparison.Ordinal);
+        Assert.Contains("Markdown.ToHtml", detailCode, StringComparison.Ordinal);
+        Assert.Contains("DisableHtml", detailCode, StringComparison.Ordinal);
+        Assert.Contains("UseAdvancedExtensions", detailCode, StringComparison.Ordinal);
+        Assert.Contains("UseShellExecute", detailCode, StringComparison.Ordinal);
+        Assert.DoesNotContain("RemoteNotificationMarkdownViewerController", detailCode, StringComparison.Ordinal);
+        Assert.DoesNotContain("IMptWebSurfaceService", service, StringComparison.Ordinal);
+        Assert.Contains("new RemoteNotificationDetailWindow(message)", service, StringComparison.Ordinal);
+        Assert.DoesNotContain("IMptWebSurfaceService", viewCode, StringComparison.Ordinal);
+        Assert.DoesNotContain("context.WebSurfaces", factory, StringComparison.Ordinal);
+        Assert.DoesNotContain("RemoteNotificationsView(context.WebSurfaces", factory, StringComparison.Ordinal);
+
         Assert.Contains("<controls:MptMarkdownView Markdown=\"{Binding DisplayMessage}\"", feed, StringComparison.Ordinal);
-        Assert.Contains("<controls:MptMarkdownView Markdown=\"{Binding Message}\"", detail, StringComparison.Ordinal);
         Assert.Contains("ColumnDefinitions=\"*,320,Auto\"", feed, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"LabelScroller\"", feed, StringComparison.Ordinal);
         Assert.Contains("HorizontalScrollBarVisibility=\"Hidden\"", feed, StringComparison.Ordinal);
