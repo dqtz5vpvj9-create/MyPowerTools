@@ -343,5 +343,5 @@ jobs:
           git add ota-history/MyPowerTools-win-x64.manifest.json
           if (-not (git diff --cached --quiet)) {
             git commit -m "chore(ota): record ${{ steps.release-info.outputs.version }} file manifest"
-            git push origin main
+            git push origin HEAD:main
           }
