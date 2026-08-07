@@ -7,6 +7,24 @@ on:
       - master
   pull_request:
   workflow_dispatch:
+    inputs:
+      channel:
+        type: choice
+        description: OTA channel for the release feed
+        options:
+          - nightly
+          - stable
+        default: nightly
+      version:
+        type: string
+        description: Optional version override (X.Y.Z). Defaults to version.json or the git tag.
+        required: false
+  schedule:
+    # 16:17 UTC == 00:17 Asia/Shanghai, nightly feed builds after the daily CI pass.
+    - cron: "17 16 * * *"
+
+permissions:
+  contents: write
 
 jobs:
   windows:
@@ -20,8 +38,6 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        # The current file:// submodule URLs are local bootstrap addresses.
-        # Replace them with remote repository URLs before hosted CI can fetch them.
         with:
           submodules: recursive
 
@@ -122,18 +138,171 @@ jobs:
         shell: pwsh
         run: pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\smoke.ps1 -ModulesRoot artifacts\ci-modules -NoRestore -NoBuild -NoTest -NoTemplateValidation
 
-      - name: Publish Windows Portable
-        if: github.event_name == 'workflow_dispatch'
-        shell: pwsh
-        run: pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\publish-windows.ps1
-
-      - name: Upload Release Artifact
+      - name: Upload CI Artifacts
         uses: actions/upload-artifact@v4
         with:
           name: MyPowerTools-win-x64
           path: |
-            artifacts/release/MyPowerTools-win-x64.zip
-            artifacts/release/RELEASE_NOTES.md
             artifacts/ci-modules/**
             artifacts/ui-snapshots/**
             artifacts/shell-ui-snapshots/**
+
+  release:
+    name: Publish GitHub Release + OTA feed
+    needs: windows
+    if: >
+      (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
+      github.event_name == 'workflow_dispatch' ||
+      github.event_name == 'schedule'
+    runs-on: windows-latest
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: 1
+      DOTNET_NOLOGO: true
+      NUGET_XMLDOC_MODE: skip
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Restore dependency caches
+        uses: actions/cache@v4
+        with:
+          path: |
+            artifacts/sdk/global-packages
+            ~/AppData/Local/npm-cache
+          key: windows-dependencies-${{ hashFiles('global.json', 'NuGet.Config', '**/*.csproj', 'sdk/web-bridge/package-lock.json') }}
+          restore-keys: |
+            windows-dependencies-
+
+      - name: Resolve release version and channel
+        id: release-info
+        shell: pwsh
+        run: |
+          $channel = 'stable'
+          if ($env:GITHUB_EVENT_NAME -eq 'workflow_dispatch') {
+            $channel = $env:INPUT_CHANNEL
+            if ([string]::IsNullOrWhiteSpace($channel)) { $channel = 'nightly' }
+          } elseif ($env:GITHUB_EVENT_NAME -eq 'schedule') {
+            $channel = 'nightly'
+          }
+          $version = ''
+          if ($env:GITHUB_EVENT_NAME -eq 'push') {
+            $ref = $env:GITHUB_REF
+            if ($ref -match '^refs/tags/v([0-9]+\.[0-9]+\.[0-9]+)$') {
+              $version = $Matches[1]
+            }
+          }
+          if ([string]::IsNullOrWhiteSpace($version)) {
+            $version = $env:INPUT_VERSION
+          }
+          if ([string]::IsNullOrWhiteSpace($version)) {
+            $versionObject = (pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\get-product-version.ps1 -RepoRoot $env:GITHUB_WORKSPACE -PreferGitTag | ConvertFrom-Json)
+            $version = [string]$versionObject.version
+          }
+          if ($version -notmatch '^[0-9]+\.[0-9]+\.[0-9]+$') {
+            throw "Resolved version is invalid: $version"
+          }
+          "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "channel=$channel" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "tag=v$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+
+      - name: Download previous release OTA manifest
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Path ota-history -Force | Out-Null
+          $latest = gh release list --repo dqtz5vpvj9-create/MyPowerTools --limit 1 --json tagName 2>$null | ConvertFrom-Json
+          if ($latest -and $latest.Count -gt 0) {
+            gh release download $latest[0].tagName --repo dqtz5vpvj9-create/MyPowerTools --pattern MyPowerTools-win-x64.manifest.json --dir ota-history --clobber
+          }
+
+      - name: Publish Windows release assets
+        shell: pwsh
+        run: |
+          $key = $env:MPT_OTA_SIGNING_KEY_BASE64
+          $args = @(
+            '-NoLogo', '-NoProfile', '-NonInteractive',
+            '-File', 'scripts\publish-windows.ps1',
+            '-Version', '${{ steps.release-info.outputs.version }}',
+            '-Channel', '${{ steps.release-info.outputs.channel }}',
+            '-PreferGitTag'
+          )
+          if ([string]::IsNullOrWhiteSpace($key)) {
+            if ('${{ steps.release-info.outputs.channel }}' -eq 'stable') {
+              throw 'Stable releases require the MPT_OTA_SIGNING_KEY_BASE64 secret for Ed25519 feed signing.'
+            }
+            $args += '-AllowUnsigned'
+            Write-Warning 'MPT_OTA_SIGNING_KEY_BASE64 is not configured; nightly feed will be unsigned.'
+          } else {
+            $args += '-SigningKeyBase64'
+            $args += $key
+          }
+          pwsh.exe @args
+
+      - name: Publish tool package OTA feeds
+        shell: pwsh
+        run: |
+          $key = $env:MPT_OTA_SIGNING_KEY_BASE64
+          $args = @(
+            '-NoLogo', '-NoProfile', '-NonInteractive',
+            '-File', 'scripts\publish-ota-package-feeds.ps1',
+            '-RepoRoot', $env:GITHUB_WORKSPACE,
+            '-ModulePackagesRoot', 'artifacts\release\module-packages',
+            '-Channel', '${{ steps.release-info.outputs.channel }}'
+          )
+          if ([string]::IsNullOrWhiteSpace($key)) {
+            $args += '-AllowUnsigned'
+          } else {
+            $args += '-SigningKeyBase64'
+            $args += $key
+          }
+          pwsh.exe @args
+
+      - name: Stage OTA history manifest
+        shell: pwsh
+        run: |
+          Copy-Item -LiteralPath artifacts\release\MyPowerTools-win-x64.manifest.json -Destination ota-history\MyPowerTools-win-x64.manifest.json -Force
+
+      - name: Create GitHub Release
+        shell: pwsh
+        run: |
+          $tag = '${{ steps.release-info.outputs.tag }}'
+          $channel = '${{ steps.release-info.outputs.channel }}'
+          $assets = @(
+            'artifacts/release/MyPowerTools-win-x64.zip'
+            'artifacts/release/MyPowerTools-win-x64.zip.sha256'
+            'artifacts/release/MyPowerTools-win-x64.manifest.json'
+            'artifacts/release/channel-' + $channel + '.json'
+            'artifacts/release/channel-' + $channel + '.json.sig'
+            'artifacts/release/ota-signing-public-key.txt'
+            'artifacts/release/ota-signing-public-key-' + $channel + '.txt'
+            'artifacts/release/release-metadata.json'
+            'artifacts/release/RELEASE_NOTES.md'
+          ) | Where-Object { Test-Path -LiteralPath $_ }
+          $assets += Get-ChildItem -LiteralPath artifacts/release/ota -File -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName }
+          $assets += Get-ChildItem -LiteralPath artifacts/release -Filter 'MyPowerTools-Setup-*.exe*' -File -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName }
+          $assets += Get-ChildItem -LiteralPath artifacts/release -Filter 'MyPowerTools-Source-*.zip*' -File -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName }
+          $assets += Get-ChildItem -LiteralPath artifacts/release/packages -Recurse -File -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName }
+          $assets = @($assets | Select-Object -Unique)
+          if ($assets.Count -eq 0) {
+            throw 'No release assets were produced.'
+          }
+          gh release create $tag --repo dqtz5vpvj9-create/MyPowerTools --target main --title "MyPowerTools ${{ steps.release-info.outputs.version }}" --notes-file artifacts/release/RELEASE_NOTES.md $assets
+
+      - name: Commit OTA history manifest
+        shell: pwsh
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git remote set-url origin "https://x-access-token:${{ github.token }}@github.com/dqtz5vpvj9-create/MyPowerTools.git"
+          git add ota-history/MyPowerTools-win-x64.manifest.json
+          if (-not (git diff --cached --quiet)) {
+            git commit -m "chore(ota): record ${{ steps.release-info.outputs.version }} file manifest"
+            git push origin main
+          }

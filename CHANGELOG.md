@@ -1,5 +1,29 @@
 # Changelog
 
+## 0.3.0 (unreleased)
+
+- Added central product versioning via `version.json` and
+  `scripts/get-product-version.ps1`; release metadata, installs, and the
+  Inno Setup build now consume one version source instead of hardcoded values.
+- Added install-time OTA state under `%LOCALAPPDATA%\MyPowerTools\ota-state`
+  with the exact release file manifest, installed-release record, and signing
+  public key.
+- Added release orchestration: release file manifests, cross-version delta
+  packages, Ed25519-signed channel feeds, and per-package OTA feeds.
+- Added `scripts/ed25519.cs`, a vendored RFC 8032 Ed25519 implementation
+  validated against RFC test vectors, used for feed signing and verification.
+- Added `ota-update.ps1` (check/apply/status) with feed signature
+  verification, downgrade guard, delta/full selection, updater bootstrap,
+  transaction apply, health checks, and full-package recovery.
+- Added `package-ota-update.ps1` for independent tool package updates with
+  trust validation, core minimum enforcement, and transactional replacement.
+- Added `mpt ota check|apply|status` CLI entry points.
+- Added a daily `MyPowerTools OTA Check` scheduled task during user service
+  configuration.
+- Added CI release automation: tag/nightly builds publish GitHub Releases with
+  full ZIP, manifest, deltas, signed feeds, package feeds, and OTA history
+  commits.
+
 ## 0.2.0
 
 - Added .NET 10 solution structure for Runner, Avalonia Shell, Protocol, Runtime, ModuleHost, Platform Packs, Broker, Packaging, UI, CLI, and tests.

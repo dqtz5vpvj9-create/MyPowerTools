@@ -332,6 +332,10 @@ try {
         if (Test-Path -LiteralPath $protocolKey) {
             Remove-Item -LiteralPath $protocolKey -Recurse -Force
         }
+        Unregister-ScheduledTask `
+            -TaskName 'MyPowerTools OTA Check' `
+            -Confirm:$false `
+            -ErrorAction SilentlyContinue
 
         [ordered]@{ mode = $Mode; units = @($managedIds); dataRoot = $dataRootFull } |
             ConvertTo-Json -Depth 4
@@ -358,6 +362,40 @@ try {
         -LiteralPath $serviceManagerRunKey `
         -Name $serviceManagerRunName `
         -Value $managerCommand
+
+    $otaScript = Join-Path $installRootFull 'ota-update.ps1'
+    $pwshCommand = Get-Command 'pwsh.exe' -CommandType Application -ErrorAction SilentlyContinue |
+        Select-Object -First 1
+    if ((Test-Path -LiteralPath $otaScript -PathType Leaf) -and $pwshCommand) {
+        Unregister-ScheduledTask `
+            -TaskName 'MyPowerTools OTA Check' `
+            -Confirm:$false `
+            -ErrorAction SilentlyContinue
+        $otaTaskAction = New-ScheduledTaskAction `
+            -Execute $pwshCommand.Source `
+            -Argument ('-NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -File "{0}" -Command Check' -f $otaScript) `
+            -WorkingDirectory $installRootFull
+        $otaTaskTrigger = New-ScheduledTaskTrigger -Daily -At 03:00
+        $otaTaskPrincipal = New-ScheduledTaskPrincipal `
+            -UserId ([Security.Principal.WindowsIdentity]::GetCurrent().Name) `
+            -LogonType Interactive `
+            -RunLevel Limited
+        $otaTaskSettings = New-ScheduledTaskSettingsSet `
+            -StartWhenAvailable `
+            -AllowStartIfOnBatteries `
+            -DontStopIfGoingOnBatteries `
+            -ExecutionTimeLimit (New-TimeSpan -Minutes 10)
+        Register-ScheduledTask `
+            -TaskName 'MyPowerTools OTA Check' `
+            -Action $otaTaskAction `
+            -Trigger $otaTaskTrigger `
+            -Principal $otaTaskPrincipal `
+            -Settings $otaTaskSettings `
+            -Description 'Daily MyPowerTools OTA feed check' `
+            -Force | Out-Null
+    } elseif (-not $pwshCommand) {
+        Write-Warning 'pwsh.exe was not found; the daily MyPowerTools OTA check task was skipped.'
+    }
 
     if ($RegisterOnly) {
         [ordered]@{

@@ -116,7 +116,7 @@ foreach ($sourceRecord in $source.FileMap.Values | Sort-Object path) {
         continue
     }
 
-    $copyRecords.Add([ordered]@{
+    $copyRecords.Add([pscustomobject]@{
         operation = if ($targetExists) { 'replace' } else { 'add' }
         path = [string]$sourceRecord.path
         length = [long]$sourceRecord.length
@@ -132,7 +132,7 @@ if (-not $NoDelete) {
             $protected.Contains([string]$targetRecord.path)) {
             continue
         }
-        $deleteRecords.Add([ordered]@{
+        $deleteRecords.Add([pscustomobject]@{
             path = [string]$targetRecord.path
             targetLength = [long]$targetRecord.length
             targetSha256 = [string]$targetRecord.sha256

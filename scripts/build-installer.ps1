@@ -9,7 +9,7 @@
 #>
 [CmdletBinding()]
 param(
-    [string]$Version = '0.2.0',
+    [string]$Version = '',
     [string]$RuntimeIdentifier = 'win-x64',
     [string[]]$ToolIds = @(),
     [switch]$SkipBuild,
@@ -20,6 +20,14 @@ $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
 $repoRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
+if ([string]::IsNullOrWhiteSpace($Version)) {
+    $versionOutput = @(& (Join-Path $PSScriptRoot 'get-product-version.ps1') -RepoRoot $repoRoot |
+        ForEach-Object { [string]$_ })
+    $Version = [string]((($versionOutput -join [Environment]::NewLine) | ConvertFrom-Json).version)
+}
+if ($Version -notmatch '^[0-9]+\.[0-9]+\.[0-9]+$') {
+    throw "Invalid installer version '$Version'."
+}
 $artifactsRoot = Join-Path $repoRoot 'artifacts'
 $installParent = Join-Path $artifactsRoot 'install'
 $candidateRoot = Join-Path $installParent $Version

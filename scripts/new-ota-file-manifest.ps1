@@ -6,6 +6,7 @@ param(
     [string]$Version = '',
     [string[]]$Exclude = @(
         'install.manifest.json',
+        'MyPowerTools-win-x64.manifest.json',
         'ota-state/*',
         '*/__pycache__/*',
         '*.pyc'
@@ -56,7 +57,7 @@ foreach ($file in Get-ChildItem -LiteralPath $rootFull -File -Recurse -Force | S
         continue
     }
 
-    $records.Add([ordered]@{
+    $records.Add([pscustomobject]@{
         path = $relativePath
         length = [long]$file.Length
         sha256 = (Get-FileHash -LiteralPath $file.FullName -Algorithm SHA256).Hash.ToLowerInvariant()

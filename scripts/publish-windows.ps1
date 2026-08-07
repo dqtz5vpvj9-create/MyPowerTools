@@ -30,7 +30,15 @@
 #>
 [CmdletBinding()]
 param(
-    [switch]$PortableOnly
+    [switch]$PortableOnly,
+    [string]$Version = '',
+    [ValidateSet('stable', 'nightly', 'local')]
+    [string]$Channel = '',
+    [string]$SigningKeyPath = '',
+    [string]$SigningKeyBase64 = '',
+    [switch]$AllowUnsigned,
+    [string]$OtaHistoryDir = '',
+    [switch]$PreferGitTag
 )
 
 $ErrorActionPreference = 'Stop'
@@ -41,6 +49,56 @@ $PublishRoot = Join-Path $Artifacts 'win-x64'
 $ZipPath = Join-Path $Artifacts 'MyPowerTools-win-x64.zip'
 $InstallerScript = Join-Path $RepoRoot 'installer\MyPowerTools.iss'
 $ModuleStagingRoot = Join-Path $Artifacts 'module-packages'
+$ManifestAssetPath = Join-Path $Artifacts 'MyPowerTools-win-x64.manifest.json'
+$DeltaOutputRoot = Join-Path $Artifacts 'ota'
+
+if ([string]::IsNullOrWhiteSpace($Version)) {
+    $versionScript = Join-Path $PSScriptRoot 'get-product-version.ps1'
+    $versionParams = @{ RepoRoot = $RepoRoot }
+    if ($PreferGitTag) {
+        $versionParams.PreferGitTag = $true
+    }
+    $versionOutput = @(& $versionScript @versionParams | ForEach-Object { [string]$_ })
+    $versionObject = ($versionOutput -join [Environment]::NewLine) | ConvertFrom-Json
+    $Version = [string]$versionObject.version
+    if (-not $PSBoundParameters.ContainsKey('Channel')) {
+        $Channel = [string]$versionObject.channel
+    }
+}
+if ([string]::IsNullOrWhiteSpace($Channel)) {
+    $Channel = 'stable'
+}
+if ($Version -notmatch '^[0-9]+\.[0-9]+\.[0-9]+$') {
+    throw "Invalid release version '$Version'."
+}
+if ([string]::IsNullOrWhiteSpace($OtaHistoryDir)) {
+    $OtaHistoryDir = Join-Path $RepoRoot 'ota-history'
+}
+
+$signingKeyBytes = $null
+if (-not [string]::IsNullOrWhiteSpace($SigningKeyPath)) {
+    $signingKeyFull = [IO.Path]::GetFullPath($SigningKeyPath)
+    if (-not (Test-Path -LiteralPath $signingKeyFull -PathType Leaf)) {
+        throw "Ed25519 signing key file does not exist: $signingKeyFull"
+    }
+    $SigningKeyBase64 = [IO.File]::ReadAllText(
+        $signingKeyFull,
+        [Text.UTF8Encoding]::new($false))
+}
+if (-not [string]::IsNullOrWhiteSpace($SigningKeyBase64)) {
+    $keyText = $SigningKeyBase64.Trim()
+    if ($keyText -match '^[0-9a-fA-F]{64}$') {
+        $signingKeyBytes = [byte[]]::new(32)
+        for ($index = 0; $index -lt 32; $index++) {
+            $signingKeyBytes[$index] = [Convert]::ToByte($keyText.Substring($index * 2, 2), 16)
+        }
+    } else {
+        $signingKeyBytes = [Convert]::FromBase64String($keyText)
+        if ($signingKeyBytes.Length -ne 32) {
+            throw 'Ed25519 signing key must be a 32-byte seed encoded as 64 hex characters or base64.'
+        }
+    }
+}
 
 function Invoke-Native {
     param(
@@ -309,6 +367,9 @@ Copy-Item -LiteralPath (Join-Path $RepoRoot 'scripts\start-user-runtime.ps1') -D
 Copy-Item -LiteralPath (Join-Path $RepoRoot 'scripts\new-ota-file-manifest.ps1') -Destination (Join-Path $PublishRoot 'new-ota-file-manifest.ps1') -Force
 Copy-Item -LiteralPath (Join-Path $RepoRoot 'scripts\new-ota-delta-package.ps1') -Destination (Join-Path $PublishRoot 'new-ota-delta-package.ps1') -Force
 Copy-Item -LiteralPath (Join-Path $RepoRoot 'scripts\invoke-ota-update.ps1') -Destination (Join-Path $PublishRoot 'invoke-ota-update.ps1') -Force
+Copy-Item -LiteralPath (Join-Path $RepoRoot 'scripts\ota-update.ps1') -Destination (Join-Path $PublishRoot 'ota-update.ps1') -Force
+Copy-Item -LiteralPath (Join-Path $RepoRoot 'scripts\package-ota-update.ps1') -Destination (Join-Path $PublishRoot 'package-ota-update.ps1') -Force
+Copy-Item -LiteralPath (Join-Path $RepoRoot 'scripts\ed25519.cs') -Destination (Join-Path $PublishRoot 'ed25519.cs') -Force
 Copy-Item -LiteralPath (Join-Path $RepoRoot 'scripts\Start-MyPowerTools.cmd') -Destination (Join-Path $PublishRoot 'Start-MyPowerTools.cmd') -Force
 Copy-Item -LiteralPath (Join-Path $RepoRoot 'scripts\Manage-DoubaoRuntime.ps1') -Destination (Join-Path $PublishRoot 'Manage-DoubaoRuntime.ps1') -Force
 Copy-Item -LiteralPath (Join-Path $RepoRoot 'START_HERE.md') -Destination (Join-Path $PublishRoot 'START_HERE.md') -Force
@@ -353,6 +414,9 @@ $toolProvenance = foreach ($toolId in $packageByTool.Keys | Sort-Object) {
 }
 $provenance = [ordered]@{
     schemaVersion = 2
+    version = $Version
+    channel = $Channel
+    repository = 'https://github.com/dqtz5vpvj9-create/MyPowerTools'
     generatedAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
     buildSource = 'tools/* submodules'
     shellToolSource = 'linked from tools/*/current-integration'
@@ -373,6 +437,22 @@ $provenance = [ordered]@{
 }
 $provenance | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $PublishRoot 'build-provenance.json') -Encoding UTF8
 
+$publicKeyHex = ''
+if ($null -ne $signingKeyBytes) {
+    Add-Type -Path (Join-Path $PSScriptRoot 'ed25519.cs')
+    $publicKeyBytes = [Mpt.Ed25519]::PublicKeyFromPrivate($signingKeyBytes)
+    $publicKeyHex = ($publicKeyBytes | ForEach-Object { $_.ToString('x2') }) -join ''
+    $publicKeyFile = Join-Path $PublishRoot 'ota-signing-public-key.txt'
+    [IO.File]::WriteAllText(
+        $publicKeyFile,
+        "$publicKeyHex`n",
+        [Text.UTF8Encoding]::new($false))
+    [IO.File]::WriteAllText(
+        (Join-Path $Artifacts 'ota-signing-public-key.txt'),
+        "$publicKeyHex`n",
+        [Text.UTF8Encoding]::new($false))
+}
+
 Invoke-Native -FilePath (Join-Path $PublishRoot 'Cli\MyPowerTools.Cli.exe') -ArgumentList @(
     'validate',
     (Join-Path $PublishRoot 'modules'),
@@ -383,9 +463,65 @@ if (Test-Path -LiteralPath $ZipPath) {
     Remove-Item -LiteralPath $ZipPath -Force
 }
 
+Invoke-Native -FilePath 'pwsh.exe' -ArgumentList @(
+    '-NoLogo', '-NoProfile', '-NonInteractive',
+    '-File', (Join-Path $PSScriptRoot 'new-ota-file-manifest.ps1'),
+    '-Root', $PublishRoot,
+    '-OutputPath', $ManifestAssetPath,
+    '-Version', $Version)
+Copy-Item -LiteralPath $ManifestAssetPath -Destination (
+    Join-Path $PublishRoot 'MyPowerTools-win-x64.manifest.json') -Force
+
 Compress-Archive -Path (Join-Path $PublishRoot '*') -DestinationPath $ZipPath
 Write-Sha256File -Path $ZipPath
-Invoke-Native -FilePath 'pwsh.exe' -ArgumentList @('-NoLogo', '-NoProfile', '-NonInteractive', '-File', (Join-Path $PSScriptRoot 'release-metadata.ps1'), '-RepoRoot', $RepoRoot, '-ArtifactsRoot', $Artifacts)
+
+New-Item -ItemType Directory -Path $DeltaOutputRoot -Force | Out-Null
+$deltaPackages = [Collections.Generic.List[string]]::new()
+if (Test-Path -LiteralPath $OtaHistoryDir -PathType Container) {
+    foreach ($historicalManifest in Get-ChildItem -LiteralPath $OtaHistoryDir -Filter '*.manifest.json' -File |
+        Sort-Object Name) {
+        $historical = Get-Content -LiteralPath $historicalManifest.FullName -Raw | ConvertFrom-Json
+        $fromVersion = [string]$historical.version
+        if ([string]::IsNullOrWhiteSpace($fromVersion) -or $fromVersion -eq $Version) {
+            continue
+        }
+        if ($fromVersion -notmatch '^[0-9]+\.[0-9]+\.[0-9]+$') {
+            throw "Historical OTA manifest has an invalid version: $($historicalManifest.FullName)"
+        }
+        $deltaPath = Join-Path $DeltaOutputRoot "MyPowerTools-$fromVersion-to-$Version.ota.zip"
+        $deltaParams = @{
+            SourceRoot = $PublishRoot
+            SourceManifestPath = $ManifestAssetPath
+            TargetManifestPath = $historicalManifest.FullName
+            OutputPath = $deltaPath
+        }
+        [void](& (Join-Path $PSScriptRoot 'new-ota-delta-package.ps1') @deltaParams)
+        $deltaPackages.Add($deltaPath)
+    }
+}
+
+$feedParams = @{
+    Version = $Version
+    Channel = $Channel
+    FullZipPath = $ZipPath
+    FullManifestPath = $ManifestAssetPath
+    DeltaPackages = $deltaPackages.ToArray()
+    OutputPath = Join-Path $Artifacts "channel-$Channel.json"
+    AllowUnsigned = $AllowUnsigned
+}
+if ($null -ne $signingKeyBytes) {
+    $feedParams.SigningKeyBase64 = [Convert]::ToBase64String($signingKeyBytes)
+    $feedParams.PublicKeyOutputPath = Join-Path $Artifacts "ota-signing-public-key-$Channel.txt"
+}
+[void](& (Join-Path $PSScriptRoot 'new-ota-channel-feed.ps1') @feedParams)
+
+Invoke-Native -FilePath 'pwsh.exe' -ArgumentList @(
+    '-NoLogo', '-NoProfile', '-NonInteractive',
+    '-File', (Join-Path $PSScriptRoot 'release-metadata.ps1'),
+    '-RepoRoot', $RepoRoot,
+    '-ArtifactsRoot', $Artifacts,
+    '-Version', $Version,
+    '-Channel', $Channel)
 Invoke-Native -FilePath 'pwsh.exe' -ArgumentList @('-NoLogo', '-NoProfile', '-NonInteractive', '-File', (Join-Path $PSScriptRoot 'release-notes.ps1'), '-RepoRoot', $RepoRoot, '-ArtifactsRoot', $Artifacts)
 
 if ($PortableOnly) {

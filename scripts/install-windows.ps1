@@ -73,6 +73,9 @@ function Assert-RequiredPackageContent {
         'new-ota-file-manifest.ps1',
         'new-ota-delta-package.ps1',
         'invoke-ota-update.ps1',
+        'ota-update.ps1',
+        'package-ota-update.ps1',
+        'ed25519.cs',
         'assets\MyPowerTools.ico',
         'build-provenance.json'
     )
@@ -391,6 +394,41 @@ $DataRootFull = Resolve-FullPath $DataRoot
 $CanonicalInstallDir = Resolve-FullPath (Join-Path $env:LOCALAPPDATA 'Programs\MyPowerTools')
 $CurrentSessionId = (Get-Process -Id $PID).SessionId
 
+$releaseVersion = ''
+$releaseChannel = 'stable'
+$releaseRepository = 'https://github.com/dqtz5vpvj9-create/MyPowerTools'
+$provenancePath = Join-Path $PackageRootFull 'build-provenance.json'
+if (Test-Path -LiteralPath $provenancePath -PathType Leaf) {
+    $provenance = Get-Content -LiteralPath $provenancePath -Raw | ConvertFrom-Json
+    if (-not [string]::IsNullOrWhiteSpace([string]$provenance.version)) {
+        $releaseVersion = [string]$provenance.version
+    }
+    if (-not [string]::IsNullOrWhiteSpace([string]$provenance.channel)) {
+        $releaseChannel = [string]$provenance.channel
+    }
+    if (-not [string]::IsNullOrWhiteSpace([string]$provenance.repository)) {
+        $releaseRepository = [string]$provenance.repository
+    }
+}
+if ([string]::IsNullOrWhiteSpace($releaseVersion)) {
+    if ($runningFromSource) {
+        $versionScript = Join-Path $repositoryRoot 'scripts\get-product-version.ps1'
+        $versionOutput = @(& $versionScript -RepoRoot $repositoryRoot |
+            ForEach-Object { [string]$_ })
+        $versionObject = ($versionOutput -join [Environment]::NewLine) | ConvertFrom-Json
+        $releaseVersion = [string]$versionObject.version
+        $releaseChannel = [string]$versionObject.channel
+        if (-not [string]::IsNullOrWhiteSpace([string]$versionObject.repository)) {
+            $releaseRepository = [string]$versionObject.repository
+        }
+    } else {
+        throw "Portable package build-provenance.json does not declare a version."
+    }
+}
+if ($releaseVersion -notmatch '^[0-9]+\.[0-9]+\.[0-9]+$') {
+    throw "Invalid release version '$releaseVersion' in build-provenance.json."
+}
+
 if (-not $DryRun.IsPresent -and
     -not $InstallDirFull.Equals($CanonicalInstallDir, [System.StringComparison]::OrdinalIgnoreCase)) {
     throw "MyPowerTools must be installed for the current user at $CanonicalInstallDir. InstallDir=$InstallDirFull"
@@ -436,6 +474,8 @@ $plan = [ordered]@{
         'Runner\MyPowerTools.Runner.exe',
         'Shell\MyPowerTools.Shell.Avalonia.exe'
     )
+    releaseVersion = $releaseVersion
+    releaseChannel = $releaseChannel
 }
 
 if ($DryRun) {
@@ -473,13 +513,13 @@ try {
 
     [System.IO.Directory]::Move($stagingDir, $InstallDirFull)
 
-    $manifest = [ordered]@{
-        product = 'MyPowerTools'
-        version = '0.2.0'
-        installedAt = (Get-Date).ToString('O')
-        packageRoot = $PackageRootFull
-        installDir = $InstallDirFull
-        dataRoot = $DataRootFull
+$manifest = [ordered]@{
+    product = 'MyPowerTools'
+    version = $releaseVersion
+    installedAt = (Get-Date).ToString('O')
+    packageRoot = $PackageRootFull
+    installDir = $InstallDirFull
+    dataRoot = $DataRootFull
         runner = $runnerExe
         shell = $shellExe
         cli = $cliExe
@@ -488,6 +528,43 @@ try {
         autostart = $EnableAutostartEffective
     }
     $manifest | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $installManifestPath -Encoding UTF8
+
+    $otaStateDir = Join-Path $DataRootFull 'ota-state'
+    New-Item -ItemType Directory -Path $otaStateDir -Force | Out-Null
+    $shippedPublicKey = Join-Path $PackageRootFull 'ota-signing-public-key.txt'
+    if (Test-Path -LiteralPath $shippedPublicKey -PathType Leaf) {
+        Copy-Item -LiteralPath $shippedPublicKey -Destination (
+            Join-Path $otaStateDir 'ota-signing-public-key.txt') -Force
+    }
+    $shippedManifest = Join-Path $PackageRootFull 'MyPowerTools-win-x64.manifest.json'
+    $installedFilesManifestPath = Join-Path $otaStateDir 'installed-files.manifest.json'
+    if (Test-Path -LiteralPath $shippedManifest -PathType Leaf) {
+        Copy-Item -LiteralPath $shippedManifest -Destination $installedFilesManifestPath -Force
+    } else {
+        $manifestScript = Join-Path $PackageRootFull 'new-ota-file-manifest.ps1'
+        if (-not (Test-Path -LiteralPath $manifestScript -PathType Leaf)) {
+            throw "Portable package is missing new-ota-file-manifest.ps1 for OTA state initialization."
+        }
+        [void](& $manifestScript `
+            -Root $InstallDirFull `
+            -OutputPath $installedFilesManifestPath `
+            -Version $releaseVersion)
+    }
+    $installedRelease = [ordered]@{
+        schemaVersion = 1
+        product = 'MyPowerTools'
+        version = $releaseVersion
+        channel = $releaseChannel
+        installedAt = (Get-Date).ToString('O')
+        installDir = $InstallDirFull
+        dataRoot = $DataRootFull
+        repository = $releaseRepository
+        manifestPath = 'installed-files.manifest.json'
+        manifestSha256 = (Get-FileHash -LiteralPath $installedFilesManifestPath -Algorithm SHA256).Hash.ToLowerInvariant()
+        packageKind = 'full'
+    }
+    $installedRelease | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (
+        Join-Path $otaStateDir 'installed-release.json') -Encoding UTF8
 
     Clear-StartMenuShortcuts -StartMenuDir $startMenuDir
     if (-not $NoStartMenuShortcut.IsPresent) {
