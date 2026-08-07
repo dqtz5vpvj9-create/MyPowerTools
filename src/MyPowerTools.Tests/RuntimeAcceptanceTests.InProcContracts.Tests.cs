@@ -142,6 +142,14 @@ public sealed partial class RuntimeAcceptanceTests
         runtime.Load(packageRoot);
         await runtime.RefreshDynamicCommandsAsync(CancellationToken.None);
         var registeredCommands = runtime.ListCommands(null);
+        var faultCommandsDeadline = DateTime.UtcNow.AddSeconds(20);
+        while (DateTime.UtcNow < faultCommandsDeadline &&
+               !registeredCommands.Any(command => command.Id == "sample.dotnet.fault.throw"))
+        {
+            await Task.Delay(250, CancellationToken.None);
+            await runtime.RefreshDynamicCommandsAsync(CancellationToken.None);
+            registeredCommands = runtime.ListCommands(null);
+        }
         Assert.Contains(registeredCommands, command => command.Id == "sample.dotnet.fault.throw");
         Assert.Contains(registeredCommands, command => command.Id == "sample.dotnet.fault.timeout");
         Assert.Contains(registeredCommands, command => command.Id == "sample.dotnet.fault.ok");
