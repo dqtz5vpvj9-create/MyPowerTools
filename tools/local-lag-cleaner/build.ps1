@@ -160,12 +160,22 @@ $moduleManifest = [ordered]@{
             compat = $true
         }
     )
-    capabilities = @('status', 'commands', 'settings', 'logs', 'events', 'detailPage')
+    capabilities = @('status', 'commands', 'settings', 'logs', 'events', 'detailPage', 'dashboardCard')
     permissions = @($toolManifest.permissions)
     tools = @('tool.json')
+    uiSurfaces = @(
+        'ui/dashboard-card.json',
+        'ui/detail-page.json',
+        'ui/settings.json',
+        'ui/logs.json'
+    )
 }
 $moduleManifest | ConvertTo-Json -Depth 10 |
     Set-Content -LiteralPath (Join-Path $artifactRuntime 'module.json') -Encoding UTF8
+$uiSource = Join-Path $PSScriptRoot 'sdk-tool\ui'
+if (Test-Path -LiteralPath $uiSource -PathType Container) {
+    Copy-Item -Path (Join-Path $uiSource '*') -Destination (Join-Path $artifactRuntime 'ui') -Recurse -Force
+}
 
 Write-Output "Standalone CLI staged at $artifactCli"
 Write-Output "SDK tool built at $expectedSdkTool"
