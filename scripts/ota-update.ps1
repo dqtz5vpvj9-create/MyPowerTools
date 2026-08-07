@@ -737,7 +737,27 @@ if (-not $mutexCreated) {
         throw 'Another MyPowerTools OTA update is already running.'
     }
 }
+$runKeyPath = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
+$autostartNames = @('MyPowerTools', 'MyPowerTools.ServiceManager')
+$savedAutostartValues = @{}
+foreach ($name in $autostartNames) {
+    $value = (Get-ItemProperty -LiteralPath $runKeyPath -Name $name -ErrorAction SilentlyContinue).$name
+    if ($null -ne $value -and -not [string]::IsNullOrWhiteSpace([string]$value)) {
+        $savedAutostartValues[$name] = [string]$value
+    }
+}
+$otaCheckTaskDisabled = $false
 try {
+    # Maintenance mode: stop auto-relaunch vectors so the transaction is not
+    # interrupted by Runner/ServiceManager or the daily OTA check task.
+    foreach ($name in $autostartNames) {
+        Remove-ItemProperty -LiteralPath $runKeyPath -Name $name -ErrorAction SilentlyContinue
+    }
+    if (Get-ScheduledTask -TaskName 'MyPowerTools OTA Check' -ErrorAction SilentlyContinue) {
+        Disable-ScheduledTask -TaskName 'MyPowerTools OTA Check' -ErrorAction SilentlyContinue | Out-Null
+        $otaCheckTaskDisabled = $true
+    }
+
     if (-not $BootstrapReady -and -not $SkipBootstrap) {
         if ($mutexCreated) {
             try { $updateMutex.ReleaseMutex() } catch {}
@@ -842,6 +862,15 @@ try {
     $updateResult | ConvertTo-Json -Depth 8
 }
 finally {
+    foreach ($name in $savedAutostartValues.Keys) {
+        try {
+            New-Item -Path $runKeyPath -Force | Out-Null
+            Set-ItemProperty -LiteralPath $runKeyPath -Name $name -Value $savedAutostartValues[$name]
+        } catch {}
+    }
+    if ($otaCheckTaskDisabled) {
+        try { Enable-ScheduledTask -TaskName 'MyPowerTools OTA Check' -ErrorAction SilentlyContinue | Out-Null } catch {}
+    }
     if ($mutexCreated) {
         try { $updateMutex.ReleaseMutex() } catch {}
     }

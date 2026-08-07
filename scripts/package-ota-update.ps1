@@ -361,6 +361,11 @@ try {
         if (Test-Path -LiteralPath $runtimeScript -PathType Leaf) {
             & $runtimeScript -InstallRoot $InstallRootFull -DataRoot $DataRootFull -StartRunner | Out-Null
         }
+        $configureScript = Join-Path $InstallRootFull 'configure-user-services.ps1'
+        if ((Test-Path -LiteralPath (Join-Path $packageRoot 'service-units') -PathType Container) -and
+            (Test-Path -LiteralPath $configureScript -PathType Leaf)) {
+            & $configureScript -Mode Install -InstallRoot $InstallRootFull -DataRoot $DataRootFull | Out-Null
+        }
     }
 
     $installedOk = $true
