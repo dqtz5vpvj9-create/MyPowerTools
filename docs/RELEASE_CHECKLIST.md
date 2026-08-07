@@ -10,8 +10,13 @@ in GitHub Actions.
   file manifest, signed stable feed, package feeds, and source bundle.
 - The dorm machine was upgraded to the released 0.3.0 package and reports
   `mpt ota check` → `up-to-date` from the GitHub feed.
-- Subsequent tags publish automatically; `ota-history/` holds the 0.3.0
-  manifest so the next release builds a delta.
+- **v0.3.1 released on 2026-08-08 with a fully green CI run** (windows
+  validation + release jobs), including the first cross-version delta
+  `MyPowerTools-0.3.0-to-0.3.1.ota.zip` built from `ota-history/`.
+- Dorm upgraded online from 0.3.0 to 0.3.1 through `mpt ota apply` using the
+  signed delta feed; the installed file manifest is byte-identical to the
+  release manifest and the client now reports `up-to-date`.
+- Subsequent tags publish automatically and produce the next delta.
 
 ## Prerequisites
 
