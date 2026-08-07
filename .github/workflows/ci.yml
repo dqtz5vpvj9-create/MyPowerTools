@@ -40,11 +40,9 @@ jobs:
           restore-keys: |
             windows-dependencies-
 
-      - name: Initialize local SDK package source
+      - name: Build local SDK packages
         shell: pwsh
-        run: |
-          New-Item -ItemType Directory -Force -Path artifacts/sdk/nuget | Out-Null
-          New-Item -ItemType Directory -Force -Path artifacts/sdk/global-packages | Out-Null
+        run: pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\build-sdk.ps1 -Configuration Release
 
       - name: Verify tool submodules
         shell: pwsh
