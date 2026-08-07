@@ -80,6 +80,11 @@ cryptography packages are required.
 
 - Private key: a 32-byte seed, stored as 64 hex characters or base64.
 - CI secret: `MPT_OTA_SIGNING_KEY_BASE64` (base64 of the seed).
+- The current key pair was generated on 2026-08-07; the private key lives at
+  `%USERPROFILE%\.mypowertools\ota-signing\ota-signing-key.hex` (outside the
+  repository) and the public key is embedded in `ota-update.ps1` /
+  `package-ota-update.ps1` and committed at
+  `ota-history/ota-signing-public-key.txt`.
 - Public key: 64 hex characters, published as `ota-signing-public-key.txt`
   in the Release and inside the portable package.
 - The installer copies the public key to

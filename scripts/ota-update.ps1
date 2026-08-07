@@ -31,9 +31,8 @@ $script:OtaBoundParameters = $PSBoundParameters
 # Production public key (64 hex chars of the raw Ed25519 public key). CI writes
 # the generated key into the release package and the installer copies it to the
 # OTA state directory; the embedded value below is the fallback used when the
-# state file is unavailable. The release pipeline must populate this constant
-# before signing production feeds.
-$script:EmbeddedPublicKeyHex = ''
+# state file is unavailable. Keep this in sync with the CI signing key.
+$script:EmbeddedPublicKeyHex = '0288efe271c9788b64eca7788fb074da696a08c890fb534ddef549a8648a1b4a'
 
 function Write-Utf8TextFile {
     param(

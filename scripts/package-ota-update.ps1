@@ -18,7 +18,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
-$script:EmbeddedPublicKeyHex = ''
+$script:EmbeddedPublicKeyHex = '0288efe271c9788b64eca7788fb074da696a08c890fb534ddef549a8648a1b4a'
 
 function Write-Utf8TextFile {
     param(
