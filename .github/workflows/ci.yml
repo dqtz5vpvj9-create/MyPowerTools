@@ -40,6 +40,10 @@ jobs:
           restore-keys: |
             windows-dependencies-
 
+      - name: Build local SDK packages
+        shell: pwsh
+        run: pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\build-sdk.ps1 -Configuration Release
+
       - name: Verify tool submodules
         shell: pwsh
         run: |
