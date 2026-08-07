@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.1 (unreleased)
+
+- Stopped `adb.exe` during Windows install replacement so service-unit
+  directories are not locked by the ADB server's working directory.
+- CI release automation now pushes OTA history from detached HEAD via
+  `HEAD:main`, prepares Python/platform-tools/Doubao runtime caches on the
+  runner, and authenticates `gh` steps with `GITHUB_TOKEN`.
+- First delta release: `MyPowerTools-0.3.0-to-0.3.1.ota.zip` is generated
+  from the 0.3.0 manifest stored in `ota-history/`.
+
 ## 0.3.0 (unreleased)
 
 - Added central product versioning via `version.json` and
