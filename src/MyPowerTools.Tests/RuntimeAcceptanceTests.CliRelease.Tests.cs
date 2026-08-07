@@ -202,7 +202,7 @@ public sealed partial class RuntimeAcceptanceTests
         Assert.True(File.Exists(metadataPath));
         Assert.True(File.Exists(scoopPath));
         Assert.Equal("MyPowerTools", metadata["product"]!.GetValue<string>());
-        Assert.Equal("local-portable", metadata["channel"]!.GetValue<string>());
+        Assert.Equal("local", metadata["channel"]!.GetValue<string>());
         Assert.Equal(64, artifact["sha256"]!.GetValue<string>().Length);
         Assert.Equal(artifact["sha256"]!.GetValue<string>(), scoop64["hash"]!.GetValue<string>());
         Assert.Equal("MyPowerTools-win-x64.zip", artifact["url"]!.GetValue<string>());

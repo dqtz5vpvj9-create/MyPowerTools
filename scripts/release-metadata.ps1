@@ -26,6 +26,10 @@ if ([string]::IsNullOrWhiteSpace($Version)) {
         $Channel = [string]$versionObject.channel
     }
 }
+if (-not $PSBoundParameters.ContainsKey('Channel') -and
+    [string]::IsNullOrWhiteSpace($DownloadBaseUrl)) {
+    $Channel = 'local'
+}
 
 $artifactName = 'MyPowerTools-win-x64.zip'
 $zipPath = Join-Path $ArtifactsRoot $artifactName

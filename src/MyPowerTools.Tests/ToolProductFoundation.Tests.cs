@@ -488,10 +488,10 @@ public sealed class ToolProductFoundationTests
                 "paused",
                 tools.Single(tool => tool.Descriptor.ToolId == "process-monitor").Descriptor.Availability);
             Assert.Equal(
-                "paused",
+                "available",
                 tools.Single(tool => tool.Descriptor.ToolId == "remote-commands").Descriptor.Availability);
             Assert.All(
-                tools.Where(tool => tool.Descriptor.ToolId is not ("process-monitor" or "remote-commands")),
+                tools.Where(tool => tool.Descriptor.ToolId != "process-monitor"),
                 tool => Assert.Equal("available", tool.Descriptor.Availability));
         }
         finally
