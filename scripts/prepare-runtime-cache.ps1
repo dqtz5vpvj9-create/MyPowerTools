@@ -125,10 +125,21 @@ if (-not $SkipDoubao) {
     if (-not $uvCommand) {
         Write-Host 'Installing uv...'
         $python = Resolve-SystemPython312
-        & $python.Launcher -3.12 -m pip install --disable-pip-version-check --quiet uv
+        & $python.Executable -m pip install --disable-pip-version-check --quiet uv
         Assert-True -Condition ($LASTEXITCODE -eq 0) -Message 'uv installation failed.'
         $uvCommand = Get-Command 'uv.exe' -CommandType Application -ErrorAction SilentlyContinue |
             Select-Object -First 1
+        if (-not $uvCommand) {
+            $pythonRoot = Split-Path -Parent $python.Executable
+            foreach ($candidate in @(
+                (Join-Path $pythonRoot 'Scripts\uv.exe'),
+                (Join-Path $pythonRoot 'uv.exe'))) {
+                if (Test-Path -LiteralPath $candidate -PathType Leaf) {
+                    $uvCommand = Get-Item -LiteralPath $candidate
+                    break
+                }
+            }
+        }
     }
     Assert-True -Condition ($null -ne $uvCommand) -Message 'uv is not available after installation.'
 
