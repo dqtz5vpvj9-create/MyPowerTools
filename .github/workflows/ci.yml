@@ -81,6 +81,10 @@ jobs:
             throw 'Tool submodule checkout is incomplete.'
           }
 
+      - name: Build SDK bundles
+        shell: pwsh
+        run: pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\build-sdk.ps1
+
       - name: Restore
         shell: pwsh
         run: dotnet restore MyPowerTools.slnx
@@ -178,6 +182,10 @@ jobs:
           key: windows-dependencies-${{ hashFiles('global.json', 'NuGet.Config', '**/*.csproj', 'sdk/web-bridge/package-lock.json') }}
           restore-keys: |
             windows-dependencies-
+
+      - name: Prepare local NuGet source
+        shell: pwsh
+        run: New-Item -ItemType Directory -Path artifacts\sdk\nuget -Force | Out-Null
 
       - name: Resolve release version and channel
         id: release-info
