@@ -223,15 +223,22 @@ jobs:
 
       - name: Download previous release OTA manifest
         shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           New-Item -ItemType Directory -Path ota-history -Force | Out-Null
-          $latest = gh release list --repo dqtz5vpvj9-create/MyPowerTools --limit 1 --json tagName 2>$null | ConvertFrom-Json
-          if ($latest -and $latest.Count -gt 0) {
-            $assetNames = gh release view $latest[0].tagName --repo dqtz5vpvj9-create/MyPowerTools --json assets --jq '.assets[].name' 2>$null
+          $latest = @(gh release list --repo dqtz5vpvj9-create/MyPowerTools --limit 1 --json tagName | ConvertFrom-Json)
+          if ($latest.Count -gt 0) {
+            $tagName = [string]$latest[0].tagName
+            Write-Host "Previous release: $tagName"
+            $assetNames = @(gh release view $tagName --repo dqtz5vpvj9-create/MyPowerTools --json assets --jq '.assets[].name')
             if ($assetNames -contains 'MyPowerTools-win-x64.manifest.json') {
-              gh release download $latest[0].tagName --repo dqtz5vpvj9-create/MyPowerTools --pattern MyPowerTools-win-x64.manifest.json --dir ota-history --clobber
+              gh release download $tagName --repo dqtz5vpvj9-create/MyPowerTools --pattern MyPowerTools-win-x64.manifest.json --dir ota-history --clobber
+            } else {
+              Write-Host 'Previous release has no OTA manifest; skipping delta history download.'
             }
           }
+          exit 0
 
       - name: Publish Windows release assets
         shell: pwsh
@@ -286,6 +293,8 @@ jobs:
 
       - name: Create GitHub Release
         shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
           $tag = '${{ steps.release-info.outputs.tag }}'
           $channel = '${{ steps.release-info.outputs.channel }}'
