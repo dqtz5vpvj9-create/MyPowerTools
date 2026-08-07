@@ -864,7 +864,9 @@ try {
 finally {
     foreach ($name in $savedAutostartValues.Keys) {
         try {
-            New-Item -Path $runKeyPath -Force | Out-Null
+            if (-not (Test-Path -LiteralPath $runKeyPath)) {
+                New-Item -Path $runKeyPath -Force | Out-Null
+            }
             Set-ItemProperty -LiteralPath $runKeyPath -Name $name -Value $savedAutostartValues[$name]
         } catch {}
     }

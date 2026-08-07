@@ -65,11 +65,19 @@ foreach ($requiredPath in @($runnerExe, $modulesRoot, $configurationScript)) {
 
 $runnerStarted = $false
 if ($StartRunner) {
-    $existingRunner = Get-CimInstance Win32_Process -Filter "Name = 'MyPowerTools.Runner.exe'" |
+    $existingRunner = Get-Process -Name 'MyPowerTools.Runner' -ErrorAction SilentlyContinue |
         Where-Object {
-            $_.SessionId -eq $sessionId -and
-            $_.ExecutablePath -and
-            $_.ExecutablePath.Equals($runnerExe, [StringComparison]::OrdinalIgnoreCase)
+            if ($_.SessionId -ne $sessionId) {
+                return $false
+            }
+            $processPath = ''
+            try {
+                $processPath = $_.MainModule.FileName
+            } catch {
+            }
+            return $runnerExe.Equals(
+                $processPath,
+                [StringComparison]::OrdinalIgnoreCase)
         } |
         Select-Object -First 1
     if ($null -eq $existingRunner) {

@@ -104,6 +104,106 @@ $missing = @($criticalPaths | Where-Object {
 })
 Assert-True -Condition ($missing.Count -eq 0) -Message "Critical installed files are missing: $($missing -join ', ')"
 
+$installManifest = Get-Content -LiteralPath $installManifestPath -Raw | ConvertFrom-Json
+$runKeyPath = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
+if ([bool]$installManifest.autostart) {
+    $runnerExePath = Join-Path $InstallDir 'Runner\MyPowerTools.Runner.exe'
+    $modulesRootPath = Join-Path $InstallDir 'modules'
+    $expectedRunner = "`"$runnerExePath`" --modules `"$modulesRootPath`" --data-root `"$DataRoot`""
+    $currentRunner = (Get-ItemProperty -LiteralPath $runKeyPath -Name 'MyPowerTools' -ErrorAction SilentlyContinue).MyPowerTools
+    if ([string]::IsNullOrWhiteSpace([string]$currentRunner) -or
+        [string]$currentRunner -ne $expectedRunner) {
+        if (-not (Test-Path -LiteralPath $runKeyPath)) {
+            New-Item -Path $runKeyPath -Force | Out-Null
+        }
+        Set-ItemProperty -LiteralPath $runKeyPath -Name 'MyPowerTools' -Value $expectedRunner
+    }
+}
+
+$healthChecks = [Collections.Generic.List[object]]::new()
+foreach ($relative in $criticalPaths) {
+    $exists = Test-Path -LiteralPath (Join-Path $InstallDir $relative) -PathType Leaf
+    $healthChecks.Add([pscustomobject]@{
+        path = $relative
+        ok = $exists
+        detail = if ($exists) { 'present' } else { 'missing' }
+    })
+}
+$healthChecks.Add([pscustomobject]@{
+    path = 'install.manifest.json'
+    ok = $true
+    detail = 'present'
+})
+$health = [ordered]@{
+    checkedAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
+    expectedVersion = $newVersion
+    ok = $true
+    failedCount = 0
+    checks = $healthChecks.ToArray()
+}
+[IO.File]::WriteAllText(
+    (Join-Path $otaStateDir 'health-check.json'),
+    ($health | ConvertTo-Json -Depth 6),
+    [Text.UTF8Encoding]::new($false))
+
+$pythonPath = Join-Path $InstallDir 'Runtimes\Python312\python.exe'
+$smartBirdRoot = Join-Path $InstallDir 'Runtimes\SmartBird'
+$smartBirdData = Join-Path $DataRoot 'SmartBird'
+$restoredTasks = [Collections.Generic.List[string]]::new()
+if (Test-Path -LiteralPath $pythonPath -PathType Leaf) {
+    $thermostatScript = Join-Path $smartBirdRoot 'scripts\install-smartbird-thermostat-task.ps1'
+    if (Test-Path -LiteralPath $thermostatScript -PathType Leaf) {
+        & $thermostatScript `
+            -Mode Install `
+            -RepoRoot $smartBirdRoot `
+            -PythonPath $pythonPath `
+            -DataRoot $smartBirdData `
+            -StartAfterInstall | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            throw "SmartBird thermostat task registration failed (exit $LASTEXITCODE)."
+        }
+        $restoredTasks.Add('SmartBirdThermostat')
+    }
+    $energyScript = Join-Path $smartBirdRoot 'scripts\install-energy-server-task.ps1'
+    if (Test-Path -LiteralPath $energyScript -PathType Leaf) {
+        & $energyScript `
+            -Mode Install `
+            -RepoRoot $smartBirdRoot `
+            -PythonPath $pythonPath `
+            -DataRoot $smartBirdData `
+            -SettingsFile (Join-Path $smartBirdData 'settings.json') | Out-Null
+        if ($LASTEXITCODE -ne 0) {
+            throw "Energy Server task registration failed (exit $LASTEXITCODE)."
+        }
+        $restoredTasks.Add('EnergyServer')
+    }
+
+    $doubaoRoot = Join-Path $InstallDir 'Runtimes\Doubao'
+    foreach ($serviceName in @('tool_server', 'mcp_server', 'planner')) {
+        $venvConfig = Join-Path $doubaoRoot "$serviceName\.venv\pyvenv.cfg"
+        if (-not (Test-Path -LiteralPath $venvConfig -PathType Leaf)) {
+            continue
+        }
+        $lines = [IO.File]::ReadAllLines(
+            $venvConfig,
+            [Text.Encoding]::UTF8)
+        $homeIndex = -1
+        for ($index = 0; $index -lt $lines.Length; $index++) {
+            if ($lines[$index].TrimStart().StartsWith('home = ', [StringComparison]::OrdinalIgnoreCase)) {
+                $homeIndex = $index
+                break
+            }
+        }
+        $pythonHome = (Join-Path $InstallDir 'Runtimes\Python312')
+        if ($homeIndex -ge 0) {
+            $lines[$homeIndex] = "home = $pythonHome"
+        } else {
+            $lines += "home = $pythonHome"
+        }
+        [IO.File]::WriteAllLines($venvConfig, $lines, [Text.Encoding]::UTF8)
+    }
+}
+
 [pscustomobject]@{
     success = $true
     host = $env:COMPUTERNAME
@@ -113,5 +213,7 @@ Assert-True -Condition ($missing.Count -eq 0) -Message "Critical installed files
     zipSha256 = $actualHash
     manifestSha256 = $shippedManifestHash
     otaStateReady = $true
+    healthOk = $true
+    restoredTasks = $restoredTasks.ToArray()
     completedAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
 } | ConvertTo-Json -Depth 5

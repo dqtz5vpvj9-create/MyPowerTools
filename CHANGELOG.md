@@ -23,6 +23,15 @@
 - Added CI release automation: tag/nightly builds publish GitHub Releases with
   full ZIP, manifest, deltas, signed feeds, package feeds, and OTA history
   commits.
+- Fixed `New-Item -Force` registry footgun that recreated the HKCU Run key and
+  wiped unrelated autostart values; Run-key creation is now guarded by
+  `Test-Path` in the installer, user-service configuration, updater restore,
+  and dorm deployment helpers.
+- Fixed `start-user-runtime.ps1` to detect the running Runner with
+  `Get-Process` instead of WMI, which failed with access denied inside
+  scheduled-task sessions and blocked the interactive runtime bootstrap.
+- Made the daily OTA check task registration tolerant of restricted task
+  contexts so runtime start never fails when re-registration is denied.
 
 ## 0.2.0
 

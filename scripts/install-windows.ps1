@@ -576,7 +576,9 @@ $manifest = [ordered]@{
     }
 
     if ($EnableAutostartEffective) {
-        New-Item -Path $runKeyPath -Force | Out-Null
+        if (-not (Test-Path -LiteralPath $runKeyPath)) {
+            New-Item -Path $runKeyPath -Force | Out-Null
+        }
         Set-ItemProperty -Path $runKeyPath -Name 'MyPowerTools' -Value "`"$runnerExe`" $runnerArguments"
     } else {
         Remove-ItemProperty -Path $runKeyPath -Name 'MyPowerTools' -ErrorAction SilentlyContinue
