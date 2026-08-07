@@ -154,7 +154,12 @@ if (-not $SkipDoubao) {
         & $uvCommand.Source venv $venvRoot --python 3.12
         Assert-True -Condition ($LASTEXITCODE -eq 0) -Message "uv venv failed for $service"
         $venvPython = Join-Path $venvRoot 'Scripts\python.exe'
-        & $uvCommand.Source pip install --python $venvPython $serviceDir
+        $installArguments = @('pip', 'install', '--python', $venvPython)
+        if ($service -in @('tool_server', 'planner')) {
+            $installArguments += '--no-install-project'
+        }
+        $installArguments += $serviceDir
+        & $uvCommand.Source @installArguments
         Assert-True -Condition ($LASTEXITCODE -eq 0) -Message "uv pip install failed for $service"
         & $venvPython -c 'import fastapi' 2>$null
     }
