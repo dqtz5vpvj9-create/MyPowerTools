@@ -217,11 +217,16 @@ jobs:
           New-Item -ItemType Directory -Path ota-history -Force | Out-Null
           $latest = gh release list --repo dqtz5vpvj9-create/MyPowerTools --limit 1 --json tagName 2>$null | ConvertFrom-Json
           if ($latest -and $latest.Count -gt 0) {
-            gh release download $latest[0].tagName --repo dqtz5vpvj9-create/MyPowerTools --pattern MyPowerTools-win-x64.manifest.json --dir ota-history --clobber
+            $assetNames = gh release view $latest[0].tagName --repo dqtz5vpvj9-create/MyPowerTools --json assets --jq '.assets[].name' 2>$null
+            if ($assetNames -contains 'MyPowerTools-win-x64.manifest.json') {
+              gh release download $latest[0].tagName --repo dqtz5vpvj9-create/MyPowerTools --pattern MyPowerTools-win-x64.manifest.json --dir ota-history --clobber
+            }
           }
 
       - name: Publish Windows release assets
         shell: pwsh
+        env:
+          MPT_OTA_SIGNING_KEY_BASE64: ${{ secrets.MPT_OTA_SIGNING_KEY_BASE64 }}
         run: |
           $key = $env:MPT_OTA_SIGNING_KEY_BASE64
           $args = @(
@@ -245,6 +250,8 @@ jobs:
 
       - name: Publish tool package OTA feeds
         shell: pwsh
+        env:
+          MPT_OTA_SIGNING_KEY_BASE64: ${{ secrets.MPT_OTA_SIGNING_KEY_BASE64 }}
         run: |
           $key = $env:MPT_OTA_SIGNING_KEY_BASE64
           $args = @(
