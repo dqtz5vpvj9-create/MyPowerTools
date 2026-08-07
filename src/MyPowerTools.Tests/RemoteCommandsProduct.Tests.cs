@@ -57,13 +57,124 @@ public sealed class RemoteCommandsProductTests
     }
 
     [Fact]
-    public void Commands_yaml_validation_requires_the_commands_section()
+    public void Commands_yaml_exposes_user_facing_input_metadata()
+    {
+        const string yaml = """
+            commands:
+              - id: analyze
+                label: Analyze
+                command: /opt/analyze
+                description: Analyze input
+                type: shell
+                input1_label: Trace data
+                input1_placeholder: Paste the trace.
+                input2_label: Configuration
+                input2_placeholder: Paste optional configuration.
+                show_second_input: true
+            """;
+
+        var command = Assert.Single(RemoteCommandsYaml.ParseCommands(yaml));
+
+        Assert.Equal("Trace data", command.Input1Label);
+        Assert.Equal("Paste the trace.", command.Input1Placeholder);
+        Assert.Equal("Configuration", command.Input2Label);
+        Assert.Equal("Paste optional configuration.", command.Input2Placeholder);
+        Assert.True(command.ShowSecondInput);
+        Assert.True(command.UsesRemoteHost);
+    }
+
+    [Fact]
+    public void Commands_yaml_validation_rejects_missing_commands_duplicates_and_unknown_types()
     {
         Assert.True(RemoteCommandsYaml.TryValidate(RemoteCommandsYaml.DefaultCommandsYaml, out var error));
         Assert.Null(error);
 
         Assert.False(RemoteCommandsYaml.TryValidate("labels:\n  - a\n", out var missingError));
         Assert.NotNull(missingError);
+
+        const string duplicate = """
+            commands:
+              - id: same
+                label: First
+                command: echo first
+                type: shell
+              - id: same
+                label: Second
+                command: echo second
+                type: shell
+            """;
+        Assert.False(RemoteCommandsYaml.TryValidate(duplicate, out var duplicateError));
+        Assert.Contains("duplicated", duplicateError ?? "", StringComparison.OrdinalIgnoreCase);
+
+        const string unknownType = """
+            commands:
+              - id: bad
+                label: Bad
+                command: echo bad
+                type: custom
+            """;
+        Assert.False(RemoteCommandsYaml.TryValidate(unknownType, out var typeError));
+        Assert.Contains("unsupported type", typeError ?? "", StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Remote_commands_workspace_uses_saved_host_selector_and_command_labels()
+    {
+        var surfaceRoot = Path.Combine(
+            Root,
+            "tools",
+            "remote-commands",
+            "current-integration",
+            "src",
+            "RemoteCommands.Surface");
+        var view = File.ReadAllText(Path.Combine(surfaceRoot, "Views", "RemoteCommandsView.axaml"));
+        var settings = File.ReadAllText(Path.Combine(surfaceRoot, "Views", "SettingsDialog.axaml"));
+        var viewModel = File.ReadAllText(Path.Combine(surfaceRoot, "ViewModels", "RemoteCommandsViewModel.cs"));
+
+        Assert.Contains("ItemsSource=\"{Binding HostOptions}\"", view, StringComparison.Ordinal);
+        Assert.Contains("SelectedItem=\"{Binding Host, Mode=TwoWay}\"", view, StringComparison.Ordinal);
+        Assert.Contains("Text=\"{Binding Input1Label}\"", view, StringComparison.Ordinal);
+        Assert.Contains("Watermark=\"{Binding Input1Placeholder}\"", view, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"HostsList\"", settings, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"DefaultHostInput\"", settings, StringComparison.Ordinal);
+        Assert.Contains("IsHostSelectionEnabled", viewModel, StringComparison.Ordinal);
+        Assert.DoesNotContain("PlaceholderText=\"r743\"", view, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Known_hosts_are_normalized_and_round_trip_with_settings()
+    {
+        var hosts = RemoteCommandsStore.ParseKnownHosts("r744\nr743\nR744\n invalid host \n-user");
+        Assert.Equal(new[] { "r744", "r743" }, hosts);
+        Assert.Equal("r744\nr743", RemoteCommandsStore.SerializeKnownHosts(hosts));
+
+        var directory = Path.Combine(Path.GetTempPath(), $"mpt-remote-commands-hosts-{Guid.NewGuid():N}");
+        try
+        {
+            var store = new RemoteCommandsStore(directory);
+            var settings = new RemoteCommandsSettings(
+                "r744",
+                "code",
+                false,
+                100,
+                "r743",
+                2,
+                "r744\nr743\nr744");
+
+            store.SaveSettings(settings);
+            var loaded = store.LoadSettings();
+
+            Assert.Equal("r744", loaded.DefaultHost);
+            Assert.Equal("r743", loaded.LastHost);
+            Assert.Equal(new[] { "r744", "r743" }, RemoteCommandsStore.ParseKnownHosts(loaded.KnownHosts));
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
     }
 
     [Fact]
@@ -128,7 +239,7 @@ public sealed class RemoteCommandsProductTests
             Assert.True(File.Exists(Path.Combine(directory, "commands.yaml")));
             Assert.NotEmpty(store.LoadCommands());
 
-            var settings = new RemoteCommandsSettings("r743", "code", true, 50, "r744", 3);
+            var settings = new RemoteCommandsSettings("r743", "code", true, 50, "r744", 3, "r743\nr744");
             store.SaveSettings(settings);
             Assert.Equal(settings, store.LoadSettings());
 
