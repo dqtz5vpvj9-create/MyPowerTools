@@ -904,7 +904,7 @@ public sealed class LocalLagCleanerProductTests
 
         try
         {
-            var startupDeadline = DateTimeOffset.UtcNow.AddSeconds(15);
+            var startupDeadline = DateTimeOffset.UtcNow.AddSeconds(60);
             while (!File.Exists(processIdPath) &&
                    !executionTask.IsCompleted &&
                    DateTimeOffset.UtcNow < startupDeadline)

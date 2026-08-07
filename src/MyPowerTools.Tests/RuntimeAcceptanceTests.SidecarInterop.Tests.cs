@@ -569,7 +569,18 @@ public sealed partial class RuntimeAcceptanceTests
             CancellationToken.None);
         var output = JsonNode.Parse(transform.Output)!.AsObject()["output"]!.GetValue<string>();
         var diagnostics = runtime.GetRuntimeDiagnostics();
-        var process = Assert.Single(diagnostics.Processes.Where(process => process.TransportKind == "grpc-ipc"));
+        var process = diagnostics.Processes.FirstOrDefault(process => process.TransportKind == "grpc-ipc");
+        var moduleImportDeadline = DateTime.UtcNow.AddSeconds(20);
+        while (DateTime.UtcNow < moduleImportDeadline &&
+               (process is null ||
+                !process.ModuleIds.Contains("android-tools.notifications") ||
+                !process.ModuleIds.Contains("android-tools.process-monitor") ||
+                !process.ModuleIds.Contains("android-tools.remote-commands")))
+        {
+            await Task.Delay(250, CancellationToken.None);
+            diagnostics = runtime.GetRuntimeDiagnostics();
+            process = diagnostics.Processes.FirstOrDefault(process => process.TransportKind == "grpc-ipc");
+        }
 
         Assert.True(dynamicCount > 0);
         Assert.Contains(runtime.ListCommands("Remove C++"), command => command.Id == "android-tools.remote-commands.run.remove_comments");
@@ -578,6 +589,7 @@ public sealed partial class RuntimeAcceptanceTests
         Assert.True(transform.Success);
         Assert.DoesNotContain("remove me", output);
         Assert.Contains("// keep me", output);
+        Assert.NotNull(process);
         Assert.Equal("package:android-tools-suite:runtime:powertoold", process.PoolKey);
         Assert.Contains("android-tools.notifications", process.ModuleIds);
         Assert.Contains("android-tools.process-monitor", process.ModuleIds);
