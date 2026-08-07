@@ -193,6 +193,37 @@ pwsh scripts/publish-windows.ps1 -Channel stable `
   -SigningKeyBase64 $env:MPT_OTA_SIGNING_KEY_BASE64
 ```
 
+Validate a produced release directory before distributing it:
+
+```powershell
+pwsh scripts/verify-release-artifacts.ps1 -Channel stable -ExpectedVersion 0.3.0
+```
+
+The verifier checks ZIP/SHA-256 parity, manifest consistency, feed structure
+and signature, public-key match, ZIP contents, release metadata, delta plan
+consistency, and every package feed signature/archive hash.
+
+## First upgrade of an existing machine over SSH
+
+When an older installation (for example the dorm machine on v0.2.0) has no OTA
+state yet, deploy the full ZIP with the two-step SSH helper:
+
+```powershell
+# preflight first (reachability only)
+pwsh scripts/deploy-dorm-upgrade.ps1 -RemoteHost dorm -PreflightOnly
+
+# transfer ~773 MB, verify the remote hash, install, and health-check
+pwsh scripts/deploy-dorm-upgrade.ps1 -RemoteHost dorm
+```
+
+`deploy-dorm-upgrade.ps1` uploads the ZIP, its SHA-256 marker, and
+`dorm-upgrade-remote.ps1` to `C:\Users\Public\MyPowerTools-Upgrade`, then runs
+the remote helper with `pwsh`. The helper verifies the hash before extraction,
+runs `install-windows.ps1` from the staged release, and checks the installed
+version, OTA state files, manifest byte identity, and critical executables.
+The machine keeps its data under `%LOCALAPPDATA%\MyPowerTools`; the install
+directory is replaced with backup/restore protection.
+
 ## Security baseline
 
 - Ed25519-signed feed binds channel, version, full package hash, and delta

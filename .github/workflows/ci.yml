@@ -19,9 +19,6 @@ on:
         type: string
         description: Optional version override (X.Y.Z). Defaults to version.json or the git tag.
         required: false
-  schedule:
-    # 16:17 UTC == 00:17 Asia/Shanghai, nightly feed builds after the daily CI pass.
-    - cron: "17 16 * * *"
 
 permissions:
   contents: write
@@ -152,8 +149,7 @@ jobs:
     needs: windows
     if: >
       (github.event_name == 'push' && startsWith(github.ref, 'refs/tags/v')) ||
-      github.event_name == 'workflow_dispatch' ||
-      github.event_name == 'schedule'
+      github.event_name == 'workflow_dispatch'
     runs-on: windows-latest
     env:
       DOTNET_CLI_TELEMETRY_OPTOUT: 1
@@ -186,21 +182,19 @@ jobs:
         shell: pwsh
         run: |
           $channel = 'stable'
-          if ($env:GITHUB_EVENT_NAME -eq 'workflow_dispatch') {
-            $channel = $env:INPUT_CHANNEL
+          if ('${{ github.event_name }}' -eq 'workflow_dispatch') {
+            $channel = '${{ github.event.inputs.channel }}'
             if ([string]::IsNullOrWhiteSpace($channel)) { $channel = 'nightly' }
-          } elseif ($env:GITHUB_EVENT_NAME -eq 'schedule') {
-            $channel = 'nightly'
           }
           $version = ''
-          if ($env:GITHUB_EVENT_NAME -eq 'push') {
+          if ('${{ github.event_name }}' -eq 'push') {
             $ref = $env:GITHUB_REF
             if ($ref -match '^refs/tags/v([0-9]+\.[0-9]+\.[0-9]+)$') {
               $version = $Matches[1]
             }
           }
           if ([string]::IsNullOrWhiteSpace($version)) {
-            $version = $env:INPUT_VERSION
+            $version = '${{ github.event.inputs.version }}'
           }
           if ([string]::IsNullOrWhiteSpace($version)) {
             $versionObject = (pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\get-product-version.ps1 -RepoRoot $env:GITHUB_WORKSPACE -PreferGitTag | ConvertFrom-Json)
@@ -209,9 +203,13 @@ jobs:
           if ($version -notmatch '^[0-9]+\.[0-9]+\.[0-9]+$') {
             throw "Resolved version is invalid: $version"
           }
+          $tag = "v$version"
+          if ($channel -eq 'nightly') {
+            $tag = "nightly-$version-$(Get-Date -Format 'yyyyMMdd')"
+          }
           "version=$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
           "channel=$channel" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
-          "tag=v$version" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
+          "tag=$tag" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
       - name: Download previous release OTA manifest
         shell: pwsh
@@ -293,7 +291,18 @@ jobs:
           if ($assets.Count -eq 0) {
             throw 'No release assets were produced.'
           }
-          gh release create $tag --repo dqtz5vpvj9-create/MyPowerTools --target main --title "MyPowerTools ${{ steps.release-info.outputs.version }}" --notes-file artifacts/release/RELEASE_NOTES.md $assets
+          $releaseArgs = @(
+            'release', 'create', $tag,
+            '--repo', 'dqtz5vpvj9-create/MyPowerTools',
+            '--target', 'main',
+            '--title', "MyPowerTools ${{ steps.release-info.outputs.version }} (${{ steps.release-info.outputs.channel }})",
+            '--notes-file', 'artifacts/release/RELEASE_NOTES.md'
+          )
+          if ('${{ steps.release-info.outputs.channel }}' -eq 'nightly') {
+            $releaseArgs += '--prerelease'
+          }
+          $releaseArgs += $assets
+          gh @releaseArgs
 
       - name: Commit OTA history manifest
         shell: pwsh

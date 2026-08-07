@@ -75,10 +75,15 @@ function Compare-OtaVersion {
 
 $packageDirFull = [IO.Path]::GetFullPath($PackageDir)
 $moduleJsonPath = Join-Path $packageDirFull 'module.json'
-if (-not (Test-Path -LiteralPath $moduleJsonPath -PathType Leaf)) {
-    throw "Package directory has no module.json: $packageDirFull"
+$packageJsonPath = Join-Path $packageDirFull 'package.json'
+$manifestPath = if (Test-Path -LiteralPath $moduleJsonPath -PathType Leaf) {
+    $moduleJsonPath
+} elseif (Test-Path -LiteralPath $packageJsonPath -PathType Leaf) {
+    $packageJsonPath
+} else {
+    throw "Package directory has neither module.json nor package.json: $packageDirFull"
 }
-$module = Get-Content -LiteralPath $moduleJsonPath -Raw | ConvertFrom-Json
+$module = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
 $moduleId = [string]$module.id
 if ($moduleId -ne $PackageId) {
     throw "Package id '$moduleId' does not match requested '$PackageId'."

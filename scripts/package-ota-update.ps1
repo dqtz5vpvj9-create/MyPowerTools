@@ -219,9 +219,17 @@ if (Test-Path -LiteralPath $installedReleasePath -PathType Leaf) {
 
 $packageRoot = Join-Path $InstallRootFull "modules\$PackageId"
 $moduleJsonPath = Join-Path $packageRoot 'module.json'
+$packageJsonPath = Join-Path $packageRoot 'package.json'
+$installedManifestPath = if (Test-Path -LiteralPath $moduleJsonPath -PathType Leaf) {
+    $moduleJsonPath
+} elseif (Test-Path -LiteralPath $packageJsonPath -PathType Leaf) {
+    $packageJsonPath
+} else {
+    $null
+}
 $installedPackageVersion = '0.0.0'
-if (Test-Path -LiteralPath $moduleJsonPath -PathType Leaf) {
-    $installedModule = Get-Content -LiteralPath $moduleJsonPath -Raw | ConvertFrom-Json
+if ($null -ne $installedManifestPath) {
+    $installedModule = Get-Content -LiteralPath $installedManifestPath -Raw | ConvertFrom-Json
     $installedPackageVersion = [string]$installedModule.version
 }
 
@@ -298,10 +306,18 @@ Add-Type -AssemblyName System.IO.Compression.FileSystem
 [IO.Compression.ZipFile]::ExtractToDirectory($archivePath, $extractRoot)
 
 $extractedModuleJson = Join-Path $extractRoot 'module.json'
-if (-not (Test-Path -LiteralPath $extractedModuleJson -PathType Leaf)) {
-    throw "Package OTA archive is missing module.json: $extractRoot"
+$extractedPackageJson = Join-Path $extractRoot 'package.json'
+$extractedManifestPath = if (Test-Path -LiteralPath $extractedModuleJson -PathType Leaf) {
+    $extractedModuleJson
+} elseif (Test-Path -LiteralPath $extractedPackageJson -PathType Leaf) {
+    $extractedPackageJson
+} else {
+    $null
 }
-$extractedModule = Get-Content -LiteralPath $extractedModuleJson -Raw | ConvertFrom-Json
+if ($null -eq $extractedManifestPath) {
+    throw "Package OTA archive has neither module.json nor package.json: $extractRoot"
+}
+$extractedModule = Get-Content -LiteralPath $extractedManifestPath -Raw | ConvertFrom-Json
 if ([string]$extractedModule.id -ne $PackageId) {
     throw "Package OTA archive id '$($extractedModule.id)' does not match '$PackageId'."
 }

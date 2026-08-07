@@ -29,10 +29,18 @@ $feedScript = Join-Path $PSScriptRoot 'new-ota-package-feed.ps1'
 $results = [Collections.Generic.List[object]]::new()
 foreach ($packageDir in Get-ChildItem -LiteralPath $ModulePackagesRoot -Directory | Sort-Object Name) {
     $moduleJsonPath = Join-Path $packageDir.FullName 'module.json'
-    if (-not (Test-Path -LiteralPath $moduleJsonPath -PathType Leaf)) {
+    $packageJsonPath = Join-Path $packageDir.FullName 'package.json'
+    $manifestPath = if (Test-Path -LiteralPath $moduleJsonPath -PathType Leaf) {
+        $moduleJsonPath
+    } elseif (Test-Path -LiteralPath $packageJsonPath -PathType Leaf) {
+        $packageJsonPath
+    } else {
+        $null
+    }
+    if ($null -eq $manifestPath) {
         continue
     }
-    $module = Get-Content -LiteralPath $moduleJsonPath -Raw | ConvertFrom-Json
+    $module = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
     $packageId = [string]$module.id
     if ([string]::IsNullOrWhiteSpace($packageId)) {
         throw "Module package has no id: $($packageDir.FullName)"
