@@ -121,6 +121,14 @@ if (-not (Test-Path -LiteralPath $publishRootFull -PathType Container)) {
     throw "Publish root is missing: $publishRootFull"
 }
 
+if ([string]::IsNullOrWhiteSpace($PlatformToolsSource) -or
+    -not (Test-Path -LiteralPath $PlatformToolsSource -PathType Container)) {
+    $candidatePlatformTools = Join-Path $RepoRoot 'artifacts\android-platform-tools'
+    if (Test-Path -LiteralPath $candidatePlatformTools -PathType Container) {
+        $PlatformToolsSource = $candidatePlatformTools
+    }
+}
+
 $runtimesRoot = [System.IO.Path]::GetFullPath((Join-Path $publishRootFull 'Runtimes'))
 $toolsRoot = [System.IO.Path]::GetFullPath((Join-Path $publishRootFull 'Tools'))
 $publishPrefix = $publishRootFull

@@ -240,6 +240,10 @@ jobs:
           }
           exit 0
 
+      - name: Prepare runtime cache
+        shell: pwsh
+        run: pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\prepare-runtime-cache.ps1
+
       - name: Publish Windows release assets
         shell: pwsh
         env:
