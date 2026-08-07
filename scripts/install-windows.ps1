@@ -185,7 +185,8 @@ function Stop-InstalledProcess {
         'MyPowerTools.Runner',
         'MyPowerTools.Shell.Avalonia',
         'MyPowerTools.Cli',
-        'MyPowerTools.ElevatedBroker'
+        'MyPowerTools.ElevatedBroker',
+        'adb'
     )
 
     foreach ($name in $processNames) {

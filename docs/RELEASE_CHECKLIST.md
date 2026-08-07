@@ -4,6 +4,15 @@ The OTA pipeline is release-ready once these steps complete. Local `main`
 already contains the full implementation and the signing secret is configured
 in GitHub Actions.
 
+## Status
+
+- **v0.3.0 released on 2026-08-08 via CI** with the full ZIP, Setup exe,
+  file manifest, signed stable feed, package feeds, and source bundle.
+- The dorm machine was upgraded to the released 0.3.0 package and reports
+  `mpt ota check` → `up-to-date` from the GitHub feed.
+- Subsequent tags publish automatically; `ota-history/` holds the 0.3.0
+  manifest so the next release builds a delta.
+
 ## Prerequisites
 
 - GitHub secret `MPT_OTA_SIGNING_KEY_BASE64` exists (checked 2026-08-07).
