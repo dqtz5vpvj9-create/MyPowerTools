@@ -135,7 +135,7 @@ jobs:
 
       - name: Runner Once
         shell: pwsh
-        run: dotnet run --no-build --project src\MyPowerTools.Runner -- --once --modules artifacts\ci-modules
+        run: dotnet run --no-build --project src\MyPowerTools.Runner -- --once --modules "$env:GITHUB_WORKSPACE\artifacts\ci-modules"
 
       - name: Smoke
         shell: pwsh
