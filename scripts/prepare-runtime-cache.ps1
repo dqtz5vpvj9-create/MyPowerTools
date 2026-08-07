@@ -156,9 +156,21 @@ if (-not $SkipDoubao) {
         $venvPython = Join-Path $venvRoot 'Scripts\python.exe'
         $installArguments = @('pip', 'install', '--python', $venvPython)
         if ($service -in @('tool_server', 'planner')) {
-            $installArguments += '--no-install-project'
+            $pyprojectPath = Join-Path $serviceDir 'pyproject.toml'
+            $pyproject = [IO.File]::ReadAllText($pyprojectPath, [Text.Encoding]::UTF8)
+            $dependenciesMatch = [regex]::Match(
+                $pyproject,
+                '(?s)dependencies\s*=\s*\[(.*?)\]')
+            Assert-True -Condition $dependenciesMatch.Success -Message "pyproject dependencies block not found for $service"
+            $dependencyStrings = [regex]::Matches(
+                $dependenciesMatch.Groups[1].Value,
+                '"([^"]+)"') |
+                ForEach-Object { $_.Groups[1].Value }
+            Assert-True -Condition ($dependencyStrings.Count -gt 0) -Message "pyproject has no dependencies for $service"
+            $installArguments += $dependencyStrings
+        } else {
+            $installArguments += $serviceDir
         }
-        $installArguments += $serviceDir
         & $uvCommand.Source @installArguments
         Assert-True -Condition ($LASTEXITCODE -eq 0) -Message "uv pip install failed for $service"
         & $venvPython -c 'import fastapi' 2>$null
