@@ -190,6 +190,12 @@ if (Test-Path -LiteralPath $desktopShortcutPath) {
     Remove-Item -LiteralPath $desktopShortcutPath -Force
 }
 
+$userDotnetRoot = [Environment]::GetEnvironmentVariable('DOTNET_ROOT', 'User')
+if ($userDotnetRoot -and
+    (Test-IsInsidePath -Parent $InstallDirFull -Child $userDotnetRoot)) {
+    [Environment]::SetEnvironmentVariable('DOTNET_ROOT', $null, 'User')
+}
+
 if (Test-Path -LiteralPath $InstallDirFull) {
     Remove-Item -LiteralPath $InstallDirFull -Recurse -Force
 }

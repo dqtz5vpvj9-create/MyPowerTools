@@ -46,6 +46,8 @@ $installRootFull = [IO.Path]::GetFullPath($InstallRoot)
 $canonicalInstallRoot = [IO.Path]::GetFullPath((Join-Path $env:LOCALAPPDATA 'Programs\MyPowerTools'))
 $dataRootFull = [IO.Path]::GetFullPath($DataRoot)
 $sessionId = (Get-Process -Id $PID).SessionId
+$dotnetRoot = Join-Path $installRootFull 'Runtime\dotnet'
+[Environment]::SetEnvironmentVariable('DOTNET_ROOT', $dotnetRoot, 'Process')
 
 if (-not $installRootFull.Equals($canonicalInstallRoot, [StringComparison]::OrdinalIgnoreCase)) {
     throw "MyPowerTools runtime requires the canonical install root $canonicalInstallRoot. InstallRoot=$installRootFull"

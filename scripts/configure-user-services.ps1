@@ -219,6 +219,7 @@ function Deploy-UnitManifests {
         $environment['MPT_DATA_ROOT'] = $DataRootFull
         $environment['MPT_TOOL_DATA_ROOT'] = $toolDataRoot
         $environment['MPT_INSTALL_ROOT'] = $InstallRootFull
+        $environment['DOTNET_ROOT'] = $dotnetRoot
         $manifest.environment = $environment
         $manifest.dataRoots = @($toolDataRoot)
 
@@ -272,6 +273,8 @@ $serviceManagerRunName = 'MyPowerTools.ServiceManager'
 $currentSessionId = (Get-Process -Id $PID).SessionId
 $savedDataRoot = [Environment]::GetEnvironmentVariable('MPT_DATA_ROOT', 'Process')
 [Environment]::SetEnvironmentVariable('MPT_DATA_ROOT', $dataRootFull, 'Process')
+$dotnetRoot = Join-Path $installRootFull 'Runtime\dotnet'
+[Environment]::SetEnvironmentVariable('DOTNET_ROOT', $dotnetRoot, 'Process')
 
 try {
     if ($Mode -eq 'Uninstall') {

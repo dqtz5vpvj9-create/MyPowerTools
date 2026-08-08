@@ -9,7 +9,8 @@
     1. Builds the local SDK bundles (build-sdk.ps1) and every first-party tool package
        (build-tool-packages.ps1) under artifacts/release/module-packages.
     2. Publishes Runner, Shell (ReadyToRun composite), Cli, ElevatedBroker,
-       ServiceManager and the App launcher as managed self-contained win-x64.
+       ServiceManager and the App launcher as framework-dependent win-x64
+       binaries that share one bundled .NET runtime under Runtime\dotnet.
     3. Stages Service Units, modules, schemas, ui, assets, templates and the user-facing
        maintenance scripts into artifacts/release/win-x64, validates the module packages
        and writes build-provenance.json.
@@ -17,8 +18,10 @@
        -PortableOnly is set, the Inno Setup installer and a source bundle.
 
 .NOTES
-  The App launcher and ElevatedBroker are managed, self-contained single-file executables.
-  The Windows release does not require the .NET runtime or the Visual C++ build workload.
+  The App launcher and ElevatedBroker are managed, framework-dependent single-file
+  executables. One .NET runtime copy ships under Runtime\dotnet and every process
+  resolves it through DOTNET_ROOT, so the release no longer carries a per-process
+  runtime copy. Debug symbols are stripped from the published layout.
 
 .PARAMETER PortableOnly
   Skip the Inno Setup installer and source bundle; produce only the portable layout + ZIP.
@@ -320,12 +323,12 @@ Invoke-Native -FilePath 'pwsh.exe' -ArgumentList @(
 Invoke-Native -FilePath 'dotnet' -ArgumentList @(
     'run', '--project', 'src\MyPowerTools.Cli\MyPowerTools.Cli.csproj', '--',
     'package', 'sign-local', $ModuleStagingRootFull)
-Invoke-Native -FilePath 'dotnet' -ArgumentList @('publish', 'src\MyPowerTools.Runner\MyPowerTools.Runner.csproj', '-c', 'Release', '-r', 'win-x64', '--self-contained', 'true', '-o', (Join-Path $PublishRoot 'Runner'))
-Invoke-Native -FilePath 'dotnet' -ArgumentList @('publish', 'src\MyPowerTools.Shell.Avalonia\MyPowerTools.Shell.Avalonia.csproj', '-c', 'Release', '-r', 'win-x64', '--self-contained', 'true', '-p:PublishReadyToRun=true', '-p:PublishReadyToRunComposite=true', '-o', (Join-Path $PublishRoot 'Shell'))
-Invoke-Native -FilePath 'dotnet' -ArgumentList @('publish', 'src\MyPowerTools.Cli\MyPowerTools.Cli.csproj', '-c', 'Release', '-r', 'win-x64', '--self-contained', 'true', '-o', (Join-Path $PublishRoot 'Cli'))
-Invoke-Native -FilePath 'dotnet' -ArgumentList @('publish', 'src\MyPowerTools.ElevatedBroker\MyPowerTools.ElevatedBroker.csproj', '-c', 'Release', '-r', 'win-x64', '--self-contained', 'true', '-p:PublishAot=false', '-p:PublishSingleFile=true', '-p:DebugType=None', '-p:DebugSymbols=false', '-o', (Join-Path $PublishRoot 'Broker'))
+Invoke-Native -FilePath 'dotnet' -ArgumentList @('publish', 'src\MyPowerTools.Runner\MyPowerTools.Runner.csproj', '-c', 'Release', '-r', 'win-x64', '--self-contained', 'false', '-p:DebugType=None', '-p:DebugSymbols=false', '-o', (Join-Path $PublishRoot 'Runner'))
+Invoke-Native -FilePath 'dotnet' -ArgumentList @('publish', 'src\MyPowerTools.Shell.Avalonia\MyPowerTools.Shell.Avalonia.csproj', '-c', 'Release', '-r', 'win-x64', '--self-contained', 'false', '-p:PublishReadyToRun=true', '-p:PublishReadyToRunComposite=true', '-p:DebugType=None', '-p:DebugSymbols=false', '-o', (Join-Path $PublishRoot 'Shell'))
+Invoke-Native -FilePath 'dotnet' -ArgumentList @('publish', 'src\MyPowerTools.Cli\MyPowerTools.Cli.csproj', '-c', 'Release', '-r', 'win-x64', '--self-contained', 'false', '-p:DebugType=None', '-p:DebugSymbols=false', '-o', (Join-Path $PublishRoot 'Cli'))
+Invoke-Native -FilePath 'dotnet' -ArgumentList @('publish', 'src\MyPowerTools.ElevatedBroker\MyPowerTools.ElevatedBroker.csproj', '-c', 'Release', '-r', 'win-x64', '--self-contained', 'false', '-p:PublishAot=false', '-p:PublishSingleFile=true', '-p:DebugType=None', '-p:DebugSymbols=false', '-o', (Join-Path $PublishRoot 'Broker'))
 Invoke-Native -FilePath 'pwsh.exe' -ArgumentList @('-NoLogo', '-NoProfile', '-NonInteractive', '-File', (Join-Path $PSScriptRoot 'validate-elevated-broker.ps1'), '-BrokerDirectory', (Join-Path $PublishRoot 'Broker'))
-Invoke-Native -FilePath 'dotnet' -ArgumentList @('publish', 'src\MyPowerTools.ServiceManager\MyPowerTools.ServiceManager.csproj', '-c', 'Release', '-r', 'win-x64', '--self-contained', 'true', '-p:DebugType=None', '-p:DebugSymbols=false', '-o', (Join-Path $PublishRoot 'ServiceManager'))
+Invoke-Native -FilePath 'dotnet' -ArgumentList @('publish', 'src\MyPowerTools.ServiceManager\MyPowerTools.ServiceManager.csproj', '-c', 'Release', '-r', 'win-x64', '--self-contained', 'false', '-p:DebugType=None', '-p:DebugSymbols=false', '-o', (Join-Path $PublishRoot 'ServiceManager'))
 
 $toolBuildManifestPath = Join-Path $RepoRoot 'artifacts\tool-package-build\source-manifest.json'
 if (-not (Test-Path -LiteralPath $toolBuildManifestPath -PathType Leaf)) {
@@ -349,9 +352,26 @@ foreach ($tool in @($toolBuildManifest.tools)) {
     }
 }
 $LauncherPublishRoot = Join-Path $PublishRoot 'App'
-Invoke-Native -FilePath 'dotnet' -ArgumentList @('publish', 'src\MyPowerTools.App\MyPowerTools.App.csproj', '-c', 'Release', '-r', 'win-x64', '--self-contained', 'true', '-p:PublishAot=false', '-p:PublishSingleFile=true', '-p:OptimizationPreference=Speed', '-p:DebugType=None', '-p:DebugSymbols=false', '-o', $LauncherPublishRoot)
+Invoke-Native -FilePath 'dotnet' -ArgumentList @('publish', 'src\MyPowerTools.App\MyPowerTools.App.csproj', '-c', 'Release', '-r', 'win-x64', '--self-contained', 'false', '-p:PublishAot=false', '-p:PublishSingleFile=true', '-p:OptimizationPreference=Speed', '-p:DebugType=None', '-p:DebugSymbols=false', '-o', $LauncherPublishRoot)
 Copy-Item -LiteralPath (Join-Path $LauncherPublishRoot 'MyPowerTools.exe') -Destination (Join-Path $PublishRoot 'MyPowerTools.exe') -Force
 Remove-Item -LiteralPath $LauncherPublishRoot -Recurse -Force
+
+# One shared .NET runtime for every framework-dependent process. Publish the CLI
+# self-contained into Runtime\dotnet as the runtime carrier, then remove the CLI's
+# own files so only hostfxr/coreclr/System.* remain.
+$sharedRuntimeRoot = Join-Path $PublishRoot 'Runtime\dotnet'
+New-Item -ItemType Directory -Path $sharedRuntimeRoot -Force | Out-Null
+Invoke-Native -FilePath 'dotnet' -ArgumentList @(
+    'publish', 'src\MyPowerTools.Cli\MyPowerTools.Cli.csproj',
+    '-c', 'Release', '-r', 'win-x64', '--self-contained', 'true',
+    '-p:DebugType=None', '-p:DebugSymbols=false',
+    '-o', $sharedRuntimeRoot)
+Get-ChildItem -LiteralPath $sharedRuntimeRoot -File -Filter 'MyPowerTools.Cli.*' |
+    Remove-Item -Force
+$hostFxr = Join-Path $sharedRuntimeRoot 'host\fxr'
+if (-not (Test-Path -LiteralPath $hostFxr -PathType Container)) {
+    throw "Shared runtime carrier is missing host\fxr under $sharedRuntimeRoot"
+}
 
 Copy-DirectoryContents -Source $ModuleStagingRootFull -Destination (Join-Path $PublishRoot 'modules')
 Copy-Item -Path (Join-Path $RepoRoot 'schemas') -Destination (Join-Path $PublishRoot 'schemas') -Recurse -Force
@@ -381,6 +401,18 @@ Invoke-Native -FilePath 'pwsh.exe' -ArgumentList @(
     (Join-Path $PSScriptRoot 'stage-tool-runtimes.ps1'),
     '-PublishRoot',
     $PublishRoot)
+
+# Release hygiene: debug symbols are never shipped in the product layout.
+$publishRootFull = [IO.Path]::GetFullPath($PublishRoot).TrimEnd(
+    [IO.Path]::DirectorySeparatorChar,
+    [IO.Path]::AltDirectorySeparatorChar) + [IO.Path]::DirectorySeparatorChar
+Get-ChildItem -LiteralPath $PublishRoot -Recurse -Filter '*.pdb' -File |
+    ForEach-Object {
+        if (-not $_.FullName.StartsWith($publishRootFull, [StringComparison]::OrdinalIgnoreCase)) {
+            throw "PDB path escaped the publish root: $($_.FullName)"
+        }
+        Remove-Item -LiteralPath $_.FullName -Force
+    }
 
 $packageByTool = @{
     'adb-forwarder' = 'adb-forwarder'

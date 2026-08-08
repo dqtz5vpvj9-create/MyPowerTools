@@ -476,15 +476,15 @@ foreach ($state in $toolBuildStates) {
             $unitCollectDir = Join-Path $collectDir "service-units\$($unit.UnitId)"
             $unitBinDir = Join-Path $unitCollectDir 'bin'
             Write-Host "==> [$currentToolId] Service Unit: $($unit.UnitId)" -ForegroundColor Cyan
-            # Self-contained + RID so the worker runs on a clean Windows host with no
-            # global .NET install (portable guarantee). The cost is the bundled runtime
-            # per unit; a future shared-runtime deployment will deduplicate that.
+            # Framework-dependent + RID so the worker runs against the product's
+            # single shared runtime under Runtime\dotnet via DOTNET_ROOT, instead
+            # of bundling one .NET runtime copy per Service Unit.
             Invoke-Native -FilePath $dotnet -ArgumentList @(
                 'publish', $unitProject,
                 '--configuration', $Configuration,
                 '--runtime', 'win-x64',
                 '--output', $unitBinDir,
-                '--self-contained', 'true',
+                '--self-contained', 'false',
                 '--maxcpucount',
                 '--nologo', '--verbosity', 'minimal',
                 '/p:DebugType=None',
@@ -515,6 +515,8 @@ foreach ($state in $toolBuildStates) {
             -Source (Join-Path $collectDir "service-units\$unitId") `
             -Destination (Join-Path $packageStaging "service-units\$unitId")
     }
+    Get-ChildItem -LiteralPath $packageStaging -Recurse -Filter '*.pdb' -File |
+        Remove-Item -Force
     Invoke-Native -FilePath $cliExe -ArgumentList @(
         'package', 'sign-local', $packageStaging
     ) -Activity "mpt package sign-local independent $currentToolId"

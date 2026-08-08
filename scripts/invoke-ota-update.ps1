@@ -459,6 +459,11 @@ try {
 
     New-Item -ItemType Directory -Path $stateRootFull -Force | Out-Null
     Copy-Item -LiteralPath $sourceManifestPath -Destination (Join-Path $stateRootFull 'desired-source-manifest.json') -Force
+    $dotnetRoot = Join-Path $targetRootFull 'Runtime\dotnet'
+    if (Test-Path -LiteralPath $dotnetRoot -PathType Container) {
+        [Environment]::SetEnvironmentVariable('DOTNET_ROOT', $dotnetRoot, 'User')
+        [Environment]::SetEnvironmentVariable('DOTNET_ROOT', $dotnetRoot, 'Process')
+    }
     $result = [ordered]@{
         success = $true
         transactionId = $transactionId

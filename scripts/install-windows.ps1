@@ -567,6 +567,12 @@ $manifest = [ordered]@{
     $installedRelease | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (
         Join-Path $otaStateDir 'installed-release.json') -Encoding UTF8
 
+    $dotnetRoot = Join-Path $InstallDirFull 'Runtime\dotnet'
+    if (Test-Path -LiteralPath $dotnetRoot -PathType Container) {
+        [Environment]::SetEnvironmentVariable('DOTNET_ROOT', $dotnetRoot, 'User')
+        [Environment]::SetEnvironmentVariable('DOTNET_ROOT', $dotnetRoot, 'Process')
+    }
+
     Clear-StartMenuShortcuts -StartMenuDir $startMenuDir
     if (-not $NoStartMenuShortcut.IsPresent) {
         New-Shortcut -Path (Join-Path $startMenuDir 'MyPowerTools.lnk') -TargetPath $appExe -WorkingDirectory $InstallDirFull -Arguments $appArguments -Description 'Open MyPowerTools' -IconLocation $iconPath
