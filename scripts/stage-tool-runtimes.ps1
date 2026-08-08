@@ -12,7 +12,13 @@ $ErrorActionPreference = 'Stop'
 
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 if ([string]::IsNullOrWhiteSpace($PythonRuntimeSource)) {
-    $PythonRuntimeSource = Join-Path $RepoRoot 'artifacts\runtime-cache\python312-full'
+    $embeddedPython = Join-Path $RepoRoot 'artifacts\runtime-cache\python312-embed'
+    $fullPython = Join-Path $RepoRoot 'artifacts\runtime-cache\python312-full'
+    if (Test-Path -LiteralPath (Join-Path $embeddedPython 'python.exe') -PathType Leaf) {
+        $PythonRuntimeSource = $embeddedPython
+    } else {
+        $PythonRuntimeSource = $fullPython
+    }
 }
 if ([string]::IsNullOrWhiteSpace($DoubaoVenvSource)) {
     $DoubaoVenvSource = Join-Path $env:USERPROFILE '.codex\computer-use\doubao-computer-use-local'
@@ -161,8 +167,10 @@ if (-not (Test-PythonRuntimeStandardLibrary -PythonExecutable $pythonSourceExecu
 $doubaoServices = @('tool_server', 'mcp_server', 'planner')
 foreach ($service in $doubaoServices) {
     Resolve-RequiredDirectory -Path (Join-Path $doubaoSource $service) -Label "$service submodule source" | Out-Null
-    Assert-RequiredFile -Path (Join-Path $doubaoVenvSource "$service\.venv\pyvenv.cfg") -Label "$service virtual environment"
 }
+$sharedVenvSource = Join-Path $doubaoVenvSource '.venv'
+Assert-RequiredFile -Path (Join-Path $sharedVenvSource 'pyvenv.cfg') -Label 'Shared Doubao virtual environment'
+Assert-RequiredFile -Path (Join-Path $sharedVenvSource 'Scripts\mcp-server.exe') -Label 'Shared Doubao mcp-server entrypoint'
 
 $smartBirdFiles = @(
     'test_tools\smartbird_thermostat.py',
@@ -225,6 +233,30 @@ if ($LASTEXITCODE -ne 0) {
 if ($LASTEXITCODE -ne 0) {
     throw "Published Python runtime cannot import SmartBird Energy Server dependencies."
 }
+$pythonPthPath = Join-Path $pythonDestination 'python312._pth'
+if (Test-Path -LiteralPath $pythonPthPath -PathType Leaf) {
+    $pythonPthLines = [IO.File]::ReadAllLines($pythonPthPath)
+    $siteEnabled = $false
+    for ($i = 0; $i -lt $pythonPthLines.Length; $i++) {
+        if ($pythonPthLines[$i].Trim() -eq '#import site') {
+            $pythonPthLines[$i] = 'import site'
+        }
+        if ($pythonPthLines[$i].Trim() -eq 'import site') {
+            $siteEnabled = $true
+        }
+    }
+    if (-not ($pythonPthLines -contains 'Lib\site-packages')) {
+        $pythonPthLines += 'Lib\site-packages'
+    }
+    [IO.File]::WriteAllLines($pythonPthPath, $pythonPthLines, [Text.Encoding]::ASCII)
+    $pywin32System32 = Join-Path $targetSitePackages 'pywin32_system32'
+    if (Test-Path -LiteralPath $pywin32System32 -PathType Container) {
+        Copy-Item -Path (Join-Path $pywin32System32 '*.dll') -Destination $pythonDestination -Force
+    }
+    if (-not $siteEnabled) {
+        throw 'Published Python runtime python312._pth does not enable site import.'
+    }
+}
 
 $doubaoExcludedDirectories = @(
     '.git',
@@ -248,15 +280,18 @@ foreach ($service in $doubaoServices) {
         ExcludedFiles = $doubaoExcludedFiles
     }
     Copy-DirectoryFast @sourceCopyParameters
-
-    $venvCopyParameters = @{
-        Source = Join-Path $doubaoVenvSource "$service\.venv"
-        Destination = Join-Path $doubaoDestination "$service\.venv"
-        ExcludedDirectories = @('__pycache__', '.cache')
-        ExcludedFiles = $doubaoExcludedFiles
-    }
-    Copy-DirectoryFast @venvCopyParameters
 }
+$sharedVenvSource = Join-Path $doubaoVenvSource '.venv'
+if (-not (Test-Path -LiteralPath (Join-Path $sharedVenvSource 'pyvenv.cfg') -PathType Leaf)) {
+    throw "Shared Doubao venv is missing at $sharedVenvSource. Run scripts\prepare-runtime-cache.ps1 first."
+}
+$sharedVenvCopyParameters = @{
+    Source = $sharedVenvSource
+    Destination = Join-Path $doubaoDestination '.venv'
+    ExcludedDirectories = @('__pycache__', '.cache')
+    ExcludedFiles = $doubaoExcludedFiles
+}
+Copy-DirectoryFast @sharedVenvCopyParameters
 
 foreach ($relativePath in $smartBirdFiles) {
     $sourcePath = Join-Path $smartBirdSource $relativePath
@@ -265,7 +300,18 @@ foreach ($relativePath in $smartBirdFiles) {
     Copy-Item -LiteralPath $sourcePath -Destination $destinationPath -Force
 }
 
-Copy-DirectoryFast -Source $platformToolsRoot -Destination $platformToolsDestination
+$platformToolsFiles = @(
+    'adb.exe',
+    'AdbWinApi.dll',
+    'AdbWinUsbApi.dll',
+    'libwinpthread-1.dll'
+)
+New-Item -ItemType Directory -Path $platformToolsDestination -Force | Out-Null
+foreach ($platformToolFile in $platformToolsFiles) {
+    $platformToolSource = Join-Path $platformToolsRoot $platformToolFile
+    Assert-RequiredFile -Path $platformToolSource -Label "Android platform-tools component"
+    Copy-Item -LiteralPath $platformToolSource -Destination $platformToolsDestination -Force
+}
 
 [ordered]@{
     runtimesRoot = $runtimesRoot

@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.3.4 (unreleased)
+
+- Python runtime switched to the official 3.12 embeddable distribution
+  (Python312 164 MB -> 59 MB) with site-packages configured for SmartBird
+  Energy Server dependencies.
+- Doubao tool/mcp/planner consolidated into one shared venv under
+  `Runtimes\Doubao\.venv` (single copy of all dependencies).
+- Android platform-tools trimmed to adb + its runtime DLLs (16.7 MB -> 8.5 MB).
+- Inno Setup uses LZMA2/ultra64 with solid compression.
+- Portable ZIP: 200 MB (original 773 MB); uncompressed layout: 479 MB.
+
 ## 0.3.3 (unreleased)
 
 - Replaced the per-process self-contained .NET runtime copies with one shared

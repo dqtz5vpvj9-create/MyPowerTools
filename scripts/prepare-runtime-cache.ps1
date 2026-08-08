@@ -78,18 +78,45 @@ function Copy-DirectoryFast {
     }
 }
 
-$pythonCache = Join-Path $RepoRoot 'artifacts\runtime-cache\python312-full'
-if (-not $SkipPython -and -not (Test-Path -LiteralPath $pythonCache -PathType Container)) {
-    Write-Host 'Preparing Python 3.12 runtime cache...'
-    $python = Resolve-SystemPython312
-    Copy-DirectoryFast -Source $python.Root -Destination $pythonCache
+$pythonCache = Join-Path $RepoRoot 'artifacts\runtime-cache\python312-embed'
+if (-not $SkipPython -and -not (Test-Path -LiteralPath (Join-Path $pythonCache 'python.exe') -PathType Leaf)) {
+    Write-Host 'Preparing Python 3.12 embeddable runtime cache...'
+    $artifactsRoot = Join-Path $RepoRoot 'artifacts'
+    New-Item -ItemType Directory -Path $artifactsRoot -Force | Out-Null
+    $pythonEmbeddedVersion = '3.12.10'
+    $pythonZip = Join-Path $artifactsRoot "python-$pythonEmbeddedVersion-embed-amd64.zip"
+    $pythonExtract = Join-Path $artifactsRoot 'python-embed-extract'
+    if (Test-Path -LiteralPath $pythonExtract -PathType Container) {
+        Remove-Item -LiteralPath $pythonExtract -Recurse -Force
+    }
+    Invoke-WebRequest `
+        -Uri "https://www.python.org/ftp/python/$pythonEmbeddedVersion/python-$pythonEmbeddedVersion-embed-amd64.zip" `
+        -OutFile $pythonZip `
+        -UseBasicParsing
+    Expand-Archive -LiteralPath $pythonZip -DestinationPath $pythonExtract -Force
+    New-Item -ItemType Directory -Path $pythonCache -Force | Out-Null
+    Move-Item -Path (Join-Path $pythonExtract '*') -Destination $pythonCache -Force
+    Remove-Item -LiteralPath $pythonExtract -Recurse -Force
+
+    $pthPath = Join-Path $pythonCache 'python312._pth'
+    $pthLines = [IO.File]::ReadAllLines($pthPath)
+    for ($i = 0; $i -lt $pthLines.Length; $i++) {
+        if ($pthLines[$i].Trim() -eq '#import site') {
+            $pthLines[$i] = 'import site'
+        }
+    }
+    [IO.File]::WriteAllLines(
+        $pthPath,
+        $pthLines + @('Lib\site-packages'),
+        [Text.Encoding]::ASCII)
+
     & (Join-Path $pythonCache 'python.exe') -s -c 'import pyexpat, ssl, sqlite3'
     Assert-True -Condition ($LASTEXITCODE -eq 0) -Message 'Python runtime cache has an incomplete standard library.'
     Write-Host "Python cache ready at $pythonCache"
 } elseif ($SkipPython) {
     Write-Host 'Skipping Python cache preparation.'
 } else {
-    Write-Host "Python cache already exists at $pythonCache"
+    Write-Host "Python embeddable cache already exists at $pythonCache"
 }
 
 $platformTools = Join-Path $RepoRoot 'artifacts\android-platform-tools'
@@ -143,19 +170,14 @@ if (-not $SkipDoubao) {
     }
     Assert-True -Condition ($null -ne $uvCommand) -Message 'uv is not available after installation.'
 
-    foreach ($service in @('tool_server', 'mcp_server', 'planner')) {
-        $venvRoot = Join-Path $doubaoCache "$service\.venv"
-        $serviceDir = Join-Path $doubaoSource $service
-        if (Test-Path -LiteralPath (Join-Path $venvRoot 'pyvenv.cfg') -PathType Leaf) {
-            Write-Host "Doubao venv already exists for $service"
-            continue
-        }
-        Write-Host "Preparing Doubao venv for $service..."
-        & $uvCommand.Source venv $venvRoot --python 3.12
-        Assert-True -Condition ($LASTEXITCODE -eq 0) -Message "uv venv failed for $service"
-        $venvPython = Join-Path $venvRoot 'Scripts\python.exe'
-        $installArguments = @('pip', 'install', '--python', $venvPython)
-        if ($service -in @('tool_server', 'planner')) {
+    $sharedVenvRoot = Join-Path $doubaoCache '.venv'
+    $venvPython = Join-Path $sharedVenvRoot 'Scripts\python.exe'
+    if (-not (Test-Path -LiteralPath (Join-Path $sharedVenvRoot 'pyvenv.cfg') -PathType Leaf)) {
+        Write-Host 'Preparing one shared Doubao venv...'
+        & $uvCommand.Source venv $sharedVenvRoot --python 3.12
+        Assert-True -Condition ($LASTEXITCODE -eq 0) -Message 'uv venv failed for the shared Doubao venv'
+        foreach ($service in @('tool_server', 'planner')) {
+            $serviceDir = Join-Path $doubaoSource $service
             $pyprojectPath = Join-Path $serviceDir 'pyproject.toml'
             $pyproject = [IO.File]::ReadAllText($pyprojectPath, [Text.Encoding]::UTF8)
             $dependenciesMatch = [regex]::Match(
@@ -167,15 +189,27 @@ if (-not $SkipDoubao) {
                 '"([^"]+)"') |
                 ForEach-Object { $_.Groups[1].Value }
             Assert-True -Condition ($dependencyStrings.Count -gt 0) -Message "pyproject has no dependencies for $service"
-            $installArguments += $dependencyStrings
-        } else {
-            $installArguments += $serviceDir
+            & $uvCommand.Source pip install --python $venvPython @dependencyStrings
+            Assert-True -Condition ($LASTEXITCODE -eq 0) -Message "uv pip install failed for $service"
         }
-        & $uvCommand.Source @installArguments
-        Assert-True -Condition ($LASTEXITCODE -eq 0) -Message "uv pip install failed for $service"
-        & $venvPython -c 'import fastapi' 2>$null
+        & $uvCommand.Source pip install --python $venvPython (Join-Path $doubaoSource 'mcp_server')
+        Assert-True -Condition ($LASTEXITCODE -eq 0) -Message 'uv pip install failed for mcp_server'
     }
-    Write-Host "Doubao venvs ready under $doubaoCache"
+    foreach ($service in @('tool_server', 'mcp_server', 'planner')) {
+        $legacyVenv = Join-Path $doubaoCache "$service\.venv"
+        if (Test-Path -LiteralPath $legacyVenv -PathType Container) {
+            try {
+                Remove-Item -LiteralPath $legacyVenv -Recurse -Force -ErrorAction Stop
+            }
+            catch {
+                Write-Warning "Legacy Doubao venv cleanup skipped ($($_.Exception.Message))."
+            }
+        }
+    }
+    & $venvPython -c 'import fastapi, mcp, openai, pyautogui'
+    Assert-True -Condition ($LASTEXITCODE -eq 0) -Message 'Shared Doubao venv imports failed'
+    Assert-True -Condition (Test-Path -LiteralPath (Join-Path $sharedVenvRoot 'Scripts\mcp-server.exe') -PathType Leaf) -Message 'mcp-server.exe is missing from the shared venv'
+    Write-Host "Shared Doubao venv ready at $sharedVenvRoot"
 } else {
     Write-Host 'Skipping Doubao venv preparation.'
 }
