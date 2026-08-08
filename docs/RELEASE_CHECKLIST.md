@@ -16,6 +16,10 @@ in GitHub Actions.
 - Dorm upgraded online from 0.3.0 to 0.3.1 through `mpt ota apply` using the
   signed delta feed; the installed file manifest is byte-identical to the
   release manifest and the client now reports `up-to-date`.
+- **v0.3.3 released on 2026-08-08** with the shared .NET runtime layout and
+  PDB-free packages: portable ZIP 281 MB (was 773 MB), Setup 271 MB (was
+  742 MB), delta 0.3.2 -> 0.3.3 120 MB. All product processes now resolve one
+  bundled runtime through `DOTNET_ROOT`.
 - Subsequent tags publish automatically and produce the next delta.
 
 ## Prerequisites
