@@ -1,5 +1,15 @@
 # Changelog
 
+## 0.3.3 (unreleased)
+
+- Replaced the per-process self-contained .NET runtime copies with one shared
+  runtime under `Runtime\dotnet` (host\fxr + shared frameworks). Runner, Shell,
+  Cli, ServiceManager, Broker, App, WebToolHost, all Service Units, and the
+  powertoold sidecar are now framework-dependent and resolve the bundled
+  runtime through `DOTNET_ROOT`, which is set at install/update time.
+- Debug symbols are stripped from the published layout and package archives.
+- Release size: uncompressed 1.78 GB -> 0.59 GB; ZIP 773 MB -> 226 MB.
+
 ## 0.3.2 (unreleased)
 
 - Added PowerToys-style click-to-update in the Shell Packages & Updates page:

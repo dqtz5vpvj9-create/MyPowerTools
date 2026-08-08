@@ -168,6 +168,15 @@ The updater:
 - on a delta health failure, reinstalls the full ZIP as the recovery path;
 - records `last-check.json`, `last-update.json`, `health-check.json`.
 
+## Shared .NET runtime
+
+The Windows release ships one .NET runtime copy under
+`%LOCALAPPDATA%\Programs\MyPowerTools\Runtime\dotnet`. Every product process is
+framework-dependent and resolves that runtime through `DOTNET_ROOT`, which the
+installer, OTA updater, and runtime starter set for the current user. Debug
+symbols are stripped before packaging; the portable ZIP is ~226 MB instead of
+~773 MB.
+
 ## Package OTA
 
 Each first-party tool package (`modules/<id>`) can be published independently:

@@ -356,21 +356,39 @@ Invoke-Native -FilePath 'dotnet' -ArgumentList @('publish', 'src\MyPowerTools.Ap
 Copy-Item -LiteralPath (Join-Path $LauncherPublishRoot 'MyPowerTools.exe') -Destination (Join-Path $PublishRoot 'MyPowerTools.exe') -Force
 Remove-Item -LiteralPath $LauncherPublishRoot -Recurse -Force
 
-# One shared .NET runtime for every framework-dependent process. Publish the CLI
-# self-contained into Runtime\dotnet as the runtime carrier, then remove the CLI's
-# own files so only hostfxr/coreclr/System.* remain.
+# One shared .NET runtime for every framework-dependent process. Copy the
+# standard dotnet install layout (host\fxr + shared frameworks) from the build
+# machine's SDK so every product process resolves one runtime via DOTNET_ROOT.
 $sharedRuntimeRoot = Join-Path $PublishRoot 'Runtime\dotnet'
-New-Item -ItemType Directory -Path $sharedRuntimeRoot -Force | Out-Null
-Invoke-Native -FilePath 'dotnet' -ArgumentList @(
-    'publish', 'src\MyPowerTools.Cli\MyPowerTools.Cli.csproj',
-    '-c', 'Release', '-r', 'win-x64', '--self-contained', 'true',
-    '-p:DebugType=None', '-p:DebugSymbols=false',
-    '-o', $sharedRuntimeRoot)
-Get-ChildItem -LiteralPath $sharedRuntimeRoot -File -Filter 'MyPowerTools.Cli.*' |
-    Remove-Item -Force
-$hostFxr = Join-Path $sharedRuntimeRoot 'host\fxr'
-if (-not (Test-Path -LiteralPath $hostFxr -PathType Container)) {
-    throw "Shared runtime carrier is missing host\fxr under $sharedRuntimeRoot"
+$dotnetCommand = Get-Command 'dotnet.exe' -CommandType Application -ErrorAction Stop |
+    Select-Object -First 1
+$dotnetInstallRoot = Split-Path -Parent $dotnetCommand.Source
+$fxrCandidates = @(
+    Get-ChildItem -LiteralPath (Join-Path $dotnetInstallRoot 'host\fxr') -Directory |
+        Where-Object { $_.Name -match '^10\.0\.\d+$' } |
+        Sort-Object Name -Descending)
+if ($fxrCandidates.Count -eq 0) {
+    throw "No .NET 10 runtime was found under $dotnetInstallRoot\host\fxr"
+}
+$runtimeVersion = [string]$fxrCandidates[0].Name
+foreach ($framework in @(
+    'Microsoft.NETCore.App',
+    'Microsoft.AspNetCore.App',
+    'Microsoft.WindowsDesktop.App')) {
+    $frameworkSource = Join-Path $dotnetInstallRoot "shared\$framework\$runtimeVersion"
+    if (-not (Test-Path -LiteralPath $frameworkSource -PathType Container)) {
+        throw "Shared framework $framework $runtimeVersion is missing under $dotnetInstallRoot\shared"
+    }
+    $frameworkDestination = Join-Path $sharedRuntimeRoot "shared\$framework\$runtimeVersion"
+    New-Item -ItemType Directory -Path $frameworkDestination -Force | Out-Null
+    Copy-Item -Path (Join-Path $frameworkSource '*') -Destination $frameworkDestination -Recurse -Force
+}
+$hostFxrSource = Join-Path $dotnetInstallRoot "host\fxr\$runtimeVersion"
+$hostFxrDestination = Join-Path $sharedRuntimeRoot "host\fxr\$runtimeVersion"
+New-Item -ItemType Directory -Path $hostFxrDestination -Force | Out-Null
+Copy-Item -Path (Join-Path $hostFxrSource '*') -Destination $hostFxrDestination -Force
+if (-not (Test-Path -LiteralPath (Join-Path $hostFxrDestination 'hostfxr.dll') -PathType Leaf)) {
+    throw "Shared runtime carrier is missing hostfxr.dll under $hostFxrDestination"
 }
 
 Copy-DirectoryContents -Source $ModuleStagingRootFull -Destination (Join-Path $PublishRoot 'modules')
