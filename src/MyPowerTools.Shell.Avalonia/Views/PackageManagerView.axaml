@@ -20,6 +20,31 @@
 
     <Border Classes="MptSettingsSection">
       <StackPanel Spacing="{DynamicResource MptSpacingS}">
+        <TextBlock Classes="MptSectionTitle" Text="产品更新 (OTA)" />
+        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{DynamicResource MptSpacingM}">
+          <StackPanel Spacing="{DynamicResource MptSpacingXs}">
+            <TextBlock Classes="MptMeta" Text="{Binding UpdateVersionText}" />
+            <TextBlock Classes="MptPageSubtitle" Text="{Binding UpdateStatus}" TextWrapping="Wrap" />
+          </StackPanel>
+          <StackPanel Grid.Column="1"
+                      Classes="MptActionBar"
+                      Orientation="Horizontal"
+                      Spacing="{DynamicResource MptSpacingS}">
+            <controls:MptButton Content="检查更新"
+                                Command="{Binding CheckUpdateCommand}"
+                                MinWidth="{DynamicResource MptPackageActionWidth}" />
+            <controls:MptButton Classes="MptPrimaryButton"
+                                Content="立即升级"
+                                Command="{Binding ApplyUpdateCommand}"
+                                MinWidth="{DynamicResource MptPackageActionWidth}"
+                                IsVisible="{Binding UpdateAvailable}" />
+          </StackPanel>
+        </Grid>
+      </StackPanel>
+    </Border>
+
+    <Border Classes="MptSettingsSection">
+      <StackPanel Spacing="{DynamicResource MptSpacingS}">
         <TextBlock Classes="MptSectionTitle" Text="Package Operations" />
         <Grid ColumnDefinitions="*,*" ColumnSpacing="{DynamicResource MptSpacingM}">
           <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{DynamicResource MptSpacingS}">

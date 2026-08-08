@@ -41,22 +41,35 @@ public sealed class PackageManagerViewModel : ShellPageViewModel
 {
     private string _installSourceDirectory = "";
     private string _rollbackPackageId = "";
+    private string _currentVersion = "-";
+    private string _latestVersion = "-";
+    private string _updateStatus = "尚未检查更新。";
+    private bool _updateAvailable;
+    private bool _isUpdateBusy;
 
     public PackageManagerViewModel(
         IReadOnlyList<PackageSummaryViewModel> packages,
         Func<string, Task>? installPackage = null,
-        Func<string, Task>? rollbackPackage = null)
+        Func<string, Task>? rollbackPackage = null,
+        Func<Task<string?>>? checkUpdate = null,
+        Func<Task<string?>>? applyUpdate = null,
+        string currentVersion = "-")
         : base("Packages", $"{packages.Count} packages")
     {
         Packages = packages;
+        CurrentVersion = currentVersion;
         InstallCommand = new AsyncRelayCommand(() => installPackage?.Invoke(InstallSourceDirectory) ?? Task.CompletedTask);
         RollbackCommand = new AsyncRelayCommand(() => rollbackPackage?.Invoke(RollbackPackageId) ?? Task.CompletedTask);
+        CheckUpdateCommand = new AsyncRelayCommand(() => RunOtaCheckAsync(checkUpdate));
+        ApplyUpdateCommand = new AsyncRelayCommand(() => RunOtaApplyAsync(applyUpdate));
     }
 
     public IReadOnlyList<PackageSummaryViewModel> Packages { get; }
     public bool IsEmpty => Packages.Count == 0;
     public ICommand InstallCommand { get; }
     public ICommand RollbackCommand { get; }
+    public ICommand CheckUpdateCommand { get; }
+    public ICommand ApplyUpdateCommand { get; }
 
     public string InstallSourceDirectory
     {
@@ -68,6 +81,136 @@ public sealed class PackageManagerViewModel : ShellPageViewModel
     {
         get => _rollbackPackageId;
         set => SetProperty(ref _rollbackPackageId, value);
+    }
+
+    public string CurrentVersion
+    {
+        get => _currentVersion;
+        private set
+        {
+            if (SetProperty(ref _currentVersion, value))
+            {
+                OnPropertyChanged(nameof(UpdateVersionText));
+            }
+        }
+    }
+
+    public string LatestVersion
+    {
+        get => _latestVersion;
+        private set
+        {
+            if (SetProperty(ref _latestVersion, value))
+            {
+                OnPropertyChanged(nameof(UpdateVersionText));
+            }
+        }
+    }
+
+    public string UpdateVersionText => $"当前版本 {CurrentVersion} · 最新版本 {LatestVersion}";
+
+    public string UpdateStatus
+    {
+        get => _updateStatus;
+        private set => SetProperty(ref _updateStatus, value);
+    }
+
+    public bool UpdateAvailable
+    {
+        get => _updateAvailable;
+        private set => SetProperty(ref _updateAvailable, value);
+    }
+
+    public bool IsUpdateBusy
+    {
+        get => _isUpdateBusy;
+        private set => SetProperty(ref _isUpdateBusy, value);
+    }
+
+    private async Task RunOtaCheckAsync(Func<Task<string?>>? checkUpdate)
+    {
+        if (checkUpdate is null || IsUpdateBusy)
+        {
+            return;
+        }
+
+        IsUpdateBusy = true;
+        UpdateStatus = "正在检查更新…";
+        try
+        {
+            var output = await checkUpdate();
+            var node = JsonNode.Parse(output);
+            if (node is null)
+            {
+                UpdateStatus = "检查更新失败：更新器没有返回结果。";
+                return;
+            }
+
+            var current = node["currentVersion"]?.GetValue<string>() ?? CurrentVersion;
+            var latest = node["latestVersion"]?.GetValue<string>() ?? "-";
+            var available = node["available"]?.GetValue<bool>() ?? false;
+            var reason = node["reason"]?.GetValue<string>() ?? "";
+            CurrentVersion = current;
+            LatestVersion = latest;
+            UpdateAvailable = available;
+            UpdateStatus = available
+                ? $"发现新版本 {latest}。点击“立即升级”开始更新（更新期间界面会关闭并自动重启）。"
+                : $"当前已是最新版本（{reason}）。";
+        }
+        catch (Exception ex)
+        {
+            UpdateStatus = $"检查更新失败：{ex.Message}";
+        }
+        finally
+        {
+            IsUpdateBusy = false;
+        }
+    }
+
+    private async Task RunOtaApplyAsync(Func<Task<string?>>? applyUpdate)
+    {
+        if (applyUpdate is null || IsUpdateBusy)
+        {
+            return;
+        }
+
+        IsUpdateBusy = true;
+        UpdateStatus = "正在下载并升级，界面即将关闭并自动重启…";
+        try
+        {
+            var output = await applyUpdate();
+            var node = JsonNode.Parse(output);
+            if (node is null)
+            {
+                UpdateStatus = "升级失败：更新器没有返回结果。";
+                return;
+            }
+
+            var success = node["success"]?.GetValue<bool>() ?? false;
+            var toVersion = node["toVersion"]?.GetValue<string>();
+            var healthOk = node["health"]?["ok"]?.GetValue<bool>() ?? false;
+            if (success && !string.IsNullOrWhiteSpace(toVersion))
+            {
+                CurrentVersion = toVersion;
+                LatestVersion = toVersion;
+                UpdateAvailable = false;
+                UpdateStatus = healthOk
+                    ? $"已升级到 {toVersion}，健康检查通过。"
+                    : $"已升级到 {toVersion}，但健康检查未完全通过，请查看 OTA 日志。";
+            }
+            else
+            {
+                UpdateStatus = "升级失败，请查看 %LOCALAPPDATA%\\MyPowerTools\\ota-state\\last-update.json 与日志。";
+            }
+        }
+        catch (Exception ex)
+        {
+            UpdateStatus = $"升级失败：{ex.Message}";
+        }
+        finally
+        {
+            IsUpdateBusy = false;
+        }
     }
 }
 

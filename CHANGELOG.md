@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.2 (unreleased)
+
+- Added PowerToys-style click-to-update in the Shell Packages & Updates page:
+  “检查更新” runs `mpt ota check` and “立即升级” runs `mpt ota apply`; the
+  page shows current/latest versions, availability, and the update result.
+- Added an optional auto-apply policy: `scripts/set-ota-policy.ps1
+  -EnableAutoApply` switches the daily OTA task from Check to Apply so the
+  machine updates itself without any command.
+
 ## 0.3.1 (unreleased)
 
 - Stopped `adb.exe` during Windows install replacement so service-unit

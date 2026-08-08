@@ -203,7 +203,9 @@ public sealed partial class ShellWorkspaceController
                 packageId => RunPackageOperationAsync("rollback", packageId),
                 packageId => RunPackageOperationAsync("repair", packageId),
                 packageId => RunPackageOperationAsync("uninstall", packageId),
-                moduleId => ShowModuleDetailPageAsync(moduleId));
+                moduleId => ShowModuleDetailPageAsync(moduleId),
+                () => RunOtaCliAsync("check"),
+                () => RunOtaCliAsync("apply"));
 
             SetOwnedContent(_contentHost, new PackageManagerView
             {

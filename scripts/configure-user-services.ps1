@@ -370,13 +370,26 @@ try {
         Select-Object -First 1
     if ((Test-Path -LiteralPath $otaScript -PathType Leaf) -and $pwshCommand) {
         try {
+            $otaCommand = 'Check'
+            $updatePolicyPath = Join-Path $dataRootFull 'ota-state\update-policy.json'
+            if (Test-Path -LiteralPath $updatePolicyPath -PathType Leaf) {
+                try {
+                    $updatePolicy = Get-Content -LiteralPath $updatePolicyPath -Raw | ConvertFrom-Json
+                    if ([bool]$updatePolicy.autoApply) {
+                        $otaCommand = 'Apply'
+                    }
+                }
+                catch {
+                    Write-Warning "OTA update policy could not be read: $($_.Exception.Message)"
+                }
+            }
             Unregister-ScheduledTask `
                 -TaskName 'MyPowerTools OTA Check' `
                 -Confirm:$false `
                 -ErrorAction SilentlyContinue
             $otaTaskAction = New-ScheduledTaskAction `
                 -Execute $pwshCommand.Source `
-                -Argument ('-NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -File "{0}" -Command Check' -f $otaScript) `
+                -Argument ('-NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -File "{0}" -Command {1}' -f $otaScript, $otaCommand) `
                 -WorkingDirectory $installRootFull
             $otaTaskTrigger = New-ScheduledTaskTrigger -Daily -At 03:00
             $otaTaskPrincipal = New-ScheduledTaskPrincipal `
@@ -394,7 +407,7 @@ try {
                 -Trigger $otaTaskTrigger `
                 -Principal $otaTaskPrincipal `
                 -Settings $otaTaskSettings `
-                -Description 'Daily MyPowerTools OTA feed check' `
+                -Description "Daily MyPowerTools OTA $otaCommand" `
                 -Force | Out-Null
         }
         catch {

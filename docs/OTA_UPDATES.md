@@ -133,7 +133,27 @@ mpt ota status
 
 `configure-user-services.ps1` registers a daily `MyPowerTools OTA Check`
 scheduled task (03:00, interactive user). Applying updates still requires an
-explicit `mpt ota apply` or a manual script invocation.
+explicit `mpt ota apply` or a manual script invocation. To let the machine
+apply updates automatically at the daily window:
+
+```powershell
+pwsh scripts/set-ota-policy.ps1 -EnableAutoApply
+```
+
+Revert with `-DisableAutoApply`. The policy is stored in
+`%LOCALAPPDATA%\MyPowerTools\ota-state\update-policy.json` and re-read whenever
+user services are configured.
+
+## Click-to-update in the Shell
+
+Open **Packages & Updates** in the Shell. The **产品更新 (OTA)** section shows
+the installed and latest versions and provides two buttons:
+
+- **检查更新** — verifies the signed GitHub feed and reports whether a new
+  version is available.
+- **立即升级** — downloads the delta (or full package) and applies it. The
+  Shell closes during the transaction and restarts automatically with the new
+  version.
 
 The updater:
 

@@ -157,7 +157,10 @@ public static partial class ShellPageViewModelFactory
         Func<string, Task>? rollbackPackage = null,
         Func<string, Task>? repairPackage = null,
         Func<string, Task>? uninstallPackage = null,
-        Func<string, Task>? showModuleDetails = null)
+        Func<string, Task>? showModuleDetails = null,
+        Func<Task<string?>>? checkUpdate = null,
+        Func<Task<string?>>? applyUpdate = null,
+        string currentVersion = "-")
     {
         var packages = response.Packages
             .OrderBy(package => package.DisplayName, StringComparer.OrdinalIgnoreCase)
@@ -204,7 +207,13 @@ public static partial class ShellPageViewModelFactory
                     new AsyncRelayCommand(() => rollbackPackage?.Invoke(package.PackageId) ?? Task.CompletedTask));
             }).ToArray();
 
-        return new PackageManagerViewModel(packages, installPackage, rollbackPackage);
+        return new PackageManagerViewModel(
+            packages,
+            installPackage,
+            rollbackPackage,
+            checkUpdate,
+            applyUpdate,
+            currentVersion);
     }
 
     private static string ReadDetailString(Struct details, string key, string fallback)

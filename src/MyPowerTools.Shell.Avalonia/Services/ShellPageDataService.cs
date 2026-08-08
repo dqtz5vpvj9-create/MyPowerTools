@@ -151,20 +151,48 @@ public sealed class ShellPageDataService : IDisposable
         Func<string, Task>? repairPackage = null,
         Func<string, Task>? uninstallPackage = null,
         Func<string, Task>? showModuleDetails = null,
+        Func<Task<string?>>? checkUpdate = null,
+        Func<Task<string?>>? applyUpdate = null,
         CancellationToken cancellationToken = default)
     {
         using var client = HostControlClient.ForDefaultEndpoint();
         var response = await client.ListPackagesAsync(cancellationToken);
+        var currentVersion = ReadInstalledVersion();
         var viewModel = ShellPageViewModelFactory.FromPackages(
             response,
             installPackage,
             rollbackPackage,
             repairPackage,
             uninstallPackage,
-            showModuleDetails);
+            showModuleDetails,
+            checkUpdate,
+            applyUpdate,
+            currentVersion);
         return new ShellPageDataResult<PackageManagerViewModel>(
             viewModel,
             $"{response.Packages.Count} packages loaded");
+    }
+
+    private static string ReadInstalledVersion()
+    {
+        try
+        {
+            var dataRoot = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "MyPowerTools");
+            var releasePath = Path.Combine(dataRoot, "ota-state", "installed-release.json");
+            if (!File.Exists(releasePath))
+            {
+                return "-";
+            }
+
+            var release = JsonNode.Parse(File.ReadAllText(releasePath));
+            return release?["version"]?.GetValue<string>() ?? "-";
+        }
+        catch
+        {
+            return "-";
+        }
     }
 
     public async Task<ShellPageDataResult<DiagnosticsViewModel>> LoadDiagnosticsAsync(
