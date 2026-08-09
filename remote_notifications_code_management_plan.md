@@ -420,7 +420,7 @@ ExecStart=<venv>/python -m gunicorn ...
 
 ## 10. 后续治理项
 
-- [ ] 更新 MyPowerTools 主仓子模块指针并提交本计划。
+- [x] 更新 MyPowerTools 主仓子模块指针并提交本计划。
 - [ ] 将 Windows Hook 手工同步过程固化为幂等安装器和漂移检查。
 - [ ] 将 Linux Hook 安装和漂移检查补入权威仓库。
 - [ ] 整理并合并 chris 的 `codex-tmux-integration` 通知相关历史改动。
