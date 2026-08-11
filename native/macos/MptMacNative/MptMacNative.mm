@@ -497,7 +497,7 @@ static NSImage *MptQuotaImage(NSInteger remainingPercent, NSString *toolTip) {
     representation.size = NSMakeSize(22.0, 22.0);
     NSImage *image = [[NSImage alloc] initWithSize:NSMakeSize(22.0, 22.0)];
     [image addRepresentation:representation];
-    image.template = NO;
+    [image setTemplate:NO];
     image.accessibilityDescription = toolTip;
     return image;
 }
@@ -523,7 +523,7 @@ static NSImage *MptQuotaImage(NSInteger remainingPercent, NSString *toolTip) {
         image = [NSImage imageWithSystemSymbolName:@"bolt.circle" accessibilityDescription:toolTip];
     }
     if (image != nil) {
-        image.template = YES;
+        [image setTemplate:YES];
         button.image = image;
     } else {
         button.title = @"M";
