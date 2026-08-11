@@ -378,7 +378,24 @@ if (-not $SkipCodeSign) {
         throw 'codesign requires macOS. Use -SkipCodeSign for managed cross-publish validation.'
     }
     $entitlements = Join-Path $repoRoot 'packaging/macos/MyPowerTools.entitlements'
-    foreach ($candidate in Get-ChildItem -LiteralPath $macRoot -Recurse -File) {
+    $allFiles = @(Get-ChildItem -LiteralPath $macRoot -Recurse -File)
+
+    # Pass 1: managed PE assemblies (Microsoft.CSharp.dll, System.*.dll, ...)
+    # are validated as nested code objects when codesign signs the apphosts in
+    # the same directory. codesign accepts a plain ad-hoc signature on these
+    # data files; sign them first so the later apphost signing succeeds.
+    foreach ($candidate in $allFiles) {
+        $fileDescription = (& /usr/bin/file '-b' $candidate.FullName 2>$null) -join ' '
+        if (-not $fileDescription.Contains('PE32', [System.StringComparison]::Ordinal)) {
+            continue
+        }
+        Invoke-Native -FilePath 'codesign' -ArgumentList @(
+            '--force', '--sign', $CodeSignIdentity, '--timestamp=none', $candidate.FullName
+        ) -Activity "codesign managed assembly $($candidate.FullName)"
+    }
+
+    # Pass 2: native Mach-O code objects, with entitlements on executables.
+    foreach ($candidate in $allFiles) {
         $fileDescription = (& /usr/bin/file '-b' $candidate.FullName 2>$null) -join ' '
         if (-not $fileDescription.Contains('Mach-O', [System.StringComparison]::Ordinal)) {
             continue
