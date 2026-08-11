@@ -380,18 +380,19 @@ if (-not $SkipCodeSign) {
     $entitlements = Join-Path $repoRoot 'packaging/macos/MyPowerTools.entitlements'
     $allFiles = @(Get-ChildItem -LiteralPath $macRoot -Recurse -File)
 
-    # Pass 1: managed PE assemblies (Microsoft.CSharp.dll, System.*.dll, ...)
-    # are validated as nested code objects when codesign signs the apphosts in
-    # the same directory. codesign accepts a plain ad-hoc signature on these
-    # data files; sign them first so the later apphost signing succeeds.
+    # Pass 1: codesign seals every file under Contents/MacOS when signing an
+    # executable inside the .app bundle, and validates each sealed file as a
+    # nested code object. Managed PE assemblies, JSON manifests, schema files
+    # and other data files must therefore carry a plain ad-hoc signature
+    # before the native Mach-O objects (apphosts, dylibs) are signed.
     foreach ($candidate in $allFiles) {
         $fileDescription = (& /usr/bin/file '-b' $candidate.FullName 2>$null) -join ' '
-        if (-not $fileDescription.Contains('PE32', [System.StringComparison]::Ordinal)) {
+        if ($fileDescription.Contains('Mach-O', [System.StringComparison]::Ordinal)) {
             continue
         }
         Invoke-Native -FilePath 'codesign' -ArgumentList @(
             '--force', '--sign', $CodeSignIdentity, '--timestamp=none', $candidate.FullName
-        ) -Activity "codesign managed assembly $($candidate.FullName)"
+        ) -Activity "codesign data file $($candidate.FullName)"
     }
 
     # Pass 2: native Mach-O code objects, with entitlements on executables.
