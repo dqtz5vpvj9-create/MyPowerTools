@@ -338,6 +338,14 @@ if ($IsMacOS) {
             Invoke-Native -FilePath '/bin/chmod' -ArgumentList @('+x', $executable) -Activity "chmod $executable"
         }
     }
+    # codesign --deep treats executable files as nested code objects. .NET
+    # publish can leave managed DLLs executable, which makes --deep fail with
+    # "code object is not signed at all"; clear the execute bit on DLLs so they
+    # are treated as data files by codesign.
+    Get-ChildItem -LiteralPath $appBundle -Recurse -File -Filter '*.dll' |
+        ForEach-Object {
+            Invoke-Native -FilePath '/bin/chmod' -ArgumentList @('-x', $_.FullName) -Activity "chmod -x $($_.FullName)"
+        }
 }
 
 if (-not $SkipCodeSign) {
