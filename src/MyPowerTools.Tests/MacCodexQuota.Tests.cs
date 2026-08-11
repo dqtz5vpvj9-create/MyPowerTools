@@ -65,7 +65,7 @@ public sealed class MacCodexQuotaTests
         Assert.Contains("canvasSize = 64", source, StringComparison.Ordinal);
         Assert.Contains("remainingPercent >= 50", source, StringComparison.Ordinal);
         Assert.Contains("remainingPercent >= 20", source, StringComparison.Ordinal);
-        Assert.Contains("image.template = NO", source, StringComparison.Ordinal);
+        Assert.Contains("[image setTemplate:NO]", source, StringComparison.Ordinal);
         Assert.Contains("button.image = image", source, StringComparison.Ordinal);
         Assert.Contains("dispatch_sync(dispatch_get_main_queue(), updateBlock)", source, StringComparison.Ordinal);
     }
