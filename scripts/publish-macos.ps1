@@ -202,8 +202,11 @@ foreach ($entry in $projects.GetEnumerator()) {
         '-p:DebugType=None',
         '-p:DebugSymbols=false'
     )
-    if ($entry.Key -eq 'RemoteNotificationsService') {
-        $publishArguments += '-p:PublishSingleFile=true'
+    if ($entry.Key -eq 'App' -or $entry.Key -eq 'RemoteNotificationsService') {
+        # Single-file apphosts embed managed assemblies and runtime files that
+        # codesign treats as unsigned nested code on macOS. Publish the normal
+        # apphost + DLL layout so signing succeeds.
+        $publishArguments += '-p:PublishSingleFile=false'
     }
     Invoke-Native -FilePath 'dotnet' -ArgumentList $publishArguments -Activity "dotnet publish $($entry.Key)"
 }
