@@ -345,3 +345,49 @@ jobs:
             git commit -m "chore(ota): record ${{ steps.release-info.outputs.version }} file manifest"
             git push origin HEAD:main
           }
+
+  macos-release:
+    name: Publish macOS Release assets
+    needs: release
+    runs-on: macos-14
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: 1
+      DOTNET_NOLOGO: true
+      NUGET_XMLDOC_MODE: skip
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Prepare local NuGet source
+        shell: pwsh
+        run: New-Item -ItemType Directory -Path artifacts/sdk/nuget -Force | Out-Null
+
+      - name: Build SDK bundles
+        shell: pwsh
+        run: pwsh -NoLogo -NoProfile -NonInteractive -File scripts/build-sdk.ps1
+
+      - name: Publish macOS app
+        shell: pwsh
+        run: pwsh -NoLogo -NoProfile -NonInteractive -File scripts/publish-macos.ps1 -Architecture arm64 -Configuration Release
+
+      - name: Upload macOS release assets
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = ''
+          if ($env:GITHUB_REF -match '^refs/tags/(.+)$') {
+            $tag = $Matches[1]
+          } else {
+            $versionObject = (pwsh -NoLogo -NoProfile -NonInteractive -File scripts/get-product-version.ps1 | ConvertFrom-Json)
+            $tag = "v$($versionObject.version)"
+          }
+          gh release upload $tag --repo dqtz5vpvj9-create/MyPowerTools artifacts/release/MyPowerTools-macos-arm64.zip artifacts/release/MyPowerTools-macos-arm64.zip.sha256 --clobber

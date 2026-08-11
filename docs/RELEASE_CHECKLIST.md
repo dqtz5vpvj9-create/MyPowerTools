@@ -20,6 +20,11 @@ in GitHub Actions.
   PDB-free packages: portable ZIP 281 MB (was 773 MB), Setup 271 MB (was
   742 MB), delta 0.3.2 -> 0.3.3 120 MB. All product processes now resolve one
   bundled runtime through `DOTNET_ROOT`.
+- **v0.3.4** added the embeddable Python runtime, a single shared Doubao venv,
+  an adb-only platform-tools trim, and an LZMA2 installer: portable ZIP
+  200 MB.
+- **v0.3.5** added Escape-to-close for Remote Notifications popups and the
+  macOS release pipeline (`MyPowerTools-macos-arm64.zip`).
 - Subsequent tags publish automatically and produce the next delta.
 
 ## Prerequisites

@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.3.5 (unreleased)
+
+- Remote Notifications detail popup closes with Escape (window key handling
+  plus WebView2/WKWebView JavaScript bridge for webview-focused input).
+- Added macOS release automation: CI builds `MyPowerTools-macos-arm64.zip`
+  (ad-hoc signed .app bundle) and uploads it to the versioned GitHub Release.
+
 ## 0.3.4 (unreleased)
 
 - Python runtime switched to the official 3.12 embeddable distribution

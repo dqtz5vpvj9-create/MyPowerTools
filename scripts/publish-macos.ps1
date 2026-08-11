@@ -367,4 +367,23 @@ if (-not $SkipCodeSign) {
     Invoke-Native -FilePath 'codesign' -ArgumentList @('--verify', '--deep', '--strict', $appBundle) -Activity 'codesign verification'
 }
 
+$releaseRoot = Join-Path $artifactsRoot 'release'
+New-Item -ItemType Directory -Path $releaseRoot -Force | Out-Null
+$zipName = "MyPowerTools-macos-$Architecture.zip"
+$zipPath = Join-Path $releaseRoot $zipName
+if (Test-Path -LiteralPath $zipPath) {
+    Remove-Item -LiteralPath $zipPath -Force
+}
+if ($IsMacOS) {
+    & /usr/bin/ditto -c -k --keepParent $appBundle $zipPath
+    if ($LASTEXITCODE -ne 0) {
+        throw "ditto failed to create $zipPath with exit code $LASTEXITCODE"
+    }
+} else {
+    Compress-Archive -Path $appBundle -DestinationPath $zipPath -CompressionLevel Optimal
+}
+$zipHash = (Get-FileHash -LiteralPath $zipPath -Algorithm SHA256).Hash
+"$zipHash  $zipName" | Set-Content -LiteralPath "$zipPath.sha256" -Encoding ASCII
+
+Write-Host $zipPath
 Write-Host $appBundle
