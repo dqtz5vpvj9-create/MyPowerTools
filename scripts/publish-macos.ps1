@@ -208,6 +208,7 @@ foreach ($entry in $projects.GetEnumerator()) {
         # apphost + DLL layout so signing succeeds.
         $publishArguments += '-p:PublishSingleFile=false'
     }
+    Write-Host "PUBLISH $($entry.Key): dotnet $($publishArguments -join ' ')"
     Invoke-Native -FilePath 'dotnet' -ArgumentList $publishArguments -Activity "dotnet publish $($entry.Key)"
 }
 
@@ -349,6 +350,27 @@ if ($IsMacOS) {
         ForEach-Object {
             Invoke-Native -FilePath '/bin/chmod' -ArgumentList @('-x', $_.FullName) -Activity "chmod -x $($_.FullName)"
         }
+
+    # Diagnostics: confirm whether the App was published as a single-file
+    # bundle (managed assemblies embedded in the apphost) or as the normal
+    # apphost + DLL layout. codesign reports embedded assemblies as
+    # subcomponents when a stale single-file signature is re-signed.
+    $diagnosticApphost = Join-Path $macRoot 'MyPowerTools'
+    if (Test-Path -LiteralPath $diagnosticApphost -PathType Leaf) {
+        $diagnosticItem = Get-Item -LiteralPath $diagnosticApphost
+        Write-Host "DIAG apphost size: $($diagnosticItem.Length) bytes"
+        & /usr/bin/file '-b' $diagnosticApphost
+    }
+    $diagnosticCSharp = Join-Path $macRoot 'Microsoft.CSharp.dll'
+    Write-Host "DIAG Microsoft.CSharp.dll exists as separate file: $(Test-Path -LiteralPath $diagnosticCSharp -PathType Leaf)"
+    if (Test-Path -LiteralPath $diagnosticCSharp -PathType Leaf) {
+        $diagnosticItem = Get-Item -LiteralPath $diagnosticCSharp
+        Write-Host "DIAG Microsoft.CSharp.dll size: $($diagnosticItem.Length) bytes"
+        & /usr/bin/file '-b' $diagnosticCSharp
+    }
+    $topLevelFileCount = (Get-ChildItem -LiteralPath $macRoot -File).Count
+    $topLevelDllCount = (Get-ChildItem -LiteralPath $macRoot -File -Filter '*.dll').Count
+    Write-Host "DIAG MacOS top-level files: $topLevelFileCount (managed DLLs: $topLevelDllCount)"
 }
 
 if (-not $SkipCodeSign) {
@@ -361,6 +383,11 @@ if (-not $SkipCodeSign) {
         if (-not $fileDescription.Contains('Mach-O', [System.StringComparison]::Ordinal)) {
             continue
         }
+        # .NET on macOS ad-hoc signs apphosts during publish. Re-signing a
+        # binary whose existing signature already sealed nested code (for
+        # example a single-file bundle) fails with "code object is not signed
+        # at all / In subcomponent: ...". Clear the stale signature first.
+        & /usr/bin/codesign '--remove-signature' $candidate.FullName 2>$null
         $signArguments = @('--force', '--sign', $CodeSignIdentity, '--timestamp=none')
         if (-not $fileDescription.Contains('shared library', [System.StringComparison]::OrdinalIgnoreCase)) {
             $signArguments += @('--options', 'runtime', '--entitlements', $entitlements)
