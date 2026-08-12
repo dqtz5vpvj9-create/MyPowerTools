@@ -527,7 +527,8 @@ function Invoke-DeltaApply {
         [Parameter(Mandatory = $true)][string]$DataRootFull,
         [switch]$ApplyDeletes,
         [switch]$RestartRuntime,
-        [switch]$KeepBackup
+        [switch]$KeepBackup,
+        [switch]$SkipDriftCheck
     )
 
     $targetManifestPath = Join-Path $StateRootFull 'installed-files.manifest.json'
@@ -551,6 +552,9 @@ function Invoke-DeltaApply {
     }
     if ($KeepBackup) {
         $applyParams.KeepBackup = $true
+    }
+    if ($SkipDriftCheck) {
+        $applyParams.SkipDriftCheck = $true
     }
 
     $applyScript = Join-Path $PSScriptRoot 'invoke-ota-update.ps1'
@@ -848,7 +852,8 @@ try {
             -DataRootFull $DataRootFull `
             -ApplyDeletes:$applyDeletes `
             -RestartRuntime:$restartRuntime `
-            -KeepBackup:$KeepBackup.IsPresent
+            -KeepBackup:$KeepBackup.IsPresent `
+            -SkipDriftCheck:$IsDevOverlay
     } else {
         Invoke-FullApply `
             -PackagePath $packagePath `

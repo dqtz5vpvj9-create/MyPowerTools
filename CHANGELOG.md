@@ -1,5 +1,11 @@
 # Changelog
 
+## 0.3.8 (unreleased)
+
+- OTA 事务引擎新增 `-SkipDriftCheck`：dev 覆盖模式下允许覆盖 Shell/Runner
+  的 Debug 构建（预期的漂移），更新系统安装版后自动重新应用 dev 覆盖，
+  避免“OTA target changed after its manifest was generated”阻断。
+
 ## 0.3.7 (unreleased)
 
 - OTA 在 dev 覆盖模式（`dev-update.manifest.json`）下不再直接覆盖 dev 文件：

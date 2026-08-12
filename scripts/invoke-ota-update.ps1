@@ -10,6 +10,7 @@ param(
     [switch]$RestartRuntime,
     [string]$RuntimeDataRoot = (Join-Path $env:LOCALAPPDATA 'MyPowerTools'),
     [switch]$KeepBackup,
+    [switch]$SkipDriftCheck,
     [string[]]$ProtectedPath = @('install.manifest.json')
 )
 
@@ -317,7 +318,7 @@ try {
     foreach ($record in $copyRecords) {
         $targetPath = Resolve-PathInsideRoot -Root $targetRootFull -RelativePath ([string]$record.path)
         if ($null -eq $record.targetSha256) {
-            if (Test-Path -LiteralPath $targetPath) {
+            if (-not $SkipDriftCheck -and (Test-Path -LiteralPath $targetPath)) {
                 throw "OTA target gained a file after its manifest was generated: $($record.path)"
             }
         }
@@ -330,7 +331,9 @@ try {
             if (Test-FileMatches @targetMatchParams) {
                 continue
             }
-            throw "OTA target changed after its manifest was generated: $($record.path)"
+            if (-not $SkipDriftCheck) {
+                throw "OTA target changed after its manifest was generated: $($record.path)"
+            }
         }
     }
     foreach ($record in $deleteRecords) {
@@ -340,7 +343,7 @@ try {
             Length = [long]$record.targetLength
             Sha256 = [string]$record.targetSha256
         }
-        if (-not (Test-FileMatches @deleteMatchParams)) {
+        if (-not $SkipDriftCheck -and -not (Test-FileMatches @deleteMatchParams)) {
             throw "OTA deletion target changed after its manifest was generated: $($record.path)"
         }
     }
