@@ -221,10 +221,48 @@ function Invoke-Update {
     return [pscustomobject]$state
 }
 
-$configPath = Resolve-ConfigPath
-$config = Read-Config -Path $configPath
-$dataRoot = Resolve-DataRoot -Config $config
-New-Item -ItemType Directory -Path $dataRoot -Force | Out-Null
+function Read-Configuration {
+    try {
+        $resolvedConfigPath = Resolve-ConfigPath
+        $resolvedConfig = Read-Config -Path $resolvedConfigPath
+        $resolvedDataRoot = Resolve-DataRoot -Config $resolvedConfig
+        New-Item -ItemType Directory -Path $resolvedDataRoot -Force | Out-Null
+        return [pscustomobject]@{
+            Config = $resolvedConfig
+            DataRoot = $resolvedDataRoot
+            Message = ''
+        }
+    }
+    catch {
+        $message = $_.Exception.Message
+        if ($Command -eq 'status') {
+            [ordered]@{
+                schemaVersion = 1
+                provider = 'tencent-dnspod'
+                configured = $false
+                checkedAt = $null
+                wanIp = $null
+                domainIp = $null
+                updated = $false
+                message = $message
+            } | ConvertTo-Json
+            exit 0
+        }
+        if ($Command -eq 'watch') {
+            return [pscustomobject]@{
+                Config = $null
+                DataRoot = (Join-Path $env:LOCALAPPDATA 'MyPowerTools\ddns')
+                Message = $message
+            }
+        }
+        throw
+    }
+}
+
+$configuration = Read-Configuration
+$config = $configuration.Config
+$dataRoot = $configuration.DataRoot
+$idleLogPath = Join-Path $dataRoot 'ddns.log'
 
 switch ($Command) {
     'update' {
@@ -232,8 +270,18 @@ switch ($Command) {
         $state | ConvertTo-Json
     }
     'watch' {
-        $intervalSeconds = [Math]::Max(1, [int]$config.checkIntervalMinutes) * 60
+        $intervalSeconds = if ($null -eq $config) { 60 } else { [Math]::Max(1, [int]$config.checkIntervalMinutes) * 60 }
         while ($true) {
+            if ($null -eq $config) {
+                Write-Log -Path $idleLogPath -Line "$(Get-Date -Format 'yyyy-MM-dd HH:mm:ss') CONFIG-MISSING: $($configuration.Message)"
+                Start-Sleep -Seconds $intervalSeconds
+                $configuration = Read-Configuration
+                $config = $configuration.Config
+                $dataRoot = $configuration.DataRoot
+                $idleLogPath = Join-Path $dataRoot 'ddns.log'
+                $intervalSeconds = if ($null -eq $config) { 60 } else { [Math]::Max(1, [int]$config.checkIntervalMinutes) * 60 }
+                continue
+            }
             try {
                 Invoke-Update -Config $config -DataRoot $dataRoot | Out-Null
             }
