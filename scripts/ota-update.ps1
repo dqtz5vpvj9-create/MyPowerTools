@@ -482,6 +482,42 @@ function Invoke-BootstrapRelaunch {
     exit $LASTEXITCODE
 }
 
+function Invoke-DevOverlayReapply {
+    param(
+        [Parameter(Mandatory = $true)][pscustomobject]$Overlay,
+        [Parameter(Mandatory = $true)][string]$InstallRootFull
+    )
+
+    $repoRoot = [string]$Overlay.repositoryRoot
+    $configuration = [string]$Overlay.configuration
+    if ([string]::IsNullOrWhiteSpace($configuration)) {
+        $configuration = 'Debug'
+    }
+    $devScript = Join-Path $repoRoot 'scripts\update-windows-dev.ps1'
+    if (-not (Test-Path -LiteralPath $devScript -PathType Leaf)) {
+        return [ordered]@{
+            reapplied = $false
+            note = "dev overlay source not found: $devScript"
+        }
+    }
+
+    $pwsh = Get-Command 'pwsh.exe' -CommandType Application -ErrorAction Stop |
+        Select-Object -First 1
+    & $pwsh.Source -NoLogo -NoProfile -NonInteractive -File $devScript `
+        -Scope Core -Configuration $configuration -NoOpenShell
+    $exitCode = $LASTEXITCODE
+    if ($exitCode -eq 0) {
+        return [ordered]@{
+            reapplied = $true
+            note = "dev overlay reapplied from $repoRoot after base update"
+        }
+    }
+    return [ordered]@{
+        reapplied = $false
+        note = "dev overlay reapply failed with exit code $exitCode"
+    }
+}
+
 function Invoke-DeltaApply {
     param(
         [Parameter(Mandatory = $true)][string]$PackagePath,
@@ -613,6 +649,17 @@ if ([string]::IsNullOrWhiteSpace($StateRoot)) {
 $StateRootFull = [IO.Path]::GetFullPath($StateRoot)
 New-Item -ItemType Directory -Path $StateRootFull -Force | Out-Null
 
+# Dev overlay detection: update-windows-dev.ps1 marks the install root with
+# dev-update.manifest.json. OTA never overwrites the overlay binaries in place;
+# it updates the canonical release base and then reapplies the overlay.
+$devOverlayManifestPath = Join-Path $InstallRootFull 'dev-update.manifest.json'
+$IsDevOverlay = Test-Path -LiteralPath $devOverlayManifestPath -PathType Leaf
+$DevOverlay = if ($IsDevOverlay) {
+    Get-Content -Raw -LiteralPath $devOverlayManifestPath | ConvertFrom-Json
+} else {
+    $null
+}
+
 $installedRelease = Read-InstalledRelease -StateRootFull $StateRootFull
 if ([string]::IsNullOrWhiteSpace($CurrentVersion)) {
     if ($null -ne $installedRelease -and
@@ -637,6 +684,7 @@ if ($CurrentVersion -notmatch '^[0-9]+\.[0-9]+\.[0-9]+$') {
 if ($Command -eq 'Status') {
     $status = [ordered]@{
         schemaVersion = 1
+        mode = if ($IsDevOverlay) { 'dev-overlay' } else { 'installed' }
         installed = if ($null -ne $installedRelease) {
             [ordered]@{
                 product = [string]$installedRelease.product
@@ -703,6 +751,7 @@ if ($available) {
 $check = [ordered]@{
     checkedAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
     channel = $Channel
+    mode = if ($IsDevOverlay) { 'dev-overlay' } else { 'installed' }
     currentVersion = $CurrentVersion
     latestVersion = [string]$feed.version
     available = $available
@@ -719,6 +768,15 @@ $check = [ordered]@{
     } else {
         $null
     }
+    devOverlay = if ($IsDevOverlay) {
+        [ordered]@{
+            repositoryRoot = [string]$DevOverlay.repositoryRoot
+            configuration = [string]$DevOverlay.configuration
+            note = 'dev 覆盖模式：OTA 不直接更新覆盖层；如检测到系统安装版，将更新系统安装并重新应用 dev 覆盖。'
+        }
+    } else {
+        $null
+    }
 }
 Write-Utf8TextFile -Path (Join-Path $StateRootFull 'last-check.json') -Value (
     $check | ConvertTo-Json -Depth 5)
@@ -726,6 +784,11 @@ Write-Utf8TextFile -Path (Join-Path $StateRootFull 'last-check.json') -Value (
 if ($Command -eq 'Check' -or -not $available) {
     $check | ConvertTo-Json -Depth 5
     exit 0
+}
+
+# Apply path
+if ($IsDevOverlay -and -not (Test-Path -LiteralPath (Join-Path $InstallRootFull 'install.manifest.json') -PathType Leaf)) {
+    throw '未检测到系统安装版（install.manifest.json 缺失）。dev 覆盖模式无法执行 OTA，请先完整安装 MyPowerTools 后再试。'
 }
 
 # Apply path
@@ -846,6 +909,12 @@ try {
         throw "OTA health check failed after update ($($health.failedCount) failed checks)."
     }
 
+    $devOverlayResult = if ($IsDevOverlay) {
+        Invoke-DevOverlayReapply -Overlay $DevOverlay -InstallRootFull $InstallRootFull
+    } else {
+        $null
+    }
+
     $updateResult = [ordered]@{
         success = $true
         channel = $Channel
@@ -855,6 +924,7 @@ try {
         packageSha256 = $decision.Sha256
         health = $health
         delta = $applyResult
+        devOverlay = $devOverlayResult
         completedAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
     }
     Write-Utf8TextFile -Path (Join-Path $StateRootFull 'last-update.json') -Value (

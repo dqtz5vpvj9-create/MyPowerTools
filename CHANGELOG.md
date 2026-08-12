@@ -1,5 +1,14 @@
 # Changelog
 
+## 0.3.7 (unreleased)
+
+- OTA 在 dev 覆盖模式（`dev-update.manifest.json`）下不再直接覆盖 dev 文件：
+  `mpt ota status/check` 会标注 `mode=dev-overlay` 并提示更新将作用于系统
+  安装版；`mpt ota apply` 检测到系统安装版后先更新 release 底座，再按
+  `dev-update.manifest.json` 记录的仓库路径重新应用 dev 覆盖。
+- DDNS 服务在未配置 DNSPod 密钥时保持静默待机（watch 只记日志、不崩溃循环），
+  `mpt ddns status` 返回清晰的未配置提示。
+
 ## 0.3.6 (unreleased)
 
 - Logs page is now functional: search, Info/Warning/Error level filter, wrap
