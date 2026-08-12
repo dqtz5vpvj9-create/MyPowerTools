@@ -1,12 +1,5 @@
 # Changelog
 
-## 0.3.7 (unreleased)
-
-- Added a first-party DDNS plugin (`tools/ddns`) with Tencent DNSPod support:
-  `mpt ddns status|update|list|watch`, a ServiceManager-supervised
-  `ddns.service` unit that keeps `subDomain.mainDomain` A records in sync with
-  the selected adapter IP, and release packaging as the `ddns` module package.
-
 ## 0.3.6 (unreleased)
 
 - Logs page is now functional: search, Info/Warning/Error level filter, wrap
@@ -18,6 +11,10 @@
 - `mpt ota` on installs that predate the online updater now prints an
   actionable message (install a 0.3.0+ release first) instead of dumping CLI
   help text.
+- Added a first-party DDNS plugin (`tools/ddns`) with Tencent DNSPod support:
+  `mpt ddns status|update|list|watch`, a ServiceManager-supervised
+  `ddns.service` unit that keeps `subDomain.mainDomain` A records in sync with
+  the selected adapter IP, and release packaging as the `ddns` module package.
 
 ## 0.3.5 (unreleased)
 
