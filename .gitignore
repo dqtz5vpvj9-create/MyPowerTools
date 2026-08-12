@@ -4,6 +4,10 @@ obj/
 [Bb]in/
 [Oo]bj/
 
+# DDNS Service Unit ships a script-only bin payload that must be tracked.
+!tools/ddns/service-units/ddns.service/bin/
+!tools/ddns/service-units/ddns.service/bin/*
+
 # IDE and user-local files
 .vs/
 .idea/
