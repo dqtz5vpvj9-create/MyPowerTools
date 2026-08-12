@@ -73,6 +73,7 @@ public sealed partial class ShellWorkspaceController : IAsyncDisposable
     private CommandPaletteViewModel? _commandPaletteViewModel;
     private long _commandSearchVersion;
     private string _currentPage = HomePage;
+    private string? _logPageModuleId;
     private string _currentToolId = "";
     private string _currentToolRouteId = "";
     private IReadOnlyList<HostProto.ToolDescriptor>? _startupToolDescriptors;

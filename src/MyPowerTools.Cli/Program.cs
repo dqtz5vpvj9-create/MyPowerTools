@@ -414,8 +414,14 @@ static int Ota(string[] args, string root)
         .FirstOrDefault(File.Exists);
     if (script is null)
     {
-        Console.Error.WriteLine("ota-update.ps1 was not found in the MyPowerTools layout.");
-        return 2;
+        Console.Error.WriteLine("本安装未包含在线 OTA 更新器（ota-update.ps1 缺失）。");
+        Console.Error.WriteLine("原因通常是安装版本早于 0.3.0（在线 OTA 从 0.3.0 起才随安装包发布），");
+        Console.Error.WriteLine("旧版本无法通过 mpt ota 在线升级自身。");
+        Console.Error.WriteLine("请从 GitHub Releases 下载最新 MyPowerTools-win-x64.zip，");
+        Console.Error.WriteLine("解压后运行其中的 install-windows.ps1 完成一次完整升级；");
+        Console.Error.WriteLine("升级后 mpt ota check / apply 即可正常使用。");
+        Console.Error.WriteLine("也可先在仓库源码目录执行 scripts/ota-update.ps1 临时验证。");
+        return 3;
     }
 
     try

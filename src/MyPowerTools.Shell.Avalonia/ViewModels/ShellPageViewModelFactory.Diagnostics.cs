@@ -16,7 +16,9 @@ public static partial class ShellPageViewModelFactory
         HostProto.ListModulesResponse modules,
         HostProto.ModuleSummary? selectedModule,
         IReadOnlyList<HostProto.LogEntry> entries,
-        Func<string, Task>? selectModule = null)
+        Func<string, Task>? selectModule = null,
+        Func<Task>? refresh = null,
+        string? errorMessage = null)
     {
         var selectedModuleId = selectedModule?.ModuleId ?? "";
         var moduleItems = modules.Modules
@@ -35,9 +37,16 @@ public static partial class ShellPageViewModelFactory
         var lines = entries.Select(entry => new LogLineViewModel(
             entry.Time.ToDateTimeOffset().ToString("HH:mm:ss"),
             entry.Level,
-            entry.Message)).ToArray();
+            entry.Message,
+            entry.Time.ToDateTimeOffset(),
+            entry.ModuleId)).ToArray();
 
-        return new LogsViewModel(selectedModule?.DisplayName ?? "", moduleItems, lines);
+        return new LogsViewModel(
+            selectedModule?.DisplayName ?? "",
+            moduleItems,
+            lines,
+            refresh,
+            errorMessage);
     }
 
     public static NotificationsViewModel FromNotifications(HostProto.ListNotificationsResponse response)

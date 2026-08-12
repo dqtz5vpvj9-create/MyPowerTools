@@ -1,5 +1,17 @@
 # Changelog
 
+## 0.3.6 (unreleased)
+
+- Logs page is now functional: search, Info/Warning/Error level filter, wrap
+  toggle, refresh, copy, and export. When the Runner/HostControl endpoint is
+  unreachable the page falls back to the persistent JSONL/text logs under
+  `%LOCALAPPDATA%\MyPowerTools\logs` instead of showing an empty shell.
+- Packages & Updates (OTA) page renders even when the runtime is not running;
+  OTA check/apply only require the local CLI and updater scripts.
+- `mpt ota` on installs that predate the online updater now prints an
+  actionable message (install a 0.3.0+ release first) instead of dumping CLI
+  help text.
+
 ## 0.3.5 (unreleased)
 
 - Remote Notifications detail popup closes with Escape (window key handling

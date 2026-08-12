@@ -111,19 +111,81 @@ public sealed class ShellPageDataService : IDisposable
     public async Task<ShellPageDataResult<LogsViewModel>> LoadLogsAsync(
         string? selectedModuleId = null,
         Func<string, Task>? selectModule = null,
+        Func<Task>? refresh = null,
         CancellationToken cancellationToken = default)
     {
-        using var client = HostControlClient.ForDefaultEndpoint();
-        var modules = await client.ListModulesAsync(cancellationToken);
-        var selected = PickModule(modules, selectedModuleId);
-        IReadOnlyList<HostProto.LogEntry> entries = selected is null
-            ? []
-            : await client.TailLogsAsync(selected.ModuleId, cancellationToken);
-        var viewModel = ShellPageViewModelFactory.FromLogs(modules, selected, entries, selectModule);
-        var statusText = selected is null
-            ? "No modules."
-            : $"{entries.Count} log entries for {selected.ModuleId}";
-        return new ShellPageDataResult<LogsViewModel>(viewModel, statusText);
+        try
+        {
+            using var client = HostControlClient.ForDefaultEndpoint();
+            var modules = await client.ListModulesAsync(cancellationToken);
+            var selected = PickModule(modules, selectedModuleId);
+            IReadOnlyList<HostProto.LogEntry> entries = selected is null
+                ? []
+                : await client.TailLogsAsync(selected.ModuleId, cancellationToken);
+            var viewModel = ShellPageViewModelFactory.FromLogs(
+                modules,
+                selected,
+                entries,
+                selectModule,
+                refresh);
+            var statusText = selected is null
+                ? "No modules."
+                : $"{entries.Count} log entries for {selected.ModuleId}";
+            return new ShellPageDataResult<LogsViewModel>(viewModel, statusText);
+        }
+        catch (Exception ex) when (ex is Grpc.Core.RpcException or IOException or InvalidOperationException)
+        {
+            // Runner/HostControl 未运行时，退回到 %LOCALAPPDATA%\MyPowerTools\logs
+            // 下的持久化 JSONL/文本日志，让 Logs 页面仍然可读、可筛选、可导出。
+            var dataRoot = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "MyPowerTools");
+            var snapshot = LocalLogFileReader.Read(dataRoot);
+            var selectedId = ResolveLocalLogModule(snapshot.ModuleIds, selectedModuleId);
+            var moduleItems = snapshot.ModuleIds
+                .OrderBy(id => id, StringComparer.OrdinalIgnoreCase)
+                .Select(id =>
+                {
+                    var isSelected = string.Equals(id, selectedId, StringComparison.OrdinalIgnoreCase);
+                    return new ModulePickerItemViewModel(
+                        id,
+                        id,
+                        isSelected,
+                        isSelected ? "Selected" : "",
+                        new AsyncRelayCommand(() => selectModule?.Invoke(id) ?? Task.CompletedTask));
+                })
+                .ToArray();
+            var lines = selectedId is null
+                ? snapshot.Lines
+                : snapshot.Lines
+                    .Where(line => string.Equals(line.ModuleId, selectedId, StringComparison.OrdinalIgnoreCase))
+                    .ToArray();
+            var viewModel = new LogsViewModel(
+                selectedId ?? "",
+                moduleItems,
+                lines,
+                refresh,
+                $"运行时未连接（{ex.GetType().Name}），已切换到本地日志文件视图。");
+            return new ShellPageDataResult<LogsViewModel>(viewModel, snapshot.StatusText);
+        }
+    }
+
+    private static string? ResolveLocalLogModule(
+        IReadOnlyList<string> moduleIds,
+        string? selectedModuleId)
+    {
+        if (moduleIds.Count == 0)
+        {
+            return null;
+        }
+
+        if (!string.IsNullOrWhiteSpace(selectedModuleId) &&
+            moduleIds.Contains(selectedModuleId, StringComparer.OrdinalIgnoreCase))
+        {
+            return selectedModuleId;
+        }
+
+        return moduleIds[0];
     }
 
     public async Task<ShellPageDataResult<NotificationsViewModel>> LoadNotificationsAsync(
@@ -155,8 +217,22 @@ public sealed class ShellPageDataService : IDisposable
         Func<Task<string?>>? applyUpdate = null,
         CancellationToken cancellationToken = default)
     {
-        using var client = HostControlClient.ForDefaultEndpoint();
-        var response = await client.ListPackagesAsync(cancellationToken);
+        HostProto.ListPackagesResponse response;
+        string statusText;
+        try
+        {
+            using var client = HostControlClient.ForDefaultEndpoint();
+            response = await client.ListPackagesAsync(cancellationToken);
+            statusText = $"{response.Packages.Count} packages loaded";
+        }
+        catch (Exception ex) when (ex is Grpc.Core.RpcException or IOException or InvalidOperationException)
+        {
+            // OTA 检查/升级只依赖本地 CLI 与更新脚本，不依赖正在运行的 Runner。
+            // 运行时未连接时仍然渲染 Packages 页，软件包列表保持为空即可。
+            response = new HostProto.ListPackagesResponse();
+            statusText = $"运行时未连接（{ex.GetType().Name}），软件包列表不可用；OTA 仍可检查与升级。";
+        }
+
         var currentVersion = ReadInstalledVersion();
         var viewModel = ShellPageViewModelFactory.FromPackages(
             response,
@@ -168,9 +244,7 @@ public sealed class ShellPageDataService : IDisposable
             checkUpdate,
             applyUpdate,
             currentVersion);
-        return new ShellPageDataResult<PackageManagerViewModel>(
-            viewModel,
-            $"{response.Packages.Count} packages loaded");
+        return new ShellPageDataResult<PackageManagerViewModel>(viewModel, statusText);
     }
 
     private static string ReadInstalledVersion()
@@ -183,6 +257,17 @@ public sealed class ShellPageDataService : IDisposable
             var releasePath = Path.Combine(dataRoot, "ota-state", "installed-release.json");
             if (!File.Exists(releasePath))
             {
+                var installRoot = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "Programs",
+                    "MyPowerTools");
+                var installManifestPath = Path.Combine(installRoot, "install.manifest.json");
+                if (File.Exists(installManifestPath))
+                {
+                    var installManifest = JsonNode.Parse(File.ReadAllText(installManifestPath));
+                    return installManifest?["version"]?.GetValue<string>() ?? "-";
+                }
+
                 return "-";
             }
 

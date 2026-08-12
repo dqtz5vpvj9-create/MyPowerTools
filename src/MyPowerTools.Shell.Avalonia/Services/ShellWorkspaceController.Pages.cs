@@ -150,9 +150,11 @@ public sealed partial class ShellWorkspaceController
     {
         try
         {
+            _logPageModuleId = selectedModuleId;
             var result = await _pageData.LoadLogsAsync(
                 selectedModuleId,
-                moduleId => LoadLogsPageAsync(moduleId));
+                moduleId => LoadLogsPageAsync(moduleId),
+                refresh: () => LoadLogsPageAsync(_logPageModuleId));
 
             SetOwnedContent(_contentHost, new LogsView
             {
@@ -172,6 +174,7 @@ public sealed partial class ShellWorkspaceController
         BeginWorkspace();
         _currentPage = LogsPage;
         _chromeViewModel.SelectPage(LogsPage);
+        _logPageModuleId = moduleId;
         await LoadLogsPageAsync(moduleId);
     }
 

@@ -25,6 +25,10 @@ in GitHub Actions.
   200 MB.
 - **v0.3.5** added Escape-to-close for Remote Notifications popups and the
   macOS release pipeline (`MyPowerTools-macos-arm64.zip`).
+- **v0.3.6** makes the Logs page functional (search/level filter/wrap/refresh/
+  copy/export plus offline fallback to local log files), keeps the OTA section
+  usable when the runtime is down, and gives old installs a clear upgrade
+  message from `mpt ota`.
 - Subsequent tags publish automatically and produce the next delta.
 
 ## Prerequisites

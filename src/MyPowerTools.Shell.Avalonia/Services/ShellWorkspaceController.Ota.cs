@@ -13,7 +13,7 @@ public sealed partial class ShellWorkspaceController
             "MyPowerTools.Cli.exe");
         if (!File.Exists(cliPath))
         {
-            return null;
+            return "OTA 更新器不可用：未找到 Cli\\MyPowerTools.Cli.exe。请先安装或修复 MyPowerTools 最新版本。";
         }
 
         var startInfo = new ProcessStartInfo(cliPath)
@@ -29,14 +29,18 @@ public sealed partial class ShellWorkspaceController
         using var process = Process.Start(startInfo);
         if (process is null)
         {
-            return null;
+            return "OTA 更新器启动失败：无法启动 MyPowerTools.Cli.exe。";
         }
 
         var standardOutput = await process.StandardOutput.ReadToEndAsync();
         var standardError = await process.StandardError.ReadToEndAsync();
         await process.WaitForExitAsync();
-        return string.IsNullOrWhiteSpace(standardOutput)
-            ? (string.IsNullOrWhiteSpace(standardError) ? null : standardError)
-            : standardOutput;
+        var output = string.IsNullOrWhiteSpace(standardOutput) ? standardError : standardOutput;
+        if (process.ExitCode != 0 && string.IsNullOrWhiteSpace(output))
+        {
+            return $"OTA 更新器退出码 {process.ExitCode}，未返回错误详情。";
+        }
+
+        return string.IsNullOrWhiteSpace(output) ? null : output;
     }
 }
