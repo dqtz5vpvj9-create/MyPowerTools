@@ -351,6 +351,14 @@ foreach ($tool in @($toolBuildManifest.tools)) {
         Copy-Item -LiteralPath $unitDirectory.FullName -Destination $destination -Recurse -Force
     }
 }
+$ddnsUnitSource = Join-Path $RepoRoot 'tools\ddns\service-units\ddns.service'
+if (Test-Path -LiteralPath $ddnsUnitSource -PathType Container) {
+    $ddnsUnitDestination = Join-Path $publishedServiceUnitsRoot 'ddns.service'
+    if (Test-Path -LiteralPath $ddnsUnitDestination) {
+        throw "Duplicate Service Unit id in release payload: ddns.service"
+    }
+    Copy-Item -LiteralPath $ddnsUnitSource -Destination $ddnsUnitDestination -Recurse -Force
+}
 $LauncherPublishRoot = Join-Path $PublishRoot 'App'
 Invoke-Native -FilePath 'dotnet' -ArgumentList @('publish', 'src\MyPowerTools.App\MyPowerTools.App.csproj', '-c', 'Release', '-r', 'win-x64', '--self-contained', 'false', '-p:PublishAot=false', '-p:PublishSingleFile=true', '-p:OptimizationPreference=Speed', '-p:DebugType=None', '-p:DebugSymbols=false', '-o', $LauncherPublishRoot)
 Copy-Item -LiteralPath (Join-Path $LauncherPublishRoot 'MyPowerTools.exe') -Destination (Join-Path $PublishRoot 'MyPowerTools.exe') -Force
@@ -439,7 +447,6 @@ $packageByTool = @{
     'process-monitor' = 'android-tools-suite'
     'paste-image' = 'paste-image'
     'local-lag-cleaner' = 'local-lag-cleaner'
-    'ddns' = 'ddns'
     'screenease' = 'screenease'
     'smartbird-thermostat' = 'smartbird-thermostat'
     'doubao-computer-use' = 'doubao-agent'

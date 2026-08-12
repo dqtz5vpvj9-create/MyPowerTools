@@ -2,6 +2,10 @@
 
 轻量 DDNS 服务，初期只支持腾讯云 DNSPod（`dnsapi.cn`）。
 
+以 MPT 第一方 Service Unit 随发布包分发：`service-units/ddns.service/` 由
+ServiceManager 托管（`autostart: true`），安装新版后自动注册并常驻运行；
+CLI 通过 `mpt ddns status|update|list|watch` 使用。
+
 ## 功能
 
 - 从指定网卡（如 `Realtek USB 2.5GbE Family Controller`）读取 IPv4，或从公网

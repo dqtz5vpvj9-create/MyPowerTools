@@ -1,7 +1,0 @@
-{
-  "schemaVersion": 1,
-  "toolId": "ddns",
-  "sourceClassification": "first-party-superproject",
-  "sourceNote": "DDNS updater implemented directly in the MyPowerTools superproject under tools/ddns.",
-  "currentIntegrationRoot": "tools/ddns"
-}
