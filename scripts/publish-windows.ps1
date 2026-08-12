@@ -439,6 +439,7 @@ $packageByTool = @{
     'process-monitor' = 'android-tools-suite'
     'paste-image' = 'paste-image'
     'local-lag-cleaner' = 'local-lag-cleaner'
+    'ddns' = 'ddns'
     'screenease' = 'screenease'
     'smartbird-thermostat' = 'smartbird-thermostat'
     'doubao-computer-use' = 'doubao-agent'

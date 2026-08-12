@@ -29,6 +29,7 @@ return command switch
     "uninstall" => Uninstall(args.Skip(1).ToArray(), root),
     "update" => Install(args.Skip(1).ToArray(), root),
     "ota" => Ota(args.Skip(1).ToArray(), root),
+    "ddns" => Ddns(args.Skip(1).ToArray(), root),
     "rollback" => Rollback(args.Skip(1).ToArray(), root),
     "repair" => Repair(args.Skip(1).ToArray(), root),
     "runner" => Runner(args.Skip(1).ToArray(), root),
@@ -461,6 +462,64 @@ static int Ota(string[] args, string root)
     catch (System.ComponentModel.Win32Exception)
     {
         Console.Error.WriteLine("PowerShell 7 (pwsh) is required for OTA updates and was not found on PATH.");
+        return 2;
+    }
+}
+
+static int Ddns(string[] args, string root)
+{
+    var subcommand = args.FirstOrDefault() ?? "status";
+    var script = new[]
+        {
+            Path.Combine(root, "modules", "ddns", "bin", "ddns.ps1"),
+            Path.Combine(root, "service-units", "ddns.service", "bin", "ddns.ps1"),
+            Path.Combine(root, "ddns", "ddns.ps1"),
+            Path.Combine(root, "tools", "ddns", "ddns.ps1")
+        }
+        .FirstOrDefault(File.Exists);
+    if (script is null)
+    {
+        Console.Error.WriteLine("DDNS 插件未安装（ddns.ps1 缺失）。请先安装包含 DDNS 插件的 MyPowerTools 版本。");
+        return 3;
+    }
+
+    try
+    {
+        var startInfo = new System.Diagnostics.ProcessStartInfo("pwsh")
+        {
+            UseShellExecute = false,
+            CreateNoWindow = true,
+            RedirectStandardOutput = true,
+            RedirectStandardError = true
+        };
+        startInfo.ArgumentList.Add("-NoLogo");
+        startInfo.ArgumentList.Add("-NoProfile");
+        startInfo.ArgumentList.Add("-NonInteractive");
+        startInfo.ArgumentList.Add("-File");
+        startInfo.ArgumentList.Add(script);
+        startInfo.ArgumentList.Add("-Command");
+        startInfo.ArgumentList.Add(subcommand);
+        foreach (var argument in args.Skip(1))
+        {
+            startInfo.ArgumentList.Add(argument);
+        }
+
+        using var process = System.Diagnostics.Process.Start(startInfo);
+        if (process is null)
+        {
+            Console.Error.WriteLine("Unable to start pwsh for DDNS.");
+            return 2;
+        }
+        var standardOutput = process.StandardOutput.ReadToEndAsync();
+        var standardError = process.StandardError.ReadToEndAsync();
+        process.WaitForExit();
+        Console.Out.Write(standardOutput.GetAwaiter().GetResult());
+        Console.Error.Write(standardError.GetAwaiter().GetResult());
+        return process.ExitCode;
+    }
+    catch (System.ComponentModel.Win32Exception)
+    {
+        Console.Error.WriteLine("PowerShell 7 (pwsh) is required for DDNS and was not found on PATH.");
         return 2;
     }
 }
@@ -1115,6 +1174,7 @@ static int Help()
     Console.WriteLine("mpt rollback <package-id> [--store-root <dir>]");
     Console.WriteLine("mpt repair <package-id> [--store-root <dir>]");
     Console.WriteLine("mpt ota check|apply|status [--channel <channel>] [--force] [--allow-unsigned]");
+    Console.WriteLine("mpt ddns status|update|list|watch [--config <path>] [--override-ip <ip>] [--force]");
     Console.WriteLine("mpt runner autostart [status|enable|disable] [--id <id>] [--command <command>] [--dry-run]");
     Console.WriteLine("mpt runner process <restart|pause|resume> <transport-kind> <pool-key>|. [--endpoint-address <address>] [--reason <reason>] [--until <iso-8601>] [--duration-minutes <minutes>]");
     Console.WriteLine("mpt module list [--include-disabled] [--modules <package-root>] [--data-root <dir>]");

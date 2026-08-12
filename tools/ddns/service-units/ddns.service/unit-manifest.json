@@ -1,0 +1,16 @@
+{
+  "id": "ddns.service",
+  "toolId": "ddns",
+  "displayName": "DDNS Updater (Tencent DNSPod)",
+  "exec": "ddns-runner.cmd",
+  "arguments": [],
+  "workingDirectory": "",
+  "environment": {},
+  "autostart": true,
+  "restartPolicy": { "maxRestarts": 5, "backoffMs": 10000 },
+  "readiness": { "kind": "none" },
+  "stopTimeoutMs": 5000,
+  "dataRoots": [],
+  "dependsOn": [],
+  "instanceToken": "ddns-service-v1"
+}

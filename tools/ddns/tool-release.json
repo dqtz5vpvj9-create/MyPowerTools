@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "toolId": "ddns",
+  "packageId": "ddns",
+  "version": "0.1.0",
+  "status": "active",
+  "buildScript": "build.ps1",
+  "serviceUnitId": "ddns.service"
+}

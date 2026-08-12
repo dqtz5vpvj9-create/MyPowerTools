@@ -257,6 +257,22 @@ $toolRegistry = @(
         ServiceUnits     = @()
     },
     [pscustomobject]@{
+        Id               = 'ddns'
+        Version          = '0.1.0'
+        BuildScript      = 'tools\ddns\build.ps1'
+        SurfaceProject   = ''
+        SurfaceAssembly  = ''
+        SurfaceTarget    = ''
+        RuntimeStagePath = 'tools\ddns\artifacts\package'
+        ServiceUnits     = @(
+            [pscustomobject]@{
+                Project  = ''
+                Manifest = 'tools\ddns\service-units\ddns.service\unit-manifest.json'
+                UnitId   = 'ddns.service'
+            }
+        )
+    },
+    [pscustomobject]@{
         Id               = 'screenease'
         Version          = '0.2.0'
         BuildScript      = 'tools\screenease\build.ps1'
@@ -466,9 +482,6 @@ foreach ($state in $toolBuildStates) {
         foreach ($unit in $tool.ServiceUnits) {
             $unitProject  = Join-Path $repoRoot $unit.Project
             $unitManifest = Join-Path $repoRoot $unit.Manifest
-            if (-not (Test-Path -LiteralPath $unitProject -PathType Leaf)) {
-                throw "[$currentToolId] Service Unit project not found: $unitProject"
-            }
             if (-not (Test-Path -LiteralPath $unitManifest -PathType Leaf)) {
                 throw "[$currentToolId] Service Unit manifest not found: $unitManifest"
             }
@@ -476,21 +489,32 @@ foreach ($state in $toolBuildStates) {
             $unitCollectDir = Join-Path $collectDir "service-units\$($unit.UnitId)"
             $unitBinDir = Join-Path $unitCollectDir 'bin'
             Write-Host "==> [$currentToolId] Service Unit: $($unit.UnitId)" -ForegroundColor Cyan
-            # Framework-dependent + RID so the worker runs against the product's
-            # single shared runtime under Runtime\dotnet via DOTNET_ROOT, instead
-            # of bundling one .NET runtime copy per Service Unit.
-            Invoke-Native -FilePath $dotnet -ArgumentList @(
-                'publish', $unitProject,
-                '--configuration', $Configuration,
-                '--runtime', 'win-x64',
-                '--output', $unitBinDir,
-                '--self-contained', 'false',
-                '--maxcpucount',
-                '--nologo', '--verbosity', 'minimal',
-                '/p:DebugType=None',
-                '/p:DebugSymbols=false',
-                "-p:MyPowerToolsRepoRoot=$repoRoot"
-            ) -Activity "dotnet publish Service Unit $($unit.UnitId)"
+            if ([string]::IsNullOrWhiteSpace([string]$unit.Project)) {
+                # Script-only Service Units are staged verbatim by the tool
+                # (bin/ + unit-manifest.json under service-units/<id>/).
+                $unitSourceDir = Split-Path -Parent $unitManifest
+                Copy-DirectoryContents -Source $unitSourceDir -Destination $unitCollectDir
+            }
+            else {
+                if (-not (Test-Path -LiteralPath $unitProject -PathType Leaf)) {
+                    throw "[$currentToolId] Service Unit project not found: $unitProject"
+                }
+                # Framework-dependent + RID so the worker runs against the product's
+                # single shared runtime under Runtime\dotnet via DOTNET_ROOT, instead
+                # of bundling one .NET runtime copy per Service Unit.
+                Invoke-Native -FilePath $dotnet -ArgumentList @(
+                    'publish', $unitProject,
+                    '--configuration', $Configuration,
+                    '--runtime', 'win-x64',
+                    '--output', $unitBinDir,
+                    '--self-contained', 'false',
+                    '--maxcpucount',
+                    '--nologo', '--verbosity', 'minimal',
+                    '/p:DebugType=None',
+                    '/p:DebugSymbols=false',
+                    "-p:MyPowerToolsRepoRoot=$repoRoot"
+                ) -Activity "dotnet publish Service Unit $($unit.UnitId)"
+            }
             Copy-Item -LiteralPath $unitManifest -Destination (Join-Path $unitCollectDir 'unit-manifest.json') -Force
             $serviceUnitIds += $unit.UnitId
         }
