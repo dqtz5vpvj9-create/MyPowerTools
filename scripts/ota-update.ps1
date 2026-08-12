@@ -503,7 +503,7 @@ function Invoke-DevOverlayReapply {
 
     $pwsh = Get-Command 'pwsh.exe' -CommandType Application -ErrorAction Stop |
         Select-Object -First 1
-    & $pwsh.Source -NoLogo -NoProfile -NonInteractive -File $devScript `
+    $devOutput = & $pwsh.Source -NoLogo -NoProfile -NonInteractive -File $devScript `
         -Scope Core -Configuration $configuration -NoOpenShell
     $exitCode = $LASTEXITCODE
     if ($exitCode -eq 0) {
