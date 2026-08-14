@@ -19,3 +19,9 @@
 [submodule "tools/doubao-computer-use"]
 	path = tools/doubao-computer-use
 	url = https://github.com/dqtz5vpvj9-create/MyPowerTools-doubao-computer-use.git
+[submodule "external/NotifyApp"]
+	path = external/NotifyApp
+	url = https://github.com/dqtz5vpvj9-create/NotifyApp.git
+[submodule "external/haidian"]
+	path = external/haidian
+	url = https://github.com/dqtz5vpvj9-create/haidian.git
