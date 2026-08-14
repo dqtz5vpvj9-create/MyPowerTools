@@ -1,0 +1,431 @@
+diff --git a/app/build.gradle.kts b/app/build.gradle.kts
+index 35d187a..140ddbb 100644
+--- a/app/build.gradle.kts
++++ b/app/build.gradle.kts
+@@ -12,8 +12,8 @@ android {
+         applicationId = "com.androidtools.notify"
+         minSdk = 26
+         targetSdk = 35
+-        versionCode = 35
+-        versionName = "1.22.5"
++        versionCode = 36
++        versionName = "1.22.6"
+ 
+         buildConfigField("String", "GITHUB_REPO", "\"dqtz5vpvj9-create/NotifyApp\"")
+     }
+diff --git a/app/src/main/java/com/androidtools/notify/MainActivity.kt b/app/src/main/java/com/androidtools/notify/MainActivity.kt
+index 82a589c..40f8337 100644
+--- a/app/src/main/java/com/androidtools/notify/MainActivity.kt
++++ b/app/src/main/java/com/androidtools/notify/MainActivity.kt
+@@ -79,7 +79,10 @@ class MainActivity : AppCompatActivity() {
+             val message = intent.getStringExtra("message") ?: return
+             val icon = intent.getStringExtra("icon") ?: "info"
+             val timestamp = intent.getLongExtra("timestamp", System.currentTimeMillis())
+-            val item = NotificationItem(id, channel, message, icon, timestamp)
++            val sessionId = intent.getStringExtra("session_id") ?: ""
++            val sessionName = intent.getStringExtra("session_name") ?: ""
++            val sourceClient = intent.getStringExtra("source_client") ?: ""
++            val item = NotificationItem(id, channel, message, icon, timestamp, sessionId, sessionName, sourceClient)
+             addNotificationToUI(item)
+         }
+     }
+@@ -192,7 +195,10 @@ class MainActivity : AppCompatActivity() {
+         val channel = intent.getStringExtra("channel") ?: "default"
+         val icon = intent.getStringExtra("icon") ?: "info"
+         val timestamp = intent.getLongExtra("timestamp", System.currentTimeMillis())
+-        val item = NotificationItem(id, channel, message, icon, timestamp)
++        val sessionId = intent.getStringExtra("session_id") ?: ""
++        val sessionName = intent.getStringExtra("session_name") ?: ""
++        val sourceClient = intent.getStringExtra("source_client") ?: ""
++        val item = NotificationItem(id, channel, message, icon, timestamp, sessionId, sessionName, sourceClient)
+         startActivity(NotificationDetailActivity.newIntent(this, item))
+     }
+ 
+@@ -492,19 +498,30 @@ class MainActivity : AppCompatActivity() {
+                             val icon = obj.optString("icon", "info")
+                             val ch = obj.optString("channel", channel)
+                             val ts = obj.optString("timestamp", "")
++                            val cursorTs = obj.optString("server_timestamp", ts)
+                             if (msg.isBlank()) continue
+                             val millis = NotificationItem.parseServerTimestamp(ts)
+                             val serverId = obj.optString("id", "")
++                            val sessionId = obj.optString("session_id", "")
++                            val sessionName = obj.optString("session_name", "")
++                            val sourceClient = obj.optString("source_client", "")
+                             val item = NotificationItem(
+                                 id = if (serverId.isNotEmpty()) serverId else "local-${java.util.UUID.randomUUID()}",
+-                                channel = ch, message = msg, icon = icon, timestamp = millis
++                                channel = ch,
++                                message = msg,
++                                icon = icon,
++                                timestamp = millis,
++                                sessionId = sessionId,
++                                sessionName = sessionName,
++                                sourceClient = sourceClient
+                             )
+                             if (repo.saveIfNotDuplicate(item)) {
+                                 newCount++
+                             }
+-                            // Track the latest server timestamp we've processed
+-                            if (ts.isNotEmpty() && ts > repo.getLastSince()) {
+-                                repo.setLastSince(ts)
++                            // Track the server-side cursor timestamp. The displayed
++                            // notification timestamp stays the original enqueue time.
++                            if (cursorTs.isNotEmpty() && cursorTs > repo.getLastSince()) {
++                                repo.setLastSince(cursorTs)
+                             }
+                         }
+                     }
+diff --git a/app/src/main/java/com/androidtools/notify/NotificationAdapter.kt b/app/src/main/java/com/androidtools/notify/NotificationAdapter.kt
+index 788b628..cd63dc4 100644
+--- a/app/src/main/java/com/androidtools/notify/NotificationAdapter.kt
++++ b/app/src/main/java/com/androidtools/notify/NotificationAdapter.kt
+@@ -17,7 +17,10 @@ data class NotificationItem(
+     val channel: String,
+     val message: String,
+     val icon: String,
+-    val timestamp: Long = System.currentTimeMillis()
++    val timestamp: Long = System.currentTimeMillis(),
++    val sessionId: String = "",
++    val sessionName: String = "",
++    val sourceClient: String = ""
+ ) {
+     fun toJson(): JSONObject = JSONObject().apply {
+         put("id", id)
+@@ -25,6 +28,9 @@ data class NotificationItem(
+         put("message", message)
+         put("icon", icon)
+         put("timestamp", timestamp)
++        put("session_id", sessionId)
++        put("session_name", sessionName)
++        put("source_client", sourceClient)
+     }
+ 
+     companion object {
+@@ -33,7 +39,10 @@ data class NotificationItem(
+             channel = json.optString("channel", "default"),
+             message = json.optString("message", ""),
+             icon = json.optString("icon", "info"),
+-            timestamp = json.optLong("timestamp", System.currentTimeMillis())
++            timestamp = json.optLong("timestamp", System.currentTimeMillis()),
++            sessionId = json.optString("session_id", ""),
++            sessionName = json.optString("session_name", ""),
++            sourceClient = json.optString("source_client", "")
+         )
+ 
+         /** Parse server ISO8601 timestamp. Uses first 19 chars (yyyy-MM-ddTHH:mm:ss),
+@@ -69,6 +78,7 @@ class NotificationAdapter(
+         val channel: TextView = view.findViewById(R.id.notifChannel)
+         val time: TextView = view.findViewById(R.id.notifTime)
+         val message: TextView = view.findViewById(R.id.notifMessage)
++        val session: TextView = view.findViewById(R.id.notifSession)
+     }
+ 
+     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): ViewHolder {
+@@ -81,6 +91,8 @@ class NotificationAdapter(
+         val item = visible[position]
+         holder.channel.text = item.channel.ifEmpty { "default" }
+         holder.message.text = item.message
++        holder.session.visibility = if (item.sessionId.isBlank()) View.GONE else View.VISIBLE
++        holder.session.text = item.sessionDisplay()
+ 
+         val now = System.currentTimeMillis()
+         val diff = now - item.timestamp
+@@ -153,3 +165,15 @@ class NotificationAdapter(
+         }
+     }
+ }
++
++fun NotificationItem.sessionShortId(): String = when {
++    sessionId.isBlank() -> ""
++    sessionId.length <= 8 -> sessionId
++    else -> sessionId.take(8) + "…"
++}
++
++fun NotificationItem.sessionDisplay(): String = when {
++    sessionId.isBlank() -> ""
++    sessionName.isBlank() -> "Session ${sessionShortId()}"
++    else -> "$sessionName · ${sessionShortId()}"
++}
+diff --git a/app/src/main/java/com/androidtools/notify/NotificationDetailActivity.kt b/app/src/main/java/com/androidtools/notify/NotificationDetailActivity.kt
+index 48a3c67..1ae95be 100644
+--- a/app/src/main/java/com/androidtools/notify/NotificationDetailActivity.kt
++++ b/app/src/main/java/com/androidtools/notify/NotificationDetailActivity.kt
+@@ -1,11 +1,15 @@
+ package com.androidtools.notify
+ 
++import android.content.ClipData
++import android.content.ClipboardManager
+ import android.content.Context
+ import android.content.Intent
+ import android.os.Bundle
++import android.view.View
+ import android.webkit.WebView
+ import android.widget.ImageView
+ import android.widget.TextView
++import android.widget.Toast
+ import androidx.appcompat.app.AppCompatActivity
+ import org.commonmark.Extension
+ import org.commonmark.ext.gfm.strikethrough.StrikethroughExtension
+@@ -25,6 +29,8 @@ class NotificationDetailActivity : AppCompatActivity() {
+         private const val EXTRA_MESSAGE = "detail_message"
+         private const val EXTRA_ICON = "detail_icon"
+         private const val EXTRA_TIMESTAMP = "detail_timestamp"
++        private const val EXTRA_SESSION_ID = "detail_session_id"
++        private const val EXTRA_SESSION_NAME = "detail_session_name"
+ 
+         fun newIntent(context: Context, item: NotificationItem): Intent {
+             return Intent(context, NotificationDetailActivity::class.java).apply {
+@@ -33,6 +39,8 @@ class NotificationDetailActivity : AppCompatActivity() {
+                 putExtra(EXTRA_MESSAGE, item.message)
+                 putExtra(EXTRA_ICON, item.icon)
+                 putExtra(EXTRA_TIMESTAMP, item.timestamp)
++                putExtra(EXTRA_SESSION_ID, item.sessionId)
++                putExtra(EXTRA_SESSION_NAME, item.sessionName)
+             }
+         }
+     }
+@@ -44,11 +52,23 @@ class NotificationDetailActivity : AppCompatActivity() {
+         val channel = intent.getStringExtra(EXTRA_CHANNEL) ?: "default"
+         val message = intent.getStringExtra(EXTRA_MESSAGE) ?: ""
+         val timestamp = intent.getLongExtra(EXTRA_TIMESTAMP, System.currentTimeMillis())
++        val sessionId = intent.getStringExtra(EXTRA_SESSION_ID) ?: ""
++        val sessionName = intent.getStringExtra(EXTRA_SESSION_NAME) ?: ""
+ 
+         val dateFormat = SimpleDateFormat("yyyy-MM-dd HH:mm:ss", Locale.getDefault())
+ 
+         findViewById<TextView>(R.id.detailChannel).text = channel.ifEmpty { "default" }
+         findViewById<TextView>(R.id.detailTime).text = dateFormat.format(Date(timestamp))
++        val sessionView = findViewById<TextView>(R.id.detailSession)
++        sessionView.visibility = if (sessionId.isBlank()) View.GONE else View.VISIBLE
++        sessionView.text = if (sessionName.isBlank()) sessionId else "$sessionName\n$sessionId"
++        sessionView.setOnClickListener {
++            if (sessionId.isNotBlank()) {
++                val clipboard = getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
++                clipboard.setPrimaryClip(ClipData.newPlainText("Codex Session ID", sessionId))
++                Toast.makeText(this, R.string.detail_session_copied_toast, Toast.LENGTH_SHORT).show()
++            }
++        }
+ 
+         val webView = findViewById<WebView>(R.id.detailMessage)
+         webView.settings.javaScriptEnabled = false
+@@ -67,6 +87,12 @@ class NotificationDetailActivity : AppCompatActivity() {
+         webView.loadDataWithBaseURL(null, html, "text/html", "utf-8", null)
+ 
+         findViewById<ImageView>(R.id.backButton).setOnClickListener { finish() }
++
++        findViewById<ImageView>(R.id.copyButton).setOnClickListener {
++            val clipboard = getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
++            clipboard.setPrimaryClip(ClipData.newPlainText("notification markdown", message))
++            Toast.makeText(this, R.string.detail_copied_toast, Toast.LENGTH_SHORT).show()
++        }
+     }
+ 
+     private fun buildHtml(body: String): String {
+diff --git a/app/src/main/java/com/androidtools/notify/NotifyFirebaseService.kt b/app/src/main/java/com/androidtools/notify/NotifyFirebaseService.kt
+index 8fa8ae8..06298e6 100644
+--- a/app/src/main/java/com/androidtools/notify/NotifyFirebaseService.kt
++++ b/app/src/main/java/com/androidtools/notify/NotifyFirebaseService.kt
+@@ -40,13 +40,19 @@ class NotifyFirebaseService : FirebaseMessagingService() {
+             val tsStr = data["timestamp"] ?: ""
+             val timestamp = NotificationItem.parseServerTimestamp(tsStr)
+             val serverId = data["id"] ?: ""
++            val sessionId = data["session_id"] ?: ""
++            val sessionName = data["session_name"] ?: ""
++            val sourceClient = data["source_client"] ?: ""
+ 
+             val item = NotificationItem(
+                 id = if (serverId.isNotEmpty()) serverId else "local-${java.util.UUID.randomUUID()}",
+                 channel = channelId,
+                 message = body,
+                 icon = icon,
+-                timestamp = timestamp
++                timestamp = timestamp,
++                sessionId = sessionId,
++                sessionName = sessionName,
++                sourceClient = sourceClient
+             )
+ 
+             val saved = NotificationRepository(this).saveIfNotDuplicate(item)
+@@ -72,6 +78,9 @@ class NotifyFirebaseService : FirebaseMessagingService() {
+             putExtra("message", item.message)
+             putExtra("icon", item.icon)
+             putExtra("timestamp", item.timestamp)
++            putExtra("session_id", item.sessionId)
++            putExtra("session_name", item.sessionName)
++            putExtra("source_client", item.sourceClient)
+             setPackage(packageName)
+         }
+         sendBroadcast(intent)
+@@ -93,6 +102,9 @@ class NotifyFirebaseService : FirebaseMessagingService() {
+             putExtra("message", body)
+             putExtra("icon", item.icon)
+             putExtra("timestamp", item.timestamp)
++            putExtra("session_id", item.sessionId)
++            putExtra("session_name", item.sessionName)
++            putExtra("source_client", item.sourceClient)
+         }
+         val pendingIntent = PendingIntent.getActivity(
+             this,
+@@ -103,11 +115,13 @@ class NotifyFirebaseService : FirebaseMessagingService() {
+ 
+         val notification = NotificationCompat.Builder(this, item.channel)
+             .setSmallIcon(R.drawable.ic_notification)
+-            .setContentTitle(title)
++            .setContentTitle(if (item.sessionId.isBlank()) title else item.sessionDisplay())
+             .setContentText(body)
+             .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+             .setPriority(NotificationCompat.PRIORITY_HIGH)
+             .setCategory(NotificationCompat.CATEGORY_MESSAGE)
++            .setWhen(item.timestamp)
++            .setShowWhen(true)
+             .setAutoCancel(true)
+             .setContentIntent(pendingIntent)
+             .build()
+diff --git a/app/src/main/java/com/androidtools/notify/UnifiedPushReceiver.kt b/app/src/main/java/com/androidtools/notify/UnifiedPushReceiver.kt
+index 9f5387f..3f9d4a9 100644
+--- a/app/src/main/java/com/androidtools/notify/UnifiedPushReceiver.kt
++++ b/app/src/main/java/com/androidtools/notify/UnifiedPushReceiver.kt
+@@ -54,6 +54,9 @@ class UnifiedPushReceiver : MessagingReceiver() {
+             val icon = obj.optString("icon", "info")
+             val ts = obj.optString("timestamp", "")
+             val serverId = obj.optString("id", "")
++            val sessionId = obj.optString("session_id", "")
++            val sessionName = obj.optString("session_name", "")
++            val sourceClient = obj.optString("source_client", "")
+             if (msg.isBlank()) {
+                 diagW(context, "UP payload missing message id=$serverId channel=$ch payloadLen=${text.length}")
+                 return
+@@ -65,7 +68,10 @@ class UnifiedPushReceiver : MessagingReceiver() {
+                 channel = ch,
+                 message = msg,
+                 icon = icon,
+-                timestamp = millis
++                timestamp = millis,
++                sessionId = sessionId,
++                sessionName = sessionName,
++                sourceClient = sourceClient
+             )
+ 
+             val saved = NotificationRepository(context).saveIfNotDuplicate(item)
+@@ -129,6 +135,9 @@ class UnifiedPushReceiver : MessagingReceiver() {
+             putExtra("message", item.message)
+             putExtra("icon", item.icon)
+             putExtra("timestamp", item.timestamp)
++            putExtra("session_id", item.sessionId)
++            putExtra("session_name", item.sessionName)
++            putExtra("source_client", item.sourceClient)
+             setPackage(context.packageName)
+         }
+         context.sendBroadcast(intent)
+@@ -162,6 +171,9 @@ class UnifiedPushReceiver : MessagingReceiver() {
+             putExtra("message", item.message)
+             putExtra("icon", item.icon)
+             putExtra("timestamp", item.timestamp)
++            putExtra("session_id", item.sessionId)
++            putExtra("session_name", item.sessionName)
++            putExtra("source_client", item.sourceClient)
+         }
+         val pi = PendingIntent.getActivity(
+             context,
+@@ -171,11 +183,13 @@ class UnifiedPushReceiver : MessagingReceiver() {
+         )
+         val notif = NotificationCompat.Builder(context, item.channel)
+             .setSmallIcon(R.drawable.ic_notification)
+-            .setContentTitle(item.channel)
++            .setContentTitle(if (item.sessionId.isBlank()) item.channel else item.sessionDisplay())
+             .setContentText(item.message)
+             .setStyle(NotificationCompat.BigTextStyle().bigText(item.message))
+             .setPriority(NotificationCompat.PRIORITY_HIGH)
+             .setCategory(NotificationCompat.CATEGORY_MESSAGE)
++            .setWhen(item.timestamp)
++            .setShowWhen(true)
+             .setAutoCancel(true)
+             .setContentIntent(pi)
+             .build()
+diff --git a/app/src/main/res/layout/activity_notification_detail.xml b/app/src/main/res/layout/activity_notification_detail.xml
+index 076405e..d313729 100644
+--- a/app/src/main/res/layout/activity_notification_detail.xml
++++ b/app/src/main/res/layout/activity_notification_detail.xml
+@@ -36,6 +36,16 @@
+             android:textColor="@android:color/white"
+             android:textSize="20sp"
+             android:textStyle="bold" />
++
++        <ImageView
++            android:id="@+id/copyButton"
++            android:layout_width="32dp"
++            android:layout_height="32dp"
++            android:background="?android:attr/selectableItemBackgroundBorderless"
++            android:contentDescription="@string/detail_copy_markdown"
++            android:padding="4dp"
++            android:src="@drawable/ic_copy"
++            app:tint="@android:color/white" />
+     </LinearLayout>
+ 
+     <ScrollView
+@@ -70,6 +80,20 @@
+                 android:textColor="?android:textColorSecondary"
+                 android:textSize="13sp" />
+ 
++            <TextView
++                android:id="@+id/detailSession"
++                android:layout_width="match_parent"
++                android:layout_height="wrap_content"
++                android:layout_marginTop="12dp"
++                android:background="@drawable/channel_badge_bg"
++                android:clickable="true"
++                android:focusable="true"
++                android:padding="10dp"
++                android:textColor="#92400E"
++                android:textIsSelectable="true"
++                android:textSize="13sp"
++                android:visibility="gone" />
++
+             <!-- Divider -->
+             <View
+                 android:layout_width="match_parent"
+diff --git a/app/src/main/res/layout/item_notification.xml b/app/src/main/res/layout/item_notification.xml
+index 6c09806..70665a2 100644
+--- a/app/src/main/res/layout/item_notification.xml
++++ b/app/src/main/res/layout/item_notification.xml
+@@ -58,6 +58,18 @@
+                     android:textSize="11sp" />
+             </LinearLayout>
+ 
++            <TextView
++                android:id="@+id/notifSession"
++                android:layout_width="wrap_content"
++                android:layout_height="wrap_content"
++                android:layout_marginTop="5dp"
++                android:background="@drawable/channel_badge_bg"
++                android:paddingHorizontal="8dp"
++                android:paddingVertical="2dp"
++                android:textColor="#92400E"
++                android:textSize="11sp"
++                android:visibility="gone" />
++
+             <!-- Message body -->
+             <TextView
+                 android:id="@+id/notifMessage"
+diff --git a/app/src/main/res/values/strings.xml b/app/src/main/res/values/strings.xml
+index 279b640..792e224 100644
+--- a/app/src/main/res/values/strings.xml
++++ b/app/src/main/res/values/strings.xml
+@@ -19,6 +19,9 @@
+     <string name="archive_title">Archived</string>
+     <string name="empty_archive">No archived notifications</string>
+     <string name="detail_title">Notification</string>
++    <string name="detail_copy_markdown">Copy markdown</string>
++    <string name="detail_copied_toast">Markdown copied</string>
++    <string name="detail_session_copied_toast">Session ID copied</string>
+     <string name="clear_all">Clear All</string>
+     <string name="clear_all_confirm">Delete all archived notifications?</string>
+     <string name="clear_all_notif_confirm">Archive all notifications?</string>
+diff --git a/notifyapp_version.json b/notifyapp_version.json
+index 5c7ff40..b320f23 100644
+--- a/notifyapp_version.json
++++ b/notifyapp_version.json
+@@ -1 +1 @@
+-{"version": "1.22.5"}
++{"version": "1.22.6"}

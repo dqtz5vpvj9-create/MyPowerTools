@@ -1,10 +1,23 @@
 # Changelog
 
+## 0.3.10 (unreleased)
+
+- Remote Notifications 详情窗口支持会话串追溯：标题栏显示当前消息在会话
+  中的位置（N / M），用 ←/→ 键或 Prev/Next 按钮在同会话消息间切换
+  （消息需携带 session_id；详情窗口与 feed 使用同一历史存储，不再回退
+  到遗留注册表数据）。
+- Dev 更新脚本（Start-MyPowerTools-Dev.ps1 / update-windows-dev.ps1）：
+  交换前按包清单优雅停用模块 runtime；HostControl 冒烟验证带重试；错误
+  对话框在输出重定向时不再阻塞；Runner 关闭后确认无存活实例再启动新实例；
+  全流程带分阶段耗时日志，单工具热更新约 1 分钟。
+
 ## 0.3.8 (unreleased)
 
 - OTA 事务引擎新增 `-SkipDriftCheck`：dev 覆盖模式下允许覆盖 Shell/Runner
   的 Debug 构建（预期的漂移），更新系统安装版后自动重新应用 dev 覆盖，
   避免“OTA target changed after its manifest was generated”阻断。
+- Paste Image 上传完成后默认向前台窗口发送 `Ctrl+Shift+V`，可在设置中修改
+  该粘贴快捷键或留空关闭。
 
 ## 0.3.7 (unreleased)
 

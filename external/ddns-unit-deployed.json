@@ -1,0 +1,22 @@
+{
+  "id": "ddns.service",
+  "toolId": "ddns",
+  "displayName": "DDNS Updater (Tencent DNSPod)",
+  "exec": "C:\\Users\\lixinrui\\AppData\\Local\\Programs\\MyPowerTools\\service-units\\ddns.service\\bin\\ddns-runner.cmd",
+  "arguments": [],
+  "workingDirectory": "C:\\Users\\lixinrui\\AppData\\Local\\Programs\\MyPowerTools\\service-units\\ddns.service\\bin",
+  "environment": {
+    "MPT_DATA_ROOT": "C:\\Users\\lixinrui\\AppData\\Local\\MyPowerTools",
+    "MPT_TOOL_DATA_ROOT": "C:\\Users\\lixinrui\\AppData\\Local\\MyPowerTools\\state\\tools\\ddns",
+    "MPT_INSTALL_ROOT": "C:\\Users\\lixinrui\\AppData\\Local\\Programs\\MyPowerTools"
+  },
+  "autostart": true,
+  "restartPolicy": { "maxRestarts": 5, "backoffMs": 10000 },
+  "readiness": { "kind": "none" },
+  "stopTimeoutMs": 5000,
+  "dataRoots": [
+    "C:\\Users\\lixinrui\\AppData\\Local\\MyPowerTools\\state\\tools\\ddns"
+  ],
+  "dependsOn": [],
+  "instanceToken": "ddns-service-v1"
+}

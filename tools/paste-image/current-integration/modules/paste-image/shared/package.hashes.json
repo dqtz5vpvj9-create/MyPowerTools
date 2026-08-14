@@ -6,12 +6,8 @@
       "Sha256": "05daf2b5ffe4b9c35fa4e9a3800a65e02eaa50be18cba7906eb86a06ff44589a"
     },
     {
-      "Path": "Microsoft.Win32.SystemEvents.dll",
-      "Sha256": "3da4a9c45d7baa5d44c80503196e667372ff74382ee8ce03eec39b56ea50ed32"
-    },
-    {
       "Path": "module.json",
-      "Sha256": "b4e9d16b965028dd9b6494777dd2e79cff606b88726a475384f6527530d2a0cc"
+      "Sha256": "f0319ebf328c840b085ab8f641114a961632a048010eff98ce965479703bc57d"
     },
     {
       "Path": "PasteImage.MyPowerTools.deps.json",
@@ -19,23 +15,11 @@
     },
     {
       "Path": "PasteImage.MyPowerTools.dll",
-      "Sha256": "b34898a3d1da7f7584d7c69f14924786daa54836be7ceb714280ec80f53a6c44"
+      "Sha256": "3ad4d3e6c5390246c3ca09a46dd336279397c6d35ee75ed15798964b249e85c0"
     },
     {
       "Path": "PasteImage.MyPowerTools.pdb",
-      "Sha256": "51bb3feb67f870102e0ddf5520e5af30279f9787de0c463f8e8f11bf65e2b47e"
-    },
-    {
-      "Path": "System.Drawing.Common.dll",
-      "Sha256": "0f192a22e54de0db67e20702735d4c219c825848dac0951007e5015e20370452"
-    },
-    {
-      "Path": "System.Private.Windows.Core.dll",
-      "Sha256": "d9bd95281d15cc1121adda0abf80d1624a4568c2fc0985d391e42a610d72e324"
-    },
-    {
-      "Path": "System.Private.Windows.GdiPlus.dll",
-      "Sha256": "396743274f0e981573d176cccbbcfd0e84bc2abe51958689e385fefb5d03a6ba"
+      "Sha256": "69bde35a56f84e2852827111eb00535d4eeacf9d7aaf7550413e2a569114e945"
     },
     {
       "Path": "ui/dashboard-card.json",
@@ -59,11 +43,11 @@
     },
     {
       "Path": "ui/surface/MyPowerTools.Abstractions.dll",
-      "Sha256": "da2a69a1d381ddf8e2e94af6868655c0ff65c0dba1d07ec8114b33cccd595390"
+      "Sha256": "a0bac9f603376b36ec94437a2f445ddffdf684e2397e4a30006431b0aa3be23a"
     },
     {
       "Path": "ui/surface/MyPowerTools.Abstractions.pdb",
-      "Sha256": "2b5387d672a7b8674c5d6f0e596b36db24db2de2c8e884f02c52aad67a4ba40b"
+      "Sha256": "3d06d4770fbe50fe7f18a4a648955719e07c24dcd57b5a8d5c40f768724f1e66"
     },
     {
       "Path": "ui/surface/MyPowerTools.AvaloniaSdk.deps.json",
@@ -71,11 +55,11 @@
     },
     {
       "Path": "ui/surface/MyPowerTools.AvaloniaSdk.dll",
-      "Sha256": "ef15300d1b0400014ca5bcc6bb5a8641a33fb313de9d2d1ea291b9bf075b8cf4"
+      "Sha256": "3cfc6c09c168bb4d6fcb3d8914a746ed7ab1a461b57f2cb52915ceb9656374fe"
     },
     {
       "Path": "ui/surface/MyPowerTools.AvaloniaSdk.pdb",
-      "Sha256": "0254b115db6d4c7627d0f4b7f1cdfa5434a42d687b33e6f09c659cf28419039b"
+      "Sha256": "c77e6004f03f9f813109317d0b99f9e068eac4fe7502de33f6104561ab39692f"
     },
     {
       "Path": "ui/surface/PasteImage.Surface.deps.json",
@@ -83,15 +67,15 @@
     },
     {
       "Path": "ui/surface/PasteImage.Surface.dll",
-      "Sha256": "7722cb94d1c46567cd0c2f8b66986699c89cb9742386a5cdcad50236536bc7ab"
+      "Sha256": "d62163a9b49eb40fb2f8bf61747b5f8ac394399906158604a6da6c4db9042194"
     },
     {
       "Path": "ui/surface/PasteImage.Surface.pdb",
-      "Sha256": "6215df05c3c24b13f2e2027ee50a0a8d94f0f5930813ce188a76cf0a5cee86cd"
+      "Sha256": "836aea8dfac7acdc70b1d578ae0023efd1b313acb025865065b50d660e39f3f9"
     },
     {
       "Path": "ui/tool.json",
-      "Sha256": "26aa4efb85f8bbec2e37b5d82f6905d1ae1601d85e15d689cf4f26bc2b5d5c5c"
+      "Sha256": "76bc3333430b1696ec466fea148bbd8103d7c36c4c9b90a88755a119d2151833"
     }
   ]
 }

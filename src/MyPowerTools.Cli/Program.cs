@@ -981,10 +981,15 @@ static IReadOnlyDictionary<string, object> CreateCapabilityProviders()
     }
 
     var platform = new WindowsPlatformPack();
-    return new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase)
+    var providers = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase)
     {
         ["display.profile"] = platform.Display
     };
+    if (platform.Capabilities.Resolve("keyboard.shortcut").Supported)
+    {
+        providers["keyboard.shortcut"] = platform.KeyboardShortcuts;
+    }
+    return providers;
 }
 
 static void DisposeRuntime(MptHostRuntime runtime)

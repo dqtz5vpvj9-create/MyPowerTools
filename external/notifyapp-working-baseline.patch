@@ -1,0 +1,140 @@
+diff --git a/app/build.gradle.kts b/app/build.gradle.kts
+index 35d187a..140ddbb 100644
+--- a/app/build.gradle.kts
++++ b/app/build.gradle.kts
+@@ -12,8 +12,8 @@ android {
+         applicationId = "com.androidtools.notify"
+         minSdk = 26
+         targetSdk = 35
+-        versionCode = 35
+-        versionName = "1.22.5"
++        versionCode = 36
++        versionName = "1.22.6"
+ 
+         buildConfigField("String", "GITHUB_REPO", "\"dqtz5vpvj9-create/NotifyApp\"")
+     }
+diff --git a/app/src/main/java/com/androidtools/notify/MainActivity.kt b/app/src/main/java/com/androidtools/notify/MainActivity.kt
+index 82a589c..4d21999 100644
+--- a/app/src/main/java/com/androidtools/notify/MainActivity.kt
++++ b/app/src/main/java/com/androidtools/notify/MainActivity.kt
+@@ -492,6 +492,7 @@ class MainActivity : AppCompatActivity() {
+                             val icon = obj.optString("icon", "info")
+                             val ch = obj.optString("channel", channel)
+                             val ts = obj.optString("timestamp", "")
++                            val cursorTs = obj.optString("server_timestamp", ts)
+                             if (msg.isBlank()) continue
+                             val millis = NotificationItem.parseServerTimestamp(ts)
+                             val serverId = obj.optString("id", "")
+@@ -502,9 +503,10 @@ class MainActivity : AppCompatActivity() {
+                             if (repo.saveIfNotDuplicate(item)) {
+                                 newCount++
+                             }
+-                            // Track the latest server timestamp we've processed
+-                            if (ts.isNotEmpty() && ts > repo.getLastSince()) {
+-                                repo.setLastSince(ts)
++                            // Track the server-side cursor timestamp. The displayed
++                            // notification timestamp stays the original enqueue time.
++                            if (cursorTs.isNotEmpty() && cursorTs > repo.getLastSince()) {
++                                repo.setLastSince(cursorTs)
+                             }
+                         }
+                     }
+diff --git a/app/src/main/java/com/androidtools/notify/NotificationDetailActivity.kt b/app/src/main/java/com/androidtools/notify/NotificationDetailActivity.kt
+index 48a3c67..9c642af 100644
+--- a/app/src/main/java/com/androidtools/notify/NotificationDetailActivity.kt
++++ b/app/src/main/java/com/androidtools/notify/NotificationDetailActivity.kt
+@@ -1,11 +1,14 @@
+ package com.androidtools.notify
+ 
++import android.content.ClipData
++import android.content.ClipboardManager
+ import android.content.Context
+ import android.content.Intent
+ import android.os.Bundle
+ import android.webkit.WebView
+ import android.widget.ImageView
+ import android.widget.TextView
++import android.widget.Toast
+ import androidx.appcompat.app.AppCompatActivity
+ import org.commonmark.Extension
+ import org.commonmark.ext.gfm.strikethrough.StrikethroughExtension
+@@ -67,6 +70,12 @@ class NotificationDetailActivity : AppCompatActivity() {
+         webView.loadDataWithBaseURL(null, html, "text/html", "utf-8", null)
+ 
+         findViewById<ImageView>(R.id.backButton).setOnClickListener { finish() }
++
++        findViewById<ImageView>(R.id.copyButton).setOnClickListener {
++            val clipboard = getSystemService(CLIPBOARD_SERVICE) as ClipboardManager
++            clipboard.setPrimaryClip(ClipData.newPlainText("notification markdown", message))
++            Toast.makeText(this, R.string.detail_copied_toast, Toast.LENGTH_SHORT).show()
++        }
+     }
+ 
+     private fun buildHtml(body: String): String {
+diff --git a/app/src/main/java/com/androidtools/notify/NotifyFirebaseService.kt b/app/src/main/java/com/androidtools/notify/NotifyFirebaseService.kt
+index 8fa8ae8..fc49144 100644
+--- a/app/src/main/java/com/androidtools/notify/NotifyFirebaseService.kt
++++ b/app/src/main/java/com/androidtools/notify/NotifyFirebaseService.kt
+@@ -108,6 +108,8 @@ class NotifyFirebaseService : FirebaseMessagingService() {
+             .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+             .setPriority(NotificationCompat.PRIORITY_HIGH)
+             .setCategory(NotificationCompat.CATEGORY_MESSAGE)
++            .setWhen(item.timestamp)
++            .setShowWhen(true)
+             .setAutoCancel(true)
+             .setContentIntent(pendingIntent)
+             .build()
+diff --git a/app/src/main/java/com/androidtools/notify/UnifiedPushReceiver.kt b/app/src/main/java/com/androidtools/notify/UnifiedPushReceiver.kt
+index 9f5387f..10ccbc5 100644
+--- a/app/src/main/java/com/androidtools/notify/UnifiedPushReceiver.kt
++++ b/app/src/main/java/com/androidtools/notify/UnifiedPushReceiver.kt
+@@ -176,6 +176,8 @@ class UnifiedPushReceiver : MessagingReceiver() {
+             .setStyle(NotificationCompat.BigTextStyle().bigText(item.message))
+             .setPriority(NotificationCompat.PRIORITY_HIGH)
+             .setCategory(NotificationCompat.CATEGORY_MESSAGE)
++            .setWhen(item.timestamp)
++            .setShowWhen(true)
+             .setAutoCancel(true)
+             .setContentIntent(pi)
+             .build()
+diff --git a/app/src/main/res/layout/activity_notification_detail.xml b/app/src/main/res/layout/activity_notification_detail.xml
+index 076405e..490716f 100644
+--- a/app/src/main/res/layout/activity_notification_detail.xml
++++ b/app/src/main/res/layout/activity_notification_detail.xml
+@@ -36,6 +36,16 @@
+             android:textColor="@android:color/white"
+             android:textSize="20sp"
+             android:textStyle="bold" />
++
++        <ImageView
++            android:id="@+id/copyButton"
++            android:layout_width="32dp"
++            android:layout_height="32dp"
++            android:background="?android:attr/selectableItemBackgroundBorderless"
++            android:contentDescription="@string/detail_copy_markdown"
++            android:padding="4dp"
++            android:src="@drawable/ic_copy"
++            app:tint="@android:color/white" />
+     </LinearLayout>
+ 
+     <ScrollView
+diff --git a/app/src/main/res/values/strings.xml b/app/src/main/res/values/strings.xml
+index 279b640..70ea9c3 100644
+--- a/app/src/main/res/values/strings.xml
++++ b/app/src/main/res/values/strings.xml
+@@ -19,6 +19,8 @@
+     <string name="archive_title">Archived</string>
+     <string name="empty_archive">No archived notifications</string>
+     <string name="detail_title">Notification</string>
++    <string name="detail_copy_markdown">Copy markdown</string>
++    <string name="detail_copied_toast">Markdown copied</string>
+     <string name="clear_all">Clear All</string>
+     <string name="clear_all_confirm">Delete all archived notifications?</string>
+     <string name="clear_all_notif_confirm">Archive all notifications?</string>
+diff --git a/notifyapp_version.json b/notifyapp_version.json
+index 5c7ff40..b320f23 100644
+--- a/notifyapp_version.json
++++ b/notifyapp_version.json
+@@ -1 +1 @@
+-{"version": "1.22.5"}
++{"version": "1.22.6"}

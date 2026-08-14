@@ -14,6 +14,7 @@ public interface IPlatformPack
     ISecretStore Secrets { get; }
     INotificationService Notifications { get; }
     IClipboardImageService ClipboardImages { get; }
+    IKeyboardShortcutService KeyboardShortcuts { get; }
     IAutostartService Autostart { get; }
     IServiceManager Services { get; }
     INetworkBroker Network { get; }

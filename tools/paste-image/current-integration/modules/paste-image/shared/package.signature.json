@@ -3,7 +3,7 @@
   "PackageId": "paste-image",
   "Version": "0.1.0",
   "HashManifest": "shared/package.hashes.json",
-  "HashManifestSha256": "ba4fd4d7342625cfa73e68452265b9353239a21a705bb912ffc295e1451119bc",
+  "HashManifestSha256": "3336c5584b9580f0bf0788ea60daa6c4214f4b5836a183c95bbcf3c15051a8bd",
   "SignatureState": "unsigned-local-trust",
   "Algorithm": "sha256-manifest-local",
   "KeyId": "local-development",

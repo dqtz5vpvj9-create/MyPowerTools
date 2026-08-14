@@ -25,11 +25,41 @@ public sealed partial class RuntimeAcceptanceTests
         Assert.Contains("'--isolation-probe'", script, StringComparison.Ordinal);
         Assert.Contains("'--smoke'", script, StringComparison.Ordinal);
         Assert.Contains("frameworkDependentManagedComponents", script, StringComparison.Ordinal);
+        Assert.Contains("Add-ToolSurfaceToPackage", script, StringComparison.Ordinal);
+        Assert.Contains("*.Surface.csproj", script, StringComparison.Ordinal);
+        Assert.Contains("matchingToolManifests[0].Directory.FullName", script, StringComparison.Ordinal);
+        Assert.Contains("'surface'", script, StringComparison.Ordinal);
 
         Assert.DoesNotContain("publish-windows.ps1", script, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("Compress-Archive", script, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("MyPowerTools.ElevatedBroker", script, StringComparison.Ordinal);
         Assert.DoesNotContain("shellOutputRoot", script, StringComparison.Ordinal);
         Assert.DoesNotContain("runnerOutputRoot", script, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Windows_development_launcher_updates_and_starts_the_complete_installed_layout()
+    {
+        var launcher = File.ReadAllText(
+            Path.Combine(Root, "scripts", "Start-MyPowerTools-Dev.ps1"));
+        var shortcutInstaller = File.ReadAllText(
+            Path.Combine(Root, "scripts", "install-windows-dev-shortcut.ps1"));
+
+        Assert.Contains("update-windows-dev.ps1", launcher, StringComparison.Ordinal);
+        Assert.Contains("Programs\\MyPowerTools", launcher, StringComparison.Ordinal);
+        Assert.Contains("Runtimes", launcher, StringComparison.Ordinal);
+        Assert.Contains("service-units", launcher, StringComparison.Ordinal);
+        Assert.Contains("ServiceManager", launcher, StringComparison.Ordinal);
+        Assert.Contains("Join-Path $env:LOCALAPPDATA 'MyPowerTools'", launcher, StringComparison.Ordinal);
+        Assert.DoesNotContain("bin\\Debug", launcher, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("LOCALAPPDATA 'MyPowerTools-Dev'", launcher, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("$modulesRoot", launcher, StringComparison.Ordinal);
+        Assert.DoesNotContain("Start-Process", launcher, StringComparison.Ordinal);
+
+        Assert.Contains("Get-Command 'pwsh.exe'", shortcutInstaller, StringComparison.Ordinal);
+        Assert.Contains("Start-MyPowerTools-Dev.ps1", shortcutInstaller, StringComparison.Ordinal);
+        Assert.Contains("MyPowerTools 开发版.lnk", shortcutInstaller, StringComparison.Ordinal);
+        Assert.DoesNotContain("powershell.exe", shortcutInstaller, StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("ExecutionPolicy", shortcutInstaller, StringComparison.OrdinalIgnoreCase);
     }
 }

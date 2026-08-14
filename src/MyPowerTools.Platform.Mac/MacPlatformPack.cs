@@ -15,6 +15,7 @@ public sealed class MacPlatformPack : IPlatformPack
         new("hotkey.global", "user", false, "Event tap", "Provider compiles but native implementation is pending."),
         new("notification.desktop", "user", true, "UserNotifications", "Native UserNotifications provider available."),
         new("clipboard.image", "sensitive", true, "NSPasteboard", "Native NSPasteboard image and text provider available."),
+        new("keyboard.shortcut", "user", false, "CoreGraphics", "Provider compiles but native implementation is pending."),
         new("network.ssh", "user", true, "macOS OpenSSH", "The system /usr/bin/ssh client is used for SSH transfers."),
         new("web.surface", "user", true, "WKWebView", "Native WKWebView surface provider available."),
         new("autostart.user", "user", true, "launchd agent", "Per-user launchd agent provider available."),
@@ -34,6 +35,7 @@ public sealed class MacPlatformPack : IPlatformPack
     public ISecretStore Secrets { get; } = new MacKeychainSecretStore();
     public INotificationService Notifications { get; } = new MacUserNotificationService();
     public IClipboardImageService ClipboardImages { get; } = new MacPasteboardImageService();
+    public IKeyboardShortcutService KeyboardShortcuts { get; } = new UnsupportedKeyboardShortcutService("CoreGraphics", "macOS keyboard shortcut provider compiles; native implementation is pending.");
     public IAutostartService Autostart { get; } = new MacLaunchdAutostartService();
     public IServiceManager Services { get; } = new MacLaunchdServiceManager();
     public INetworkBroker Network { get; } = new UnsupportedNetworkBroker("pfctl", "macOS network broker compiles; native implementation is pending.");

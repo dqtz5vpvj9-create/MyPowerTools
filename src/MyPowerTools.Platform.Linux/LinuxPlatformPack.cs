@@ -15,6 +15,7 @@ public sealed class LinuxPlatformPack : IPlatformPack
         new("hotkey.global", "user", false, "X11/Wayland", "Provider compiles but compositor-specific implementation is pending."),
         new("notification.desktop", "user", false, "freedesktop notifications", "Provider compiles but native implementation is pending."),
         new("clipboard.image", "sensitive", false, "Wayland/X11 clipboard", "Native clipboard image integration is pending."),
+        new("keyboard.shortcut", "user", false, "X11/Wayland", "Provider compiles but compositor-specific implementation is pending."),
         new("network.ssh", "user", true, "OpenSSH", "The system OpenSSH client is used for SSH transfers."),
         new("web.surface", "user", false, "WebKitGTK", "Native WebKitGTK surface provider is pending."),
         new("autostart.user", "user", false, "systemd user", "Provider compiles but native implementation is pending."),
@@ -34,6 +35,7 @@ public sealed class LinuxPlatformPack : IPlatformPack
     public ISecretStore Secrets { get; } = new UnsupportedSecretStore("Secret Service", "Linux Secret Service provider compiles; native implementation is pending.");
     public INotificationService Notifications { get; } = new UnsupportedNotificationService("freedesktop notifications", "Linux notification provider compiles; native implementation is pending.");
     public IClipboardImageService ClipboardImages { get; } = new UnsupportedClipboardImageService("Wayland/X11 clipboard", "Linux clipboard image integration is pending.");
+    public IKeyboardShortcutService KeyboardShortcuts { get; } = new UnsupportedKeyboardShortcutService("X11/Wayland", "Linux keyboard shortcut provider compiles; compositor-specific implementation is pending.");
     public IAutostartService Autostart { get; } = new UnsupportedAutostartService("systemd user", "Linux autostart provider compiles; native implementation is pending.");
     public IServiceManager Services { get; } = new UnsupportedServiceManager("systemd", "Linux service provider compiles; native implementation is pending.");
     public INetworkBroker Network { get; } = new UnsupportedNetworkBroker("nftables/iptables", "Linux network broker compiles; native implementation is pending.");

@@ -1,0 +1,4 @@
+target = "notification-server.example.test"
+release_root = "/opt/remote-notifications"
+service = "simple_http_notification_server_lxr.service"
+

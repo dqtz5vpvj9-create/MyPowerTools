@@ -87,6 +87,10 @@ public sealed class PasteImageProductTests
         Assert.DoesNotContain("Invoke-Expression", source, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("powershell.exe", source, StringComparison.OrdinalIgnoreCase);
         Assert.Contains("notification.desktop", source, StringComparison.Ordinal);
+        Assert.Contains("TryGetCapability<IKeyboardShortcutService>(\"keyboard.shortcut\"", source, StringComparison.Ordinal);
+        Assert.Contains("afterUploadShortcutSent", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("DllImport", source, StringComparison.Ordinal);
+        Assert.DoesNotContain("SendInput", source, StringComparison.Ordinal);
         Assert.Contains("paste-image.notification.test", source, StringComparison.Ordinal);
         Assert.Contains("Paste Image 上传成功", source, StringComparison.Ordinal);
         Assert.Contains("Paste Image 上传失败", source, StringComparison.Ordinal);
@@ -155,6 +159,18 @@ public sealed class PasteImageProductTests
         Assert.Contains("[\"remoteHost\"] = \"chris\"", source, StringComparison.Ordinal);
         Assert.Contains("[\"remoteDirectory\"] = \"/tmp\"", source, StringComparison.Ordinal);
         Assert.Contains("[\"uploadTimeoutSeconds\"] = 30", source, StringComparison.Ordinal);
+        Assert.Contains("[\"afterUploadShortcut\"] = \"Ctrl+Shift+V\"", source, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Paste_image_manifest_declares_the_optional_after_upload_shortcut_capability()
+    {
+        var manifest = JsonNode.Parse(File.ReadAllText(Path.Combine(Root, "modules", "paste-image", "module.json")))!.AsObject();
+        var requires = manifest["requires"]!.AsArray();
+
+        var shortcutCapability = Assert.Single(requires, item =>
+            item!["capability"]?.GetValue<string>() == "keyboard.shortcut");
+        Assert.False(shortcutCapability!["required"]!.GetValue<bool>());
     }
 
     private static string FindRepositoryRoot()

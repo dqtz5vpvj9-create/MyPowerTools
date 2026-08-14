@@ -22,7 +22,7 @@
     }
   ],
   "homeCard": {
-    "summary": "Press Ctrl+Alt+V to upload the clipboard image and copy its remote path.",
+    "summary": "Press Ctrl+Alt+V to upload the clipboard image, copy its remote path, and send the configurable paste shortcut (default Ctrl+Shift+V).",
     "primaryActionLabel": "Open Paste Image",
     "statusBinding": "module.status",
     "order": 60

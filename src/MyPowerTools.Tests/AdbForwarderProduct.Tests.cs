@@ -76,17 +76,24 @@ public sealed class AdbForwarderProductTests
         Assert.Contains("IMptAvaloniaSurfaceFactory", surfaceFactory);
         Assert.Contains("new AdbForwarderView", surfaceFactory);
         Assert.Contains("AdbForwarderServiceClient", surfaceFactory);
-        Assert.Contains("已管理的映射", view);
-        Assert.Contains("更改预览", view);
-        Assert.Contains("一次性审批", view);
-        Assert.Contains("Windows UAC", view);
-        Assert.Contains("RetryForwardLabel", view);
+        Assert.Contains("有线转发设备", view);
+        Assert.Contains("Wi-Fi ADB 设备", view);
+        Assert.Contains("ADB SERIAL", view);
+        Assert.Contains("USB SERIAL", view);
+        Assert.Contains("最后在线", view);
+        Assert.Contains("最后操作", view);
+        Assert.Contains("返回设备状态", view);
+        Assert.DoesNotContain("Text=\"2. 转发进度\"", view, StringComparison.Ordinal);
+        Assert.DoesNotContain("Text=\"Configured USB device\"", view, StringComparison.Ordinal);
         Assert.Contains("MaxWidth=\"1480\"", view);
         Assert.DoesNotContain("Content=\"All tools\"", view, StringComparison.Ordinal);
         Assert.DoesNotContain("NetworkBroker", view, StringComparison.Ordinal);
         Assert.DoesNotContain("Interface in development", view, StringComparison.Ordinal);
         Assert.DoesNotContain("Text=\"{Binding ConnectPort", view, StringComparison.Ordinal);
         Assert.DoesNotContain("Text=\"{Binding ConnectAddress", view, StringComparison.Ordinal);
+        Assert.DoesNotContain("Content=\"记录\"", view, StringComparison.Ordinal);
+        Assert.DoesNotContain("Content=\"端口规则\"", view, StringComparison.Ordinal);
+        Assert.DoesNotContain("Content=\"已连接设备\"", view, StringComparison.Ordinal);
 
         var screenshotWriter = File.ReadAllText(Path.Combine(
             Root,
@@ -125,6 +132,7 @@ public sealed class AdbForwarderProductTests
         Assert.Single(entrypoints);
         Assert.Equal("inproc-dotnet", entrypoints[0]!["kind"]!.GetValue<string>());
         Assert.Contains("GetSettingsAsync(ModuleId", toolService);
+        Assert.DoesNotContain("adb-forwarder.diagnostics.summary", toolService, StringComparison.Ordinal);
         Assert.Contains("new AdbForwardingWorkflowService(adbPath: _workflowAdbPath)", toolService);
         Assert.Contains("adb-forwarder.service", moduleSource);
         Assert.Contains("NamedPipeClientStream", moduleSource);
@@ -225,15 +233,15 @@ public sealed class AdbForwarderProductTests
     }
 
     [Fact]
-    public void Device_display_identifier_never_exposes_a_usb_serial()
+    public void Device_display_identifier_exposes_the_real_adb_serial_for_local_selection()
     {
         var device = new AdbForwarderDevice("USB-SECRET-SERIAL-123", "device", "Pixel", "husky", "1");
 
-        Assert.DoesNotContain("USB-SECRET", device.DisplayId, StringComparison.OrdinalIgnoreCase);
-        Assert.StartsWith("<adb-device-", device.DisplayId, StringComparison.Ordinal);
+        Assert.Equal("USB-SECRET-SERIAL-123", device.DisplayId);
+        Assert.Equal("ADB serial · USB-SECRET-SERIAL-123", device.IdentityLabel);
 
         var untrustedModuleAlias = device with { SafeId = "USB-SECRET-SERIAL-123" };
-        Assert.DoesNotContain("USB-SECRET", untrustedModuleAlias.DisplayId, StringComparison.OrdinalIgnoreCase);
+        Assert.Equal("USB-SECRET-SERIAL-123", untrustedModuleAlias.DisplayId);
 
         var wireless = new AdbForwarderDevice(
             "10.33.2.156:5555",
@@ -243,6 +251,51 @@ public sealed class AdbForwarderProductTests
             "2",
             "<adb-device-redacted>");
         Assert.Equal("10.33.2.156:5555", wireless.DisplayId);
+    }
+
+    [Fact]
+    public void Forward_device_presents_a_readable_name_connection_and_state()
+    {
+        var usb = new AdbForwarderDevice(
+            "USB-SECRET-SERIAL-123",
+            "unauthorized",
+            "Pixel_8",
+            "husky",
+            "1");
+        var placeholder = usb with { Model = "USB ADB 设备", State = "device" };
+
+        Assert.Equal("Pixel_8", usb.DisplayName);
+        Assert.Equal("USB", usb.ConnectionLabel);
+        Assert.Equal("等待授权", usb.StateLabel);
+        Assert.Equal("ADB serial · USB-SECRET-SERIAL-123", usb.IdentityLabel);
+        Assert.Equal("USB ADB 设备", placeholder.DisplayName);
+        Assert.Equal("可用", placeholder.StateLabel);
+    }
+
+    [Fact]
+    public void Refresh_keeps_the_selected_device_by_id_and_uses_the_new_snapshot_instance()
+    {
+        var original = new AdbForwarderDevice("USB-ONE", "device", "Pixel 8", "husky", "1");
+        var refreshed = original with { Model = "Pixel 8 Pro", TransportId = "9" };
+        var snapshot = new AdbForwarderSnapshot(
+            true,
+            "adb",
+            [],
+            true,
+            [],
+            [],
+            new AdbForwarderPlan([], [], [], [], false),
+            [],
+            1)
+        {
+            ForwardDevices = [original]
+        };
+        var viewModel = new AdbForwarderViewModel(snapshot);
+
+        viewModel.UpdateSnapshot(snapshot with { ForwardDevices = [refreshed] });
+
+        Assert.Same(refreshed, viewModel.SelectedForwardDevice);
+        Assert.Equal("Pixel 8 Pro", viewModel.SelectedForwardDevice!.DisplayName);
     }
 
     [Fact]

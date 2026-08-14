@@ -1,0 +1,10 @@
+{
+  "production": {
+    "repository": "dqtz5vpvj9-create/MyPowerTools-remote-notifications",
+    "tag": "0.3.0-session-metadata",
+    "commit": "4afb7675373ba9c0e1fe62d25124aaef54e6341c",
+    "artifact_sha256": "2547c2e497cf4e3575711b7b54bdec3a344e28cba9e7ea351996c728c961d419",
+    "notify_app_version": "1.23.0",
+    "notify_app_sha256": "8f4782fef2c0a61b3c2047f3e6f002904e08b299ad1ed5f3b2969a60350b32c5"
+  }
+}

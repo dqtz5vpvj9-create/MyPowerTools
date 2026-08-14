@@ -284,6 +284,34 @@ public sealed class UnsupportedClipboardImageService : IClipboardImageService
     }
 }
 
+public interface IKeyboardShortcutService
+{
+    Task<KeyboardShortcutResult> SendAsync(string gesture, CancellationToken cancellationToken);
+}
+
+public sealed record KeyboardShortcutResult(bool Success, string State, string Message);
+
+public sealed class UnsupportedKeyboardShortcutService : IKeyboardShortcutService
+{
+    private readonly string _provider;
+    private readonly string _message;
+
+    public UnsupportedKeyboardShortcutService(string provider, string message)
+    {
+        _provider = provider;
+        _message = message;
+    }
+
+    public Task<KeyboardShortcutResult> SendAsync(string gesture, CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
+        return Task.FromResult(new KeyboardShortcutResult(
+            false,
+            "unsupported",
+            $"{_provider}: {_message}"));
+    }
+}
+
 public sealed class UnsupportedNotificationService : INotificationService
 {
     private readonly string _provider;

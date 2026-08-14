@@ -34,7 +34,7 @@
             <TextBlock Text="复制、上传、粘贴"
                        FontSize="22"
                        FontWeight="SemiBold" />
-            <TextBlock Text="优先复用剪贴板中的原生 PNG，单次 SSH 连接完成上传，远端路径随后写回剪贴板。"
+            <TextBlock Text="优先复用剪贴板中的原生 PNG，单次 SSH 连接完成上传，远端路径写回剪贴板后自动发送可配置的粘贴快捷键。"
                        Classes="secondary"
                        MaxWidth="720" />
           </StackPanel>
@@ -178,7 +178,7 @@
         </Border>
       </Grid>
 
-      <TextBlock Text="远端主机、目录和上传超时可在 Paste Image 设置中修改。"
+      <TextBlock Text="远端主机、目录、上传超时和上传后的粘贴快捷键（默认 Ctrl+Shift+V）可在 Paste Image 设置中修改。"
                  Classes="secondary" />
     </StackPanel>
   </Border>

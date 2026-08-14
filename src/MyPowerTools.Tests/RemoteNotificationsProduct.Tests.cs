@@ -69,6 +69,7 @@ public sealed class RemoteNotificationsProductTests
         Assert.DoesNotContain("IMptWebSurfaceService", viewCode, StringComparison.Ordinal);
         Assert.DoesNotContain("context.WebSurfaces", factory, StringComparison.Ordinal);
         Assert.DoesNotContain("RemoteNotificationsView(context.WebSurfaces", factory, StringComparison.Ordinal);
+        Assert.Contains("new RemoteNotificationDetailWindowService(store)", factory, StringComparison.Ordinal);
 
         Assert.Contains("<controls:MptMarkdownView Markdown=\"{Binding DisplayMessage}\"", feed, StringComparison.Ordinal);
         Assert.Contains("ColumnDefinitions=\"*,320,Auto\"", feed, StringComparison.Ordinal);
@@ -80,6 +81,76 @@ public sealed class RemoteNotificationsProductTests
         Assert.Contains("UpdateSourceTrigger=PropertyChanged", feed, StringComparison.Ordinal);
         Assert.Contains("<StackPanel Orientation=\"Horizontal\" />", feed, StringComparison.Ordinal);
         Assert.DoesNotContain("<WrapPanel", feed, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Detail_window_tracks_the_session_position_and_browses_with_arrow_keys()
+    {
+        var integrationRoot = Path.Combine(
+            Root, "tools", "remote-notifications", "current-integration", "src", "RemoteNotifications.Surface");
+        var detail = File.ReadAllText(Path.Combine(integrationRoot, "Views", "RemoteNotificationDetailWindow.axaml"));
+        var detailCode = File.ReadAllText(Path.Combine(integrationRoot, "Views", "RemoteNotificationDetailWindow.axaml.cs"));
+        var itemViewModels = File.ReadAllText(Path.Combine(integrationRoot, "ViewModels", "RemoteNotificationItemViewModels.cs"));
+        var chain = File.ReadAllText(Path.Combine(integrationRoot, "Services", "RemoteNotificationSessionChain.cs"));
+
+        Assert.Contains("UpdateSessionPosition", detailCode, StringComparison.Ordinal);
+        Assert.Contains("NavigatePrevious", detailCode, StringComparison.Ordinal);
+        Assert.Contains("NavigateNext", detailCode, StringComparison.Ordinal);
+        Assert.Contains("Key.Left", detailCode, StringComparison.Ordinal);
+        Assert.Contains("Key.Right", detailCode, StringComparison.Ordinal);
+        Assert.Contains("SessionStore", detailCode, StringComparison.Ordinal);
+        Assert.Contains("post(\"previous\")", detailCode, StringComparison.Ordinal);
+        Assert.Contains("post(\"next\")", detailCode, StringComparison.Ordinal);
+        Assert.Contains("HasSessionPosition", itemViewModels, StringComparison.Ordinal);
+        Assert.Contains("SessionPositionText", itemViewModels, StringComparison.Ordinal);
+        Assert.Contains("SessionPositionTooltip", itemViewModels, StringComparison.Ordinal);
+        Assert.Contains("CanNavigatePrevious", itemViewModels, StringComparison.Ordinal);
+        Assert.Contains("CanNavigateNext", itemViewModels, StringComparison.Ordinal);
+        Assert.Contains("SessionPositionText", detail, StringComparison.Ordinal);
+        Assert.Contains("OnPreviousClick", detail, StringComparison.Ordinal);
+        Assert.Contains("OnNextClick", detail, StringComparison.Ordinal);
+        Assert.Contains("SessionId", chain, StringComparison.Ordinal);
+        Assert.Contains("TryNavigate", chain, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Session_chain_resolves_the_message_position_oldest_first()
+    {
+        const string sessionId = "session-42";
+        var oldest = Message("chain-a", "[x] first", DateTimeOffset.UtcNow.AddMinutes(-3)) with { SessionId = sessionId };
+        var middle = Message("chain-b", "[x] second", DateTimeOffset.UtcNow.AddMinutes(-2)) with { SessionId = sessionId };
+        var newest = Message("chain-c", "[x] third", DateTimeOffset.UtcNow.AddMinutes(-1)) with { SessionId = sessionId };
+        var unrelated = Message("chain-d", "[x] other session", DateTimeOffset.UtcNow) with { SessionId = "session-43" };
+        var noSession = Message("chain-e", "[x] plain", DateTimeOffset.UtcNow);
+
+        var position = RemoteNotificationSessionChain.Resolve(
+            [oldest, unrelated, middle, noSession, newest],
+            middle);
+
+        Assert.NotNull(position);
+        Assert.Equal(1, position.Index);
+        Assert.Equal(3, position.Count);
+        Assert.Equal(
+            [oldest.Id, middle.Id, newest.Id],
+            position.MessagesOldestFirst.Select(message => message.Id));
+        Assert.Equal(
+            2,
+            RemoteNotificationSessionChain.Resolve([oldest, middle, newest], newest)!.Index);
+        Assert.Null(RemoteNotificationSessionChain.Resolve([noSession], noSession));
+        Assert.Null(RemoteNotificationSessionChain.Resolve([], oldest));
+    }
+
+    [Fact]
+    public void Session_chain_navigation_clamps_at_both_ends()
+    {
+        var first = Message("nav-1", "one", DateTimeOffset.UtcNow.AddMinutes(-2)) with { SessionId = "s" };
+        var second = Message("nav-2", "two", DateTimeOffset.UtcNow.AddMinutes(-1)) with { SessionId = "s" };
+        var position = RemoteNotificationSessionChain.Resolve([first, second], second)!;
+
+        Assert.True(RemoteNotificationSessionChain.TryNavigate(position, -1, out var previous));
+        Assert.Equal(first.Id, previous.Id);
+        Assert.False(RemoteNotificationSessionChain.TryNavigate(position, -2, out _));
+        Assert.False(RemoteNotificationSessionChain.TryNavigate(position, 1, out _));
     }
 
     [Theory]

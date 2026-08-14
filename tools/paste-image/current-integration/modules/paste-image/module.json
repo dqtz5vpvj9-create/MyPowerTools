@@ -60,6 +60,11 @@
       "capability": "notification.desktop",
       "required": false,
       "reason": "Report upload success or failure."
+    },
+    {
+      "capability": "keyboard.shortcut",
+      "required": false,
+      "reason": "Send a configurable paste shortcut to the foreground app after the remote path is copied."
     }
   ],
   "permissions": [],

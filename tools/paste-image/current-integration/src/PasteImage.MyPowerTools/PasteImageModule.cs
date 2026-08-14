@@ -20,6 +20,7 @@ public sealed partial class PasteImageModule : IMptModule
     private string _dataDirectory = "";
     private INotificationService? _notifications;
     private IClipboardImageService? _clipboard;
+    private IKeyboardShortcutService? _keyboardShortcuts;
     private long _eventSequence;
 
     public string Id => "paste-image";
@@ -32,6 +33,7 @@ public sealed partial class PasteImageModule : IMptModule
         _dataDirectory = context.DataDirectory;
         context.TryGetCapability<INotificationService>("notification.desktop", out _notifications);
         context.TryGetCapability<IClipboardImageService>("clipboard.image", out _clipboard);
+        context.TryGetCapability<IKeyboardShortcutService>("keyboard.shortcut", out _keyboardShortcuts);
         Directory.CreateDirectory(context.DataDirectory);
         Directory.CreateDirectory(context.CacheDirectory);
         Directory.CreateDirectory(context.LogDirectory);
@@ -129,6 +131,8 @@ public sealed partial class PasteImageModule : IMptModule
                 remoteHost = ReadSetting("remoteHost", "chris"),
                 remoteDirectory = ReadSetting("remoteDirectory", "/tmp"),
                 uploadTimeoutSeconds = ReadTimeoutSeconds(),
+                afterUploadShortcut = ReadAfterUploadShortcut(),
+                keyboardShortcutAvailable = _keyboardShortcuts is not null,
                 checks = status.Checks.Select(check => new { check.Id, check.Label, check.Ok, check.Message })
             });
             return new CommandExecutionResult(request.InvocationId, request.CommandId, "succeeded", true, output);
@@ -188,7 +192,8 @@ public sealed partial class PasteImageModule : IMptModule
         try
         {
             var upload = await UploadClipboardImageAsync(profileWatch, cancellationToken).ConfigureAwait(false);
-            PublishUploadEvent(upload, request, commandStartedUtc, profileWatch.Elapsed.TotalMilliseconds);
+            var shortcut = await SendAfterUploadShortcutAsync(profileWatch).ConfigureAwait(false);
+            PublishUploadEvent(upload, shortcut, request, commandStartedUtc, profileWatch.Elapsed.TotalMilliseconds);
             await NotifyAsync("Paste Image 上传成功", $"远端路径已复制：{upload.Item.RemotePath}", CancellationToken.None).ConfigureAwait(false);
             return new CommandExecutionResult(request.InvocationId, request.CommandId, "succeeded", true, upload.Item.RemotePath);
         }
@@ -245,6 +250,12 @@ public sealed partial class PasteImageModule : IMptModule
               "minimum": 5,
               "maximum": 300,
               "default": 30
+            },
+            "afterUploadShortcut": {
+              "type": "string",
+              "title": "Upload-complete shortcut",
+              "description": "A keyboard shortcut sent to the foreground app after the remote path is copied. Leave empty to disable.",
+              "default": "Ctrl+Shift+V"
             }
           }
         }
@@ -554,6 +565,12 @@ public sealed partial class PasteImageModule : IMptModule
         {
             messages.Add("uploadTimeoutSeconds must be between 5 and 300.");
         }
+        var afterUploadShortcut = SettingsJson.ReadString(values, "afterUploadShortcut")?.Trim() ?? "";
+        if (afterUploadShortcut.Length > 0 &&
+            !KeyboardShortcutGesture.TryParse(afterUploadShortcut, requireModifier: false, out _, out var shortcutError))
+        {
+            messages.Add($"afterUploadShortcut is invalid: {shortcutError}");
+        }
         return messages;
     }
 
@@ -565,6 +582,20 @@ public sealed partial class PasteImageModule : IMptModule
     private int ReadTimeoutSeconds()
     {
         return TryReadInteger(_settings, "uploadTimeoutSeconds", out var timeout) && timeout is >= 5 and <= 300 ? timeout : 30;
+    }
+
+    private string ReadAfterUploadShortcut()
+    {
+        var value = SettingsJson.ReadString(_settings, "afterUploadShortcut");
+        value = string.IsNullOrWhiteSpace(value) ? "" : value.Trim();
+        if (value.Length == 0)
+        {
+            return "";
+        }
+
+        return KeyboardShortcutGesture.TryParse(value, requireModifier: false, out var parsed, out _)
+            ? parsed!.NormalizedGesture
+            : value;
     }
 
     private static bool TryReadInteger(JsonObject values, string name, out int value)
@@ -593,7 +624,8 @@ public sealed partial class PasteImageModule : IMptModule
     {
         ["remoteHost"] = "chris",
         ["remoteDirectory"] = "/tmp",
-        ["uploadTimeoutSeconds"] = 30
+        ["uploadTimeoutSeconds"] = 30,
+        ["afterUploadShortcut"] = "Ctrl+Shift+V"
     };
 
     private void PublishEvent(string type, string title, string message, string? remotePath = null)
@@ -614,6 +646,7 @@ public sealed partial class PasteImageModule : IMptModule
 
     private void PublishUploadEvent(
         UploadResult upload,
+        AfterUploadShortcutProfile shortcut,
         CommandRequest request,
         DateTimeOffset commandStartedUtc,
         double moduleEventPublishedMilliseconds)
@@ -634,6 +667,12 @@ public sealed partial class PasteImageModule : IMptModule
             ["commandDispatchUtc"] = ReadProfileValue(request.Args, "__mptCommandDispatchUtc"),
             ["commandStartedUtc"] = commandStartedUtc.ToString("O"),
             ["moduleEventPublishedUtc"] = DateTimeOffset.UtcNow.ToString("O"),
+            ["afterUploadShortcut"] = shortcut.Gesture,
+            ["afterUploadShortcutAttempted"] = shortcut.Attempted,
+            ["afterUploadShortcutSent"] = shortcut.Sent,
+            ["afterUploadShortcutState"] = shortcut.State,
+            ["afterUploadShortcutMessage"] = shortcut.Message,
+            ["afterUploadShortcutMilliseconds"] = RoundProfile(shortcut.Milliseconds),
             ["uploadGateRequestedMilliseconds"] = RoundProfile(upload.UploadGateRequestedMilliseconds),
             ["uploadGateAcquiredMilliseconds"] = RoundProfile(upload.UploadGateAcquiredMilliseconds),
             ["captureStartedMilliseconds"] = RoundProfile(upload.CaptureStartedMilliseconds),
@@ -658,6 +697,49 @@ public sealed partial class PasteImageModule : IMptModule
         args[name]?.GetValue<string>() ?? "";
 
     private static double RoundProfile(double value) => Math.Round(value, 2);
+
+    private async Task<AfterUploadShortcutProfile> SendAfterUploadShortcutAsync(Stopwatch profileWatch)
+    {
+        var gesture = ReadAfterUploadShortcut();
+        if (string.IsNullOrWhiteSpace(gesture))
+        {
+            return new AfterUploadShortcutProfile("", false, false, "disabled", "After-upload shortcut is disabled.", 0);
+        }
+
+        if (_keyboardShortcuts is null)
+        {
+            return new AfterUploadShortcutProfile(
+                gesture,
+                false,
+                false,
+                "unavailable",
+                "The keyboard shortcut capability is unavailable on this platform.",
+                0);
+        }
+
+        var startedMilliseconds = profileWatch.Elapsed.TotalMilliseconds;
+        try
+        {
+            var result = await _keyboardShortcuts.SendAsync(gesture, CancellationToken.None).ConfigureAwait(false);
+            return new AfterUploadShortcutProfile(
+                gesture,
+                true,
+                result.Success,
+                result.State,
+                result.Message,
+                profileWatch.Elapsed.TotalMilliseconds - startedMilliseconds);
+        }
+        catch (Exception exception)
+        {
+            return new AfterUploadShortcutProfile(
+                gesture,
+                true,
+                false,
+                "failed",
+                MptLogRedactor.Redact(exception.Message),
+                profileWatch.Elapsed.TotalMilliseconds - startedMilliseconds);
+        }
+    }
 
     private async Task<bool> NotifyAsync(string title, string body, CancellationToken cancellationToken)
     {
@@ -714,6 +796,14 @@ public sealed partial class PasteImageModule : IMptModule
         double ProcessStartedMilliseconds,
         double StdinWrittenMilliseconds,
         double ProcessExitedMilliseconds);
+
+    private sealed record AfterUploadShortcutProfile(
+        string Gesture,
+        bool Attempted,
+        bool Sent,
+        string State,
+        string Message,
+        double Milliseconds);
 
     private sealed record UploadHistoryItem(
         string RemotePath,

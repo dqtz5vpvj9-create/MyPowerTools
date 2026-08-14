@@ -42,6 +42,15 @@ $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 Set-StrictMode -Version Latest
 
+$scriptStart = [DateTimeOffset]::UtcNow
+
+function Write-Phase {
+    param([Parameter(Mandatory = $true)][string]$Message)
+
+    $elapsedSeconds = [int]([DateTimeOffset]::UtcNow - $scriptStart).TotalSeconds
+    Write-Host ("==> [{0}] {1} (+{2}s)" -f (Get-Date -Format 'HH:mm:ss'), $Message, $elapsedSeconds) -ForegroundColor Cyan
+}
+
 $repositoryRoot = [IO.Path]::GetFullPath((Split-Path -Parent $PSScriptRoot))
 $canonicalInstallRoot = [IO.Path]::GetFullPath(
     (Join-Path $env:LOCALAPPDATA 'Programs\MyPowerTools'))
@@ -161,12 +170,15 @@ function Invoke-Native {
         [Parameter(Mandatory = $true)][string]$Activity
     )
 
-    Write-Host "==> $Activity" -ForegroundColor Cyan
+    $phaseWatch = [Diagnostics.Stopwatch]::StartNew()
+    Write-Phase $Activity
     & $FilePath @ArgumentList
     $nativeExitCode = $LASTEXITCODE
+    $phaseWatch.Stop()
     if ($nativeExitCode -ne 0) {
         throw "$Activity failed with exit code $nativeExitCode."
     }
+    Write-Host ("    {0} completed in {1}s" -f $Activity, [int]$phaseWatch.Elapsed.TotalSeconds) -ForegroundColor DarkGray
 }
 
 function Start-ProductProcess {
@@ -343,6 +355,29 @@ function Request-RunnerShutdown {
     }
     Wait-ForProcessExit -Record $runnerRecords -Seconds 5
     Stop-ManagedProcesses -Name @('MyPowerTools.Runner')
+
+    # The replacement instance must be able to acquire the single-instance
+    # guard, so verify every managed runner is gone before returning. A
+    # survivor here makes the new runner exit immediately ("already running")
+    # and the post-swap readiness wait time out.
+    $deadline = [DateTimeOffset]::UtcNow.AddSeconds(15)
+    do {
+        $survivors = @(Get-ProductProcessRecords -Name @('MyPowerTools.Runner') |
+            Where-Object Managed)
+        if ($survivors.Count -eq 0) {
+            return
+        }
+        foreach ($survivor in $survivors) {
+            Stop-Process -Id $survivor.Id -Force -ErrorAction SilentlyContinue
+            Wait-Process -Id $survivor.Id -Timeout 3 -ErrorAction SilentlyContinue
+        }
+    } while ([DateTimeOffset]::UtcNow -lt $deadline)
+
+    $remaining = @(Get-ProductProcessRecords -Name @('MyPowerTools.Runner') |
+        Where-Object Managed)
+    if ($remaining.Count -gt 0) {
+        throw "MyPowerTools.Runner refused to stop (pid=$($remaining[0].Id))."
+    }
 }
 
 function Copy-DirectoryContents {
@@ -357,6 +392,120 @@ function Copy-DirectoryContents {
     New-Item -ItemType Directory -Path $Destination -Force | Out-Null
     foreach ($item in Get-ChildItem -LiteralPath $Source -Force) {
         Copy-Item -LiteralPath $item.FullName -Destination $Destination -Recurse -Force
+    }
+}
+
+function Get-ToolPackageRuntimeExecutables {
+    param([Parameter(Mandatory = $true)][string]$PackageRoot)
+
+    $packageManifest = Join-Path $PackageRoot 'package.json'
+    if (-not (Test-Path -LiteralPath $packageManifest -PathType Leaf)) {
+        return @()
+    }
+    try {
+        $manifest = Get-Content -LiteralPath $packageManifest -Raw | ConvertFrom-Json
+    }
+    catch {
+        return @()
+    }
+    if ($null -eq $manifest.shared) {
+        return @()
+    }
+
+    $executableNames = [Collections.Generic.List[string]]::new()
+    foreach ($runtime in @($manifest.shared.runtimes)) {
+        foreach ($entrypoint in @($runtime.entrypoints)) {
+            $command = [string]$entrypoint.command
+            if (-not [string]::IsNullOrWhiteSpace($command)) {
+                $executableNames.Add([IO.Path]::GetFileName($command))
+            }
+        }
+    }
+    return @($executableNames | Sort-Object -Unique)
+}
+
+function Stop-ToolPackageRuntimes {
+    param([Parameter(Mandatory = $true)][object[]]$Components)
+
+    $targets = @($Components | ForEach-Object {
+        $packageId = [string]$_.PackageId
+        $executables = @($_.RuntimeExecutables)
+        if ([string]::IsNullOrWhiteSpace($packageId) -or $executables.Count -eq 0) {
+            return
+        }
+        [pscustomobject]@{
+            PackageId = $packageId
+            ModuleRoot = [IO.Path]::GetFullPath((Join-Path $installedModulesRoot $packageId))
+            ExecutableNames = @($executables | ForEach-Object {
+                [IO.Path]::GetFileNameWithoutExtension([string]$_)
+            })
+        }
+    })
+    if ($targets.Count -eq 0) {
+        return
+    }
+
+    Write-Phase 'Stopping tool runtimes that execute from the replaced module directories'
+    $deadline = [DateTimeOffset]::UtcNow.AddSeconds(15)
+    do {
+        $running = [Collections.Generic.List[object]]::new()
+        foreach ($target in $targets) {
+            foreach ($processName in $target.ExecutableNames) {
+                foreach ($process in Get-Process -Name $processName -ErrorAction SilentlyContinue) {
+                    $path = $null
+                    try {
+                        $path = $process.MainModule.FileName
+                    }
+                    catch {
+                    }
+                    if ([string]::IsNullOrWhiteSpace($path)) {
+                        continue
+                    }
+                    if (Test-IsInsidePath -Parent $target.ModuleRoot -Child $path) {
+                        $running.Add($process)
+                    }
+                }
+            }
+        }
+        if ($running.Count -eq 0) {
+            return
+        }
+
+        foreach ($process in $running) {
+            try {
+                if ($process.CloseMainWindow()) {
+                    [void]$process.WaitForExit(2000)
+                }
+            }
+            catch {
+            }
+        }
+        Start-Sleep -Milliseconds 500
+        foreach ($process in $running) {
+            if ($null -ne (Get-Process -Id $process.Id -ErrorAction SilentlyContinue)) {
+                Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+                Wait-Process -Id $process.Id -Timeout 3 -ErrorAction SilentlyContinue
+            }
+        }
+        Start-Sleep -Milliseconds 500
+    } while ([DateTimeOffset]::UtcNow -lt $deadline)
+
+    foreach ($target in $targets) {
+        foreach ($processName in $target.ExecutableNames) {
+            $survivors = @(Get-Process -Name $processName -ErrorAction SilentlyContinue | Where-Object {
+                $path = $null
+                try {
+                    $path = $_.MainModule.FileName
+                }
+                catch {
+                }
+                -not [string]::IsNullOrWhiteSpace($path) -and
+                (Test-IsInsidePath -Parent $target.ModuleRoot -Child $path)
+            })
+            if ($survivors.Count -gt 0) {
+                throw "Tool runtime still holds the module directory being replaced: $($target.PackageId) ($processName, pid=$($survivors[0].Id))"
+            }
+        }
     }
 }
 
@@ -425,6 +574,76 @@ function Get-ToolPackageDescriptor {
     return $null
 }
 
+function Find-ToolSurfaceProject {
+    param([Parameter(Mandatory = $true)][string]$RequestedToolId)
+
+    $toolSourceRoot = Join-Path $repositoryRoot "tools\$RequestedToolId"
+    $surfaceProjects = @(
+        Get-ChildItem -LiteralPath $toolSourceRoot -Recurse -File -Filter '*.Surface.csproj' -ErrorAction SilentlyContinue)
+    if ($surfaceProjects.Count -eq 0) {
+        return $null
+    }
+    if ($surfaceProjects.Count -ne 1) {
+        throw "Expected one Surface project for tool '$RequestedToolId', found $($surfaceProjects.Count)."
+    }
+    return $surfaceProjects[0].FullName
+}
+
+function Add-ToolSurfaceToPackage {
+    param(
+        [Parameter(Mandatory = $true)][string]$RequestedToolId,
+        [Parameter(Mandatory = $true)][string]$PackageRoot
+    )
+
+    $surfaceProject = Find-ToolSurfaceProject -RequestedToolId $RequestedToolId
+    if ($null -eq $surfaceProject) {
+        return
+    }
+
+    $surfaceBuildArguments = @(
+        'build',
+        $surfaceProject,
+        '--configuration', $Configuration,
+        '--nologo',
+        "-p:MyPowerToolsRepoRoot=$repositoryRoot")
+    if ($NoRestore) {
+        $surfaceBuildArguments += '--no-restore'
+    }
+    $surfaceBuildParameters = @{
+        FilePath = $dotnetCommand.Source
+        ArgumentList = $surfaceBuildArguments
+        Activity = "Building tool Surface $RequestedToolId"
+    }
+    Invoke-Native @surfaceBuildParameters
+
+    $targetFramework = 'net10.0'
+    $surfaceOutput = Join-Path (Split-Path -Parent $surfaceProject) "bin\$Configuration\$targetFramework"
+    $surfaceAssemblyName = [IO.Path]::GetFileNameWithoutExtension($surfaceProject) + '.dll'
+    $surfaceAssemblyPath = Join-Path $surfaceOutput $surfaceAssemblyName
+    if (-not (Test-Path -LiteralPath $surfaceAssemblyPath -PathType Leaf)) {
+        throw "Tool Surface assembly is missing: $surfaceAssemblyPath"
+    }
+
+    $matchingToolManifests = @(
+        Get-ChildItem -LiteralPath $PackageRoot -Recurse -File -Filter 'tool.json' |
+            Where-Object {
+                $toolManifest = Get-Content -LiteralPath $_.FullName -Raw | ConvertFrom-Json
+                [string]$toolManifest.toolId -eq $RequestedToolId
+            })
+    if ($matchingToolManifests.Count -ne 1) {
+        throw "Expected one tool.json for Surface tool '$RequestedToolId', found $($matchingToolManifests.Count)."
+    }
+    $surfaceTarget = Join-Path $matchingToolManifests[0].Directory.FullName 'surface'
+    New-Item -ItemType Directory -Path $surfaceTarget -Force | Out-Null
+    foreach ($extension in @('*.dll', '*.pdb', '*.deps.json')) {
+        Get-ChildItem -LiteralPath $surfaceOutput -File -Filter $extension |
+            Copy-Item -Destination $surfaceTarget -Force
+    }
+    if (-not (Test-Path -LiteralPath (Join-Path $surfaceTarget $surfaceAssemblyName) -PathType Leaf)) {
+        throw "Tool Surface was not staged under the module package: $surfaceTarget"
+    }
+}
+
 function Get-InstalledLayoutInventory {
     $required = [ordered]@{
         Launcher = $installedAppExecutable
@@ -473,7 +692,7 @@ function Start-InstalledRuntime {
         CreateNoWindow = $true
         Detached = $true
     }
-    Write-Host '==> Starting the complete installed runtime' -ForegroundColor Cyan
+    Write-Phase 'Starting the complete installed runtime'
     $runtimeProcess = Start-ProductProcess @runtimeStartParameters
     [void]$runtimeProcess.WaitForExit(120000)
     if (-not $runtimeProcess.HasExited) {
@@ -526,37 +745,51 @@ function Invoke-InstalledHostControlSmoke {
     }
     $smokeMilliseconds = ($TimeoutSeconds * 1000).ToString(
         [Globalization.CultureInfo]::InvariantCulture)
-    Write-Host '==> Verifying installed Shell-to-Runner HostControl' -ForegroundColor Cyan
+    Write-Phase 'Verifying installed Shell-to-Runner HostControl'
     $smokeArguments = @(
         $shellAssembly,
         '--smoke',
         '--timeout-ms', $smokeMilliseconds,
         '--modules', $installedModulesRoot,
         '--data-root', $dataRootFull)
-    $smokeOutput = @(& $dotnetCommand.Source @smokeArguments 2>&1)
-    $smokeExitCode = $LASTEXITCODE
-    foreach ($line in $smokeOutput) {
-        Write-Host ([string]$line)
-    }
-    if ($smokeExitCode -ne 0) {
-        throw "Installed Shell-to-Runner HostControl verification failed with exit code $smokeExitCode."
-    }
 
-    $catalogLine = @($smokeOutput | Where-Object {
-        [string]$_ -match 'modules=(?<modules>\d+)\s+dashboardCards=(?<cards>\d+)\s+commands=(?<commands>\d+)'
-    } | Select-Object -Last 1)
-    if ($catalogLine.Count -eq 0) {
-        throw 'HostControl smoke did not report the installed tool catalog inventory.'
+    # The named-pipe smoke is occasionally flaky right after a runtime restart
+    # (a gRPC call can hang until its client-side timeout). Retry a fresh smoke
+    # process a couple of times before failing the update.
+    $lastFailure = 'HostControl smoke did not report the installed tool catalog inventory.'
+    foreach ($attempt in 1..3) {
+        if ($attempt -gt 1) {
+            Write-Host "    Retrying HostControl smoke (attempt $attempt of 3)" -ForegroundColor DarkGray
+            Start-Sleep -Seconds 2
+        }
+        $smokeOutput = @(& $dotnetCommand.Source @smokeArguments 2>&1)
+        $smokeExitCode = $LASTEXITCODE
+        foreach ($line in $smokeOutput) {
+            Write-Host ([string]$line)
+        }
+        if ($smokeExitCode -ne 0) {
+            $lastFailure = "Installed Shell-to-Runner HostControl verification failed with exit code $smokeExitCode."
+            continue
+        }
+
+        $catalogLine = @($smokeOutput | Where-Object {
+            [string]$_ -match 'modules=(?<modules>\d+)\s+dashboardCards=(?<cards>\d+)\s+commands=(?<commands>\d+)'
+        } | Select-Object -Last 1)
+        if ($catalogLine.Count -eq 0) {
+            continue
+        }
+        $catalogText = [string]$catalogLine[0]
+        if ($catalogText -notmatch 'modules=(?<modules>\d+)\s+dashboardCards=(?<cards>\d+)\s+commands=(?<commands>\d+)') {
+            $lastFailure = "HostControl smoke catalog output has an unexpected format: $catalogText"
+            continue
+        }
+        return [pscustomobject]@{
+            ModuleCount = [int]$Matches.modules
+            DashboardCardCount = [int]$Matches.cards
+            CommandCount = [int]$Matches.commands
+        }
     }
-    $catalogText = [string]$catalogLine[0]
-    if ($catalogText -notmatch 'modules=(?<modules>\d+)\s+dashboardCards=(?<cards>\d+)\s+commands=(?<commands>\d+)') {
-        throw "HostControl smoke catalog output has an unexpected format: $catalogText"
-    }
-    return [pscustomobject]@{
-        ModuleCount = [int]$Matches.modules
-        DashboardCardCount = [int]$Matches.cards
-        CommandCount = [int]$Matches.commands
-    }
+    throw $lastFailure
 }
 
 function Restore-OverlayTransaction {
@@ -566,6 +799,7 @@ function Restore-OverlayTransaction {
     try {
         Request-ShellShutdown
         Request-RunnerShutdown
+        Stop-ToolPackageRuntimes -Components $AppliedComponents
         if ($AppliedComponents.Count -gt 0) {
             foreach ($component in @($AppliedComponents)[($AppliedComponents.Count - 1)..0]) {
                 if ($component.Applied -and (Test-Path -LiteralPath $component.Target)) {
@@ -714,6 +948,8 @@ try {
             Kind = 'managed'
             RelativePath = 'Shell'
             Source = $shellPublish
+            PackageId = ''
+            RuntimeExecutables = @()
         })
     }
 
@@ -733,10 +969,13 @@ try {
             Kind = 'managed'
             RelativePath = 'Runner'
             Source = $runnerPublish
+            PackageId = ''
+            RuntimeExecutables = @()
         })
     }
 
     foreach ($toolBuildScript in $toolBuildScripts) {
+        $requestedToolId = [IO.Path]::GetFileName((Split-Path -Parent $toolBuildScript))
         $toolBuildParameters = @{
             FilePath = $pwshCommand.Source
             ArgumentList = @(
@@ -744,22 +983,23 @@ try {
                 '-NoProfile',
                 '-NonInteractive',
                 '-File', $toolBuildScript,
-                '-MyPowerToolsRepoRoot', $repositoryRoot)
-            Activity = "Building tool $([IO.Path]::GetFileName((Split-Path -Parent $toolBuildScript)))"
+                '-MyPowerToolsRepoRoot', $repositoryRoot,
+                '-Configuration', $Configuration)
+            Activity = "Building tool $requestedToolId"
         }
         Invoke-Native @toolBuildParameters
-        $requestedToolId = [IO.Path]::GetFileName((Split-Path -Parent $toolBuildScript))
         $descriptor = Get-ToolPackageDescriptor -RequestedToolId $requestedToolId
         if ($null -eq $descriptor) {
             Write-Host "==> Tool $requestedToolId produced an SDK/loose-tool build; no installed package overlay is required." -ForegroundColor DarkCyan
             continue
         }
-        $stagedToolPackage = Join-Path $toolPackageRoot $descriptor.PackageId
-        Copy-DirectoryContents -Source $descriptor.Source -Destination $stagedToolPackage
+        Add-ToolSurfaceToPackage -RequestedToolId $requestedToolId -PackageRoot $descriptor.Source
         $stagedComponents.Add([pscustomobject]@{
             Kind = 'tool-package'
             RelativePath = "modules\$($descriptor.PackageId)"
-            Source = $stagedToolPackage
+            Source = $descriptor.Source
+            PackageId = $descriptor.PackageId
+            RuntimeExecutables = @(Get-ToolPackageRuntimeExecutables -PackageRoot $descriptor.Source)
         })
     }
 
@@ -780,9 +1020,10 @@ try {
         Copy-DirectoryContents -Source $component.Source -Destination $payloadDestination
     }
 
-    Write-Host '==> Stopping Shell and Runner for the component swap' -ForegroundColor Cyan
+    Write-Phase 'Stopping Shell and Runner for the component swap'
     Request-ShellShutdown
     Request-RunnerShutdown
+    Stop-ToolPackageRuntimes -Components $stagedComponents
     $transactionStarted = $true
 
     foreach ($component in $stagedComponents) {
@@ -795,6 +1036,8 @@ try {
             Backup = $backup
             HadOriginal = (Test-Path -LiteralPath $target)
             Applied = $false
+            PackageId = [string]$component.PackageId
+            RuntimeExecutables = @($component.RuntimeExecutables)
         }
         $appliedComponents.Add($record)
 
@@ -893,6 +1136,7 @@ try {
     }
 
     $updateSucceeded = $true
+    Write-Host ("==> Update completed in {0}s" -f [int]([DateTimeOffset]::UtcNow - $scriptStart).TotalSeconds) -ForegroundColor Green
     [pscustomobject]@{
         State = 'ready'
         Scope = $Scope

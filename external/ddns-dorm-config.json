@@ -1,0 +1,15 @@
+{
+  "schemaVersion": 1,
+  "provider": "tencent-dnspod",
+  "enabled": true,
+  "clearSameNameRecords": true,
+  "secretId": "285058",
+  "secretToken": "4fdcee93a3b740e30054ac20a5e24a6f",
+  "ipSource": "adapter",
+  "adapterDescription": "Realtek USB 2.5GbE Family Controller",
+  "mainDomain": "lixinrui000.cn",
+  "subDomain": "dorm",
+  "checkIntervalMinutes": 1,
+  "ttlSeconds": 600,
+  "dataRoot": ""
+}

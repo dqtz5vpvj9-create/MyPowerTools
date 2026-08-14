@@ -258,6 +258,10 @@ static IReadOnlyDictionary<string, object> CreateCapabilityProviders(IPlatformPa
     {
         providers["clipboard.image"] = platformPack.ClipboardImages;
     }
+    if (platformPack.Capabilities.Resolve("keyboard.shortcut").Supported)
+    {
+        providers["keyboard.shortcut"] = platformPack.KeyboardShortcuts;
+    }
 
     return providers;
 }

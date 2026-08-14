@@ -25,6 +25,7 @@ public sealed class WindowsPlatformPack : IPlatformPack
         new("hotkey.global", "user", true, "Win32 RegisterHotKey", "Global hotkey provider registers Win32 user hotkeys."),
         new("notification.desktop", "user", true, "Windows notification", "Desktop notification provider available."),
         new("clipboard.image", "sensitive", true, "Win32 Clipboard", "Native Win32 clipboard image and text provider available."),
+        new("keyboard.shortcut", "user", true, "Windows SendInput", "Sends configurable shortcuts to the foreground application."),
         new("network.ssh", "user", true, "Windows OpenSSH", "The system OpenSSH client is used for SSH transfers."),
         new("web.surface", "user", true, "WebView2", "Process-isolated WebView2 surface provider available."),
         new("autostart.user", "user", true, "Startup folder", "User autostart provider available."),
@@ -48,6 +49,7 @@ public sealed class WindowsPlatformPack : IPlatformPack
     public ITrayService Tray { get; } = new WindowsTrayService();
     public INotificationService Notifications => (INotificationService)Tray;
     public IClipboardImageService ClipboardImages { get; } = new WindowsClipboardImageService();
+    public IKeyboardShortcutService KeyboardShortcuts { get; } = new WindowsKeyboardShortcutService();
     public IHotkeyService Hotkeys => _hotkeys.Value;
     public IPrivilegeBroker Privileges { get; } = new BrokerRequiredPrivilegeBroker("UAC broker", "Elevated actions require MyPowerTools Broker approval and audit.");
     public ILocalIpc LocalIpc { get; } = new LocalIpcService(CurrentPlatform);

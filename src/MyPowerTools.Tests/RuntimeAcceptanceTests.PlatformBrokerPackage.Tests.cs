@@ -476,6 +476,61 @@ public sealed partial class RuntimeAcceptanceTests
     }
 
     [Fact]
+    public void Keyboard_shortcut_parser_normalizes_send_gestures_without_requiring_modifiers()
+    {
+        Assert.True(KeyboardShortcutGesture.TryParse("ctrl + shift + v", out var parsed, out var error), error);
+        Assert.Equal("Ctrl+Shift+V", parsed!.NormalizedGesture);
+        Assert.Equal('V', (char)parsed.VirtualKey);
+        Assert.Equal(KeyboardShortcutGesture.ModControl | KeyboardShortcutGesture.ModShift, parsed.Modifiers);
+
+        Assert.True(KeyboardShortcutGesture.TryParse("V", out var singleKey, out error), error);
+        Assert.Equal("V", singleKey!.NormalizedGesture);
+
+        Assert.False(KeyboardShortcutGesture.TryParse("", out _, out error));
+        Assert.False(KeyboardShortcutGesture.TryParse("Ctrl+NotAKey", out _, out error));
+    }
+
+    [Fact]
+    public void Platform_packs_expose_keyboard_shortcut_capability_truthfully()
+    {
+        var mac = new MacPlatformPack();
+        var linux = new LinuxPlatformPack();
+
+        if (OperatingSystem.IsWindows())
+        {
+            var windows = new WindowsPlatformPack();
+
+            Assert.True(windows.Capabilities.Resolve("keyboard.shortcut").Supported);
+            Assert.Equal("Windows SendInput", windows.Capabilities.Resolve("keyboard.shortcut").Provider);
+            Assert.IsType<WindowsKeyboardShortcutService>(windows.KeyboardShortcuts);
+        }
+
+        Assert.False(mac.Capabilities.Resolve("keyboard.shortcut").Supported);
+        Assert.False(linux.Capabilities.Resolve("keyboard.shortcut").Supported);
+        Assert.IsType<UnsupportedKeyboardShortcutService>(mac.KeyboardShortcuts);
+        Assert.IsType<UnsupportedKeyboardShortcutService>(linux.KeyboardShortcuts);
+    }
+
+    [Fact]
+    public async Task Keyboard_shortcut_services_reject_invalid_gestures_without_sending_input()
+    {
+        var unsupported = new UnsupportedKeyboardShortcutService("test provider", "native implementation pending");
+        var unsupportedResult = await unsupported.SendAsync("Ctrl+Shift+V", CancellationToken.None);
+
+        Assert.False(unsupportedResult.Success);
+        Assert.Equal("unsupported", unsupportedResult.State);
+
+        if (OperatingSystem.IsWindows())
+        {
+            var windows = new WindowsKeyboardShortcutService();
+            var invalid = await windows.SendAsync("Ctrl+NotAKey", CancellationToken.None);
+
+            Assert.False(invalid.Success);
+            Assert.Equal("validation-failed", invalid.State);
+        }
+    }
+
+    [Fact]
     public void Runner_wires_windows_global_hotkey_to_command_palette_startup()
     {
         var runnerPath = Path.Combine(Root, "src", "MyPowerTools.Runner", "Program.cs");
