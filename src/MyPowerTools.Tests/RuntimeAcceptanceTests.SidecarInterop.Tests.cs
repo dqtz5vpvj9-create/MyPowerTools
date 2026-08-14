@@ -623,7 +623,26 @@ commands:
 
             runtime.Load(Path.Combine(Root, "modules"));
             var dynamicCount = await runtime.RefreshDynamicCommandsAsync(CancellationToken.None);
-            var command = Assert.Single(runtime.ListCommands("Shell Echo").Where(command => command.Id == "android-tools.remote-commands.run.shell_echo"));
+
+            // powertoold starts on demand and imports commands.yaml during its
+            // startup, so poll briefly until the dynamic command is exposed;
+            // the first gRPC handshake can race the import on cold runners.
+            MyPowerTools.Abstractions.MptCommandDescriptor? candidate = null;
+            var deadline = DateTime.UtcNow.AddSeconds(20);
+            while (candidate is null && DateTime.UtcNow < deadline)
+            {
+                candidate = runtime
+                    .ListCommands("Shell Echo")
+                    .FirstOrDefault(command => command.Id == "android-tools.remote-commands.run.shell_echo");
+                if (candidate is null)
+                {
+                    await Task.Delay(250, CancellationToken.None);
+                    await runtime.RefreshDynamicCommandsAsync(CancellationToken.None);
+                }
+            }
+
+            var command = candidate ?? throw new Xunit.Sdk.XunitException(
+                "powertoold did not expose the dynamic shell_echo command within 20 seconds.");
 
             Assert.True(dynamicCount > 0);
             Assert.Equal("Android Tools", command.Category);
