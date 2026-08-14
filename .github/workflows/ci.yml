@@ -323,11 +323,25 @@ jobs:
           if ($assets.Count -eq 0) {
             throw 'No release assets were produced.'
           }
+          $title = "MyPowerTools ${{ steps.release-info.outputs.version }} (${{ steps.release-info.outputs.channel }})"
+          $existing = gh release view $tag --repo dqtz5vpvj9-create/MyPowerTools --json tagName --jq '.tagName' 2>$null
+          if ($existing -eq $tag) {
+            # Re-running a moved tag: refresh the existing release in place.
+            $editArgs = @(
+              'release', 'edit', $tag,
+              '--repo', 'dqtz5vpvj9-create/MyPowerTools',
+              '--title', $title,
+              '--notes-file', 'artifacts/release/RELEASE_NOTES.md'
+            )
+            gh @editArgs
+            gh release upload $tag --repo dqtz5vpvj9-create/MyPowerTools $assets --clobber
+            exit 0
+          }
           $releaseArgs = @(
             'release', 'create', $tag,
             '--repo', 'dqtz5vpvj9-create/MyPowerTools',
             '--target', 'main',
-            '--title', "MyPowerTools ${{ steps.release-info.outputs.version }} (${{ steps.release-info.outputs.channel }})",
+            '--title', $title,
             '--notes-file', 'artifacts/release/RELEASE_NOTES.md'
           )
           if ('${{ steps.release-info.outputs.channel }}' -eq 'nightly') {
