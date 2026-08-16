@@ -529,3 +529,13 @@ ExecStart=<venv>/python -m gunicorn ...
 - 验证：chris 上手动触发 Codex Stop 包装器，队列 `client=codex` 入队并发送成功，
   Redis 记录 `source_client=codex`。
 - Remote Notifications：`659ddb5`
+
+### 代码复审补充修复
+
+- 服务器 `send_unifiedpush` 与服务器 FCM 路径同样使用 3 KiB 预览 + `truncated`
+  标记，UnifiedPush 长消息也能在 App 端自动同步全文。
+- 桌面与手机标签提取改为“行首 `[label]`”，引用块正文中的方括号不会误判为标签。
+- Remote Notifications：`a36ab24`
+- NotifyApp：`563f61d`（versionCode 40 / 1.23.3）
+- AutoDroid 部署控制面：`0fde227`
+- 生产服务目录：`/opt/remote-notifications/releases/0.3.1-full-sync-a36ab24`
