@@ -495,3 +495,15 @@ ExecStart=<venv>/python -m gunicorn ...
 - 完整 Choreo 报告重新发送后，Redis 与桌面历史均保存完整正文
   （14115 字符 / 20985 字节，结尾为报告原文末尾）。
 - NotifyApp 1.23.1 手机端拉取后列表显示完整报告，结尾标记完整。
+
+## 13. 通知中引用触发请求
+
+状态：2026-08-16 实现并推送。
+
+- Stop 通知现在在开头以引用块形式附带触发本轮的用户请求，再接助手回复。
+- DSH：从会话 transcript 的 `user/message` 事件提取（`source.kind=user`）。
+- Codex：从 rollout 的 `response_item → role=user → input_text` 提取，
+  优先使用 payload 自带的 `user_prompt`。
+- 真实 DSH headless 会话验证：Redis 记录以
+  `[会话名] > 回复：带引号请求测试。…` 开头，随后是完整助手回复。
+- Remote Notifications 提交：`1a88925`（`feature/dsh-hooks`）。
