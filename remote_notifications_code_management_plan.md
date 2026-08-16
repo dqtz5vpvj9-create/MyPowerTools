@@ -507,3 +507,15 @@ ExecStart=<venv>/python -m gunicorn ...
 - 真实 DSH headless 会话验证：Redis 记录以
   `[会话名] > 回复：带引号请求测试。…` 开头，随后是完整助手回复。
 - Remote Notifications 提交：`1a88925`（`feature/dsh-hooks`）。
+
+### 顶行调整
+
+- 用户要求引用块顶行：消息格式改为
+  `> 用户请求` 在第一行，随后 `[会话名] 助手回复`。
+- 桌面端 `ExtractLabel` 与 NotifyApp 标签提取同步改为全文搜索第一个
+  `[label]`，会话分组不受影响。
+- Remote Notifications：`36afb90`
+- NotifyApp：`36af5c6`（versionCode 39 / 1.23.2）
+- AutoDroid 部署控制面：`3ff3300`
+- 真实 DSH 会话验证：Redis 记录首行为
+  `> 顶行测试：回复确认即可，不要调用工具。`
