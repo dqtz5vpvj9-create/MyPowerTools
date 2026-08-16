@@ -462,3 +462,36 @@ ExecStart=<venv>/python -m gunicorn ...
 - MyPowerTools 桌面历史已持久化多条 `dsh` 记录。
 - NotifyApp 1.23.0 手机列表顶部显示本机与 chris 的 DSH 会话标签和短 ID。
 - 本地发送端 FCM 返回 HTTP 200（`token_count=2`）。
+
+## 12. 长消息全文同步（截断修复）
+
+状态：2026-08-16 修复并发布。
+
+### 根因
+
+- DSH 发送端 `_dsh_last_assistant_message` 曾把最后一条助手消息截到 2000 字符，
+  截断后的正文直接写入服务器 Redis，所有客户端都只能拿到截断版。
+- FCM data payload 有 4 KiB 上限；即使发送端不截断，超长正文也无法完整推送。
+
+### 修复
+
+- 发送端不再截断 DSH 最后消息，服务器和桌面端保存完整正文。
+- `fcm_push.py` 对超长消息只推送 3 KiB 预览，并附带 `truncated=1` 标记。
+- NotifyApp 1.23.1：收到 `truncated=1` 时不保存截断正文，后台从服务器按 ID
+  拉取完整记录后精确替换；手动/下拉拉取也使用同一“服务器为准”的 upsert。
+- 仓库实现：`NotificationRepository.upsertServerItem`、
+  `NotificationServerSync.pull`；FCM/UnifiedPush 接收器共用同步路径。
+
+### 发布记录
+
+- Remote Notifications：`c88f9f7`（`feature/dsh-hooks`）
+- NotifyApp：`04555b0`（`feature/session-metadata-v2`），versionCode 38、
+  versionName 1.23.1
+- 生产服务器 `/version` 返回 `1.23.1`，`/update.apk` 为新 APK
+- APK SHA-256：`e567c5d3f18997e9ba7cb7c063edfc949dca68cb74cd24e14b2c5a7d45840aae`
+
+### 验证
+
+- 完整 Choreo 报告重新发送后，Redis 与桌面历史均保存完整正文
+  （14115 字符 / 20985 字节，结尾为报告原文末尾）。
+- NotifyApp 1.23.1 手机端拉取后列表显示完整报告，结尾标记完整。
