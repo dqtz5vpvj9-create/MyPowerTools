@@ -519,3 +519,13 @@ ExecStart=<venv>/python -m gunicorn ...
 - AutoDroid 部署控制面：`3ff3300`
 - 真实 DSH 会话验证：Redis 记录首行为
   `> 顶行测试：回复确认即可，不要调用工具。`
+
+### chris Codex 通道恢复
+
+- 同步队列脚本时曾用权威版本覆盖了 chris 的本地队列，导致 Linux Codex
+  包装器的 `--stdin-file` 参数不被识别，Codex 通知全部入队失败。
+- 权威 `notification_queue.py` 已补回 `--stdin-file` 支持并重新同步 chris。
+- Codex 请求提取优先使用 payload 自带的 `transcript_path`，避免按 session 全盘扫描。
+- 验证：chris 上手动触发 Codex Stop 包装器，队列 `client=codex` 入队并发送成功，
+  Redis 记录 `source_client=codex`。
+- Remote Notifications：`659ddb5`
