@@ -426,3 +426,39 @@ ExecStart=<venv>/python -m gunicorn ...
 - [ ] 整理并合并 chris 的 `codex-tmux-integration` 通知相关历史改动。
 - [ ] 为 NotifyApp 旧本地记录增加独立的 migration/兼容回归测试。
 - [ ] 为 r743 配置到公网服务器的直连路由或明确的 SSH jump host。
+
+## 11. DeepSeek Harness（DSH）全链路接入
+
+状态：2026-08-16 完成首轮实施，本机与 chris 均收到通知。
+
+### 接入机制
+
+- DSH 官方 hook 子系统通过 `@deepseek-ai/dsh-hooks-codex` 把 Codex `hooks.json`
+  的受支持子集映射到 DSH 拦截点；本次只使用 `Stop` → `agent/turn-stopping`。
+- Stop payload 携带 `session_id`、`transcript_path`、`cwd`、`turn_id` 和
+  `model`，与现有 v2 通知契约兼容。
+- hook 命令通过 DSH 的 shell seam 执行：Windows 是 `pwsh-sandbox`，Linux 是
+  `bash-sandbox`。两端 profile 均显式覆盖 `sandbox-policy` 为
+  `danger-full-access`，否则 hook 无法写通知队列缓存。
+
+### 部署清单
+
+| 位置 | 内容 |
+| --- | --- |
+| `tools/remote-notifications` | `feature/dsh-hooks`：`send_notification.py`/`notification_queue.py` 支持 `dsh` 客户端；`original-source/scripts/dsh_hook_notify.ps1` 为 Windows 包装器 |
+| 本机 `~/.dsh/profiles/{web,headless}` | 安装 `dsh-hooks-codex` 与 `dsh-hook-protocol`，patch 指向 `C:/Users/lixinrui/.codex/dsh-hooks.json` |
+| 本机 `~/.codex/dsh-hooks.json` | 只保留 Stop 通知 hook，调用 `dsh_hook_notify.ps1` |
+| chris `~/.dsh/profiles/{web,dsh-tui,headless}` | 同样安装 hooks 插件，patch 指向 `/home/chris/.dsh/dsh-hooks.json` |
+| chris `~/.dsh/dsh-hooks.json` | Stop hook 直接调用 `/android/androidtools/py_modules/notification_queue.py enqueue --client dsh` |
+| chris 通知环境 | 安装 `zstandard`，用于读取 DSH zstd transcript |
+
+### 端到端验证记录
+
+- 本机 headless 会话 `session-a8c32dcc-6331-446a-8664-ca7efbf8bdc7`：
+  Redis 记录 `session_name=local-dsh-final`、`source_client=dsh`。
+- chris headless 会话 `session-2d52bd4d-46e4-4750-a09b-2f84658673a2`：
+  Redis 记录 `session_name=Reply with exactly: chris-dsh-final-2. D`、
+  `source_client=dsh`。
+- MyPowerTools 桌面历史已持久化多条 `dsh` 记录。
+- NotifyApp 1.23.0 手机列表顶部显示本机与 chris 的 DSH 会话标签和短 ID。
+- 本地发送端 FCM 返回 HTTP 200（`token_count=2`）。
