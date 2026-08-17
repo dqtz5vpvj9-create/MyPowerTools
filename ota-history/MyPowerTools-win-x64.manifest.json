@@ -2,10 +2,10 @@
   "schemaVersion": 1,
   "kind": "mypowertools-ota-file-manifest",
   "product": "MyPowerTools",
-  "version": "0.3.10",
-  "generatedAtUtc": "2026-08-14T07:27:19.2532457+00:00",
-  "fileCount": 7535,
-  "totalBytes": 487474061,
+  "version": "0.3.11",
+  "generatedAtUtc": "2026-08-17T05:31:12.5061736+00:00",
+  "fileCount": 7539,
+  "totalBytes": 487581302,
   "files": [
     {
       "path": "assets/MyPowerTools.ico",
@@ -20,12 +20,12 @@
     {
       "path": "Broker/MyPowerTools.ElevatedBroker.exe",
       "length": 2410631,
-      "sha256": "949b9e78d7e3668ecf1829d80a03c56575c14c43295c8e8715e7d29d948c0cb4"
+      "sha256": "fd8ec3e61497a96f1f7391b4ae0d8c4d54bcb0a1e9314381d64a1d919f68715b"
     },
     {
       "path": "build-provenance.json",
       "length": 3526,
-      "sha256": "26ce1d43f283ea6a5f9432cfcaf9507876bfbe29d12021df240bc0632ed08b26"
+      "sha256": "ca1925762d95a825cb56e4d056e172df3759321a866aa64466b45ecd6712e00c"
     },
     {
       "path": "Cli/Google.Protobuf.dll",
@@ -75,12 +75,12 @@
     {
       "path": "Cli/MyPowerTools.Abstractions.dll",
       "length": 153600,
-      "sha256": "78c7aa07f40b7c8418dcb0339eb07042254cac0049deef7cfd9464ba92c672bd"
+      "sha256": "d895580ab6ef4f4698ddea2af25df5fef575ce6eed3215acb55d6b8df0df21d5"
     },
     {
       "path": "Cli/MyPowerTools.Broker.dll",
       "length": 119808,
-      "sha256": "b3696a7bc1b9382044cafefc9dd227c853211c6deb95d507a91d65761927ce75"
+      "sha256": "b3b589972edf47304b1c2a835c5fb93e3dfb54f56a5b93e53875f92ed441a783"
     },
     {
       "path": "Cli/MyPowerTools.Cli.deps.json",
@@ -90,12 +90,12 @@
     {
       "path": "Cli/MyPowerTools.Cli.dll",
       "length": 104448,
-      "sha256": "5323545c4352c5d6de4267d93b62671eeaf2dc90ebe85623d1df422ab3c3e791"
+      "sha256": "af15da1f9348d1ef944c591d853a2f15a3c1a0cede12ed2ddb3955c06404b656"
     },
     {
       "path": "Cli/MyPowerTools.Cli.exe",
       "length": 162304,
-      "sha256": "ffc19999b1fecd394b443e41e91d9309595c8572a8450802410a12bef449acb4"
+      "sha256": "91b97856ead9d64f52e76b770e31041dda8a00ea82d90958bff909a3fb53ecb2"
     },
     {
       "path": "Cli/MyPowerTools.Cli.runtimeconfig.json",
@@ -105,72 +105,72 @@
     {
       "path": "Cli/MyPowerTools.HostControl.Client.dll",
       "length": 43008,
-      "sha256": "adc2bfa27b9a593252d147e075874e510d170cf02a47d49083d7c46cd3474cba"
+      "sha256": "a7a9facbc47ea1b529b50337754e9b4014d7d8fff5c6f831c290254ce98eee5b"
     },
     {
       "path": "Cli/MyPowerTools.HostControl.Contracts.dll",
       "length": 9728,
-      "sha256": "37cc7698a98c81c69d4ef030fef439c1f6f898d512fe660a659dbdffd0259708"
+      "sha256": "05aae451cf3bd1557b3191329b7d4cd9a4c64dc511139acf4ef1ccf476c1ecaf"
     },
     {
       "path": "Cli/MyPowerTools.HostControl.dll",
       "length": 4608,
-      "sha256": "c13c47c8e14db148f395eae8e1c437a8aa39743f151949d27d97f7a076a12f5c"
+      "sha256": "711403201f9bfe3acc3a4a1f2b10ab47a3cb0486326c0f1ba09a509aa04da072"
     },
     {
       "path": "Cli/MyPowerTools.HostControl.Server.dll",
       "length": 54784,
-      "sha256": "d7275ad8c467d9035c9b9d26320fe7d0e519b663dcac2787829b051b120f700a"
+      "sha256": "1c19a25f3d7179a81c75522e412fe3a9807b3cf1e224b503c19c63b177f6f5dd"
     },
     {
       "path": "Cli/MyPowerTools.Ipc.Shared.dll",
       "length": 18944,
-      "sha256": "cccc164219c1e7f368e77c3a7ce40cc0ea84c2bc4dc9a2b995b3ac0bb7b3f7ee"
+      "sha256": "3fb6d75d5b28ab5340a941ff5c222ae02594c158a27a8e52f389b7c341c6267f"
     },
     {
       "path": "Cli/MyPowerTools.ModuleHost.GrpcIpc.dll",
       "length": 88064,
-      "sha256": "cec3e22c7758d7cdfe501fd31c2d317a1b3f67a31fc8463cd5077f0fa5ebfeed"
+      "sha256": "a06f3f07505220ff2a1f8f2bb1aef55e524dcbf15ebe6b1a6334462c98101bec"
     },
     {
       "path": "Cli/MyPowerTools.ModuleHost.InProcDotNet.dll",
       "length": 144384,
-      "sha256": "5a0229f6a9e088f0ef3f5d6459867efa1d685b9874906f9693a4de29d228acdc"
+      "sha256": "3febaee98c9a085025cbd8fdd86773db9cb061ab78980f9a33b6fd2241479919"
     },
     {
       "path": "Cli/MyPowerTools.ModuleHost.StdioCompat.dll",
       "length": 18432,
-      "sha256": "cedb2bb113f14ffcac7186f5dde1fbb1b949c728d14db1d4d749e44babcec5fd"
+      "sha256": "3014169f886ef400b03052cdb667dc9ff9f0a7c2da94691a09a701def54f2e9a"
     },
     {
       "path": "Cli/MyPowerTools.Packaging.dll",
       "length": 96256,
-      "sha256": "9e6eb652d68292c4ae7d3f30af7ff8953b99b270c0b5b64a853e803aeebdb5a2"
+      "sha256": "5f06aeaec260f58b2b37df41cedccf55f032e56adc8d32a888e3ce425a6e3822"
     },
     {
       "path": "Cli/MyPowerTools.Platform.Abstractions.dll",
       "length": 104448,
-      "sha256": "4baf359d504a80a9df7f64e485ca6f6c2af4fc500f99acc86382f16d2c45af87"
+      "sha256": "276946888784c7c0d4e1d0a65c5425d1d9f080b6bd700afc4883d8c4c7a2688d"
     },
     {
       "path": "Cli/MyPowerTools.Platform.Windows.dll",
       "length": 96768,
-      "sha256": "317e80462dde32fc5de2c083efd15c882d31934a6b9b15159f013d9fe635c15a"
+      "sha256": "42e4f0f59d357c6025cbc225017487c0c83b3197b54dae333b4da3e113b45098"
     },
     {
       "path": "Cli/MyPowerTools.Protocol.dll",
       "length": 499712,
-      "sha256": "c8c6857e68345a6f047ce836ca0d0db7671c240064fdd3da444dea8b9822c9d4"
+      "sha256": "197f99b1726d5c5eaf4cfcb8189c0ebdb132fe690bde2da709969e4f3738bf68"
     },
     {
       "path": "Cli/MyPowerTools.Runtime.dll",
       "length": 316416,
-      "sha256": "f30a66e2b954c71e1e0b922132bc0dbceda5e0a7a580e98a8ffc05c0f9bbfaee"
+      "sha256": "708819bae5f2473bd1f1047dff6dc0efb4b36646bc8f2f263ce1d091f590653a"
     },
     {
       "path": "Cli/MyPowerTools.ServiceManager.Client.dll",
       "length": 33792,
-      "sha256": "ed8691e3cea4565b8669c810e1bc8d601fc80eb67ae4b5223a906380f900b1b2"
+      "sha256": "23528f66461e3bb8e5799cbbb81ac9d01493157abc52c27466beb54374a4593f"
     },
     {
       "path": "Cli/schemas/tool.schema.json",
@@ -220,7 +220,7 @@
     {
       "path": "modules/adb-forwarder/AdbForwarder.MyPowerTools.dll",
       "length": 98816,
-      "sha256": "91d00f9ce7039223c28fddd716c410bbb116ad180777985fa5d0be5ca94d729d"
+      "sha256": "4dbaa2d8893e708720adae5b5dd575aaac32cccffb1054459ec891e69b482ec2"
     },
     {
       "path": "modules/adb-forwarder/commands.index.json",
@@ -235,12 +235,12 @@
     {
       "path": "modules/adb-forwarder/shared/package.hashes.json",
       "length": 1744,
-      "sha256": "83f17eb389d240fbe4124191f43fdfaa266271c8129da1faa9c0aeaa2fa20da9"
+      "sha256": "bb60bcc9418ca4a066880ff53545241151b840134dd16089dbbc8ab98465aea0"
     },
     {
       "path": "modules/adb-forwarder/shared/package.signature.json",
       "length": 537,
-      "sha256": "e72a739bff074970d0872a45de760f992dcff2b5662ddf3be54284c5e08e9cbc"
+      "sha256": "c68894afa10fe5bdf990335dd8653200256f252d2759b10cc009f041cac790ac"
     },
     {
       "path": "modules/adb-forwarder/ui/dashboard-card.json",
@@ -265,12 +265,12 @@
     {
       "path": "modules/adb-forwarder/ui/surface/AdbForwarder.Surface.deps.json",
       "length": 20106,
-      "sha256": "e3eaee17bd42228a3055928682c22b0808147003ff2db8f57c737d9d0a97bd53"
+      "sha256": "819da2076b316c52761f48bff383c259bb6caf5de78d5c00d74ddccde00f89c0"
     },
     {
       "path": "modules/adb-forwarder/ui/surface/AdbForwarder.Surface.dll",
       "length": 478720,
-      "sha256": "59be76d7c26912fea0733534895e601e6d486421535e87b8e906f8bbfd367e3c"
+      "sha256": "d6d1dd302b85356cb683ab9befa44c7140239ec7b126100cf42ec561d95995bd"
     },
     {
       "path": "modules/adb-forwarder/ui/tool.json",
@@ -280,7 +280,7 @@
     {
       "path": "modules/android-tools-suite/AndroidTools.MyPowerTools.dll",
       "length": 160768,
-      "sha256": "a51f1b4d98701fd97988fb7455ae6972323534925d6ab699d0c14fc75820d532"
+      "sha256": "88bb0c2eacc68ba35ba95ca4b4e4ca69d2fea5fdc8f418128ca4b400e95ed2de"
     },
     {
       "path": "modules/android-tools-suite/modules/notifications/commands.index.json",
@@ -325,17 +325,17 @@
     {
       "path": "modules/android-tools-suite/modules/notifications/ui/surface/MyPowerTools.Ipc.Shared.dll",
       "length": 18944,
-      "sha256": "cccc164219c1e7f368e77c3a7ce40cc0ea84c2bc4dc9a2b995b3ac0bb7b3f7ee"
+      "sha256": "3fb6d75d5b28ab5340a941ff5c222ae02594c158a27a8e52f389b7c341c6267f"
     },
     {
       "path": "modules/android-tools-suite/modules/notifications/ui/surface/RemoteNotifications.Surface.deps.json",
       "length": 21315,
-      "sha256": "941c4d97d413e6080001b404d3ee9e2e333da9aec9cc403ff8b1e0e0e2e3dc2b"
+      "sha256": "51da4206ff06bbc545f15f58d8c92ae2080b6033a377e921b5e46f2f9ac43d56"
     },
     {
       "path": "modules/android-tools-suite/modules/notifications/ui/surface/RemoteNotifications.Surface.dll",
       "length": 268288,
-      "sha256": "e5180c1e58010deabd77c687d5171e438b4cd3e1e0bf9eec81aa8bbbd3add8d9"
+      "sha256": "d9e75b1635dd9894c4bcd43bf816bf8de7e17080df3fad8f1e0d7bd340eb1ac0"
     },
     {
       "path": "modules/android-tools-suite/modules/notifications/ui/tool.json",
@@ -420,37 +420,37 @@
     {
       "path": "modules/android-tools-suite/modules/remote-commands/ui/surface/MyPowerTools.Abstractions.dll",
       "length": 153600,
-      "sha256": "78c7aa07f40b7c8418dcb0339eb07042254cac0049deef7cfd9464ba92c672bd"
+      "sha256": "d895580ab6ef4f4698ddea2af25df5fef575ce6eed3215acb55d6b8df0df21d5"
     },
     {
       "path": "modules/android-tools-suite/modules/remote-commands/ui/surface/MyPowerTools.AvaloniaSdk.dll",
       "length": 41472,
-      "sha256": "7e966d65af9aae752e4606084b5c7bff7c720070e4f47d565155eade6400915a"
+      "sha256": "15484f9cc58f612bd67e7cb893d67a6812e1dc4e9bcbff17ff39180026b122eb"
     },
     {
       "path": "modules/android-tools-suite/modules/remote-commands/ui/surface/MyPowerTools.Packaging.dll",
       "length": 96256,
-      "sha256": "9e6eb652d68292c4ae7d3f30af7ff8953b99b270c0b5b64a853e803aeebdb5a2"
+      "sha256": "5f06aeaec260f58b2b37df41cedccf55f032e56adc8d32a888e3ce425a6e3822"
     },
     {
       "path": "modules/android-tools-suite/modules/remote-commands/ui/surface/MyPowerTools.Platform.Abstractions.dll",
       "length": 104448,
-      "sha256": "4baf359d504a80a9df7f64e485ca6f6c2af4fc500f99acc86382f16d2c45af87"
+      "sha256": "276946888784c7c0d4e1d0a65c5425d1d9f080b6bd700afc4883d8c4c7a2688d"
     },
     {
       "path": "modules/android-tools-suite/modules/remote-commands/ui/surface/MyPowerTools.Protocol.dll",
       "length": 499712,
-      "sha256": "c8c6857e68345a6f047ce836ca0d0db7671c240064fdd3da444dea8b9822c9d4"
+      "sha256": "197f99b1726d5c5eaf4cfcb8189c0ebdb132fe690bde2da709969e4f3738bf68"
     },
     {
       "path": "modules/android-tools-suite/modules/remote-commands/ui/surface/MyPowerTools.UI.dll",
       "length": 169472,
-      "sha256": "5d75543d059a3038f4a2709b7fda80038d6857a239da275f74b2b8e6dde4f992"
+      "sha256": "549db5023a81af41d92a46dfa394b878e0ca974b202edcb260c3788436533ee2"
     },
     {
       "path": "modules/android-tools-suite/modules/remote-commands/ui/surface/MyPowerTools.UI.Primitives.dll",
       "length": 15360,
-      "sha256": "b1c35900157b2068fc6e492eb63a5cbccd0518a036a0830cf64ccc6d3de69a64"
+      "sha256": "571802e13bc4a9eea70255592ca6fc2177cef2a4f681f41e4fed9c98db6a37e4"
     },
     {
       "path": "modules/android-tools-suite/modules/remote-commands/ui/surface/RemoteCommands.Surface.deps.json",
@@ -460,7 +460,7 @@
     {
       "path": "modules/android-tools-suite/modules/remote-commands/ui/surface/RemoteCommands.Surface.dll",
       "length": 104960,
-      "sha256": "2a2cd8d0ce6104accace65086c9a06eed6748761a45fb7ae543d25e2d79155db"
+      "sha256": "e6207911451581334b127b5a6eda65ca2baa624d8630a43b5648f82ee16dc22c"
     },
     {
       "path": "modules/android-tools-suite/modules/remote-commands/ui/tool.json",
@@ -475,12 +475,12 @@
     {
       "path": "modules/android-tools-suite/shared/package.hashes.json",
       "length": 11676,
-      "sha256": "54f5d9ffce9dd431259e725452293cb97b653cfef85d984a4b762c742e1b904d"
+      "sha256": "690ee251cef04b4ed4178df361823e55373965c5b6d369d33f55c115ecc15f53"
     },
     {
       "path": "modules/android-tools-suite/shared/package.signature.json",
       "length": 543,
-      "sha256": "8f6187147820c6033dda9f4eb89e05f8990e6d11c4b01f1f0d12403e9ead96a6"
+      "sha256": "aaeb5ec24513d120f64e793bae8c3c78e8c87add069a8c60942ecaea2e7e1b69"
     },
     {
       "path": "modules/android-tools-suite/shared/powertool/commands.yaml",
@@ -495,7 +495,7 @@
     {
       "path": "modules/android-tools-suite/windows/x64/AndroidTools.MyPowerTools.dll",
       "length": 160768,
-      "sha256": "a51f1b4d98701fd97988fb7455ae6972323534925d6ab699d0c14fc75820d532"
+      "sha256": "88bb0c2eacc68ba35ba95ca4b4e4ca69d2fea5fdc8f418128ca4b400e95ed2de"
     },
     {
       "path": "modules/android-tools-suite/windows/x64/BouncyCastle.Cryptography.dll",
@@ -540,37 +540,37 @@
     {
       "path": "modules/android-tools-suite/windows/x64/MyPowerTools.Abstractions.dll",
       "length": 153600,
-      "sha256": "78c7aa07f40b7c8418dcb0339eb07042254cac0049deef7cfd9464ba92c672bd"
+      "sha256": "d895580ab6ef4f4698ddea2af25df5fef575ce6eed3215acb55d6b8df0df21d5"
     },
     {
       "path": "modules/android-tools-suite/windows/x64/MyPowerTools.Ipc.Shared.dll",
       "length": 18944,
-      "sha256": "cccc164219c1e7f368e77c3a7ce40cc0ea84c2bc4dc9a2b995b3ac0bb7b3f7ee"
+      "sha256": "3fb6d75d5b28ab5340a941ff5c222ae02594c158a27a8e52f389b7c341c6267f"
     },
     {
       "path": "modules/android-tools-suite/windows/x64/MyPowerTools.Platform.Abstractions.dll",
       "length": 104448,
-      "sha256": "4baf359d504a80a9df7f64e485ca6f6c2af4fc500f99acc86382f16d2c45af87"
+      "sha256": "276946888784c7c0d4e1d0a65c5425d1d9f080b6bd700afc4883d8c4c7a2688d"
     },
     {
       "path": "modules/android-tools-suite/windows/x64/MyPowerTools.Protocol.dll",
       "length": 499712,
-      "sha256": "c8c6857e68345a6f047ce836ca0d0db7671c240064fdd3da444dea8b9822c9d4"
+      "sha256": "197f99b1726d5c5eaf4cfcb8189c0ebdb132fe690bde2da709969e4f3738bf68"
     },
     {
       "path": "modules/android-tools-suite/windows/x64/powertoold.deps.json",
       "length": 8788,
-      "sha256": "13cf8e1cd6008f7df6d6d7c73303e1d1c56bee5892870ef7b2427d8f9340b646"
+      "sha256": "123ef22ee064af8bc967f324586d97f669da2a18aa7eb1b289809bfbbf96f4ae"
     },
     {
       "path": "modules/android-tools-suite/windows/x64/powertoold.dll",
       "length": 36864,
-      "sha256": "354c6808130152bc2dcecf500b8aaabc677f783ca08cd37b989b612b25142e22"
+      "sha256": "b6f6482432de723be29323921ad00ae21d5cea6c3cf0d2500ccad13c10d09b9d"
     },
     {
       "path": "modules/android-tools-suite/windows/x64/powertoold.exe",
       "length": 162304,
-      "sha256": "1e0b0dcaeacc42770c017d2416baa964372159b6a05a12c019cd9afb4a413b1c"
+      "sha256": "4c4190e1c6797aaf270df47f9c476e64f9991cacc686d931f2f5234c92fb4bd5"
     },
     {
       "path": "modules/android-tools-suite/windows/x64/powertoold.runtimeconfig.json",
@@ -595,7 +595,7 @@
     {
       "path": "modules/doubao-agent/DoubaoAgent.MyPowerTools.dll",
       "length": 44032,
-      "sha256": "3edb3e041bec924baa1fd5c5c244bf1465e72a014810b8465b91812d6a3d84af"
+      "sha256": "0196c4bdcdd33e5c2b72a11584a3ba49d32fe7fbdcadc63c0618cbcea374e94f"
     },
     {
       "path": "modules/doubao-agent/module.json",
@@ -605,12 +605,12 @@
     {
       "path": "modules/doubao-agent/shared/package.hashes.json",
       "length": 1739,
-      "sha256": "454f689d18242414c0569054572a230fc33445309ee04391593ce2cab354beef"
+      "sha256": "1a535119360ee715d8f8a4b23f2f0359f12c706c85e8c5a5f89ad78403773b6b"
     },
     {
       "path": "modules/doubao-agent/shared/package.signature.json",
       "length": 536,
-      "sha256": "cea07a3ffd61a0862ed689cacce21bf289984f39d90235eab44d7dd6981ed250"
+      "sha256": "7a94190070a2a7d1c0bbd1d314a2f2a9c45257e400734d0886904ceefcd4952f"
     },
     {
       "path": "modules/doubao-agent/ui/dashboard-card.json",
@@ -635,12 +635,12 @@
     {
       "path": "modules/doubao-agent/ui/surface/DoubaoAgent.Surface.deps.json",
       "length": 20103,
-      "sha256": "275d9d6294bafff021d02c847999f256dfdb3e3b78f8a2b59a077eb9d6d4534d"
+      "sha256": "e6855cd9b9e5d9ef4c825a0225afe42eefc73fea81ff18324d8de6a6aaf7a4f3"
     },
     {
       "path": "modules/doubao-agent/ui/surface/DoubaoAgent.Surface.dll",
       "length": 325632,
-      "sha256": "23de0699d4d040f7b5637928143edebee84938613a8fa23b4a0ea07519972550"
+      "sha256": "e9bebeac72e7327f5973355e0023c080ef66523a47721d0fac7340ccc0d78ae3"
     },
     {
       "path": "modules/doubao-agent/ui/tool.json",
@@ -675,22 +675,22 @@
     {
       "path": "modules/local-lag-cleaner/shared/package.hashes.json",
       "length": 3057,
-      "sha256": "08045df621ac5f800c653fc462d749be868929fce92f8979c38ab979b0112f6a"
+      "sha256": "2719e94f6b02b22c2fd22e55b7404f9ab86cd8cab3ea09002b0722b4b8e61ef3"
     },
     {
       "path": "modules/local-lag-cleaner/shared/package.signature.json",
       "length": 541,
-      "sha256": "1814b88668c3c29adc3bfdc9de6f316618448d34d5735942fbda1ff97fda5b04"
+      "sha256": "2636d3523de27b3c8fd910a2bc179244508efcfe8ad0392637fdf20c207e3e88"
     },
     {
       "path": "modules/local-lag-cleaner/source-manifest.json",
-      "length": 3015,
-      "sha256": "a274d065100f8fc7e1c5d49c0be7e49729cfee8241ebe74fe88d984b4f746bcc"
+      "length": 3016,
+      "sha256": "ee1e0d3c682519c752013bb06244baa1c3c9d041aea9b4a1dec69235bf4a3ebb"
     },
     {
       "path": "modules/local-lag-cleaner/src/LocalLagCleaner.Runtime/bin/Release/net10.0/LocalLagCleaner.Core.dll",
       "length": 429056,
-      "sha256": "d5028157f44e02491a56a2e7cb0d373267ac9357ed5b86c598a17a6845669a74"
+      "sha256": "858cfc11accda0656ac45bb0fc0d013dd69d3662a5e497f88e4e7593c0d48b4b"
     },
     {
       "path": "modules/local-lag-cleaner/src/LocalLagCleaner.Runtime/bin/Release/net10.0/LocalLagCleaner.Runtime.deps.json",
@@ -700,12 +700,12 @@
     {
       "path": "modules/local-lag-cleaner/src/LocalLagCleaner.Runtime/bin/Release/net10.0/LocalLagCleaner.Runtime.dll",
       "length": 55808,
-      "sha256": "13b348ff9d317f38c676fa4fc0c3068b0cd349ebf8b2aad9e48319fa1bdc70b6"
+      "sha256": "510146a82ec94b6865e8f4571aa54b971c12967ba0990d361bb1e173c167e82b"
     },
     {
       "path": "modules/local-lag-cleaner/src/LocalLagCleaner.Runtime/bin/Release/net10.0/LocalLagCleaner.Runtime.exe",
       "length": 162816,
-      "sha256": "ea32b9df8f2e21c1c7fa56a017ec4eacb06a88a366ed2cd271f6f47be8ea4fc8"
+      "sha256": "c459de8880ea5e87baf82394ffb2ed4f60110b5cbcc2fc5993c1915e2b310e1b"
     },
     {
       "path": "modules/local-lag-cleaner/src/LocalLagCleaner.Runtime/bin/Release/net10.0/LocalLagCleaner.Runtime.runtimeconfig.json",
@@ -715,17 +715,17 @@
     {
       "path": "modules/local-lag-cleaner/src/LocalLagCleaner.Tool/bin/Release/net10.0/LocalLagCleaner.Core.dll",
       "length": 429056,
-      "sha256": "d5028157f44e02491a56a2e7cb0d373267ac9357ed5b86c598a17a6845669a74"
+      "sha256": "858cfc11accda0656ac45bb0fc0d013dd69d3662a5e497f88e4e7593c0d48b4b"
     },
     {
       "path": "modules/local-lag-cleaner/src/LocalLagCleaner.Tool/bin/Release/net10.0/LocalLagCleaner.Tool.deps.json",
       "length": 5404,
-      "sha256": "1132a31779d8f28f2bf0e2ddbb243bc348d6d80e37c82ca3bcc591ba73f637e5"
+      "sha256": "c6aef4dcf0c09cc3c428b989ff640e64922a0df2bb395b6f4185dfefd85e312c"
     },
     {
       "path": "modules/local-lag-cleaner/src/LocalLagCleaner.Tool/bin/Release/net10.0/LocalLagCleaner.Tool.dll",
       "length": 164352,
-      "sha256": "194cbb7547925e84400c36502d003ee2312092c30fd01dc1945863c0e3089e26"
+      "sha256": "5e5c3db722a61f424d64f0a4323d05d76ba1a6f9b3e8e538d3242f1912508e86"
     },
     {
       "path": "modules/local-lag-cleaner/tool.json",
@@ -770,17 +770,17 @@
     {
       "path": "modules/paste-image/PasteImage.MyPowerTools.dll",
       "length": 75264,
-      "sha256": "763690deef7634b6834236bcb4c22b8a6e496d65b14435e6f54ec62a69100f1e"
+      "sha256": "6592750aeba6109bb321e5b25dbdf285d33f874068d81699a116915311373888"
     },
     {
       "path": "modules/paste-image/shared/package.hashes.json",
       "length": 2842,
-      "sha256": "8906cc1f30a8a10fe6280f4bdc3ca5fc4d89262c3eafa6ae66efc09459ba412a"
+      "sha256": "94c126201ecc4f6f4e12d12a9e8fcb8187627b8e600b5f88142eaab0f7e46979"
     },
     {
       "path": "modules/paste-image/shared/package.signature.json",
       "length": 535,
-      "sha256": "4f0f1357788f53b483f2d7797273d8dd699d1b2cc08cbf6372ff701f2d75d6ef"
+      "sha256": "9253c97279cc7388a37d6faa4c73b5a909ab5eb0de8e9fab56c60c12c816f723"
     },
     {
       "path": "modules/paste-image/ui/dashboard-card.json",
@@ -810,7 +810,7 @@
     {
       "path": "modules/paste-image/ui/surface/MyPowerTools.Abstractions.dll",
       "length": 153600,
-      "sha256": "78c7aa07f40b7c8418dcb0339eb07042254cac0049deef7cfd9464ba92c672bd"
+      "sha256": "d895580ab6ef4f4698ddea2af25df5fef575ce6eed3215acb55d6b8df0df21d5"
     },
     {
       "path": "modules/paste-image/ui/surface/MyPowerTools.AvaloniaSdk.deps.json",
@@ -820,7 +820,7 @@
     {
       "path": "modules/paste-image/ui/surface/MyPowerTools.AvaloniaSdk.dll",
       "length": 41472,
-      "sha256": "7e966d65af9aae752e4606084b5c7bff7c720070e4f47d565155eade6400915a"
+      "sha256": "15484f9cc58f612bd67e7cb893d67a6812e1dc4e9bcbff17ff39180026b122eb"
     },
     {
       "path": "modules/paste-image/ui/surface/PasteImage.Surface.deps.json",
@@ -830,7 +830,7 @@
     {
       "path": "modules/paste-image/ui/surface/PasteImage.Surface.dll",
       "length": 67584,
-      "sha256": "5a543bfb29ec969be9f344895a211524b4761e2fd5ce0cc85402b193a4f6a723"
+      "sha256": "118022f160444317e64c5d2116798ad1fe5d407c0adef49ad5e90cd7ecf7074f"
     },
     {
       "path": "modules/paste-image/ui/tool.json",
@@ -850,17 +850,17 @@
     {
       "path": "modules/screenease/ScreenEase.MyPowerTools.dll",
       "length": 204800,
-      "sha256": "540a644a9b882748430a7279602577a26943f6584d64a9a1db0da66f85cccd65"
+      "sha256": "45e221cf1dffe1112c7503f777cf0f8bafbe5c460ad1e636e96741ea25f63cef"
     },
     {
       "path": "modules/screenease/shared/package.hashes.json",
       "length": 1734,
-      "sha256": "9ba43e99d862671b48992c39f3ba5f5c299e3c98e5bd9d6212b3dd36afe45bee"
+      "sha256": "a9d6b13ea78ebc0e35ee055757352a2458d37f003ce6777eafdb344d8c1d849e"
     },
     {
       "path": "modules/screenease/shared/package.signature.json",
       "length": 534,
-      "sha256": "00b9ce88ba39d50490969affaff825d50866be939b321b22d037a4c0436aa7ec"
+      "sha256": "5cc26db30ac7a9f194cedef59b825b25da37fea37fabbcb9aeef4f3b6cc6bbd7"
     },
     {
       "path": "modules/screenease/ui/dashboard-card.json",
@@ -885,12 +885,12 @@
     {
       "path": "modules/screenease/ui/surface/ScreenEase.Surface.deps.json",
       "length": 13028,
-      "sha256": "1cab35ed2f78924eaee25952ed33d1a93068397b9349c3b2871266997b96a559"
+      "sha256": "062fd019cdd2fd318a97f86e041cb18602679119790768a7d74c1ba1adc70885"
     },
     {
       "path": "modules/screenease/ui/surface/ScreenEase.Surface.dll",
       "length": 273920,
-      "sha256": "8f11526d033c468e3d31847f929e03474ffc77e6b2e1639e546154f5ec4d54fb"
+      "sha256": "c97247e187107674a6a784277d71fae2325409aa6775ccfce3d7fc4cf152ca52"
     },
     {
       "path": "modules/screenease/ui/tool.json",
@@ -910,17 +910,17 @@
     {
       "path": "modules/smartbird-thermostat/shared/package.hashes.json",
       "length": 1749,
-      "sha256": "8da39c83e5e8dd2b34fba881c74eb1ed66ee10ca6814a9e4dcd8e4cb05608d22"
+      "sha256": "fe2d9a643339f8131ad0f7fed6f9f63fc445a88dc2758c6e80dd5f7e0525649c"
     },
     {
       "path": "modules/smartbird-thermostat/shared/package.signature.json",
       "length": 544,
-      "sha256": "8961d3648a208e4583a1f1456b6459cc603fefef7d93efa350aac3c887f89ab6"
+      "sha256": "77171cb4cf0a9f115b339f1d226e705114b5dc8279b28d1d8db9d6e2e357f90b"
     },
     {
       "path": "modules/smartbird-thermostat/SmartBirdThermostat.MyPowerTools.dll",
       "length": 83456,
-      "sha256": "69545a8339ae04ae54405e021527ee1ac2d6c910ebe3a79a68208346663ea677"
+      "sha256": "09712bd381507f3c21f5446cbc67a84d8ab3c4d50386a8fb6a3563fcfcb6a6d9"
     },
     {
       "path": "modules/smartbird-thermostat/ui/dashboard-card.json",
@@ -945,12 +945,12 @@
     {
       "path": "modules/smartbird-thermostat/ui/surface/SmartBird.Surface.deps.json",
       "length": 20097,
-      "sha256": "822ad4f3cacbda09ccd2df6f2884bb67ec1c4aa5b64090e1386012b073855e0b"
+      "sha256": "79424de8fce64e5529467cb265d5382acba8b758e068f90f00152c84f84dfc96"
     },
     {
       "path": "modules/smartbird-thermostat/ui/surface/SmartBird.Surface.dll",
       "length": 189952,
-      "sha256": "a2a50e507bfa545026ba012f73a2ff279421221847e5bfc6eb1b3e9740b94e19"
+      "sha256": "5c5c0fe813ca392c8c13e4836be732289e9fe7ebde49e1cbc5f1497fd830fb0e"
     },
     {
       "path": "modules/smartbird-thermostat/ui/tool.json",
@@ -960,7 +960,7 @@
     {
       "path": "MyPowerTools.exe",
       "length": 355888,
-      "sha256": "7e5bb93613da2fff74a9f848d06647424503446243b439eb3ee044aa05fa5fec"
+      "sha256": "10171662fb55c8005a6b47d88ec934d43d75f2e1282d2e6f6c56f78ebe3fc7ee"
     },
     {
       "path": "new-ota-delta-package.ps1",
@@ -979,8 +979,8 @@
     },
     {
       "path": "ota-update.ps1",
-      "length": 35944,
-      "sha256": "e15599bf6659e242848c52384d5f7e6feeab463c243f1109b95c065c8d9b7d2b"
+      "length": 37925,
+      "sha256": "64bc680f8391632198567b82a7fad986397eaf7bc89cb5ade5208bb44646bd4b"
     },
     {
       "path": "package-ota-update.ps1",
@@ -1050,92 +1050,92 @@
     {
       "path": "Runner/MyPowerTools.Abstractions.dll",
       "length": 153600,
-      "sha256": "78c7aa07f40b7c8418dcb0339eb07042254cac0049deef7cfd9464ba92c672bd"
+      "sha256": "d895580ab6ef4f4698ddea2af25df5fef575ce6eed3215acb55d6b8df0df21d5"
     },
     {
       "path": "Runner/MyPowerTools.Broker.dll",
       "length": 119808,
-      "sha256": "b3696a7bc1b9382044cafefc9dd227c853211c6deb95d507a91d65761927ce75"
+      "sha256": "b3b589972edf47304b1c2a835c5fb93e3dfb54f56a5b93e53875f92ed441a783"
     },
     {
       "path": "Runner/MyPowerTools.HostControl.Client.dll",
       "length": 43008,
-      "sha256": "adc2bfa27b9a593252d147e075874e510d170cf02a47d49083d7c46cd3474cba"
+      "sha256": "a7a9facbc47ea1b529b50337754e9b4014d7d8fff5c6f831c290254ce98eee5b"
     },
     {
       "path": "Runner/MyPowerTools.HostControl.Contracts.dll",
       "length": 9728,
-      "sha256": "37cc7698a98c81c69d4ef030fef439c1f6f898d512fe660a659dbdffd0259708"
+      "sha256": "05aae451cf3bd1557b3191329b7d4cd9a4c64dc511139acf4ef1ccf476c1ecaf"
     },
     {
       "path": "Runner/MyPowerTools.HostControl.dll",
       "length": 4608,
-      "sha256": "c13c47c8e14db148f395eae8e1c437a8aa39743f151949d27d97f7a076a12f5c"
+      "sha256": "711403201f9bfe3acc3a4a1f2b10ab47a3cb0486326c0f1ba09a509aa04da072"
     },
     {
       "path": "Runner/MyPowerTools.HostControl.Server.dll",
       "length": 54784,
-      "sha256": "d7275ad8c467d9035c9b9d26320fe7d0e519b663dcac2787829b051b120f700a"
+      "sha256": "1c19a25f3d7179a81c75522e412fe3a9807b3cf1e224b503c19c63b177f6f5dd"
     },
     {
       "path": "Runner/MyPowerTools.Ipc.Shared.dll",
       "length": 18944,
-      "sha256": "cccc164219c1e7f368e77c3a7ce40cc0ea84c2bc4dc9a2b995b3ac0bb7b3f7ee"
+      "sha256": "3fb6d75d5b28ab5340a941ff5c222ae02594c158a27a8e52f389b7c341c6267f"
     },
     {
       "path": "Runner/MyPowerTools.ModuleHost.GrpcIpc.dll",
       "length": 88064,
-      "sha256": "cec3e22c7758d7cdfe501fd31c2d317a1b3f67a31fc8463cd5077f0fa5ebfeed"
+      "sha256": "a06f3f07505220ff2a1f8f2bb1aef55e524dcbf15ebe6b1a6334462c98101bec"
     },
     {
       "path": "Runner/MyPowerTools.ModuleHost.Http.dll",
       "length": 12800,
-      "sha256": "eb5e32685e42cb7476c2a94db3f41ef1b4461f473161b3923ca24d44a11411a3"
+      "sha256": "b01fe4d60acadc72c4185062086d9acbd9dfede8bb0d3f9663df6231f101f5c4"
     },
     {
       "path": "Runner/MyPowerTools.ModuleHost.InProcDotNet.dll",
       "length": 144384,
-      "sha256": "5a0229f6a9e088f0ef3f5d6459867efa1d685b9874906f9693a4de29d228acdc"
+      "sha256": "3febaee98c9a085025cbd8fdd86773db9cb061ab78980f9a33b6fd2241479919"
     },
     {
       "path": "Runner/MyPowerTools.ModuleHost.StdioCompat.dll",
       "length": 18432,
-      "sha256": "cedb2bb113f14ffcac7186f5dde1fbb1b949c728d14db1d4d749e44babcec5fd"
+      "sha256": "3014169f886ef400b03052cdb667dc9ff9f0a7c2da94691a09a701def54f2e9a"
     },
     {
       "path": "Runner/MyPowerTools.Packaging.dll",
       "length": 96256,
-      "sha256": "9e6eb652d68292c4ae7d3f30af7ff8953b99b270c0b5b64a853e803aeebdb5a2"
+      "sha256": "5f06aeaec260f58b2b37df41cedccf55f032e56adc8d32a888e3ce425a6e3822"
     },
     {
       "path": "Runner/MyPowerTools.Platform.Abstractions.dll",
       "length": 104448,
-      "sha256": "4baf359d504a80a9df7f64e485ca6f6c2af4fc500f99acc86382f16d2c45af87"
+      "sha256": "276946888784c7c0d4e1d0a65c5425d1d9f080b6bd700afc4883d8c4c7a2688d"
     },
     {
       "path": "Runner/MyPowerTools.Platform.dll",
       "length": 4608,
-      "sha256": "88097e94b8d70bd7e7fdeb189c8395662c6210348cb6826714f6b1acbaebea5b"
+      "sha256": "338fd46d109c2e329932df050fddaa35ba371aaf201be74aa4ade6e66a4f26e7"
     },
     {
       "path": "Runner/MyPowerTools.Platform.Linux.dll",
       "length": 18944,
-      "sha256": "33032dae0eb5b3b330aac97df4243a4eebce8926e22c826afc826c0ad454def3"
+      "sha256": "aa502549d741e0cb077a1c2081bd2c791363b93fa7177d6383ad18cc25d054c3"
     },
     {
       "path": "Runner/MyPowerTools.Platform.Mac.dll",
       "length": 48128,
-      "sha256": "5497cdcacfa6cec9e3a00c8ab13c337da5ba397b6d54679417e7bfa9d47ba073"
+      "sha256": "981cf0167fab2a4a7d3284155c9181af51ea00dc3d6f2f14c2d19df903ae08d2"
     },
     {
       "path": "Runner/MyPowerTools.Platform.Windows.dll",
       "length": 96768,
-      "sha256": "317e80462dde32fc5de2c083efd15c882d31934a6b9b15159f013d9fe635c15a"
+      "sha256": "42e4f0f59d357c6025cbc225017487c0c83b3197b54dae333b4da3e113b45098"
     },
     {
       "path": "Runner/MyPowerTools.Protocol.dll",
       "length": 499712,
-      "sha256": "c8c6857e68345a6f047ce836ca0d0db7671c240064fdd3da444dea8b9822c9d4"
+      "sha256": "197f99b1726d5c5eaf4cfcb8189c0ebdb132fe690bde2da709969e4f3738bf68"
     },
     {
       "path": "Runner/MyPowerTools.Runner.deps.json",
@@ -1145,12 +1145,12 @@
     {
       "path": "Runner/MyPowerTools.Runner.dll",
       "length": 70656,
-      "sha256": "2957134f451875a2c324060f71f0ea3a40e450a32b55c5fedf604288c39add92"
+      "sha256": "f4ec83a6b765bf7c46c42b8a716ca278945247d15ec931dad4e11615b7ee17a7"
     },
     {
       "path": "Runner/MyPowerTools.Runner.exe",
       "length": 162816,
-      "sha256": "fabc858ec35c8554bdc8d2a1a9d7398337b119c3941f9813cb125f020d12c58f"
+      "sha256": "8ea699f939808e63283196e2354bc6191b6184f4d6847a1eb68feaf20c91a1bc"
     },
     {
       "path": "Runner/MyPowerTools.Runner.runtimeconfig.json",
@@ -1165,12 +1165,12 @@
     {
       "path": "Runner/MyPowerTools.Runtime.dll",
       "length": 316416,
-      "sha256": "f30a66e2b954c71e1e0b922132bc0dbceda5e0a7a580e98a8ffc05c0f9bbfaee"
+      "sha256": "708819bae5f2473bd1f1047dff6dc0efb4b36646bc8f2f263ce1d091f590653a"
     },
     {
       "path": "Runner/MyPowerTools.ServiceManager.Client.dll",
       "length": 33792,
-      "sha256": "ed8691e3cea4565b8669c810e1bc8d601fc80eb67ae4b5223a906380f900b1b2"
+      "sha256": "23528f66461e3bb8e5799cbbb81ac9d01493157abc52c27466beb54374a4593f"
     },
     {
       "path": "Runner/System.Drawing.Common.dll",
@@ -11333,44 +11333,44 @@
       "sha256": "c48cd5f220cc859d7eaa15f74515f80d6a36934ed6a5c271761840157023ae66"
     },
     {
-      "path": "Runtimes/Doubao/.venv/Lib/site-packages/charset_normalizer-3.5.0.dist-info/entry_points.txt",
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/charset_normalizer-3.5.1.dist-info/entry_points.txt",
       "length": 65,
       "sha256": "0034932ab91767786174e5458ba0dc5041d0452d317f10c813fa44cf8c0b2170"
     },
     {
-      "path": "Runtimes/Doubao/.venv/Lib/site-packages/charset_normalizer-3.5.0.dist-info/INSTALLER",
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/charset_normalizer-3.5.1.dist-info/INSTALLER",
       "length": 2,
       "sha256": "e6184ce10e266134fdcfa401e8f1a95005bcd4f18d16b62b757323e2833fe9a9"
     },
     {
-      "path": "Runtimes/Doubao/.venv/Lib/site-packages/charset_normalizer-3.5.0.dist-info/licenses/LICENSE",
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/charset_normalizer-3.5.1.dist-info/licenses/LICENSE",
       "length": 1092,
       "sha256": "18577485d3704f1a479ded8e573c0976cfed315fd2fd17983fa988da4c2f70d1"
     },
     {
-      "path": "Runtimes/Doubao/.venv/Lib/site-packages/charset_normalizer-3.5.0.dist-info/METADATA",
-      "length": 44916,
-      "sha256": "65bf733c9ff0a1d1e4360bfcfa67984158864ac1aad4c5a3ec036861be470da1"
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/charset_normalizer-3.5.1.dist-info/METADATA",
+      "length": 46746,
+      "sha256": "f00192aad9979ce50bdab2bfd471ad0705aee5a33f4bf6d27c1bd24417c873e5"
     },
     {
-      "path": "Runtimes/Doubao/.venv/Lib/site-packages/charset_normalizer-3.5.0.dist-info/RECORD",
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/charset_normalizer-3.5.1.dist-info/RECORD",
       "length": 2152,
-      "sha256": "4dce488bee06ac0b13dfc897745101786f141abf5d58ccf2032f739468237777"
+      "sha256": "54fa1b2abc3aa444894b14ddd06e5c37cc8dcdb982531ee6bd7e29e6e502632d"
     },
     {
-      "path": "Runtimes/Doubao/.venv/Lib/site-packages/charset_normalizer-3.5.0.dist-info/REQUESTED",
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/charset_normalizer-3.5.1.dist-info/REQUESTED",
       "length": 0,
       "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     {
-      "path": "Runtimes/Doubao/.venv/Lib/site-packages/charset_normalizer-3.5.0.dist-info/top_level.txt",
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/charset_normalizer-3.5.1.dist-info/top_level.txt",
       "length": 19,
       "sha256": "ec04b2cde3ebf3fc6e65626c9ea263201b7257cbe1128d30042bf530f4518b74"
     },
     {
-      "path": "Runtimes/Doubao/.venv/Lib/site-packages/charset_normalizer-3.5.0.dist-info/WHEEL",
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/charset_normalizer-3.5.1.dist-info/WHEEL",
       "length": 101,
-      "sha256": "f767fbbf21c4fc6662c119c3d88d39bc24ff4b7f54be4472ba0b980c028e19bf"
+      "sha256": "547199cfb31450578b25778938b82f94e190e69e750e6c850e3b6d657fa1a30f"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/charset_normalizer/__init__.py",
@@ -11384,13 +11384,13 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/charset_normalizer/api.py",
-      "length": 36601,
-      "sha256": "888d02f88ce8c526709055ae329e8c07fe0c8a7c78f89f5b6766774d65adf3d8"
+      "length": 36708,
+      "sha256": "9032c5c8a60b2c19b5101d1543e4aa8b0ded26618d28a3d45c3372454cf20a6a"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/charset_normalizer/cd.cp312-win_amd64.pyd",
       "length": 117248,
-      "sha256": "04a7d8d1f4a11383c00f0552484ae40f428486133d5be0af99cfac7063ab8a11"
+      "sha256": "71ffb046452b819770538cb59fd25694c0a8e9b08af4b8b71f26dac85dcff062"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/charset_normalizer/cd.py",
@@ -11419,8 +11419,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/charset_normalizer/md.cp312-win_amd64.pyd",
-      "length": 194560,
-      "sha256": "fa587a15d503e6d3b891663ecc1c5987a2be775ea096427ff52696ee8ebcfc99"
+      "length": 193536,
+      "sha256": "c53a0a481bbcef6a88492bd113b6293997900f4a17a1a5055776d76256d720f9"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/charset_normalizer/md.py",
@@ -11445,7 +11445,7 @@
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/charset_normalizer/version.py",
       "length": 123,
-      "sha256": "4941950d41ec328101774c9d52f856f95ba759cb2b536d2c56f8834c440c5d5f"
+      "sha256": "c6e9896047e40b6a966dae4565e75bf5b42790a9c01a53046358bbac1723a110"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/click-8.4.2.dist-info/INSTALLER",
@@ -12474,8 +12474,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/dotenv/cli.py",
-      "length": 6542,
-      "sha256": "b6252acd38f541f16aae7dd21b469c67b9dc908ff44faa087fbe8f960f211c73"
+      "length": 6865,
+      "sha256": "8c547ed95b551f492d85cc9c81c55e476aaebed00392c14a4ffdda3b8007cbbb"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/dotenv/ipython.py",
@@ -12484,13 +12484,13 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/dotenv/main.py",
-      "length": 14683,
-      "sha256": "a7d99ec5bbbc135b22b7cb81c0f292ce32a460eac8244e7502c4cb892e45778a"
+      "length": 15179,
+      "sha256": "697eb33eee75d78b73db61eaf96bf9a6547548c1811c93501b67e056e5470dea"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/dotenv/parser.py",
-      "length": 5179,
-      "sha256": "25226977de2d1a1be7ccebf83cbdc3ade5352ede6feab4caee9a7c1ba4677cbe"
+      "length": 5394,
+      "sha256": "6052533a6cd4e0ad5052fe88e5936853059c28ed3fec0f098cd29a7cb376dca4"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/dotenv/py.typed",
@@ -12505,7 +12505,7 @@
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/dotenv/version.py",
       "length": 22,
-      "sha256": "bae7f854db53340f777cc86802eafd61a7f368a2459dccd8f87d524824ae4554"
+      "sha256": "0be0ff596ad59010e64260292dc9b4b16361d82808af059f73cfec079bef53e4"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/dynaconf-3.2.10.dist-info/box-LICENSE.txt",
@@ -15025,7 +15025,7 @@
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/mcp_server-0.1.0.dist-info/RECORD",
       "length": 1689,
-      "sha256": "c4073077a517830fc4d86b19339c66632a5bc74237261a20679c125379658ead"
+      "sha256": "bbe12bcaf0c2532f24a9b6db86e27646ddeafaaa38e6468f3fb3c04f16313e9c"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/mcp_server-0.1.0.dist-info/REQUESTED",
@@ -15040,7 +15040,7 @@
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/mcp_server-0.1.0.dist-info/uv_cache.json",
       "length": 194,
-      "sha256": "447d16645e0efa388fa85b67121dbe30da272903f44e0b24de7a891d3bd75553"
+      "sha256": "6e35ccbe3b010bc92822fafe6df187f31887179152ee90517ecbb89cfbf560c1"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/mcp_server-0.1.0.dist-info/WHEEL",
@@ -15953,32 +15953,32 @@
       "sha256": "f1f0c7d788ff54c6eb721ff9f309738badd7340446bfcd2439903237bd9a1bb0"
     },
     {
-      "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai-3.0.0.dist-info/INSTALLER",
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai-3.1.0.dist-info/INSTALLER",
       "length": 2,
       "sha256": "e6184ce10e266134fdcfa401e8f1a95005bcd4f18d16b62b757323e2833fe9a9"
     },
     {
-      "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai-3.0.0.dist-info/licenses/LICENSE",
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai-3.1.0.dist-info/licenses/LICENSE",
       "length": 11336,
       "sha256": "636eb7d79da9bb6d515a4b3fd417aa26679eb3cf16396ddab4bc55fa74e616e4"
     },
     {
-      "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai-3.0.0.dist-info/METADATA",
-      "length": 39136,
-      "sha256": "9d20070a07aa4f19145a6bc83de5306a7834ffdfdbad933ce224e30520ef0887"
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai-3.1.0.dist-info/METADATA",
+      "length": 39092,
+      "sha256": "1b64b651a1fd63ccc80358fe911219c93a6782e3d9054864829b494b363ee740"
     },
     {
-      "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai-3.0.0.dist-info/RECORD",
-      "length": 162273,
-      "sha256": "568413febab6ef23dc40b77e19d84b9679515200ef98026ab9de12b013f3c452"
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai-3.1.0.dist-info/RECORD",
+      "length": 162686,
+      "sha256": "c300cfd7d381d2529c09988a6dab4e813635c80d38e247c1a2465f995d40e070"
     },
     {
-      "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai-3.0.0.dist-info/REQUESTED",
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai-3.1.0.dist-info/REQUESTED",
       "length": 0,
       "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     {
-      "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai-3.0.0.dist-info/WHEEL",
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai-3.1.0.dist-info/WHEEL",
       "length": 87,
       "sha256": "0b615483066088b6f39d1fa4d1bff9937022ff568048e5c3b2cde5cc252c52e8"
     },
@@ -16004,18 +16004,18 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/_constants.py",
-      "length": 501,
-      "sha256": "c76c497b8fe4c7bd5b2003062c8e6df2c84882fe6625f07988719c196c40cdc6"
+      "length": 414,
+      "sha256": "eeccbc82822f0e4372f42f666afd1d1e1fe80cb2ef71357018a0170ac6b9ce32"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/_event_handler.py",
-      "length": 2858,
-      "sha256": "dc405ff4d76b4f645d7df53b119c088de927bd537a1b38696a431ddfdafdc66c"
+      "length": 2771,
+      "sha256": "414ec980087c6dcfe2aa003093f363f6fe8bfd0869d597acb021a601f23e9192"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/_exceptions.py",
-      "length": 6474,
-      "sha256": "7a19e2be40fdd2388cb48b2c1e56bb71fb82d07372e6bf7aefec8a121005b803"
+      "length": 6387,
+      "sha256": "223ce73092453afc2f5b1b4838d90231231513ce7a32c734c8a8a4d97934f62e"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/_extras/__init__.py",
@@ -16079,8 +16079,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/_resource.py",
-      "length": 1100,
-      "sha256": "2108a117314b8463a2192953d9d3b51125924e0d97ca981bb4095db467533aa5"
+      "length": 1013,
+      "sha256": "48edc3c06f96e3707663ea7d9720fcaaa5e9615b4bad149292a0b6ae6daa3252"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/_response.py",
@@ -16089,8 +16089,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/_send_queue.py",
-      "length": 3034,
-      "sha256": "1df8bf10f0510a940bf8a148b775b3f3c625b5790dacf11a5091d40f344808bc"
+      "length": 2947,
+      "sha256": "4aa207e3c3408bc2c9b28031603698d7c48cb085b6ac598ea9fefbaad26bd944"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/_streaming.py",
@@ -16169,8 +16169,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/_utils/_utils.py",
-      "length": 13526,
-      "sha256": "3a97c900e6fcfe92b0eed77c135898ba3a7a1a7068125929425d4838c4517311"
+      "length": 13520,
+      "sha256": "8323b652fd2dbb729bf260557911c38cc77ed87afafce64a10e83d4d58cbc718"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/_vendor/__init__.py",
@@ -16209,8 +16209,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/_version.py",
-      "length": 158,
-      "sha256": "9043695272ab975dd5e1e4f9710e5504ec930153ec1de97bc14e9ff56075a2e0"
+      "length": 71,
+      "sha256": "1506f65a3d03f79be0e080ee104352f08d6e5009e377c3dfcebff74ccb942c35"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/auth/__init__.py",
@@ -16289,8 +16289,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/lib/.keep",
-      "length": 224,
-      "sha256": "c2e36bcfee525e8de325a24e260cf8bc51cce35607fe0db4179711428d2f2deb"
+      "length": 163,
+      "sha256": "d158fd24d0a55c87d567ec33cfb0eb36c97b6e942a2253526fc5b9eb4a8eb089"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/lib/azure.py",
@@ -16359,8 +16359,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/pagination.py",
-      "length": 6217,
-      "sha256": "55f2c8803b0afcf7ce72c6895cdebfffe2c31c91a732dea62f07266b49490751"
+      "length": 6130,
+      "sha256": "2c494a83097b7e37e2205ba2442a921742762a0e44403648d91518642a2cf7ab"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/providers/__init__.py",
@@ -16404,8 +16404,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/resources/admin/organization/audit_logs.py",
-      "length": 26226,
-      "sha256": "6f7f26d2500f3be4acf6cf845e67bb8697e486023901010d8fe5591255c610bd"
+      "length": 26354,
+      "sha256": "31c151f478aa59ff17ea70b237f546e8c97d913c80a0b771a7ecd6c4240431a8"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/resources/admin/organization/certificates.py",
@@ -16649,23 +16649,23 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/resources/beta/realtime/__init__.py",
-      "length": 1412,
-      "sha256": "74e5d18cf883a91257205a06292563cca8772304979cb6f01f1e0d0f939d9d5b"
+      "length": 1325,
+      "sha256": "5491582d618b613500d699dfce1d614937c61dd99818db712cf0b1a4d1b32071"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/resources/beta/realtime/realtime.py",
-      "length": 43761,
-      "sha256": "24183b1daef2963497c44915582bfe494a995387c112420c80abf74d2ce7fc31"
+      "length": 43674,
+      "sha256": "34f62126cbc0d841dc9263255d2223a2c978b65c21aec6ecb5d912a2a6226d4d"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/resources/beta/realtime/sessions.py",
-      "length": 22101,
-      "sha256": "0fef7eaad0af4524c23b714ec22f1bd220d5fb8b201ac7050bd8e5573fe1294f"
+      "length": 22014,
+      "sha256": "9fe6db73a217a54b891c07f1b313d21534eefbd64255838ac34815e2d4a52d3f"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/resources/beta/realtime/transcription_sessions.py",
-      "length": 14127,
-      "sha256": "a1d653dab1fe8d3ae2ff2b73433dd3fd6fda36814c916431a4048e5b095c7e9f"
+      "length": 14040,
+      "sha256": "3645b05212151e040769dadb314873507cede51d0adad4c53c2b77efd7d79342"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/resources/beta/responses/__init__.py",
@@ -16684,8 +16684,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/resources/beta/responses/responses.py",
-      "length": 252553,
-      "sha256": "ff6411f62ba8a1077c7018875bcbef8641d7de3e905cfb8fb26940b25f3c7a23"
+      "length": 256280,
+      "sha256": "c4b42dec5e96d626a4ee8359b29fff28427569668f8e1de7b445f8028cd5ed8a"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/resources/beta/threads/__init__.py",
@@ -16829,8 +16829,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/resources/files.py",
-      "length": 33476,
-      "sha256": "97212ed797db7b2ef63ed7b2b6fcb982fbd66436a81df06fc680eabdd7d43ad0"
+      "length": 33564,
+      "sha256": "fa320109f39aabce92bf9db4d2eee89d129698c80317cc95a4ef9e85e240a347"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/resources/fine_tuning/__init__.py",
@@ -16934,8 +16934,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/resources/responses/api.md",
-      "length": 6744,
-      "sha256": "e0b483006d791a80146920e0c3b273c4f475e5d0d10b7ce7eec9087cb18567ae"
+      "length": 6766,
+      "sha256": "db55f2fca54ddcc8acef76d3362266c822dd03d1d1be288ca360505190fea8dd"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/resources/responses/input_items.py",
@@ -16949,8 +16949,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/resources/responses/responses.py",
-      "length": 245909,
-      "sha256": "848c321d80162910b218f5d50d3623035df4cf0d147b65e0447747b6bacfe63d"
+      "length": 248277,
+      "sha256": "7286ba1ff54510070aca53117baf60744d07544756c9862465b467119c337eb4"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/resources/skills/__init__.py",
@@ -17019,8 +17019,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/resources/videos.py",
-      "length": 52008,
-      "sha256": "f2f2ac8fdf0ff5fd173ef9b1feebee288ce8bdae825e532782ae2e452baa256b"
+      "length": 59207,
+      "sha256": "91689eac4c62dc6b7ae7c758777c27652695545d44cdb936ce595c87776fe5d1"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/resources/webhooks/__init__.py",
@@ -17079,13 +17079,13 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/admin/organization/audit_log_list_params.py",
-      "length": 9156,
-      "sha256": "688e68f3b44d248ce8264d3ce69c6cb42d0d204e289c085f5ffdc464f25d89f4"
+      "length": 9216,
+      "sha256": "327ad5b86d1119632b1d782707147398a8be4becc1911c0723e05ddb001ad243"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/admin/organization/audit_log_list_response.py",
-      "length": 42282,
-      "sha256": "73277149e25853e112f16fab81ed6caf229d5c05c7c169a808a7875a6b8011d5"
+      "length": 42338,
+      "sha256": "ed0c3b321082d27022a71b06080e8b975a7453c349e45237feb367b2dfa99fc4"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/admin/organization/certificate_activate_params.py",
@@ -17994,8 +17994,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/__init__.py",
-      "length": 26826,
-      "sha256": "e78abffa13918be35255ec4814eaf902751262f704e653f524f1696a87faf7a1"
+      "length": 27008,
+      "sha256": "3a7ab4f5300d7f08aa7fb671124b524bdf08b1682aef6df100d624946b5f02fa"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/assistant_create_params.py",
@@ -18271,6 +18271,16 @@
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/beta_local_skill.py",
       "length": 366,
       "sha256": "6e56cd1ebe2f5780db583af7d071ed1209eb734c10ca6c37af3c95a550605aa1"
+    },
+    {
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/beta_mcp_tool_call_error_param.py",
+      "length": 848,
+      "sha256": "ed5abf64621eaab95ab53bb0b3ae741c9a2ef7c05416dd87c782d84e5fa7e547"
+    },
+    {
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/beta_mcp_tool_call_error.py",
+      "length": 795,
+      "sha256": "dda9d13bbd6480442253d8f099ffdffd53a32a591792499c6e378d09d3771df0"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/beta_namespace_tool_param.py",
@@ -18709,13 +18719,13 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/beta_response_input_item_param.py",
-      "length": 35936,
-      "sha256": "2e066fbae63b035f6376d16cac53758cdd04a5093a043c6e8f4593e2bb2b9841"
+      "length": 36028,
+      "sha256": "e13f328aa121434e6e52109d3eabd2476c3e85abd847e4628229a21b43321c39"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/beta_response_input_item.py",
-      "length": 34403,
-      "sha256": "8f799cb9250ad23f04aea97458f63dceac5de53a18980a8aabe823c734a0e517"
+      "length": 34479,
+      "sha256": "4fcb875fdab80199534c119d07ce707ce301bea71492db538da4fcc5279ca803"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/beta_response_input_message_content_list_param.py",
@@ -18734,8 +18744,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/beta_response_input_param.py",
-      "length": 36042,
-      "sha256": "c3fc5e1046f6bf372a09d9d3e6178f142ae4b0b81f857e7ee521c6dfc4bddada"
+      "length": 36134,
+      "sha256": "552b55ea86610e41069592c7aa5b1959349c8230e87e8081684e0c6bade4cb9f"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/beta_response_input_text_content_param.py",
@@ -18764,8 +18774,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/beta_response_item.py",
-      "length": 18553,
-      "sha256": "279e75707e3954cb4fec71c7f24a0f60478f0e4b37d0684911b336ede630a98f"
+      "length": 18629,
+      "sha256": "6ba3f7c298b733945e812a18ef1f7c4c297942a782cce868d81744727b17b1b5"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/beta_response_local_environment.py",
@@ -18814,8 +18824,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/beta_response_output_item_added_event.py",
-      "length": 1030,
-      "sha256": "e4c732c65ff53cca7b1c2dbd85caafc2b09bf4b718839555c9b92ed4841f63ad"
+      "length": 1272,
+      "sha256": "20e6401ef8a320b021399dfe507dd9ae10839f2f4be04f709f22970284e69466"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/beta_response_output_item_done_event.py",
@@ -18824,8 +18834,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/beta_response_output_item.py",
-      "length": 18426,
-      "sha256": "1fad139ad46ff4bc2479c7a19fbcdb649ba39160a76cf270d6da888ee2b6dda3"
+      "length": 18502,
+      "sha256": "268eaaa13745ee494cd713d9930be87bfd89085ffa9b6231a6e54699d0ffd57d"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/beta_response_output_message_param.py",
@@ -18849,8 +18859,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/beta_response_output_text_annotation_added_event.py",
-      "length": 1355,
-      "sha256": "6efc7e2f87d9f52b9f472d1ef79a942c0a3ba6473f950d371129c3e697946a8b"
+      "length": 3586,
+      "sha256": "9bab167418a3779093c7542100b12591884e7aaf93d72cf9b3c2f27355846fdc"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/beta_response_output_text_param.py",
@@ -18879,13 +18889,13 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/beta_response_reasoning_item_param.py",
-      "length": 2248,
-      "sha256": "34186c0867ea96acac9101d40bebd493e2d3393d666d5f06ec9afc8312155b26"
+      "length": 2572,
+      "sha256": "0be301f43b87a40033696455cd382a1aecc9d0fc019233e11cff680b4367e1b8"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/beta_response_reasoning_item.py",
-      "length": 2119,
-      "sha256": "0d4dae2e0bc9fec9e363591df8215e4ad4fc792190cdbb3acfc7880e5cf32729"
+      "length": 2443,
+      "sha256": "1309b80a3f6318cae567b76a1112795c895c20f8d5a479d67c9b2d00cc6ff2c5"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/beta_response_reasoning_summary_part_added_event.py",
@@ -18999,23 +19009,23 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/beta_response.py",
-      "length": 22810,
-      "sha256": "d4dc60c9f7b82ee844a83370fa404e2590a6b687b9219b5005d46b657e80b0b6"
+      "length": 23183,
+      "sha256": "124ad8b04c8ab35f4b458d13f9f1228d34ee934e7dc0d8e3462853ed322e5e34"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/beta_responses_client_event_param.py",
-      "length": 25924,
-      "sha256": "9c10293b706fc06481a0fef7ccb53b5ac5acef05c2250fc35263115699507db8"
+      "length": 26766,
+      "sha256": "f781e0d1695a73d12affff207aa23fb4d4da47d4012d063e48c01afca3764916"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/beta_responses_client_event.py",
-      "length": 25987,
-      "sha256": "eced538912bb99fdc93cb4fd7b2b3a2db332147d301342937c875eebe75951f7"
+      "length": 26846,
+      "sha256": "fe04c6f9accec28c79f455351abefbd8b5716ff08fdb5aa460599ac31f1f5542"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/beta_responses_server_event.py",
-      "length": 7849,
-      "sha256": "db2bcf9f697894517bfc653df86df0a77609eeb90fcbd2b37f600960b942f71e"
+      "length": 29345,
+      "sha256": "881829e6f7b9018013ffbc5ff9798692982bf8a1ce42ba9e0809545179876a62"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/beta_skill_reference_param.py",
@@ -19134,18 +19144,18 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/beta_web_search_tool_param.py",
-      "length": 2131,
-      "sha256": "d33c5432bb1f222beeb9d1694b9519882059948c74bd25023a738512ae4c7bba"
+      "length": 2365,
+      "sha256": "3a29486d672490d794c5a4a1c43f77d4626355a1ab190909098adffae9db39e3"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/beta_web_search_tool.py",
-      "length": 2090,
-      "sha256": "04944e3e6f864cd934c646e919ba42eeb8819f4bb7f766cf9a67f61b4519e699"
+      "length": 2341,
+      "sha256": "a36df986e091e702c976990c8bb5033aab676d4bf16cb2bffaa9ad6be2685bb9"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/chat/__init__.py",
-      "length": 122,
-      "sha256": "38a7c961c29be0d39b76244e6ea255fdd3b20d0f1f7977a40d481eda8ff8a574"
+      "length": 35,
+      "sha256": "5384bfdb2df380b6557cc7a71d16891415bccaa87699406e236f752c6415389f"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/chatkit_workflow.py",
@@ -19299,368 +19309,368 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/realtime/__init__.py",
-      "length": 7364,
-      "sha256": "b6b25bfa5aa1def1c731876886b822536707c11785672c3871733e5e3f03c2af"
+      "length": 7277,
+      "sha256": "8248e76b8662e7d8e2433c83eaa3882f4a9929dbb78d2879d06b1c904f79e85e"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/realtime/conversation_created_event.py",
-      "length": 752,
-      "sha256": "538fa77ac37cac07a9dbfdb91360eb91750c69f41e8e3dcd13fd259572a3e58f"
+      "length": 665,
+      "sha256": "b212f04b84b9712caed8682e28e1726af55f747817dd9842d9a36ec5c50843a1"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/realtime/conversation_item_content_param.py",
-      "length": 972,
-      "sha256": "0ab1a2dd72b09df25d406b3e9096860ac9f9de899d245ebf8ded065a75578634"
+      "length": 885,
+      "sha256": "5e659d8a59315740cfbbf8f80bfc3128fb44a06dc730cca2aef487fedb2c2be2"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/realtime/conversation_item_content.py",
-      "length": 1050,
-      "sha256": "296658f045248c08ba2bf2245958e3acd64b1b728adaf182cb6fcedf40848736"
+      "length": 963,
+      "sha256": "7a3128ce230523e6f6aaf80f87ca1624fe44cd43e993bbcd7db7e480883dcc30"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/realtime/conversation_item_create_event_param.py",
-      "length": 1101,
-      "sha256": "bf14da83a4eb38bbb56dfe3a177994991925e5d77529be9b529eb98010d59a13"
+      "length": 1014,
+      "sha256": "3ba093add894c72a37c0f622260eded036e96fbd8c66ebafce57e042097ab8de"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/realtime/conversation_item_create_event.py",
-      "length": 1081,
-      "sha256": "8d85d8766a8987fce7cdc0200ee0b1257a39b217feb7f0f09acc8591a0d59c01"
+      "length": 994,
+      "sha256": "74ced224e9c6a5b5f3086ef9d78e944ec2923fa5708dbceb3d7f9be24354d8c3"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/realtime/conversation_item_created_event.py",
-      "length": 817,
-      "sha256": "719066fee2a4e5d9105cb95b17401eb60e0d2607b716dcfd93046eda4088de6e"
+      "length": 730,
+      "sha256": "69232b3335dc9220a6a2a9799ef0f3281732ac535c7628a680802af2d8d871c1"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/realtime/conversation_item_delete_event_param.py",
-      "length": 569,
-      "sha256": "6b5ee1f0777c33151b5d3e8d420f18a53af5202b75ced45e7297ee907c38837e"
+      "length": 482,
+      "sha256": "4e6508fa26a6bf2b75b50c5f56e80ad2a6866bcc11f95a823f408cc2ae908578"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/realtime/conversation_item_delete_event.py",
-      "length": 549,
-      "sha256": "a7e3ba4752aee69c59bdac614a2e184cfa8b5d2d521e174b1a026e3d0c8f7076"
+      "length": 462,
+      "sha256": "0ebb0d73c3cda88ab8b6501960d9d0292ea5c0ea944d472a3fbf2d0830d6e2db"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/realtime/conversation_item_deleted_event.py",
-      "length": 492,
-      "sha256": "b961d2a97e62839e74ae8992761b513b0add42675e377d4ecf5569afd22e4052"
+      "length": 405,
+      "sha256": "a1af891d970017f5cd63e8b475f2b1018d13bd8e36d01f2edcb231d2fd27a597"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/realtime/conversation_item_input_audio_transcription_completed_event.py",
-      "length": 2538,
-      "sha256": "1706471cee1918c2a8790f34b270a1fd2fbb6a735442d44b3a11a36fc49c18e4"
+      "length": 2451,
+      "sha256": "d498e03f1e271d0a3d5a6dac6816274489099f058411dffcdbf3a390f8bd1b7e"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/realtime/conversation_item_input_audio_transcription_delta_event.py",
-      "length": 1143,
-      "sha256": "e648cb9a7449ba0ecbe5f1f14925966e107bd231b035a3306dd10d130cfd5de9"
+      "length": 1056,
+      "sha256": "1b30e9d72d02896d40e523e7dafe8cc1f405629328640478582c6ae134857544"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/realtime/conversation_item_input_audio_transcription_failed_event.py",
-      "length": 1077,
-      "sha256": "c58352048c844502783fee58a05175569b5f3daf099c9d2c59a1fa2c6b0fa30d"
+      "length": 990,
+      "sha256": "f926a2341c83ca1ea7ea7f707277d4f94fa87732e06fc9d8503f4f078784f82e"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/realtime/conversation_item_param.py",
-      "length": 2207,
-      "sha256": "1cc07b30547a5a4ced575bcc08574860dbfca8e6388f32363080edafdcbc9c4a"
+      "length": 2120,
+      "sha256": "7fa4921c2b70a163171506c3b03a6a57dbe4da596a784b8ea2e8702805ffd6ba"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/realtime/conversation_item_retrieve_event_param.py",
-      "length": 579,
-      "sha256": "4d161a6776ed35acb044f68c3954732b9553ef0878b5a2068db51d86467b8057"
+      "length": 492,
+      "sha256": "07b146017c0b998c750d9d197df4de82fcd3652569bd2c12bb5fc469c67275de"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/realtime/conversation_item_retrieve_event.py",
-      "length": 559,
-      "sha256": "e4273b7f47ccf2e8f0111d1e21c411c33d2b99cea174252b02a880bd1367f597"
+      "length": 472,
+      "sha256": "70d920b36854bf770620990904cce4bf84a77ca278e32c2fcf25f0b0a5bf0257"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/realtime/conversation_item_truncate_event_param.py",
-      "length": 983,
-      "sha256": "8529d539230cb4b7f5ea79f82121e47af6027c4b2237d90d720c5746d1daf0a7"
+      "length": 896,
+      "sha256": "a39083fd8ccd49fc8601ee3596cb21b8f826cc24f41a1e187efab12d34264e0c"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/realtime/conversation_item_truncate_event.py",
-      "length": 943,
-      "sha256": "d5cdbf05a99a4e4803dba7b2199254e71c1bcfb9511eea6a5361ea70ad159e22"
+      "length": 856,
+      "sha256": "a4a03cf16b57f02f5b4cf86709a303954c579a2be64eb2f0924f52ccc865d2ec"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/realtime/conversation_item_truncated_event.py",
-      "length": 704,
-      "sha256": "2b84b7e54f3927e50d45b6bd9e49beec6d51799bbc800f126b5cf4f95968cdcd"
+      "length": 617,
+      "sha256": "a8174ec8002ce10c615b84466fbc2ad0c67955ffc221253ff342bcbe3064a9cb"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/realtime/conversation_item_with_reference_param.py",
-      "length": 3079,
-      "sha256": "5f48847638a3164a06b59b69d2f881f1b005a8c9f87cd352bc988265b809fb74"
+      "length": 2992,
+      "sha256": "d1115948e3aed15ae3d3db82796df441764c5a82e86072927043de382d9e0d16"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/realtime/conversation_item_with_reference.py",
-      "length": 3288,
-      "sha256": "34331f6e71b460a2ea589b241521d120c90dd884acf32351c4fe9deac66c870b"
+      "length": 3201,
+      "sha256": "10719e2adfa6521c407f6ac277e748805158b971926586c8002088a58a62b6c5"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/realtime/conversation_item.py",
-      "length": 2327,
-      "sha256": "788160f73977ab31228dc419bc29e4bd52e949982f11db9b6ac8311ac42e14ce"
+      "length": 2240,
+      "sha256": "9e9c3da64dc747a0e960b41862c54dcf8c8be497c692ccdf8e5c80a44bbb54cd"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/realtime/error_event.py",
-      "length": 877,
-      "sha256": "828364a2b2975072a2615b15ba712c9da45aebfdddb03295b6bc5742dcd90a69"
+      "length": 790,
+      "sha256": "643a9efc67707a7482b01632b456d498000c478ff39fbad0cc788863cfefd6aa"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/realtime/input_audio_buffer_append_event_param.py",
-      "length": 682,
-      "sha256": "5e63766c4ea3051ae428654f25d9cf8c9aa5e5da8c3eac1b9859f1a3ecf6d891"
+      "length": 595,
+      "sha256": "10539089b4eecee8ed087ad0f68a9b3e482264a1ff7c77f76bdd70b78dd891aa"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/realtime/input_audio_buffer_append_event.py",
-      "length": 662,
-      "sha256": "95329677f5856ed0c0cba01d6828de418055d1d807b9534db7f3dbaed3c1f2d8"
+      "length": 575,
+      "sha256": "dda27d4dd5daa687858b2fb1c9331cfede542eafbcfd6605c22ae9a45b9ed694"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/realtime/input_audio_buffer_clear_event_param.py",
-      "length": 499,
-      "sha256": "cbecdf5aa26c8759faaf68b43202c3a67342e20d5dab71824bae93c1f927837f"
+      "length": 412,
+      "sha256": "69a529918dea80d76a56544d43c6d5b9f135833bf754447fc31ba6fd662f7c4e"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/realtime/input_audio_buffer_clear_event.py",
-      "length": 489,
-      "sha256": "ec07c241f331650f94a105c5f5e7582b0e4671310b3dc7efbc9596a6e2d2e357"
+      "length": 402,
+      "sha256": "87801ddeb2edaa8149beeaf4ef1a4fb8f7eafff15b25abc2a34b423b05f0b350"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/realtime/input_audio_buffer_cleared_event.py",
-      "length": 429,
-      "sha256": "8fd8299bb686566ad4b78f30aadbc130df0d3a0b6fa877227a08d78ce9d69bb0"
+      "length": 342,
+      "sha256": "d2c944fc037e26df05aa2b5a744ce046eb4b97b6854638229f3db822af070be4"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/realtime/input_audio_buffer_commit_event_param.py",
-      "length": 503,
-      "sha256": "07c6a05c2fab525f83f918a327931e4cb830e37a9563399fdbfda8015a2484b6"
+      "length": 416,
+      "sha256": "395c5926fec40700438ccf780285439ead12433ef9dd859697f2df0d593a20dc"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/realtime/input_audio_buffer_commit_event.py",
-      "length": 493,
-      "sha256": "48b651db1c5177ab8edc840bebe2eea3392344e5e21b26e52a81d8423c179382"
+      "length": 406,
+      "sha256": "d6d7d82de7e72ff501bf395fc84a262ff7a51f4481e69c42167b61fb6e0a7934"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/realtime/input_audio_buffer_committed_event.py",
-      "length": 733,
-      "sha256": "efa5c79771137c6e5889871ed8e094b2fd3035f4a269a6cbcd85631ad070bb1d"
+      "length": 646,
+      "sha256": "b915bda60363c3097f25503f1832d9db903772fa1d224078e00438a0803d1445"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/realtime/input_audio_buffer_speech_started_event.py",
-      "length": 861,
-      "sha256": "355a7ad1152c2c5b6d7bd2259279aeff9951936759a7fd5f5c28061dde04bd23"
+      "length": 774,
+      "sha256": "1e2efda6f56b48cff89983d6668d1a9316d7aa636852d3cef860a7b5c85f2e41"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/realtime/input_audio_buffer_speech_stopped_event.py",
-      "length": 779,
-      "sha256": "82ccd1b9842d016f2ea4885dec2259ee9c5ba0393e2bbb2a89d8eac607f8eeae"
+      "length": 692,
+      "sha256": "0509cd54faa0acc30c6d3ac7155bfd8ecba9f99313c432c2292ee21a3e871e5d"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/realtime/rate_limits_updated_event.py",
-      "length": 949,
-      "sha256": "9019dffe9fb8f50fcb35d26c8f44754b38bc4784c6600009fca89f2eebb2159c"
+      "length": 862,
+      "sha256": "ca03a3c47bea9bba07f7795f18aa16a2ade5fe36e17f6c8777346e19a2657730"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/realtime/realtime_client_event_param.py",
-      "length": 1887,
-      "sha256": "c41799eb443e396b99c6cb4f41aa2a1340d44c338f3b0acbf0b58c983248dab3"
+      "length": 1800,
+      "sha256": "aa5d5f528b049ade09736a0e2650357db2f9e98d90192e0d7572b7efd3c8b378"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/realtime/realtime_client_event.py",
-      "length": 1839,
-      "sha256": "d1ce3c25c247e72aee179db397449a9e6fdd7765b96475791a87111b45e6ea6e"
+      "length": 1752,
+      "sha256": "f8c8c5b03dd49ab10d2de3fddb6f9fee0d6a86b35b5f46cf926080ed8b18723f"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/realtime/realtime_connect_params.py",
-      "length": 290,
-      "sha256": "02f4f2a641426260e7f6a31e7a4b55aa28fa72ace0a2faf73e982931a949a09e"
+      "length": 203,
+      "sha256": "5ea1d42326e694476921f82be8a3441f01838df07e81bf1436769e28327c53d4"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/realtime/realtime_response_status.py",
-      "length": 1326,
-      "sha256": "814fb9f4faffe7c4d17cc66a173742968739dded6a3a753869a1d8df251150af"
+      "length": 1239,
+      "sha256": "7d029ca2d1ec7f73ef5523e9d5cb0277108ec3c6c5c06de12b36bbf630c66fd6"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/realtime/realtime_response_usage.py",
-      "length": 1541,
-      "sha256": "e973858c28cf5a2a07a08099d10f0a5ee53392d42e831e96b93cf43b952fcd98"
+      "length": 1454,
+      "sha256": "1e139a27a799c6993d7b67ae67ffca8eca0b1c577bf3523babd6cc2ac975349d"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/realtime/realtime_response.py",
-      "length": 3567,
-      "sha256": "894388b653d0bfafa8902ba24ec9687b42c357227431443ae2e83c65a2de3e7c"
+      "length": 3480,
+      "sha256": "0997577c6f357f640de51abdef4cdb0fe68eb5448c49e9bd7095d8cf6eac8f21"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/realtime/realtime_server_event.py",
-      "length": 5408,
-      "sha256": "f8fa6a66983e0cbfc2ff0b1e2cc4501d6741bf19d519101f385ef1d7742bdf81"
+      "length": 5321,
+      "sha256": "3eedcdd0847510f532e50afbfc5cd990250d50d17589b9fa61c1651f373446a2"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/realtime/response_audio_delta_event.py",
-      "length": 742,
-      "sha256": "5236e72b8bbf592353382a25663f129898079c07361fc8915c3efa6673dbcfb1"
+      "length": 655,
+      "sha256": "e917389a6e1849cd098ec795221973cd53c840aff854f50eb3b7dcf186098806"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/realtime/response_audio_done_event.py",
-      "length": 679,
-      "sha256": "d5711604f8752623a0cabe95d37991b7fdec2e6d18154ab97edd4085f1653448"
+      "length": 592,
+      "sha256": "484f397a5396cc54f4433880f6a65e094947e0c89044b6f0501c4c197cb2160c"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/realtime/response_audio_transcript_delta_event.py",
-      "length": 773,
-      "sha256": "1c454d43f476fcdca8e81bcdbec96232737ffdbd7b795776271e6e7511e0d078"
+      "length": 686,
+      "sha256": "58bb4e148048a30f65c92e3f9576f229816b95e822e63e69bdf8df63e5b1e589"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/realtime/response_audio_transcript_done_event.py",
-      "length": 787,
-      "sha256": "0a7e65e2626728adcb79237da852f82cbaacd5639683892dd526984e107ee5cd"
+      "length": 700,
+      "sha256": "9c5a564f0b6f962f72b37266ce45ff100883c5952f35bfccb27c7010785749c8"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/realtime/response_cancel_event_param.py",
-      "length": 630,
-      "sha256": "9e277304bf379621f0c889a23468b3f40774577e04b450100f0d6eb6a705ea7b"
+      "length": 543,
+      "sha256": "d977baa9115b231a406353231ea2188fc0b748e9ab9cf7cfb3ff0c298cd56723"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/realtime/response_cancel_event.py",
-      "length": 637,
-      "sha256": "10ac7c2195084891dd97eff7b42747b73d8120d43ce53abfa1c69d9ec1063d29"
+      "length": 550,
+      "sha256": "7268462fbca46d6c07b7910361e68e097e57e2ddb78b2b4e7bf191dc360b0aef"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/realtime/response_content_part_added_event.py",
-      "length": 1232,
-      "sha256": "6bcfab9b5340c17ebce5f93b19d4fa5e2d18afe25f78093252bf78f91a057b7e"
+      "length": 1145,
+      "sha256": "4eb3a6e285e5f65a6d9d5615099d64cefbbb2ab1f5a42d422e5b487ee946acb3"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/realtime/response_content_part_done_event.py",
-      "length": 1190,
-      "sha256": "8ced936728313da6db9c41bd13501f34ff89609bf542d08c9c2ce0719ff79f5f"
+      "length": 1103,
+      "sha256": "258e32c5c8ff5c6bcca7401eed0c3cf958b46361a3c870fb144825cc6b543d0f"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/realtime/response_create_event_param.py",
-      "length": 4619,
-      "sha256": "20f2654d61f41f3b249e9491ac582b4376dfc6c159551750e88604b2219264e9"
+      "length": 4532,
+      "sha256": "076180ca703576991ba2cf1f72b4edf5bd5910dc3c55680469c8670dc1418c17"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/realtime/response_create_event.py",
-      "length": 4763,
-      "sha256": "e3a8be3bdc30be1af50b31cd303ce1b364865701e21490ce9107ce65945f016a"
+      "length": 4676,
+      "sha256": "d096610fa4cb5ed903e2e316c1343dcea2c1253a8fbcd0d8c3edbef8be50bbe6"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/realtime/response_created_event.py",
-      "length": 506,
-      "sha256": "cd9b47c7ed588de857c57e9a344f3c48520d0da28e073a737a3a3ab13363abd8"
+      "length": 419,
+      "sha256": "3740f991e81912b886fa6952c5422bdccaca1affee680364c1690963bb765b0b"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/realtime/response_done_event.py",
-      "length": 494,
-      "sha256": "ff250fa04082962f3d8872ed57735091740e5ba2dcd4997154f170d38ce20466"
+      "length": 407,
+      "sha256": "27541b07162bd7513aa80b2a4e94d83e857e523fcc6aa36e52bfc72110dda577"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/realtime/response_function_call_arguments_delta_event.py",
-      "length": 793,
-      "sha256": "621da64190ee71f9d32e23bc2d1c86f6bef3792d6c8f02dc305d493cc7531497"
+      "length": 706,
+      "sha256": "631bf98ac85f7c18e166192e845c8719c41452220b7ca4f0ae5d275b7b6b6ce5"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/realtime/response_function_call_arguments_done_event.py",
-      "length": 793,
-      "sha256": "93148f2ba9db3562faa71bde63bcda3468029025eac811493d5609af0f5c6cec"
+      "length": 706,
+      "sha256": "4b6467dc9b442df3f01d98325d63e48bc2f7c8d1900e95e9b446d74cd584af81"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/realtime/response_output_item_added_event.py",
-      "length": 713,
-      "sha256": "fbf0598ef02a720bf7348cfe10c86f60cc48c2f7174edebc155369d29c34f5d2"
+      "length": 626,
+      "sha256": "2f832f98db6702e0c9ffd4ad54ffe4bf2a89666429c0179795b3127710fc024d"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/realtime/response_output_item_done_event.py",
-      "length": 709,
-      "sha256": "d0294d54c666788c4a82194489df551a85a267def0a74d2121d3677afe2a043f"
+      "length": 622,
+      "sha256": "80a99c319fb53a521a2dede9a61207e133b504f0864d6bbf77cd96f4fd120309"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/realtime/response_text_delta_event.py",
-      "length": 721,
-      "sha256": "075cb2b9cea230e3281b95a1e96e4aa10358b550f5bc49b670aa879e5d82b854"
+      "length": 634,
+      "sha256": "756a41e2598077875eb6657412ad52860958da6b6e6bb43b1780c3f9882e79b9"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/realtime/response_text_done_event.py",
-      "length": 724,
-      "sha256": "98f8151ba9d6c70919dda64e5fe264545ec2a5a58fe7e6efb5bc45aebe1f2bb8"
+      "length": 637,
+      "sha256": "bec6daa9078f3d118301a85b0da90b5e31910a3cb18af84d78f33cd0a8918a6c"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/realtime/session_create_params.py",
-      "length": 10251,
-      "sha256": "3d3141b7bc3b7d3af3d8a599233e468c9a8ba10932bfba8422ca45b1cb3acf2f"
+      "length": 10164,
+      "sha256": "e3319f4440b904513834f0facb872732fab5cb164b5e9dc5711dc15caebf5903"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/realtime/session_create_response.py",
-      "length": 6574,
-      "sha256": "1df085138eaadc811fbcb144754d3a0c083918a20f9498da53d0ed2b329caf65"
+      "length": 6487,
+      "sha256": "ff04ca18e190d4a249e3c17cddf47a06c24e198683678d72268b5cfdecfe70b4"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/realtime/session_created_event.py",
-      "length": 489,
-      "sha256": "ad31259c1944ef3d61b6691d9a974f378abf754612e92bb80649aca8eeb98547"
+      "length": 402,
+      "sha256": "91e3abcea755c03a04beda2d36b788308fa05ef5ebe66ec30af2107ed4fd43f3"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/realtime/session_update_event_param.py",
-      "length": 10749,
-      "sha256": "5aeff8a1ad11d58513c88ebfec0b4ec32d3ba897f561209466976a3bc08a91dd"
+      "length": 10662,
+      "sha256": "10746f18374269a535a789402a94c2e24c9394c2146dceae18ec00b9b5eada27"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/realtime/session_update_event.py",
-      "length": 11237,
-      "sha256": "c384958458dca1ab202f5cb2c8d7f291aae70fe0739b10edff49040fca4df29c"
+      "length": 11150,
+      "sha256": "481d44d062a80e40dbe75562351bfe944a5c4a4dcc1c945fb506a82931b8dd6e"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/realtime/session_updated_event.py",
-      "length": 489,
-      "sha256": "1f247e3f3dd4f5f8a754ef9b502be799eaac00dc3e7dc78dbd5a84205e9ecb5d"
+      "length": 402,
+      "sha256": "27846306f5b45aded79128cc8756434c70af03d93392e023c3b33b233607f580"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/realtime/session.py",
-      "length": 10183,
-      "sha256": "459311e1dd3d9347ab1c579fcdb63040dcb0d15e8ce444843c9d2aa0ef749425"
+      "length": 10096,
+      "sha256": "38f5d567c6f56d43ac1ce4cde39bcfbdb27242f47340e4f7e2fda37178e54e63"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/realtime/transcription_session_create_params.py",
-      "length": 5976,
-      "sha256": "055c12638d545f69e35c02695b29cc26d0b95ee2afeac36cee4a7663c2928e79"
+      "length": 5889,
+      "sha256": "da30122500072d45e682ef5323eab039d90300af43a141b98ab69a438eef6da3"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/realtime/transcription_session_update_param.py",
-      "length": 6453,
-      "sha256": "6fdf6fe322a7076942fdc9d81a26b12a742e1c1e1e516fafdde293d940ec6a69"
+      "length": 6366,
+      "sha256": "8bc8cbdaeba88cb889faca653a5da329d2b2a85a083b75c4ac89217cd2c1120b"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/realtime/transcription_session_update.py",
-      "length": 6694,
-      "sha256": "60c3fd381f4fe45692c1a89c5ed6042e39b8843d600d2bca16af58b45dacabae"
+      "length": 6607,
+      "sha256": "0e589d4d800696c1d13f311a116cab6b5f71904029c0968e159c4aa14266dd8a"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/realtime/transcription_session_updated_event.py",
-      "length": 833,
-      "sha256": "08a012f7c40bec2b8e544585eaa19c0bdaa14e4b5d1b608f3c95dbad6ef91883"
+      "length": 746,
+      "sha256": "61faa5b923d585c489f76e56055d400da9dc6a8c32e5435339820de6bcd5fe11"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/realtime/transcription_session.py",
-      "length": 3184,
-      "sha256": "4a8a362ee10c26d9140f6a0f275136dc651ca14ad80624aefd4b5b2d429e99fc"
+      "length": 3097,
+      "sha256": "65f0a0f2eb280e9747b09e31c6ac352bd83dbbe3fbba3cfe085ef1a1c4647d32"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/response_compact_params.py",
-      "length": 9206,
-      "sha256": "35f086727a66948e8c8e3655f7e74600dd41e681b430f95f54adc55ccf105872"
+      "length": 9317,
+      "sha256": "8b8963aa16c078caeec7a613d0a2d5753af15fa0ef5e58ad1bf4c461902df0e9"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/response_create_params.py",
-      "length": 25722,
-      "sha256": "45fc97d927d8751f1073b369aad5ed5efa62182c5ddfe0181137e6eee470a43d"
+      "length": 26095,
+      "sha256": "1e66de6abdaeb8e84427dbe363a58eb73c26af8a6d90f075a11091863bf4f9e3"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/response_retrieve_params.py",
@@ -20174,8 +20184,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/chat/chat_completion_message_tool_call_param.py",
-      "length": 458,
-      "sha256": "ac4fd36dd37737a246cc779cca481d14766023aea9da5b25d25a0fa73e53c56d"
+      "length": 371,
+      "sha256": "14ff04a6a609f85fe7ce2d9e3c13c5c90e0bfb0d480468657771fa821b0d0808"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/chat/chat_completion_message_tool_call_union_param.py",
@@ -20254,8 +20264,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/chat/chat_completion_tool_param.py",
-      "length": 431,
-      "sha256": "e6116dd08cdab7fa39d09309ceca4261e07482e6e29510c1ddaeb221f187a0df"
+      "length": 344,
+      "sha256": "603405cf502621d8b1e7dc6935d8a55661f27dbdb34f1301e79350b97a207fd6"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/chat/chat_completion_tool_union_param.py",
@@ -20299,13 +20309,13 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/chat/parsed_chat_completion.py",
-      "length": 1437,
-      "sha256": "2b07300ad8f4c9ec65ea007bcae3a7c844d15beb94bcd4586d5ccf324c027b94"
+      "length": 1350,
+      "sha256": "84fef50726760d2d46bcabd8a93518881c77e27469e25aad32632e019789eb95"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/chat/parsed_function_tool_call.py",
-      "length": 945,
-      "sha256": "243598a355e14c343c0b1b2c6e08e9cc1854c3c8de5c09847794ebfc2a85ad50"
+      "length": 858,
+      "sha256": "b718c10d54e2db9813a6f30161fa7fe66a92e7505920dc1403c5becc419c9eb7"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/completion_choice.py",
@@ -20319,8 +20329,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/completion_usage.py",
-      "length": 2007,
-      "sha256": "324038531e00674dcda7d234f0105815690622a0dfef10036fa87f91786c9d9e"
+      "length": 2281,
+      "sha256": "505975694e13d13a3cac7e9b2eff707ef8b125f0de91e32ccc89fc4b7c2161a2"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/completion.py",
@@ -20424,8 +20434,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/conversations/conversation_item.py",
-      "length": 9460,
-      "sha256": "b544128391cd4c8d33f43c6dddc523307123b8f9bca820700ab7889ebf3b94ee"
+      "length": 9534,
+      "sha256": "3175dfdd6bab724d964ce71a5d1e977a15f7ffc001647ad3146eda0eb9bb1ef1"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/conversations/conversation_update_params.py",
@@ -21049,8 +21059,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/model.py",
-      "length": 608,
-      "sha256": "8e546a5a1c23fd20bfa04ffece9b080049737d8a19e2b4f8a486921a5d22f27a"
+      "length": 753,
+      "sha256": "435fe8bb27b95b31d2606fef1a2dc455c443498d4f6668cdf8513b0268d58ddc"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/moderation_create_params.py",
@@ -21879,8 +21889,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/responses/__init__.py",
-      "length": 22040,
-      "sha256": "073818f843d52c885a84fd00232996e5b390dae5d890eb6ed37d6b48984d59ef"
+      "length": 22196,
+      "sha256": "bba7fb749b9a589acce11d8fb2faa74d50ca8881d3e6cc1d6a312b8ac0400640"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/responses/apply_patch_tool_param.py",
@@ -22093,6 +22103,16 @@
       "sha256": "5184452586e75d1b7b96c5f6501e368c1ff3c2889aa52c8ddd0cfee3201ef004"
     },
     {
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/responses/mcp_tool_call_error_param.py",
+      "length": 840,
+      "sha256": "bd054aa7fc4d273cf863913809b03c4b646f07608cc4f1feb03156afc6d840a3"
+    },
+    {
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/responses/mcp_tool_call_error.py",
+      "length": 787,
+      "sha256": "94a182801284726ca637775f410f11cc679a535833015fd4edd945df712da279"
+    },
+    {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/responses/namespace_tool_param.py",
       "length": 1762,
       "sha256": "bc7ed599fafd993d2732734f0830781ad4fbbf8954bcf50dd105af88037a9751"
@@ -22104,8 +22124,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/responses/parsed_response.py",
-      "length": 4671,
-      "sha256": "4e123cefbd02e9e47927cffb5202735138d96bb606a0b09d12e9078608f03353"
+      "length": 4584,
+      "sha256": "cce2bc0eeb7f4c22db31fba52b966cea4df3f807d3c56ce268e4398cd33f531a"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/responses/response_apply_patch_tool_call_output.py",
@@ -22174,8 +22194,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/responses/response_compact_params.py",
-      "length": 9041,
-      "sha256": "2b88436dfca9c001ffdfa29b8e14bc35ed2328e963a4e8a13981c05e7dda743c"
+      "length": 9152,
+      "sha256": "96209a49aa6194055cf1f35ecf7a6898b52edbc9a9d2e2d0727103ca3fe2b49b"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/responses/response_compaction_item_param_param.py",
@@ -22249,8 +22269,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/responses/response_create_params.py",
-      "length": 19312,
-      "sha256": "037dafd530694625d16a730c93fc5b4240a1574a64cf409dad3524107b886bfe"
+      "length": 19586,
+      "sha256": "8a0cec2c6927262de5910dae3da90df74335bcca999f1d8acb6dc766a1ce07e0"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/responses/response_created_event.py",
@@ -22534,13 +22554,13 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/responses/response_input_item_param.py",
-      "length": 23515,
-      "sha256": "9574594e957c296e8bc5dc880ff9d0b0f7d05bb9d339f7dc5c4c0c555ff0221e"
+      "length": 23594,
+      "sha256": "bc38832aca3689231305211f2f9ecc7d7dce356bbfbed3fb94afda05b3c86533"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/responses/response_input_item.py",
-      "length": 22660,
-      "sha256": "588be86a3990c303ac97ea47f0518a7f7cd07cfaa6f8013282d9cbc01f7eb8f8"
+      "length": 22723,
+      "sha256": "2a44df3841d229eab97b1d270f00590a72a30132f0a2e77c10048422feae20b5"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/responses/response_input_message_content_list_param.py",
@@ -22559,8 +22579,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/responses/response_input_param.py",
-      "length": 23609,
-      "sha256": "8d9853f92c99f897856689527dbafe4ea24778b23ed31c7b8b5d60789952091c"
+      "length": 23688,
+      "sha256": "6885d972ed7ad87369bc4ed90fc9ecbcc59957784498542cf7c0eb8737bd674d"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/responses/response_input_text_content_param.py",
@@ -22594,8 +22614,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/responses/response_item.py",
-      "length": 9424,
-      "sha256": "9548136baa0cd7cf8c97f8d98c9f4b4c7d727317beca876545f1f8aec2e8340f"
+      "length": 9487,
+      "sha256": "b5a3e6a1009982c7d8952e35d19039548004105f2d220a1b69b9dd1d2408ea94"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/responses/response_local_environment.py",
@@ -22644,8 +22664,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/responses/response_output_item_added_event.py",
-      "length": 695,
-      "sha256": "b6130061245396fc54396d9d26e0ecba0d06c9683927009626021903ca9b69d2"
+      "length": 937,
+      "sha256": "6db85b67a45b19c9525ff27758fc255296bef44f139f597041647741c1d32aee"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/responses/response_output_item_done_event.py",
@@ -22654,8 +22674,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/responses/response_output_item.py",
-      "length": 9310,
-      "sha256": "02a8b44279c27ed2a4c4595075b655d6a5e2ab053dacc1908f89781afa729cef"
+      "length": 9373,
+      "sha256": "1be7f99afde5d76a53c77686af98940c5e0842f9d908e9d27224a2510439b546"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/responses/response_output_message_param.py",
@@ -22679,8 +22699,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/responses/response_output_text_annotation_added_event.py",
-      "length": 1033,
-      "sha256": "0d83c43f78750c6b41c5be55250e69cba985ab830b1fd16b69962e6cb77939e0"
+      "length": 3288,
+      "sha256": "ebde955b2f5ec2a75736e23bd8cea41d80ea845f507bcdf039cae5396cfaa7cf"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/responses/response_output_text_param.py",
@@ -22709,13 +22729,13 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/responses/response_reasoning_item_param.py",
-      "length": 1976,
-      "sha256": "efb97227b608e4b67c9f93ea9967a817712adb74e355d804f8a8ab45326d0408"
+      "length": 2300,
+      "sha256": "aa2a3470c6d2a820c578eebbe26757bc6b81ee5e13875cd671c307407b167eee"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/responses/response_reasoning_item.py",
-      "length": 1863,
-      "sha256": "aa4668bfb11d85573e23682f86258b2d196d349adbbf62171093f57fd900870e"
+      "length": 2187,
+      "sha256": "2494a78e6c8246f9d2563681ae016663be8abe9e67f2d5f3632a1fe1b1bf510f"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/responses/response_reasoning_summary_part_added_event.py",
@@ -22834,23 +22854,23 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/responses/response.py",
-      "length": 17886,
-      "sha256": "38c562a4c9a104cae472bf2e9af097bad9311fad82906b1de8cf61a78b717cb1"
+      "length": 18160,
+      "sha256": "96aea83293bd7131e28ae863d8201c783f0f1fc4294b40d5ce138883e6aab9c6"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/responses/responses_client_event_param.py",
-      "length": 18668,
-      "sha256": "2c2a5f0a9fd39c3de40e2d6f700a9f83e25a5510001f28764c6fff703e3ec870"
+      "length": 19291,
+      "sha256": "d5cdfa3b5b1fcd06bf60b72550e6bf3428e524f8e4e58be757d13e154b40128f"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/responses/responses_client_event.py",
-      "length": 18594,
-      "sha256": "0a8cdc0fd27607176c377a185832dc59240b169bce4a453508940fb4a795481f"
+      "length": 19234,
+      "sha256": "9463857fb0eb468acf0f1781a29b682a8abe09edad959a67bac2a170a89f8bac"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/responses/responses_server_event.py",
-      "length": 6917,
-      "sha256": "28ab60aa43da899418972fb8777d9c033cbb44e1d4db7b90bbd8893d36edf1d1"
+      "length": 27431,
+      "sha256": "dd8e0dfea27927a8141e53601c2155dd2fc3622c5035dd89823dc8b219ff71cb"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/responses/skill_reference_param.py",
@@ -22969,13 +22989,13 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/responses/web_search_tool_param.py",
-      "length": 2123,
-      "sha256": "affd37227ada25230aaeb139b9af1037764e8c92a329941eb1ae4e570b5c42be"
+      "length": 2357,
+      "sha256": "9d69bdad32524dfc91cd8d94033704dbcc5b9d929294e61872364cb43820bf92"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/responses/web_search_tool.py",
-      "length": 2082,
-      "sha256": "68dd19e82e10fc09f32dbef8a6e1cd1c8917aaf1605c7f04bc43c018cc1a1b6c"
+      "length": 2333,
+      "sha256": "c5b96a1b0b5eeab4866be65b8b466df6016fe7b28f61c24023f9d66d4890c4d5"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/shared_params/__init__.py",
@@ -22984,8 +23004,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/shared_params/chat_model.py",
-      "length": 2211,
-      "sha256": "68dd0c0b30303c489f2e8e0441ed8c4ac4e0df4996a2f84caff00737d70c3a5f"
+      "length": 2237,
+      "sha256": "55af89fbe5735e4d3f0466e6ed7709b1013153a799da6323d4b93a8386c654a2"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/shared_params/comparison_filter.py",
@@ -23049,8 +23069,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/shared_params/responses_model.py",
-      "length": 865,
-      "sha256": "f9020c3cab7dda6f45815332eefd1702e53a386d7b166c58726079721f78ccfe"
+      "length": 922,
+      "sha256": "87062c82732e7a3ec1684b011e83cc4e9802e5d4bea5efe0416bed2c5f8b6e69"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/shared/__init__.py",
@@ -23059,13 +23079,13 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/shared/all_models.py",
-      "length": 811,
-      "sha256": "1f5250df0c40962e9552f08d3306f3beb78ca8bb35016ce06b0d732da846e86b"
+      "length": 868,
+      "sha256": "0151990bda53f459c0eb700943535826b75ea117ff98db56b962fbaad820dae1"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/shared/chat_model.py",
-      "length": 2175,
-      "sha256": "d08fceb597fcebde68d61bc6705b3fff8b4e47dc9a75aa35211db7074b4f759c"
+      "length": 2201,
+      "sha256": "1856100e1e1a2bcd98cb29455a49ece8766a769141280e313c758112926ad784"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/shared/comparison_filter.py",
@@ -23144,8 +23164,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/shared/responses_model.py",
-      "length": 821,
-      "sha256": "f3c03a60ba8241dc66e2d31753e52ac9b0f9aa4ba1ab7e878601f91117c09bad"
+      "length": 878,
+      "sha256": "9ee0032938e79d1188aae7880ab2274bb383183e4fb731f44cf63fe85317fa41"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/skill_create_params.py",
@@ -23509,8 +23529,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/webhooks/safety_identifier_blocked_webhook_event.py",
-      "length": 1378,
-      "sha256": "3cf99a7ad4cee1caf38db2e9e087b46ea8cb02b744dec1fc239d797d3eb362a3"
+      "length": 1291,
+      "sha256": "e117c28ec89cf3970d16b0e5010cdfc68bf7bbc582cd58ed813ec534e6fbadbe"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/webhooks/unwrap_webhook_event.py",
@@ -25763,44 +25783,44 @@
       "sha256": "b53f1173665c10c6d20b7a5dcd13c940b7da165d26cf534cb185a078d4c373a9"
     },
     {
-      "path": "Runtimes/Doubao/.venv/Lib/site-packages/python_dotenv-1.2.2.dist-info/entry_points.txt",
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/python_dotenv-1.2.3.dist-info/entry_points.txt",
       "length": 47,
       "sha256": "c91975ac26ecc1bd6741343f8194650b0e507da6f3b541a77c658b8655c535d2"
     },
     {
-      "path": "Runtimes/Doubao/.venv/Lib/site-packages/python_dotenv-1.2.2.dist-info/INSTALLER",
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/python_dotenv-1.2.3.dist-info/INSTALLER",
       "length": 2,
       "sha256": "e6184ce10e266134fdcfa401e8f1a95005bcd4f18d16b62b757323e2833fe9a9"
     },
     {
-      "path": "Runtimes/Doubao/.venv/Lib/site-packages/python_dotenv-1.2.2.dist-info/licenses/LICENSE",
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/python_dotenv-1.2.3.dist-info/licenses/LICENSE",
       "length": 1556,
       "sha256": "80619b7049f08c81683ad0e01f08f257a840652dd71ee83146d36658c7d2c2b9"
     },
     {
-      "path": "Runtimes/Doubao/.venv/Lib/site-packages/python_dotenv-1.2.2.dist-info/METADATA",
-      "length": 27524,
-      "sha256": "59430a9dee8f8118dbf693e41c4a3e5150626d19901f4727503da9499f5a64a1"
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/python_dotenv-1.2.3.dist-info/METADATA",
+      "length": 29008,
+      "sha256": "2380ea9700796b7398fd8156e22f9028afe5eebf918eb84a6bd5ebb0a8fdd3b5"
     },
     {
-      "path": "Runtimes/Doubao/.venv/Lib/site-packages/python_dotenv-1.2.2.dist-info/RECORD",
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/python_dotenv-1.2.3.dist-info/RECORD",
       "length": 1450,
-      "sha256": "140eebd9c90d4e64f8fad3e7ac80b609dc8bb37ea98d50faba4fc79ac310a69f"
+      "sha256": "d3110aadc9b1f909f742a4432202db18878d0ba8a45dea2c94d52dc45ec4666d"
     },
     {
-      "path": "Runtimes/Doubao/.venv/Lib/site-packages/python_dotenv-1.2.2.dist-info/REQUESTED",
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/python_dotenv-1.2.3.dist-info/REQUESTED",
       "length": 0,
       "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     {
-      "path": "Runtimes/Doubao/.venv/Lib/site-packages/python_dotenv-1.2.2.dist-info/top_level.txt",
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/python_dotenv-1.2.3.dist-info/top_level.txt",
       "length": 7,
       "sha256": "7b2a941f848724dafa6a139897122e9d3af85e29c4f19e5a8d62ddacadebd03f"
     },
     {
-      "path": "Runtimes/Doubao/.venv/Lib/site-packages/python_dotenv-1.2.2.dist-info/WHEEL",
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/python_dotenv-1.2.3.dist-info/WHEEL",
       "length": 91,
-      "sha256": "6027f0606398322e49870d9f538c8d83012bc9b6f6217e4f13004a57865b741a"
+      "sha256": "61532836a2b3111b7ec23519c09df7c41180c27165fb872a6d8913b566b88ad1"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/python_json_logger-3.3.0.dist-info/INSTALLER",
@@ -30505,7 +30525,7 @@
     {
       "path": "Runtimes/Doubao/.venv/pyvenv.cfg",
       "length": 150,
-      "sha256": "de7fb0cd8b0fc102cccd2f1c6d5b50a82b28e8f07d251c9b2057b3fe585027ba"
+      "sha256": "b5145dcd1c42ed53e68e1d60465315a64daf5c3651603b9a12f61a8e53ecfd0f"
     },
     {
       "path": "Runtimes/Doubao/.venv/Scripts/activate",
@@ -31135,17 +31155,17 @@
     {
       "path": "Runtimes/Python312/Lib/site-packages/bin/clear_comtypes_cache.exe",
       "length": 108359,
-      "sha256": "ae1ad48464612d06f0d7e8222597d4bc35d22e1de4bdfd9b265fc23dd5e19e4e"
+      "sha256": "2276204b8be96fad42195e3c9c5462db05a9e993968345336b43b073d20b160d"
     },
     {
       "path": "Runtimes/Python312/Lib/site-packages/bin/flask.exe",
       "length": 108348,
-      "sha256": "bf89d3805e602372b4d15aafcfd11f259882db932b934fddd31cdb5395491be9"
+      "sha256": "1427b0669b1bc5a7ad55a814d7cc71d6f9cf93be8892de59b167e2018b999360"
     },
     {
       "path": "Runtimes/Python312/Lib/site-packages/bin/pywin32_postinstall.exe",
       "length": 108372,
-      "sha256": "95bb03bc304c409b48ff4fd0954edca85e9afcdca5f096e9359e31f39b246bb6"
+      "sha256": "35d57ba5aa538bbd95ece6f83a5ebfff7c37813052b59819ecd4d6f9511df9e5"
     },
     {
       "path": "Runtimes/Python312/Lib/site-packages/bin/pywin32_postinstall.py",
@@ -31155,7 +31175,7 @@
     {
       "path": "Runtimes/Python312/Lib/site-packages/bin/pywin32_testall.exe",
       "length": 108368,
-      "sha256": "859688e2d6ebd0d47d136fc4461cfa1f83767ce09d5a40bd755be56b5ca017da"
+      "sha256": "d53dc340a9c0e4b54ed9b0717f255507198c35685f46548f7d41678b1059c682"
     },
     {
       "path": "Runtimes/Python312/Lib/site-packages/bin/pywin32_testall.py",
@@ -31435,7 +31455,7 @@
     {
       "path": "Runtimes/Python312/Lib/site-packages/comtypes-1.4.16.dist-info/RECORD",
       "length": 22160,
-      "sha256": "6f21bf1625a27756a1602d72a4db3ecc79d870abb282ba1ec6828e8cf27153dd"
+      "sha256": "02eb0202deb4bc84ccc869d29d1e48c63e33ce37f11e9e3f5ea91111b4856fd3"
     },
     {
       "path": "Runtimes/Python312/Lib/site-packages/comtypes-1.4.16.dist-info/REQUESTED",
@@ -31604,23 +31624,23 @@
     },
     {
       "path": "Runtimes/Python312/Lib/site-packages/comtypes/gen/_00020430_0000_0000_C000_000000000046_0_2_0.py",
-      "length": 20272,
-      "sha256": "b5ce52d1cb9ab2d2c4480186d0b95f48b60107102380a15098fc4f84b3a87f8e"
+      "length": 20273,
+      "sha256": "c4fd3b9a4a2436b7947f7b8d8acb5186eeb7adbcdfe1532d020798e807769682"
     },
     {
       "path": "Runtimes/Python312/Lib/site-packages/comtypes/gen/_944DE083_8FB8_45CF_BCB7_C477ACB2F897_0_1_0.py",
-      "length": 315838,
-      "sha256": "f4c99d66464e483fdae7448b87c24106aba509d18096ef9fe8ea3a6424d2eba4"
+      "length": 315815,
+      "sha256": "2865274a27b80bee7b762d7f9f7b17ce99342944c65f902bd68785f45a951213"
     },
     {
       "path": "Runtimes/Python312/Lib/site-packages/comtypes/gen/stdole.py",
-      "length": 1987,
-      "sha256": "7385a4b4262d4da198e0d0627dbe8b3102d336ae2ef00423f60fbe9d75efbefc"
+      "length": 1992,
+      "sha256": "18430c14fe34f761f59c942f4fdda8994bee66df6c4348a29fe928c999d176bc"
     },
     {
       "path": "Runtimes/Python312/Lib/site-packages/comtypes/gen/UIAutomationClient.py",
-      "length": 46300,
-      "sha256": "fe566120aa02f6b8fde7ee9b2d25fe33b53df5245cf6cceb620d59c6ec6bd79f"
+      "length": 46265,
+      "sha256": "a7ffbee5815e45c6ea7aefe306258dc101ede643fa3da2fafc9a21e6ab0dd769"
     },
     {
       "path": "Runtimes/Python312/Lib/site-packages/comtypes/git.py",
@@ -32250,7 +32270,7 @@
     {
       "path": "Runtimes/Python312/Lib/site-packages/flask-3.1.2.dist-info/RECORD",
       "length": 3725,
-      "sha256": "ecdedd4ebf0d80e539fa6797ac94fb7852845fc76a8b006a75ff798b87b7e6ac"
+      "sha256": "48b8880fd99dcaf4713c549d50867993fd6afb7c4aa29089be8bcb8bb2b2a74e"
     },
     {
       "path": "Runtimes/Python312/Lib/site-packages/flask-3.1.2.dist-info/REQUESTED",
@@ -33545,7 +33565,7 @@
     {
       "path": "Runtimes/Python312/Lib/site-packages/pywin32-310.dist-info/RECORD",
       "length": 81546,
-      "sha256": "1294d6b1c96bf197ec853e443f54ba6e610dbabd43c318209025c338a1325dc2"
+      "sha256": "41141945797bf54b244b7c06b4c20f66f9ea496cd89019e3d12124c8d9fa1442"
     },
     {
       "path": "Runtimes/Python312/Lib/site-packages/pywin32-310.dist-info/REQUESTED",
@@ -36585,12 +36605,12 @@
     {
       "path": "service-units/adb-forwarder.service/bin/AdbForwarder.MyPowerTools.dll",
       "length": 98816,
-      "sha256": "91d00f9ce7039223c28fddd716c410bbb116ad180777985fa5d0be5ca94d729d"
+      "sha256": "4dbaa2d8893e708720adae5b5dd575aaac32cccffb1054459ec891e69b482ec2"
     },
     {
       "path": "service-units/adb-forwarder.service/bin/AdbForwarder.Service.deps.json",
       "length": 5575,
-      "sha256": "0740e9f8eeeca1a73b3a9f5c096b98b407e25d86db470007f393d93ea0dd15c5"
+      "sha256": "afc49cda9009c0608b6f549ff95f0ab880a5ab3e6bc44d953d5d073731a93881"
     },
     {
       "path": "service-units/adb-forwarder.service/bin/AdbForwarder.Service.dll",
@@ -36630,22 +36650,22 @@
     {
       "path": "service-units/adb-forwarder.service/bin/MyPowerTools.Abstractions.dll",
       "length": 153600,
-      "sha256": "78c7aa07f40b7c8418dcb0339eb07042254cac0049deef7cfd9464ba92c672bd"
+      "sha256": "d895580ab6ef4f4698ddea2af25df5fef575ce6eed3215acb55d6b8df0df21d5"
     },
     {
       "path": "service-units/adb-forwarder.service/bin/MyPowerTools.Ipc.Shared.dll",
       "length": 18944,
-      "sha256": "cccc164219c1e7f368e77c3a7ce40cc0ea84c2bc4dc9a2b995b3ac0bb7b3f7ee"
+      "sha256": "3fb6d75d5b28ab5340a941ff5c222ae02594c158a27a8e52f389b7c341c6267f"
     },
     {
       "path": "service-units/adb-forwarder.service/bin/MyPowerTools.Platform.Abstractions.dll",
       "length": 104448,
-      "sha256": "4baf359d504a80a9df7f64e485ca6f6c2af4fc500f99acc86382f16d2c45af87"
+      "sha256": "276946888784c7c0d4e1d0a65c5425d1d9f080b6bd700afc4883d8c4c7a2688d"
     },
     {
       "path": "service-units/adb-forwarder.service/bin/MyPowerTools.Protocol.dll",
       "length": 499712,
-      "sha256": "c8c6857e68345a6f047ce836ca0d0db7671c240064fdd3da444dea8b9822c9d4"
+      "sha256": "197f99b1726d5c5eaf4cfcb8189c0ebdb132fe690bde2da709969e4f3738bf68"
     },
     {
       "path": "service-units/adb-forwarder.service/unit-manifest.json",
@@ -36705,12 +36725,12 @@
     {
       "path": "service-units/doubao-agent.controller.service/bin/MyPowerTools.Ipc.Shared.dll",
       "length": 18944,
-      "sha256": "cccc164219c1e7f368e77c3a7ce40cc0ea84c2bc4dc9a2b995b3ac0bb7b3f7ee"
+      "sha256": "3fb6d75d5b28ab5340a941ff5c222ae02594c158a27a8e52f389b7c341c6267f"
     },
     {
       "path": "service-units/doubao-agent.controller.service/bin/MyPowerTools.Platform.Abstractions.dll",
       "length": 104448,
-      "sha256": "4baf359d504a80a9df7f64e485ca6f6c2af4fc500f99acc86382f16d2c45af87"
+      "sha256": "276946888784c7c0d4e1d0a65c5425d1d9f080b6bd700afc4883d8c4c7a2688d"
     },
     {
       "path": "service-units/doubao-agent.controller.service/unit-manifest.json",
@@ -36740,22 +36760,22 @@
     {
       "path": "service-units/remote-notifications.service/bin/MyPowerTools.Abstractions.dll",
       "length": 153600,
-      "sha256": "78c7aa07f40b7c8418dcb0339eb07042254cac0049deef7cfd9464ba92c672bd"
+      "sha256": "d895580ab6ef4f4698ddea2af25df5fef575ce6eed3215acb55d6b8df0df21d5"
     },
     {
       "path": "service-units/remote-notifications.service/bin/MyPowerTools.Ipc.Shared.dll",
       "length": 18944,
-      "sha256": "cccc164219c1e7f368e77c3a7ce40cc0ea84c2bc4dc9a2b995b3ac0bb7b3f7ee"
+      "sha256": "3fb6d75d5b28ab5340a941ff5c222ae02594c158a27a8e52f389b7c341c6267f"
     },
     {
       "path": "service-units/remote-notifications.service/bin/MyPowerTools.Platform.Abstractions.dll",
       "length": 104448,
-      "sha256": "4baf359d504a80a9df7f64e485ca6f6c2af4fc500f99acc86382f16d2c45af87"
+      "sha256": "276946888784c7c0d4e1d0a65c5425d1d9f080b6bd700afc4883d8c4c7a2688d"
     },
     {
       "path": "service-units/remote-notifications.service/bin/MyPowerTools.Platform.Mac.dll",
       "length": 48128,
-      "sha256": "5497cdcacfa6cec9e3a00c8ab13c337da5ba397b6d54679417e7bfa9d47ba073"
+      "sha256": "981cf0167fab2a4a7d3284155c9181af51ea00dc3d6f2f14c2d19df903ae08d2"
     },
     {
       "path": "service-units/remote-notifications.service/bin/RemoteNotifications.Service.deps.json",
@@ -36765,12 +36785,12 @@
     {
       "path": "service-units/remote-notifications.service/bin/RemoteNotifications.Service.dll",
       "length": 96256,
-      "sha256": "381d3f11dc73f3ec88c27d64506b9f3542525c891840158572aabf5f37d0a77d"
+      "sha256": "b2ea77d27e5c3753e6f39f479b2cac9e382ec3ae3116963810f8f1ab1627a72c"
     },
     {
       "path": "service-units/remote-notifications.service/bin/RemoteNotifications.Service.exe",
       "length": 163840,
-      "sha256": "377654355b7f10cd6c3baa54d974a009d0032b627682303141df896a310598f9"
+      "sha256": "78bdc202f3463fd7027b0060455450b6f0f8d00af863d24236262d5d83c34886"
     },
     {
       "path": "service-units/remote-notifications.service/bin/RemoteNotifications.Service.runtimeconfig.json",
@@ -36805,32 +36825,32 @@
     {
       "path": "service-units/screenease.service/bin/MyPowerTools.Abstractions.dll",
       "length": 153600,
-      "sha256": "78c7aa07f40b7c8418dcb0339eb07042254cac0049deef7cfd9464ba92c672bd"
+      "sha256": "d895580ab6ef4f4698ddea2af25df5fef575ce6eed3215acb55d6b8df0df21d5"
     },
     {
       "path": "service-units/screenease.service/bin/MyPowerTools.Ipc.Shared.dll",
       "length": 18944,
-      "sha256": "cccc164219c1e7f368e77c3a7ce40cc0ea84c2bc4dc9a2b995b3ac0bb7b3f7ee"
+      "sha256": "3fb6d75d5b28ab5340a941ff5c222ae02594c158a27a8e52f389b7c341c6267f"
     },
     {
       "path": "service-units/screenease.service/bin/MyPowerTools.Platform.Abstractions.dll",
       "length": 104448,
-      "sha256": "4baf359d504a80a9df7f64e485ca6f6c2af4fc500f99acc86382f16d2c45af87"
+      "sha256": "276946888784c7c0d4e1d0a65c5425d1d9f080b6bd700afc4883d8c4c7a2688d"
     },
     {
       "path": "service-units/screenease.service/bin/MyPowerTools.Protocol.dll",
       "length": 499712,
-      "sha256": "c8c6857e68345a6f047ce836ca0d0db7671c240064fdd3da444dea8b9822c9d4"
+      "sha256": "197f99b1726d5c5eaf4cfcb8189c0ebdb132fe690bde2da709969e4f3738bf68"
     },
     {
       "path": "service-units/screenease.service/bin/ScreenEase.MyPowerTools.dll",
       "length": 204800,
-      "sha256": "540a644a9b882748430a7279602577a26943f6584d64a9a1db0da66f85cccd65"
+      "sha256": "45e221cf1dffe1112c7503f777cf0f8bafbe5c460ad1e636e96741ea25f63cef"
     },
     {
       "path": "service-units/screenease.service/bin/ScreenEase.Service.deps.json",
       "length": 5561,
-      "sha256": "c37638d0a9ba7dd1fceb29043a6644baa138df1e6ab9927bdfd99842a11f2744"
+      "sha256": "f762cb6d5aabbeda5e595110453572df7bb68c160af45863443cdca0c985bb9a"
     },
     {
       "path": "service-units/screenease.service/bin/ScreenEase.Service.dll",
@@ -36890,27 +36910,27 @@
     {
       "path": "ServiceManager/MyPowerTools.Abstractions.dll",
       "length": 153600,
-      "sha256": "78c7aa07f40b7c8418dcb0339eb07042254cac0049deef7cfd9464ba92c672bd"
+      "sha256": "d895580ab6ef4f4698ddea2af25df5fef575ce6eed3215acb55d6b8df0df21d5"
     },
     {
       "path": "ServiceManager/MyPowerTools.Ipc.Shared.dll",
       "length": 18944,
-      "sha256": "cccc164219c1e7f368e77c3a7ce40cc0ea84c2bc4dc9a2b995b3ac0bb7b3f7ee"
+      "sha256": "3fb6d75d5b28ab5340a941ff5c222ae02594c158a27a8e52f389b7c341c6267f"
     },
     {
       "path": "ServiceManager/MyPowerTools.Platform.Abstractions.dll",
       "length": 104448,
-      "sha256": "f58b69abf2e29f07d7588516e252b994d3decccd702df0873140c51a4811b85d"
+      "sha256": "0f3f0fe88e536d435a3ca3a6da44da2f52ab0fd3695532ac4e7a12d14c67af27"
     },
     {
       "path": "ServiceManager/MyPowerTools.Protocol.dll",
       "length": 499712,
-      "sha256": "c8c6857e68345a6f047ce836ca0d0db7671c240064fdd3da444dea8b9822c9d4"
+      "sha256": "197f99b1726d5c5eaf4cfcb8189c0ebdb132fe690bde2da709969e4f3738bf68"
     },
     {
       "path": "ServiceManager/MyPowerTools.ServiceManager.Client.dll",
       "length": 33792,
-      "sha256": "ed8691e3cea4565b8669c810e1bc8d601fc80eb67ae4b5223a906380f900b1b2"
+      "sha256": "23528f66461e3bb8e5799cbbb81ac9d01493157abc52c27466beb54374a4593f"
     },
     {
       "path": "ServiceManager/MyPowerTools.ServiceManager.deps.json",
@@ -36920,12 +36940,12 @@
     {
       "path": "ServiceManager/MyPowerTools.ServiceManager.dll",
       "length": 15360,
-      "sha256": "e8d830b9619587ff2d68d6228631aaf2d77b453af9aca024ed056ed90e053e65"
+      "sha256": "65b3997b7531ed2c1d1b15c5e80a4b86cb2a6a4d14ea2363fcffc7281c035175"
     },
     {
       "path": "ServiceManager/MyPowerTools.ServiceManager.exe",
       "length": 162816,
-      "sha256": "9e27816ce363af75b07527495827447cf8d0ddde3280fc9d5114f3b21ba63be2"
+      "sha256": "366f6eab49ba23e514635c8cb2005261b244c5e1447dc0809a6776bb2135dc77"
     },
     {
       "path": "ServiceManager/MyPowerTools.ServiceManager.runtimeconfig.json",
@@ -36935,7 +36955,7 @@
     {
       "path": "ServiceManager/MyPowerTools.ServiceManager.Server.dll",
       "length": 68608,
-      "sha256": "ecd609b8dcaae2e611d75e93f0471c3da8c69f21c319ee023e8f3fe09c3e2063"
+      "sha256": "ec1611cb785fd38fb579de07ccf786619557f6a96e0251e7b0bebb5d873072b2"
     },
     {
       "path": "ServiceManager/MyPowerTools.ServiceManager.staticwebassets.endpoints.json",
@@ -37150,72 +37170,72 @@
     {
       "path": "Shell/MyPowerTools.Abstractions.dll",
       "length": 159744,
-      "sha256": "f8fb56d35e656fda94b652f767d3ac56251b423b703d9bbbb5bacb42850b5dbb"
+      "sha256": "a727347a6f0cc5cd842cb99500837bf745cdc5ca725ec08eee281bab229d38a4"
     },
     {
       "path": "Shell/MyPowerTools.AvaloniaSdk.dll",
       "length": 45056,
-      "sha256": "0df8675d54c9b50d74b35b4dada27437cebdefc790467537d429890aa2e86cfc"
+      "sha256": "fd24b22f6851300475b057d8cfa0577632d6f2ad7bcd75bc15cebbb616179a9e"
     },
     {
       "path": "Shell/MyPowerTools.Broker.dll",
       "length": 126976,
-      "sha256": "be830568323ab7611df07c39ac0ba3f2289c18f61dcecd75cd325f1f01c570e4"
+      "sha256": "f9d10b5f7e70e1402041e2446c2814e0151afa3b1375a63039420dc5cacd6a50"
     },
     {
       "path": "Shell/MyPowerTools.HostControl.Client.dll",
       "length": 49152,
-      "sha256": "c69b717ce4f43f27b05d2c567c01341ea851dfa18dd26e0aa49877f43f2df0b0"
+      "sha256": "c2c22004e276241c5d9fb77289aba90951f633d6e8d746c6203471acc48411bf"
     },
     {
       "path": "Shell/MyPowerTools.HostControl.Contracts.dll",
       "length": 12288,
-      "sha256": "84cfde5c40c038ca931053600b5ff5e1452e852354225d6f048aaaa29386a224"
+      "sha256": "576f1c5549d6b6a3d291f89448bc29f18959fd98c4b0bafd79f45a1b9f3d2a85"
     },
     {
       "path": "Shell/MyPowerTools.Ipc.Shared.dll",
       "length": 24576,
-      "sha256": "b9396600a3ae45895b5c458d45b2505d1c871bd17a6c29a065d4059041f4603e"
+      "sha256": "33b7ecd4b1d1fbe93b1c20de5c3f51a473029aca01f3e1a87839d2414d2d5ccc"
     },
     {
       "path": "Shell/MyPowerTools.Packaging.dll",
       "length": 102400,
-      "sha256": "59b54b7e5b2a029139ac85bf8784ade813461237143b0b4bb869c7c6b6227521"
+      "sha256": "cd17ab68be051453bc4d5fcd342314bdd8c9a2715fd2cc539094dd8b604588cc"
     },
     {
       "path": "Shell/MyPowerTools.Platform.Abstractions.dll",
       "length": 110592,
-      "sha256": "6bf9e23bebbdc5739ba9963166d2479f604490be48b5dd8f026038fdd2321523"
+      "sha256": "9a661dd71034b26f9241e47ffedd3d53968acff950f16ce0fea9c7bca0e8e99c"
     },
     {
       "path": "Shell/MyPowerTools.Platform.dll",
       "length": 8192,
-      "sha256": "d8b5ba1ff984ab50004abc36b86f9c72983f7a2ada68eee8d3aa48ddb5847310"
+      "sha256": "e3e39fb9f554a6eb8b7a42be095d66c3a8e764a61b95c1acdbddbc79817244e4"
     },
     {
       "path": "Shell/MyPowerTools.Platform.Linux.dll",
       "length": 24576,
-      "sha256": "5826a9c0bd7ab1083f96146a895358a41eee09e28a0351a989217c2d96e4fbf3"
+      "sha256": "fec790cb4b5fffb365c21f01187b7c90043c11935b3e30b172ecaa634ffab0c4"
     },
     {
       "path": "Shell/MyPowerTools.Platform.Mac.dll",
       "length": 53248,
-      "sha256": "83121f62548b585f026fe40ff8ecd071880324b4c3cb30d5bb0b3afd12c0b702"
+      "sha256": "187d1b994a25090a5608283b09c6b33221df11578cf19cb05c06a98db3c234b7"
     },
     {
       "path": "Shell/MyPowerTools.Platform.Windows.dll",
       "length": 102400,
-      "sha256": "eae377675b9b99ab9b81ebf2a3aefbdd5bfad9d87297b26bab3575c71f85b40b"
+      "sha256": "71b0eaca0ecd6cc060b2de504e926bd499f47c64f5a026c81da0681466f6db93"
     },
     {
       "path": "Shell/MyPowerTools.Protocol.dll",
       "length": 507904,
-      "sha256": "78a24e0751ca70f60d7db4662766f98600a274197076e32411f6658205867cee"
+      "sha256": "0e27b8ab8d80ca93d28b1ee30f5eaa8a9bd5c0fdac1f00c28f239e99b1637eb4"
     },
     {
       "path": "Shell/MyPowerTools.ServiceManager.Client.dll",
       "length": 36864,
-      "sha256": "8e715505e193d686fc5360dc9f19ff5abf140417edbe0fa67fc1995b63264aca"
+      "sha256": "08c6c2bf090f80f493ae0e1f44e284211be63c33159bcd9f8f6a6f04c072c4f6"
     },
     {
       "path": "Shell/MyPowerTools.Shell.Avalonia.deps.json",
@@ -37224,18 +37244,18 @@
     },
     {
       "path": "Shell/MyPowerTools.Shell.Avalonia.dll",
-      "length": 1167360,
-      "sha256": "0a09f055a95da528d3bd9f2c7c134abe52ba23e134a4e81e831843bec6a77d2c"
+      "length": 1179648,
+      "sha256": "3d01d9dc5bc445bae3f0a1a22dba6528fa7c65a473e93340ed94cb5c28858101"
     },
     {
       "path": "Shell/MyPowerTools.Shell.Avalonia.exe",
       "length": 175616,
-      "sha256": "abc1400dcf8341c4416698d9d6d6dd00b6fe5d26f617b915de094be6d5c6e31c"
+      "sha256": "4300ac940bf6801df61cae5d5e14d47bb4896705a7f8d94fa8532c4b903f1175"
     },
     {
       "path": "Shell/MyPowerTools.Shell.Avalonia.r2r.dll",
-      "length": 32874496,
-      "sha256": "a0a9af9a43e620b88adc028dcca98cadc6ed190cd503a9c2f690bfca0d1e2f3e"
+      "length": 32899072,
+      "sha256": "a813099a2c62731e81dbfc440591a862093e1a640f60cb4de34bc2e7d6bcf8d1"
     },
     {
       "path": "Shell/MyPowerTools.Shell.Avalonia.runtimeconfig.json",
@@ -37245,17 +37265,17 @@
     {
       "path": "Shell/MyPowerTools.UI.dll",
       "length": 176128,
-      "sha256": "d11a26f7a208b4330370730076d8370d3a70fb7bcc752feaa5287da72be29f01"
+      "sha256": "20a1b00f4a80708fe2b2c3ae83dd9ee0568d77d92389999c92adba02842ea8e5"
     },
     {
       "path": "Shell/MyPowerTools.UI.Primitives.dll",
       "length": 20480,
-      "sha256": "0d9e8e1df17126f190cb9f274d5a7819afd149d42531370b5fa3a185a61361bc"
+      "sha256": "be7e3f928c535907cbb6aff8fa722cd464d8382b0b6f9d04e894fbde523d1cea"
     },
     {
       "path": "Shell/MyPowerTools.WebSurface.Avalonia.dll",
       "length": 65536,
-      "sha256": "0c9f3dff24e329a57264f7e7026b8aa3c86cc0adba51e707320430c9fcc8b209"
+      "sha256": "081f7b2aa07eb9083c2cb398a8020977110d32ae30853737382448eeea66436a"
     },
     {
       "path": "Shell/SkiaSharp.dll",
@@ -37310,17 +37330,17 @@
     {
       "path": "Shell/WebToolHost/MyPowerTools.WebToolHost.dll",
       "length": 53248,
-      "sha256": "c35176509c8285a867fc275e180c915b163d648c3270fca38fc6141edb63550f"
+      "sha256": "6915d24a9a2f5e3c7333666b38c8bc0884abe58f3d78daa08efdb46c63001281"
     },
     {
       "path": "Shell/WebToolHost/MyPowerTools.WebToolHost.exe",
       "length": 163840,
-      "sha256": "83c7ed94a33258f1afa27647873b59eb435893522bbd5cbefd03a71853312c9c"
+      "sha256": "62bcc196babe2df7e1ba37a75f0c7948c49e26c15009e74f0a104746ebd88986"
     },
     {
       "path": "Shell/WebToolHost/MyPowerTools.WebToolHost.r2r.dll",
       "length": 540672,
-      "sha256": "2b6903c80967300f423013bc479c78425f504ac534333b36d87737127b34e181"
+      "sha256": "4193421d2fa66cb49cc06764a35e9b59d4626081d07a4224f788753d93c144e2"
     },
     {
       "path": "Shell/WebToolHost/MyPowerTools.WebToolHost.runtimeconfig.json",
