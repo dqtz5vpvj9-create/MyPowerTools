@@ -27,8 +27,8 @@ public sealed partial class ShellWorkspaceController
             JsonNode? result = type switch
             {
                 "command.invoke" => await InvokeBridgeCommandAsync(descriptor, route, root),
-                "settings.get" => ReadBridgeSetting(descriptor, root),
-                "settings.set" => WriteBridgeSetting(descriptor, root),
+                "settings.get" => await ReadBridgeSettingAsync(descriptor, root),
+                "settings.set" => await WriteBridgeSettingAsync(descriptor, root),
                 "secrets.get" => await ReadBridgeSecretAsync(descriptor, root),
                 "secrets.set" => await WriteBridgeSecretAsync(descriptor, root),
                 "navigation.openExternal" => OpenBridgeExternal(root),
@@ -77,33 +77,46 @@ public sealed partial class ShellWorkspaceController
             CancellationToken.None));
     }
 
-    private static JsonNode? ReadBridgeSetting(HostProto.ToolDescriptor descriptor, JsonElement root)
+    private static async Task<JsonNode?> ReadBridgeSettingAsync(
+        HostProto.ToolDescriptor descriptor,
+        JsonElement root)
     {
         var name = root.GetProperty("payload").GetProperty("name").GetString() ?? "";
-        var values = LoadBridgeSettings(descriptor);
+        var values = await LoadBridgeSettingsAsync(descriptor);
         return values[name]?.DeepClone();
     }
 
-    private static JsonNode? WriteBridgeSetting(HostProto.ToolDescriptor descriptor, JsonElement root)
+    private static async Task<JsonNode?> WriteBridgeSettingAsync(
+        HostProto.ToolDescriptor descriptor,
+        JsonElement root)
     {
         var payload = root.GetProperty("payload");
         var name = payload.GetProperty("name").GetString()
                    ?? throw new InvalidDataException("Setting name is required.");
-        var values = LoadBridgeSettings(descriptor);
+        var values = await LoadBridgeSettingsAsync(descriptor);
         values[name] = JsonNode.Parse(payload.GetProperty("value").GetRawText());
         var path = descriptor.Settings?.ValuesPath
                    ?? throw new InvalidDataException("Tool settings are not configured.");
-        File.WriteAllText(path, values.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+        await File.WriteAllTextAsync(
+            path,
+            values.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
         return null;
     }
 
-    private static JsonObject LoadBridgeSettings(HostProto.ToolDescriptor descriptor)
+    private static async Task<JsonObject> LoadBridgeSettingsAsync(HostProto.ToolDescriptor descriptor)
     {
         var path = descriptor.Settings?.ValuesPath
                    ?? throw new InvalidDataException("Tool settings are not configured.");
-        return File.Exists(path) && JsonNode.Parse(File.ReadAllText(path)) is JsonObject values
-            ? values
-            : new JsonObject();
+        if (File.Exists(path))
+        {
+            var text = await File.ReadAllTextAsync(path);
+            if (JsonNode.Parse(text) is JsonObject values)
+            {
+                return values;
+            }
+        }
+
+        return new JsonObject();
     }
 
     private static async Task<JsonNode?> ReadBridgeSecretAsync(

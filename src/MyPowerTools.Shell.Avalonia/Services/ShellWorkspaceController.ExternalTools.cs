@@ -128,7 +128,7 @@ public sealed partial class ShellWorkspaceController
         {
             try
             {
-                var loadedSurface = CreateExternalDotnetSurface(descriptor, route);
+                var loadedSurface = await CreateExternalDotnetSurfaceAsync(descriptor, route);
                 viewModel.SetOwnedSurface(loadedSurface);
                 view.SetManagedSurface(loadedSurface.Control);
             }
@@ -166,7 +166,7 @@ public sealed partial class ShellWorkspaceController
             handleBridgeRequestAsync);
     }
 
-    private DotnetSurfaceLoader.LoadedSurface CreateExternalDotnetSurface(
+    private async Task<DotnetSurfaceLoader.LoadedSurface> CreateExternalDotnetSurfaceAsync(
         HostProto.ToolDescriptor descriptor,
         HostProto.ToolRoute route)
     {
@@ -209,7 +209,7 @@ public sealed partial class ShellWorkspaceController
        {
            if (_devSource.SyncOnRefresh)
            {
-                var outcome = _devSource.SyncForToolAsync(descriptor.ToolId, enabledOnly: true).GetAwaiter().GetResult();
+                var outcome = await _devSource.SyncForToolAsync(descriptor.ToolId, enabledOnly: true);
                if (outcome.UpdatedFiles > 0)
                 {
                     SetStatus($"Synced {outcome.UpdatedFiles} file(s) from developer sources for {descriptor.ToolId}.");

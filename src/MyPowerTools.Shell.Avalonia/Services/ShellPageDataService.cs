@@ -140,7 +140,7 @@ public sealed class ShellPageDataService : IDisposable
             var dataRoot = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                 "MyPowerTools");
-            var snapshot = LocalLogFileReader.Read(dataRoot);
+            var snapshot = await Task.Run(() => LocalLogFileReader.Read(dataRoot));
             var selectedId = ResolveLocalLogModule(snapshot.ModuleIds, selectedModuleId);
             var moduleItems = snapshot.ModuleIds
                 .OrderBy(id => id, StringComparer.OrdinalIgnoreCase)
