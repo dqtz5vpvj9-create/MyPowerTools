@@ -25,6 +25,14 @@
           <StackPanel Spacing="{DynamicResource MptSpacingXs}">
             <TextBlock Classes="MptMeta" Text="{Binding UpdateVersionText}" />
             <TextBlock Classes="MptPageSubtitle" Text="{Binding UpdateStatus}" TextWrapping="Wrap" />
+            <ProgressBar Minimum="0"
+                         Maximum="100"
+                         Value="{Binding UpdateProgressPercent}"
+                         IsVisible="{Binding IsUpdateProgressVisible}"
+                         Height="8" />
+            <TextBlock Classes="MptMeta"
+                       Text="{Binding UpdateProgressText}"
+                       IsVisible="{Binding IsUpdateProgressVisible}" />
           </StackPanel>
           <StackPanel Grid.Column="1"
                       Classes="MptActionBar"

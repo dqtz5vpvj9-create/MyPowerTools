@@ -290,6 +290,61 @@ function Select-OtaPackage {
     }
 }
 
+function Invoke-OtaDownload {
+    param(
+        [Parameter(Mandatory = $true)][string]$Uri,
+        [Parameter(Mandatory = $true)][string]$Destination,
+        [Parameter(Mandatory = $true)][string]$Asset
+    )
+
+    $handler = [System.Net.Http.HttpClientHandler]::new()
+    $client = [System.Net.Http.HttpClient]::new($handler)
+    $client.Timeout = [TimeSpan]::FromMinutes(20)
+    try {
+        $response = $client.GetAsync(
+            $Uri,
+            [System.Net.Http.HttpCompletionOption]::ResponseHeadersRead
+        ).GetAwaiter().GetResult()
+        if (-not $response.IsSuccessStatusCode) {
+            throw "Download failed: $($response.StatusCode) for $Uri"
+        }
+        $totalBytes = $response.Content.Headers.ContentLength
+        $input = $response.Content.ReadAsStreamAsync().GetAwaiter().GetResult()
+        $output = [System.IO.File]::Open(
+            $Destination,
+            [System.IO.FileMode]::Create,
+            [System.IO.FileAccess]::Write,
+            [System.IO.FileShare]::None
+        )
+        try {
+            $buffer = New-Object byte[] 81920
+            $received = [long]0
+            while (($read = $input.Read($buffer, 0, $buffer.Length)) -gt 0) {
+                $output.Write($buffer, 0, $read)
+                $received += $read
+                $percent = -1
+                if ($totalBytes -gt 0) {
+                    $percent = [int][Math]::Floor(($received * 100.0) / $totalBytes)
+                }
+                $progress = [ordered]@{
+                    event = 'download-progress'
+                    file = $Asset
+                    received = $received
+                    total = $totalBytes
+                    percent = $percent
+                }
+                [Console]::Error.WriteLine(($progress | ConvertTo-Json -Compress))
+            }
+        } finally {
+            $output.Dispose()
+            $input.Dispose()
+        }
+    } finally {
+        $client.Dispose()
+        $handler.Dispose()
+    }
+}
+
 function Resolve-PackageFile {
     param(
         [Parameter(Mandatory = $true)][string]$BaseUrl,
@@ -309,7 +364,7 @@ function Resolve-PackageFile {
         }
         Copy-Item -LiteralPath $localAsset -Destination $destination -Force
     } else {
-        Invoke-WebRequest -Uri "$BaseUrl/$Asset" -OutFile $destination -UseBasicParsing
+        Invoke-OtaDownload -Uri "$BaseUrl/$Asset" -Destination $destination -Asset $Asset
     }
 
     $actualHash = (Get-FileHash -LiteralPath $destination -Algorithm SHA256).Hash.ToLowerInvariant()

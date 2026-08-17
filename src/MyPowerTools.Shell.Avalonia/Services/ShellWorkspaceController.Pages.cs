@@ -208,7 +208,7 @@ public sealed partial class ShellWorkspaceController
                 packageId => RunPackageOperationAsync("uninstall", packageId),
                 moduleId => ShowModuleDetailPageAsync(moduleId),
                 () => RunOtaCliAsync("check"),
-                () => RunOtaCliAsync("apply"));
+                progress => RunOtaCliAsync("apply", progress));
 
             SetOwnedContent(_contentHost, new PackageManagerView
             {

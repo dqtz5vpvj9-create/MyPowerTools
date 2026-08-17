@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Windows.Input;
 using Google.Protobuf.WellKnownTypes;
+using MyPowerTools.Shell.Avalonia.Services;
 using HostProto = MyPowerTools.Protocol.HostControl.V1;
 
 namespace MyPowerTools.Shell.Avalonia.ViewModels;
@@ -31,13 +32,16 @@ public sealed class PackageManagerViewModel : ShellPageViewModel
     private string _updateStatus = "尚未检查更新。";
     private bool _updateAvailable;
     private bool _isUpdateBusy;
+    private double _updateProgressPercent;
+    private string _updateProgressText = "";
+    private bool _isUpdateProgressVisible;
 
     public PackageManagerViewModel(
         IReadOnlyList<PackageSummaryViewModel> packages,
         Func<string, Task>? installPackage = null,
         Func<string, Task>? rollbackPackage = null,
         Func<Task<string?>>? checkUpdate = null,
-        Func<Task<string?>>? applyUpdate = null,
+        Func<Action<OtaDownloadProgress>?, Task<string?>>? applyUpdate = null,
         string currentVersion = "-")
         : base("Packages", $"{packages.Count} packages")
     {
@@ -112,6 +116,24 @@ public sealed class PackageManagerViewModel : ShellPageViewModel
         private set => SetProperty(ref _isUpdateBusy, value);
     }
 
+    public double UpdateProgressPercent
+    {
+        get => _updateProgressPercent;
+        private set => SetProperty(ref _updateProgressPercent, value);
+    }
+
+    public string UpdateProgressText
+    {
+        get => _updateProgressText;
+        private set => SetProperty(ref _updateProgressText, value);
+    }
+
+    public bool IsUpdateProgressVisible
+    {
+        get => _isUpdateProgressVisible;
+        private set => SetProperty(ref _isUpdateProgressVisible, value);
+    }
+
     private async Task RunOtaCheckAsync(Func<Task<string?>>? checkUpdate)
     {
         if (checkUpdate is null || IsUpdateBusy)
@@ -165,7 +187,7 @@ public sealed class PackageManagerViewModel : ShellPageViewModel
         }
     }
 
-    private async Task RunOtaApplyAsync(Func<Task<string?>>? applyUpdate)
+    private async Task RunOtaApplyAsync(Func<Action<OtaDownloadProgress>?, Task<string?>>? applyUpdate)
     {
         if (applyUpdate is null || IsUpdateBusy)
         {
@@ -173,10 +195,13 @@ public sealed class PackageManagerViewModel : ShellPageViewModel
         }
 
         IsUpdateBusy = true;
+        UpdateProgressPercent = 0;
+        UpdateProgressText = "准备下载…";
+        IsUpdateProgressVisible = true;
         UpdateStatus = "正在下载并升级，界面即将关闭并自动重启…";
         try
         {
-            var output = await applyUpdate();
+            var output = await applyUpdate(OnOtaDownloadProgress);
             if (string.IsNullOrWhiteSpace(output))
             {
                 UpdateStatus = "升级失败：更新器没有返回结果。";
@@ -220,8 +245,16 @@ public sealed class PackageManagerViewModel : ShellPageViewModel
         }
         finally
         {
+            IsUpdateProgressVisible = false;
             IsUpdateBusy = false;
         }
+    }
+
+    private void OnOtaDownloadProgress(OtaDownloadProgress progress)
+    {
+        UpdateProgressPercent = progress.PercentValue;
+        UpdateProgressText = progress.Text;
+        UpdateStatus = $"正在下载 {progress.File}：{progress.Text}…";
     }
 
     private static string CollapseOutput(string output)

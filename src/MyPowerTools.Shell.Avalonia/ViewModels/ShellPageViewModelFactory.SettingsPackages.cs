@@ -6,6 +6,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Windows.Input;
 using Google.Protobuf.WellKnownTypes;
+using MyPowerTools.Shell.Avalonia.Services;
 using HostProto = MyPowerTools.Protocol.HostControl.V1;
 
 namespace MyPowerTools.Shell.Avalonia.ViewModels;
@@ -159,7 +160,7 @@ public static partial class ShellPageViewModelFactory
         Func<string, Task>? uninstallPackage = null,
         Func<string, Task>? showModuleDetails = null,
         Func<Task<string?>>? checkUpdate = null,
-        Func<Task<string?>>? applyUpdate = null,
+        Func<Action<OtaDownloadProgress>?, Task<string?>>? applyUpdate = null,
         string currentVersion = "-")
     {
         var packages = response.Packages

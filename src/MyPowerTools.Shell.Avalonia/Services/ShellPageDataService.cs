@@ -214,9 +214,11 @@ public sealed class ShellPageDataService : IDisposable
         Func<string, Task>? uninstallPackage = null,
         Func<string, Task>? showModuleDetails = null,
         Func<Task<string?>>? checkUpdate = null,
-        Func<Task<string?>>? applyUpdate = null,
+        Func<Action<OtaDownloadProgress>?, Task<string?>>? applyUpdate = null,
         CancellationToken cancellationToken = default)
     {
+        return await Task.Run(async () =>
+        {
         HostProto.ListPackagesResponse response;
         string statusText;
         try
@@ -245,6 +247,7 @@ public sealed class ShellPageDataService : IDisposable
             applyUpdate,
             currentVersion);
         return new ShellPageDataResult<PackageManagerViewModel>(viewModel, statusText);
+        });
     }
 
     private static string ReadInstalledVersion()
