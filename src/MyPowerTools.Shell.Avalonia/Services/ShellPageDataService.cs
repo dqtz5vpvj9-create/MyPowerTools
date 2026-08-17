@@ -254,16 +254,38 @@ public sealed class ShellPageDataService : IDisposable
     {
         try
         {
+            var installRoot = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "Programs",
+                "MyPowerTools");
+            var devManifestPath = Path.Combine(installRoot, "dev-update.manifest.json");
+            if (File.Exists(devManifestPath))
+            {
+                var devManifest = JsonNode.Parse(File.ReadAllText(devManifestPath));
+                var repositoryRoot = devManifest?["repositoryRoot"]?.GetValue<string>();
+                if (!string.IsNullOrWhiteSpace(repositoryRoot))
+                {
+                    var versionPath = Path.Combine(repositoryRoot, "version.json");
+                    if (File.Exists(versionPath))
+                    {
+                        var versionNode = JsonNode.Parse(File.ReadAllText(versionPath));
+                        var version = versionNode?["version"]?.GetValue<string>();
+                        if (!string.IsNullOrWhiteSpace(version))
+                        {
+                            return $"{version}-dev";
+                        }
+                    }
+                }
+
+                return "-dev";
+            }
+
             var dataRoot = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                 "MyPowerTools");
             var releasePath = Path.Combine(dataRoot, "ota-state", "installed-release.json");
             if (!File.Exists(releasePath))
             {
-                var installRoot = Path.Combine(
-                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                    "Programs",
-                    "MyPowerTools");
                 var installManifestPath = Path.Combine(installRoot, "install.manifest.json");
                 if (File.Exists(installManifestPath))
                 {
