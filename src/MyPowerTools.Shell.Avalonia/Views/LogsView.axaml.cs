@@ -12,14 +12,7 @@ public sealed partial class LogsView : UserControl
     {
         if (DataContext is LogsViewModel vm && TopLevel.GetTopLevel(this) is { Clipboard: { } cb })
         {
-            try
-            {
-                await ClipboardExtensions.SetTextAsync(cb, vm.CopyText);
-            }
-            catch
-            {
-                // Clipboard is best-effort; do not let an OS failure break the page.
-            }
+            await ClipboardExtensions.SetTextAsync(cb, vm.CopyText);
         }
     }
 }
