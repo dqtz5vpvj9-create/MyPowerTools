@@ -1,5 +1,16 @@
 # Changelog
 
+## 0.3.11 (unreleased)
+
+- Remote Notifications 完成 DeepSeek Harness（DSH）全链路接入：DSH Stop hook
+  经官方 hooks-codex 桥接进入通知队列，会话标题、session ID、最后一条助手
+  消息和触发请求均随通知携带；请求以引用块顶行显示。
+- 长消息全文同步：发送端不再截断正文，服务器与桌面端保存完整消息；FCM/
+  UnifiedPush 只推送 3 KiB 预览并标记 `truncated`，手机 App 收到后按 ID 从
+  服务器拉取完整正文并精确替换。
+- chris Linux Codex 队列恢复 `--stdin-file` 支持，Codex Stop 通知通道修复。
+- 桌面与手机标签提取改为行首 `[label]`，引用正文中的方括号不影响会话分组。
+
 ## 0.3.10 (unreleased)
 
 - Remote Notifications 详情窗口支持会话串追溯：标题栏显示当前消息在会话
