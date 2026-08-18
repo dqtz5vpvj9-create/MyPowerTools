@@ -1,5 +1,9 @@
 # Changelog
 
+## 0.3.12 (unreleased)
+
+- Remote Notifications 系统通知（桌面 toast / 手机推送）不再展示消息里引用的原问题，只保留会话标题和结果；收件箱详情仍保留引用块。
+
 ## 0.3.11 (unreleased)
 
 - Remote Notifications 完成 DeepSeek Harness（DSH）全链路接入：DSH Stop hook

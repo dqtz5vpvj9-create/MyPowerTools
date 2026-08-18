@@ -492,6 +492,50 @@ public sealed class RemoteNotificationsProductTests
         Assert.DoesNotContain("scenario=", transient.ToXml(), StringComparison.Ordinal);
     }
 
+    [Fact]
+    public void Toast_omits_the_quoted_user_request_from_the_banner_body()
+    {
+        var notification = Message(
+            "quoted/id 42",
+            "> 把全文发给我\n> 第二行\n\n[build] **Complete**\nOpen it.",
+            DateTimeOffset.UtcNow);
+        var envelope = RemoteNotificationWindowsToastPublisher.BuildEnvelope(
+            notification, notification.Id, persistent: false);
+
+        Assert.Equal("build", envelope.Title);
+        Assert.Equal("**Complete** Open it.", envelope.Body);
+        Assert.DoesNotContain("把全文发给我", envelope.Body, StringComparison.Ordinal);
+        Assert.DoesNotContain("第二行", envelope.Body, StringComparison.Ordinal);
+        Assert.DoesNotContain(">", envelope.Body, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Feed_keeps_the_quoted_user_request_in_the_stored_message()
+    {
+        var message = new RemoteNotificationMessageViewModel(
+            Message("quoted-feed", "> 把全文发给我\n\n[alpha] done", DateTimeOffset.UtcNow));
+
+        Assert.Contains("> 把全文发给我", message.Message, StringComparison.Ordinal);
+        Assert.Contains("> 把全文发给我", message.DisplayMessage, StringComparison.Ordinal);
+        Assert.Equal("alpha", message.Label);
+    }
+
+    [Fact]
+    public void Phone_system_notifications_strip_the_quoted_user_request()
+    {
+        var notifyApp = Path.Combine(Root, "external", "NotifyApp", "app", "src", "main", "java", "com", "androidtools", "notify");
+        var adapter = File.ReadAllText(Path.Combine(notifyApp, "NotificationAdapter.kt"));
+        var fcm = File.ReadAllText(Path.Combine(notifyApp, "NotifyFirebaseService.kt"));
+        var unifiedPush = File.ReadAllText(Path.Combine(notifyApp, "UnifiedPushReceiver.kt"));
+
+        Assert.Contains("fun notificationBannerText", adapter, StringComparison.Ordinal);
+        Assert.Contains("fun stripLeadingQuotedRequest", adapter, StringComparison.Ordinal);
+        Assert.Contains("NotificationAdapter.notificationBannerText", fcm, StringComparison.Ordinal);
+        Assert.Contains("NotificationAdapter.notificationBannerText", unifiedPush, StringComparison.Ordinal);
+        Assert.DoesNotContain(".setContentText(item.message)", unifiedPush, StringComparison.Ordinal);
+        Assert.DoesNotContain(".setContentText(body)", fcm, StringComparison.Ordinal);
+    }
+
     [Theory]
     [InlineData(false, "")]
     [InlineData(true, "reminder")]
