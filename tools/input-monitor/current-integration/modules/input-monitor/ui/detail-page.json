@@ -1,0 +1,9 @@
+{
+  "schemaVersion": "1.0",
+  "surfaceId": "input-monitor.stats",
+  "moduleId": "input-monitor",
+  "kind": "detail-page",
+  "layout": { "mode": "component" },
+  "uses": ["MptModuleHeader", "MptDiagnosticPanel", "MptActionBar", "MptErrorView"],
+  "states": ["loading", "ready", "degraded", "error", "disabled"]
+}

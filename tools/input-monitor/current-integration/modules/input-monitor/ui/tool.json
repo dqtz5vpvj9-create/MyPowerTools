@@ -1,0 +1,30 @@
+{
+  "schemaVersion": "1.0",
+  "toolId": "input-monitor",
+  "ownerModuleId": "input-monitor",
+  "title": "Input Monitor",
+  "description": "Collect local keyboard, mouse, and foreground-app activity, then remind you to rest.",
+  "icon": "tool.input-monitor",
+  "category": "Wellbeing",
+  "type": "dotnet-surface",
+  "availability": "available",
+  "primaryRouteId": "stats",
+  "routes": [
+    {
+      "routeId": "stats",
+      "surfaceId": "input-monitor.stats",
+      "title": "活动统计",
+      "surface": {
+        "kind": "dotnet",
+        "assembly": "surface/InputMonitor.Surface.dll",
+        "type": "InputMonitor.Surface.InputMonitorSurfaceFactory"
+      }
+    }
+  ],
+  "homeCard": {
+    "summary": "本机键鼠与窗口活动统计，连续工作后提醒休息。",
+    "primaryActionLabel": "打开 Input Monitor",
+    "statusBinding": "module.status",
+    "order": 55
+  }
+}

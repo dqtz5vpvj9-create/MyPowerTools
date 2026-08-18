@@ -349,7 +349,8 @@ static int RunA1Gate()
         "tools/doubao-computer-use/current-integration/modules/doubao-agent/ui/tool.json",
         "tools/remote-notifications/current-integration/modules/android-tools-suite/modules/notifications/ui/tool.json",
         "tools/screenease/current-integration/modules/screenease/ui/tool.json",
-        "tools/smartbird-thermostat/current-integration/modules/smartbird-thermostat/ui/tool.json"
+        "tools/smartbird-thermostat/current-integration/modules/smartbird-thermostat/ui/tool.json",
+        "tools/input-monitor/current-integration/modules/input-monitor/ui/tool.json"
     };
     var surfaceManifestErrors = new List<string>();
     foreach (var relativePath in firstPartyToolManifests)

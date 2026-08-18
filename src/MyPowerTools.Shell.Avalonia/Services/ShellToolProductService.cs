@@ -159,6 +159,7 @@ public sealed class ShellToolProductService
             "tool.remote-commands" => "RC",
             "tool.process-monitor" => "PM",
             "tool.screenease" => "SE",
+            "tool.input-monitor" => "IM",
             "tool.doubao-agent" => "DA",
             "tool.smartbird-thermostat" => "SB",
             _ => string.Concat(title.Split(' ', StringSplitOptions.RemoveEmptyEntries).Take(2).Select(word => char.ToUpperInvariant(word[0])))

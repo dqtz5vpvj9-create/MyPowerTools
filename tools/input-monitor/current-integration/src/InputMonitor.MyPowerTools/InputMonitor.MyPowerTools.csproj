@@ -1,0 +1,70 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <RootNamespace>InputMonitor.MyPowerTools</RootNamespace>
+    <AssemblyName>InputMonitor.MyPowerTools</AssemblyName>
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+    <ModulePackageRoot Condition="'$(ModulePackageRoot)' == ''">$(MSBuildProjectDirectory)\..\..\modules\input-monitor</ModulePackageRoot>
+    <RepositoryModuleRoot>$(MyPowerToolsRepoRoot)\modules\input-monitor</RepositoryModuleRoot>
+  </PropertyGroup>
+
+  <ItemGroup Condition="!Exists('$(MyPowerToolsRepoRoot)\src\MyPowerTools.Abstractions\MyPowerTools.Abstractions.csproj')">
+    <PackageReference Include="MyPowerTools.ToolSdk" Version="0.2.0" />
+    <PackageReference Include="MyPowerTools.Protocol" Version="0.2.0" />
+    <PackageReference Include="MyPowerTools.Platform.Abstractions" Version="0.2.0" />
+  </ItemGroup>
+
+  <ItemGroup Condition="Exists('$(MyPowerToolsRepoRoot)\src\MyPowerTools.Abstractions\MyPowerTools.Abstractions.csproj')">
+    <ProjectReference Include="$(MyPowerToolsRepoRoot)\src\MyPowerTools.Abstractions\MyPowerTools.Abstractions.csproj" />
+    <ProjectReference Include="$(MyPowerToolsRepoRoot)\src\MyPowerTools.Protocol\MyPowerTools.Protocol.csproj" />
+    <ProjectReference Include="$(MyPowerToolsRepoRoot)\src\MyPowerTools.Platform.Abstractions\MyPowerTools.Platform.Abstractions.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\InputMonitor.Core\InputMonitor.Core.csproj" />
+  </ItemGroup>
+
+  <Target Name="CopyModuleAssemblyToPackage" AfterTargets="Build">
+    <ItemGroup>
+      <ModuleOutputFiles Include="$(TargetDir)InputMonitor.MyPowerTools.dll" />
+      <ModuleOutputFiles Include="$(TargetDir)InputMonitor.MyPowerTools.pdb" Condition="Exists('$(TargetDir)InputMonitor.MyPowerTools.pdb')" />
+      <ModuleOutputFiles Include="$(TargetDir)InputMonitor.MyPowerTools.deps.json" Condition="Exists('$(TargetDir)InputMonitor.MyPowerTools.deps.json')" />
+      <ModuleOutputFiles Include="$(TargetDir)InputMonitor.Core.dll" />
+      <ModuleOutputFiles Include="$(TargetDir)InputMonitor.Core.pdb" Condition="Exists('$(TargetDir)InputMonitor.Core.pdb')" />
+      <ModuleOutputFiles Include="$(TargetDir)Microsoft.Data.Sqlite.dll" Condition="Exists('$(TargetDir)Microsoft.Data.Sqlite.dll')" />
+      <ModuleOutputFiles Include="$(TargetDir)SQLitePCLRaw*.dll" />
+      <ModuleOutputFiles Include="$(TargetDir)e_sqlite3.dll" Condition="Exists('$(TargetDir)e_sqlite3.dll')" />
+    </ItemGroup>
+    <MakeDir Directories="$(ModulePackageRoot)" />
+    <Copy SourceFiles="@(ModuleOutputFiles)" DestinationFolder="$(ModulePackageRoot)" SkipUnchangedFiles="true" />
+    <Copy SourceFiles="$(TargetDir)runtimes\win-x64\native\e_sqlite3.dll"
+          DestinationFolder="$(ModulePackageRoot)\runtimes\win-x64\native"
+          Condition="Exists('$(TargetDir)runtimes\win-x64\native\e_sqlite3.dll')"
+          SkipUnchangedFiles="true" />
+    <Copy SourceFiles="$(TargetDir)runtimes\win-arm64\native\e_sqlite3.dll"
+          DestinationFolder="$(ModulePackageRoot)\runtimes\win-arm64\native"
+          Condition="Exists('$(TargetDir)runtimes\win-arm64\native\e_sqlite3.dll')"
+          SkipUnchangedFiles="true" />
+    <Copy SourceFiles="$(TargetDir)runtimes\win-x86\native\e_sqlite3.dll"
+          DestinationFolder="$(ModulePackageRoot)\runtimes\win-x86\native"
+          Condition="Exists('$(TargetDir)runtimes\win-x86\native\e_sqlite3.dll')"
+          SkipUnchangedFiles="true" />
+  </Target>
+
+  <Target Name="StageRepositoryModule"
+          AfterTargets="CopyModuleAssemblyToPackage"
+          Condition="'$(MyPowerToolsRepoRoot)' != '' and '$(StageRepositoryModule)' != 'false'">
+    <ItemGroup>
+      <RepositoryModuleFiles Include="$(ModulePackageRoot)\**\*" />
+    </ItemGroup>
+    <MakeDir Directories="$(RepositoryModuleRoot)" />
+    <Copy SourceFiles="@(RepositoryModuleFiles)"
+          DestinationFiles="@(RepositoryModuleFiles->'$(RepositoryModuleRoot)\%(RecursiveDir)%(Filename)%(Extension)')"
+          SkipUnchangedFiles="true" />
+  </Target>
+
+</Project>

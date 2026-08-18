@@ -180,6 +180,12 @@ $toolRegistry = @(
         RuntimeStagePath  = 'tools\paste-image\artifacts\package'
     },
     @{
+        Id                = 'input-monitor'
+        BuildScript       = 'tools\input-monitor\build.ps1'
+        SurfaceProject    = 'tools\input-monitor\current-integration\src\InputMonitor.Surface\InputMonitor.Surface.csproj'
+        RuntimeStagePath  = 'tools\input-monitor\artifacts\package'
+    },
+    @{
         Id                = 'screenease'
         BuildScript       = 'tools\screenease\build.ps1'
         SurfaceProject    = 'tools\screenease\current-integration\src\ScreenEase.Surface\ScreenEase.Surface.csproj'

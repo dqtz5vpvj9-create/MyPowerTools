@@ -1,0 +1,121 @@
+{
+  "Algorithm": "sha256",
+  "Files": [
+    {
+      "Path": "commands.index.json",
+      "Sha256": "fbbadcf09597942fd0119f4ba084b5778afa866de6aba7de6deb3fbe10511da2"
+    },
+    {
+      "Path": "InputMonitor.Core.dll",
+      "Sha256": "5d8ffff0774e4d20a9db521099ca61c90bff544be8209cc1291c027394feaee0"
+    },
+    {
+      "Path": "InputMonitor.Core.pdb",
+      "Sha256": "d2b7f0db919bb6ecff01815590b040f3c9291e34644be5314178261192cf5a71"
+    },
+    {
+      "Path": "InputMonitor.MyPowerTools.deps.json",
+      "Sha256": "b63695e2a47263118c9a925ba72e8751f0ebbc69b58ac9307d80bb26f1a4a913"
+    },
+    {
+      "Path": "InputMonitor.MyPowerTools.dll",
+      "Sha256": "8765cd6bb4051b2fd39e725e3e309dfaf3fd1980c0fe9fb47390c63a6805281c"
+    },
+    {
+      "Path": "InputMonitor.MyPowerTools.pdb",
+      "Sha256": "789215e65a9eb7d67e3aa5684cdf2302625172fa646adef2e511a194eace3a3c"
+    },
+    {
+      "Path": "Microsoft.Data.Sqlite.dll",
+      "Sha256": "d36dc596b8bbde95ef96238a1753542736f4580e28b74e93a83cbd5e8629339c"
+    },
+    {
+      "Path": "module.json",
+      "Sha256": "6b2de274dda17f646ace79c3c990b889d9d7d23cda9be261d3beff0af7fea959"
+    },
+    {
+      "Path": "runtimes/win-arm64/native/e_sqlite3.dll",
+      "Sha256": "12f60e382478c7e666de26a020e532d302476c85da315c08aaedafec745f4107"
+    },
+    {
+      "Path": "runtimes/win-arm/native/e_sqlite3.dll",
+      "Sha256": "b49944bc69bc5bf7f013bf7c52ed554b66c8a7029dbe07ba7ec377af30bbb079"
+    },
+    {
+      "Path": "runtimes/win-x64/native/e_sqlite3.dll",
+      "Sha256": "39923cfdad272169c217406a60214ffe9bd6c1b3bd396a3eff94b781bd8d3376"
+    },
+    {
+      "Path": "runtimes/win-x86/native/e_sqlite3.dll",
+      "Sha256": "6e1ad918b7922918ba40df624138680a8dee76bc616bd5770d5d4c659714e975"
+    },
+    {
+      "Path": "SQLitePCLRaw.batteries_v2.dll",
+      "Sha256": "0981b1e1e24ddf18e42d0f6cea7a318e735b875f987b3e306f555118726b24a7"
+    },
+    {
+      "Path": "SQLitePCLRaw.core.dll",
+      "Sha256": "dbcfd04e95aefa9ef0dcad4cd20009b018dd3d2943c8ccf3f40597b9ed9161b8"
+    },
+    {
+      "Path": "SQLitePCLRaw.provider.e_sqlite3.dll",
+      "Sha256": "30dd6ae7899281f9b715ab9f8ceb1d67b6d4c8d76a21daaafc215955fcf37f0c"
+    },
+    {
+      "Path": "ui/dashboard-card.json",
+      "Sha256": "5303e7241d390961c0cb6c10fd949ba10c1463cc19b1f14fe516632e84bdf2fc"
+    },
+    {
+      "Path": "ui/detail-page.json",
+      "Sha256": "cc97c3551bb0bce3207a9b826895b871bdbda359a674b0c4215994b4f2f0ab17"
+    },
+    {
+      "Path": "ui/logs.json",
+      "Sha256": "9cd13ae46d3a6fa983dd434a88ac4552e0213b4812e5677d7b58b699996b3591"
+    },
+    {
+      "Path": "ui/settings.json",
+      "Sha256": "ad545195b7d828ad3fd244033ff440918ea0cdde19b8eb4cf2ca78bac117263b"
+    },
+    {
+      "Path": "ui/surface/InputMonitor.Surface.deps.json",
+      "Sha256": "abb6992d8d33a79b6642fcfad0232e2c55c4105b90f7dbd7f45233db5708af2f"
+    },
+    {
+      "Path": "ui/surface/InputMonitor.Surface.dll",
+      "Sha256": "f689fbcb4f8a40ee3edf172b926f1bb8fd3092d699be42cb25179012d87c1438"
+    },
+    {
+      "Path": "ui/surface/InputMonitor.Surface.pdb",
+      "Sha256": "a9fe05a8dd7a88c097c3301f913ef1ad322efaeb556b9d161f35d356534f8150"
+    },
+    {
+      "Path": "ui/surface/MyPowerTools.Abstractions.deps.json",
+      "Sha256": "fabece70e6e01a8fcb2e895d2e5e4b30a230be6cb9352747363f7f53172587f5"
+    },
+    {
+      "Path": "ui/surface/MyPowerTools.Abstractions.dll",
+      "Sha256": "ec5c559f6be062ff760a37434a4fd98a2bb4aa391ffafbcb763808cd8b1044d4"
+    },
+    {
+      "Path": "ui/surface/MyPowerTools.Abstractions.pdb",
+      "Sha256": "8c14255e2bc7feee13c53c0b8adafde7e161f23cb2e28e4274b587c1f3840392"
+    },
+    {
+      "Path": "ui/surface/MyPowerTools.AvaloniaSdk.deps.json",
+      "Sha256": "a1aa32f0385a689ad63b7421ee4b91c69ba4ff7e5a388a24bba9f9bfba8dfbd6"
+    },
+    {
+      "Path": "ui/surface/MyPowerTools.AvaloniaSdk.dll",
+      "Sha256": "554ae3d2eb8f4cca85a5d4139c1ca0e21afe9f7a88091d6a1301507eeb06949a"
+    },
+    {
+      "Path": "ui/surface/MyPowerTools.AvaloniaSdk.pdb",
+      "Sha256": "271889fc1338ca7362825483e455214556eb2db85570bd6b7ff76b3285608924"
+    },
+    {
+      "Path": "ui/tool.json",
+      "Sha256": "e5f05e8333d2307af79c05bc1deb6d9ce814874c285f7a0d08204f9104023cee"
+    }
+  ]
+}

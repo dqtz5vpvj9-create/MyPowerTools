@@ -1,0 +1,53 @@
+{
+  "schemaVersion": "1.0",
+  "commands": [
+    {
+      "id": "input-monitor.snapshot",
+      "title": "Today's Input Monitor snapshot",
+      "subtitle": "Read live fatigue and activity counters",
+      "kind": "action",
+      "category": "Wellbeing",
+      "execution": { "type": "module.execute" }
+    },
+    {
+      "id": "input-monitor.stats",
+      "title": "Input Monitor statistics",
+      "subtitle": "Query daily or range statistics",
+      "kind": "action",
+      "category": "Wellbeing",
+      "execution": { "type": "module.execute" }
+    },
+    {
+      "id": "input-monitor.rest",
+      "title": "Start a rest break",
+      "subtitle": "Open the rest overlay",
+      "kind": "action",
+      "category": "Wellbeing",
+      "execution": { "type": "module.execute" }
+    },
+    {
+      "id": "input-monitor.pause",
+      "title": "Pause or resume reminders",
+      "subtitle": "Toggle rest reminders without stopping collection",
+      "kind": "action",
+      "category": "Wellbeing",
+      "execution": { "type": "module.execute" }
+    },
+    {
+      "id": "input-monitor.skip",
+      "title": "Skip the current rest",
+      "subtitle": "Dismiss the rest overlay and raise the next threshold",
+      "kind": "action",
+      "category": "Wellbeing",
+      "execution": { "type": "module.execute" }
+    },
+    {
+      "id": "input-monitor.set-category",
+      "title": "Override an app category",
+      "subtitle": "Remap a process to a statistics category",
+      "kind": "action",
+      "category": "Wellbeing",
+      "execution": { "type": "module.execute" }
+    }
+  ]
+}

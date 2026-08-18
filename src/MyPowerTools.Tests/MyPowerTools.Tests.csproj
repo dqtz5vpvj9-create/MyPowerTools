@@ -52,6 +52,7 @@
     <ProjectReference Include="..\MyPowerTools.ElevatedBroker\MyPowerTools.ElevatedBroker.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="..\..\tools\screenease\current-integration\src\ScreenEase.MyPowerTools\ScreenEase.MyPowerTools.csproj" />
     <ProjectReference Include="..\..\tools\smartbird-thermostat\current-integration\src\SmartBirdThermostat.MyPowerTools\SmartBirdThermostat.MyPowerTools.csproj" />
+    <ProjectReference Include="..\..\tools\input-monitor\current-integration\src\InputMonitor.Core\InputMonitor.Core.csproj" />
     <!-- Surface assemblies provide the tool ViewModel/View/Service types that tests reference -->
     <ProjectReference Include="..\..\tools\adb-forwarder\current-integration\src\AdbForwarder.Surface\AdbForwarder.Surface.csproj" />
     <ProjectReference Include="..\..\tools\remote-notifications\current-integration\src\RemoteNotifications.Surface\RemoteNotifications.Surface.csproj" />

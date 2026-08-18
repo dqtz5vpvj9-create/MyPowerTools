@@ -1,0 +1,18 @@
+# Swift / SPM
+.build/
+.swiftpm/
+DerivedData/
+*.xcodeproj
+xcuserdata/
+
+# App 产物
+dist/
+*.app
+
+# 本地数据（SQLite 落库文件，隐私数据不入库）
+*.db
+*.db-wal
+*.db-shm
+
+# macOS
+.DS_Store

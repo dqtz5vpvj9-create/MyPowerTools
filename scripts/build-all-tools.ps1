@@ -247,6 +247,16 @@ $toolRegistry = @(
         ServiceUnits     = @()
     },
     [pscustomobject]@{
+        Id               = 'input-monitor'
+        Version          = '0.1.0'
+        BuildScript      = 'tools\input-monitor\build.ps1'
+        SurfaceProject   = 'tools\input-monitor\current-integration\src\InputMonitor.Surface\InputMonitor.Surface.csproj'
+        SurfaceAssembly  = 'InputMonitor.Surface.dll'
+        SurfaceTarget    = 'ui\surface'
+        RuntimeStagePath = 'tools\input-monitor\artifacts\package'
+        ServiceUnits     = @()
+    },
+    [pscustomobject]@{
         Id               = 'local-lag-cleaner'
         Version          = '0.3.0'
         BuildScript      = 'tools\local-lag-cleaner\build.ps1'

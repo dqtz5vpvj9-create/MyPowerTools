@@ -1,0 +1,310 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:InputMonitor.Surface.ViewModels"
+             xmlns:ctrl="using:InputMonitor.Surface.Controls"
+             x:Class="InputMonitor.Surface.Views.InputMonitorView"
+             x:DataType="vm:InputMonitorViewModel"
+             Background="#F4F6F9">
+  <UserControl.Styles>
+    <Style Selector="Border.dashboardCard">
+      <Setter Property="Background" Value="White" />
+      <Setter Property="CornerRadius" Value="12" />
+      <Setter Property="Padding" Value="16" />
+      <Setter Property="BorderBrush" Value="#0A000000" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="BoxShadow" Value="0 3 10 0 #0D000000" />
+    </Style>
+    <Style Selector="TextBlock.section">
+      <Setter Property="FontSize" Value="13" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="TextBlock.secondary">
+      <Setter Property="Foreground" Value="#6B7280" />
+      <Setter Property="FontSize" Value="10" />
+    </Style>
+    <Style Selector="TextBlock.cardTitle">
+      <Setter Property="Foreground" Value="#6B7280" />
+      <Setter Property="FontSize" Value="11" />
+      <Setter Property="FontWeight" Value="Medium" />
+    </Style>
+    <Style Selector="TextBlock.cardPrimary">
+      <Setter Property="FontSize" Value="22" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="Border.segmentGroup">
+      <Setter Property="Background" Value="#E8EAED" />
+      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="Padding" Value="3" />
+    </Style>
+    <Style Selector="Button.seg">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="12,5" />
+      <Setter Property="CornerRadius" Value="6" />
+      <Setter Property="FontSize" Value="12" />
+    </Style>
+    <Style Selector="Button.seg.selected">
+      <Setter Property="Background" Value="White" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="Button.quiet.paused">
+      <Setter Property="Background" Value="#EEF2FF" />
+      <Setter Property="Foreground" Value="#4338CA" />
+      <Setter Property="BorderBrush" Value="#C7D2FE" />
+    </Style>
+    <Style Selector="Button.quiet">
+      <Setter Property="Background" Value="White" />
+      <Setter Property="BorderBrush" Value="#E5E7EB" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="Padding" Value="10,6" />
+      <Setter Property="FontSize" Value="12" />
+    </Style>
+    <Style Selector="Border.iconTile">
+      <Setter Property="Width" Value="42" />
+      <Setter Property="Height" Value="42" />
+      <Setter Property="CornerRadius" Value="11" />
+    </Style>
+  </UserControl.Styles>
+
+  <ScrollViewer>
+    <StackPanel Spacing="0">
+      <Border Padding="20,12" Background="#F4F6F9">
+        <Grid ColumnDefinitions="*,Auto">
+          <StackPanel Orientation="Horizontal" Spacing="16" VerticalAlignment="Center">
+            <TextBlock Text="{Binding FatigueText}" FontSize="13" Foreground="#6B7280" />
+            <TextBlock Text="{Binding FrontAppText}" FontSize="13" Foreground="#6B7280" />
+            <TextBlock Text="{Binding StatusText}" FontSize="13" Foreground="#6B7280" />
+          </StackPanel>
+          <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+            <Button Classes="quiet" Content="开始休息" Command="{Binding RestCommand}" />
+            <Button Classes="quiet" Content="{Binding PauseLabel}" Command="{Binding PauseCommand}" Classes.paused="{Binding IsReminderPaused}" />
+            <Button Classes="quiet" Content="刷新" Command="{Binding RefreshCommand}" />
+          </StackPanel>
+        </Grid>
+      </Border>
+
+      <Border Padding="20,8,20,16" Background="#F4F6F9">
+        <Grid ColumnDefinitions="*,*,*,*" ColumnSpacing="16">
+          <Border Classes="dashboardCard" Padding="16,14" MinHeight="78">
+            <StackPanel Orientation="Horizontal" Spacing="14">
+              <Border Classes="iconTile" Background="#0A85FF">
+                <TextBlock Text="键" Foreground="White" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center" />
+              </Border>
+              <StackPanel Spacing="3" VerticalAlignment="Center">
+                <TextBlock Text="键盘" Classes="cardTitle" />
+                <TextBlock Text="{Binding KeyboardPrimary}" Classes="cardPrimary" />
+                <TextBlock Text="{Binding KeyboardSecondary}" Classes="secondary" />
+              </StackPanel>
+            </StackPanel>
+          </Border>
+          <Border Grid.Column="1" Classes="dashboardCard" Padding="16,14" MinHeight="78">
+            <StackPanel Orientation="Horizontal" Spacing="14">
+              <Border Classes="iconTile" Background="#5E5CE6">
+                <TextBlock Text="鼠" Foreground="White" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center" />
+              </Border>
+              <StackPanel Spacing="3" VerticalAlignment="Center">
+                <TextBlock Text="鼠标" Classes="cardTitle" />
+                <TextBlock Text="{Binding MousePrimary}" Classes="cardPrimary" />
+                <TextBlock Text="{Binding MouseSecondary}" Classes="secondary" />
+              </StackPanel>
+            </StackPanel>
+          </Border>
+          <Border Grid.Column="2" Classes="dashboardCard" Padding="16,14" MinHeight="78">
+            <StackPanel Orientation="Horizontal" Spacing="14">
+              <Border Classes="iconTile" Background="#29C24F">
+                <TextBlock Text="窗" Foreground="White" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center" />
+              </Border>
+              <StackPanel Spacing="3" VerticalAlignment="Center">
+                <TextBlock Text="窗口活动" Classes="cardTitle" />
+                <TextBlock Text="{Binding WindowPrimary}" Classes="cardPrimary" />
+                <TextBlock Text="按前台会话统计" Classes="secondary" />
+              </StackPanel>
+            </StackPanel>
+          </Border>
+          <Border Grid.Column="3" Classes="dashboardCard" Padding="16,14" MinHeight="78">
+            <StackPanel Orientation="Horizontal" Spacing="14">
+              <Border Classes="iconTile" Background="#FF9E0A">
+                <TextBlock Text="时" Foreground="White" FontWeight="SemiBold" HorizontalAlignment="Center" VerticalAlignment="Center" />
+              </Border>
+              <StackPanel Spacing="3" VerticalAlignment="Center">
+                <TextBlock Text="互动时长" Classes="cardTitle" />
+                <TextBlock Text="{Binding InteractionPrimary}" Classes="cardPrimary" />
+                <TextBlock Text="键鼠与窗口活动去重" Classes="secondary" />
+              </StackPanel>
+            </StackPanel>
+          </Border>
+        </Grid>
+      </Border>
+
+      <Border Background="White" BorderBrush="#E5E7EB" BorderThickness="0,1" Padding="20,12">
+        <Grid ColumnDefinitions="Auto,Auto,*,Auto" ColumnSpacing="16">
+          <StackPanel Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+            <TextBlock Text="粒度" VerticalAlignment="Center" Foreground="#6B7280" FontSize="12" />
+            <Border Classes="segmentGroup">
+              <StackPanel Orientation="Horizontal" Spacing="2">
+                <Button Classes="seg" Content="日" Command="{Binding SelectGrainCommand}" CommandParameter="day" Classes.selected="{Binding GrainIsDay}" />
+                <Button Classes="seg" Content="月" Command="{Binding SelectGrainCommand}" CommandParameter="month" Classes.selected="{Binding GrainIsMonth}" />
+                <Button Classes="seg" Content="季" Command="{Binding SelectGrainCommand}" CommandParameter="quarter" Classes.selected="{Binding GrainIsQuarter}" />
+                <Button Classes="seg" Content="年" Command="{Binding SelectGrainCommand}" CommandParameter="year" Classes.selected="{Binding GrainIsYear}" />
+              </StackPanel>
+            </Border>
+          </StackPanel>
+          <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+            <TextBlock Text="维度" VerticalAlignment="Center" Foreground="#6B7280" FontSize="12" />
+            <Border Classes="segmentGroup">
+              <StackPanel Orientation="Horizontal" Spacing="2">
+                <Button Classes="seg" Content="所有" Command="{Binding SelectDimensionCommand}" CommandParameter="all" Classes.selected="{Binding DimensionIsAll}" />
+                <Button Classes="seg" Content="键盘" Command="{Binding SelectDimensionCommand}" CommandParameter="keyboard" Classes.selected="{Binding DimensionIsKeyboard}" />
+                <Button Classes="seg" Content="鼠标" Command="{Binding SelectDimensionCommand}" CommandParameter="mouse" Classes.selected="{Binding DimensionIsMouse}" />
+                <Button Classes="seg" Content="应用" Command="{Binding SelectDimensionCommand}" CommandParameter="app" Classes.selected="{Binding DimensionIsApp}" />
+              </StackPanel>
+            </Border>
+          </StackPanel>
+          <StackPanel Grid.Column="2" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center" IsVisible="{Binding GrainIsDay}">
+            <Button Classes="seg" Content="‹" Command="{Binding PreviousDayCommand}" />
+            <TextBlock Text="{Binding SelectedDateText}" VerticalAlignment="Center" FontSize="13" />
+            <Button Classes="seg" Content="›" Command="{Binding NextDayCommand}" IsEnabled="{Binding CanGoForward}" />
+            <Button Classes="quiet" Content="回到今天" Command="{Binding TodayCommand}" IsVisible="{Binding ShowBackToToday}" />
+          </StackPanel>
+          <StackPanel Grid.Column="3" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+            <TextBlock Text="应用类型" VerticalAlignment="Center" Foreground="#6B7280" FontSize="12" />
+            <ComboBox Width="130" ItemsSource="{Binding Categories}" SelectedItem="{Binding SelectedCategory}">
+              <ComboBox.ItemTemplate>
+                <DataTemplate x:DataType="vm:CategoryOption">
+                  <TextBlock Text="{Binding Label}" />
+                </DataTemplate>
+              </ComboBox.ItemTemplate>
+            </ComboBox>
+          </StackPanel>
+        </Grid>
+      </Border>
+
+      <StackPanel Margin="20" Spacing="16">
+        <Border Classes="dashboardCard">
+          <StackPanel Spacing="8">
+            <TextBlock Text="活动时长" Classes="section" />
+            <ctrl:ActivityBarChart Height="140"
+                                   Values="{Binding ActivityValues}"
+                                   Labels="{Binding ActivityLabels}"
+                                   UseHours="{Binding ActivityUseHours}" />
+          </StackPanel>
+        </Border>
+
+        <Border Classes="dashboardCard">
+          <StackPanel Spacing="8">
+            <TextBlock Text="操作频次" Classes="section" />
+            <ctrl:FrequencyChart Height="160"
+                                 Values="{Binding FrequencyValues}"
+                                 Labels="{Binding FrequencyLabels}"
+                                 UnitText="{Binding FrequencyUnit}" />
+          </StackPanel>
+        </Border>
+
+        <Border Classes="dashboardCard" IsVisible="{Binding ShowDayHeat}">
+          <StackPanel Spacing="8">
+            <TextBlock Text="{Binding HeatmapTitle}" Classes="section" />
+            <ctrl:HourlyHeatmapControl Height="190"
+                                       DayLabels="{Binding HeatDays}"
+                                       Values="{Binding HeatValues}"
+                                       ValueKind="{Binding HeatValueKind}" />
+          </StackPanel>
+        </Border>
+
+        <Border Classes="dashboardCard" IsVisible="{Binding ShowRangeHeat}">
+          <StackPanel Spacing="8">
+            <TextBlock Text="{Binding HeatmapTitle}" Classes="section" />
+            <ctrl:WeekGridHeatmapControl Height="150"
+                                         Values="{Binding WeekValues}"
+                                         AlignedStart="{Binding WeekAlignedStart}"
+                                         ValueKind="{Binding HeatValueKind}" />
+          </StackPanel>
+        </Border>
+
+        <Border Classes="dashboardCard" IsVisible="{Binding ShowMouse}">
+          <StackPanel Spacing="8">
+            <TextBlock Text="{Binding TrackTitle}" Classes="section" />
+            <ItemsControl ItemsSource="{Binding TrackScreens}">
+              <ItemsControl.ItemsPanel>
+                <ItemsPanelTemplate>
+                  <WrapPanel Orientation="Horizontal" />
+                </ItemsPanelTemplate>
+              </ItemsControl.ItemsPanel>
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:TrackScreenRow">
+                  <StackPanel Margin="0,0,16,8" Spacing="6">
+                    <TextBlock Text="{Binding Title}" FontSize="12" FontWeight="SemiBold" />
+                    <ctrl:TrackHeatmapControl Counts="{Binding Counts}"
+                                              Columns="{Binding Columns}"
+                                              Rows="{Binding Rows}"
+                                              PixelWidth="{Binding PixelWidth}"
+                                              PixelHeight="{Binding PixelHeight}"
+                                              HorizontalAlignment="Left" />
+                    <TextBlock Text="{Binding Caption}" Classes="secondary" />
+                  </StackPanel>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+            <TextBlock Text="{Binding TrackCaption}" Classes="secondary" IsVisible="{Binding ShowTrackSummary}" />
+          </StackPanel>
+        </Border>
+
+        <Border Classes="dashboardCard" IsVisible="{Binding ShowKeyboard}">
+          <StackPanel Spacing="8">
+            <TextBlock Text="按键热区" Classes="section" />
+            <ItemsControl ItemsSource="{Binding KeyHeat}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:KeyHeatRow">
+                  <Grid ColumnDefinitions="72,*,52" Margin="0,3" ColumnSpacing="10">
+                    <TextBlock Text="{Binding Label}" FontSize="11" FontFamily="Consolas" VerticalAlignment="Center" />
+                    <ctrl:RatioBar Grid.Column="1" Height="12" Ratio="{Binding Ratio}" />
+                    <TextBlock Grid.Column="2" Text="{Binding Count}" FontSize="11" Foreground="#6B7280" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                  </Grid>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+        </Border>
+
+        <Border Classes="dashboardCard" IsVisible="{Binding ShowApps}">
+          <StackPanel Spacing="8">
+            <TextBlock Text="应用类型分布" Classes="section" />
+            <ctrl:CategoryStrip Height="14" Slices="{Binding CategorySlices}" />
+            <ItemsControl ItemsSource="{Binding CategoryRows}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:CategoryBreakdownRow">
+                  <Grid ColumnDefinitions="Auto,*,Auto,48" Margin="0,4" ColumnSpacing="8">
+                    <Ellipse Width="8" Height="8" Fill="{Binding Swatch}" VerticalAlignment="Center" />
+                    <TextBlock Grid.Column="1" Text="{Binding Category}" FontSize="12" />
+                    <TextBlock Grid.Column="2" Text="{Binding Duration}" FontSize="11" Foreground="#6B7280" />
+                    <TextBlock Grid.Column="3" Text="{Binding Percent}" FontSize="11" Foreground="#6B7280" HorizontalAlignment="Right" />
+                  </Grid>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+        </Border>
+
+        <Border Classes="dashboardCard" IsVisible="{Binding ShowApps}">
+          <StackPanel Spacing="8">
+            <TextBlock Text="应用使用时长" Classes="section" />
+            <ItemsControl ItemsSource="{Binding Apps}">
+              <ItemsControl.ItemTemplate>
+                <DataTemplate x:DataType="vm:AppUsageRow">
+                  <Grid ColumnDefinitions="160,Auto,*,72" Margin="0,4" ColumnSpacing="10">
+                    <TextBlock Text="{Binding Name}" FontSize="12" FontWeight="Medium" TextTrimming="CharacterEllipsis" VerticalAlignment="Center" />
+                    <Border Grid.Column="1" Background="#F0F0F0" CornerRadius="8" Padding="6,2" VerticalAlignment="Center">
+                      <TextBlock Text="{Binding Category}" FontSize="10" Foreground="#6B7280" />
+                    </Border>
+                    <ctrl:RatioBar Grid.Column="2" Height="10" Ratio="{Binding Ratio}" Fill="{Binding BarBrush}" />
+                    <TextBlock Grid.Column="3" Text="{Binding Duration}" FontSize="11" Foreground="#6B7280" HorizontalAlignment="Right" VerticalAlignment="Center" />
+                  </Grid>
+                </DataTemplate>
+              </ItemsControl.ItemTemplate>
+            </ItemsControl>
+          </StackPanel>
+        </Border>
+      </StackPanel>
+    </StackPanel>
+  </ScrollViewer>
+</UserControl>
