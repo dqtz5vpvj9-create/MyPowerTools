@@ -17,6 +17,9 @@ Runner、modules、Runtimes、service-units 和 ServiceManager。脚本报告
 
 仓库负责提供源代码和最新编译产物。Dev 更新脚本只覆盖发生变化的
 Shell、Runner 或工具包，然后从完整安装目录启动进程。
+`-Scope Tools` 还会覆盖该工具已安装的 service-units（例如 Remote Notifications
+的 toast 后台进程）；此前 Dev overlay 不会替换 service-units，所以改了通知服务
+后必须重新跑 Tools 更新才会进桌面开发版。
 
 修改 Shell、Runner、平台代码或公共依赖后，执行：
 
@@ -36,12 +39,18 @@ pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts/Start-MyPowerTools-Dev
 pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts/Start-MyPowerTools-Dev.ps1 -Scope Tools -ToolId paste-image
 ```
 
+例如更新 Remote Notifications（含桌面 toast 服务进程）：
+
+```powershell
+pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts/Start-MyPowerTools-Dev.ps1 -Scope Tools -ToolId remote-notifications
+```
+
 需要创建或刷新开始菜单中的“MyPowerTools 开发版”快捷方式时，执行：
 
 ```powershell
 pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts/install-windows-dev-shortcut.ps1
 ```
 
-禁止直接启动仓库 `bin/Debug` 目录中的 Shell 或 Runner。该目录缺少完整
-运行布局，可能造成工具、运行时和后台服务缺失。Dev 进程必须从
+禁止直接启动仓库构建输出目录（`artifacts/build/bin/...`）中的 Shell 或 Runner。
+该目录缺少完整运行布局，可能造成工具、运行时和后台服务缺失。Dev 进程必须从
 `%LOCALAPPDATA%\Programs\MyPowerTools` 启动。

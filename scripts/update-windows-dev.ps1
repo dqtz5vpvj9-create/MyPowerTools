@@ -4,13 +4,14 @@ Applies a fast development overlay to the complete Windows installation.
 
 .DESCRIPTION
 The fast path publishes only the selected managed components, stages them beside the canonical
-installation, then replaces the corresponding installed directories transactionally. Shell and
-Runner continue to execute from the complete installed layout, so modules, schemas, runtimes,
-service units, the launcher, ElevatedBroker, and ServiceManager remain available.
+installation, then replaces the corresponding installed directories transactionally. Shell,
+Runner, and ServiceManager continue to execute from the complete installed layout, so modules,
+schemas, runtimes, service units, the launcher, and ElevatedBroker remain available.
 
-Core publishes Shell/WebToolHost and Runner. Shell publishes Shell/WebToolHost only. Tools runs
-the selected canonical tool build scripts and overlays package directories produced under each
-tool's artifacts/package directory. SDK tools without an installed package are rebuilt in place.
+Core publishes Shell/WebToolHost, Runner, and ServiceManager. Shell publishes Shell/WebToolHost
+only. Tools runs the selected canonical tool build scripts and overlays package directories
+produced under each tool's artifacts/package directory. SDK tools without an installed package
+are rebuilt in place.
 
 install-windows.ps1 remains the release and clean-install path.
 
@@ -59,12 +60,14 @@ $dataRootFull = [IO.Path]::GetFullPath($DataRoot)
 $installedModulesRoot = Join-Path $canonicalInstallRoot 'modules'
 $installedShellExecutable = Join-Path $canonicalInstallRoot 'Shell\MyPowerTools.Shell.Avalonia.exe'
 $installedRunnerExecutable = Join-Path $canonicalInstallRoot 'Runner\MyPowerTools.Runner.exe'
+$installedServiceManagerExecutable = Join-Path $canonicalInstallRoot 'ServiceManager\MyPowerTools.ServiceManager.exe'
 $installedWebToolHostExecutable = Join-Path $canonicalInstallRoot 'Shell\WebToolHost\MyPowerTools.WebToolHost.exe'
 $installedRuntimeScript = Join-Path $canonicalInstallRoot 'start-user-runtime.ps1'
 $installedAppExecutable = Join-Path $canonicalInstallRoot 'MyPowerTools.exe'
 $installedOverlayManifest = Join-Path $canonicalInstallRoot 'dev-update.manifest.json'
 $shellProject = Join-Path $repositoryRoot 'src\MyPowerTools.Shell.Avalonia\MyPowerTools.Shell.Avalonia.csproj'
 $runnerProject = Join-Path $repositoryRoot 'src\MyPowerTools.Runner\MyPowerTools.Runner.csproj'
+$serviceManagerProject = Join-Path $repositoryRoot 'src\MyPowerTools.ServiceManager\MyPowerTools.ServiceManager.csproj'
 $devArtifactsParent = Join-Path $repositoryRoot 'artifacts\dev-update'
 $managedProcessRoots = @($repositoryRoot, $canonicalInstallRoot)
 $runId = [Guid]::NewGuid().ToString('N')
@@ -380,6 +383,40 @@ function Request-RunnerShutdown {
     }
 }
 
+function Request-ServiceManagerShutdown {
+    $managerRecords = @(Get-ProductProcessRecords -Name @('MyPowerTools.ServiceManager') |
+        Where-Object Managed)
+    if ($managerRecords.Count -eq 0) {
+        return
+    }
+
+    $cli = Join-Path $canonicalInstallRoot 'Cli\MyPowerTools.Cli.exe'
+    if (Test-Path -LiteralPath $cli -PathType Leaf) {
+        try {
+            $shutdownParameters = @{
+                FilePath = $cli
+                WorkingDirectory = $canonicalInstallRoot
+                ArgumentList = @('service', 'shutdown')
+                CreateNoWindow = $true
+            }
+            $shutdown = Start-ProductProcess @shutdownParameters
+            [void]$shutdown.WaitForExit(15000)
+            $shutdown.Dispose()
+        }
+        catch {
+            Write-Warning "Graceful ServiceManager shutdown failed: $($_.Exception.Message)"
+        }
+    }
+
+    Wait-ForProcessExit -Record $managerRecords -Seconds 5
+    Stop-ManagedProcesses -Name @('MyPowerTools.ServiceManager')
+    $remaining = @(Get-ProductProcessRecords -Name @('MyPowerTools.ServiceManager') |
+        Where-Object Managed)
+    if ($remaining.Count -gt 0) {
+        throw "MyPowerTools.ServiceManager refused to stop (pid=$($remaining[0].Id))."
+    }
+}
+
 function Copy-DirectoryContents {
     param(
         [Parameter(Mandatory = $true)][string]$Source,
@@ -424,21 +461,26 @@ function Get-ToolPackageRuntimeExecutables {
     return @($executableNames | Sort-Object -Unique)
 }
 
+function Get-ProcessesInDirectory {
+    param([Parameter(Mandatory = $true)][string]$Directory)
+
+    return @(Get-CimInstance Win32_Process | Where-Object {
+        -not [string]::IsNullOrWhiteSpace($_.ExecutablePath) -and
+        (Test-IsInsidePath -Parent $Directory -Child $_.ExecutablePath)
+    })
+}
+
 function Stop-ToolPackageRuntimes {
     param([Parameter(Mandatory = $true)][object[]]$Components)
 
     $targets = @($Components | ForEach-Object {
         $packageId = [string]$_.PackageId
-        $executables = @($_.RuntimeExecutables)
-        if ([string]::IsNullOrWhiteSpace($packageId) -or $executables.Count -eq 0) {
+        if ([string]::IsNullOrWhiteSpace($packageId)) {
             return
         }
         [pscustomobject]@{
             PackageId = $packageId
             ModuleRoot = [IO.Path]::GetFullPath((Join-Path $installedModulesRoot $packageId))
-            ExecutableNames = @($executables | ForEach-Object {
-                [IO.Path]::GetFileNameWithoutExtension([string]$_)
-            })
         }
     })
     if ($targets.Count -eq 0) {
@@ -450,21 +492,8 @@ function Stop-ToolPackageRuntimes {
     do {
         $running = [Collections.Generic.List[object]]::new()
         foreach ($target in $targets) {
-            foreach ($processName in $target.ExecutableNames) {
-                foreach ($process in Get-Process -Name $processName -ErrorAction SilentlyContinue) {
-                    $path = $null
-                    try {
-                        $path = $process.MainModule.FileName
-                    }
-                    catch {
-                    }
-                    if ([string]::IsNullOrWhiteSpace($path)) {
-                        continue
-                    }
-                    if (Test-IsInsidePath -Parent $target.ModuleRoot -Child $path) {
-                        $running.Add($process)
-                    }
-                }
+            foreach ($process in (Get-ProcessesInDirectory -Directory $target.ModuleRoot)) {
+                $running.Add($process)
             }
         }
         if ($running.Count -eq 0) {
@@ -472,39 +501,16 @@ function Stop-ToolPackageRuntimes {
         }
 
         foreach ($process in $running) {
-            try {
-                if ($process.CloseMainWindow()) {
-                    [void]$process.WaitForExit(2000)
-                }
-            }
-            catch {
-            }
-        }
-        Start-Sleep -Milliseconds 500
-        foreach ($process in $running) {
-            if ($null -ne (Get-Process -Id $process.Id -ErrorAction SilentlyContinue)) {
-                Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
-                Wait-Process -Id $process.Id -Timeout 3 -ErrorAction SilentlyContinue
-            }
+            Stop-Process -Id $process.ProcessId -Force -ErrorAction SilentlyContinue
+            Wait-Process -Id $process.ProcessId -Timeout 3 -ErrorAction SilentlyContinue
         }
         Start-Sleep -Milliseconds 500
     } while ([DateTimeOffset]::UtcNow -lt $deadline)
 
     foreach ($target in $targets) {
-        foreach ($processName in $target.ExecutableNames) {
-            $survivors = @(Get-Process -Name $processName -ErrorAction SilentlyContinue | Where-Object {
-                $path = $null
-                try {
-                    $path = $_.MainModule.FileName
-                }
-                catch {
-                }
-                -not [string]::IsNullOrWhiteSpace($path) -and
-                (Test-IsInsidePath -Parent $target.ModuleRoot -Child $path)
-            })
-            if ($survivors.Count -gt 0) {
-                throw "Tool runtime still holds the module directory being replaced: $($target.PackageId) ($processName, pid=$($survivors[0].Id))"
-            }
+        $survivors = @(Get-ProcessesInDirectory -Directory $target.ModuleRoot)
+        if ($survivors.Count -gt 0) {
+            throw "Tool runtime still holds the module directory being replaced: $($target.PackageId) ($($survivors[0].Name), pid=$($survivors[0].ProcessId))"
         }
     }
 }
@@ -642,6 +648,77 @@ function Add-ToolSurfaceToPackage {
     if (-not (Test-Path -LiteralPath (Join-Path $surfaceTarget $surfaceAssemblyName) -PathType Leaf)) {
         throw "Tool Surface was not staged under the module package: $surfaceTarget"
     }
+}
+
+function Find-ToolServiceUnits {
+    param([Parameter(Mandatory = $true)][string]$RequestedToolId)
+
+    $toolSourceRoot = Join-Path $repositoryRoot "tools\$RequestedToolId"
+    if (-not (Test-Path -LiteralPath $toolSourceRoot -PathType Container)) {
+        return @()
+    }
+
+    $units = [Collections.Generic.List[object]]::new()
+    foreach ($manifestFile in @(
+        Get-ChildItem -LiteralPath $toolSourceRoot -Recurse -File -Filter 'unit-manifest.json' -ErrorAction SilentlyContinue)) {
+        $project = Get-ChildItem -LiteralPath $manifestFile.Directory.FullName -File -Filter '*.csproj' |
+            Select-Object -First 1
+        if ($null -eq $project) {
+            continue
+        }
+        $manifest = Get-Content -LiteralPath $manifestFile.FullName -Raw | ConvertFrom-Json
+        $unitId = [string]$manifest.id
+        if ($unitId -notmatch '^[A-Za-z0-9_.-]+$') {
+            throw "Service unit id contains unsupported characters: $unitId"
+        }
+        $units.Add([pscustomobject]@{
+            UnitId = $unitId
+            Project = $project.FullName
+            Manifest = $manifestFile.FullName
+        })
+    }
+    return @($units)
+}
+
+function Publish-ToolServiceUnit {
+    param(
+        [Parameter(Mandatory = $true)][string]$RequestedToolId,
+        [Parameter(Mandatory = $true)]$Unit
+    )
+
+    $unitRoot = Join-Path $publishRoot "service-units\$($Unit.UnitId)"
+    $unitBin = Join-Path $unitRoot 'bin'
+    if (Test-Path -LiteralPath $unitRoot -PathType Container) {
+        Remove-Item -LiteralPath $unitRoot -Recurse -Force
+    }
+    New-Item -ItemType Directory -Path $unitBin -Force | Out-Null
+    $publishArguments = @(
+        'publish',
+        $Unit.Project,
+        '--configuration', $Configuration,
+        '--runtime', 'win-x64',
+        '--self-contained', 'false',
+        '--output', $unitBin,
+        '--nologo',
+        '-p:DebugType=None',
+        '-p:DebugSymbols=false',
+        "-p:MyPowerToolsRepoRoot=$repositoryRoot")
+    if ($NoRestore) {
+        $publishArguments += '--no-restore'
+    }
+    $publishParameters = @{
+        FilePath = $dotnetCommand.Source
+        ArgumentList = $publishArguments
+        Activity = "Publishing service unit $($Unit.UnitId) ($RequestedToolId)"
+    }
+    [void](Invoke-Native @publishParameters)
+    Copy-Item -LiteralPath $Unit.Manifest -Destination (Join-Path $unitRoot 'unit-manifest.json') -Force
+    $genericExe = Get-ChildItem -LiteralPath $unitBin -File -Filter '*.exe' |
+        Select-Object -First 1
+    if ($null -eq $genericExe) {
+        throw "Service unit publish output is missing an executable: $unitBin"
+    }
+    return [string][IO.Path]::GetFullPath($unitRoot)
 }
 
 function Get-InstalledLayoutInventory {
@@ -840,14 +917,15 @@ foreach ($requestedToolId in $ToolId) {
 }
 
 $plannedRelativePaths = switch ($Scope) {
-    'Core' { @('Shell', 'Runner') }
+    'Core' { @('Shell', 'Runner', 'ServiceManager') }
     'Shell' { @('Shell') }
     default { @($ToolId | ForEach-Object { "modules\<package from $_>" }) }
 }
 $activeProcesses = @(Get-ProductProcessRecords -Name @(
     'MyPowerTools.Shell.Avalonia',
     'MyPowerTools.WebToolHost',
-    'MyPowerTools.Runner') | ForEach-Object {
+    'MyPowerTools.Runner',
+    'MyPowerTools.ServiceManager') | ForEach-Object {
         [ordered]@{
             name = $_.Name
             id = $_.Id
@@ -873,8 +951,7 @@ $plan = [ordered]@{
         'modules not selected by Scope Tools',
         'Runtimes',
         'schemas',
-        'service-units',
-        'ServiceManager',
+        'service-units not selected by Scope Tools',
         'Tools')
     excludedReleaseWork = @(
         'all-tool rebuild',
@@ -896,8 +973,10 @@ foreach ($requiredPath in @(
     $installedAppExecutable,
     $installedShellExecutable,
     $installedRunnerExecutable,
+    $installedServiceManagerExecutable,
     $shellProject,
-    $runnerProject)) {
+    $runnerProject,
+    $serviceManagerProject)) {
     if (-not (Test-Path -LiteralPath $requiredPath)) {
         throw "Required development update path is missing: $requiredPath"
     }
@@ -911,7 +990,8 @@ $pwshCommand = Get-Command 'pwsh.exe' -CommandType Application -ErrorAction Stop
 Assert-NoUnmanagedConflict -Name @(
     'MyPowerTools.Shell.Avalonia',
     'MyPowerTools.WebToolHost',
-    'MyPowerTools.Runner')
+    'MyPowerTools.Runner',
+    'MyPowerTools.ServiceManager')
 
 $inventoryBefore = Get-InstalledLayoutInventory
 $stagedComponents = [Collections.Generic.List[object]]::new()
@@ -972,6 +1052,25 @@ try {
             PackageId = ''
             RuntimeExecutables = @()
         })
+
+        $serviceManagerPublish = Join-Path $publishRoot 'ServiceManager'
+        $serviceManagerPublishParameters = @{
+            Project = $serviceManagerProject
+            Output = $serviceManagerPublish
+            Label = 'ServiceManager'
+        }
+        Publish-ManagedComponent @serviceManagerPublishParameters
+        $publishedServiceManager = Join-Path $serviceManagerPublish 'MyPowerTools.ServiceManager.exe'
+        if (-not (Test-Path -LiteralPath $publishedServiceManager -PathType Leaf)) {
+            throw "ServiceManager development publish output is missing: $publishedServiceManager"
+        }
+        $stagedComponents.Add([pscustomobject]@{
+            Kind = 'managed'
+            RelativePath = 'ServiceManager'
+            Source = $serviceManagerPublish
+            PackageId = ''
+            RuntimeExecutables = @()
+        })
     }
 
     foreach ($toolBuildScript in $toolBuildScripts) {
@@ -1001,6 +1100,21 @@ try {
             PackageId = $descriptor.PackageId
             RuntimeExecutables = @(Get-ToolPackageRuntimeExecutables -PackageRoot $descriptor.Source)
         })
+        foreach ($unit in @(Find-ToolServiceUnits -RequestedToolId $requestedToolId)) {
+            $unitSource = Publish-ToolServiceUnit -RequestedToolId $requestedToolId -Unit $unit
+            $relativePath = "service-units\$($unit.UnitId)"
+            $installedUnit = Resolve-InstalledRelativePath -RelativePath $relativePath
+            if (-not (Test-Path -LiteralPath $installedUnit -PathType Container)) {
+                throw "Installed service unit is missing for overlay: $installedUnit"
+            }
+            $stagedComponents.Add([pscustomobject]@{
+                Kind = 'service-unit'
+                RelativePath = $relativePath
+                Source = $unitSource
+                PackageId = ''
+                RuntimeExecutables = @()
+            })
+        }
     }
 
     if (Test-Path -LiteralPath $transactionRoot) {
@@ -1020,10 +1134,21 @@ try {
         Copy-DirectoryContents -Source $component.Source -Destination $payloadDestination
     }
 
-    Write-Phase 'Stopping Shell and Runner for the component swap'
+    Write-Phase 'Stopping Shell, Runner, and ServiceManager for the component swap'
     Request-ShellShutdown
     Request-RunnerShutdown
+    Request-ServiceManagerShutdown
     Stop-ToolPackageRuntimes -Components $stagedComponents
+    foreach ($component in $stagedComponents) {
+        if ($component.Kind -ne 'service-unit') {
+            continue
+        }
+        $unitDirectory = Resolve-InstalledRelativePath -RelativePath $component.RelativePath
+        foreach ($process in @(Get-ProcessesInDirectory -Directory $unitDirectory)) {
+            Stop-Process -Id $process.ProcessId -Force -ErrorAction SilentlyContinue
+            Wait-Process -Id $process.ProcessId -Timeout 3 -ErrorAction SilentlyContinue
+        }
+    }
     $transactionStarted = $true
 
     foreach ($component in $stagedComponents) {
@@ -1121,7 +1246,11 @@ try {
     }
 
     $inventoryAfter = Get-InstalledLayoutInventory
-    if ($inventoryAfter.RuntimeFileCount -ne $inventoryBefore.RuntimeFileCount -or
+    $overlaidServiceUnits = @($stagedComponents | Where-Object Kind -eq 'service-unit')
+    if ($inventoryAfter.RuntimeFileCount -ne $inventoryBefore.RuntimeFileCount) {
+        throw 'The fast update changed preserved runtime inventory.'
+    }
+    if ($overlaidServiceUnits.Count -eq 0 -and
         $inventoryAfter.ServiceUnitFileCount -ne $inventoryBefore.ServiceUnitFileCount) {
         throw 'The fast update changed preserved runtime or service-unit inventory.'
     }
