@@ -113,10 +113,13 @@ flowchart TD
 
 ```text
 MyPowerTools.Runner.exe
-  长期常驻。负责模块生命周期、tray、hotkey、settings、event、broker、transport。
+  长期常驻、无控制台窗口（WinExe）。负责模块生命周期、tray、hotkey、settings、event、broker、transport。托盘是用户可见入口。
+
+MyPowerTools.ServiceManager.exe
+  独立用户会话守护进程、无控制台窗口（WinExe）。负责 Service Unit 生命周期与再接管。日志写入 data-root/logs。
 
 MyPowerTools.Shell.Avalonia.exe
-  UI 进程。负责 Dashboard、Settings、Detail、Logs、Command Palette。
+  UI 进程。负责 Dashboard、Settings、Detail、Logs、Command Palette。从托盘或开始菜单打开。
 
 MyPowerTools.WebToolHost.exe
   SmartBird Web UI 的独立 WinExe。负责 WebView2 controller、子 HWND 与固定同源策略；宿主退出后 Shell 显示回退页面。

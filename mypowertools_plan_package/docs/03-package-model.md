@@ -40,13 +40,13 @@ AndroidTools 这类包应使用一个共享 runtime：
 
 ```text
 android-tools-suite package
-  ├─ shared runtime: powertoold
+  ├─ shared runtime: AndroidTools.Runtime
   ├─ module: android-tools.notifications
   ├─ module: android-tools.remote-commands
   └─ module: android-tools.process-monitor
 ```
 
-Host 看到三个工具，底层只启动一个 `powertoold`，并通过 gRPC Native IPC 暴露多个 module service。
+Host 看到三个工具，底层只启动一个 `AndroidTools.Runtime`，并通过 gRPC Native IPC 暴露多个 module service。
 
 ## package.json 示例
 
@@ -64,16 +64,16 @@ Host 看到三个工具，底层只启动一个 `powertoold`，并通过 gRPC Na
   "shared": {
     "runtimes": [
       {
-        "id": "powertoold",
+        "id": "module-host",
         "entrypoints": [
           {
             "kind": "grpc-ipc",
             "priority": 90,
-            "command": "windows/x64/powertoold.exe",
+            "command": "windows/x64/MPTAndroidTools.Runtime.exe",
             "platforms": ["windows-x64"],
             "windows": {
               "transport": "named-pipe",
-              "name": "mypowertools.android-tools-suite.powertoold"
+              "name": "mypowertools.android-tools-suite.module-host"
             }
           }
         ]
@@ -120,7 +120,7 @@ dotnet run --project src\MyPowerTools.Cli -- package trust modules --strict
     {
       "kind": "package-runtime",
       "priority": 90,
-      "runtimeId": "powertoold",
+      "runtimeId": "module-host",
       "service": "android_tools.remote_commands.v1.RemoteCommandsModule"
     },
     {

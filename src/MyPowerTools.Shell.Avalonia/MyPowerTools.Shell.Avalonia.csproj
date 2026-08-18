@@ -12,8 +12,11 @@
     <BuildWindowsWebToolHost Condition="$([System.String]::Copy('$(RuntimeIdentifier)').StartsWith('win-'))">true</BuildWindowsWebToolHost>
     <WebToolHostProject>$(MSBuildProjectDirectory)\..\MyPowerTools.WebToolHost\MyPowerTools.WebToolHost.csproj</WebToolHostProject>
     <WebToolHostTargetFramework>net10.0-windows10.0.19041.0</WebToolHostTargetFramework>
-    <WebToolHostBuildOutput>$(MSBuildProjectDirectory)\..\MyPowerTools.WebToolHost\bin\$(Configuration)\$(WebToolHostTargetFramework)\</WebToolHostBuildOutput>
-    <WebToolHostBuildOutput Condition="'$(RuntimeIdentifier)' != ''">$(MSBuildProjectDirectory)\..\MyPowerTools.WebToolHost\bin\$(Configuration)\$(WebToolHostTargetFramework)\$(RuntimeIdentifier)\</WebToolHostBuildOutput>
+    <!-- src/Directory.Build.props enables the artifacts output layout, which names
+         directories <lowercase configuration>[_<runtime identifier>]. -->
+    <WebToolHostOutputDirName>$(Configuration.ToLowerInvariant())</WebToolHostOutputDirName>
+    <WebToolHostOutputDirName Condition="'$(RuntimeIdentifier)' != ''">$(Configuration.ToLowerInvariant())_$(RuntimeIdentifier)</WebToolHostOutputDirName>
+    <WebToolHostBuildOutput>$(ArtifactsPath)\bin\MyPowerTools.WebToolHost\$(WebToolHostOutputDirName)\</WebToolHostBuildOutput>
   </PropertyGroup>
 
   <ItemGroup>
@@ -28,6 +31,7 @@
     <ProjectReference Include="..\MyPowerTools.Protocol\MyPowerTools.Protocol.csproj" />
     <ProjectReference Include="..\MyPowerTools.Broker\MyPowerTools.Broker.csproj" />
     <ProjectReference Include="..\MyPowerTools.Platform\MyPowerTools.Platform.csproj" />
+    <ProjectReference Include="..\MyPowerTools.Platform.Windows\MyPowerTools.Platform.Windows.csproj" />
     <ProjectReference Include="..\MyPowerTools.HostControl.Client\MyPowerTools.HostControl.Client.csproj" />
     <ProjectReference Include="..\MyPowerTools.ServiceManager.Client\MyPowerTools.ServiceManager.Client.csproj" />
     <ProjectReference Include="..\MyPowerTools.Ipc.Shared\MyPowerTools.Ipc.Shared.csproj" />
@@ -59,6 +63,8 @@
       <_WebToolHostFiles Include="$(WebToolHostBuildOutput)**\*.*"
                          Exclude="$(WebToolHostBuildOutput)win-x64\**\*.*;$(WebToolHostBuildOutput)win-x86\**\*.*;$(WebToolHostBuildOutput)win-arm64\**\*.*;$(WebToolHostBuildOutput)publish\**\*.*" />
     </ItemGroup>
+    <Error Condition="'@(_WebToolHostFiles)' == ''"
+           Text="No WebToolHost build output was found under $(WebToolHostBuildOutput). A silent miss here ships a Shell that cannot host web tools." />
     <RemoveDir Directories="$(OutDir)WebToolHost" />
     <Copy SourceFiles="@(_WebToolHostFiles)"
           DestinationFiles="@(_WebToolHostFiles->'$(OutDir)WebToolHost\%(RecursiveDir)%(Filename)%(Extension)')"

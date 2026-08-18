@@ -62,7 +62,7 @@ public sealed class LogRouter
             {
                 try
                 {
-                    using var stream = new FileStream(path, FileMode.Append, FileAccess.Write, FileShare.Read);
+                    using var stream = new FileStream(path, FileMode.Append, FileAccess.Write, FileShare.ReadWrite);
                     using var writer = new StreamWriter(stream);
                     writer.WriteLine(line);
                     return;

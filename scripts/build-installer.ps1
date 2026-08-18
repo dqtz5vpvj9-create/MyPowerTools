@@ -220,29 +220,35 @@ function Invoke-NativeQuiet {
         [string[]]$ArgumentList = @()
     )
 
-    $savedErrorActionPreference = $ErrorActionPreference
-    $nativePreference = Get-Variable -Name PSNativeCommandUseErrorActionPreference -ErrorAction SilentlyContinue
-    if ($null -ne $nativePreference) {
-        $savedNativePreference = $nativePreference.Value
-        Set-Variable -Name PSNativeCommandUseErrorActionPreference -Value $false
+    $startInfo = [Diagnostics.ProcessStartInfo]::new()
+    $startInfo.FileName = $FilePath
+    $startInfo.UseShellExecute = $false
+    $startInfo.CreateNoWindow = $true
+    $startInfo.RedirectStandardOutput = $true
+    $startInfo.RedirectStandardError = $true
+    foreach ($argument in @($ArgumentList)) {
+        $startInfo.ArgumentList.Add([string]$argument)
     }
 
-    $ErrorActionPreference = 'Continue'
-    try {
-        & $FilePath @ArgumentList *> $null
-        $nativeExitCode = $LASTEXITCODE
+    $process = [Diagnostics.Process]::Start($startInfo)
+    if ($null -eq $process) {
+        return 1
     }
-    catch {
-        $nativeExitCode = 1
+    try {
+        $stdoutTask = $process.StandardOutput.ReadToEndAsync()
+        $stderrTask = $process.StandardError.ReadToEndAsync()
+        if (-not $process.WaitForExit(120000)) {
+            try { $process.Kill($true) } catch {}
+            [void]$process.WaitForExit(5000)
+            return 124
+        }
+        [void]$stdoutTask.GetAwaiter().GetResult()
+        [void]$stderrTask.GetAwaiter().GetResult()
+        return [int]$process.ExitCode
     }
     finally {
-        $ErrorActionPreference = $savedErrorActionPreference
-        if ($null -ne $nativePreference) {
-            Set-Variable -Name PSNativeCommandUseErrorActionPreference -Value $savedNativePreference
-        }
+        $process.Dispose()
     }
-
-    return [int]$nativeExitCode
 }
 
 function Invoke-NativeCapture {
@@ -254,32 +260,44 @@ function Invoke-NativeCapture {
         [string[]]$ArgumentList = @()
     )
 
-    $savedErrorActionPreference = $ErrorActionPreference
-    $nativePreference = Get-Variable -Name PSNativeCommandUseErrorActionPreference -ErrorAction SilentlyContinue
-    if ($null -ne $nativePreference) {
-        $savedNativePreference = $nativePreference.Value
-        Set-Variable -Name PSNativeCommandUseErrorActionPreference -Value $false
+    $startInfo = [Diagnostics.ProcessStartInfo]::new()
+    $startInfo.FileName = $FilePath
+    $startInfo.UseShellExecute = $false
+    $startInfo.CreateNoWindow = $true
+    $startInfo.RedirectStandardOutput = $true
+    $startInfo.RedirectStandardError = $true
+    foreach ($argument in @($ArgumentList)) {
+        $startInfo.ArgumentList.Add([string]$argument)
     }
 
-    $ErrorActionPreference = 'Continue'
-    try {
-        $nativeOutput = @(& $FilePath @ArgumentList 2>&1)
-        $nativeExitCode = $LASTEXITCODE
-    }
-    catch {
-        $nativeOutput = @($_.Exception.Message)
-        $nativeExitCode = 1
-    }
-    finally {
-        $ErrorActionPreference = $savedErrorActionPreference
-        if ($null -ne $nativePreference) {
-            Set-Variable -Name PSNativeCommandUseErrorActionPreference -Value $savedNativePreference
+    $process = [Diagnostics.Process]::Start($startInfo)
+    if ($null -eq $process) {
+        return [pscustomobject]@{
+            ExitCode = 1
+            Output = "Failed to start $FilePath"
         }
     }
-
-    return [pscustomobject]@{
-        ExitCode = [int]$nativeExitCode
-        Output = $nativeOutput
+    try {
+        $stdoutTask = $process.StandardOutput.ReadToEndAsync()
+        $stderrTask = $process.StandardError.ReadToEndAsync()
+        if (-not $process.WaitForExit(120000)) {
+            try { $process.Kill($true) } catch {}
+            [void]$process.WaitForExit(5000)
+            return [pscustomobject]@{
+                ExitCode = 124
+                Output = "Timed out: $FilePath"
+            }
+        }
+        return [pscustomobject]@{
+            ExitCode = [int]$process.ExitCode
+            Output = @(
+                $stdoutTask.GetAwaiter().GetResult()
+                $stderrTask.GetAwaiter().GetResult()
+            ) -join [Environment]::NewLine
+        }
+    }
+    finally {
+        $process.Dispose()
     }
 }
 

@@ -143,6 +143,10 @@ jobs:
         shell: pwsh
         run: pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\smoke.ps1 -ModulesRoot artifacts\ci-modules -NoRestore -NoBuild -NoTest -NoTemplateValidation
 
+      - name: Artifacts Governance Gate
+        shell: pwsh
+        run: pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\check-artifacts-governance.ps1 -Enforce -Refresh
+
       - name: Upload CI Artifacts
         uses: actions/upload-artifact@v4
         with:
@@ -224,21 +228,37 @@ jobs:
           "channel=$channel" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
           "tag=$tag" | Out-File -FilePath $env:GITHUB_OUTPUT -Encoding utf8 -Append
 
-      - name: Download previous release OTA manifest
+      - name: Download previous release OTA manifests
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
           New-Item -ItemType Directory -Path ota-history -Force | Out-Null
-          $latest = @(gh release list --repo dqtz5vpvj9-create/MyPowerTools --limit 1 --json tagName | ConvertFrom-Json)
-          if ($latest.Count -gt 0) {
-            $tagName = [string]$latest[0].tagName
+          $currentTag = '${{ steps.release-info.outputs.tag }}'
+          $releases = @(gh release list --repo dqtz5vpvj9-create/MyPowerTools --limit 30 --json tagName,isPrerelease | ConvertFrom-Json)
+          $previous = @(
+              $releases |
+              Where-Object {
+                  [string]$_.tagName -ne $currentTag -and
+                  -not [bool]$_.isPrerelease -and
+                  [string]$_.tagName -match '^v([0-9]+\.[0-9]+\.[0-9]+)$'
+              } |
+              Select-Object -First 3
+          )
+          foreach ($release in $previous) {
+            $tagName = [string]$release.tagName
+            $version = $tagName.Substring(1)
             Write-Host "Previous release: $tagName"
             $assetNames = @(gh release view $tagName --repo dqtz5vpvj9-create/MyPowerTools --json assets --jq '.assets[].name')
-            if ($assetNames -contains 'MyPowerTools-win-x64.manifest.json') {
-              gh release download $tagName --repo dqtz5vpvj9-create/MyPowerTools --pattern MyPowerTools-win-x64.manifest.json --dir ota-history --clobber
-            } else {
-              Write-Host 'Previous release has no OTA manifest; skipping delta history download.'
+            if ($assetNames -notcontains 'MyPowerTools-win-x64.manifest.json') {
+              Write-Host "Release $tagName has no OTA manifest; skipping."
+              continue
+            }
+            $versioned = Join-Path ota-history "MyPowerTools-win-x64-$version.manifest.json"
+            gh release download $tagName --repo dqtz5vpvj9-create/MyPowerTools --pattern MyPowerTools-win-x64.manifest.json --dir ota-history --clobber
+            $downloaded = Join-Path ota-history 'MyPowerTools-win-x64.manifest.json'
+            if (Test-Path -LiteralPath $downloaded -PathType Leaf) {
+              Copy-Item -LiteralPath $downloaded -Destination $versioned -Force
             }
           }
           exit 0
@@ -296,7 +316,9 @@ jobs:
       - name: Stage OTA history manifest
         shell: pwsh
         run: |
+          $version = '${{ steps.release-info.outputs.version }}'
           Copy-Item -LiteralPath artifacts\release\MyPowerTools-win-x64.manifest.json -Destination ota-history\MyPowerTools-win-x64.manifest.json -Force
+          Copy-Item -LiteralPath artifacts\release\MyPowerTools-win-x64.manifest.json -Destination (Join-Path ota-history "MyPowerTools-win-x64-$version.manifest.json") -Force
 
       - name: Create GitHub Release
         shell: pwsh
@@ -327,6 +349,13 @@ jobs:
           $title = "MyPowerTools ${{ steps.release-info.outputs.version }} (${{ steps.release-info.outputs.channel }})"
           $existing = gh release view $tag --repo dqtz5vpvj9-create/MyPowerTools --json tagName --jq '.tagName' 2>$null
           if ($existing -eq $tag) {
+            $feedPath = 'artifacts/release/channel-' + $channel + '.json'
+            if (Test-Path -LiteralPath $feedPath -PathType Leaf) {
+              $feed = Get-Content -LiteralPath $feedPath -Raw | ConvertFrom-Json
+              if (@($feed.deltas).Count -eq 0) {
+                throw 'Refusing to clobber the existing release with an empty OTA delta feed. Fix history download and rebuild.'
+              }
+            }
             # Re-running a moved tag: refresh the existing release in place.
             $editArgs = @(
               'release', 'edit', $tag,
@@ -357,7 +386,7 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
           git remote set-url origin "https://x-access-token:${{ github.token }}@github.com/dqtz5vpvj9-create/MyPowerTools.git"
-          git add ota-history/MyPowerTools-win-x64.manifest.json
+          git add ota-history/*.manifest.json
           if (-not (git diff --cached --quiet)) {
             git commit -m "chore(ota): record ${{ steps.release-info.outputs.version }} file manifest"
             git pull --rebase origin main

@@ -21,7 +21,8 @@ param(
     [string]$Configuration = 'Debug',
     [string[]]$ToolId = @(),
     [switch]$NoRestore,
-    [switch]$NoOpenShell
+    [switch]$NoOpenShell,
+    [switch]$SkipArtifactsCheck
 )
 
 $ErrorActionPreference = 'Stop'
@@ -66,6 +67,16 @@ Run scripts\install-windows.ps1 once, then use this development shortcut for lat
         NoOpenShell = $NoOpenShell.IsPresent
     }
     & $updateScript @updateParameters
+
+    if (-not $SkipArtifactsCheck) {
+        # Advisory only: a disk-hygiene warning must never stop the dev overlay.
+        try {
+            & (Join-Path $repositoryRoot 'scripts\check-artifacts-governance.ps1')
+        }
+        catch {
+            Write-Warning "Artifacts governance check could not run: $($_.Exception.Message)"
+        }
+    }
 }
 catch {
     $failureMessage = $_.Exception.Message

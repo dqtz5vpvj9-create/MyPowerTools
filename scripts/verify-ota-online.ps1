@@ -214,6 +214,9 @@ try {
     $downgradeRelease | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (
         Join-Path $stateRoot 'installed-release.json') -Encoding UTF8
 
+    Write-Utf8Text -Path (Join-Path $targetRoot 'dev-update.manifest.json') -Value '{"repositoryRoot":"C:\\does-not-exist-ota-overlay","configuration":"Debug"}'
+    New-Item -ItemType Directory -Path (Join-Path $targetRoot 'Shell') -Force | Out-Null
+    $previousCwd = [IO.Directory]::GetCurrentDirectory()
     $applyParams = @{
         Command = 'Apply'
         Channel = 'stable'
@@ -225,8 +228,15 @@ try {
         PublicKeyPath = $publicKeyPath
         CurrentVersion = '1.0.0'
         NoRuntimeRestart = $true
+        SkipBootstrap = $true
     }
-    $apply = Read-JsonOutput -Output @(& $updaterScript @applyParams)
+    try {
+        Set-Location -LiteralPath (Join-Path $targetRoot 'Shell')
+        $apply = Read-JsonOutput -Output @(& $updaterScript @applyParams)
+    }
+    finally {
+        Set-Location -LiteralPath $previousCwd
+    }
     Assert-True -Condition ([bool]$apply.success) -Message 'OTA apply did not succeed'
     Assert-True -Condition ($apply.toVersion -eq '2.0.0') -Message 'OTA apply reported wrong target version'
     Assert-True -Condition ((Get-Content -LiteralPath (Join-Path $targetRoot 'changed.txt') -Raw) -eq 'new-value') -Message 'changed file was not replaced'
@@ -234,6 +244,7 @@ try {
     Assert-True -Condition (-not (Test-Path -LiteralPath (Join-Path $targetRoot 'removed.txt'))) -Message 'removed file still exists'
     Assert-True -Condition ((Get-Content -LiteralPath (Join-Path $targetRoot 'install.manifest.json') -Raw) -eq '{"preserve":true}') -Message 'protected install manifest changed'
     Assert-True -Condition ([bool]$apply.health.ok) -Message 'post-update health check failed'
+    Assert-True -Condition ([bool]$apply.devOverlay.skipped) -Message 'OTA apply should not reapply a missing dev overlay'
 
     $newRelease = Get-Content -LiteralPath (Join-Path $stateRoot 'installed-release.json') -Raw | ConvertFrom-Json
     Assert-True -Condition ($newRelease.version -eq '2.0.0') -Message 'installed-release.json was not updated'
@@ -263,6 +274,7 @@ try {
     } | ConvertTo-Json -Depth 5
 }
 finally {
+    Set-Location -LiteralPath $tempParent
     $tempPrefix = $tempParent.TrimEnd(
         [IO.Path]::DirectorySeparatorChar,
         [IO.Path]::AltDirectorySeparatorChar) + [IO.Path]::DirectorySeparatorChar

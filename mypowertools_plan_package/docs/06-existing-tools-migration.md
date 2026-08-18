@@ -4,7 +4,7 @@
 
 | 工具 | 目标形态 | 首轮目标 | 深度目标 |
 |---|---|---|---|
-| AndroidTools / powertool | `android-tools-suite` package | 拆成三个 module，共享 `powertoold` gRPC IPC runtime | Avalonia 原生页面 + 命令和通知完全平台化 |
+| AndroidTools / powertool | `android-tools-suite` package | 拆成三个 module，共享 `AndroidTools.Runtime` gRPC IPC runtime | Avalonia 原生页面 + 命令和通知完全平台化 |
 | ScreenEase | `screenease` module | InProc Avalonia module 接入 status、profile、settings | 显示能力进入 Platform Pack |
 | 豆包 Agent | `doubao-agent` module | gRPC runtime controller 接入 health、启动停止、日志 | WPF 壳迁移为 MyPowerTools 页面 |
 | 散热器管理服务 | `smartbird-thermostat` module | gRPC facade 包装现有 HTTP status、事件、重启 | 服务托管和策略配置平台化 |
@@ -16,7 +16,7 @@
 
 ```text
 android-tools-suite.mptpkg
-├─ shared runtime: powertoold
+├─ shared runtime: AndroidTools.Runtime
 ├─ android-tools.notifications
 ├─ android-tools.remote-commands
 └─ android-tools.process-monitor
@@ -26,14 +26,14 @@ android-tools-suite.mptpkg
 
 ```text
 T0 commands.index/dashboard.index
-T2 gRPC IPC shared powertoold
+T2 gRPC IPC shared AndroidTools.Runtime
 T4 jsonrpc-stdio compat fallback
 ```
 
 迁移任务：
 
 1. 从 PyQt UI 中提取 UI 无关逻辑。
-2. 建立 `powertoold`，使用 gRPC Native IPC 暴露模块服务。
+2. 建立 `AndroidTools.Runtime`，使用 gRPC Native IPC 暴露模块服务。
 3. `commands.yaml` 继续作为内部命令来源，模块转换为标准 `MptCommand`。
 4. Notifications、Remote Commands、Process Monitor 用 Avalonia Surface 重写。
 5. 历史数据库、server client、secret 进入 shared runtime。

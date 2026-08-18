@@ -60,6 +60,58 @@ public sealed class ShellProductSemanticsTests
     }
 
     [Fact]
+    public void Background_hosts_are_windowless_and_log_to_data_root()
+    {
+        var runnerProject = Read("src", "MyPowerTools.Runner", "MyPowerTools.Runner.csproj");
+        var managerProject = Read("src", "MyPowerTools.ServiceManager", "MyPowerTools.ServiceManager.csproj");
+        var runner = Read("src", "MyPowerTools.Runner", "Program.cs");
+        var manager = Read("src", "MyPowerTools.ServiceManager", "Program.cs");
+        var daemonConsole = Read("src", "MyPowerTools.Ipc.Shared", "DaemonProcessConsole.cs");
+
+        Assert.Contains("<OutputType>WinExe</OutputType>", runnerProject);
+        Assert.Contains("<OutputType>WinExe</OutputType>", managerProject);
+        Assert.DoesNotContain("<OutputType>Exe</OutputType>", runnerProject);
+        Assert.DoesNotContain("<OutputType>Exe</OutputType>", managerProject);
+        Assert.Contains("DaemonProcessConsole.Initialize(\"runner\"", runner);
+        Assert.Contains("DaemonProcessConsole.Initialize(", manager);
+        Assert.Contains("\"servicemanager\"", manager);
+        Assert.Contains("ConfigureHostLogging", runner);
+        Assert.Contains("ConfigureHostLogging", manager);
+        Assert.Contains("SuppressStatusMessages(true)", runner);
+        Assert.Contains("SuppressStatusMessages(true)", manager);
+        Assert.Contains("StartTrayAsync", runner);
+        Assert.Contains("\"Open MyPowerTools\"", runner);
+        Assert.Contains("--once", daemonConsole);
+        Assert.Contains("--console", daemonConsole);
+    }
+
+    [Fact]
+    public void Grpc_sidecars_do_not_open_a_console_window()
+    {
+        var grpcHost = Read("src", "MyPowerTools.ModuleHost.GrpcIpc", "GrpcIpcModuleHost.cs");
+        var moduleHostProjects = new[]
+        {
+            Read("tools", "remote-notifications", "current-integration", "src", "AndroidTools.Runtime", "AndroidTools.Runtime.csproj"),
+            Read("tools", "remote-commands", "current-integration", "src", "AndroidTools.Runtime", "AndroidTools.Runtime.csproj"),
+            Read("tools", "process-monitor", "current-integration", "src", "AndroidTools.Runtime", "AndroidTools.Runtime.csproj")
+        };
+
+        Assert.Contains("CreateNoWindow = true", grpcHost);
+        foreach (var project in moduleHostProjects)
+        {
+            Assert.Contains("<OutputType>WinExe</OutputType>", project);
+            Assert.Contains("<AssemblyName>MPTAndroidTools.Runtime</AssemblyName>", project);
+            Assert.DoesNotContain("<OutputType>Exe</OutputType>", project);
+            Assert.DoesNotContain("powertoold", project, StringComparison.OrdinalIgnoreCase);
+        }
+
+        var package = Read("modules", "android-tools-suite", "package.json");
+        Assert.Contains("\"id\": \"module-host\"", package);
+        Assert.Contains("windows/x64/MPTAndroidTools.Runtime.exe", package);
+        Assert.DoesNotContain("powertoold", package, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
     public void Product_icon_contains_multiple_windows_icon_sizes()
     {
         var icon = File.ReadAllBytes(Path.Combine(Root, "assets", "MyPowerTools.ico"));

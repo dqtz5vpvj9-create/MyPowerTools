@@ -90,11 +90,11 @@ public sealed class ShellRuntimeIdentityTests
             File.WriteAllText(Path.Combine(root, "MyPowerTools.slnx"), "");
             var shell = Path.Combine(
                 root,
-                "src",
-                "MyPowerTools.Shell.Avalonia",
+                "artifacts",
+                "build",
                 "bin",
-                "Debug",
-                "net10.0");
+                "MyPowerTools.Shell.Avalonia",
+                "debug");
             Directory.CreateDirectory(shell);
             return new TestLayout(root, shell);
         }

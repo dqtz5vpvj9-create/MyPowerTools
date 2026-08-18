@@ -175,18 +175,57 @@ function Clear-StartMenuShortcuts {
     }
 }
 
+function Stop-InstalledScheduledTasks {
+    param([switch]$DryRun)
+
+    $taskNames = @(
+        'MyPowerTools DDNS',
+        'MyPowerTools OTA Check',
+        'SmartBirdThermostat',
+        'EnergyServer'
+    )
+    foreach ($name in $taskNames) {
+        if ($null -eq (Get-ScheduledTask -TaskName $name -ErrorAction SilentlyContinue)) {
+            continue
+        }
+        if ($DryRun) {
+            Write-Host "Would stop scheduled task $name"
+            continue
+        }
+        Stop-ScheduledTask -TaskName $name -ErrorAction SilentlyContinue
+    }
+}
+
 function Stop-InstalledProcess {
     param(
         [Parameter(Mandatory = $true)][string]$Root,
         [switch]$DryRun
     )
 
+    Stop-InstalledScheduledTasks -DryRun:$DryRun
+
+    $alwaysStopProcessNames = @(
+        'adb'
+    )
+    foreach ($name in $alwaysStopProcessNames) {
+        foreach ($process in Get-Process -Name $name -ErrorAction SilentlyContinue) {
+            if ($DryRun) {
+                Write-Host "Would stop $name ($($process.Id))"
+                continue
+            }
+
+            Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+            Wait-Process -Id $process.Id -Timeout 5 -ErrorAction SilentlyContinue
+        }
+    }
+
     $processNames = @(
+        'MyPowerTools',
         'MyPowerTools.Runner',
         'MyPowerTools.Shell.Avalonia',
         'MyPowerTools.Cli',
         'MyPowerTools.ElevatedBroker',
-        'adb'
+        'MyPowerTools.ServiceManager'
     )
 
     foreach ($name in $processNames) {
@@ -235,6 +274,44 @@ function Stop-InstalledProcess {
 
         Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
         Wait-Process -Id $process.Id -Timeout 5 -ErrorAction SilentlyContinue
+    }
+
+    # Host processes such as pwsh.exe / python.exe live outside the install root
+    # but keep scripts or a working directory under it (DDNS watch, SmartBird).
+    $rootPrefix = (Resolve-FullPath $Root).TrimEnd('\')
+    $nestedMarker = $rootPrefix + '\'
+    $selfId = $PID
+    foreach ($proc in Get-CimInstance Win32_Process -ErrorAction SilentlyContinue) {
+        if ($proc.ProcessId -eq $selfId) {
+            continue
+        }
+
+        $usesRoot = $false
+        $exe = [string]$proc.ExecutablePath
+        if (-not [string]::IsNullOrWhiteSpace($exe)) {
+            try {
+                $usesRoot = Test-IsInsidePath -Parent $Root -Child $exe
+            } catch {
+                $usesRoot = $false
+            }
+        }
+
+        $cmd = [string]$proc.CommandLine
+        if (-not $usesRoot -and -not [string]::IsNullOrWhiteSpace($cmd)) {
+            $usesRoot = $cmd.IndexOf($nestedMarker, [StringComparison]::OrdinalIgnoreCase) -ge 0
+        }
+
+        if (-not $usesRoot) {
+            continue
+        }
+
+        if ($DryRun) {
+            Write-Host "Would stop host process $($proc.Name) ($($proc.ProcessId))"
+            continue
+        }
+
+        Stop-Process -Id $proc.ProcessId -Force -ErrorAction SilentlyContinue
+        Wait-Process -Id $proc.ProcessId -Timeout 5 -ErrorAction SilentlyContinue
     }
 }
 
@@ -506,10 +583,36 @@ try {
             -DataRoot $DataRootFull
     }
 
-    Stop-InstalledProcess -Root $InstallDirFull
+    $installerCwd = [IO.Directory]::GetCurrentDirectory()
+    if (Test-IsInsidePath -Parent $InstallDirFull -Child $installerCwd) {
+        Set-Location -LiteralPath $DataRootFull
+    }
 
-    if (Test-Path -LiteralPath $InstallDirFull) {
-        [System.IO.Directory]::Move($InstallDirFull, $backupDir)
+    $moveError = $null
+    for ($attempt = 1; $attempt -le 8; $attempt++) {
+        Stop-InstalledProcess -Root $InstallDirFull
+
+        if (Test-IsInsidePath -Parent $InstallDirFull -Child ([IO.Directory]::GetCurrentDirectory())) {
+            Set-Location -LiteralPath $DataRootFull
+        }
+
+        if (-not (Test-Path -LiteralPath $InstallDirFull)) {
+            $moveError = $null
+            break
+        }
+
+        try {
+            [System.IO.Directory]::Move($InstallDirFull, $backupDir)
+            $moveError = $null
+            break
+        } catch {
+            $moveError = $_
+            Start-Sleep -Seconds 1
+        }
+    }
+
+    if ($null -ne $moveError) {
+        throw "Unable to replace '$InstallDirFull' because it is still in use (a process still has that directory as its working directory or has files open). $($moveError.Exception.Message)"
     }
 
     [System.IO.Directory]::Move($stagingDir, $InstallDirFull)

@@ -1,0 +1,478 @@
+{
+  "version": 1,
+  "artifactsRoot": "artifacts",
+  "documentation": "docs/ARTIFACTS_GOVERNANCE.md",
+  "comment": [
+    "Every path under artifactsRoot must be covered by exactly one entry below.",
+    "scripts/check-artifacts-governance.ps1 fails when an undeclared path appears,",
+    "which forces any new producer to declare its class and retention rule here.",
+    "Entries are matched in order and the first match wins, so place specific",
+    "globs before wildcard globs.",
+    "",
+    "Retention modes:",
+    "  manual  - removed only when the class is pruned explicitly (caches).",
+    "  age     - removed once older than maxAgeHours / maxAgeDays.",
+    "  count   - keep the N newest matches; perParent groups by parent directory.",
+    "  pinned  - never removed automatically; requires -Force to prune."
+  ],
+  "classes": [
+    {
+      "id": "cache",
+      "summary": "Re-downloadable or rebuildable inputs. Losing them only costs time.",
+      "budgetMB": 6144
+    },
+    {
+      "id": "scratch",
+      "summary": "Single-run staging. Anything surviving past its window is a leak.",
+      "budgetMB": 512
+    },
+    {
+      "id": "build",
+      "summary": "Compiler output for src/ projects. Rebuildable, but reclaiming it costs a full rebuild.",
+      "budgetMB": 6144
+    },
+    {
+      "id": "output",
+      "summary": "Build products for the current and recent versions.",
+      "budgetMB": 3072
+    },
+    {
+      "id": "evidence",
+      "summary": "Verification and audit records kept for a bounded window.",
+      "budgetMB": 1024
+    }
+  ],
+  "entries": [
+    {
+      "path": "sdk/global-packages",
+      "class": "cache",
+      "producer": "dotnet restore (NuGet.Config globalPackagesFolder)",
+      "purpose": "Repo-scoped NuGet package cache for the solution and all tool submodules.",
+      "retention": { "mode": "manual" }
+    },
+    {
+      "path": "sdk/nuget",
+      "class": "cache",
+      "producer": "scripts/build-sdk.ps1",
+      "purpose": "Local .nupkg feed that tool submodules restore the host SDK from.",
+      "retention": { "mode": "manual" }
+    },
+    {
+      "path": "sdk/cli",
+      "class": "cache",
+      "producer": "scripts/build-sdk.ps1",
+      "purpose": "Published MyPowerTools CLI used by tool builds for packaging and signing.",
+      "retention": { "mode": "manual" }
+    },
+    {
+      "path": "sdk/npm",
+      "class": "cache",
+      "producer": "scripts/build-sdk.ps1",
+      "purpose": "Packed web-bridge npm tarball consumed by web tool builds.",
+      "retention": { "mode": "manual" }
+    },
+    {
+      "path": "sdk/protocol",
+      "class": "cache",
+      "producer": "scripts/build-sdk.ps1",
+      "purpose": "Protocol bundle and zip published for external integrators.",
+      "retention": { "mode": "manual" }
+    },
+    {
+      "path": "sdk/examples",
+      "class": "cache",
+      "producer": "scripts/build-sdk.ps1",
+      "purpose": "Example payloads shipped alongside the SDK bundle.",
+      "retention": { "mode": "manual" }
+    },
+    {
+      "path": "runtime-cache/python312-embed",
+      "class": "cache",
+      "producer": "scripts/prepare-runtime-cache.ps1",
+      "purpose": "Embeddable CPython staged into releases as Runtimes/Python312.",
+      "retention": { "mode": "manual" }
+    },
+    {
+      "path": "runtime-cache/python312-full",
+      "class": "cache",
+      "producer": "manual copy; fallback read by scripts/stage-tool-runtimes.ps1",
+      "purpose": "Full CPython layout used when the embeddable cache is unavailable.",
+      "retention": { "mode": "manual" }
+    },
+    {
+      "path": "android-platform-tools",
+      "class": "cache",
+      "producer": "scripts/prepare-runtime-cache.ps1",
+      "purpose": "adb and companion binaries staged into releases as Tools/AndroidPlatformTools.",
+      "retention": { "mode": "manual" }
+    },
+    {
+      "path": "python-*-embed-amd64.zip",
+      "class": "cache",
+      "producer": "scripts/prepare-runtime-cache.ps1",
+      "purpose": "Downloaded CPython archive kept to avoid re-downloading on cache rebuild.",
+      "retention": { "mode": "count", "keep": 1 }
+    },
+    {
+      "path": "platform-tools-latest-windows.zip",
+      "class": "cache",
+      "producer": "scripts/prepare-runtime-cache.ps1",
+      "purpose": "Downloaded Android platform-tools archive.",
+      "retention": { "mode": "count", "keep": 1 }
+    },
+    {
+      "path": ".tmp-tools",
+      "class": "cache",
+      "producer": "dotnet tool install (local tool sandbox)",
+      "purpose": "Local dotnet tool installs such as ilspycmd used during investigations.",
+      "retention": { "mode": "manual" }
+    },
+
+    {
+      "path": "build",
+      "class": "build",
+      "producer": "dotnet build (src/Directory.Build.props sets UseArtifactsOutput)",
+      "purpose": "Centralised bin and obj output for every project under src/.",
+      "retention": { "mode": "manual" }
+    },
+
+    {
+      "path": "dev-update/*",
+      "class": "scratch",
+      "producer": "scripts/update-windows-dev.ps1",
+      "purpose": "Per-run publish staging for the dev overlay, keyed by GUID.",
+      "retention": { "mode": "age", "maxAgeHours": 24 }
+    },
+    {
+      "path": "tool-package-build",
+      "class": "scratch",
+      "producer": "scripts/build-tool-packages.ps1",
+      "purpose": "Intermediate tool build output before packaging.",
+      "retention": { "mode": "age", "maxAgeDays": 3 }
+    },
+    {
+      "path": "source-bundle",
+      "class": "scratch",
+      "producer": "scripts/create-source-bundle.ps1",
+      "purpose": "Staging tree assembled before the source archive is zipped.",
+      "retention": { "mode": "age", "maxAgeDays": 3 }
+    },
+    {
+      "path": "template-build",
+      "class": "scratch",
+      "producer": "scripts/validate-templates.ps1",
+      "purpose": "Scratch builds proving the project templates still compile.",
+      "retention": { "mode": "age", "maxAgeDays": 3 }
+    },
+    {
+      "path": "platform-tools-extract",
+      "class": "scratch",
+      "producer": "scripts/prepare-runtime-cache.ps1",
+      "purpose": "Extraction staging for the platform-tools archive.",
+      "retention": { "mode": "age", "maxAgeDays": 3 }
+    },
+    {
+      "path": "smoke-data",
+      "class": "scratch",
+      "producer": "scripts/smoke.ps1",
+      "purpose": "Runner data root for the smoke run.",
+      "retention": { "mode": "age", "maxAgeDays": 3 }
+    },
+    {
+      "path": ".governance-cache.json",
+      "class": "scratch",
+      "producer": "scripts/check-artifacts-governance.ps1",
+      "purpose": "Cached size measurement so the dev-loop budget check stays cheap.",
+      "retention": { "mode": "age", "maxAgeDays": 7 }
+    },
+    {
+      "path": ".tmp-*",
+      "class": "scratch",
+      "producer": "ad-hoc investigation scripts",
+      "purpose": "Throwaway scratch space; anything durable belongs in another class.",
+      "retention": { "mode": "age", "maxAgeDays": 7 }
+    },
+
+    {
+      "path": "release/win-x64",
+      "class": "output",
+      "producer": "scripts/publish-windows.ps1",
+      "purpose": "Portable product layout for the version currently being published.",
+      "retention": { "mode": "count", "keep": 1 }
+    },
+    {
+      "path": "release/module-packages",
+      "class": "output",
+      "producer": "scripts/publish-windows.ps1",
+      "purpose": "Signed module packages folded into the release layout.",
+      "retention": { "mode": "count", "keep": 1 }
+    },
+    {
+      "path": "release/packages",
+      "class": "output",
+      "producer": "scripts/publish-ota-package-feeds.ps1",
+      "purpose": "Per-module OTA package feeds and signed channel documents.",
+      "retention": { "mode": "count", "keep": 1 }
+    },
+    {
+      "path": "release/package-managers",
+      "class": "output",
+      "producer": "scripts/release-metadata.ps1",
+      "purpose": "Generated package manager manifests such as the Scoop bucket entry.",
+      "retention": { "mode": "count", "keep": 1 }
+    },
+    {
+      "path": "release/ota/*",
+      "class": "output",
+      "producer": "scripts/publish-windows.ps1",
+      "purpose": "Delta OTA packages between released versions. CI only consumes the newest three.",
+      "retention": { "mode": "count", "keep": 6 }
+    },
+    {
+      "path": "release/managed-smoke",
+      "class": "evidence",
+      "producer": "scripts/publish-windows.ps1",
+      "purpose": "Managed-install smoke evidence captured during a publish.",
+      "retention": { "mode": "age", "maxAgeDays": 30 }
+    },
+    {
+      "path": "release/MyPowerTools-Setup-*-win-x64.exe",
+      "class": "output",
+      "producer": "installer/MyPowerTools.iss via scripts/publish-windows.ps1",
+      "purpose": "Inno Setup installer. Released copies live on GitHub Releases.",
+      "retention": { "mode": "count", "keep": 1 }
+    },
+    {
+      "path": "release/MyPowerTools-Setup-*-win-x64.exe.sha256",
+      "class": "output",
+      "producer": "scripts/publish-windows.ps1",
+      "purpose": "Checksum beside the installer.",
+      "retention": { "mode": "count", "keep": 1 }
+    },
+    {
+      "path": "release/MyPowerTools-Source-*.zip",
+      "class": "output",
+      "producer": "scripts/create-source-bundle.ps1",
+      "purpose": "Date-stamped source bundle. Reproducible from the matching git tag.",
+      "retention": { "mode": "count", "keep": 1 }
+    },
+    {
+      "path": "release/MyPowerTools-Source-*.zip.sha256",
+      "class": "output",
+      "producer": "scripts/create-source-bundle.ps1",
+      "purpose": "Checksum beside the source bundle.",
+      "retention": { "mode": "count", "keep": 1 }
+    },
+    {
+      "path": "release/MyPowerTools-*.zip",
+      "class": "output",
+      "producer": "scripts/publish-windows.ps1, scripts/publish-macos.ps1",
+      "purpose": "Portable release archive per platform.",
+      "retention": { "mode": "count", "keep": 2 }
+    },
+    {
+      "path": "release/MyPowerTools-*.zip.sha256",
+      "class": "output",
+      "producer": "scripts/publish-windows.ps1, scripts/publish-macos.ps1",
+      "purpose": "Checksum beside the portable archive.",
+      "retention": { "mode": "count", "keep": 2 }
+    },
+    {
+      "path": "release/MyPowerTools-*.manifest.json",
+      "class": "output",
+      "producer": "scripts/publish-windows.ps1",
+      "purpose": "File manifest of the published layout, used to compute OTA deltas.",
+      "retention": { "mode": "count", "keep": 2 }
+    },
+    {
+      "path": "release/channel-*.json",
+      "class": "output",
+      "producer": "scripts/publish-windows.ps1, scripts/new-ota-channel-feed.ps1",
+      "purpose": "OTA channel feed documents.",
+      "retention": { "mode": "manual" }
+    },
+    {
+      "path": "release/channel-*.json.sig",
+      "class": "output",
+      "producer": "scripts/publish-windows.ps1",
+      "purpose": "Detached signatures for the channel feeds.",
+      "retention": { "mode": "manual" }
+    },
+    {
+      "path": "release/ota-signing-public-key*.txt",
+      "class": "output",
+      "producer": "scripts/publish-windows.ps1",
+      "purpose": "Public keys published so clients can verify channel signatures.",
+      "retention": { "mode": "manual" }
+    },
+    {
+      "path": "release/release-metadata.json",
+      "class": "output",
+      "producer": "scripts/release-metadata.ps1",
+      "purpose": "Machine-readable description of the current release.",
+      "retention": { "mode": "count", "keep": 1 }
+    },
+    {
+      "path": "release/RELEASE_NOTES.md",
+      "class": "output",
+      "producer": "scripts/release-notes.ps1",
+      "purpose": "Generated release notes for the current version.",
+      "retention": { "mode": "count", "keep": 1 }
+    },
+    {
+      "path": "tools/source-manifest.json",
+      "class": "output",
+      "producer": "scripts/build-all-tools.ps1",
+      "purpose": "Records which submodule commit produced each tool build.",
+      "retention": { "mode": "count", "keep": 1 }
+    },
+    {
+      "path": "tools/*/*",
+      "class": "output",
+      "producer": "scripts/build-all-tools.ps1",
+      "purpose": "Collected per-tool build output, one directory per tool version.",
+      "retention": { "mode": "count", "keep": 2, "perParent": true }
+    },
+    {
+      "path": "tool-packages/*",
+      "class": "output",
+      "producer": "scripts/build-tool-packages.ps1",
+      "purpose": "Signed .mptpkg packages, the default local package output root.",
+      "retention": { "mode": "count", "keep": 2, "perParent": true }
+    },
+    {
+      "path": "ci-modules",
+      "class": "output",
+      "producer": ".github/workflows/ci.yml, scripts/build-tool-packages.ps1",
+      "purpose": "Module packages built from submodules for gate validation.",
+      "retention": { "mode": "count", "keep": 1 }
+    },
+    {
+      "path": "smoke-modules",
+      "class": "output",
+      "producer": "scripts/smoke.ps1",
+      "purpose": "Module packages built for a local smoke run.",
+      "retention": { "mode": "count", "keep": 1 }
+    },
+    {
+      "path": "install/*",
+      "class": "output",
+      "producer": "scripts/build-installer.ps1",
+      "purpose": "Installer payload staging, one directory per version.",
+      "retention": { "mode": "count", "keep": 1, "perParent": true }
+    },
+    {
+      "path": "install/MyPowerTools-*.zip",
+      "class": "output",
+      "producer": "scripts/build-installer.ps1",
+      "purpose": "Versioned installer archive.",
+      "retention": { "mode": "count", "keep": 1 }
+    },
+    {
+      "path": "publish/*",
+      "class": "output",
+      "producer": "scripts/publish-macos.ps1",
+      "purpose": "Per-platform publish staging such as the macOS app bundle.",
+      "retention": { "mode": "count", "keep": 1, "perParent": true }
+    },
+    {
+      "path": "icon-build",
+      "class": "output",
+      "producer": "scripts/build-app-icon.ps1",
+      "purpose": "Rendered application icon sizes.",
+      "retention": { "mode": "count", "keep": 1 }
+    },
+    {
+      "path": "broker-file-handle-test",
+      "class": "output",
+      "producer": "manual dotnet publish; consumed by scripts/update-windows-broker-dev.ps1",
+      "purpose": "Elevated broker build that the dev broker update reads as its input.",
+      "retention": { "mode": "pinned" }
+    },
+
+    {
+      "path": "ui-snapshots",
+      "class": "evidence",
+      "producer": "mpt ui snapshot (src/MyPowerTools.UI.Testing/UiSurfaceGate.cs)",
+      "purpose": "Per-surface UI contract JSON and PNG captures from the UI gate.",
+      "retention": { "mode": "age", "maxAgeDays": 14 }
+    },
+    {
+      "path": "shell-ui-snapshots",
+      "class": "evidence",
+      "producer": "mpt ui shell-snapshot",
+      "purpose": "Shell-level UI snapshot matrix from the UI gate.",
+      "retention": { "mode": "age", "maxAgeDays": 14 }
+    },
+    {
+      "path": "review-evidence",
+      "class": "evidence",
+      "producer": "scripts/create-review-evidence.ps1",
+      "purpose": "Captured command output backing a review or handoff.",
+      "retention": { "mode": "age", "maxAgeDays": 30 }
+    },
+    {
+      "path": "review",
+      "class": "evidence",
+      "producer": "scripts/create-review-evidence.ps1",
+      "purpose": "Packaged final evidence archive for a review.",
+      "retention": { "mode": "age", "maxAgeDays": 30 }
+    },
+    {
+      "path": "architecture-smoke/*",
+      "class": "evidence",
+      "producer": "tests/architecture-gate (ProcessGateRunner.cs)",
+      "purpose": "Per-run catalog and result documents from the architecture gate.",
+      "retention": { "mode": "age", "maxAgeDays": 7 }
+    },
+    {
+      "path": "*-verify-*.json",
+      "class": "evidence",
+      "producer": "scripts/verify-*-service.ps1",
+      "purpose": "Per-run service verification reports keyed by a random suffix.",
+      "retention": { "mode": "age", "maxAgeDays": 7 }
+    },
+    {
+      "path": "diagnostics",
+      "class": "evidence",
+      "producer": "mpt diagnostics",
+      "purpose": "Diagnostic dumps collected while investigating runtime issues.",
+      "retention": { "mode": "age", "maxAgeDays": 14 }
+    },
+    {
+      "path": "local-lag-*",
+      "class": "evidence",
+      "producer": "tools/local-lag-cleaner validation runs",
+      "purpose": "Smoke, plan and validation state from local-lag-cleaner sessions.",
+      "retention": { "mode": "age", "maxAgeDays": 14 }
+    },
+    {
+      "path": "readme-screenshots",
+      "class": "evidence",
+      "producer": "mpt ui shell-snapshot (README capture)",
+      "purpose": "Screenshots staged before being committed under docs/images.",
+      "retention": { "mode": "age", "maxAgeDays": 30 }
+    },
+    {
+      "path": "remote-notifications",
+      "class": "evidence",
+      "producer": "manual remote-notifications investigation sessions",
+      "purpose": "Patches, reports and server builds from notification debugging.",
+      "retention": { "mode": "age", "maxAgeDays": 30 }
+    },
+    {
+      "path": "audit",
+      "class": "evidence",
+      "producer": "manual audit captures referenced from HANDOFF.md",
+      "purpose": "Registry and configuration snapshots taken before destructive tests.",
+      "retention": { "mode": "pinned" }
+    },
+    {
+      "path": "ui-final-*",
+      "class": "evidence",
+      "producer": "manual UI validation runs referenced from docs/EXTERNAL_VALIDATION.md",
+      "purpose": "Final UI validation captures cited by external validation docs.",
+      "retention": { "mode": "age", "maxAgeDays": 30 }
+    }
+  ]
+}

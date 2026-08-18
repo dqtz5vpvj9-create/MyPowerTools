@@ -169,7 +169,7 @@ public static class ShellRunnerBootstrapper
         }
 
         modulesRoot = options.ModulesRoot ?? Path.Combine(repositoryRoot, "modules");
-        var debugRunner = Path.Combine(repositoryRoot, "src", "MyPowerTools.Runner", "bin", "Debug", "net10.0", ExecutableName("MyPowerTools.Runner"));
+        var debugRunner = Path.Combine(repositoryRoot, "artifacts", "build", "bin", "MyPowerTools.Runner", "debug", ExecutableName("MyPowerTools.Runner"));
         if (File.Exists(debugRunner))
         {
             return CreateRunnerStartInfo(debugRunner, repositoryRoot, modulesRoot, dataRoot);

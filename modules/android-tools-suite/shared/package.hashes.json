@@ -210,27 +210,27 @@
       "Sha256": "d665ea7a45015bdbc86b08d1be030b7b35ef0ed60433f9912aca28e53ad90381"
     },
     {
-      "Path": "windows/x64/powertoold.deps.json",
+      "Path": "windows/x64/MPTAndroidTools.Runtime.deps.json",
       "Sha256": "a7be94674e2c01c6dac501eb9f93bfdd7fe09344345842492452f8fa849b09ad"
     },
     {
-      "Path": "windows/x64/powertoold.dll",
+      "Path": "windows/x64/MPTAndroidTools.Runtime.dll",
       "Sha256": "fa2832ba100c2dd20f2429e5cfc04227dd02d79e55ca3e7b24db6bf89a7a41b3"
     },
     {
-      "Path": "windows/x64/powertoold.exe",
+      "Path": "windows/x64/MPTAndroidTools.Runtime.exe",
       "Sha256": "6f84e309b29abf3dbce5d6ea6707edaad470017c6291aae6387b468e1d5b4ee3"
     },
     {
-      "Path": "windows/x64/powertoold.pdb",
+      "Path": "windows/x64/MPTAndroidTools.Runtime.pdb",
       "Sha256": "7b0c459e22e60eaaf4f125cb6afbb78ac172b5c58437319aedbcfe48b3db0cee"
     },
     {
-      "Path": "windows/x64/powertoold.runtimeconfig.json",
+      "Path": "windows/x64/MPTAndroidTools.Runtime.runtimeconfig.json",
       "Sha256": "41442586a8262bc96a1c80f82f4d9384c03bfd465d221cbf01fb3563170f9e65"
     },
     {
-      "Path": "windows/x64/powertoold.staticwebassets.endpoints.json",
+      "Path": "windows/x64/MPTAndroidTools.Runtime.staticwebassets.endpoints.json",
       "Sha256": "eb6525c892afda953a2560f151f9c5e5bc6e79ef6741d886488ac450262c91e3"
     }
   ]

@@ -38,7 +38,7 @@
     <ProjectReference Include="..\MyPowerTools.Runtime\MyPowerTools.Runtime.csproj" />
     <ProjectReference Include="..\MyPowerTools.UI\MyPowerTools.UI.csproj" />
     <ProjectReference Include="..\MyPowerTools.UI.Testing\MyPowerTools.UI.Testing.csproj" />
-    <ProjectReference Include="..\MyPowerTools.HostControl\MyPowerTools.HostControl.csproj" />
+    <ProjectReference Include="..\MyPowerTools.Ipc.Shared\MyPowerTools.Ipc.Shared.csproj" />
     <ProjectReference Include="..\MyPowerTools.Shell.Avalonia\MyPowerTools.Shell.Avalonia.csproj" />
     <ProjectReference Include="..\MyPowerTools.WebSurface.Avalonia\MyPowerTools.WebSurface.Avalonia.csproj" />
     <ProjectReference Include="..\Mpt.Cli.VisualTesting\Mpt.Cli.VisualTesting.csproj" />

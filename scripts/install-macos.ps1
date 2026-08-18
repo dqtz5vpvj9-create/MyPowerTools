@@ -56,8 +56,8 @@ foreach ($executable in @(
     (Join-Path $macRoot 'Runner/MyPowerTools.Runner'),
     (Join-Path $macRoot 'ServiceManager/MyPowerTools.ServiceManager'),
     (Join-Path $macRoot 'RemoteNotifications.Service'),
-    (Join-Path $macRoot 'modules/android-tools-suite/macos/arm64/powertoold'),
-    (Join-Path $macRoot 'modules/android-tools-suite/macos/x64/powertoold')
+    (Join-Path $macRoot 'modules/android-tools-suite/macos/arm64/MPTAndroidTools.Runtime'),
+    (Join-Path $macRoot 'modules/android-tools-suite/macos/x64/MPTAndroidTools.Runtime')
 )) {
     if (Test-Path -LiteralPath $executable -PathType Leaf) {
         & /bin/chmod '+x' $executable

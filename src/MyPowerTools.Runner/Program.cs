@@ -23,6 +23,7 @@ var platformPack = PlatformPackFactory.Create();
 var initialEnabledModules = ResolveInitialEnabledModules(args, platform);
 var dataRoot = GetOption(args, "--data-root") ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MyPowerTools");
 var runtimePaths = RuntimePaths.Create(dataRoot);
+using var daemonConsole = DaemonProcessConsole.Initialize("runner", runtimePaths.Logs, args);
 // ServiceManager token discovery must follow the Runner's selected data root.
 // Isolated installs pass --data-root without mutating the parent environment, so
 // bind the process-local SDK setting before capability providers create clients.
@@ -99,6 +100,8 @@ var endpoint = string.IsNullOrWhiteSpace(endpointAddress)
         OperatingSystem.IsWindows() ? IpcTransport.NamedPipe : IpcTransport.UnixDomainSocket,
         endpointAddress);
 var builder = WebApplication.CreateBuilder(args);
+daemonConsole.ConfigureHostLogging(builder.Logging);
+builder.WebHost.SuppressStatusMessages(true);
 builder.Services.AddSingleton(new HostControlAuthOptions(hostControlToken));
 builder.Services.AddGrpc(options => options.Interceptors.Add<HostControlAuthServerInterceptor>());
 builder.Services.AddSingleton(runtime);
@@ -496,7 +499,7 @@ static ProcessStartInfo CreateShellStartInfo(
         return siblingStartInfo;
     }
 
-    var debugShell = Path.Combine(root, "src", "MyPowerTools.Shell.Avalonia", "bin", "Debug", "net10.0", ExecutableName("MyPowerTools.Shell.Avalonia"));
+    var debugShell = Path.Combine(root, "artifacts", "build", "bin", "MyPowerTools.Shell.Avalonia", "debug", ExecutableName("MyPowerTools.Shell.Avalonia"));
     if (File.Exists(debugShell))
     {
         var debugStartInfo = new ProcessStartInfo

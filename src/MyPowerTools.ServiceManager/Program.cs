@@ -6,22 +6,26 @@ using MyPowerTools.Platform.Abstractions;
 using MyPowerTools.ServiceManager.Client;
 using MyPowerTools.ServiceManager.Server;
 
+// The ServiceManager is an independent, long-running process: the single execution plane
+// for Service Units. Shell and Runner are clients. A Runner restart never affects units.
+var dataRoot = GetOption(args, "--data-root")
+    ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MyPowerTools");
+using var daemonConsole = DaemonProcessConsole.Initialize(
+    "servicemanager",
+    Path.Combine(dataRoot, "logs"),
+    args);
+
 // Utility modes: register/unregister the ServiceManager as a Windows login autostart entry
 // (HKCU\Software\Microsoft\Windows\CurrentVersion\Run). These run before the host starts and exit.
 if (args.Contains("--register-autostart", StringComparer.OrdinalIgnoreCase))
 {
-    return RegisterAutostart(GetOption(args, "--data-root"));
+    return RegisterAutostart(dataRoot);
 }
 
 if (args.Contains("--unregister-autostart", StringComparer.OrdinalIgnoreCase))
 {
     return UnregisterAutostart();
 }
-
-// The ServiceManager is an independent, long-running process: the single execution plane
-// for Service Units. Shell and Runner are clients. A Runner restart never affects units.
-var dataRoot = GetOption(args, "--data-root")
-    ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MyPowerTools");
 
 var deployRoot = GetOption(args, "--deploy-root")
     ?? Path.Combine(dataRoot, "ServiceManager");
@@ -57,6 +61,8 @@ var stateStore = new UnitStateStore(stateRoot);
 var engine = new ServiceManagerEngine(catalog, eventBus, stateStore);
 
 var builder = WebApplication.CreateBuilder(args);
+daemonConsole.ConfigureHostLogging(builder.Logging);
+builder.WebHost.SuppressStatusMessages(true);
 builder.Services.AddSingleton(new IpcAuthOptions(ServiceManagerAdminClient.AuthHeaderName, token));
 builder.Services.AddGrpc(options => options.Interceptors.Add<BearerTokenAuthServerInterceptor>());
 builder.Services.AddSingleton(engine);

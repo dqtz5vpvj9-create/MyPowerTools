@@ -11,7 +11,7 @@ Acceptance test methods are split by domain:
 - `RuntimeAcceptanceTests.Settings.Tests.cs` - settings persistence, validation, apply, rollback, and HostControl/Shell settings paths.
 - `RuntimeAcceptanceTests.PlatformBrokerPackage.Tests.cs` - brokers, package store/trust, platform packs, hotkeys, tray, and logging.
 - `RuntimeAcceptanceTests.InProcContracts.Tests.cs` - in-process soft isolation, circuit breaking, collectible unload, SDK boundaries, and module contract checks.
-- `RuntimeAcceptanceTests.SidecarInterop.Tests.cs` - HTTP facade, gRPC IPC sidecar, restart policy, shared runtime, and powertoold flows.
+- `RuntimeAcceptanceTests.SidecarInterop.Tests.cs` - HTTP facade, gRPC IPC sidecar, restart policy, shared runtime, and Android Tools module-host flows.
 - `RuntimeAcceptanceTests.ProductionModules.Tests.cs` - production module behavior for AdbForwarder, AndroidTools, ScreenEase, DoubaoAgent, and SmartBird.
 - `RuntimeAcceptanceTests.HostControl.Tests.cs` - HostControl service, event stream, runner control, and process diagnostics.
 - `Runtime.PFoundation6.Tests.cs` - P-Foundation-6 lifecycle, event pump, hotkey persistence, sidecar readiness, typed args, and Shell hotkey patch coverage.

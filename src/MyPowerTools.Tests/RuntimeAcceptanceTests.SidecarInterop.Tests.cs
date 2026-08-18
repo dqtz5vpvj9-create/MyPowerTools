@@ -547,7 +547,7 @@ public sealed partial class RuntimeAcceptanceTests
     }
 
     [Fact]
-    public async Task AndroidTools_powertoold_imports_powertool_commands_and_executes_text_tool()
+    public async Task AndroidTools_module_host_imports_powertool_commands_and_executes_text_tool()
     {
         await using var host = new GrpcIpcModuleRuntime();
         await using var runtime = new MptHostRuntime(
@@ -590,14 +590,14 @@ public sealed partial class RuntimeAcceptanceTests
         Assert.DoesNotContain("remove me", output);
         Assert.Contains("// keep me", output);
         Assert.NotNull(process);
-        Assert.Equal("package:android-tools-suite:runtime:powertoold", process.PoolKey);
+        Assert.Equal("package:android-tools-suite:runtime:module-host", process.PoolKey);
         Assert.Contains("android-tools.notifications", process.ModuleIds);
         Assert.Contains("android-tools.process-monitor", process.ModuleIds);
         Assert.Contains("android-tools.remote-commands", process.ModuleIds);
     }
 
     [Fact]
-    public async Task AndroidTools_powertoold_preserves_dynamic_command_metadata_over_grpc()
+    public async Task AndroidTools_module_host_preserves_dynamic_command_metadata_over_grpc()
     {
         var commandsRoot = Path.Combine(Path.GetTempPath(), "mpt-android-grpc-metadata", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(commandsRoot);
@@ -624,7 +624,7 @@ commands:
             runtime.Load(Path.Combine(Root, "modules"));
             var dynamicCount = await runtime.RefreshDynamicCommandsAsync(CancellationToken.None);
 
-            // powertoold starts on demand and imports commands.yaml during its
+            // the Android Tools module host starts on demand and imports commands.yaml during its
             // startup, so poll briefly until the dynamic command is exposed;
             // the first gRPC handshake can race the import on cold runners.
             MyPowerTools.Abstractions.MptCommandDescriptor? candidate = null;
@@ -642,7 +642,7 @@ commands:
             }
 
             var command = candidate ?? throw new Xunit.Sdk.XunitException(
-                "powertoold did not expose the dynamic shell_echo command within 20 seconds.");
+                "the Android Tools module host did not expose the dynamic shell_echo command within 20 seconds.");
 
             Assert.True(dynamicCount > 0);
             Assert.Equal("Android Tools", command.Category);
@@ -666,7 +666,7 @@ commands:
     }
 
     [Fact]
-    public async Task AndroidTools_powertoold_process_monitor_persists_shared_watch_list()
+    public async Task AndroidTools_module_host_process_monitor_persists_shared_watch_list()
     {
         await using var host = new GrpcIpcModuleRuntime();
         await using var runtime = new MptHostRuntime(
@@ -694,7 +694,7 @@ commands:
         Assert.Contains("dotnet", configured);
         Assert.Contains("pwsh", configured);
         Assert.Contains(runtime.GetRuntimeDiagnostics().Processes, process =>
-            process.PoolKey == "package:android-tools-suite:runtime:powertoold" &&
+            process.PoolKey == "package:android-tools-suite:runtime:module-host" &&
             process.ModuleIds.Contains("android-tools.process-monitor"));
     }
 

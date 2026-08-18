@@ -404,6 +404,41 @@ static int Repair(string[] args, string root)
     return issues.Any(issue => issue.Severity == "error") ? 1 : 0;
 }
 
+static bool PromptOtaApplyConsent(IReadOnlyList<OtaCloseTarget> targets)
+{
+    if (targets.Count == 0)
+    {
+        Console.Error.WriteLine("没有检测到正在使用安装文件的程序，可以直接开始更新。");
+    }
+    else
+    {
+        Console.Error.WriteLine("以下程序正在使用需要更新的文件。更新器将关闭它们，并在完成后重新打开。");
+        foreach (var target in targets)
+        {
+            Console.Error.WriteLine("  · " + target.DisplayName);
+        }
+    }
+
+    if (Console.IsInputRedirected)
+    {
+        return true;
+    }
+
+    try
+    {
+        _ = Console.KeyAvailable;
+    }
+    catch (InvalidOperationException)
+    {
+        return true;
+    }
+
+    Console.Error.Write(targets.Count == 0 ? "开始升级？[y/N] " : "关闭这些程序并开始升级？[y/N] ");
+    var answer = Console.ReadLine();
+    return string.Equals(answer?.Trim(), "y", StringComparison.OrdinalIgnoreCase) ||
+           string.Equals(answer?.Trim(), "yes", StringComparison.OrdinalIgnoreCase);
+}
+
 static int Ota(string[] args, string root)
 {
     var subcommand = args.FirstOrDefault() ?? "status";
@@ -427,12 +462,19 @@ static int Ota(string[] args, string root)
 
     try
     {
+        var otaState = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "MyPowerTools",
+            "ota-state");
+        Directory.CreateDirectory(otaState);
+
         var startInfo = new System.Diagnostics.ProcessStartInfo("pwsh")
         {
             UseShellExecute = false,
             CreateNoWindow = true,
             RedirectStandardOutput = true,
-            RedirectStandardError = true
+            RedirectStandardError = true,
+            WorkingDirectory = otaState
         };
         startInfo.ArgumentList.Add("-NoLogo");
         startInfo.ArgumentList.Add("-NoProfile");
@@ -441,9 +483,45 @@ static int Ota(string[] args, string root)
         startInfo.ArgumentList.Add(script);
         startInfo.ArgumentList.Add("-Command");
         startInfo.ArgumentList.Add(subcommand);
+        var confirmedApply = !string.Equals(subcommand, "apply", StringComparison.OrdinalIgnoreCase);
         foreach (var argument in args.Skip(1))
         {
-            startInfo.ArgumentList.Add(argument);
+            if (argument is "--yes" or "-y")
+            {
+                confirmedApply = true;
+                continue;
+            }
+
+            startInfo.ArgumentList.Add(argument switch
+            {
+                "--channel" => "-Channel",
+                "--force" => "-Force",
+                "--allow-unsigned" => "-AllowUnsigned",
+                _ => argument
+            });
+        }
+
+        if (string.Equals(subcommand, "apply", StringComparison.OrdinalIgnoreCase))
+        {
+            IReadOnlyList<OtaCloseTarget> targets = OperatingSystem.IsWindows()
+                ? OtaCloseTargetScanner.Scan()
+                : [];
+            if (!confirmedApply && !PromptOtaApplyConsent(targets))
+            {
+                Console.Error.WriteLine("已取消升级。");
+                return 1;
+            }
+
+            if (confirmedApply && targets.Count > 0)
+            {
+                Console.Error.WriteLine("将关闭并在完成后重新打开：");
+                foreach (var target in targets)
+                {
+                    Console.Error.WriteLine("  · " + target.DisplayName);
+                }
+            }
+
+            OtaCloseTargetScanner.WriteReopenPlan(otaState, targets);
         }
 
         using var process = System.Diagnostics.Process.Start(startInfo);
@@ -452,11 +530,18 @@ static int Ota(string[] args, string root)
             Console.Error.WriteLine("Unable to start pwsh for OTA update.");
             return 2;
         }
-        var standardOutput = process.StandardOutput.ReadToEndAsync();
-        var standardError = process.StandardError.ReadToEndAsync();
+
+        process.ErrorDataReceived += static (_, eventArgs) =>
+        {
+            if (!string.IsNullOrEmpty(eventArgs.Data))
+            {
+                Console.Error.WriteLine(eventArgs.Data);
+            }
+        };
+        process.BeginErrorReadLine();
+        var standardOutput = process.StandardOutput.ReadToEnd();
         process.WaitForExit();
-        Console.Out.Write(standardOutput.GetAwaiter().GetResult());
-        Console.Error.Write(standardError.GetAwaiter().GetResult());
+        Console.Out.Write(standardOutput);
         return process.ExitCode;
     }
     catch (System.ComponentModel.Win32Exception)
@@ -727,8 +812,8 @@ static int LaunchVisualTesting(string[] visualArgs, string root)
     var siblingDll = Path.Combine(AppContext.BaseDirectory, "mpt-visual-test.dll");
     var packagedExe = Path.Combine(AppContext.BaseDirectory, "visual", "mpt-visual-test.exe");
     var packagedDll = Path.Combine(AppContext.BaseDirectory, "visual", "mpt-visual-test.dll");
-    var releaseExe = Path.Combine(root, "src", "Mpt.Cli.VisualTesting", "bin", "Release", "net10.0", "mpt-visual-test.exe");
-    var debugExe = Path.Combine(root, "src", "Mpt.Cli.VisualTesting", "bin", "Debug", "net10.0", "mpt-visual-test.exe");
+    var releaseExe = Path.Combine(root, "artifacts", "build", "bin", "Mpt.Cli.VisualTesting", "release", "mpt-visual-test.exe");
+    var debugExe = Path.Combine(root, "artifacts", "build", "bin", "Mpt.Cli.VisualTesting", "debug", "mpt-visual-test.exe");
     var visualProject = Path.Combine(root, "src", "Mpt.Cli.VisualTesting", "Mpt.Cli.VisualTesting.csproj");
 
     var startInfo = new System.Diagnostics.ProcessStartInfo { UseShellExecute = false };
@@ -1038,7 +1123,7 @@ static string ResolveRunnerAutostartCommand(string root)
         return QuoteCommand(releaseRunner);
     }
 
-    var debugRunner = Path.Combine(root, "src", "MyPowerTools.Runner", "bin", "Debug", "net10.0", "MyPowerTools.Runner.exe");
+    var debugRunner = Path.Combine(root, "artifacts", "build", "bin", "MyPowerTools.Runner", "debug", "MyPowerTools.Runner.exe");
     if (File.Exists(debugRunner))
     {
         return QuoteCommand(debugRunner);
@@ -1178,7 +1263,7 @@ static int Help()
     Console.WriteLine("mpt update <package-dir> [--store-root <dir>]");
     Console.WriteLine("mpt rollback <package-id> [--store-root <dir>]");
     Console.WriteLine("mpt repair <package-id> [--store-root <dir>]");
-    Console.WriteLine("mpt ota check|apply|status [--channel <channel>] [--force] [--allow-unsigned]");
+    Console.WriteLine("mpt ota check|apply|status [--channel <channel>] [--force] [--allow-unsigned] [--yes]");
     Console.WriteLine("mpt ddns status|update|list|watch [--config <path>] [--override-ip <ip>] [--force]");
     Console.WriteLine("mpt runner autostart [status|enable|disable] [--id <id>] [--command <command>] [--dry-run]");
     Console.WriteLine("mpt runner process <restart|pause|resume> <transport-kind> <pool-key>|. [--endpoint-address <address>] [--reason <reason>] [--until <iso-8601>] [--duration-minutes <minutes>]");

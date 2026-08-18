@@ -227,7 +227,7 @@ public sealed partial class RuntimeAcceptanceTests
             new MyPowerTools.Protocol.HostControl.V1.ListPackagesRequest { IncludeDisabled = true },
             new TestServerCallContext());
 
-        Assert.Equal(6, response.Packages.Count);
+        Assert.Equal(7, response.Packages.Count);
         var androidTools = response.Packages.Single(package => package.PackageId == "android-tools-suite");
         Assert.Equal(3u, androidTools.ModuleCount);
         Assert.Contains("android-tools.remote-commands", androidTools.ModuleIds);
@@ -338,8 +338,8 @@ public sealed partial class RuntimeAcceptanceTests
 
         Assert.Equal("0.2.0", diagnostics.RunnerVersion);
         Assert.Equal("1.0", diagnostics.HostControlProtocolVersion);
-        Assert.Equal(6u, diagnostics.Counts.PackageCount);
-        Assert.Equal(8u, diagnostics.Counts.ModuleCount);
+        Assert.Equal(7u, diagnostics.Counts.PackageCount);
+        Assert.Equal(9u, diagnostics.Counts.ModuleCount);
         Assert.Equal((uint)runtime.CurrentEventSeq, diagnostics.CurrentEventSeq);
         Assert.Equal(dataRoot, diagnostics.Paths.Root);
         Assert.Contains(diagnostics.Transports, transport => transport.Kind == "inproc-dotnet" && transport.RuntimeRegistered);

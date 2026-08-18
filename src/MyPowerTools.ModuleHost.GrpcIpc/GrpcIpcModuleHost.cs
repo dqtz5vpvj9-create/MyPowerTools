@@ -560,6 +560,7 @@ public sealed class GrpcIpcModuleHost : IAsyncDisposable
             FileName = entrypoint.Command!,
             WorkingDirectory = workingDirectory,
             UseShellExecute = false,
+            CreateNoWindow = true,
             RedirectStandardOutput = true,
             RedirectStandardError = true
         };

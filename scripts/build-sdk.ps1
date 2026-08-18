@@ -48,19 +48,38 @@ foreach ($project in $projects) {
     if ($LASTEXITCODE -ne 0) { throw "dotnet pack failed: $project" }
 }
 
+# src/Directory.Build.props routes src/ projects through the artifacts output layout,
+# which names build directories <lowercase configuration> under one shared bin root.
+$buildBinRoot = Join-Path $repo 'artifacts\build\bin'
+$configurationDirName = $Configuration.ToLowerInvariant()
+
+function Get-ProjectBuildOutput {
+    param(
+        [Parameter(Mandatory = $true)]
+        [string] $ProjectName
+    )
+
+    $path = Join-Path $buildBinRoot (Join-Path $ProjectName $configurationDirName)
+    if (-not (Test-Path -LiteralPath $path -PathType Container)) {
+        throw "Build output for $ProjectName was not found at $path"
+    }
+
+    return $path
+}
+
 $cliProject = Join-Path $repo 'src\MyPowerTools.Cli\MyPowerTools.Cli.csproj'
 & dotnet build $cliProject --configuration $Configuration --maxcpucount
 if ($LASTEXITCODE -ne 0) { throw 'CLI build failed.' }
 if (Test-Path -LiteralPath $cli) { Remove-Item -LiteralPath $cli -Recurse -Force }
 New-Item -ItemType Directory -Force -Path $cli | Out-Null
-Copy-Item -Path (Join-Path $repo "src\MyPowerTools.Cli\bin\$Configuration\net10.0\*") -Destination $cli -Recurse
+Copy-Item -Path (Join-Path (Get-ProjectBuildOutput -ProjectName 'MyPowerTools.Cli') '*') -Destination $cli -Recurse
 
 $visualProject = Join-Path $repo 'src\Mpt.Cli.VisualTesting\Mpt.Cli.VisualTesting.csproj'
 & dotnet build $visualProject --configuration $Configuration --maxcpucount
 if ($LASTEXITCODE -ne 0) { throw 'VisualTesting CLI build failed.' }
 $visual = Join-Path $cli 'visual'
 New-Item -ItemType Directory -Force -Path $visual | Out-Null
-Copy-Item -Path (Join-Path $repo "src\Mpt.Cli.VisualTesting\bin\$Configuration\net10.0\*") -Destination $visual -Recurse
+Copy-Item -Path (Join-Path (Get-ProjectBuildOutput -ProjectName 'Mpt.Cli.VisualTesting') '*') -Destination $visual -Recurse
 
 $webBridge = Join-Path $repo 'sdk\web-bridge'
 Push-Location $webBridge

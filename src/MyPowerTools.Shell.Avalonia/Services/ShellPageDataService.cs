@@ -235,7 +235,7 @@ public sealed class ShellPageDataService : IDisposable
             statusText = $"运行时未连接（{ex.GetType().Name}），软件包列表不可用；OTA 仍可检查与升级。";
         }
 
-        var currentVersion = ReadInstalledVersion();
+        var versions = ReadInstalledVersions();
         var viewModel = ShellPageViewModelFactory.FromPackages(
             response,
             installPackage,
@@ -245,19 +245,26 @@ public sealed class ShellPageDataService : IDisposable
             showModuleDetails,
             checkUpdate,
             applyUpdate,
-            currentVersion);
+            versions.ReleaseVersion,
+            versions.OverlayVersion);
         return new ShellPageDataResult<PackageManagerViewModel>(viewModel, statusText);
         });
     }
 
-    private static string ReadInstalledVersion()
+    private static (string ReleaseVersion, string OverlayVersion) ReadInstalledVersions()
     {
+        var overlayVersion = "";
+        var releaseVersion = "-";
         try
         {
             var installRoot = Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
                 "Programs",
                 "MyPowerTools");
+            var dataRoot = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "MyPowerTools");
+
             var devManifestPath = Path.Combine(installRoot, "dev-update.manifest.json");
             if (File.Exists(devManifestPath))
             {
@@ -270,39 +277,41 @@ public sealed class ShellPageDataService : IDisposable
                     {
                         var versionNode = JsonNode.Parse(File.ReadAllText(versionPath));
                         var version = versionNode?["version"]?.GetValue<string>();
-                        if (!string.IsNullOrWhiteSpace(version))
-                        {
-                            return $"{version}-dev";
-                        }
+                        overlayVersion = string.IsNullOrWhiteSpace(version) ? "dev" : $"{version}-dev";
+                    }
+                    else
+                    {
+                        overlayVersion = "dev";
                     }
                 }
-
-                return "-dev";
+                else
+                {
+                    overlayVersion = "dev";
+                }
             }
 
-            var dataRoot = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "MyPowerTools");
             var releasePath = Path.Combine(dataRoot, "ota-state", "installed-release.json");
-            if (!File.Exists(releasePath))
+            if (File.Exists(releasePath))
+            {
+                var release = JsonNode.Parse(File.ReadAllText(releasePath));
+                releaseVersion = release?["version"]?.GetValue<string>() ?? "-";
+            }
+            else
             {
                 var installManifestPath = Path.Combine(installRoot, "install.manifest.json");
                 if (File.Exists(installManifestPath))
                 {
                     var installManifest = JsonNode.Parse(File.ReadAllText(installManifestPath));
-                    return installManifest?["version"]?.GetValue<string>() ?? "-";
+                    releaseVersion = installManifest?["version"]?.GetValue<string>() ?? "-";
                 }
-
-                return "-";
             }
-
-            var release = JsonNode.Parse(File.ReadAllText(releasePath));
-            return release?["version"]?.GetValue<string>() ?? "-";
         }
         catch
         {
-            return "-";
+            return (releaseVersion, overlayVersion);
         }
+
+        return (releaseVersion, overlayVersion);
     }
 
     public async Task<ShellPageDataResult<DiagnosticsViewModel>> LoadDiagnosticsAsync(

@@ -122,11 +122,11 @@ public static class ShellServiceManagerBootstrapper
 
         var debugExe = Path.Combine(
             repositoryRoot,
-            "src",
-            "MyPowerTools.ServiceManager",
+            "artifacts",
+            "build",
             "bin",
-            "Debug",
-            "net10.0",
+            "MyPowerTools.ServiceManager",
+            "debug",
             ShellRunnerBootstrapper.ExecutableName("MyPowerTools.ServiceManager"));
         if (File.Exists(debugExe))
         {

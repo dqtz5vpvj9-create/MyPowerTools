@@ -251,6 +251,8 @@ public sealed partial class RuntimeAcceptanceTests
         Assert.Contains("$appStartInfo.ArgumentList.Add('--data-root')", installScript);
         Assert.Contains("foreach ($process in Get-Process", installScript);
         Assert.Contains("[System.IO.Directory]::Move($InstallDirFull, $backupDir)", installScript);
+        Assert.Contains("$cmd.IndexOf($nestedMarker", installScript);
+        Assert.Contains("$alwaysStopProcessNames = @(", installScript);
         Assert.Contains("Wait-Process -Id $process.Id", installScript);
         Assert.Contains("Invoke-SourcePortableBuild", installScript);
         Assert.Contains("$PSBoundParameters.ContainsKey('PackageRoot')", installScript);
@@ -303,6 +305,23 @@ public sealed partial class RuntimeAcceptanceTests
     }
 
     [Fact]
+    public void Ota_apply_writes_reopen_plan_for_detected_programs()
+    {
+        var cli = File.ReadAllText(Path.Combine(Root, "src", "MyPowerTools.Cli", "Program.cs"));
+        var invokeScript = File.ReadAllText(Path.Combine(Root, "scripts", "invoke-ota-update.ps1"));
+        var otaScript = File.ReadAllText(Path.Combine(Root, "scripts", "ota-update.ps1"));
+
+        Assert.Contains("OtaCloseTargetScanner.Scan()", cli);
+        Assert.Contains("WriteReopenPlan", cli);
+        Assert.Contains("以下程序正在使用需要更新的文件", cli);
+        Assert.DoesNotContain("将自动关闭：", cli);
+        Assert.Contains("reopen-plan.json", invokeScript);
+        Assert.Contains("Resolve-OtaReopenRestart", invokeScript);
+        Assert.Contains("Resolve-OtaReopenRestart", otaScript);
+        Assert.Contains("-StartShell", invokeScript);
+    }
+
+    [Fact]
     public async Task Windows_ota_package_transfers_only_changed_files_and_rejects_target_drift()
     {
         if (!OperatingSystem.IsWindows())
@@ -324,7 +343,7 @@ public sealed partial class RuntimeAcceptanceTests
         Assert.Contains("\"Idempotent\": true", result.Output, StringComparison.Ordinal);
         Assert.Contains("\"DriftRejected\": true", result.Output, StringComparison.Ordinal);
         Assert.Contains("\"HashMismatchRejected\": true", result.Output, StringComparison.Ordinal);
-        Assert.Contains("\"UnsafePathRejected\": true", result.Output, StringComparison.Ordinal);
+        Assert.Contains("\"CwdMoveSucceeded\": true", result.Output, StringComparison.Ordinal);
     }
 
     [Fact]

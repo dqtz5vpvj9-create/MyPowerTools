@@ -32,7 +32,7 @@ MyPowerTools.exe
 
 ADB portproxy writes are enabled in the installed user layout. The dedicated Broker requests Windows UAC automatically when an approved port change needs administrator rights. Portable and developer layouts keep privileged writes disabled.
 
-The app starts the Runner in the background and opens the Shell. The tray icon keeps MyPowerTools running, with menu actions for opening MyPowerTools and quitting the Runner.
+The app starts the Runner in the background and opens the Shell. The tray icon is the user-visible presence of MyPowerTools: open the Shell from it, and Exit MyPowerTools from it. Runner and ServiceManager are windowless Windows processes; they do not show a console.
 
 Advanced tools stay inside the package:
 

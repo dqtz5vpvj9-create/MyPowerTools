@@ -948,7 +948,7 @@ public static class ShellRealScreenshotWriter
             [
                 new NotificationItemViewModel("n1", "2026-07-04 09:12:00", "android-tools.notifications", "info", "Remote phone connected", "Notification bridge is receiving messages.", false),
                 new NotificationItemViewModel("n2", "2026-07-04 09:13:20", "smartbird-thermostat", "warning", "Temperature policy changed", "Target temperature updated to 61 C.", false),
-                new NotificationItemViewModel("n3", "2026-07-04 09:15:44", "runner", "error", "Sidecar restart blocked", "Restart limit reached for android-tools-suite powertoold.", true)
+                new NotificationItemViewModel("n3", "2026-07-04 09:15:44", "runner", "error", "Sidecar restart blocked", "Restart limit reached for android-tools-suite module-host.", true)
             ]);
     }
 
@@ -970,7 +970,7 @@ public static class ShellRealScreenshotWriter
                     1,
                     0,
                     "android-tools.notifications, android-tools.remote-commands, android-tools.process-monitor",
-                    [new MetricViewModel("Runtime", "powertoold"), new MetricViewModel("Policy", "sidecar")],
+                    [new MetricViewModel("Runtime", "module-host"), new MetricViewModel("Policy", "sidecar")],
                     [new PackageModuleLinkViewModel("android-tools.notifications", Command())],
                     Command(),
                     Command(),
@@ -988,11 +988,11 @@ public static class ShellRealScreenshotWriter
             [
                 new RuntimeProcessViewModel(
                     "grpc-ipc",
-                    "package:android-tools-suite:runtime:powertoold",
+                    "package:android-tools-suite:runtime:module-host",
                     "running",
                     31240,
                     "31240",
-                    "named-pipe:mypowertools.android-tools-suite.powertoold",
+                    "named-pipe:mypowertools.android-tools-suite.module-host",
                     "1/4",
                     "automatic",
                     "automatic",
@@ -1008,7 +1008,7 @@ public static class ShellRealScreenshotWriter
                     Command(),
                     Command())
             ],
-            [new RuntimeProcessPolicyHistoryItemViewModel("automatic - powertoold", "runner - grpc-ipc - rev 4", "Recovered after settings apply.")],
+            [new RuntimeProcessPolicyHistoryItemViewModel("automatic - module-host", "runner - grpc-ipc - rev 4", "Recovered after settings apply.")],
             [new RuntimeModuleDiagnosticViewModel("AdbForwarder", "running", [new MetricViewModel("Selection", "sidecar unavailable; inproc fallback"), new MetricViewModel("Candidates", "selected:inproc-dotnet")])],
             [new RuntimeCommandHistoryItemViewModel("succeeded - adb-forwarder.devices.scan", "adb-forwarder - 09:14:03", "2 devices")],
             [new BrokerAuditEntryViewModel("approved - portproxy.apply", "adb-forwarder - broker - 09:12:44", "loopback portproxy", "rollback available")]);

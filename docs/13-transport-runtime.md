@@ -75,7 +75,7 @@ Linux
     {
       "kind": "grpc-ipc",
       "priority": 80,
-      "command": "powertoold",
+      "command": "AndroidTools.Runtime",
       "windows": {
         "transport": "named-pipe",
         "name": "mypowertools.android-tools"
@@ -121,7 +121,7 @@ android-tools-suite
   ├─ notifications module
   ├─ remote-commands module
   ├─ process-monitor module
-  └─ shared powertoold runtime
+  └─ shared AndroidTools.Runtime
 ```
 
 Runner 对 package runtime 进行池化：

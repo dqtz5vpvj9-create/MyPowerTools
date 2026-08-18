@@ -3,6 +3,18 @@
 ## 0.3.12 (unreleased)
 
 - Remote Notifications 系统通知（桌面 toast / 手机推送）不再展示消息里引用的原问题，只保留会话标题和结果；收件箱详情仍保留引用块。
+- Runner 和 ServiceManager 改为无控制台的 `WinExe`：登录自启动不再弹出 Windows Terminal；用户可见入口只剩托盘。进程日志写入 `%LOCALAPPDATA%\MyPowerTools\logs\{runner,servicemanager}.jsonl`，`--once` / `--console` 仍可附着到父控制台。Dev overlay 的 Core 范围会同时覆盖 ServiceManager。
+- Android Tools 模块 sidecar 改为无控制台的 `WinExe`，进程名为 `MPTAndroidTools.Runtime.exe`（runtime id `module-host`），避免 `powertoold` 被当成 ServiceManager 服务。gRPC 宿主启动 sidecar 时设置 `CreateNoWindow`。
+- OTA 全量升级在替换安装目录前把工作目录挪出安装根，避免 `Directory.Move` 因 cwd 锁死而回滚。
+- 全量替换还会停掉命令行指向安装目录的宿主进程（例如 DDNS 的 `pwsh -File ...\service-units\...`），并重试 `Directory.Move`。
+- 点击“立即升级”会先检测正在占用安装文件的程序，只列出这些程序；确认后关闭它们，并在升级完成后重新打开。
+- 安装替换前无条件结束 `adb.exe`（含 WinGet/platform-tools 的 adb server），避免它占用 `service-units\adb-forwarder.service\bin` 导致目录无法改名。
+- Bootstrap 更新器在 `ota-state\bootstrap` 下重启动；升级后同时拉起 Runner 和 Shell。
+- Dev overlay 不再在 OTA 成功后自动盖回 Debug；Packages 页分开显示安装底座与 `*-dev` 覆盖版本。
+- `installed-release.json` 改在健康检查通过之后才写入；delta 健康检查失败默认回退全量 ZIP。
+- CLI 实时转发下载进度，并把 `--channel` / `--force` / `--allow-unsigned` 映射为更新器参数。
+- CI 按最近几个 stable 版本保留 OTA manifest 并生成 delta；禁止用空 delta feed 覆盖已有 Release。
+- nightly 渠道改为从 GitHub Releases API 解析 prerelease 资源，不再误用 `/releases/latest`。
 - 新增 Input Monitor：把 macOS 键鼠/窗口活动统计与疲劳休息提醒做成 Windows InProc 工具，Dev overlay 可通过 `-ToolId input-monitor` 热更新。
 - Input Monitor 统计页按原版看板重做：四色概览卡、粒度/维度筛选、分小时热力与鼠标轨迹热力。
 - 日视图始终展示鼠标轨迹热力；轨迹网格按实际采样坐标装箱，避免多屏负坐标被丢掉。
@@ -11,7 +23,7 @@
 - 暂停提醒一点就切换按钮文案和状态，不再等整页统计刷新才有反馈。
 - Input Monitor 源码迁入独立仓库 `MyPowerTools-input-monitor`，父仓库以 submodule 引用。
 
-## 0.3.11 (unreleased)
+## 0.3.11
 
 - Remote Notifications 完成 DeepSeek Harness（DSH）全链路接入：DSH Stop hook
   经官方 hooks-codex 桥接进入通知队列，会话标题、session ID、最后一条助手

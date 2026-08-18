@@ -2,7 +2,8 @@
 param(
     [string]$InstallRoot = (Join-Path $env:LOCALAPPDATA 'Programs\MyPowerTools'),
     [string]$DataRoot = (Join-Path $env:LOCALAPPDATA 'MyPowerTools'),
-    [switch]$StartRunner
+    [switch]$StartRunner,
+    [switch]$StartShell
 )
 
 $ErrorActionPreference = 'Stop'
@@ -98,6 +99,49 @@ if ($StartRunner) {
     }
 }
 
+$shellStarted = $false
+if ($StartShell) {
+    $appExe = Join-Path $installRootFull 'MyPowerTools.exe'
+    $shellExe = Join-Path $installRootFull 'Shell\MyPowerTools.Shell.Avalonia.exe'
+    $shellTarget = if (Test-Path -LiteralPath $appExe -PathType Leaf) {
+        $appExe
+    } else {
+        $shellExe
+    }
+    if (-not (Test-Path -LiteralPath $shellTarget -PathType Leaf)) {
+        throw "MyPowerTools Shell is missing: $shellTarget"
+    }
+
+    $existingShell = Get-Process -Name 'MyPowerTools.Shell.Avalonia' -ErrorAction SilentlyContinue |
+        Where-Object {
+            if ($_.SessionId -ne $sessionId) {
+                return $false
+            }
+            $processPath = ''
+            try {
+                $processPath = $_.MainModule.FileName
+            } catch {
+            }
+            return $shellExe.Equals($processPath, [StringComparison]::OrdinalIgnoreCase)
+        } |
+        Select-Object -First 1
+    if ($null -eq $existingShell) {
+        $shellStartInfo = New-Object Diagnostics.ProcessStartInfo
+        $shellStartInfo.FileName = $shellTarget
+        $shellStartInfo.WorkingDirectory = $installRootFull
+        $shellStartInfo.UseShellExecute = $false
+        if ($shellTarget.Equals($appExe, [StringComparison]::OrdinalIgnoreCase)) {
+            $shellStartInfo.Arguments = (@('--data-root', $dataRootFull) |
+                ForEach-Object { ConvertTo-WindowsCommandLineArgument -Value $_ }) -join ' '
+        }
+        $shellProcess = [Diagnostics.Process]::Start($shellStartInfo)
+        if ($null -eq $shellProcess) {
+            throw 'MyPowerTools Shell failed to start.'
+        }
+        $shellStarted = $true
+    }
+}
+
 & $configurationScript `
     -Mode Install `
     -InstallRoot $installRootFull `
@@ -110,5 +154,7 @@ if ($StartRunner) {
     UserName = [Security.Principal.WindowsIdentity]::GetCurrent().Name
     RunnerRequested = $StartRunner.IsPresent
     RunnerStarted = $runnerStarted
+    ShellRequested = $StartShell.IsPresent
+    ShellStarted = $shellStarted
     ServicesConfigured = $true
 } | ConvertTo-Json -Depth 4

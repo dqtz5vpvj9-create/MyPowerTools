@@ -1265,7 +1265,7 @@ public sealed class GeneratedModule : IMptModule
         var fileName = OperatingSystem.IsWindows()
             ? "MyPowerTools.SampleSidecar.Grpc.exe"
             : "MyPowerTools.SampleSidecar.Grpc";
-        var command = Path.Combine(Root, "src", "MyPowerTools.SampleSidecar.Grpc", "bin", "Debug", "net10.0", fileName);
+        var command = Path.Combine(Root, "artifacts", "build", "bin", "MyPowerTools.SampleSidecar.Grpc", "debug", fileName);
         Assert.True(File.Exists(command), $"Expected sample gRPC sidecar command at {command}");
         return command;
     }
@@ -1437,14 +1437,35 @@ public sealed class GeneratedModule : IMptModule
 #else
         const string buildConfiguration = "Release";
 #endif
-        var outputDirectory = Path.Combine(projectDirectory, "bin", buildConfiguration, "net10.0");
-        var executablePath = Path.Combine(outputDirectory, OperatingSystem.IsWindows() ? $"{projectName}.exe" : projectName);
-        var dllPath = Path.Combine(outputDirectory, $"{projectName}.dll");
-        var useExecutable = File.Exists(executablePath);
-        if (!useExecutable && !File.Exists(dllPath))
+        // src/ projects build into the artifacts output layout; tool submodules and
+        // anything outside src/ keep the classic bin/<config>/<tfm> tree.
+        var candidateDirectories = new[]
+        {
+            Path.Combine(Root, "artifacts", "build", "bin", projectName, buildConfiguration.ToLowerInvariant()),
+            Path.Combine(projectDirectory, "bin", buildConfiguration, "net10.0")
+        };
+
+        var executableName = OperatingSystem.IsWindows() ? $"{projectName}.exe" : projectName;
+        string? executablePath = null;
+        string? dllPath = null;
+        foreach (var candidate in candidateDirectories)
+        {
+            var candidateExecutable = Path.Combine(candidate, executableName);
+            var candidateDll = Path.Combine(candidate, $"{projectName}.dll");
+            if (File.Exists(candidateExecutable) || File.Exists(candidateDll))
+            {
+                executablePath = candidateExecutable;
+                dllPath = candidateDll;
+                break;
+            }
+        }
+
+        if (executablePath is null || dllPath is null)
         {
             return false;
         }
+
+        var useExecutable = File.Exists(executablePath);
 
         psi = new ProcessStartInfo
         {

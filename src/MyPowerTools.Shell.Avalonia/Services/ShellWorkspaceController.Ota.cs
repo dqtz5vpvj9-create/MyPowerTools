@@ -42,15 +42,26 @@ public sealed partial class ShellWorkspaceController
             return "OTA 更新器不可用：未找到 Cli\\MyPowerTools.Cli.exe。请先安装或修复 MyPowerTools 最新版本。";
         }
 
+        var otaState = Path.Combine(
+            Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+            "MyPowerTools",
+            "ota-state");
+        Directory.CreateDirectory(otaState);
+
         var startInfo = new ProcessStartInfo(cliPath)
         {
             UseShellExecute = false,
             CreateNoWindow = true,
             RedirectStandardOutput = true,
-            RedirectStandardError = true
+            RedirectStandardError = true,
+            WorkingDirectory = otaState
         };
         startInfo.ArgumentList.Add("ota");
         startInfo.ArgumentList.Add(command);
+        if (string.Equals(command, "apply", StringComparison.OrdinalIgnoreCase))
+        {
+            startInfo.ArgumentList.Add("--yes");
+        }
 
         using var process = Process.Start(startInfo);
         if (process is null)
@@ -73,13 +84,51 @@ public sealed partial class ShellWorkspaceController
         var standardOutput = await standardOutputTask;
         await standardErrorTask;
         await process.WaitForExitAsync();
-        var output = standardOutput;
+        var output = ExtractOtaJson(standardOutput);
         if (process.ExitCode != 0 && string.IsNullOrWhiteSpace(output))
         {
             return $"OTA 更新器退出码 {process.ExitCode}，未返回错误详情。";
         }
 
         return string.IsNullOrWhiteSpace(output) ? null : output;
+    }
+
+    internal static string? ExtractOtaJson(string output)
+    {
+        var trimmed = output.Trim();
+        if (string.IsNullOrWhiteSpace(trimmed))
+        {
+            return null;
+        }
+
+        try
+        {
+            JsonNode.Parse(trimmed);
+            return trimmed;
+        }
+        catch (System.Text.Json.JsonException)
+        {
+        }
+
+        for (var index = 0; index < trimmed.Length; index++)
+        {
+            if (trimmed[index] != '{')
+            {
+                continue;
+            }
+
+            var candidate = trimmed[index..];
+            try
+            {
+                JsonNode.Parse(candidate);
+                return candidate;
+            }
+            catch (System.Text.Json.JsonException)
+            {
+            }
+        }
+
+        return trimmed;
     }
 
     private static bool TryParseOtaProgress(

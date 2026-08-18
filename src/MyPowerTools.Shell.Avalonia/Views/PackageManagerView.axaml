@@ -33,6 +33,43 @@
             <TextBlock Classes="MptMeta"
                        Text="{Binding UpdateProgressText}"
                        IsVisible="{Binding IsUpdateProgressVisible}" />
+            <Border Classes="MptPermissionPrompt"
+                    IsVisible="{Binding IsUpdateConsentVisible}">
+              <StackPanel Spacing="{DynamicResource MptSpacingS}">
+                <TextBlock Classes="MptSectionTitle"
+                           Text="{Binding UpdateConsentTitle}"
+                           TextWrapping="Wrap" />
+                <TextBlock Classes="MptPageSubtitle"
+                           Text="{Binding UpdateConsentIntro}"
+                           TextWrapping="Wrap" />
+                <ItemsControl ItemsSource="{Binding UpdateConsentCloseItems}"
+                              IsVisible="{Binding HasUpdateConsentCloseItems}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:OtaConsentItemViewModel">
+                      <TextBlock Classes="MptBody"
+                                 Text="{Binding Text}"
+                                 TextWrapping="Wrap"
+                                 Margin="{DynamicResource MptGapBottomXs}" />
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+                <TextBlock Classes="MptMeta"
+                           Text="{Binding UpdateConsentFootnote}"
+                           TextWrapping="Wrap"
+                           IsVisible="{Binding HasUpdateConsentFootnote}" />
+                <StackPanel Classes="MptActionBar"
+                            Orientation="Horizontal"
+                            Spacing="{DynamicResource MptSpacingS}">
+                  <controls:MptButton Content="取消"
+                                      Command="{Binding CancelUpdateConsentCommand}"
+                                      MinWidth="{DynamicResource MptPackageActionWidth}" />
+                  <controls:MptButton Classes="MptPrimaryButton"
+                                      Content="{Binding UpdateConsentConfirmText}"
+                                      Command="{Binding ConfirmUpdateCommand}"
+                                      MinWidth="{DynamicResource MptPackageActionWidth}" />
+                </StackPanel>
+              </StackPanel>
+            </Border>
           </StackPanel>
           <StackPanel Grid.Column="1"
                       Classes="MptActionBar"
@@ -45,7 +82,7 @@
                                 Content="立即升级"
                                 Command="{Binding ApplyUpdateCommand}"
                                 MinWidth="{DynamicResource MptPackageActionWidth}"
-                                IsVisible="{Binding UpdateAvailable}" />
+                                IsVisible="{Binding CanShowApplyButton}" />
           </StackPanel>
         </Grid>
       </StackPanel>

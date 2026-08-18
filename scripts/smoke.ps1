@@ -66,8 +66,11 @@ if (-not $NoTemplateValidation) {
 Invoke-Native 'dotnet' @('run', '--no-build', '--project', 'src\MyPowerTools.Runner', '--', '--once', '--modules', $ModulesRoot)
 Invoke-Native 'dotnet' @('run', '--no-build', '--project', 'src\MyPowerTools.Cli', '--', 'doctor')
 
-$RunnerExe = Join-Path $RepoRoot 'src\MyPowerTools.Runner\bin\Debug\net10.0\MyPowerTools.Runner.exe'
-$ShellExe = Join-Path $RepoRoot 'src\MyPowerTools.Shell.Avalonia\bin\Debug\net10.0\MyPowerTools.Shell.Avalonia.exe'
+# src/Directory.Build.props routes all src/ output through the artifacts layout,
+# which names directories artifacts/build/bin/<project>/<lowercase configuration>.
+$BuildBinRoot = Join-Path $RepoRoot 'artifacts\build\bin'
+$RunnerExe = Join-Path $BuildBinRoot 'MyPowerTools.Runner\debug\MyPowerTools.Runner.exe'
+$ShellExe = Join-Path $BuildBinRoot 'MyPowerTools.Shell.Avalonia\debug\MyPowerTools.Shell.Avalonia.exe'
 $SmokeDataRoot = Join-Path $RepoRoot 'artifacts\smoke-data'
 
 if (-not (Test-Path -LiteralPath $RunnerExe)) {

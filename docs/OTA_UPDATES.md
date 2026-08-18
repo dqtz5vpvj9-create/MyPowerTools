@@ -151,9 +151,10 @@ the installed and latest versions and provides two buttons:
 
 - **检查更新** — verifies the signed GitHub feed and reports whether a new
   version is available.
-- **立即升级** — downloads the delta (or full package) and applies it. The
-  Shell closes during the transaction and restarts automatically with the new
-  version.
+- **立即升级** — 先检测哪些程序正在占用需要更新的文件，只列出这些程序。
+  确认后更新器关闭它们并替换文件，完成后按同一名单重新打开。
+  命令行 `mpt ota apply` 同样只列出检测到的程序；脚本/计划任务或 `--yes`
+  跳过确认，但仍按检测结果恢复。
 
 The updater:
 
@@ -162,10 +163,22 @@ The updater:
 - selects a delta whose `fromManifestSha256` matches the installed manifest,
   falling back to the full ZIP;
 - copies itself (and the OTA scripts) into
-  `ota-state\bootstrap` before applying, so it can replace its own files;
-- stops product processes, runs the transaction, restarts the runtime;
-- health-checks the critical executables and scripts against the new manifest;
-- on a delta health failure, reinstalls the full ZIP as the recovery path;
+  `ota-state\bootstrap` and relaunches with that directory as the working
+  directory, so `Directory.Move` of the install root is not blocked by cwd;
+- stops product processes **and** host processes whose command line points
+  into the install root (for example DDNS `pwsh -File ...\service-units\...`),
+  stops `adb.exe` even when it lives outside the install root (the WinGet
+  adb server can hold `service-units\adb-forwarder.service\bin`),
+  then retries `Directory.Move`;
+- restarts the programs that were listed at consent time (Shell / Runner /
+  scheduled tasks as detected); if no reopen plan is present (scheduled
+  auto-apply), starts Runner and Shell as before;
+- health-checks the critical executables and scripts against the new manifest
+  **before** recording `installed-release.json`;
+- on a delta health failure, reinstalls the full ZIP as the recovery path
+  (disable with `-SkipFullRecoveryOnHealthFailure`);
+- does **not** reapply a Dev overlay. After OTA, run
+  `scripts/Start-MyPowerTools-Dev.ps1` if you still want local Debug binaries;
 - records `last-check.json`, `last-update.json`, `health-check.json`.
 
 ## Shared .NET runtime
@@ -245,11 +258,13 @@ pwsh scripts/deploy-dorm-upgrade.ps1 -RemoteHost dorm -PreflightOnly
 pwsh scripts/deploy-dorm-upgrade.ps1 -RemoteHost dorm
 ```
 
-`deploy-dorm-upgrade.ps1` uploads the ZIP, its SHA-256 marker, and
-`dorm-upgrade-remote.ps1` to `C:\Users\Public\MyPowerTools-Upgrade`, then runs
-the remote helper with `pwsh`. The helper verifies the hash before extraction,
-runs `install-windows.ps1` from the staged release, and checks the installed
-version, OTA state files, manifest byte identity, and critical executables.
+`deploy-dorm-upgrade.ps1` uploads the ZIP, its SHA-256 marker,
+`dorm-upgrade-remote.ps1`, and the current `install-windows.ps1` to
+`C:\Users\Public\MyPowerTools-Upgrade`, then runs the remote helper with
+`pwsh`. The helper verifies the hash before extraction, overlays the uploaded
+installer onto staging, runs it, and checks the installed version, OTA state
+files, manifest byte identity, and critical executables. If the ZIP is already
+on the remote host, retry with `-SkipZipCopy -SkipExtract`.
 The machine keeps its data under `%LOCALAPPDATA%\MyPowerTools`; the install
 directory is replaced with backup/restore protection.
 

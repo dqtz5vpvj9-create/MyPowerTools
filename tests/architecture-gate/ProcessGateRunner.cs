@@ -478,7 +478,7 @@ internal static class ProcessGateRunner
 
         public RunningServiceManager StartServiceManager(string label)
         {
-            var managerDll = Path.Combine(RepoRoot, "src", "MyPowerTools.ServiceManager", "bin", "Release", "net10.0", "MyPowerTools.ServiceManager.dll");
+            var managerDll = Path.Combine(RepoRoot, "artifacts", "build", "bin", "MyPowerTools.ServiceManager", "release", "MyPowerTools.ServiceManager.dll");
             if (!File.Exists(managerDll)) throw new FileNotFoundException("ServiceManager build output is missing.", managerDll);
             var arguments = new[]
             {

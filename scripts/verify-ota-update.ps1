@@ -188,6 +188,22 @@ try {
     Assert-True -Condition (-not (Test-Path -LiteralPath (Join-Path $driftTargetRoot 'nested\added.txt'))) -Message 'OTA wrote files before drift validation finished.'
     Assert-True -Condition (Test-Path -LiteralPath (Join-Path $driftTargetRoot 'removed.txt')) -Message 'OTA deleted files before drift validation finished.'
 
+    $cwdLockRoot = Join-Path $testRoot 'cwd-lock-install'
+    $cwdLockShell = Join-Path $cwdLockRoot 'Shell'
+    $cwdLockBackup = Join-Path $testRoot 'cwd-lock-backup'
+    New-Item -ItemType Directory -Path $cwdLockShell -Force | Out-Null
+    Write-Utf8Text -Path (Join-Path $cwdLockShell 'marker.txt') -Value 'lock'
+    $previousCwd = [IO.Directory]::GetCurrentDirectory()
+    try {
+        Set-Location -LiteralPath $cwdLockShell
+        Set-Location -LiteralPath $testRoot
+        [IO.Directory]::Move($cwdLockRoot, $cwdLockBackup)
+    }
+    finally {
+        Set-Location -LiteralPath $previousCwd
+    }
+    Assert-True -Condition (Test-Path -LiteralPath (Join-Path $cwdLockBackup 'Shell\marker.txt')) -Message 'Leaving the install-root working directory should allow Directory.Move.'
+
     [pscustomobject]@{
         Success = $true
         CopyCount = $packageResult.CopyCount
@@ -198,6 +214,7 @@ try {
         DriftRejected = $driftRejected
         HashMismatchRejected = $hashMismatchRejected
         UnsafePathRejected = $unsafePathRejected
+        CwdMoveSucceeded = $true
     } | ConvertTo-Json -Depth 5
 }
 finally {

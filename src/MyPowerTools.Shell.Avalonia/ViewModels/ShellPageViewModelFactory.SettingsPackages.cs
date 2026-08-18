@@ -161,7 +161,8 @@ public static partial class ShellPageViewModelFactory
         Func<string, Task>? showModuleDetails = null,
         Func<Task<string?>>? checkUpdate = null,
         Func<Action<OtaDownloadProgress>?, Task<string?>>? applyUpdate = null,
-        string currentVersion = "-")
+        string currentVersion = "-",
+        string overlayVersion = "")
     {
         var packages = response.Packages
             .OrderBy(package => package.DisplayName, StringComparer.OrdinalIgnoreCase)
@@ -214,7 +215,8 @@ public static partial class ShellPageViewModelFactory
             rollbackPackage,
             checkUpdate,
             applyUpdate,
-            currentVersion);
+            currentVersion,
+            overlayVersion);
     }
 
     private static string ReadDetailString(Struct details, string key, string fallback)

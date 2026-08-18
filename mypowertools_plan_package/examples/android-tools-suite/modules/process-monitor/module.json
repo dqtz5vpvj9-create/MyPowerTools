@@ -9,7 +9,7 @@
     {
       "kind": "package-runtime",
       "priority": 90,
-      "runtimeId": "powertoold",
+      "runtimeId": "module-host",
       "service": "android_tools.process_monitor.v1.ProcessMonitorModule"
     },
     {

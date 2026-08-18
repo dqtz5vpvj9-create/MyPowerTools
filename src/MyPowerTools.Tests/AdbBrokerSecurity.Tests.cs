@@ -300,7 +300,7 @@ public sealed class AdbBrokerSecurityTests
     [InlineData("remove")]
     public async Task Cli_portproxy_write_routes_are_fail_closed(string operation)
     {
-        var cli = Path.Combine(Root, "src", "MyPowerTools.Cli", "bin", "Release", "net10.0", "MyPowerTools.Cli.dll");
+        var cli = Path.Combine(Root, "artifacts", "build", "bin", "MyPowerTools.Cli", "release", "MyPowerTools.Cli.dll");
         Assert.True(File.Exists(cli), "Release CLI must be built before the security test.");
         var start = new System.Diagnostics.ProcessStartInfo
         {

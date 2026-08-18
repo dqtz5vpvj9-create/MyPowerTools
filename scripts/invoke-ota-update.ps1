@@ -110,19 +110,73 @@ function Replace-FileAtomically {
     }
 }
 
+function Resolve-OtaReopenRestart {
+    param([Parameter(Mandatory = $true)][string]$StateRoot)
+
+    $startShell = $true
+    $startRunner = $true
+    $taskNames = @()
+    $planPath = Join-Path $StateRoot 'reopen-plan.json'
+    if (Test-Path -LiteralPath $planPath -PathType Leaf) {
+        $plan = Get-Content -LiteralPath $planPath -Raw | ConvertFrom-Json
+        $ids = @($plan.targets | ForEach-Object { [string]$_.id })
+        $startShell = $ids -contains 'shell'
+        $startRunner = ($ids -contains 'runner') -or ($ids -contains 'service-manager')
+        if ($ids -contains 'smartbird') {
+            $taskNames += 'SmartBirdThermostat'
+        }
+        if ($ids -contains 'energy') {
+            $taskNames += 'EnergyServer'
+        }
+    }
+
+    return [pscustomobject]@{
+        StartShell = $startShell
+        StartRunner = $startRunner
+        TaskNames = $taskNames
+    }
+}
+
+function Start-OtaReopenedScheduledTasks {
+    param([string[]]$TaskNames)
+
+    foreach ($name in @($TaskNames)) {
+        if ([string]::IsNullOrWhiteSpace($name)) {
+            continue
+        }
+        if ($null -eq (Get-ScheduledTask -TaskName $name -ErrorAction SilentlyContinue)) {
+            continue
+        }
+        Start-ScheduledTask -TaskName $name -ErrorAction SilentlyContinue
+    }
+}
+
 function Invoke-InteractiveRuntimeStart {
     param(
         [Parameter(Mandatory = $true)][string]$RuntimeScript,
         [Parameter(Mandatory = $true)][string]$InstallRoot,
-        [Parameter(Mandatory = $true)][string]$DataRoot
+        [Parameter(Mandatory = $true)][string]$DataRoot,
+        [Parameter(Mandatory = $true)][string]$StateRoot
     )
 
     if (-not (Test-Path -LiteralPath $RuntimeScript -PathType Leaf)) {
         throw "MyPowerTools runtime starter is missing: $RuntimeScript"
     }
+    $reopen = Resolve-OtaReopenRestart -StateRoot $StateRoot
     $currentSessionId = (Get-Process -Id $PID).SessionId
     if ($currentSessionId -ne 0) {
-        & $RuntimeScript -InstallRoot $InstallRoot -DataRoot $DataRoot -StartRunner | Out-Null
+        $runtimeArguments = @{
+            InstallRoot = $InstallRoot
+            DataRoot = $DataRoot
+        }
+        if ($reopen.StartRunner) {
+            $runtimeArguments.StartRunner = $true
+        }
+        if ($reopen.StartShell) {
+            $runtimeArguments.StartShell = $true
+        }
+        & $RuntimeScript @runtimeArguments | Out-Null
+        Start-OtaReopenedScheduledTasks -TaskNames $reopen.TaskNames
         return
     }
 
@@ -135,7 +189,13 @@ function Invoke-InteractiveRuntimeStart {
 
     $windowsPowerShell = Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
     $taskName = "MyPowerToolsOtaRestart-$PID-$([Guid]::NewGuid().ToString('N'))"
-    $actionArguments = "-NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -File `"$RuntimeScript`" -InstallRoot `"$InstallRoot`" -DataRoot `"$DataRoot`" -StartRunner"
+    $actionArguments = "-NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -File `"$RuntimeScript`" -InstallRoot `"$InstallRoot`" -DataRoot `"$DataRoot`""
+    if ($reopen.StartRunner) {
+        $actionArguments += ' -StartRunner'
+    }
+    if ($reopen.StartShell) {
+        $actionArguments += ' -StartShell'
+    }
     $actionParams = @{
         Execute = $windowsPowerShell
         Argument = $actionArguments
@@ -177,6 +237,7 @@ function Invoke-InteractiveRuntimeStart {
                 if ($info.LastTaskResult -ne 0) {
                     throw "Interactive OTA runtime restart failed with task result $($info.LastTaskResult)."
                 }
+                Start-OtaReopenedScheduledTasks -TaskNames $reopen.TaskNames
                 return
             }
             Start-Sleep -Milliseconds 500
@@ -196,6 +257,11 @@ $targetRootFull = [IO.Path]::GetFullPath($TargetRoot).TrimEnd(
     [IO.Path]::AltDirectorySeparatorChar)
 $targetManifestFull = [IO.Path]::GetFullPath($TargetManifestPath)
 $stateRootFull = [IO.Path]::GetFullPath($StateRoot)
+New-Item -ItemType Directory -Path $stateRootFull -Force | Out-Null
+try {
+    Set-Location -LiteralPath $stateRootFull
+} catch {
+}
 if (-not (Test-Path -LiteralPath $packageFull -PathType Leaf)) {
     throw "OTA package does not exist: $packageFull"
 }
@@ -455,6 +521,7 @@ try {
             RuntimeScript = Join-Path $targetRootFull 'start-user-runtime.ps1'
             InstallRoot = $targetRootFull
             DataRoot = [IO.Path]::GetFullPath($RuntimeDataRoot)
+            StateRoot = $stateRootFull
         }
         Invoke-InteractiveRuntimeStart @runtimeStartParams
         $runtimeRestarted = $true
@@ -523,6 +590,7 @@ catch {
                 RuntimeScript = Join-Path $targetRootFull 'start-user-runtime.ps1'
                 InstallRoot = $targetRootFull
                 DataRoot = [IO.Path]::GetFullPath($RuntimeDataRoot)
+                StateRoot = $stateRootFull
             }
             Invoke-InteractiveRuntimeStart @rollbackRuntimeStartParams
             $runtimeRestarted = $true
@@ -536,7 +604,7 @@ catch {
     throw $updateError
 }
 finally {
-    if ($completed -and -not $KeepBackup) {
+    if (-not $KeepBackup) {
         $removeTransactionParams = @{
             Root = $transactionRoot
             ExpectedParent = $transactionParent

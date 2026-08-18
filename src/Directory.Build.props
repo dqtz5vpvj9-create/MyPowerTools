@@ -1,0 +1,22 @@
+<Project>
+  <!--
+    MSBuild stops at the first Directory.Build.props it finds walking upward, so the
+    repository-root file must be imported explicitly to keep MyPowerToolsRepoRoot defined.
+  -->
+  <Import Project="$(MSBuildThisFileDirectory)..\Directory.Build.props" />
+
+  <PropertyGroup>
+    <!--
+      Collect every src/ project's build output under one directory so that disk usage is
+      governable: artifacts-policy.json declares it as a single 'build' class entry that
+      scripts/prune-artifacts.ps1 can reclaim in one step, instead of ~60 bin/obj folders
+      scattered across the tree.
+
+      Deliberately scoped to src/. Tool submodules under tools/ and the scaffolding
+      templates declare dotnet surface assemblies with paths like bin/Debug/net10.0/X.dll,
+      which the artifacts layout would invalidate.
+    -->
+    <UseArtifactsOutput>true</UseArtifactsOutput>
+    <ArtifactsPath>$([System.IO.Path]::GetFullPath($([System.IO.Path]::Combine('$(MyPowerToolsRepoRoot)', 'artifacts', 'build'))))</ArtifactsPath>
+  </PropertyGroup>
+</Project>

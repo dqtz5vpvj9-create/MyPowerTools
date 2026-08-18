@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.Reflection;
 using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
@@ -1168,9 +1169,11 @@ public sealed class LocalLagCleanerProductTests
 
     private static string FindRuntimeExecutable()
     {
-        var targetFrameworkDirectory = new DirectoryInfo(
-            Path.TrimEndingDirectorySeparator(AppContext.BaseDirectory));
-        var configuration = targetFrameworkDirectory.Parent?.Name ??
+        // Read the configuration MSBuild compiled this assembly with rather than
+        // inferring it from the output directory layout, which differs between the
+        // classic bin/<config>/<tfm> tree and the artifacts output layout used by src/.
+        var configuration = typeof(LocalLagCleanerProductTests).Assembly
+            .GetCustomAttribute<AssemblyConfigurationAttribute>()?.Configuration ??
             throw new DirectoryNotFoundException("Could not determine the test build configuration.");
         var executableName = OperatingSystem.IsWindows()
             ? "LocalLagCleaner.Runtime.exe"

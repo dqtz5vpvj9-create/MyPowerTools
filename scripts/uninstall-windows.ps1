@@ -54,12 +54,28 @@ function Stop-InstalledProcess {
         [switch]$DryRun
     )
 
+    $alwaysStopProcessNames = @(
+        'adb'
+    )
+    foreach ($name in $alwaysStopProcessNames) {
+        foreach ($process in Get-Process -Name $name -ErrorAction SilentlyContinue) {
+            if ($DryRun) {
+                Write-Host "Would stop $name ($($process.Id))"
+                continue
+            }
+
+            Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+            Wait-Process -Id $process.Id -Timeout 5 -ErrorAction SilentlyContinue
+        }
+    }
+
     $processNames = @(
         'MyPowerTools',
         'MyPowerTools.Runner',
         'MyPowerTools.Shell.Avalonia',
         'MyPowerTools.Cli',
-        'MyPowerTools.ElevatedBroker'
+        'MyPowerTools.ElevatedBroker',
+        'MyPowerTools.ServiceManager'
     )
 
     foreach ($name in $processNames) {
@@ -108,6 +124,42 @@ function Stop-InstalledProcess {
 
         Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
         Wait-Process -Id $process.Id -Timeout 5 -ErrorAction SilentlyContinue
+    }
+
+    $rootPrefix = (Resolve-FullPath $Root).TrimEnd('\')
+    $nestedMarker = $rootPrefix + '\'
+    $selfId = $PID
+    foreach ($proc in Get-CimInstance Win32_Process -ErrorAction SilentlyContinue) {
+        if ($proc.ProcessId -eq $selfId) {
+            continue
+        }
+
+        $usesRoot = $false
+        $exe = [string]$proc.ExecutablePath
+        if (-not [string]::IsNullOrWhiteSpace($exe)) {
+            try {
+                $usesRoot = Test-IsInsidePath -Parent $Root -Child $exe
+            } catch {
+                $usesRoot = $false
+            }
+        }
+
+        $cmd = [string]$proc.CommandLine
+        if (-not $usesRoot -and -not [string]::IsNullOrWhiteSpace($cmd)) {
+            $usesRoot = $cmd.IndexOf($nestedMarker, [StringComparison]::OrdinalIgnoreCase) -ge 0
+        }
+
+        if (-not $usesRoot) {
+            continue
+        }
+
+        if ($DryRun) {
+            Write-Host "Would stop host process $($proc.Name) ($($proc.ProcessId))"
+            continue
+        }
+
+        Stop-Process -Id $proc.ProcessId -Force -ErrorAction SilentlyContinue
+        Wait-Process -Id $proc.ProcessId -Timeout 5 -ErrorAction SilentlyContinue
     }
 }
 

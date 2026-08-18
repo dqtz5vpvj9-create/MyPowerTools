@@ -537,8 +537,8 @@ Write-Sha256File -Path $ZipPath
 New-Item -ItemType Directory -Path $DeltaOutputRoot -Force | Out-Null
 $deltaPackages = [Collections.Generic.List[string]]::new()
 if (Test-Path -LiteralPath $OtaHistoryDir -PathType Container) {
-    foreach ($historicalManifest in Get-ChildItem -LiteralPath $OtaHistoryDir -Filter '*.manifest.json' -File |
-        Sort-Object Name) {
+    $historicalByVersion = @{}
+    foreach ($historicalManifest in Get-ChildItem -LiteralPath $OtaHistoryDir -Filter '*.manifest.json' -File) {
         $historical = Get-Content -LiteralPath $historicalManifest.FullName -Raw | ConvertFrom-Json
         $fromVersion = [string]$historical.version
         if ([string]::IsNullOrWhiteSpace($fromVersion) -or $fromVersion -eq $Version) {
@@ -547,11 +547,21 @@ if (Test-Path -LiteralPath $OtaHistoryDir -PathType Container) {
         if ($fromVersion -notmatch '^[0-9]+\.[0-9]+\.[0-9]+$') {
             throw "Historical OTA manifest has an invalid version: $($historicalManifest.FullName)"
         }
+        if (-not $historicalByVersion.ContainsKey($fromVersion)) {
+            $historicalByVersion[$fromVersion] = $historicalManifest.FullName
+        }
+    }
+    $selectedHistory = @(
+        $historicalByVersion.Keys |
+        Sort-Object { [version]$_ } -Descending |
+        Select-Object -First 3
+    )
+    foreach ($fromVersion in $selectedHistory) {
         $deltaPath = Join-Path $DeltaOutputRoot "MyPowerTools-$fromVersion-to-$Version.ota.zip"
         $deltaParams = @{
             SourceRoot = $PublishRoot
             SourceManifestPath = $ManifestAssetPath
-            TargetManifestPath = $historicalManifest.FullName
+            TargetManifestPath = [string]$historicalByVersion[$fromVersion]
             OutputPath = $deltaPath
         }
         [void](& (Join-Path $PSScriptRoot 'new-ota-delta-package.ps1') @deltaParams)

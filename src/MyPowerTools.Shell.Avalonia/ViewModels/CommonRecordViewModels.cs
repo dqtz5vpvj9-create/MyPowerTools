@@ -21,6 +21,7 @@ public sealed record NotificationItemViewModel(string Id, string Time, string Mo
 public sealed record ShellAlertViewModel(string Id, string Level, string Title, string Body);
 public sealed record ShellActionViewModel(string CommandId, string Title, string Style, bool IsPrimary, string ButtonClasses, ICommand ExecuteCommand);
 public sealed record MetricViewModel(string Label, string Value);
+public sealed record OtaConsentItemViewModel(string Text);
 /// <summary>
 /// Read-only overview row for the global keyboard shortcuts section (PowerToys
 /// Keyboard Manager style): every registered hotkey across all modules plus the

@@ -336,7 +336,7 @@ if ($IsMacOS) {
         (Join-Path $macRoot 'Runner/MyPowerTools.Runner'),
         (Join-Path $macRoot 'ServiceManager/MyPowerTools.ServiceManager'),
         (Join-Path $macRoot 'RemoteNotifications.Service'),
-        (Join-Path $macRoot "modules/android-tools-suite/macos/$Architecture/powertoold")
+        (Join-Path $macRoot "modules/android-tools-suite/macos/$Architecture/MPTAndroidTools.Runtime")
     )) {
         if (Test-Path -LiteralPath $executable -PathType Leaf) {
             Invoke-Native -FilePath '/bin/chmod' -ArgumentList @('+x', $executable) -Activity "chmod $executable"

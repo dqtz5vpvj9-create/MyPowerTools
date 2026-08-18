@@ -21,7 +21,8 @@ param(
     [switch]$NoRuntimeRestart,
     [switch]$NoApplyDeletes,
     [switch]$KeepBackup,
-    [switch]$FullRecoveryOnHealthFailure
+    [switch]$FullRecoveryOnHealthFailure,
+    [switch]$SkipFullRecoveryOnHealthFailure
 )
 
 $ErrorActionPreference = 'Stop'
@@ -149,10 +150,11 @@ function Resolve-FeedContent {
 
     $feedUri = $FeedUrl
     if ([string]::IsNullOrWhiteSpace($feedUri)) {
-        $feedUri = "https://github.com/dqtz5vpvj9-create/MyPowerTools/releases/latest/download/channel-$ChannelName.json"
+        $feedUri = Resolve-ChannelFeedUri -ChannelName $ChannelName
     }
     $feedDestination = Join-Path $downloadsDir ("channel-$ChannelName.json")
-    Invoke-WebRequest -Uri $feedUri -OutFile $feedDestination -UseBasicParsing
+    $feedHeaders = @{ 'User-Agent' = 'MyPowerTools-OTA' }
+    Invoke-WebRequest -Uri $feedUri -OutFile $feedDestination -UseBasicParsing -Headers $feedHeaders
     $feedJson = Read-Utf8TextFile -Path $feedDestination
     $feed = $feedJson | ConvertFrom-Json
 
@@ -160,7 +162,7 @@ function Resolve-FeedContent {
     $feedSignature = ''
     try {
         $signatureDestination = "$feedDestination.sig"
-        Invoke-WebRequest -Uri $signatureUri -OutFile $signatureDestination -UseBasicParsing
+        Invoke-WebRequest -Uri $signatureUri -OutFile $signatureDestination -UseBasicParsing -Headers $feedHeaders
         $feedSignature = (Read-Utf8TextFile -Path $signatureDestination).Trim()
     }
     catch {
@@ -290,6 +292,42 @@ function Select-OtaPackage {
     }
 }
 
+function Resolve-ChannelFeedUri {
+    param([Parameter(Mandatory = $true)][string]$ChannelName)
+
+    $repo = 'dqtz5vpvj9-create/MyPowerTools'
+    if ($ChannelName -eq 'stable') {
+        return "https://github.com/$repo/releases/latest/download/channel-stable.json"
+    }
+
+    $handler = [System.Net.Http.HttpClientHandler]::new()
+    $client = [System.Net.Http.HttpClient]::new($handler)
+    $client.Timeout = [TimeSpan]::FromMinutes(2)
+    $client.DefaultRequestHeaders.UserAgent.ParseAdd('MyPowerTools-OTA')
+    $client.DefaultRequestHeaders.Accept.ParseAdd('application/vnd.github+json')
+    try {
+        $releasesJson = $client.GetStringAsync(
+            "https://api.github.com/repos/$repo/releases?per_page=30"
+        ).GetAwaiter().GetResult()
+    } finally {
+        $client.Dispose()
+        $handler.Dispose()
+    }
+
+    $releases = $releasesJson | ConvertFrom-Json
+    $assetName = "channel-$ChannelName.json"
+    foreach ($release in @($releases)) {
+        $asset = @($release.assets) |
+            Where-Object { [string]$_.name -eq $assetName } |
+            Select-Object -First 1
+        if ($null -ne $asset -and -not [string]::IsNullOrWhiteSpace([string]$asset.browser_download_url)) {
+            return [string]$asset.browser_download_url
+        }
+    }
+
+    throw "No GitHub release currently publishes $assetName. Nightly/prerelease feeds are not on /releases/latest."
+}
+
 function Invoke-OtaDownload {
     param(
         [Parameter(Mandatory = $true)][string]$Uri,
@@ -300,6 +338,7 @@ function Invoke-OtaDownload {
     $handler = [System.Net.Http.HttpClientHandler]::new()
     $client = [System.Net.Http.HttpClient]::new($handler)
     $client.Timeout = [TimeSpan]::FromMinutes(20)
+    $client.DefaultRequestHeaders.UserAgent.ParseAdd('MyPowerTools-OTA')
     try {
         $response = $client.GetAsync(
             $Uri,
@@ -533,43 +572,13 @@ function Invoke-BootstrapRelaunch {
     $pwsh = Get-Command 'pwsh.exe' -CommandType Application -ErrorAction Stop |
         Select-Object -First 1
     $bootstrapScript = Join-Path $bootstrapDir 'ota-update.ps1'
-    & $pwsh.Source -NoLogo -NoProfile -NonInteractive -File $bootstrapScript @relaunchArguments
-    exit $LASTEXITCODE
-}
-
-function Invoke-DevOverlayReapply {
-    param(
-        [Parameter(Mandatory = $true)][pscustomobject]$Overlay,
-        [Parameter(Mandatory = $true)][string]$InstallRootFull
-    )
-
-    $repoRoot = [string]$Overlay.repositoryRoot
-    $configuration = [string]$Overlay.configuration
-    if ([string]::IsNullOrWhiteSpace($configuration)) {
-        $configuration = 'Debug'
-    }
-    $devScript = Join-Path $repoRoot 'scripts\update-windows-dev.ps1'
-    if (-not (Test-Path -LiteralPath $devScript -PathType Leaf)) {
-        return [ordered]@{
-            reapplied = $false
-            note = "dev overlay source not found: $devScript"
-        }
-    }
-
-    $pwsh = Get-Command 'pwsh.exe' -CommandType Application -ErrorAction Stop |
-        Select-Object -First 1
-    $devOutput = & $pwsh.Source -NoLogo -NoProfile -NonInteractive -File $devScript `
-        -Scope Core -Configuration $configuration -NoOpenShell
-    $exitCode = $LASTEXITCODE
-    if ($exitCode -eq 0) {
-        return [ordered]@{
-            reapplied = $true
-            note = "dev overlay reapplied from $repoRoot after base update"
-        }
-    }
-    return [ordered]@{
-        reapplied = $false
-        note = "dev overlay reapply failed with exit code $exitCode"
+    $previousLocation = Get-Location
+    try {
+        Set-Location -LiteralPath $bootstrapDir
+        & $pwsh.Source -NoLogo -NoProfile -NonInteractive -File $bootstrapScript @relaunchArguments
+        exit $LASTEXITCODE
+    } finally {
+        Set-Location -LiteralPath $previousLocation
     }
 }
 
@@ -627,6 +636,47 @@ function Invoke-DeltaApply {
     return $applyResult
 }
 
+function Resolve-OtaReopenRestart {
+    param([Parameter(Mandatory = $true)][string]$StateRoot)
+
+    $startShell = $true
+    $startRunner = $true
+    $taskNames = @()
+    $planPath = Join-Path $StateRoot 'reopen-plan.json'
+    if (Test-Path -LiteralPath $planPath -PathType Leaf) {
+        $plan = Get-Content -LiteralPath $planPath -Raw | ConvertFrom-Json
+        $ids = @($plan.targets | ForEach-Object { [string]$_.id })
+        $startShell = $ids -contains 'shell'
+        $startRunner = ($ids -contains 'runner') -or ($ids -contains 'service-manager')
+        if ($ids -contains 'smartbird') {
+            $taskNames += 'SmartBirdThermostat'
+        }
+        if ($ids -contains 'energy') {
+            $taskNames += 'EnergyServer'
+        }
+    }
+
+    return [pscustomobject]@{
+        StartShell = $startShell
+        StartRunner = $startRunner
+        TaskNames = $taskNames
+    }
+}
+
+function Start-OtaReopenedScheduledTasks {
+    param([string[]]$TaskNames)
+
+    foreach ($name in @($TaskNames)) {
+        if ([string]::IsNullOrWhiteSpace($name)) {
+            continue
+        }
+        if ($null -eq (Get-ScheduledTask -TaskName $name -ErrorAction SilentlyContinue)) {
+            continue
+        }
+        Start-ScheduledTask -TaskName $name -ErrorAction SilentlyContinue
+    }
+}
+
 function Invoke-FullApply {
     param(
         [Parameter(Mandatory = $true)][string]$PackagePath,
@@ -653,14 +703,27 @@ function Invoke-FullApply {
         PackageRoot = $extractRoot
         InstallDir = $InstallRootFull
         DataRoot = $DataRootFull
-        NoOpenApp = $true
     }
+    $reopen = $null
     if ($RestartRuntime) {
-        $installParams.StartRunner = $true
+        $reopen = Resolve-OtaReopenRestart -StateRoot $StateRootFull
+        if ($reopen.StartRunner) {
+            $installParams.StartRunner = $true
+        }
+        else {
+            $installParams.NoStartRunner = $true
+        }
+        if (-not $reopen.StartShell) {
+            $installParams.NoOpenApp = $true
+        }
     } else {
         $installParams.NoStartRunner = $true
+        $installParams.NoOpenApp = $true
     }
     & $installScript @installParams | Out-Null
+    if ($null -ne $reopen) {
+        Start-OtaReopenedScheduledTasks -TaskNames $reopen.TaskNames
+    }
 
     $shippedManifest = Join-Path $extractRoot 'MyPowerTools-win-x64.manifest.json'
     if (Test-Path -LiteralPath $shippedManifest -PathType Leaf) {
@@ -709,8 +772,9 @@ $StateRootFull = [IO.Path]::GetFullPath($StateRoot)
 New-Item -ItemType Directory -Path $StateRootFull -Force | Out-Null
 
 # Dev overlay detection: update-windows-dev.ps1 marks the install root with
-# dev-update.manifest.json. OTA never overwrites the overlay binaries in place;
-# it updates the canonical release base and then reapplies the overlay.
+# dev-update.manifest.json. OTA updates the canonical release base and leaves
+# the overlay marker in place only when a full directory swap did not occur.
+# Apply does not re-run update-windows-dev.ps1; re-apply the overlay separately.
 $devOverlayManifestPath = Join-Path $InstallRootFull 'dev-update.manifest.json'
 $IsDevOverlay = Test-Path -LiteralPath $devOverlayManifestPath -PathType Leaf
 $DevOverlay = if ($IsDevOverlay) {
@@ -831,7 +895,7 @@ $check = [ordered]@{
         [ordered]@{
             repositoryRoot = [string]$DevOverlay.repositoryRoot
             configuration = [string]$DevOverlay.configuration
-            note = 'dev 覆盖模式：OTA 不直接更新覆盖层；如检测到系统安装版，将更新系统安装并重新应用 dev 覆盖。'
+            note = 'dev 覆盖模式：OTA 会更新系统安装底座，不会自动重新应用本地 Debug 覆盖。升级后如需开发覆盖，请再运行 Start-MyPowerTools-Dev.ps1。'
         }
     } else {
         $null
@@ -846,6 +910,11 @@ if ($Command -eq 'Check' -or -not $available) {
 }
 
 # Apply path
+try {
+    Set-Location -LiteralPath $StateRootFull
+} catch {
+}
+
 if ($IsDevOverlay -and -not (Test-Path -LiteralPath (Join-Path $InstallRootFull 'install.manifest.json') -PathType Leaf)) {
     throw '未检测到系统安装版（install.manifest.json 缺失）。dev 覆盖模式无法执行 OTA，请先完整安装 MyPowerTools 后再试。'
 }
@@ -926,20 +995,13 @@ try {
     } else {
         'https://github.com/dqtz5vpvj9-create/MyPowerTools'
     }
-    Update-InstalledRelease `
-        -StateRootFull $StateRootFull `
-        -Version ([string]$feed.version) `
-        -ChannelName $Channel `
-        -PackageKind $packageKind `
-        -InstallRootFull $InstallRootFull `
-        -DataRootFull $DataRootFull `
-        -Repository $repository
 
     $health = Test-OtaHealth `
         -InstallRootFull $InstallRootFull `
         -StateRootFull $StateRootFull `
         -ExpectedVersion ([string]$feed.version)
-    if (-not [bool]$health.ok -and $decision.Kind -eq 'delta' -and $FullRecoveryOnHealthFailure.IsPresent) {
+    $shouldRecover = -not $SkipFullRecoveryOnHealthFailure.IsPresent
+    if (-not [bool]$health.ok -and $decision.Kind -eq 'delta' -and $shouldRecover) {
         $fullDecision = [pscustomobject]@{
             FeedVersion = [string]$feed.version
             FullAsset = [string]$feed.full.asset
@@ -952,14 +1014,6 @@ try {
             -DataRootFull $DataRootFull `
             -StateRootFull $StateRootFull
         $packageKind = 'full-recovery'
-        Update-InstalledRelease `
-            -StateRootFull $StateRootFull `
-            -Version ([string]$feed.version) `
-            -ChannelName $Channel `
-            -PackageKind $packageKind `
-            -InstallRootFull $InstallRootFull `
-            -DataRootFull $DataRootFull `
-            -Repository $repository
         $health = Test-OtaHealth `
             -InstallRootFull $InstallRootFull `
             -StateRootFull $StateRootFull `
@@ -969,8 +1023,21 @@ try {
         throw "OTA health check failed after update ($($health.failedCount) failed checks)."
     }
 
+    Update-InstalledRelease `
+        -StateRootFull $StateRootFull `
+        -Version ([string]$feed.version) `
+        -ChannelName $Channel `
+        -PackageKind $packageKind `
+        -InstallRootFull $InstallRootFull `
+        -DataRootFull $DataRootFull `
+        -Repository $repository
+
     $devOverlayResult = if ($IsDevOverlay) {
-        Invoke-DevOverlayReapply -Overlay $DevOverlay -InstallRootFull $InstallRootFull
+        [ordered]@{
+            reapplied = $false
+            skipped = $true
+            note = 'OTA 已更新系统安装底座，未自动重新应用 dev 覆盖。需要开发覆盖时请运行 Start-MyPowerTools-Dev.ps1。'
+        }
     } else {
         $null
     }
@@ -990,6 +1057,24 @@ try {
     Write-Utf8TextFile -Path (Join-Path $StateRootFull 'last-update.json') -Value (
         $updateResult | ConvertTo-Json -Depth 8)
     $updateResult | ConvertTo-Json -Depth 8
+}
+catch {
+    $applyError = $_
+    $failure = [ordered]@{
+        success = $false
+        error = [string]$applyError.Exception.Message
+        channel = $Channel
+        fromVersion = $CurrentVersion
+        latestVersion = if ($null -ne $feed) { [string]$feed.version } else { '' }
+        completedAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
+    }
+    try {
+        Write-Utf8TextFile -Path (Join-Path $StateRootFull 'last-update.json') -Value (
+            $failure | ConvertTo-Json -Depth 6)
+    } catch {
+    }
+    $failure | ConvertTo-Json -Depth 6
+    exit 1
 }
 finally {
     foreach ($name in $savedAutostartValues.Keys) {

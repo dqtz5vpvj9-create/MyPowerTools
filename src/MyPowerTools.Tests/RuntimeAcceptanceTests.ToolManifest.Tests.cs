@@ -160,7 +160,7 @@ public sealed partial class RuntimeAcceptanceTests
                 {
                     ["kind"] = "grpc-ipc",
                     ["priority"] = 100,
-                    ["command"] = "powertoold.exe"
+                    ["command"] = "MPTAndroidTools.Runtime.exe"
                 }
             },
             ["capabilities"] = new JsonArray("status", "commands")

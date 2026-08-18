@@ -52,7 +52,7 @@
     <Project Path="tools/doubao-computer-use/current-integration/src/DoubaoAgent.MyPowerTools/DoubaoAgent.MyPowerTools.csproj" />
     <Project Path="tools/doubao-computer-use/current-integration/src/DoubaoAgent.Surface/DoubaoAgent.Surface.csproj" />
     <Project Path="tools/remote-notifications/current-integration/src/AndroidTools.MyPowerTools/AndroidTools.MyPowerTools.csproj" />
-    <Project Path="tools/remote-notifications/current-integration/src/AndroidTools.Powertoold/AndroidTools.Powertoold.csproj" />
+    <Project Path="tools/remote-notifications/current-integration/src/AndroidTools.Runtime/AndroidTools.Runtime.csproj" />
     <Project Path="tools/remote-notifications/current-integration/src/RemoteNotifications.Surface/RemoteNotifications.Surface.csproj" />
     <Project Path="tools/screenease/current-integration/src/ScreenEase.MyPowerTools/ScreenEase.MyPowerTools.csproj" />
     <Project Path="tools/screenease/current-integration/src/ScreenEase.Service/ScreenEase.Service.csproj" />

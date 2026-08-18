@@ -705,6 +705,148 @@ public sealed partial class RuntimeAcceptanceTests
         Assert.Contains("PackageModuleLinkViewModel", packagesView);
         Assert.Contains("RepairCommand", packagesView);
         Assert.Contains("UninstallCommand", packagesView);
+        Assert.Contains("UpdateVersionText", packagesView);
+        Assert.Contains("CanShowApplyButton", packagesView);
+        Assert.Contains("IsUpdateConsentVisible", packagesView);
+        Assert.Contains("ConfirmUpdateCommand", packagesView);
+        Assert.Contains("UpdateConsentConfirmText", packagesView);
+        Assert.Contains("HasUpdateConsentCloseItems", packagesView);
+        Assert.DoesNotContain("同意并开始升级", packagesView);
+        Assert.DoesNotContain("升级后如何恢复", packagesView);
+        Assert.Contains("OtaConsentItemViewModel", packagesView);
+        Assert.Contains("ReadInstalledVersions", service);
+        Assert.Contains("OverlayVersion", service);
+        Assert.Contains("ArgumentList.Add(\"--yes\")", workspace);
+    }
+
+    [Fact]
+    public async Task Package_manager_requires_close_consent_before_ota_apply()
+    {
+        var applied = 0;
+        var stateRoot = Path.Combine(Path.GetTempPath(), "mpt-ota-consent-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(stateRoot);
+        try
+        {
+            var viewModel = new PackageManagerViewModel(
+                [],
+                applyUpdate: _ =>
+                {
+                    applied++;
+                    return Task.FromResult<string?>("""{"success":true,"toVersion":"0.3.12","health":{"ok":true}}""");
+                },
+                createConsent: () => OtaApplyConsent.Create(
+                    false,
+                    [
+                        new OtaCloseTarget("adb", "Android Debug Bridge (adb)"),
+                        new OtaCloseTarget("shell", "MyPowerTools")
+                    ]),
+                otaStateRoot: stateRoot);
+
+            await ((AsyncRelayCommand)viewModel.ApplyUpdateCommand).ExecuteAsync(null);
+            Assert.True(viewModel.IsUpdateConsentVisible);
+            Assert.Equal(0, applied);
+            Assert.Equal("需要关闭以下正在运行的程序", viewModel.UpdateConsentTitle);
+            Assert.Contains("以下程序正在使用需要更新的文件", viewModel.UpdateConsentIntro);
+            Assert.Equal("关闭并开始升级", viewModel.UpdateConsentConfirmText);
+            var listed = string.Join('\n', viewModel.UpdateConsentCloseItems.Select(item => item.Text));
+            Assert.Contains("MyPowerTools", listed);
+            Assert.Contains("Android Debug Bridge (adb)", listed);
+            Assert.DoesNotContain("将自动关闭", listed);
+            Assert.DoesNotContain("升级后如何恢复", listed);
+
+            await ((AsyncRelayCommand)viewModel.CancelUpdateConsentCommand).ExecuteAsync(null);
+            Assert.False(viewModel.IsUpdateConsentVisible);
+            Assert.Equal(0, applied);
+
+            await ((AsyncRelayCommand)viewModel.ApplyUpdateCommand).ExecuteAsync(null);
+            await ((AsyncRelayCommand)viewModel.ConfirmUpdateCommand).ExecuteAsync(null);
+            Assert.Equal(1, applied);
+            Assert.False(viewModel.IsUpdateConsentVisible);
+            Assert.Contains("已升级到 0.3.12", viewModel.UpdateStatus);
+
+            var planPath = Path.Combine(stateRoot, OtaCloseTargetScanner.ReopenPlanFileName);
+            Assert.True(File.Exists(planPath));
+            var plan = File.ReadAllText(planPath);
+            Assert.Contains("\"id\": \"shell\"", plan, StringComparison.Ordinal);
+            Assert.Contains("\"id\": \"adb\"", plan, StringComparison.Ordinal);
+        }
+        finally
+        {
+            if (Directory.Exists(stateRoot))
+            {
+                Directory.Delete(stateRoot, true);
+            }
+        }
+    }
+
+    [Fact]
+    public void Ota_close_target_scanner_classifies_install_lockers()
+    {
+        var root = @"C:\Users\example\AppData\Local\Programs\MyPowerTools";
+        var prefix = root + @"\";
+
+        Assert.True(OtaCloseTargetScanner.TryClassify(
+            "adb",
+            @"C:\Users\example\AppData\Local\Microsoft\WinGet\Packages\adb.exe",
+            "adb -L tcp:5037 fork-server",
+            root,
+            prefix,
+            out var id,
+            out var displayName));
+        Assert.Equal("adb", id);
+        Assert.Equal("Android Debug Bridge (adb)", displayName);
+
+        Assert.True(OtaCloseTargetScanner.TryClassify(
+            "pwsh",
+            @"C:\Program Files\PowerShell\7\pwsh.exe",
+            @"pwsh -File " + prefix + @"service-units\ddns.service\ddns.ps1",
+            root,
+            prefix,
+            out id,
+            out displayName));
+        Assert.Equal("ddns", id);
+        Assert.Equal("MyPowerTools DDNS", displayName);
+
+        Assert.True(OtaCloseTargetScanner.TryClassify(
+            "MyPowerTools.Shell.Avalonia",
+            prefix + @"Shell\MyPowerTools.Shell.Avalonia.exe",
+            "",
+            root,
+            prefix,
+            out id,
+            out displayName));
+        Assert.Equal("shell", id);
+        Assert.Equal("MyPowerTools", displayName);
+
+        Assert.True(OtaCloseTargetScanner.TryClassify(
+            "python",
+            @"C:\Python\python.exe",
+            prefix + @"Runtimes\SmartBird\test_tools\smartbird_thermostat.py",
+            root,
+            prefix,
+            out id,
+            out displayName));
+        Assert.Equal("smartbird", id);
+
+        Assert.False(OtaCloseTargetScanner.TryClassify(
+            "notepad",
+            @"C:\Windows\notepad.exe",
+            "",
+            root,
+            prefix,
+            out _,
+            out _));
+
+        Assert.True(OtaCloseTargetScanner.TryClassify(
+            "pwsh",
+            @"C:\Program Files\PowerShell\7\pwsh.exe",
+            @"pwsh -NoLogo -File " + prefix + @"service-units\custom.service\run.ps1",
+            root,
+            prefix,
+            out id,
+            out displayName));
+        Assert.Equal("host:pwsh", id);
+        Assert.Equal("pwsh", displayName);
     }
 
     [Fact]
@@ -1030,7 +1172,7 @@ public sealed partial class RuntimeAcceptanceTests
         var staticReaderPath = Path.Combine(Root, "src", "MyPowerTools.Runtime", "StaticCommandIndexReader.cs");
         var runtimePath = Path.Combine(Root, "src", "MyPowerTools.Runtime", "MptHostRuntime.cs");
         var grpcHostPath = Path.Combine(Root, "src", "MyPowerTools.ModuleHost.GrpcIpc", "GrpcIpcModuleHost.cs");
-        var powertooldPath = Path.Combine(Root, "tools", "remote-notifications", "current-integration", "src", "AndroidTools.Powertoold", "Program.cs");
+        var moduleHostPath = Path.Combine(Root, "tools", "remote-notifications", "current-integration", "src", "AndroidTools.Runtime", "Program.cs");
         var hostServicePath = Path.Combine(Root, "src", "MyPowerTools.HostControl.Server", "HostControlGrpcService.cs");
         var hostClientPath = Path.Combine(Root, "src", "MyPowerTools.HostControl.Client", "HostControlClient.cs");
         var commandServicePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellCommandExecutionService.cs");
@@ -1041,7 +1183,7 @@ public sealed partial class RuntimeAcceptanceTests
         var staticReader = File.ReadAllText(staticReaderPath);
         var runtime = File.ReadAllText(runtimePath);
         var grpcHost = File.ReadAllText(grpcHostPath);
-        var powertoold = File.ReadAllText(powertooldPath);
+        var moduleHost = File.ReadAllText(moduleHostPath);
         var hostService = File.ReadAllText(hostServicePath);
         var hostClient = File.ReadAllText(hostClientPath);
         var commandService = File.ReadAllText(commandServicePath);
@@ -1063,7 +1205,7 @@ public sealed partial class RuntimeAcceptanceTests
         Assert.Contains("parameter.DefaultValue", grpcHost);
         Assert.Contains("client.ExecuteCommandStream", grpcHost);
         Assert.Contains("client.SubscribeEvents", grpcHost);
-        Assert.Contains("ExecuteCommandStream(ExecuteCommandRequest", powertoold);
+        Assert.Contains("ExecuteCommandStream(ExecuteCommandRequest", moduleHost);
         Assert.Contains("item.Parameters.AddRange", hostService);
         Assert.Contains("CancelCommand(HostProto.CancelCommandRequest", hostService);
         Assert.Contains("ExecuteCommandStream(HostProto.ExecuteCommandRequest", hostService);

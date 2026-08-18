@@ -6,7 +6,9 @@ param(
     [string]$RemoteTempDir = 'C:\Users\Public\MyPowerTools-Upgrade',
     [string]$RemotePwsh = 'pwsh.exe',
     [switch]$DryRun,
-    [switch]$PreflightOnly
+    [switch]$PreflightOnly,
+    [switch]$SkipZipCopy,
+    [switch]$SkipExtract
 )
 
 $ErrorActionPreference = 'Stop'
@@ -26,7 +28,9 @@ $remoteZip = (Join-Path $RemoteTempDir 'MyPowerTools-win-x64.zip').Replace('\', 
 $remoteMarker = (Join-Path $RemoteTempDir 'MyPowerTools-win-x64.zip.sha256').Replace('\', '/')
 $remoteScript = (Join-Path $RemoteTempDir 'dorm-upgrade-remote.ps1').Replace('\', '/')
 $remoteStaging = (Join-Path $RemoteTempDir 'staging').Replace('\', '/')
+$remoteInstallOverride = (Join-Path $RemoteTempDir 'install-windows.ps1').Replace('\', '/')
 $localRemoteHelper = Join-Path $PSScriptRoot 'dorm-upgrade-remote.ps1'
+$localInstallScript = Join-Path $PSScriptRoot 'install-windows.ps1'
 
 function Invoke-Ssh {
     param([Parameter(Mandatory = $true)][string[]]$Arguments)
@@ -66,21 +70,30 @@ Invoke-Ssh -Arguments @(
 )
 
 if (-not $DryRun) {
-    & scp -o BatchMode=yes $ZipPath "$sshTarget`:$remoteZip"
-    if ($LASTEXITCODE -ne 0) {
-        throw "scp failed for the release ZIP (exit $LASTEXITCODE)."
-    }
-    & scp -o BatchMode=yes $hashMarker "$sshTarget`:$remoteMarker"
-    if ($LASTEXITCODE -ne 0) {
-        throw "scp failed for the SHA-256 marker (exit $LASTEXITCODE)."
+    if (-not $SkipZipCopy.IsPresent) {
+        & scp -o BatchMode=yes $ZipPath "$sshTarget`:$remoteZip"
+        if ($LASTEXITCODE -ne 0) {
+            throw "scp failed for the release ZIP (exit $LASTEXITCODE)."
+        }
+        & scp -o BatchMode=yes $hashMarker "$sshTarget`:$remoteMarker"
+        if ($LASTEXITCODE -ne 0) {
+            throw "scp failed for the SHA-256 marker (exit $LASTEXITCODE)."
+        }
     }
     & scp -o BatchMode=yes $localRemoteHelper "$sshTarget`:$remoteScript"
     if ($LASTEXITCODE -ne 0) {
         throw "scp failed for the remote helper (exit $LASTEXITCODE)."
     }
+    & scp -o BatchMode=yes $localInstallScript "$sshTarget`:$remoteInstallOverride"
+    if ($LASTEXITCODE -ne 0) {
+        throw "scp failed for install-windows.ps1 (exit $LASTEXITCODE)."
+    }
 }
 
-$remoteCommand = "& '$RemotePwsh' -NoLogo -NoProfile -NonInteractive -File '$remoteScript' -ZipPath '$remoteZip' -StagingDir '$remoteStaging'"
+$remoteCommand = "& '$RemotePwsh' -NoLogo -NoProfile -NonInteractive -File '$remoteScript' -ZipPath '$remoteZip' -StagingDir '$remoteStaging' -InstallScriptOverride '$remoteInstallOverride'"
+if ($SkipExtract.IsPresent) {
+    $remoteCommand += ' -SkipExtract'
+}
 if ($DryRun) {
     "ssh $sshTarget `"$remoteCommand`""
     [pscustomobject]@{

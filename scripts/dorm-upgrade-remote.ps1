@@ -4,7 +4,9 @@ param(
     [Parameter(Mandatory = $true)][string]$StagingDir,
     [string]$InstallDir = (Join-Path $env:LOCALAPPDATA 'Programs\MyPowerTools'),
     [string]$DataRoot = (Join-Path $env:LOCALAPPDATA 'MyPowerTools'),
-    [string]$HashMarkerPath = ''
+    [string]$HashMarkerPath = '',
+    [string]$InstallScriptOverride = '',
+    [switch]$SkipExtract
 )
 
 $ErrorActionPreference = 'Stop'
@@ -45,14 +47,23 @@ Assert-True -Condition ($expectedHash -match '^[0-9a-f]{64}$') -Message "SHA-256
 $actualHash = (Get-FileHash -LiteralPath $ZipPath -Algorithm SHA256).Hash.ToLowerInvariant()
 Assert-True -Condition ($actualHash -eq $expectedHash) -Message "ZIP SHA-256 mismatch. expected=$expectedHash actual=$actualHash"
 
-if (Test-Path -LiteralPath $StagingDir -PathType Container) {
-    Remove-Item -LiteralPath $StagingDir -Recurse -Force
+if (-not $SkipExtract.IsPresent) {
+    if (Test-Path -LiteralPath $StagingDir -PathType Container) {
+        Remove-Item -LiteralPath $StagingDir -Recurse -Force
+    }
+    New-Item -ItemType Directory -Path $StagingDir -Force | Out-Null
+    Add-Type -AssemblyName System.IO.Compression.FileSystem
+    [IO.Compression.ZipFile]::ExtractToDirectory($ZipPath, $StagingDir)
+} else {
+    Assert-True -Condition (Test-Path -LiteralPath $StagingDir -PathType Container) -Message "SkipExtract requires existing staging: $StagingDir"
 }
-New-Item -ItemType Directory -Path $StagingDir -Force | Out-Null
-Add-Type -AssemblyName System.IO.Compression.FileSystem
-[IO.Compression.ZipFile]::ExtractToDirectory($ZipPath, $StagingDir)
 
 $installScript = Join-Path $StagingDir 'install-windows.ps1'
+if (-not [string]::IsNullOrWhiteSpace($InstallScriptOverride)) {
+    $overrideFull = [IO.Path]::GetFullPath($InstallScriptOverride)
+    Assert-True -Condition (Test-Path -LiteralPath $overrideFull -PathType Leaf) -Message "Install script override is missing: $overrideFull"
+    Copy-Item -LiteralPath $overrideFull -Destination $installScript -Force
+}
 $shippedManifest = Join-Path $StagingDir 'MyPowerTools-win-x64.manifest.json'
 Assert-True -Condition (Test-Path -LiteralPath $installScript -PathType Leaf) -Message "Staging is missing install-windows.ps1"
 Assert-True -Condition (Test-Path -LiteralPath $shippedManifest -PathType Leaf) -Message "Staging is missing MyPowerTools-win-x64.manifest.json"

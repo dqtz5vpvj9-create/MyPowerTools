@@ -13,54 +13,54 @@
   "shared": {
     "runtimes": [
       {
-        "id": "powertoold",
+        "id": "module-host",
         "entrypoints": [
           {
             "kind": "grpc-ipc",
             "priority": 100,
-            "command": "windows/x64/powertoold.exe",
+            "command": "windows/x64/MPTAndroidTools.Runtime.exe",
             "platforms": [
               "windows-x64"
             ],
             "windows": {
               "transport": "named-pipe",
-              "name": "mypowertools.android-tools-suite.powertoold"
+              "name": "mypowertools.android-tools-suite.module-host"
             }
           },
           {
             "kind": "grpc-ipc",
             "priority": 100,
-            "command": "linux/x64/powertoold",
+            "command": "linux/x64/MPTAndroidTools.Runtime",
             "platforms": [
               "linux-x64"
             ],
             "linux": {
               "transport": "unix-domain-socket",
-              "path": "$XDG_RUNTIME_DIR/mypowertools/android-tools-suite/powertoold.sock"
+              "path": "$XDG_RUNTIME_DIR/mypowertools/android-tools-suite/module-host.sock"
             }
           },
           {
             "kind": "grpc-ipc",
             "priority": 100,
-            "command": "macos/arm64/powertoold",
+            "command": "macos/arm64/MPTAndroidTools.Runtime",
             "platforms": [
               "macos-arm64"
             ],
             "macos": {
               "transport": "unix-domain-socket",
-              "path": "$TMPDIR/mypowertools/android-tools-suite/powertoold.sock"
+              "path": "$TMPDIR/mypowertools/android-tools-suite/module-host.sock"
             }
           },
           {
             "kind": "grpc-ipc",
             "priority": 100,
-            "command": "macos/x64/powertoold",
+            "command": "macos/x64/MPTAndroidTools.Runtime",
             "platforms": [
               "macos-x64"
             ],
             "macos": {
               "transport": "unix-domain-socket",
-              "path": "$TMPDIR/mypowertools/android-tools-suite/powertoold.sock"
+              "path": "$TMPDIR/mypowertools/android-tools-suite/module-host.sock"
             }
           }
         ]

@@ -11,7 +11,7 @@ android-tools-suite
 └─ android-tools.process-monitor
 ```
 
-三者共用 `powertoold` gRPC Native IPC runtime、历史数据库、服务器客户端、secret store、日志目录、通用资源。
+三者共用 `AndroidTools.Runtime` gRPC Native IPC runtime、历史数据库、服务器客户端、secret store、日志目录、通用资源。
 
 ## 拆分理由
 
@@ -27,7 +27,7 @@ android-tools-suite
 android-tools-suite
 ├─ package.json
 ├─ shared
-│  ├─ powertoold
+│  ├─ AndroidTools.Runtime
 │  ├─ assets
 │  ├─ commands.index.json
 │  ├─ dashboard.index.json
@@ -49,27 +49,27 @@ android-tools-suite
 
 ```text
 T0: package 静态索引提供首屏命令和卡片 skeleton
-T2: powertoold 通过 gRPC Native IPC 提供主能力
+T2: AndroidTools.Runtime 通过 gRPC Native IPC 提供主能力
 T4: 兼容期保留 jsonrpc-stdio module_server.py
 ```
 
 Windows：
 
 ```text
-powertoold.exe
-  -> Named Pipe: mypowertools.android-tools-suite.powertoold
+MPTAndroidTools.Runtime.exe
+  -> Named Pipe: mypowertools.android-tools-suite.module-host
 ```
 
 macOS / Linux：
 
 ```text
-powertoold
-  -> Unix Domain Socket: $RUNTIME_DIR/mypowertools/android-tools-suite/powertoold.sock
+MPTAndroidTools.Runtime
+  -> Unix Domain Socket: $RUNTIME_DIR/mypowertools/android-tools-suite/module-host.sock
 ```
 
 ## Module 服务
 
-`powertoold` 内部提供多个服务：
+`AndroidTools.Runtime` 内部提供多个服务：
 
 ```text
 android_tools.notifications.v1.NotificationsModule
@@ -175,6 +175,6 @@ PyQt UI 作为迁移参考和临时 fallback。正式入口迁入 Avalonia Surfa
 
 ```text
 PyQt UI             迁移参考
-powertool 业务逻辑   服务化为 powertoold
+powertool 业务逻辑   服务化为 AndroidTools.Runtime
 Avalonia Surface    正式 MyPowerTools 入口
 ```

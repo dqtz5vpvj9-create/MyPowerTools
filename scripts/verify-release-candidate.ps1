@@ -45,27 +45,37 @@ function Add-Record {
 
 function Invoke-Captured {
     param([string]$FilePath, [string[]]$ArgumentList, [string]$OutputPath)
-    $savedErrorActionPreference = $ErrorActionPreference
-    $nativePreference = Get-Variable -Name PSNativeCommandUseErrorActionPreference -ErrorAction SilentlyContinue
-    if ($null -ne $nativePreference) {
-        $savedNativePreference = $nativePreference.Value
-        Set-Variable -Name PSNativeCommandUseErrorActionPreference -Value $false
+    $startInfo = [Diagnostics.ProcessStartInfo]::new()
+    $startInfo.FileName = $FilePath
+    $startInfo.UseShellExecute = $false
+    $startInfo.CreateNoWindow = $true
+    $startInfo.RedirectStandardOutput = $true
+    $startInfo.RedirectStandardError = $true
+    foreach ($argument in @($ArgumentList)) {
+        $startInfo.ArgumentList.Add([string]$argument)
     }
 
-    $ErrorActionPreference = 'Continue'
-    try {
-        $output = & $FilePath @ArgumentList 2>&1 | Out-String
-        $exitCode = $LASTEXITCODE
+    $process = [Diagnostics.Process]::Start($startInfo)
+    if ($null -eq $process) {
+        throw "Failed to start $FilePath"
     }
-    catch {
-        $output = $_.Exception.ToString()
-        $exitCode = 1
+
+    try {
+        $stdoutTask = $process.StandardOutput.ReadToEndAsync()
+        $stderrTask = $process.StandardError.ReadToEndAsync()
+        if (-not $process.WaitForExit(180000)) {
+            try { $process.Kill($true) } catch {}
+            throw "Command timed out: $FilePath"
+        }
+
+        $output = @(
+            $stdoutTask.GetAwaiter().GetResult()
+            $stderrTask.GetAwaiter().GetResult()
+        ) -join [Environment]::NewLine
+        $exitCode = [int]$process.ExitCode
     }
     finally {
-        $ErrorActionPreference = $savedErrorActionPreference
-        if ($null -ne $nativePreference) {
-            Set-Variable -Name PSNativeCommandUseErrorActionPreference -Value $savedNativePreference
-        }
+        $process.Dispose()
     }
 
     $output | Set-Content -LiteralPath $OutputPath -Encoding UTF8
