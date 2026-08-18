@@ -1,9 +1,0 @@
-{
-  "schemaVersion": "1.0",
-  "surfaceId": "input-monitor.logs",
-  "moduleId": "input-monitor",
-  "kind": "logs",
-  "layout": { "mode": "component" },
-  "uses": ["MptLogViewer", "MptErrorView", "MptEmptyState"],
-  "states": ["loading", "ready", "empty", "error", "disabled"]
-}

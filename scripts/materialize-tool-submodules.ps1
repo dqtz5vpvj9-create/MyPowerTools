@@ -1,6 +1,6 @@
 <#
 .SYNOPSIS
-Materializes seven local tool repositories from artifacts/source-bundle and optionally attaches them as submodules.
+Materializes eight local tool repositories from artifacts/source-bundle and optionally attaches them as submodules.
 
 .DESCRIPTION
 The script creates one independent local Git repository per tool under a sibling
@@ -21,7 +21,7 @@ a tool repository, replace its URL in the superproject and synchronize it:
     git add .gitmodules
 
 .PARAMETER SkipSubmoduleAdd
-Creates or refreshes the seven local repositories without changing the
+Creates or refreshes the eight local repositories without changing the
 superproject working tree, index, tools directory, or .gitmodules.
 
 .PARAMETER ForceRefresh
@@ -73,7 +73,8 @@ $toolIds = @(
     'process-monitor',
     'screenease',
     'smartbird-thermostat',
-    'doubao-computer-use'
+    'doubao-computer-use',
+    'input-monitor'
 )
 
 $generatedReadmeMarker = '<!-- mypowertools-materialized-source -->'
@@ -680,6 +681,6 @@ foreach ($plan in $plans) {
 if ($SkipSubmoduleAdd) {
     Write-Host 'Submodule attachment was skipped; the superproject index and .gitmodules were not changed.'
 } else {
-    Write-Host "Local submodules are under $SuperprojectToolsRoot. Review and commit .gitmodules plus the seven gitlinks."
+    Write-Host "Local submodules are under $SuperprojectToolsRoot. Review and commit .gitmodules plus the eight gitlinks."
     Write-Host 'Replace each file:// URL with its remote URL after publishing the corresponding repository.'
 }

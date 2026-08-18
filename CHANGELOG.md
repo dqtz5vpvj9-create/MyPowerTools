@@ -9,6 +9,7 @@
 - Input Monitor 统计刷新改为 UI 线程投递，热力和应用色条使用不可变画刷，避免跨线程改界面把轨迹卡冲掉。
 - 鼠标轨迹按物理显示器分图，不再把多屏拼成一张虚拟桌面热力。
 - 暂停提醒一点就切换按钮文案和状态，不再等整页统计刷新才有反馈。
+- Input Monitor 源码迁入独立仓库 `MyPowerTools-input-monitor`，父仓库以 submodule 引用。
 
 ## 0.3.11 (unreleased)
 

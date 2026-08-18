@@ -67,6 +67,7 @@ jobs:
             'screenease'
             'smartbird-thermostat'
             'doubao-computer-use'
+            'input-monitor'
           )
           $requiredFiles = @('tool-release.json', 'source-map.json')
           $missing = foreach ($toolId in $toolIds) {

@@ -1,7 +1,0 @@
-artifacts/
-**/bin/
-**/obj/
-current-integration/modules/**/*.dll
-current-integration/modules/**/*.pdb
-current-integration/modules/**/*.deps.json
-current-integration/modules/**/runtimes/

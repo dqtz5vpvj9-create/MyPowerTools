@@ -18,7 +18,8 @@ $toolIds = @(
     'process-monitor',
     'screenease',
     'smartbird-thermostat',
-    'doubao-computer-use'
+    'doubao-computer-use',
+    'input-monitor'
 )
 
 $excludedDirectoryNames = [System.Collections.Generic.HashSet[string]]::new(
@@ -255,7 +256,7 @@ $manifest = [ordered]@{
     schemaVersion = 2
     generatedAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
     layout = 'materialized-submodules'
-    buildInstructions = 'Extract the archive, enter superproject, and run pwsh scripts/publish-windows.ps1. Seven submodule worktrees and two in-tree tools are materialized under superproject/tools.'
+    buildInstructions = 'Extract the archive, enter superproject, and run pwsh scripts/publish-windows.ps1. Eight submodule worktrees and two in-tree tools are materialized under superproject/tools.'
     superproject = [ordered]@{
         git = Get-GitMetadata -WorkingTree $RepoRoot
         snapshot = $superprojectCopy
@@ -267,7 +268,7 @@ $manifest | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath (Join-Path $Outpu
 $readme = @'
 # MyPowerTools complete source bundle
 
-This archive contains the current MyPowerTools superproject, seven materialized tool submodules, and two in-tree tools.
+This archive contains the current MyPowerTools superproject, eight materialized tool submodules, and two in-tree tools.
 
 - `superproject/` contains the suite host, Shell, build scripts, schemas, assets, installer source, and materialized tool submodules.
 - `superproject/tools/<tool-id>/` contains each tool's tracked source, native UI integration, package template, and independent build contract.
