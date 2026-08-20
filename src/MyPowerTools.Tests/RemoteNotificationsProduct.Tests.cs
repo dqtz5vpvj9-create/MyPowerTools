@@ -500,7 +500,7 @@ public sealed class RemoteNotificationsProductTests
     }
 
     [Fact]
-    public void Startup_cleanup_removes_legacy_automatic_replies_but_keeps_human_and_new_events()
+    public void Startup_cleanup_removes_explicit_agent_internal_records_only()
     {
         var records = new[]
         {
@@ -511,6 +511,10 @@ public sealed class RemoteNotificationsProductTests
                 "legacy-task", "default", "[Claude Task] <task-notification> background task", "claude",
                 "2026-08-20T12:01:00Z", "2026-08-20T12:01:01Z", "session-1", "autodroid-52", "claude"),
             new RemoteNotificationRecord(
+                "explicit-internal", "default", "任意内部报告正文", "claude",
+                "2026-08-20T12:01:30Z", "2026-08-20T12:01:31Z", "session-1", "autodroid-52", "claude",
+                "event-internal", "message-internal", "agent_internal", "end_turn"),
+            new RemoteNotificationRecord(
                 "new-reply", "default", "[autodroid-52] current reply", "claude",
                 "2026-08-20T12:02:00Z", "2026-08-20T12:02:01Z", "session-1", "autodroid-52", "claude",
                 "event-1", "message-1", "text", "end_turn")
@@ -518,12 +522,12 @@ public sealed class RemoteNotificationsProductTests
 
         var cleaned = RemoteNotificationsLegacyStore.CleanupClaudeStopNoise(records);
 
-        Assert.Equal(["legacy-reply", "new-reply"], cleaned.Select(item => item.Id));
-        Assert.DoesNotContain(cleaned, item => item.Id == "legacy-task");
+        Assert.Equal(["legacy-reply", "legacy-task", "new-reply"], cleaned.Select(item => item.Id));
+        Assert.DoesNotContain(cleaned, item => item.Id == "explicit-internal");
     }
 
     [Fact]
-    public void Internal_agent_coordination_report_is_filtered_but_human_report_survives()
+    public void Explicit_agent_internal_kind_is_filtered_but_human_kind_survives()
     {
         var internalMessage = new RemoteNotificationRecord(
             "internal",
@@ -534,11 +538,13 @@ public sealed class RemoteNotificationsProductTests
             "",
             "session-internal",
             "autodroid-52",
-            "claude");
+            "claude",
+            ContentKind: "agent_internal");
         var humanMessage = internalMessage with
         {
             Id = "human",
-            Message = "> 请分析这轮实验结果，并告诉我下一步怎么做。\n\n[autodroid-52] 我已完成分析，下一步会给出结论和可复现步骤。"
+            Message = "> 亲自巡查（不派子代理）：检查全部在跑实验 loop 日志。\n\n[autodroid-52] 人工回复保留。",
+            ContentKind = "text"
         };
 
         Assert.True(RemoteNotificationsLegacyStore.IsInternalAgentCommunication(internalMessage));
