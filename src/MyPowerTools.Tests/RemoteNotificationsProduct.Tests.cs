@@ -500,7 +500,7 @@ public sealed class RemoteNotificationsProductTests
     }
 
     [Fact]
-    public void Startup_cleanup_removes_legacy_claude_replies_but_keeps_task_and_new_events()
+    public void Startup_cleanup_removes_legacy_automatic_replies_but_keeps_human_and_new_events()
     {
         var records = new[]
         {
@@ -518,8 +518,8 @@ public sealed class RemoteNotificationsProductTests
 
         var cleaned = RemoteNotificationsLegacyStore.CleanupClaudeStopNoise(records);
 
-        Assert.Equal(["legacy-task", "new-reply"], cleaned.Select(item => item.Id));
-        Assert.Equal("Claude Task", RemoteNotificationsLegacyStore.ExtractLabel(cleaned[0].Message));
+        Assert.Equal(["legacy-reply", "new-reply"], cleaned.Select(item => item.Id));
+        Assert.DoesNotContain(cleaned, item => item.Id == "legacy-task");
     }
 
     [Fact]
