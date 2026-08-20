@@ -523,6 +523,29 @@ public sealed class RemoteNotificationsProductTests
     }
 
     [Fact]
+    public void Internal_agent_coordination_report_is_filtered_but_human_report_survives()
+    {
+        var internalMessage = new RemoteNotificationRecord(
+            "internal",
+            "default",
+            "> 亲自巡查（不派子代理）：检查全部在跑实验 loop 日志；分析子代理是否返回；有新结果立即分析并主动向用户汇报；无新进展则一句话说明。\n>\n[autodroid-52] 巡查小结 + 新动作：三轮画像构建全部失败，下一步补起 B07/B08；监控确认进程在跑。",
+            "claude",
+            "2026-08-21T00:00:00Z",
+            "",
+            "session-internal",
+            "autodroid-52",
+            "claude");
+        var humanMessage = internalMessage with
+        {
+            Id = "human",
+            Message = "> 请分析这轮实验结果，并告诉我下一步怎么做。\n\n[autodroid-52] 我已完成分析，下一步会给出结论和可复现步骤。"
+        };
+
+        Assert.True(RemoteNotificationsLegacyStore.IsInternalAgentCommunication(internalMessage));
+        Assert.False(RemoteNotificationsLegacyStore.IsInternalAgentCommunication(humanMessage));
+    }
+
+    [Fact]
     public void Toast_contract_maps_persistent_to_reminder_and_targets_the_exact_message()
     {
         var notification = Message("message/id 42", "[build] **Complete**\nOpen it.", DateTimeOffset.UtcNow);
