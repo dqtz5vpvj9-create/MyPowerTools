@@ -1,10 +1,10 @@
 {
   "production": {
     "repository": "dqtz5vpvj9-create/MyPowerTools-remote-notifications",
-    "tag": "0.3.2-full-chain",
-    "commit": "62ea72c3d44e177feaa6e9926d31925a89ae3ee5",
-    "artifact_sha256": "d13d69b01d9dcb7bdc1b7146c4034c580f9924059ba870fe1e3022984a8e3e27",
-    "notify_app_version": "1.23.15",
-    "notify_app_sha256": "79306ae0e96ede833f704219a0f0fed2908d56005c24f53259dbbd045bbf5c27"
+    "tag": "0.3.3-sender-routing",
+    "commit": "a295c578eb8ce4ec0bfca60ea8472c6e56959b16",
+    "artifact_sha256": "a05699702610e2cf23c9f7bfbf18924ea4f47f132d7daae8592596a644cfc847",
+    "notify_app_version": "1.23.16",
+    "notify_app_sha256": "15c09fb23308b1d572fe07e81425ca6fd535c4e2d1839447d628c6e051ba7268"
   }
 }
