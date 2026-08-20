@@ -500,6 +500,29 @@ public sealed class RemoteNotificationsProductTests
     }
 
     [Fact]
+    public void Startup_cleanup_removes_legacy_claude_replies_but_keeps_task_and_new_events()
+    {
+        var records = new[]
+        {
+            new RemoteNotificationRecord(
+                "legacy-reply", "default", "> user request\n\n[autodroid-52] long progress reply", "claude",
+                "2026-08-20T12:00:00Z", "2026-08-20T12:00:01Z", "session-1", "autodroid-52", "claude"),
+            new RemoteNotificationRecord(
+                "legacy-task", "default", "[Claude Task] <task-notification> background task", "claude",
+                "2026-08-20T12:01:00Z", "2026-08-20T12:01:01Z", "session-1", "autodroid-52", "claude"),
+            new RemoteNotificationRecord(
+                "new-reply", "default", "[autodroid-52] current reply", "claude",
+                "2026-08-20T12:02:00Z", "2026-08-20T12:02:01Z", "session-1", "autodroid-52", "claude",
+                "event-1", "message-1", "text", "end_turn")
+        };
+
+        var cleaned = RemoteNotificationsLegacyStore.CleanupClaudeStopNoise(records);
+
+        Assert.Equal(["legacy-task", "new-reply"], cleaned.Select(item => item.Id));
+        Assert.Equal("Claude Task", RemoteNotificationsLegacyStore.ExtractLabel(cleaned[0].Message));
+    }
+
+    [Fact]
     public void Toast_contract_maps_persistent_to_reminder_and_targets_the_exact_message()
     {
         var notification = Message("message/id 42", "[build] **Complete**\nOpen it.", DateTimeOffset.UtcNow);
