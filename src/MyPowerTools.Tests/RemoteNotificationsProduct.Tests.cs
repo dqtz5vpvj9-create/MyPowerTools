@@ -475,6 +475,31 @@ public sealed class RemoteNotificationsProductTests
     }
 
     [Fact]
+    public void Startup_cleanup_collapses_only_short_claude_stop_bursts()
+    {
+        var body = "Now the policy side: hold delayed cold starts until their job-relative time.";
+        var records = new[]
+        {
+            new RemoteNotificationRecord(
+                "old", "default", $"[autodroid-52] {body}", "claude",
+                "2026-08-19T12:00:00Z", "2026-08-19T12:00:01Z",
+                "session-1", "autodroid-52", "claude"),
+            new RemoteNotificationRecord(
+                "duplicate", "default", $"[autodroid-52] {body}", "claude",
+                "2026-08-19T12:04:00Z", "2026-08-19T12:04:01Z",
+                "session-1", "autodroid-52", "claude"),
+            new RemoteNotificationRecord(
+                "legitimate", "default", $"[autodroid-52] {body}", "claude",
+                "2026-08-19T13:00:00Z", "2026-08-19T13:00:01Z",
+                "session-1", "autodroid-52", "claude")
+        };
+
+        var cleaned = RemoteNotificationsLegacyStore.CollapseClaudeStopDuplicates(records);
+
+        Assert.Equal(["duplicate", "legitimate"], cleaned.Select(item => item.Id));
+    }
+
+    [Fact]
     public void Toast_contract_maps_persistent_to_reminder_and_targets_the_exact_message()
     {
         var notification = Message("message/id 42", "[build] **Complete**\nOpen it.", DateTimeOffset.UtcNow);
