@@ -4,7 +4,7 @@
     "tag": "0.3.3-sender-routing",
     "commit": "a295c578eb8ce4ec0bfca60ea8472c6e56959b16",
     "artifact_sha256": "a05699702610e2cf23c9f7bfbf18924ea4f47f132d7daae8592596a644cfc847",
-    "notify_app_version": "1.23.16",
-    "notify_app_sha256": "15c09fb23308b1d572fe07e81425ca6fd535c4e2d1839447d628c6e051ba7268"
+    "notify_app_version": "1.23.17",
+    "notify_app_sha256": "166c2b4069d10a1aad697d12719583d3b0fe04f18568f3f997f18fa4df594097"
   }
 }
