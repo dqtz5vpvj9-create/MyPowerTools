@@ -415,6 +415,23 @@ public sealed class RemoteNotificationsProductTests
     }
 
     [Fact]
+    public async Task Visible_message_arrival_keeps_the_inbox_items_source_instance()
+    {
+        var existing = Message("existing", "[alpha] existing", DateTimeOffset.UtcNow.AddMinutes(-3));
+        var incoming = Message("incoming", "[alpha] incoming", DateTimeOffset.UtcNow.AddSeconds(-5));
+        var viewModel = new RemoteNotificationsViewModel(
+            new RemoteNotificationsSnapshot([existing], ["alpha"], null, false),
+            new FakeStore(),
+            new FakePoller(new RemoteNotificationPullResult("ok", [incoming], "")));
+        var visibleMessages = viewModel.VisibleMessages;
+
+        await viewModel.PollAsync();
+
+        Assert.Same(visibleMessages, viewModel.VisibleMessages);
+        Assert.Equal(["incoming", "existing"], visibleMessages.Select(message => message.Id));
+    }
+
+    [Fact]
     public async Task Persisted_seen_ring_drops_a_replayed_message_outside_the_visible_history()
     {
         var replay = Message("server-message-900", "[beta] replay", DateTimeOffset.UtcNow.AddSeconds(-2));
