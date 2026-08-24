@@ -391,6 +391,30 @@ public sealed class RemoteNotificationsProductTests
     }
 
     [Fact]
+    public async Task Hidden_claude_task_does_not_rebind_the_inbox_items_source()
+    {
+        var existing = Message("existing", "[alpha] existing", DateTimeOffset.UtcNow.AddMinutes(-3));
+        var hiddenTask = Message("task", "[Claude Task] background task", DateTimeOffset.UtcNow.AddSeconds(-5));
+        var viewModel = new RemoteNotificationsViewModel(
+            new RemoteNotificationsSnapshot([existing], ["alpha"], null, false),
+            new FakeStore(),
+            new FakePoller(new RemoteNotificationPullResult("ok", [hiddenTask], "")));
+        var visibleMessagesNotifications = 0;
+        viewModel.PropertyChanged += (_, eventArgs) =>
+        {
+            if (eventArgs.PropertyName == nameof(RemoteNotificationsViewModel.VisibleMessages))
+            {
+                visibleMessagesNotifications++;
+            }
+        };
+
+        await viewModel.PollAsync();
+
+        Assert.Equal(["existing"], viewModel.VisibleMessages.Select(message => message.Id));
+        Assert.Equal(0, visibleMessagesNotifications);
+    }
+
+    [Fact]
     public async Task Persisted_seen_ring_drops_a_replayed_message_outside_the_visible_history()
     {
         var replay = Message("server-message-900", "[beta] replay", DateTimeOffset.UtcNow.AddSeconds(-2));
