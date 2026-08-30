@@ -1,0 +1,32 @@
+#include "messages.rc"
+
+1 VERSIONINFO
+    FILEVERSION 2,24,101,0
+    PRODUCTVERSION 2,24,101,0
+    FILEFLAGSMASK 0x3fL
+    FILEFLAGS 0x0L
+    FILEOS 0x40004L
+    FILETYPE 0x1L
+    FILESUBTYPE 0x0L
+BEGIN
+    BLOCK "StringFileInfo"
+    BEGIN
+        BLOCK "040904B0"
+        BEGIN
+            VALUE "Comments", "https://nssm.cc/\0"
+            VALUE "CompanyName", "MyPowerTools\0"
+            VALUE "FileDescription", "NSSM 2.24-101 compatible C# service manager\0"
+            VALUE "FileVersion", "2.24-101-g897c7ad\0"
+            VALUE "LegalCopyright", "Public domain upstream; C# translation in MyPowerTools\0"
+            VALUE "OriginalFileName", "nssm-manager.exe\0"
+            VALUE "ProductName", "nssm-manager 64-bit\0"
+            VALUE "ProductVersion", "2.24-101-g897c7ad\0"
+        END
+    END
+    BLOCK "VarFileInfo"
+    BEGIN
+        VALUE "Translation", 0x0409, 1200
+    END
+END
+
+1 ICON "nssm.ico"

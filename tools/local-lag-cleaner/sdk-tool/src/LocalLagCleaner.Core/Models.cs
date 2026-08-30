@@ -165,6 +165,17 @@ public sealed record ProcessSnapshot(
     public bool MetricsComplete { get; init; } = true;
 }
 
+public sealed record ProcessBreakdownSnapshot(
+    string Name,
+    string KnownRole,
+    int ProcessCount,
+    int ThreadCount,
+    ulong PrivateBytes,
+    ulong WorkingSetBytes,
+    int HandleCount,
+    double CpuPercentMachine,
+    IReadOnlyList<int> SampleProcessIds);
+
 public sealed record McpProcessMember(
     int ProcessId,
     int ParentProcessId,
@@ -408,6 +419,7 @@ public sealed record LagDiagnosticSnapshot(
 {
     public IReadOnlyList<SystemSignalSample> SignalSamples { get; init; } = [];
     public SystemSignalSummary? Signals { get; init; }
+    public IReadOnlyList<ProcessBreakdownSnapshot> ProcessBreakdown { get; init; } = [];
     public IReadOnlyList<ProcessSnapshot> TopIoProcesses { get; init; } = [];
     public IReadOnlyList<DriveSnapshot> Drives { get; init; } = [];
     public GpuSnapshot? Gpu { get; init; }

@@ -16,6 +16,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
+. (Join-Path $PSScriptRoot 'runtime-environment.ps1')
 
 function ConvertTo-SafeRelativePath {
     param([Parameter(Mandatory = $true)][string]$Path)
@@ -289,6 +290,7 @@ $journal = [Collections.Generic.List[object]]::new()
 $completed = $false
 $stoppedProcessRecords = [Collections.Generic.List[object]]::new()
 $runtimeRestarted = $false
+$legacyDotNetRootMigration = Clear-MyPowerToolsLegacyUserDotNetRoot -InstallRoot $targetRootFull
 
 try {
     New-Item -ItemType Directory -Path $extractRoot, $backupRoot -Force | Out-Null
@@ -529,11 +531,7 @@ try {
 
     New-Item -ItemType Directory -Path $stateRootFull -Force | Out-Null
     Copy-Item -LiteralPath $sourceManifestPath -Destination (Join-Path $stateRootFull 'desired-source-manifest.json') -Force
-    $dotnetRoot = Join-Path $targetRootFull 'Runtime\dotnet'
-    if (Test-Path -LiteralPath $dotnetRoot -PathType Container) {
-        [Environment]::SetEnvironmentVariable('DOTNET_ROOT', $dotnetRoot, 'User')
-        [Environment]::SetEnvironmentVariable('DOTNET_ROOT', $dotnetRoot, 'Process')
-    }
+    $runtimeResolution = Set-MyPowerToolsProcessDotNetRoot -InstallRoot $targetRootFull
     $result = [ordered]@{
         success = $true
         transactionId = $transactionId
@@ -546,6 +544,8 @@ try {
         stoppedProcesses = $stoppedProcessRecords.ToArray()
         restartRequired = $stoppedProcessRecords.Count -gt 0
         runtimeRestarted = $runtimeRestarted
+        runtimeSource = [string]$runtimeResolution.source
+        legacyDotNetRootMigration = $legacyDotNetRootMigration
         completedAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
     }
     [IO.File]::WriteAllText(

@@ -1,0 +1,12 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "type": "object",
+  "properties": {
+    "includeAllKeyboardLayouts": {
+      "type": "boolean",
+      "default": false,
+      "title": "显示全部键盘布局"
+    }
+  },
+  "additionalProperties": false
+}

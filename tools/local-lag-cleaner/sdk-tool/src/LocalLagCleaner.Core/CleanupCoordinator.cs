@@ -20,15 +20,19 @@ public sealed class CleanupCoordinator
     private static readonly TimeSpan StateLockTimeout = TimeSpan.FromSeconds(15);
     private const uint ScManagerConnect = 0x0001;
     private const uint ServiceQueryStatus = 0x0004;
+    private const uint ServiceEnumerateDependents = 0x0008;
     private const uint ServiceStart = 0x0010;
     private const uint ServiceStop = 0x0020;
     private const uint ServiceControlStop = 0x00000001;
+    private const uint ServiceActive = 0x00000001;
     private const int ScStatusProcessInfo = 0;
     private const uint ServiceStopped = 0x00000001;
     private const uint ServiceStartPending = 0x00000002;
     private const uint ServiceStopPending = 0x00000003;
     private const uint ServiceRunning = 0x00000004;
     private const int ErrorServiceAlreadyRunning = 1056;
+    private const int ErrorMoreData = 234;
+    private const int ErrorInsufficientBuffer = 122;
     private static readonly IReadOnlyDictionary<CleanupAction, ServiceCleanupDefinition> ServiceDefinitions =
         new Dictionary<CleanupAction, ServiceCleanupDefinition>
         {
@@ -61,6 +65,8 @@ public sealed class CleanupCoordinator
         _stateDirectory = Path.GetFullPath(stateDirectory);
         Directory.CreateDirectory(_stateDirectory);
     }
+
+    public string StateDirectory => _stateDirectory;
 
     public CleanupPlan CreatePlan(
         CleanupAction action,
@@ -972,7 +978,7 @@ public sealed class CleanupCoordinator
 
         if (requiresAdministrator && !allowServiceRestart)
         {
-            throw new InvalidOperationException("该计划会重启 Windows 服务；请使用独立 CLI 并显式传入 --allow-service-restart。");
+            throw new InvalidOperationException("该计划会重启 Windows 服务；请显式确认服务重启。");
         }
 
         if (mayDisconnectSession && !allowDisconnect)
@@ -982,7 +988,7 @@ public sealed class CleanupCoordinator
 
         if (requiresAdministrator && !IsAdministrator())
         {
-            throw new UnauthorizedAccessException("该计划需要管理员权限，请在管理员终端中运行。");
+            throw new UnauthorizedAccessException("该计划需要管理员权限。");
         }
     }
 
@@ -1237,19 +1243,37 @@ public sealed class CleanupCoordinator
         using var serviceHandle = OpenService(
             manager,
             service.ServiceName,
-            ServiceQueryStatus | ServiceStart | ServiceStop);
+            ServiceQueryStatus |
+            ServiceEnumerateDependents |
+            ServiceStart |
+            ServiceStop);
         if (serviceHandle.IsInvalid)
+        {
+            var error = Marshal.GetLastWin32Error();
+            return
+            [
+                new CleanupItemResult(
+                    service.DisplayName,
+                    false,
+                    FormatWin32Failure("无法打开服务", error))
+            ];
+        }
+
+        ServiceStatusProcess initial;
+        try
+        {
+            initial = QueryServiceStatus(serviceHandle);
+        }
+        catch (Win32Exception exception)
         {
             return
             [
                 new CleanupItemResult(
                     service.DisplayName,
                     false,
-                    $"无法打开服务：{new Win32Exception(Marshal.GetLastWin32Error()).Message}")
+                    exception.Message)
             ];
         }
-
-        var initial = QueryServiceStatus(serviceHandle);
         if (initial.CurrentState == ServiceStopped)
         {
             return
@@ -1272,37 +1296,60 @@ public sealed class CleanupCoordinator
             ];
         }
 
+        var dependentServices = service.ServiceName == "TermService"
+            ? EnumerateActiveDependentServices(serviceHandle)
+            : [];
+        var servicesToRestore = new List<ServiceDependency>(dependentServices);
         try
         {
-            if (!ControlService(serviceHandle, ServiceControlStop, out _))
+            foreach (var dependent in dependentServices)
             {
-                throw new Win32Exception(Marshal.GetLastWin32Error(), "停止服务失败。");
+                await StopNamedServiceAsync(
+                        manager,
+                        dependent,
+                        cancellationToken)
+                    .ConfigureAwait(false);
             }
 
-            await WaitForServiceStateAsync(
+            await StopServiceAsync(
                     serviceHandle,
-                    ServiceStopped,
-                    TimeSpan.FromSeconds(30),
+                    service.DisplayName,
                     cancellationToken)
                 .ConfigureAwait(false);
-            StartServiceOrThrow(serviceHandle);
-            await WaitForServiceStateAsync(
+            await StartServiceAsync(
                     serviceHandle,
-                    ServiceRunning,
-                    TimeSpan.FromSeconds(30),
+                    service.DisplayName,
                     cancellationToken)
                 .ConfigureAwait(false);
-            return [new CleanupItemResult(service.DisplayName, true, "服务已重新启动并确认处于运行状态。")];
+            await StartNamedServicesAsync(
+                    manager,
+                    dependentServices.AsEnumerable().Reverse(),
+                    cancellationToken)
+                .ConfigureAwait(false);
+            return
+            [
+                new CleanupItemResult(
+                    service.DisplayName,
+                    true,
+                    dependentServices.Count == 0
+                        ? "服务已重新启动并确认处于运行状态。"
+                        : $"服务已重新启动并确认处于运行状态；同时恢复 {dependentServices.Count} 个依赖服务。")
+            ];
         }
         catch (Exception exception) when (
             exception is Win32Exception or
             TimeoutException or
-            OperationCanceledException)
+            OperationCanceledException or
+            InvalidOperationException)
         {
             var recovered = await TryEnsureServiceRunningAsync(serviceHandle).ConfigureAwait(false);
-            var recoveryMessage = recovered
-                ? "已尽力恢复到运行状态。"
-                : "恢复运行失败，请立即在服务管理器中检查该服务。";
+            var recoveredDependents = await TryEnsureNamedServicesAsync(
+                    manager,
+                    servicesToRestore.AsEnumerable().Reverse())
+                .ConfigureAwait(false);
+            var recoveryMessage = recovered && recoveredDependents
+                ? "已恢复目标服务和依赖服务到运行状态。"
+                : "恢复运行失败，请立即在服务管理器中检查目标服务及其依赖服务。";
             return
             [
                 new CleanupItemResult(
@@ -1311,6 +1358,200 @@ public sealed class CleanupCoordinator
                     $"服务重启失败：{exception.Message} {recoveryMessage}")
             ];
         }
+    }
+
+    private static IReadOnlyList<ServiceDependency> EnumerateActiveDependentServices(
+        SafeServiceHandle serviceHandle)
+    {
+        if (EnumDependentServices(
+                serviceHandle,
+                ServiceActive,
+                IntPtr.Zero,
+                0,
+                out var bytesNeeded,
+                out var servicesReturned))
+        {
+            return [];
+        }
+
+        var error = Marshal.GetLastWin32Error();
+        if (error is not (ErrorMoreData or ErrorInsufficientBuffer) || bytesNeeded <= 0)
+        {
+            if (error == 0)
+            {
+                return [];
+            }
+
+            throw new Win32Exception(
+                error,
+                FormatWin32Failure("枚举服务依赖项失败", error));
+        }
+
+        var buffer = Marshal.AllocHGlobal(bytesNeeded);
+        try
+        {
+            if (!EnumDependentServices(
+                    serviceHandle,
+                    ServiceActive,
+                    buffer,
+                    bytesNeeded,
+                    out _,
+                    out servicesReturned))
+            {
+                error = Marshal.GetLastWin32Error();
+                throw new Win32Exception(
+                    error,
+                    FormatWin32Failure("枚举服务依赖项失败", error));
+            }
+
+            var result = new List<ServiceDependency>(servicesReturned);
+            var itemSize = Marshal.SizeOf<EnumServiceStatusNative>();
+            for (var index = 0; index < servicesReturned; index++)
+            {
+                var item = Marshal.PtrToStructure<EnumServiceStatusNative>(
+                    IntPtr.Add(buffer, checked(index * itemSize)));
+                var serviceName = Marshal.PtrToStringUni(item.ServiceName);
+                var displayName = Marshal.PtrToStringUni(item.DisplayName);
+                if (!string.IsNullOrWhiteSpace(serviceName) &&
+                    item.Status.CurrentState == ServiceRunning)
+                {
+                    result.Add(new ServiceDependency(
+                        serviceName,
+                        string.IsNullOrWhiteSpace(displayName)
+                            ? serviceName
+                            : displayName));
+                }
+            }
+
+            return result;
+        }
+        finally
+        {
+            Marshal.FreeHGlobal(buffer);
+        }
+    }
+
+    private static async Task StopNamedServiceAsync(
+        SafeServiceHandle manager,
+        ServiceDependency service,
+        CancellationToken cancellationToken)
+    {
+        using var handle = OpenService(
+            manager,
+            service.ServiceName,
+            ServiceQueryStatus | ServiceStart | ServiceStop);
+        if (handle.IsInvalid)
+        {
+            var error = Marshal.GetLastWin32Error();
+            throw new Win32Exception(
+                error,
+                FormatWin32Failure($"无法打开依赖服务 {service.DisplayName}", error));
+        }
+
+        await StopServiceAsync(handle, service.DisplayName, cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private static async Task StartNamedServicesAsync(
+        SafeServiceHandle manager,
+        IEnumerable<ServiceDependency> services,
+        CancellationToken cancellationToken)
+    {
+        foreach (var service in services)
+        {
+            using var handle = OpenService(
+                manager,
+                service.ServiceName,
+                ServiceQueryStatus | ServiceStart | ServiceStop);
+            if (handle.IsInvalid)
+            {
+                var error = Marshal.GetLastWin32Error();
+                throw new Win32Exception(
+                    error,
+                    FormatWin32Failure($"无法打开依赖服务 {service.DisplayName}", error));
+            }
+
+            await StartServiceAsync(handle, service.DisplayName, cancellationToken)
+                .ConfigureAwait(false);
+        }
+    }
+
+    private static async Task<bool> TryEnsureNamedServicesAsync(
+        SafeServiceHandle manager,
+        IEnumerable<ServiceDependency> services)
+    {
+        var recovered = true;
+        foreach (var service in services)
+        {
+            try
+            {
+                using var handle = OpenService(
+                    manager,
+                    service.ServiceName,
+                    ServiceQueryStatus | ServiceStart | ServiceStop);
+                if (handle.IsInvalid)
+                {
+                    recovered = false;
+                    continue;
+                }
+
+                recovered &= await TryEnsureServiceRunningAsync(handle)
+                    .ConfigureAwait(false);
+            }
+            catch (Win32Exception)
+            {
+                recovered = false;
+            }
+        }
+
+        return recovered;
+    }
+
+    private static async Task StopServiceAsync(
+        SafeServiceHandle serviceHandle,
+        string displayName,
+        CancellationToken cancellationToken)
+    {
+        var status = QueryServiceStatus(serviceHandle);
+        if (status.CurrentState == ServiceStopped)
+        {
+            return;
+        }
+
+        if (status.CurrentState != ServiceRunning)
+        {
+            throw new InvalidOperationException(
+                $"服务 {displayName} 当前状态为 {ServiceStateName(status.CurrentState)}，无法执行停止。");
+        }
+
+        if (!ControlService(serviceHandle, ServiceControlStop, out _))
+        {
+            var error = Marshal.GetLastWin32Error();
+            throw new Win32Exception(
+                error,
+                FormatWin32Failure($"停止服务 {displayName} 失败", error));
+        }
+
+        await WaitForServiceStateAsync(
+                serviceHandle,
+                ServiceStopped,
+                TimeSpan.FromSeconds(30),
+                cancellationToken)
+            .ConfigureAwait(false);
+    }
+
+    private static async Task StartServiceAsync(
+        SafeServiceHandle serviceHandle,
+        string displayName,
+        CancellationToken cancellationToken)
+    {
+        StartServiceOrThrow(serviceHandle, displayName);
+        await WaitForServiceStateAsync(
+                serviceHandle,
+                ServiceRunning,
+                TimeSpan.FromSeconds(30),
+                cancellationToken)
+            .ConfigureAwait(false);
     }
 
     private static ServiceStatusProcess QueryServiceStatus(SafeServiceHandle serviceHandle)
@@ -1354,7 +1595,9 @@ public sealed class CleanupCoordinator
             $"等待服务进入 {ServiceStateName(expectedState)} 超时；当前状态为 {ServiceStateName(finalStatus.CurrentState)}。");
     }
 
-    private static void StartServiceOrThrow(SafeServiceHandle serviceHandle)
+    private static void StartServiceOrThrow(
+        SafeServiceHandle serviceHandle,
+        string displayName = "服务")
     {
         if (StartServiceNative(serviceHandle, 0, IntPtr.Zero))
         {
@@ -1364,8 +1607,16 @@ public sealed class CleanupCoordinator
         var error = Marshal.GetLastWin32Error();
         if (error != ErrorServiceAlreadyRunning)
         {
-            throw new Win32Exception(error, "启动服务失败。");
+            throw new Win32Exception(
+                error,
+                FormatWin32Failure($"启动服务 {displayName} 失败", error));
         }
+    }
+
+    private static string FormatWin32Failure(string operation, int errorCode)
+    {
+        var systemMessage = new Win32Exception(errorCode).Message;
+        return $"{operation}（Win32 {errorCode}: {systemMessage}）";
     }
 
     private static async Task<bool> TryEnsureServiceRunningAsync(SafeServiceHandle serviceHandle)
@@ -1493,6 +1744,10 @@ public sealed class CleanupCoordinator
         string Impact,
         bool MayDisconnect);
 
+    private sealed record ServiceDependency(
+        string ServiceName,
+        string DisplayName);
+
     private sealed record VerifiedCleanupTarget(CleanupTarget Target, Process Process);
     private sealed record McpCpuSample(
         CleanupTarget Target,
@@ -1525,6 +1780,16 @@ public sealed class CleanupCoordinator
         out ServiceStatusProcess buffer,
         int bufferSize,
         out int bytesNeeded);
+
+    [DllImport("advapi32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool EnumDependentServices(
+        SafeServiceHandle service,
+        uint serviceState,
+        IntPtr services,
+        int bufferSize,
+        out int bytesNeeded,
+        out int servicesReturned);
 
     [DllImport("advapi32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
@@ -1572,6 +1837,14 @@ public sealed class CleanupCoordinator
         public uint WaitHint;
         public uint ProcessId;
         public uint ServiceFlags;
+    }
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct EnumServiceStatusNative
+    {
+        public IntPtr ServiceName;
+        public IntPtr DisplayName;
+        public ServiceStatus Status;
     }
 
     private sealed class SafeServiceHandle : SafeHandleZeroOrMinusOneIsInvalid

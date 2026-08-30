@@ -35,6 +35,7 @@ public sealed class WindowsTrayService : ITrayService, INotificationService
     private const int IDI_APPLICATION = 32512;
     private const int FirstMenuCommandId = 1000;
     private static readonly uint TrayCallbackMessage = WM_APP + 0x4D;
+    private static readonly uint TaskbarCreatedMessage = RegisterWindowMessage("TaskbarCreated");
 
     private readonly object _gate = new();
     private readonly WndProc _wndProc;
@@ -47,6 +48,7 @@ public sealed class WindowsTrayService : ITrayService, INotificationService
     private IntPtr _windowHandle;
     private IntPtr _trayIcon;
     private bool _ownsTrayIcon;
+    private string _trayToolTip = "MyPowerTools";
     private string _state = "idle";
     private bool _disposed;
 
@@ -351,6 +353,7 @@ public sealed class WindowsTrayService : ITrayService, INotificationService
         {
             _trayIcon = icon;
             _ownsTrayIcon = ownsIcon;
+            _trayToolTip = Trim(options.ToolTip, 127);
         }
 
         return new NOTIFYICONDATA
@@ -451,6 +454,7 @@ public sealed class WindowsTrayService : ITrayService, INotificationService
             ownedPreviousIcon = _ownsTrayIcon;
             _trayIcon = icon;
             _ownsTrayIcon = true;
+            _trayToolTip = Trim(toolTip, 127);
         }
 
         if (ownedPreviousIcon && previousIcon != IntPtr.Zero)
@@ -493,8 +497,66 @@ public sealed class WindowsTrayService : ITrayService, INotificationService
         return $" · resets in {(int)remaining.TotalHours}h {remaining.Minutes}m";
     }
 
+    private void RestoreTrayIcon(IntPtr handle)
+    {
+        IntPtr icon;
+        string toolTip;
+        lock (_gate)
+        {
+            if (_disposed || _state != "running" || _windowHandle != handle)
+            {
+                return;
+            }
+
+            icon = _trayIcon;
+            toolTip = _trayToolTip;
+        }
+
+        if (icon == IntPtr.Zero)
+        {
+            return;
+        }
+
+        var data = new NOTIFYICONDATA
+        {
+            cbSize = (uint)Marshal.SizeOf<NOTIFYICONDATA>(),
+            hWnd = handle,
+            uID = 1,
+            uFlags = NIF_MESSAGE | NIF_ICON | NIF_TIP,
+            uCallbackMessage = TrayCallbackMessage,
+            hIcon = icon,
+            szTip = Trim(toolTip, 127),
+            szInfo = "",
+            szInfoTitle = ""
+        };
+
+        var restored = Shell_NotifyIcon(NIM_ADD, ref data);
+        if (!restored)
+        {
+            // Explorer can keep a stale entry while rebuilding the notification
+            // area. NIM_MODIFY repairs that entry without creating a duplicate.
+            restored = Shell_NotifyIcon(NIM_MODIFY, ref data);
+        }
+
+        if (restored)
+        {
+            data.uTimeoutOrVersion = NOTIFYICON_VERSION_4;
+            Shell_NotifyIcon(NIM_SETVERSION, ref data);
+            Console.WriteLine("MyPowerTools Windows tray icon re-registered after Explorer refresh.");
+            return;
+        }
+
+        Console.WriteLine($"MyPowerTools Windows tray icon restore failed with Win32 error {Marshal.GetLastWin32Error()}.");
+    }
+
     private IntPtr WindowProcedure(IntPtr hWnd, uint message, IntPtr wParam, IntPtr lParam)
     {
+        if (TaskbarCreatedMessage != 0 && message == TaskbarCreatedMessage)
+        {
+            RestoreTrayIcon(hWnd);
+            return IntPtr.Zero;
+        }
+
         if (message == TrayCallbackMessage)
         {
             var eventCode = unchecked((uint)lParam.ToInt64() & 0xFFFF);
@@ -638,6 +700,9 @@ public sealed class WindowsTrayService : ITrayService, INotificationService
     }
 
     private delegate IntPtr WndProc(IntPtr hWnd, uint message, IntPtr wParam, IntPtr lParam);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
+    private static extern uint RegisterWindowMessage(string lpString);
 
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
     private struct WNDCLASSEX

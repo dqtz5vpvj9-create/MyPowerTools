@@ -11,6 +11,8 @@ internal static class Program
     [STAThread]
     public static int Main(string[] args)
     {
+        var installRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, ".."));
+        DotNetRuntimeEnvironment.ConfigureCurrentProcess(installRoot);
         ShellStartupDiagnostics.Mark("managed-entry");
         var startupOptions = ShellStartupOptions.FromArgs(args);
         if (args.Contains("--smoke", StringComparer.OrdinalIgnoreCase))

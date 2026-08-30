@@ -15,6 +15,7 @@ using MyPowerTools.Runtime;
 using MyPowerTools.ServiceManager.Client;
 
 var root = FindRepositoryRoot(AppContext.BaseDirectory);
+DotNetRuntimeEnvironment.ConfigureCurrentProcess(root);
 PrependAndroidPlatformToolsToPath(root);
 var modulesRoot = GetOption(args, "--modules") ?? Path.Combine(root, "modules");
 var once = args.Contains("--once", StringComparer.OrdinalIgnoreCase);
@@ -136,6 +137,12 @@ app.MapGet("/", () => $"MyPowerTools.Runner {ProtocolConstants.HostVersion} is r
 Console.WriteLine($"MyPowerTools.Runner serving HostControl on {endpoint.Transport}:{endpoint.Address}");
 var tray = await StartTrayAsync(app, root, runtimePaths.Root, args, platformPack);
 var hotkeys = await StartHotkeysAsync(root, runtimePaths.Root, args, platformPack, runtime);
+ElevatedWinSpaceShiftRemapperController? winSpaceShiftRemapper = null;
+if (OperatingSystem.IsWindows())
+{
+    winSpaceShiftRemapper = new ElevatedWinSpaceShiftRemapperController(runtimePaths.Root);
+    winSpaceShiftRemapper.Start();
+}
 if (!args.Contains("--no-shell-prewarm", StringComparer.OrdinalIgnoreCase))
 {
     TryPrewarmShell(root, runtimePaths.Root);
@@ -159,6 +166,8 @@ finally
     {
         await hotkeys.DisposeAsync();
     }
+
+    winSpaceShiftRemapper?.Dispose();
 
     if (tray is not null)
     {
@@ -483,6 +492,7 @@ static ProcessStartInfo CreateShellStartInfo(
         };
         launcherStartInfo.ArgumentList.Add("--data-root");
         launcherStartInfo.ArgumentList.Add(dataRoot);
+        DotNetRuntimeEnvironment.ConfigureChildProcess(launcherStartInfo, root);
         return launcherStartInfo;
     }
 
@@ -496,6 +506,7 @@ static ProcessStartInfo CreateShellStartInfo(
         };
         AddShellArguments(siblingStartInfo, focusCommandPalette, prewarm, shutdownShell);
         siblingStartInfo.Environment[HostControlAuthTokenStore.DataRootEnvironmentVariable] = dataRoot;
+        DotNetRuntimeEnvironment.ConfigureChildProcess(siblingStartInfo, root);
         return siblingStartInfo;
     }
 
@@ -509,6 +520,7 @@ static ProcessStartInfo CreateShellStartInfo(
         };
         AddShellArguments(debugStartInfo, focusCommandPalette, prewarm, shutdownShell);
         debugStartInfo.Environment[HostControlAuthTokenStore.DataRootEnvironmentVariable] = dataRoot;
+        DotNetRuntimeEnvironment.ConfigureChildProcess(debugStartInfo, root);
         return debugStartInfo;
     }
 
@@ -529,6 +541,7 @@ static ProcessStartInfo CreateShellStartInfo(
         prewarm,
         shutdownShell,
         throughDotnetRun: true);
+    DotNetRuntimeEnvironment.ConfigureChildProcess(startInfo, root);
     return startInfo;
 }
 

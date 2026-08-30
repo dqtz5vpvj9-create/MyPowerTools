@@ -28,12 +28,16 @@
     <ProjectReference Include="..\..\tools\local-lag-cleaner\sdk-tool\src\LocalLagCleaner.Core\LocalLagCleaner.Core.csproj" />
     <ProjectReference Include="..\..\tools\local-lag-cleaner\sdk-tool\src\LocalLagCleaner.Runtime\LocalLagCleaner.Runtime.csproj" ReferenceOutputAssembly="false" />
     <ProjectReference Include="..\..\tools\local-lag-cleaner\sdk-tool\src\LocalLagCleaner.Tool\LocalLagCleaner.Tool.csproj" />
+    <ProjectReference Include="..\..\tools\ime-manager\sdk-tool\src\ImeManager.Core\ImeManager.Core.csproj" />
+    <ProjectReference Include="..\..\tools\ime-manager\sdk-tool\src\ImeManager.Runtime\ImeManager.Runtime.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\..\tools\ime-manager\sdk-tool\src\ImeManager.Tool\ImeManager.Tool.csproj" />
     <ProjectReference Include="..\..\tools\remote-notifications\current-integration\src\AndroidTools.MyPowerTools\AndroidTools.MyPowerTools.csproj" />
     <ProjectReference Include="..\..\tools\doubao-computer-use\current-integration\src\DoubaoAgent.MyPowerTools\DoubaoAgent.MyPowerTools.csproj" />
     <ProjectReference Include="..\MyPowerTools.Protocol\MyPowerTools.Protocol.csproj" />
     <ProjectReference Include="..\MyPowerTools.Packaging\MyPowerTools.Packaging.csproj" />
     <ProjectReference Include="..\MyPowerTools.Platform.Linux\MyPowerTools.Platform.Linux.csproj" />
     <ProjectReference Include="..\MyPowerTools.Platform.Mac\MyPowerTools.Platform.Mac.csproj" />
+    <ProjectReference Include="..\MyPowerTools.Platform.Abstractions\MyPowerTools.Platform.Abstractions.csproj" />
     <ProjectReference Include="..\MyPowerTools.Platform.Windows\MyPowerTools.Platform.Windows.csproj" />
     <ProjectReference Include="..\MyPowerTools.Runtime\MyPowerTools.Runtime.csproj" />
     <ProjectReference Include="..\MyPowerTools.UI\MyPowerTools.UI.csproj" />

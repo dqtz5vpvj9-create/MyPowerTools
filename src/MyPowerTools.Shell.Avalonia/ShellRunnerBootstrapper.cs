@@ -159,7 +159,9 @@ public static class ShellRunnerBootstrapper
         var releaseRunner = Path.Combine(appRoot, "Runner", ExecutableName("MyPowerTools.Runner"));
         if (File.Exists(releaseRunner))
         {
-            return CreateRunnerStartInfo(releaseRunner, appRoot, modulesRoot, dataRoot);
+            var releaseStartInfo = CreateRunnerStartInfo(releaseRunner, appRoot, modulesRoot, dataRoot);
+            DotNetRuntimeEnvironment.ConfigureChildProcess(releaseStartInfo, appRoot);
+            return releaseStartInfo;
         }
 
         var repositoryRoot = FindRepositoryRoot(AppContext.BaseDirectory);
@@ -172,7 +174,9 @@ public static class ShellRunnerBootstrapper
         var debugRunner = Path.Combine(repositoryRoot, "artifacts", "build", "bin", "MyPowerTools.Runner", "debug", ExecutableName("MyPowerTools.Runner"));
         if (File.Exists(debugRunner))
         {
-            return CreateRunnerStartInfo(debugRunner, repositoryRoot, modulesRoot, dataRoot);
+            var debugStartInfo = CreateRunnerStartInfo(debugRunner, repositoryRoot, modulesRoot, dataRoot);
+            DotNetRuntimeEnvironment.ConfigureChildProcess(debugStartInfo, repositoryRoot);
+            return debugStartInfo;
         }
 
         var runnerProject = Path.Combine(repositoryRoot, "src", "MyPowerTools.Runner", "MyPowerTools.Runner.csproj");
@@ -194,6 +198,7 @@ public static class ShellRunnerBootstrapper
         startInfo.ArgumentList.Add(runnerProject);
         startInfo.ArgumentList.Add("--");
         AddRunnerArguments(startInfo, modulesRoot, dataRoot);
+        DotNetRuntimeEnvironment.ConfigureChildProcess(startInfo, repositoryRoot);
         return startInfo;
     }
 

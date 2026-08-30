@@ -113,7 +113,27 @@ public static class LagReportWriter
                 builder.AppendLine($"因果链：{finding.CausalChain}");
                 builder.AppendLine();
             }
-            builder.AppendLine($"建议：{finding.Recommendation}");
+            builder.AppendLine($"处理方法：{finding.Recommendation}");
+            builder.AppendLine();
+        }
+
+        if (snapshot.ProcessBreakdown.Count > 0)
+        {
+            builder.AppendLine("## 后台进程拆分");
+            builder.AppendLine();
+            builder.AppendLine(
+                $"按进程名和已知服务角色聚合；总进程 {snapshot.ProcessCount:n0} 个，已归类 {snapshot.ProcessBreakdown.Sum(item => item.ProcessCount):n0} 个。扫描期间进程创建、退出或权限差异会造成少量数量变化。");
+            builder.AppendLine();
+            builder.AppendLine("| 进程组 | 已知角色 | 数量 | 线程 | 私有提交 | 工作集 | 整机 CPU | 句柄 | 示例 PID |");
+            builder.AppendLine("|---|---|---:|---:|---:|---:|---:|---:|---|");
+            foreach (var group in snapshot.ProcessBreakdown.Take(24))
+            {
+                builder.AppendLine(
+                    $"| {Escape(group.Name)} | {Escape(group.KnownRole)} | {group.ProcessCount:n0} | {group.ThreadCount:n0} | {LagDiagnosticsEngine.FormatBytes(group.PrivateBytes)} | {LagDiagnosticsEngine.FormatBytes(group.WorkingSetBytes)} | {group.CpuPercentMachine:n1}% | {group.HandleCount:n0} | {string.Join(", ", group.SampleProcessIds)} |");
+            }
+            builder.AppendLine();
+            builder.AppendLine(
+                "处理方法：先按数量、线程和服务角色确认来源；有可信 MCP 残留时使用专清计划，其余目标逐项退出或停用后复测，避免批量结束 svchost 等系统宿主。");
             builder.AppendLine();
         }
 

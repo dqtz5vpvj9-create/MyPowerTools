@@ -201,6 +201,20 @@
       "retention": { "mode": "count", "keep": 1 }
     },
     {
+      "path": "release/win-x64-core",
+      "class": "output",
+      "producer": "scripts/publish-windows.ps1 -Distribution Web",
+      "purpose": "Runtime-free Windows core layout for the web distribution.",
+      "retention": { "mode": "count", "keep": 1 }
+    },
+    {
+      "path": "release/runtime-components",
+      "class": "output",
+      "producer": "scripts/new-runtime-components.ps1",
+      "purpose": "Signed app-private runtime component archives consumed by Web Setup.",
+      "retention": { "mode": "count", "keep": 1 }
+    },
+    {
       "path": "release/module-packages",
       "class": "output",
       "producer": "scripts/publish-windows.ps1",
@@ -229,6 +243,13 @@
       "retention": { "mode": "count", "keep": 6 }
     },
     {
+      "path": "release/ota-web/*",
+      "class": "output",
+      "producer": "scripts/publish-windows.ps1 -Distribution Web",
+      "purpose": "Core-only OTA delta packages for web installations.",
+      "retention": { "mode": "count", "keep": 6 }
+    },
+    {
       "path": "release/managed-smoke",
       "class": "evidence",
       "producer": "scripts/publish-windows.ps1",
@@ -247,6 +268,20 @@
       "class": "output",
       "producer": "scripts/publish-windows.ps1",
       "purpose": "Checksum beside the installer.",
+      "retention": { "mode": "count", "keep": 1 }
+    },
+    {
+      "path": "release/MyPowerTools-Web-Setup-*-win-x64.exe",
+      "class": "output",
+      "producer": "installer/MyPowerTools.Web.iss via scripts/publish-windows.ps1",
+      "purpose": "Small network bootstrap installer for the web distribution.",
+      "retention": { "mode": "count", "keep": 1 }
+    },
+    {
+      "path": "release/MyPowerTools-Web-Setup-*-win-x64.exe.sha256",
+      "class": "output",
+      "producer": "scripts/publish-windows.ps1",
+      "purpose": "Checksum beside the web bootstrap installer.",
       "retention": { "mode": "count", "keep": 1 }
     },
     {
@@ -458,6 +493,13 @@
       "class": "evidence",
       "producer": "manual remote-notifications investigation sessions",
       "purpose": "Patches, reports and server builds from notification debugging.",
+      "retention": { "mode": "age", "maxAgeDays": 30 }
+    },
+    {
+      "path": "nssm-compat",
+      "class": "evidence",
+      "producer": "tools/nssm-manager compatibility and differential tests",
+      "purpose": "NSSM 2.24-101 command, registry, SCM, process and log differential evidence.",
       "retention": { "mode": "age", "maxAgeDays": 30 }
     },
     {

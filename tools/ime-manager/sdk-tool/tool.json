@@ -1,0 +1,98 @@
+{
+  "schemaVersion": "1.0",
+  "version": "0.1.0",
+  "toolId": "ime-manager",
+  "ownerModuleId": "ime-manager",
+  "title": "输入法管理器",
+  "description": "管理当前 Windows 用户已启用的输入法：设默认、挑选常用项、调整切换顺序和快捷键，并可把 Win+Space 映射为 Shift。",
+  "icon": "system.health",
+  "category": "System",
+  "type": "dotnet-surface",
+  "availability": "available",
+  "primaryRouteId": "overview",
+  "routes": [
+    {
+      "routeId": "overview",
+      "surfaceId": "ime-manager.overview",
+      "title": "输入法管理",
+      "icon": "diagnostics",
+      "surface": {
+        "kind": "dotnet",
+        "assembly": "src/ImeManager.Tool/bin/Release/net10.0/ImeManager.Tool.dll",
+        "type": "ImeManager.Tool.ImeManagerSurfaceFactory"
+      }
+    }
+  ],
+  "homeCard": {
+    "summary": "像搜狗输入法管理器那样管理已启用输入法，只改当前用户设置，不安装任何输入法软件。",
+    "primaryActionLabel": "管理输入法",
+    "order": 3
+  },
+  "runtime": {
+    "transport": "stdio-jsonrpc",
+    "command": "src/ImeManager.Runtime/bin/Release/net10.0/ImeManager.Runtime.exe",
+    "args": [],
+    "timeoutMs": 30000
+  },
+  "settings": {
+    "schema": "settings.schema.json",
+    "values": "settings.json",
+    "secrets": []
+  },
+  "commands": [
+    {
+      "id": "ime-manager.health",
+      "title": "检查输入法 Runtime",
+      "description": "验证隔离输入法 Runtime 可启动。"
+    },
+    {
+      "id": "ime-manager.snapshot",
+      "title": "读取输入法列表",
+      "description": "读取当前用户已启用和已安装的输入法、默认项和切换快捷键。",
+      "kind": "action",
+      "requiresElevation": false,
+      "dangerLevel": "low",
+      "category": "Input methods",
+      "timeoutMs": 30000,
+      "execution": {
+        "type": "module.execute"
+      },
+      "constraints": [],
+      "supportsProgress": false,
+      "supportsCancellation": true
+    },
+    {
+      "id": "ime-manager.apply",
+      "title": "应用输入法列表",
+      "description": "按草稿写入当前用户的已启用输入法、顺序、默认项、切换快捷键和 Win+Space 映射。",
+      "kind": "action",
+      "requiresElevation": false,
+      "dangerLevel": "medium",
+      "category": "Input methods",
+      "timeoutMs": 30000,
+      "execution": {
+        "type": "module.execute",
+        "mutatesSystemState": true
+      },
+      "constraints": [
+        "mutatesSystemState"
+      ],
+      "supportsProgress": false,
+      "supportsCancellation": false
+    }
+  ],
+  "permissions": [
+    {
+      "id": "user-input-methods",
+      "level": "user",
+      "capability": "system.input-method.manage",
+      "reason": "读取并更新当前用户已启用的键盘布局和文字服务，不修改其他用户或 HKLM 安装状态。"
+    }
+  ],
+  "dataRoots": [],
+  "dataRetention": "preserve",
+  "development": {
+    "loose": true,
+    "autoRefresh": true
+  }
+}

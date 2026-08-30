@@ -3,6 +3,7 @@
   <ItemGroup>
     <ProjectReference Include="..\MyPowerTools.Platform.Abstractions\MyPowerTools.Platform.Abstractions.csproj" />
     <ProjectReference Include="..\MyPowerTools.Platform.Windows\MyPowerTools.Platform.Windows.csproj" />
+    <Compile Include="..\MyPowerTools.Runner\WindowsWinSpaceShiftRemapper.cs" Link="WindowsWinSpaceShiftRemapper.cs" />
   </ItemGroup>
 
   <PropertyGroup>

@@ -1,0 +1,1 @@
+{ "schemaVersion": "1.0", "surfaceId": "nssm-manager.settings", "moduleId": "nssm-manager", "kind": "settings", "layout": { "mode": "schema" }, "uses": ["MptSettingsSection", "MptSettingRow"], "states": ["ready", "error", "disabled"] }

@@ -8,6 +8,8 @@ using MyPowerTools.ServiceManager.Server;
 
 // The ServiceManager is an independent, long-running process: the single execution plane
 // for Service Units. Shell and Runner are clients. A Runner restart never affects units.
+var installRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, ".."));
+DotNetRuntimeEnvironment.ConfigureCurrentProcess(installRoot);
 var dataRoot = GetOption(args, "--data-root")
     ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MyPowerTools");
 using var daemonConsole = DaemonProcessConsole.Initialize(

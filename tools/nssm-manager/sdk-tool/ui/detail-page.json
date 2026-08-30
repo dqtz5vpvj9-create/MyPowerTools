@@ -1,0 +1,1 @@
+{ "schemaVersion": "1.0", "surfaceId": "nssm-manager.detail", "moduleId": "nssm-manager", "kind": "detail-page", "layout": { "mode": "component" }, "uses": ["MptModuleHeader", "MptErrorView", "MptLoadingView", "MptPermissionPrompt"], "states": ["loading", "ready", "empty", "error", "permission-required", "disabled"] }

@@ -8,6 +8,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'runtime-environment.ps1')
 
 function Invoke-NativeQuiet {
     param(
@@ -219,7 +220,11 @@ function Deploy-UnitManifests {
         $environment['MPT_DATA_ROOT'] = $DataRootFull
         $environment['MPT_TOOL_DATA_ROOT'] = $toolDataRoot
         $environment['MPT_INSTALL_ROOT'] = $InstallRootFull
-        $environment['DOTNET_ROOT'] = $dotnetRoot
+        if (-not [string]::IsNullOrWhiteSpace($dotnetRoot)) {
+            $environment['DOTNET_ROOT'] = $dotnetRoot
+        } else {
+            [void]$environment.Remove('DOTNET_ROOT')
+        }
         $manifest.environment = $environment
         $manifest.dataRoots = @($toolDataRoot)
 
@@ -273,8 +278,8 @@ $serviceManagerRunName = 'MyPowerTools.ServiceManager'
 $currentSessionId = (Get-Process -Id $PID).SessionId
 $savedDataRoot = [Environment]::GetEnvironmentVariable('MPT_DATA_ROOT', 'Process')
 [Environment]::SetEnvironmentVariable('MPT_DATA_ROOT', $dataRootFull, 'Process')
-$dotnetRoot = Join-Path $installRootFull 'Runtime\dotnet'
-[Environment]::SetEnvironmentVariable('DOTNET_ROOT', $dotnetRoot, 'Process')
+$runtimeResolution = Set-MyPowerToolsProcessDotNetRoot -InstallRoot $installRootFull
+$dotnetRoot = [string]$runtimeResolution.root
 
 try {
     if ($Mode -eq 'Uninstall') {

@@ -260,12 +260,25 @@ jobs:
             if (Test-Path -LiteralPath $downloaded -PathType Leaf) {
               Copy-Item -LiteralPath $downloaded -Destination $versioned -Force
             }
+            if ($assetNames -contains 'MyPowerTools-core-win-x64.manifest.json') {
+              gh release download $tagName --repo dqtz5vpvj9-create/MyPowerTools --pattern MyPowerTools-core-win-x64.manifest.json --dir ota-history --clobber
+              $coreDownloaded = Join-Path ota-history 'MyPowerTools-core-win-x64.manifest.json'
+              if (Test-Path -LiteralPath $coreDownloaded -PathType Leaf) {
+                Copy-Item -LiteralPath $coreDownloaded -Destination (Join-Path ota-history "MyPowerTools-core-win-x64-$version.manifest.json") -Force
+              }
+            }
           }
           exit 0
 
       - name: Prepare runtime cache
         shell: pwsh
         run: pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\prepare-runtime-cache.ps1
+
+      - name: Verify .NET runtime isolation
+        shell: pwsh
+        run: |
+          pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\verify-dotnet-runtime-isolation.ps1
+          pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\test-runtime-environment.ps1
 
       - name: Publish Windows release assets
         shell: pwsh
@@ -276,6 +289,7 @@ jobs:
           $args = @(
             '-NoLogo', '-NoProfile', '-NonInteractive',
             '-File', 'scripts\publish-windows.ps1',
+            '-Distribution', 'All',
             '-Version', '${{ steps.release-info.outputs.version }}',
             '-Channel', '${{ steps.release-info.outputs.channel }}',
             '-PreferGitTag'
@@ -291,6 +305,10 @@ jobs:
             $args += $key
           }
           pwsh.exe @args
+
+      - name: Verify Windows release size budgets
+        shell: pwsh
+        run: pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\verify-release-size.ps1
 
       - name: Publish tool package OTA feeds
         shell: pwsh
@@ -319,6 +337,7 @@ jobs:
           $version = '${{ steps.release-info.outputs.version }}'
           Copy-Item -LiteralPath artifacts\release\MyPowerTools-win-x64.manifest.json -Destination ota-history\MyPowerTools-win-x64.manifest.json -Force
           Copy-Item -LiteralPath artifacts\release\MyPowerTools-win-x64.manifest.json -Destination (Join-Path ota-history "MyPowerTools-win-x64-$version.manifest.json") -Force
+          Copy-Item -LiteralPath artifacts\release\MyPowerTools-core-win-x64.manifest.json -Destination (Join-Path ota-history "MyPowerTools-core-win-x64-$version.manifest.json") -Force
 
       - name: Create GitHub Release
         shell: pwsh
@@ -331,15 +350,23 @@ jobs:
             'artifacts/release/MyPowerTools-win-x64.zip'
             'artifacts/release/MyPowerTools-win-x64.zip.sha256'
             'artifacts/release/MyPowerTools-win-x64.manifest.json'
+            'artifacts/release/MyPowerTools-core-win-x64.zip'
+            'artifacts/release/MyPowerTools-core-win-x64.zip.sha256'
+            'artifacts/release/MyPowerTools-core-win-x64.manifest.json'
             'artifacts/release/channel-' + $channel + '.json'
             'artifacts/release/channel-' + $channel + '.json.sig'
+            'artifacts/release/channel-' + $channel + '-web.json'
+            'artifacts/release/channel-' + $channel + '-web.json.sig'
             'artifacts/release/ota-signing-public-key.txt'
             'artifacts/release/ota-signing-public-key-' + $channel + '.txt'
             'artifacts/release/release-metadata.json'
             'artifacts/release/RELEASE_NOTES.md'
           ) | Where-Object { Test-Path -LiteralPath $_ }
           $assets += Get-ChildItem -LiteralPath artifacts/release/ota -File -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName }
+          $assets += Get-ChildItem -LiteralPath artifacts/release/ota-web -File -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName }
           $assets += Get-ChildItem -LiteralPath artifacts/release -Filter 'MyPowerTools-Setup-*.exe*' -File -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName }
+          $assets += Get-ChildItem -LiteralPath artifacts/release -Filter 'MyPowerTools-Web-Setup-*.exe*' -File -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName }
+          $assets += Get-ChildItem -LiteralPath artifacts/release/runtime-components -File -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName }
           $assets += Get-ChildItem -LiteralPath artifacts/release -Filter 'MyPowerTools-Source-*.zip*' -File -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName }
           $assets += Get-ChildItem -LiteralPath artifacts/release/packages -Recurse -File -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName }
           $assets = @($assets | Select-Object -Unique)

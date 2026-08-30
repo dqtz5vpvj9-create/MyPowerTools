@@ -6,6 +6,7 @@ using System.Runtime.InteropServices;
 using System.Text.Json;
 using Microsoft.Win32.SafeHandles;
 using MyPowerTools.Abstractions;
+using MyPowerTools.Platform.Abstractions;
 
 namespace MyPowerTools.App;
 
@@ -30,6 +31,7 @@ internal static class Program
         }
 
         var root = FindApplicationRoot(AppContext.BaseDirectory);
+        DotNetRuntimeEnvironment.ConfigureCurrentProcess(root);
         var shell = Path.Combine(root, "Shell", ExecutableName("MyPowerTools.Shell.Avalonia"));
         if (!File.Exists(shell))
         {
@@ -46,6 +48,7 @@ internal static class Program
         };
 
         PrependAndroidPlatformToolsToPath(startInfo, root);
+        DotNetRuntimeEnvironment.ConfigureChildProcess(startInfo, root);
         AddDefaultShellArguments(startInfo, root, launchArguments);
         var shellProcess = Process.Start(startInfo);
         if (shellProcess is not null)
@@ -257,6 +260,7 @@ internal static class Program
             startInfo.ArgumentList.Add(dataRoot);
             startInfo.ArgumentList.Add("--deploy-root");
             startInfo.ArgumentList.Add(deployRoot);
+            DotNetRuntimeEnvironment.ConfigureChildProcess(startInfo, root);
             Process.Start(startInfo);
         }
         catch

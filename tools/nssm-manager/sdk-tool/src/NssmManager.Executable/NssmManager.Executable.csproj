@@ -1,0 +1,30 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <RuntimeIdentifier>win-x64</RuntimeIdentifier>
+    <SelfContained>true</SelfContained>
+    <PublishAot>true</PublishAot>
+    <PublishSingleFile>false</PublishSingleFile>
+    <PublishReadyToRun>false</PublishReadyToRun>
+    <PublishTrimmed>true</PublishTrimmed>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <StripSymbols>true</StripSymbols>
+    <DebugType>none</DebugType>
+    <DebugSymbols>false</DebugSymbols>
+    <CopyOutputSymbolsToPublishDirectory>false</CopyOutputSymbolsToPublishDirectory>
+    <AllowedReferenceRelatedFileExtensions></AllowedReferenceRelatedFileExtensions>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>nssm-manager</AssemblyName>
+    <RootNamespace>NssmManager.Executable</RootNamespace>
+    <Version>2.24.101</Version>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\NssmManager.Contracts\NssmManager.Contracts.csproj" />
+    <ProjectReference Include="..\NssmManager.Compatibility\NssmManager.Compatibility.csproj" />
+    <ProjectReference Include="..\NssmManager.Windows\NssmManager.Windows.csproj" />
+    <ProjectReference Include="..\NssmManager.Supervisor\NssmManager.Supervisor.csproj" />
+    <Compile Include="..\NssmManager.Runtime\NssmElevatedClient.cs" Link="Broker\NssmElevatedClient.cs" />
+  </ItemGroup>
+</Project>

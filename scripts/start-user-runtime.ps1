@@ -8,6 +8,7 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
+. (Join-Path $PSScriptRoot 'runtime-environment.ps1')
 
 function ConvertTo-WindowsCommandLineArgument {
     param([AllowEmptyString()][string]$Value)
@@ -47,12 +48,11 @@ $installRootFull = [IO.Path]::GetFullPath($InstallRoot)
 $canonicalInstallRoot = [IO.Path]::GetFullPath((Join-Path $env:LOCALAPPDATA 'Programs\MyPowerTools'))
 $dataRootFull = [IO.Path]::GetFullPath($DataRoot)
 $sessionId = (Get-Process -Id $PID).SessionId
-$dotnetRoot = Join-Path $installRootFull 'Runtime\dotnet'
-[Environment]::SetEnvironmentVariable('DOTNET_ROOT', $dotnetRoot, 'Process')
-
 if (-not $installRootFull.Equals($canonicalInstallRoot, [StringComparison]::OrdinalIgnoreCase)) {
     throw "MyPowerTools runtime requires the canonical install root $canonicalInstallRoot. InstallRoot=$installRootFull"
 }
+[void](Clear-MyPowerToolsLegacyUserDotNetRoot -InstallRoot $installRootFull)
+$runtimeResolution = Set-MyPowerToolsProcessDotNetRoot -InstallRoot $installRootFull
 if ($sessionId -eq 0) {
     throw 'MyPowerTools runtime launch is blocked in Windows Session 0.'
 }

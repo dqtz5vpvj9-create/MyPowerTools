@@ -10,6 +10,7 @@
     <ApplicationManifest>app.manifest</ApplicationManifest>
     <AssemblyName>MyPowerTools.WebToolHost</AssemblyName>
     <RootNamespace>MyPowerTools.WebToolHost</RootNamespace>
+    <AppHostRelativeDotNet Condition="$([System.String]::Copy('$(RuntimeIdentifier)').StartsWith('win-'))">..\..\Runtime\dotnet</AppHostRelativeDotNet>
   </PropertyGroup>
 
   <ItemGroup>

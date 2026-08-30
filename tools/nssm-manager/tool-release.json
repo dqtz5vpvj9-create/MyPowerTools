@@ -1,0 +1,13 @@
+{
+  "schemaVersion": 1,
+  "toolId": "nssm-manager",
+  "packageId": "nssm-manager",
+  "version": "2.24.101",
+  "status": "active",
+  "buildScript": "build.ps1",
+  "packageTemplate": "sdk-tool",
+  "runtimeStagePath": "artifacts/package",
+  "adapterProject": "sdk-tool/src/NssmManager.Runtime/NssmManager.Runtime.csproj",
+  "surfaceProject": "sdk-tool/src/NssmManager.Tool/NssmManager.Tool.csproj",
+  "standaloneExecutableProject": "sdk-tool/src/NssmManager.Executable/NssmManager.Executable.csproj"
+}

@@ -108,8 +108,6 @@ procedure CurStepChanged(CurStep: TSetupStep);
 begin
   if CurStep = ssPostInstall then
   begin
-    RewriteDoubaoVenvConfig('tool_server');
-    RewriteDoubaoVenvConfig('mcp_server');
-    RewriteDoubaoVenvConfig('planner');
+    RewriteDoubaoVenvConfig('');
   end;
 end;

@@ -296,8 +296,9 @@ function Resolve-ChannelFeedUri {
     param([Parameter(Mandatory = $true)][string]$ChannelName)
 
     $repo = 'dqtz5vpvj9-create/MyPowerTools'
+    $feedSuffix = if ($script:OtaDistributionMode -eq 'web') { '-web' } else { '' }
     if ($ChannelName -eq 'stable') {
-        return "https://github.com/$repo/releases/latest/download/channel-stable.json"
+        return "https://github.com/$repo/releases/latest/download/channel-stable$feedSuffix.json"
     }
 
     $handler = [System.Net.Http.HttpClientHandler]::new()
@@ -315,7 +316,7 @@ function Resolve-ChannelFeedUri {
     }
 
     $releases = $releasesJson | ConvertFrom-Json
-    $assetName = "channel-$ChannelName.json"
+    $assetName = "channel-$ChannelName$feedSuffix.json"
     foreach ($release in @($releases)) {
         $asset = @($release.assets) |
             Where-Object { [string]$_.name -eq $assetName } |
@@ -519,6 +520,7 @@ function Update-InstalledRelease {
             (Get-FileHash -LiteralPath $manifestPath -Algorithm SHA256).Hash.ToLowerInvariant()
         } else { '' }
         packageKind = $PackageKind
+        distributionMode = if ($installed -and [string]$installed.distributionMode -eq 'web') { 'web' } else { 'full' }
     }
     Write-Utf8TextFile -Path (Join-Path $StateRootFull 'installed-release.json') -Value (
         $release | ConvertTo-Json -Depth 5)
@@ -687,6 +689,15 @@ function Invoke-FullApply {
         [switch]$RestartRuntime
     )
 
+    $preservedRuntimeComponents = $null
+    if ($script:OtaDistributionMode -eq 'web') {
+        $existingInstallManifestPath = Join-Path $InstallRootFull 'install.manifest.json'
+        if (Test-Path -LiteralPath $existingInstallManifestPath -PathType Leaf) {
+            $existingInstallManifest = Get-Content -LiteralPath $existingInstallManifestPath -Raw | ConvertFrom-Json
+            $preservedRuntimeComponents = $existingInstallManifest.runtimeComponents
+        }
+    }
+
     $extractRoot = Join-Path $StateRootFull "downloads\full-$ExpectedVersion"
     if (Test-Path -LiteralPath $extractRoot -PathType Container) {
         Remove-Item -LiteralPath $extractRoot -Recurse -Force
@@ -694,6 +705,20 @@ function Invoke-FullApply {
     New-Item -ItemType Directory -Path $extractRoot -Force | Out-Null
     Add-Type -AssemblyName System.IO.Compression.FileSystem
     [IO.Compression.ZipFile]::ExtractToDirectory($PackagePath, $extractRoot)
+
+    if ($script:OtaDistributionMode -eq 'web') {
+        foreach ($relativePath in @('Runtime', 'Runtimes', 'Tools\AndroidPlatformTools')) {
+            $ownedSource = Join-Path $InstallRootFull $relativePath
+            if (Test-Path -LiteralPath $ownedSource -PathType Container) {
+                $ownedDestination = Join-Path $extractRoot $relativePath
+                if (Test-Path -LiteralPath $ownedDestination) {
+                    Remove-Item -LiteralPath $ownedDestination -Recurse -Force
+                }
+                New-Item -ItemType Directory -Path (Split-Path -Parent $ownedDestination) -Force | Out-Null
+                Copy-Item -LiteralPath $ownedSource -Destination $ownedDestination -Recurse -Force
+            }
+        }
+    }
 
     $installScript = Join-Path $extractRoot 'install-windows.ps1'
     if (-not (Test-Path -LiteralPath $installScript -PathType Leaf)) {
@@ -721,11 +746,25 @@ function Invoke-FullApply {
         $installParams.NoOpenApp = $true
     }
     & $installScript @installParams | Out-Null
+    if ($script:OtaDistributionMode -eq 'web' -and $null -ne $preservedRuntimeComponents) {
+        $newInstallManifestPath = Join-Path $InstallRootFull 'install.manifest.json'
+        $newInstallManifest = Get-Content -LiteralPath $newInstallManifestPath -Raw | ConvertFrom-Json
+        $newInstallManifest | Add-Member `
+            -NotePropertyName runtimeComponents `
+            -NotePropertyValue $preservedRuntimeComponents `
+            -Force
+        $newInstallManifest | ConvertTo-Json -Depth 8 |
+            Set-Content -LiteralPath $newInstallManifestPath -Encoding UTF8
+    }
     if ($null -ne $reopen) {
         Start-OtaReopenedScheduledTasks -TaskNames $reopen.TaskNames
     }
 
-    $shippedManifest = Join-Path $extractRoot 'MyPowerTools-win-x64.manifest.json'
+    $shippedManifest = Join-Path $extractRoot $(if ($script:OtaDistributionMode -eq 'web') {
+        'MyPowerTools-core-win-x64.manifest.json'
+    } else {
+        'MyPowerTools-win-x64.manifest.json'
+    })
     if (Test-Path -LiteralPath $shippedManifest -PathType Leaf) {
         Copy-Item -LiteralPath $shippedManifest -Destination (
             Join-Path $StateRootFull 'installed-files.manifest.json') -Force
@@ -784,6 +823,11 @@ $DevOverlay = if ($IsDevOverlay) {
 }
 
 $installedRelease = Read-InstalledRelease -StateRootFull $StateRootFull
+$script:OtaDistributionMode = if ($installedRelease -and [string]$installedRelease.distributionMode -eq 'web') {
+    'web'
+} else {
+    'full'
+}
 if ([string]::IsNullOrWhiteSpace($CurrentVersion)) {
     if ($null -ne $installedRelease -and
         -not [string]::IsNullOrWhiteSpace([string]$installedRelease.version)) {
@@ -986,7 +1030,7 @@ try {
             -StateRootFull $StateRootFull `
             -ExpectedVersion ([string]$feed.version) `
             -RestartRuntime:$restartRuntime
-        $packageKind = 'full'
+        $packageKind = $(if ($script:OtaDistributionMode -eq 'web') { 'core' } else { 'full' })
     }
 
     $repository = if ($null -ne $installedRelease -and
@@ -1013,7 +1057,7 @@ try {
             -InstallRootFull $InstallRootFull `
             -DataRootFull $DataRootFull `
             -StateRootFull $StateRootFull
-        $packageKind = 'full-recovery'
+        $packageKind = $(if ($script:OtaDistributionMode -eq 'web') { 'core-recovery' } else { 'full-recovery' })
         $health = Test-OtaHealth `
             -InstallRootFull $InstallRootFull `
             -StateRootFull $StateRootFull `

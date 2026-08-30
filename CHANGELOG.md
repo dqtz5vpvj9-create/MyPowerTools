@@ -101,8 +101,15 @@
 - Replaced the per-process self-contained .NET runtime copies with one shared
   runtime under `Runtime\dotnet` (host\fxr + shared frameworks). Runner, Shell,
   Cli, ServiceManager, Broker, App, WebToolHost, all Service Units, and the
-  powertoold sidecar are now framework-dependent and resolve the bundled
-  runtime through `DOTNET_ROOT`, which is set at install/update time.
+  powertoold sidecar are now framework-dependent. Apphosts search the bundled
+  runtime first and machine-registered .NET second; child launchers scope
+  `DOTNET_ROOT` to the target process.
+- Removed account-level `DOTNET_ROOT` writes from install, OTA, launch, and
+  uninstall flows. Legacy values owned by MyPowerTools are migrated safely;
+  user-managed values are preserved exactly.
+- Added Full/Web/All Windows distributions, signed runtime component manifests,
+  a small online installer, an isolated Web OTA feed, and release size gates.
+- Published `nssm-manager.exe` with Native AOT and source-generated JSON metadata.
 - Debug symbols are stripped from the published layout and package archives.
 - Release size: uncompressed 1.78 GB -> 0.59 GB; ZIP 773 MB -> 226 MB.
 

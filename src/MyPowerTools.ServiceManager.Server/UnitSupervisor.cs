@@ -6,6 +6,7 @@ using System.Net.Sockets;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using MyPowerTools.Abstractions;
+using MyPowerTools.Platform.Abstractions;
 
 namespace MyPowerTools.ServiceManager.Server;
 
@@ -189,47 +190,70 @@ public sealed class UnitSupervisor : IAsyncDisposable
     private async Task<bool> TryReadoptCoreAsync(CancellationToken cancellationToken)
     {
         var persisted = _stateStore.Load(UnitId);
-        if (persisted is null || persisted.Pid <= 0)
+        var matchingProcesses = UnitProcessDiscovery.FindMatching(_manifest);
+
+        if (persisted is not null &&
+            !string.IsNullOrWhiteSpace(persisted.InstanceToken) &&
+            !string.Equals(persisted.InstanceToken, _manifest.InstanceToken, StringComparison.Ordinal))
         {
+            await TerminateDuplicatesAsync(matchingProcesses, keeper: null);
+            ClearPersistedState();
             return false;
         }
 
         Process? candidate = null;
-        try
+        if (persisted is { Pid: > 0 })
         {
-            candidate = Process.GetProcessById(persisted.Pid);
+            try
+            {
+                var persistedCandidate = Process.GetProcessById(persisted.Pid);
+                if (!persistedCandidate.HasExited && ProcessIdentityMatches(persistedCandidate, persisted))
+                {
+                    candidate = matchingProcesses.FirstOrDefault(process => process.Id == persistedCandidate.Id);
+                    if (candidate is not null)
+                    {
+                        persistedCandidate.Dispose();
+                    }
+                    else
+                    {
+                        candidate = persistedCandidate;
+                    }
+                }
+                else
+                {
+                    persistedCandidate.Dispose();
+                }
+            }
+            catch (ArgumentException)
+            {
+                // The recorded PID has exited. Command discovery below can still recover a unit
+                // whose state write was lost or replaced during an older manager restart.
+            }
+            catch (Exception)
+            {
+                // Treat inaccessible or stale state as a discovery miss.
+            }
         }
-        catch (ArgumentException)
+
+        candidate ??= matchingProcesses
+            .Where(IsAlive)
+            .OrderBy(TryGetStartTime)
+            .FirstOrDefault();
+
+        if (candidate is null)
         {
-            // Process no longer alive — fall through to normal autostart handling.
-        }
-        catch (Exception)
-        {
+            DisposeProcesses(matchingProcesses, keeper: null);
             return false;
         }
 
-        if (candidate is null || candidate.HasExited)
-        {
-            return false;
-        }
-
-        // Verify the instance token matches the one the process was launched with.
-        if (!string.IsNullOrWhiteSpace(persisted.InstanceToken) &&
-            !string.Equals(persisted.InstanceToken, _manifest.InstanceToken, StringComparison.Ordinal))
-        {
-            return false;
-        }
-
-        if (!ProcessIdentityMatches(candidate, persisted))
-        {
-            return false;
-        }
+        await TerminateDuplicatesAsync(matchingProcesses, candidate);
 
         _process = candidate;
         _process.EnableRaisingEvents = true;
         _process.Exited += OnProcessExited;
-        _startedAt = persisted.StartedAt;
-        _restartCount = persisted.RestartCount;
+        _startedAt = persisted?.Pid == candidate.Id ? persisted.StartedAt : TryGetStartTime(candidate);
+        _restartCount = persisted?.Pid == candidate.Id ? persisted.RestartCount : 0;
+        PersistState();
         CaptureExistingStreamIfPossible();
         var readiness = await WaitForReadinessAsync(cancellationToken);
         if (candidate.HasExited)
@@ -284,6 +308,18 @@ public sealed class UnitSupervisor : IAsyncDisposable
             {
                 psi.Environment[key] = value;
             }
+        }
+
+        if (_manifest.Environment is not null &&
+            _manifest.Environment.TryGetValue("MPT_INSTALL_ROOT", out var installRoot) &&
+            !string.IsNullOrWhiteSpace(installRoot))
+        {
+            DotNetRuntimeEnvironment.ConfigureChildProcess(psi, installRoot);
+        }
+        else
+        {
+            // A Service Unit must never inherit an account-scoped runtime override.
+            psi.Environment.Remove(DotNetRuntimeEnvironment.VariableName);
         }
 
         try
@@ -361,7 +397,7 @@ public sealed class UnitSupervisor : IAsyncDisposable
             _process.CloseMainWindow();
             if (!await WaitForExitAsync(_process, _manifest.StopTimeout))
             {
-                _process.Kill(entireProcessTree: false);
+                _process.Kill(entireProcessTree: true);
                 await _process.WaitForExitAsync();
             }
         }
@@ -533,6 +569,11 @@ public sealed class UnitSupervisor : IAsyncDisposable
             }
         }
 
+        if (OperatingSystem.IsWindows())
+        {
+            return UnitProcessDiscovery.Matches(candidate, _manifest);
+        }
+
         if (Path.IsPathRooted(_manifest.Exec))
         {
             try
@@ -554,6 +595,64 @@ public sealed class UnitSupervisor : IAsyncDisposable
         }
 
         return true;
+    }
+
+    private async Task TerminateDuplicatesAsync(IReadOnlyList<Process> processes, Process? keeper)
+    {
+        foreach (var duplicate in processes.Where(process => process.Id != keeper?.Id))
+        {
+            try
+            {
+                if (!duplicate.HasExited)
+                {
+                    Console.WriteLine($"[ServiceManager] unit '{UnitId}' retiring duplicate pid {duplicate.Id}.");
+                    duplicate.Kill(entireProcessTree: true);
+                    await WaitForExitAsync(duplicate, _manifest.StopTimeout);
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine(
+                    $"[ServiceManager] unit '{UnitId}' could not retire duplicate pid {duplicate.Id}: {ex.Message}");
+            }
+        }
+
+        DisposeProcesses(processes, keeper);
+    }
+
+    private static void DisposeProcesses(IReadOnlyList<Process> processes, Process? keeper)
+    {
+        foreach (var process in processes)
+        {
+            if (!ReferenceEquals(process, keeper))
+            {
+                process.Dispose();
+            }
+        }
+    }
+
+    private static DateTimeOffset TryGetStartTime(Process process)
+    {
+        try
+        {
+            return process.StartTime.ToUniversalTime();
+        }
+        catch
+        {
+            return DateTimeOffset.MaxValue;
+        }
+    }
+
+    private static bool IsAlive(Process process)
+    {
+        try
+        {
+            return !process.HasExited;
+        }
+        catch
+        {
+            return false;
+        }
     }
 
     private static async Task<bool> WaitForExitAsync(Process process, TimeSpan timeout)

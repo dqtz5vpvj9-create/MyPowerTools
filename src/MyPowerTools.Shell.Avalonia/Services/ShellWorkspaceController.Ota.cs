@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text.Json.Nodes;
+using MyPowerTools.Platform.Abstractions;
 
 namespace MyPowerTools.Shell.Avalonia.Services;
 
@@ -62,6 +63,9 @@ public sealed partial class ShellWorkspaceController
         {
             startInfo.ArgumentList.Add("--yes");
         }
+
+        var installRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, ".."));
+        DotNetRuntimeEnvironment.ConfigureChildProcess(startInfo, installRoot);
 
         using var process = Process.Start(startInfo);
         if (process is null)

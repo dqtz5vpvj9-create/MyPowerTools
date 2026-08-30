@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+    <NoWarn>$(NoWarn);CA1416</NoWarn>
+  </PropertyGroup>
+  <ItemGroup>
+    <ProjectReference Include="..\NssmManager.Contracts\NssmManager.Contracts.csproj" />
+    <ProjectReference Include="..\NssmManager.Compatibility\NssmManager.Compatibility.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <EmbeddedResource Include="..\..\..\original-source\src\messages.mc"
+                      LogicalName="NssmManager.Windows.messages.mc" />
+  </ItemGroup>
+</Project>

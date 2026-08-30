@@ -15,6 +15,7 @@ using MyPowerTools.ServiceManager.Client;
 using CommandRequest = MyPowerTools.Abstractions.CommandRequest;
 
 var root = FindRepositoryRoot(AppContext.BaseDirectory);
+DotNetRuntimeEnvironment.ConfigureCurrentProcess(root);
 var command = args.FirstOrDefault() ?? "help";
 
 return command switch

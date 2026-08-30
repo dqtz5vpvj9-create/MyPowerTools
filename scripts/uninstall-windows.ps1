@@ -3,11 +3,20 @@ param(
     [string]$InstallDir = (Join-Path $env:LOCALAPPDATA 'Programs\MyPowerTools'),
     [string]$DataRoot = (Join-Path $env:LOCALAPPDATA 'MyPowerTools'),
     [switch]$RemoveData,
+    [ValidateSet('Cancel', 'Restore', 'Remove')]
+    [string]$NssmServiceAction = 'Cancel',
     [switch]$Force,
     [switch]$DryRun
 )
 
 $ErrorActionPreference = 'Stop'
+$runtimeEnvironmentScript = Join-Path $PSScriptRoot 'runtime-environment.ps1'
+if (-not (Test-Path -LiteralPath $runtimeEnvironmentScript -PathType Leaf)) {
+    $runtimeEnvironmentScript = Join-Path $InstallDir 'runtime-environment.ps1'
+}
+if (Test-Path -LiteralPath $runtimeEnvironmentScript -PathType Leaf) {
+    . $runtimeEnvironmentScript
+}
 
 function Resolve-FullPath {
     param([Parameter(Mandatory = $true)][string]$Path)
@@ -176,6 +185,19 @@ if (-not $DryRun.IsPresent -and $requiresAdministrator -and -not $isAdministrato
 $startMenuDir = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\MyPowerTools'
 $desktopShortcutPath = Join-Path ([Environment]::GetFolderPath('DesktopDirectory')) 'MyPowerTools.lnk'
 $runKeyPath = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
+$protectedNssmHostRoot = [System.IO.Path]::GetFullPath((Join-Path $env:ProgramData 'MyPowerTools\ServiceHosts\nssm-manager'))
+$managedNssmServices = [Collections.Generic.List[object]]::new()
+$servicesRegistryRoot = 'HKLM:\SYSTEM\CurrentControlSet\Services'
+if (Test-Path -LiteralPath $servicesRegistryRoot) {
+    foreach ($serviceKey in Get-ChildItem -LiteralPath $servicesRegistryRoot -ErrorAction SilentlyContinue) {
+        $imagePath = [string](Get-ItemPropertyValue -LiteralPath $serviceKey.PSPath -Name 'ImagePath' -ErrorAction SilentlyContinue)
+        if ($imagePath.IndexOf('nssm-manager.exe', [StringComparison]::OrdinalIgnoreCase) -ge 0 -and
+            ($imagePath.IndexOf($InstallDirFull, [StringComparison]::OrdinalIgnoreCase) -ge 0 -or
+             $imagePath.IndexOf($protectedNssmHostRoot, [StringComparison]::OrdinalIgnoreCase) -ge 0)) {
+            $managedNssmServices.Add([ordered]@{ Name = $serviceKey.PSChildName; ImagePath = $imagePath })
+        }
+    }
+}
 
 Assert-SafeMyPowerToolsPath -Path $InstallDirFull -Force:$Force
 if ($RemoveData) {
@@ -189,11 +211,76 @@ $plan = [ordered]@{
     removeStartMenuShortcuts = $startMenuDir
     removeDesktopShortcut = $desktopShortcutPath
     removeAutostartValue = 'HKCU Run: MyPowerTools'
+    managedNssmServices = @($managedNssmServices)
+    nssmServiceAction = $NssmServiceAction
+    protectedNssmHostRoot = $protectedNssmHostRoot
 }
 
 if ($DryRun) {
     $plan | ConvertTo-Json -Depth 4
     return
+}
+
+if ($managedNssmServices.Count -gt 0) {
+    if ($NssmServiceAction -eq 'Cancel') {
+        $names = @($managedNssmServices | ForEach-Object { $_.Name }) -join ', '
+        throw "MyPowerTools still hosts NSSM services: $names. Choose -NssmServiceAction Restore or Remove."
+    }
+    if (-not $isAdministrator) {
+        throw 'Restoring or removing NSSM-managed Windows services requires an elevated PowerShell session.'
+    }
+    $scExecutable = (Get-Command 'sc.exe' -CommandType Application -ErrorAction Stop).Source
+    foreach ($managedService in $managedNssmServices) {
+        $serviceName = [string]$managedService.Name
+        $serviceController = Get-Service -Name $serviceName -ErrorAction Stop
+        if ($serviceController.Status -ne [System.ServiceProcess.ServiceControllerStatus]::Stopped) {
+            $stopArguments = @('stop', $serviceName)
+            & $scExecutable @stopArguments | Out-Null
+            if ($LASTEXITCODE -ne 0) { throw "Could not stop NSSM-managed service '$serviceName'." }
+            $serviceController.WaitForStatus([System.ServiceProcess.ServiceControllerStatus]::Stopped, [TimeSpan]::FromSeconds(30))
+        }
+        if ($NssmServiceAction -eq 'Remove') {
+            $deleteArguments = @('delete', $serviceName)
+            & $scExecutable @deleteArguments | Out-Null
+            if ($LASTEXITCODE -ne 0) { throw "Could not remove NSSM-managed service '$serviceName'." }
+            continue
+        }
+        $snapshotPath = Join-Path $env:ProgramData "MyPowerTools\state\tools\nssm-manager\migrations\$serviceName.json"
+        if (-not (Test-Path -LiteralPath $snapshotPath -PathType Leaf)) {
+            throw "Migration snapshot for '$serviceName' is missing: $snapshotPath"
+        }
+        $snapshot = Get-Content -LiteralPath $snapshotPath -Raw | ConvertFrom-Json
+        $originalImagePath = [string]$snapshot.originalImagePath
+        if ([string]::IsNullOrWhiteSpace($originalImagePath)) { throw "Migration snapshot for '$serviceName' has no original ImagePath." }
+        $serviceRegistryPath = Join-Path $servicesRegistryRoot $serviceName
+        $configArguments = @('config', $serviceName, 'binPath=', $originalImagePath)
+        & $scExecutable @configArguments | Out-Null
+        if ($LASTEXITCODE -ne 0) { throw "Could not restore ImagePath for '$serviceName'." }
+        $restoredImagePath = [string](Get-ItemPropertyValue -LiteralPath $serviceRegistryPath -Name 'ImagePath')
+        if (-not [string]::Equals($restoredImagePath, $originalImagePath, [StringComparison]::Ordinal)) { throw "Restored ImagePath verification failed for '$serviceName'." }
+        $snapshotState = [string]$snapshot.state
+        if ($snapshotState -in @('2', '4', '5', '6', '7', 'Running', 'StartPending', 'ContinuePending', 'PausePending', 'Paused')) {
+            $startArguments = @('start', $serviceName)
+            & $scExecutable @startArguments | Out-Null
+            if ($LASTEXITCODE -ne 0) { throw "Restored service '$serviceName' could not start with its original NSSM host." }
+            $serviceController.WaitForStatus([System.ServiceProcess.ServiceControllerStatus]::Running, [TimeSpan]::FromSeconds(30))
+            if ($snapshotState -in @('6', '7', 'PausePending', 'Paused')) {
+                $pauseArguments = @('pause', $serviceName)
+                & $scExecutable @pauseArguments | Out-Null
+                if ($LASTEXITCODE -ne 0) { throw "Restored service '$serviceName' could not return to its paused state." }
+                $serviceController.WaitForStatus([System.ServiceProcess.ServiceControllerStatus]::Paused, [TimeSpan]::FromSeconds(30))
+            }
+        }
+    }
+}
+
+if ((Test-Path -LiteralPath $protectedNssmHostRoot) -and $isAdministrator) {
+    $programDataFull = [System.IO.Path]::GetFullPath($env:ProgramData).TrimEnd([System.IO.Path]::DirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar
+    if (-not $protectedNssmHostRoot.StartsWith($programDataFull, [StringComparison]::OrdinalIgnoreCase) -or
+        -not $protectedNssmHostRoot.EndsWith('MyPowerTools\ServiceHosts\nssm-manager', [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Unsafe protected NSSM host path '$protectedNssmHostRoot'."
+    }
+    Remove-Item -LiteralPath $protectedNssmHostRoot -Recurse -Force
 }
 
 $serviceConfigurationScript = Join-Path $InstallDirFull 'configure-user-services.ps1'
@@ -219,6 +306,27 @@ if (Test-Path -LiteralPath $serviceConfigurationScript -PathType Leaf) {
     }
 }
 
+$inputRemapStatePath = Join-Path $DataRootFull 'state\tools\ime-manager\win-space-shift-task.json'
+$inputRemapBroker = Join-Path $InstallDirFull 'Broker\MyPowerTools.ElevatedBroker.exe'
+if ((Test-Path -LiteralPath $inputRemapStatePath -PathType Leaf) -and
+    (Test-Path -LiteralPath $inputRemapBroker -PathType Leaf)) {
+    $inputRemapStartInfo = [Diagnostics.ProcessStartInfo]::new()
+    $inputRemapStartInfo.FileName = $inputRemapBroker
+    $inputRemapStartInfo.Arguments = 'input-remap uninstall --data-root "{0}"' -f $DataRootFull.Replace('"', '\"')
+    $inputRemapStartInfo.UseShellExecute = $true
+    $inputRemapStartInfo.Verb = 'runas'
+    $inputRemapStartInfo.WindowStyle = [Diagnostics.ProcessWindowStyle]::Hidden
+    $inputRemapProcess = [Diagnostics.Process]::Start($inputRemapStartInfo)
+    if ($null -eq $inputRemapProcess) {
+        throw 'Could not start the elevated input remap cleanup.'
+    }
+    $inputRemapProcess.WaitForExit()
+    if ($inputRemapProcess.ExitCode -ne 0) {
+        throw "Elevated input remap cleanup failed with exit code $($inputRemapProcess.ExitCode)."
+    }
+    $inputRemapProcess.Dispose()
+}
+
 Stop-InstalledProcess -Root $InstallDirFull
 
 if (Test-Path -LiteralPath $runKeyPath) {
@@ -242,10 +350,8 @@ if (Test-Path -LiteralPath $desktopShortcutPath) {
     Remove-Item -LiteralPath $desktopShortcutPath -Force
 }
 
-$userDotnetRoot = [Environment]::GetEnvironmentVariable('DOTNET_ROOT', 'User')
-if ($userDotnetRoot -and
-    (Test-IsInsidePath -Parent $InstallDirFull -Child $userDotnetRoot)) {
-    [Environment]::SetEnvironmentVariable('DOTNET_ROOT', $null, 'User')
+if (Get-Command 'Clear-MyPowerToolsLegacyUserDotNetRoot' -ErrorAction SilentlyContinue) {
+    [void](Clear-MyPowerToolsLegacyUserDotNetRoot -InstallRoot $InstallDirFull)
 }
 
 if (Test-Path -LiteralPath $InstallDirFull) {

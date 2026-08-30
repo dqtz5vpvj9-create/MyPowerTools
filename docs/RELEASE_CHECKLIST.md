@@ -18,8 +18,8 @@ in GitHub Actions.
   release manifest and the client now reports `up-to-date`.
 - **v0.3.3 released on 2026-08-08** with the shared .NET runtime layout and
   PDB-free packages: portable ZIP 281 MB (was 773 MB), Setup 271 MB (was
-  742 MB), delta 0.3.2 -> 0.3.3 120 MB. All product processes now resolve one
-  bundled runtime through `DOTNET_ROOT`.
+  742 MB), delta 0.3.2 -> 0.3.3 120 MB. Product apphosts prefer the bundled
+  runtime and can fall back to machine-registered .NET.
 - **v0.3.4** added the embeddable Python runtime, a single shared Doubao venv,
   an adb-only platform-tools trim, and an LZMA2 installer: portable ZIP
   200 MB.
@@ -36,6 +36,8 @@ in GitHub Actions.
 - GitHub secret `MPT_OTA_SIGNING_KEY_BASE64` exists (checked 2026-08-07).
 - Local `main` is clean and contains all OTA commits.
 - The last local build passed `scripts/verify-release-artifacts.ps1`.
+- `scripts/verify-dotnet-runtime-isolation.ps1` and
+  `scripts/verify-release-size.ps1` pass.
 
 ## 1. Publish main
 

@@ -20,6 +20,10 @@
 
   <ItemGroup>
     <ProjectReference Include="..\MyPowerTools.Broker\MyPowerTools.Broker.csproj" />
+    <ProjectReference Include="..\..\tools\local-lag-cleaner\sdk-tool\src\LocalLagCleaner.Core\LocalLagCleaner.Core.csproj" />
+    <ProjectReference Include="..\..\tools\nssm-manager\sdk-tool\src\NssmManager.Contracts\NssmManager.Contracts.csproj" />
+    <ProjectReference Include="..\..\tools\nssm-manager\sdk-tool\src\NssmManager.Compatibility\NssmManager.Compatibility.csproj" />
+    <ProjectReference Include="..\..\tools\nssm-manager\sdk-tool\src\NssmManager.Windows\NssmManager.Windows.csproj" />
   </ItemGroup>
 
 </Project>

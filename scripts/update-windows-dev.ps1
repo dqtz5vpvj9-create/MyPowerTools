@@ -8,8 +8,8 @@ installation, then replaces the corresponding installed directories transactiona
 Runner, and ServiceManager continue to execute from the complete installed layout, so modules,
 schemas, runtimes, service units, the launcher, and ElevatedBroker remain available.
 
-Core publishes Shell/WebToolHost, Runner, and ServiceManager. Shell publishes Shell/WebToolHost
-only. Tools runs the selected canonical tool build scripts and overlays package directories
+Core publishes Shell/WebToolHost, Runner, ElevatedBroker, and ServiceManager. Shell publishes
+Shell/WebToolHost only. Tools runs the selected canonical tool build scripts and overlays package directories
 produced under each tool's artifacts/package directory. SDK tools without an installed package
 are rebuilt in place.
 
@@ -60,6 +60,9 @@ $dataRootFull = [IO.Path]::GetFullPath($DataRoot)
 $installedModulesRoot = Join-Path $canonicalInstallRoot 'modules'
 $installedShellExecutable = Join-Path $canonicalInstallRoot 'Shell\MyPowerTools.Shell.Avalonia.exe'
 $installedRunnerExecutable = Join-Path $canonicalInstallRoot 'Runner\MyPowerTools.Runner.exe'
+$installedBrokerExecutable = Join-Path $canonicalInstallRoot 'Broker\MyPowerTools.ElevatedBroker.exe'
+$installedInputRemapExecutable = Join-Path $canonicalInstallRoot 'InputRemap\MyPowerTools.InputRemapHost.exe'
+$protectedInputRemapExecutable = Join-Path ([Environment]::GetFolderPath([Environment+SpecialFolder]::ProgramFiles)) 'MyPowerTools\InputRemap\MyPowerTools.InputRemapHost.exe'
 $installedServiceManagerExecutable = Join-Path $canonicalInstallRoot 'ServiceManager\MyPowerTools.ServiceManager.exe'
 $installedWebToolHostExecutable = Join-Path $canonicalInstallRoot 'Shell\WebToolHost\MyPowerTools.WebToolHost.exe'
 $installedRuntimeScript = Join-Path $canonicalInstallRoot 'start-user-runtime.ps1'
@@ -67,9 +70,14 @@ $installedAppExecutable = Join-Path $canonicalInstallRoot 'MyPowerTools.exe'
 $installedOverlayManifest = Join-Path $canonicalInstallRoot 'dev-update.manifest.json'
 $shellProject = Join-Path $repositoryRoot 'src\MyPowerTools.Shell.Avalonia\MyPowerTools.Shell.Avalonia.csproj'
 $runnerProject = Join-Path $repositoryRoot 'src\MyPowerTools.Runner\MyPowerTools.Runner.csproj'
+$elevatedBrokerProject = Join-Path $repositoryRoot 'src\MyPowerTools.ElevatedBroker\MyPowerTools.ElevatedBroker.csproj'
+$inputRemapProject = Join-Path $repositoryRoot 'src\MyPowerTools.InputRemapHost\MyPowerTools.InputRemapHost.csproj'
 $serviceManagerProject = Join-Path $repositoryRoot 'src\MyPowerTools.ServiceManager\MyPowerTools.ServiceManager.csproj'
 $devArtifactsParent = Join-Path $repositoryRoot 'artifacts\dev-update'
-$managedProcessRoots = @($repositoryRoot, $canonicalInstallRoot)
+$managedProcessRoots = @(
+    $repositoryRoot,
+    $canonicalInstallRoot,
+    (Split-Path -Parent $protectedInputRemapExecutable))
 $runId = [Guid]::NewGuid().ToString('N')
 $artifactRoot = Join-Path $devArtifactsParent $runId
 $publishRoot = Join-Path $artifactRoot 'publish'
@@ -233,6 +241,14 @@ function Get-ProductProcessRecords {
                 $managed = @($managedProcessRoots | Where-Object {
                     Test-IsInsidePath -Parent $_ -Child $executablePath
                 }).Count -gt 0
+            }
+            if (-not $managed -and
+                [string]::IsNullOrWhiteSpace($executablePath) -and
+                $processName -eq 'MyPowerTools.InputRemapHost' -and
+                (Test-Path -LiteralPath $protectedInputRemapExecutable -PathType Leaf)) {
+                # An elevated task-owned host can deny path inspection to the
+                # unelevated developer shell. Its protected install path is known.
+                $managed = $true
             }
             $records.Add([pscustomobject]@{
                 Process = $process
@@ -917,7 +933,7 @@ foreach ($requestedToolId in $ToolId) {
 }
 
 $plannedRelativePaths = switch ($Scope) {
-    'Core' { @('Shell', 'Runner', 'ServiceManager') }
+    'Core' { @('Shell', 'Runner', 'Broker', 'ServiceManager') }
     'Shell' { @('Shell') }
     default { @($ToolId | ForEach-Object { "modules\<package from $_>" }) }
 }
@@ -973,9 +989,13 @@ foreach ($requiredPath in @(
     $installedAppExecutable,
     $installedShellExecutable,
     $installedRunnerExecutable,
+    $installedBrokerExecutable,
+    $installedInputRemapExecutable,
     $installedServiceManagerExecutable,
     $shellProject,
     $runnerProject,
+    $elevatedBrokerProject,
+    $inputRemapProject,
     $serviceManagerProject)) {
     if (-not (Test-Path -LiteralPath $requiredPath)) {
         throw "Required development update path is missing: $requiredPath"
@@ -991,6 +1011,8 @@ Assert-NoUnmanagedConflict -Name @(
     'MyPowerTools.Shell.Avalonia',
     'MyPowerTools.WebToolHost',
     'MyPowerTools.Runner',
+    'MyPowerTools.ElevatedBroker',
+    'MyPowerTools.InputRemapHost',
     'MyPowerTools.ServiceManager')
 
 $inventoryBefore = Get-InstalledLayoutInventory
@@ -1049,6 +1071,44 @@ try {
             Kind = 'managed'
             RelativePath = 'Runner'
             Source = $runnerPublish
+            PackageId = ''
+            RuntimeExecutables = @()
+        })
+
+        $brokerPublish = Join-Path $publishRoot 'Broker'
+        $brokerPublishParameters = @{
+            Project = $elevatedBrokerProject
+            Output = $brokerPublish
+            Label = 'ElevatedBroker'
+        }
+        Publish-ManagedComponent @brokerPublishParameters
+        $publishedBroker = Join-Path $brokerPublish 'MyPowerTools.ElevatedBroker.exe'
+        if (-not (Test-Path -LiteralPath $publishedBroker -PathType Leaf)) {
+            throw "ElevatedBroker development publish output is missing: $publishedBroker"
+        }
+        $stagedComponents.Add([pscustomobject]@{
+            Kind = 'managed'
+            RelativePath = 'Broker'
+            Source = $brokerPublish
+            PackageId = ''
+            RuntimeExecutables = @()
+        })
+
+        $inputRemapPublish = Join-Path $publishRoot 'InputRemap'
+        $inputRemapPublishParameters = @{
+            Project = $inputRemapProject
+            Output = $inputRemapPublish
+            Label = 'InputRemapHost'
+        }
+        Publish-ManagedComponent @inputRemapPublishParameters
+        $publishedInputRemap = Join-Path $inputRemapPublish 'MyPowerTools.InputRemapHost.exe'
+        if (-not (Test-Path -LiteralPath $publishedInputRemap -PathType Leaf)) {
+            throw "Input remap host development publish output is missing: $publishedInputRemap"
+        }
+        $stagedComponents.Add([pscustomobject]@{
+            Kind = 'managed'
+            RelativePath = 'InputRemap'
+            Source = $inputRemapPublish
             PackageId = ''
             RuntimeExecutables = @()
         })
@@ -1138,6 +1198,11 @@ try {
     Request-ShellShutdown
     Request-RunnerShutdown
     Request-ServiceManagerShutdown
+    $installedBrokerDirectory = Join-Path $canonicalInstallRoot 'Broker'
+    foreach ($process in @(Get-ProcessesInDirectory -Directory $installedBrokerDirectory)) {
+        Stop-Process -Id $process.ProcessId -Force -ErrorAction SilentlyContinue
+        Wait-Process -Id $process.ProcessId -Timeout 3 -ErrorAction SilentlyContinue
+    }
     Stop-ToolPackageRuntimes -Components $stagedComponents
     foreach ($component in $stagedComponents) {
         if ($component.Kind -ne 'service-unit') {

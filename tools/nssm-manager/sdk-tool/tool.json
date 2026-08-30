@@ -1,0 +1,57 @@
+{
+  "schemaVersion": "1.0",
+  "version": "2.24.101",
+  "toolId": "nssm-manager",
+  "ownerModuleId": "nssm-manager",
+  "title": "NSSM 服务管理器",
+  "description": "使用 C# 兼容实现安装、配置和监管 Windows 服务包装器。",
+  "icon": "system.health",
+  "category": "System",
+  "type": "dotnet-surface",
+  "availability": "available",
+  "primaryRouteId": "services",
+  "routes": [
+    {
+      "routeId": "services",
+      "surfaceId": "nssm-manager.services",
+      "title": "Windows 服务",
+      "icon": "diagnostics",
+      "surface": {
+        "kind": "dotnet",
+        "assembly": "src/NssmManager.Tool/bin/Release/net10.0/NssmManager.Tool.dll",
+        "type": "NssmManager.Tool.NssmManagerSurfaceFactory"
+      }
+    }
+  ],
+  "homeCard": {
+    "summary": "管理 NSSM 兼容服务、进程监管、I/O、轮转和 Hooks。",
+    "primaryActionLabel": "管理服务",
+    "order": 5
+  },
+  "runtime": {
+    "transport": "stdio-jsonrpc",
+    "command": "src/NssmManager.Runtime/bin/Release/net10.0/NssmManager.Runtime.exe",
+    "args": [],
+    "timeoutMs": 60000
+  },
+  "settings": { "schema": "settings.schema.json", "values": "settings.json", "secrets": [] },
+  "commands": [
+    { "id": "nssm-manager.health", "title": "检查 NSSM Runtime", "description": "检查运行平台和提权状态。" },
+    { "id": "nssm-manager.list", "title": "列出 NSSM 服务", "kind": "query", "requiresElevation": false, "dangerLevel": "low", "execution": { "type": "module.execute" } },
+    { "id": "nssm-manager.get", "title": "读取服务配置", "kind": "query", "requiresElevation": false, "dangerLevel": "low", "execution": { "type": "module.execute" } },
+    { "id": "nssm-manager.validate", "title": "验证服务草稿", "kind": "query", "requiresElevation": false, "dangerLevel": "low", "execution": { "type": "module.execute" } },
+    { "id": "nssm-manager.install", "title": "安装服务", "kind": "action", "requiresElevation": true, "dangerLevel": "high", "execution": { "type": "broker.request", "brokerApprovalOnly": true, "mutatesSystemState": true }, "constraints": ["mutatesSystemState"] },
+    { "id": "nssm-manager.apply", "title": "应用服务配置", "kind": "action", "requiresElevation": true, "dangerLevel": "high", "execution": { "type": "broker.request", "brokerApprovalOnly": true, "mutatesSystemState": true }, "constraints": ["mutatesSystemState"] },
+    { "id": "nssm-manager.remove", "title": "删除服务", "kind": "action", "requiresElevation": true, "dangerLevel": "critical", "execution": { "type": "broker.request", "brokerApprovalOnly": true, "mutatesSystemState": true }, "constraints": ["mutatesSystemState"] },
+    { "id": "nssm-manager.control", "title": "控制服务", "kind": "action", "requiresElevation": true, "dangerLevel": "medium", "execution": { "type": "broker.request", "brokerApprovalOnly": true, "mutatesSystemState": true }, "constraints": ["mutatesSystemState"] },
+    { "id": "nssm-manager.migrate", "title": "迁移 NSSM 宿主", "kind": "action", "requiresElevation": true, "dangerLevel": "high", "execution": { "type": "broker.request", "brokerApprovalOnly": true, "mutatesSystemState": true }, "constraints": ["mutatesSystemState"] },
+    { "id": "nssm-manager.rollback", "title": "恢复迁移前宿主", "kind": "action", "requiresElevation": true, "dangerLevel": "high", "execution": { "type": "broker.request", "brokerApprovalOnly": true, "mutatesSystemState": true }, "constraints": ["mutatesSystemState"] }
+  ],
+  "permissions": [
+    { "id": "windows-services-read", "level": "user", "capability": "system.service.read", "reason": "读取 Windows SCM 状态与 NSSM 注册表配置。" },
+    { "id": "windows-services-manage", "level": "elevated", "capability": "system.service.manage", "reason": "安装、编辑、控制、迁移和删除 Windows 服务。" }
+  ],
+  "dataRoots": ["migrations"],
+  "dataRetention": "preserve",
+  "development": { "loose": true, "autoRefresh": true }
+}

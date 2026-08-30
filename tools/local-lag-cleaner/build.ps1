@@ -1,7 +1,7 @@
 [CmdletBinding()]
 param(
     [string] $MyPowerToolsRepoRoot,
-    [ValidateSet('Release')]
+    [ValidateSet('Debug', 'Release')]
     [string] $Configuration = 'Release'
 )
 
@@ -19,7 +19,7 @@ $sdkToolProject = Join-Path $sdkToolRoot 'src\LocalLagCleaner.Tool\LocalLagClean
 $runtimeProject = Join-Path $sdkToolRoot 'src\LocalLagCleaner.Runtime\LocalLagCleaner.Runtime.csproj'
 $standaloneProject = Join-Path $toolRoot 'original-source\src\LocalLagCleaner.Cli\LocalLagCleaner.Cli.csproj'
 $mptCliProject = Join-Path $repoRoot 'src\MyPowerTools.Cli\MyPowerTools.Cli.csproj'
-$mptCliExecutable = Join-Path $repoRoot "src\MyPowerTools.Cli\bin\$Configuration\net10.0\MyPowerTools.Cli.exe"
+$mptCliExecutable = Join-Path $repoRoot "artifacts\build\bin\MyPowerTools.Cli\$($Configuration.ToLowerInvariant())\MyPowerTools.Cli.exe"
 $artifactsRoot = Join-Path $toolRoot 'artifacts'
 $artifactCli = Join-Path $artifactsRoot 'cli'
 $artifactPackage = Join-Path $artifactsRoot 'local-lag-cleaner.mptpkg'

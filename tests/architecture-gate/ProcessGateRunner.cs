@@ -25,6 +25,16 @@ internal static class ProcessGateRunner
             var otherToolId = $"a3-other-{context.RunId}";
             var readinessPipe = $"mpt-a3-readiness-{context.RunId}";
             context.WriteUnitManifest(unitId, toolId, heartbeat, maxRestarts: 1, readinessPipe: readinessPipe);
+            var orphanPids = context.StartFixtureProcesses(heartbeat, readinessPipe, count: 2);
+            foreach (var orphanPid in orphanPids) trackedPids.Add(orphanPid);
+
+            var batchUnitId = $"a3-batch-{context.RunId}";
+            var batchToolId = $"a3-batch-tool-{context.RunId}";
+            var batchHeartbeat = Path.Combine(context.DataRoot, "batch-heartbeat.txt");
+            if (OperatingSystem.IsWindows())
+            {
+                context.WriteBatchUnitManifest(batchUnitId, batchToolId, batchHeartbeat);
+            }
 
             var unreadyUnitId = $"a3-unready-{context.RunId}";
             var advertisedPipe = $"mpt-a3-unready-{context.RunId}";
@@ -52,6 +62,10 @@ internal static class ProcessGateRunner
             var started = await scoped.StartAsync(unitId);
             var firstPid = started.Pid ?? 0;
             if (firstPid > 0) trackedPids.Add(firstPid);
+            var orphanCleanup = orphanPids.Contains(firstPid) &&
+                                await WaitForProcessCountAsync(orphanPids, expectedAlive: 1, TimeSpan.FromSeconds(5));
+            Add(records, "A3.1b-orphan-discovery-deduplicates", orphanCleanup,
+                $"started={firstPid}; original={string.Join(',', orphanPids)}; alive={orphanPids.Count(ProcessIsAlive)}");
             Add(records, "A3.2-scoped-start-active", started.State == ServiceUnitState.Active && firstPid > 0, $"state={started.State}; pid={firstPid}");
             var readinessRoundTrip = started.Readiness is not null &&
                                      string.Equals(started.Readiness.Kind, "pipe", StringComparison.Ordinal) &&
@@ -100,6 +114,19 @@ internal static class ProcessGateRunner
             Add(records, "A3.7-client-lifecycle-independent", await WaitForFileGrowthAsync(heartbeat, beforeClientDispose, TimeSpan.FromSeconds(3)) && ProcessIsAlive(firstPid),
                 $"pid={firstPid}; before={beforeClientDispose}; after={FileLength(heartbeat)}");
 
+            var batchPid = 0;
+            if (OperatingSystem.IsWindows())
+            {
+                using var batchClient = await context.WaitForClientAsync(firstManager);
+                var batchStarted = await batchClient.StartAsync(batchUnitId);
+                batchPid = batchStarted.Pid;
+                if (batchPid > 0) trackedPids.Add(batchPid);
+                Add(records, "A3.7b-batch-wrapper-active",
+                    batchStarted.State == SM.UnitState.Active && batchPid > 0 &&
+                    await WaitForFileGrowthAsync(batchHeartbeat, 0, TimeSpan.FromSeconds(5)),
+                    $"state={batchStarted.State}; pid={batchPid}");
+            }
+
             using (var shutdownClient = await context.WaitForClientAsync(firstManager))
             {
                 Add(records, "A3.8-graceful-manager-shutdown", await shutdownClient.ShutdownAsync(), "Shutdown RPC accepted");
@@ -113,6 +140,26 @@ internal static class ProcessGateRunner
             using var secondAdmin = await context.WaitForClientAsync(secondManager);
             var readopted = await WaitForSnapshotAsync(secondAdmin, unitId, snap => snap.State == SM.UnitState.Active && snap.Pid == firstPid, TimeSpan.FromSeconds(6));
             Add(records, "A3.10-restart-readopts-same-pid", readopted is not null, readopted is null ? "re-adoption missing" : $"pid={readopted.Pid}; state={readopted.State}");
+
+            if (OperatingSystem.IsWindows())
+            {
+                var batchReadopted = await WaitForSnapshotAsync(
+                    secondAdmin,
+                    batchUnitId,
+                    snap => snap.State == SM.UnitState.Active && snap.Pid == batchPid,
+                    TimeSpan.FromSeconds(6));
+                Add(records, "A3.10b-batch-restart-readopts-same-pid", batchReadopted is not null,
+                    batchReadopted is null ? $"expected pid={batchPid}" : $"pid={batchReadopted.Pid}; state={batchReadopted.State}");
+
+                await secondAdmin.StopAsync(batchUnitId);
+                var batchStoppedAt = FileLength(batchHeartbeat);
+                await Task.Delay(700);
+                Add(records, "A3.10c-batch-stop-ends-process-tree",
+                    !ProcessIsAlive(batchPid) && FileLength(batchHeartbeat) == batchStoppedAt,
+                    $"pid={batchPid}; alive={ProcessIsAlive(batchPid)}; before={batchStoppedAt}; after={FileLength(batchHeartbeat)}");
+                context.DeleteUnitManifest(batchUnitId);
+                await secondAdmin.ReloadAsync();
+            }
 
             var secondScoped = new ScopedServiceUnitClient(secondAdmin, toolId);
             var restarted = await secondScoped.RestartAsync(unitId);
@@ -332,6 +379,25 @@ internal static class ProcessGateRunner
         return false;
     }
 
+    private static async Task<bool> WaitForProcessCountAsync(
+        IReadOnlyList<int> processIds,
+        int expectedAlive,
+        TimeSpan timeout)
+    {
+        var deadline = DateTime.UtcNow + timeout;
+        while (DateTime.UtcNow < deadline)
+        {
+            if (processIds.Count(ProcessIsAlive) == expectedAlive)
+            {
+                return true;
+            }
+
+            await Task.Delay(100);
+        }
+
+        return processIds.Count(ProcessIsAlive) == expectedAlive;
+    }
+
     private static long FileLength(string path)
     {
         try { return File.Exists(path) ? new FileInfo(path).Length : 0; }
@@ -352,7 +418,7 @@ internal static class ProcessGateRunner
             try
             {
                 var process = Process.GetProcessById(pid);
-                if (!process.HasExited) process.Kill(entireProcessTree: false);
+                if (!process.HasExited) process.Kill(entireProcessTree: true);
             }
             catch
             {
@@ -469,6 +535,76 @@ internal static class ProcessGateRunner
             var path = Path.Combine(DeployRoot, "units", $"{unitId}.json");
             File.WriteAllText(path, JsonSerializer.Serialize(manifest, new JsonSerializerOptions { WriteIndented = true }));
         }
+
+        public IReadOnlyList<int> StartFixtureProcesses(string heartbeatFile, string? readinessPipe, int count)
+        {
+            var arguments = BuildFixtureArguments(heartbeatFile, readinessPipe);
+            var processIds = new List<int>(count);
+            for (var index = 0; index < count; index++)
+            {
+                var startInfo = new ProcessStartInfo(FixtureExec)
+                {
+                    UseShellExecute = false,
+                    CreateNoWindow = true,
+                    WorkingDirectory = Path.GetDirectoryName(FixtureExec) ?? DataRoot
+                };
+                foreach (var argument in arguments) startInfo.ArgumentList.Add(argument);
+                var process = Process.Start(startInfo) ?? throw new InvalidOperationException("Failed to start orphan fixture.");
+                processIds.Add(process.Id);
+                process.Dispose();
+            }
+
+            return processIds;
+        }
+
+        public void WriteBatchUnitManifest(string unitId, string toolId, string heartbeatFile)
+        {
+            if (!OperatingSystem.IsWindows())
+            {
+                return;
+            }
+
+            var wrapper = Path.Combine(DataRoot, $"{unitId}.cmd");
+            var fixtureCommand = string.Join(
+                ' ',
+                new[] { FixtureExec }.Concat(FixturePrefixArgs).Select(QuoteBatchArgument));
+            File.WriteAllText(wrapper, $"@echo off\r\n{fixtureCommand} %*\r\n");
+
+            var arguments = new[] { "--heartbeat-file", heartbeatFile, "--interval-ms", "150" };
+            var manifest = new
+            {
+                id = unitId,
+                toolId,
+                displayName = $"Architecture batch fixture {unitId}",
+                exec = wrapper,
+                arguments,
+                workingDirectory = DataRoot,
+                environment = new Dictionary<string, string>(),
+                autostart = false,
+                restartPolicy = new { maxRestarts = 1, backoffMs = 200 },
+                readiness = new { kind = "none", address = string.Empty, timeoutMs = 1000 },
+                stopTimeoutMs = 600,
+                dataRoots = Array.Empty<string>(),
+                dependsOn = Array.Empty<string>(),
+                instanceToken = $"{Gate}-{unitId}-{RunId}"
+            };
+            var path = Path.Combine(DeployRoot, "units", $"{unitId}.json");
+            File.WriteAllText(path, JsonSerializer.Serialize(manifest, new JsonSerializerOptions { WriteIndented = true }));
+        }
+
+        private IReadOnlyList<string> BuildFixtureArguments(string heartbeatFile, string? readinessPipe)
+        {
+            var arguments = FixturePrefixArgs.Concat(["--heartbeat-file", heartbeatFile, "--interval-ms", "150"]).ToList();
+            if (!string.IsNullOrWhiteSpace(readinessPipe))
+            {
+                arguments.AddRange(["--pipe", readinessPipe]);
+            }
+
+            return arguments;
+        }
+
+        private static string QuoteBatchArgument(string value)
+            => $"\"{value.Replace("\"", "\"\"")}\"";
 
         public void DeleteUnitManifest(string unitId)
         {

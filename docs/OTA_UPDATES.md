@@ -183,12 +183,18 @@ The updater:
 
 ## Shared .NET runtime
 
-The Windows release ships one .NET runtime copy under
-`%LOCALAPPDATA%\Programs\MyPowerTools\Runtime\dotnet`. Every product process is
-framework-dependent and resolves that runtime through `DOTNET_ROOT`, which the
-installer, OTA updater, and runtime starter set for the current user. Debug
-symbols are stripped before packaging; the portable ZIP is ~226 MB instead of
-~773 MB.
+The Full Windows release ships one application-private .NET runtime under
+`%LOCALAPPDATA%\Programs\MyPowerTools\Runtime\dotnet`. Apphosts use
+`AppRelative;Global`: they prefer that private runtime and can fall back to a
+compatible machine-registered .NET 10 installation. Launchers scope a private
+`DOTNET_ROOT` value to each child process. When the global runtime is selected,
+launchers remove inherited values from that child environment.
+
+The Web distribution has an independent OTA feed and updates core files while
+preserving the exact application-private runtime components selected during
+installation. Install, OTA, and uninstall never create an account-level
+`DOTNET_ROOT`. A legacy value is cleared only when it resolves inside the owned
+MyPowerTools runtime directory; all other user values remain byte-for-byte intact.
 
 ## Package OTA
 

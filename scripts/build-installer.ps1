@@ -108,7 +108,8 @@ $publishProjects = @(
     [pscustomobject]@{ Name = 'Runner'; Project = 'src\MyPowerTools.Runner\MyPowerTools.Runner.csproj'; Output = 'Runner' },
     [pscustomobject]@{ Name = 'ServiceManager'; Project = 'src\MyPowerTools.ServiceManager\MyPowerTools.ServiceManager.csproj'; Output = 'ServiceManager' },
     [pscustomobject]@{ Name = 'CLI'; Project = 'src\MyPowerTools.Cli\MyPowerTools.Cli.csproj'; Output = 'Cli' },
-    [pscustomobject]@{ Name = 'Elevated Broker'; Project = 'src\MyPowerTools.ElevatedBroker\MyPowerTools.ElevatedBroker.csproj'; Output = 'Broker' }
+    [pscustomobject]@{ Name = 'Elevated Broker'; Project = 'src\MyPowerTools.ElevatedBroker\MyPowerTools.ElevatedBroker.csproj'; Output = 'Broker' },
+    [pscustomobject]@{ Name = 'Input Remap Host'; Project = 'src\MyPowerTools.InputRemapHost\MyPowerTools.InputRemapHost.csproj'; Output = 'InputRemap' }
 )
 foreach ($project in $publishProjects) {
     $output = Join-Path $payloadRoot $project.Output

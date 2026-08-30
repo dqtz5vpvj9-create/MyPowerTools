@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "toolId": "ime-manager",
+  "sourceClassification": "standalone-mypowertools-sdk-tool",
+  "sourceNote": "Windows input method manager implemented as a first-party SDK tool; it does not vendor any IME product.",
+  "sdkToolSnapshot": "sdk-tool",
+  "sdkToolGlobs": [
+    "**"
+  ]
+}

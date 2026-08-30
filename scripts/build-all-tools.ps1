@@ -267,6 +267,26 @@ $toolRegistry = @(
         ServiceUnits     = @()
     },
     [pscustomobject]@{
+        Id               = 'ime-manager'
+        Version          = '0.1.0'
+        BuildScript      = 'tools\ime-manager\build.ps1'
+        SurfaceProject   = ''
+        SurfaceAssembly  = ''
+        SurfaceTarget    = ''
+        RuntimeStagePath = 'tools\ime-manager\artifacts\package'
+        ServiceUnits     = @()
+    },
+    [pscustomobject]@{
+        Id               = 'nssm-manager'
+        Version          = '2.24.101'
+        BuildScript      = 'tools\nssm-manager\build.ps1'
+        SurfaceProject   = 'tools\nssm-manager\sdk-tool\src\NssmManager.Tool\NssmManager.Tool.csproj'
+        SurfaceAssembly  = 'NssmManager.Tool.dll'
+        SurfaceTarget    = 'ui\surface'
+        RuntimeStagePath = 'tools\nssm-manager\artifacts\package'
+        ServiceUnits     = @()
+    },
+    [pscustomobject]@{
         Id               = 'screenease'
         Version          = '0.2.0'
         BuildScript      = 'tools\screenease\build.ps1'

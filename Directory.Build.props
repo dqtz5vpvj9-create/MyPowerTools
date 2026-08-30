@@ -2,5 +2,7 @@
   <PropertyGroup>
     <!-- Tool submodules consume the host SDK through one explicit build contract. -->
     <MyPowerToolsRepoRoot Condition="'$(MyPowerToolsRepoRoot)' == ''">$([System.IO.Path]::GetFullPath('$(MSBuildThisFileDirectory)'))</MyPowerToolsRepoRoot>
+    <!-- Generated artifact trees must never be treated as source files by SDK globs. -->
+    <DefaultItemExcludes>$(DefaultItemExcludes);**/artifacts/**;**/bin/**;**/obj/**</DefaultItemExcludes>
   </PropertyGroup>
 </Project>

@@ -1,0 +1,23 @@
+{
+  "schemaVersion": "1.0",
+  "surfaceId": "ime-manager.detail",
+  "moduleId": "ime-manager",
+  "kind": "detail-page",
+  "layout": {
+    "mode": "component"
+  },
+  "uses": [
+    "MptModuleHeader",
+    "MptErrorView",
+    "MptLoadingView"
+  ],
+  "states": [
+    "loading",
+    "ready",
+    "empty",
+    "degraded",
+    "error",
+    "permission-required",
+    "disabled"
+  ]
+}

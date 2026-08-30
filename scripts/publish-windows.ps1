@@ -4,24 +4,24 @@
   source bundle) under artifacts/release/.
 
 .DESCRIPTION
-  Orchestrates the full Windows release publish:
+  Orchestrates the Full and Web Windows release publishes:
 
     1. Builds the local SDK bundles (build-sdk.ps1) and every first-party tool package
        (build-tool-packages.ps1) under artifacts/release/module-packages.
-    2. Publishes Runner, Shell (ReadyToRun composite), Cli, ElevatedBroker,
+    2. Publishes Runner, Shell, Cli, ElevatedBroker,
        ServiceManager and the App launcher as framework-dependent win-x64
-       binaries that share one bundled .NET runtime under Runtime\dotnet.
+       binaries. Full carries a private .NET runtime; Web can use a compatible
+       registered .NET 10 runtime or download an application-private component.
     3. Stages Service Units, modules, schemas, ui, assets, templates and the user-facing
        maintenance scripts into artifacts/release/win-x64, validates the module packages
        and writes build-provenance.json.
-    4. Produces MyPowerTools-win-x64.zip (+ SHA256), release metadata/notes and, unless
-       -PortableOnly is set, the Inno Setup installer and a source bundle.
+    4. Produces the selected ZIP/feed/installer assets. Web also produces a signed
+       runtime component manifest and component archives.
 
 .NOTES
-  The App launcher and ElevatedBroker are managed, framework-dependent single-file
-  executables. One .NET runtime copy ships under Runtime\dotnet and every process
-  resolves it through DOTNET_ROOT, so the release no longer carries a per-process
-  runtime copy. Debug symbols are stripped from the published layout.
+  Product apphosts search Runtime\dotnet first and the machine-registered runtime
+  second. Child process environment is constructed explicitly. No account-level
+  DOTNET_ROOT value is created. Debug symbols are stripped from release layouts.
 
 .PARAMETER PortableOnly
   Skip the Inno Setup installer and source bundle; produce only the portable layout + ZIP.
@@ -34,6 +34,8 @@
 [CmdletBinding()]
 param(
     [switch]$PortableOnly,
+    [ValidateSet('Full', 'Web', 'All')]
+    [string]$Distribution = 'Full',
     [string]$Version = '',
     [ValidateSet('stable', 'nightly', 'local')]
     [string]$Channel = '',
@@ -48,12 +50,13 @@ $ErrorActionPreference = 'Stop'
 
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 $Artifacts = Join-Path $RepoRoot 'artifacts\release'
-$PublishRoot = Join-Path $Artifacts 'win-x64'
-$ZipPath = Join-Path $Artifacts 'MyPowerTools-win-x64.zip'
-$InstallerScript = Join-Path $RepoRoot 'installer\MyPowerTools.iss'
+$isWebDistribution = $Distribution -eq 'Web'
+$PublishRoot = Join-Path $Artifacts $(if ($isWebDistribution) { 'win-x64-core' } else { 'win-x64' })
+$ZipPath = Join-Path $Artifacts $(if ($isWebDistribution) { 'MyPowerTools-core-win-x64.zip' } else { 'MyPowerTools-win-x64.zip' })
+$InstallerScript = Join-Path $RepoRoot $(if ($isWebDistribution) { 'installer\MyPowerTools.Web.iss' } else { 'installer\MyPowerTools.iss' })
 $ModuleStagingRoot = Join-Path $Artifacts 'module-packages'
-$ManifestAssetPath = Join-Path $Artifacts 'MyPowerTools-win-x64.manifest.json'
-$DeltaOutputRoot = Join-Path $Artifacts 'ota'
+$ManifestAssetPath = Join-Path $Artifacts $(if ($isWebDistribution) { 'MyPowerTools-core-win-x64.manifest.json' } else { 'MyPowerTools-win-x64.manifest.json' })
+$DeltaOutputRoot = Join-Path $Artifacts $(if ($isWebDistribution) { 'ota-web' } else { 'ota' })
 
 if ([string]::IsNullOrWhiteSpace($Version)) {
     $versionScript = Join-Path $PSScriptRoot 'get-product-version.ps1'
@@ -100,6 +103,50 @@ if (-not [string]::IsNullOrWhiteSpace($SigningKeyBase64)) {
         if ($signingKeyBytes.Length -ne 32) {
             throw 'Ed25519 signing key must be a 32-byte seed encoded as 64 hex characters or base64.'
         }
+    }
+}
+
+if ($Distribution -eq 'All') {
+    foreach ($mode in @('Full', 'Web')) {
+        $publishParams = @{
+            Distribution = $mode
+            Version = $Version
+            Channel = $Channel
+            OtaHistoryDir = $OtaHistoryDir
+        }
+        if ($PortableOnly) { $publishParams.PortableOnly = $true }
+        if ($AllowUnsigned) { $publishParams.AllowUnsigned = $true }
+        if ($PreferGitTag) { $publishParams.PreferGitTag = $true }
+        if (-not [string]::IsNullOrWhiteSpace($SigningKeyBase64)) {
+            $publishParams.SigningKeyBase64 = $SigningKeyBase64
+        }
+        & $PSCommandPath @publishParams
+    }
+    return
+}
+
+if ($isWebDistribution) {
+    $fullProvenancePath = Join-Path $Artifacts 'win-x64\build-provenance.json'
+    $fullReady = $false
+    if (Test-Path -LiteralPath $fullProvenancePath -PathType Leaf) {
+        $fullProvenance = Get-Content -LiteralPath $fullProvenancePath -Raw | ConvertFrom-Json
+        $fullReady = [string]$fullProvenance.version -eq $Version -and
+            [string]$fullProvenance.distributionMode -eq 'full'
+    }
+    if (-not $fullReady) {
+        Write-Host 'Preparing the matching Full layout used to build runtime component archives.'
+        $fullParams = @{
+            Distribution = 'Full'
+            Version = $Version
+            Channel = $Channel
+            OtaHistoryDir = $OtaHistoryDir
+            PortableOnly = $true
+        }
+        if ($AllowUnsigned) { $fullParams.AllowUnsigned = $true }
+        if (-not [string]::IsNullOrWhiteSpace($SigningKeyBase64)) {
+            $fullParams.SigningKeyBase64 = $SigningKeyBase64
+        }
+        & $PSCommandPath @fullParams
     }
 }
 
@@ -310,24 +357,33 @@ New-Item -ItemType Directory -Path $PublishRoot -Force | Out-Null
 if (-not $ModuleStagingRootFull.StartsWith($ArtifactsFull, [System.StringComparison]::OrdinalIgnoreCase)) {
     throw "Module staging path must stay under release artifacts: $ModuleStagingRootFull"
 }
-Invoke-Native -FilePath 'pwsh.exe' -ArgumentList @(
-    '-NoLogo', '-NoProfile', '-NonInteractive',
-    '-File', (Join-Path $PSScriptRoot 'build-sdk.ps1'))
-Invoke-Native -FilePath 'pwsh.exe' -ArgumentList @(
-    '-NoLogo', '-NoProfile', '-NonInteractive',
-    '-File', (Join-Path $PSScriptRoot 'build-tool-packages.ps1'),
-    '-RepoRoot', $RepoRoot,
-    '-OutputRoot', $ModuleStagingRootFull,
-    '-SkipSdk')
+$reusableFullToolSnapshot = $isWebDistribution -and
+    (Test-Path -LiteralPath $ModuleStagingRootFull -PathType Container) -and
+    (Test-Path -LiteralPath (Join-Path $RepoRoot 'artifacts\tool-package-build\source-manifest.json') -PathType Leaf)
+if ($reusableFullToolSnapshot) {
+    Write-Host 'Reusing the matching Full tool-package snapshot for the Web core.'
+} else {
+    Invoke-Native -FilePath 'pwsh.exe' -ArgumentList @(
+        '-NoLogo', '-NoProfile', '-NonInteractive',
+        '-File', (Join-Path $PSScriptRoot 'build-sdk.ps1'))
+    Invoke-Native -FilePath 'pwsh.exe' -ArgumentList @(
+        '-NoLogo', '-NoProfile', '-NonInteractive',
+        '-File', (Join-Path $PSScriptRoot 'build-tool-packages.ps1'),
+        '-RepoRoot', $RepoRoot,
+        '-OutputRoot', $ModuleStagingRootFull,
+        '-SkipSdk')
+}
 
 Invoke-Native -FilePath 'dotnet' -ArgumentList @(
     'run', '--project', 'src\MyPowerTools.Cli\MyPowerTools.Cli.csproj', '--',
     'package', 'sign-local', $ModuleStagingRootFull)
 Invoke-Native -FilePath 'dotnet' -ArgumentList @('publish', 'src\MyPowerTools.Runner\MyPowerTools.Runner.csproj', '-c', 'Release', '-r', 'win-x64', '--self-contained', 'false', '-p:DebugType=None', '-p:DebugSymbols=false', '-o', (Join-Path $PublishRoot 'Runner'))
-Invoke-Native -FilePath 'dotnet' -ArgumentList @('publish', 'src\MyPowerTools.Shell.Avalonia\MyPowerTools.Shell.Avalonia.csproj', '-c', 'Release', '-r', 'win-x64', '--self-contained', 'false', '-p:PublishReadyToRun=true', '-p:PublishReadyToRunComposite=true', '-p:DebugType=None', '-p:DebugSymbols=false', '-o', (Join-Path $PublishRoot 'Shell'))
+$shellReadyToRun = -not $isWebDistribution
+Invoke-Native -FilePath 'dotnet' -ArgumentList @('publish', 'src\MyPowerTools.Shell.Avalonia\MyPowerTools.Shell.Avalonia.csproj', '-c', 'Release', '-r', 'win-x64', '--self-contained', 'false', "-p:PublishReadyToRun=$($shellReadyToRun.ToString().ToLowerInvariant())", "-p:PublishReadyToRunComposite=$($shellReadyToRun.ToString().ToLowerInvariant())", '-p:DebugType=None', '-p:DebugSymbols=false', '-o', (Join-Path $PublishRoot 'Shell'))
 Invoke-Native -FilePath 'dotnet' -ArgumentList @('publish', 'src\MyPowerTools.Cli\MyPowerTools.Cli.csproj', '-c', 'Release', '-r', 'win-x64', '--self-contained', 'false', '-p:DebugType=None', '-p:DebugSymbols=false', '-o', (Join-Path $PublishRoot 'Cli'))
 Invoke-Native -FilePath 'dotnet' -ArgumentList @('publish', 'src\MyPowerTools.ElevatedBroker\MyPowerTools.ElevatedBroker.csproj', '-c', 'Release', '-r', 'win-x64', '--self-contained', 'false', '-p:PublishAot=false', '-p:PublishSingleFile=true', '-p:DebugType=None', '-p:DebugSymbols=false', '-o', (Join-Path $PublishRoot 'Broker'))
 Invoke-Native -FilePath 'pwsh.exe' -ArgumentList @('-NoLogo', '-NoProfile', '-NonInteractive', '-File', (Join-Path $PSScriptRoot 'validate-elevated-broker.ps1'), '-BrokerDirectory', (Join-Path $PublishRoot 'Broker'))
+Invoke-Native -FilePath 'dotnet' -ArgumentList @('publish', 'src\MyPowerTools.InputRemapHost\MyPowerTools.InputRemapHost.csproj', '-c', 'Release', '-r', 'win-x64', '--self-contained', 'false', '-p:PublishAot=false', '-p:PublishSingleFile=true', '-p:DebugType=None', '-p:DebugSymbols=false', '-o', (Join-Path $PublishRoot 'InputRemap'))
 Invoke-Native -FilePath 'dotnet' -ArgumentList @('publish', 'src\MyPowerTools.ServiceManager\MyPowerTools.ServiceManager.csproj', '-c', 'Release', '-r', 'win-x64', '--self-contained', 'false', '-p:DebugType=None', '-p:DebugSymbols=false', '-o', (Join-Path $PublishRoot 'ServiceManager'))
 
 $toolBuildManifestPath = Join-Path $RepoRoot 'artifacts\tool-package-build\source-manifest.json'
@@ -364,9 +420,10 @@ Invoke-Native -FilePath 'dotnet' -ArgumentList @('publish', 'src\MyPowerTools.Ap
 Copy-Item -LiteralPath (Join-Path $LauncherPublishRoot 'MyPowerTools.exe') -Destination (Join-Path $PublishRoot 'MyPowerTools.exe') -Force
 Remove-Item -LiteralPath $LauncherPublishRoot -Recurse -Force
 
-# One shared .NET runtime for every framework-dependent process. Copy the
-# standard dotnet install layout (host\fxr + shared frameworks) from the build
-# machine's SDK so every product process resolves one runtime via DOTNET_ROOT.
+# Full carries one application-private .NET runtime for every framework-dependent
+# process. Apphosts resolve it through AppRelative;Global and child launchers pass
+# the private root only in the target process environment.
+if (-not $isWebDistribution) {
 $sharedRuntimeRoot = Join-Path $PublishRoot 'Runtime\dotnet'
 $dotnetCommand = Get-Command 'dotnet.exe' -CommandType Application -ErrorAction Stop |
     Select-Object -First 1
@@ -398,6 +455,7 @@ Copy-Item -Path (Join-Path $hostFxrSource '*') -Destination $hostFxrDestination 
 if (-not (Test-Path -LiteralPath (Join-Path $hostFxrDestination 'hostfxr.dll') -PathType Leaf)) {
     throw "Shared runtime carrier is missing hostfxr.dll under $hostFxrDestination"
 }
+}
 
 Copy-DirectoryContents -Source $ModuleStagingRootFull -Destination (Join-Path $PublishRoot 'modules')
 Copy-Item -Path (Join-Path $RepoRoot 'schemas') -Destination (Join-Path $PublishRoot 'schemas') -Recurse -Force
@@ -410,6 +468,7 @@ Copy-Item -LiteralPath (Join-Path $RepoRoot 'scripts\install-windows.ps1') -Dest
 Copy-Item -LiteralPath (Join-Path $RepoRoot 'scripts\uninstall-windows.ps1') -Destination (Join-Path $PublishRoot 'uninstall-windows.ps1') -Force
 Copy-Item -LiteralPath (Join-Path $RepoRoot 'scripts\configure-user-services.ps1') -Destination (Join-Path $PublishRoot 'configure-user-services.ps1') -Force
 Copy-Item -LiteralPath (Join-Path $RepoRoot 'scripts\start-user-runtime.ps1') -Destination (Join-Path $PublishRoot 'start-user-runtime.ps1') -Force
+Copy-Item -LiteralPath (Join-Path $RepoRoot 'scripts\runtime-environment.ps1') -Destination (Join-Path $PublishRoot 'runtime-environment.ps1') -Force
 Copy-Item -LiteralPath (Join-Path $RepoRoot 'scripts\new-ota-file-manifest.ps1') -Destination (Join-Path $PublishRoot 'new-ota-file-manifest.ps1') -Force
 Copy-Item -LiteralPath (Join-Path $RepoRoot 'scripts\new-ota-delta-package.ps1') -Destination (Join-Path $PublishRoot 'new-ota-delta-package.ps1') -Force
 Copy-Item -LiteralPath (Join-Path $RepoRoot 'scripts\invoke-ota-update.ps1') -Destination (Join-Path $PublishRoot 'invoke-ota-update.ps1') -Force
@@ -419,14 +478,16 @@ Copy-Item -LiteralPath (Join-Path $RepoRoot 'scripts\ed25519.cs') -Destination (
 Copy-Item -LiteralPath (Join-Path $RepoRoot 'scripts\Start-MyPowerTools.cmd') -Destination (Join-Path $PublishRoot 'Start-MyPowerTools.cmd') -Force
 Copy-Item -LiteralPath (Join-Path $RepoRoot 'scripts\Manage-DoubaoRuntime.ps1') -Destination (Join-Path $PublishRoot 'Manage-DoubaoRuntime.ps1') -Force
 Copy-Item -LiteralPath (Join-Path $RepoRoot 'START_HERE.md') -Destination (Join-Path $PublishRoot 'START_HERE.md') -Force
-Invoke-Native -FilePath 'pwsh.exe' -ArgumentList @(
-    '-NoLogo',
-    '-NoProfile',
-    '-NonInteractive',
-    '-File',
-    (Join-Path $PSScriptRoot 'stage-tool-runtimes.ps1'),
-    '-PublishRoot',
-    $PublishRoot)
+if (-not $isWebDistribution) {
+    Invoke-Native -FilePath 'pwsh.exe' -ArgumentList @(
+        '-NoLogo',
+        '-NoProfile',
+        '-NonInteractive',
+        '-File',
+        (Join-Path $PSScriptRoot 'stage-tool-runtimes.ps1'),
+        '-PublishRoot',
+        $PublishRoot)
+}
 
 # Release hygiene: debug symbols are never shipped in the product layout.
 $publishRootFull = [IO.Path]::GetFullPath($PublishRoot).TrimEnd(
@@ -448,6 +509,8 @@ $packageByTool = @{
     'paste-image' = 'paste-image'
     'input-monitor' = 'input-monitor'
     'local-lag-cleaner' = 'local-lag-cleaner'
+    'ime-manager' = 'ime-manager'
+    'nssm-manager' = 'nssm-manager'
     'screenease' = 'screenease'
     'smartbird-thermostat' = 'smartbird-thermostat'
     'doubao-computer-use' = 'doubao-agent'
@@ -475,6 +538,7 @@ $provenance = [ordered]@{
     schemaVersion = 2
     version = $Version
     channel = $Channel
+    distributionMode = $(if ($isWebDistribution) { 'web' } else { 'full' })
     repository = 'https://github.com/dqtz5vpvj9-create/MyPowerTools'
     generatedAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
     buildSource = 'tools/* submodules'
@@ -483,9 +547,9 @@ $provenance = [ordered]@{
     doubaoRuntimeSource = 'tools/doubao-computer-use/original-source/computer_use'
     windowsShell = [ordered]@{
         runtimeIdentifier = 'win-x64'
-        selfContained = $true
-        publishReadyToRun = $true
-        publishReadyToRunComposite = $true
+        selfContained = $false
+        publishReadyToRun = $shellReadyToRun
+        publishReadyToRunComposite = $shellReadyToRun
         files = [ordered]@{
             executableSha256 = (Get-FileHash -LiteralPath (Join-Path $PublishRoot 'Shell\MyPowerTools.Shell.Avalonia.exe') -Algorithm SHA256).Hash.ToLowerInvariant()
             assemblySha256 = (Get-FileHash -LiteralPath (Join-Path $PublishRoot 'Shell\MyPowerTools.Shell.Avalonia.dll') -Algorithm SHA256).Hash.ToLowerInvariant()
@@ -528,17 +592,40 @@ Invoke-Native -FilePath 'pwsh.exe' -ArgumentList @(
     '-Root', $PublishRoot,
     '-OutputPath', $ManifestAssetPath,
     '-Version', $Version)
+$embeddedManifestName = if ($isWebDistribution) {
+    'MyPowerTools-core-win-x64.manifest.json'
+} else {
+    'MyPowerTools-win-x64.manifest.json'
+}
 Copy-Item -LiteralPath $ManifestAssetPath -Destination (
-    Join-Path $PublishRoot 'MyPowerTools-win-x64.manifest.json') -Force
+    Join-Path $PublishRoot $embeddedManifestName) -Force
 
-Compress-Archive -Path (Join-Path $PublishRoot '*') -DestinationPath $ZipPath
+[void](& (Join-Path $PSScriptRoot 'compress-release-zip.ps1') -Root $PublishRoot -OutputPath $ZipPath)
 Write-Sha256File -Path $ZipPath
+
+if ($isWebDistribution) {
+    $componentParams = @{
+        FullRoot = Join-Path $Artifacts 'win-x64'
+        CoreZipPath = $ZipPath
+        OutputRoot = Join-Path $Artifacts 'runtime-components'
+        Version = $Version
+        AllowUnsigned = $AllowUnsigned
+    }
+    if ($null -ne $signingKeyBytes) {
+        $componentParams.SigningKeyBase64 = [Convert]::ToBase64String($signingKeyBytes)
+    }
+    [void](& (Join-Path $PSScriptRoot 'new-runtime-components.ps1') @componentParams)
+}
 
 New-Item -ItemType Directory -Path $DeltaOutputRoot -Force | Out-Null
 $deltaPackages = [Collections.Generic.List[string]]::new()
 if (Test-Path -LiteralPath $OtaHistoryDir -PathType Container) {
     $historicalByVersion = @{}
     foreach ($historicalManifest in Get-ChildItem -LiteralPath $OtaHistoryDir -Filter '*.manifest.json' -File) {
+        $historicalIsWeb = $historicalManifest.Name -like '*core-win-x64*'
+        if ($historicalIsWeb -ne $isWebDistribution) {
+            continue
+        }
         $historical = Get-Content -LiteralPath $historicalManifest.FullName -Raw | ConvertFrom-Json
         $fromVersion = [string]$historical.version
         if ([string]::IsNullOrWhiteSpace($fromVersion) -or $fromVersion -eq $Version) {
@@ -575,7 +662,7 @@ $feedParams = @{
     FullZipPath = $ZipPath
     FullManifestPath = $ManifestAssetPath
     DeltaPackages = $deltaPackages.ToArray()
-    OutputPath = Join-Path $Artifacts "channel-$Channel.json"
+    OutputPath = Join-Path $Artifacts $(if ($isWebDistribution) { "channel-$Channel-web.json" } else { "channel-$Channel.json" })
     AllowUnsigned = $AllowUnsigned
 }
 if ($null -ne $signingKeyBytes) {
@@ -584,14 +671,16 @@ if ($null -ne $signingKeyBytes) {
 }
 [void](& (Join-Path $PSScriptRoot 'new-ota-channel-feed.ps1') @feedParams)
 
-Invoke-Native -FilePath 'pwsh.exe' -ArgumentList @(
-    '-NoLogo', '-NoProfile', '-NonInteractive',
-    '-File', (Join-Path $PSScriptRoot 'release-metadata.ps1'),
-    '-RepoRoot', $RepoRoot,
-    '-ArtifactsRoot', $Artifacts,
-    '-Version', $Version,
-    '-Channel', $Channel)
-Invoke-Native -FilePath 'pwsh.exe' -ArgumentList @('-NoLogo', '-NoProfile', '-NonInteractive', '-File', (Join-Path $PSScriptRoot 'release-notes.ps1'), '-RepoRoot', $RepoRoot, '-ArtifactsRoot', $Artifacts)
+if (-not $isWebDistribution) {
+    Invoke-Native -FilePath 'pwsh.exe' -ArgumentList @(
+        '-NoLogo', '-NoProfile', '-NonInteractive',
+        '-File', (Join-Path $PSScriptRoot 'release-metadata.ps1'),
+        '-RepoRoot', $RepoRoot,
+        '-ArtifactsRoot', $Artifacts,
+        '-Version', $Version,
+        '-Channel', $Channel)
+    Invoke-Native -FilePath 'pwsh.exe' -ArgumentList @('-NoLogo', '-NoProfile', '-NonInteractive', '-File', (Join-Path $PSScriptRoot 'release-notes.ps1'), '-RepoRoot', $RepoRoot, '-ArtifactsRoot', $Artifacts)
+}
 
 if ($PortableOnly) {
     Write-Host "Portable package ready at $PublishRoot"
@@ -601,13 +690,13 @@ if ($PortableOnly) {
 
 $innoCompiler = Find-InnoCompiler
 if ($innoCompiler) {
-    $releaseMetadata = Get-Content -Raw -LiteralPath (Join-Path $Artifacts 'release-metadata.json') | ConvertFrom-Json
-    $releaseVersion = [string]$releaseMetadata.version
-    if ([string]::IsNullOrWhiteSpace($releaseVersion)) {
-        throw 'Release metadata does not contain a version for the installer.'
-    }
+    $releaseVersion = $Version
 
-    $setupBaseName = "MyPowerTools-Setup-$releaseVersion-win-x64"
+    $setupBaseName = if ($isWebDistribution) {
+        "MyPowerTools-Web-Setup-$releaseVersion-win-x64"
+    } else {
+        "MyPowerTools-Setup-$releaseVersion-win-x64"
+    }
     $setupPath = Join-Path $Artifacts "$setupBaseName.exe"
     $setupHashPath = "$setupPath.sha256"
 
@@ -617,12 +706,17 @@ if ($innoCompiler) {
         }
     }
 
-    Invoke-Native -FilePath $innoCompiler -ArgumentList @(
+    $innoArguments = @(
         '/Qp',
         "/DMyAppVersion=$releaseVersion",
+        "/DMyReleaseChannel=$Channel",
         "/O$Artifacts",
         "/F$setupBaseName",
         $InstallerScript)
+    if ($isWebDistribution -and $AllowUnsigned) {
+        $innoArguments = @('/DMyAllowUnsigned=1') + $innoArguments
+    }
+    Invoke-Native -FilePath $innoCompiler -ArgumentList $innoArguments
 
     if (-not (Test-Path -LiteralPath $setupPath -PathType Leaf)) {
         throw "Inno Setup completed without producing $setupPath"
@@ -638,7 +732,7 @@ if ($innoCompiler) {
 }
 
 $sourceArchivePath = $null
-if (Test-Path -LiteralPath (Join-Path $RepoRoot '.git')) {
+if (-not $isWebDistribution -and (Test-Path -LiteralPath (Join-Path $RepoRoot '.git'))) {
     $sourceArchivePath = Join-Path $Artifacts ("MyPowerTools-Source-{0}.zip" -f (Get-Date -Format 'yyyyMMdd'))
     Invoke-Native -FilePath 'pwsh.exe' -ArgumentList @(
         '-NoLogo',
@@ -651,7 +745,7 @@ if (Test-Path -LiteralPath (Join-Path $RepoRoot '.git')) {
         '-ArchivePath',
         $sourceArchivePath)
     Write-Sha256File -Path $sourceArchivePath
-} else {
+} elseif (-not $isWebDistribution) {
     Write-Warning 'Git metadata is absent; binary publishing completed and source archive refresh was skipped.'
 }
 

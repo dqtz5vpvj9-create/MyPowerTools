@@ -243,16 +243,69 @@
                                          FontSize="11"
                                          Classes="secondary" />
                             </Grid>
-                            <TextBlock Text="{Binding Evidence}" Classes="secondary" />
+                            <TextBlock Text="{Binding Evidence}"
+                                       Classes="secondary"
+                                       TextWrapping="Wrap" />
                             <TextBlock Text="{Binding CausalChain, StringFormat='因果链：{0}'}"
                                        FontSize="12"
-                                       Classes="secondary" />
-                            <TextBlock Text="{Binding Recommendation, StringFormat='建议：{0}'}"
+                                       Classes="secondary"
+                                       TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding Recommendation, StringFormat='处理方法：{0}'}"
                                        FontSize="12"
-                                       Classes="secondary" />
+                                       Classes="secondary"
+                                       TextWrapping="Wrap" />
                           </StackPanel>
                         </Grid>
                       </Border>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+            </Border>
+
+            <Border Classes="card">
+              <StackPanel Spacing="9">
+                <Grid ColumnDefinitions="*,Auto">
+                  <TextBlock Text="后台进程拆分（breakdown）"
+                             Classes="section-title" />
+                  <TextBlock Grid.Column="1"
+                             Text="{Binding ProcessBreakdownSummary}"
+                             Classes="secondary"
+                             FontSize="12"
+                             TextWrapping="Wrap" />
+                </Grid>
+                <TextBlock Text="按进程名与已知服务角色聚合；示例 PID 用于后续核对，表格只显示数量前列。"
+                           Classes="secondary"
+                           FontSize="12"
+                           TextWrapping="Wrap" />
+                <Grid ColumnDefinitions="170,170,60,80,100,100,75,75,*"
+                      ColumnSpacing="8">
+                  <TextBlock Text="进程组" FontWeight="SemiBold" />
+                  <TextBlock Grid.Column="1" Text="角色" FontWeight="SemiBold" />
+                  <TextBlock Grid.Column="2" Text="数量" FontWeight="SemiBold" />
+                  <TextBlock Grid.Column="3" Text="线程" FontWeight="SemiBold" />
+                  <TextBlock Grid.Column="4" Text="私有提交" FontWeight="SemiBold" />
+                  <TextBlock Grid.Column="5" Text="工作集" FontWeight="SemiBold" />
+                  <TextBlock Grid.Column="6" Text="CPU" FontWeight="SemiBold" />
+                  <TextBlock Grid.Column="7" Text="句柄" FontWeight="SemiBold" />
+                  <TextBlock Grid.Column="8" Text="示例 PID" FontWeight="SemiBold" />
+                </Grid>
+                <ItemsControl ItemsSource="{Binding ProcessBreakdown}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="vm:ProcessBreakdownRow">
+                      <Grid ColumnDefinitions="170,170,60,80,100,100,75,75,*"
+                            ColumnSpacing="8"
+                            Margin="0,5">
+                        <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
+                        <TextBlock Grid.Column="1" Text="{Binding Role}" TextTrimming="CharacterEllipsis" Classes="secondary" />
+                        <TextBlock Grid.Column="2" Text="{Binding ProcessCount}" />
+                        <TextBlock Grid.Column="3" Text="{Binding Threads}" />
+                        <TextBlock Grid.Column="4" Text="{Binding PrivateMemory}" />
+                        <TextBlock Grid.Column="5" Text="{Binding WorkingSet}" />
+                        <TextBlock Grid.Column="6" Text="{Binding Cpu}" />
+                        <TextBlock Grid.Column="7" Text="{Binding Handles}" />
+                        <TextBlock Grid.Column="8" Text="{Binding SampleProcessIds}" Classes="secondary" TextTrimming="CharacterEllipsis" />
+                      </Grid>
                     </DataTemplate>
                   </ItemsControl.ItemTemplate>
                 </ItemsControl>
@@ -527,28 +580,18 @@
               <StackPanel Spacing="11">
                 <TextBlock Text="待执行计划" Classes="section-title" />
                 <TextBlock Text="{Binding PlanSummary}" TextWrapping="Wrap" />
+                <TextBlock Text="普通计划可直接执行；计划凭据由当前计划自动绑定，无需手动输入。"
+                           Classes="secondary"
+                           TextWrapping="Wrap" />
                 <Border Background="{DynamicResource MptBrushWarningBackground}"
                         BorderBrush="{DynamicResource MptBrushWarning}"
                         BorderThickness="1"
                         CornerRadius="8"
-                        Padding="14">
-                  <StackPanel Spacing="5">
-                    <TextBlock Text="八位计划令牌" FontSize="12" Classes="secondary" />
-                    <TextBlock Text="{Binding PlanToken}"
-                               FontSize="22"
-                               FontFamily="Consolas"
-                               FontWeight="SemiBold"
-                               Foreground="{DynamicResource MptBrushWarning}" />
-                  </StackPanel>
+                        Padding="14"
+                        IsVisible="{Binding PlanRequiresServiceRestart}">
+                  <TextBlock Text="点击执行将请求管理员权限；远程桌面计划会立即断开当前会话。"
+                             TextWrapping="Wrap" />
                 </Border>
-                <CheckBox Content="允许重启计划中声明的服务"
-                          IsChecked="{Binding AllowServiceRestart}"
-                          IsVisible="{Binding PlanRequiresServiceRestart}" />
-                <CheckBox Content="我已准备好当前远程会话断开，并具有带外恢复路径"
-                          IsChecked="{Binding AllowSessionDisconnect}"
-                          IsVisible="{Binding PlanMayDisconnect}" />
-                <TextBox PlaceholderText="输入八位计划令牌"
-                         Text="{Binding TokenInput, Mode=TwoWay}" />
                 <Button Content="执行并验证该计划"
                         Command="{Binding ApplyPlanCommand}"
                         IsEnabled="{Binding CanApply}"

@@ -17,6 +17,7 @@
     <DebugSymbols>false</DebugSymbols>
     <EventSourceSupport>false</EventSourceSupport>
     <HttpActivityPropagationSupport>false</HttpActivityPropagationSupport>
+    <AppHostRelativeDotNet Condition="$([System.String]::Copy('$(RuntimeIdentifier)').StartsWith('win-'))">Runtime\dotnet</AppHostRelativeDotNet>
   </PropertyGroup>
 
   <ItemGroup>
@@ -25,6 +26,7 @@
 
   <ItemGroup>
     <ProjectReference Include="..\MyPowerTools.Abstractions\MyPowerTools.Abstractions.csproj" />
+    <ProjectReference Include="..\MyPowerTools.Platform.Abstractions\MyPowerTools.Platform.Abstractions.csproj" />
   </ItemGroup>
 
 </Project>

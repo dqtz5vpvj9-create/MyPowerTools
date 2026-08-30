@@ -1,0 +1,21 @@
+{
+  "schemaVersion": 1,
+  "toolId": "ime-manager",
+  "packageId": "ime-manager",
+  "version": "0.1.0",
+  "sdkTool": {
+    "directory": "sdk-tool",
+    "manifest": "sdk-tool/tool.json",
+    "project": "sdk-tool/src/ImeManager.Tool/ImeManager.Tool.csproj",
+    "assembly": "sdk-tool/src/ImeManager.Tool/bin/Release/net10.0/ImeManager.Tool.dll",
+    "runtimeProject": "sdk-tool/src/ImeManager.Runtime/ImeManager.Runtime.csproj",
+    "runtimeAssembly": "sdk-tool/src/ImeManager.Runtime/bin/Release/net10.0/ImeManager.Runtime.exe",
+    "runtimeTransport": "stdio-jsonrpc",
+    "package": "artifacts/ime-manager.mptpkg",
+    "sdkPackages": [
+      "MyPowerTools.AvaloniaSdk",
+      "MyPowerTools.ToolSdk"
+    ]
+  },
+  "buildScript": "build.ps1"
+}

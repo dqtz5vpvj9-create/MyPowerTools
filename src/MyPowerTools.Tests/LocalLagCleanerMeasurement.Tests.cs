@@ -145,6 +145,50 @@ public sealed class LocalLagCleanerMeasurementTests
     }
 
     [Fact]
+    public void Report_prints_process_breakdown_and_explicit_remediation()
+    {
+        var snapshot = EmptySnapshot() with
+        {
+            ProcessCount = 609,
+            ThreadCount = 11_153,
+            ProcessBreakdown =
+            [
+                new ProcessBreakdownSnapshot(
+                    "svchost",
+                    "Delivery Optimization",
+                    12,
+                    240,
+                    512UL * 1024 * 1024,
+                    768UL * 1024 * 1024,
+                    4_800,
+                    2.5,
+                    [120, 121])
+            ],
+            Findings =
+            [
+                new LagFinding(
+                    LagSeverity.Critical,
+                    "process-count-critical",
+                    "后台进程数量严重异常",
+                    "数量前列：svchost ×12。",
+                    "按进程拆分核对来源。",
+                    false,
+                    "")
+                {
+                    Domain = DiagnosticDomain.BackgroundProcesses,
+                    CausalChain = "进程总数超过阈值 → 进程族聚合 → 按服务归属核查"
+                }
+            ]
+        };
+
+        var markdown = LagReportWriter.ToMarkdown(snapshot);
+
+        Assert.Contains("后台进程拆分", markdown, StringComparison.Ordinal);
+        Assert.Contains("| svchost | Delivery Optimization | 12 | 240 |", markdown, StringComparison.Ordinal);
+        Assert.Contains("处理方法：按进程拆分核对来源。", markdown, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public async Task Windows_scan_retains_every_complete_aligned_signal_sample()
     {
         if (!OperatingSystem.IsWindows())
@@ -152,12 +196,32 @@ public sealed class LocalLagCleanerMeasurementTests
             return;
         }
 
-        var snapshot = await new LagDiagnosticsEngine().ScanAsync(
-            new LagCleanerOptions
+        var options = new LagCleanerOptions
+        {
+            SampleSeconds = 3,
+            SampleIntervalMilliseconds = 1_000,
+            ProcessWarningCount = 50,
+            ProcessCriticalCount = 10_000
+        };
+        var snapshot = await new LagDiagnosticsEngine().ScanAsync(options);
+        Assert.NotEmpty(snapshot.ProcessBreakdown);
+        Assert.All(
+            snapshot.ProcessBreakdown,
+            item =>
             {
-                SampleSeconds = 3,
-                SampleIntervalMilliseconds = 1_000
+                Assert.True(item.ProcessCount > 0);
+                Assert.False(string.IsNullOrWhiteSpace(item.Name));
+                Assert.NotEmpty(item.SampleProcessIds);
             });
+        if (snapshot.ProcessCount >= options.Normalize().ProcessWarningCount)
+        {
+            var processFinding = Assert.Single(
+                snapshot.Findings,
+                item => item.Code is "process-count-critical" or "process-count-warning");
+            Assert.Contains("数量最多的进程组", processFinding.Evidence, StringComparison.Ordinal);
+            Assert.Contains("按进程族", processFinding.CausalChain, StringComparison.Ordinal);
+            Assert.Contains("进程拆分", processFinding.Recommendation, StringComparison.Ordinal);
+        }
         var pdh = Assert.Single(snapshot.Coverage, item => item.Probe == "pdh");
         if (pdh.Status == MeasurementStatus.Unavailable)
         {

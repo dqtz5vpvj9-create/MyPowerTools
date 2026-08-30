@@ -1,0 +1,22 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <AssemblyName>ImeManager.Tool</AssemblyName>
+    <RootNamespace>ImeManager.Tool</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MyPowerTools.AvaloniaSdk" Version="0.2.0" />
+    <PackageReference Include="MyPowerTools.ToolSdk" Version="0.2.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\ImeManager.Core\ImeManager.Core.csproj" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="MyPowerTools.Tests" />
+  </ItemGroup>
+</Project>

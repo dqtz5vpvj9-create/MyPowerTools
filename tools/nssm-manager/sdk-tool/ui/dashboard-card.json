@@ -1,0 +1,1 @@
+{ "schemaVersion": "1.0", "surfaceId": "nssm-manager.dashboard", "moduleId": "nssm-manager", "kind": "dashboard-card", "layout": { "mode": "component" }, "uses": ["MptDashboardCard", "MptStatusPill", "MptActionBar"], "states": ["loading", "ready", "empty", "error", "permission-required", "disabled"] }

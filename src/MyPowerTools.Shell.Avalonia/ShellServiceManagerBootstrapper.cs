@@ -111,7 +111,9 @@ public static class ShellServiceManagerBootstrapper
         var releaseExe = Path.Combine(appRoot, "ServiceManager", ShellRunnerBootstrapper.ExecutableName("MyPowerTools.ServiceManager"));
         if (File.Exists(releaseExe))
         {
-            return CreateStartInfo(releaseExe, appRoot);
+            var releaseStartInfo = CreateStartInfo(releaseExe, appRoot);
+            DotNetRuntimeEnvironment.ConfigureChildProcess(releaseStartInfo, appRoot);
+            return releaseStartInfo;
         }
 
         var repositoryRoot = FindRepositoryRoot(AppContext.BaseDirectory);
@@ -130,7 +132,9 @@ public static class ShellServiceManagerBootstrapper
             ShellRunnerBootstrapper.ExecutableName("MyPowerTools.ServiceManager"));
         if (File.Exists(debugExe))
         {
-            return CreateStartInfo(debugExe, repositoryRoot);
+            var debugStartInfo = CreateStartInfo(debugExe, repositoryRoot);
+            DotNetRuntimeEnvironment.ConfigureChildProcess(debugStartInfo, repositoryRoot);
+            return debugStartInfo;
         }
 
         var projectPath = Path.Combine(repositoryRoot, "src", "MyPowerTools.ServiceManager", "MyPowerTools.ServiceManager.csproj");
@@ -153,6 +157,7 @@ public static class ShellServiceManagerBootstrapper
         dotnetStartInfo.ArgumentList.Add("--");
         dotnetStartInfo.ArgumentList.Add("--data-root");
         dotnetStartInfo.ArgumentList.Add(ResolveDataRoot());
+        DotNetRuntimeEnvironment.ConfigureChildProcess(dotnetStartInfo, repositoryRoot);
         return dotnetStartInfo;
     }
 

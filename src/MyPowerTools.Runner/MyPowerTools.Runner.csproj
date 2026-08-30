@@ -12,6 +12,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Remove="WindowsWinSpaceShiftRemapper.cs" />
     <ProjectReference Include="..\MyPowerTools.Protocol\MyPowerTools.Protocol.csproj" />
     <ProjectReference Include="..\MyPowerTools.Packaging\MyPowerTools.Packaging.csproj" />
     <ProjectReference Include="..\MyPowerTools.Runtime\MyPowerTools.Runtime.csproj" />
@@ -27,4 +28,3 @@
   </ItemGroup>
 
 </Project>
-

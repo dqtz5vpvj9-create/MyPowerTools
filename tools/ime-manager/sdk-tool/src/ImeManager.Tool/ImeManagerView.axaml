@@ -1,0 +1,233 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:ImeManager.Tool"
+             x:Class="ImeManager.Tool.ImeManagerView"
+             x:DataType="vm:ImeManagerViewModel">
+  <UserControl.Styles>
+    <Style Selector="Border.card">
+      <Setter Property="Background" Value="{DynamicResource MptBrushCardBackground}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource MptBrushBorder}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="10" />
+      <Setter Property="Padding" Value="16" />
+    </Style>
+    <Style Selector="TextBlock.secondary">
+      <Setter Property="Foreground" Value="{DynamicResource MptBrushTextSecondary}" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+    <Style Selector="TextBlock.section-title">
+      <Setter Property="FontSize" Value="16" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="Button.stack">
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="MinWidth" Value="108" />
+      <Setter Property="Padding" Value="12,7" />
+    </Style>
+    <Style Selector="ListBoxItem">
+      <Setter Property="Padding" Value="8,6" />
+    </Style>
+  </UserControl.Styles>
+
+  <Grid RowDefinitions="Auto,Auto,*"
+        Background="{DynamicResource MptBrushAppBackground}">
+    <Border Grid.Row="0"
+            Margin="28,20,28,12"
+            Background="{DynamicResource MptBrushSurfaceMuted}"
+            BorderBrush="{DynamicResource MptBrushBorderStrong}"
+            BorderThickness="1"
+            CornerRadius="12"
+            Padding="22,18">
+      <Grid ColumnDefinitions="*,Auto" ColumnSpacing="20">
+        <StackPanel Spacing="5">
+          <TextBlock Text="输入法管理器"
+                     FontSize="25"
+                     FontWeight="SemiBold" />
+          <TextBlock Text="管理当前 Windows 用户已启用的输入法：添加、取消勾选移除、排序和设为默认。不捆绑搜狗或其它输入法厂商。"
+                     Classes="secondary" />
+          <TextBlock Text="{Binding StatusText}"
+                     FontSize="12"
+                     Classes="secondary" />
+        </StackPanel>
+        <StackPanel Grid.Column="1"
+                    Orientation="Horizontal"
+                    Spacing="10"
+                    VerticalAlignment="Center">
+          <Button Content="刷新"
+                  Command="{Binding RefreshCommand}"
+                  IsEnabled="{Binding CanInteract}"
+                  Padding="16,9" />
+          <Button Content="放弃更改"
+                  Command="{Binding DiscardCommand}"
+                  IsEnabled="{Binding CanApply}"
+                  Padding="16,9" />
+          <Button Content="应用"
+                  Command="{Binding ApplyCommand}"
+                  IsEnabled="{Binding CanApply}"
+                  Classes="accent"
+                  Padding="16,9" />
+        </StackPanel>
+      </Grid>
+    </Border>
+
+    <ProgressBar Grid.Row="1"
+                 IsIndeterminate="True"
+                 IsVisible="{Binding IsBusy}"
+                 Height="3"
+                 Margin="28,0"
+                 HorizontalAlignment="Stretch" />
+
+    <Grid Grid.Row="2"
+          ColumnDefinitions="*,Auto"
+          RowDefinitions="*,Auto,Auto"
+          Margin="28,12,28,28"
+          ColumnSpacing="12"
+          RowSpacing="14">
+      <Border Grid.Row="0" Classes="card">
+        <Grid RowDefinitions="Auto,Auto,*">
+          <TextBlock Text="可管理的输入法"
+                     Classes="section-title" />
+          <TextBlock Grid.Row="1"
+                     Margin="0,4,0,10"
+                     Classes="secondary"
+                     Text="这里保留已加入管理范围的输入法。勾选项会出现在语言栏和 Win+空格 切换列表中；取消勾选只会停用，条目仍留在这里供以后重新启用。" />
+          <ListBox Grid.Row="2"
+                   ItemsSource="{Binding Items}"
+                   SelectedItem="{Binding SelectedItem}">
+            <ListBox.ItemTemplate>
+              <DataTemplate x:DataType="vm:InputMethodRow">
+                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                  <CheckBox IsChecked="{Binding IsChecked, Mode=TwoWay}"
+                            VerticalAlignment="Center" />
+                  <StackPanel Grid.Column="1" Spacing="2">
+                    <TextBlock Text="{Binding Summary}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding KindLabel}" Classes="secondary" FontSize="12" />
+                  </StackPanel>
+                  <Border Grid.Column="2"
+                          IsVisible="{Binding IsDefault}"
+                          Background="{DynamicResource MptBrushSurfaceMuted}"
+                          BorderBrush="{DynamicResource MptBrushBorder}"
+                          BorderThickness="1"
+                          CornerRadius="6"
+                          Padding="8,3"
+                          VerticalAlignment="Center">
+                    <TextBlock Text="默认" FontSize="12" FontWeight="SemiBold" />
+                  </Border>
+                </Grid>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+        </Grid>
+      </Border>
+
+      <StackPanel Grid.Column="1"
+                  Spacing="8"
+                  MinWidth="108">
+        <Button Content="上移"
+                Classes="stack"
+                Command="{Binding MoveUpCommand}"
+                IsEnabled="{Binding CanInteract}" />
+        <Button Content="下移"
+                Classes="stack"
+                Command="{Binding MoveDownCommand}"
+                IsEnabled="{Binding CanInteract}" />
+        <Button Content="设为默认"
+                Classes="stack"
+                Command="{Binding SetDefaultCommand}"
+                IsEnabled="{Binding CanInteract}" />
+        <Button Content="全选"
+                Classes="stack"
+                Command="{Binding SelectAllCommand}"
+                IsEnabled="{Binding CanInteract}" />
+        <Button Content="反选"
+                Classes="stack"
+                Command="{Binding InvertSelectionCommand}"
+                IsEnabled="{Binding CanInteract}" />
+        <Button Content="添加"
+                Classes="stack"
+                Command="{Binding ToggleAddPanelCommand}"
+                IsEnabled="{Binding CanInteract}" />
+      </StackPanel>
+
+      <Border Grid.Row="1"
+              Grid.ColumnSpan="2"
+              Classes="card"
+              IsVisible="{Binding IsAddPanelOpen}">
+        <Grid RowDefinitions="Auto,Auto,Auto,*" ColumnDefinitions="*,Auto">
+          <TextBlock Text="添加已安装的输入法"
+                     Classes="section-title" />
+          <TextBlock Grid.Row="1"
+                     Grid.ColumnSpan="2"
+                     Margin="0,4,0,8"
+                     Classes="secondary"
+                     Text="只列出本机已经注册的文字服务和键盘布局。添加不会下载搜狗、QQ 或其它输入法安装包。" />
+          <StackPanel Grid.Row="2"
+                      Grid.ColumnSpan="2"
+                      Spacing="8"
+                      Margin="0,0,0,10">
+            <TextBox PlaceholderText="筛选名称或语言"
+                     Text="{Binding FilterText}" />
+            <CheckBox Content="显示全部键盘布局"
+                      IsChecked="{Binding IncludeAllKeyboardLayouts}"
+                      IsEnabled="{Binding CanInteract}" />
+          </StackPanel>
+          <ListBox Grid.Row="3"
+                   ItemsSource="{Binding AvailableItems}"
+                   SelectedItem="{Binding SelectedAvailable}"
+                   MinHeight="160">
+            <ListBox.ItemTemplate>
+              <DataTemplate x:DataType="vm:InputMethodRow">
+                <StackPanel Spacing="2">
+                  <TextBlock Text="{Binding Summary}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                  <TextBlock Text="{Binding KindLabel}" Classes="secondary" FontSize="12" />
+                </StackPanel>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+          <Button Grid.Row="3"
+                  Grid.Column="1"
+                  Content="加入列表"
+                  Classes="stack"
+                  VerticalAlignment="Top"
+                  Margin="10,0,0,0"
+                  Command="{Binding AddCommand}"
+                  IsEnabled="{Binding CanInteract}" />
+        </Grid>
+      </Border>
+
+      <Border Grid.Row="2"
+              Grid.ColumnSpan="2"
+              Classes="card">
+        <Grid ColumnDefinitions="*,*" ColumnSpacing="24">
+          <StackPanel Spacing="10">
+            <TextBlock Text="切换快捷键" Classes="section-title" />
+            <TextBlock Classes="secondary"
+                       Text="对应 Windows「高级键盘设置」里的语言切换和键盘布局切换，只改当前用户。" />
+            <Grid ColumnDefinitions="140,*" RowDefinitions="Auto,Auto,Auto" RowSpacing="8" ColumnSpacing="12">
+              <TextBlock Text="语言切换" VerticalAlignment="Center" />
+              <ComboBox Grid.Column="1"
+                        ItemsSource="{Binding HotkeyOptions}"
+                        SelectedItem="{Binding LanguageHotkey}"
+                        IsEnabled="{Binding CanInteract}" />
+              <TextBlock Grid.Row="1" Text="布局切换" VerticalAlignment="Center" />
+              <ComboBox Grid.Row="1"
+                        Grid.Column="1"
+                        ItemsSource="{Binding HotkeyOptions}"
+                        SelectedItem="{Binding LayoutHotkey}"
+                        IsEnabled="{Binding CanInteract}" />
+              <CheckBox Grid.Row="2"
+                        Grid.ColumnSpan="2"
+                        Content="Win + Space 触发一次 Shift"
+                        IsChecked="{Binding WinSpaceMapsToShift}"
+                        IsEnabled="{Binding CanInteract}" />
+            </Grid>
+          </StackPanel>
+          <TextBlock Grid.Column="1"
+                     Classes="secondary"
+                     VerticalAlignment="Center"
+                     Text="{Binding ActionMessage}" />
+        </Grid>
+      </Border>
+    </Grid>
+  </Grid>
+</UserControl>

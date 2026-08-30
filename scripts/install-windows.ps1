@@ -15,6 +15,7 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+. (Join-Path $PSScriptRoot 'runtime-environment.ps1')
 
 if ($DesktopShortcut -and $NoDesktopShortcut) {
     throw 'DesktopShortcut and NoDesktopShortcut cannot be used together.'
@@ -60,6 +61,7 @@ function Assert-RequiredPackageContent {
         'Shell\MyPowerTools.Shell.Avalonia.exe',
         'Cli\MyPowerTools.Cli.exe',
         'Broker\MyPowerTools.ElevatedBroker.exe',
+        'InputRemap\MyPowerTools.InputRemapHost.exe',
         'ServiceManager\MyPowerTools.ServiceManager.exe',
         'service-units',
         'MyPowerTools.exe',
@@ -70,6 +72,7 @@ function Assert-RequiredPackageContent {
         'Start-MyPowerTools.cmd',
         'configure-user-services.ps1',
         'start-user-runtime.ps1',
+        'runtime-environment.ps1',
         'new-ota-file-manifest.ps1',
         'new-ota-delta-package.ps1',
         'invoke-ota-update.ps1',
@@ -93,10 +96,12 @@ function Assert-RequiredPackageContent {
     if ($provenance.schemaVersion -lt 2 -or $null -eq $shellContract) {
         throw "Portable package has no verifiable Windows Shell build contract at $provenancePath"
     }
+    $packageDistribution = if ([string]$provenance.distributionMode -eq 'web') { 'web' } else { 'full' }
+    $expectedReadyToRun = $packageDistribution -eq 'full'
     if ($shellContract.runtimeIdentifier -ne 'win-x64' -or
-        $shellContract.selfContained -ne $true -or
-        $shellContract.publishReadyToRun -ne $true -or
-        $shellContract.publishReadyToRunComposite -ne $true) {
+        $shellContract.selfContained -ne $false -or
+        $shellContract.publishReadyToRun -ne $expectedReadyToRun -or
+        $shellContract.publishReadyToRunComposite -ne $expectedReadyToRun) {
         throw "Portable package Windows Shell build contract is incompatible at $provenancePath"
     }
 
@@ -133,6 +138,9 @@ function Invoke-SourcePortableBuild {
         '-File'
         $publishScript
         '-PortableOnly'
+        '-AllowUnsigned'
+        '-Channel'
+        'local'
     )
     Write-Host "Building the portable package from $RepositoryRoot"
     & $pwsh.Source @publishArguments
@@ -475,6 +483,7 @@ $CurrentSessionId = (Get-Process -Id $PID).SessionId
 $releaseVersion = ''
 $releaseChannel = 'stable'
 $releaseRepository = 'https://github.com/dqtz5vpvj9-create/MyPowerTools'
+$distributionMode = 'full'
 $provenancePath = Join-Path $PackageRootFull 'build-provenance.json'
 if (Test-Path -LiteralPath $provenancePath -PathType Leaf) {
     $provenance = Get-Content -LiteralPath $provenancePath -Raw | ConvertFrom-Json
@@ -486,6 +495,9 @@ if (Test-Path -LiteralPath $provenancePath -PathType Leaf) {
     }
     if (-not [string]::IsNullOrWhiteSpace([string]$provenance.repository)) {
         $releaseRepository = [string]$provenance.repository
+    }
+    if ([string]$provenance.distributionMode -in @('full', 'web')) {
+        $distributionMode = [string]$provenance.distributionMode
     }
 }
 if ([string]::IsNullOrWhiteSpace($releaseVersion)) {
@@ -523,6 +535,7 @@ $runnerExe = Join-Path $InstallDirFull 'Runner\MyPowerTools.Runner.exe'
 $shellExe = Join-Path $InstallDirFull 'Shell\MyPowerTools.Shell.Avalonia.exe'
 $cliExe = Join-Path $InstallDirFull 'Cli\MyPowerTools.Cli.exe'
 $brokerExe = Join-Path $InstallDirFull 'Broker\MyPowerTools.ElevatedBroker.exe'
+$inputRemapExe = Join-Path $InstallDirFull 'InputRemap\MyPowerTools.InputRemapHost.exe'
 $appExe = Join-Path $InstallDirFull 'MyPowerTools.exe'
 $runnerArguments = "--modules `"$InstallDirFull\modules`" --data-root `"$DataRootFull`""
 $appArguments = "--data-root `"$DataRootFull`""
@@ -531,6 +544,7 @@ $desktopShortcutPath = Join-Path ([Environment]::GetFolderPath('DesktopDirectory
 $iconPath = Join-Path $InstallDirFull 'assets\MyPowerTools.ico'
 $runKeyPath = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
 $installManifestPath = Join-Path $InstallDirFull 'install.manifest.json'
+$legacyDotNetRootMigration = Get-MyPowerToolsLegacyUserDotNetRootMigration -InstallRoot $InstallDirFull
 
 $plan = [ordered]@{
     packageRoot = $PackageRootFull
@@ -548,18 +562,23 @@ $plan = [ordered]@{
     advancedEntryPoints = @(
         'Cli\MyPowerTools.Cli.exe',
         'Broker\MyPowerTools.ElevatedBroker.exe',
+        'InputRemap\MyPowerTools.InputRemapHost.exe',
         'ServiceManager\MyPowerTools.ServiceManager.exe',
         'Runner\MyPowerTools.Runner.exe',
         'Shell\MyPowerTools.Shell.Avalonia.exe'
     )
     releaseVersion = $releaseVersion
     releaseChannel = $releaseChannel
+    distributionMode = $distributionMode
+    legacyDotNetRootMigration = $legacyDotNetRootMigration
 }
 
 if ($DryRun) {
     $plan | ConvertTo-Json -Depth 4
     return
 }
+
+$legacyDotNetRootMigration = Clear-MyPowerToolsLegacyUserDotNetRoot -InstallRoot $InstallDirFull
 
 $installParent = Split-Path -Parent $InstallDirFull
 New-Item -ItemType Directory -Path $installParent -Force | Out-Null
@@ -617,17 +636,24 @@ try {
 
     [System.IO.Directory]::Move($stagingDir, $InstallDirFull)
 
-$manifest = [ordered]@{
-    product = 'MyPowerTools'
-    version = $releaseVersion
-    installedAt = (Get-Date).ToString('O')
-    packageRoot = $PackageRootFull
-    installDir = $InstallDirFull
-    dataRoot = $DataRootFull
+    $runtimeResolution = Set-MyPowerToolsProcessDotNetRoot -InstallRoot $InstallDirFull
+
+    $manifest = [ordered]@{
+        product = 'MyPowerTools'
+        version = $releaseVersion
+        channel = $releaseChannel
+        installedAt = (Get-Date).ToString('O')
+        packageRoot = $PackageRootFull
+        installDir = $InstallDirFull
+        dataRoot = $DataRootFull
+        distributionMode = $distributionMode
+        runtimeSource = [string]$runtimeResolution.source
+        legacyDotNetRootMigration = $legacyDotNetRootMigration
         runner = $runnerExe
         shell = $shellExe
         cli = $cliExe
         broker = $brokerExe
+        inputRemap = $inputRemapExe
         app = $appExe
         autostart = $EnableAutostartEffective
     }
@@ -640,7 +666,12 @@ $manifest = [ordered]@{
         Copy-Item -LiteralPath $shippedPublicKey -Destination (
             Join-Path $otaStateDir 'ota-signing-public-key.txt') -Force
     }
-    $shippedManifest = Join-Path $PackageRootFull 'MyPowerTools-win-x64.manifest.json'
+    $shippedManifestName = if ($distributionMode -eq 'web') {
+        'MyPowerTools-core-win-x64.manifest.json'
+    } else {
+        'MyPowerTools-win-x64.manifest.json'
+    }
+    $shippedManifest = Join-Path $PackageRootFull $shippedManifestName
     $installedFilesManifestPath = Join-Path $otaStateDir 'installed-files.manifest.json'
     if (Test-Path -LiteralPath $shippedManifest -PathType Leaf) {
         Copy-Item -LiteralPath $shippedManifest -Destination $installedFilesManifestPath -Force
@@ -665,16 +696,11 @@ $manifest = [ordered]@{
         repository = $releaseRepository
         manifestPath = 'installed-files.manifest.json'
         manifestSha256 = (Get-FileHash -LiteralPath $installedFilesManifestPath -Algorithm SHA256).Hash.ToLowerInvariant()
-        packageKind = 'full'
+        packageKind = $(if ($distributionMode -eq 'web') { 'core' } else { 'full' })
+        distributionMode = $distributionMode
     }
     $installedRelease | ConvertTo-Json -Depth 5 | Set-Content -LiteralPath (
         Join-Path $otaStateDir 'installed-release.json') -Encoding UTF8
-
-    $dotnetRoot = Join-Path $InstallDirFull 'Runtime\dotnet'
-    if (Test-Path -LiteralPath $dotnetRoot -PathType Container) {
-        [Environment]::SetEnvironmentVariable('DOTNET_ROOT', $dotnetRoot, 'User')
-        [Environment]::SetEnvironmentVariable('DOTNET_ROOT', $dotnetRoot, 'Process')
-    }
 
     Clear-StartMenuShortcuts -StartMenuDir $startMenuDir
     if (-not $NoStartMenuShortcut.IsPresent) {

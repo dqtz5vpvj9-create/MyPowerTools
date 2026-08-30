@@ -26,7 +26,7 @@ public sealed partial class RuntimeAcceptanceTests
         Assert.Contains("'Broker'", script, StringComparison.Ordinal);
         Assert.Contains("Wait-ForInstalledProcess", script, StringComparison.Ordinal);
         Assert.Contains("Request-ServiceManagerShutdown", script, StringComparison.Ordinal);
-        Assert.Contains("'Core' { @('Shell', 'Runner', 'ServiceManager') }", script, StringComparison.Ordinal);
+        Assert.Contains("'Core' { @('Shell', 'Runner', 'Broker', 'ServiceManager') }", script, StringComparison.Ordinal);
         Assert.Contains("'--isolation-probe'", script, StringComparison.Ordinal);
         Assert.Contains("'--smoke'", script, StringComparison.Ordinal);
         Assert.Contains("frameworkDependentManagedComponents", script, StringComparison.Ordinal);
@@ -39,7 +39,7 @@ public sealed partial class RuntimeAcceptanceTests
 
         Assert.DoesNotContain("publish-windows.ps1", script, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain("Compress-Archive", script, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("MyPowerTools.ElevatedBroker", script, StringComparison.Ordinal);
+        Assert.Contains("MyPowerTools.ElevatedBroker", script, StringComparison.Ordinal);
         Assert.DoesNotContain("shellOutputRoot", script, StringComparison.Ordinal);
         Assert.DoesNotContain("runnerOutputRoot", script, StringComparison.Ordinal);
     }

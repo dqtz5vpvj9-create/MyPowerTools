@@ -492,6 +492,11 @@ public sealed class LocalLagCleanerProductTests
                 "src",
                 "LocalLagCleaner.Runtime",
                 "ElevatedFileHandleDiagnosticClient.cs"));
+            var cleanupClient = File.ReadAllText(Path.Combine(
+                ToolRoot,
+                "src",
+                "LocalLagCleaner.Runtime",
+                "ElevatedCleanupClient.cs"));
             var brokerProbe = File.ReadAllText(Path.Combine(
                 Root,
                 "src",
@@ -502,19 +507,42 @@ public sealed class LocalLagCleanerProductTests
                 "src",
                 "MyPowerTools.ElevatedBroker",
                 "Program.cs"));
+            var brokerCleanup = File.ReadAllText(Path.Combine(
+                Root,
+                "src",
+                "MyPowerTools.ElevatedBroker",
+                "LocalLagCleanerCleanupExecutor.cs"));
             var view = File.ReadAllText(Path.Combine(
                 ToolRoot,
                 "src",
                 "LocalLagCleaner.Tool",
                 "LocalLagCleanerView.axaml"));
+            var coordinator = File.ReadAllText(Path.Combine(
+                ToolRoot,
+                "src",
+                "LocalLagCleaner.Core",
+                "CleanupCoordinator.cs"));
 
             Assert.Contains("Verb = \"runas\"", runtimeClient, StringComparison.Ordinal);
             Assert.Contains("maximumSamples is < 1 or > 512", runtimeClient, StringComparison.Ordinal);
+            Assert.Contains("Verb = \"runas\"", cleanupClient, StringComparison.Ordinal);
+            Assert.Contains("confirmationToken", cleanupClient, StringComparison.Ordinal);
             Assert.Contains("\"SeDebugPrivilege\"", brokerProbe, StringComparison.Ordinal);
             Assert.Contains("ProcessDuplicateHandle", brokerProbe, StringComparison.Ordinal);
             Assert.Contains("maximumSamples is < 1 or > 512", brokerProbe, StringComparison.Ordinal);
             Assert.Contains("\"diagnostics\"", brokerProgram, StringComparison.Ordinal);
             Assert.Contains("\"file-handles\"", brokerProgram, StringComparison.Ordinal);
+            Assert.Contains("\"cleanup\"", brokerProgram, StringComparison.Ordinal);
+            Assert.Contains("LocalLagCleanerCleanupExecutor", brokerProgram, StringComparison.Ordinal);
+            Assert.Contains("ApplyPendingPlanAsync", brokerCleanup, StringComparison.Ordinal);
+            Assert.Contains("expectedStateDirectory", brokerCleanup, StringComparison.Ordinal);
+            Assert.Contains("EnumDependentServices", coordinator, StringComparison.Ordinal);
+            Assert.Contains("ServiceEnumerateDependents", coordinator, StringComparison.Ordinal);
+            Assert.Contains("TryEnsureNamedServicesAsync", coordinator, StringComparison.Ordinal);
+            Assert.Contains("FormatWin32Failure", coordinator, StringComparison.Ordinal);
+            Assert.Contains("点击执行将请求管理员权限", view, StringComparison.Ordinal);
+            Assert.Contains("后台进程拆分（breakdown）", view, StringComparison.Ordinal);
+            Assert.Contains("处理方法：{0}", view, StringComparison.Ordinal);
             Assert.Contains("管理员 File 归因", view, StringComparison.Ordinal);
         }
         finally

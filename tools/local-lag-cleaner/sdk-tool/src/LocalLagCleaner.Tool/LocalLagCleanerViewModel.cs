@@ -15,8 +15,6 @@ public sealed class LocalLagCleanerViewModel : MptObservableViewModel, IDisposab
     private CleanupPlan? _plan;
     private bool _isBusy;
     private bool _hasPlan;
-    private bool _allowServiceRestart;
-    private bool _allowSessionDisconnect;
     private string _statusText = "等待首次多阶段扫描";
     private string _severityLabel = "等待";
     private IBrush _severityBrush = Brushes.SlateGray;
@@ -31,13 +29,12 @@ public sealed class LocalLagCleanerViewModel : MptObservableViewModel, IDisposab
     private string _systemHandles = "—";
     private string _fileAttributionStatus = "等待扫描";
     private string _processes = "—";
+    private string _processBreakdownSummary = "等待扫描";
     private string _mcpCandidates = "—";
     private string _uptime = "—";
     private string _idleState = "—";
     private string _powerPlan = "—";
     private string _planSummary = "";
-    private string _planToken = "";
-    private string _tokenInput = "";
     private string _actionMessage = "所有扫描在隔离 Runtime 中执行；系统变更需要计划令牌。";
     private string _reportPath = "";
 
@@ -46,6 +43,7 @@ public sealed class LocalLagCleanerViewModel : MptObservableViewModel, IDisposab
         _context = context;
         Findings = [];
         Domains = [];
+        ProcessBreakdown = [];
         ProcessesDetail = [];
         SystemHandleTypes = [];
         FileAccessPatterns = [];
@@ -83,6 +81,7 @@ public sealed class LocalLagCleanerViewModel : MptObservableViewModel, IDisposab
 
     public ObservableCollection<LagFindingRow> Findings { get; }
     public ObservableCollection<DomainHealthRow> Domains { get; }
+    public ObservableCollection<ProcessBreakdownRow> ProcessBreakdown { get; }
     public ObservableCollection<ProcessDetailRow> ProcessesDetail { get; }
     public ObservableCollection<SystemHandleTypeRow> SystemHandleTypes { get; }
     public ObservableCollection<FileAccessPatternRow> FileAccessPatterns { get; }
@@ -118,10 +117,7 @@ public sealed class LocalLagCleanerViewModel : MptObservableViewModel, IDisposab
     public bool CanInteract => !IsBusy;
     public bool CanApply =>
         !IsBusy &&
-        HasPlan &&
-        !PlanRequiresServiceRestart &&
-        TokenInput.Trim().Length > 0 &&
-        (!PlanMayDisconnect || AllowSessionDisconnect);
+        HasPlan;
 
     public bool HasPlan
     {
@@ -132,37 +128,11 @@ public sealed class LocalLagCleanerViewModel : MptObservableViewModel, IDisposab
             {
                 OnPropertyChanged(nameof(CanApply));
                 OnPropertyChanged(nameof(PlanRequiresServiceRestart));
-                OnPropertyChanged(nameof(PlanMayDisconnect));
             }
         }
     }
 
     public bool PlanRequiresServiceRestart => _plan?.RequiresAdministrator == true;
-    public bool PlanMayDisconnect => _plan?.MayDisconnectSession == true;
-
-    public bool AllowServiceRestart
-    {
-        get => _allowServiceRestart;
-        set
-        {
-            if (SetProperty(ref _allowServiceRestart, value))
-            {
-                OnPropertyChanged(nameof(CanApply));
-            }
-        }
-    }
-
-    public bool AllowSessionDisconnect
-    {
-        get => _allowSessionDisconnect;
-        set
-        {
-            if (SetProperty(ref _allowSessionDisconnect, value))
-            {
-                OnPropertyChanged(nameof(CanApply));
-            }
-        }
-    }
 
     public string StatusText
     {
@@ -248,6 +218,12 @@ public sealed class LocalLagCleanerViewModel : MptObservableViewModel, IDisposab
         private set => SetProperty(ref _processes, value);
     }
 
+    public string ProcessBreakdownSummary
+    {
+        get => _processBreakdownSummary;
+        private set => SetProperty(ref _processBreakdownSummary, value);
+    }
+
     public string McpCandidates
     {
         get => _mcpCandidates;
@@ -276,24 +252,6 @@ public sealed class LocalLagCleanerViewModel : MptObservableViewModel, IDisposab
     {
         get => _planSummary;
         private set => SetProperty(ref _planSummary, value);
-    }
-
-    public string PlanToken
-    {
-        get => _planToken;
-        private set => SetProperty(ref _planToken, value);
-    }
-
-    public string TokenInput
-    {
-        get => _tokenInput;
-        set
-        {
-            if (SetProperty(ref _tokenInput, value))
-            {
-                OnPropertyChanged(nameof(CanApply));
-            }
-        }
     }
 
     public string ActionMessage
@@ -379,10 +337,6 @@ public sealed class LocalLagCleanerViewModel : MptObservableViewModel, IDisposab
             var plan = payload?.Deserialize<CleanupPlan>(LagCleanerJson.Compact) ??
                        throw new InvalidDataException("Runtime 未返回处置计划。");
             _plan = plan;
-            PlanToken = plan.ConfirmationToken;
-            TokenInput = "";
-            AllowServiceRestart = false;
-            AllowSessionDisconnect = false;
             PlanSummary =
                 $"{ActionName(plan.Action)}｜风险 {RiskName(plan.Risk)}｜{plan.Scope}。" +
                 $"{plan.Impact} 验证：{plan.VerificationPlan} 恢复：{plan.RecoveryPlan} " +
@@ -390,19 +344,16 @@ public sealed class LocalLagCleanerViewModel : MptObservableViewModel, IDisposab
             HasPlan = true;
             if (plan.RequiresAdministrator)
             {
-                var disconnectFlag = plan.MayDisconnectSession
-                    ? " --allow-disconnect"
-                    : "";
                 ActionMessage =
-                    "该服务计划仅允许从管理员终端执行：" +
-                    $@".\artifacts\cli\local-lag-cleaner.exe apply --token {plan.ConfirmationToken} " +
-                    $"--allow-service-restart{disconnectFlag}";
+                    plan.MayDisconnectSession
+                        ? "点击执行将请求管理员权限，并立即断开当前远程桌面会话；服务恢复后可重新连接。"
+                        : "点击执行将请求管理员权限重启计划中的服务，并等待 SCM 回到 Running。";
             }
             else
             {
                 ActionMessage = plan.Action == CleanupAction.McpResidue
-                    ? $"核对精确目标与证据：{McpEvidenceSummary(plan.McpEvidence)}。再输入八位计划令牌。"
-                    : "核对精确目标、影响、验证和恢复步骤，再输入八位计划令牌。";
+                    ? $"核对精确目标与证据：{McpEvidenceSummary(plan.McpEvidence)}。计划凭据已自动绑定。"
+                    : "核对精确目标、影响、验证和恢复步骤。计划凭据已自动绑定。";
             }
             Log(
                 "warning",
@@ -495,9 +446,9 @@ public sealed class LocalLagCleanerViewModel : MptObservableViewModel, IDisposab
                     ["expectedAction"] = JsonSerializer.SerializeToNode(
                         plan.Action,
                         LagCleanerJson.Compact),
-                    ["confirmationToken"] = TokenInput.Trim(),
-                    ["allowDisconnect"] = AllowSessionDisconnect,
-                    ["allowServiceRestart"] = AllowServiceRestart
+                    ["confirmationToken"] = plan.ConfirmationToken,
+                    ["allowDisconnect"] = plan.MayDisconnectSession,
+                    ["allowServiceRestart"] = plan.RequiresAdministrator
                 });
             var result = payload?.Deserialize<CleanupExecutionResult>(LagCleanerJson.Compact) ??
                          throw new InvalidDataException("Runtime 未返回处置结果。");
@@ -517,8 +468,6 @@ public sealed class LocalLagCleanerViewModel : MptObservableViewModel, IDisposab
             HasPlan = false;
             _plan = null;
             PlanSummary = "";
-            PlanToken = "";
-            TokenInput = "";
             Log(result.Succeeded ? "info" : "warning", ActionMessage);
         }
         catch (Exception exception)
@@ -603,6 +552,10 @@ public sealed class LocalLagCleanerViewModel : MptObservableViewModel, IDisposab
         FileAttributionStatus = snapshot.SystemFileAttribution?.Summary ??
                                 "File 句柄未达到归因触发线";
         Processes = $"{snapshot.ProcessCount:n0} / {snapshot.ThreadCount:n0}";
+        var classifiedProcessCount = snapshot.ProcessBreakdown.Sum(item => item.ProcessCount);
+        ProcessBreakdownSummary = snapshot.ProcessBreakdown.Count == 0
+            ? "未取得可归类进程样本；请重试深度扫描。"
+            : $"总计 {snapshot.ProcessCount:n0} 个进程；已聚合 {classifiedProcessCount:n0} 个，按数量显示前 {Math.Min(20, snapshot.ProcessBreakdown.Count)} 组。";
         McpCandidates = snapshot.McpCleanupCandidateCount.ToString("n0");
         Uptime = $"{snapshot.UptimeDays:n1} 天";
         IdleState = snapshot.SystemContext is null
@@ -638,6 +591,21 @@ public sealed class LocalLagCleanerViewModel : MptObservableViewModel, IDisposab
                 finding.Recommendation,
                 RiskName(finding.RemediationRisk),
                 SeverityBrushFor(finding.Severity)));
+        }
+
+        ProcessBreakdown.Clear();
+        foreach (var group in snapshot.ProcessBreakdown.Take(20))
+        {
+            ProcessBreakdown.Add(new ProcessBreakdownRow(
+                group.Name,
+                string.IsNullOrWhiteSpace(group.KnownRole) ? "未标注" : group.KnownRole,
+                group.ProcessCount.ToString("n0"),
+                group.ThreadCount.ToString("n0"),
+                LagDiagnosticsEngine.FormatBytes(group.PrivateBytes),
+                LagDiagnosticsEngine.FormatBytes(group.WorkingSetBytes),
+                $"{group.CpuPercentMachine:n1}%",
+                group.HandleCount.ToString("n0"),
+                string.Join(", ", group.SampleProcessIds)));
         }
 
         ProcessesDetail.Clear();
@@ -858,6 +826,17 @@ public sealed record ProcessDetailRow(
     string IoPerSecond,
     string Handles,
     string Threads);
+
+public sealed record ProcessBreakdownRow(
+    string Name,
+    string Role,
+    string ProcessCount,
+    string Threads,
+    string PrivateMemory,
+    string WorkingSet,
+    string Cpu,
+    string Handles,
+    string SampleProcessIds);
 
 public sealed record SystemHandleTypeRow(
     string TypeName,

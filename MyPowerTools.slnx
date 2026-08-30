@@ -11,6 +11,7 @@
     <Project Path="src/MyPowerTools.HostControl.Client/MyPowerTools.HostControl.Client.csproj" />
     <Project Path="src/MyPowerTools.HostControl.Server/MyPowerTools.HostControl.Server.csproj" />
     <Project Path="src/MyPowerTools.Ipc.Shared/MyPowerTools.Ipc.Shared.csproj" />
+    <Project Path="src/MyPowerTools.InputRemapHost/MyPowerTools.InputRemapHost.csproj" />
     <Project Path="src/MyPowerTools.ModuleHost.GrpcIpc/MyPowerTools.ModuleHost.GrpcIpc.csproj" />
     <Project Path="src/MyPowerTools.ModuleHost.Http/MyPowerTools.ModuleHost.Http.csproj" />
     <Project Path="src/MyPowerTools.ModuleHost.InProcDotNet/MyPowerTools.ModuleHost.InProcDotNet.csproj" />
@@ -44,6 +45,14 @@
     <Project Path="tools/local-lag-cleaner/sdk-tool/src/LocalLagCleaner.Core/LocalLagCleaner.Core.csproj" />
     <Project Path="tools/local-lag-cleaner/sdk-tool/src/LocalLagCleaner.Runtime/LocalLagCleaner.Runtime.csproj" />
     <Project Path="tools/local-lag-cleaner/sdk-tool/src/LocalLagCleaner.Tool/LocalLagCleaner.Tool.csproj" />
+    <Project Path="tools/nssm-manager/sdk-tool/src/NssmManager.Contracts/NssmManager.Contracts.csproj" />
+    <Project Path="tools/nssm-manager/sdk-tool/src/NssmManager.Compatibility/NssmManager.Compatibility.csproj" />
+    <Project Path="tools/nssm-manager/sdk-tool/src/NssmManager.Windows/NssmManager.Windows.csproj" />
+    <Project Path="tools/nssm-manager/sdk-tool/src/NssmManager.Supervisor/NssmManager.Supervisor.csproj" />
+    <Project Path="tools/nssm-manager/sdk-tool/src/NssmManager.Executable/NssmManager.Executable.csproj" />
+    <Project Path="tools/nssm-manager/sdk-tool/src/NssmManager.Runtime/NssmManager.Runtime.csproj" />
+    <Project Path="tools/nssm-manager/sdk-tool/src/NssmManager.Tool/NssmManager.Tool.csproj" />
+    <Project Path="tools/nssm-manager/sdk-tool/tests/NssmManager.Tests/NssmManager.Tests.csproj" />
     <Project Path="tools/paste-image/current-integration/src/PasteImage.MyPowerTools/PasteImage.MyPowerTools.csproj" />
     <Project Path="tools/paste-image/current-integration/src/PasteImage.Surface/PasteImage.Surface.csproj" />
     <Project Path="tools/input-monitor/current-integration/src/InputMonitor.Core/InputMonitor.Core.csproj" />

@@ -66,6 +66,7 @@ public sealed class LagDiagnosticsEngine
         var publicProcesses = analyzed
             .Select(item => item.Public with { IsMcpRelated = mcpIds.Contains(item.Public.ProcessId) })
             .ToArray();
+        var processBreakdown = BuildProcessBreakdown(publicProcesses);
 
         var physicalUsed = performance.PhysicalTotalBytes - performance.PhysicalAvailableBytes;
         var physicalPercent = Percent(physicalUsed, performance.PhysicalTotalBytes);
@@ -101,6 +102,7 @@ public sealed class LagDiagnosticsEngine
             commitPercent,
             memoryCompression,
             systemHandles,
+            processBreakdown,
             systemContext?.IsUserIdle).ToList();
         findings.RemoveAll(item => item.Code == "baseline-healthy");
         findings.AddRange(BuildSystemHealthFindings(
@@ -194,6 +196,7 @@ public sealed class LagDiagnosticsEngine
         {
             SignalSamples = signalSamples,
             Signals = signals,
+            ProcessBreakdown = processBreakdown,
             TopIoProcesses = publicProcesses
                 .OrderByDescending(item =>
                     item.ReadBytesPerSecond +
@@ -1519,6 +1522,78 @@ public sealed class LagDiagnosticsEngine
         return prefix + FormatBytes(magnitude);
     }
 
+    private static IReadOnlyList<ProcessBreakdownSnapshot> BuildProcessBreakdown(
+        IReadOnlyList<ProcessSnapshot> processes)
+    {
+        return processes
+            .GroupBy(item => (item.Name, item.KnownRole))
+            .Select(group => new ProcessBreakdownSnapshot(
+                group.Key.Name,
+                group.Key.KnownRole,
+                group.Count(),
+                group.Sum(item => item.ThreadCount),
+                group.Aggregate(0UL, (total, item) => total + item.PrivateBytes),
+                group.Aggregate(0UL, (total, item) => total + item.WorkingSetBytes),
+                group.Sum(item => item.HandleCount),
+                Math.Round(group.Sum(item => item.CpuPercentMachine), 2),
+                group
+                    .OrderByDescending(item => item.ThreadCount)
+                    .ThenByDescending(item => item.PrivateBytes)
+                    .ThenBy(item => item.ProcessId)
+                    .Take(5)
+                    .Select(item => item.ProcessId)
+                    .ToArray()))
+            .OrderByDescending(item => item.ProcessCount)
+            .ThenByDescending(item => item.ThreadCount)
+            .ThenBy(item => item.Name, StringComparer.OrdinalIgnoreCase)
+            .ToArray();
+    }
+
+    private static string FormatProcessBreakdown(
+        IReadOnlyList<ProcessBreakdownSnapshot> breakdown)
+    {
+        if (breakdown.Count == 0)
+        {
+            return "未取得可归类进程样本";
+        }
+
+        return string.Join(
+            "；",
+            breakdown
+                .Take(5)
+                .Select(item =>
+                    $"{item.Name} ×{item.ProcessCount:n0}（线程 {item.ThreadCount:n0}，私有提交 {FormatBytes(item.PrivateBytes)}）"));
+    }
+
+    private static string BuildProcessCountRecommendation(
+        IReadOnlyList<McpProcessGroup> mcpCandidates,
+        IReadOnlyList<ProcessBreakdownSnapshot> processBreakdown)
+    {
+        if (mcpCandidates.Count > 0)
+        {
+            return $"先查看下方进程拆分；当前有 {mcpCandidates.Count} 组可信 MCP 残留，可生成“清理旧 MCP 会话”计划，仅处理已校验的 PID。其余高频进程按名称、服务角色和线程数逐项核查，避免批量结束 svchost。";
+        }
+
+        return processBreakdown.Count > 0
+            ? "先查看下方进程拆分，按进程名、服务角色和线程数定位来源；当前没有可信自动清理目标。逐项退出重复拉起的托盘、服务或开发工具后复测，避免批量结束 svchost 等系统宿主。"
+            : "进程明细采集不足，先重试深度扫描；获得拆分后再按进程名、服务角色和线程数定位来源。避免批量结束 svchost 等系统宿主。";
+    }
+
+    private static string BuildProcessCountCausalChain(
+        uint processCount,
+        uint threshold,
+        IReadOnlyList<ProcessBreakdownSnapshot> processBreakdown)
+    {
+        var leadingGroups = processBreakdown.Count == 0
+            ? "进程族明细缺失"
+            : string.Join(
+                "、",
+                processBreakdown
+                    .Take(3)
+                    .Select(item => $"{item.Name} ×{item.ProcessCount:n0}"));
+        return $"进程总数 {processCount:n0} ≥ {threshold:n0} → 数量前列为 {leadingGroups} → 按进程族、服务归属和退出回收逐项核查";
+    }
+
     private static IReadOnlyList<LagFinding> BuildFindings(
         LagCleanerOptions options,
         PerformanceSnapshot performance,
@@ -1529,6 +1604,7 @@ public sealed class LagDiagnosticsEngine
         double commitPercent,
         ulong memoryCompression,
         uint systemHandles,
+        IReadOnlyList<ProcessBreakdownSnapshot> processBreakdown,
         bool? userIdleConfirmed)
     {
         var findings = new List<LagFinding>();
@@ -1587,10 +1663,21 @@ public sealed class LagDiagnosticsEngine
                 LagSeverity.Critical,
                 "process-count-critical",
                 "后台进程数量严重异常",
-                $"当前共有 {performance.ProcessCount:n0} 个进程和 {performance.ThreadCount:n0} 个线程。",
-                "清理已确认的残留进程，并修复其退出清理逻辑。",
+                $"当前共有 {performance.ProcessCount:n0} 个进程和 {performance.ThreadCount:n0} 个线程；数量最多的进程组：{FormatProcessBreakdown(processBreakdown)}。",
+                BuildProcessCountRecommendation(mcpCandidates, processBreakdown),
                 mcpCandidates.Length > 0,
-                mcpCandidates.Length > 0 ? "mcp-residue" : ""));
+                mcpCandidates.Length > 0 ? "mcp-residue" : "")
+            {
+                Domain = DiagnosticDomain.BackgroundProcesses,
+                Confidence = processBreakdown.Count > 0
+                    ? FindingConfidence.High
+                    : FindingConfidence.Medium,
+                Score = 24,
+                CausalChain = BuildProcessCountCausalChain(
+                    performance.ProcessCount,
+                    options.ProcessCriticalCount,
+                    processBreakdown)
+            });
         }
         else if (performance.ProcessCount >= options.ProcessWarningCount)
         {
@@ -1598,10 +1685,21 @@ public sealed class LagDiagnosticsEngine
                 LagSeverity.Warning,
                 "process-count-warning",
                 "后台进程数量偏高",
-                $"当前共有 {performance.ProcessCount:n0} 个进程和 {performance.ThreadCount:n0} 个线程。",
-                "检查重复拉起的工具链和托盘程序。",
+                $"当前共有 {performance.ProcessCount:n0} 个进程和 {performance.ThreadCount:n0} 个线程；数量最多的进程组：{FormatProcessBreakdown(processBreakdown)}。",
+                BuildProcessCountRecommendation(mcpCandidates, processBreakdown),
                 mcpCandidates.Length > 0,
-                mcpCandidates.Length > 0 ? "mcp-residue" : ""));
+                mcpCandidates.Length > 0 ? "mcp-residue" : "")
+            {
+                Domain = DiagnosticDomain.BackgroundProcesses,
+                Confidence = processBreakdown.Count > 0
+                    ? FindingConfidence.High
+                    : FindingConfidence.Medium,
+                Score = 12,
+                CausalChain = BuildProcessCountCausalChain(
+                    performance.ProcessCount,
+                    options.ProcessWarningCount,
+                    processBreakdown)
+            });
         }
 
         if (mcpCandidates.Length > 0)
@@ -1745,6 +1843,11 @@ public sealed class LagDiagnosticsEngine
         if (findings.Any(item => item.Code == "mcp-residue"))
         {
             recommendations.Add("执行 mcp-residue 两阶段清理，并修复 computer-use MCP 的退出回收。");
+        }
+
+        if (findings.Any(item => item.Code is "process-count-critical" or "process-count-warning"))
+        {
+            recommendations.Add("按后台进程拆分核对数量前列；仅对有可信身份和退出证据的目标执行处理，完成后重新扫描验证。");
         }
 
         if (findings.Any(item => item.Code == "weflow-cpu"))

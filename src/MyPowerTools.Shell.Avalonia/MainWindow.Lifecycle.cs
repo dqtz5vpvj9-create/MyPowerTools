@@ -109,12 +109,12 @@ public sealed partial class MainWindow
 
     private async Task PresentResidentWindowAsync()
     {
-        await _workspaceOpened.Task.ConfigureAwait(true);
         if (Volatile.Read(ref _windowClosed) != 0)
         {
             return;
         }
 
+        Interlocked.Exchange(ref _suppressInitialPresentation, 0);
         ShowInTaskbar = true;
         if (!IsVisible)
         {

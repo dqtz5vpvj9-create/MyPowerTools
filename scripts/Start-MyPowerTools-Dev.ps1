@@ -38,6 +38,7 @@ try {
         (Join-Path $installRoot 'MyPowerTools.exe'),
         (Join-Path $installRoot 'Shell\MyPowerTools.Shell.Avalonia.exe'),
         (Join-Path $installRoot 'Runner\MyPowerTools.Runner.exe'),
+        (Join-Path $installRoot 'InputRemap\MyPowerTools.InputRemapHost.exe'),
         (Join-Path $installRoot 'modules'),
         (Join-Path $installRoot 'Runtimes'),
         (Join-Path $installRoot 'service-units'),

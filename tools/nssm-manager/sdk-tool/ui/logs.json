@@ -1,0 +1,1 @@
+{ "schemaVersion": "1.0", "surfaceId": "nssm-manager.logs", "moduleId": "nssm-manager", "kind": "logs", "layout": { "mode": "component" }, "uses": ["MptLogViewer", "MptErrorView", "MptEmptyState"], "states": ["loading", "ready", "empty", "error"] }

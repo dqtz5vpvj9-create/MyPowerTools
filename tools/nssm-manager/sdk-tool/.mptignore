@@ -1,0 +1,16 @@
+src/*/bin/Debug/*
+src/*/bin/Release/net10.0-windows/*
+src/*/obj/*
+src/*/*.cs
+src/*/*.csproj
+src/*/*.axaml
+src/*/bin/Release/*/*.pdb
+src/NssmManager.Contracts/bin/Release/*/*
+src/NssmManager.Compatibility/bin/Release/*/*
+src/NssmManager.Windows/bin/Release/*/*
+src/NssmManager.Supervisor/bin/Release/*/*
+src/NssmManager.Executable/bin/*
+src/NssmManager.Executable/publish/win-x64/*.pdb
+tests/*
+NuGet.config
+*.mptpkg

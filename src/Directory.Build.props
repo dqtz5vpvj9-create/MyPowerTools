@@ -18,5 +18,11 @@
     -->
     <UseArtifactsOutput>true</UseArtifactsOutput>
     <ArtifactsPath>$([System.IO.Path]::GetFullPath($([System.IO.Path]::Combine('$(MyPowerToolsRepoRoot)', 'artifacts', 'build'))))</ArtifactsPath>
+    <!-- Framework-dependent Windows apphosts first probe the product-private runtime,
+         then the registered machine-wide .NET installation. Account-level DOTNET_ROOT
+         is deliberately excluded from apphost discovery. Projects installed at a
+         different depth override AppHostRelativeDotNet locally. -->
+    <AppHostDotNetSearch Condition="$([System.String]::Copy('$(RuntimeIdentifier)').StartsWith('win-'))">AppRelative;Global</AppHostDotNetSearch>
+    <AppHostRelativeDotNet Condition="$([System.String]::Copy('$(RuntimeIdentifier)').StartsWith('win-'))">..\Runtime\dotnet</AppHostRelativeDotNet>
   </PropertyGroup>
 </Project>
