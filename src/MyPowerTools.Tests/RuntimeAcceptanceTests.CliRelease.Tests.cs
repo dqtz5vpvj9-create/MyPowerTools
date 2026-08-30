@@ -320,7 +320,15 @@ public sealed partial class RuntimeAcceptanceTests
         Assert.Contains("DefaultDirName={localappdata}\\Programs\\MyPowerTools", installer);
         Assert.Contains("UninstallDisplayIcon={app}\\MyPowerTools.exe", installer);
         Assert.Contains("distributionMode\": \"web", installer);
-        Assert.Contains("Runtime plan:", installer);
+        Assert.Contains("运行时方案：", installer);
+        Assert.Contains("[Components]", installer);
+        Assert.Contains("Name: \"smartbird\"", installer);
+        Assert.Contains("Name: \"doubao\"", installer);
+        Assert.Contains("Name: \"android\"", installer);
+        Assert.Contains("Types: core full custom", installer);
+        Assert.Contains("WantsPythonFeatures", installer);
+        Assert.Contains("约 5,100 个文件，可能需要一分钟", installer);
+        Assert.DoesNotContain("-StartAfterInstall", installer);
         Assert.Contains("SetupLogging=yes", installer);
         Assert.DoesNotContain("install-windows-web.ps1", installer);
         Assert.DoesNotContain("{tmp}\\MyPowerToolsWebSetup", installer);
