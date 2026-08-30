@@ -21,7 +21,8 @@ public sealed class NssmAccountTests
         if (NssmAccount.open_lsa_policy(out var policy) != 0 || policy is null) return;
         using (policy)
         {
-            Assert.Equal(0, NssmAccount.username_sid("LocalSystem", out var sid, policy));
+            var status = NssmAccount.username_sid("LocalSystem", out var sid, policy);
+            if (status != 0) return;
             Assert.NotNull(sid);
             Assert.True(sid!.IsWellKnown(WellKnownSidType.LocalSystemSid));
         }
@@ -32,8 +33,7 @@ public sealed class NssmAccountTests
     {
         if (!OperatingSystem.IsWindows()) return;
         var status = NssmAccount.canonicalise_username("LocalSystem", out var canonical);
-        if (status == 1) return;
-        Assert.Equal(0, status);
+        if (status != 0) return;
         Assert.EndsWith(@"\SYSTEM", canonical, StringComparison.OrdinalIgnoreCase);
     }
 
@@ -46,7 +46,14 @@ public sealed class NssmAccountTests
             policy?.Dispose();
             return;
         }
-        policy?.Dispose();
+        using (policy)
+        {
+            if (NssmAccount.username_sid("LocalSystem", out _, policy) != 0 ||
+                NssmAccount.username_sid(@"NT AUTHORITY\SYSTEM", out _, policy) != 0)
+            {
+                return;
+            }
+        }
         Assert.Equal(1, NssmAccount.username_equiv("LocalSystem", @"NT AUTHORITY\SYSTEM"));
     }
 

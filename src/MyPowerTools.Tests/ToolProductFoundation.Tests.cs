@@ -452,6 +452,7 @@ public sealed class ToolProductFoundationTests
             {
                 "adb-forwarder",
                 "doubao-agent",
+                "input-monitor",
                 "paste-image",
                 "process-monitor",
                 "remote-commands",
