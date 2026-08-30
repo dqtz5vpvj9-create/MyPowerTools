@@ -278,6 +278,20 @@
       "retention": { "mode": "count", "keep": 1 }
     },
     {
+      "path": "release/web-installer-components.iss",
+      "class": "scratch",
+      "producer": "scripts/new-runtime-components.ps1",
+      "purpose": "Compile-time asset names and SHA-256 values for the native GUI web installer.",
+      "retention": { "mode": "age", "maxAgeDays": 7 }
+    },
+    {
+      "path": "release/web-installer-smoke",
+      "class": "evidence",
+      "producer": "scripts/test-web-installer-gui.ps1",
+      "purpose": "Native GUI web-installer compile, download, install, and uninstall smoke evidence.",
+      "retention": { "mode": "age", "maxAgeDays": 7 }
+    },
+    {
       "path": "release/MyPowerTools-Web-Setup-*-win-x64.exe.sha256",
       "class": "output",
       "producer": "scripts/publish-windows.ps1",

@@ -307,6 +307,32 @@ public sealed partial class RuntimeAcceptanceTests
     }
 
     [Fact]
+    public void Web_setup_is_a_native_gui_installer_with_verified_component_downloads()
+    {
+        var installer = File.ReadAllText(Path.Combine(Root, "installer", "MyPowerTools.Web.iss"));
+        var componentBuilder = File.ReadAllText(Path.Combine(Root, "scripts", "new-runtime-components.ps1"));
+
+        Assert.Contains("CreateDownloadPage", installer);
+        Assert.Contains("DownloadPage.Download", installer);
+        Assert.Contains("GetSHA256OfFile", installer);
+        Assert.Contains("external extractarchive", installer);
+        Assert.Contains("DefaultDirName={localappdata}\\Programs\\MyPowerTools", installer);
+        Assert.Contains("UninstallDisplayIcon={app}\\MyPowerTools.exe", installer);
+        Assert.Contains("distributionMode\": \"web", installer);
+        Assert.Contains("Runtime plan:", installer);
+        Assert.Contains("SetupLogging=yes", installer);
+        Assert.DoesNotContain("install-windows-web.ps1", installer);
+        Assert.DoesNotContain("{tmp}\\MyPowerToolsWebSetup", installer);
+
+        Assert.Contains("web-installer-components.iss", componentBuilder);
+        Assert.Contains("WebCoreSha256", componentBuilder);
+        Assert.Contains("Prefix = 'WebDotNet'", componentBuilder);
+        Assert.Contains("Prefix = 'WebPython'", componentBuilder);
+        Assert.Contains("Prefix = 'WebAdb'", componentBuilder);
+        Assert.Contains("Sha256", componentBuilder);
+    }
+
+    [Fact]
     public void Ota_apply_writes_reopen_plan_for_detected_programs()
     {
         var cli = File.ReadAllText(Path.Combine(Root, "src", "MyPowerTools.Cli", "Program.cs"));
