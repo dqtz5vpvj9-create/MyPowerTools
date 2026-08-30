@@ -273,6 +273,7 @@ public sealed partial class RuntimeAcceptanceTests
         Assert.Contains("publishReadyToRunComposite = $shellReadyToRun", publishScript);
         Assert.Contains("[ValidateSet('Full', 'Web', 'All')]", publishScript);
         Assert.Contains("runtimeConfigSha256", publishScript);
+        Assert.Contains("MyPowerTools-core-$fromVersion-to-$Version.ota.zip", publishScript);
         Assert.DoesNotContain("EnableCompressionInSingleFile", publishScript);
         Assert.Contains("MyPowerTools.exe", publishScript);
         Assert.Contains("START_HERE.md", publishScript);

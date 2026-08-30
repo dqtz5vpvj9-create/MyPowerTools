@@ -644,7 +644,12 @@ if (Test-Path -LiteralPath $OtaHistoryDir -PathType Container) {
         Select-Object -First 3
     )
     foreach ($fromVersion in $selectedHistory) {
-        $deltaPath = Join-Path $DeltaOutputRoot "MyPowerTools-$fromVersion-to-$Version.ota.zip"
+        $deltaName = if ($isWebDistribution) {
+            "MyPowerTools-core-$fromVersion-to-$Version.ota.zip"
+        } else {
+            "MyPowerTools-$fromVersion-to-$Version.ota.zip"
+        }
+        $deltaPath = Join-Path $DeltaOutputRoot $deltaName
         $deltaParams = @{
             SourceRoot = $PublishRoot
             SourceManifestPath = $ManifestAssetPath
