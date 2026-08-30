@@ -94,6 +94,11 @@ try {
     if ([string]$manifest.version -ne $TestVersion) {
         throw 'GUI installer manifest version does not match the smoke build.'
     }
+    if ([string]$manifest.runtimeComponents.smartbird -ne 'not-selected' -or
+        [string]$manifest.runtimeComponents.doubao -ne 'not-selected' -or
+        [string]$manifest.runtimeComponents.adb -ne 'not-selected') {
+        throw 'The recommended core setup unexpectedly installed optional runtime components.'
+    }
 
     $uninstaller = Join-Path $installRoot 'unins000.exe'
     if (-not (Test-Path -LiteralPath $uninstaller -PathType Leaf)) {
