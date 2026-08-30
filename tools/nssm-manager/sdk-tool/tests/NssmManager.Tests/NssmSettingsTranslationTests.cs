@@ -2,6 +2,8 @@ using Microsoft.Win32;
 using NssmManager.Compatibility;
 using NssmManager.Contracts;
 using NssmManager.Windows;
+using System.Reflection;
+using System.Runtime.InteropServices;
 
 namespace NssmManager.Tests;
 
@@ -126,6 +128,16 @@ public sealed class NssmSettingsTranslationTests
         Assert.Equal(-1, NssmSettingsTranslation.native_set_imagepath("svc", IntPtr.Zero, "ImagePath", null, NssmSettingValue.FromString("x"), null));
         Assert.Equal(-1, NssmSettingsTranslation.native_get_type("svc", IntPtr.Zero, "Type", null, value, null));
         Assert.Equal(-1, NssmSettingsTranslation.setting_dump_dependon("svc", IntPtr.Zero, "DependOnService", NssmSettingsTranslation.DependencyServices, value));
+    }
+
+    [Fact]
+    public void change_service_config2_uses_the_unicode_entrypoint()
+    {
+        var nativeMethods = typeof(NssmSettingsTranslation).Assembly.GetType("NssmManager.Windows.NativeMethods", throwOnError: true)!;
+        var method = nativeMethods.GetMethod("ChangeServiceConfig2", BindingFlags.Static | BindingFlags.NonPublic)!;
+        var import = method.GetCustomAttribute<DllImportAttribute>()!;
+        Assert.Equal("ChangeServiceConfig2W", import.EntryPoint);
+        Assert.Equal(CharSet.Unicode, import.CharSet);
     }
 
     [Fact]

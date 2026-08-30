@@ -9,6 +9,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using System.Runtime.InteropServices;
+using System.Runtime.Versioning;
 
 namespace NssmManager.Runtime;
 
@@ -32,6 +33,7 @@ public static class NssmElevatedClient
 
     public static async Task<JsonNode> ExecuteAsync(string operation, JsonObject arguments, char[]? password, CancellationToken cancellationToken = default)
     {
+        if (!OperatingSystem.IsWindows()) throw new PlatformNotSupportedException("NSSM elevated operations require Windows.");
         var safeArguments = arguments.DeepClone().AsObject();
         safeArguments.Remove("password");
         var passwordLength = password is null ? 0 : password.Length > 0 && password[^1] == '\0' ? password.Length - 1 : password.Length;
@@ -41,8 +43,10 @@ public static class NssmElevatedClient
         var brokerPath = ResolveBrokerPath();
         using var brokerLock = new FileStream(brokerPath, FileMode.Open, FileAccess.Read, FileShare.Read);
         var brokerHash = Convert.ToHexString(await SHA256.HashDataAsync(brokerLock, cancellationToken).ConfigureAwait(false)).ToLowerInvariant();
-        var requestRoot = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MyPowerTools", "broker-requests", "nssm-manager");
-        Directory.CreateDirectory(requestRoot);
+        using var callerIdentity = WindowsIdentity.GetCurrent();
+        var callerSid = callerIdentity.User ?? throw new UnauthorizedAccessException("The current Windows user SID is unavailable.");
+        var requestRoot = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MyPowerTools", "broker-requests", "nssm-manager", callerSid.Value);
+        ProtectRequestDirectory(requestRoot, callerSid);
         EnsureNoReparsePoint(requestRoot);
         var token = Guid.NewGuid().ToString("N", CultureInfo.InvariantCulture);
         var requestPath = Path.Combine(requestRoot, token + ".json");
@@ -61,7 +65,7 @@ public static class NssmElevatedClient
         };
         var bytes = Encoding.UTF8.GetBytes(request.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
         var digest = Convert.ToHexString(SHA256.HashData(bytes)).ToLowerInvariant();
-        WriteNewFile(requestPath, bytes);
+        WriteNewFile(requestPath, bytes, callerSid);
         try
         {
             var alreadyElevated = IsCurrentProcessElevated();
@@ -169,13 +173,13 @@ public static class NssmElevatedClient
     private static bool IsCurrentProcessElevated()
     {
         if (!OperatingSystem.IsWindows()) return false;
-        using var identity = WindowsIdentity.GetCurrent(TokenAccessLevels.Query);
+        using var identity = WindowsIdentity.GetCurrent();
         return new WindowsPrincipal(identity).IsInRole(WindowsBuiltInRole.Administrator);
     }
     private static NamedPipeServerStream CreateSecretPipe(string pipeName)
     {
         if (!OperatingSystem.IsWindows()) throw new PlatformNotSupportedException("Protected password transport requires Windows.");
-        using var identity = WindowsIdentity.GetCurrent(TokenAccessLevels.Query);
+        using var identity = WindowsIdentity.GetCurrent();
         var user = identity.User ?? throw new UnauthorizedAccessException("The current Windows user SID is unavailable.");
         var security = new PipeSecurity();
         security.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
@@ -189,7 +193,36 @@ public static class NssmElevatedClient
         return NamedPipeServerStreamAcl.Create(pipeName, PipeDirection.Out, 1, PipeTransmissionMode.Byte,
             PipeOptions.Asynchronous, 4096, 4096, security, HandleInheritability.None);
     }
-    private static void WriteNewFile(string path, byte[] bytes) { using var stream = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough); stream.Write(bytes); stream.Flush(true); }
+    [SupportedOSPlatform("windows")]
+    private static void ProtectRequestDirectory(string path, SecurityIdentifier caller)
+    {
+        Directory.CreateDirectory(path);
+        var security = new DirectorySecurity();
+        security.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
+        security.SetOwner(caller);
+        foreach (var sid in new[]
+        {
+            caller,
+            new SecurityIdentifier(WellKnownSidType.LocalSystemSid, null),
+            new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, null)
+        })
+            security.AddAccessRule(new FileSystemAccessRule(sid, FileSystemRights.FullControl,
+                InheritanceFlags.ContainerInherit | InheritanceFlags.ObjectInherit, PropagationFlags.None, AccessControlType.Allow));
+        new DirectoryInfo(path).SetAccessControl(security);
+    }
+    [SupportedOSPlatform("windows")]
+    private static void WriteNewFile(string path, byte[] bytes, SecurityIdentifier caller)
+    {
+        using (var stream = new FileStream(path, FileMode.CreateNew, FileAccess.Write, FileShare.None, 4096, FileOptions.WriteThrough))
+        {
+            stream.Write(bytes);
+            stream.Flush(true);
+        }
+        var information = new FileInfo(path);
+        var security = information.GetAccessControl(AccessControlSections.Owner);
+        security.SetOwner(caller);
+        information.SetAccessControl(security);
+    }
     private static void EnsureNoReparsePoint(string path) { var item = File.Exists(path) ? new FileInfo(path) as FileSystemInfo : new DirectoryInfo(path); while (item is not null) { if ((item.Attributes & FileAttributes.ReparsePoint) != 0) throw new InvalidOperationException("Broker path contains a reparse point."); item = item switch { FileInfo file => file.Directory, DirectoryInfo directory => directory.Parent, _ => null }; } }
     private static bool FixedEquals(string left, string right) => left.Length == right.Length && CryptographicOperations.FixedTimeEquals(Encoding.ASCII.GetBytes(left.ToLowerInvariant()), Encoding.ASCII.GetBytes(right.ToLowerInvariant()));
     private static void TryDelete(string path) { try { File.Delete(path); } catch (Exception exception) when (exception is IOException or UnauthorizedAccessException) { } }

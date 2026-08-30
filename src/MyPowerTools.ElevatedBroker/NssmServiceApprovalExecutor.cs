@@ -108,7 +108,7 @@ internal static class NssmServiceApprovalExecutor
             case "nssm-manager.control":
             {
                 var action = RequiredString(arguments, "action").ToLowerInvariant();
-                var startArguments = arguments["startArguments"] is null ? null : RequiredStringArray(arguments, "startArguments");
+                var startArguments = arguments["startArguments"] is null ? null : RequiredStringArray(arguments, "startArguments", allowEmpty: true);
                 var result = action switch { "start" => services.Start(serviceName, startArguments), "stop" => services.Stop(serviceName), "restart" => services.Restart(serviceName, startArguments), "pause" => services.Pause(serviceName), "continue" => services.Continue(serviceName), "rotate" => services.Rotate(serviceName), _ => throw new InvalidDataException("Control action is invalid.") };
                 return JsonSerializer.SerializeToNode(result, Json)!;
             }
@@ -279,7 +279,7 @@ internal static class NssmServiceApprovalExecutor
         var sourcePath = Path.GetFullPath(RequiredString(arguments, "executablePath"));
         if (!File.Exists(sourcePath) || !Path.GetFileName(sourcePath).Equals("nssm-manager.exe", StringComparison.OrdinalIgnoreCase)) throw new InvalidDataException("Managed executable path is invalid.");
         EnsureNoReparsePoint(sourcePath);
-        return MaterializeProtectedServiceHost(sourcePath);
+        return MaterializeProtectedExecutable(sourcePath);
     }
 
     private static string TrustedServiceImage(JsonObject arguments)
@@ -294,10 +294,10 @@ internal static class NssmServiceApprovalExecutor
         return string.Join(' ', values.Select(QuoteWindowsArgument));
     }
 
-    private static string MaterializeProtectedServiceHost(string sourcePath)
+    private static string MaterializeProtectedExecutable(string sourcePath)
     {
-        if (!OperatingSystem.IsWindows()) throw new PlatformNotSupportedException("NSSM service hosting requires Windows.");
-        var destinationDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "MyPowerTools", "ServiceHosts", "nssm-manager", "2.24.101");
+        if (!OperatingSystem.IsWindows()) throw new PlatformNotSupportedException("NSSM service execution requires Windows.");
+        var destinationDirectory = Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.CommonApplicationData), "MyPowerTools", "bin", "nssm-manager", "2.24.101");
         EnsureNoReparsePointOnExistingAncestor(destinationDirectory);
         Directory.CreateDirectory(destinationDirectory);
         EnsureNoReparsePoint(destinationDirectory);
@@ -315,9 +315,9 @@ internal static class NssmServiceApprovalExecutor
                 destination.Flush(true);
             }
             using (var verification = new FileStream(temporaryPath, FileMode.Open, FileAccess.Read, FileShare.Read))
-                if (!CryptographicOperations.FixedTimeEquals(sourceHash, SHA256.HashData(verification))) throw new InvalidDataException("Protected service host copy verification failed.");
+                if (!CryptographicOperations.FixedTimeEquals(sourceHash, SHA256.HashData(verification))) throw new InvalidDataException("Protected NSSM executable copy verification failed.");
             File.Move(temporaryPath, destinationPath, true);
-            ValidateProtectedServiceHost(destinationPath, destinationDirectory);
+            ValidateProtectedExecutable(destinationPath, destinationDirectory);
             return destinationPath;
         }
         finally { try { File.Delete(temporaryPath); } catch { } CryptographicOperations.ZeroMemory(sourceHash); }
@@ -336,16 +336,23 @@ internal static class NssmServiceApprovalExecutor
     }
 
     [SupportedOSPlatform("windows")]
-    private static void ValidateProtectedServiceHost(string executablePath, string directoryPath)
+    private static void ValidateProtectedExecutable(string executablePath, string directoryPath)
     {
         EnsureNoReparsePoint(executablePath);
         var security = new DirectoryInfo(directoryPath).GetAccessControl(AccessControlSections.Access);
-        if (!security.AreAccessRulesProtected) throw new UnauthorizedAccessException("Service host directory still inherits writable ACLs.");
+        if (!security.AreAccessRulesProtected) throw new UnauthorizedAccessException("Protected NSSM executable directory still inherits writable ACLs.");
         var users = new SecurityIdentifier(WellKnownSidType.BuiltinUsersSid, null);
-        var dangerous = FileSystemRights.Write | FileSystemRights.Modify | FileSystemRights.FullControl | FileSystemRights.CreateFiles | FileSystemRights.Delete;
+        var dangerous = FileSystemRights.WriteData |
+                        FileSystemRights.AppendData |
+                        FileSystemRights.WriteExtendedAttributes |
+                        FileSystemRights.WriteAttributes |
+                        FileSystemRights.Delete |
+                        FileSystemRights.DeleteSubdirectoriesAndFiles |
+                        FileSystemRights.ChangePermissions |
+                        FileSystemRights.TakeOwnership;
         foreach (FileSystemAccessRule rule in security.GetAccessRules(true, true, typeof(SecurityIdentifier)))
             if (rule.AccessControlType == AccessControlType.Allow && users.Equals(rule.IdentityReference) && (rule.FileSystemRights & dangerous) != 0)
-                throw new UnauthorizedAccessException("Service host directory grants write access to standard users.");
+                throw new UnauthorizedAccessException("Protected NSSM executable directory grants write access to standard users.");
     }
     private static void EnsureNoReparsePointOnExistingAncestor(string path)
     {
@@ -394,10 +401,10 @@ internal static class NssmServiceApprovalExecutor
     private static string ResolveServiceName(string operation, JsonObject arguments) => operation is "nssm-manager.install" or "nssm-manager.apply" ? ReadConfigurationWithoutPassword(arguments).Name : RequiredString(arguments, "serviceName");
     private static string RequiredString(JsonObject root, string name) { var value = root[name]?.GetValue<string>() ?? ""; return string.IsNullOrWhiteSpace(value) || value.Length > 32768 ? throw new InvalidDataException($"{name} is invalid.") : value; }
     private static string? OptionalString(JsonObject root, string name) => root[name] is null ? null : root[name]!.GetValue<string>();
-    private static string[] RequiredStringArray(JsonObject root, string name)
+    private static string[] RequiredStringArray(JsonObject root, string name, bool allowEmpty = false)
     {
         var values = root[name]?.Deserialize<string[]>(Json) ?? throw new InvalidDataException($"{name} is missing.");
-        if (values.Length == 0 || values.Length > 4096 || values.Any(value => value.Length > 32768 || value.IndexOf('\0') >= 0)) throw new InvalidDataException($"{name} is invalid.");
+        if ((!allowEmpty && values.Length == 0) || values.Length > 4096 || values.Any(value => value.Length > 32768 || value.IndexOf('\0') >= 0)) throw new InvalidDataException($"{name} is invalid.");
         return values;
     }
     private static string MigrationSnapshotPath(string serviceName, bool createDirectory)
@@ -449,7 +456,10 @@ internal static class NssmServiceApprovalExecutor
 
     private static void ValidateRequestPath(string path, string token)
     {
-        var root = Path.GetFullPath(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MyPowerTools", "broker-requests", "nssm-manager"));
+        if (!OperatingSystem.IsWindows()) throw new PlatformNotSupportedException("NSSM service approval requires Windows.");
+        using var identity = WindowsIdentity.GetCurrent();
+        var caller = identity.User ?? throw new UnauthorizedAccessException("The elevated caller SID is unavailable.");
+        var root = Path.GetFullPath(Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MyPowerTools", "broker-requests", "nssm-manager", caller.Value));
         path = Path.GetFullPath(path);
         var prefix = root.TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
         if (!path.StartsWith(prefix, StringComparison.OrdinalIgnoreCase) || Path.GetFileName(path) != token + ".json" || (File.GetAttributes(path) & FileAttributes.ReparsePoint) != 0) throw new InvalidDataException("Request path is invalid.");

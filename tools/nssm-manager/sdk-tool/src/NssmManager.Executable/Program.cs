@@ -113,7 +113,7 @@ internal static class NssmManagerProgram
             Console.Error.WriteLine(error);
             return 6;
         }
-        Console.WriteLine($"Service \"{configuration.Name}\" installed successfully!");
+        NssmEvent.print_message(Console.Out, NssmEvent.message_id("NSSM_MESSAGE_SERVICE_INSTALLED"), configuration.Name);
         return 0;
     }
 
@@ -398,7 +398,7 @@ internal static class NssmManagerProgram
             NssmEvent.print_message(Console.Error, NssmEvent.message_id("NSSM_MESSAGE_DELETESERVICE_FAILED"), NssmEvent.error_string(unchecked((uint)errorCode)));
             return 5;
         }
-        Console.WriteLine($"Service \"{serviceName}\" removed successfully!");
+        NssmEvent.print_message(Console.Out, NssmEvent.message_id("NSSM_MESSAGE_SERVICE_REMOVED"), serviceName);
         return 0;
     }
 

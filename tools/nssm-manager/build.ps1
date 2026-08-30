@@ -22,6 +22,7 @@ $projects = @(
 $executableProject = Join-Path $sdkToolRoot 'src\NssmManager.Executable\NssmManager.Executable.csproj'
 $publishDirectory = Join-Path $sdkToolRoot 'src\NssmManager.Executable\publish\win-x64'
 $mptCliProject = Join-Path $repoRoot 'src\MyPowerTools.Cli\MyPowerTools.Cli.csproj'
+$elevatedBrokerProject = Join-Path $repoRoot 'src\MyPowerTools.ElevatedBroker\MyPowerTools.ElevatedBroker.csproj'
 $mptCliExecutable = Join-Path $repoRoot "artifacts\build\bin\MyPowerTools.Cli\$($Configuration.ToLowerInvariant())\MyPowerTools.Cli.exe"
 $artifactsRoot = Join-Path $toolRoot 'artifacts'
 $artifactPackage = Join-Path $artifactsRoot 'nssm-manager.mptpkg'
@@ -130,6 +131,11 @@ $cliBuildArguments = @('build', $mptCliProject, '--configuration', $Configuratio
 & $dotnet @cliBuildArguments
 $cliBuildExit = $LASTEXITCODE
 if ($cliBuildExit -ne 0) { throw "MyPowerTools CLI build failed with exit code $cliBuildExit." }
+
+$brokerBuildArguments = @('build', $elevatedBrokerProject, '--configuration', $Configuration, '--nologo')
+& $dotnet @brokerBuildArguments
+$brokerBuildExit = $LASTEXITCODE
+if ($brokerBuildExit -ne 0) { throw "MyPowerTools Elevated Broker build failed with exit code $brokerBuildExit." }
 
 $validateArguments = @('validate', 'tool', $sdkToolRoot)
 & $mptCliExecutable @validateArguments

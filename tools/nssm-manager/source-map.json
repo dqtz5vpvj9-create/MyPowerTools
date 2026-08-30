@@ -2482,7 +2482,7 @@
       "signature": "int pre_remove_service(int argc, TCHAR **argv)",
       "status": "translated",
       "csharpFile": "sdk-tool/src/NssmManager.Executable/Program.cs",
-      "csharpLine": 346,
+      "csharpLine": 365,
       "csharpType": "NssmManagerProgram",
       "csharpMethod": "pre_remove_service",
       "verification": "NssmCliDifferentialTests.elevated_mutations_preserve_exit_codes",

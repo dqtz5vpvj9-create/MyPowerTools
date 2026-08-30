@@ -185,7 +185,7 @@ if (-not $DryRun.IsPresent -and $requiresAdministrator -and -not $isAdministrato
 $startMenuDir = Join-Path $env:APPDATA 'Microsoft\Windows\Start Menu\Programs\MyPowerTools'
 $desktopShortcutPath = Join-Path ([Environment]::GetFolderPath('DesktopDirectory')) 'MyPowerTools.lnk'
 $runKeyPath = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
-$protectedNssmHostRoot = [System.IO.Path]::GetFullPath((Join-Path $env:ProgramData 'MyPowerTools\ServiceHosts\nssm-manager'))
+$protectedNssmExecutableRoot = [System.IO.Path]::GetFullPath((Join-Path $env:ProgramData 'MyPowerTools\bin\nssm-manager'))
 $managedNssmServices = [Collections.Generic.List[object]]::new()
 $servicesRegistryRoot = 'HKLM:\SYSTEM\CurrentControlSet\Services'
 if (Test-Path -LiteralPath $servicesRegistryRoot) {
@@ -193,7 +193,7 @@ if (Test-Path -LiteralPath $servicesRegistryRoot) {
         $imagePath = [string](Get-ItemPropertyValue -LiteralPath $serviceKey.PSPath -Name 'ImagePath' -ErrorAction SilentlyContinue)
         if ($imagePath.IndexOf('nssm-manager.exe', [StringComparison]::OrdinalIgnoreCase) -ge 0 -and
             ($imagePath.IndexOf($InstallDirFull, [StringComparison]::OrdinalIgnoreCase) -ge 0 -or
-             $imagePath.IndexOf($protectedNssmHostRoot, [StringComparison]::OrdinalIgnoreCase) -ge 0)) {
+             $imagePath.IndexOf($protectedNssmExecutableRoot, [StringComparison]::OrdinalIgnoreCase) -ge 0)) {
             $managedNssmServices.Add([ordered]@{ Name = $serviceKey.PSChildName; ImagePath = $imagePath })
         }
     }
@@ -213,7 +213,7 @@ $plan = [ordered]@{
     removeAutostartValue = 'HKCU Run: MyPowerTools'
     managedNssmServices = @($managedNssmServices)
     nssmServiceAction = $NssmServiceAction
-    protectedNssmHostRoot = $protectedNssmHostRoot
+    protectedNssmExecutableRoot = $protectedNssmExecutableRoot
 }
 
 if ($DryRun) {
@@ -274,13 +274,13 @@ if ($managedNssmServices.Count -gt 0) {
     }
 }
 
-if ((Test-Path -LiteralPath $protectedNssmHostRoot) -and $isAdministrator) {
+if ((Test-Path -LiteralPath $protectedNssmExecutableRoot) -and $isAdministrator) {
     $programDataFull = [System.IO.Path]::GetFullPath($env:ProgramData).TrimEnd([System.IO.Path]::DirectorySeparatorChar) + [System.IO.Path]::DirectorySeparatorChar
-    if (-not $protectedNssmHostRoot.StartsWith($programDataFull, [StringComparison]::OrdinalIgnoreCase) -or
-        -not $protectedNssmHostRoot.EndsWith('MyPowerTools\ServiceHosts\nssm-manager', [StringComparison]::OrdinalIgnoreCase)) {
-        throw "Unsafe protected NSSM host path '$protectedNssmHostRoot'."
+    if (-not $protectedNssmExecutableRoot.StartsWith($programDataFull, [StringComparison]::OrdinalIgnoreCase) -or
+        -not $protectedNssmExecutableRoot.EndsWith('MyPowerTools\bin\nssm-manager', [StringComparison]::OrdinalIgnoreCase)) {
+        throw "Unsafe protected NSSM executable path '$protectedNssmExecutableRoot'."
     }
-    Remove-Item -LiteralPath $protectedNssmHostRoot -Recurse -Force
+    Remove-Item -LiteralPath $protectedNssmExecutableRoot -Recurse -Force
 }
 
 $serviceConfigurationScript = Join-Path $InstallDirFull 'configure-user-services.ps1'
