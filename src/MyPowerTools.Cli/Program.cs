@@ -136,8 +136,32 @@ static int Service(string[] args)
                 var stopped = client.ShutdownAsync().GetAwaiter().GetResult();
                 Console.WriteLine($"shutdown={stopped}");
                 return stopped ? 0 : 1;
+            case "quiesce":
+            {
+                var units = client.ListUnitsAsync().GetAwaiter().GetResult();
+                var failures = new List<string>();
+                foreach (var unit in units.Units)
+                {
+                    try
+                    {
+                        _ = client.StopAsync(unit.UnitId).GetAwaiter().GetResult();
+                    }
+                    catch (Exception exception)
+                    {
+                        failures.Add($"{unit.UnitId}: {exception.Message}");
+                    }
+                }
+
+                var shutdown = client.ShutdownAsync().GetAwaiter().GetResult();
+                Console.WriteLine($"quiesced={units.Units.Count - failures.Count}; shutdown={shutdown}");
+                foreach (var failure in failures)
+                {
+                    Console.Error.WriteLine($"Service Unit shutdown failed: {failure}");
+                }
+                return shutdown && failures.Count == 0 ? 0 : 1;
+            }
             default:
-                Console.Error.WriteLine("mpt service list|status|start|stop|restart|reload|shutdown [unit-id]");
+                Console.Error.WriteLine("mpt service list|status|start|stop|restart|reload|shutdown|quiesce [unit-id]");
                 return 2;
         }
     }

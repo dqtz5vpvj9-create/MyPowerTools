@@ -328,6 +328,15 @@ public sealed partial class RuntimeAcceptanceTests
         Assert.Contains("Types: core full custom", installer);
         Assert.Contains("WantsPythonFeatures", installer);
         Assert.Contains("约 5,100 个文件，可能需要一分钟", installer);
+        Assert.Contains("CloseApplications=force", installer);
+        Assert.Contains("service quiesce", installer);
+        Assert.Contains("--shutdown-shell", installer);
+        Assert.Contains("--quit-runner", installer);
+        Assert.Contains("MyPowerTools WinSpace Shift", installer);
+        Assert.Contains("ForceStopImage('MyPowerTools.ServiceManager.exe')", installer);
+        Assert.Contains("ForceStopImage('MyPowerTools.ElevatedBroker.exe')", installer);
+        Assert.Contains("SetupWindowTitle=安装 %1", installer);
+        Assert.Contains("ErrorCloseApplications=安装器无法关闭正在运行的 MyPowerTools 进程", installer);
         Assert.DoesNotContain("-StartAfterInstall", installer);
         Assert.Contains("SetupLogging=yes", installer);
         Assert.DoesNotContain("install-windows-web.ps1", installer);

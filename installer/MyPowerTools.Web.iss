@@ -45,7 +45,7 @@ DefaultDialogFontName=Microsoft YaHei UI
 UsePreviousSetupType=no
 DisableWelcomePage=no
 DisableReadyPage=no
-CloseApplications=yes
+CloseApplications=force
 CloseApplicationsFilter=MyPowerTools.exe,MyPowerTools.Runner.exe,MyPowerTools.Shell.Avalonia.exe,MyPowerTools.ServiceManager.exe
 RestartApplications=no
 SetupLogging=yes
@@ -65,7 +65,7 @@ Name: "android"; Description: "Android Platform Tools（系统缺少 ADB 时约 
 
 [Messages]
 SetupAppTitle=MyPowerTools 安装程序
-SetupWindowTitle=安装 MyPowerTools %1
+SetupWindowTitle=安装 %1
 ButtonBack=< 上一步(&B)
 ButtonNext=下一步(&N) >
 ButtonInstall=安装(&I)
@@ -93,6 +93,7 @@ StatusRunProgram=正在完成服务注册...
 ErrorDownloadAborted=下载已取消
 ErrorDownloadFailed=下载失败：%1 %2
 ErrorExtractionFailed=解压失败：%1
+ErrorCloseApplications=安装器无法关闭正在运行的 MyPowerTools 进程。请关闭 MyPowerTools 后重试。
 ExitSetupTitle=退出安装程序
 ExitSetupMessage=安装尚未完成。现在退出会保留原有安装。%n%n确定退出？
 
@@ -348,6 +349,77 @@ begin
     '正在准备 MyPowerTools',
     '正在下载并校验所选组件，下载中断后可以重新运行安装器。', nil);
   DownloadPage.ShowBaseNameInsteadOfUrl := True;
+end;
+
+function ExecInstalled(const FileName, Parameters: String; TimeoutMessage: String): Boolean;
+var
+  ResultCode: Integer;
+begin
+  Result := True;
+  if not FileExists(FileName) then begin
+    Log('Shutdown client is absent: ' + FileName);
+    exit;
+  end;
+  Log('Running product shutdown client: ' + FileName + ' ' + Parameters);
+  if not Exec(FileName, Parameters, ExtractFileDir(FileName), SW_HIDE,
+    ewWaitUntilTerminated, ResultCode) then begin
+    Log(TimeoutMessage + ': unable to start client.');
+    Result := False;
+  end else if ResultCode <> 0 then begin
+    Log(TimeoutMessage + ': exit code ' + IntToStr(ResultCode));
+    Result := False;
+  end;
+end;
+
+procedure ForceStopImage(const ImageName: String);
+var
+  ResultCode: Integer;
+begin
+  if Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /T /IM "' + ImageName + '"',
+    '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
+    Log('taskkill ' + ImageName + ' exit code ' + IntToStr(ResultCode))
+  else
+    Log('Unable to start taskkill for ' + ImageName);
+end;
+
+procedure QuiesceInstalledProduct;
+var
+  ResultCode: Integer;
+  ShellPath: String;
+  CliPath: String;
+begin
+  ShellPath := ExpandConstant('{app}\Shell\MyPowerTools.Shell.Avalonia.exe');
+  CliPath := ExpandConstant('{app}\Cli\MyPowerTools.Cli.exe');
+
+  ExecInstalled(ShellPath, '--shutdown-shell', 'Graceful Shell shutdown failed');
+  ExecInstalled(ShellPath,
+    '--smoke --timeout-ms 5000 --quit-runner --modules "' +
+    ExpandConstant('{app}\modules') + '" --data-root "' +
+    ExpandConstant('{localappdata}\MyPowerTools') + '"',
+    'Graceful Runner shutdown failed');
+  ExecInstalled(CliPath, 'service quiesce', 'Graceful ServiceManager shutdown failed');
+
+  if Exec(ExpandConstant('{sys}\schtasks.exe'),
+    '/End /TN "\MyPowerTools WinSpace Shift"', '', SW_HIDE,
+    ewWaitUntilTerminated, ResultCode) then
+    Log('Stopped elevated InputRemap task; exit code ' + IntToStr(ResultCode));
+
+  Sleep(1000);
+  ForceStopImage('MyPowerTools.Shell.Avalonia.exe');
+  ForceStopImage('MyPowerTools.Runner.exe');
+  ForceStopImage('MyPowerTools.ServiceManager.exe');
+  ForceStopImage('MyPowerTools.WebToolHost.exe');
+  ForceStopImage('MyPowerTools.InputRemapHost.exe');
+  ForceStopImage('MyPowerTools.Broker.exe');
+  ForceStopImage('MyPowerTools.ElevatedBroker.exe');
+end;
+
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+begin
+  WizardForm.StatusLabel.Caption := '正在关闭 MyPowerTools 和后台组件...';
+  if ShouldRunPostInstall then
+    QuiesceInstalledProduct;
+  Result := '';
 end;
 
 function DownloadRequiredAssets: Boolean;
