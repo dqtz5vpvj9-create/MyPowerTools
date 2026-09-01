@@ -315,6 +315,7 @@ public sealed partial class RuntimeAcceptanceTests
         var componentBuilder = File.ReadAllText(Path.Combine(Root, "scripts", "new-runtime-components.ps1"));
         var signatureBuilder = File.ReadAllText(Path.Combine(Root, "scripts", "new-web-installer-signatures.ps1"));
         var serviceConfigurator = File.ReadAllText(Path.Combine(Root, "scripts", "configure-user-services.ps1"));
+        var installerWorker = File.ReadAllText(Path.Combine(Root, "scripts", "web-installer-worker.ps1"));
 
         Assert.Contains("CreateDownloadPage", installer);
         Assert.Contains("DownloadPage.Download", installer);
@@ -326,6 +327,7 @@ public sealed partial class RuntimeAcceptanceTests
         Assert.DoesNotContain("GetSHA256OfFile", installer);
         Assert.Contains("external extractarchive", installer);
         Assert.Contains("Source: \"..\\scripts\\configure-user-services.ps1\"", installer);
+        Assert.Contains("Source: \"..\\scripts\\web-installer-worker.ps1\"; Flags: dontcopy", installer);
         Assert.Contains("DefaultDirName={localappdata}\\Programs\\MyPowerTools", installer);
         Assert.Contains("UninstallDisplayIcon={app}\\MyPowerTools.exe", installer);
         Assert.Contains("distributionMode\": \"web", installer);
@@ -348,7 +350,13 @@ public sealed partial class RuntimeAcceptanceTests
         Assert.Contains("Batched taskkill exit code", installer);
         Assert.DoesNotContain("procedure ForceStopImage", installer);
         Assert.DoesNotContain("function PrepareToInstall", installer);
-        Assert.Contains("WizardForm.StatusLabel.Caption := '正在关闭运行中的 MyPowerTools 组件", installer);
+        Assert.Contains("CreateCustomPage(wpReady", installer);
+        Assert.Contains("CreateCustomPage(wpInstalling", installer);
+        Assert.Contains("TNewMemo.Create(WizardForm.InstallingPage)", installer);
+        Assert.Contains("ScrollBars := ssBoth", installer);
+        Assert.Contains("SetTimer(0, 0, 200, CreateCallback(@WorkerTimerProc))", installer);
+        Assert.Contains("ewNoWait", installer);
+        Assert.DoesNotContain("正在注册 MyPowerTools 后台服务...\"; Flags: runhidden waituntilterminated", installer);
         Assert.Contains("MyPowerTools.ServiceManager.exe", installer);
         Assert.Contains("MyPowerTools.ElevatedBroker.exe", installer);
         Assert.Contains("service stop adb-forwarder.service", installer);
@@ -381,6 +389,10 @@ public sealed partial class RuntimeAcceptanceTests
         Assert.Contains("$process.Kill($true)", serviceConfigurator);
         Assert.Contains("@('service', 'quiesce') -TimeoutSeconds 5", serviceConfigurator);
         Assert.DoesNotContain("@('service', 'stop', [string]$unitId)", serviceConfigurator);
+        Assert.Contains("[ValidateSet('Quiesce', 'Finalize')]", installerWorker);
+        Assert.Contains("-Phase Finalize", installer);
+        Assert.Contains("Invoke-LoggedPowerShell", installerWorker);
+        Assert.Contains("Move-Item -LiteralPath $resultTempPath -Destination $ResultPath -Force", installerWorker);
     }
 
     [Fact]

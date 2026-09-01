@@ -50,6 +50,7 @@ Compression=lzma2/max
 SolidCompression=yes
 ArchiveExtraction=full
 WizardStyle=modern dynamic
+WizardSizePercent=135,125
 DefaultDialogFontName=Microsoft YaHei UI
 UsePreviousSetupType=no
 DisableWelcomePage=no
@@ -124,6 +125,7 @@ Type: files; Name: "{app}\dev-update.manifest.json"
 [Files]
 Source: "{tmp}\{#WebCoreAsset}"; DestDir: "{app}"; Flags: external extractarchive recursesubdirs ignoreversion; BeforeInstall: BeginCoreInstall
 Source: "..\scripts\configure-user-services.ps1"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\scripts\web-installer-worker.ps1"; Flags: dontcopy
 Source: "{tmp}\{#WebDotNetAsset}"; DestDir: "{app}"; Flags: external extractarchive recursesubdirs ignoreversion; Check: NeedDotNetDownload; BeforeInstall: BeginDotNetInstall
 Source: "{tmp}\{#WebPythonAsset}"; DestDir: "{app}"; Flags: external extractarchive recursesubdirs ignoreversion; Check: NeedPythonDownload; BeforeInstall: BeginPythonInstall
 Source: "{tmp}\{#WebSmartBirdAsset}"; DestDir: "{app}"; Flags: external extractarchive recursesubdirs ignoreversion; Components: smartbird; BeforeInstall: BeginSmartBirdInstall
@@ -138,9 +140,6 @@ Name: "{autodesktop}\MyPowerTools"; Filename: "{app}\MyPowerTools.exe"; Paramete
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "MyPowerTools"; ValueData: """{app}\Runner\MyPowerTools.Runner.exe"" --modules ""{app}\modules"" --data-root ""{localappdata}\MyPowerTools"""; Flags: uninsdeletevalue; Tasks: autostart; Check: ShouldRunPostInstall
 
 [Run]
-Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ""{app}\configure-user-services.ps1"" -Mode Install -InstallRoot ""{app}"" -DataRoot ""{localappdata}\MyPowerTools"""; StatusMsg: "正在注册 MyPowerTools 后台服务..."; Flags: runhidden waituntilterminated; Check: ShouldRunPostInstall
-Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoLogo -NoProfile -NonInteractive -File ""{app}\Runtimes\SmartBird\scripts\install-smartbird-thermostat-task.ps1"" -Mode Install -RepoRoot ""{app}\Runtimes\SmartBird"" -PythonPath ""{app}\Runtimes\Python312\python.exe"" -DataRoot ""{localappdata}\MyPowerTools\SmartBird"""; StatusMsg: "正在注册 SmartBird 温控任务..."; Flags: runhidden waituntilterminated; Check: ShouldRunPostInstall; Components: smartbird
-Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoLogo -NoProfile -NonInteractive -File ""{app}\Runtimes\SmartBird\scripts\install-energy-server-task.ps1"" -Mode Install -RepoRoot ""{app}\Runtimes\SmartBird"" -PythonPath ""{app}\Runtimes\Python312\python.exe"" -DataRoot ""{localappdata}\MyPowerTools\SmartBird"" -SettingsFile ""{localappdata}\MyPowerTools\SmartBird\settings.json"""; StatusMsg: "正在注册 SmartBird 能耗服务..."; Flags: runhidden waituntilterminated; Check: ShouldRunPostInstall; Components: smartbird
 Filename: "{app}\MyPowerTools.exe"; Parameters: "--data-root ""{localappdata}\MyPowerTools"""; Description: "启动 MyPowerTools"; Flags: nowait postinstall skipifsilent; Check: ShouldRunPostInstall
 
 [UninstallRun]
@@ -156,6 +155,21 @@ Type: filesandordirs; Name: "{app}"
 [Code]
 var
   DownloadPage: TDownloadWizardPage;
+  ShutdownPage: TWizardPage;
+  FinalizePage: TWizardPage;
+  InstallingLogMemo: TNewMemo;
+  ShutdownLogMemo: TNewMemo;
+  FinalizeLogMemo: TNewMemo;
+  InstallLogLines: TStringList;
+  WorkerTimerID: UINT_PTR;
+  WorkerActive: Boolean;
+  WorkerSucceeded: Boolean;
+  WorkerPhase: Integer;
+  WorkerLogPath: String;
+  WorkerResultPath: String;
+#ifdef MyInstallerTestAutoDrive
+  AutoDriveTimerID: UINT_PTR;
+#endif
   NeedPrivateDotNet: Boolean;
   NeedPrivatePython: Boolean;
   NeedPrivateAdb: Boolean;
@@ -167,6 +181,12 @@ var
 #ifndef MyAllowUnsigned
   AllowedKeysRuntimeIDs: TStringList;
 #endif
+
+function SetTimer(hWnd: HWND; nIDEvent: UINT_PTR; uElapse: UINT;
+  lpTimerFunc: LongWord): UINT_PTR;
+  external 'SetTimer@user32.dll stdcall';
+function KillTimer(hWnd: HWND; uIDEvent: UINT_PTR): BOOL;
+  external 'KillTimer@user32.dll stdcall';
 
 function ShouldRunPostInstall: Boolean;
 begin
@@ -417,12 +437,252 @@ begin
   end;
 end;
 
+procedure SetMemoText(Memo: TNewMemo; const Value: String);
+begin
+  if Memo = nil then exit;
+  Memo.Text := Value;
+  Memo.SelStart := Length(Memo.Text);
+end;
+
+procedure RefreshInstallLogViews;
+begin
+  if InstallLogLines = nil then exit;
+  SetMemoText(InstallingLogMemo, InstallLogLines.Text);
+  if not WorkerActive then begin
+    SetMemoText(ShutdownLogMemo, InstallLogLines.Text);
+    SetMemoText(FinalizeLogMemo, InstallLogLines.Text);
+  end;
+end;
+
+procedure AppendInstallLog(const Message: String);
+begin
+  Log(Message);
+  if InstallLogLines <> nil then begin
+    InstallLogLines.Add(GetDateTimeString('hh:nn:ss', '-', ':') + '  ' + Message);
+    RefreshInstallLogViews;
+  end;
+end;
+
+function LoadUtf8TextFile(const FileName: String; var Value: String): Boolean;
+var
+  Lines: TArrayOfString;
+  LineIndex: Integer;
+begin
+  Value := '';
+  Result := LoadStringsFromFile(FileName, Lines);
+  if not Result then exit;
+  for LineIndex := 0 to GetArrayLength(Lines) - 1 do begin
+    if LineIndex > 0 then
+      Value := Value + #13#10;
+    Value := Value + Lines[LineIndex];
+  end;
+  if GetArrayLength(Lines) > 0 then
+    Value := Value + #13#10;
+end;
+
+procedure RefreshWorkerLog;
+var
+  WorkerText: String;
+  CombinedText: String;
+begin
+  WorkerText := '';
+  if LoadUtf8TextFile(WorkerLogPath, WorkerText) then
+    CombinedText := InstallLogLines.Text + WorkerText
+  else
+    CombinedText := InstallLogLines.Text;
+  if WorkerPhase = 1 then
+    SetMemoText(ShutdownLogMemo, CombinedText)
+  else if WorkerPhase = 2 then
+    SetMemoText(FinalizeLogMemo, CombinedText);
+end;
+
+procedure StartWorker(Phase: Integer);
+var
+  ResultCode: Integer;
+  Parameters: String;
+begin
+  WorkerPhase := Phase;
+  WorkerActive := True;
+  WorkerSucceeded := False;
+  WorkerLogPath := ExpandConstant('{tmp}\MyPowerTools-Web-Setup-worker-' +
+    IntToStr(Phase) + '.log');
+  WorkerResultPath := ExpandConstant('{tmp}\MyPowerTools-Web-Setup-worker-' +
+    IntToStr(Phase) + '.result');
+  DeleteFile(WorkerLogPath);
+  DeleteFile(WorkerResultPath);
+  ExtractTemporaryFile('web-installer-worker.ps1');
+
+  if Phase = 1 then begin
+    AppendInstallLog('正在关闭运行中的 MyPowerTools 组件。');
+    Parameters := '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass' +
+      ' -File "' + ExpandConstant('{tmp}\web-installer-worker.ps1') + '"' +
+      ' -Phase Quiesce';
+  end else begin
+    AppendInstallLog('正在注册后台服务并完成安装。');
+    Parameters := '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass' +
+      ' -File "' + ExpandConstant('{tmp}\web-installer-worker.ps1') + '"' +
+      ' -Phase Finalize';
+    if WantsSmartBird then
+      Parameters := Parameters + ' -InstallSmartBird';
+  end;
+  Parameters := Parameters +
+    ' -InstallRoot "' + ExpandConstant('{app}') + '"' +
+    ' -DataRoot "' + ExpandConstant('{localappdata}\MyPowerTools') + '"' +
+    ' -LogPath "' + WorkerLogPath + '"' +
+    ' -ResultPath "' + WorkerResultPath + '"';
+
+  WizardForm.BackButton.Enabled := False;
+  WizardForm.NextButton.Enabled := False;
+  WizardForm.CancelButton.Enabled := True;
+  if not Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
+    Parameters, '', SW_HIDE, ewNoWait, ResultCode) then begin
+    WorkerActive := False;
+    AppendInstallLog('后台安装任务启动失败：' + SysErrorMessage(ResultCode));
+    WizardForm.NextButton.Caption := '重试(&R)';
+    WizardForm.NextButton.Enabled := True;
+  end;
+end;
+
+function RunWorkerSynchronously(Phase: Integer): Boolean;
+var
+  ResultCode: Integer;
+  Parameters: String;
+  ResultText: String;
+  WorkerText: String;
+  PhaseName: String;
+begin
+  if Phase = 1 then
+    PhaseName := 'Quiesce'
+  else
+    PhaseName := 'Finalize';
+  WorkerLogPath := ExpandConstant('{tmp}\MyPowerTools-Web-Setup-sync-' +
+    IntToStr(Phase) + '.log');
+  WorkerResultPath := ExpandConstant('{tmp}\MyPowerTools-Web-Setup-sync-' +
+    IntToStr(Phase) + '.result');
+  DeleteFile(WorkerLogPath);
+  DeleteFile(WorkerResultPath);
+  ExtractTemporaryFile('web-installer-worker.ps1');
+  Parameters := '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass' +
+    ' -File "' + ExpandConstant('{tmp}\web-installer-worker.ps1') + '"' +
+    ' -Phase ' + PhaseName +
+    ' -InstallRoot "' + ExpandConstant('{app}') + '"' +
+    ' -DataRoot "' + ExpandConstant('{localappdata}\MyPowerTools') + '"' +
+    ' -LogPath "' + WorkerLogPath + '"' +
+    ' -ResultPath "' + WorkerResultPath + '"';
+  if (Phase = 2) and WantsSmartBird then
+    Parameters := Parameters + ' -InstallSmartBird';
+
+  Result := Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
+    Parameters, '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  ResultText := '';
+  Result := Result and LoadUtf8TextFile(WorkerResultPath, ResultText) and
+    (Trim(ResultText) = '0');
+  WorkerText := '';
+  if LoadUtf8TextFile(WorkerLogPath, WorkerText) then
+    Log(WorkerText);
+  if not Result then
+    Log('Synchronous installer worker failed in phase ' + PhaseName +
+      '; process result ' + IntToStr(ResultCode));
+end;
+
+procedure WorkerTimerProc(Arg1: HWND; Arg2: UINT; Arg3: UINT_PTR; Arg4: DWORD);
+var
+  ResultText: String;
+  WorkerText: String;
+begin
+  if not WorkerActive then exit;
+  RefreshWorkerLog;
+  ResultText := '';
+  if not LoadUtf8TextFile(WorkerResultPath, ResultText) then exit;
+
+  WorkerActive := False;
+  WorkerText := '';
+  LoadUtf8TextFile(WorkerLogPath, WorkerText);
+  if WorkerText <> '' then
+    InstallLogLines.Add(WorkerText);
+  WorkerSucceeded := Trim(ResultText) = '0';
+  if WorkerSucceeded then begin
+    if WorkerPhase = 1 then
+      AppendInstallLog('运行中组件已经关闭，开始写入安装文件。')
+    else
+      AppendInstallLog('后台服务注册完成，MyPowerTools 已经可以使用。');
+    WizardForm.NextButton.Caption := SetupMessage(msgButtonNext);
+    WizardForm.NextButton.Enabled := True;
+    WizardForm.NextButton.OnClick(WizardForm.NextButton);
+  end else begin
+    AppendInstallLog('当前阶段执行失败。完整错误已经显示在日志末尾。');
+    WizardForm.BackButton.Enabled := True;
+    WizardForm.NextButton.Caption := '重试(&R)';
+    WizardForm.NextButton.Enabled := True;
+  end;
+end;
+
+#ifdef MyInstallerTestAutoDrive
+procedure AutoDriveTimerProc(Arg1: HWND; Arg2: UINT; Arg3: UINT_PTR; Arg4: DWORD);
+begin
+  if WorkerActive then exit;
+  if (WizardForm.CurPageID <> wpPreparing) and
+    (WizardForm.CurPageID <> wpInstalling) and
+    WizardForm.NextButton.Enabled then
+    WizardForm.NextButton.OnClick(WizardForm.NextButton);
+end;
+#endif
+
 procedure InitializeWizard;
 begin
   DownloadPage := CreateDownloadPage(
     '正在准备 MyPowerTools',
     '正在下载并校验所选组件，下载中断后可以重新运行安装器。', nil);
   DownloadPage.ShowBaseNameInsteadOfUrl := True;
+  InstallLogLines := TStringList.Create;
+
+  ShutdownPage := CreateCustomPage(wpReady,
+    '正在安全关闭旧组件',
+    '窗口保持可移动；下方日志会持续追加。');
+  ShutdownLogMemo := TNewMemo.Create(ShutdownPage);
+  ShutdownLogMemo.Parent := ShutdownPage.Surface;
+  ShutdownLogMemo.SetBounds(0, 0, ShutdownPage.SurfaceWidth,
+    ShutdownPage.SurfaceHeight);
+  ShutdownLogMemo.Anchors := [akLeft, akTop, akRight, akBottom];
+  ShutdownLogMemo.ReadOnly := True;
+  ShutdownLogMemo.ScrollBars := ssBoth;
+  ShutdownLogMemo.WordWrap := False;
+  ShutdownLogMemo.Font.Name := 'Consolas';
+  ShutdownLogMemo.Font.Size := 9;
+
+  FinalizePage := CreateCustomPage(wpInstalling,
+    '正在完成 MyPowerTools 安装',
+    '窗口保持可移动；服务注册输出会实时显示在下方。');
+  FinalizeLogMemo := TNewMemo.Create(FinalizePage);
+  FinalizeLogMemo.Parent := FinalizePage.Surface;
+  FinalizeLogMemo.SetBounds(0, 0, FinalizePage.SurfaceWidth,
+    FinalizePage.SurfaceHeight);
+  FinalizeLogMemo.Anchors := [akLeft, akTop, akRight, akBottom];
+  FinalizeLogMemo.ReadOnly := True;
+  FinalizeLogMemo.ScrollBars := ssBoth;
+  FinalizeLogMemo.WordWrap := False;
+  FinalizeLogMemo.Font.Name := 'Consolas';
+  FinalizeLogMemo.Font.Size := 9;
+
+  InstallingLogMemo := TNewMemo.Create(WizardForm.InstallingPage);
+  InstallingLogMemo.Parent := WizardForm.InstallingPage;
+  InstallingLogMemo.SetBounds(0,
+    WizardForm.ProgressGauge.Top + WizardForm.ProgressGauge.Height + ScaleY(16),
+    WizardForm.InstallingPage.ClientWidth,
+    WizardForm.InstallingPage.ClientHeight - WizardForm.ProgressGauge.Top -
+      WizardForm.ProgressGauge.Height - ScaleY(16));
+  InstallingLogMemo.Anchors := [akLeft, akTop, akRight, akBottom];
+  InstallingLogMemo.ReadOnly := True;
+  InstallingLogMemo.ScrollBars := ssBoth;
+  InstallingLogMemo.WordWrap := False;
+  InstallingLogMemo.Font.Name := 'Consolas';
+  InstallingLogMemo.Font.Size := 9;
+
+  WorkerTimerID := SetTimer(0, 0, 200, CreateCallback(@WorkerTimerProc));
+#ifdef MyInstallerTestAutoDrive
+  AutoDriveTimerID := SetTimer(0, 0, 300, CreateCallback(@AutoDriveTimerProc));
+#endif
+  AppendInstallLog('安装器已启动。');
 #ifndef MyAllowUnsigned
   AllowedKeysRuntimeIDs := TStringList.Create;
   AllowedKeysRuntimeIDs.Add('{#WebISSigRuntimeID}');
@@ -431,6 +691,14 @@ end;
 
 procedure DeinitializeSetup;
 begin
+  if WorkerTimerID <> 0 then
+    KillTimer(0, WorkerTimerID);
+#ifdef MyInstallerTestAutoDrive
+  if AutoDriveTimerID <> 0 then
+    KillTimer(0, AutoDriveTimerID);
+#endif
+  if InstallLogLines <> nil then
+    InstallLogLines.Free;
 #ifndef MyAllowUnsigned
   if AllowedKeysRuntimeIDs <> nil then
     AllowedKeysRuntimeIDs.Free;
@@ -579,8 +847,40 @@ begin
   if CurPageID = wpReady then begin
     DetectRuntimePlan;
     Result := DownloadRequiredAssets;
+    if Result and ShouldRunPostInstall and WizardSilent then
+      Result := RunWorkerSynchronously(1);
+  end else if (CurPageID = ShutdownPage.ID) or
+    (CurPageID = FinalizePage.ID) then begin
+    if WorkerSucceeded then
+      Result := True
+    else begin
+      if not WorkerActive then begin
+        if CurPageID = ShutdownPage.ID then
+          StartWorker(1)
+        else
+          StartWorker(2);
+      end;
+      Result := False;
+    end;
   end else
     Result := True;
+end;
+
+function ShouldSkipPage(PageID: Integer): Boolean;
+begin
+  Result := (not ShouldRunPostInstall or WizardSilent) and
+    ((PageID = ShutdownPage.ID) or (PageID = FinalizePage.ID));
+end;
+
+procedure CurPageChanged(CurPageID: Integer);
+begin
+  if (CurPageID = ShutdownPage.ID) and not WorkerActive then begin
+    WorkerSucceeded := False;
+    StartWorker(1);
+  end else if (CurPageID = FinalizePage.ID) and not WorkerActive then begin
+    WorkerSucceeded := False;
+    StartWorker(2);
+  end;
 end;
 
 function UpdateReadyMemo(Space, NewLine, MemoUserInfoInfo, MemoDirInfo,
@@ -618,6 +918,7 @@ procedure SetInstallPhase(const Message: String);
 begin
   WizardForm.StatusLabel.Caption := Message;
   WizardForm.FilenameLabel.Caption := '';
+  AppendInstallLog(Message);
 end;
 
 procedure BeginCoreInstall;
@@ -752,13 +1053,15 @@ end;
 procedure CurStepChanged(CurStep: TSetupStep);
 begin
   if CurStep = ssInstall then begin
-    WizardForm.StatusLabel.Caption := '正在关闭运行中的 MyPowerTools 组件，随后开始复制文件...';
-    if ShouldRunPostInstall then
-      QuiesceInstalledProduct;
+    AppendInstallLog('开始写入 MyPowerTools 安装文件。');
     ClearLegacyDotNetRoot;
   end;
   if CurStep = ssPostInstall then begin
     RewriteDoubaoVenvConfig;
     WriteInstallManifest;
+    AppendInstallLog('核心文件与运行时组件安装完成。');
+    if ShouldRunPostInstall and WizardSilent and
+      not RunWorkerSynchronously(2) then
+      RaiseException('MyPowerTools 后台服务注册失败，请查看安装日志。');
   end;
 end;
