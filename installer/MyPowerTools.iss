@@ -31,6 +31,9 @@ VersionInfoProductVersion={#MyAppVersion}
 Name: "desktopicon"; Description: "Create a desktop shortcut"; GroupDescription: "Additional options:"; Flags: unchecked
 Name: "autostart"; Description: "Start MyPowerTools Runner after sign-in"; GroupDescription: "Additional options:"; Flags: unchecked
 
+[InstallDelete]
+Type: files; Name: "{app}\dev-update.manifest.json"
+
 [Files]
 Source: "..\artifacts\release\win-x64\*"; DestDir: "{app}"; Flags: ignoreversion recursesubdirs createallsubdirs
 
@@ -56,6 +59,7 @@ Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoLogo -N
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{localappdata}\MyPowerTools\Doubao"
+Type: filesandordirs; Name: "{app}"
 
 [Code]
 function PrepareToInstall(var NeedsRestart: Boolean): String;

@@ -113,36 +113,6 @@ $manifestPath = Join-Path $outputRootFull 'runtime-components.json'
 $manifestJson = $manifest | ConvertTo-Json -Depth 8
 [IO.File]::WriteAllText($manifestPath, $manifestJson, [Text.UTF8Encoding]::new($false))
 
-function ConvertTo-IssLiteral {
-    param([Parameter(Mandatory = $true)][string]$Value)
-    if ($Value.Contains('"') -or $Value.Contains("`r") -or $Value.Contains("`n")) {
-        throw "Value cannot be emitted into an Inno Setup define: $Value"
-    }
-    return $Value
-}
-
-$componentMap = @{}
-foreach ($component in $components) {
-    $componentMap[[string]$component.id] = $component
-}
-$installerIncludePath = Join-Path (Split-Path -Parent $outputRootFull) 'web-installer-components.iss'
-$installerDefines = [Collections.Generic.List[string]]::new()
-$installerDefines.Add("#define WebCoreAsset `"$(ConvertTo-IssLiteral ([string]$core.asset))`"")
-$installerDefines.Add("#define WebCoreSha256 `"$([string]$core.sha256)`"")
-foreach ($definition in @(
-    @{ Prefix = 'WebDotNet'; Id = 'dotnet-10-x64' },
-    @{ Prefix = 'WebPython'; Id = 'python-3.12-x64' },
-    @{ Prefix = 'WebSmartBird'; Id = 'smartbird-dependencies' },
-    @{ Prefix = 'WebDoubao'; Id = 'doubao-dependencies' },
-    @{ Prefix = 'WebAdb'; Id = 'android-platform-tools' }
-)) {
-    $record = $componentMap[[string]$definition.Id]
-    if ($null -eq $record) { throw "Runtime component manifest is missing $($definition.Id)." }
-    $installerDefines.Add("#define $($definition.Prefix)Asset `"$(ConvertTo-IssLiteral ([string]$record.asset))`"")
-    $installerDefines.Add("#define $($definition.Prefix)Sha256 `"$([string]$record.sha256)`"")
-}
-[IO.File]::WriteAllLines($installerIncludePath, $installerDefines, [Text.UTF8Encoding]::new($false))
-
 $signaturePath = "$manifestPath.sig"
 if ([string]::IsNullOrWhiteSpace($SigningKeyBase64)) {
     if (-not $AllowUnsigned) { throw 'Runtime component manifest signing key is required.' }
@@ -154,5 +124,14 @@ if ([string]::IsNullOrWhiteSpace($SigningKeyBase64)) {
     $signature = [Mpt.Ed25519]::Sign([Text.Encoding]::UTF8.GetBytes($manifestJson), $key)
     [IO.File]::WriteAllText($signaturePath, [Convert]::ToBase64String($signature), [Text.UTF8Encoding]::new($false))
 }
+
+$installerSignatureParams = @{
+    RuntimeComponentsManifestPath = $manifestPath
+    CoreZipPath = $coreZipFull
+    OutputIncludePath = Join-Path (Split-Path -Parent $outputRootFull) 'web-installer-signing-key.iss'
+    SigningKeyBase64 = $SigningKeyBase64
+    AllowUnsigned = $AllowUnsigned
+}
+[void](& (Join-Path $PSScriptRoot 'new-web-installer-signatures.ps1') @installerSignatureParams)
 
 $manifest

@@ -34,7 +34,7 @@ function Invoke-NativeQuiet {
         $outputTask = $process.StandardOutput.ReadToEndAsync()
         $errorTask = $process.StandardError.ReadToEndAsync()
         if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {
-            try { $process.Kill() } catch {}
+            try { $process.Kill($true) } catch {}
             [void]$process.WaitForExit(2000)
             return 124
         }
@@ -132,10 +132,8 @@ function Stop-ManagedProcessByState {
             $path = $null
             try { $path = $process.MainModule.FileName } catch {}
             if ($path -and ($AllowedRoots | Where-Object { Test-IsInsidePath -Parent $_ -Child $path })) {
-                if (-not $process.WaitForExit(5000)) {
-                    Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
-                    Wait-Process -Id $process.Id -Timeout 5 -ErrorAction SilentlyContinue
-                }
+                Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+                Wait-Process -Id $process.Id -Timeout 5 -ErrorAction SilentlyContinue
             }
         }
     }
@@ -289,17 +287,14 @@ try {
             (Join-Path $installRootFull 'service-units'),
             $legacyVersionsRoot
         )
+        if ($currentSessionId -ne 0 -and (Test-Path -LiteralPath $cli -PathType Leaf)) {
+            [void](Invoke-NativeQuiet -FilePath $cli -ArgumentList @('service', 'quiesce') -TimeoutSeconds 5)
+        }
         foreach ($unitId in $managedIds) {
-            if ($currentSessionId -ne 0 -and (Test-Path -LiteralPath $cli -PathType Leaf)) {
-                [void](Invoke-NativeQuiet -FilePath $cli -ArgumentList @('service', 'stop', [string]$unitId) -TimeoutSeconds 20)
-            }
             Stop-ManagedProcessByState `
                 -UnitId ([string]$unitId) `
                 -DataRootFull $dataRootFull `
                 -AllowedRoots $allowedUnitRoots
-        }
-        if ($currentSessionId -ne 0 -and (Test-Path -LiteralPath $cli -PathType Leaf)) {
-            [void](Invoke-NativeQuiet -FilePath $cli -ArgumentList @('service', 'shutdown') -TimeoutSeconds 15)
         }
 
         # State can be stale or missing after an interrupted upgrade. The roots are resolved
@@ -320,10 +315,8 @@ try {
             $managerPath = $null
             try { $managerPath = $managerProcess.MainModule.FileName } catch {}
             if ($managerPath -and (Test-IsInsidePath -Parent $installRootFull -Child $managerPath)) {
-                if (-not $managerProcess.WaitForExit(5000)) {
-                    Stop-Process -Id $managerProcess.Id -Force -ErrorAction SilentlyContinue
-                    Wait-Process -Id $managerProcess.Id -Timeout 5 -ErrorAction SilentlyContinue
-                }
+                Stop-Process -Id $managerProcess.Id -Force -ErrorAction SilentlyContinue
+                Wait-Process -Id $managerProcess.Id -Timeout 5 -ErrorAction SilentlyContinue
             }
         }
 

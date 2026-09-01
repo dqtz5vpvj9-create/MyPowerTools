@@ -311,12 +311,21 @@ public sealed partial class RuntimeAcceptanceTests
     public void Web_setup_is_a_native_gui_installer_with_verified_component_downloads()
     {
         var installer = File.ReadAllText(Path.Combine(Root, "installer", "MyPowerTools.Web.iss"));
+        var fullInstaller = File.ReadAllText(Path.Combine(Root, "installer", "MyPowerTools.iss"));
         var componentBuilder = File.ReadAllText(Path.Combine(Root, "scripts", "new-runtime-components.ps1"));
+        var signatureBuilder = File.ReadAllText(Path.Combine(Root, "scripts", "new-web-installer-signatures.ps1"));
+        var serviceConfigurator = File.ReadAllText(Path.Combine(Root, "scripts", "configure-user-services.ps1"));
 
         Assert.Contains("CreateDownloadPage", installer);
         Assert.Contains("DownloadPage.Download", installer);
-        Assert.Contains("GetSHA256OfFile", installer);
+        Assert.Contains("AddWithISSigVerify", installer);
+        Assert.Contains("ISSigVerify", installer);
+        Assert.Contains("[ISSigKeys]", installer);
+        Assert.Contains("web-installer-signing-key.iss", installer);
+        Assert.DoesNotContain("WebCoreSha256", installer);
+        Assert.DoesNotContain("GetSHA256OfFile", installer);
         Assert.Contains("external extractarchive", installer);
+        Assert.Contains("Source: \"..\\scripts\\configure-user-services.ps1\"", installer);
         Assert.Contains("DefaultDirName={localappdata}\\Programs\\MyPowerTools", installer);
         Assert.Contains("UninstallDisplayIcon={app}\\MyPowerTools.exe", installer);
         Assert.Contains("distributionMode\": \"web", installer);
@@ -335,19 +344,36 @@ public sealed partial class RuntimeAcceptanceTests
         Assert.Contains("MyPowerTools WinSpace Shift", installer);
         Assert.Contains("ForceStopImage('MyPowerTools.ServiceManager.exe')", installer);
         Assert.Contains("ForceStopImage('MyPowerTools.ElevatedBroker.exe')", installer);
+        Assert.Contains("service stop adb-forwarder.service", installer);
+        Assert.Contains("service shutdown", installer);
+        Assert.Contains("ForceStopImage('AdbForwarder.Service.exe')", installer);
+        Assert.Contains("ForceStopImage('RemoteNotifications.Service.exe')", installer);
+        Assert.Contains("procedure CurUninstallStepChanged", installer);
+        Assert.Contains("CurUninstallStep = usUninstall", installer);
+        Assert.Contains("Graceful Doubao runtime shutdown failed", installer);
+        Assert.Contains("RunOnceId: \"StopDoubaoComputerUse\"", installer);
+        Assert.Contains("Parameters: \"/D /C exit /B 0\"", installer);
         Assert.Contains("SetupWindowTitle=安装 %1", installer);
         Assert.Contains("ErrorCloseApplications=安装器无法关闭正在运行的 MyPowerTools 进程", installer);
         Assert.DoesNotContain("-StartAfterInstall", installer);
         Assert.Contains("SetupLogging=yes", installer);
         Assert.DoesNotContain("install-windows-web.ps1", installer);
         Assert.DoesNotContain("{tmp}\\MyPowerToolsWebSetup", installer);
+        Assert.Contains("Type: files; Name: \"{app}\\dev-update.manifest.json\"", installer);
+        Assert.Contains("Type: files; Name: \"{app}\\dev-update.manifest.json\"", fullInstaller);
+        Assert.Contains("Type: filesandordirs; Name: \"{app}\"", installer);
+        Assert.Contains("Type: filesandordirs; Name: \"{app}\"", fullInstaller);
 
-        Assert.Contains("web-installer-components.iss", componentBuilder);
-        Assert.Contains("WebCoreSha256", componentBuilder);
-        Assert.Contains("Prefix = 'WebDotNet'", componentBuilder);
-        Assert.Contains("Prefix = 'WebPython'", componentBuilder);
-        Assert.Contains("Prefix = 'WebAdb'", componentBuilder);
-        Assert.Contains("Sha256", componentBuilder);
+        Assert.Contains("new-web-installer-signatures.ps1", componentBuilder);
+        Assert.Contains("sha256", componentBuilder);
+        Assert.Contains("MyPowerTools/ISSig/P-256/v1", signatureBuilder);
+        Assert.Contains("ISSigTool.exe", signatureBuilder);
+        Assert.Contains("--allow-overwrite", signatureBuilder);
+        Assert.Contains("'verify'", signatureBuilder);
+        Assert.Contains("OutputIncludePath", signatureBuilder);
+        Assert.Contains("$process.Kill($true)", serviceConfigurator);
+        Assert.Contains("@('service', 'quiesce') -TimeoutSeconds 5", serviceConfigurator);
+        Assert.DoesNotContain("@('service', 'stop', [string]$unitId)", serviceConfigurator);
     }
 
     [Fact]
