@@ -440,8 +440,29 @@ jobs:
           git add ota-history/*.manifest.json
           if (-not (git diff --cached --quiet)) {
             git commit -m "chore(ota): record ${{ steps.release-info.outputs.version }} file manifest"
+            if ($LASTEXITCODE -ne 0) {
+              throw 'Failed to commit the OTA history manifest.'
+            }
+
+            # Release packaging can update tracked generated files outside ota-history.
+            # Keep the manifest commit and clean the ephemeral runner before rebasing it
+            # onto the latest main branch.
+            $remainingChanges = @(git status --porcelain --untracked-files=normal)
+            if ($remainingChanges.Count -gt 0) {
+              git stash push --include-untracked -m "release-worktree-${{ steps.release-info.outputs.version }}"
+              if ($LASTEXITCODE -ne 0) {
+                throw 'Failed to isolate release-build worktree changes before rebasing.'
+              }
+            }
+
             git pull --rebase origin main
+            if ($LASTEXITCODE -ne 0) {
+              throw 'Failed to rebase the OTA history manifest onto origin/main.'
+            }
             git push origin HEAD:main
+            if ($LASTEXITCODE -ne 0) {
+              throw 'Failed to push the OTA history manifest to origin/main.'
+            }
           }
 
   macos-release:
