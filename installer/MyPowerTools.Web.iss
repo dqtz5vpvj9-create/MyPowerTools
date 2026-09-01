@@ -58,6 +58,7 @@ CloseApplications=force
 CloseApplicationsFilter=MyPowerTools.exe,MyPowerTools.Runner.exe,MyPowerTools.Shell.Avalonia.exe,MyPowerTools.ServiceManager.exe
 RestartApplications=no
 SetupLogging=yes
+AllowCancelDuringInstall=yes
 VersionInfoVersion={#MyAppVersion}.0
 VersionInfoProductVersion={#MyAppVersion}
 
@@ -96,6 +97,8 @@ ReadyLabel1=MyPowerTools 已准备好安装。
 ReadyLabel2a=确认下面的组件与运行时方案，点击“安装”开始；需要修改时点击“上一步”。
 ReadyLabel2b=点击“安装”开始。
 InstallingLabel=正在安装 MyPowerTools。大组件会显示名称和预计文件数量。
+PreparingDesc=正在准备安装 MyPowerTools
+PreparingLabel2=正在安全关闭运行中的 MyPowerTools 组件，最长约 8 秒。完成后会立即开始安装。
 FinishedHeadingLabel=MyPowerTools 安装完成
 FinishedLabel=核心程序已经安装。勾选下方选项即可立即启动。
 FinishedLabelNoIcons=MyPowerTools 已安装完成。
@@ -451,15 +454,30 @@ begin
   end;
 end;
 
-procedure ForceStopImage(const ImageName: String);
+procedure ForceStopProductImages;
 var
   ResultCode: Integer;
+  Parameters: String;
 begin
-  if Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /T /IM "' + ImageName + '"',
+  Parameters :=
+    '/F /T' +
+    ' /IM "MyPowerTools.Shell.Avalonia.exe"' +
+    ' /IM "MyPowerTools.Runner.exe"' +
+    ' /IM "MyPowerTools.ServiceManager.exe"' +
+    ' /IM "MyPowerTools.WebToolHost.exe"' +
+    ' /IM "MyPowerTools.InputRemapHost.exe"' +
+    ' /IM "MyPowerTools.Broker.exe"' +
+    ' /IM "MyPowerTools.ElevatedBroker.exe"' +
+    ' /IM "MyPowerTools.Cli.exe"' +
+    ' /IM "AdbForwarder.Service.exe"' +
+    ' /IM "DoubaoAgent.Controller.Service.exe"' +
+    ' /IM "RemoteNotifications.Service.exe"' +
+    ' /IM "ScreenEase.Service.exe"';
+  if Exec(ExpandConstant('{sys}\taskkill.exe'), Parameters,
     '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
-    Log('taskkill ' + ImageName + ' exit code ' + IntToStr(ResultCode))
+    Log('Batched taskkill exit code ' + IntToStr(ResultCode))
   else
-    Log('Unable to start taskkill for ' + ImageName);
+    Log('Unable to start batched taskkill.');
 end;
 
 procedure QuiesceInstalledProduct;
@@ -477,11 +495,12 @@ begin
     ExpandConstant('{app}\modules') + '" --data-root "' +
     ExpandConstant('{localappdata}\MyPowerTools') + '"',
     'Graceful Runner shutdown failed');
-  RequestInstalledExit(ShellPath,
-    '--doubao-runtime stop --doubao-runtime-root "' +
-    ExpandConstant('{app}\Runtimes\Doubao') + '" --doubao-data-root "' +
-    ExpandConstant('{localappdata}\MyPowerTools\Doubao') + '"',
-    'Graceful Doubao runtime shutdown failed');
+  if DirExists(ExpandConstant('{app}\Runtimes\Doubao')) then
+    RequestInstalledExit(ShellPath,
+      '--doubao-runtime stop --doubao-runtime-root "' +
+      ExpandConstant('{app}\Runtimes\Doubao') + '" --doubao-data-root "' +
+      ExpandConstant('{localappdata}\MyPowerTools\Doubao') + '"',
+      'Graceful Doubao runtime shutdown failed');
   RequestInstalledExit(CliPath, 'service quiesce',
     'Graceful ServiceManager quiesce failed');
   { Compatibility requests for installations whose CLI predates `service quiesce`. }
@@ -503,27 +522,8 @@ begin
     ewWaitUntilTerminated, ResultCode) then
     Log('Stopped elevated InputRemap task; exit code ' + IntToStr(ResultCode));
 
-  Sleep(3000);
-  ForceStopImage('MyPowerTools.Shell.Avalonia.exe');
-  ForceStopImage('MyPowerTools.Runner.exe');
-  ForceStopImage('MyPowerTools.ServiceManager.exe');
-  ForceStopImage('MyPowerTools.WebToolHost.exe');
-  ForceStopImage('MyPowerTools.InputRemapHost.exe');
-  ForceStopImage('MyPowerTools.Broker.exe');
-  ForceStopImage('MyPowerTools.ElevatedBroker.exe');
-  ForceStopImage('MyPowerTools.Cli.exe');
-  ForceStopImage('AdbForwarder.Service.exe');
-  ForceStopImage('DoubaoAgent.Controller.Service.exe');
-  ForceStopImage('RemoteNotifications.Service.exe');
-  ForceStopImage('ScreenEase.Service.exe');
-end;
-
-function PrepareToInstall(var NeedsRestart: Boolean): String;
-begin
-  WizardForm.StatusLabel.Caption := '正在关闭 MyPowerTools 和后台组件...';
-  if ShouldRunPostInstall then
-    QuiesceInstalledProduct;
-  Result := '';
+  Sleep(1500);
+  ForceStopProductImages;
 end;
 
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
@@ -751,8 +751,12 @@ end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
 begin
-  if CurStep = ssInstall then
+  if CurStep = ssInstall then begin
+    WizardForm.StatusLabel.Caption := '正在关闭运行中的 MyPowerTools 组件，随后开始复制文件...';
+    if ShouldRunPostInstall then
+      QuiesceInstalledProduct;
     ClearLegacyDotNetRoot;
+  end;
   if CurStep = ssPostInstall then begin
     RewriteDoubaoVenvConfig;
     WriteInstallManifest;
