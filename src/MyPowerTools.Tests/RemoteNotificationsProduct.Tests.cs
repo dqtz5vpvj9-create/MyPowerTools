@@ -56,6 +56,7 @@ public sealed class RemoteNotificationsProductTests
         Assert.Contains("NativeWebView", detail, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"FallbackViewer\"", detail, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"FallbackStatus\"", detail, StringComparison.Ordinal);
+        Assert.Contains("Text=\"{Binding DisplayMessage}\"", detail, StringComparison.Ordinal);
         Assert.DoesNotContain("MarkdownViewerHost", detail, StringComparison.Ordinal);
         Assert.DoesNotContain("MptMarkdownView", detail, StringComparison.Ordinal);
         Assert.Contains("NavigateToString", detailCode, StringComparison.Ordinal);
@@ -628,14 +629,72 @@ public sealed class RemoteNotificationsProductTests
     }
 
     [Fact]
+    public void Toast_omits_a_trailing_for_reference_quoted_request()
+    {
+        var notification = Message(
+            "quoted/trailing 42",
+            "[build] **Complete**\nOpen it.\n\n---\n\nFor reference:\n\n> 把全文发给我\n> 第二行",
+            DateTimeOffset.UtcNow);
+        var envelope = RemoteNotificationWindowsToastPublisher.BuildEnvelope(
+            notification, notification.Id, persistent: false);
+
+        Assert.Equal("build", envelope.Title);
+        Assert.Equal("**Complete** Open it.", envelope.Body);
+        Assert.DoesNotContain("把全文发给我", envelope.Body, StringComparison.Ordinal);
+        Assert.DoesNotContain("For reference", envelope.Body, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Feed_keeps_the_quoted_user_request_in_the_stored_message()
     {
         var message = new RemoteNotificationMessageViewModel(
             Message("quoted-feed", "> 把全文发给我\n\n[alpha] done", DateTimeOffset.UtcNow));
 
         Assert.Contains("> 把全文发给我", message.Message, StringComparison.Ordinal);
+        Assert.StartsWith("done", message.DisplayMessage, StringComparison.Ordinal);
         Assert.Contains("> 把全文发给我", message.DisplayMessage, StringComparison.Ordinal);
+        Assert.Contains("For reference:", message.DisplayMessage, StringComparison.Ordinal);
         Assert.Equal("alpha", message.Label);
+    }
+
+    [Fact]
+    public void Display_moves_a_leading_quoted_user_request_to_a_reference_appendix()
+    {
+        var message = new RemoteNotificationMessageViewModel(
+            Message(
+                "quoted-reorder",
+                "> Dear JCST Editorial Office\n> Please find the letter.\n\n[academic-research-suite] 可以，直接发送即可。",
+                DateTimeOffset.UtcNow));
+
+        Assert.StartsWith("可以，直接发送即可。", message.DisplayMessage, StringComparison.Ordinal);
+        Assert.Contains("For reference:", message.DisplayMessage, StringComparison.Ordinal);
+        Assert.Contains("> Dear JCST Editorial Office", message.DisplayMessage, StringComparison.Ordinal);
+        Assert.True(
+            message.DisplayMessage.IndexOf("可以，直接发送即可。", StringComparison.Ordinal) <
+            message.DisplayMessage.IndexOf("> Dear JCST Editorial Office", StringComparison.Ordinal));
+        Assert.StartsWith("> Dear JCST Editorial Office", message.Message, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Display_does_not_double_wrap_an_existing_for_reference_appendix()
+    {
+        var stored = "[alpha] done\n\n---\n\nFor reference:\n\n> 把全文发给我";
+        var message = new RemoteNotificationMessageViewModel(
+            Message("quoted-already-trailing", stored, DateTimeOffset.UtcNow));
+
+        Assert.Equal("done\n\n---\n\nFor reference:\n\n> 把全文发给我", message.DisplayMessage);
+        Assert.Equal(1, CountOccurrences(message.DisplayMessage, "For reference:"));
+    }
+
+    [Fact]
+    public void Display_keeps_an_assistant_blockquote_that_is_not_a_reference_appendix()
+    {
+        var stored = "[alpha] Suggested email:\n\n> Dear editor\n> Thank you.";
+        var message = new RemoteNotificationMessageViewModel(
+            Message("assistant-quote", stored, DateTimeOffset.UtcNow));
+
+        Assert.Equal("Suggested email:\n\n> Dear editor\n> Thank you.", message.DisplayMessage);
+        Assert.DoesNotContain("For reference:", message.DisplayMessage, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -648,6 +707,8 @@ public sealed class RemoteNotificationsProductTests
 
         Assert.Contains("fun notificationBannerText", adapter, StringComparison.Ordinal);
         Assert.Contains("fun stripLeadingQuotedRequest", adapter, StringComparison.Ordinal);
+        Assert.Contains("fun displayMessage", adapter, StringComparison.Ordinal);
+        Assert.Contains("holder.message.text = displayMessage(item.message)", adapter, StringComparison.Ordinal);
         Assert.Contains("NotificationAdapter.notificationBannerText", fcm, StringComparison.Ordinal);
         Assert.Contains("NotificationAdapter.notificationBannerText", unifiedPush, StringComparison.Ordinal);
         Assert.DoesNotContain(".setContentText(item.message)", unifiedPush, StringComparison.Ordinal);
@@ -980,6 +1041,25 @@ public sealed class RemoteNotificationsProductTests
             body,
             "codex",
             timestamp.ToUniversalTime().ToString("O"));
+    }
+
+    private static int CountOccurrences(string haystack, string needle)
+    {
+        var count = 0;
+        var start = 0;
+        while (start <= haystack.Length - needle.Length)
+        {
+            var found = haystack.IndexOf(needle, start, StringComparison.Ordinal);
+            if (found < 0)
+            {
+                break;
+            }
+
+            count++;
+            start = found + needle.Length;
+        }
+
+        return count;
     }
 
     private sealed class FakeStore : IRemoteNotificationsStore
