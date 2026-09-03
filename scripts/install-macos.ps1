@@ -62,10 +62,25 @@ function Get-InstalledRuntimeIdentifier {
     return $(if ($machineArchitecture -eq 'arm64') { 'osx-arm64' } else { 'osx-x64' })
 }
 
+function Resolve-BundledSourceApp {
+    $resourcesRoot = Split-Path -Parent $PSScriptRoot
+    $contentsRoot = Split-Path -Parent $resourcesRoot
+    $bundleRoot = Split-Path -Parent $contentsRoot
+    if ($bundleRoot.EndsWith('.app', [StringComparison]::OrdinalIgnoreCase) -and
+        (Test-Path -LiteralPath (Join-Path $bundleRoot 'Contents/Info.plist') -PathType Leaf)) {
+        return [IO.Path]::GetFullPath($bundleRoot)
+    }
+    return ''
+}
+
 $userProfile = [Environment]::GetFolderPath([Environment+SpecialFolder]::UserProfile)
 $baseScript = Join-Path $PSScriptRoot 'install-macos-base.ps1'
 if (-not (Test-Path -LiteralPath $baseScript -PathType Leaf)) {
     throw "Base macOS installer is missing: $baseScript"
+}
+
+if ([string]::IsNullOrWhiteSpace($SourceApp)) {
+    $SourceApp = Resolve-BundledSourceApp
 }
 
 $baseParameters = @{}
