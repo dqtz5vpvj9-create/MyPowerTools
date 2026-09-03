@@ -1,0 +1,56 @@
+diff --git a/.github/workflows/ci.yml b/.github/workflows/ci.yml
+index 8ffa65b..833474b 100644
+--- a/.github/workflows/ci.yml
++++ b/.github/workflows/ci.yml
+@@ -95,18 +95,49 @@ jobs:
+         shell: pwsh
+         run: dotnet build MyPowerTools.slnx --no-restore --maxcpucount
+ 
++      - name: Architecture Gate (Quick)
++        shell: pwsh
++        run: pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\verify-architecture.ps1 -Tier Quick
++
++      - name: Architecture Gate (Process)
++        shell: pwsh
++        run: pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\verify-architecture.ps1 -Tier Process
++
+       - name: Test
+         shell: pwsh
+-        # Android Tools sidecar tests require a provisioned Android/Python desktop
+-        # environment and remain covered by the Windows release-candidate smoke run.
++        # The Android Tools acceptance tests load modules\android-tools-suite and
++        # need its gRPC module host staged there first, so they run in the two
++        # steps below instead of here.
+         run: >-
+           dotnet test MyPowerTools.slnx --no-build
+           --filter "FullyQualifiedName!~AndroidTools_&FullyQualifiedName!~Runtime_collects_production_module_events_and_notifications"
+ 
++      - name: Stage Android Tools module host
++        shell: pwsh
++        run: >-
++          dotnet publish tools\remote-notifications\current-integration\src\AndroidTools.Runtime\AndroidTools.Runtime.csproj
++          --configuration Debug --runtime win-x64 --self-contained false
++          --output modules\android-tools-suite\windows\x64 --nologo
++
++      - name: Android Tools test
++        shell: pwsh
++        run: >-
++          dotnet test MyPowerTools.slnx --no-build
++          --filter "FullyQualifiedName~AndroidTools_|FullyQualifiedName~Runtime_collects_production_module_events_and_notifications"
++
+       - name: Build tool packages from submodules
+         shell: pwsh
+         run: pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\build-tool-packages.ps1 -OutputRoot artifacts\ci-modules
+ 
++      - name: NSSM Manager PowerShell tests
++        shell: pwsh
++        run: |
++          $executable = 'tools\nssm-manager\sdk-tool\src\NssmManager.Executable\publish\win-x64\nssm-manager.exe'
++          pwsh.exe -NoLogo -NoProfile -NonInteractive -File tools\nssm-manager\tests\verify-native-resources.ps1 -Executable $executable
++          if ($LASTEXITCODE -ne 0) { throw "verify-native-resources.ps1 failed with exit code $LASTEXITCODE." }
++          pwsh.exe -NoLogo -NoProfile -NonInteractive -File tools\nssm-manager\tests\service-mode-smoke.ps1 -ManagedExecutable $executable -ConfirmIsolatedScmMutation -EvidencePath artifacts\nssm-compat\service-mode-smoke.json
++          if ($LASTEXITCODE -ne 0) { throw "service-mode-smoke.ps1 failed with exit code $LASTEXITCODE." }
++
+       - name: Refresh Package Trust Hooks
+         shell: pwsh
+         run: dotnet run --no-build --project src\MyPowerTools.Cli -- package sign-local artifacts\ci-modules
