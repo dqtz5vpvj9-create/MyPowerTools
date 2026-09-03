@@ -36,15 +36,30 @@ function Write-Utf8TextFile {
     [IO.File]::WriteAllText($Path, $Value, [Text.UTF8Encoding]::new($false))
 }
 
-function Get-OtaRuntimeIdentifier {
-    $architecture = [System.Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture
-    if ($architecture -eq [System.Runtime.InteropServices.Architecture]::Arm64) {
-        return 'osx-arm64'
+function Get-InstalledRuntimeIdentifier {
+    param([Parameter(Mandatory = $true)][string]$AppBundlePath)
+
+    $launcher = Join-Path $AppBundlePath 'Contents/MacOS/MyPowerTools'
+    if (Test-Path -LiteralPath $launcher -PathType Leaf) {
+        $architectures = @(& /usr/bin/lipo '-archs' $launcher 2>$null)
+        $global:LASTEXITCODE = 0
+        $tokens = @(
+            ($architectures -join ' ') -split '\s+' |
+                Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+        )
+        if ($tokens -contains 'arm64' -and $tokens -notcontains 'x86_64') {
+            return 'osx-arm64'
+        }
+        if ($tokens -contains 'x86_64' -and $tokens -notcontains 'arm64') {
+            return 'osx-x64'
+        }
     }
-    if ($architecture -eq [System.Runtime.InteropServices.Architecture]::X64) {
-        return 'osx-x64'
+
+    $machineArchitecture = (& /usr/bin/uname '-m').Trim()
+    if ($LASTEXITCODE -ne 0) {
+        throw 'Could not determine the macOS machine architecture.'
     }
-    throw "Unsupported macOS process architecture: $architecture"
+    return $(if ($machineArchitecture -eq 'arm64') { 'osx-arm64' } else { 'osx-x64' })
 }
 
 $userProfile = [Environment]::GetFolderPath([Environment+SpecialFolder]::UserProfile)
@@ -68,9 +83,6 @@ if ($SkipLaunchAgents) {
 }
 
 $baseOutput = @(& $baseScript @baseParameters | ForEach-Object { [string]$_ })
-if ($LASTEXITCODE -ne 0) {
-    throw "Base macOS installer failed with exit code $LASTEXITCODE"
-}
 
 if ([string]::IsNullOrWhiteSpace($ApplicationsRoot)) {
     $ApplicationsRoot = Join-Path $userProfile 'Applications'
@@ -101,8 +113,12 @@ if (-not $SkipOtaState) {
         -OutputPath $manifestPath `
         -Version $version)
 
-    $publicKeySource = Join-Path (Split-Path -Parent $PSScriptRoot) 'ota-signing-public-key.txt'
-    if (Test-Path -LiteralPath $publicKeySource -PathType Leaf) {
+    $scriptParent = Split-Path -Parent $PSScriptRoot
+    $publicKeySource = @(
+        (Join-Path $scriptParent 'ota-signing-public-key.txt'),
+        (Join-Path $scriptParent 'ota-history/ota-signing-public-key.txt')
+    ) | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
+    if ($publicKeySource) {
         $publicKey = ([IO.File]::ReadAllText($publicKeySource, [Text.UTF8Encoding]::new($false))).Trim()
         if ($publicKey -match '^[0-9a-fA-F]{64}$') {
             Write-Utf8TextFile `
@@ -124,7 +140,7 @@ if (-not $SkipOtaState) {
         manifestSha256 = (Get-FileHash -LiteralPath $manifestPath -Algorithm SHA256).Hash.ToLowerInvariant()
         packageKind = 'full-install'
         distributionMode = 'full'
-        runtimeIdentifier = (Get-OtaRuntimeIdentifier)
+        runtimeIdentifier = (Get-InstalledRuntimeIdentifier -AppBundlePath $targetApp)
     }
     Write-Utf8TextFile `
         -Path (Join-Path $stateRoot 'installed-release.json') `
