@@ -13,6 +13,7 @@ param(
     [string]$Architecture = 'arm64',
     [ValidateSet('Debug', 'Release')]
     [string]$Configuration = 'Release',
+    [string]$Version = '',
     [string]$OutputRoot = '',
     [string]$CodeSignIdentity = '-',
     [ValidateSet('stable', 'nightly', 'local')]
@@ -64,6 +65,27 @@ function Copy-RequiredFile {
     }
     New-Item -ItemType Directory -Path (Split-Path -Parent $Destination) -Force | Out-Null
     Copy-Item -LiteralPath $Source -Destination $Destination -Force
+}
+
+function Set-BundleVersion {
+    param(
+        [Parameter(Mandatory = $true)][string]$BundlePath,
+        [Parameter(Mandatory = $true)][string]$ProductVersion
+    )
+
+    $plistPath = Join-Path $BundlePath 'Contents/Info.plist'
+    if (-not (Test-Path -LiteralPath $plistPath -PathType Leaf)) {
+        throw "Bundle Info.plist is missing: $plistPath"
+    }
+    $text = Get-Content -LiteralPath $plistPath -Raw
+    foreach ($versionKey in @('CFBundleShortVersionString', 'CFBundleVersion')) {
+        $pattern = "(<key>$versionKey</key>\s*<string>)[^<]*(</string>)"
+        $text = [regex]::Replace($text, $pattern, ('${1}' + $ProductVersion + '${2}'))
+    }
+    if ($text -notmatch "<string>$([regex]::Escape($ProductVersion))</string>") {
+        throw "Could not stamp version $ProductVersion into $plistPath"
+    }
+    [IO.File]::WriteAllText($plistPath, $text, [Text.UTF8Encoding]::new($false))
 }
 
 function Get-SignableFiles {
@@ -184,10 +206,19 @@ if (-not (Test-Path -LiteralPath (Join-Path $appBundle 'Contents/Info.plist') -P
     throw "Base macOS publisher did not create a valid app bundle: $appBundle"
 }
 
-$productVersion = [string](Get-Content -LiteralPath (Join-Path $repoRoot 'version.json') -Raw |
-    ConvertFrom-Json).version
+$productVersion = $Version
+if ([string]::IsNullOrWhiteSpace($productVersion)) {
+    $versionInfo = & (Join-Path $PSScriptRoot 'get-product-version.ps1') `
+        -RepoRoot $repoRoot `
+        -PreferGitTag | ConvertFrom-Json
+    $productVersion = [string]$versionInfo.version
+}
 if ($productVersion -notmatch '^[0-9]+\.[0-9]+\.[0-9]+$') {
-    throw "version.json contains an invalid version '$productVersion'."
+    throw "The macOS release version is invalid: '$productVersion'."
+}
+Set-BundleVersion -BundlePath $appBundle -ProductVersion $productVersion
+foreach ($helperBundle in @(Get-ChildItem -LiteralPath $helpersRoot -Directory -Filter '*.app')) {
+    Set-BundleVersion -BundlePath $helperBundle.FullName -ProductVersion $productVersion
 }
 
 $cliOutput = Join-Path $macRoot 'Cli'
