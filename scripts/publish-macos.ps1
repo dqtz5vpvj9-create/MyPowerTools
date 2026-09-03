@@ -66,33 +66,51 @@ function Copy-RequiredFile {
     Copy-Item -LiteralPath $Source -Destination $Destination -Force
 }
 
-function Test-MachOFile {
-    param([Parameter(Mandatory = $true)][string]$Path)
+function Get-SignableFiles {
+    param(
+        [Parameter(Mandatory = $true)][string]$Root,
+        [string]$ExcludePrefix = ''
+    )
 
-    $description = (& /usr/bin/file '-b' $Path 2>$null) -join ' '
-    return $description.Contains('Mach-O', [StringComparison]::Ordinal)
+    return @(Get-ChildItem -LiteralPath $Root -Recurse -File | Where-Object {
+        -not $_.Attributes.HasFlag([IO.FileAttributes]::ReparsePoint) -and
+        ($ExcludePrefix.Length -eq 0 -or
+            -not $_.FullName.StartsWith($ExcludePrefix, [StringComparison]::Ordinal))
+    })
 }
 
-function Sign-MachOFile {
+function Invoke-CodeSignPasses {
     param(
-        [Parameter(Mandatory = $true)][System.IO.FileInfo]$File,
+        [Parameter(Mandatory = $true)][AllowEmptyCollection()][System.IO.FileInfo[]]$Files,
         [Parameter(Mandatory = $true)][string]$Identity,
         [Parameter(Mandatory = $true)][string]$EntitlementsPath
     )
 
-    if (-not (Test-MachOFile -Path $File.FullName)) {
-        return
+    foreach ($candidate in $Files) {
+        $fileDescription = (& /usr/bin/file '-b' $candidate.FullName 2>$null) -join ' '
+        if ($fileDescription.Contains('Mach-O', [StringComparison]::Ordinal)) {
+            continue
+        }
+        Invoke-Native -FilePath '/usr/bin/codesign' -ArgumentList @(
+            '--force', '--sign', $Identity, '--timestamp=none', $candidate.FullName
+        ) -Activity "codesign data file $($candidate.FullName)"
     }
 
-    & /usr/bin/codesign '--remove-signature' $File.FullName 2>$null
-    $global:LASTEXITCODE = 0
-    $arguments = @('--force', '--sign', $Identity, '--timestamp=none')
-    $isLibrary = $File.Extension -in @('.dylib', '.so')
-    if (-not $isLibrary) {
-        $arguments += @('--options', 'runtime', '--entitlements', $EntitlementsPath)
+    foreach ($candidate in $Files) {
+        $fileDescription = (& /usr/bin/file '-b' $candidate.FullName 2>$null) -join ' '
+        if (-not $fileDescription.Contains('Mach-O', [StringComparison]::Ordinal)) {
+            continue
+        }
+
+        & /usr/bin/codesign '--remove-signature' $candidate.FullName 2>$null
+        $global:LASTEXITCODE = 0
+        $signArguments = @('--force', '--sign', $Identity, '--timestamp=none')
+        if (-not $fileDescription.Contains('shared library', [StringComparison]::OrdinalIgnoreCase)) {
+            $signArguments += @('--options', 'runtime', '--entitlements', $EntitlementsPath)
+        }
+        $signArguments += $candidate.FullName
+        Invoke-Native -FilePath '/usr/bin/codesign' -ArgumentList $signArguments -Activity "codesign $($candidate.FullName)"
     }
-    $arguments += $File.FullName
-    Invoke-Native -FilePath '/usr/bin/codesign' -ArgumentList $arguments -Activity "codesign $($File.FullName)"
 }
 
 function Sign-AppBundle {
@@ -113,15 +131,13 @@ function Sign-AppBundle {
 
     $helperBundles = @(
         Get-ChildItem -LiteralPath $helpersRoot -Directory -Filter '*.app' -ErrorAction SilentlyContinue |
-            Sort-Object { $_.FullName.Length } -Descending
+            Sort-Object Name
     )
     foreach ($helperBundle in $helperBundles) {
-        Get-ChildItem -LiteralPath $helperBundle.FullName -Recurse -File |
-            Where-Object { -not $_.Attributes.HasFlag([IO.FileAttributes]::ReparsePoint) } |
-            Sort-Object { $_.FullName.Length } -Descending |
-            ForEach-Object {
-                Sign-MachOFile -File $_ -Identity $Identity -EntitlementsPath $entitlements
-            }
+        Invoke-CodeSignPasses `
+            -Files (Get-SignableFiles -Root $helperBundle.FullName) `
+            -Identity $Identity `
+            -EntitlementsPath $entitlements
         Invoke-Native -FilePath '/usr/bin/codesign' -ArgumentList @(
             '--force', '--sign', $Identity,
             '--options', 'runtime',
@@ -131,18 +147,12 @@ function Sign-AppBundle {
         ) -Activity "codesign $($helperBundle.Name)"
     }
 
-    Get-ChildItem -LiteralPath $BundlePath -Recurse -File |
-        Where-Object {
-            -not $_.Attributes.HasFlag([IO.FileAttributes]::ReparsePoint) -and
-            -not $_.FullName.StartsWith(
-                $helpersRoot + [IO.Path]::DirectorySeparatorChar,
-                [StringComparison]::Ordinal)
-        } |
-        Sort-Object { $_.FullName.Length } -Descending |
-        ForEach-Object {
-            Sign-MachOFile -File $_ -Identity $Identity -EntitlementsPath $entitlements
-        }
-
+    Invoke-CodeSignPasses `
+        -Files (Get-SignableFiles `
+            -Root $macRoot `
+            -ExcludePrefix ($helpersRoot + [IO.Path]::DirectorySeparatorChar)) `
+        -Identity $Identity `
+        -EntitlementsPath $entitlements
     Invoke-Native -FilePath '/usr/bin/codesign' -ArgumentList @(
         '--force', '--sign', $Identity,
         '--options', 'runtime',
@@ -170,9 +180,6 @@ if ($SkipNativeBuild) {
     $baseParameters.SkipNativeBuild = $true
 }
 & $baseScript @baseParameters
-if ($LASTEXITCODE -ne 0) {
-    throw "Base macOS publisher failed with exit code $LASTEXITCODE"
-}
 if (-not (Test-Path -LiteralPath (Join-Path $appBundle 'Contents/Info.plist') -PathType Leaf)) {
     throw "Base macOS publisher did not create a valid app bundle: $appBundle"
 }
@@ -236,13 +243,6 @@ if (-not $SkipCodeSign) {
 }
 
 New-Item -ItemType Directory -Path $releaseRoot -Force | Out-Null
-foreach ($legacyName in @(
-    "MyPowerTools-macos-$Architecture.zip",
-    "MyPowerTools-macos-$Architecture.zip.sha256"
-)) {
-    Remove-Item -LiteralPath (Join-Path $releaseRoot $legacyName) -Force -ErrorAction SilentlyContinue
-}
-
 $manifestPath = Join-Path $releaseRoot "MyPowerTools-$runtimeIdentifier.manifest.json"
 $manifestScript = Join-Path $PSScriptRoot 'new-ota-file-manifest.ps1'
 [void](& $manifestScript `
@@ -263,6 +263,13 @@ else {
 }
 $zipHash = (Get-FileHash -LiteralPath $zipPath -Algorithm SHA256).Hash.ToLowerInvariant()
 "$zipHash  $zipName" | Set-Content -LiteralPath "$zipPath.sha256" -Encoding ASCII
+
+# Keep the historical archive aliases until the release workflow is updated everywhere. The OTA
+# feed always names the canonical RID asset above.
+$legacyZipName = "MyPowerTools-macos-$Architecture.zip"
+$legacyZipPath = Join-Path $releaseRoot $legacyZipName
+Copy-Item -LiteralPath $zipPath -Destination $legacyZipPath -Force
+"$zipHash  $legacyZipName" | Set-Content -LiteralPath "$legacyZipPath.sha256" -Encoding ASCII
 
 $feedPath = Join-Path $releaseRoot "channel-$Channel-$runtimeIdentifier.json"
 $feedParameters = @{
@@ -309,6 +316,7 @@ if ([bool]$feedResult.Signed) {
     channel = $Channel
     archive = $zipPath
     archiveSha256 = $zipHash
+    legacyArchive = $legacyZipPath
     manifest = $manifestPath
     feed = $feedResult.FeedPath
     signature = $feedResult.SignaturePath
