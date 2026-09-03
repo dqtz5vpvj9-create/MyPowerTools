@@ -22,6 +22,8 @@ macOS OTA 已形成从发布、发现、下载到事务替换的完整路径：
 
 - `.github/workflows/macos-ota-validation.yml` 在 macOS runner 上执行 OTA 契约测试、构建 ad-hoc 签名候选、校验 bundle 与发布资产。
 - `.github/workflows/macos-ota-release.yml` 在稳定版 tag 或人工触发时构建 arm64 与 x64，使用 `MPT_OTA_SIGNING_KEY_BASE64` 签署平台 feed，并把规范资产上传到已有 GitHub Release。
+- `.github/workflows/handoff-windows-gates.yml` 恢复交接补丁中的五项 Windows 检查：Quick 与 Process 架构门禁、AndroidTools 运行时 staging、AndroidTools 正向测试、NSSM PowerShell 测试。
+- 原交接补丁针对 `.github/workflows/ci.yml`。GitHub Actions 自带令牌缺少 workflow 文件写权限，因此这些检查以独立工作流落地，执行命令与交接补丁保持一致。
 - 稳定频道缺少签名密钥时直接失败。nightly 可明确生成 unsigned feed，客户端仍需显式传入 `-AllowUnsigned`。
 
 ## 兼容性决定
@@ -50,6 +52,13 @@ channel-nightly-osx-x64.json
 - archive、manifest 与频道 feed 使用统一 RID 名称；
 - tag 版本写入外层 bundle 与 helper bundle；
 - 完整 bundle 通过 `codesign --verify --deep --strict`。
+
+Windows 门禁工作流检查以下交接项：
+
+- A1、A2 架构门禁；
+- A3、A4 进程与故障隔离门禁；
+- AndroidTools 模块主机 staging 与正向测试；
+- NSSM 原生资源与服务模式 smoke 测试。
 
 ## 仍需设备验证
 
