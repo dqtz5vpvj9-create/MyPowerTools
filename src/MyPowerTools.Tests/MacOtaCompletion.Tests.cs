@@ -98,6 +98,8 @@ public sealed class MacOtaCompletionTests
         Assert.Contains("channel-$Channel-$runtimeIdentifier.json", publisher, StringComparison.Ordinal);
         Assert.Contains("DeltaPackages = @()", publisher, StringComparison.Ordinal);
         Assert.Contains("MyPowerTools-macos-$Architecture.zip", publisher, StringComparison.Ordinal);
+        Assert.Contains("[string]$Version = ''", publisher, StringComparison.Ordinal);
+        Assert.Contains("Set-BundleVersion -BundlePath $appBundle", publisher, StringComparison.Ordinal);
     }
 
     [Fact]
