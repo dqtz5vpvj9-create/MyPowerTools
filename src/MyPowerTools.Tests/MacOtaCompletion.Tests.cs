@@ -64,13 +64,15 @@ public sealed class MacOtaCompletionTests
     }
 
     [Fact]
-    public void The_installer_supports_transactional_apply_without_reseeding_state()
+    public void The_installer_supports_transactional_apply_and_packaged_bundle_installation()
     {
         var installer = ReadScript("install-macos.ps1");
         var apply = ReadScript("ota-apply-macos.ps1");
 
         Assert.Contains("[switch]$SkipOtaState", installer, StringComparison.Ordinal);
         Assert.Contains("install-macos-base.ps1", installer, StringComparison.Ordinal);
+        Assert.Contains("Resolve-BundledSourceApp", installer, StringComparison.Ordinal);
+        Assert.Contains("Contents/Info.plist", installer, StringComparison.Ordinal);
         Assert.Contains("-SkipOtaState", apply, StringComparison.Ordinal);
         Assert.True(File.Exists(Path.Combine(RepositoryRoot, "scripts", "install-macos-base.ps1")));
         Assert.True(File.Exists(Path.Combine(RepositoryRoot, "scripts", "publish-macos-base.ps1")));
