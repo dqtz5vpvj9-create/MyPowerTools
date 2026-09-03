@@ -49,7 +49,7 @@ jobs:
         run: >-
           dotnet test src/MyPowerTools.Tests/MyPowerTools.Tests.csproj
           --configuration Debug
-          --filter "FullyQualifiedName~MacOtaCompletionTests|FullyQualifiedName~OtaFeedLayoutTests|FullyQualifiedName~OtaUpdaterLocatorTests|FullyQualifiedName~MacOtaApplyScriptTests"
+          --filter "FullyQualifiedName~MacOtaCompletionTests|FullyQualifiedName~MacReleaseSyncTests|FullyQualifiedName~OtaFeedLayoutTests|FullyQualifiedName~OtaUpdaterLocatorTests|FullyQualifiedName~MacOtaApplyScriptTests"
 
       - name: Publish signed macOS OTA candidate
         shell: pwsh
@@ -83,6 +83,37 @@ jobs:
           $feed = Get-Content -LiteralPath 'artifacts/release/channel-local-osx-arm64.json' -Raw | ConvertFrom-Json
           if (@($feed.deltas).Count -ne 0) { throw 'macOS feed unexpectedly contains deltas.' }
           if ([string]$feed.full.asset -ne 'MyPowerTools-osx-arm64.zip') { throw 'macOS feed names the wrong archive.' }
+          if ([string]$feed.full.manifestAsset -ne 'MyPowerTools-osx-arm64.manifest.json') { throw 'macOS feed names the wrong manifest.' }
+          $archiveHash = (Get-FileHash -LiteralPath 'artifacts/release/MyPowerTools-osx-arm64.zip' -Algorithm SHA256).Hash.ToLowerInvariant()
+          $manifestHash = (Get-FileHash -LiteralPath 'artifacts/release/MyPowerTools-osx-arm64.manifest.json' -Algorithm SHA256).Hash.ToLowerInvariant()
+          if ($archiveHash -ne [string]$feed.full.sha256) { throw 'macOS feed archive hash mismatch.' }
+          if ($manifestHash -ne [string]$feed.full.manifestSha256) { throw 'macOS feed manifest hash mismatch.' }
+
+      - name: Exercise macOS OTA check client
+        shell: pwsh
+        run: |
+          $app = [IO.Path]::GetFullPath('artifacts/publish/macos-arm64/MyPowerTools.app')
+          $stateRoot = [IO.Path]::GetFullPath('artifacts/ota-validation-data/ota-state')
+          $dataRoot = Split-Path -Parent $stateRoot
+          $output = @(
+            pwsh -NoLogo -NoProfile -NonInteractive `
+              -File scripts/ota-update-macos.ps1 `
+              -Command Check `
+              -Channel local `
+              -LocalFeedPath artifacts/release/channel-local-osx-arm64.json `
+              -LocalPackageRoot artifacts/release `
+              -InstallRoot $app `
+              -DataRoot $dataRoot `
+              -StateRoot $stateRoot `
+              -CurrentVersion 0.0.0 `
+              -AllowUnsigned `
+              -SkipBootstrap
+          )
+          if ($LASTEXITCODE -ne 0) { throw "macOS OTA check failed with exit code $LASTEXITCODE." }
+          $check = ($output -join [Environment]::NewLine) | ConvertFrom-Json
+          if (-not [bool]$check.available) { throw 'macOS OTA check did not report the local candidate.' }
+          if ([string]$check.platform -ne 'osx-arm64') { throw "macOS OTA selected the wrong platform: $($check.platform)" }
+          if ([string]$check.package.asset -ne 'MyPowerTools-osx-arm64.zip') { throw 'macOS OTA selected the wrong package.' }
 
       - name: Upload validation assets
         uses: actions/upload-artifact@v4
@@ -93,3 +124,4 @@ jobs:
             artifacts/release/MyPowerTools-osx-arm64.zip.sha256
             artifacts/release/MyPowerTools-osx-arm64.manifest.json
             artifacts/release/channel-local-osx-arm64.json
+            artifacts/ota-validation-data/ota-state/last-check.json
