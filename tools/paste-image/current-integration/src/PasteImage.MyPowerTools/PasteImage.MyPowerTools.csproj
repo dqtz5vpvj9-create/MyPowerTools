@@ -8,16 +8,10 @@
     <RepositoryModuleRoot>$(MyPowerToolsRepoRoot)\modules\paste-image</RepositoryModuleRoot>
   </PropertyGroup>
 
-  <ItemGroup Condition="!Exists('$(MyPowerToolsRepoRoot)\src\MyPowerTools.Abstractions\MyPowerTools.Abstractions.csproj')">
+  <ItemGroup>
     <PackageReference Include="MyPowerTools.ToolSdk" Version="0.2.0" />
     <PackageReference Include="MyPowerTools.Protocol" Version="0.2.0" />
     <PackageReference Include="MyPowerTools.Platform.Abstractions" Version="0.2.0" />
-  </ItemGroup>
-
-  <ItemGroup Condition="Exists('$(MyPowerToolsRepoRoot)\src\MyPowerTools.Abstractions\MyPowerTools.Abstractions.csproj')">
-    <ProjectReference Include="$(MyPowerToolsRepoRoot)\src\MyPowerTools.Abstractions\MyPowerTools.Abstractions.csproj" />
-    <ProjectReference Include="$(MyPowerToolsRepoRoot)\src\MyPowerTools.Protocol\MyPowerTools.Protocol.csproj" />
-    <ProjectReference Include="$(MyPowerToolsRepoRoot)\src\MyPowerTools.Platform.Abstractions\MyPowerTools.Platform.Abstractions.csproj" />
   </ItemGroup>
 
   <Target Name="CopyModuleAssemblyToPackage" AfterTargets="Build">

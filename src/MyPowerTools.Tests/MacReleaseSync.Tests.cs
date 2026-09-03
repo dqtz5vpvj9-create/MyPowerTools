@@ -12,7 +12,7 @@ public sealed class MacReleaseSyncTests
     [Fact]
     public void Mac_release_keeps_the_full_tool_catalog_and_only_defaults_notifications_on()
     {
-        var publishScript = File.ReadAllText(Path.Combine(Root, "scripts", "publish-macos.ps1"));
+        var publishScript = ReadLayeredScript("publish-macos.ps1", "publish-macos-base.ps1");
         var runner = File.ReadAllText(Path.Combine(Root, "src", "MyPowerTools.Runner", "Program.cs"));
 
         foreach (var destination in new[]
@@ -61,8 +61,8 @@ public sealed class MacReleaseSyncTests
     [Fact]
     public void Mac_background_hosts_ship_as_nested_helper_bundles()
     {
-        var publishScript = File.ReadAllText(Path.Combine(Root, "scripts", "publish-macos.ps1"));
-        var installScript = File.ReadAllText(Path.Combine(Root, "scripts", "install-macos.ps1"));
+        var publishScript = ReadLayeredScript("publish-macos.ps1", "publish-macos-base.ps1");
+        var installScript = ReadLayeredScript("install-macos.ps1", "install-macos-base.ps1");
         var launcher = File.ReadAllText(Path.Combine(Root, "src", "MyPowerTools.App", "Program.cs"));
         var helpersRoot = Path.Combine(Root, "packaging", "macos", "Helpers");
 
@@ -78,8 +78,6 @@ public sealed class MacReleaseSyncTests
             Assert.Contains($"<string>{helper.Executable}</string>", plist, StringComparison.Ordinal);
             Assert.Contains($"Plist = '{helper.Plist}'", publishScript, StringComparison.Ordinal);
 
-            // mypowertools:// stays on the outer bundle so notification activation always
-            // reaches the launcher, which is the only process that knows how to focus the Shell.
             Assert.DoesNotContain("<key>CFBundleURLTypes</key>", plist, StringComparison.Ordinal);
         }
 
@@ -87,8 +85,6 @@ public sealed class MacReleaseSyncTests
         Assert.Contains("<key>CFBundleURLTypes</key>", mainPlist, StringComparison.Ordinal);
         Assert.Contains("<key>LSUIElement</key>", mainPlist, StringComparison.Ordinal);
 
-        // launchd has to execute the helper apphosts. Going through the compatibility links in
-        // Contents/MacOS/<Host>/ would leave the bundle identity up to path resolution.
         Assert.Contains("Join-Path $macRoot 'Helpers'", installScript, StringComparison.Ordinal);
         Assert.Contains(
             "MyPowerTools Runner.app/Contents/MacOS/MyPowerTools.Runner",
@@ -149,6 +145,14 @@ public sealed class MacReleaseSyncTests
         Assert.True(capability.Supported);
         Assert.Equal("NSPasteboard", capability.Provider);
         Assert.IsType<MacPasteboardImageService>(platform.ClipboardImages);
+    }
+
+    private static string ReadLayeredScript(string entrypoint, string implementation)
+    {
+        return string.Concat(
+            File.ReadAllText(Path.Combine(Root, "scripts", entrypoint)),
+            Environment.NewLine,
+            File.ReadAllText(Path.Combine(Root, "scripts", implementation)));
     }
 
     private static string FindRepositoryRoot()

@@ -11,6 +11,7 @@ namespace MyPowerTools.Packaging.Ota;
 public static class OtaUpdaterLocator
 {
     public const string UpdaterScriptName = "ota-update.ps1";
+    public const string MacSourceUpdaterScriptName = "ota-update-macos.ps1";
     public const string MacApplyScriptName = "ota-apply-macos.ps1";
 
     /// <summary>Path of the bundled OTA scripts, relative to a macOS app bundle root.</summary>
@@ -71,22 +72,39 @@ public static class OtaUpdaterLocator
     }
 
     /// <summary>
-    /// Candidate paths for <c>ota-update.ps1</c>, most specific first.
-    /// <paramref name="repositoryRoot"/> is the root the CLI already resolved from its own
-    /// location: the install root for a Windows installation, the repository root for a source
-    /// checkout, and <c>Contents/MacOS</c> inside a macOS bundle.
+    /// Candidate updater paths, most specific first. A real source checkout on macOS prefers
+    /// <c>scripts/ota-update-macos.ps1</c>; installed bundles expose the same implementation as
+    /// <c>Contents/Resources/scripts/ota-update.ps1</c> so the public CLI contract stays uniform.
+    /// Temporary or legacy layouts that do not contain the macOS source entrypoint retain the
+    /// historical candidate list.
     /// </summary>
-    public static IReadOnlyList<string> UpdaterScriptCandidates(string repositoryRoot, string? macBundleRoot)
+    public static IReadOnlyList<string> UpdaterScriptCandidates(
+        string repositoryRoot,
+        string? macBundleRoot,
+        bool? isMacOs = null)
     {
-        var candidates = new List<string>
+        var useMacSourceEntrypoint = isMacOs ?? RuntimeInformation.IsOSPlatform(OSPlatform.OSX);
+        var macSourceAtRoot = Path.Combine(repositoryRoot, MacSourceUpdaterScriptName);
+        var macSourceUnderScripts = Path.Combine(repositoryRoot, "scripts", MacSourceUpdaterScriptName);
+        var candidates = new List<string>();
+        if (useMacSourceEntrypoint &&
+            (File.Exists(macSourceAtRoot) || File.Exists(macSourceUnderScripts)))
         {
-            Path.Combine(repositoryRoot, UpdaterScriptName),
-            Path.Combine(repositoryRoot, "scripts", UpdaterScriptName)
-        };
+            candidates.Add(macSourceAtRoot);
+            candidates.Add(macSourceUnderScripts);
+        }
+
+        candidates.Add(Path.Combine(repositoryRoot, UpdaterScriptName));
+        candidates.Add(Path.Combine(repositoryRoot, "scripts", UpdaterScriptName));
 
         if (macBundleRoot is not null)
         {
-            candidates.Add(Path.Combine(macBundleRoot, "Contents", "Resources", "scripts", UpdaterScriptName));
+            candidates.Add(Path.Combine(
+                macBundleRoot,
+                "Contents",
+                "Resources",
+                "scripts",
+                UpdaterScriptName));
         }
 
         return candidates;
@@ -123,9 +141,11 @@ public static class OtaUpdaterLocator
         var candidates = new List<string>();
         if (!string.IsNullOrWhiteSpace(pathVariable))
         {
-            foreach (var entry in pathVariable.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            foreach (var entry in pathVariable.Split(
+                         Path.PathSeparator,
+                         StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
             {
-                candidates.Add(Path.Combine(entry, fileName));
+                candidates.Add(CombinePathEntry(entry, fileName));
             }
         }
 
@@ -165,5 +185,15 @@ public static class OtaUpdaterLocator
             ? "OTA 更新需要 PowerShell 7（pwsh），但在 PATH、/usr/local/bin 与 /opt/homebrew/bin 中都没有找到。" +
               "请先安装：brew install --cask powershell。"
             : "PowerShell 7 (pwsh) is required for OTA updates and was not found on PATH.";
+    }
+
+    private static string CombinePathEntry(string directory, string fileName)
+    {
+        if (directory.Contains('/') && !directory.Contains('\\'))
+        {
+            return directory.TrimEnd('/') + "/" + fileName;
+        }
+
+        return Path.Combine(directory, fileName);
     }
 }
