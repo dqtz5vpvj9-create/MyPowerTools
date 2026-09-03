@@ -1,0 +1,95 @@
+name: macOS OTA validation
+
+on:
+  pull_request:
+    paths:
+      - "scripts/*macos*.ps1"
+      - "scripts/ed25519.cs"
+      - "scripts/new-ota-*.ps1"
+      - "src/MyPowerTools.Cli/**"
+      - "src/MyPowerTools.Packaging/**"
+      - "src/MyPowerTools.Tests/**"
+      - ".github/workflows/macos-ota-validation.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: macos-14
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: 1
+      DOTNET_NOLOGO: true
+      NUGET_XMLDOC_MODE: skip
+      EnableWindowsTargeting: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          token: ${{ secrets.MPT_SUBMODULE_PAT }}
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Prepare local NuGet source
+        shell: pwsh
+        run: New-Item -ItemType Directory -Path artifacts/sdk/nuget -Force | Out-Null
+
+      - name: Build SDK bundles
+        shell: pwsh
+        run: pwsh -NoLogo -NoProfile -NonInteractive -File scripts/build-sdk.ps1
+
+      - name: Run macOS OTA contract tests
+        shell: pwsh
+        run: >-
+          dotnet test src/MyPowerTools.Tests/MyPowerTools.Tests.csproj
+          --configuration Debug
+          --filter "FullyQualifiedName~MacOtaCompletionTests|FullyQualifiedName~OtaFeedLayoutTests|FullyQualifiedName~OtaUpdaterLocatorTests|FullyQualifiedName~MacOtaApplyScriptTests"
+
+      - name: Publish signed macOS OTA candidate
+        shell: pwsh
+        run: >-
+          pwsh -NoLogo -NoProfile -NonInteractive
+          -File scripts/publish-macos.ps1
+          -Architecture arm64
+          -Configuration Release
+          -CodeSignIdentity '-'
+          -Channel local
+          -AllowUnsigned
+
+      - name: Verify bundle and OTA assets
+        shell: pwsh
+        run: |
+          $app = 'artifacts/publish/macos-arm64/MyPowerTools.app'
+          & /usr/bin/codesign --verify --deep --strict $app
+          if ($LASTEXITCODE -ne 0) { throw 'codesign verification failed.' }
+          $required = @(
+            "$app/Contents/MacOS/Cli/MyPowerTools.Cli",
+            "$app/Contents/Resources/scripts/ota-update.ps1",
+            "$app/Contents/Resources/scripts/ota-apply-macos.ps1",
+            "$app/Contents/Resources/scripts/install-macos.ps1",
+            'artifacts/release/MyPowerTools-osx-arm64.zip',
+            'artifacts/release/MyPowerTools-osx-arm64.manifest.json',
+            'artifacts/release/channel-local-osx-arm64.json'
+          )
+          foreach ($path in $required) {
+            if (-not (Test-Path -LiteralPath $path)) { throw "Missing macOS OTA artifact: $path" }
+          }
+          $feed = Get-Content -LiteralPath 'artifacts/release/channel-local-osx-arm64.json' -Raw | ConvertFrom-Json
+          if (@($feed.deltas).Count -ne 0) { throw 'macOS feed unexpectedly contains deltas.' }
+          if ([string]$feed.full.asset -ne 'MyPowerTools-osx-arm64.zip') { throw 'macOS feed names the wrong archive.' }
+
+      - name: Upload validation assets
+        uses: actions/upload-artifact@v4
+        with:
+          name: MyPowerTools-macos-ota-validation
+          path: |
+            artifacts/release/MyPowerTools-osx-arm64.zip
+            artifacts/release/MyPowerTools-osx-arm64.zip.sha256
+            artifacts/release/MyPowerTools-osx-arm64.manifest.json
+            artifacts/release/channel-local-osx-arm64.json
