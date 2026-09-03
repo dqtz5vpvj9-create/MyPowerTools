@@ -72,9 +72,11 @@ public static class OtaUpdaterLocator
     }
 
     /// <summary>
-    /// Candidate updater paths, most specific first. Source checkouts on macOS prefer
+    /// Candidate updater paths, most specific first. A real source checkout on macOS prefers
     /// <c>scripts/ota-update-macos.ps1</c>; installed bundles expose the same implementation as
     /// <c>Contents/Resources/scripts/ota-update.ps1</c> so the public CLI contract stays uniform.
+    /// Temporary or legacy layouts that do not contain the macOS source entrypoint retain the
+    /// historical candidate list.
     /// </summary>
     public static IReadOnlyList<string> UpdaterScriptCandidates(
         string repositoryRoot,
@@ -82,11 +84,14 @@ public static class OtaUpdaterLocator
         bool? isMacOs = null)
     {
         var useMacSourceEntrypoint = isMacOs ?? RuntimeInformation.IsOSPlatform(OSPlatform.OSX);
+        var macSourceAtRoot = Path.Combine(repositoryRoot, MacSourceUpdaterScriptName);
+        var macSourceUnderScripts = Path.Combine(repositoryRoot, "scripts", MacSourceUpdaterScriptName);
         var candidates = new List<string>();
-        if (useMacSourceEntrypoint)
+        if (useMacSourceEntrypoint &&
+            (File.Exists(macSourceAtRoot) || File.Exists(macSourceUnderScripts)))
         {
-            candidates.Add(Path.Combine(repositoryRoot, MacSourceUpdaterScriptName));
-            candidates.Add(Path.Combine(repositoryRoot, "scripts", MacSourceUpdaterScriptName));
+            candidates.Add(macSourceAtRoot);
+            candidates.Add(macSourceUnderScripts);
         }
 
         candidates.Add(Path.Combine(repositoryRoot, UpdaterScriptName));
