@@ -11,6 +11,7 @@ namespace MyPowerTools.Packaging.Ota;
 public static class OtaUpdaterLocator
 {
     public const string UpdaterScriptName = "ota-update.ps1";
+    public const string MacSourceUpdaterScriptName = "ota-update-macos.ps1";
     public const string MacApplyScriptName = "ota-apply-macos.ps1";
 
     /// <summary>Path of the bundled OTA scripts, relative to a macOS app bundle root.</summary>
@@ -71,22 +72,29 @@ public static class OtaUpdaterLocator
     }
 
     /// <summary>
-    /// Candidate paths for <c>ota-update.ps1</c>, most specific first.
-    /// <paramref name="repositoryRoot"/> is the root the CLI already resolved from its own
-    /// location: the install root for a Windows installation, the repository root for a source
-    /// checkout, and <c>Contents/MacOS</c> inside a macOS bundle.
+    /// Candidate updater paths, most specific first. Source checkouts on macOS prefer
+    /// <c>scripts/ota-update-macos.ps1</c>; installed bundles expose the same implementation as
+    /// <c>Contents/Resources/scripts/ota-update.ps1</c> so the public CLI contract stays uniform.
     /// </summary>
-    public static IReadOnlyList<string> UpdaterScriptCandidates(string repositoryRoot, string? macBundleRoot)
+    public static IReadOnlyList<string> UpdaterScriptCandidates(
+        string repositoryRoot,
+        string? macBundleRoot,
+        bool? isMacOs = null)
     {
-        var candidates = new List<string>
+        var useMacSourceEntrypoint = isMacOs ?? RuntimeInformation.IsOSPlatform(OSPlatform.OSX);
+        var candidates = new List<string>();
+        if (useMacSourceEntrypoint)
         {
-            Path.Combine(repositoryRoot, UpdaterScriptName),
-            Path.Combine(repositoryRoot, "scripts", UpdaterScriptName)
-        };
+            candidates.Add(Path.Combine(repositoryRoot, MacSourceUpdaterScriptName));
+            candidates.Add(Path.Combine(repositoryRoot, "scripts", MacSourceUpdaterScriptName));
+        }
+
+        candidates.Add(Path.Combine(repositoryRoot, UpdaterScriptName));
+        candidates.Add(Path.Combine(repositoryRoot, "scripts", UpdaterScriptName));
 
         if (macBundleRoot is not null)
         {
-            candidates.Add(Path.Combine(macBundleRoot, "Contents", "Resources", "scripts", UpdaterScriptName));
+            candidates.Add(Path.Combine(macBundleRoot, MacScriptsRelativePath, UpdaterScriptName));
         }
 
         return candidates;
