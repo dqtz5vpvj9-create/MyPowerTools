@@ -15,18 +15,61 @@ $repoRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
 $artifactsRoot = [System.IO.Path]::GetFullPath((Join-Path $repoRoot 'artifacts'))
 $runtimeIdentifier = "osx-$Architecture"
 if ([string]::IsNullOrWhiteSpace($OutputRoot)) {
-    $OutputRoot = Join-Path $artifactsRoot "publish\macos-$Architecture"
+    $OutputRoot = Join-Path $artifactsRoot "publish/macos-$Architecture"
 }
 $OutputRoot = [System.IO.Path]::GetFullPath($OutputRoot)
 if (-not $OutputRoot.StartsWith($artifactsRoot + [System.IO.Path]::DirectorySeparatorChar, [System.StringComparison]::OrdinalIgnoreCase)) {
     throw "OutputRoot must stay under $artifactsRoot"
 }
 
-$stageRoot = Join-Path $artifactsRoot "macos-stage\$runtimeIdentifier"
+$stageRoot = Join-Path $artifactsRoot "macos-stage/$runtimeIdentifier"
 $appBundle = Join-Path $OutputRoot 'MyPowerTools.app'
 $contentsRoot = Join-Path $appBundle 'Contents'
 $macRoot = Join-Path $contentsRoot 'MacOS'
 $resourcesRoot = Join-Path $contentsRoot 'Resources'
+# Nested helper bundles. Contents/MacOS stays the application root that every host finds by
+# walking up from its own directory, so the helpers are nested under it rather than under
+# Contents/Helpers. Each one turns a background host into a real bundle: an executable at
+# <bundle>.app/Contents/MacOS/<name> is what makes NSBundle.mainBundle resolve, and without a
+# bundle identifier UNUserNotificationCenter, Dock activation and Launch Services registration
+# are all unavailable to the process.
+$helpersRoot = Join-Path $macRoot 'Helpers'
+$macHelpers = @(
+    [pscustomobject]@{
+        Key = 'Shell'
+        Bundle = 'MyPowerTools Shell.app'
+        Executable = 'MyPowerTools.Shell.Avalonia'
+        Legacy = 'Shell'
+        Plist = 'Shell.Info.plist'
+        NeedsNativeLibrary = $true
+    },
+    [pscustomobject]@{
+        Key = 'Runner'
+        Bundle = 'MyPowerTools Runner.app'
+        Executable = 'MyPowerTools.Runner'
+        Legacy = 'Runner'
+        Plist = 'Runner.Info.plist'
+        NeedsNativeLibrary = $true
+    },
+    [pscustomobject]@{
+        Key = 'ServiceManager'
+        Bundle = 'MyPowerTools ServiceManager.app'
+        Executable = 'MyPowerTools.ServiceManager'
+        Legacy = 'ServiceManager'
+        Plist = 'ServiceManager.Info.plist'
+        NeedsNativeLibrary = $false
+    }
+)
+
+function Get-HelperBundleRoot {
+    param([Parameter(Mandatory = $true)][pscustomobject]$Helper)
+    return Join-Path $helpersRoot $Helper.Bundle
+}
+
+function Get-HelperExecutableRoot {
+    param([Parameter(Mandatory = $true)][pscustomobject]$Helper)
+    return Join-Path (Get-HelperBundleRoot -Helper $Helper) 'Contents/MacOS'
+}
 
 function Invoke-Native {
     param(
@@ -87,7 +130,7 @@ function Build-StandaloneModule {
         [Parameter(Mandatory = $true)][string]$CliProject
     )
 
-    $moduleStageRoot = Join-Path $stageRoot "Modules\$($Definition.Destination)"
+    $moduleStageRoot = Join-Path $stageRoot "Modules/$($Definition.Destination)"
     $templateParameters = @{
         Source = Join-Path $repoRoot $Definition.Template
         Destination = $moduleStageRoot
@@ -107,7 +150,7 @@ function Build-StandaloneModule {
     ) -Activity "$($Definition.Id) adapter build"
 
     $surfaceProject = Join-Path $repoRoot $Definition.SurfaceProject
-    $surfaceBuildRoot = Join-Path $stageRoot "Surfaces\$($Definition.Destination)"
+    $surfaceBuildRoot = Join-Path $stageRoot "Surfaces/$($Definition.Destination)"
     Invoke-Native -FilePath 'dotnet' -ArgumentList @(
         'build', $surfaceProject,
         '--configuration', $Configuration,
@@ -144,7 +187,7 @@ if (Test-Path -LiteralPath $stageRoot) {
 if (Test-Path -LiteralPath $appBundle) {
     Remove-Item -LiteralPath $appBundle -Recurse -Force
 }
-New-Item -ItemType Directory -Path $stageRoot, $macRoot, $resourcesRoot -Force | Out-Null
+New-Item -ItemType Directory -Path $stageRoot, $macRoot, $resourcesRoot, $helpersRoot -Force | Out-Null
 
 $projects = [ordered]@{
     App = 'src/MyPowerTools.App/MyPowerTools.App.csproj'
@@ -212,14 +255,78 @@ foreach ($entry in $projects.GetEnumerator()) {
     Invoke-Native -FilePath 'dotnet' -ArgumentList $publishArguments -Activity "dotnet publish $($entry.Key)"
 }
 
+# The packaging plists carry a placeholder version. Launch Services, Finder's Get Info and
+# every "which build is this" question read the copy inside the bundle, so stamp the central
+# product version into each one rather than shipping whatever the template happened to say.
+$productVersion = [string](Get-Content -LiteralPath (Join-Path $repoRoot 'version.json') -Raw |
+    ConvertFrom-Json).version
+if ($productVersion -notmatch '^[0-9]+\.[0-9]+\.[0-9]+$') {
+    throw "version.json contains an invalid version '$productVersion'."
+}
+
+function Copy-StampedPlist {
+    param(
+        [Parameter(Mandatory = $true)][string]$Source,
+        [Parameter(Mandatory = $true)][string]$Destination
+    )
+    $text = Get-Content -LiteralPath $Source -Raw
+    foreach ($versionKey in @('CFBundleShortVersionString', 'CFBundleVersion')) {
+        $text = [regex]::Replace(
+            $text,
+            "(<key>$versionKey</key>\s*<string>)[^<]*(</string>)",
+            ('${1}' + $productVersion + '${2}'))
+    }
+    if ($text -notmatch "<string>$([regex]::Escape($productVersion))</string>") {
+        throw "Could not stamp the product version into $Destination."
+    }
+    New-Item -ItemType Directory -Path (Split-Path -Parent $Destination) -Force | Out-Null
+    [System.IO.File]::WriteAllText($Destination, $text)
+}
+
 Copy-DirectoryContents -Source (Join-Path $stageRoot 'App') -Destination $macRoot
-Copy-DirectoryContents -Source (Join-Path $stageRoot 'Shell') -Destination (Join-Path $macRoot 'Shell')
-Copy-DirectoryContents -Source (Join-Path $stageRoot 'Runner') -Destination (Join-Path $macRoot 'Runner')
-Copy-DirectoryContents -Source (Join-Path $stageRoot 'ServiceManager') -Destination (Join-Path $macRoot 'ServiceManager')
+# RemoteNotifications.Service stays directly in Contents/MacOS: an executable there already
+# resolves to MyPowerTools.app as its main bundle, so it needs no helper bundle of its own.
 Copy-DirectoryContents -Source (Join-Path $stageRoot 'RemoteNotificationsService') -Destination $macRoot
-Copy-Item -LiteralPath (Join-Path $repoRoot 'packaging/macos/Info.plist') -Destination (Join-Path $contentsRoot 'Info.plist') -Force
+
+foreach ($helper in $macHelpers) {
+    $helperContents = Join-Path (Get-HelperBundleRoot -Helper $helper) 'Contents'
+    Copy-DirectoryContents -Source (Join-Path $stageRoot $helper.Key) -Destination (Join-Path $helperContents 'MacOS')
+    Copy-StampedPlist `
+        -Source (Join-Path $repoRoot "packaging/macos/Helpers/$($helper.Plist)") `
+        -Destination (Join-Path $helperContents 'Info.plist')
+    Copy-Item -LiteralPath (Join-Path $repoRoot 'packaging/macos/PkgInfo') `
+        -Destination (Join-Path $helperContents 'PkgInfo') -Force
+    New-Item -ItemType Directory -Path (Join-Path $helperContents 'Resources') -Force | Out-Null
+    Write-Host "HELPER $($helper.Bundle) staged at $(Get-HelperExecutableRoot -Helper $helper)"
+}
+
+Copy-StampedPlist `
+    -Source (Join-Path $repoRoot 'packaging/macos/Info.plist') `
+    -Destination (Join-Path $contentsRoot 'Info.plist')
+Write-Host "Info.plist version stamped as $productVersion"
 Copy-Item -LiteralPath (Join-Path $repoRoot 'packaging/macos/PkgInfo') -Destination (Join-Path $contentsRoot 'PkgInfo') -Force
 Copy-Item -LiteralPath (Join-Path $repoRoot 'assets/MyPowerTools.svg') -Destination $resourcesRoot -Force
+
+# Compatibility links for the hosts that still resolve their siblings through the flat
+# Contents/MacOS/<Host>/<executable> layout shared with Windows (the Shell's Runner and
+# ServiceManager bootstrappers, ShellRuntimeIdentity, RemoteNotifications' activation
+# launcher). The real executables live in the helper bundles; these keep the File.Exists and
+# Directory.Exists probes answering until those callers learn the nested layout.
+if (-not $IsWindows) {
+    foreach ($helper in $macHelpers) {
+        $legacyRoot = Join-Path $macRoot $helper.Legacy
+        New-Item -ItemType Directory -Path $legacyRoot -Force | Out-Null
+        $legacyLink = Join-Path $legacyRoot $helper.Executable
+        if (Test-Path -LiteralPath $legacyLink) {
+            Remove-Item -LiteralPath $legacyLink -Force
+        }
+        Invoke-Native -FilePath '/bin/ln' -ArgumentList @(
+            '-s',
+            "../Helpers/$($helper.Bundle)/Contents/MacOS/$($helper.Executable)",
+            $legacyLink
+        ) -Activity "link $legacyLink"
+    }
+}
 
 if ($IsMacOS) {
     $iconPng = Join-Path $stageRoot 'MyPowerTools-1024.png'
@@ -260,6 +367,13 @@ if ($IsMacOS) {
         '-c', 'icns', $iconset,
         '-o', (Join-Path $resourcesRoot 'MyPowerTools.icns')
     ) -Activity 'create MyPowerTools.icns'
+
+    # A notification banner shows the icon of the bundle that posted it, so the helper that
+    # publishes has to carry the product icon rather than the generic placeholder.
+    foreach ($helper in $macHelpers) {
+        Copy-Item -LiteralPath (Join-Path $resourcesRoot 'MyPowerTools.icns') `
+            -Destination (Join-Path (Get-HelperBundleRoot -Helper $helper) 'Contents/Resources/MyPowerTools.icns') -Force
+    }
 }
 
 $moduleStage = Join-Path $repoRoot 'tools/remote-notifications/artifacts/macos-package'
@@ -276,7 +390,7 @@ Invoke-Native -FilePath 'dotnet' -ArgumentList @(
     '-p:DebugType=None',
     '-p:DebugSymbols=false'
 ) -Activity 'Remote Notifications Surface build'
-$surfaceSource = Join-Path (Split-Path -Parent $surfaceProject) "bin\$Configuration\net10.0"
+$surfaceSource = Join-Path (Split-Path -Parent $surfaceProject) "bin/$Configuration/net10.0"
 $surfaceDestination = Join-Path $moduleStage 'modules/notifications/ui/surface'
 New-Item -ItemType Directory -Path $surfaceDestination -Force | Out-Null
 foreach ($pattern in @('*.dll', '*.deps.json')) {
@@ -320,24 +434,31 @@ if (-not $SkipNativeBuild) {
         (Join-Path $repoRoot 'native/macos/MptMacNative/MptMacNative.mm'),
         '-o', $nativeOutput
     ) -Activity 'MptMacNative build'
-    foreach ($destination in @(
-        $macRoot,
-        (Join-Path $macRoot 'Shell'),
-        (Join-Path $macRoot 'Runner')
-    )) {
+    # DllImport("MptMacNative") resolves against the directory of the executable that loads it,
+    # so every host that P/Invokes the library gets its own copy next to its own apphost. That
+    # keeps the lookup free of DYLD_* variables, which System Integrity Protection strips from
+    # anything launchd starts.
+    $nativeDestinations = @($macRoot)
+    foreach ($helper in $macHelpers) {
+        if ($helper.NeedsNativeLibrary) {
+            $nativeDestinations += (Get-HelperExecutableRoot -Helper $helper)
+        }
+    }
+    foreach ($destination in $nativeDestinations) {
         Copy-Item -LiteralPath $nativeOutput -Destination (Join-Path $destination 'libMptMacNative.dylib') -Force
     }
 }
 
 if ($IsMacOS) {
-    foreach ($executable in @(
+    $bundleExecutables = @(
         (Join-Path $macRoot 'MyPowerTools'),
-        (Join-Path $macRoot 'Shell/MyPowerTools.Shell.Avalonia'),
-        (Join-Path $macRoot 'Runner/MyPowerTools.Runner'),
-        (Join-Path $macRoot 'ServiceManager/MyPowerTools.ServiceManager'),
         (Join-Path $macRoot 'RemoteNotifications.Service'),
         (Join-Path $macRoot "modules/android-tools-suite/macos/$Architecture/MPTAndroidTools.Runtime")
-    )) {
+    )
+    foreach ($helper in $macHelpers) {
+        $bundleExecutables += (Join-Path (Get-HelperExecutableRoot -Helper $helper) $helper.Executable)
+    }
+    foreach ($executable in $bundleExecutables) {
         if (Test-Path -LiteralPath $executable -PathType Leaf) {
             Invoke-Native -FilePath '/bin/chmod' -ArgumentList @('+x', $executable) -Activity "chmod $executable"
         }
@@ -378,41 +499,76 @@ if (-not $SkipCodeSign) {
         throw 'codesign requires macOS. Use -SkipCodeSign for managed cross-publish validation.'
     }
     $entitlements = Join-Path $repoRoot 'packaging/macos/MyPowerTools.entitlements'
-    $allFiles = @(Get-ChildItem -LiteralPath $macRoot -Recurse -File)
 
-    # Pass 1: codesign seals every file under Contents/MacOS when signing an
-    # executable inside the .app bundle, and validates each sealed file as a
-    # nested code object. Managed PE assemblies, JSON manifests, schema files
-    # and other data files must therefore carry a plain ad-hoc signature
-    # before the native Mach-O objects (apphosts, dylibs) are signed.
-    foreach ($candidate in $allFiles) {
-        $fileDescription = (& /usr/bin/file '-b' $candidate.FullName 2>$null) -join ' '
-        if ($fileDescription.Contains('Mach-O', [System.StringComparison]::Ordinal)) {
-            continue
+    function Get-SignableFiles {
+        param(
+            [Parameter(Mandatory = $true)][string]$Root,
+            [string]$ExcludePrefix = ''
+        )
+        # Symbolic links are sealed by their target string, not signed as code. Signing
+        # through one would sign the file inside the helper bundle a second time and
+        # invalidate that bundle's own seal.
+        return @(Get-ChildItem -LiteralPath $Root -Recurse -File | Where-Object {
+            -not $_.Attributes.HasFlag([System.IO.FileAttributes]::ReparsePoint) -and
+            ($ExcludePrefix.Length -eq 0 -or
+                -not $_.FullName.StartsWith($ExcludePrefix, [System.StringComparison]::Ordinal))
+        })
+    }
+
+    function Invoke-CodeSignPasses {
+        param([Parameter(Mandatory = $true)][AllowEmptyCollection()][System.IO.FileInfo[]]$Files)
+
+        # Pass 1: codesign seals every file under a bundle when signing an executable inside
+        # it, and validates each sealed file as a nested code object. Managed PE assemblies,
+        # JSON manifests, schema files and other data files must therefore carry a plain
+        # ad-hoc signature before the native Mach-O objects (apphosts, dylibs) are signed.
+        foreach ($candidate in $Files) {
+            $fileDescription = (& /usr/bin/file '-b' $candidate.FullName 2>$null) -join ' '
+            if ($fileDescription.Contains('Mach-O', [System.StringComparison]::Ordinal)) {
+                continue
+            }
+            Invoke-Native -FilePath 'codesign' -ArgumentList @(
+                '--force', '--sign', $CodeSignIdentity, '--timestamp=none', $candidate.FullName
+            ) -Activity "codesign data file $($candidate.FullName)"
         }
+
+        # Pass 2: native Mach-O code objects, with entitlements on executables.
+        foreach ($candidate in $Files) {
+            $fileDescription = (& /usr/bin/file '-b' $candidate.FullName 2>$null) -join ' '
+            if (-not $fileDescription.Contains('Mach-O', [System.StringComparison]::Ordinal)) {
+                continue
+            }
+            # .NET on macOS ad-hoc signs apphosts during publish. Re-signing a binary whose
+            # existing signature already sealed nested code (for example a single-file
+            # bundle) fails with "code object is not signed at all / In subcomponent: ...".
+            # Clear the stale signature first.
+            & /usr/bin/codesign '--remove-signature' $candidate.FullName 2>$null
+            $signArguments = @('--force', '--sign', $CodeSignIdentity, '--timestamp=none')
+            if (-not $fileDescription.Contains('shared library', [System.StringComparison]::OrdinalIgnoreCase)) {
+                $signArguments += @('--options', 'runtime', '--entitlements', $entitlements)
+            }
+            $signArguments += $candidate.FullName
+            Invoke-Native -FilePath 'codesign' -ArgumentList $signArguments -Activity "codesign $($candidate.FullName)"
+        }
+    }
+
+    # Nested bundles are sealed into the outer signature, so each helper has to be complete
+    # and signed before MyPowerTools.app is signed over it.
+    foreach ($helper in $macHelpers) {
+        $helperBundle = Get-HelperBundleRoot -Helper $helper
+        Invoke-CodeSignPasses -Files (Get-SignableFiles -Root $helperBundle)
         Invoke-Native -FilePath 'codesign' -ArgumentList @(
-            '--force', '--sign', $CodeSignIdentity, '--timestamp=none', $candidate.FullName
-        ) -Activity "codesign data file $($candidate.FullName)"
+            '--force', '--sign', $CodeSignIdentity,
+            '--options', 'runtime',
+            '--entitlements', $entitlements,
+            '--timestamp=none',
+            $helperBundle
+        ) -Activity "codesign $($helper.Bundle)"
     }
 
-    # Pass 2: native Mach-O code objects, with entitlements on executables.
-    foreach ($candidate in $allFiles) {
-        $fileDescription = (& /usr/bin/file '-b' $candidate.FullName 2>$null) -join ' '
-        if (-not $fileDescription.Contains('Mach-O', [System.StringComparison]::Ordinal)) {
-            continue
-        }
-        # .NET on macOS ad-hoc signs apphosts during publish. Re-signing a
-        # binary whose existing signature already sealed nested code (for
-        # example a single-file bundle) fails with "code object is not signed
-        # at all / In subcomponent: ...". Clear the stale signature first.
-        & /usr/bin/codesign '--remove-signature' $candidate.FullName 2>$null
-        $signArguments = @('--force', '--sign', $CodeSignIdentity, '--timestamp=none')
-        if (-not $fileDescription.Contains('shared library', [System.StringComparison]::OrdinalIgnoreCase)) {
-            $signArguments += @('--options', 'runtime', '--entitlements', $entitlements)
-        }
-        $signArguments += $candidate.FullName
-        Invoke-Native -FilePath 'codesign' -ArgumentList $signArguments -Activity "codesign $($candidate.FullName)"
-    }
+    Invoke-CodeSignPasses -Files (Get-SignableFiles `
+        -Root $macRoot `
+        -ExcludePrefix ($helpersRoot + [System.IO.Path]::DirectorySeparatorChar))
     Invoke-Native -FilePath 'codesign' -ArgumentList @(
         '--force', '--sign', $CodeSignIdentity,
         '--options', 'runtime',
@@ -421,6 +577,11 @@ if (-not $SkipCodeSign) {
         $appBundle
     ) -Activity 'codesign MyPowerTools.app'
     Invoke-Native -FilePath 'codesign' -ArgumentList @('--verify', '--deep', '--strict', $appBundle) -Activity 'codesign verification'
+    foreach ($helper in $macHelpers) {
+        Invoke-Native -FilePath 'codesign' -ArgumentList @(
+            '--verify', '--strict', (Get-HelperBundleRoot -Helper $helper)
+        ) -Activity "codesign verification $($helper.Bundle)"
+    }
 }
 
 $releaseRoot = Join-Path $artifactsRoot 'release'

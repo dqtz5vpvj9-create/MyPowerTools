@@ -45,29 +45,55 @@ public sealed class ServiceUnitCatalog
 
     public IReadOnlyCollection<ServiceUnitManifest> Manifests => _manifests.Values.ToArray();
 
-    /// <summary>Reloads manifests from disk, returning the count loaded.</summary>
+    /// <summary>
+    /// Reloads manifests from disk, returning the count loaded.
+    ///
+    /// A unit disappears from the catalog only when its file is gone. A file that is present but
+    /// unreadable keeps its previously loaded definition, because manifests are rewritten in place
+    /// and a reload can catch one half-written — and to the engine "absent from the reloaded set"
+    /// means "uninstalled", which force-stops a perfectly healthy unit.
+    /// </summary>
     public int Reload()
     {
-        _manifests.Clear();
         if (!Directory.Exists(_unitsDirectory))
         {
+            _manifests.Clear();
             return 0;
         }
 
+        var loaded = new Dictionary<string, ServiceUnitManifest>(StringComparer.OrdinalIgnoreCase);
         foreach (var file in Directory.EnumerateFiles(_unitsDirectory, "*.json"))
         {
+            ServiceUnitManifest? manifest = null;
             try
             {
-                var manifest = ParseManifest(File.ReadAllText(file), Path.GetDirectoryName(file));
-                if (manifest is not null)
-                {
-                    _manifests[manifest.Id] = manifest;
-                }
+                manifest = ParseManifest(File.ReadAllText(file), Path.GetDirectoryName(file));
             }
-            catch
+            catch (Exception ex)
             {
-                // A single bad manifest must not prevent the rest from loading.
+                Console.Error.WriteLine($"[ServiceManager] unit manifest '{file}' could not be read: {ex.Message}");
             }
+
+            if (manifest is not null)
+            {
+                loaded[manifest.Id] = manifest;
+            }
+            else if (_manifests.TryGetValue(Path.GetFileNameWithoutExtension(file), out var previous))
+            {
+                Console.Error.WriteLine(
+                    $"[ServiceManager] unit manifest '{file}' is unusable; keeping the last good definition for '{previous.Id}'.");
+                loaded[previous.Id] = previous;
+            }
+        }
+
+        foreach (var removedId in _manifests.Keys.Where(id => !loaded.ContainsKey(id)).ToArray())
+        {
+            _manifests.TryRemove(removedId, out _);
+        }
+
+        foreach (var (id, manifest) in loaded)
+        {
+            _manifests[id] = manifest;
         }
 
         return _manifests.Count;

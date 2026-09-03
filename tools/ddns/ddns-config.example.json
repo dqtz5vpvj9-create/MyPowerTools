@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "provider": "tencent-dnspod",
   "enabled": true,
-  "clearSameNameRecords": true,
+  "clearSameNameRecords": false,
   "secretId": "REPLACE_WITH_DNSPOD_ID",
   "secretToken": "REPLACE_WITH_DNSPOD_TOKEN",
   "ipSource": "adapter",

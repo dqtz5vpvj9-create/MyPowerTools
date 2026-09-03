@@ -1,4 +1,5 @@
 using MyPowerTools.Packaging;
+using MyPowerTools.Packaging.Ota;
 using MyPowerTools.Platform.Abstractions;
 using MyPowerTools.Runtime;
 using MyPowerTools.Broker;
@@ -17,6 +18,9 @@ using CommandRequest = MyPowerTools.Abstractions.CommandRequest;
 var root = FindRepositoryRoot(AppContext.BaseDirectory);
 DotNetRuntimeEnvironment.ConfigureCurrentProcess(root);
 var command = args.FirstOrDefault() ?? "help";
+
+if (command is "--help" or "-h")
+    command = "help";
 
 return command switch
 {
@@ -40,7 +44,8 @@ return command switch
     "broker" => Broker(args.Skip(1).ToArray(), root),
     "diagnostics" => Diagnostics(args.Skip(1).ToArray(), root),
     "doctor" => Doctor(root),
-    _ => Help()
+    "help" => Help(0),
+    _ => Help(2)
 };
 
 static int Validate(string[] args, string root)
@@ -443,22 +448,30 @@ static bool PromptOtaApplyConsent(IReadOnlyList<OtaCloseTarget> targets)
 static int Ota(string[] args, string root)
 {
     var subcommand = args.FirstOrDefault() ?? "status";
-    var script = new[]
-        {
-            Path.Combine(root, "ota-update.ps1"),
-            Path.Combine(root, "scripts", "ota-update.ps1")
-        }
-        .FirstOrDefault(File.Exists);
+    var bundleRoot = OperatingSystem.IsMacOS()
+        ? OtaUpdaterLocator.FindMacBundleRoot(AppContext.BaseDirectory)
+        : null;
+    var script = OtaUpdaterLocator.ResolveFirstExisting(
+        OtaUpdaterLocator.UpdaterScriptCandidates(root, bundleRoot));
     if (script is null)
     {
+        var packageAsset = OtaFeedLayout.FullPackageAsset(OtaFeedLayout.CurrentRuntimeIdentifier());
+        var installScript = OperatingSystem.IsMacOS() ? "install-macos.ps1" : "install-windows.ps1";
         Console.Error.WriteLine("本安装未包含在线 OTA 更新器（ota-update.ps1 缺失）。");
-        Console.Error.WriteLine("原因通常是安装版本早于 0.3.0（在线 OTA 从 0.3.0 起才随安装包发布），");
+        Console.Error.WriteLine("原因通常是安装版本早于随包发布更新器的版本，");
         Console.Error.WriteLine("旧版本无法通过 mpt ota 在线升级自身。");
-        Console.Error.WriteLine("请从 GitHub Releases 下载最新 MyPowerTools-win-x64.zip，");
-        Console.Error.WriteLine("解压后运行其中的 install-windows.ps1 完成一次完整升级；");
+        Console.Error.WriteLine($"请从 GitHub Releases 下载最新 {packageAsset}，");
+        Console.Error.WriteLine($"解压后运行其中的 {installScript} 完成一次完整升级；");
         Console.Error.WriteLine("升级后 mpt ota check / apply 即可正常使用。");
         Console.Error.WriteLine("也可先在仓库源码目录执行 scripts/ota-update.ps1 临时验证。");
         return 3;
+    }
+
+    var powerShell = OtaUpdaterLocator.ResolvePowerShell();
+    if (powerShell is null)
+    {
+        Console.Error.WriteLine(OtaUpdaterLocator.PowerShellMissingMessage(OperatingSystem.IsMacOS()));
+        return 2;
     }
 
     try
@@ -469,7 +482,7 @@ static int Ota(string[] args, string root)
             "ota-state");
         Directory.CreateDirectory(otaState);
 
-        var startInfo = new System.Diagnostics.ProcessStartInfo("pwsh")
+        var startInfo = new System.Diagnostics.ProcessStartInfo(powerShell)
         {
             UseShellExecute = false,
             CreateNoWindow = true,
@@ -484,6 +497,15 @@ static int Ota(string[] args, string root)
         startInfo.ArgumentList.Add(script);
         startInfo.ArgumentList.Add("-Command");
         startInfo.ArgumentList.Add(subcommand);
+        if (bundleRoot is not null)
+        {
+            // This process runs out of the bundle being updated, so it knows the install root
+            // exactly. Without it the updater would fall back to ~/Applications/MyPowerTools.app
+            // and check a bundle the caller may not be running from.
+            startInfo.ArgumentList.Add("-InstallRoot");
+            startInfo.ArgumentList.Add(bundleRoot);
+        }
+
         var confirmedApply = !string.Equals(subcommand, "apply", StringComparison.OrdinalIgnoreCase);
         foreach (var argument in args.Skip(1))
         {
@@ -547,7 +569,7 @@ static int Ota(string[] args, string root)
     }
     catch (System.ComponentModel.Win32Exception)
     {
-        Console.Error.WriteLine("PowerShell 7 (pwsh) is required for OTA updates and was not found on PATH.");
+        Console.Error.WriteLine(OtaUpdaterLocator.PowerShellMissingMessage(OperatingSystem.IsMacOS()));
         return 2;
     }
 }
@@ -1247,43 +1269,57 @@ static void PrintBrokerResult(BrokerOperationResult result)
     Console.WriteLine($"{result.State}: {result.Message}");
 }
 
-static int Help()
+static int Help(int exitCode = 0)
 {
-    Console.WriteLine("mypowertools create tool --type web|dotnet|native|headless --id <id> --output <dir>");
-    Console.WriteLine("mypowertools validate tool <dir>");
-    Console.WriteLine("mypowertools pack tool <dir> [--output <file.mptpkg>]");
-    Console.WriteLine("mpt validate <package-dir> [--schemas <schema-dir>]");
-    Console.WriteLine("mpt validate contracts [package-root] [--schemas <schema-dir>] [--data-root <dir>]");
-    Console.WriteLine("mpt inspect <package-dir>");
-    Console.WriteLine("mpt run <command-id>");
-    Console.WriteLine("mpt package hash <package-dir>");
-    Console.WriteLine("mpt package sign-local <package-dir>");
-    Console.WriteLine("mpt package trust <package-dir> [--strict]");
-    Console.WriteLine("mpt install <package-dir> [--store-root <dir>]");
-    Console.WriteLine("mpt uninstall <package-id> [--store-root <dir>]");
-    Console.WriteLine("mpt update <package-dir> [--store-root <dir>]");
-    Console.WriteLine("mpt rollback <package-id> [--store-root <dir>]");
-    Console.WriteLine("mpt repair <package-id> [--store-root <dir>]");
-    Console.WriteLine("mpt ota check|apply|status [--channel <channel>] [--force] [--allow-unsigned] [--yes]");
-    Console.WriteLine("mpt ddns status|update|list|watch [--config <path>] [--override-ip <ip>] [--force]");
-    Console.WriteLine("mpt runner autostart [status|enable|disable] [--id <id>] [--command <command>] [--dry-run]");
-    Console.WriteLine("mpt runner process <restart|pause|resume> <transport-kind> <pool-key>|. [--endpoint-address <address>] [--reason <reason>] [--until <iso-8601>] [--duration-minutes <minutes>]");
-    Console.WriteLine("mpt module list [--include-disabled] [--modules <package-root>] [--data-root <dir>]");
-    Console.WriteLine("mpt module enable <module-id> [--modules <package-root>] [--data-root <dir>]");
-    Console.WriteLine("mpt module disable <module-id> [--modules <package-root>] [--data-root <dir>]");
-    Console.WriteLine("mpt service list|status|start|stop|restart|reload|shutdown [unit-id]");
-    Console.WriteLine("mpt ui check <package-dir>");
-    Console.WriteLine("mpt ui snapshot [package-dir] [--surface <id|kind>] [--theme <theme>] [--size <width>x<height>] [--density <density>] [--out <dir>]");
-    Console.WriteLine("mpt ui screenshot [--mode fixture|live-runner] [--product-foundation] [--full-shell] [--page home|tools|adb-forwarder|screenease|remote-notifications|dashboard|command-palette|module-detail|settings|logs|notifications|packages|diagnostics] [--scenario default|scroll|filter|detail|activation] [--theme <theme>] [--size <width>x<height>] [--density <density>] [--out <dir>]");
-    Console.WriteLine("mpt ui shell-snapshot [--live|--live-runner] [--product-foundation] [--full-shell] [--fixture-only] [--runner-only] [--surface <id|kind>] [--scenario default|scroll|filter|detail|activation] [--theme <theme>] [--size <width>x<height>] [--density <density>] [--out <dir>] (writes contract and full ShellChrome Avalonia screenshots)");
-    Console.WriteLine("mpt broker audit");
-    Console.WriteLine("mpt broker secret self-test [--module <id>] [--name <name>]");
-    Console.WriteLine("mpt broker portproxy list");
-    Console.WriteLine("mpt broker portproxy apply --listen-address <address> --listen-port <port> --connect-address <address> --connect-port <port>");
-    Console.WriteLine("mpt broker portproxy remove --listen-address <address> --listen-port <port>");
-    Console.WriteLine("mpt diagnostics [--modules <package-root>] [--data-root <dir>]");
-    Console.WriteLine("mpt doctor");
-    return 2;
+    Console.WriteLine("Usage: mpt <command> [options]");
+    Console.WriteLine();
+
+    Console.WriteLine("Tool Development:");
+    Console.WriteLine("  create tool       --type web|dotnet|native|headless --id <id> --output <dir>");
+    Console.WriteLine("  validate tool     <dir>");
+    Console.WriteLine("  pack tool         <dir> [--output <file.mptpkg>]");
+    Console.WriteLine("  validate          <package-dir> [--schemas <schema-dir>]");
+    Console.WriteLine("  validate contracts [package-root] [--schemas <schema-dir>] [--data-root <dir>]");
+    Console.WriteLine("  inspect           <package-dir>");
+    Console.WriteLine();
+
+    Console.WriteLine("Package Management:");
+    Console.WriteLine("  install           <package-dir> [--store-root <dir>]");
+    Console.WriteLine("  uninstall         <package-id> [--store-root <dir>]");
+    Console.WriteLine("  update            <package-dir> [--store-root <dir>]");
+    Console.WriteLine("  rollback          <package-id> [--store-root <dir>]");
+    Console.WriteLine("  repair            <package-id> [--store-root <dir>]");
+    Console.WriteLine("  package hash      <package-dir>");
+    Console.WriteLine("  package sign-local <package-dir>");
+    Console.WriteLine("  package trust     <package-dir> [--strict]");
+    Console.WriteLine("  ota               check|apply|status [--channel <channel>] [--force] [--yes]");
+    Console.WriteLine();
+
+    Console.WriteLine("Runtime & Services:");
+    Console.WriteLine("  run               <command-id>");
+    Console.WriteLine("  module            list|enable|disable <module-id> [--include-disabled]");
+    Console.WriteLine("  service           list|status|start|stop|restart|reload|shutdown [unit-id]");
+    Console.WriteLine("  runner autostart  [status|enable|disable] [--id <id>] [--dry-run]");
+    Console.WriteLine("  runner process    <restart|pause|resume> <transport-kind> <pool-key>");
+    Console.WriteLine();
+
+    Console.WriteLine("Network & Security:");
+    Console.WriteLine("  ddns              status|update|list|watch [--config <path>] [--force]");
+    Console.WriteLine("  broker audit");
+    Console.WriteLine("  broker secret     self-test [--module <id>] [--name <name>]");
+    Console.WriteLine("  broker portproxy  list|apply|remove [--listen-address <addr> --listen-port <port>]");
+    Console.WriteLine();
+
+    Console.WriteLine("UI & Diagnostics:");
+    Console.WriteLine("  ui check          <package-dir>");
+    Console.WriteLine("  ui snapshot       [package-dir] [--surface <id|kind>] [--theme <theme>]");
+    Console.WriteLine("  ui screenshot     [--page <page>] [--theme <theme>] [--size <WxH>]");
+    Console.WriteLine("  diagnostics       [--modules <package-root>] [--data-root <dir>]");
+    Console.WriteLine("  doctor");
+    Console.WriteLine();
+
+    Console.WriteLine("Run 'mpt <command> --help' for more information on a specific command.");
+    return exitCode;
 }
 
 static string FindRepositoryRoot(string start)

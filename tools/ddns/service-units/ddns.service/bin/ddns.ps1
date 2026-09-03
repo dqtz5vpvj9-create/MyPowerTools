@@ -149,24 +149,22 @@ function Invoke-Update {
         record_type = 'A'
     } -Config $Config).records)
 
-    $domainIp = if ($records.Count -gt 0) { [string]$records[0].value } else { '' }
-    $now = Get-Date
-
-    # 清除所有同名记录：只保留一条 A 记录，其余删除（覆盖语义）。
-    if ([bool]$Config.clearSameNameRecords -and $records.Count -gt 1) {
-        foreach ($extra in $records | Select-Object -Skip 1) {
-            Invoke-DnspodApi -Action 'Record.Remove' -Params @{
-                domain = $domain
-                record_id = [string]$extra.id
-            } -Config $Config | Out-Null
+    # 保留哪一条：优先保留取值已等于当前 WAN IP 的记录，否则保留第一条。
+    $primary = $null
+    if ($records.Count -gt 0) {
+        $primary = @($records | Where-Object { [string]$_.value -eq $wanIp })[0]
+        if ($null -eq $primary) {
+            $primary = $records[0]
         }
-        $records = @($records[0])
     }
+
+    $domainIp = if ($null -ne $primary) { [string]$primary.value } else { '' }
+    $now = Get-Date
 
     $updated = $false
     $message = ''
     $recordId = ''
-    if ($records.Count -eq 0) {
+    if ($null -eq $primary) {
         $result = Invoke-DnspodApi -Action 'Record.Create' -Params @{
             domain = $domain
             sub_domain = $subDomain
@@ -180,9 +178,8 @@ function Invoke-Update {
         $message = "created $recordName -> $wanIp"
     }
     else {
-        $record = $records[0]
-        $recordId = [string]$record.id
-        if ([string]$record.value -eq $wanIp -and -not $Force) {
+        $recordId = [string]$primary.id
+        if ([string]$primary.value -eq $wanIp -and -not $Force) {
             $message = "IP dont need UPDATE... ($recordName already $wanIp)"
         }
         else {
@@ -198,6 +195,19 @@ function Invoke-Update {
             $updated = $true
             $message = "updated $recordName -> $wanIp"
         }
+    }
+
+    # 只在记录确实被写入时才按覆盖语义清理同名多余 A 记录，避免每分钟轮询都删记录。
+    if ($updated -and [bool]$Config.clearSameNameRecords -and $records.Count -gt 1) {
+        $removed = 0
+        foreach ($extra in $records | Where-Object { [string]$_.id -ne $recordId }) {
+            Invoke-DnspodApi -Action 'Record.Remove' -Params @{
+                domain = $domain
+                record_id = [string]$extra.id
+            } -Config $Config | Out-Null
+            $removed++
+        }
+        Write-Log -Path $logPath -Line "$($now.ToString('yyyy-MM-dd HH:mm:ss')) removed $removed duplicate A record(s) for $recordName"
     }
 
     $state = [ordered]@{

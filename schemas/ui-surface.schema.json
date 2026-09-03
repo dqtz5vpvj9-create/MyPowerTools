@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://mypowertools.local/schemas/ui-surface.schema.json",
+  "$id": "https://mypowertools.dev/schemas/ui-surface.schema.json",
   "title": "MyPowerTools UI Surface",
   "type": "object",
   "required": ["schemaVersion", "surfaceId", "moduleId", "kind", "layout", "states"],

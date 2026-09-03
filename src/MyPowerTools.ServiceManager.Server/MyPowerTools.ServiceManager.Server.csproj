@@ -14,6 +14,12 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!-- The supervision internals (process discovery, command-line quoting, restart windows) are
+         implementation detail of this assembly but need direct test coverage. -->
+    <InternalsVisibleTo Include="MyPowerTools.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Grpc.Core.Api" Version="2.80.0" />
     <PackageReference Include="Microsoft.Extensions.Hosting.Abstractions" Version="10.0.0" />
   </ItemGroup>

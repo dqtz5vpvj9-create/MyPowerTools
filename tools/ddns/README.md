@@ -11,7 +11,9 @@ CLI 通过 `mpt ddns status|update|list|watch` 使用。
 - 从指定网卡（如 `Realtek USB 2.5GbE Family Controller`）读取 IPv4，或从公网
   服务获取出口 IP。
 - 查询 DNSPod 中主域名/子域名的 A 记录；不存在则创建，存在且 IP 变化则修改。
-- `clearSameNameRecords=true` 时删除同名多余 A 记录，只保留一条（覆盖语义）。
+- `clearSameNameRecords=true` 时，只有在记录真的被写入（创建或更新）的那一次才删除同名
+  多余 A 记录；保留取值已等于当前 WAN IP 的那条，没有则保留第一条。示例配置默认关闭，
+  IP 未变化的轮询不会动任何记录。
 - 支持 `update`（执行一次）、`watch`（按 `checkIntervalMinutes` 循环）、
   `status`（查看最近一次状态）、`list`（只读列出同名记录）。
 - 每次结果写入 `ddns-state.json`，并追加 `ddns.log`。

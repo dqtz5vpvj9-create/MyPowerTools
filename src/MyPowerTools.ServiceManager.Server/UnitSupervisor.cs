@@ -394,7 +394,15 @@ public sealed class UnitSupervisor : IAsyncDisposable
 
         try
         {
+            // Units are launched with CREATE_NO_WINDOW, so they are not attached to this process's
+            // console and GenerateConsoleCtrlEvent cannot reach them — the console-signal attempt
+            // that used to run here always returned FALSE. Delivering CTRL_BREAK for real would
+            // mean AttachConsole/SetConsoleCtrlHandler/FreeConsole around every stop, tearing the
+            // manager's own console state down and back up; CloseMainWindow plus the manifest's
+            // stop timeout is the simpler correct behaviour. The grace period is always
+            // StopTimeout: a unit that declares 30 s must get 30 s before it is killed.
             _process.CloseMainWindow();
+
             if (!await WaitForExitAsync(_process, _manifest.StopTimeout))
             {
                 _process.Kill(entireProcessTree: true);
@@ -569,32 +577,10 @@ public sealed class UnitSupervisor : IAsyncDisposable
             }
         }
 
-        if (OperatingSystem.IsWindows())
-        {
-            return UnitProcessDiscovery.Matches(candidate, _manifest);
-        }
-
-        if (Path.IsPathRooted(_manifest.Exec))
-        {
-            try
-            {
-                var actualExec = candidate.MainModule?.FileName;
-                if (string.IsNullOrWhiteSpace(actualExec) ||
-                    !string.Equals(
-                        Path.GetFullPath(actualExec),
-                        Path.GetFullPath(_manifest.Exec),
-                        OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal))
-                {
-                    return false;
-                }
-            }
-            catch
-            {
-                return false;
-            }
-        }
-
-        return true;
+        // A manifest that names its executable without a directory cannot be verified against a
+        // running image — UnitProcessDiscovery declines those outright — but the persisted pid, its
+        // start time and the instance token already identify the process on this path.
+        return !Path.IsPathRooted(_manifest.Exec) || UnitProcessDiscovery.Matches(candidate, _manifest);
     }
 
     private async Task TerminateDuplicatesAsync(IReadOnlyList<Process> processes, Process? keeper)
@@ -687,6 +673,15 @@ public sealed class UnitSupervisor : IAsyncDisposable
 
         // Unexpected exit — apply restart policy.
         var policy = _manifest.EffectiveRestartPolicy;
+        if (_restartCount > 0 &&
+            _startedAt is { } startedAt &&
+            DateTimeOffset.UtcNow - startedAt >= HealthyWindowFor(policy))
+        {
+            // The unit held up for a full start-limit window, so this exit opens a new failure
+            // burst instead of spending a budget that an unrelated crash consumed hours ago.
+            _restartCount = 0;
+        }
+
         if (_restartCount >= policy.MaxRestarts)
         {
             _lastError = $"process exited (code {_exitCode}); restart limit reached ({policy.MaxRestarts})";
@@ -699,9 +694,41 @@ public sealed class UnitSupervisor : IAsyncDisposable
         Transition(ServiceUnitState.Degraded, _lastError);
         var restartGeneration = Volatile.Read(ref _restartGeneration);
         _scheduledRestart = ScheduleRestartAsync(
-            policy.Backoff,
+            BackoffFor(policy, _restartCount),
             restartGeneration,
             _lifetimeCancellation.Token);
+    }
+
+    /// <summary>Lower bound for the start-limit window, used when the policy backoff is short.</summary>
+    private static readonly TimeSpan MinimumHealthyWindow = TimeSpan.FromSeconds(60);
+
+    /// <summary>Ceiling for the exponentially growing restart backoff.</summary>
+    private static readonly TimeSpan MaximumRestartBackoff = TimeSpan.FromMinutes(2);
+
+    /// <summary>
+    /// How long a unit must stay up before its accumulated restart count is forgiven. Without this
+    /// the count only ever grows, so a unit that crashed <c>maxRestarts</c> times over its whole
+    /// lifetime is never restarted again.
+    /// </summary>
+    internal static TimeSpan HealthyWindowFor(ServiceUnitRestartPolicy policy)
+    {
+        var scaled = policy.Backoff > TimeSpan.Zero ? policy.Backoff * 10 : TimeSpan.Zero;
+        return scaled > MinimumHealthyWindow ? scaled : MinimumHealthyWindow;
+    }
+
+    /// <summary>
+    /// Delay before restart attempt number <paramref name="restartCount"/>, doubling per attempt
+    /// from the policy backoff so a unit that fails on every launch stops hammering the machine.
+    /// </summary>
+    internal static TimeSpan BackoffFor(ServiceUnitRestartPolicy policy, int restartCount)
+    {
+        if (policy.Backoff <= TimeSpan.Zero)
+        {
+            return TimeSpan.Zero;
+        }
+
+        var backoff = policy.Backoff * (1 << Math.Clamp(restartCount, 0, 8));
+        return backoff > MaximumRestartBackoff ? MaximumRestartBackoff : backoff;
     }
 
     private async Task ScheduleRestartAsync(

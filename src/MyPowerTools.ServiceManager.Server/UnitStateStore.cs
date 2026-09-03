@@ -24,7 +24,11 @@ public sealed class UnitStateStore
         var path = PathFor(state.UnitId);
         lock (_fileLocks.GetOrAdd(state.UnitId, _ => new object()))
         {
-            File.WriteAllText(path, state.ToJson());
+            // Written to a sibling first: a state file torn by a crash mid-write reads back as null
+            // and the unit is then orphaned rather than re-adopted on the next manager start.
+            var temporaryPath = path + ".tmp";
+            File.WriteAllText(temporaryPath, state.ToJson());
+            File.Move(temporaryPath, path, overwrite: true);
         }
     }
 

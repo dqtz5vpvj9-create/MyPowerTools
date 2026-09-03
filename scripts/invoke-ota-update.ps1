@@ -291,6 +291,7 @@ $completed = $false
 $stoppedProcessRecords = [Collections.Generic.List[object]]::new()
 $runtimeRestarted = $false
 $legacyDotNetRootMigration = Clear-MyPowerToolsLegacyUserDotNetRoot -InstallRoot $targetRootFull
+$rollbackFailures = 0
 
 try {
     New-Item -ItemType Directory -Path $extractRoot, $backupRoot -Force | Out-Null
@@ -557,6 +558,7 @@ try {
 }
 catch {
     $updateError = $_
+    $rollbackFailures = 0
     for ($index = $journal.Count - 1; $index -ge 0; $index--) {
         $entry = $journal[$index]
         try {
@@ -582,6 +584,7 @@ catch {
             }
         }
         catch {
+            $rollbackFailures++
         }
     }
     if ($RestartRuntime -and $stoppedProcessRecords.Count -gt 0 -and -not $runtimeRestarted) {
@@ -604,12 +607,23 @@ catch {
     throw $updateError
 }
 finally {
-    if (-not $KeepBackup) {
+    if (-not $KeepBackup -and $rollbackFailures -eq 0) {
         $removeTransactionParams = @{
             Root = $transactionRoot
             ExpectedParent = $transactionParent
             ExpectedLeaf = $transactionId
         }
         Remove-ValidatedTransactionRoot @removeTransactionParams
+    }
+    elseif ($rollbackFailures -gt 0) {
+        Write-Warning "OTA rollback had $rollbackFailures file-restore failure(s); keeping transaction root for manual recovery: $transactionRoot"
+        # Marker read by the ota-update.ps1 sweep so this root is never reclaimed.
+        $rollbackMarker = Join-Path $transactionRoot 'ROLLBACK-FAILED.txt'
+        if (-not (Test-Path -LiteralPath $rollbackMarker -PathType Leaf)) {
+            [IO.File]::WriteAllText(
+                $rollbackMarker,
+                "$rollbackFailures file(s) could not be restored at $([DateTimeOffset]::UtcNow.ToString('O')). Keep this directory until the install is repaired.`n",
+                [Text.UTF8Encoding]::new($false))
+        }
     }
 }

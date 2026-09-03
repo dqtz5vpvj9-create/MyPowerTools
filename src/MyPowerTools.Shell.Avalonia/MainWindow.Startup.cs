@@ -1,3 +1,4 @@
+using System.Diagnostics;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Threading;
@@ -65,6 +66,13 @@ public sealed partial class MainWindow
             catch (Exception ex)
             {
                 ShellCommandFaultLog.Write("Bootstrap Runner", ex, "startup");
+            }
+
+            if (bootstrapResult is not null &&
+                string.Equals(bootstrapResult.State, "missing", StringComparison.OrdinalIgnoreCase))
+            {
+                Trace.WriteLine($"Runner bootstrap failed ({bootstrapResult.State}): {bootstrapResult.Message}");
+                _bootstrapFailureMessage = bootstrapResult.Message;
             }
 
             await OpenInitialWorkspaceAsync(workspace, bootstrapResult?.StartupTools);

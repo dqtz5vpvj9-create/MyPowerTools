@@ -63,6 +63,7 @@
     <Project Path="tools/remote-notifications/current-integration/src/AndroidTools.MyPowerTools/AndroidTools.MyPowerTools.csproj" />
     <Project Path="tools/remote-notifications/current-integration/src/AndroidTools.Runtime/AndroidTools.Runtime.csproj" />
     <Project Path="tools/remote-notifications/current-integration/src/RemoteNotifications.Surface/RemoteNotifications.Surface.csproj" />
+    <Project Path="tools/remote-notifications/current-integration/tests/RemoteNotifications.Configuration.Tests/RemoteNotifications.Configuration.Tests.csproj" />
     <Project Path="tools/screenease/current-integration/src/ScreenEase.MyPowerTools/ScreenEase.MyPowerTools.csproj" />
     <Project Path="tools/screenease/current-integration/src/ScreenEase.Service/ScreenEase.Service.csproj" />
     <Project Path="tools/screenease/current-integration/src/ScreenEase.Surface/ScreenEase.Surface.csproj" />

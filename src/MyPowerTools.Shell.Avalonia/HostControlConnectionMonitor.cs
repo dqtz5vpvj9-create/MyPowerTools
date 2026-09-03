@@ -31,6 +31,9 @@ public sealed class HostControlRunnerConnectionProbe : IHostControlConnectionPro
 
 public sealed class HostControlConnectionMonitor : IAsyncDisposable
 {
+    private const int RestartThreshold = 3;
+    private static readonly TimeSpan RestartCooldown = TimeSpan.FromSeconds(30);
+
     private readonly IHostControlConnectionProbe _probe;
     private readonly TimeSpan _pollInterval;
     private readonly TimeSpan _attemptTimeout;
@@ -40,6 +43,7 @@ public sealed class HostControlConnectionMonitor : IAsyncDisposable
     private Task? _loop;
     private int _consecutiveFailures;
     private bool _wasOnline;
+    private DateTimeOffset _lastRestartAttempt;
 
     public HostControlConnectionMonitor(
         IHostControlConnectionProbe probe,
@@ -60,6 +64,13 @@ public sealed class HostControlConnectionMonitor : IAsyncDisposable
     }
 
     public event EventHandler<HostControlConnectionSnapshot>? StateChanged;
+
+    /// <summary>
+    /// Optional callback invoked when the Runner appears down for
+    /// <see cref="RestartThreshold"/> consecutive probes. Respects a
+    /// <see cref="RestartCooldown"/> between attempts.
+    /// </summary>
+    public Func<Task>? RestartRunner { get; set; }
 
     public HostControlConnectionSnapshot LastSnapshot { get; private set; }
 
@@ -112,6 +123,7 @@ public sealed class HostControlConnectionMonitor : IAsyncDisposable
             }
             catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
             {
+                var shouldRestart = false;
                 lock (_stateGate)
                 {
                     _consecutiveFailures++;
@@ -125,6 +137,29 @@ public sealed class HostControlConnectionMonitor : IAsyncDisposable
                         false,
                         DateTimeOffset.UtcNow);
                     LastSnapshot = snapshot;
+
+                    if (_consecutiveFailures >= RestartThreshold && RestartRunner is not null)
+                    {
+                        var now = DateTimeOffset.UtcNow;
+                        if (now - _lastRestartAttempt >= RestartCooldown)
+                        {
+                            _lastRestartAttempt = now;
+                            shouldRestart = true;
+                        }
+                    }
+                }
+
+                if (shouldRestart)
+                {
+                    var restart = RestartRunner;
+                    if (restart is not null)
+                    {
+                        _ = Task.Run(async () =>
+                        {
+                            try { await restart(); }
+                            catch { /* best-effort restart */ }
+                        });
+                    }
                 }
             }
 

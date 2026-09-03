@@ -19,6 +19,7 @@ public sealed partial class MainWindow
     private static readonly IntPtr HwndNotTopmost = new(-2);
     private int _permanentCloseRequested;
     private WindowState _residentRestoreState = WindowState.Normal;
+    private IActivatableLifetime? _platformActivation;
 
     private Task HandleShellActivationAsync(ShellActivationRequest request)
     {
@@ -33,7 +34,18 @@ public sealed partial class MainWindow
     internal Task PresentFromPlatformTrayAsync() =>
         HandleShellActivationAsync(ShellActivationRequest.FocusShell);
 
-    internal void ShutdownFromPlatformTray() => ShutdownPermanently();
+    internal void ShutdownFromPlatformTray()
+    {
+        // The platform tray handler awaits the background-host shutdown before it gets here, so
+        // this can arrive on a thread-pool continuation rather than the status item's main thread.
+        if (Dispatcher.UIThread.CheckAccess())
+        {
+            ShutdownPermanently();
+            return;
+        }
+
+        Dispatcher.UIThread.Post(ShutdownPermanently, DispatcherPriority.Send);
+    }
 
     private async Task ActivateShellAsync(ShellActivationRequest request)
     {
@@ -65,6 +77,15 @@ public sealed partial class MainWindow
             args.CloseReason is not WindowCloseReason.WindowClosing and
                 not WindowCloseReason.Undefined)
         {
+            base.OnClosing(args);
+            return;
+        }
+
+        if (!_trayAvailable)
+        {
+            // No tray icon on this platform -- let the close proceed as actual exit
+            // so the user isn't left with an invisible, unreachable window.
+            AllowPermanentClose();
             base.OnClosing(args);
             return;
         }
@@ -144,6 +165,14 @@ public sealed partial class MainWindow
 
     private bool BringResidentWindowToForeground()
     {
+        if (OperatingSystem.IsMacOS())
+        {
+            // Activate() raises the window within the app, but a Shell that was hidden to the
+            // status item is not the frontmost application, so without this the window comes back
+            // behind whatever the user was working in.
+            return MacApplicationActivation.BringProcessToFront();
+        }
+
         if (!OperatingSystem.IsWindows())
         {
             return true;
@@ -183,6 +212,11 @@ public sealed partial class MainWindow
 
     private bool IsResidentWindowForeground()
     {
+        if (OperatingSystem.IsMacOS())
+        {
+            return IsActive && MacApplicationActivation.IsFrontmost();
+        }
+
         if (!OperatingSystem.IsWindows())
         {
             return true;
@@ -190,6 +224,59 @@ public sealed partial class MainWindow
 
         var handle = TryGetPlatformHandle()?.Handle ?? IntPtr.Zero;
         return handle != IntPtr.Zero && GetForegroundWindow() == handle;
+    }
+
+    /// <summary>
+    /// AppKit activation for the resident Shell. Only the running application itself can pull the
+    /// process in front of the app the user is currently in, and Avalonia exposes no API for that.
+    /// </summary>
+    private static class MacApplicationActivation
+    {
+        private const string ObjectiveCRuntime = "/usr/lib/libobjc.A.dylib";
+        private const ulong ActivateAllWindows = 1UL << 0;
+        private const ulong ActivateIgnoringOtherApps = 1UL << 1;
+
+        internal static bool BringProcessToFront()
+        {
+            var application = CurrentApplication();
+            return application != IntPtr.Zero &&
+                SendActivateMessage(
+                    application,
+                    sel_registerName("activateWithOptions:"),
+                    ActivateAllWindows | ActivateIgnoringOtherApps);
+        }
+
+        internal static bool IsFrontmost()
+        {
+            var application = CurrentApplication();
+            return application != IntPtr.Zero &&
+                SendBooleanMessage(application, sel_registerName("isActive"));
+        }
+
+        private static IntPtr CurrentApplication()
+        {
+            var runningApplication = objc_getClass("NSRunningApplication");
+            return runningApplication == IntPtr.Zero
+                ? IntPtr.Zero
+                : SendMessage(runningApplication, sel_registerName("currentApplication"));
+        }
+
+        [DllImport(ObjectiveCRuntime)]
+        private static extern IntPtr objc_getClass(string className);
+
+        [DllImport(ObjectiveCRuntime)]
+        private static extern IntPtr sel_registerName(string selectorName);
+
+        [DllImport(ObjectiveCRuntime, EntryPoint = "objc_msgSend")]
+        private static extern IntPtr SendMessage(IntPtr receiver, IntPtr selector);
+
+        [DllImport(ObjectiveCRuntime, EntryPoint = "objc_msgSend")]
+        [return: MarshalAs(UnmanagedType.U1)]
+        private static extern bool SendBooleanMessage(IntPtr receiver, IntPtr selector);
+
+        [DllImport(ObjectiveCRuntime, EntryPoint = "objc_msgSend")]
+        [return: MarshalAs(UnmanagedType.U1)]
+        private static extern bool SendActivateMessage(IntPtr receiver, IntPtr selector, ulong options);
     }
 
     private static Task WaitForPresentationBarrierAsync()
@@ -287,6 +374,26 @@ public sealed partial class MainWindow
             HandleShellActivationAsync,
             afterAcknowledged: HandleShellActivationAcknowledged);
         _activationPipe.Start();
+        _platformActivation = Application.Current?.TryGetFeature<IActivatableLifetime>();
+        if (_platformActivation is not null)
+        {
+            _platformActivation.Activated += OnPlatformActivated;
+        }
+    }
+
+    /// <summary>
+    /// macOS answers a Dock or Finder launch of an app it already considers running with a reopen
+    /// event instead of a second process, so the launcher never gets to forward an activation.
+    /// The window has to come back from here on exactly the path the pipe would have taken.
+    /// </summary>
+    private void OnPlatformActivated(object? sender, ActivatedEventArgs args)
+    {
+        if (args.Kind != ActivationKind.Reopen)
+        {
+            return;
+        }
+
+        _ = HandleShellActivationAsync(ShellActivationRequest.FocusShell);
     }
 
     private void OnActualThemeVariantChanged(object? sender, EventArgs args)
@@ -301,6 +408,11 @@ public sealed partial class MainWindow
         Opened -= OnWindowOpened;
         ActualThemeVariantChanged -= OnActualThemeVariantChanged;
         Closed -= OnWindowClosed;
+        var platformActivation = Interlocked.Exchange(ref _platformActivation, null);
+        if (platformActivation is not null)
+        {
+            platformActivation.Activated -= OnPlatformActivated;
+        }
         var activationPipe = Interlocked.Exchange(ref _activationPipe, null);
         _workspaceOpened.TrySetResult(true);
         _ = DisposeWindowResourcesAsync(activationPipe);

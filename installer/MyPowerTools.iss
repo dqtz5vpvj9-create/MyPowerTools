@@ -1,6 +1,12 @@
 #ifndef MyAppVersion
   #define MyAppVersion "0.3.0"
 #endif
+#ifndef MyReleaseChannel
+  #define MyReleaseChannel "stable"
+#endif
+#ifndef MyRepositoryUrl
+  #define MyRepositoryUrl "https://github.com/dqtz5vpvj9-create/MyPowerTools"
+#endif
 
 [Setup]
 AppId={{6A1532EA-A2F5-4C1F-AB7C-B119C9C3B54B}
@@ -104,10 +110,57 @@ begin
     RaiseException('Unable to write Doubao virtual environment configuration: ' + ConfigPath);
 end;
 
+function JsonEscape(const Value: String): String;
+begin
+  Result := Value;
+  StringChangeEx(Result, '\', '\\', True);
+  StringChangeEx(Result, '"', '\"', True);
+end;
+
+procedure SeedOtaState;
+var
+  OtaDir: String;
+  ManifestSource: String;
+  ManifestTarget: String;
+  PublicKeySource: String;
+  ReleaseText: String;
+begin
+  OtaDir := ExpandConstant('{localappdata}\MyPowerTools\ota-state');
+  if not ForceDirectories(OtaDir) then
+    RaiseException('Unable to create the OTA state directory: ' + OtaDir);
+
+  ManifestSource := ExpandConstant('{app}\MyPowerTools-win-x64.manifest.json');
+  ManifestTarget := OtaDir + '\installed-files.manifest.json';
+  if not FileCopy(ManifestSource, ManifestTarget, False) then
+    RaiseException('Unable to seed the OTA file manifest from ' + ManifestSource);
+
+  PublicKeySource := ExpandConstant('{app}\ota-signing-public-key.txt');
+  if FileExists(PublicKeySource) then
+    FileCopy(PublicKeySource, OtaDir + '\ota-signing-public-key.txt', False);
+
+  ReleaseText := '{' + #13#10 +
+    '  "schemaVersion": 1,' + #13#10 +
+    '  "product": "MyPowerTools",' + #13#10 +
+    '  "version": "{#MyAppVersion}",' + #13#10 +
+    '  "channel": "{#MyReleaseChannel}",' + #13#10 +
+    '  "installedAt": "' + GetDateTimeString('yyyy-mm-dd', '-', ':') + 'T' +
+      GetDateTimeString('hh:nn:ss', '-', ':') + '",' + #13#10 +
+    '  "installDir": "' + JsonEscape(ExpandConstant('{app}')) + '",' + #13#10 +
+    '  "dataRoot": "' + JsonEscape(ExpandConstant('{localappdata}\MyPowerTools')) + '",' + #13#10 +
+    '  "repository": "{#MyRepositoryUrl}",' + #13#10 +
+    '  "manifestPath": "installed-files.manifest.json",' + #13#10 +
+    '  "manifestSha256": "' + Lowercase(GetSHA256OfFile(ManifestTarget)) + '",' + #13#10 +
+    '  "packageKind": "full",' + #13#10 +
+    '  "distributionMode": "full"' + #13#10 + '}' + #13#10;
+  if not SaveStringToFile(OtaDir + '\installed-release.json', ReleaseText, False) then
+    RaiseException('Unable to write installed-release.json.');
+end;
+
 procedure CurStepChanged(CurStep: TSetupStep);
 begin
   if CurStep = ssPostInstall then
   begin
     RewriteDoubaoVenvConfig('');
+    SeedOtaState;
   end;
 end;

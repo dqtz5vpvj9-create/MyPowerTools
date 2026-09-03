@@ -1,17 +1,19 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="using:MyPowerTools.UI.Controls"
              xmlns:vm="using:PasteImage.Surface.ViewModels"
              x:Class="PasteImage.Surface.Views.PasteImageView"
              x:DataType="vm:PasteImageViewModel">
   <UserControl.Styles>
     <Style Selector="Border.card">
-      <Setter Property="BorderBrush" Value="#D8D8D8" />
+      <Setter Property="Background" Value="{DynamicResource MptBrushCardBackground}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource MptBrushBorder}" />
       <Setter Property="BorderThickness" Value="1" />
-      <Setter Property="CornerRadius" Value="10" />
+      <Setter Property="CornerRadius" Value="{DynamicResource MptRadiusCard}" />
       <Setter Property="Padding" Value="20" />
     </Style>
     <Style Selector="TextBlock.secondary">
-      <Setter Property="Foreground" Value="#666666" />
+      <Setter Property="Foreground" Value="{DynamicResource MptBrushTextSecondary}" />
       <Setter Property="TextWrapping" Value="Wrap" />
     </Style>
     <Style Selector="TextBlock.section-title">
@@ -24,10 +26,10 @@
           HorizontalAlignment="Stretch"
           VerticalAlignment="Top">
     <StackPanel Spacing="16" MaxWidth="1100">
-      <Border Background="#EFF6FC"
-              BorderBrush="#C7E0F4"
+      <Border Background="{DynamicResource MptBrushInfoBackground}"
+              BorderBrush="{DynamicResource MptBrushInfo}"
               BorderThickness="1"
-              CornerRadius="12"
+              CornerRadius="{DynamicResource MptRadiusCard}"
               Padding="24,20">
         <Grid ColumnDefinitions="*,Auto" ColumnSpacing="24">
           <StackPanel Spacing="6">
@@ -39,16 +41,16 @@
                        MaxWidth="720" />
           </StackPanel>
           <Border Grid.Column="1"
-                  Background="White"
-                  BorderBrush="#C7E0F4"
+                  Background="{DynamicResource MptBrushSurfaceRaised}"
+                  BorderBrush="{DynamicResource MptBrushBorder}"
                   BorderThickness="1"
-                  CornerRadius="6"
+                  CornerRadius="{DynamicResource MptRadiusControl}"
                   Padding="12,7"
                   VerticalAlignment="Center">
             <TextBlock Text="Ctrl + Alt + V"
-                       FontFamily="Consolas"
+                       FontFamily="Consolas, Cascadia Code, monospace"
                        FontWeight="SemiBold"
-                       Foreground="#0F6CBD" />
+                       Foreground="{DynamicResource MptBrushAccent}" />
           </Border>
         </Grid>
       </Border>
@@ -89,15 +91,12 @@
       </Grid>
 
       <StackPanel Orientation="Horizontal" Spacing="10">
-        <Button Content="上传剪贴板图片"
-                Command="{Binding UploadCommand}"
-                IsEnabled="{Binding CanUpload}"
-                Classes="accent"
-                Padding="22,11"
-                FontWeight="SemiBold" />
-        <Button Content="重新检查"
-                Command="{Binding RefreshCommand}"
-                Padding="16,10" />
+        <controls:MptButton Content="上传剪贴板图片"
+                            Command="{Binding UploadCommand}"
+                            IsEnabled="{Binding CanUpload}"
+                            Classes="MptPrimaryButton" />
+        <controls:MptButton Content="重新检查"
+                            Command="{Binding RefreshCommand}" />
       </StackPanel>
 
       <ProgressBar IsIndeterminate="True"
@@ -109,7 +108,7 @@
       <Border Background="{Binding MessageBackground}"
               BorderBrush="{Binding MessageForeground}"
               BorderThickness="0"
-              CornerRadius="8"
+              CornerRadius="{DynamicResource MptRadiusControl}"
               Padding="16,12">
         <Grid ColumnDefinitions="24,*" ColumnSpacing="8">
           <TextBlock Text="{Binding MessageIcon}"
@@ -158,18 +157,25 @@
             <ItemsControl ItemsSource="{Binding History}" IsVisible="{Binding HasHistory}">
               <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="vm:UploadHistoryRow">
-                  <Border BorderBrush="#D8D8D8"
+                  <Border BorderBrush="{DynamicResource MptBrushDivider}"
                           BorderThickness="0,1,0,0"
                           Padding="0,11">
-                    <StackPanel Spacing="3">
-                      <TextBlock Text="{Binding RemotePath}"
-                                 FontWeight="Medium"
-                                 TextTrimming="CharacterEllipsis"
-                                 MaxWidth="380" />
-                      <TextBlock Text="{Binding UploadedAtText}"
-                                 Foreground="#666666"
-                                 FontSize="12" />
-                    </StackPanel>
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                      <StackPanel Spacing="3">
+                        <TextBlock Text="{Binding RemotePath}"
+                                   FontWeight="Medium"
+                                   TextTrimming="CharacterEllipsis" />
+                        <TextBlock Text="{Binding UploadedAtText}"
+                                   Foreground="{DynamicResource MptBrushTextSecondary}"
+                                   FontSize="12" />
+                      </StackPanel>
+                      <controls:MptButton Grid.Column="1"
+                                          Content="复制"
+                                          Command="{Binding CopyCommand}"
+                                          VerticalAlignment="Center"
+                                          Padding="8,4"
+                                          FontSize="12" />
+                    </Grid>
                   </Border>
                 </DataTemplate>
               </ItemsControl.ItemTemplate>

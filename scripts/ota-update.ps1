@@ -98,7 +98,11 @@ function Resolve-PublicKey {
 
     $stateKeyPath = Join-Path $StateRootFull 'ota-signing-public-key.txt'
     if (Test-Path -LiteralPath $stateKeyPath -PathType Leaf) {
-        return (Read-Utf8TextFile -Path $stateKeyPath).Trim()
+        $stateKey = (Read-Utf8TextFile -Path $stateKeyPath).Trim()
+        if (Test-ValidHexKey -Value $stateKey) {
+            return $stateKey
+        }
+        Write-Warning "OTA public key file is not a 64-character hex key; using the embedded key instead: $stateKeyPath"
     }
 
     if (-not [string]::IsNullOrWhiteSpace($script:EmbeddedPublicKeyHex)) {
@@ -526,6 +530,43 @@ function Update-InstalledRelease {
         $release | ConvertTo-Json -Depth 5)
 }
 
+function Clear-StaleOtaState {
+    param(
+        [Parameter(Mandatory = $true)][string]$StateRootFull,
+        [Parameter(Mandatory = $true)][string[]]$KeepVersions
+    )
+
+    $transactionsDir = Join-Path $StateRootFull 'transactions'
+    if (Test-Path -LiteralPath $transactionsDir -PathType Container) {
+        $cutoff = (Get-Date).AddDays(-7)
+        foreach ($transaction in @(Get-ChildItem -LiteralPath $transactionsDir -Directory -ErrorAction SilentlyContinue)) {
+            if ($transaction.LastWriteTime -ge $cutoff) {
+                continue
+            }
+            # A failed rollback keeps its transaction root for manual recovery.
+            if (Test-Path -LiteralPath (Join-Path $transaction.FullName 'ROLLBACK-FAILED.txt') -PathType Leaf) {
+                continue
+            }
+            Remove-Item -LiteralPath $transaction.FullName -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
+
+    $downloadsDir = Join-Path $StateRootFull 'downloads'
+    if (Test-Path -LiteralPath $downloadsDir -PathType Container) {
+        foreach ($entry in @(Get-ChildItem -LiteralPath $downloadsDir -ErrorAction SilentlyContinue)) {
+            $entryVersions = @([regex]::Matches($entry.Name, '[0-9]+\.[0-9]+\.[0-9]+') |
+                ForEach-Object { $_.Value })
+            if ($entryVersions.Count -eq 0) {
+                continue
+            }
+            if (@($entryVersions | Where-Object { $KeepVersions -contains $_ }).Count -gt 0) {
+                continue
+            }
+            Remove-Item -LiteralPath $entry.FullName -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
+}
+
 function Invoke-BootstrapRelaunch {
     param(
         [Parameter(Mandatory = $true)][string]$InstallRootFull,
@@ -777,6 +818,8 @@ function Invoke-FullApply {
                 -Version $ExpectedVersion)
         }
     }
+
+    Remove-Item -LiteralPath $extractRoot -Recurse -Force -ErrorAction SilentlyContinue
 }
 
 function Invoke-FullRecovery {
@@ -888,6 +931,8 @@ if ([string]$feed.version -notmatch '^[0-9]+\.[0-9]+\.[0-9]+$') {
     throw "OTA feed contains an invalid version '$($feed.version)'."
 }
 
+Clear-StaleOtaState -StateRootFull $StateRootFull -KeepVersions @($CurrentVersion, [string]$feed.version)
+
 $feedSigned = [bool]$feed.signing.signed
 if ($feedSigned) {
     $publicKey = Resolve-PublicKey -StateRootFull $StateRootFull
@@ -963,15 +1008,49 @@ if ($IsDevOverlay -and -not (Test-Path -LiteralPath (Join-Path $InstallRootFull 
     throw '未检测到系统安装版（install.manifest.json 缺失）。dev 覆盖模式无法执行 OTA，请先完整安装 MyPowerTools 后再试。'
 }
 
-# Apply path
-$mutexCreated = $false
-$updateMutex = [Threading.Mutex]::new($false, 'MyPowerTools.OtaUpdate', [ref]$mutexCreated)
-if (-not $mutexCreated) {
-    if (-not $updateMutex.WaitOne(5000)) {
+$maintenanceFile = Join-Path $StateRootFull 'maintenance-mode.json'
+$mutexOwned = $false
+try {
+    $updateMutex = [Threading.Mutex]::new($true, 'Global\MyPowerTools.OtaUpdate', [ref]$mutexOwned)
+} catch [UnauthorizedAccessException] {
+    # Creating a global object needs SeCreateGlobalPrivilege, which a standard
+    # user does not have; the session namespace still covers the scheduled task
+    # and the Shell, which both run in the interactive session.
+    $updateMutex = [Threading.Mutex]::new($true, 'Local\MyPowerTools.OtaUpdate', [ref]$mutexOwned)
+}
+if (-not $mutexOwned) {
+    try {
+        $mutexOwned = $updateMutex.WaitOne(0)
+    } catch [Threading.AbandonedMutexException] {
+        # The previous owner was killed mid-update; the wait still succeeded.
+        $mutexOwned = $true
+    }
+    if (-not $mutexOwned) {
         $updateMutex.Dispose()
         throw 'Another MyPowerTools OTA update is already running.'
     }
 }
+# Restore maintenance-mode state left behind by a killed prior run. This runs
+# under the mutex so it can never undo the maintenance mode of a live update.
+if (Test-Path -LiteralPath $maintenanceFile) {
+    try {
+        $saved = Get-Content -LiteralPath $maintenanceFile -Raw | ConvertFrom-Json
+        $runKeyPath = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
+        if ($saved.savedAutostart) {
+            foreach ($prop in $saved.savedAutostart.PSObject.Properties) {
+                if (-not [string]::IsNullOrWhiteSpace($prop.Value)) {
+                    if (-not (Test-Path -LiteralPath $runKeyPath)) { New-Item -Path $runKeyPath -Force | Out-Null }
+                    Set-ItemProperty -LiteralPath $runKeyPath -Name $prop.Name -Value $prop.Value
+                }
+            }
+        }
+        if ($saved.otaCheckTaskDisabled) {
+            Enable-ScheduledTask -TaskName 'MyPowerTools OTA Check' -ErrorAction SilentlyContinue | Out-Null
+        }
+        Remove-Item -LiteralPath $maintenanceFile -Force -ErrorAction SilentlyContinue
+    } catch {}
+}
+
 $runKeyPath = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
 $autostartNames = @('MyPowerTools', 'MyPowerTools.ServiceManager')
 $savedAutostartValues = @{}
@@ -985,18 +1064,29 @@ $otaCheckTaskDisabled = $false
 try {
     # Maintenance mode: stop auto-relaunch vectors so the transaction is not
     # interrupted by Runner/ServiceManager or the daily OTA check task.
+    $otaCheckTaskDisabled = $null -ne (
+        Get-ScheduledTask -TaskName 'MyPowerTools OTA Check' -ErrorAction SilentlyContinue)
+
+    # Persist maintenance-mode state to disk before anything is removed so a
+    # killed process leaves the autostart entries recoverable.
+    $maintenanceState = [ordered]@{
+        savedAutostart = $savedAutostartValues
+        otaCheckTaskDisabled = $otaCheckTaskDisabled
+        enteredAtUtc = [DateTimeOffset]::UtcNow.ToString('O')
+    }
+    $maintenanceState | ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $maintenanceFile -Encoding utf8
+
     foreach ($name in $autostartNames) {
         Remove-ItemProperty -LiteralPath $runKeyPath -Name $name -ErrorAction SilentlyContinue
     }
-    if (Get-ScheduledTask -TaskName 'MyPowerTools OTA Check' -ErrorAction SilentlyContinue) {
+    if ($otaCheckTaskDisabled) {
         Disable-ScheduledTask -TaskName 'MyPowerTools OTA Check' -ErrorAction SilentlyContinue | Out-Null
-        $otaCheckTaskDisabled = $true
     }
 
     if (-not $BootstrapReady -and -not $SkipBootstrap) {
-        if ($mutexCreated) {
+        if ($mutexOwned) {
             try { $updateMutex.ReleaseMutex() } catch {}
-            $mutexCreated = $false
+            $mutexOwned = $false
         }
         Invoke-BootstrapRelaunch -InstallRootFull $InstallRootFull -StateRootFull $StateRootFull
     }
@@ -1117,6 +1207,31 @@ catch {
             $failure | ConvertTo-Json -Depth 6)
     } catch {
     }
+    # If delta apply failed, attempt full recovery before giving up.
+    if ($decision.Kind -eq 'delta' -and -not $SkipFullRecoveryOnHealthFailure.IsPresent -and $null -ne $feed) {
+        try {
+            $fullDecision = [pscustomobject]@{
+                FeedVersion = [string]$feed.version
+                FullAsset = [string]$feed.full.asset
+                FullSha256 = [string]$feed.full.sha256
+            }
+            Invoke-FullRecovery -Decision $fullDecision -BaseUrl $feedContent.BaseUrl -InstallRootFull $InstallRootFull -DataRootFull $DataRootFull -StateRootFull $StateRootFull
+            # Re-check health after recovery
+            $health = Test-OtaHealth -InstallRootFull $InstallRootFull -StateRootFull $StateRootFull -ExpectedVersion ([string]$feed.version)
+            if ([bool]$health.ok) {
+                # Recovery succeeded - update the result
+                $failure.success = $true
+                $failure.Remove('error')
+                $failure['packageKind'] = 'full-recovery-after-delta-failure'
+                $failure['health'] = $health
+                Write-Utf8TextFile -Path (Join-Path $StateRootFull 'last-update.json') -Value ($failure | ConvertTo-Json -Depth 6)
+                $failure | ConvertTo-Json -Depth 6
+                exit 0
+            }
+        } catch {
+            # Full recovery also failed; fall through to original error
+        }
+    }
     $failure | ConvertTo-Json -Depth 6
     exit 1
 }
@@ -1132,7 +1247,8 @@ finally {
     if ($otaCheckTaskDisabled) {
         try { Enable-ScheduledTask -TaskName 'MyPowerTools OTA Check' -ErrorAction SilentlyContinue | Out-Null } catch {}
     }
-    if ($mutexCreated) {
+    Remove-Item -LiteralPath $maintenanceFile -Force -ErrorAction SilentlyContinue
+    if ($mutexOwned) {
         try { $updateMutex.ReleaseMutex() } catch {}
     }
     $updateMutex.Dispose()

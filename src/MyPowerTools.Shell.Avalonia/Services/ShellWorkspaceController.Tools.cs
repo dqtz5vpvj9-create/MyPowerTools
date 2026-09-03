@@ -55,24 +55,33 @@ public sealed partial class ShellWorkspaceController
         _currentToolId = "";
         _currentToolRouteId = "";
         _chromeViewModel.SelectPage(page);
-        SetOwnedContent(_contentHost, new TextBlock
+        SetOwnedContent(_contentHost, BuildPageMessage(message));
+        SetStatus(status);
+    }
+
+    internal static Control BuildPageMessage(string message)
+    {
+        return new TextBlock
         {
             Text = message,
             Margin = MptThemeTokens.PageMessageMargin,
             FontSize = MptThemeTokens.FontSizePageHeading,
             FontWeight = FontWeight.SemiBold
-        });
-        SetStatus(status);
+        };
     }
 
     private async Task LoadHomePageAsync()
     {
+        var identity = _workspaceIdentity.Capture();
         try
         {
             var startupTools = Interlocked.Exchange(ref _startupToolDescriptors, null);
             var tools = startupTools is null
                 ? await _toolProducts.LoadToolCardsAsync(ShowToolPageAsync, null)
                 : _toolProducts.BuildToolCards(startupTools, ShowToolPageAsync, null);
+
+            if (!_workspaceIdentity.IsCurrent(identity)) return;
+
             var viewModel = new HomeViewModel(
                 favoriteTools: [],
                 recentTools: tools,
@@ -97,6 +106,8 @@ public sealed partial class ShellWorkspaceController
         }
         catch (Exception ex)
         {
+            if (IsStalePageFailure(nameof(LoadHomePageAsync), ex, identity)) return;
+
             var failure = ReportPageFailure(nameof(LoadHomePageAsync), ex);
             var viewModel = new HomeViewModel(
                 [],
@@ -114,9 +125,13 @@ public sealed partial class ShellWorkspaceController
 
     private async Task LoadToolsPageAsync()
     {
+        var identity = _workspaceIdentity.Capture();
         try
         {
             var tools = await _toolProducts.LoadToolCardsAsync(ShowToolPageAsync, null);
+
+            if (!_workspaceIdentity.IsCurrent(identity)) return;
+
             SetDiscoveredTools(tools);
             var viewModel = new ToolCatalogViewModel(
                 tools,
@@ -127,6 +142,8 @@ public sealed partial class ShellWorkspaceController
         }
         catch (Exception ex)
         {
+            if (IsStalePageFailure(nameof(LoadToolsPageAsync), ex, identity)) return;
+
             var failure = ReportPageFailure(nameof(LoadToolsPageAsync), ex);
             var viewModel = new ToolCatalogViewModel(
                 [],
@@ -245,14 +262,17 @@ public sealed partial class ShellWorkspaceController
 
     private async Task<HostProto.ToolDescriptor?> TryLoadToolDescriptorAsync(string toolId)
     {
+        var identity = _workspaceIdentity.Capture();
         try
         {
             return await _toolProducts.LoadToolAsync(toolId);
         }
         catch (Exception ex)
         {
+            if (IsStalePageFailure(nameof(ShowToolPageAsync), ex, identity)) return null;
+
             var failure = ReportPageFailure(nameof(ShowToolPageAsync), ex);
-            SetOwnedContent(_contentHost, BuildUnavailablePage("Tool", failure.Message));
+            SetOwnedContent(_contentHost, BuildUnavailablePage("Tool", failure.Message, retry: () => ShowToolPageAsync(toolId)));
             return null;
         }
     }
@@ -274,6 +294,7 @@ public sealed partial class ShellWorkspaceController
         _chromeViewModel.IsCommandPaletteOpen = false;
         SetStatus($"Loading {toolId}");
 
+        var identity = _workspaceIdentity.Capture();
         try
         {
             // All tools — first-party and external — go through the dynamic surface loader.
@@ -307,8 +328,10 @@ public sealed partial class ShellWorkspaceController
         }
         catch (Exception ex)
         {
+            if (IsStalePageFailure(nameof(ShowToolPageAsync), ex, identity)) return;
+
             var failure = ReportPageFailure(nameof(ShowToolPageAsync), ex);
-            SetOwnedContent(_contentHost, BuildUnavailablePage("Tool", failure.Message));
+            SetOwnedContent(_contentHost, BuildUnavailablePage("Tool", failure.Message, retry: () => ShowToolPageAsync(toolId, routeId)));
         }
     }
 }

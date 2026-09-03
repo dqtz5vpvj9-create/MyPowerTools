@@ -135,6 +135,7 @@ public sealed class ShellToolProductService
             "running" or "ready" => "Ready",
             "degraded" => "Needs attention",
             "error" or "failed" => "Unavailable",
+            "connected" => "Connected",
             _ => state
         };
     }

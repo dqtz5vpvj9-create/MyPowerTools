@@ -3,6 +3,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using MyPowerTools.HostControl;
 using MyPowerTools.Platform;
+using MyPowerTools.AvaloniaSdk;
 using MyPowerTools.Platform.Abstractions;
 using HostProto = MyPowerTools.Protocol.HostControl.V1;
 
@@ -10,6 +11,25 @@ namespace MyPowerTools.Shell.Avalonia.Services;
 
 public sealed partial class ShellWorkspaceController
 {
+    internal static MptWebSurfaceRequest CreateExternalWebSurfaceRequest(
+        HostProto.ToolDescriptor descriptor,
+        HostProto.ToolRoute route,
+        Uri source,
+        Func<string, CancellationToken, Task<string>> handleBridgeRequestAsync)
+    {
+        ArgumentNullException.ThrowIfNull(descriptor);
+        ArgumentNullException.ThrowIfNull(route);
+        ArgumentNullException.ThrowIfNull(source);
+        ArgumentNullException.ThrowIfNull(handleBridgeRequestAsync);
+
+        return new MptWebSurfaceRequest(
+            descriptor.ToolId,
+            route.RouteId,
+            source,
+            ResolveExternalAllowedOrigins(descriptor, route),
+            handleBridgeRequestAsync);
+    }
+
     private static readonly Lazy<ISecretStore> PlatformSecrets = new(
         () => PlatformPackFactory.Create().Secrets);
 

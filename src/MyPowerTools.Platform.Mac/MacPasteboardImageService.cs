@@ -10,11 +10,25 @@ public sealed class MacPasteboardImageService : IClipboardImageService
     public Task<ClipboardImagePayload> ReadPngAsync(CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
-        var status = MacNative.ReadPasteboardPng(
-            out var bytes,
-            out var length,
-            out var width,
-            out var height);
+        if (!OperatingSystem.IsMacOS())
+        {
+            throw new PlatformNotSupportedException("NSPasteboard requires macOS.");
+        }
+
+        int status;
+        nint bytes;
+        nuint length;
+        int width;
+        int height;
+        try
+        {
+            status = MacNative.ReadPasteboardPng(out bytes, out length, out width, out height);
+        }
+        catch (DllNotFoundException ex)
+        {
+            throw new InvalidOperationException(MacNative.MissingLibraryMessage, ex);
+        }
+
         try
         {
             if (status == NoImage)
@@ -47,7 +61,23 @@ public sealed class MacPasteboardImageService : IClipboardImageService
     {
         ArgumentNullException.ThrowIfNull(value);
         cancellationToken.ThrowIfCancellationRequested();
-        var status = MacNative.WritePasteboardText(value);
+        if (!OperatingSystem.IsMacOS())
+        {
+            return Task.FromException(
+                new PlatformNotSupportedException("NSPasteboard requires macOS."));
+        }
+
+        int status;
+        try
+        {
+            status = MacNative.WritePasteboardText(value);
+        }
+        catch (DllNotFoundException ex)
+        {
+            return Task.FromException(
+                new InvalidOperationException(MacNative.MissingLibraryMessage, ex));
+        }
+
         return status == 0
             ? Task.CompletedTask
             : Task.FromException(

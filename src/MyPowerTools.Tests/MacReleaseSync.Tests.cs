@@ -59,6 +59,50 @@ public sealed class MacReleaseSyncTests
     }
 
     [Fact]
+    public void Mac_background_hosts_ship_as_nested_helper_bundles()
+    {
+        var publishScript = File.ReadAllText(Path.Combine(Root, "scripts", "publish-macos.ps1"));
+        var installScript = File.ReadAllText(Path.Combine(Root, "scripts", "install-macos.ps1"));
+        var launcher = File.ReadAllText(Path.Combine(Root, "src", "MyPowerTools.App", "Program.cs"));
+        var helpersRoot = Path.Combine(Root, "packaging", "macos", "Helpers");
+
+        foreach (var helper in new[]
+        {
+            (Plist: "Shell.Info.plist", Identifier: "com.mypowertools.shell", Executable: "MyPowerTools.Shell.Avalonia"),
+            (Plist: "Runner.Info.plist", Identifier: "com.mypowertools.runner", Executable: "MyPowerTools.Runner"),
+            (Plist: "ServiceManager.Info.plist", Identifier: "com.mypowertools.servicemanager", Executable: "MyPowerTools.ServiceManager")
+        })
+        {
+            var plist = File.ReadAllText(Path.Combine(helpersRoot, helper.Plist));
+            Assert.Contains($"<string>{helper.Identifier}</string>", plist, StringComparison.Ordinal);
+            Assert.Contains($"<string>{helper.Executable}</string>", plist, StringComparison.Ordinal);
+            Assert.Contains($"Plist = '{helper.Plist}'", publishScript, StringComparison.Ordinal);
+
+            // mypowertools:// stays on the outer bundle so notification activation always
+            // reaches the launcher, which is the only process that knows how to focus the Shell.
+            Assert.DoesNotContain("<key>CFBundleURLTypes</key>", plist, StringComparison.Ordinal);
+        }
+
+        var mainPlist = File.ReadAllText(Path.Combine(Root, "packaging", "macos", "Info.plist"));
+        Assert.Contains("<key>CFBundleURLTypes</key>", mainPlist, StringComparison.Ordinal);
+        Assert.Contains("<key>LSUIElement</key>", mainPlist, StringComparison.Ordinal);
+
+        // launchd has to execute the helper apphosts. Going through the compatibility links in
+        // Contents/MacOS/<Host>/ would leave the bundle identity up to path resolution.
+        Assert.Contains("Join-Path $macRoot 'Helpers'", installScript, StringComparison.Ordinal);
+        Assert.Contains(
+            "MyPowerTools Runner.app/Contents/MacOS/MyPowerTools.Runner",
+            installScript,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "MyPowerTools ServiceManager.app/Contents/MacOS/MyPowerTools.ServiceManager",
+            installScript,
+            StringComparison.Ordinal);
+        Assert.Contains("\"MyPowerTools Shell.app\"", launcher, StringComparison.Ordinal);
+        Assert.Contains("\"MyPowerTools ServiceManager.app\"", launcher, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Mac_webview_forwards_the_current_shell_shortcut_contract()
     {
         var nativeSource = File.ReadAllText(Path.Combine(

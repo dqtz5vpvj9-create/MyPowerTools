@@ -753,36 +753,63 @@ void mpt_webview_destroy(void *handle) {
     }
 }
 
+// Status codes shared with MacNative.cs. Anything other than MptNotificationOk tells the
+// managed caller that UserNotifications is unusable in this process, which is its cue to
+// deliver the banner through osascript instead.
+enum MptNotificationStatus {
+    MptNotificationOk = 0,
+    MptNotificationOsUnsupported = -1,
+    MptNotificationNoBundle = 2,
+    MptNotificationUnavailable = 3
+};
+
 int mpt_notification_publish(const char *identifier,
                              const char *title,
                              const char *body,
                              const char *activationUri) {
     if (@available(macOS 11.0, *)) {
-        UNUserNotificationCenter *center = UNUserNotificationCenter.currentNotificationCenter;
-        (void)MptNotificationDelegateInstance();
-        UNMutableNotificationContent *content = [[UNMutableNotificationContent alloc] init];
-        content.title = MptString(title);
-        content.body = MptString(body);
-        content.sound = UNNotificationSound.defaultSound;
-        NSString *uri = MptString(activationUri);
-        if (uri.length > 0) {
-            content.userInfo = @{ @"activationUri": uri };
+        // In the shipped layout Runner and Shell run from nested helper bundles under
+        // Contents/MacOS/Helpers/ and carry their own identifiers. When launched unbundled
+        // (developer builds, or through the legacy Contents/MacOS/<Host>/ symlink without
+        // realpath resolution) NSBundle.mainBundle has no identifier; currentNotificationCenter
+        // raises an NSException in that state, and an Objective-C exception unwinding into
+        // managed code terminates the host, so the condition is reported instead.
+        if (NSBundle.mainBundle.bundleIdentifier.length == 0) {
+            return MptNotificationNoBundle;
         }
-        UNNotificationRequest *request = [UNNotificationRequest
-            requestWithIdentifier:MptString(identifier)
-            content:content
-            trigger:nil];
-        [center requestAuthorizationWithOptions:(UNAuthorizationOptionAlert |
-                                                  UNAuthorizationOptionSound |
-                                                  UNAuthorizationOptionBadge)
-                              completionHandler:^(BOOL granted, NSError *error) {
-            if (granted && error == nil) {
-                [center addNotificationRequest:request withCompletionHandler:nil];
+        @try {
+            UNUserNotificationCenter *center = UNUserNotificationCenter.currentNotificationCenter;
+            if (center == nil) {
+                return MptNotificationUnavailable;
             }
-        }];
-        return 0;
+            (void)MptNotificationDelegateInstance();
+            UNMutableNotificationContent *content = [[UNMutableNotificationContent alloc] init];
+            content.title = MptString(title);
+            content.body = MptString(body);
+            content.sound = UNNotificationSound.defaultSound;
+            NSString *uri = MptString(activationUri);
+            if (uri.length > 0) {
+                content.userInfo = @{ @"activationUri": uri };
+            }
+            UNNotificationRequest *request = [UNNotificationRequest
+                requestWithIdentifier:MptString(identifier)
+                content:content
+                trigger:nil];
+            [center requestAuthorizationWithOptions:(UNAuthorizationOptionAlert |
+                                                      UNAuthorizationOptionSound |
+                                                      UNAuthorizationOptionBadge)
+                                  completionHandler:^(BOOL granted, NSError *error) {
+                if (granted && error == nil) {
+                    [center addNotificationRequest:request withCompletionHandler:nil];
+                }
+            }];
+            return MptNotificationOk;
+        } @catch (NSException *exception) {
+            (void)exception;
+            return MptNotificationUnavailable;
+        }
     }
-    return -1;
+    return MptNotificationOsUnsupported;
 }
 
 int mpt_pasteboard_read_png(void **bytes,

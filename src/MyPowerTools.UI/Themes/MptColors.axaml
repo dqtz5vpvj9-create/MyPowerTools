@@ -29,6 +29,10 @@
     <Color x:Key="MptColorWarning">#9D5D00</Color>
     <Color x:Key="MptColorDanger">#C42B1C</Color>
     <Color x:Key="MptColorInfo">#0067C0</Color>
+    <Color x:Key="MptColorWarningBackgroundLight">#FFF4CE</Color>
+    <Color x:Key="MptColorInfoBackgroundLight">#E3F2FD</Color>
+    <Color x:Key="MptColorDangerBackgroundLight">#FDECEA</Color>
+    <Color x:Key="MptColorSuccessBackgroundLight">#E8F5E9</Color>
     <Color x:Key="MptColorScreenEaseAccent">#197765</Color>
     <Color x:Key="MptColorScreenEaseAccentHover">#146454</Color>
     <Color x:Key="MptColorScreenEaseAccentTextMuted">#CFE9E2</Color>
@@ -53,6 +57,10 @@
     <Color x:Key="MptColorTextPrimaryDark">#FFFFFF</Color>
     <Color x:Key="MptColorTextSecondaryDark">#D6D6D6</Color>
     <Color x:Key="MptColorTextMutedDark">#9D9D9D</Color>
+    <Color x:Key="MptColorWarningBackgroundDark">#3A3020</Color>
+    <Color x:Key="MptColorInfoBackgroundDark">#1A2733</Color>
+    <Color x:Key="MptColorDangerBackgroundDark">#3A2422</Color>
+    <Color x:Key="MptColorSuccessBackgroundDark">#1C2E23</Color>
 
     <SolidColorBrush x:Key="MptBrushAppBackground" Color="{DynamicResource MptColorAppBackgroundLight}" />
     <SolidColorBrush x:Key="MptBrushShellChrome" Color="{DynamicResource MptColorShellChromeLight}" />
@@ -81,7 +89,10 @@
     <SolidColorBrush x:Key="MptBrushTextMuted" Color="{DynamicResource MptColorTextMutedLight}" />
     <SolidColorBrush x:Key="MptBrushSuccess" Color="{DynamicResource MptColorSuccess}" />
     <SolidColorBrush x:Key="MptBrushWarning" Color="{DynamicResource MptColorWarning}" />
-    <SolidColorBrush x:Key="MptBrushWarningBackground" Color="#FFF4CE" />
+    <SolidColorBrush x:Key="MptBrushWarningBackground" Color="{DynamicResource MptColorWarningBackgroundLight}" />
+    <SolidColorBrush x:Key="MptBrushInfoBackground" Color="{DynamicResource MptColorInfoBackgroundLight}" />
+    <SolidColorBrush x:Key="MptBrushDangerBackground" Color="{DynamicResource MptColorDangerBackgroundLight}" />
+    <SolidColorBrush x:Key="MptBrushSuccessBackground" Color="{DynamicResource MptColorSuccessBackgroundLight}" />
     <SolidColorBrush x:Key="MptBrushDanger" Color="{DynamicResource MptColorDanger}" />
     <SolidColorBrush x:Key="MptBrushInfo" Color="{DynamicResource MptColorInfo}" />
     <SolidColorBrush x:Key="MptBrushScreenEaseAccent" Color="{DynamicResource MptColorScreenEaseAccent}" />

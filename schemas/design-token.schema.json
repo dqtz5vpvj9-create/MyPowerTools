@@ -1,6 +1,6 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://mypowertools.local/schemas/design-token.schema.json",
+  "$id": "https://mypowertools.dev/schemas/design-token.schema.json",
   "title": "MyPowerTools Design Tokens",
   "type": "object",
   "required": ["version", "color", "typography", "spacing", "radius", "elevation", "motion", "layout"],

@@ -2,6 +2,25 @@
   <Style Selector="ListBox.MptLogViewer">
     <Setter Property="FontFamily" Value="{DynamicResource MptFontFamilyMono}" />
     <Setter Property="FontSize" Value="{DynamicResource MptFontSizeMeta}" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Padding" Value="0" />
+  </Style>
+
+  <!-- The log rows carry their own MptLogRow chrome, so the list container adds none of its own. -->
+  <Style Selector="ListBox.MptLogViewer > ListBoxItem">
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="Margin" Value="0" />
+    <Setter Property="MinHeight" Value="0" />
+    <Setter Property="Background" Value="Transparent" />
+  </Style>
+
+  <Style Selector="ListBox.MptLogViewer > ListBoxItem:pointerover /template/ ContentPresenter">
+    <Setter Property="Background" Value="Transparent" />
+  </Style>
+
+  <Style Selector="ListBox.MptLogViewer > ListBoxItem:selected /template/ ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource MptBrushSurfaceInset}" />
   </Style>
 
   <Style Selector="Border.MptLogViewer">

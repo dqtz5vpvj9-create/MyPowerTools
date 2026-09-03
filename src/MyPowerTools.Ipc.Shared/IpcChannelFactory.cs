@@ -39,6 +39,7 @@ public static class IpcChannelFactory
     {
         var handler = new SocketsHttpHandler
         {
+            ConnectTimeout = TimeSpan.FromSeconds(10),
             ConnectCallback = async (_, cancellationToken) =>
             {
                 if (endpoint.Transport == IpcTransport.NamedPipe)
@@ -51,7 +52,9 @@ public static class IpcChannelFactory
                 if (endpoint.Transport == IpcTransport.UnixDomainSocket)
                 {
                     var socket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
-                    await socket.ConnectAsync(new UnixDomainSocketEndPoint(endpoint.Address), cancellationToken);
+                    using var connectCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                    connectCts.CancelAfter(TimeSpan.FromSeconds(10));
+                    await socket.ConnectAsync(new UnixDomainSocketEndPoint(endpoint.Address), connectCts.Token);
                     return new NetworkStream(socket, ownsSocket: true);
                 }
 

@@ -131,6 +131,13 @@ mpt ota apply [--channel nightly] [--force]
 mpt ota status
 ```
 
+On macOS the same commands run from the installed bundle:
+
+```powershell
+~/Applications/MyPowerTools.app/Contents/MacOS/Cli/MyPowerTools.Cli ota check
+pwsh -NoProfile -File ~/Applications/MyPowerTools.app/Contents/Resources/scripts/ota-update.ps1 -Command Status
+```
+
 `configure-user-services.ps1` registers a daily `MyPowerTools OTA Check`
 scheduled task (03:00, interactive user). Applying updates still requires an
 explicit `mpt ota apply` or a manual script invocation. To let the machine
@@ -195,6 +202,104 @@ preserving the exact application-private runtime components selected during
 installation. Install, OTA, and uninstall never create an account-level
 `DOTNET_ROOT`. A legacy value is cleared only when it resolves inside the owned
 MyPowerTools runtime directory; all other user values remain byte-for-byte intact.
+
+## macOS
+
+macOS uses the same signed-feed client and the same OTA state directory as Windows, with three
+differences that follow from the product being one code-signed `.app` bundle.
+
+### Assets and feed
+
+`win-x64` keeps the historical unsuffixed asset names, because every released Windows client asks
+for exactly those and verifies the Ed25519 signature over the exact bytes of `channel-<channel>.json`.
+Other platforms append their runtime identifier:
+
+```text
+MyPowerTools-osx-arm64.zip (+ .sha256)
+MyPowerTools-osx-arm64.manifest.json
+channel-<channel>-osx-arm64.json (+ .sig)
+```
+
+The alternative — a `platforms` map inside the single `channel-<channel>.json` — was rejected:
+the Windows job signs that file on a Windows runner before the macOS job has built the bundle, so a
+shared feed would have to be re-signed and re-uploaded from the mac runner on every release.
+Separate per-platform channel files leave the Windows feed byte-identical.
+
+`MyPowerTools.Packaging`'s `OtaFeedLayout` is the single definition of these names; the client
+resolves the same suffix in `ota-update.ps1` from `$script:OtaRuntimeIdentifier`.
+
+The manifest is generated **after** codesign and stays outside the bundle. Signing rewrites every
+Mach-O in the tree, so a manifest measured before it would record hashes that no longer ship, and
+copying it back in afterwards would break the seal it was measured against. `ota-update.ps1`
+therefore downloads `full.manifestAsset` (verifying `full.manifestSha256`) and writes it to
+`ota-state/installed-files.manifest.json` after a successful apply.
+
+### Full packages only
+
+macOS publishes no delta packages. A delta replaces individual files inside a signed bundle, which
+loses the executable bit, leaves `Contents/_CodeSignature` describing content that no longer
+matches, and would overwrite the `Contents/MacOS/<Host>/` compatibility symlinks with plain files —
+all three break the layout contract in `docs/MACOS_RELEASE.md`. `Select-OtaPackage` never offers a
+delta on `osx-*`, and `publish-macos.ps1` passes an empty `-DeltaPackages`.
+
+### Applying
+
+`ota-update.ps1` routes an `osx-*` full package to `scripts/ota-apply-macos.ps1`, which:
+
+1. verifies the package SHA-256 and expands it with `ditto -x -k` — the managed zip reader would
+   turn the bundle's symlinks into text files and drop every mode bit;
+2. checks the staged `CFBundleShortVersionString` against the feed version and runs
+   `codesign --verify --deep --strict`, so a bundle Gatekeeper would refuse fails while the previous
+   one is still in place;
+3. enters maintenance mode — on macOS that is `launchctl bootout` of `com.mypowertools.runner` and
+   `com.mypowertools.servicemanager`, not a registry key or a scheduled task — and terminates every
+   process whose executable lives inside the bundle;
+4. moves the current bundle aside to `MyPowerTools.backup.<timestamp>.app`, then runs the **new**
+   package's own `Contents/Resources/scripts/install-macos.ps1`. Delegating the swap is what lets a
+   release that moves a host into a different helper bundle still write LaunchAgent plists that
+   point at executables which exist;
+5. relaunches the Shell with `open -a` and waits for the Runner to accept a connection on
+   `$TMPDIR/mypowertools.runner.hostcontrol.sock`;
+6. on any failure restores the backup bundle **and** the LaunchAgent plists it saved before the
+   swap, re-bootstraps the agents, and relaunches. A rollback that itself fails leaves the
+   transaction directory with a `ROLLBACK-FAILED.txt` marker.
+
+Backups are kept; the two most recent survive, and `uninstall-macos.ps1 -RemoveBackups` clears them.
+
+### Inside the bundle
+
+`publish-macos.ps1` ships the CLI and the OTA client with the app:
+
+```text
+MyPowerTools.app/Contents/
+├─ MacOS/Cli/MyPowerTools.Cli              mpt, a plain executable: no UI, no bundle identity
+└─ Resources/
+   ├─ ota-signing-public-key.txt
+   └─ scripts/{ota-update.ps1, ota-apply-macos.ps1, new-ota-file-manifest.ps1,
+                install-macos.ps1, uninstall-macos.ps1, ed25519.cs}
+```
+
+`Contents/Resources` holds data files sealed by the bundle signature rather than nested code
+objects. The bootstrap step copies them out to `ota-state/bootstrap` before the bundle they came
+from is replaced.
+
+`install-macos.ps1` records `installed-release.json` and `installed-files.manifest.json` under the
+OTA state directory, so `mpt ota check` compares against the version that is actually installed
+instead of reporting `0.0.0`.
+
+### Data root
+
+`SpecialFolder.LocalApplicationData` resolves to `~/Library/Application Support` on .NET 8 and
+later (it was `~/.local/share` through .NET 7), which is the same directory `install-macos.ps1`
+passes to Runner and ServiceManager as `--data-root`. The OTA state therefore lands in
+`~/Library/Application Support/MyPowerTools/ota-state` with no macOS special case in the C# code.
+
+### PowerShell
+
+`pwsh` is not part of macOS. The CLI and `ota-update.ps1` look for it on `PATH`, then at
+`/usr/local/bin/pwsh` and `/opt/homebrew/bin/pwsh`, because a GUI-launched Shell inherits a `PATH`
+that usually covers neither Homebrew prefix. When none of them exists the message names
+`brew install --cask powershell` rather than reporting a generic launch failure.
 
 ## Package OTA
 

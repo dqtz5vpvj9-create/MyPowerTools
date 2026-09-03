@@ -48,6 +48,14 @@
       "kind": "action",
       "category": "Wellbeing",
       "execution": { "type": "module.execute" }
+    },
+    {
+      "id": "input-monitor.data.clear",
+      "title": "Clear collected data",
+      "subtitle": "Delete stored input events, app usage and daily statistics",
+      "kind": "action",
+      "category": "Wellbeing",
+      "execution": { "type": "module.execute" }
     }
   ]
 }

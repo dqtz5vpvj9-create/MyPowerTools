@@ -85,38 +85,40 @@ public sealed class ServiceManagerAdminClient : IDisposable
     /// <summary>Token store shared with the ServiceManager host so both sides read the same material.</summary>
     public static AuthTokenStore SharedTokenStore => TokenStore;
 
+    private static DateTime DefaultDeadline(int timeoutSeconds = 15) => DateTime.UtcNow.AddSeconds(timeoutSeconds);
+
     public async Task<SM.ListUnitsResponse> ListUnitsAsync(string? toolId = null, SM.UnitState stateFilter = SM.UnitState.Unspecified, CancellationToken cancellationToken = default)
     {
         return await _client.ListUnitsAsync(new SM.ListUnitsRequest
         {
             ToolId = toolId ?? "",
             State = stateFilter
-        }, cancellationToken: cancellationToken);
+        }, deadline: DefaultDeadline(), cancellationToken: cancellationToken);
     }
 
     public async Task<SM.UnitSnapshot> GetUnitAsync(string unitId, CancellationToken cancellationToken = default)
     {
-        return await _client.GetUnitAsync(new SM.GetUnitRequest { UnitId = unitId }, cancellationToken: cancellationToken);
+        return await _client.GetUnitAsync(new SM.GetUnitRequest { UnitId = unitId }, deadline: DefaultDeadline(), cancellationToken: cancellationToken);
     }
 
     public async Task<SM.UnitSnapshot> StartAsync(string unitId, CancellationToken cancellationToken = default)
     {
-        return await _client.StartAsync(new SM.UnitOpRequest { UnitId = unitId }, cancellationToken: cancellationToken);
+        return await _client.StartAsync(new SM.UnitOpRequest { UnitId = unitId }, deadline: DefaultDeadline(), cancellationToken: cancellationToken);
     }
 
     public async Task<SM.UnitSnapshot> StopAsync(string unitId, CancellationToken cancellationToken = default)
     {
-        return await _client.StopAsync(new SM.UnitOpRequest { UnitId = unitId }, cancellationToken: cancellationToken);
+        return await _client.StopAsync(new SM.UnitOpRequest { UnitId = unitId }, deadline: DefaultDeadline(), cancellationToken: cancellationToken);
     }
 
     public async Task<SM.UnitSnapshot> RestartAsync(string unitId, CancellationToken cancellationToken = default)
     {
-        return await _client.RestartAsync(new SM.UnitOpRequest { UnitId = unitId }, cancellationToken: cancellationToken);
+        return await _client.RestartAsync(new SM.UnitOpRequest { UnitId = unitId }, deadline: DefaultDeadline(), cancellationToken: cancellationToken);
     }
 
     public async Task<SM.ReloadResponse> ReloadAsync(CancellationToken cancellationToken = default)
     {
-        return await _client.ReloadAsync(new SM.ReloadRequest(), cancellationToken: cancellationToken);
+        return await _client.ReloadAsync(new SM.ReloadRequest(), deadline: DefaultDeadline(), cancellationToken: cancellationToken);
     }
 
     /// <summary>
@@ -124,7 +126,7 @@ public sealed class ServiceManagerAdminClient : IDisposable
     /// </summary>
     public async Task<bool> ShutdownAsync(CancellationToken cancellationToken = default)
     {
-        var resp = await _client.ShutdownAsync(new SM.ShutdownRequest(), cancellationToken: cancellationToken);
+        var resp = await _client.ShutdownAsync(new SM.ShutdownRequest(), deadline: DefaultDeadline(), cancellationToken: cancellationToken);
         return resp.Ok;
     }
 

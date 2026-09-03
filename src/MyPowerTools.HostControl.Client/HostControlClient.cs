@@ -38,29 +38,31 @@ public sealed class HostControlClient : IDisposable
         return new HostControlClient(channel, authToken);
     }
 
+    private static DateTime DefaultDeadline(int timeoutSeconds = 15) => DateTime.UtcNow.AddSeconds(timeoutSeconds);
+
     public async Task<HostProto.PingResponse> PingAsync(CancellationToken cancellationToken = default)
     {
-        return await _client.PingAsync(new HostProto.PingRequest { ClientId = Environment.MachineName }, cancellationToken: cancellationToken);
+        return await _client.PingAsync(new HostProto.PingRequest { ClientId = Environment.MachineName }, deadline: DefaultDeadline(), cancellationToken: cancellationToken);
     }
 
     public async Task<HostProto.DashboardSnapshot> GetDashboardSnapshotAsync(CancellationToken cancellationToken = default)
     {
-        return await _client.GetDashboardSnapshotAsync(new HostProto.DashboardSnapshotRequest { Locale = "" }, cancellationToken: cancellationToken);
+        return await _client.GetDashboardSnapshotAsync(new HostProto.DashboardSnapshotRequest { Locale = "" }, deadline: DefaultDeadline(), cancellationToken: cancellationToken);
     }
 
     public async Task<HostProto.ListToolsResponse> ListToolsAsync(bool includeDisabled = false, CancellationToken cancellationToken = default)
     {
-        return await _client.ListToolsAsync(new HostProto.ListToolsRequest { IncludeDisabled = includeDisabled }, cancellationToken: cancellationToken);
+        return await _client.ListToolsAsync(new HostProto.ListToolsRequest { IncludeDisabled = includeDisabled }, deadline: DefaultDeadline(), cancellationToken: cancellationToken);
     }
 
     public async Task<HostProto.ToolDescriptor> GetToolAsync(string toolId, CancellationToken cancellationToken = default)
     {
-        return await _client.GetToolAsync(new HostProto.GetToolRequest { ToolId = toolId }, cancellationToken: cancellationToken);
+        return await _client.GetToolAsync(new HostProto.GetToolRequest { ToolId = toolId }, deadline: DefaultDeadline(), cancellationToken: cancellationToken);
     }
 
     public async Task<HostProto.ListToolsResponse> RefreshToolsAsync(CancellationToken cancellationToken = default)
     {
-        return await _client.RefreshToolsAsync(new HostProto.RefreshToolsRequest(), cancellationToken: cancellationToken);
+        return await _client.RefreshToolsAsync(new HostProto.RefreshToolsRequest(), deadline: DefaultDeadline(), cancellationToken: cancellationToken);
     }
 
     public async Task<HostProto.PublishToolEventResponse> PublishToolEventAsync(
@@ -74,42 +76,42 @@ public sealed class HostControlClient : IDisposable
             ToolId = toolId,
             Topic = topic,
             PayloadJson = payloadJson
-        }, cancellationToken: cancellationToken);
+        }, deadline: DefaultDeadline(), cancellationToken: cancellationToken);
     }
 
     public async Task<HostProto.ListModulesResponse> ListModulesAsync(CancellationToken cancellationToken = default)
     {
-        return await _client.ListModulesAsync(new HostProto.ListModulesRequest { IncludeDisabled = true }, cancellationToken: cancellationToken);
+        return await _client.ListModulesAsync(new HostProto.ListModulesRequest { IncludeDisabled = true }, deadline: DefaultDeadline(), cancellationToken: cancellationToken);
     }
 
     public async Task<HostProto.ListPackagesResponse> ListPackagesAsync(CancellationToken cancellationToken = default)
     {
-        return await _client.ListPackagesAsync(new HostProto.ListPackagesRequest { IncludeDisabled = true }, cancellationToken: cancellationToken);
+        return await _client.ListPackagesAsync(new HostProto.ListPackagesRequest { IncludeDisabled = true }, deadline: DefaultDeadline(), cancellationToken: cancellationToken);
     }
 
     public async Task<HostProto.PackageOperationResult> InstallPackageAsync(string sourceDirectory, CancellationToken cancellationToken = default)
     {
-        return await _client.InstallPackageAsync(new HostProto.InstallPackageRequest { SourceDirectory = sourceDirectory }, cancellationToken: cancellationToken);
+        return await _client.InstallPackageAsync(new HostProto.InstallPackageRequest { SourceDirectory = sourceDirectory }, deadline: DefaultDeadline(30), cancellationToken: cancellationToken);
     }
 
     public async Task<HostProto.PackageOperationResult> RepairPackageAsync(string packageId, CancellationToken cancellationToken = default)
     {
-        return await _client.RepairPackageAsync(new HostProto.PackageOperationRequest { PackageId = packageId }, cancellationToken: cancellationToken);
+        return await _client.RepairPackageAsync(new HostProto.PackageOperationRequest { PackageId = packageId }, deadline: DefaultDeadline(30), cancellationToken: cancellationToken);
     }
 
     public async Task<HostProto.PackageOperationResult> UninstallPackageAsync(string packageId, CancellationToken cancellationToken = default)
     {
-        return await _client.UninstallPackageAsync(new HostProto.PackageOperationRequest { PackageId = packageId }, cancellationToken: cancellationToken);
+        return await _client.UninstallPackageAsync(new HostProto.PackageOperationRequest { PackageId = packageId }, deadline: DefaultDeadline(30), cancellationToken: cancellationToken);
     }
 
     public async Task<HostProto.PackageOperationResult> RollbackPackageAsync(string packageId, CancellationToken cancellationToken = default)
     {
-        return await _client.RollbackPackageAsync(new HostProto.PackageOperationRequest { PackageId = packageId }, cancellationToken: cancellationToken);
+        return await _client.RollbackPackageAsync(new HostProto.PackageOperationRequest { PackageId = packageId }, deadline: DefaultDeadline(30), cancellationToken: cancellationToken);
     }
 
     public async Task<HostProto.RuntimeDiagnostics> GetRuntimeDiagnosticsAsync(CancellationToken cancellationToken = default)
     {
-        return await _client.GetRuntimeDiagnosticsAsync(new HostProto.RuntimeDiagnosticsRequest(), cancellationToken: cancellationToken);
+        return await _client.GetRuntimeDiagnosticsAsync(new HostProto.RuntimeDiagnosticsRequest(), deadline: DefaultDeadline(), cancellationToken: cancellationToken);
     }
 
     public async Task<HostProto.RuntimeProcessRestartResult> RestartRuntimeProcessAsync(string transportKind, string poolKey, CancellationToken cancellationToken = default)
@@ -118,7 +120,7 @@ public sealed class HostControlClient : IDisposable
         {
             TransportKind = transportKind,
             PoolKey = poolKey
-        }, cancellationToken: cancellationToken);
+        }, deadline: DefaultDeadline(), cancellationToken: cancellationToken);
     }
 
     public async Task<HostProto.RuntimeProcessPolicyResult> SetRuntimeProcessRestartPolicyAsync(string transportKind, string poolKey, bool paused, string reason = "", CancellationToken cancellationToken = default, string source = "client", DateTimeOffset? expiresAt = null)
@@ -136,22 +138,22 @@ public sealed class HostControlClient : IDisposable
             request.ExpiresAt = Google.Protobuf.WellKnownTypes.Timestamp.FromDateTimeOffset(expiresAt.Value.ToUniversalTime());
         }
 
-        return await _client.SetRuntimeProcessRestartPolicyAsync(request, cancellationToken: cancellationToken);
+        return await _client.SetRuntimeProcessRestartPolicyAsync(request, deadline: DefaultDeadline(), cancellationToken: cancellationToken);
     }
 
     public async Task<HostProto.ModuleDetail> GetModuleDetailAsync(string moduleId, CancellationToken cancellationToken = default)
     {
-        return await _client.GetModuleDetailAsync(new HostProto.GetModuleDetailRequest { ModuleId = moduleId }, cancellationToken: cancellationToken);
+        return await _client.GetModuleDetailAsync(new HostProto.GetModuleDetailRequest { ModuleId = moduleId }, deadline: DefaultDeadline(), cancellationToken: cancellationToken);
     }
 
     public async Task<HostProto.ModuleDetail> SetModuleEnabledAsync(string moduleId, bool enabled, CancellationToken cancellationToken = default)
     {
-        return await _client.SetModuleEnabledAsync(new HostProto.SetModuleEnabledRequest { ModuleId = moduleId, Enabled = enabled }, cancellationToken: cancellationToken);
+        return await _client.SetModuleEnabledAsync(new HostProto.SetModuleEnabledRequest { ModuleId = moduleId, Enabled = enabled }, deadline: DefaultDeadline(), cancellationToken: cancellationToken);
     }
 
     public async Task<HostProto.ListCommandsResponse> ListCommandsAsync(string query = "", CancellationToken cancellationToken = default)
     {
-        return await _client.ListCommandsAsync(new HostProto.ListCommandsRequest { Query = query, IncludeDynamic = true }, cancellationToken: cancellationToken);
+        return await _client.ListCommandsAsync(new HostProto.ListCommandsRequest { Query = query, IncludeDynamic = true }, deadline: DefaultDeadline(), cancellationToken: cancellationToken);
     }
 
     public async Task<HostProto.CommandExecutionResponse> ExecuteCommandAsync(string commandId, CancellationToken cancellationToken = default)
@@ -171,7 +173,7 @@ public sealed class HostControlClient : IDisposable
             CommandId = commandId,
             InvocationId = invocationId,
             Args = JsonStructMapper.ToStruct(args)
-        }, cancellationToken: cancellationToken);
+        }, deadline: DefaultDeadline(30), cancellationToken: cancellationToken);
     }
 
     public async IAsyncEnumerable<HostProto.CommandExecutionEvent> ExecuteCommandStreamAsync(string invocationId, string commandId, JsonObject args, [EnumeratorCancellation] CancellationToken cancellationToken = default)
@@ -190,7 +192,7 @@ public sealed class HostControlClient : IDisposable
 
     public async Task<HostProto.CancelCommandResponse> CancelCommandAsync(string invocationId, CancellationToken cancellationToken = default)
     {
-        return await _client.CancelCommandAsync(new HostProto.CancelCommandRequest { InvocationId = invocationId }, cancellationToken: cancellationToken);
+        return await _client.CancelCommandAsync(new HostProto.CancelCommandRequest { InvocationId = invocationId }, deadline: DefaultDeadline(), cancellationToken: cancellationToken);
     }
 
     public async Task<HostProto.ListBrokerAuditResponse> ListBrokerAuditAsync(int limit = 20, string moduleId = "", string actionId = "", CancellationToken cancellationToken = default)
@@ -200,7 +202,7 @@ public sealed class HostControlClient : IDisposable
             ModuleId = moduleId,
             ActionId = actionId,
             Limit = (uint)Math.Max(1, limit)
-        }, cancellationToken: cancellationToken);
+        }, deadline: DefaultDeadline(), cancellationToken: cancellationToken);
     }
 
     public async Task<HostProto.ListNotificationsResponse> ListNotificationsAsync(int limit = 50, string moduleId = "", CancellationToken cancellationToken = default)
@@ -219,7 +221,7 @@ public sealed class HostControlClient : IDisposable
             ModuleId = moduleId,
             Limit = (uint)Math.Max(1, limit),
             ReadFilter = readFilter
-        }, cancellationToken: cancellationToken);
+        }, deadline: DefaultDeadline(), cancellationToken: cancellationToken);
     }
 
     public async Task<HostProto.SetNotificationReadStateResponse> SetNotificationReadStateAsync(
@@ -231,7 +233,7 @@ public sealed class HostControlClient : IDisposable
         {
             NotificationId = notificationId,
             IsRead = isRead
-        }, cancellationToken: cancellationToken);
+        }, deadline: DefaultDeadline(), cancellationToken: cancellationToken);
     }
 
     public Task<HostProto.SetNotificationReadStateResponse> MarkNotificationReadAsync(
@@ -243,12 +245,12 @@ public sealed class HostControlClient : IDisposable
 
     public async Task<HostProto.SettingsSnapshot> GetSettingsAsync(string moduleId, CancellationToken cancellationToken = default)
     {
-        return await _client.GetSettingsAsync(new HostProto.GetSettingsRequest { ModuleId = moduleId }, cancellationToken: cancellationToken);
+        return await _client.GetSettingsAsync(new HostProto.GetSettingsRequest { ModuleId = moduleId }, deadline: DefaultDeadline(), cancellationToken: cancellationToken);
     }
 
     public async Task<HostProto.SettingsSchema> GetSettingsSchemaAsync(string moduleId, CancellationToken cancellationToken = default)
     {
-        return await _client.GetSettingsSchemaAsync(new HostProto.GetSettingsSchemaRequest { ModuleId = moduleId }, cancellationToken: cancellationToken);
+        return await _client.GetSettingsSchemaAsync(new HostProto.GetSettingsSchemaRequest { ModuleId = moduleId }, deadline: DefaultDeadline(), cancellationToken: cancellationToken);
     }
 
     public async Task<HostProto.SettingsSnapshot> UpdateSettingsAsync(string moduleId, ulong expectedRevision, Struct patch, CancellationToken cancellationToken = default)
@@ -258,7 +260,7 @@ public sealed class HostControlClient : IDisposable
             ModuleId = moduleId,
             ExpectedRevision = expectedRevision,
             Patch = patch
-        }, cancellationToken: cancellationToken);
+        }, deadline: DefaultDeadline(), cancellationToken: cancellationToken);
     }
 
     public async Task<IReadOnlyList<HostProto.LogEntry>> TailLogsAsync(string moduleId, CancellationToken cancellationToken = default)
@@ -284,7 +286,7 @@ public sealed class HostControlClient : IDisposable
 
     public async Task QuitRunnerAsync(CancellationToken cancellationToken = default)
     {
-        await _client.QuitRunnerAsync(new HostProto.QuitRunnerRequest(), cancellationToken: cancellationToken);
+        await _client.QuitRunnerAsync(new HostProto.QuitRunnerRequest(), deadline: DefaultDeadline(), cancellationToken: cancellationToken);
     }
 
     public void Dispose()

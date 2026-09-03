@@ -1,0 +1,39 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleDevelopmentRegion</key>
+  <string>zh_CN</string>
+  <key>CFBundleDisplayName</key>
+  <string>MyPowerTools</string>
+  <key>CFBundleExecutable</key>
+  <string>MyPowerTools.Runner</string>
+  <key>CFBundleIdentifier</key>
+  <string>com.mypowertools.runner</string>
+  <key>CFBundleInfoDictionaryVersion</key>
+  <string>6.0</string>
+  <key>CFBundleName</key>
+  <string>MyPowerTools</string>
+  <key>CFBundlePackageType</key>
+  <string>APPL</string>
+  <!-- scripts/publish-macos.ps1 stamps the two version keys below from version.json. -->
+  <key>CFBundleShortVersionString</key>
+  <string>0.2.0</string>
+  <key>CFBundleVersion</key>
+  <string>200</string>
+  <key>CFBundleIconFile</key>
+  <string>MyPowerTools</string>
+  <!-- Modules publish desktop notifications from the Runner, so it needs a bundle identity
+       that UNUserNotificationCenter accepts. LSUIElement rather than LSBackgroundOnly:
+       a background-only process is not a notification client the system will route
+       activation responses back to. -->
+  <key>LSUIElement</key>
+  <true/>
+  <key>LSMinimumSystemVersion</key>
+  <string>12.0</string>
+  <key>NSHighResolutionCapable</key>
+  <true/>
+  <key>NSUserNotificationAlertStyle</key>
+  <string>alert</string>
+</dict>
+</plist>

@@ -17,7 +17,8 @@ Module 接收结果
 | Capability | Windows | macOS | Linux | 抽象接口 |
 |---|---|---|---|---|
 | `tray` | Windows tray | Status Item | AppIndicator | `ITrayService` |
-| `hotkey.global` | Win32 hook | Event tap | X11/Wayland provider | `IHotkeyService` |
+| `hotkey.global` | Win32 hook | Carbon RegisterEventHotKey | X11/Wayland provider | `IHotkeyService` |
+| `keyboard.shortcut` | Windows SendInput | CoreGraphics CGEvent（需辅助功能授权） | 未实现 | `IKeyboardShortcutService` |
 | `notification.desktop` | Windows notification | UserNotifications | freedesktop notifications | `INotificationService` |
 | `clipboard.image` | Win32 Clipboard | NSPasteboard | Wayland/X11 planned | `IClipboardImageService` |
 | `network.ssh` | Windows OpenSSH | `/usr/bin/ssh` | OpenSSH | Platform process provider |
@@ -62,7 +63,7 @@ Module 接收结果
       "reason": "管理 ADB 端口转发"
     },
     {
-      "capability": "adb.device",
+      "capability": "adb.devices",
       "required": true,
       "reason": "读取 ADB 设备列表"
     }

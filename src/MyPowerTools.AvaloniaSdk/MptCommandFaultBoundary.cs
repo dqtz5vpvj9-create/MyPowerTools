@@ -74,9 +74,9 @@ public static class MptCommandFaultBoundary
         }
     }
 
-    private static void TraceFault(string operationName, Exception ex)
+    internal static void TraceFault(string operationName, Exception ex)
     {
-        System.Diagnostics.Debug.WriteLine($"[{operationName}] {ex.Message}");
+        System.Diagnostics.Trace.WriteLine($"[{operationName}] {ex.Message}");
         FaultObserved?.Invoke(operationName, ex);
     }
 }

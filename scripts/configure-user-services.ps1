@@ -52,6 +52,20 @@ function Invoke-NativeQuiet {
     }
 }
 
+function Write-TextFileAtomically {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][AllowEmptyString()][string]$Content
+    )
+
+    # The ServiceManager reloads unit manifests while this script rewrites them, and a reader that
+    # catches a half-written file treats the unit as uninstalled and stops it. Staging in the same
+    # directory keeps the rename on one volume, so the target only ever holds a complete file.
+    $temporary = "$Path.tmp"
+    Set-Content -LiteralPath $temporary -Value $Content -Encoding UTF8 -NoNewline
+    Move-Item -LiteralPath $temporary -Destination $Path -Force
+}
+
 function Resolve-ManagedUnitIds {
     param([Parameter(Mandatory = $true)][string]$StatePath)
 
@@ -237,8 +251,9 @@ function Deploy-UnitManifests {
         }
         $manifest.arguments = $arguments
 
-        $manifest | ConvertTo-Json -Depth 8 |
-            Set-Content -LiteralPath (Join-Path $UnitsRoot "$unitId.json") -Encoding UTF8
+        Write-TextFileAtomically `
+            -Path (Join-Path $UnitsRoot "$unitId.json") `
+            -Content ($manifest | ConvertTo-Json -Depth 8)
         $records.Add([pscustomobject]@{
             UnitId = $unitId
             Autostart = [bool]$manifest.autostart
@@ -408,7 +423,7 @@ try {
                 -StartWhenAvailable `
                 -AllowStartIfOnBatteries `
                 -DontStopIfGoingOnBatteries `
-                -ExecutionTimeLimit (New-TimeSpan -Minutes 10)
+                -ExecutionTimeLimit (New-TimeSpan -Hours 2)
             Register-ScheduledTask `
                 -TaskName 'MyPowerTools OTA Check' `
                 -Action $otaTaskAction `

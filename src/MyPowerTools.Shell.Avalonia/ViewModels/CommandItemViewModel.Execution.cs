@@ -1,4 +1,5 @@
 using System.Text.Json.Nodes;
+using MyPowerTools.Shell.Avalonia.Services;
 
 namespace MyPowerTools.Shell.Avalonia.ViewModels;
 
@@ -49,7 +50,10 @@ public sealed partial class CommandItemViewModel
         }
         catch (Exception ex)
         {
-            ApplyExecutionStatus(new CommandExecutionStatus("failed", ex.Message));
+            var message = ShellFailurePresenter.IsRpcFailure(ex)
+                ? ShellFailurePresenter.Present(ex).StatusMessage
+                : ex.Message;
+            ApplyExecutionStatus(new CommandExecutionStatus("failed", message));
         }
         finally
         {
@@ -101,7 +105,13 @@ public sealed partial class CommandItemViewModel
     private void ClearProgressEvents()
     {
         ProgressEvents.Clear();
+        _stdoutPreview = "";
+        _stderrPreview = "";
         OnPropertyChanged(nameof(HasProgressEvents));
+        OnPropertyChanged(nameof(StdoutPreview));
+        OnPropertyChanged(nameof(StderrPreview));
+        OnPropertyChanged(nameof(HasStdout));
+        OnPropertyChanged(nameof(HasStderr));
     }
 
     private void ApplyExecutionStatus(CommandExecutionStatus result)
@@ -110,16 +120,31 @@ public sealed partial class CommandItemViewModel
         ExecutionMessage = string.IsNullOrWhiteSpace(result.Message)
             ? $"{ExecutionStateLabel}: {Title}"
             : result.Message;
+        var stateLabel = ExecutionStateLabel;
         ProgressEvents.Add(new CommandProgressItemViewModel(
             result.Sequence <= 0 ? ProgressEvents.Count + 1 : result.Sequence,
-            ExecutionStateLabel,
+            stateLabel,
             ExecutionMessage,
             result.IsTerminal));
+        while (ProgressEvents.Count > MaximumProgressEvents)
+        {
+            ProgressEvents.RemoveAt(0);
+        }
+
+        if (stateLabel.Contains("stdout", StringComparison.OrdinalIgnoreCase))
+        {
+            _stdoutPreview = ExecutionMessage;
+            OnPropertyChanged(nameof(StdoutPreview));
+            OnPropertyChanged(nameof(HasStdout));
+        }
+        else if (stateLabel.Contains("stderr", StringComparison.OrdinalIgnoreCase))
+        {
+            _stderrPreview = ExecutionMessage;
+            OnPropertyChanged(nameof(StderrPreview));
+            OnPropertyChanged(nameof(HasStderr));
+        }
+
         OnPropertyChanged(nameof(HasProgressEvents));
-        OnPropertyChanged(nameof(StdoutPreview));
-        OnPropertyChanged(nameof(StderrPreview));
-        OnPropertyChanged(nameof(HasStdout));
-        OnPropertyChanged(nameof(HasStderr));
         OnPropertyChanged(nameof(ResultSummary));
     }
 

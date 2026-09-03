@@ -6,9 +6,10 @@
   "description": "Receive signed remote notifications, filter by session, and open complete message details.",
   "icon": "tool.remote-notifications",
   "category": "Communication",
+  "type": "dotnet-surface",
   "primaryRouteId": "inbox",
   "routes": [
-    { "routeId": "inbox", "surfaceId": "android-tools.notifications.inbox", "title": "Notifications", "icon": "route.inbox" }
+    { "routeId": "inbox", "surfaceId": "android-tools.notifications.inbox", "title": "Notifications", "icon": "route.inbox", "surface": { "kind": "dotnet", "assembly": "surface/RemoteNotifications.Surface.dll", "type": "RemoteNotifications.Surface.RemoteNotificationsSurfaceFactory" } }
   ],
   "homeCard": {
     "summary": "Open the live notification stream and filter messages by Codex or Claude session.",

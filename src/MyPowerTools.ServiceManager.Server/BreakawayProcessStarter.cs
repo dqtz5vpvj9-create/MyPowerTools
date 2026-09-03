@@ -71,10 +71,23 @@ internal static class BreakawayProcessStarter
 
         IntPtr stdoutWrite = IntPtr.Zero;
         IntPtr stderrWrite = IntPtr.Zero;
+        IntPtr stdinRead = IntPtr.Zero;
         var securityAttributes = new SECURITY_ATTRIBUTES { nLength = (uint)Marshal.SizeOf<SECURITY_ATTRIBUTES>(), bInheritHandle = true };
 
         try
         {
+            // STARTF_USESTDHANDLES makes CreateProcessW hand the child exactly the three handles
+            // in STARTUPINFOW, so leaving hStdInput null gives the unit an invalid stdin. NUL is
+            // an always-available read handle that reports EOF immediately.
+            stdinRead = CreateFileW("NUL", GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, ref securityAttributes, OPEN_EXISTING, 0, IntPtr.Zero);
+            if (stdinRead == INVALID_HANDLE_VALUE)
+            {
+                stdinRead = IntPtr.Zero;
+                throw new Win32Exception(Marshal.GetLastWin32Error(), "CreateFileW(NUL) failed");
+            }
+
+            startupInfo.hStdInput = stdinRead;
+
             if (psi.RedirectStandardOutput)
             {
                 if (!CreatePipe(out var outRead, out stdoutWrite, ref securityAttributes, 0))
@@ -83,7 +96,7 @@ internal static class BreakawayProcessStarter
                 }
 
                 SetHandleInformation(outRead, HANDLE_FLAG_INHERIT, 0);
-                startupInfo.hStdOutput = outRead;
+                startupInfo.hStdOutput = stdoutWrite;
                 var outSafe = new Microsoft.Win32.SafeHandles.SafeFileHandle(outRead, ownsHandle: true);
                 stdoutReader = new StreamReader(new FileStream(outSafe, FileAccess.Read), System.Text.Encoding.Default);
             }
@@ -96,7 +109,7 @@ internal static class BreakawayProcessStarter
                 }
 
                 SetHandleInformation(errRead, HANDLE_FLAG_INHERIT, 0);
-                startupInfo.hStdError = errRead;
+                startupInfo.hStdError = stderrWrite;
                 var errSafe = new Microsoft.Win32.SafeHandles.SafeFileHandle(errRead, ownsHandle: true);
                 stderrReader = new StreamReader(new FileStream(errSafe, FileAccess.Read), System.Text.Encoding.Default);
             }
@@ -129,7 +142,7 @@ internal static class BreakawayProcessStarter
                         lpCommandLine: cmdPtr,
                         lpProcessAttributes: IntPtr.Zero,
                         lpThreadAttributes: IntPtr.Zero,
-                        bInheritHandles: stdoutWrite != IntPtr.Zero || stderrWrite != IntPtr.Zero,
+                        bInheritHandles: true,
                         dwCreationFlags: creationFlags,
                         lpEnvironment: envArg,
                         lpCurrentDirectory: wdPtr,
@@ -165,15 +178,16 @@ internal static class BreakawayProcessStarter
         {
             stdoutReader?.Dispose();
             stderrReader?.Dispose();
-            if (stdoutWrite != IntPtr.Zero) CloseHandle(stdoutWrite);
-            if (stderrWrite != IntPtr.Zero) CloseHandle(stderrWrite);
             throw;
         }
         finally
         {
-            // The child has its own inheritable copies; close our side of the write ends so EOF reaches the readers.
+            // The child has its own inheritable copies; close our side of the write ends so EOF
+            // reaches the readers. This runs on the failure path too, so the catch above must not
+            // close the same raw handles a second time.
             if (stdoutWrite != IntPtr.Zero) CloseHandle(stdoutWrite);
             if (stderrWrite != IntPtr.Zero) CloseHandle(stderrWrite);
+            if (stdinRead != IntPtr.Zero) CloseHandle(stdinRead);
         }
     }
 
@@ -189,19 +203,44 @@ internal static class BreakawayProcessStarter
         return sb.ToString();
     }
 
-    private static string QuoteIfNeeded(string value)
+    /// <summary>
+    /// Quotes one command-line token the way the C runtime and <c>CommandLineToArgvW</c> parse it:
+    /// a backslash run is literal unless it precedes a quote or the argument's closing quote, in
+    /// which case every backslash in the run is doubled, and an embedded quote becomes <c>\"</c>.
+    /// Without the doubling a trailing backslash — every directory path ends in one — escapes the
+    /// closing quote and swallows the next argument.
+    /// </summary>
+    internal static string QuoteIfNeeded(string value)
     {
-        if (string.IsNullOrEmpty(value))
-        {
-            return "\"\"";
-        }
-
-        if (value.IndexOf(' ') < 0 && value.IndexOf('"') < 0)
+        if (value.Length > 0 && !value.Any(character => char.IsWhiteSpace(character) || character == '"'))
         {
             return value;
         }
 
-        return "\"" + value.Replace("\"", "\\\"") + "\"";
+        var result = new System.Text.StringBuilder("\"");
+        var slashes = 0;
+        foreach (var character in value)
+        {
+            if (character == '\\')
+            {
+                slashes++;
+                continue;
+            }
+
+            if (character == '"')
+            {
+                result.Append('\\', slashes * 2 + 1).Append('"');
+                slashes = 0;
+                continue;
+            }
+
+            result.Append('\\', slashes);
+            slashes = 0;
+            result.Append(character);
+        }
+
+        result.Append('\\', slashes * 2).Append('"');
+        return result.ToString();
     }
 
     private static byte[] BuildEnvironmentBlock(System.Collections.Generic.IDictionary<string, string?> env)
@@ -222,6 +261,11 @@ internal static class BreakawayProcessStarter
     }
 
     private const uint HANDLE_FLAG_INHERIT = 1;
+    private const uint GENERIC_READ = 0x80000000;
+    private const uint FILE_SHARE_READ = 0x00000001;
+    private const uint FILE_SHARE_WRITE = 0x00000002;
+    private const uint OPEN_EXISTING = 3;
+    private static readonly IntPtr INVALID_HANDLE_VALUE = new(-1);
 
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
     private struct STARTUPINFOW
@@ -268,6 +312,16 @@ internal static class BreakawayProcessStarter
     [DllImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool CreatePipe(out IntPtr hReadPipe, out IntPtr hWritePipe, ref SECURITY_ATTRIBUTES lpPipeAttributes, uint nSize);
+
+    [DllImport("kernel32.dll", SetLastError = true, CharSet = CharSet.Unicode)]
+    private static extern IntPtr CreateFileW(
+        string lpFileName,
+        uint dwDesiredAccess,
+        uint dwShareMode,
+        ref SECURITY_ATTRIBUTES lpSecurityAttributes,
+        uint dwCreationDisposition,
+        uint dwFlagsAndAttributes,
+        IntPtr hTemplateFile);
 
     [DllImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]

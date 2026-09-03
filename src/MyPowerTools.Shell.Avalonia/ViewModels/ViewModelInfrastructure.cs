@@ -57,6 +57,7 @@ public sealed class ShellChromeViewModel : ObservableViewModel
     private bool _isPermissionPromptOpen;
     private string _selectedNavigationKey = "Home";
     private ExternalSdkToolViewModel? _headerContent;
+    private readonly ObservableCollection<InfoBarItem> _infoBars = new();
 
     public ShellChromeViewModel(
         IReadOnlyList<string> pageLabels,
@@ -141,6 +142,63 @@ public sealed class ShellChromeViewModel : ObservableViewModel
     }
 
     public bool HasHeaderContent => HeaderContent is not null;
+
+    public ObservableCollection<InfoBarItem> InfoBars => _infoBars;
+
+    public void ShowInfoBar(InfoBarItem item)
+    {
+        if (!global::Avalonia.Threading.Dispatcher.UIThread.CheckAccess())
+        {
+            global::Avalonia.Threading.Dispatcher.UIThread.Post(() => ShowInfoBar(item));
+            return;
+        }
+
+        // Runner status flaps and repeated failures would otherwise stack identical banners.
+        if (_infoBars.Any(existing => existing.IsVisible &&
+                                      existing.Severity == item.Severity &&
+                                      string.Equals(existing.Message, item.Message, StringComparison.Ordinal)))
+        {
+            return;
+        }
+
+        item.PropertyChanged += OnInfoBarItemPropertyChanged;
+        _infoBars.Insert(0, item);
+        while (_infoBars.Count > 3)
+        {
+            RemoveInfoBar(_infoBars[^1]);
+        }
+
+        if (item.AutoDismissMs is > 0 and var delay)
+        {
+            global::Avalonia.Threading.DispatcherTimer.RunOnce(
+                () => item.IsVisible = false,
+                TimeSpan.FromMilliseconds(delay));
+        }
+    }
+
+    private void OnInfoBarItemPropertyChanged(object? sender, PropertyChangedEventArgs args)
+    {
+        if (sender is InfoBarItem item &&
+            args.PropertyName == nameof(InfoBarItem.IsVisible) &&
+            !item.IsVisible)
+        {
+            RemoveInfoBar(item);
+        }
+    }
+
+    private void RemoveInfoBar(InfoBarItem item)
+    {
+        item.PropertyChanged -= OnInfoBarItemPropertyChanged;
+        _infoBars.Remove(item);
+    }
+
+    public void DismissInfoBarsOfSeverity(InfoBarSeverity severity)
+    {
+        for (int i = _infoBars.Count - 1; i >= 0; i--)
+        {
+            if (_infoBars[i].Severity == severity) RemoveInfoBar(_infoBars[i]);
+        }
+    }
 
     public void SelectPage(string page)
     {
@@ -232,4 +290,44 @@ public sealed class ShellChromeViewModel : ObservableViewModel
     }
 
     private static string ToolNavigationKey(string toolId) => $"tool:{toolId}";
+}
+
+public enum InfoBarSeverity { Info, Success, Warning, Error }
+
+public sealed class InfoBarItem : ObservableViewModel
+{
+    private bool _isVisible = true;
+
+    public InfoBarItem(InfoBarSeverity severity, string message, string? actionLabel = null, Func<Task>? action = null, int? autoDismissMs = null)
+    {
+        Severity = severity;
+        Message = message;
+        ActionLabel = actionLabel;
+        HasAction = actionLabel is not null && action is not null;
+        ActionCommand = new AsyncRelayCommand(() => action?.Invoke() ?? Task.CompletedTask, operationName: $"InfoBar:{actionLabel}");
+        DismissCommand = new AsyncRelayCommand(() => { IsVisible = false; return Task.CompletedTask; });
+        AutoDismissMs = autoDismissMs;
+    }
+
+    public InfoBarSeverity Severity { get; }
+    public string Message { get; }
+    public string? ActionLabel { get; }
+    public bool HasAction { get; }
+    public ICommand ActionCommand { get; }
+    public ICommand DismissCommand { get; }
+    public int? AutoDismissMs { get; }
+
+    public bool IsVisible
+    {
+        get => _isVisible;
+        set => SetProperty(ref _isVisible, value);
+    }
+
+    public string SeverityIcon => Severity switch
+    {
+        InfoBarSeverity.Success => "",
+        InfoBarSeverity.Warning => "",
+        InfoBarSeverity.Error => "",
+        _ => ""
+    };
 }

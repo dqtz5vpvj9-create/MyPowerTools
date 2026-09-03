@@ -60,6 +60,9 @@ public sealed class PasteImageViewModel : ToolSurfacePageViewModel, IDisposable
     public Bitmap? Preview { get => _preview; private set => SetProperty(ref _preview, value); }
     public string PreviewMeta { get => _previewMeta; private set => SetProperty(ref _previewMeta, value); }
     public ObservableCollection<UploadHistoryRow> History { get; } = [];
+
+    /// <summary>Set by the view once it is attached; writes text to the system clipboard.</summary>
+    public Func<string, Task>? ClipboardWriter { get; set; }
     public ICommand UploadCommand { get; }
     public ICommand RefreshCommand { get; }
 
@@ -142,7 +145,7 @@ public sealed class PasteImageViewModel : ToolSurfacePageViewModel, IDisposable
             var rows = document.RootElement.GetProperty("items")
                 .EnumerateArray()
                 .Take(5)
-                .Select(UploadHistoryRow.FromJson)
+                .Select(item => UploadHistoryRow.FromJson(item).WithCopySupport(CopyPathToClipboardAsync))
                 .ToArray();
             var preview = rows.Length == 0 ? null : await LoadBitmapAsync(rows[0].LocalPreviewPath, cancellationToken).ConfigureAwait(false);
             await RunOnUiAsync(() => ReplaceHistory(rows, preview)).ConfigureAwait(false);
@@ -210,7 +213,7 @@ public sealed class PasteImageViewModel : ToolSurfacePageViewModel, IDisposable
         {
             if (string.Equals(surfaceEvent.Type, "upload.alert", StringComparison.OrdinalIgnoreCase))
             {
-                var row = UploadHistoryRow.FromEvent(surfaceEvent.Payload);
+                var row = UploadHistoryRow.FromEvent(surfaceEvent.Payload).WithCopySupport(CopyPathToClipboardAsync);
                 var previewDecodeStartedUtc = DateTimeOffset.UtcNow;
                 var preview = await LoadBitmapAsync(row.LocalPreviewPath, _lifetime.Token).ConfigureAwait(false);
                 var previewDecodedUtc = DateTimeOffset.UtcNow;
@@ -383,6 +386,26 @@ public sealed class PasteImageViewModel : ToolSurfacePageViewModel, IDisposable
         return JsonDocument.Parse(output[start..(end + 1)]);
     }
 
+    private async Task CopyPathToClipboardAsync(string path)
+    {
+        var writer = ClipboardWriter;
+        if (writer is null)
+        {
+            await RunOnUiAsync(() => SetMessage("!", "剪贴板不可用，无法复制路径。", Error, ErrorSoft)).ConfigureAwait(false);
+            return;
+        }
+
+        try
+        {
+            await writer(path).ConfigureAwait(false);
+            await RunOnUiAsync(() => SetMessage("✓", $"路径已复制：{path}", Success, SuccessSoft)).ConfigureAwait(false);
+        }
+        catch (Exception exception)
+        {
+            await RunOnUiAsync(() => SetMessage("!", $"复制失败：{exception.Message}", Error, ErrorSoft)).ConfigureAwait(false);
+        }
+    }
+
     private static string NormalizeOutput(string output)
     {
         const string prefix = "succeeded:";
@@ -418,6 +441,20 @@ public sealed record UploadHistoryRow(
     long SizeBytes)
 {
     public string UploadedAtText => UploadedAt.ToLocalTime().ToString("MM-dd HH:mm:ss");
+
+    public ICommand CopyCommand { get; init; } = new MptAsyncRelayCommand(
+        () => Task.CompletedTask, operationName: "CopyHistoryPath");
+
+    public UploadHistoryRow WithCopySupport(Func<string, Task> copyAction)
+    {
+        var path = RemotePath;
+        return this with
+        {
+            CopyCommand = new MptAsyncRelayCommand(
+                () => copyAction(path),
+                operationName: "CopyHistoryPath")
+        };
+    }
 
     public static UploadHistoryRow FromJson(JsonElement item) => new(
         item.GetProperty("RemotePath").GetString() ?? "",

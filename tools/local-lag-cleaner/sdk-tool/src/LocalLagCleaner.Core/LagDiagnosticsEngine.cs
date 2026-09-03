@@ -21,6 +21,7 @@ public sealed class LagDiagnosticsEngine
         var timer = Stopwatch.StartNew();
         var cpuStart = WindowsNative.ReadCpuTimes();
         var processStart = CaptureProcessCounters(processTable);
+        var baselineTakenAt = timer.Elapsed;
         var interval = TimeSpan.FromMilliseconds(options.SampleIntervalMilliseconds);
         var healthSamples = Math.Max(
             1,
@@ -31,14 +32,16 @@ public sealed class LagDiagnosticsEngine
             interval,
             cancellationToken).ConfigureAwait(false);
         var cpuEnd = WindowsNative.ReadCpuTimes();
-        timer.Stop();
 
         var capturedAt = DateTimeOffset.UtcNow;
         var performance = WindowsNative.ReadPerformance();
         var processEndTable = WindowsNative.ReadProcessTable();
         var processEndRoles = WindowsNative.ReadKnownServiceProcessRoles();
         var processEnd = CaptureProcesses(processEndTable, processEndRoles);
-        var elapsedSeconds = Math.Max(0.1, timer.Elapsed.TotalSeconds);
+        // Per-process rates divide the counter delta by the span between the two samples that
+        // produced it, so the divisor is read with the closing sample rather than before it.
+        var elapsedSeconds = Math.Max(0.1, (timer.Elapsed - baselineTakenAt).TotalSeconds);
+        timer.Stop();
         var health = await probe.CollectSupplementalAsync(
             performanceWindow,
             cancellationToken).ConfigureAwait(false);
@@ -392,7 +395,7 @@ public sealed class LagDiagnosticsEngine
                     var io = WindowsNative.TryReadProcessIo(processId);
                     result[processId] = new ProcessCounterSample(
                         TryReadStartTime(process),
-                        TryReadLong(() => process.TotalProcessorTime.Ticks),
+                        TryReadProcessorTicks(process),
                         ToUInt64(TryReadLong(() => process.PrivateMemorySize64)),
                         TryRead(() => process.HandleCount),
                         native?.ThreadCount ?? 0,
@@ -432,7 +435,7 @@ public sealed class LagDiagnosticsEngine
                         nativeEntry?.ParentProcessId ?? 0,
                         name,
                         TryReadStartTime(process),
-                        TryReadLong(() => process.TotalProcessorTime.Ticks),
+                        TryReadProcessorTicks(process),
                         ToUInt64(TryReadLong(() => process.PrivateMemorySize64)),
                         ToUInt64(TryReadLong(() => process.WorkingSet64)),
                         handleCount,
@@ -464,10 +467,14 @@ public sealed class LagDiagnosticsEngine
     {
         var sameProcess = previous is not null &&
                           SameProcessIdentity(previous.StartTimeUtc, current.StartTimeUtc);
-        var previousProcessorTicks = sameProcess ? previous!.TotalProcessorTicks : 0;
-        var deltaTicks = previousProcessorTicks == 0 || current.TotalProcessorTicks < previousProcessorTicks
-            ? 0
-            : current.TotalProcessorTicks - previousProcessorTicks;
+        // A baseline of zero ticks is a real reading; a counter that could not be read is unknown
+        // and is left out of the rate instead of being published as 0.00%.
+        var baselineTicks = sameProcess ? previous!.TotalProcessorTicks : null;
+        var currentTicks = current.TotalProcessorTicks;
+        var cpuAvailable = baselineTicks.HasValue &&
+                           currentTicks.HasValue &&
+                           currentTicks.Value >= baselineTicks.Value;
+        var deltaTicks = cpuAvailable ? currentTicks!.Value - baselineTicks!.Value : 0;
         var corePercent = deltaTicks / (double)TimeSpan.TicksPerSecond / elapsedSeconds * 100;
         var machinePercent = corePercent / logicalProcessors;
         var ageMinutes = current.StartTimeUtc.HasValue
@@ -505,7 +512,7 @@ public sealed class LagDiagnosticsEngine
                     : SaturatingLongDelta(current.PrivateBytes, previous!.PrivateBytes),
                 HandleCountDelta = sameProcess ? current.HandleCount - previous!.HandleCount : 0,
                 ThreadCountDelta = sameProcess ? current.ThreadCount - previous!.ThreadCount : 0,
-                MetricsComplete = sameProcess && ioAvailable
+                MetricsComplete = sameProcess && ioAvailable && cpuAvailable
             };
         return new AnalyzedProcess(
             processSnapshot,
@@ -1920,6 +1927,21 @@ public sealed class LagDiagnosticsEngine
         }
     }
 
+    private static long? TryReadProcessorTicks(Process process)
+    {
+        try
+        {
+            return process.TotalProcessorTime.Ticks;
+        }
+        catch (Exception exception) when (
+            exception is InvalidOperationException or
+            System.ComponentModel.Win32Exception or
+            NotSupportedException)
+        {
+            return null;
+        }
+    }
+
     private static long TryReadLong(Func<long> getter)
     {
         try
@@ -1994,7 +2016,7 @@ public sealed class LagDiagnosticsEngine
         int ParentProcessId,
         string Name,
         DateTimeOffset? StartTimeUtc,
-        long TotalProcessorTicks,
+        long? TotalProcessorTicks,
         ulong PrivateBytes,
         ulong WorkingSetBytes,
         int HandleCount,
@@ -2006,7 +2028,7 @@ public sealed class LagDiagnosticsEngine
 
     private sealed record ProcessCounterSample(
         DateTimeOffset? StartTimeUtc,
-        long TotalProcessorTicks,
+        long? TotalProcessorTicks,
         ulong PrivateBytes,
         int HandleCount,
         int ThreadCount,

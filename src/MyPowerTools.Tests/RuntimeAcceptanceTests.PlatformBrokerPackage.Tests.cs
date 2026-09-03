@@ -446,9 +446,13 @@ public sealed partial class RuntimeAcceptanceTests
             Assert.Contains("Broker", windowsPrivilege.Message, StringComparison.OrdinalIgnoreCase);
         }
 
-        Assert.False(mac.Capabilities.Resolve("hotkey.global").Supported);
+        Assert.True(mac.Capabilities.Resolve("hotkey.global").Supported);
         Assert.False(mac.Capabilities.Resolve("privilege.elevated").Supported);
-        Assert.Equal("unsupported", macHotkey.State);
+        if (!OperatingSystem.IsMacOS())
+        {
+            // The mac pack only instantiates the Carbon-backed service on macOS itself.
+            Assert.Equal("unsupported", macHotkey.State);
+        }
         Assert.Equal("unsupported", macPrivilege.State);
         Assert.True(macPrivilege.RequiresBroker);
 
@@ -505,9 +509,12 @@ public sealed partial class RuntimeAcceptanceTests
             Assert.IsType<WindowsKeyboardShortcutService>(windows.KeyboardShortcuts);
         }
 
-        Assert.False(mac.Capabilities.Resolve("keyboard.shortcut").Supported);
+        Assert.True(mac.Capabilities.Resolve("keyboard.shortcut").Supported);
         Assert.False(linux.Capabilities.Resolve("keyboard.shortcut").Supported);
-        Assert.IsType<UnsupportedKeyboardShortcutService>(mac.KeyboardShortcuts);
+        if (!OperatingSystem.IsMacOS())
+        {
+            Assert.IsType<UnsupportedKeyboardShortcutService>(mac.KeyboardShortcuts);
+        }
         Assert.IsType<UnsupportedKeyboardShortcutService>(linux.KeyboardShortcuts);
     }
 

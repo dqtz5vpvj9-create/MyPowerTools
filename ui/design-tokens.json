@@ -23,7 +23,11 @@
       "degraded": "MptColor.Warning",
       "error": "MptColor.Danger",
       "info": "MptColor.Info",
-      "neutral": "MptColor.Neutral"
+      "neutral": "MptColor.Neutral",
+      "warningBackground": "MptBrush.WarningBackground",
+      "infoBackground": "MptBrush.InfoBackground",
+      "dangerBackground": "MptBrush.DangerBackground",
+      "successBackground": "MptBrush.SuccessBackground"
     }
   },
   "typography": {

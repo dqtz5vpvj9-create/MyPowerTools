@@ -7,6 +7,19 @@ namespace MyPowerTools.Shell.Avalonia.ViewModels;
 
 public sealed partial class PackageManagerViewModel
 {
+    /// <summary>
+    /// Where the updater leaves its last result. SpecialFolder.LocalApplicationData is
+    /// %LOCALAPPDATA% on Windows and ~/Library/Application Support on macOS, so the hint names
+    /// the directory the reader will actually find rather than a Windows environment variable.
+    /// </summary>
+    internal static string OtaStateFileHint => Path.Combine(
+        OperatingSystem.IsWindows()
+            ? "%LOCALAPPDATA%"
+            : Path.Combine("~", "Library", "Application Support"),
+        "MyPowerTools",
+        "ota-state",
+        "last-update.json");
+
     private Task RequestUpdateConsentAsync()
     {
         if (_applyUpdate is null || IsUpdateBusy)
@@ -172,7 +185,7 @@ public sealed partial class PackageManagerViewModel
             }
             else
             {
-                UpdateStatus = "升级失败，请查看 %LOCALAPPDATA%\\MyPowerTools\\ota-state\\last-update.json 与日志。";
+                UpdateStatus = $"升级失败，请查看 {OtaStateFileHint} 与日志。";
             }
         }
         catch (Exception ex)

@@ -309,6 +309,15 @@ internal static class NssmServiceApprovalExecutor
         source.Position = 0;
         try
         {
+            // A managed service that is currently running holds nssm-manager.exe as its image, so
+            // the replace below fails with a sharing violation and blocks every later install or
+            // migration. The already-materialized copy is the same host, so nothing has to move.
+            if (ProtectedFileStaging.AlreadyMatches(destinationPath, sourceHash))
+            {
+                ValidateProtectedExecutable(destinationPath, destinationDirectory);
+                return destinationPath;
+            }
+
             using (var destination = new FileStream(temporaryPath, FileMode.CreateNew, FileAccess.Write, FileShare.None, 1024 * 1024, FileOptions.WriteThrough))
             {
                 source.CopyTo(destination);

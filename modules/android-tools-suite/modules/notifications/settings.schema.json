@@ -1,15 +1,22 @@
 {
   "sections": [
     {
-      "id": "general",
-      "title": "通用",
+      "id": "source",
+      "title": "Notification source",
       "items": [
-        {
-          "type": "toggle",
-          "key": "enabled",
-          "label": "启用",
-          "default": true
-        }
+        { "type": "select", "key": "serverProtocol", "label": "Protocol", "options": ["https", "http"], "default": "https" },
+        { "type": "text", "key": "serverHost", "label": "Host", "default": "message.lixinrui000.cn" },
+        { "type": "number", "key": "serverPort", "label": "Port", "minimum": 1, "maximum": 65535, "default": 8888 },
+        { "type": "text", "key": "defaultChannel", "label": "Channel", "default": "default" },
+        { "type": "number", "key": "pollIntervalSeconds", "label": "Poll interval (seconds)", "minimum": 5, "maximum": 3600, "default": 5 }
+      ]
+    },
+    {
+      "id": "signing",
+      "title": "Signing and banners",
+      "items": [
+        { "type": "text", "key": "privateKeyPath", "label": "SSH private key path", "default": "~/.ssh/id_ed25519" },
+        { "type": "toggle", "key": "keepWindowsBanners", "label": "Keep Windows banners visible", "default": false }
       ]
     }
   ]

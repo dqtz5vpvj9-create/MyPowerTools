@@ -32,33 +32,7 @@ public sealed class ServiceManagerEngine : IAsyncDisposable
         await _reloadGate.WaitAsync(cancellationToken);
         try
         {
-            var count = _catalog.Reload();
-            var manifests = _catalog.Manifests.ToDictionary(item => item.Id, StringComparer.OrdinalIgnoreCase);
-
-            foreach (var unitId in _supervisors.Keys.Where(unitId => !manifests.ContainsKey(unitId)).ToArray())
-            {
-                if (_supervisors.TryRemove(unitId, out var removed))
-                {
-                    await removed.StopAsync(cancellationToken);
-                    await removed.DisposeAsync();
-                }
-            }
-
-            foreach (var manifest in manifests.Values)
-            {
-                if (!_supervisors.TryGetValue(manifest.Id, out var existing))
-                {
-                    _supervisors[manifest.Id] = new UnitSupervisor(manifest, _events, _stateStore);
-                    continue;
-                }
-
-                if (!ManifestEquals(existing.Manifest, manifest))
-                {
-                    await existing.ApplyManifestAsync(manifest, cancellationToken);
-                }
-            }
-
-            return count;
+            return await ReloadCoreAsync(activateExisting: false, cancellationToken);
         }
         finally
         {
@@ -72,8 +46,56 @@ public sealed class ServiceManagerEngine : IAsyncDisposable
     /// </summary>
     public async Task ReconcileAsync(CancellationToken cancellationToken = default)
     {
-        await ReloadAsync(cancellationToken);
-        foreach (var (unitId, supervisor) in _supervisors)
+        await _reloadGate.WaitAsync(cancellationToken);
+        try
+        {
+            await ReloadCoreAsync(activateExisting: true, cancellationToken);
+        }
+        finally
+        {
+            _reloadGate.Release();
+        }
+    }
+
+    private async Task<int> ReloadCoreAsync(bool activateExisting, CancellationToken cancellationToken)
+    {
+        var count = _catalog.Reload();
+        var manifests = _catalog.Manifests.ToDictionary(item => item.Id, StringComparer.OrdinalIgnoreCase);
+
+        foreach (var unitId in _supervisors.Keys.Where(unitId => !manifests.ContainsKey(unitId)).ToArray())
+        {
+            if (_supervisors.TryRemove(unitId, out var removed))
+            {
+                await removed.StopAsync(cancellationToken);
+                await removed.DisposeAsync();
+            }
+        }
+
+        var activation = new List<UnitSupervisor>();
+        foreach (var manifest in OrderByDependencies(manifests.Values))
+        {
+            if (!_supervisors.TryGetValue(manifest.Id, out var supervisor))
+            {
+                supervisor = new UnitSupervisor(manifest, _events, _stateStore);
+                _supervisors[manifest.Id] = supervisor;
+                activation.Add(supervisor);
+                continue;
+            }
+
+            if (!ManifestEquals(supervisor.Manifest, manifest))
+            {
+                await supervisor.ApplyManifestAsync(manifest, cancellationToken);
+            }
+
+            if (activateExisting)
+            {
+                activation.Add(supervisor);
+            }
+        }
+
+        // A supervisor created here has no process yet; the reload that introduced it is the only
+        // place that can adopt or autostart it, and it runs after every dependency of the unit.
+        foreach (var supervisor in activation)
         {
             cancellationToken.ThrowIfCancellationRequested();
             if (await supervisor.TryReadoptAsync(cancellationToken))
@@ -86,6 +108,62 @@ public sealed class ServiceManagerEngine : IAsyncDisposable
                 await supervisor.StartAsync(cancellationToken);
             }
         }
+
+        return count;
+    }
+
+    /// <summary>
+    /// Orders units so that every unit follows the units it declares in <c>dependsOn</c>.
+    /// Units with no relationship keep a stable order by id. A dependency that is not installed is
+    /// simply skipped, and a cycle is reported and then broken at the unit that closes it — an
+    /// unstartable catalog is a worse outcome than an imperfect order.
+    /// </summary>
+    internal static IReadOnlyList<ServiceUnitManifest> OrderByDependencies(
+        IReadOnlyCollection<ServiceUnitManifest> manifests)
+    {
+        var byId = new Dictionary<string, ServiceUnitManifest>(StringComparer.OrdinalIgnoreCase);
+        foreach (var manifest in manifests)
+        {
+            byId[manifest.Id] = manifest;
+        }
+
+        var ordered = new List<ServiceUnitManifest>(manifests.Count);
+        var placed = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var visiting = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+
+        void Visit(ServiceUnitManifest manifest)
+        {
+            if (placed.Contains(manifest.Id))
+            {
+                return;
+            }
+
+            if (!visiting.Add(manifest.Id))
+            {
+                Console.Error.WriteLine(
+                    $"[ServiceManager] unit '{manifest.Id}' is part of a dependsOn cycle; starting it without waiting for that dependency.");
+                return;
+            }
+
+            foreach (var dependency in manifest.DependsOn ?? Array.Empty<string>())
+            {
+                if (byId.TryGetValue(dependency, out var required))
+                {
+                    Visit(required);
+                }
+            }
+
+            visiting.Remove(manifest.Id);
+            placed.Add(manifest.Id);
+            ordered.Add(manifest);
+        }
+
+        foreach (var manifest in manifests.OrderBy(item => item.Id, StringComparer.OrdinalIgnoreCase))
+        {
+            Visit(manifest);
+        }
+
+        return ordered;
     }
 
     private UnitSupervisor RequireSupervisor(string unitId)

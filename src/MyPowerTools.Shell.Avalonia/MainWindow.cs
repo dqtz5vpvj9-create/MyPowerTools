@@ -3,6 +3,7 @@ using Avalonia.Controls;
 using Avalonia.Media;
 using Avalonia.Platform;
 using Avalonia.Threading;
+using MyPowerTools.Platform;
 using MyPowerTools.Shell.Avalonia.Services;
 using MyPowerTools.Shell.Avalonia.ViewModels;
 using MyPowerTools.Shell.Avalonia.Views;
@@ -28,6 +29,8 @@ public sealed partial class MainWindow : Window
     private int _workspaceInitializationStarted;
     private int _windowClosed;
     private int _suppressInitialPresentation;
+    private readonly bool _trayAvailable;
+    private string? _bootstrapFailureMessage;
 
     public MainWindow()
         : this(ShellStartupOptions.Default)
@@ -50,6 +53,7 @@ public sealed partial class MainWindow : Window
         _startupOptions = startupOptions;
         _runnerBootstrapTask = runnerBootstrapTask;
         _cachedHomeSnapshotTask = cachedHomeSnapshotTask;
+        _trayAvailable = PlatformPackFactory.Create().Capabilities.Resolve("tray").Supported;
         var runtimeIdentity = ShellRuntimeIdentityResolver.Resolve(AppContext.BaseDirectory);
         _windowCaption = runtimeIdentity.WindowCaption;
         Title = OperatingSystem.IsWindows() ? "" : _windowCaption;

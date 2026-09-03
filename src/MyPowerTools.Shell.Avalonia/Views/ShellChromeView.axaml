@@ -289,8 +289,57 @@
 
     <Grid Grid.Column="1"
           Grid.Row="1"
+          RowDefinitions="Auto,*"
           Background="{DynamicResource MptBrushAppBackground}">
-      <ScrollViewer Margin="{DynamicResource MptPagePadding}"
+      <ItemsControl Grid.Row="0"
+                    ItemsSource="{Binding InfoBars}"
+                    Margin="{DynamicResource MptInfoBarHostMargin}">
+        <ItemsControl.ItemTemplate>
+          <DataTemplate>
+            <Border IsVisible="{Binding IsVisible}"
+                    Margin="{DynamicResource MptGapTopS}"
+                    Padding="{DynamicResource MptInfoBarPadding}"
+                    CornerRadius="{DynamicResource MptRadiusCard}"
+                    BorderThickness="0,0,0,0"
+                    Background="{DynamicResource MptBrushCardBackground}"
+                    BoxShadow="{DynamicResource MptShadowRaised}">
+              <Grid ColumnDefinitions="Auto,*,Auto,Auto">
+                <TextBlock Grid.Column="0"
+                           Text="{Binding SeverityIcon}"
+                           FontFamily="{DynamicResource MptFontFamilyIcons}"
+                           FontSize="{DynamicResource MptFontSizeCardTitle}"
+                           VerticalAlignment="Center"
+                           Margin="{DynamicResource MptGapRightS}" />
+                <TextBlock Grid.Column="1"
+                           Text="{Binding Message}"
+                           TextWrapping="Wrap"
+                           VerticalAlignment="Center" />
+                <controls:MptButton Grid.Column="2"
+                                    Content="{Binding ActionLabel}"
+                                    Command="{Binding ActionCommand}"
+                                    IsVisible="{Binding HasAction}"
+                                    Classes="MptPrimaryButton"
+                                    Margin="{DynamicResource MptGapLeftS}"
+                                    VerticalAlignment="Center"
+                                    MinWidth="60" />
+                <controls:MptButton Grid.Column="3"
+                                    Content="&#xE711;"
+                                    FontFamily="{DynamicResource MptFontFamilyIcons}"
+                                    Command="{Binding DismissCommand}"
+                                    Background="{DynamicResource MptBrushTransparent}"
+                                    BorderBrush="{DynamicResource MptBrushTransparent}"
+                                    Width="28" Height="28"
+                                    Padding="{DynamicResource MptNoThickness}"
+                                    Margin="{DynamicResource MptGapLeftXs}"
+                                    VerticalAlignment="Center"
+                                    ToolTip.Tip="Dismiss" />
+              </Grid>
+            </Border>
+          </DataTemplate>
+        </ItemsControl.ItemTemplate>
+      </ItemsControl>
+      <ScrollViewer Grid.Row="1"
+                    Margin="{DynamicResource MptPagePadding}"
                     HorizontalContentAlignment="Stretch"
                     HorizontalScrollBarVisibility="Disabled"
                     VerticalScrollBarVisibility="Auto">
@@ -301,6 +350,7 @@
                         VerticalAlignment="Stretch" />
       </ScrollViewer>
       <Grid x:Name="WebSurfaceHost"
+            Grid.Row="1"
             Margin="{DynamicResource MptPagePadding}"
             IsVisible="False"
             HorizontalAlignment="Stretch"

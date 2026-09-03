@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Runtime.CompilerServices;
+using System.Runtime.InteropServices;
 using System.Text.Json.Nodes;
 using System.Text.Json;
 using System.Text.RegularExpressions;
@@ -192,6 +193,10 @@ public sealed partial class PasteImageModule : IMptModule
         try
         {
             var upload = await UploadClipboardImageAsync(profileWatch, cancellationToken).ConfigureAwait(false);
+            // TODO(handoff): the after-upload shortcut can still land in a window the user
+            // switched to during the upload. Guarding it needs a foreground-window platform
+            // capability; a raw user32 P/Invoke here violates the tool-module architecture
+            // rule enforced by PasteImageProductTests. See docs/HANDOFF_2026_09.md.
             var shortcut = await SendAfterUploadShortcutAsync(profileWatch).ConfigureAwait(false);
             PublishUploadEvent(upload, shortcut, request, commandStartedUtc, profileWatch.Elapsed.TotalMilliseconds);
             await NotifyAsync("Paste Image 上传成功", $"远端路径已复制：{upload.Item.RemotePath}", CancellationToken.None).ConfigureAwait(false);
@@ -347,7 +352,9 @@ public sealed partial class PasteImageModule : IMptModule
                 profileWatch,
                 timeout.Token).ConfigureAwait(false);
 
+            Trace.WriteLine($"Paste Image: Clipboard will be overwritten with remote path: {remotePath}");
             await clipboard.WriteTextAsync(remotePath, cancellationToken).ConfigureAwait(false);
+            Trace.WriteLine("Paste Image: Clipboard now contains the remote path (original image data replaced).");
             var clipboardWriteCompletedMilliseconds = profileWatch.Elapsed.TotalMilliseconds;
             var previewDirectory = Path.Combine(_dataDirectory, "history");
             Directory.CreateDirectory(previewDirectory);
@@ -388,7 +395,7 @@ public sealed partial class PasteImageModule : IMptModule
         await _historyGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            return await ReadHistoryCoreAsync(cancellationToken).ConfigureAwait(false);
+            return (await ReadHistoryCoreAsync(cancellationToken).ConfigureAwait(false)).Items;
         }
         finally
         {
@@ -401,7 +408,16 @@ public sealed partial class PasteImageModule : IMptModule
         await _historyGate.WaitAsync(cancellationToken).ConfigureAwait(false);
         try
         {
-            var items = (await ReadHistoryCoreAsync(cancellationToken).ConfigureAwait(false)).ToList();
+            var history = await ReadHistoryCoreAsync(cancellationToken).ConfigureAwait(false);
+            if (history.ReadFailed)
+            {
+                // upload-history.json exists but could not be read. Rewriting it here would
+                // replace the whole history with this single entry, so the file is left alone.
+                Trace.WriteLine("Paste Image: upload history was not readable; the existing file is kept and this upload is not recorded.");
+                return;
+            }
+
+            var items = history.Items.ToList();
             items.Insert(0, item);
             var removed = items.Skip(20).ToArray();
             items = items.Take(20).ToList();
@@ -410,14 +426,10 @@ public sealed partial class PasteImageModule : IMptModule
                 TryDeletePreview(oldItem.LocalPreviewPath);
             }
 
-            Directory.CreateDirectory(_dataDirectory);
-            var historyPath = Path.Combine(_dataDirectory, "upload-history.json");
-            var temporaryPath = historyPath + ".tmp";
-            await File.WriteAllTextAsync(
-                temporaryPath,
+            await WriteFileAtomicallyAsync(
+                Path.Combine(_dataDirectory, "upload-history.json"),
                 JsonSerializer.Serialize(items, new JsonSerializerOptions { WriteIndented = true }),
                 cancellationToken).ConfigureAwait(false);
-            File.Move(temporaryPath, historyPath, overwrite: true);
         }
         finally
         {
@@ -425,32 +437,61 @@ public sealed partial class PasteImageModule : IMptModule
         }
     }
 
-    private async Task<IReadOnlyList<UploadHistoryItem>> ReadHistoryCoreAsync(CancellationToken cancellationToken)
+    private async Task<HistoryReadResult> ReadHistoryCoreAsync(CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(_dataDirectory))
         {
-            return [];
+            return HistoryReadResult.Empty;
         }
 
         var historyPath = Path.Combine(_dataDirectory, "upload-history.json");
         if (!File.Exists(historyPath))
         {
-            return [];
+            return HistoryReadResult.Empty;
         }
 
         try
         {
             var json = await File.ReadAllTextAsync(historyPath, cancellationToken).ConfigureAwait(false);
-            return JsonSerializer.Deserialize<List<UploadHistoryItem>>(json) ?? [];
+            return new HistoryReadResult(JsonSerializer.Deserialize<List<UploadHistoryItem>>(json) ?? [], false);
         }
-        catch (JsonException)
+        catch (Exception exception) when (exception is JsonException or IOException)
         {
-            return [];
+            Trace.WriteLine($"Paste Image: upload-history.json could not be read: {exception.Message}");
+            return new HistoryReadResult([], true);
         }
-        catch (IOException)
+    }
+
+    /// <summary>
+    /// Writes through a temporary file in the same directory and moves it over the target, so a
+    /// failed or interrupted write leaves the previous file intact.
+    /// </summary>
+    private static async Task WriteFileAtomicallyAsync(
+        string path,
+        string content,
+        CancellationToken cancellationToken)
+    {
+        var directory = Path.GetDirectoryName(path)
+            ?? throw new InvalidOperationException($"Paste Image data path '{path}' has no parent directory.");
+        Directory.CreateDirectory(directory);
+        var temporaryPath = Path.Combine(directory, $".{Path.GetFileName(path)}.{Guid.NewGuid():N}.tmp");
+        try
         {
-            return [];
+            await File.WriteAllTextAsync(temporaryPath, content, cancellationToken).ConfigureAwait(false);
+            File.Move(temporaryPath, path, overwrite: true);
         }
+        finally
+        {
+            if (File.Exists(temporaryPath))
+            {
+                File.Delete(temporaryPath);
+            }
+        }
+    }
+
+    private sealed record HistoryReadResult(IReadOnlyList<UploadHistoryItem> Items, bool ReadFailed)
+    {
+        public static HistoryReadResult Empty { get; } = new([], false);
     }
 
     private static void TryDeletePreview(string path)
