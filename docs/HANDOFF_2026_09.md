@@ -10,11 +10,30 @@
 
 ## 一、拿到代码
 
+父仓库有两个分支，代码树完全相同，只差一个 CI 工作流文件：
+
+| 分支 | 位置 | 说明 |
+|---|---|---|
+| `codex/ux-platform-hardening-2026-09` | 仅本地 + 交接包里的 bundle | 完整 3 次提交，含 `.github/workflows/ci.yml` 改动 |
+| `codex/ux-platform-hardening-2026-09-noci` | **已推送到 GitHub** | 同样的代码，CI 工作流保持上游原样；单次压缩提交 |
+
+推送完整分支被 GitHub 拒绝：当前 OAuth token 缺 `workflow` scope。7 个工具子模块的 `codex/ux-platform-hardening-2026-09` 分支都已正常推送。
+
 ```bash
 git fetch origin
-git checkout codex/ux-platform-hardening-2026-09
+git checkout codex/ux-platform-hardening-2026-09-noci
 git submodule update --init --recursive
+git apply /home/chris/repo/mypowertools-handoff-2026-09/ci-workflow.patch   # 恢复 CI 改动
 ```
+
+要保留完整提交历史，改用交接包里的 bundle：
+
+```bash
+git fetch /home/chris/repo/mypowertools-handoff-2026-09/mypowertools-superproject.bundle \
+    codex/ux-platform-hardening-2026-09:codex/ux-platform-hardening-2026-09
+```
+
+交接包位置：`/home/chris/repo/mypowertools-handoff-2026-09/`（bundle、CI 补丁、说明）。
 
 7 个工具子模块（adb-forwarder、doubao-computer-use、input-monitor、remote-commands、remote-notifications、screenease、smartbird-thermostat）各自在同名分支上有一个提交，父仓库已记录指针。注意 `tools/paste-image`、`tools/local-lag-cleaner`、`tools/ime-manager`、`tools/nssm-manager`、`tools/ddns` **不是**子模块，是父仓库里的普通目录。
 
