@@ -85,12 +85,17 @@ public sealed class HomeViewModel : ToolProductPageViewModel
     public int PendingToolCount => AllTools.Count(tool => tool.IsInDevelopment);
     public int PausedToolCount => AllTools.Count(tool => tool.IsPaused);
     public int UnavailableToolCount => AllTools.Count(tool => tool.IsUnavailable);
+    public int AttentionToolCount => AllTools.Count(tool => tool.IsAttentionStatus);
+    public bool AllToolsHealthy => ReadyToolCount == TotalToolCount && TotalToolCount > 0;
     public string ToolCountSummary => TotalToolCount == 1
         ? "1 tool is ready to open"
         : $"{TotalToolCount.ToString(CultureInfo.InvariantCulture)} tools registered";
-    public string DashboardStatusLabel => ReadyToolCount == 1
-        ? "1 tool workspace available"
-        : $"{ReadyToolCount.ToString(CultureInfo.InvariantCulture)} tool workspaces available";
+    public string DashboardStatusLabel => AllToolsHealthy
+        ? $"{ReadyToolCount.ToString(CultureInfo.InvariantCulture)} tool workspaces available"
+        : AttentionToolCount > 0
+            ? $"{AttentionToolCount.ToString(CultureInfo.InvariantCulture)} tool(s) need attention"
+            : $"{ReadyToolCount.ToString(CultureInfo.InvariantCulture)} tool workspaces available";
+    public bool DashboardHasWarning => AttentionToolCount > 0 || UnavailableToolCount > 0;
     public string DashboardStatusDetail
     {
         get
@@ -109,6 +114,11 @@ public sealed class HomeViewModel : ToolProductPageViewModel
             if (UnavailableToolCount > 0)
             {
                 details.Add($"{UnavailableToolCount.ToString(CultureInfo.InvariantCulture)} unavailable");
+            }
+
+            if (AttentionToolCount > 0)
+            {
+                details.Insert(0, $"{AttentionToolCount.ToString(CultureInfo.InvariantCulture)} needs attention");
             }
 
             return details.Count == 0
@@ -138,6 +148,7 @@ public sealed class HomeViewModel : ToolProductPageViewModel
 public sealed class ToolCatalogViewModel : ToolProductPageViewModel
 {
     private string _query = "";
+    private IReadOnlyList<ToolCardViewModel> _visibleTools;
 
     public ToolCatalogViewModel(
         IReadOnlyList<ToolCardViewModel> tools,
@@ -152,6 +163,7 @@ public sealed class ToolCatalogViewModel : ToolProductPageViewModel
             errorMessage)
     {
         Tools = tools;
+        _visibleTools = tools;
         RefreshCommand = new AsyncRelayCommand(() => refresh?.Invoke() ?? Task.CompletedTask);
         RetryCommand = new AsyncRelayCommand(() => retry?.Invoke() ?? refresh?.Invoke() ?? Task.CompletedTask);
         ClearSearchCommand = new AsyncRelayCommand(() =>
@@ -176,6 +188,7 @@ public sealed class ToolCatalogViewModel : ToolProductPageViewModel
                 return;
             }
 
+            _visibleTools = FilterTools();
             OnPropertyChanged(nameof(VisibleTools));
             OnPropertyChanged(nameof(IsSearchEmpty));
             OnPropertyChanged(nameof(HasSearchResults));
@@ -187,24 +200,23 @@ public sealed class ToolCatalogViewModel : ToolProductPageViewModel
         }
     }
 
-    public IReadOnlyList<ToolCardViewModel> VisibleTools
-    {
-        get
-        {
-            if (string.IsNullOrWhiteSpace(Query))
-            {
-                return Tools;
-            }
+    public IReadOnlyList<ToolCardViewModel> VisibleTools => _visibleTools;
 
-            var query = Query.Trim();
-            return Tools
-                .Where(tool =>
-                    tool.Title.Contains(query, StringComparison.OrdinalIgnoreCase) ||
-                    tool.Description.Contains(query, StringComparison.OrdinalIgnoreCase) ||
-                    tool.Category.Contains(query, StringComparison.OrdinalIgnoreCase) ||
-                    tool.StatusDetail.Contains(query, StringComparison.OrdinalIgnoreCase))
-                .ToArray();
+    private IReadOnlyList<ToolCardViewModel> FilterTools()
+    {
+        if (string.IsNullOrWhiteSpace(Query))
+        {
+            return Tools;
         }
+
+        var query = Query.Trim();
+        return Tools
+            .Where(tool =>
+                tool.Title.Contains(query, StringComparison.OrdinalIgnoreCase) ||
+                tool.Description.Contains(query, StringComparison.OrdinalIgnoreCase) ||
+                tool.Category.Contains(query, StringComparison.OrdinalIgnoreCase) ||
+                tool.StatusDetail.Contains(query, StringComparison.OrdinalIgnoreCase))
+            .ToArray();
     }
 
     public bool IsSearchEmpty => IsReady && Tools.Count > 0 && VisibleTools.Count == 0;

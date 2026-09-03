@@ -22,6 +22,8 @@ public sealed record DashboardCardViewModel(
 
 public sealed partial class CommandItemViewModel : ObservableViewModel
 {
+    internal const int MaximumProgressEvents = 200;
+
     private readonly Func<string, JsonObject, string, CancellationToken, IAsyncEnumerable<CommandExecutionStatus>>? _executeCommand;
     private readonly Func<string, Task<CommandCancellationStatus>>? _cancelCommand;
     private readonly AsyncRelayCommand _executeCommandWrapper;
@@ -32,6 +34,8 @@ public sealed partial class CommandItemViewModel : ObservableViewModel
     private string _executionState = "ready";
     private string _executionMessage = "";
     private string _executionPreview;
+    private string _stdoutPreview = "";
+    private string _stderrPreview = "";
     private bool _isDangerousConfirmed;
 
     public CommandItemViewModel(
@@ -124,6 +128,12 @@ public sealed partial class CommandItemViewModel : ObservableViewModel
         _ => "\uE945"
     };
     public IReadOnlyList<CommandParameterViewModel> Parameters { get; }
+
+    /// <summary>
+    /// Streamed progress lines, capped at <see cref="MaximumProgressEvents"/>. A chatty command
+    /// emits one entry per sidecar output line, and the palette renders them in a non-virtualizing
+    /// list, so the oldest entries are dropped rather than letting the list grow without bound.
+    /// </summary>
     public ObservableCollection<CommandProgressItemViewModel> ProgressEvents { get; }
     public ICommand ExecuteCommand { get; }
     public ICommand CancelCommand { get; }
@@ -144,8 +154,8 @@ public sealed partial class CommandItemViewModel : ObservableViewModel
         ? $"Confirm required before running {CommandId}."
         : "";
     public bool HasExpandableError => ExecutionState == "failed" && ExecutionMessage.Length > 0;
-    public string StdoutPreview => ProgressEvents.LastOrDefault(item => item.StateLabel.Contains("stdout", StringComparison.OrdinalIgnoreCase))?.Message ?? "";
-    public string StderrPreview => ProgressEvents.LastOrDefault(item => item.StateLabel.Contains("stderr", StringComparison.OrdinalIgnoreCase))?.Message ?? "";
+    public string StdoutPreview => _stdoutPreview;
+    public string StderrPreview => _stderrPreview;
     public string ResultSummary => HasExecutionMessage ? ExecutionMessage : ExecutionPreview;
     public bool HasStdout => StdoutPreview.Length > 0;
     public bool HasStderr => StderrPreview.Length > 0;

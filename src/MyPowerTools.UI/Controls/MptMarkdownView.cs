@@ -132,7 +132,17 @@ public sealed partial class MptMarkdownView : HtmlLabel
     private ContextMenu CreateSelectionContextMenu()
     {
         var copyItem = new MenuItem { Header = "Copy" };
-        copyItem.Click += async (_, _) => await CopySelectedTextAsync();
+        copyItem.Click += async (_, _) =>
+        {
+            try
+            {
+                await CopySelectedTextAsync();
+            }
+            catch (Exception ex)
+            {
+                System.Diagnostics.Trace.WriteLine($"Clipboard copy failed: {ex}");
+            }
+        };
         return new ContextMenu { ItemsSource = new[] { copyItem } };
     }
 

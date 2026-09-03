@@ -30,6 +30,8 @@ public sealed class ShellRunnerEventService : IAsyncDisposable
         _eventReceivedHandler = OnEventReceived;
         _streamFaultedHandler = OnStreamFaulted;
         _connectionMonitor.StateChanged += _connectionStateChangedHandler;
+        _connectionMonitor.RestartRunner = () =>
+            ShellRunnerBootstrapper.EnsureStartedAsync(ShellStartupOptions.Default);
         _eventStream.EventReceived += _eventReceivedHandler;
         _eventStream.StreamFaulted += _streamFaultedHandler;
     }

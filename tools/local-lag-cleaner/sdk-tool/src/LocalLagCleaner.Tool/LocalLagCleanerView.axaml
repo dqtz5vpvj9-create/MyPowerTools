@@ -82,19 +82,29 @@
                   IsEnabled="{Binding CanInteract}"
                   Padding="16,9"
                   ToolTip.Tip="触发 Windows UAC，由受控 Broker 只读抽样最多 512 个 PID 4 File 句柄。" />
+          <Button Content="取消"
+                  Command="{Binding CancelScanCommand}"
+                  IsVisible="{Binding IsBusy}"
+                  Padding="16,9" />
         </StackPanel>
       </Grid>
     </Border>
 
-    <ProgressBar Grid.Row="1"
-                 IsIndeterminate="True"
-                 IsVisible="{Binding IsBusy}"
-                 Height="3"
-                 Margin="28,0"
-                 HorizontalAlignment="Stretch" />
+    <StackPanel Grid.Row="1"
+                IsVisible="{Binding IsBusy}"
+                Margin="28,0"
+                Spacing="4">
+      <ProgressBar IsIndeterminate="True"
+                   Height="3"
+                   HorizontalAlignment="Stretch" />
+      <TextBlock Text="{Binding StatusText}"
+                 FontSize="12"
+                 HorizontalAlignment="Center"
+                 Classes="secondary" />
+    </StackPanel>
 
     <TabControl Grid.Row="2" Margin="28,12,28,28">
-      <TabItem Header="总览">
+      <TabItem Header="诊断结果">
         <ScrollViewer HorizontalScrollBarVisibility="Disabled">
           <StackPanel Spacing="14" Margin="0,12,0,24">
             <UniformGrid Columns="4">
@@ -211,7 +221,7 @@
         </ScrollViewer>
       </TabItem>
 
-      <TabItem Header="证据与进程">
+      <TabItem Header="详细数据">
         <ScrollViewer HorizontalScrollBarVisibility="Disabled">
           <StackPanel Spacing="14" Margin="0,12,0,24">
             <Border Classes="card">
@@ -532,7 +542,7 @@
         </ScrollViewer>
       </TabItem>
 
-      <TabItem Header="专清计划">
+      <TabItem Header="修复操作">
         <ScrollViewer HorizontalScrollBarVisibility="Disabled">
           <StackPanel Spacing="14" Margin="0,12,0,24">
             <Border Classes="card">

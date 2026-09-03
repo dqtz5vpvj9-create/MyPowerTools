@@ -27,7 +27,7 @@ public sealed class LinuxPlatformPack : IPlatformPack
         new("ipc.local", "user", true, "Unix domain socket", "UDS IPC available."),
         new("secret.store", "sensitive", false, "Secret Service", "Provider compiles but native implementation is pending."),
         new("process.inspect", "user", true, "procfs", "Basic process inspection can be implemented from procfs."),
-        new("adb.device", "user", false, "adb CLI", "Provider compiles but adb discovery is pending.")
+        new("adb.devices", "user", false, "adb CLI", "Provider compiles but adb discovery is pending.")
     ]);
 
     public IDisplayService Display { get; } = new UnsupportedDisplayService("Wayland/X11/DDC", "Linux display provider compiles; compositor and DDC implementation is pending.");

@@ -41,20 +41,46 @@ if (-not ([System.IO.Path]::GetFullPath($targetApp)).StartsWith(
     throw 'The resolved app target left ApplicationsRoot.'
 }
 
+$userId = (& /usr/bin/id '-u').Trim()
+if ($LASTEXITCODE -ne 0 -or -not ($userId -match '^\d+$')) {
+    throw 'Could not determine the current macOS user id.'
+}
+
 New-Item -ItemType Directory -Path $ApplicationsRoot, $DataRoot -Force | Out-Null
+
+# The agents are installed with KeepAlive, so a reinstall has to take them out of the GUI
+# domain first. Otherwise a running Runner or ServiceManager keeps executing from the bundle
+# that is being replaced, and launchd restarts it against a half-copied tree.
+foreach ($label in @('com.mypowertools.runner', 'com.mypowertools.servicemanager')) {
+    & /bin/launchctl 'bootout' "gui/$userId/$label" 2>$null
+}
+$global:LASTEXITCODE = 0
+
 if (Test-Path -LiteralPath $targetApp) {
     $backupApp = Join-Path $ApplicationsRoot ("MyPowerTools.backup.{0}.app" -f (Get-Date -Format 'yyyyMMddHHmmss'))
     Move-Item -LiteralPath $targetApp -Destination $backupApp
     Write-Host "Previous app moved to $backupApp"
 }
-Copy-Item -LiteralPath $SourceApp -Destination $targetApp -Recurse -Force
+
+# ditto, not Copy-Item: the bundle carries code signatures, symlinks and executable bits that
+# a plain recursive copy does not preserve, and Gatekeeper rejects what it produces.
+& /usr/bin/ditto $SourceApp $targetApp
+if ($LASTEXITCODE -ne 0) {
+    throw "ditto failed to install the app bundle to $targetApp"
+}
 
 $macRoot = Join-Path $targetApp 'Contents/MacOS'
+# Background hosts run from nested helper bundles so that NSBundle.mainBundle resolves and the
+# processes carry their own identifiers. docs/MACOS_RELEASE.md records the layout contract.
+$helpersRoot = Join-Path $macRoot 'Helpers'
+$shellExecutable = Join-Path $helpersRoot 'MyPowerTools Shell.app/Contents/MacOS/MyPowerTools.Shell.Avalonia'
+$runnerExecutable = Join-Path $helpersRoot 'MyPowerTools Runner.app/Contents/MacOS/MyPowerTools.Runner'
+$serviceManagerExecutable = Join-Path $helpersRoot 'MyPowerTools ServiceManager.app/Contents/MacOS/MyPowerTools.ServiceManager'
 foreach ($executable in @(
     (Join-Path $macRoot 'MyPowerTools'),
-    (Join-Path $macRoot 'Shell/MyPowerTools.Shell.Avalonia'),
-    (Join-Path $macRoot 'Runner/MyPowerTools.Runner'),
-    (Join-Path $macRoot 'ServiceManager/MyPowerTools.ServiceManager'),
+    $shellExecutable,
+    $runnerExecutable,
+    $serviceManagerExecutable,
     (Join-Path $macRoot 'RemoteNotifications.Service'),
     (Join-Path $macRoot 'modules/android-tools-suite/macos/arm64/MPTAndroidTools.Runtime'),
     (Join-Path $macRoot 'modules/android-tools-suite/macos/x64/MPTAndroidTools.Runtime')
@@ -68,10 +94,6 @@ foreach ($executable in @(
 }
 
 if (-not $SkipLaunchAgents) {
-    $userId = (& /usr/bin/id '-u').Trim()
-    if ($LASTEXITCODE -ne 0 -or -not ($userId -match '^\d+$')) {
-        throw 'Could not determine the current macOS user id.'
-    }
     $launchAgentsRoot = Join-Path $userProfile 'Library/LaunchAgents'
     $logsRoot = Join-Path $userProfile 'Library/Logs/MyPowerTools'
     New-Item -ItemType Directory -Path $launchAgentsRoot, $logsRoot -Force | Out-Null
@@ -109,16 +131,42 @@ if (-not $SkipLaunchAgents) {
         }
     }
 
+    # The launchd labels match the helper bundle identifiers, and the agents execute the helper
+    # apphosts directly: launching through the compatibility links in Contents/MacOS/<Host>/
+    # would leave it to path resolution whether the process ends up with a bundle identity.
     Write-LaunchAgent -Label 'com.mypowertools.servicemanager' -WorkingDirectory $macRoot -ProgramArguments @(
-        (Join-Path $macRoot 'ServiceManager/MyPowerTools.ServiceManager'),
+        $serviceManagerExecutable,
         '--data-root', $DataRoot,
         '--deploy-root', (Join-Path $macRoot 'ServiceUnits')
     )
     Write-LaunchAgent -Label 'com.mypowertools.runner' -WorkingDirectory $macRoot -ProgramArguments @(
-        (Join-Path $macRoot 'Runner/MyPowerTools.Runner'),
+        $runnerExecutable,
         '--modules', (Join-Path $macRoot 'modules'),
         '--data-root', $DataRoot
     )
+}
+
+# ~/Applications is not always scanned eagerly, and the bundle declares the mypowertools://
+# scheme that notification activation and the launcher's tool activation both rely on. The
+# helper bundles are registered by name as well: a Launch Services record for
+# com.mypowertools.runner is what makes UNUserNotificationCenter usable in the Runner.
+$lsregister = '/System/Library/Frameworks/CoreServices.framework/Frameworks/LaunchServices.framework/Support/lsregister'
+if (Test-Path -LiteralPath $lsregister -PathType Leaf) {
+    foreach ($bundle in @(
+        $targetApp,
+        (Join-Path $helpersRoot 'MyPowerTools Shell.app'),
+        (Join-Path $helpersRoot 'MyPowerTools Runner.app'),
+        (Join-Path $helpersRoot 'MyPowerTools ServiceManager.app')
+    )) {
+        if (-not (Test-Path -LiteralPath $bundle -PathType Container)) {
+            continue
+        }
+        & $lsregister '-f' $bundle
+        if ($LASTEXITCODE -ne 0) {
+            Write-Warning "lsregister did not register $bundle; notification activation and the mypowertools:// scheme may not resolve until the app is opened from Finder."
+        }
+        $global:LASTEXITCODE = 0
+    }
 }
 
 Write-Host $targetApp

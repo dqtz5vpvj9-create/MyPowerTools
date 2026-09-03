@@ -297,7 +297,7 @@ static async Task<ITrayService?> StartTrayAsync(WebApplication app, string root,
                 new TrayMenuItem("open-shell", "Open MyPowerTools", IsDefault: true),
                 new TrayMenuItem("exit-application", "Exit MyPowerTools", SeparatorBefore: true)
             ]),
-        (invocation, cancellationToken) =>
+        async (invocation, cancellationToken) =>
         {
             if (invocation.ActionId == "open-shell")
             {
@@ -306,11 +306,21 @@ static async Task<ITrayService?> StartTrayAsync(WebApplication app, string root,
 
             if (invocation.ActionId == "exit-application")
             {
+                try
+                {
+                    using var smClient = ServiceManagerAdminClient.ForDefaultEndpoint();
+                    using var smTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                    smTimeout.CancelAfter(TimeSpan.FromSeconds(3));
+                    await smClient.ShutdownAsync(smTimeout.Token);
+                }
+                catch
+                {
+                    // Best-effort: don't prevent Runner exit if ServiceManager is unreachable.
+                }
+
                 StartShell(root, dataRoot, shutdownShell: true);
                 app.Lifetime.StopApplication();
             }
-
-            return Task.CompletedTask;
         },
         CancellationToken.None);
 
@@ -389,21 +399,29 @@ static async Task<IHotkeyService?> StartHotkeysAsync(string root, string dataRoo
 
 static async Task WatchRuntimeHotkeyBindingsAsync(
     MptHostRuntime runtime,
-    RunnerHotkeySynchronizer synchronizer)
+    RunnerHotkeySynchronizer synchronizer,
+    CancellationToken cancellationToken = default)
 {
     var lastEventSeq = 0UL;
-    while (true)
+    while (!cancellationToken.IsCancellationRequested)
     {
         foreach (var evt in runtime.HostEventsSince(lastEventSeq))
         {
             lastEventSeq = evt.Seq;
             if (RunnerHotkeySynchronizer.RequiresHotkeySync(evt.Type))
             {
-                await SyncModuleHotkeysAsync(synchronizer, CancellationToken.None);
+                await SyncModuleHotkeysAsync(synchronizer, cancellationToken);
             }
         }
 
-        await Task.Delay(TimeSpan.FromSeconds(1));
+        try
+        {
+            await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken);
+        }
+        catch (OperationCanceledException)
+        {
+            break;
+        }
     }
 }
 
@@ -481,7 +499,7 @@ static ProcessStartInfo CreateShellStartInfo(
     bool prewarm = false,
     bool shutdownShell = false)
 {
-    var siblingLauncher = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", ExecutableName("MyPowerTools")));
+    var siblingLauncher = Path.GetFullPath(Path.Combine(root, ExecutableName("MyPowerTools")));
     if (!focusCommandPalette && !prewarm && !shutdownShell && File.Exists(siblingLauncher))
     {
         var launcherStartInfo = new ProcessStartInfo
@@ -496,7 +514,7 @@ static ProcessStartInfo CreateShellStartInfo(
         return launcherStartInfo;
     }
 
-    var siblingShell = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, "..", "Shell", ExecutableName("MyPowerTools.Shell.Avalonia")));
+    var siblingShell = Path.GetFullPath(Path.Combine(root, "Shell", ExecutableName("MyPowerTools.Shell.Avalonia")));
     if (File.Exists(siblingShell))
     {
         var siblingStartInfo = new ProcessStartInfo

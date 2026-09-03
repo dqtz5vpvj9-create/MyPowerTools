@@ -29,7 +29,7 @@ if ([string]::IsNullOrWhiteSpace($channel)) {
 
 $source = 'version.json'
 if ($PreferGitTag) {
-    $git = Get-Command 'git.exe' -CommandType Application -ErrorAction SilentlyContinue |
+    $git = Get-Command 'git' -CommandType Application -ErrorAction SilentlyContinue |
         Select-Object -First 1
     if ($git) {
         $tag = (& $git.Source -C $RepoRoot describe --tags --exact-match HEAD 2>$null |

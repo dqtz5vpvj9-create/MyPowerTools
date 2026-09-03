@@ -26,6 +26,7 @@ public sealed partial class ShellWorkspaceController
 
     private async Task LoadExternalSdkToolAsync(HostProto.ToolDescriptor descriptor, string routeId)
     {
+        var identity = _workspaceIdentity.Capture();
         var route = descriptor.Routes.FirstOrDefault(route =>
                         string.Equals(route.RouteId, routeId, StringComparison.OrdinalIgnoreCase))
                     ?? descriptor.Routes.FirstOrDefault()
@@ -142,28 +143,15 @@ public sealed partial class ShellWorkspaceController
             viewModel.ReportSurface("ready", "External runtime contract loaded.");
         }
 
+        if (!_workspaceIdentity.IsCurrent(identity))
+        {
+            viewModel.Dispose();
+            return;
+        }
+
         SetOwnedContent(_contentHost, view);
         SetStatus($"Opened {descriptor.Title} from {descriptor.SourceDirectory}.");
         await Task.CompletedTask;
-    }
-
-    internal static MptWebSurfaceRequest CreateExternalWebSurfaceRequest(
-        HostProto.ToolDescriptor descriptor,
-        HostProto.ToolRoute route,
-        Uri source,
-        Func<string, CancellationToken, Task<string>> handleBridgeRequestAsync)
-    {
-        ArgumentNullException.ThrowIfNull(descriptor);
-        ArgumentNullException.ThrowIfNull(route);
-        ArgumentNullException.ThrowIfNull(source);
-        ArgumentNullException.ThrowIfNull(handleBridgeRequestAsync);
-
-        return new MptWebSurfaceRequest(
-            descriptor.ToolId,
-            route.RouteId,
-            source,
-            ResolveExternalAllowedOrigins(descriptor, route),
-            handleBridgeRequestAsync);
     }
 
     private async Task<DotnetSurfaceLoader.LoadedSurface> CreateExternalDotnetSurfaceAsync(
@@ -220,7 +208,7 @@ public sealed partial class ShellWorkspaceController
         {
             SetStatus($"Developer source sync skipped: {devSourceEx.Message}");
         }
-       return _dotnetSurfaceLoader.Load(descriptor, route, context);
+       return await Task.Run(() => _dotnetSurfaceLoader.Load(descriptor, route, context));
     }
 
     internal static CommandExecutionResult ToSurfaceCommandExecutionResult(

@@ -16,6 +16,7 @@
   <string>MyPowerTools</string>
   <key>CFBundlePackageType</key>
   <string>APPL</string>
+  <!-- scripts/publish-macos.ps1 stamps the two version keys below from version.json. -->
   <key>CFBundleShortVersionString</key>
   <string>0.2.0</string>
   <key>CFBundleVersion</key>
@@ -33,6 +34,11 @@
   </array>
   <key>LSMinimumSystemVersion</key>
   <string>12.0</string>
+  <!-- Tray-first product: the menu bar NSStatusItem is the permanent entry point and the
+       launcher only forwards activation to the Shell, so MyPowerTools keeps no Dock tile.
+       The nested helper bundles under Contents/MacOS/Helpers repeat this decision. -->
+  <key>LSUIElement</key>
+  <true/>
   <key>NSHighResolutionCapable</key>
   <true/>
   <key>NSUserNotificationAlertStyle</key>

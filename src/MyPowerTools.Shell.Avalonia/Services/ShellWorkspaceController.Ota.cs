@@ -1,6 +1,9 @@
 using System.Diagnostics;
 using System.Text.Json.Nodes;
+using MyPowerTools.Packaging.Ota;
 using MyPowerTools.Platform.Abstractions;
+using Avalonia.Threading;
+using MyPowerTools.Shell.Avalonia.ViewModels;
 
 namespace MyPowerTools.Shell.Avalonia.Services;
 
@@ -33,14 +36,18 @@ public sealed partial class ShellWorkspaceController
         string command,
         Action<OtaDownloadProgress>? onProgress = null)
     {
-        var cliPath = Path.Combine(
-            AppContext.BaseDirectory,
-            "..",
-            "Cli",
-            "MyPowerTools.Cli.exe");
-        if (!File.Exists(cliPath))
+        var bundleRoot = OperatingSystem.IsMacOS()
+            ? OtaUpdaterLocator.FindMacBundleRoot(AppContext.BaseDirectory)
+            : null;
+        var cliFileName = OtaUpdaterLocator.CliFileName();
+        var cliPath = OtaUpdaterLocator.ResolveFirstExisting(
+            OtaUpdaterLocator.CliCandidates(
+                AppContext.BaseDirectory,
+                bundleRoot,
+                OperatingSystem.IsWindows()));
+        if (cliPath is null)
         {
-            return "OTA 更新器不可用：未找到 Cli\\MyPowerTools.Cli.exe。请先安装或修复 MyPowerTools 最新版本。";
+            return $"OTA 更新器不可用：未找到 {cliFileName}。请先安装或修复 MyPowerTools 最新版本。";
         }
 
         var otaState = Path.Combine(
@@ -64,37 +71,120 @@ public sealed partial class ShellWorkspaceController
             startInfo.ArgumentList.Add("--yes");
         }
 
-        var installRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, ".."));
+        // Contents/MacOS inside the bundle, the install root on Windows. The Shell runs from a
+        // nested helper bundle on macOS, so its parent directory is not the product root.
+        var installRoot = OtaUpdaterLocator.ProductRoot(AppContext.BaseDirectory, bundleRoot);
         DotNetRuntimeEnvironment.ConfigureChildProcess(startInfo, installRoot);
+        using var cts = new CancellationTokenSource(
+            TimeSpan.FromMinutes(string.Equals(command, "apply", StringComparison.OrdinalIgnoreCase) ? 30 : 2));
 
         using var process = Process.Start(startInfo);
         if (process is null)
         {
-            return "OTA 更新器启动失败：无法启动 MyPowerTools.Cli.exe。";
+            return $"OTA 更新器启动失败：无法启动 {cliFileName}。";
         }
 
-        var standardOutputTask = process.StandardOutput.ReadToEndAsync();
-        var standardErrorTask = Task.Run(async () =>
+        try
         {
-            string? line;
-            while ((line = await process.StandardError.ReadLineAsync()) != null)
+            var standardOutputTask = process.StandardOutput.ReadToEndAsync(cts.Token);
+            var standardErrorTask = Task.Run(async () =>
             {
-                if (onProgress is not null && TryParseOtaProgress(line, out var progress))
+                string? line;
+                while ((line = await process.StandardError.ReadLineAsync(cts.Token)) != null)
                 {
-                    onProgress(progress);
+                    if (onProgress is not null && TryParseOtaProgress(line, out var progress))
+                    {
+                        Dispatcher.UIThread.Post(() => onProgress(progress));
+                    }
+                }
+            }, cts.Token);
+            var standardOutput = await standardOutputTask;
+            await standardErrorTask;
+            await process.WaitForExitAsync(cts.Token);
+            var output = ExtractOtaJson(standardOutput);
+            if (process.ExitCode != 0 && string.IsNullOrWhiteSpace(output))
+            {
+                return $"OTA 更新器退出码 {process.ExitCode}，未返回错误详情。";
+            }
+
+            return string.IsNullOrWhiteSpace(output) ? null : output;
+        }
+        catch (OperationCanceledException) when (cts.IsCancellationRequested)
+        {
+            try
+            {
+                process.Kill(entireProcessTree: true);
+            }
+            catch
+            {
+                // Process may have already exited.
+            }
+
+            return $"OTA 更新器超时：\"{command}\" 命令在规定时间内未完成，进程已终止。";
+        }
+    }
+
+    internal async Task CheckLastOtaUpdateAsync()
+    {
+        try
+        {
+            var otaState = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "MyPowerTools",
+                "ota-state");
+            var lastUpdatePath = Path.Combine(otaState, "last-update.json");
+            var acknowledgedPath = Path.Combine(otaState, "last-acknowledged-update.json");
+
+            if (!File.Exists(lastUpdatePath))
+            {
+                return;
+            }
+
+            var lastUpdateContent = await File.ReadAllTextAsync(lastUpdatePath);
+            if (string.IsNullOrWhiteSpace(lastUpdateContent))
+            {
+                return;
+            }
+
+            if (File.Exists(acknowledgedPath))
+            {
+                var acknowledgedContent = await File.ReadAllTextAsync(acknowledgedPath);
+                if (string.Equals(lastUpdateContent.Trim(), acknowledgedContent.Trim(), StringComparison.Ordinal))
+                {
+                    return;
                 }
             }
-        });
-        var standardOutput = await standardOutputTask;
-        await standardErrorTask;
-        await process.WaitForExitAsync();
-        var output = ExtractOtaJson(standardOutput);
-        if (process.ExitCode != 0 && string.IsNullOrWhiteSpace(output))
-        {
-            return $"OTA 更新器退出码 {process.ExitCode}，未返回错误详情。";
-        }
 
-        return string.IsNullOrWhiteSpace(output) ? null : output;
+            var node = JsonNode.Parse(lastUpdateContent);
+            var success = node?["success"]?.GetValue<bool>() ?? false;
+            var toVersion = node?["toVersion"]?.GetValue<string>();
+            var healthOk = node?["health"]?["ok"]?.GetValue<bool>() ?? false;
+
+            string message;
+            InfoBarSeverity severity;
+            if (success && !string.IsNullOrWhiteSpace(toVersion))
+            {
+                severity = healthOk ? InfoBarSeverity.Success : InfoBarSeverity.Warning;
+                message = healthOk
+                    ? $"OTA update to {toVersion} completed successfully."
+                    : $"OTA update to {toVersion} completed, but health check did not fully pass.";
+            }
+            else
+            {
+                severity = InfoBarSeverity.Error;
+                var error = node?["error"]?.GetValue<string>();
+                message = !string.IsNullOrWhiteSpace(error)
+                    ? $"OTA update failed: {error}"
+                    : "OTA update failed. Check ota-state/last-update.json for details.";
+            }
+
+            ShowInfoBar(severity, message, autoDismissMs: success ? 8000 : null);
+            await File.WriteAllTextAsync(acknowledgedPath, lastUpdateContent);
+        }
+        catch (Exception ex)
+        {
+            ShellCommandFaultLog.Write("Check last OTA update result", ex, "startup");
+        }
     }
 
     internal static string? ExtractOtaJson(string output)

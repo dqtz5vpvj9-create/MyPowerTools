@@ -106,10 +106,10 @@ public static class MptThemeTokens
     public static readonly Thickness ButtonPadding = new(14, 6);
     public static readonly Thickness InputPadding = new(12, 6);
 
+    public static readonly CornerRadius ControlRadius = new(6);
     public static readonly CornerRadius CardRadius = new(8);
-    public static readonly CornerRadius ControlRadius = new(4);
-    public static readonly CornerRadius PanelRadius = new(8);
-    public static readonly CornerRadius OverlayRadius = new(8);
+    public static readonly CornerRadius PanelRadius = new(12);
+    public static readonly CornerRadius OverlayRadius = new(12);
     public static readonly CornerRadius PillRadius = new(999);
 
     public static IBrush Brush(uint argb)

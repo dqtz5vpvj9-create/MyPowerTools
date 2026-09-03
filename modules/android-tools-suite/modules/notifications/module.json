@@ -74,8 +74,7 @@
   ],
   "permissions": [],
   "staticIndexes": {
-    "commands": "modules/notifications/commands.index.json",
-    "dashboard": "modules/notifications/dashboard.index.json"
+    "commands": "modules/notifications/commands.index.json"
   },
   "tools": [
     "ui/tool.json"

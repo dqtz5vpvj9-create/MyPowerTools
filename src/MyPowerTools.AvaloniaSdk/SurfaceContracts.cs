@@ -166,7 +166,8 @@ public sealed class MptAsyncRelayCommand : ICommand
         catch (Exception ex)
         {
             // Surface tools are responsible for their own error display; log to avoid silent swallow.
-            System.Diagnostics.Debug.WriteLine($"Surface command {OperationName} failed: {ex.Message}");
+            System.Diagnostics.Trace.WriteLine($"Surface command {OperationName} failed: {ex.Message}");
+            MptCommandFaultBoundary.TraceFault(OperationName ?? "(unnamed)", ex);
         }
         finally
         {

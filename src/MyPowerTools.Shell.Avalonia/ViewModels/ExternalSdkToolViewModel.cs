@@ -44,6 +44,7 @@ public sealed class ExternalSdkToolViewModel : ShellPageViewModel, IDisposable
         CanOpenExternal = openExternal && source is not null;
         Commands = commands;
         SettingsPath = settingsPath;
+        CanOpenSettings = !string.IsNullOrWhiteSpace(settingsPath) && File.Exists(settingsPath);
         HandleBridgeRequestAsync = handleBridgeRequest;
         RefreshCommand = new AsyncRelayCommand(refresh);
         ReturnToToolsCommand = new AsyncRelayCommand(returnToTools);
@@ -70,7 +71,7 @@ public sealed class ExternalSdkToolViewModel : ShellPageViewModel, IDisposable
     public bool IsInlineHeaderVisible => IsHostHeaderVisible && !IsWeb;
     public bool IsHostCommandBarVisible => IsGeneric && HasCommands;
     public string? SettingsPath { get; }
-    public bool CanOpenSettings => !string.IsNullOrWhiteSpace(SettingsPath) && File.Exists(SettingsPath);
+    public bool CanOpenSettings { get; }
     public ICommand RefreshCommand { get; }
     public ICommand ReturnToToolsCommand { get; }
     public ICommand OpenExternalCommand { get; }

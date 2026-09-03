@@ -19,6 +19,8 @@ public sealed class WindowsTrayService : ITrayService, INotificationService
     private const uint NOTIFYICON_VERSION_4 = 4;
     private const uint WM_CLOSE = 0x0010;
     private const uint WM_DESTROY = 0x0002;
+    private const uint WM_QUERYENDSESSION = 0x0011;
+    private const uint WM_ENDSESSION = 0x0016;
     private const uint WM_COMMAND = 0x0111;
     private const uint WM_APP = 0x8000;
     private const uint WM_CONTEXTMENU = 0x007B;
@@ -256,6 +258,7 @@ public sealed class WindowsTrayService : ITrayService, INotificationService
             {
                 _windowHandle = handle;
             }
+
 
             var addResult = AddTrayIcon(handle, options);
             if (!addResult.Success)
@@ -579,6 +582,22 @@ public sealed class WindowsTrayService : ITrayService, INotificationService
             return IntPtr.Zero;
         }
 
+        if (message == WM_QUERYENDSESSION)
+        {
+            // Allow the session to end; we will clean up in WM_ENDSESSION.
+            return new IntPtr(1);
+        }
+
+        if (message == WM_ENDSESSION)
+        {
+            if (wParam != IntPtr.Zero) // Session IS ending
+            {
+                // Trigger normal shutdown so finally blocks and cleanup run.
+                PostMessage(hWnd, WM_CLOSE, IntPtr.Zero, IntPtr.Zero);
+            }
+            return IntPtr.Zero;
+        }
+
         if (message == WM_CLOSE)
         {
             DestroyWindow(hWnd);
@@ -590,6 +609,7 @@ public sealed class WindowsTrayService : ITrayService, INotificationService
             PostQuitMessage(0);
             return IntPtr.Zero;
         }
+
 
         return DefWindowProc(hWnd, message, wParam, lParam);
     }
@@ -845,4 +865,5 @@ public sealed class WindowsTrayService : ITrayService, INotificationService
 
     [DllImport("user32.dll", SetLastError = true)]
     private static extern int TrackPopupMenu(IntPtr hMenu, uint uFlags, int x, int y, int nReserved, IntPtr hWnd, IntPtr prcRect);
+
 }

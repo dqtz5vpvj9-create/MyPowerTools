@@ -8,5 +8,6 @@
   </PropertyGroup>
   <ItemGroup>
     <InternalsVisibleTo Include="MyPowerTools.Tests" />
+    <InternalsVisibleTo Include="ImeManager.Tests" />
   </ItemGroup>
 </Project>

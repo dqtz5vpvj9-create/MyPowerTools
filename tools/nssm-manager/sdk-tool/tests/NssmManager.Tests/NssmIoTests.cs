@@ -152,6 +152,43 @@ public sealed class NssmIoTests
     }
 
     [Fact]
+    public void output_handles_pass_rotation_thresholds_in_the_declared_argument_order()
+    {
+        if (!OperatingSystem.IsWindows()) return;
+        var directory = Path.Combine(Path.GetTempPath(), "nssm-rotate-args-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var path = Path.Combine(directory, "app.log");
+        try
+        {
+            var configuration = new NssmServiceConfiguration
+            {
+                Name = "svc",
+                AppStdout = path,
+                AppStdoutCreationDisposition = 4,
+                RotateFiles = true,
+                RotateBytes = 64
+            };
+
+            File.WriteAllText(path, "1234");
+            using (var startup = new NssmIoStartupInfo())
+            {
+                Assert.Equal(0, NssmIo.get_output_handles(configuration, startup));
+            }
+
+            Assert.Empty(Directory.GetFiles(directory, "app-*.log"));
+
+            File.WriteAllText(path, new string('x', 128));
+            using (var startup = new NssmIoStartupInfo())
+            {
+                Assert.Equal(0, NssmIo.get_output_handles(configuration, startup));
+            }
+
+            Assert.Single(Directory.GetFiles(directory, "app-*.log"));
+        }
+        finally { Directory.Delete(directory, recursive: true); }
+    }
+
+    [Fact]
     public void output_handle_selection_matches_shared_file_contract()
     {
         var path = TemporaryPath();

@@ -152,6 +152,7 @@ public sealed partial class ShellWorkspaceController : IAsyncDisposable
     internal void CompleteStartup()
     {
         Dispatcher.UIThread.Post(StartEventMonitors, DispatcherPriority.Background);
+        Dispatcher.UIThread.Post(() => _ = CheckLastOtaUpdateAsync(), DispatcherPriority.Background);
     }
 
     public async Task RefreshAsync()
@@ -228,6 +229,14 @@ public sealed partial class ShellWorkspaceController : IAsyncDisposable
         if (!IsDisposed)
         {
             _chromeViewModel.StatusText = text;
+        }
+    }
+
+    private void ShowInfoBar(InfoBarSeverity severity, string message, string? actionLabel = null, Func<Task>? action = null, int? autoDismissMs = null)
+    {
+        if (!IsDisposed)
+        {
+            _chromeViewModel.ShowInfoBar(new InfoBarItem(severity, message, actionLabel, action, autoDismissMs));
         }
     }
 

@@ -12,8 +12,10 @@
   <ItemGroup Condition="!Exists('$(MyPowerToolsRepoRoot)\src\MyPowerTools.AvaloniaSdk\MyPowerTools.AvaloniaSdk.csproj')">
     <PackageReference Include="MyPowerTools.ToolSdk" Version="0.2.0" />
     <PackageReference Include="MyPowerTools.AvaloniaSdk" Version="0.2.0" />
+    <PackageReference Include="MyPowerTools.UI" Version="0.2.0" />
   </ItemGroup>
   <ItemGroup Condition="Exists('$(MyPowerToolsRepoRoot)\src\MyPowerTools.AvaloniaSdk\MyPowerTools.AvaloniaSdk.csproj')">
     <ProjectReference Include="$(MyPowerToolsRepoRoot)\src\MyPowerTools.AvaloniaSdk\MyPowerTools.AvaloniaSdk.csproj" />
+    <ProjectReference Include="$(MyPowerToolsRepoRoot)\src\MyPowerTools.UI\MyPowerTools.UI.csproj" />
   </ItemGroup>
 </Project>
