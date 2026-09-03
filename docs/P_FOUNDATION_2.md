@@ -220,7 +220,7 @@ This document tracks the current slice for external review. It is an audit hando
 
 ## Current UI Architecture State
 
-- `src/MyPowerTools.Shell.Avalonia/MainWindow.cs` current: 100 lines.
+- `src/MyPowerTools.Shell.Avalonia/MainWindow.cs` current: 104 lines.
 - `MainWindow.cs` target <= 250 lines.
 - AXAML + MVVM migration: Dashboard, Modules, Module Detail, Logs, Notifications, Package Manager, Diagnostics, Settings Center, Permission Prompt, Broker Audit, unavailable/error pages, Shell chrome layout/navigation/status row, the right-side Command Palette list, command execution service extraction, runner/event service extraction, Host action service extraction, Settings save service extraction, read-only page data service extraction, Host event refresh routing extraction, and Shell workspace controller extraction are now live on typed AXAML plus ViewModels/services.
 - Component AXAML library: foundation component styles now cover module cards, status badges, metric tiles, command items, settings sections, settings fields, log rows, log viewers, notification items, permission prompts, empty/error/loading states, page headers, action bars, and action buttons; Shell views now use the foundation component class names instead of repeated generic card markup.
@@ -246,7 +246,7 @@ The existing shell has UI snapshot gates, keyboard shortcut tests, centralized c
 | InProc shadow-copy update | Loaded module uses cache while package DLL is replaceable | Done |
 | InProc unload handling | Unload probe and failure surfaced to runtime policy | Done for clean unload and pending-runner-restart diagnostics |
 | Sidecar default for complex modules | Complex modules prefer sidecar transport | Done: sidecar-capable modules stay on sidecar paths, with startup handshake, diagnostics, restart policy, crash recovery, process-tree cleanup, and stdout/stderr drain |
-| MainWindow size | target <= 250 lines | current: 100 lines |
+| MainWindow size | target <= 250 lines | current: 104 lines |
 | AXAML + MVVM | Main shell split into views/viewmodels | Started: Dashboard, Modules, Module Detail, Logs, Notifications, Package Manager, Diagnostics, Settings Center, Permission Prompt, Broker Audit, unavailable/error pages, Shell chrome layout/navigation/status row, the right-side Command Palette list, command execution service extraction, runner/event service extraction, Host action service extraction, Settings save service extraction, read-only page data service extraction, Host event refresh routing extraction, and Shell workspace controller extraction wired to AXAML/MVVM/service layers; thirteen typed views and control-free viewmodels exist |
 | Component library | Reusable AXAML controls and tokens | Done for foundation Shell surfaces: component styles, matching C# classes, and Shell view class usage cover cards, badges, metrics, command items, settings sections/fields, logs, notifications, prompts, states, headers, action bars, and action buttons |
 | Style lint | Static lint over shell UI style usage | Started: split-token, component-style, raw color/font-size, code-behind, and viewmodel guardrails |

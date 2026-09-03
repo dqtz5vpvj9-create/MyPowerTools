@@ -190,27 +190,14 @@ public sealed partial class PasteImageModule : IMptModule
 
         var commandStartedUtc = DateTimeOffset.UtcNow;
         var profileWatch = Stopwatch.StartNew();
-        var targetHwnd = GetCurrentForegroundWindow();
         try
         {
             var upload = await UploadClipboardImageAsync(profileWatch, cancellationToken).ConfigureAwait(false);
-            AfterUploadShortcutProfile shortcut;
-            var currentHwnd = GetCurrentForegroundWindow();
-            if (targetHwnd != 0 && currentHwnd != targetHwnd)
-            {
-                Trace.WriteLine("Paste Image: Skipping after-upload shortcut because the foreground window changed during upload.");
-                shortcut = new AfterUploadShortcutProfile(
-                    ReadAfterUploadShortcut(),
-                    false,
-                    false,
-                    "skipped",
-                    "The foreground window changed during the upload; shortcut was not sent to avoid targeting the wrong application.",
-                    0);
-            }
-            else
-            {
-                shortcut = await SendAfterUploadShortcutAsync(profileWatch).ConfigureAwait(false);
-            }
+            // TODO(handoff): the after-upload shortcut can still land in a window the user
+            // switched to during the upload. Guarding it needs a foreground-window platform
+            // capability; a raw user32 P/Invoke here violates the tool-module architecture
+            // rule enforced by PasteImageProductTests. See docs/HANDOFF_2026_09.md.
+            var shortcut = await SendAfterUploadShortcutAsync(profileWatch).ConfigureAwait(false);
             PublishUploadEvent(upload, shortcut, request, commandStartedUtc, profileWatch.Elapsed.TotalMilliseconds);
             await NotifyAsync("Paste Image 上传成功", $"远端路径已复制：{upload.Item.RemotePath}", CancellationToken.None).ConfigureAwait(false);
             return new CommandExecutionResult(request.InvocationId, request.CommandId, "succeeded", true, upload.Item.RemotePath);
@@ -825,14 +812,6 @@ public sealed partial class PasteImageModule : IMptModule
             "",
             new MptRuntimeError(code, message, retryable));
     }
-
-    private static nint GetCurrentForegroundWindow()
-    {
-        return OperatingSystem.IsWindows() ? GetForegroundWindow() : 0;
-    }
-
-    [DllImport("user32.dll")]
-    private static extern nint GetForegroundWindow();
 
     [GeneratedRegex("^(?:[A-Za-z0-9._-]+@)?[A-Za-z0-9._-]+$", RegexOptions.CultureInvariant)]
     private static partial Regex HostPattern();

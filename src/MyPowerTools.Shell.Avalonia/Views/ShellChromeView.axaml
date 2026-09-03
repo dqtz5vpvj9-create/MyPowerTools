@@ -293,12 +293,12 @@
           Background="{DynamicResource MptBrushAppBackground}">
       <ItemsControl Grid.Row="0"
                     ItemsSource="{Binding InfoBars}"
-                    Margin="16,0,16,0">
+                    Margin="{DynamicResource MptInfoBarHostMargin}">
         <ItemsControl.ItemTemplate>
           <DataTemplate>
             <Border IsVisible="{Binding IsVisible}"
-                    Margin="0,8,0,0"
-                    Padding="12,8"
+                    Margin="{DynamicResource MptGapTopS}"
+                    Padding="{DynamicResource MptInfoBarPadding}"
                     CornerRadius="{DynamicResource MptRadiusCard}"
                     BorderThickness="0,0,0,0"
                     Background="{DynamicResource MptBrushCardBackground}"
@@ -307,9 +307,9 @@
                 <TextBlock Grid.Column="0"
                            Text="{Binding SeverityIcon}"
                            FontFamily="{DynamicResource MptFontFamilyIcons}"
-                           FontSize="16"
+                           FontSize="{DynamicResource MptFontSizeCardTitle}"
                            VerticalAlignment="Center"
-                           Margin="0,0,8,0" />
+                           Margin="{DynamicResource MptGapRightS}" />
                 <TextBlock Grid.Column="1"
                            Text="{Binding Message}"
                            TextWrapping="Wrap"
@@ -319,7 +319,7 @@
                                     Command="{Binding ActionCommand}"
                                     IsVisible="{Binding HasAction}"
                                     Classes="MptPrimaryButton"
-                                    Margin="8,0,0,0"
+                                    Margin="{DynamicResource MptGapLeftS}"
                                     VerticalAlignment="Center"
                                     MinWidth="60" />
                 <controls:MptButton Grid.Column="3"
@@ -329,8 +329,8 @@
                                     Background="{DynamicResource MptBrushTransparent}"
                                     BorderBrush="{DynamicResource MptBrushTransparent}"
                                     Width="28" Height="28"
-                                    Padding="0"
-                                    Margin="4,0,0,0"
+                                    Padding="{DynamicResource MptNoThickness}"
+                                    Margin="{DynamicResource MptGapLeftXs}"
                                     VerticalAlignment="Center"
                                     ToolTip.Tip="Dismiss" />
               </Grid>

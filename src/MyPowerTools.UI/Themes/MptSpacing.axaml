@@ -14,6 +14,8 @@
     <Thickness x:Key="MptPagePadding">28,24,28,28</Thickness>
     <Thickness x:Key="MptCardPadding">20,16</Thickness>
     <Thickness x:Key="MptCompactPadding">12</Thickness>
+    <Thickness x:Key="MptInfoBarHostMargin">16,0,16,0</Thickness>
+    <Thickness x:Key="MptInfoBarPadding">12,8</Thickness>
     <Thickness x:Key="MptNoThickness">0</Thickness>
     <Thickness x:Key="MptUniformXs">4</Thickness>
     <Thickness x:Key="MptUniformS">8</Thickness>

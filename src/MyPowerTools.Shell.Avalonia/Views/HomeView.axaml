@@ -179,7 +179,7 @@
           <StackPanel Grid.Column="2"
                       VerticalAlignment="Center"
                       HorizontalAlignment="Right"
-                      Spacing="2">
+                      Spacing="{DynamicResource MptSpacing2Xs}">
             <Border Classes="MptStatusBadge"
                     Classes.running="{Binding IsReadyStatus}"
                     Classes.degraded="{Binding IsAttentionStatus}"
