@@ -1,0 +1,100 @@
+name: Handoff Windows gates
+
+on:
+  pull_request:
+    paths:
+      - "scripts/**"
+      - "src/**"
+      - "tests/**"
+      - "tools/**"
+      - "modules/android-tools-suite/**"
+      - "MyPowerTools.slnx"
+      - ".github/workflows/handoff-windows-gates.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  architecture-and-tool-gates:
+    name: Architecture, Android Tools and NSSM gates
+    runs-on: windows-latest
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: 1
+      DOTNET_NOLOGO: true
+      NUGET_XMLDOC_MODE: skip
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          token: ${{ secrets.MPT_SUBMODULE_PAT }}
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Prepare local NuGet source
+        shell: pwsh
+        run: New-Item -ItemType Directory -Path artifacts\sdk\nuget -Force | Out-Null
+
+      - name: Build SDK bundles
+        shell: pwsh
+        run: pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\build-sdk.ps1
+
+      - name: Restore
+        shell: pwsh
+        run: dotnet restore MyPowerTools.slnx
+
+      - name: Build
+        shell: pwsh
+        run: dotnet build MyPowerTools.slnx --no-restore --maxcpucount
+
+      - name: Architecture Gate Quick
+        shell: pwsh
+        run: pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\verify-architecture.ps1 -Tier Quick
+
+      - name: Architecture Gate Process
+        shell: pwsh
+        run: pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\verify-architecture.ps1 -Tier Process
+
+      - name: Stage Android Tools module host
+        shell: pwsh
+        run: >-
+          dotnet publish tools\remote-notifications\current-integration\src\AndroidTools.Runtime\AndroidTools.Runtime.csproj
+          --configuration Debug --runtime win-x64 --self-contained false
+          --output modules\android-tools-suite\windows\x64 --nologo
+
+      - name: Android Tools test
+        shell: pwsh
+        run: >-
+          dotnet test MyPowerTools.slnx --no-build
+          --filter "FullyQualifiedName~AndroidTools_|FullyQualifiedName~Runtime_collects_production_module_events_and_notifications"
+
+      - name: Build tool packages from submodules
+        shell: pwsh
+        run: pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\build-tool-packages.ps1 -OutputRoot artifacts\ci-modules
+
+      - name: NSSM Manager PowerShell tests
+        shell: pwsh
+        run: |
+          $executable = 'tools\nssm-manager\sdk-tool\src\NssmManager.Executable\publish\win-x64\nssm-manager.exe'
+          pwsh.exe -NoLogo -NoProfile -NonInteractive -File tools\nssm-manager\tests\verify-native-resources.ps1 -Executable $executable
+          if ($LASTEXITCODE -ne 0) {
+            throw "verify-native-resources.ps1 failed with exit code $LASTEXITCODE."
+          }
+          pwsh.exe -NoLogo -NoProfile -NonInteractive -File tools\nssm-manager\tests\service-mode-smoke.ps1 -ManagedExecutable $executable -ConfirmIsolatedScmMutation -EvidencePath artifacts\nssm-compat\service-mode-smoke.json
+          if ($LASTEXITCODE -ne 0) {
+            throw "service-mode-smoke.ps1 failed with exit code $LASTEXITCODE."
+          }
+
+      - name: Upload gate evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: handoff-windows-gate-evidence
+          if-no-files-found: ignore
+          path: |
+            artifacts/nssm-compat/service-mode-smoke.json
