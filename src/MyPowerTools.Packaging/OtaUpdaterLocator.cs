@@ -99,7 +99,12 @@ public static class OtaUpdaterLocator
 
         if (macBundleRoot is not null)
         {
-            candidates.Add(Path.Combine(macBundleRoot, MacScriptsRelativePath, UpdaterScriptName));
+            candidates.Add(Path.Combine(
+                macBundleRoot,
+                "Contents",
+                "Resources",
+                "scripts",
+                UpdaterScriptName));
         }
 
         return candidates;
@@ -136,9 +141,11 @@ public static class OtaUpdaterLocator
         var candidates = new List<string>();
         if (!string.IsNullOrWhiteSpace(pathVariable))
         {
-            foreach (var entry in pathVariable.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
+            foreach (var entry in pathVariable.Split(
+                         Path.PathSeparator,
+                         StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
             {
-                candidates.Add(Path.Combine(entry, fileName));
+                candidates.Add(CombinePathEntry(entry, fileName));
             }
         }
 
@@ -178,5 +185,15 @@ public static class OtaUpdaterLocator
             ? "OTA 更新需要 PowerShell 7（pwsh），但在 PATH、/usr/local/bin 与 /opt/homebrew/bin 中都没有找到。" +
               "请先安装：brew install --cask powershell。"
             : "PowerShell 7 (pwsh) is required for OTA updates and was not found on PATH.";
+    }
+
+    private static string CombinePathEntry(string directory, string fileName)
+    {
+        if (directory.Contains('/') && !directory.Contains('\\'))
+        {
+            return directory.TrimEnd('/') + "/" + fileName;
+        }
+
+        return Path.Combine(directory, fileName);
     }
 }
