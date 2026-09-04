@@ -1,0 +1,32 @@
+name: UX review workspace
+
+on:
+  push:
+    branches: [codex/ux-review-workspace-2026-09-05]
+
+permissions:
+  contents: read
+
+jobs:
+  source:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ea282e10a7be384ca91c317a7fd64f420edc35b0
+          submodules: recursive
+          persist-credentials: false
+      - name: Archive tracked source and exact submodule revisions
+        shell: bash
+        run: |
+          git rev-parse HEAD > "$RUNNER_TEMP/revisions.txt"
+          git submodule status --recursive >> "$RUNNER_TEMP/revisions.txt"
+          git ls-files --recurse-submodules -z > "$RUNNER_TEMP/source-files"
+          tar --null -T "$RUNNER_TEMP/source-files" -czf "$RUNNER_TEMP/source.tar.gz"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: mpt-ux-baseline-source
+          path: |
+            ${{ runner.temp }}/source.tar.gz
+            ${{ runner.temp }}/revisions.txt
+          retention-days: 3
