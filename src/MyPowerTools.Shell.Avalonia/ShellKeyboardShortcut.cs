@@ -22,6 +22,7 @@ public static class ShellKeyboardShortcut
     {
         (key, modifiers) = gesture switch
         {
+            "Ctrl+K" => (Key.K, KeyModifiers.Control),
             "Ctrl+Shift+P" => (Key.P, KeyModifiers.Control | KeyModifiers.Shift),
             "Ctrl+R" => (Key.R, KeyModifiers.Control),
             "Ctrl+Alt+Space" => (Key.Space, KeyModifiers.Control | KeyModifiers.Alt),
@@ -40,7 +41,8 @@ public static class ShellKeyboardShortcut
 
     public static ShellKeyboardShortcutResult Resolve(Key key, KeyModifiers modifiers)
     {
-        if ((modifiers == (KeyModifiers.Control | KeyModifiers.Alt) && key == Key.Space) ||
+        if ((HasOnly(modifiers, KeyModifiers.Control) && key == Key.K) ||
+            (modifiers == (KeyModifiers.Control | KeyModifiers.Alt) && key == Key.Space) ||
             (modifiers == (KeyModifiers.Control | KeyModifiers.Shift) && key == Key.P))
         {
             return new ShellKeyboardShortcutResult(ShellKeyboardAction.FocusCommandPalette);
