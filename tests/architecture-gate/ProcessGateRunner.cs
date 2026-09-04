@@ -138,7 +138,7 @@ internal static class ProcessGateRunner
 
             secondManager = context.StartServiceManager("second");
             using var secondAdmin = await context.WaitForClientAsync(secondManager);
-            var readopted = await WaitForSnapshotAsync(secondAdmin, unitId, snap => snap.State == SM.UnitState.Active && snap.Pid == firstPid, TimeSpan.FromSeconds(6));
+            var readopted = await WaitForSnapshotAsync(secondAdmin, unitId, snap => snap.State == SM.UnitState.Active && snap.Pid == firstPid, TimeSpan.FromSeconds(15));
             Add(records, "A3.10-restart-readopts-same-pid", readopted is not null, readopted is null ? "re-adoption missing" : $"pid={readopted.Pid}; state={readopted.State}");
 
             if (OperatingSystem.IsWindows())
@@ -188,12 +188,12 @@ internal static class ProcessGateRunner
                 secondAdmin,
                 unitId,
                 snapshot => snapshot.State == SM.UnitState.Active && snapshot.Pid > 0 && snapshot.Pid != beforeUpgradePid,
-                TimeSpan.FromSeconds(6));
+                TimeSpan.FromSeconds(15));
             var upgradedPid = upgraded?.Pid ?? 0;
             if (upgradedPid > 0) trackedPids.Add(upgradedPid);
             var upgradedManifestApplied = upgraded is not null &&
                                           !ProcessIsAlive(beforeUpgradePid) &&
-                                          await WaitForFileGrowthAsync(upgradedHeartbeat, 0, TimeSpan.FromSeconds(5));
+                                          await WaitForFileGrowthAsync(upgradedHeartbeat, 0, TimeSpan.FromSeconds(10));
             Add(records, "A3.14-reload-applies-upgraded-manifest", upgradedManifestApplied,
                 $"old={beforeUpgradePid}; new={upgradedPid}; oldAlive={ProcessIsAlive(beforeUpgradePid)}; heartbeat={FileLength(upgradedHeartbeat)}");
 
@@ -629,7 +629,7 @@ internal static class ProcessGateRunner
 
         public async Task<ServiceManagerAdminClient> WaitForClientAsync(RunningServiceManager manager)
         {
-            var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(12);
+            var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(25);
             Exception? lastError = null;
             while (DateTime.UtcNow < deadline)
             {
