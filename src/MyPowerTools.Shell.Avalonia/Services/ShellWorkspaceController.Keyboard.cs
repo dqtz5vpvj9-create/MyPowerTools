@@ -28,6 +28,12 @@ public sealed partial class ShellWorkspaceController
     {
         try
         {
+            if (shortcut.Action == ShellKeyboardAction.NavigateBack)
+            {
+                await GoBackAsync();
+                return;
+            }
+
             await ApplyKeyboardShortcutAsync(shortcut);
         }
         catch (Exception ex)
