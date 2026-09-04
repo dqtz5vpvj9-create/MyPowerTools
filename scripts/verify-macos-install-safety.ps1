@@ -205,6 +205,12 @@ try {
             foreach ($relative in @('Contents/Resources', 'Contents/MacOS/modules', 'Contents/MacOS/ServiceUnits')) {
                 New-Item -ItemType Directory -Path (Join-Path $Path $relative) -Force | Out-Null
                 [IO.File]::WriteAllText((Join-Path $Path "$relative/fixture.txt"), $Payload)
+                # The product stores signed data under Contents/MacOS. Match its
+                # data-file signing pass before sealing the outer fixture bundle.
+                if ($relative.StartsWith('Contents/MacOS/', [StringComparison]::Ordinal)) {
+                    [void](Invoke-MacOSInstallCommand '/usr/bin/codesign' @(
+                        '--force', '--sign', '-', '--timestamp=none', (Join-Path $Path "$relative/fixture.txt")))
+                }
             }
             foreach ($helper in @(Get-ChildItem -LiteralPath (Join-Path $Path 'Contents/MacOS/Helpers') -Directory)) {
                 [void](Invoke-MacOSInstallCommand '/usr/bin/codesign' @('--force', '--sign', '-', '--timestamp=none', $helper.FullName))
@@ -295,6 +301,11 @@ try {
         }
     }
 }
+catch {
+    $results.Add([pscustomobject]@{
+        name = 'suite setup or infrastructure'; passed = $false; detail = $_.ToString()
+    })
+}
 finally {
     foreach ($process in $processes) {
         try { if (-not $process.HasExited) { $process.Kill($true); $process.WaitForExit() } } catch { }
@@ -316,6 +327,7 @@ finally {
         platform = [Runtime.InteropServices.RuntimeInformation]::OSDescription
         architecture = [Runtime.InteropServices.RuntimeInformation]::ProcessArchitecture.ToString()
         nativeTests = [bool]$IsMacOS
+        expectedCases = $(if ($IsMacOS) { 19 } else { 11 })
         passed = @($results | Where-Object passed).Count
         failed = @($results | Where-Object { -not $_.passed }).Count
         tests = $results.ToArray()
