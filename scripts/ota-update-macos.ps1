@@ -176,7 +176,7 @@ function Resolve-PublicKey {
 function Assert-FeedSignature {
     param(
         [Parameter(Mandatory = $true)][string]$Json,
-        [Parameter(Mandatory = $true)][string]$SignatureBase64,
+        [Parameter(Mandatory = $true)][AllowEmptyString()][string]$SignatureBase64,
         [Parameter(Mandatory = $true)][string]$PublicKeyHex,
         [Parameter(Mandatory = $true)][bool]$FeedSigned
     )

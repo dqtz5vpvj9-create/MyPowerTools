@@ -1,0 +1,181 @@
+name: Remote Notifications macOS production
+
+on:
+  pull_request:
+    paths:
+      - "tools/remote-notifications"
+      - "scripts/verify-remote-notifications-macos*.ps1"
+      - "scripts/publish-macos*.ps1"
+      - "scripts/install-macos*.ps1"
+      - "packaging/macos/**"
+      - "src/MyPowerTools.ServiceManager/**"
+      - "src/MyPowerTools.ServiceManager.Client/**"
+      - "src/MyPowerTools.ServiceManager.Server/**"
+      - "src/MyPowerTools.Platform.Mac/**"
+      - "src/MyPowerTools.Tests/RemoteNotifications*"
+      - "native/macos/**"
+      - ".github/workflows/remote-notifications-macos-production.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: remote-notifications-macos-production-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  production-gate:
+    runs-on: macos-14
+    timeout-minutes: 75
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: 1
+      DOTNET_NOLOGO: true
+      NUGET_XMLDOC_MODE: skip
+      EnableWindowsTargeting: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          token: ${{ secrets.MPT_SUBMODULE_PAT }}
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Prepare local SDK feed
+        shell: pwsh
+        run: New-Item -ItemType Directory -Path artifacts/sdk/nuget -Force | Out-Null
+
+      - name: Build SDK packages
+        shell: pwsh
+        run: pwsh -NoLogo -NoProfile -NonInteractive -File scripts/build-sdk.ps1
+
+      - name: Parse production verification script
+        shell: pwsh
+        run: >-
+          [void][scriptblock]::Create(
+          (Get-Content -LiteralPath scripts/verify-remote-notifications-macos-production.ps1 -Raw))
+
+      - name: Run Remote Notifications unit and product tests
+        shell: pwsh
+        run: |
+          dotnet test `
+            tools/remote-notifications/current-integration/tests/RemoteNotifications.Configuration.Tests/RemoteNotifications.Configuration.Tests.csproj `
+            --configuration Release `
+            --logger "console;verbosity=normal"
+          if ($LASTEXITCODE -ne 0) { throw 'Remote Notifications configuration tests failed.' }
+          dotnet test `
+            src/MyPowerTools.Tests/MyPowerTools.Tests.csproj `
+            --configuration Release `
+            --filter "FullyQualifiedName~RemoteNotificationsProductTests|FullyQualifiedName~RemoteNotificationsMacNativeContractTests|FullyQualifiedName~ServiceUnitSurfaceClientTests" `
+            --logger "console;verbosity=normal"
+          if ($LASTEXITCODE -ne 0) { throw 'Remote Notifications product tests failed.' }
+
+      - name: Publish installed-shape Apple Silicon app bundle
+        shell: pwsh
+        run: >-
+          pwsh -NoLogo -NoProfile -NonInteractive
+          -File scripts/publish-macos.ps1
+          -Architecture arm64
+          -Configuration Release
+          -CodeSignIdentity '-'
+          -Channel local
+          -AllowUnsigned
+
+      - name: Verify installed-shape Apple Silicon payload
+        shell: pwsh
+        run: |
+          $app = 'artifacts/publish/macos-arm64/MyPowerTools.app'
+          $mac = Join-Path $app 'Contents/MacOS'
+          $helper = Join-Path $mac 'Helpers/MyPowerTools Remote Notifications.app'
+          $helperRoot = Join-Path $helper 'Contents/MacOS'
+          $manifestPath = Join-Path $mac 'ServiceUnits/units/remote-notifications.service.json'
+          $required = @(
+            (Join-Path $helperRoot 'RemoteNotifications.Service'),
+            (Join-Path $helperRoot 'libMptMacNative.dylib'),
+            (Join-Path $helper 'Contents/Info.plist'),
+            (Join-Path $mac 'modules/android-tools-suite/macos/arm64/MPTAndroidTools.Runtime'),
+            (Join-Path $mac 'modules/android-tools-suite/modules/notifications/ui/surface/RemoteNotifications.Surface.dll'),
+            $manifestPath
+          )
+          foreach ($path in $required) {
+            if (-not (Test-Path -LiteralPath $path)) { throw "Missing Remote Notifications production payload: $path" }
+          }
+          $bundleId = (& /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' $required[2]).Trim()
+          if ($bundleId -ne 'com.mypowertools.remote-notifications') {
+            throw "Unexpected Remote Notifications helper bundle identifier: $bundleId"
+          }
+          $manifest = Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
+          $expectedDataRoot = '~/Library/Application Support/MyPowerTools/state/tools/remote-notifications'
+          if ([string]$manifest.environment.MPT_TOOL_DATA_ROOT -ne $expectedDataRoot) {
+            throw "Service and Surface data roots differ: $($manifest.environment.MPT_TOOL_DATA_ROOT)"
+          }
+          $manifestDirectory = Split-Path -Parent $manifestPath
+          $resolvedExecutable = [IO.Path]::GetFullPath((Join-Path $manifestDirectory ([string]$manifest.exec)))
+          $resolvedWorkingDirectory = [IO.Path]::GetFullPath((Join-Path $manifestDirectory ([string]$manifest.workingDirectory)))
+          if ($resolvedExecutable -ne [IO.Path]::GetFullPath($required[0])) {
+            throw "Service manifest resolves to the wrong executable: $resolvedExecutable"
+          }
+          if ($resolvedWorkingDirectory -ne [IO.Path]::GetFullPath($helperRoot)) {
+            throw "Service manifest resolves to the wrong working directory: $resolvedWorkingDirectory"
+          }
+          $symbols = (& /usr/bin/nm -gU $required[1]) -join "`n"
+          if ($symbols -notmatch 'mpt_notification_authorization_status') { throw 'Native helper does not export mpt_notification_authorization_status.' }
+          if ($symbols -notmatch 'mpt_notification_publish') { throw 'Native helper does not export mpt_notification_publish.' }
+          & /usr/bin/codesign --verify --strict $helper
+          if ($LASTEXITCODE -ne 0) { throw 'Remote Notifications helper failed codesign verification.' }
+          & /usr/bin/codesign --verify --deep --strict $app
+          if ($LASTEXITCODE -ne 0) { throw 'Installed-shape app bundle failed codesign verification.' }
+
+      - name: Run installed-shape macOS service production gate
+        shell: pwsh
+        run: >-
+          pwsh -NoLogo -NoProfile -NonInteractive
+          -File scripts/verify-remote-notifications-macos-production.ps1
+          -AppBundle artifacts/publish/macos-arm64/MyPowerTools.app
+
+      - name: Cross-publish Intel app bundle
+        shell: pwsh
+        run: >-
+          pwsh -NoLogo -NoProfile -NonInteractive
+          -File scripts/publish-macos.ps1
+          -Architecture x64
+          -Configuration Release
+          -CodeSignIdentity '-'
+          -Channel local
+          -AllowUnsigned
+
+      - name: Verify Intel helper architecture and signature
+        shell: pwsh
+        run: |
+          $app = 'artifacts/publish/macos-x64/MyPowerTools.app'
+          $helper = Join-Path $app 'Contents/MacOS/Helpers/MyPowerTools Remote Notifications.app'
+          $worker = Join-Path $helper 'Contents/MacOS/RemoteNotifications.Service'
+          $native = Join-Path $helper 'Contents/MacOS/libMptMacNative.dylib'
+          foreach ($path in @($worker, $native)) {
+            if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "Missing Intel payload: $path" }
+            $description = (& /usr/bin/file -b $path) -join ' '
+            if ($description -notmatch 'x86_64') { throw "Payload has wrong architecture: $description" }
+          }
+          $symbols = (& /usr/bin/nm -gU $native) -join "`n"
+          if ($symbols -notmatch 'mpt_notification_authorization_status') { throw 'Intel helper does not export mpt_notification_authorization_status.' }
+          if ($symbols -notmatch 'mpt_notification_publish') { throw 'Intel helper does not export mpt_notification_publish.' }
+          & /usr/bin/codesign --verify --strict $helper
+          if ($LASTEXITCODE -ne 0) { throw 'Intel Remote Notifications helper failed codesign verification.' }
+          & /usr/bin/codesign --verify --deep --strict $app
+          if ($LASTEXITCODE -ne 0) { throw 'Intel app bundle failed codesign verification.' }
+
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: remote-notifications-macos-production-evidence
+          if-no-files-found: warn
+          path: |
+            artifacts/remote-notifications-macos/**
+            artifacts/publish/macos-arm64/MyPowerTools.app/Contents/MacOS/ServiceUnits/units/remote-notifications.service.json
+            artifacts/publish/macos-x64/MyPowerTools.app/Contents/MacOS/ServiceUnits/units/remote-notifications.service.json

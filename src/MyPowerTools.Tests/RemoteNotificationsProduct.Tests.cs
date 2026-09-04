@@ -888,7 +888,7 @@ public sealed class RemoteNotificationsProductTests
         Assert.Contains("RunOnePollCycle", worker, StringComparison.Ordinal);
         Assert.Contains("ServeControlPipe", worker, StringComparison.Ordinal);
         Assert.Contains("ServeControlSocket", worker, StringComparison.Ordinal);
-        Assert.Contains("MacUserNotificationService", worker, StringComparison.Ordinal);
+        Assert.Contains("RemoteNotificationDesktopServiceFactory.Create()", worker, StringComparison.Ordinal);
         Assert.Contains("WorkerToastPlatform.EnsureRegistered()", worker, StringComparison.Ordinal);
         Assert.Contains("ProductActivationLauncher.GetLaunchUri(args)", worker, StringComparison.Ordinal);
         Assert.Contains("<OutputType>WinExe</OutputType>", workerProject, StringComparison.Ordinal);

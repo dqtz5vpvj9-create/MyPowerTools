@@ -1,0 +1,54 @@
+name: Remote Notifications macOS UI
+
+on:
+  pull_request:
+    paths:
+      - "tools/remote-notifications"
+      - "tests/RemoteNotifications.Mac.Ui.Tests/**"
+      - ".github/workflows/remote-notifications-macos-ui.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: remote-notifications-macos-ui-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  headless-layout:
+    runs-on: macos-14
+    timeout-minutes: 25
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: 1
+      DOTNET_NOLOGO: true
+      NUGET_XMLDOC_MODE: skip
+      EnableWindowsTargeting: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          token: ${{ secrets.MPT_SUBMODULE_PAT }}
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Prepare local SDK feed
+        shell: pwsh
+        run: New-Item -ItemType Directory -Path artifacts/sdk/nuget -Force | Out-Null
+
+      - name: Build SDK packages
+        shell: pwsh
+        run: pwsh -NoLogo -NoProfile -NonInteractive -File scripts/build-sdk.ps1
+
+      - name: Run real Avalonia layout acceptance
+        shell: pwsh
+        run: >-
+          dotnet test
+          tests/RemoteNotifications.Mac.Ui.Tests/RemoteNotifications.Mac.Ui.Tests.csproj
+          --configuration Release
+          --logger "console;verbosity=normal"

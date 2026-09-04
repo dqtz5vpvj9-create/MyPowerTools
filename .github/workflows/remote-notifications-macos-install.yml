@@ -1,0 +1,130 @@
+name: Remote Notifications macOS install
+
+on:
+  pull_request:
+    paths:
+      - "tools/remote-notifications"
+      - "scripts/install-macos*.ps1"
+      - "scripts/publish-macos*.ps1"
+      - "scripts/verify-remote-notifications-macos-production.ps1"
+      - "packaging/macos/**"
+      - ".github/workflows/remote-notifications-macos-install.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: remote-notifications-macos-install-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  installed-shape:
+    runs-on: macos-14
+    timeout-minutes: 75
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: 1
+      DOTNET_NOLOGO: true
+      NUGET_XMLDOC_MODE: skip
+      EnableWindowsTargeting: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          token: ${{ secrets.MPT_SUBMODULE_PAT }}
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Prepare local SDK feed
+        shell: pwsh
+        run: New-Item -ItemType Directory -Path artifacts/sdk/nuget -Force | Out-Null
+
+      - name: Build SDK packages
+        shell: pwsh
+        run: pwsh -NoLogo -NoProfile -NonInteractive -File scripts/build-sdk.ps1
+
+      - name: Publish Apple Silicon application
+        shell: pwsh
+        run: >-
+          pwsh -NoLogo -NoProfile -NonInteractive
+          -File scripts/publish-macos.ps1
+          -Architecture arm64
+          -Configuration Release
+          -CodeSignIdentity '-'
+          -Channel local
+          -AllowUnsigned
+
+      - name: Install into an isolated user Applications root
+        shell: pwsh
+        run: |
+          $apps = [IO.Path]::GetFullPath('artifacts/install-verification/Applications')
+          $data = [IO.Path]::GetFullPath('artifacts/install-verification/Application Support/MyPowerTools')
+          pwsh -NoLogo -NoProfile -NonInteractive `
+            -File scripts/install-macos.ps1 `
+            -SourceApp artifacts/publish/macos-arm64/MyPowerTools.app `
+            -ApplicationsRoot $apps `
+            -DataRoot $data `
+            -SkipLaunchAgents
+          if ($LASTEXITCODE -ne 0) { throw 'Initial macOS installation failed.' }
+
+          $app = Join-Path $apps 'MyPowerTools.app'
+          $helper = Join-Path $app 'Contents/MacOS/Helpers/MyPowerTools Remote Notifications.app'
+          $worker = Join-Path $helper 'Contents/MacOS/RemoteNotifications.Service'
+          $manifest = Join-Path $app 'Contents/MacOS/ServiceUnits/units/remote-notifications.service.json'
+          foreach ($path in @($app, $helper, $worker, $manifest)) {
+            if (-not (Test-Path -LiteralPath $path)) { throw "Installed payload is missing: $path" }
+          }
+          & /usr/bin/codesign --verify --deep --strict $app
+          if ($LASTEXITCODE -ne 0) { throw 'Initially installed application failed signature verification.' }
+
+          "APPS_ROOT=$apps" | Set-Content -LiteralPath $env:GITHUB_ENV -Encoding utf8 -Append
+          "DATA_ROOT=$data" | Set-Content -LiteralPath $env:GITHUB_ENV -Encoding utf8 -Append
+          "INSTALLED_APP=$app" | Set-Content -LiteralPath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Replacement installation stops every old-bundle process
+        shell: pwsh
+        run: |
+          $sleeper = Join-Path $env:INSTALLED_APP 'Contents/MacOS/remote-notifications-install-sleeper'
+          Copy-Item -LiteralPath '/bin/sleep' -Destination $sleeper -Force
+          & /bin/chmod '+x' $sleeper
+          $process = Start-Process -FilePath $sleeper -ArgumentList @('300') -PassThru
+          Start-Sleep -Milliseconds 500
+          if ($process.HasExited) { throw 'Verification sleeper exited before replacement installation.' }
+
+          pwsh -NoLogo -NoProfile -NonInteractive `
+            -File scripts/install-macos.ps1 `
+            -SourceApp artifacts/publish/macos-arm64/MyPowerTools.app `
+            -ApplicationsRoot $env:APPS_ROOT `
+            -DataRoot $env:DATA_ROOT `
+            -SkipLaunchAgents
+          if ($LASTEXITCODE -ne 0) { throw 'Replacement macOS installation failed.' }
+
+          try { $process.Refresh() } catch { }
+          if (-not $process.HasExited) {
+            Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+            throw "Replacement installation left old bundle process $($process.Id) running."
+          }
+          & /usr/bin/codesign --verify --deep --strict $env:INSTALLED_APP
+          if ($LASTEXITCODE -ne 0) { throw 'Replacement installation failed to restore a valid application signature.' }
+
+      - name: Run production gate from the installed bundle
+        shell: pwsh
+        run: >-
+          pwsh -NoLogo -NoProfile -NonInteractive
+          -File scripts/verify-remote-notifications-macos-production.ps1
+          -AppBundle $env:INSTALLED_APP
+
+      - name: Upload install evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: remote-notifications-macos-install-evidence
+          if-no-files-found: warn
+          path: |
+            artifacts/remote-notifications-macos/**
+            artifacts/install-verification/Application Support/MyPowerTools/**
