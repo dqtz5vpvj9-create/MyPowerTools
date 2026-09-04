@@ -382,7 +382,7 @@
                            VerticalAlignment="Center" />
                 <TextBlock Grid.Column="1"
                            Classes="MptMeta"
-                           Text="Primary tool actions"
+                           Text="{Binding ActionShortcutsDetail}"
                            VerticalAlignment="Center" />
               </Grid>
               <Border Grid.Row="1"
@@ -404,7 +404,7 @@
             <Grid Margin="{DynamicResource MptCardHeaderCompactMargin}"
                   ColumnDefinitions="*,Auto">
               <TextBlock Classes="MptCardTitle"
-                         Text="Tools"
+                         Text="{Binding DashboardToolsTitle}"
                          VerticalAlignment="Center" />
               <controls:MptButton Grid.Column="1"
                                   Classes="PowerCardHeaderAction"
