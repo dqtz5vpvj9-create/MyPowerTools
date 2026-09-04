@@ -2,8 +2,8 @@
 .SYNOPSIS
     Exercises installer rollback functions and, on macOS, signed fixture installations.
 .DESCRIPTION
-    No SDK, submodules, Pester, signing credentials or user configuration are required.
-    Native fixtures use signed copies of /bin/sleep, not the product's GUI or services.
+    No .NET SDK, submodules, Pester, signing credentials or user configuration are required.
+    Native fixtures compile a small C sleeper with Xcode Command Line Tools, not the product.
     All installations pass -SkipLaunchAgents and use a temporary Applications/Data root.
 #>
 [CmdletBinding()]
@@ -189,7 +189,7 @@ try {
                 $bundle = if ($hostInfo[0]) { Join-Path $Path "Contents/MacOS/Helpers/$($hostInfo[0])" } else { $Path }
                 $mac = Join-Path $bundle 'Contents/MacOS'
                 New-Item -ItemType Directory -Path $mac -Force | Out-Null
-                Copy-Item -LiteralPath '/bin/sleep' -Destination (Join-Path $mac $hostInfo[2])
+                Copy-Item -LiteralPath $fixtureExecutable -Destination (Join-Path $mac $hostInfo[2])
                 $plist = @"
 <?xml version="1.0" encoding="UTF-8"?>
 <plist version="1.0"><dict>
@@ -225,12 +225,27 @@ try {
             $process = [Diagnostics.Process]::Start($info)
             $processes.Add($process)
             Start-Sleep -Milliseconds 200
-            Assert-True (-not $process.HasExited) 'Fixture process must remain alive'
+            if ($process.HasExited) { throw "Fixture process exited before the test: $File; exit=$($process.ExitCode)" }
             return $process
         }
         $nativeRoot = Join-Path $testRoot 'native Applications [fixtures]'
         New-Item -ItemType Directory -Path $nativeRoot -Force | Out-Null
         $nativeRoot = Get-MacOSPhysicalDirectory $nativeRoot
+        # Apple system binaries can retain platform-specific requirements after copying
+        # and re-signing. Build an ordinary native executable for both test architectures.
+        $fixtureSource = Join-Path $nativeRoot 'sleeper.c'
+        $fixtureExecutable = Join-Path $nativeRoot 'sleeper'
+        [IO.File]::WriteAllText($fixtureSource, @'
+#include <stdlib.h>
+#include <unistd.h>
+int main(int argc, char **argv) {
+    unsigned int remaining = argc > 1 ? (unsigned int)strtoul(argv[1], 0, 10) : 180;
+    while (remaining > 0) { remaining = sleep(remaining); }
+    return 0;
+}
+'@)
+        [void](Invoke-MacOSInstallCommand '/usr/bin/xcrun' @(
+            'clang', '-O2', '-o', $fixtureExecutable, $fixtureSource))
         $apps = Join-Path $nativeRoot 'Applications'
         $data = Join-Path $nativeRoot 'Data'
         $source = Join-Path $nativeRoot 'Source.app'

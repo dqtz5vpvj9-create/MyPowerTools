@@ -50,7 +50,8 @@ pwsh -NoProfile -File scripts/verify-macos-install-safety.ps1 -ReportPath /tmp/m
 The script parses and loads the actual production functions, without executing the
 installer entry point, for 11 portable process-selection, directory-swap, rollback,
 backup and exclusive-lock cases. On macOS it additionally constructs signed fixture
-bundles containing copies of `/bin/sleep` and exercises 8 native scenarios: first
+bundles containing a small C sleeper compiled with Xcode Command Line Tools and
+exercises 8 native scenarios: first
 installation, native error handling, a tampered candidate, replacement with an
 unrelated process, self-source installation, lock contention, symbolic-link rejection,
 and recursive destination rejection. Tests use temporary Applications/Data roots and
@@ -58,7 +59,7 @@ and recursive destination rejection. Tests use temporary Applications/Data roots
 
 `.github/workflows/macos-install-safety.yml` runs on `ubuntu-24.04`, `macos-14` and
 `macos-15-intel`. Reports are written under `RUNNER_TEMP` and uploaded as workflow
-artifacts. No SDK build, submodule checkout or signing secret is needed.
+artifacts. No .NET SDK build, submodule checkout or signing secret is needed.
 
 The JSON report records each case's result, the operating system and architecture.
 A workflow result is evidence for the tested commit only. Signed fixtures exercise
