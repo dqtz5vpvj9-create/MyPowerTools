@@ -315,7 +315,7 @@ ThreadingHTTPServer(("127.0.0.1", port), Handler).serve_forever()
         keepWindowsBanners = $false
     } | ConvertTo-Json | Set-Content -LiteralPath (Join-Path $toolDataRoot 'settings.json') -Encoding utf8
 
-    $python = (Get-Command python3 -CommandType Application -ErrorAction Stop).Source
+    $python = (Get-Command python3 -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source
     $serverProcess = Start-Process -FilePath $python -PassThru `
         -RedirectStandardOutput (Join-Path $tempRoot 'feed.out.log') `
         -RedirectStandardError (Join-Path $tempRoot 'feed.err.log') `
