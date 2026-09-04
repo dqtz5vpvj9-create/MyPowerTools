@@ -14,15 +14,35 @@ jobs:
       - uses: actions/checkout@v4
         with:
           ref: ea282e10a7be384ca91c317a7fd64f420edc35b0
-          submodules: recursive
           persist-credentials: false
-      - name: Archive tracked source and exact submodule revisions
+      - name: Checkout the eight tool repositories
         shell: bash
         run: |
-          git rev-parse HEAD > "$RUNNER_TEMP/revisions.txt"
-          git submodule status --recursive >> "$RUNNER_TEMP/revisions.txt"
-          git ls-files --recurse-submodules -z > "$RUNNER_TEMP/source-files"
-          tar --null -T "$RUNNER_TEMP/source-files" -czf "$RUNNER_TEMP/source.tar.gz"
+          git submodule update --init --depth=1 -- tools/adb-forwarder tools/doubao-computer-use tools/input-monitor tools/process-monitor tools/remote-commands tools/remote-notifications tools/screenease tools/smartbird-thermostat
+      - name: Archive tracked source and exact submodule revisions
+        shell: python
+        run: |
+          import os
+          import pathlib
+          import subprocess
+          import tarfile
+          roots = [pathlib.Path('.')] + sorted(p for p in pathlib.Path('tools').iterdir() if (p / '.git').is_file())
+          temp = pathlib.Path(os.environ['RUNNER_TEMP'])
+          revisions = []
+          with tarfile.open(temp / 'source.tar.gz', 'w:gz') as archive:
+              for root in roots:
+                  sha = subprocess.check_output(['git', '-C', str(root), 'rev-parse', 'HEAD'], text=True).strip()
+                  revisions.append(f'{sha} {root}')
+                  records = subprocess.check_output(['git', '-C', str(root), 'ls-files', '--stage', '-z'])
+                  for record in records.split(b'\0'):
+                      if not record:
+                          continue
+                      metadata, name = record.split(b'\t', 1)
+                      if metadata.startswith(b'160000 '):
+                          continue
+                      path = root / os.fsdecode(name)
+                      archive.add(path, arcname=path.as_posix(), recursive=False)
+          (temp / 'revisions.txt').write_text('\n'.join(revisions) + '\n')
       - uses: actions/upload-artifact@v4
         with:
           name: mpt-ux-baseline-source
