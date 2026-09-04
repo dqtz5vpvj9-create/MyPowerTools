@@ -180,9 +180,12 @@ public sealed partial class ShellWorkspaceController
         SetStatus(result.StatusText);
     }
 
+    private long _logLoadVersion;
+
     private async Task LoadLogsPageAsync(string? selectedModuleId = null)
     {
         var identity = _workspaceIdentity.Capture();
+        var requestVersion = Interlocked.Increment(ref _logLoadVersion);
         try
         {
             _logPageModuleId = selectedModuleId;
@@ -193,18 +196,31 @@ public sealed partial class ShellWorkspaceController
 
             if (!_workspaceIdentity.IsCurrent(identity)) return;
 
-            SetOwnedContent(_contentHost, new LogsView
+            if (requestVersion != Volatile.Read(ref _logLoadVersion)) return;
+            if (_contentHost.Content is LogsView { DataContext: LogsViewModel current })
             {
-                DataContext = result.ViewModel
-            });
+                current.RefreshFrom(result.ViewModel);
+            }
+            else
+            {
+                SetOwnedContent(_contentHost, new LogsView { DataContext = result.ViewModel });
+            }
             SetStatus(result.StatusText);
         }
         catch (Exception ex)
         {
-            if (IsStalePageFailure(nameof(LoadLogsPageAsync), ex, identity)) return;
+            if (requestVersion != Volatile.Read(ref _logLoadVersion) ||
+                IsStalePageFailure(nameof(LoadLogsPageAsync), ex, identity)) return;
 
             var failure = ReportPageFailure(nameof(LoadLogsPageAsync), ex);
-            SetOwnedContent(_contentHost, BuildUnavailablePage(LogsPage, failure.Message, retry: () => LoadLogsPageAsync(_logPageModuleId)));
+            if (_contentHost.Content is LogsView { DataContext: LogsViewModel current })
+            {
+                current.ReportRefreshFailure(failure.Message);
+            }
+            else
+            {
+                SetOwnedContent(_contentHost, BuildUnavailablePage(LogsPage, failure.Message, retry: () => LoadLogsPageAsync(_logPageModuleId)));
+            }
         }
     }
 
