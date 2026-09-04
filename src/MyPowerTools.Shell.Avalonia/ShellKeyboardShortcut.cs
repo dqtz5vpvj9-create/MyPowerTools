@@ -8,7 +8,8 @@ public enum ShellKeyboardAction
     FocusCommandPalette,
     ClearCommandPalette,
     Refresh,
-    Navigate
+    Navigate,
+    NavigateBack
 }
 
 public sealed record ShellKeyboardShortcutResult(ShellKeyboardAction Action, string? TargetPage = null)
@@ -26,6 +27,7 @@ public static class ShellKeyboardShortcut
             "Ctrl+Shift+P" => (Key.P, KeyModifiers.Control | KeyModifiers.Shift),
             "Ctrl+R" => (Key.R, KeyModifiers.Control),
             "Ctrl+Alt+Space" => (Key.Space, KeyModifiers.Control | KeyModifiers.Alt),
+            "Alt+Left" => (Key.Left, KeyModifiers.Alt),
             "F5" => (Key.F5, KeyModifiers.None),
             "Escape" => (Key.Escape, KeyModifiers.None),
             "Ctrl+1" => (Key.D1, KeyModifiers.Control),
@@ -51,6 +53,11 @@ public static class ShellKeyboardShortcut
         if (modifiers == KeyModifiers.None && key == Key.Escape)
         {
             return new ShellKeyboardShortcutResult(ShellKeyboardAction.ClearCommandPalette);
+        }
+
+        if (HasOnly(modifiers, KeyModifiers.Alt) && key == Key.Left)
+        {
+            return new ShellKeyboardShortcutResult(ShellKeyboardAction.NavigateBack);
         }
 
         if ((modifiers == KeyModifiers.None && key == Key.F5) ||

@@ -32,7 +32,10 @@ public sealed partial class ShellWorkspaceController
         _currentToolRouteId = "";
         var navigationPage = IsSystemDestination(page) ? SystemPage : page;
         _chromeViewModel.SelectPage(navigationPage);
-        _navigation.Navigate(ToShellRoute(page), addToHistory: true);
+        var route = string.Equals(page, NotificationsPage, StringComparison.OrdinalIgnoreCase)
+            ? ShellRoute.Notifications
+            : ToShellRoute(page);
+        _navigation.Navigate(route, addToHistory: true);
         if (!string.Equals(page, CommandsPage, StringComparison.OrdinalIgnoreCase))
         {
             _chromeViewModel.IsCommandPaletteOpen = false;
@@ -54,6 +57,9 @@ public sealed partial class ShellWorkspaceController
                 break;
             case ActivityPage:
                 LoadActivityPage();
+                break;
+            case NotificationsPage:
+                await LoadNotificationsPageAsync();
                 break;
             case SystemPage:
                 LoadSystemPage();

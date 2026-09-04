@@ -125,7 +125,10 @@ public static class OtaUpdaterLocator
         {
             foreach (var entry in pathVariable.Split(Path.PathSeparator, StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries))
             {
-                candidates.Add(Path.Combine(entry, fileName));
+                // Unix candidates are compared against literal forward-slash paths, so join
+                // them manually; Path.Combine would inject a backslash when the tests run on
+                // a Windows host.
+                candidates.Add(isWindows ? Path.Combine(entry, fileName) : $"{entry.TrimEnd('/')}/{fileName}");
             }
         }
 
