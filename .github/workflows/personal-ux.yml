@@ -1,0 +1,34 @@
+name: Personal UX regression tests
+on:
+  pull_request:
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  focused-ui:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-latest, macos-14]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Checkout pinned tool repositories
+        shell: pwsh
+        run: |
+          git submodule update --init --depth=1 -- tools/adb-forwarder tools/doubao-computer-use tools/input-monitor tools/process-monitor tools/remote-commands tools/remote-notifications tools/screenease tools/smartbird-thermostat
+          if ($LASTEXITCODE -ne 0) { throw 'Tool checkout failed.' }
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - name: Build real SDK packages and exercise Shell and Surface regressions
+        shell: pwsh
+        run: ./scripts/test-personal-ux.ps1
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: personal-ux-${{ matrix.os }}
+          path: ${{ runner.temp }}/mypowertools-personal-ux-results
+          if-no-files-found: ignore
