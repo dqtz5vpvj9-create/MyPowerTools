@@ -463,8 +463,19 @@ ThreadingHTTPServer(("127.0.0.1", port), Handler).serve_forever()
     }
     $thirdPid = if ($replacementReady) { Get-WorkerPid $workerSocket } else { $null }
     Add-Record 'worker-crash-recovered' $replacementReady "crashed=$secondPid replacement=$thirdPid"
-    $pongAfterCrash = Send-WorkerCommand $workerSocket @{ command = 'ping' }
-    Add-Record 'ready-after-worker-recovery' ([bool]$pongAfterCrash.ok) 'replacement worker reachable'
+    # The replacement worker rebinds the socket asynchronously: the first connect can hit
+    # the stale binding window (macOS surfaces it as 'Can't assign requested address'), so
+    # retry instead of failing the gate on a single refused attempt.
+    $pongAfterCrash = $null
+    $recoveryPingReady = Wait-Until -TimeoutSeconds 10 -DelayMilliseconds 250 -Condition {
+        try { $pong = Send-WorkerCommand $workerSocket @{ command = 'ping' } }
+        catch { return $false }
+        return ($null -ne $pong -and $pong.ok)
+    }
+    if ($recoveryPingReady) {
+        $pongAfterCrash = Send-WorkerCommand $workerSocket @{ command = 'ping' }
+    }
+    Add-Record 'ready-after-worker-recovery' ($null -ne $pongAfterCrash -and [bool]$pongAfterCrash.ok) 'replacement worker reachable'
     Add-Record 'history-survives-recovery' (@(Read-History | Where-Object { $_.id -eq $liveId }).Count -eq 1) $liveId
 
     $recoveryPersisted = Wait-Until -TimeoutSeconds 20 -DelayMilliseconds 250 -Condition {
