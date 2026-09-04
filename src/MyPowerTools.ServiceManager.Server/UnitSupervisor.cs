@@ -414,7 +414,7 @@ public sealed class UnitSupervisor : IAsyncDisposable
             _lastError = ex.Message;
         }
 
-        _exitCode = _process.HasExited ? _process.ExitCode : null;
+        _exitCode = TryGetExitCode(_process);
         ClearPersistedState();
         CancelScheduledRestart();
         _stopping = false;
@@ -655,6 +655,25 @@ public sealed class UnitSupervisor : IAsyncDisposable
         }
     }
 
+    private static int? TryGetExitCode(Process process)
+    {
+        if (!process.HasExited)
+        {
+            return null;
+        }
+
+        try
+        {
+            return process.ExitCode;
+        }
+        catch (InvalidOperationException)
+        {
+            // Processes re-adopted after a manager restart were not started by this
+            // Process instance, so the runtime refuses to surface their exit code.
+            return null;
+        }
+    }
+
     private void OnProcessExited(object? sender, EventArgs e)
     {
         var process = sender as Process ?? _process;
@@ -663,7 +682,7 @@ public sealed class UnitSupervisor : IAsyncDisposable
             return;
         }
 
-        _exitCode = process.HasExited ? process.ExitCode : null;
+        _exitCode = TryGetExitCode(process);
 
         if (_stopping || _disposed)
         {
