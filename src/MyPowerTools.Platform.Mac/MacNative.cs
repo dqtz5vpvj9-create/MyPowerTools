@@ -9,10 +9,22 @@ internal static class MacNative
     internal const string MissingLibraryMessage =
         "The macOS native capability library is missing from the application bundle.";
 
-    /// <summary>Native status codes shared with mpt_notification_publish in MptMacNative.mm.</summary>
+    /// <summary>Native status codes shared with MptMacNative.mm.</summary>
     internal const int NotificationOsUnsupported = -1;
     internal const int NotificationNoBundle = 2;
     internal const int NotificationUnavailable = 3;
+    internal const int NotificationPermissionDenied = 4;
+    internal const int NotificationDeliveryFailed = 5;
+    internal const int NotificationTimedOut = 6;
+
+    internal const int NotificationAuthorizationUnavailable = -1;
+    internal const int NotificationAuthorizationNotDetermined = 0;
+    internal const int NotificationAuthorizationDenied = 1;
+    internal const int NotificationAuthorizationAuthorized = 2;
+    internal const int NotificationAuthorizationProvisional = 3;
+
+    [DllImport(LibraryName, EntryPoint = "mpt_notification_authorization_status", CallingConvention = CallingConvention.Cdecl)]
+    internal static extern int GetNotificationAuthorizationStatus();
 
     [DllImport(LibraryName, EntryPoint = "mpt_notification_publish", CallingConvention = CallingConvention.Cdecl)]
     internal static extern int PublishNotification(

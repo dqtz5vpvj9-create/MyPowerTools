@@ -5,6 +5,34 @@ namespace MyPowerTools.Platform.Mac;
 
 public sealed class MacUserNotificationService : INotificationService
 {
+    public string GetAuthorizationStatus()
+    {
+        if (!OperatingSystem.IsMacOS())
+        {
+            return "unavailable";
+        }
+
+        try
+        {
+            return MacNative.GetNotificationAuthorizationStatus() switch
+            {
+                MacNative.NotificationAuthorizationNotDetermined => "not-determined",
+                MacNative.NotificationAuthorizationDenied => "denied",
+                MacNative.NotificationAuthorizationAuthorized => "authorized",
+                MacNative.NotificationAuthorizationProvisional => "provisional",
+                _ => "unavailable"
+            };
+        }
+        catch (DllNotFoundException)
+        {
+            return "unavailable";
+        }
+        catch (EntryPointNotFoundException)
+        {
+            return "unavailable";
+        }
+    }
+
     public Task PublishAsync(string title, string body, CancellationToken cancellationToken)
     {
         return PublishAsync(
@@ -12,7 +40,9 @@ public sealed class MacUserNotificationService : INotificationService
             cancellationToken);
     }
 
-    public async Task PublishAsync(DesktopNotificationRequest request, CancellationToken cancellationToken)
+    public async Task PublishAsync(
+        DesktopNotificationRequest request,
+        CancellationToken cancellationToken)
     {
         ArgumentNullException.ThrowIfNull(request);
         cancellationToken.ThrowIfCancellationRequested();
@@ -38,9 +68,6 @@ public sealed class MacUserNotificationService : INotificationService
         }
         catch (DllNotFoundException)
         {
-            // Every host carries its own copy of libMptMacNative.dylib next to its apphost,
-            // so a packaging slip can leave one of them without the library. A banner through
-            // osascript is worth more than a lost notification.
             result = MacNative.NotificationUnavailable;
         }
         catch (EntryPointNotFoundException)
@@ -53,24 +80,59 @@ public sealed class MacUserNotificationService : INotificationService
             return;
         }
 
-        // UNUserNotificationCenter is only reachable from a process whose main bundle carries
-        // an identifier. The shipped hosts run from nested helper bundles
-        // (Contents/MacOS/Helpers/MyPowerTools Runner.app and friends) and take that path,
-        // which is what keeps the notification clickable: the native delegate opens the
-        // activation URI through mypowertools://. Development runs and any host started
-        // outside a bundle still have no identifier, so the native layer reports the
-        // condition instead of raising an Objective-C exception and osascript delivers a
-        // plain banner without click-through.
+        if (result == MacNative.NotificationPermissionDenied)
+        {
+            throw new UnauthorizedAccessException(
+                "macOS notification permission is disabled for MyPowerTools. " +
+                "Enable notifications in System Settings > Notifications > MyPowerTools Remote Notifications.");
+        }
+
+        if (result == MacNative.NotificationDeliveryFailed)
+        {
+            throw new InvalidOperationException(
+                "UserNotifications rejected the notification before it entered Notification Center.");
+        }
+
+        if (result == MacNative.NotificationTimedOut)
+        {
+            throw new InvalidOperationException(
+                "UserNotifications did not complete authorization or delivery within the native timeout.");
+        }
+
         if (result is MacNative.NotificationUnavailable
             or MacNative.NotificationNoBundle
             or MacNative.NotificationOsUnsupported)
         {
-            await PublishThroughOsascriptAsync(title, body, cancellationToken).ConfigureAwait(false);
-            return;
+            if (AllowUnidentifiedDevelopmentFallback())
+            {
+                await PublishThroughOsascriptAsync(title, body, cancellationToken)
+                    .ConfigureAwait(false);
+                return;
+            }
+
+            var detail = result switch
+            {
+                MacNative.NotificationNoBundle =>
+                    "The publishing process has no macOS application bundle identity.",
+                MacNative.NotificationUnavailable =>
+                    "The native macOS notification library is unavailable.",
+                _ => "The running macOS version does not support UserNotifications."
+            };
+            throw new InvalidOperationException(
+                $"{detail} A production notification cannot fall back to a non-clickable osascript banner.");
         }
 
         throw new InvalidOperationException(
             $"UserNotifications rejected the notification request ({result}).");
+    }
+
+    private static bool AllowUnidentifiedDevelopmentFallback()
+    {
+        return Debugger.IsAttached || string.Equals(
+            Environment.GetEnvironmentVariable(
+                "MPT_ALLOW_UNIDENTIFIED_NOTIFICATION_FALLBACK"),
+            "1",
+            StringComparison.Ordinal);
     }
 
     private static async Task PublishThroughOsascriptAsync(
@@ -90,7 +152,8 @@ public sealed class MacUserNotificationService : INotificationService
         startInfo.ArgumentList.Add(script);
 
         using var process = Process.Start(startInfo)
-            ?? throw new InvalidOperationException("Could not start osascript to publish the notification.");
+            ?? throw new InvalidOperationException(
+                "Could not start osascript to publish the notification.");
         var errorTask = process.StandardError.ReadToEndAsync(cancellationToken);
         await process.WaitForExitAsync(cancellationToken).ConfigureAwait(false);
         if (process.ExitCode != 0)

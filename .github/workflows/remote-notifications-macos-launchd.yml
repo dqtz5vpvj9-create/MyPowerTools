@@ -1,0 +1,148 @@
+name: Remote Notifications macOS launchd
+
+on:
+  pull_request:
+    paths:
+      - "tools/remote-notifications"
+      - "scripts/install-macos*.ps1"
+      - "scripts/publish-macos*.ps1"
+      - "packaging/macos/**"
+      - "src/MyPowerTools.ServiceManager/**"
+      - ".github/workflows/remote-notifications-macos-launchd.yml"
+  workflow_dispatch:
+
+concurrency:
+  group: remote-notifications-macos-launchd-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  launchd-smoke:
+    runs-on: macos-14
+    timeout-minutes: 60
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: 1
+      DOTNET_NOLOGO: true
+      NUGET_XMLDOC_MODE: skip
+      EnableWindowsTargeting: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          token: ${{ secrets.MPT_SUBMODULE_PAT }}
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Prepare local SDK feed
+        shell: pwsh
+        run: New-Item -ItemType Directory -Path artifacts/sdk/nuget -Force | Out-Null
+
+      - name: Build SDK packages
+        shell: pwsh
+        run: pwsh -NoLogo -NoProfile -NonInteractive -File scripts/build-sdk.ps1
+
+      - name: Publish Apple Silicon application
+        shell: pwsh
+        run: >-
+          pwsh -NoLogo -NoProfile -NonInteractive
+          -File scripts/publish-macos.ps1
+          -Architecture arm64
+          -Configuration Release
+          -CodeSignIdentity '-'
+          -Channel local
+          -AllowUnsigned
+
+      - name: Install with launchd agents
+        shell: pwsh
+        run: |
+          $apps = [IO.Path]::GetFullPath('artifacts/launchd-verification/Applications')
+          $data = [IO.Path]::GetFullPath('artifacts/launchd-verification/Application Support/MyPowerTools')
+          pwsh -NoLogo -NoProfile -NonInteractive `
+            -File scripts/install-macos.ps1 `
+            -SourceApp artifacts/publish/macos-arm64/MyPowerTools.app `
+            -ApplicationsRoot $apps `
+            -DataRoot $data
+          if ($LASTEXITCODE -ne 0) { throw 'macOS launchd installation failed.' }
+          "LAUNCHD_APPS_ROOT=$apps" | Set-Content -LiteralPath $env:GITHUB_ENV -Encoding utf8 -Append
+          "LAUNCHD_DATA_ROOT=$data" | Set-Content -LiteralPath $env:GITHUB_ENV -Encoding utf8 -Append
+          "LAUNCHD_INSTALLED_APP=$(Join-Path $apps 'MyPowerTools.app')" | Set-Content -LiteralPath $env:GITHUB_ENV -Encoding utf8 -Append
+
+      - name: Verify launchd and Service Unit autostart
+        shell: pwsh
+        run: |
+          $uid = (& /usr/bin/id -u).Trim()
+          foreach ($label in @('com.mypowertools.runner', 'com.mypowertools.servicemanager')) {
+            & /bin/launchctl print "gui/$uid/$label" | Out-File "artifacts/launchd-verification/$label.txt"
+            if ($LASTEXITCODE -ne 0) { throw "launchd did not load $label." }
+          }
+
+          $helperExecutable = [IO.Path]::GetFullPath(
+            (Join-Path $env:LAUNCHD_INSTALLED_APP 'Contents/MacOS/Helpers/MyPowerTools Remote Notifications.app/Contents/MacOS/RemoteNotifications.Service'))
+          $deadline = [DateTimeOffset]::UtcNow.AddSeconds(30)
+          $workerPid = $null
+          do {
+            foreach ($line in @(& /bin/ps -ww -axo pid=,command=)) {
+              if ($line -notmatch '^\s*(\d+)\s+(.+)$') { continue }
+              $command = $Matches[2].TrimStart('"')
+              if ($command.StartsWith($helperExecutable, [StringComparison]::Ordinal)) {
+                $workerPid = [int]$Matches[1]
+                break
+              }
+            }
+            if ($null -eq $workerPid) { Start-Sleep -Milliseconds 250 }
+          } while ($null -eq $workerPid -and [DateTimeOffset]::UtcNow -lt $deadline)
+
+          if ($null -eq $workerPid) {
+            throw "Remote Notifications Service Unit did not autostart from $helperExecutable."
+          }
+          "workerPid=$workerPid`nhelper=$helperExecutable" | Set-Content `
+            -LiteralPath artifacts/launchd-verification/remote-notifications-worker.txt -Encoding utf8
+
+          $socket = Join-Path ([IO.Path]::GetTempPath()) 'mypowertools/remote-notifications.core.sock'
+          $deadline = [DateTimeOffset]::UtcNow.AddSeconds(20)
+          while (-not (Test-Path -LiteralPath $socket) -and [DateTimeOffset]::UtcNow -lt $deadline) {
+            Start-Sleep -Milliseconds 200
+          }
+          if (-not (Test-Path -LiteralPath $socket)) {
+            throw "Remote Notifications Service Unit did not expose its Unix socket at $socket."
+          }
+          $mode = (& /usr/bin/stat -f '%Lp' $socket).Trim()
+          if ($mode -ne '600') { throw "Remote Notifications socket has mode $mode; expected 600." }
+
+      - name: Cleanup launchd installation
+        if: always()
+        shell: pwsh
+        run: |
+          $uid = (& /usr/bin/id -u).Trim()
+          foreach ($label in @('com.mypowertools.runner', 'com.mypowertools.servicemanager')) {
+            & /bin/launchctl bootout "gui/$uid/$label" 2>$null
+            $global:LASTEXITCODE = 0
+          }
+          if ($env:LAUNCHD_INSTALLED_APP -and (Test-Path -LiteralPath $env:LAUNCHD_INSTALLED_APP)) {
+            foreach ($line in @(& /bin/ps -ww -axo pid=,command=)) {
+              if ($line -notmatch '^\s*(\d+)\s+(.+)$') { continue }
+              $pidValue = [int]$Matches[1]
+              $command = $Matches[2].TrimStart('"')
+              if ($command.StartsWith([IO.Path]::GetFullPath($env:LAUNCHD_INSTALLED_APP) + '/', [StringComparison]::Ordinal)) {
+                & /bin/kill -TERM ([string]$pidValue) 2>$null
+                $global:LASTEXITCODE = 0
+              }
+            }
+          }
+          Remove-Item -LiteralPath "$HOME/Library/LaunchAgents/com.mypowertools.runner.plist" -Force -ErrorAction SilentlyContinue
+          Remove-Item -LiteralPath "$HOME/Library/LaunchAgents/com.mypowertools.servicemanager.plist" -Force -ErrorAction SilentlyContinue
+
+      - name: Upload launchd evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: remote-notifications-macos-launchd-evidence
+          if-no-files-found: warn
+          path: artifacts/launchd-verification/**

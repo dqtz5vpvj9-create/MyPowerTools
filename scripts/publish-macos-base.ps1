@@ -58,6 +58,14 @@ $macHelpers = @(
         Legacy = 'ServiceManager'
         Plist = 'ServiceManager.Info.plist'
         NeedsNativeLibrary = $false
+    },
+    [pscustomobject]@{
+        Key = 'RemoteNotificationsService'
+        Bundle = 'MyPowerTools Remote Notifications.app'
+        Executable = 'RemoteNotifications.Service'
+        Legacy = 'RemoteNotifications'
+        Plist = 'RemoteNotifications.Info.plist'
+        NeedsNativeLibrary = $true
     }
 )
 
@@ -284,9 +292,6 @@ function Copy-StampedPlist {
 }
 
 Copy-DirectoryContents -Source (Join-Path $stageRoot 'App') -Destination $macRoot
-# RemoteNotifications.Service stays directly in Contents/MacOS: an executable there already
-# resolves to MyPowerTools.app as its main bundle, so it needs no helper bundle of its own.
-Copy-DirectoryContents -Source (Join-Path $stageRoot 'RemoteNotificationsService') -Destination $macRoot
 
 foreach ($helper in $macHelpers) {
     $helperContents = Join-Path (Get-HelperBundleRoot -Helper $helper) 'Contents'
@@ -452,7 +457,6 @@ if (-not $SkipNativeBuild) {
 if ($IsMacOS) {
     $bundleExecutables = @(
         (Join-Path $macRoot 'MyPowerTools'),
-        (Join-Path $macRoot 'RemoteNotifications.Service'),
         (Join-Path $macRoot "modules/android-tools-suite/macos/$Architecture/MPTAndroidTools.Runtime")
     )
     foreach ($helper in $macHelpers) {

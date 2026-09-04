@@ -46,6 +46,69 @@ if ($LASTEXITCODE -ne 0 -or -not ($userId -match '^\d+$')) {
     throw 'Could not determine the current macOS user id.'
 }
 
+function Get-AppBundleProcessIds {
+    param([Parameter(Mandatory = $true)][string]$AppBundlePath)
+
+    $bundlePrefix = [IO.Path]::GetFullPath($AppBundlePath).TrimEnd(
+        [IO.Path]::DirectorySeparatorChar,
+        [IO.Path]::AltDirectorySeparatorChar) + [IO.Path]::DirectorySeparatorChar
+    $processIds = New-Object System.Collections.Generic.List[int]
+    foreach ($line in @(& /bin/ps '-ww' '-axo' 'pid=,command=')) {
+        if ([string]$line -notmatch '^\s*(\d+)\s+(.+)$') {
+            continue
+        }
+
+        $processId = [int]$Matches[1]
+        $commandLine = [string]$Matches[2]
+        if ($processId -eq $PID) {
+            continue
+        }
+        if ($commandLine.Contains($bundlePrefix, [StringComparison]::Ordinal)) {
+            [void]$processIds.Add($processId)
+        }
+    }
+
+    return @($processIds | Sort-Object -Unique)
+}
+
+function Stop-AppBundleProcesses {
+    param([Parameter(Mandatory = $true)][string]$AppBundlePath)
+
+    $processIds = @(Get-AppBundleProcessIds -AppBundlePath $AppBundlePath)
+    if ($processIds.Count -eq 0) {
+        return
+    }
+
+    Write-Host "Stopping $($processIds.Count) process(es) running from $AppBundlePath"
+    foreach ($processId in $processIds) {
+        & /bin/kill '-TERM' ([string]$processId) 2>$null
+        $global:LASTEXITCODE = 0
+    }
+
+    $deadline = [DateTimeOffset]::UtcNow.AddSeconds(5)
+    do {
+        Start-Sleep -Milliseconds 100
+        $remaining = @(Get-AppBundleProcessIds -AppBundlePath $AppBundlePath)
+    } while ($remaining.Count -gt 0 -and [DateTimeOffset]::UtcNow -lt $deadline)
+
+    foreach ($processId in $remaining) {
+        & /bin/kill '-KILL' ([string]$processId) 2>$null
+        $global:LASTEXITCODE = 0
+    }
+
+    if ($remaining.Count -gt 0) {
+        $killDeadline = [DateTimeOffset]::UtcNow.AddSeconds(5)
+        do {
+            Start-Sleep -Milliseconds 100
+            $remaining = @(Get-AppBundleProcessIds -AppBundlePath $AppBundlePath)
+        } while ($remaining.Count -gt 0 -and [DateTimeOffset]::UtcNow -lt $killDeadline)
+    }
+
+    if ($remaining.Count -gt 0) {
+        throw "Could not stop process(es) running from the existing app bundle: $($remaining -join ', ')"
+    }
+}
+
 New-Item -ItemType Directory -Path $ApplicationsRoot, $DataRoot -Force | Out-Null
 
 # The agents are installed with KeepAlive, so a reinstall has to take them out of the GUI
@@ -57,6 +120,7 @@ foreach ($label in @('com.mypowertools.runner', 'com.mypowertools.servicemanager
 $global:LASTEXITCODE = 0
 
 if (Test-Path -LiteralPath $targetApp) {
+    Stop-AppBundleProcesses -AppBundlePath $targetApp
     $backupApp = Join-Path $ApplicationsRoot ("MyPowerTools.backup.{0}.app" -f (Get-Date -Format 'yyyyMMddHHmmss'))
     Move-Item -LiteralPath $targetApp -Destination $backupApp
     Write-Host "Previous app moved to $backupApp"
@@ -76,12 +140,13 @@ $helpersRoot = Join-Path $macRoot 'Helpers'
 $shellExecutable = Join-Path $helpersRoot 'MyPowerTools Shell.app/Contents/MacOS/MyPowerTools.Shell.Avalonia'
 $runnerExecutable = Join-Path $helpersRoot 'MyPowerTools Runner.app/Contents/MacOS/MyPowerTools.Runner'
 $serviceManagerExecutable = Join-Path $helpersRoot 'MyPowerTools ServiceManager.app/Contents/MacOS/MyPowerTools.ServiceManager'
+$remoteNotificationsExecutable = Join-Path $helpersRoot 'MyPowerTools Remote Notifications.app/Contents/MacOS/RemoteNotifications.Service'
 foreach ($executable in @(
     (Join-Path $macRoot 'MyPowerTools'),
     $shellExecutable,
     $runnerExecutable,
     $serviceManagerExecutable,
-    (Join-Path $macRoot 'RemoteNotifications.Service'),
+    $remoteNotificationsExecutable,
     (Join-Path $macRoot 'modules/android-tools-suite/macos/arm64/MPTAndroidTools.Runtime'),
     (Join-Path $macRoot 'modules/android-tools-suite/macos/x64/MPTAndroidTools.Runtime')
 )) {
@@ -156,7 +221,8 @@ if (Test-Path -LiteralPath $lsregister -PathType Leaf) {
         $targetApp,
         (Join-Path $helpersRoot 'MyPowerTools Shell.app'),
         (Join-Path $helpersRoot 'MyPowerTools Runner.app'),
-        (Join-Path $helpersRoot 'MyPowerTools ServiceManager.app')
+        (Join-Path $helpersRoot 'MyPowerTools ServiceManager.app'),
+        (Join-Path $helpersRoot 'MyPowerTools Remote Notifications.app')
     )) {
         if (-not (Test-Path -LiteralPath $bundle -PathType Container)) {
             continue

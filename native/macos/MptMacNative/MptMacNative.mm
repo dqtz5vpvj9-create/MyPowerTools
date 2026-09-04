@@ -753,37 +753,154 @@ void mpt_webview_destroy(void *handle) {
     }
 }
 
-// Status codes shared with MacNative.cs. Anything other than MptNotificationOk tells the
-// managed caller that UserNotifications is unusable in this process, which is its cue to
-// deliver the banner through osascript instead.
+// Status codes shared with MacNative.cs. Production callers receive success only after
+// UserNotifications has completed authorization and accepted the notification request.
 enum MptNotificationStatus {
     MptNotificationOk = 0,
     MptNotificationOsUnsupported = -1,
     MptNotificationNoBundle = 2,
-    MptNotificationUnavailable = 3
+    MptNotificationUnavailable = 3,
+    MptNotificationPermissionDenied = 4,
+    MptNotificationDeliveryFailed = 5,
+    MptNotificationTimedOut = 6
 };
+
+enum MptNotificationAuthorizationStatus {
+    MptNotificationAuthorizationUnavailable = -1,
+    MptNotificationAuthorizationTimedOut = -2,
+    MptNotificationAuthorizationNotDetermined = 0,
+    MptNotificationAuthorizationDenied = 1,
+    MptNotificationAuthorizationAuthorized = 2,
+    MptNotificationAuthorizationProvisional = 3
+};
+
+static BOOL MptWaitForSemaphore(dispatch_semaphore_t semaphore,
+                                NSTimeInterval timeoutSeconds) {
+    NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:timeoutSeconds];
+    while (deadline.timeIntervalSinceNow > 0) {
+        dispatch_time_t slice = dispatch_time(
+            DISPATCH_TIME_NOW,
+            (int64_t)(10 * NSEC_PER_MSEC));
+        if (dispatch_semaphore_wait(semaphore, slice) == 0) {
+            return YES;
+        }
+
+        // UserNotifications may deliver a completion on the main queue. Keep the main
+        // run loop moving when a caller happens to invoke this bridge from a UI thread.
+        if (NSThread.isMainThread) {
+            [[NSRunLoop currentRunLoop]
+                runMode:NSDefaultRunLoopMode
+                beforeDate:[NSDate dateWithTimeIntervalSinceNow:0.01]];
+        }
+    }
+    return NO;
+}
+
+static int MptMapNotificationAuthorizationStatus(UNAuthorizationStatus status) {
+    switch (status) {
+        case UNAuthorizationStatusNotDetermined:
+            return MptNotificationAuthorizationNotDetermined;
+        case UNAuthorizationStatusDenied:
+            return MptNotificationAuthorizationDenied;
+        case UNAuthorizationStatusAuthorized:
+            return MptNotificationAuthorizationAuthorized;
+        case UNAuthorizationStatusProvisional:
+            return MptNotificationAuthorizationProvisional;
+        default:
+            return MptNotificationAuthorizationUnavailable;
+    }
+}
+
+static int MptReadNotificationAuthorizationStatus(
+    UNUserNotificationCenter *center,
+    NSTimeInterval timeoutSeconds) {
+    __block UNAuthorizationStatus authorization = UNAuthorizationStatusNotDetermined;
+    dispatch_semaphore_t semaphore = dispatch_semaphore_create(0);
+    [center getNotificationSettingsWithCompletionHandler:^(UNNotificationSettings *settings) {
+        authorization = settings.authorizationStatus;
+        dispatch_semaphore_signal(semaphore);
+    }];
+    if (!MptWaitForSemaphore(semaphore, timeoutSeconds)) {
+        return MptNotificationAuthorizationTimedOut;
+    }
+    return MptMapNotificationAuthorizationStatus(authorization);
+}
+
+int mpt_notification_authorization_status(void) {
+    if (@available(macOS 11.0, *)) {
+        if (NSBundle.mainBundle.bundleIdentifier.length == 0) {
+            return MptNotificationAuthorizationUnavailable;
+        }
+        @try {
+            UNUserNotificationCenter *center =
+                UNUserNotificationCenter.currentNotificationCenter;
+            if (center == nil) {
+                return MptNotificationAuthorizationUnavailable;
+            }
+            // Install the click delegate during the startup authorization probe so
+            // notifications delivered before a worker restart remain actionable.
+            (void)MptNotificationDelegateInstance();
+            int status = MptReadNotificationAuthorizationStatus(center, 5.0);
+            return status == MptNotificationAuthorizationTimedOut
+                ? MptNotificationAuthorizationUnavailable
+                : status;
+        } @catch (NSException *exception) {
+            (void)exception;
+            return MptNotificationAuthorizationUnavailable;
+        }
+    }
+    return MptNotificationAuthorizationUnavailable;
+}
 
 int mpt_notification_publish(const char *identifier,
                              const char *title,
                              const char *body,
                              const char *activationUri) {
     if (@available(macOS 11.0, *)) {
-        // In the shipped layout Runner and Shell run from nested helper bundles under
-        // Contents/MacOS/Helpers/ and carry their own identifiers. When launched unbundled
-        // (developer builds, or through the legacy Contents/MacOS/<Host>/ symlink without
-        // realpath resolution) NSBundle.mainBundle has no identifier; currentNotificationCenter
-        // raises an NSException in that state, and an Objective-C exception unwinding into
-        // managed code terminates the host, so the condition is reported instead.
         if (NSBundle.mainBundle.bundleIdentifier.length == 0) {
             return MptNotificationNoBundle;
         }
         @try {
-            UNUserNotificationCenter *center = UNUserNotificationCenter.currentNotificationCenter;
+            UNUserNotificationCenter *center =
+                UNUserNotificationCenter.currentNotificationCenter;
             if (center == nil) {
                 return MptNotificationUnavailable;
             }
             (void)MptNotificationDelegateInstance();
-            UNMutableNotificationContent *content = [[UNMutableNotificationContent alloc] init];
+
+            int authorization = MptReadNotificationAuthorizationStatus(center, 5.0);
+            if (authorization == MptNotificationAuthorizationTimedOut) {
+                return MptNotificationTimedOut;
+            }
+            if (authorization == MptNotificationAuthorizationDenied) {
+                return MptNotificationPermissionDenied;
+            }
+            if (authorization == MptNotificationAuthorizationNotDetermined) {
+                __block BOOL granted = NO;
+                __block NSError *authorizationError = nil;
+                dispatch_semaphore_t authorizationSemaphore =
+                    dispatch_semaphore_create(0);
+                [center requestAuthorizationWithOptions:(UNAuthorizationOptionAlert |
+                                                          UNAuthorizationOptionSound |
+                                                          UNAuthorizationOptionBadge)
+                                      completionHandler:^(BOOL accepted, NSError *error) {
+                    granted = accepted;
+                    authorizationError = error;
+                    dispatch_semaphore_signal(authorizationSemaphore);
+                }];
+                if (!MptWaitForSemaphore(authorizationSemaphore, 10.0)) {
+                    return MptNotificationTimedOut;
+                }
+                if (!granted || authorizationError != nil) {
+                    return MptNotificationPermissionDenied;
+                }
+            } else if (authorization != MptNotificationAuthorizationAuthorized &&
+                       authorization != MptNotificationAuthorizationProvisional) {
+                return MptNotificationUnavailable;
+            }
+
+            UNMutableNotificationContent *content =
+                [[UNMutableNotificationContent alloc] init];
             content.title = MptString(title);
             content.body = MptString(body);
             content.sound = UNNotificationSound.defaultSound;
@@ -795,15 +912,20 @@ int mpt_notification_publish(const char *identifier,
                 requestWithIdentifier:MptString(identifier)
                 content:content
                 trigger:nil];
-            [center requestAuthorizationWithOptions:(UNAuthorizationOptionAlert |
-                                                      UNAuthorizationOptionSound |
-                                                      UNAuthorizationOptionBadge)
-                                  completionHandler:^(BOOL granted, NSError *error) {
-                if (granted && error == nil) {
-                    [center addNotificationRequest:request withCompletionHandler:nil];
-                }
+
+            __block NSError *deliveryError = nil;
+            dispatch_semaphore_t deliverySemaphore = dispatch_semaphore_create(0);
+            [center addNotificationRequest:request
+                     withCompletionHandler:^(NSError *error) {
+                deliveryError = error;
+                dispatch_semaphore_signal(deliverySemaphore);
             }];
-            return MptNotificationOk;
+            if (!MptWaitForSemaphore(deliverySemaphore, 10.0)) {
+                return MptNotificationTimedOut;
+            }
+            return deliveryError == nil
+                ? MptNotificationOk
+                : MptNotificationDeliveryFailed;
         } @catch (NSException *exception) {
             (void)exception;
             return MptNotificationUnavailable;

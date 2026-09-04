@@ -60,12 +60,35 @@ jobs:
         shell: pwsh
         run: pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\verify-architecture.ps1 -Tier Process
 
-      - name: Stage Android Tools module host
+      - name: Stage complete Android Tools package
         shell: pwsh
-        run: >-
-          dotnet publish tools\remote-notifications\current-integration\src\AndroidTools.Runtime\AndroidTools.Runtime.csproj
-          --configuration Debug --runtime win-x64 --self-contained false
-          --output modules\android-tools-suite\windows\x64 --nologo
+        run: |
+          $stage = [IO.Path]::GetFullPath('tools\remote-notifications\artifacts\handoff\android-tools-suite')
+          pwsh.exe -NoLogo -NoProfile -NonInteractive `
+            -File tools\remote-notifications\build.ps1 `
+            -MyPowerToolsRepoRoot $env:GITHUB_WORKSPACE `
+            -Configuration Debug `
+            -RuntimeIdentifier win-x64 `
+            -OutputRoot $stage
+          if ($LASTEXITCODE -ne 0) {
+            throw "Android Tools package build failed with exit code $LASTEXITCODE."
+          }
+
+          $destination = [IO.Path]::GetFullPath('modules\android-tools-suite')
+          if (Test-Path -LiteralPath $destination) {
+            Remove-Item -LiteralPath $destination -Recurse -Force
+          }
+          New-Item -ItemType Directory -Path $destination -Force | Out-Null
+          Copy-Item -Path (Join-Path $stage '*') -Destination $destination -Recurse -Force
+
+          $notificationManifest = Get-Content -LiteralPath `
+            (Join-Path $destination 'modules\notifications\module.json') -Raw | ConvertFrom-Json
+          $entrypoints = @($notificationManifest.entrypoints)
+          if ($entrypoints.Count -ne 1 -or
+              [string]$entrypoints[0].kind -ne 'inproc-dotnet' -or
+              [string]$entrypoints[0].type -ne 'AndroidTools.MyPowerTools.RemoteNotificationsServiceObserverModule') {
+            throw 'The staged notification module is not using the supervised service observer.'
+          }
 
       - name: Android Tools test
         shell: pwsh
