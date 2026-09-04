@@ -6,6 +6,24 @@ namespace MyPowerTools.Shell.Avalonia.Services;
 
 public sealed class ShellToolProductService
 {
+    private readonly ShellToolPreferencesStore _preferences;
+
+    public ShellToolProductService(ShellToolPreferencesStore? preferences = null)
+    {
+        _preferences = preferences ?? new ShellToolPreferencesStore();
+    }
+
+    public Task RecordOpenedAsync(string toolId) => _preferences.RecordOpenedAsync(toolId);
+
+    public IReadOnlyList<ToolCardViewModel> RecentTools(IReadOnlyList<ToolCardViewModel> tools)
+    {
+        var byId = tools.ToDictionary(tool => tool.ToolId, StringComparer.OrdinalIgnoreCase);
+        return _preferences.Current.RecentToolIds
+            .Where(byId.ContainsKey)
+            .Select(id => byId[id])
+            .ToArray();
+    }
+
     public async Task<IReadOnlyList<ToolCardViewModel>> LoadToolCardsAsync(
         Func<string, Task> openTool,
         IReadOnlySet<string>? deliveredToolIds = null,
@@ -36,7 +54,9 @@ public sealed class ShellToolProductService
                 Card = ToCard(
                     tool,
                     openTool,
-                    deliveredToolIds?.Contains(tool.ToolId) == true || IsSdkTool(tool))
+                    deliveredToolIds?.Contains(tool.ToolId) == true || IsSdkTool(tool),
+                    _preferences.Current.FavoriteToolIds.Contains(tool.ToolId, StringComparer.OrdinalIgnoreCase),
+                    _preferences.SetFavoriteAsync)
             })
             .OrderBy(item => AvailabilityOrder(item.Card.Availability))
             .ThenBy(item => item.Descriptor.HomeCard?.Order ?? 0)
@@ -70,7 +90,9 @@ public sealed class ShellToolProductService
     public static ToolCardViewModel ToCard(
         HostProto.ToolDescriptor tool,
         Func<string, Task> openTool,
-        bool workspaceDelivered)
+        bool workspaceDelivered,
+        bool isFavorite = false,
+        Func<string, bool, Task>? setFavorite = null)
     {
         var disabled = string.Equals(tool.State, "disabled", StringComparison.OrdinalIgnoreCase);
         var declaredAvailability = string.IsNullOrWhiteSpace(tool.Availability)
@@ -109,8 +131,9 @@ public sealed class ShellToolProductService
             statusLabel,
             statusDetail,
             availability,
-            isFavorite: false,
+            isFavorite,
             openTool,
+            setFavorite,
             primaryActionLabel: primaryActionLabel,
             isWebSurface: tool.ToolType == "web-surface" ||
                           tool.Routes.Any(route => route.SurfaceKind == "web"));

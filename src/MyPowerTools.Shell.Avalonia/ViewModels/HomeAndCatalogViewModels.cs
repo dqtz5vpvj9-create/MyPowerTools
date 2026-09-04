@@ -18,11 +18,12 @@ public sealed class HomeViewModel : ToolProductPageViewModel
         Func<Task>? browseTools = null,
         Func<Task>? openActivity = null,
         Func<Task>? refresh = null,
-        Func<Task>? retry = null)
+        Func<Task>? retry = null,
+        IReadOnlyList<ToolCardViewModel>? allTools = null)
         : base(
             "Dashboard",
             "Your tools, current work, and the next useful action in one place.",
-            ResolveState(productState, favoriteTools, recentTools, activities),
+            ResolveState(productState, allTools ?? favoriteTools, recentTools, activities),
             errorMessage)
     {
         FavoriteTools = favoriteTools;
@@ -34,14 +35,14 @@ public sealed class HomeViewModel : ToolProductPageViewModel
         RefreshCommand = new AsyncRelayCommand(() => refresh?.Invoke() ?? Task.CompletedTask);
         RetryCommand = new AsyncRelayCommand(() => retry?.Invoke() ?? refresh?.Invoke() ?? Task.CompletedTask);
 
-        AllTools = favoriteTools
-            .Concat(recentTools)
+        AllTools = (allTools ?? favoriteTools.Concat(recentTools).ToArray())
             .DistinctBy(tool => tool.ToolId, StringComparer.OrdinalIgnoreCase)
             .ToArray();
-        DashboardTools = AllTools
+        DashboardTools = favoriteTools.Concat(recentTools).Concat(AllTools)
+            .DistinctBy(tool => tool.ToolId, StringComparer.OrdinalIgnoreCase)
             .Take(MaxDashboardTools)
             .ToArray();
-        ActionableTools = AllTools
+        ActionableTools = DashboardTools
             .Where(tool => tool.CanOpen)
             .Take(MaxActionShortcuts)
             .ToArray();
@@ -75,6 +76,8 @@ public sealed class HomeViewModel : ToolProductPageViewModel
     public ICommand OpenActivityCommand { get; }
     public ICommand RefreshCommand { get; }
     public ICommand RetryCommand { get; }
+    public string DashboardToolsTitle => HasFavoriteTools ? "Favorites & recent tools" : HasRecentTools ? "Recent tools" : "Tools";
+    public string ActionShortcutsDetail => HasFavoriteTools || HasRecentTools ? "Your frequently used tools" : "Primary tool actions";
     public bool HasFavoriteTools => FavoriteTools.Count > 0;
     public bool HasRecentTools => RecentTools.Count > 0;
     public bool HasActivities => Activities.Count > 0;

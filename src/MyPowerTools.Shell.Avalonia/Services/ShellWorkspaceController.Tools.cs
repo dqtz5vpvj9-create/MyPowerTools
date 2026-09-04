@@ -83,14 +83,15 @@ public sealed partial class ShellWorkspaceController
             if (!_workspaceIdentity.IsCurrent(identity)) return;
 
             var viewModel = new HomeViewModel(
-                favoriteTools: [],
-                recentTools: tools,
+                favoriteTools: tools.Where(tool => tool.IsFavorite).ToArray(),
+                recentTools: _toolProducts.RecentTools(tools),
                 activities: [],
                 totalToolCount: tools.Count,
                 browseTools: () => ShowPageAsync(ToolsPage),
                 openActivity: () => ShowPageAsync(ActivityPage),
                 refresh: RefreshHomePageAsync,
-                retry: LoadHomePageAsync);
+                retry: LoadHomePageAsync,
+                allTools: tools);
             SetOwnedContent(_contentHost, new HomeView { DataContext = viewModel });
             SetStatus($"{tools.Count} tools registered.");
             ShellStartupDiagnostics.Mark("home-content-bound");
@@ -193,6 +194,19 @@ public sealed partial class ShellWorkspaceController
     {
         await _toolProducts.RefreshToolsAsync();
         await LoadToolsPageAsync();
+    }
+
+    private async Task RecordOpenedToolAsync(string toolId)
+    {
+        try
+        {
+            await _toolProducts.RecordOpenedAsync(toolId);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // A read-only/full data directory must not prevent using the tool.
+            SetStatus($"Tool opened; recent tools could not be saved: {ex.Message}");
+        }
     }
 
     private async Task ShowToolPageAsync(string toolId)
@@ -301,6 +315,7 @@ public sealed partial class ShellWorkspaceController
             if (ShellToolProductService.IsSdkTool(descriptor))
             {
                 await LoadExternalSdkToolAsync(descriptor, routeId);
+                await RecordOpenedToolAsync(toolId);
                 return;
             }
 
@@ -325,6 +340,7 @@ public sealed partial class ShellWorkspaceController
                 retry: () => ShowToolPageAsync(toolId, _currentToolRouteId));
             SetOwnedContent(_contentHost, new ToolHostView { DataContext = viewModel });
             SetStatus($"{descriptor.Title} is registered.");
+            await RecordOpenedToolAsync(toolId);
         }
         catch (Exception ex)
         {
