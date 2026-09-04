@@ -212,13 +212,12 @@ public sealed class ToolCatalogViewModel : ToolProductPageViewModel
             return Tools;
         }
 
-        var query = Query.Trim();
         return Tools
-            .Where(tool =>
-                tool.Title.Contains(query, StringComparison.OrdinalIgnoreCase) ||
-                tool.Description.Contains(query, StringComparison.OrdinalIgnoreCase) ||
-                tool.Category.Contains(query, StringComparison.OrdinalIgnoreCase) ||
-                tool.StatusDetail.Contains(query, StringComparison.OrdinalIgnoreCase))
+            .Select(tool => (Tool: tool, Score: ToolSearchMatcher.Score(
+                Query, tool.Title, tool.ToolId, tool.Description, tool.Category, tool.StatusDetail)))
+            .Where(match => match.Score >= 0)
+            .OrderByDescending(match => match.Score)
+            .Select(match => match.Tool)
             .ToArray();
     }
 
