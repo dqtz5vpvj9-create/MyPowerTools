@@ -29,6 +29,7 @@ public sealed partial class ShellWorkspaceController
             ShellRouteKind.Home => HomePage,
             ShellRouteKind.Tools => ToolsPage,
             ShellRouteKind.Activity => ActivityPage,
+            ShellRouteKind.Notifications => NotificationsPage,
             ShellRouteKind.Settings => SettingsPage,
             ShellRouteKind.System => SystemPage,
             ShellRouteKind.Modules => ModulesPage,

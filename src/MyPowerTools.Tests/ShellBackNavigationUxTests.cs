@@ -27,4 +27,15 @@ public sealed class ShellBackNavigationUxTests
         Assert.True(navigation.TryGoBack());
         Assert.Equal(ShellRoute.Tools, navigation.Current);
     }
+
+    [Fact]
+    public void Navigation_service_preserves_notifications_in_history()
+    {
+        var navigation = new ShellNavigationService();
+        navigation.Navigate(ShellRoute.Notifications);
+        navigation.Navigate(ShellRoute.Settings);
+
+        Assert.True(navigation.TryGoBack());
+        Assert.Equal(ShellRoute.Notifications, navigation.Current);
+    }
 }
