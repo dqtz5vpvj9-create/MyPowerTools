@@ -1,0 +1,35 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Avalonia.Headless.XUnit" Version="12.0.5" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.0.5" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.3.0" />
+    <PackageReference Include="xunit.v3" Version="3.2.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5"><PrivateAssets>all</PrivateAssets></PackageReference>
+    <Using Include="Xunit" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/MyPowerTools.Shell.Avalonia/MyPowerTools.Shell.Avalonia.csproj" />
+    <Compile Include="../../src/MyPowerTools.Tests/PersonalUx*.Tests.cs" Link="Shell/%(Filename)%(Extension)" />
+    <ProjectReference Include="../../tools/remote-commands/current-integration/src/RemoteCommands.Surface/RemoteCommands.Surface.csproj" />
+    <Compile Include="../../tools/remote-commands/tests/PersonalUx*.cs" Link="remote-commands/%(Filename)%(Extension)" />
+    <ProjectReference Include="../../tools/input-monitor/current-integration/src/InputMonitor.Surface/InputMonitor.Surface.csproj" />
+    <Compile Include="../../tools/input-monitor/tests/PersonalUx*.cs" Link="input-monitor/%(Filename)%(Extension)" />
+    <ProjectReference Include="../../tools/screenease/current-integration/src/ScreenEase.Surface/ScreenEase.Surface.csproj" />
+    <Compile Include="../../tools/screenease/tests/PersonalUx*.cs" Link="screenease/%(Filename)%(Extension)" />
+    <ProjectReference Include="../../tools/adb-forwarder/current-integration/src/AdbForwarder.Surface/AdbForwarder.Surface.csproj" />
+    <Compile Include="../../tools/adb-forwarder/tests/PersonalUx*.cs" Link="adb-forwarder/%(Filename)%(Extension)" />
+    <ProjectReference Include="../../tools/smartbird-thermostat/current-integration/src/SmartBird.Surface/SmartBird.Surface.csproj" />
+    <Compile Include="../../tools/smartbird-thermostat/tests/PersonalUx*.cs" Link="smartbird-thermostat/%(Filename)%(Extension)" />
+    <ProjectReference Include="../../tools/remote-notifications/current-integration/src/RemoteNotifications.Surface/RemoteNotifications.Surface.csproj" />
+    <Compile Include="../../tools/remote-notifications/tests/PersonalUx*.cs" Link="remote-notifications/%(Filename)%(Extension)" />
+    <ProjectReference Include="../../tools/doubao-computer-use/current-integration/src/DoubaoAgent.Surface/DoubaoAgent.Surface.csproj" />
+    <Compile Include="../../tools/doubao-computer-use/tests/PersonalUx*.cs" Link="doubao-computer-use/%(Filename)%(Extension)" />
+  </ItemGroup>
+</Project>
