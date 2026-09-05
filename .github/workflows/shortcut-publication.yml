@@ -1,0 +1,23 @@
+name: Publish shortcut center
+on:
+  push:
+    branches: [codex/shortcut-publication-workspace-2026-09-05]
+permissions:
+  contents: write
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Verify reviewed patches and publish only isolated feature branches
+        env:
+          PUBLISH_TOKEN: ${{ secrets.MPT_SUBMODULE_PAT || github.token }}
+        run: python scripts/shortcut-publication/publish.py
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: shortcut-publication-evidence
+          path: ${{ runner.temp }}/shortcut-publication-evidence
+          retention-days: 7
