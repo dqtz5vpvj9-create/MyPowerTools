@@ -23,7 +23,12 @@
       <controls:MptButton Content="Undo last change" Command="{Binding UndoCommand}" />
     </WrapPanel>
     <ListBox ItemsSource="{Binding Rows}" SelectedItem="{Binding Selected, Mode=TwoWay}"
-             Height="330" HorizontalContentAlignment="Stretch" AutomationProperties.Name="Shortcut actions">
+             Height="330" AutomationProperties.Name="Shortcut actions">
+      <ListBox.Styles>
+        <Style Selector="ListBoxItem">
+          <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        </Style>
+      </ListBox.Styles>
       <ListBox.ItemTemplate>
         <DataTemplate x:DataType="vm:ShortcutRow">
           <Grid RowDefinitions="Auto,Auto,Auto" ColumnDefinitions="*,Auto" ColumnSpacing="12" Margin="4">
