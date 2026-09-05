@@ -12,6 +12,10 @@ on:
       - ".github/workflows/handoff-windows-gates.yml"
   workflow_dispatch:
 
+concurrency:
+  group: handoff-windows-gates-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 

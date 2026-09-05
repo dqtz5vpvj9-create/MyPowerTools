@@ -12,6 +12,10 @@ on:
       - ".github/workflows/macos-ota-validation.yml"
   workflow_dispatch:
 
+concurrency:
+  group: macos-ota-validation-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
