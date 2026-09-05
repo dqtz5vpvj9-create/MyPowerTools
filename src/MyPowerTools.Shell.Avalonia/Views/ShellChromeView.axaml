@@ -398,9 +398,12 @@
                       Background="{DynamicResource MptBrushSurfaceMuted}"
                       HorizontalAlignment="Right"
                       VerticalAlignment="Center"
-                      IsHitTestVisible="False">
-                <TextBlock Text="Ctrl+Shift+P"
+                      IsHitTestVisible="False"
+                      IsVisible="{Binding HasCommandPaletteShortcutHint}">
+                <TextBlock Text="{Binding CommandPaletteShortcutHint}"
                            Classes="MptMeta"
+                           MaxWidth="220"
+                           TextTrimming="CharacterEllipsis"
                            FontSize="{DynamicResource MptFontSizeMeta}" />
               </Border>
               <controls:MptButton Grid.Column="2"

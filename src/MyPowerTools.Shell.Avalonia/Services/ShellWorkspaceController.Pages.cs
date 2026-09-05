@@ -92,45 +92,15 @@ public sealed partial class ShellWorkspaceController
         }
     }
 
-    private async Task LoadGeneralSettingsPage()
+    private Task LoadGeneralSettingsPage()
     {
-        var identity = _workspaceIdentity.Capture();
-
-        // Render the settings page immediately with empty hotkeys so the UI is never
-        // blocked by the diagnostics RPC.
-        var settingsView = new GeneralSettingsView
+        SetOwnedContent(_contentHost, new GeneralSettingsView
         {
-            DataContext = new GeneralSettingsViewModel(
-                _appearance.CurrentTheme,
-                _appearance.SetThemeAsync,
-                () => ShowPageAsync(SystemPage),
-                _devSource)
-        };
-        SetOwnedContent(_contentHost, settingsView);
+            DataContext = new GeneralSettingsViewModel(_appearance.CurrentTheme, _appearance.SetThemeAsync,
+                () => ShowPageAsync(SystemPage), _devSource, openShortcuts: () => ShowPageAsync(ShortcutsPage))
+        });
         SetStatus("Application preferences opened.");
-
-        // Load hotkeys in the background and update the view when ready.
-        IReadOnlyList<MyPowerTools.Shell.Avalonia.ViewModels.GlobalHotkeyViewModel> hotkeys;
-        try
-        {
-            hotkeys = await _pageData.LoadGlobalHotkeysAsync();
-        }
-        catch (Exception ex)
-        {
-            // The shortcuts overview is best-effort; settings must open even when
-            // the Runner diagnostics are unavailable.
-            ShellCommandFaultLog.Write("Load global hotkeys", ex, "settings");
-            return;
-        }
-
-        if (!_workspaceIdentity.IsCurrent(identity) || hotkeys.Count == 0) return;
-
-        settingsView.DataContext = new GeneralSettingsViewModel(
-            _appearance.CurrentTheme,
-            _appearance.SetThemeAsync,
-            () => ShowPageAsync(SystemPage),
-            _devSource,
-            hotkeys);
+        return Task.CompletedTask;
     }
 
     private async Task LoadModuleSettingsPageAsync(string selectedModuleId)
@@ -145,6 +115,7 @@ public sealed partial class ShellWorkspaceController
 
             if (!_workspaceIdentity.IsCurrent(identity)) return;
 
+            result.ViewModel.OpenShortcutsCommand = new AsyncRelayCommand(() => OpenShortcutsForToolAsync(selectedModuleId));
             SetOwnedContent(_contentHost, new SettingsCenterView
             {
                 DataContext = result.ViewModel

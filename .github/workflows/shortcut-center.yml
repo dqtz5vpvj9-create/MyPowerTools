@@ -1,0 +1,52 @@
+name: Shortcut center
+on:
+  push:
+    branches: [codex/feat-shortcut-center-2026-09-05]
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: shortcut-center-${{ github.ref }}
+  cancel-in-progress: true
+jobs:
+  regression:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, windows-latest, macos-14]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Initialize pinned tool sources
+        shell: pwsh
+        run: |
+          git submodule update --init --depth=1 -- tools/adb-forwarder tools/doubao-computer-use tools/input-monitor tools/process-monitor tools/remote-commands tools/remote-notifications tools/screenease tools/smartbird-thermostat
+          if ($LASTEXITCODE -ne 0) { throw 'Tool checkout failed.' }
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - name: Test shared WebView keyboard forwarding
+        run: node --test tests/ShortcutCenter.Tests/web-shortcuts.test.cjs
+      - name: Compile SDK, Shell, Runner and seven real tool Surfaces and run regressions
+        shell: pwsh
+        run: ./scripts/test-shortcut-center.ps1
+      - name: Compile Windows WebView host
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |
+          dotnet build src/MyPowerTools.WebToolHost/MyPowerTools.WebToolHost.csproj --configuration Release
+          if ($LASTEXITCODE -ne 0) { throw 'WebView host compilation failed.' }
+      - name: Compile macOS native WebView bridge
+        if: runner.os == 'macOS'
+        shell: bash
+        run: |
+          xcrun clang++ -std=c++17 -fobjc-arc -dynamiclib -arch arm64 -mmacosx-version-min=12.0 -framework Cocoa -framework WebKit -framework UserNotifications -framework Security -install_name @rpath/libMptMacNative.dylib native/macos/MptMacNative/MptMacNative.mm -o "$RUNNER_TEMP/libMptMacNative.dylib"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: shortcuts-${{ matrix.os }}
+          path: ${{ runner.temp }}/mypowertools-shortcut-results
+          if-no-files-found: ignore
+          retention-days: 7

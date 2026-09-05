@@ -82,8 +82,25 @@ public sealed class MptModuleManifest
     public Dictionary<string, JsonElement> ExtensionData { get; init; } = [];
 }
 
+public sealed class MptToolShortcutManifest
+{
+    public string Id { get; init; } = "";
+    public string Title { get; init; } = "";
+    public string Context { get; init; } = "";
+    public bool AllowInTextInput { get; init; }
+    public string Description { get; init; } = "";
+    public List<MptShortcutBindingManifest> Bindings { get; init; } = [];
+}
+
+public sealed class MptShortcutBindingManifest
+{
+    public string Gesture { get; init; } = "";
+    public string Platform { get; init; } = "all";
+}
+
 public sealed class MptToolManifest
 {
+    public List<MptToolShortcutManifest> Shortcuts { get; init; } = [];
     public string SchemaVersion { get; init; } = "";
     public string ToolId { get; init; } = "";
     public string OwnerModuleId { get; init; } = "";

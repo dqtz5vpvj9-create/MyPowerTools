@@ -13,7 +13,8 @@ public enum ShellRouteKind
     Packages,
     Logs,
     RuntimeHealth,
-    PermissionsAudit
+    PermissionsAudit,
+    KeyboardShortcuts
 }
 
 public sealed record ShellRoute(
@@ -21,6 +22,7 @@ public sealed record ShellRoute(
     string ToolId = "",
     string ToolRouteId = "")
 {
+    public static ShellRoute KeyboardShortcuts { get; } = new(ShellRouteKind.KeyboardShortcuts);
     public static ShellRoute Home { get; } = new(ShellRouteKind.Home);
     public static ShellRoute Tools { get; } = new(ShellRouteKind.Tools);
     public static ShellRoute Activity { get; } = new(ShellRouteKind.Activity);
@@ -46,7 +48,7 @@ public sealed record ShellRoute(
         ShellRouteKind.Tools or ShellRouteKind.Tool => "Tools",
         ShellRouteKind.Activity => "Activity",
         ShellRouteKind.Notifications => "Notifications",
-        ShellRouteKind.Settings => "Settings",
+        ShellRouteKind.Settings or ShellRouteKind.KeyboardShortcuts => "Settings",
         _ => "System"
     };
 }

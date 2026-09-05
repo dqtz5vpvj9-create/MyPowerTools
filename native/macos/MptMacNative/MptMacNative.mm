@@ -8,6 +8,10 @@
 #include <climits>
 #include <cmath>
 
+static const char *MptShortcutForwardingScript =
+#include "../../../src/MyPowerTools.WebSurface.Shared/ShortcutForwarding.inc"
+;
+
 typedef void (*MptWebViewCallback)(void *context, int eventKind, const char *payload);
 typedef void (*MptTrayActionCallback)(void *context, const char *actionId);
 
@@ -182,26 +186,14 @@ static NSArray<NSURL *> *MptParseOrigins(NSString *json) {
       try { callback(event); } catch {}
     }
   };
-  addEventListener('keydown', event => {
-    const command = event.metaKey || event.ctrlKey;
-    let gesture = '';
-    if (command && !event.altKey && event.shiftKey && event.key.toLowerCase() === 'p') gesture = 'Ctrl+Shift+P';
-    else if (command && !event.altKey && !event.shiftKey && event.key.toLowerCase() === 'r') gesture = 'Ctrl+R';
-    else if (command && event.altKey && !event.shiftKey && event.code === 'Space') gesture = 'Ctrl+Alt+Space';
-    else if (!command && !event.altKey && !event.shiftKey && event.key === 'F5') gesture = 'F5';
-    else if (!command && !event.altKey && !event.shiftKey && event.key === 'Escape') gesture = 'Escape';
-    else if (command && !event.altKey && !event.shiftKey && /^[1-6]$/.test(event.key)) gesture = 'Ctrl+' + event.key;
-    if (gesture) {
-      event.preventDefault();
-      window.webkit.messageHandlers.mptHost.postMessage({ kind: 'shortcut', value: gesture });
-    }
-  }, true);
+  %@
 })();
 )JS");
     return [NSString stringWithFormat:
         scriptTemplate,
         originsJson ?: @"[]",
-        cspJson ?: @"[\"default-src 'self'; object-src 'none'\"]"];
+        cspJson ?: @"[\"default-src 'self'; object-src 'none'\"]",
+        MptString(MptShortcutForwardingScript)];
 }
 
 - (BOOL)isAllowedURL:(NSURL *)url {

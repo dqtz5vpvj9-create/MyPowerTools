@@ -54,7 +54,12 @@
     },
     "type": {
       "type": "string",
-      "enum": ["dotnet-surface", "web-surface", "native-tool", "headless-tool"]
+      "enum": [
+        "dotnet-surface",
+        "web-surface",
+        "native-tool",
+        "headless-tool"
+      ]
     },
     "primaryRouteId": {
       "$ref": "#/$defs/routeId"
@@ -77,30 +82,50 @@
     },
     "commands": {
       "type": "array",
-      "items": { "$ref": "#/$defs/command" }
+      "items": {
+        "$ref": "#/$defs/command"
+      }
     },
     "permissions": {
       "type": "array",
-      "items": { "$ref": "#/$defs/permission" }
+      "items": {
+        "$ref": "#/$defs/permission"
+      }
     },
     "dataRoots": {
       "type": "array",
-      "items": { "type": "string", "minLength": 1 },
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
       "uniqueItems": true,
       "description": "Tool-owned data directories. Paths may use settings interpolation and are retained during normal uninstall."
     },
     "dataRetention": {
       "type": "string",
-      "enum": ["preserve", "purge-on-request"],
+      "enum": [
+        "preserve",
+        "purge-on-request"
+      ],
       "default": "preserve"
     },
     "development": {
       "type": "object",
       "properties": {
-        "loose": { "type": "boolean" },
-        "autoRefresh": { "type": "boolean" }
+        "loose": {
+          "type": "boolean"
+        },
+        "autoRefresh": {
+          "type": "boolean"
+        }
       },
       "additionalProperties": true
+    },
+    "shortcuts": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/shortcut"
+      }
     }
   },
   "$defs": {
@@ -136,61 +161,151 @@
     },
     "surface": {
       "type": "object",
-      "required": ["kind"],
+      "required": [
+        "kind"
+      ],
       "properties": {
-        "kind": { "type": "string", "enum": ["web", "dotnet", "native", "headless", "declarative"] },
-        "source": { "type": "string" },
-        "staticRoot": { "type": "string" },
-        "assembly": { "type": "string" },
-        "type": { "type": "string" },
-        "openExternal": { "type": "boolean" },
-        "allowedOrigins": { "type": "array", "items": { "type": "string" } }
+        "kind": {
+          "type": "string",
+          "enum": [
+            "web",
+            "dotnet",
+            "native",
+            "headless",
+            "declarative"
+          ]
+        },
+        "source": {
+          "type": "string"
+        },
+        "staticRoot": {
+          "type": "string"
+        },
+        "assembly": {
+          "type": "string"
+        },
+        "type": {
+          "type": "string"
+        },
+        "openExternal": {
+          "type": "boolean"
+        },
+        "allowedOrigins": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
       },
       "additionalProperties": true
     },
     "runtime": {
       "type": "object",
       "properties": {
-        "transport": { "type": "string", "enum": ["stdio-jsonrpc", "named-pipe-grpc", "loopback-http", "remote-http", "none"] },
-        "endpoint": { "type": "string" },
-        "command": { "type": "string" },
-        "args": { "type": "array", "items": { "type": "string" } },
-        "healthPath": { "type": "string" },
-        "logsPath": { "type": "string" },
-        "timeoutMs": { "type": "integer", "minimum": 100, "maximum": 120000 },
-        "remote": { "type": "boolean" }
+        "transport": {
+          "type": "string",
+          "enum": [
+            "stdio-jsonrpc",
+            "named-pipe-grpc",
+            "loopback-http",
+            "remote-http",
+            "none"
+          ]
+        },
+        "endpoint": {
+          "type": "string"
+        },
+        "command": {
+          "type": "string"
+        },
+        "args": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        },
+        "healthPath": {
+          "type": "string"
+        },
+        "logsPath": {
+          "type": "string"
+        },
+        "timeoutMs": {
+          "type": "integer",
+          "minimum": 100,
+          "maximum": 120000
+        },
+        "remote": {
+          "type": "boolean"
+        }
       },
       "additionalProperties": true
     },
     "settings": {
       "type": "object",
       "properties": {
-        "schema": { "type": "string" },
-        "values": { "type": "string" },
-        "secrets": { "type": "array", "items": { "type": "string" } }
+        "schema": {
+          "type": "string"
+        },
+        "values": {
+          "type": "string"
+        },
+        "secrets": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
       },
       "additionalProperties": true
     },
     "command": {
       "type": "object",
-      "required": ["id", "title"],
+      "required": [
+        "id",
+        "title"
+      ],
       "properties": {
-        "id": { "type": "string", "pattern": "^[a-z0-9][a-z0-9._-]*$" },
-        "title": { "type": "string", "minLength": 1 },
-        "description": { "type": "string" },
-        "method": { "type": "string" },
-        "path": { "type": "string" }
+        "id": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9._-]*$"
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "description": {
+          "type": "string"
+        },
+        "method": {
+          "type": "string"
+        },
+        "path": {
+          "type": "string"
+        }
       },
       "additionalProperties": true
     },
     "permission": {
       "type": "object",
-      "required": ["id", "level", "reason"],
+      "required": [
+        "id",
+        "level",
+        "reason"
+      ],
       "properties": {
-        "id": { "type": "string" },
-        "level": { "type": "string" },
-        "capability": { "type": "string" },
-        "reason": { "type": "string" }
+        "id": {
+          "type": "string"
+        },
+        "level": {
+          "type": "string"
+        },
+        "capability": {
+          "type": "string"
+        },
+        "reason": {
+          "type": "string"
+        }
       },
       "additionalProperties": true
     },
@@ -216,6 +331,57 @@
           "type": "integer",
           "minimum": 0,
           "default": 0
+        }
+      },
+      "additionalProperties": false
+    },
+    "shortcut": {
+      "type": "object",
+      "required": [
+        "id",
+        "title"
+      ],
+      "properties": {
+        "id": {
+          "type": "string",
+          "minLength": 1
+        },
+        "title": {
+          "type": "string",
+          "minLength": 1
+        },
+        "context": {
+          "type": "string"
+        },
+        "allowInTextInput": {
+          "type": "boolean"
+        },
+        "description": {
+          "type": "string"
+        },
+        "bindings": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": [
+              "gesture"
+            ],
+            "properties": {
+              "gesture": {
+                "type": "string",
+                "minLength": 1
+              },
+              "platform": {
+                "enum": [
+                  "all",
+                  "windows",
+                  "macos",
+                  "linux"
+                ]
+              }
+            },
+            "additionalProperties": false
+          }
         }
       },
       "additionalProperties": false

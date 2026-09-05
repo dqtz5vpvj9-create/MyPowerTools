@@ -70,9 +70,9 @@ jobs:
             -ApplicationsRoot $apps `
             -DataRoot $data
           if ($LASTEXITCODE -ne 0) { throw 'macOS launchd installation failed.' }
-          "LAUNCHD_APPS_ROOT=$apps" | Set-Content -LiteralPath $env:GITHUB_ENV -Encoding utf8 -Append
-          "LAUNCHD_DATA_ROOT=$data" | Set-Content -LiteralPath $env:GITHUB_ENV -Encoding utf8 -Append
-          "LAUNCHD_INSTALLED_APP=$(Join-Path $apps 'MyPowerTools.app')" | Set-Content -LiteralPath $env:GITHUB_ENV -Encoding utf8 -Append
+          "LAUNCHD_APPS_ROOT=$apps" | Add-Content -LiteralPath $env:GITHUB_ENV -Encoding utf8
+          "LAUNCHD_DATA_ROOT=$data" | Add-Content -LiteralPath $env:GITHUB_ENV -Encoding utf8
+          "LAUNCHD_INSTALLED_APP=$(Join-Path $apps 'MyPowerTools.app')" | Add-Content -LiteralPath $env:GITHUB_ENV -Encoding utf8
 
       - name: Verify launchd and Service Unit autostart
         shell: pwsh

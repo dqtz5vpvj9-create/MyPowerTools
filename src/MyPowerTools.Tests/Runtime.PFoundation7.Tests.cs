@@ -39,16 +39,20 @@ public sealed partial class RuntimeAcceptanceTests
         runtime.Load(Path.Combine(Root, "modules"));
         await using var hotkeys = new RecordingHotkeyService();
         var synchronizer = new RunnerHotkeySynchronizer(hotkeys, runtime);
+        HotkeyRegistration RegisteredFor(string commandId) => Assert.Single(hotkeys.Registered.Values.Where(registration =>
+            synchronizer.CreateCommandRequest(new HotkeyInvocation(registration.Id, registration.Gesture,
+                registration.Scope, DateTimeOffset.UtcNow))?.CommandId == commandId));
         var target = Assert.Single(runtime.ListHotkeyDiagnostics()
             .Where(binding => binding.Id == "screenease.toggle-enabled"));
 
         var initial = await synchronizer.SyncAsync(CancellationToken.None);
 
-        // paste-image declares a default-enabled global hotkey (Ctrl+Alt+V), so it
-        // registers on the first sync. screenease's hotkey starts disabled and is
-        // exercised by the enable/update/reset sequence below.
-        Assert.All(initial, result => Assert.Equal("paste-image.upload-clipboard-image", result.Id));
-        Assert.Equal("paste-image.upload-clipboard-image", Assert.Single(hotkeys.Registered.Keys));
+        // The palette now uses the same synchronizer as module hotkeys. Native IDs are
+        // per registration attempt so replacement can retain the previous working key.
+        Assert.Equal(new[] { "paste-image.upload-clipboard-image", "runner.command-palette" },
+            initial.Select(result => result.Id).OrderBy(id => id, StringComparer.Ordinal).ToArray());
+        Assert.Equal(2, hotkeys.Registered.Count);
+        Assert.NotNull(RegisteredFor("shell.command-palette.open"));
 
         await runtime.UpdateSettingsWithApplyAsync(
             new SettingsPatch(
@@ -68,7 +72,7 @@ public sealed partial class RuntimeAcceptanceTests
         var firstRegistration = await synchronizer.SyncAsync(CancellationToken.None);
         var original = Assert.Single(runtime.ListHotkeyBindings().Where(binding => binding.ModuleId == "screenease"));
         Assert.Contains(firstRegistration, item => item.Id == original.Id && item.Operation == "register");
-        Assert.Equal(original.Gesture, hotkeys.Registered[original.Id].Gesture);
+        Assert.Equal(original.Gesture, RegisteredFor(original.CommandId).Gesture);
 
         var overrideGesture = original.Gesture.Equals("Ctrl+Alt+F12", StringComparison.OrdinalIgnoreCase)
             ? "Ctrl+Alt+F11"
@@ -90,12 +94,16 @@ public sealed partial class RuntimeAcceptanceTests
                 }),
             CancellationToken.None);
 
+        var oldNativeId = RegisteredFor(original.CommandId).Id;
         var changed = await synchronizer.SyncAsync(CancellationToken.None);
-        var request = synchronizer.CreateCommandRequest(new HotkeyInvocation(original.Id, overrideGesture, original.Scope, DateTimeOffset.UtcNow));
+        var newNativeId = RegisteredFor(original.CommandId).Id;
+        var request = synchronizer.CreateCommandRequest(new HotkeyInvocation(newNativeId, overrideGesture, original.Scope, DateTimeOffset.UtcNow));
 
-        Assert.Contains(changed, item => item.Id == original.Id && item.Operation == "reregister-unregister");
         Assert.Contains(changed, item => item.Id == original.Id && item.Operation == "reregister-register");
-        Assert.Equal(overrideGesture, hotkeys.Registered[original.Id].Gesture);
+        Assert.Contains(changed, item => item.Id == original.Id && item.Operation == "reregister-unregister");
+        Assert.NotEqual(oldNativeId, newNativeId);
+        Assert.Contains(oldNativeId, hotkeys.UnregisterCalls);
+        Assert.Equal(overrideGesture, RegisteredFor(original.CommandId).Gesture);
         Assert.NotNull(request);
         Assert.Equal(original.CommandId, request.CommandId);
         Assert.Equal("night", request.Args["profileId"]!.GetValue<string>());
@@ -118,7 +126,9 @@ public sealed partial class RuntimeAcceptanceTests
 
         var reset = await synchronizer.SyncAsync(CancellationToken.None);
         Assert.Contains(reset, item => item.Id == original.Id && item.Operation == "unregister");
-        Assert.DoesNotContain(original.Id, hotkeys.Registered.Keys);
+        Assert.DoesNotContain(hotkeys.Registered.Values, registration =>
+            synchronizer.CreateCommandRequest(new HotkeyInvocation(registration.Id, registration.Gesture,
+                registration.Scope, DateTimeOffset.UtcNow))?.CommandId == original.CommandId);
         Assert.Equal("disabled", runtime.ListHotkeyDiagnostics().Single(binding => binding.Id == original.Id).State);
 
         await runtime.UpdateSettingsWithApplyAsync(
@@ -138,19 +148,21 @@ public sealed partial class RuntimeAcceptanceTests
             CancellationToken.None);
         var restored = await synchronizer.SyncAsync(CancellationToken.None);
         Assert.Contains(restored, item => item.Id == original.Id && item.Operation == "register");
-        Assert.Equal(original.DefaultGesture, hotkeys.Registered[original.Id].Gesture);
+        Assert.Equal(original.DefaultGesture, RegisteredFor(original.CommandId).Gesture);
 
         await runtime.SetModuleEnabledAsync("screenease", enabled: false, CancellationToken.None);
         var disabled = await synchronizer.SyncAsync(CancellationToken.None);
 
         Assert.Contains(disabled, item => item.Id == original.Id && item.Operation == "unregister");
-        Assert.DoesNotContain(original.Id, hotkeys.Registered.Keys);
+        Assert.DoesNotContain(hotkeys.Registered.Values, registration =>
+            synchronizer.CreateCommandRequest(new HotkeyInvocation(registration.Id, registration.Gesture,
+                registration.Scope, DateTimeOffset.UtcNow))?.CommandId == original.CommandId);
 
         await runtime.SetModuleEnabledAsync("screenease", enabled: true, CancellationToken.None);
         var enabled = await synchronizer.SyncAsync(CancellationToken.None);
 
         Assert.Contains(enabled, item => item.Id == original.Id && item.Operation == "register");
-        Assert.Equal(original.DefaultGesture, hotkeys.Registered[original.Id].Gesture);
+        Assert.Equal(original.DefaultGesture, RegisteredFor(original.CommandId).Gesture);
     }
 
     [Fact]

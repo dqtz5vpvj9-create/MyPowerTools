@@ -99,6 +99,8 @@ public sealed partial class CommandItemViewModel : ObservableViewModel
         ValidateParameters();
     }
 
+    private string _shortcutHint = "";
+    public string ShortcutHint { get => _shortcutHint; set => SetProperty(ref _shortcutHint, value); }
     public string CommandId { get; }
     public string ModuleId { get; }
     public string Title { get; }

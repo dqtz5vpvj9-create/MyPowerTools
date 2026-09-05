@@ -11,7 +11,7 @@ using Sdk = MyPowerTools.Abstractions;
 
 namespace MyPowerTools.Runtime;
 
-public sealed class MptHostRuntime : IAsyncDisposable
+public sealed partial class MptHostRuntime : IAsyncDisposable
 {
     private readonly PackageRegistry _packageRegistry;
     private readonly ToolRegistry _toolRegistry;
@@ -785,13 +785,13 @@ public sealed class MptHostRuntime : IAsyncDisposable
                 }
 
                 var stored = _hotkeyStore.Get(moduleId, hotkey.Id);
-                var disabled = stored?.Disabled ?? !hotkey.EnabledByDefault;
+                var disabled = stored is null || stored.UseDefaultBindings ? !hotkey.EnabledByDefault : stored.Disabled;
                 if (disabled && !includeDisabledOverrides)
                 {
                     continue;
                 }
 
-                var gesture = stored is null || string.IsNullOrWhiteSpace(stored.Gesture)
+                var gesture = stored is null || stored.UseDefaultBindings || string.IsNullOrWhiteSpace(stored.Gesture)
                     ? hotkey.Default
                     : stored.Gesture;
                 yield return new RuntimeHotkeyBinding(
@@ -1937,12 +1937,15 @@ public sealed class MptHostRuntime : IAsyncDisposable
 
     public Sdk.SettingsSnapshotDocument GetSettings(string moduleId)
     {
+        if (moduleId == ShortcutCatalog.SettingsModuleId) return GetShortcutSettings();
         EnsureModule(moduleId);
         return _settingsStore.Get(moduleId);
     }
 
     public async ValueTask<Sdk.SettingsSchemaDocument> GetSettingsSchemaAsync(string moduleId, CancellationToken cancellationToken)
     {
+        if (moduleId == ShortcutCatalog.SettingsModuleId)
+            return new(moduleId, """{"type":"object","properties":{"edits":{"type":"array"}}}""");
         var module = _packageRegistry.FindModule(moduleId)
             ?? throw new KeyNotFoundException($"Module '{moduleId}' was not found.");
         if (!TryGetTransportRuntime(module, out var runtime))
@@ -1960,6 +1963,8 @@ public sealed class MptHostRuntime : IAsyncDisposable
 
     public async Task<SettingsUpdateResult> UpdateSettingsWithApplyAsync(Sdk.SettingsPatch patch, CancellationToken cancellationToken)
     {
+        if (patch.ModuleId == ShortcutCatalog.SettingsModuleId)
+            return await UpdateShortcutSettingsAsync(patch, cancellationToken);
         EnsureModule(patch.ModuleId);
         var hotkeyEdits = ExtractHotkeyEdits(patch.ModuleId, patch.Patch);
         var settingsPatchValues = StripRuntimeSettingsPatch(patch.Patch);

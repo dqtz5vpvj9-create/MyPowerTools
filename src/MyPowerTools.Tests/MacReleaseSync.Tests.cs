@@ -108,9 +108,16 @@ public sealed class MacReleaseSyncTests
             "MptMacNative",
             "MptMacNative.mm"));
 
-        Assert.Contains("gesture = 'Ctrl+Shift+P'", nativeSource, StringComparison.Ordinal);
-        Assert.Contains("gesture = 'Ctrl+R'", nativeSource, StringComparison.Ordinal);
-        Assert.DoesNotContain("['f', 'k', 'r']", nativeSource, StringComparison.Ordinal);
+        var forwarding = File.ReadAllText(Path.Combine(
+            Root, "src", "MyPowerTools.WebSurface.Shared", "ShortcutForwarding.inc"));
+        Assert.Contains("MptString(MptShortcutForwardingScript)", nativeSource, StringComparison.Ordinal);
+        Assert.Contains("MyPowerTools.WebSurface.Shared/ShortcutForwarding.inc", nativeSource, StringComparison.Ordinal);
+        Assert.Contains("'shortcut-bindings'", forwarding, StringComparison.Ordinal);
+        Assert.Contains("'keydown'", forwarding, StringComparison.Ordinal);
+        Assert.Contains("event.isComposing", forwarding, StringComparison.Ordinal);
+        Assert.Contains("binding.allowInTextInput", forwarding, StringComparison.Ordinal);
+        Assert.DoesNotContain("gesture = 'Ctrl+Shift+P'", nativeSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("gesture = 'Ctrl+R'", nativeSource, StringComparison.Ordinal);
     }
 
     [Fact]
