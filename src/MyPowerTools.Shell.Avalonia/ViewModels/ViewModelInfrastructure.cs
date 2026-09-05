@@ -53,6 +53,7 @@ public sealed class ShellChromeViewModel : ObservableViewModel
 {
     private string _statusText = "";
     private string _runnerStatusText = "";
+    private string _commandPaletteShortcutHint = "";
     private bool _isCommandPaletteOpen;
     private bool _isPermissionPromptOpen;
     private string _selectedNavigationKey = "Home";
@@ -116,6 +117,18 @@ public sealed class ShellChromeViewModel : ObservableViewModel
         get => _runnerStatusText;
         set => SetProperty(ref _runnerStatusText, value);
     }
+
+    public string CommandPaletteShortcutHint
+    {
+        get => _commandPaletteShortcutHint;
+        set
+        {
+            if (SetProperty(ref _commandPaletteShortcutHint, value ?? ""))
+                OnPropertyChanged(nameof(HasCommandPaletteShortcutHint));
+        }
+    }
+
+    public bool HasCommandPaletteShortcutHint => !string.IsNullOrWhiteSpace(CommandPaletteShortcutHint);
 
     public bool IsCommandPaletteOpen
     {

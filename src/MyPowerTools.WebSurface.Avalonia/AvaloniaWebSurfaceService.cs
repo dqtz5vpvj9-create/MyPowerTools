@@ -950,7 +950,7 @@ internal sealed class WebSurfaceControl : Control, IDisposable
                 root.TryGetProperty("gesture", out var gestureNode) && gestureNode.ValueKind == JsonValueKind.String)
             {
                 var gesture = gestureNode.GetString() ?? "";
-                if (gesture.Length is > 0 and <= 32)
+                if (WebShortcutMessage.TryRead(gesture, out _, out _))
                 {
                     hostEvent = new HostProcessEvent(HostProcessEventKind.Shortcut, MptWebSurfaceState.Ready, "", gesture);
                     return true;

@@ -1579,7 +1579,8 @@ public sealed partial class RuntimeAcceptanceTests
         Assert.Contains("x:Name=\"TitleContentHost\"", shellChromeView);
         Assert.Contains("x:Name=\"NavigationModeButton\"", shellChromeView);
         Assert.Contains("x:Name=\"PageHeaderHost\"", shellChromeView);
-        Assert.Contains("Text=\"Ctrl+Shift+P\"", shellChromeView);
+        Assert.Contains("Text=\"{Binding CommandPaletteShortcutHint}\"", shellChromeView);
+        Assert.Contains("IsVisible=\"{Binding HasCommandPaletteShortcutHint}\"", shellChromeView);
         Assert.Contains("WindowDecorationProperties.ElementRole=\"TitleBar\"", shellChromeView);
         Assert.Contains("Classes.selected=\"{Binding IsSelected}\"", shellChromeView);
         Assert.Contains("x:Name=\"SearchBox\"", shellChromeView);

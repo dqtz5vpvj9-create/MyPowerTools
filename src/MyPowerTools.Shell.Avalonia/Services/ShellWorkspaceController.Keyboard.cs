@@ -1,4 +1,3 @@
-using System.Text.Json;
 using MyPowerTools.WebSurface.Avalonia;
 using Avalonia.Controls;
 using Avalonia.Input;
@@ -48,19 +47,7 @@ public sealed partial class ShellWorkspaceController
 
     public async Task HandleWebShortcutAsync(string message)
     {
-        if (!_shortcuts.IsLoaded || message.Length > 4096) return;
-        var gesture = message;
-        var textInput = true;
-        if (message.StartsWith('{'))
-        {
-            try
-            {
-                using var json = JsonDocument.Parse(message);
-                gesture = json.RootElement.GetProperty("gesture").GetString() ?? "";
-                textInput = json.RootElement.TryGetProperty("textInput", out var input) && input.GetBoolean();
-            }
-            catch (Exception ex) when (ex is JsonException or InvalidOperationException or KeyNotFoundException) { return; }
-        }
+        if (!_shortcuts.IsLoaded || !WebShortcutMessage.TryRead(message, out var gesture, out var textInput)) return;
         if (!ShortcutKeyAdapter.TryParse(gesture, out var key, out var modifiers)) return;
         var canonical = ShortcutKeyAdapter.Format(key, modifiers);
         if (canonical is null) return;
@@ -132,6 +119,7 @@ public sealed partial class ShellWorkspaceController
     private void OnShortcutConfigurationChanged()
     {
         if (IsDisposed) return;
+        _chromeViewModel.CommandPaletteShortcutHint = _shortcuts.Hint("shell.command-palette.open");
         MptShortcutHint.SetBindings(_contentHost, _shortcuts.Hints());
         if (_webSurfaceService is IConfigurableWebShortcuts web)
             web.UpdateShortcutBindings(ShortcutCatalog.Effective(_shortcuts.Snapshot)

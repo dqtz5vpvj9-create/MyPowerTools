@@ -313,7 +313,10 @@ public sealed class SmartBirdThermostatProductTests
         Assert.Contains("IsOriginAllowed", hostWindow);
         Assert.Contains("_toolId", hostWindow);
         Assert.Contains("GetWindowThreadProcessId", hostWindow);
-        Assert.Contains("AcceleratorKeyPressed", hostWindow);
+        Assert.Contains("AddScriptToExecuteOnDocumentCreatedAsync(ShortcutForwardingSource.Read())", hostWindow);
+        Assert.Contains("__mptShortcut", hostWindow);
+        Assert.Contains("WebToolHostProtocol.WriteShortcut", hostWindow);
+        Assert.DoesNotContain("AcceleratorKeyPressed", hostWindow);
         Assert.Contains("MoveFocusRequested", hostWindow);
         Assert.Contains("SetWindowRgn", hostWindow);
         Assert.Contains("_controller.IsVisible = false;", hostWindow);

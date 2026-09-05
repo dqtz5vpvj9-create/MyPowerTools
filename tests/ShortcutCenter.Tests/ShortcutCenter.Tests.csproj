@@ -13,6 +13,8 @@
     <PackageReference Include="xunit.v3" Version="3.2.2" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5"><PrivateAssets>all</PrivateAssets></PackageReference>
     <Using Include="Xunit" />
+    <!-- Exercise the actual child-host serializer without requiring a Windows UI process. -->
+    <Compile Include="../../src/MyPowerTools.WebToolHost/WebToolHostProtocol.cs" Link="WebToolHostProtocol.cs" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/MyPowerTools.Shell.Avalonia/MyPowerTools.Shell.Avalonia.csproj" />
