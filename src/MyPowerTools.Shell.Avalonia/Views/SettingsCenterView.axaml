@@ -55,7 +55,7 @@
     </Border>
 
     <Border Classes="MptSettingsSection" IsVisible="{Binding HasHotkeys}">
-      <StackPanel Spacing="8">
+      <StackPanel Spacing="{DynamicResource MptSpacingS}">
         <TextBlock Classes="MptSectionTitle" Text="Keyboard shortcuts" />
         <TextBlock Text="Manage this module together with all application and tool actions in the shortcut center." TextWrapping="Wrap" />
         <controls:MptButton Content="Open keyboard shortcuts" Command="{Binding OpenShortcutsCommand}" HorizontalAlignment="Left" />

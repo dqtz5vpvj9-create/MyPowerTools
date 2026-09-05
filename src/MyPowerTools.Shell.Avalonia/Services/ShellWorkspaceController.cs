@@ -343,9 +343,8 @@ public sealed partial class ShellWorkspaceController : IAsyncDisposable
 
     private async Task ApplyHostEventAsync(HostProto.HostEvent evt)
     {
-        if (evt.Type is "shortcuts.updated" or "hotkeys.updated" or "registry.loaded" or "module.enabled" or "module.disabled")
-            await RefreshShortcutCatalogAsync();
         var plan = ShellPageRefreshRouter.Route(_currentPage, evt);
+        if (plan.ReloadShortcutCatalog) await RefreshShortcutCatalogAsync();
         if (plan.ReloadBrokerAudit)
         {
             await LoadBrokerAuditAsync();

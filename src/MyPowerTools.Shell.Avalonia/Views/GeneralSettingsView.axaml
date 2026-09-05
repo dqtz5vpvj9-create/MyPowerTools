@@ -89,7 +89,7 @@
       </Border>
 
       <Border x:Name="KeyboardSettingsCard" Grid.Column="1" Classes="MptSettingsSection">
-        <StackPanel Spacing="12">
+        <StackPanel Spacing="{DynamicResource MptSpacingM}">
           <TextBlock Classes="MptSectionTitle" Text="Keyboard shortcuts" />
           <TextBlock Text="Manage background, application and tool shortcuts in one place. Changes apply without restarting."
                      TextWrapping="Wrap" Classes="MptMeta" />
