@@ -1,0 +1,75 @@
+name: Shortcut legacy contract verification
+on:
+  push:
+    branches: [codex/shortcut-compat-workspace-2026-09-05]
+permissions:
+  contents: read
+jobs:
+  publish:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    outputs:
+      sha: ${{ steps.publish.outputs.sha }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - id: publish
+        name: Publish only the two reviewed test changes
+        shell: python
+        env:
+          PUBLISH_TOKEN: ${{ secrets.MPT_SUBMODULE_PAT || github.token }}
+        run: |
+          import base64, hashlib, os, pathlib, subprocess
+          expected = '0b94455fb1802f7fd0efd77b54f2d249da75ddcd'
+          branch = 'codex/feat-shortcut-center-2026-09-05'
+          patch = pathlib.Path('scripts/shortcut-compat.patch').read_bytes()
+          assert hashlib.sha256(patch).hexdigest() == 'e71ecfbafca910b64295d2a2e7d52ba76bcda4567552b16fc7dedcbda82472b6', 'Patch checksum mismatch'
+          def git(*args, data=None, env=None):
+              return subprocess.check_output(['git', *args], input=data, env=env).decode().strip()
+          remote = git('ls-remote', '--heads', 'origin', 'refs/heads/' + branch).split()[0]
+          assert remote == expected, 'Feature head changed; refusing to overwrite concurrent work'
+          git('fetch', '--depth=1', 'origin', expected)
+          git('checkout', '--detach', expected)
+          git('apply', '--check', '-', data=patch)
+          git('apply', '-', data=patch)
+          git('diff', '--check')
+          paths = ['src/MyPowerTools.Tests/Runtime.PFoundation7.Tests.cs', 'src/MyPowerTools.Tests/RuntimeAcceptanceTests.PlatformBrokerPackage.Tests.cs']
+          assert sorted(git('diff', '--name-only').splitlines()) == sorted(paths)
+          git('add', '--', *paths)
+          git('-c', 'user.name=Codex', '-c', 'user.email=codex@openai.com', 'commit', '-m', 'test(shortcuts): migrate legacy hotkey assertions to centralized registration')
+          sha = git('rev-parse', 'HEAD')
+          env = dict(os.environ)
+          auth = base64.b64encode(('x-access-token:' + env['PUBLISH_TOKEN']).encode()).decode()
+          env.update(GIT_CONFIG_COUNT='1', GIT_CONFIG_KEY_0='http.https://github.com/.extraheader', GIT_CONFIG_VALUE_0='AUTHORIZATION: basic ' + auth)
+          git('push', 'origin', 'HEAD:refs/heads/' + branch, env=env)
+          with open(os.environ['GITHUB_OUTPUT'], 'a') as out: out.write('sha=' + sha + '\n')
+          print('Published test migration:', sha)
+  legacy-tests:
+    needs: publish
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.publish.outputs.sha }}
+          persist-credentials: false
+      - name: Initialize pinned tool sources
+        run: git submodule update --init --depth=1 -- tools/adb-forwarder tools/doubao-computer-use tools/input-monitor tools/process-monitor tools/remote-commands tools/remote-notifications tools/screenease tools/smartbird-thermostat
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - name: Build SDK and run shortcut and personal UX regressions
+        shell: pwsh
+        run: ./scripts/test-shortcut-center.ps1
+      - name: Run migrated legacy hotkey behavior and integration tests
+        shell: pwsh
+        run: |
+          dotnet test src/MyPowerTools.Tests/MyPowerTools.Tests.csproj --configuration Release -p:BuildWindowsWebToolHost=false --filter "FullyQualifiedName~Runner_hotkey_sync_reregisters_gesture_updates_args_and_follows_enable_state|FullyQualifiedName~Runner_wires_windows_global_hotkey_to_command_palette_startup" --logger 'trx;LogFileName=legacy-hotkeys.trx' --results-directory "$env:RUNNER_TEMP/mypowertools-shortcut-results"
+          if ($LASTEXITCODE -ne 0) { throw 'Legacy hotkey contracts failed.' }
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: shortcut-legacy-contract-results
+          path: ${{ runner.temp }}/mypowertools-shortcut-results
+          retention-days: 7
