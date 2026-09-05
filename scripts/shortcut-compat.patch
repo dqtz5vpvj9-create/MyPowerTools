@@ -1,121 +1,356 @@
-diff --git a/src/MyPowerTools.Tests/Runtime.PFoundation7.Tests.cs b/src/MyPowerTools.Tests/Runtime.PFoundation7.Tests.cs
-index 6e570ce..e6f3140 100644
---- a/src/MyPowerTools.Tests/Runtime.PFoundation7.Tests.cs
-+++ b/src/MyPowerTools.Tests/Runtime.PFoundation7.Tests.cs
-@@ -39,16 +39,20 @@ public sealed partial class RuntimeAcceptanceTests
-         runtime.Load(Path.Combine(Root, "modules"));
-         await using var hotkeys = new RecordingHotkeyService();
-         var synchronizer = new RunnerHotkeySynchronizer(hotkeys, runtime);
-+        HotkeyRegistration RegisteredFor(string commandId) => Assert.Single(hotkeys.Registered.Values.Where(registration =>
-+            synchronizer.CreateCommandRequest(new HotkeyInvocation(registration.Id, registration.Gesture,
-+                registration.Scope, DateTimeOffset.UtcNow))?.CommandId == commandId));
-         var target = Assert.Single(runtime.ListHotkeyDiagnostics()
-             .Where(binding => binding.Id == "screenease.toggle-enabled"));
+diff --git a/src/MyPowerTools.Shell.Avalonia/Services/ShellWorkspaceController.Keyboard.cs b/src/MyPowerTools.Shell.Avalonia/Services/ShellWorkspaceController.Keyboard.cs
+index 43fc531..0cd9c40 100644
+--- a/src/MyPowerTools.Shell.Avalonia/Services/ShellWorkspaceController.Keyboard.cs
++++ b/src/MyPowerTools.Shell.Avalonia/Services/ShellWorkspaceController.Keyboard.cs
+@@ -1,4 +1,3 @@
+-using System.Text.Json;
+ using MyPowerTools.WebSurface.Avalonia;
+ using Avalonia.Controls;
+ using Avalonia.Input;
+@@ -48,19 +47,7 @@ public sealed partial class ShellWorkspaceController
  
-         var initial = await synchronizer.SyncAsync(CancellationToken.None);
+     public async Task HandleWebShortcutAsync(string message)
+     {
+-        if (!_shortcuts.IsLoaded || message.Length > 4096) return;
+-        var gesture = message;
+-        var textInput = true;
+-        if (message.StartsWith('{'))
+-        {
+-            try
+-            {
+-                using var json = JsonDocument.Parse(message);
+-                gesture = json.RootElement.GetProperty("gesture").GetString() ?? "";
+-                textInput = json.RootElement.TryGetProperty("textInput", out var input) && input.GetBoolean();
+-            }
+-            catch (Exception ex) when (ex is JsonException or InvalidOperationException or KeyNotFoundException) { return; }
+-        }
++        if (!_shortcuts.IsLoaded || !WebShortcutMessage.TryRead(message, out var gesture, out var textInput)) return;
+         if (!ShortcutKeyAdapter.TryParse(gesture, out var key, out var modifiers)) return;
+         var canonical = ShortcutKeyAdapter.Format(key, modifiers);
+         if (canonical is null) return;
+@@ -132,6 +119,7 @@ public sealed partial class ShellWorkspaceController
+     private void OnShortcutConfigurationChanged()
+     {
+         if (IsDisposed) return;
++        _chromeViewModel.CommandPaletteShortcutHint = _shortcuts.Hint("shell.command-palette.open");
+         MptShortcutHint.SetBindings(_contentHost, _shortcuts.Hints());
+         if (_webSurfaceService is IConfigurableWebShortcuts web)
+             web.UpdateShortcutBindings(ShortcutCatalog.Effective(_shortcuts.Snapshot)
+diff --git a/src/MyPowerTools.Shell.Avalonia/ViewModels/ViewModelInfrastructure.cs b/src/MyPowerTools.Shell.Avalonia/ViewModels/ViewModelInfrastructure.cs
+index 37bab7a..a9cd255 100644
+--- a/src/MyPowerTools.Shell.Avalonia/ViewModels/ViewModelInfrastructure.cs
++++ b/src/MyPowerTools.Shell.Avalonia/ViewModels/ViewModelInfrastructure.cs
+@@ -53,6 +53,7 @@ public sealed class ShellChromeViewModel : ObservableViewModel
+ {
+     private string _statusText = "";
+     private string _runnerStatusText = "";
++    private string _commandPaletteShortcutHint = "";
+     private bool _isCommandPaletteOpen;
+     private bool _isPermissionPromptOpen;
+     private string _selectedNavigationKey = "Home";
+@@ -117,6 +118,18 @@ public sealed class ShellChromeViewModel : ObservableViewModel
+         set => SetProperty(ref _runnerStatusText, value);
+     }
  
--        // paste-image declares a default-enabled global hotkey (Ctrl+Alt+V), so it
--        // registers on the first sync. screenease's hotkey starts disabled and is
--        // exercised by the enable/update/reset sequence below.
--        Assert.All(initial, result => Assert.Equal("paste-image.upload-clipboard-image", result.Id));
--        Assert.Equal("paste-image.upload-clipboard-image", Assert.Single(hotkeys.Registered.Keys));
-+        // The palette now uses the same synchronizer as module hotkeys. Native IDs are
-+        // per registration attempt so replacement can retain the previous working key.
-+        Assert.Equal(new[] { "paste-image.upload-clipboard-image", "runner.command-palette" },
-+            initial.Select(result => result.Id).OrderBy(id => id, StringComparer.Ordinal).ToArray());
-+        Assert.Equal(2, hotkeys.Registered.Count);
-+        Assert.NotNull(RegisteredFor("shell.command-palette.open"));
++    public string CommandPaletteShortcutHint
++    {
++        get => _commandPaletteShortcutHint;
++        set
++        {
++            if (SetProperty(ref _commandPaletteShortcutHint, value ?? ""))
++                OnPropertyChanged(nameof(HasCommandPaletteShortcutHint));
++        }
++    }
++
++    public bool HasCommandPaletteShortcutHint => !string.IsNullOrWhiteSpace(CommandPaletteShortcutHint);
++
+     public bool IsCommandPaletteOpen
+     {
+         get => _isCommandPaletteOpen;
+diff --git a/src/MyPowerTools.Shell.Avalonia/Views/ShellChromeView.axaml b/src/MyPowerTools.Shell.Avalonia/Views/ShellChromeView.axaml
+index 2f8008d..c526d43 100644
+--- a/src/MyPowerTools.Shell.Avalonia/Views/ShellChromeView.axaml
++++ b/src/MyPowerTools.Shell.Avalonia/Views/ShellChromeView.axaml
+@@ -398,9 +398,12 @@
+                       Background="{DynamicResource MptBrushSurfaceMuted}"
+                       HorizontalAlignment="Right"
+                       VerticalAlignment="Center"
+-                      IsHitTestVisible="False">
+-                <TextBlock Text="Ctrl+Shift+P"
++                      IsHitTestVisible="False"
++                      IsVisible="{Binding HasCommandPaletteShortcutHint}">
++                <TextBlock Text="{Binding CommandPaletteShortcutHint}"
+                            Classes="MptMeta"
++                           MaxWidth="220"
++                           TextTrimming="CharacterEllipsis"
+                            FontSize="{DynamicResource MptFontSizeMeta}" />
+               </Border>
+               <controls:MptButton Grid.Column="2"
+diff --git a/src/MyPowerTools.Tests/MacReleaseSync.Tests.cs b/src/MyPowerTools.Tests/MacReleaseSync.Tests.cs
+index 89dfa10..4eee371 100644
+--- a/src/MyPowerTools.Tests/MacReleaseSync.Tests.cs
++++ b/src/MyPowerTools.Tests/MacReleaseSync.Tests.cs
+@@ -108,9 +108,16 @@ public sealed class MacReleaseSyncTests
+             "MptMacNative",
+             "MptMacNative.mm"));
  
-         await runtime.UpdateSettingsWithApplyAsync(
-             new SettingsPatch(
-@@ -68,7 +72,7 @@ public sealed partial class RuntimeAcceptanceTests
-         var firstRegistration = await synchronizer.SyncAsync(CancellationToken.None);
-         var original = Assert.Single(runtime.ListHotkeyBindings().Where(binding => binding.ModuleId == "screenease"));
-         Assert.Contains(firstRegistration, item => item.Id == original.Id && item.Operation == "register");
--        Assert.Equal(original.Gesture, hotkeys.Registered[original.Id].Gesture);
-+        Assert.Equal(original.Gesture, RegisteredFor(original.CommandId).Gesture);
- 
-         var overrideGesture = original.Gesture.Equals("Ctrl+Alt+F12", StringComparison.OrdinalIgnoreCase)
-             ? "Ctrl+Alt+F11"
-@@ -90,12 +94,16 @@ public sealed partial class RuntimeAcceptanceTests
-                 }),
-             CancellationToken.None);
- 
-+        var oldNativeId = RegisteredFor(original.CommandId).Id;
-         var changed = await synchronizer.SyncAsync(CancellationToken.None);
--        var request = synchronizer.CreateCommandRequest(new HotkeyInvocation(original.Id, overrideGesture, original.Scope, DateTimeOffset.UtcNow));
-+        var newNativeId = RegisteredFor(original.CommandId).Id;
-+        var request = synchronizer.CreateCommandRequest(new HotkeyInvocation(newNativeId, overrideGesture, original.Scope, DateTimeOffset.UtcNow));
- 
--        Assert.Contains(changed, item => item.Id == original.Id && item.Operation == "reregister-unregister");
-         Assert.Contains(changed, item => item.Id == original.Id && item.Operation == "reregister-register");
--        Assert.Equal(overrideGesture, hotkeys.Registered[original.Id].Gesture);
-+        Assert.Contains(changed, item => item.Id == original.Id && item.Operation == "reregister-unregister");
-+        Assert.NotEqual(oldNativeId, newNativeId);
-+        Assert.Contains(oldNativeId, hotkeys.UnregisterCalls);
-+        Assert.Equal(overrideGesture, RegisteredFor(original.CommandId).Gesture);
-         Assert.NotNull(request);
-         Assert.Equal(original.CommandId, request.CommandId);
-         Assert.Equal("night", request.Args["profileId"]!.GetValue<string>());
-@@ -118,7 +126,9 @@ public sealed partial class RuntimeAcceptanceTests
- 
-         var reset = await synchronizer.SyncAsync(CancellationToken.None);
-         Assert.Contains(reset, item => item.Id == original.Id && item.Operation == "unregister");
--        Assert.DoesNotContain(original.Id, hotkeys.Registered.Keys);
-+        Assert.DoesNotContain(hotkeys.Registered.Values, registration =>
-+            synchronizer.CreateCommandRequest(new HotkeyInvocation(registration.Id, registration.Gesture,
-+                registration.Scope, DateTimeOffset.UtcNow))?.CommandId == original.CommandId);
-         Assert.Equal("disabled", runtime.ListHotkeyDiagnostics().Single(binding => binding.Id == original.Id).State);
- 
-         await runtime.UpdateSettingsWithApplyAsync(
-@@ -138,19 +148,21 @@ public sealed partial class RuntimeAcceptanceTests
-             CancellationToken.None);
-         var restored = await synchronizer.SyncAsync(CancellationToken.None);
-         Assert.Contains(restored, item => item.Id == original.Id && item.Operation == "register");
--        Assert.Equal(original.DefaultGesture, hotkeys.Registered[original.Id].Gesture);
-+        Assert.Equal(original.DefaultGesture, RegisteredFor(original.CommandId).Gesture);
- 
-         await runtime.SetModuleEnabledAsync("screenease", enabled: false, CancellationToken.None);
-         var disabled = await synchronizer.SyncAsync(CancellationToken.None);
- 
-         Assert.Contains(disabled, item => item.Id == original.Id && item.Operation == "unregister");
--        Assert.DoesNotContain(original.Id, hotkeys.Registered.Keys);
-+        Assert.DoesNotContain(hotkeys.Registered.Values, registration =>
-+            synchronizer.CreateCommandRequest(new HotkeyInvocation(registration.Id, registration.Gesture,
-+                registration.Scope, DateTimeOffset.UtcNow))?.CommandId == original.CommandId);
- 
-         await runtime.SetModuleEnabledAsync("screenease", enabled: true, CancellationToken.None);
-         var enabled = await synchronizer.SyncAsync(CancellationToken.None);
- 
-         Assert.Contains(enabled, item => item.Id == original.Id && item.Operation == "register");
--        Assert.Equal(original.DefaultGesture, hotkeys.Registered[original.Id].Gesture);
-+        Assert.Equal(original.DefaultGesture, RegisteredFor(original.CommandId).Gesture);
+-        Assert.Contains("gesture = 'Ctrl+Shift+P'", nativeSource, StringComparison.Ordinal);
+-        Assert.Contains("gesture = 'Ctrl+R'", nativeSource, StringComparison.Ordinal);
+-        Assert.DoesNotContain("['f', 'k', 'r']", nativeSource, StringComparison.Ordinal);
++        var forwarding = File.ReadAllText(Path.Combine(
++            Root, "src", "MyPowerTools.WebSurface.Shared", "ShortcutForwarding.inc"));
++        Assert.Contains("MptString(MptShortcutForwardingScript)", nativeSource, StringComparison.Ordinal);
++        Assert.Contains("MyPowerTools.WebSurface.Shared/ShortcutForwarding.inc", nativeSource, StringComparison.Ordinal);
++        Assert.Contains("'shortcut-bindings'", forwarding, StringComparison.Ordinal);
++        Assert.Contains("'keydown'", forwarding, StringComparison.Ordinal);
++        Assert.Contains("event.isComposing", forwarding, StringComparison.Ordinal);
++        Assert.Contains("binding.allowInTextInput", forwarding, StringComparison.Ordinal);
++        Assert.DoesNotContain("gesture = 'Ctrl+Shift+P'", nativeSource, StringComparison.Ordinal);
++        Assert.DoesNotContain("gesture = 'Ctrl+R'", nativeSource, StringComparison.Ordinal);
      }
  
      [Fact]
-diff --git a/src/MyPowerTools.Tests/RuntimeAcceptanceTests.PlatformBrokerPackage.Tests.cs b/src/MyPowerTools.Tests/RuntimeAcceptanceTests.PlatformBrokerPackage.Tests.cs
-index 1d8b121..092d6bc 100644
---- a/src/MyPowerTools.Tests/RuntimeAcceptanceTests.PlatformBrokerPackage.Tests.cs
-+++ b/src/MyPowerTools.Tests/RuntimeAcceptanceTests.PlatformBrokerPackage.Tests.cs
-@@ -555,14 +555,17 @@ public sealed partial class RuntimeAcceptanceTests
-         var startupOptions = File.ReadAllText(startupOptionsPath);
+diff --git a/src/MyPowerTools.Tests/RuntimeAcceptanceTests.ShellUi.Tests.cs b/src/MyPowerTools.Tests/RuntimeAcceptanceTests.ShellUi.Tests.cs
+index 6c4590d..629c73c 100644
+--- a/src/MyPowerTools.Tests/RuntimeAcceptanceTests.ShellUi.Tests.cs
++++ b/src/MyPowerTools.Tests/RuntimeAcceptanceTests.ShellUi.Tests.cs
+@@ -1579,7 +1579,8 @@ public sealed partial class RuntimeAcceptanceTests
+         Assert.Contains("x:Name=\"TitleContentHost\"", shellChromeView);
+         Assert.Contains("x:Name=\"NavigationModeButton\"", shellChromeView);
+         Assert.Contains("x:Name=\"PageHeaderHost\"", shellChromeView);
+-        Assert.Contains("Text=\"Ctrl+Shift+P\"", shellChromeView);
++        Assert.Contains("Text=\"{Binding CommandPaletteShortcutHint}\"", shellChromeView);
++        Assert.Contains("IsVisible=\"{Binding HasCommandPaletteShortcutHint}\"", shellChromeView);
+         Assert.Contains("WindowDecorationProperties.ElementRole=\"TitleBar\"", shellChromeView);
+         Assert.Contains("Classes.selected=\"{Binding IsSelected}\"", shellChromeView);
+         Assert.Contains("x:Name=\"SearchBox\"", shellChromeView);
+diff --git a/src/MyPowerTools.Tests/SmartBirdThermostatProduct.Tests.cs b/src/MyPowerTools.Tests/SmartBirdThermostatProduct.Tests.cs
+index 4f58295..20d41e8 100644
+--- a/src/MyPowerTools.Tests/SmartBirdThermostatProduct.Tests.cs
++++ b/src/MyPowerTools.Tests/SmartBirdThermostatProduct.Tests.cs
+@@ -313,7 +313,10 @@ public sealed class SmartBirdThermostatProductTests
+         Assert.Contains("IsOriginAllowed", hostWindow);
+         Assert.Contains("_toolId", hostWindow);
+         Assert.Contains("GetWindowThreadProcessId", hostWindow);
+-        Assert.Contains("AcceleratorKeyPressed", hostWindow);
++        Assert.Contains("AddScriptToExecuteOnDocumentCreatedAsync(ShortcutForwardingSource.Read())", hostWindow);
++        Assert.Contains("__mptShortcut", hostWindow);
++        Assert.Contains("WebToolHostProtocol.WriteShortcut", hostWindow);
++        Assert.DoesNotContain("AcceleratorKeyPressed", hostWindow);
+         Assert.Contains("MoveFocusRequested", hostWindow);
+         Assert.Contains("SetWindowRgn", hostWindow);
+         Assert.Contains("_controller.IsVisible = false;", hostWindow);
+diff --git a/src/MyPowerTools.WebSurface.Avalonia/AvaloniaWebSurfaceService.cs b/src/MyPowerTools.WebSurface.Avalonia/AvaloniaWebSurfaceService.cs
+index ae0c9a6..9e34eba 100644
+--- a/src/MyPowerTools.WebSurface.Avalonia/AvaloniaWebSurfaceService.cs
++++ b/src/MyPowerTools.WebSurface.Avalonia/AvaloniaWebSurfaceService.cs
+@@ -950,7 +950,7 @@ internal sealed class WebSurfaceControl : Control, IDisposable
+                 root.TryGetProperty("gesture", out var gestureNode) && gestureNode.ValueKind == JsonValueKind.String)
+             {
+                 var gesture = gestureNode.GetString() ?? "";
+-                if (gesture.Length is > 0 and <= 32)
++                if (WebShortcutMessage.TryRead(gesture, out _, out _))
+                 {
+                     hostEvent = new HostProcessEvent(HostProcessEventKind.Shortcut, MptWebSurfaceState.Ready, "", gesture);
+                     return true;
+diff --git a/src/MyPowerTools.WebSurface.Avalonia/MyPowerTools.WebSurface.Avalonia.csproj b/src/MyPowerTools.WebSurface.Avalonia/MyPowerTools.WebSurface.Avalonia.csproj
+index 1904239..463c152 100644
+--- a/src/MyPowerTools.WebSurface.Avalonia/MyPowerTools.WebSurface.Avalonia.csproj
++++ b/src/MyPowerTools.WebSurface.Avalonia/MyPowerTools.WebSurface.Avalonia.csproj
+@@ -16,6 +16,7 @@
  
-         Assert.Contains("StartHotkeysAsync", runner);
--        Assert.Contains("new HotkeyRegistration(\"command-palette\", \"Ctrl+Alt+Space\"", runner);
-+        Assert.DoesNotContain("new HotkeyRegistration(\"command-palette\",", runner);
-+        var catalog = File.ReadAllText(Path.Combine(Root, "src", "MyPowerTools.Runtime", "ShortcutConfiguration.cs"));
-+        Assert.Contains("\"runner.command-palette\"", catalog);
-+        Assert.Contains("\"Ctrl+Alt+Space\"", catalog);
-         Assert.Contains("RunnerHotkeySynchronizer", runner);
--        Assert.Contains("runtime.ListHotkeyBindings()", hotkeySynchronizer);
-+        Assert.Contains("_runtime.ListManagedHotkeyBindings()", hotkeySynchronizer);
-         Assert.Contains("SyncModuleHotkeysAsync", runner);
-         Assert.Contains("WatchRuntimeHotkeyBindingsAsync", runner);
--        Assert.Contains("hotkeys.UnregisterAsync", hotkeySynchronizer);
-+        Assert.Contains("_hotkeys.UnregisterAsync", hotkeySynchronizer);
-         Assert.Contains("RequiresHotkeySync(evt.Type)", runner);
--        Assert.Contains("new HotkeyRegistration(binding.Id, normalizedGesture, binding.Scope, binding.Reason)", hotkeySynchronizer);
-+        Assert.Contains("new(nativeId, binding.Gesture, binding.Scope, binding.Reason)", hotkeySynchronizer);
-         Assert.Contains("runtime.ExecuteCommandAsync", runner);
-         Assert.Contains("CreateCommandRequest", runner);
-         Assert.Contains("new Sdk.CommandRequest", hotkeySynchronizer);
+   <ItemGroup>
+     <InternalsVisibleTo Include="MyPowerTools.Tests" />
++    <InternalsVisibleTo Include="ShortcutCenter.Tests" />
+   </ItemGroup>
+ 
+ </Project>
+diff --git a/src/MyPowerTools.WebSurface.Avalonia/WebShortcutMessage.cs b/src/MyPowerTools.WebSurface.Avalonia/WebShortcutMessage.cs
+new file mode 100644
+index 0000000..615b601
+--- /dev/null
++++ b/src/MyPowerTools.WebSurface.Avalonia/WebShortcutMessage.cs
+@@ -0,0 +1,44 @@
++using System.Text.Json;
++
++namespace MyPowerTools.WebSurface.Avalonia;
++
++/// <summary>Decodes the input context carried by both native WebView bridges.</summary>
++public static class WebShortcutMessage
++{
++    public const int MaximumMessageLength = 4096;
++    public const int MaximumGestureLength = 32;
++
++    /// <summary>
++    /// Read the current gesture/context envelope or a legacy bare gesture. Legacy messages
++    /// conservatively retain text-input ownership because they cannot describe the focused element.
++    /// </summary>
++    public static bool TryRead(string? message, out string gesture, out bool textInput)
++    {
++        gesture = "";
++        textInput = true;
++        if (string.IsNullOrWhiteSpace(message) || message.Length > MaximumMessageLength) return false;
++        var trimmed = message.Trim();
++        if (!trimmed.StartsWith('{'))
++        {
++            if (trimmed.Length > MaximumGestureLength) return false;
++            gesture = trimmed;
++            return true;
++        }
++
++        try
++        {
++            using var document = JsonDocument.Parse(trimmed);
++            var root = document.RootElement;
++            if (root.ValueKind != JsonValueKind.Object ||
++                !root.TryGetProperty("gesture", out var key) || key.ValueKind != JsonValueKind.String ||
++                !root.TryGetProperty("textInput", out var input) ||
++                input.ValueKind is not (JsonValueKind.True or JsonValueKind.False)) return false;
++            var candidate = key.GetString();
++            if (string.IsNullOrWhiteSpace(candidate) || candidate.Length > MaximumGestureLength) return false;
++            gesture = candidate;
++            textInput = input.GetBoolean();
++            return true;
++        }
++        catch (JsonException) { return false; }
++    }
++}
+diff --git a/src/MyPowerTools.WebToolHost/WebToolHostProtocol.cs b/src/MyPowerTools.WebToolHost/WebToolHostProtocol.cs
+index a71ac52..d9f12c1 100644
+--- a/src/MyPowerTools.WebToolHost/WebToolHostProtocol.cs
++++ b/src/MyPowerTools.WebToolHost/WebToolHostProtocol.cs
+@@ -82,7 +82,7 @@ internal static class WebToolHostProtocol
+             JsonOptions);
+     }
+ 
+-    public static void WriteShortcut(string gesture)
++    public static void WriteShortcut(string gesture, TextWriter? output = null)
+     {
+         WritePayload(new
+         {
+@@ -90,7 +90,7 @@ internal static class WebToolHostProtocol
+             gesture,
+             pid = Environment.ProcessId,
+             protocolVersion = 1
+-        }, JsonOptions);
++        }, JsonOptions, output);
+     }
+ 
+     public static void WriteFocusMove(string direction)
+@@ -116,13 +116,14 @@ internal static class WebToolHostProtocol
+         }, JsonOptions);
+     }
+ 
+-    private static void WritePayload<T>(T value, JsonSerializerOptions options)
++    private static void WritePayload<T>(T value, JsonSerializerOptions options, TextWriter? output = null)
+     {
+         var payload = JsonSerializer.Serialize(value, options);
+         lock (OutputLock)
+         {
+-            Console.Out.WriteLine(payload);
+-            Console.Out.Flush();
++            var writer = output ?? Console.Out;
++            writer.WriteLine(payload);
++            writer.Flush();
+         }
+     }
+ }
+diff --git a/tests/ShortcutCenter.Tests/ShortcutCenter.Tests.csproj b/tests/ShortcutCenter.Tests/ShortcutCenter.Tests.csproj
+index 2cbdf39..333c9ad 100644
+--- a/tests/ShortcutCenter.Tests/ShortcutCenter.Tests.csproj
++++ b/tests/ShortcutCenter.Tests/ShortcutCenter.Tests.csproj
+@@ -13,6 +13,8 @@
+     <PackageReference Include="xunit.v3" Version="3.2.2" />
+     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5"><PrivateAssets>all</PrivateAssets></PackageReference>
+     <Using Include="Xunit" />
++    <!-- Exercise the actual child-host serializer without requiring a Windows UI process. -->
++    <Compile Include="../../src/MyPowerTools.WebToolHost/WebToolHostProtocol.cs" Link="WebToolHostProtocol.cs" />
+   </ItemGroup>
+   <ItemGroup>
+     <ProjectReference Include="../../src/MyPowerTools.Shell.Avalonia/MyPowerTools.Shell.Avalonia.csproj" />
+diff --git a/tests/ShortcutCenter.Tests/WebShortcutTransportTests.cs b/tests/ShortcutCenter.Tests/WebShortcutTransportTests.cs
+new file mode 100644
+index 0000000..a92bdfd
+--- /dev/null
++++ b/tests/ShortcutCenter.Tests/WebShortcutTransportTests.cs
+@@ -0,0 +1,80 @@
++using System.Reflection;
++using System.Text.Json;
++using Avalonia.Controls;
++using Avalonia.Headless.XUnit;
++using MyPowerTools.Runtime;
++using MyPowerTools.Shell.Avalonia.Services;
++using MyPowerTools.Shell.Avalonia.ViewModels;
++using MyPowerTools.UI.Controls;
++using MyPowerTools.WebSurface.Avalonia;
++using MyPowerTools.WebToolHost;
++
++namespace ShortcutCenter.Tests;
++
++public sealed class WebShortcutTransportTests
++{
++    [Theory]
++    [InlineData(false)]
++    [InlineData(true)]
++    public void Actual_host_frames_preserve_the_gesture_and_input_context(bool input)
++    {
++        var envelope = JsonSerializer.Serialize(new { gesture = "Ctrl+Shift+P", textInput = input });
++        Assert.True(envelope.Length > 32); // The old host reader rejected every current envelope.
++        using var output = new StringWriter();
++        WebToolHostProtocol.WriteShortcut(envelope, output);
++        Assert.True(WebSurfaceControl.TryReadHostEvent(output.ToString().TrimEnd(), Environment.ProcessId, out var frame));
++        Assert.Equal(WebSurfaceControl.HostProcessEventKind.Shortcut, frame.Kind);
++        Assert.Equal(envelope, frame.Value);
++        Assert.True(WebShortcutMessage.TryRead(frame.Value, out var gesture, out var textInput));
++        Assert.Equal("Ctrl+Shift+P", gesture);
++        Assert.Equal(input, textInput);
++    }
++
++    [Fact]
++    public void Legacy_host_gestures_remain_compatible_without_losing_text_input_ownership()
++    {
++        using var output = new StringWriter();
++        WebToolHostProtocol.WriteShortcut("Ctrl+Shift+P", output);
++        Assert.True(WebSurfaceControl.TryReadHostEvent(output.ToString().TrimEnd(), Environment.ProcessId, out var frame));
++        Assert.True(WebShortcutMessage.TryRead(frame.Value, out var gesture, out var textInput));
++        Assert.Equal("Ctrl+Shift+P", gesture);
++        Assert.True(textInput);
++    }
++
++    [Theory]
++    [InlineData("{\"gesture\":\"Ctrl+K\"}")]
++    [InlineData("{\"gesture\":\"Ctrl+K\",\"textInput\":\"false\"}")]
++    [InlineData("{\"gesture\":null,\"textInput\":false}")]
++    [InlineData("{\"gesture\":\"\",\"textInput\":false}")]
++    public void Malformed_envelopes_cannot_be_mistaken_for_non_text_context(string envelope)
++    {
++        using var output = new StringWriter();
++        WebToolHostProtocol.WriteShortcut(envelope, output);
++        Assert.False(WebSurfaceControl.TryReadHostEvent(output.ToString().TrimEnd(), Environment.ProcessId, out _));
++        Assert.False(WebShortcutMessage.TryRead(envelope, out _, out var textInput));
++        Assert.True(textInput);
++    }
++
++    [AvaloniaFact]
++    public async Task Chrome_hint_tracks_actual_configuration_rebinding_and_disable()
++    {
++        var chrome = new ShellChromeViewModel(ShellWorkspaceController.PageLabels);
++        await using var controller = new ShellWorkspaceController(chrome, new MptSearchBox(),
++            new ContentControl(), new ContentControl(), new ContentControl(), new ContentControl());
++        var client = (ShortcutConfigurationClient)typeof(ShellWorkspaceController)
++            .GetField("_shortcuts", BindingFlags.Instance | BindingFlags.NonPublic)!.GetValue(controller)!;
++        var accept = typeof(ShortcutConfigurationClient)
++            .GetMethod("Accept", BindingFlags.Instance | BindingFlags.NonPublic)!;
++        var snapshot = new ShortcutCatalogSnapshot(new(0, []), ShortcutCatalog.ShellCommands, [], "macos");
++        accept.Invoke(client, [snapshot]);
++        Assert.Equal(client.Hint("shell.command-palette.open"), chrome.CommandPaletteShortcutHint);
++        Assert.True(chrome.HasCommandPaletteShortcutHint);
++        snapshot = snapshot with { Configuration = new(1, [new("shell.command-palette.open", [new("Win+F9", "macos")])]) };
++        accept.Invoke(client, [snapshot]);
++        Assert.Equal("Cmd+F9", chrome.CommandPaletteShortcutHint);
++        snapshot = snapshot with { Configuration = new(2, [new("shell.command-palette.open", [new("Win+F9", "macos")], true)]) };
++        accept.Invoke(client, [snapshot]);
++        Assert.Empty(chrome.CommandPaletteShortcutHint);
++        Assert.False(chrome.HasCommandPaletteShortcutHint);
++    }
++}

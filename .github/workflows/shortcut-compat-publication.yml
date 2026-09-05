@@ -1,4 +1,4 @@
-name: Shortcut legacy contract verification
+name: Shortcut transport and legacy verification
 on:
   push:
     branches: [codex/shortcut-compat-workspace-2026-09-05]
@@ -16,16 +16,16 @@ jobs:
         with:
           persist-credentials: false
       - id: publish
-        name: Publish only the two reviewed test changes
+        name: Publish reviewed transport and live-hint corrections
         shell: python
         env:
           PUBLISH_TOKEN: ${{ secrets.MPT_SUBMODULE_PAT || github.token }}
         run: |
           import base64, hashlib, os, pathlib, subprocess
-          expected = '0b94455fb1802f7fd0efd77b54f2d249da75ddcd'
+          expected = '83a8d0c42cce295bd73973a386bef619bba63bc9'
           branch = 'codex/feat-shortcut-center-2026-09-05'
           patch = pathlib.Path('scripts/shortcut-compat.patch').read_bytes()
-          assert hashlib.sha256(patch).hexdigest() == 'e71ecfbafca910b64295d2a2e7d52ba76bcda4567552b16fc7dedcbda82472b6', 'Patch checksum mismatch'
+          assert hashlib.sha256(patch).hexdigest() == 'c16a3862ba9a47643c63699be3e35b23304fca043c21eb89f86c18a2bff018d0', 'Patch checksum mismatch'
           def git(*args, data=None, env=None):
               return subprocess.check_output(['git', *args], input=data, env=env).decode().strip()
           remote = git('ls-remote', '--heads', 'origin', 'refs/heads/' + branch).split()[0]
@@ -35,17 +35,29 @@ jobs:
           git('apply', '--check', '-', data=patch)
           git('apply', '-', data=patch)
           git('diff', '--check')
-          paths = ['src/MyPowerTools.Tests/Runtime.PFoundation7.Tests.cs', 'src/MyPowerTools.Tests/RuntimeAcceptanceTests.PlatformBrokerPackage.Tests.cs']
-          assert sorted(git('diff', '--name-only').splitlines()) == sorted(paths)
+          paths = [
+            'src/MyPowerTools.Shell.Avalonia/Services/ShellWorkspaceController.Keyboard.cs',
+            'src/MyPowerTools.Shell.Avalonia/ViewModels/ViewModelInfrastructure.cs',
+            'src/MyPowerTools.Shell.Avalonia/Views/ShellChromeView.axaml',
+            'src/MyPowerTools.Tests/MacReleaseSync.Tests.cs',
+            'src/MyPowerTools.Tests/RuntimeAcceptanceTests.ShellUi.Tests.cs',
+            'src/MyPowerTools.Tests/SmartBirdThermostatProduct.Tests.cs',
+            'src/MyPowerTools.WebSurface.Avalonia/AvaloniaWebSurfaceService.cs',
+            'src/MyPowerTools.WebSurface.Avalonia/MyPowerTools.WebSurface.Avalonia.csproj',
+            'src/MyPowerTools.WebSurface.Avalonia/WebShortcutMessage.cs',
+            'src/MyPowerTools.WebToolHost/WebToolHostProtocol.cs',
+            'tests/ShortcutCenter.Tests/ShortcutCenter.Tests.csproj',
+            'tests/ShortcutCenter.Tests/WebShortcutTransportTests.cs']
           git('add', '--', *paths)
-          git('-c', 'user.name=Codex', '-c', 'user.email=codex@openai.com', 'commit', '-m', 'test(shortcuts): migrate legacy hotkey assertions to centralized registration')
+          assert sorted(git('diff', '--cached', '--name-only').splitlines()) == sorted(paths)
+          git('-c', 'user.name=Codex', '-c', 'user.email=codex@openai.com', 'commit', '-m', 'fix(shortcuts): preserve WebView input context end-to-end and update live chrome hints')
           sha = git('rev-parse', 'HEAD')
           env = dict(os.environ)
           auth = base64.b64encode(('x-access-token:' + env['PUBLISH_TOKEN']).encode()).decode()
           env.update(GIT_CONFIG_COUNT='1', GIT_CONFIG_KEY_0='http.https://github.com/.extraheader', GIT_CONFIG_VALUE_0='AUTHORIZATION: basic ' + auth)
           git('push', 'origin', 'HEAD:refs/heads/' + branch, env=env)
           with open(os.environ['GITHUB_OUTPUT'], 'a') as out: out.write('sha=' + sha + '\n')
-          print('Published test migration:', sha)
+          print('Published transport fix:', sha)
   legacy-tests:
     needs: publish
     runs-on: windows-latest
@@ -62,11 +74,11 @@ jobs:
       - name: Build SDK and run shortcut and personal UX regressions
         shell: pwsh
         run: ./scripts/test-shortcut-center.ps1
-      - name: Run migrated legacy hotkey behavior and integration tests
+      - name: Run legacy hotkey, WebView transport and chrome integration tests
         shell: pwsh
         run: |
-          dotnet test src/MyPowerTools.Tests/MyPowerTools.Tests.csproj --configuration Release -p:BuildWindowsWebToolHost=false --filter "FullyQualifiedName~Runner_hotkey_sync_reregisters_gesture_updates_args_and_follows_enable_state|FullyQualifiedName~Runner_wires_windows_global_hotkey_to_command_palette_startup" --logger 'trx;LogFileName=legacy-hotkeys.trx' --results-directory "$env:RUNNER_TEMP/mypowertools-shortcut-results"
-          if ($LASTEXITCODE -ne 0) { throw 'Legacy hotkey contracts failed.' }
+          dotnet test src/MyPowerTools.Tests/MyPowerTools.Tests.csproj --configuration Release -p:BuildWindowsWebToolHost=false --filter "FullyQualifiedName~Runner_hotkey_sync_reregisters_gesture_updates_args_and_follows_enable_state|FullyQualifiedName~Runner_wires_windows_global_hotkey_to_command_palette_startup|FullyQualifiedName~Mac_webview_forwards_the_current_shell_shortcut_contract|FullyQualifiedName~Product_view_uses_the_sdk_web_surface_host_capability|FullyQualifiedName~Shell_chrome_layout_is_wired_to_axaml_view|FullyQualifiedName~WebSurfaceHostTests" --logger 'trx;LogFileName=legacy-hotkeys.trx' --results-directory "$env:RUNNER_TEMP/mypowertools-shortcut-results"
+          if ($LASTEXITCODE -ne 0) { throw 'Legacy hotkey and transport contracts failed.' }
       - uses: actions/upload-artifact@v4
         if: always()
         with:
