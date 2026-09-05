@@ -1,0 +1,40 @@
+name: Shortcut center
+on:
+  push:
+    branches: [codex/feat-shortcut-center-2026-09-05]
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  source:
+    runs-on: ubuntu-24.04
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Initialize tool sources
+        run: git submodule update --init --depth=1 -- tools/adb-forwarder tools/doubao-computer-use tools/input-monitor tools/process-monitor tools/remote-commands tools/remote-notifications tools/screenease tools/smartbird-thermostat
+      - name: Archive exact tracked source
+        shell: python
+        run: |
+          import os, pathlib, subprocess, tarfile
+          temp = pathlib.Path(os.environ['RUNNER_TEMP'])
+          roots = [pathlib.Path('.')] + sorted(p for p in pathlib.Path('tools').iterdir() if (p / '.git').is_file())
+          revisions = []
+          with tarfile.open(temp / 'shortcut-source.tar.gz', 'w:gz') as archive:
+              for root in roots:
+                  revisions.append(subprocess.check_output(['git', '-C', str(root), 'rev-parse', 'HEAD'], text=True).strip() + ' ' + str(root))
+                  for record in subprocess.check_output(['git', '-C', str(root), 'ls-files', '--stage', '-z']).split(b'\0'):
+                      if not record: continue
+                      metadata, name = record.split(b'\t', 1)
+                      if metadata.startswith(b'160000 '): continue
+                      path = root / os.fsdecode(name)
+                      archive.add(path, arcname=path.as_posix(), recursive=False)
+          (temp / 'shortcut-revisions.txt').write_text('\n'.join(revisions) + '\n')
+      - uses: actions/upload-artifact@v4
+        with:
+          name: shortcut-source
+          path: |
+            ${{ runner.temp }}/shortcut-source.tar.gz
+            ${{ runner.temp }}/shortcut-revisions.txt
+          retention-days: 3
