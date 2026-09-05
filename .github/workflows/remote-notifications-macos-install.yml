@@ -82,9 +82,9 @@ jobs:
           & /usr/bin/codesign --verify --deep --strict $app
           if ($LASTEXITCODE -ne 0) { throw 'Initially installed application failed signature verification.' }
 
-          "APPS_ROOT=$apps" | Set-Content -LiteralPath $env:GITHUB_ENV -Encoding utf8 -Append
-          "DATA_ROOT=$data" | Set-Content -LiteralPath $env:GITHUB_ENV -Encoding utf8 -Append
-          "INSTALLED_APP=$app" | Set-Content -LiteralPath $env:GITHUB_ENV -Encoding utf8 -Append
+          "APPS_ROOT=$apps" | Add-Content -LiteralPath $env:GITHUB_ENV -Encoding utf8
+          "DATA_ROOT=$data" | Add-Content -LiteralPath $env:GITHUB_ENV -Encoding utf8
+          "INSTALLED_APP=$app" | Add-Content -LiteralPath $env:GITHUB_ENV -Encoding utf8
 
       - name: Replacement installation stops every old-bundle process
         shell: pwsh

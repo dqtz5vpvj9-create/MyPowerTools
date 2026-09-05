@@ -423,13 +423,15 @@ if (-not $SkipNativeBuild) {
     if (-not $IsMacOS) {
         throw 'The WKWebView/UserNotifications native library must be built on macOS. Run this script on macOS or use -SkipNativeBuild for managed cross-publish validation.'
     }
+    # RID segments and clang arch names disagree for Intel: osx-x64 vs -arch x86_64.
+    $clangArch = if ($Architecture -eq 'x64') { 'x86_64' } else { $Architecture }
     $nativeOutput = Join-Path $stageRoot 'libMptMacNative.dylib'
     Invoke-Native -FilePath 'xcrun' -ArgumentList @(
         'clang++',
         '-std=c++17',
         '-fobjc-arc',
         '-dynamiclib',
-        '-arch', $Architecture,
+        '-arch', $clangArch,
         '-mmacosx-version-min=12.0',
         '-framework', 'Cocoa',
         '-framework', 'WebKit',
