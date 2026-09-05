@@ -340,15 +340,18 @@ static async Task<IHotkeyService?> StartHotkeysAsync(string root, string dataRoo
     if (args.Contains("--no-hotkeys", StringComparer.OrdinalIgnoreCase) ||
         !platform.Capabilities.Resolve("hotkey.global").Supported)
     {
+        runtime.ConfigureShortcutSynchronization(null, "System hotkeys are disabled or unsupported on this desktop; application shortcuts remain available.");
         return null;
     }
 
     var hotkeys = platform.Hotkeys;
     var synchronizer = new RunnerHotkeySynchronizer(hotkeys, runtime);
+    runtime.ConfigureShortcutSynchronization(async token => { await synchronizer.SyncAsync(token); }, "Connected to platform hotkeys.");
     hotkeys.Pressed += (_, invocation) =>
     {
         var hotkeyReceivedUtc = DateTimeOffset.UtcNow;
-        if (string.Equals(invocation.Id, "command-palette", StringComparison.OrdinalIgnoreCase))
+        var request = synchronizer.CreateCommandRequest(invocation);
+        if (string.Equals(request?.CommandId, "shell.command-palette.open", StringComparison.OrdinalIgnoreCase))
         {
             try
             {
@@ -363,7 +366,6 @@ static async Task<IHotkeyService?> StartHotkeysAsync(string root, string dataRoo
             return;
         }
 
-        var request = synchronizer.CreateCommandRequest(invocation);
         if (request is null)
         {
             return;
@@ -385,11 +387,6 @@ static async Task<IHotkeyService?> StartHotkeysAsync(string root, string dataRoo
             }
         });
     };
-
-    var result = await hotkeys.RegisterAsync(
-        new HotkeyRegistration("command-palette", "Ctrl+Alt+Space", "runner", "Open the command palette."),
-            CancellationToken.None);
-    Console.WriteLine($"MyPowerTools.Runner hotkey {result.State}: {result.Message}");
 
     await SyncModuleHotkeysAsync(synchronizer, CancellationToken.None);
     _ = Task.Run(() => WatchRuntimeHotkeyBindingsAsync(runtime, synchronizer));

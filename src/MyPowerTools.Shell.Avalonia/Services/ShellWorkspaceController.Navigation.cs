@@ -30,7 +30,7 @@ public sealed partial class ShellWorkspaceController
         _currentPage = page;
         _currentToolId = "";
         _currentToolRouteId = "";
-        var navigationPage = IsSystemDestination(page) ? SystemPage : page;
+        var navigationPage = page == ShortcutsPage ? SettingsPage : IsSystemDestination(page) ? SystemPage : page;
         _chromeViewModel.SelectPage(navigationPage);
         _navigation.Navigate(ToShellRoute(page), addToHistory: true);
         if (!string.Equals(page, CommandsPage, StringComparison.OrdinalIgnoreCase))
@@ -66,6 +66,9 @@ public sealed partial class ShellWorkspaceController
                 break;
             case CommandsPage:
                 await OpenCommandPaletteAsync();
+                break;
+            case ShortcutsPage:
+                await LoadShortcutCenterAsync();
                 break;
             case SettingsPage:
                 await LoadGeneralSettingsPage();

@@ -39,6 +39,7 @@ public sealed record MptAvaloniaSurfaceContext(
     /// this property <see langword="null"/> and tools should offer their external-browser path.
     /// </summary>
     public IMptWebSurfaceService? WebSurfaces { get; init; }
+    public Func<string?, Task>? OpenShortcutSettingsAsync { get; init; }
 }
 
 public enum MptWebSurfaceState
@@ -150,30 +151,31 @@ public sealed class MptAsyncRelayCommand : ICommand
 
     public void NotifyCanExecuteChanged() => CanExecuteChanged?.Invoke(this, EventArgs.Empty);
 
-    public bool CanExecute(object? parameter) => _canExecute?.Invoke() ?? Volatile.Read(ref _isRunning) == 0;
+    public bool CanExecute(object? parameter) => Volatile.Read(ref _isRunning) == 0 && (_canExecute?.Invoke() ?? true);
 
     public async void Execute(object? parameter)
     {
-        if (Interlocked.CompareExchange(ref _isRunning, 1, 0) != 0)
-        {
-            return;
-        }
-
-        try
-        {
-            await _execute();
-        }
+        try { await ExecuteAsync(); }
         catch (Exception ex)
         {
-            // Surface tools are responsible for their own error display; log to avoid silent swallow.
             System.Diagnostics.Trace.WriteLine($"Surface command {OperationName} failed: {ex.Message}");
             MptCommandFaultBoundary.TraceFault(OperationName ?? "(unnamed)", ex);
         }
+    }
+
+    /// <summary>Await the same action used by ICommand without swallowing its error at a second entry point.</summary>
+    public async Task ExecuteAsync()
+    {
+        if (!CanExecute(null) || Interlocked.CompareExchange(ref _isRunning, 1, 0) != 0) return;
+        NotifyCanExecuteChanged();
+        try { await _execute(); }
         finally
         {
             Volatile.Write(ref _isRunning, 0);
+            NotifyCanExecuteChanged();
         }
     }
+
 }
 
 /// <summary>

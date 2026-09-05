@@ -1,6 +1,5 @@
 using System.Text.Json;
 using System.Text.Json.Nodes;
-using MyPowerTools.Abstractions;
 using MyPowerTools.Platform.Abstractions;
 using MyPowerTools.Runtime;
 using Sdk = MyPowerTools.Abstractions;
@@ -11,6 +10,7 @@ public sealed class RunnerHotkeySynchronizer
 {
     private readonly IHotkeyService _hotkeys;
     private readonly MptHostRuntime _runtime;
+    private readonly SemaphoreSlim _sync = new(1, 1);
     private readonly object _gate = new();
     private readonly Dictionary<string, RegisteredModuleHotkey> _registered = new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, HotkeyCommandBinding> _commands = new(StringComparer.OrdinalIgnoreCase);
@@ -23,118 +23,117 @@ public sealed class RunnerHotkeySynchronizer
 
     public async Task<IReadOnlyList<RunnerHotkeySyncResult>> SyncAsync(CancellationToken cancellationToken)
     {
+        await _sync.WaitAsync(cancellationToken);
+        try { return await SyncCoreAsync(cancellationToken); }
+        finally { _sync.Release(); }
+    }
+
+    private async Task<IReadOnlyList<RunnerHotkeySyncResult>> SyncCoreAsync(CancellationToken cancellationToken)
+    {
         var results = new List<RunnerHotkeySyncResult>();
-        var bindings = _runtime.ListHotkeyBindings();
-        var nextById = bindings.ToDictionary(binding => binding.Id, StringComparer.OrdinalIgnoreCase);
-        List<string> staleIds;
-        lock (_gate)
+        var all = _runtime.ListManagedHotkeyBindings();
+        // Explicit user bindings win over shipped defaults. Equal-priority conflicts use stable action IDs.
+        var bindings = all.DistinctBy(item => item.Gesture, StringComparer.OrdinalIgnoreCase).ToArray();
+        var desired = bindings.ToDictionary(item => item.Id, StringComparer.OrdinalIgnoreCase);
+        foreach (var id in _registered.Keys.Where(id => !desired.ContainsKey(id)).ToArray())
         {
-            staleIds = _registered.Keys.Where(id => !nextById.ContainsKey(id)).ToList();
-        }
-
-        foreach (var id in staleIds)
-        {
-            var unregister = await _hotkeys.UnregisterAsync(id, cancellationToken);
-            lock (_gate)
+            var old = _registered[id];
+            var result = await TryUnregisterAsync(old.NativeId, cancellationToken);
+            results.Add(new(id, "unregister", result));
+            if (result.Success || result.State == "not-registered")
             {
-                _registered.Remove(id);
-                _commands.Remove(id);
+                lock (_gate) { _registered.Remove(id); _commands.Remove(old.NativeId); }
+                _runtime.RemoveShortcutRegistration(id);
             }
-
-            results.Add(new RunnerHotkeySyncResult(id, "unregister", unregister));
+            else Report(old.Binding, old.Binding.Gesture, "unregister-failed", result.Message);
         }
-
+        foreach (var loser in all.Where(item => !desired.ContainsKey(item.Id)))
+        {
+            var winner = bindings.First(item => item.Gesture.Equals(loser.Gesture, StringComparison.OrdinalIgnoreCase));
+            Report(loser, _registered.GetValueOrDefault(loser.Id)?.Binding.Gesture ?? "", "conflict", $"Same gesture as {winner.Id}; only that binding is registered.");
+        }
         foreach (var binding in bindings)
         {
-            RegisteredModuleHotkey? existing;
-            lock (_gate)
+            _registered.TryGetValue(binding.Id, out var existing);
+            if (existing is not null && existing.Binding.Gesture.Equals(binding.Gesture, StringComparison.OrdinalIgnoreCase))
             {
-                _commands[binding.Id] = new HotkeyCommandBinding(binding.CommandId, binding.CommandArgsJson);
-                _registered.TryGetValue(binding.Id, out existing);
-            }
-
-            var normalizedGesture = binding.Gesture.Trim();
-            if (existing is not null &&
-                string.Equals(existing.Gesture, normalizedGesture, StringComparison.OrdinalIgnoreCase))
-            {
-                continue;
-            }
-
-            if (existing is not null)
-            {
-                var unregister = await _hotkeys.UnregisterAsync(binding.Id, cancellationToken);
                 lock (_gate)
                 {
-                    _registered.Remove(binding.Id);
+                    _commands[existing.NativeId] = new(binding.CommandId, binding.CommandArgsJson);
+                    _registered[binding.Id] = existing with { Binding = binding };
                 }
-
-                results.Add(new RunnerHotkeySyncResult(binding.Id, "reregister-unregister", unregister));
-                if (!unregister.Success && !string.Equals(unregister.State, "not-registered", StringComparison.OrdinalIgnoreCase))
+                Report(binding, binding.Gesture, "active", "Registered by the operating system.");
+                continue;
+            }
+            var nativeId = existing is null ? binding.Id : binding.Id + "@" + Guid.NewGuid().ToString("N");
+            HotkeyRegistrationResult registered;
+            try
+            {
+                registered = await _hotkeys.RegisterAsync(new(nativeId, binding.Gesture, binding.Scope, binding.Reason), cancellationToken);
+            }
+            catch (Exception ex) when (ex is not OperationCanceledException)
+            {
+                Report(binding, existing?.Binding.Gesture ?? "", existing is null ? "failed" : "kept-previous", ex.Message);
+                continue;
+            }
+            results.Add(new(binding.Id, existing is null ? "register" : "reregister-register", registered));
+            if (!registered.Success)
+            {
+                Report(binding, existing?.Binding.Gesture ?? "", existing is null ? "failed" : "kept-previous",
+                    registered.Message + (existing is null ? "" : " The previous gesture is still active."));
+                continue;
+            }
+            if (existing is not null)
+            {
+                var removed = await TryUnregisterAsync(existing.NativeId, CancellationToken.None);
+                results.Add(new(binding.Id, "reregister-unregister", removed));
+                if (!removed.Success && removed.State != "not-registered")
                 {
+                    await TryUnregisterAsync(nativeId, CancellationToken.None);
+                    Report(binding, existing.Binding.Gesture, "kept-previous", removed.Message);
                     continue;
                 }
             }
-
-            var register = await _hotkeys.RegisterAsync(
-                new HotkeyRegistration(binding.Id, normalizedGesture, binding.Scope, binding.Reason),
-                cancellationToken);
-            if (register.Success)
+            lock (_gate)
             {
-                lock (_gate)
-                {
-                    _registered[binding.Id] = new RegisteredModuleHotkey(normalizedGesture);
-                    _commands[binding.Id] = new HotkeyCommandBinding(binding.CommandId, binding.CommandArgsJson);
-                }
+                if (existing is not null) _commands.Remove(existing.NativeId);
+                _registered[binding.Id] = new(binding, nativeId);
+                _commands[nativeId] = new(binding.CommandId, binding.CommandArgsJson);
             }
-
-            results.Add(new RunnerHotkeySyncResult(binding.Id, existing is null ? "register" : "reregister-register", register));
+            Report(binding, binding.Gesture, "active", "Registered by the operating system.");
         }
-
         return results;
     }
+
+    private async Task<HotkeyRegistrationResult> TryUnregisterAsync(string id, CancellationToken token)
+    {
+        try { return await _hotkeys.UnregisterAsync(id, token); }
+        catch (Exception ex) when (ex is not OperationCanceledException)
+        {
+            return new(false, "unregister-failed", ex.Message);
+        }
+    }
+
+    private void Report(RuntimeHotkeyBinding binding, string actual, string state, string message) =>
+        _runtime.SetShortcutRegistration(new(binding.Id, _runtime.GetShortcutIdForBinding(binding.Id), binding.Gesture, actual, state, message));
 
     public Sdk.CommandRequest? CreateCommandRequest(HotkeyInvocation invocation)
     {
         HotkeyCommandBinding? binding;
-        lock (_gate)
-        {
-            _commands.TryGetValue(invocation.Id, out binding);
-        }
-
-        if (binding is null)
-        {
-            return null;
-        }
-
-        return new Sdk.CommandRequest(
-            $"hotkey-{Guid.NewGuid():N}",
-            binding.CommandId,
-            ParseCommandArgs(binding.CommandArgsJson));
+        lock (_gate) { _commands.TryGetValue(invocation.Id, out binding); }
+        return binding is null ? null : new Sdk.CommandRequest($"hotkey-{Guid.NewGuid():N}", binding.CommandId, ParseCommandArgs(binding.CommandArgsJson));
     }
 
-    public static bool RequiresHotkeySync(string eventType)
-    {
-        return eventType is "module.enabled" or "module.disabled" or "settings.updated" or "hotkeys.updated" or "registry.loaded";
-    }
+    public static bool RequiresHotkeySync(string eventType) =>
+        eventType is "module.enabled" or "module.disabled" or "settings.updated" or "hotkeys.updated" or "registry.loaded";
 
     private static JsonObject ParseCommandArgs(string json)
     {
-        if (string.IsNullOrWhiteSpace(json))
-        {
-            return new JsonObject();
-        }
-
-        try
-        {
-            return JsonNode.Parse(json) as JsonObject ?? new JsonObject();
-        }
-        catch (JsonException)
-        {
-            return new JsonObject();
-        }
+        try { return JsonNode.Parse(string.IsNullOrWhiteSpace(json) ? "{}" : json) as JsonObject ?? new(); }
+        catch (JsonException) { return new(); }
     }
 
-    private sealed record RegisteredModuleHotkey(string Gesture);
+    private sealed record RegisteredModuleHotkey(RuntimeHotkeyBinding Binding, string NativeId);
     private sealed record HotkeyCommandBinding(string CommandId, string CommandArgsJson);
 }
 

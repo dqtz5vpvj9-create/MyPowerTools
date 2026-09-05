@@ -34,8 +34,11 @@ public static class PlatformWebSurfaceService
     }
 }
 
-public sealed class MacWebSurfaceService : IMptWebSurfaceService
+public sealed class MacWebSurfaceService : IMptWebSurfaceService, IConfigurableWebShortcuts
 {
+    private readonly WebShortcutConfiguration _shortcutConfiguration = new();
+    public void UpdateShortcutBindings(IReadOnlyList<WebShortcutBinding> bindings) => _shortcutConfiguration.Update(bindings);
+
     private readonly WebSurfaceOcclusionState _occlusionState;
     private readonly Func<string, Task> _forwardShortcutAsync;
 
@@ -50,7 +53,7 @@ public sealed class MacWebSurfaceService : IMptWebSurfaceService
     public IMptWebSurfaceSession CreateSession(MptWebSurfaceRequest request)
     {
         var normalized = WebSurfaceNavigationPolicy.Normalize(request);
-        var control = new MacWebSurfaceControl(normalized, _occlusionState, _forwardShortcutAsync);
+        var control = new MacWebSurfaceControl(normalized, _occlusionState, _forwardShortcutAsync, _shortcutConfiguration);
         return new NativeWebSurfaceSession(control);
     }
 }
@@ -112,6 +115,7 @@ internal sealed class MacWebSurfaceControl : NativeControlHost, IDisposable
     private static readonly MacWebViewNative.EventCallback NativeCallback = OnNativeEvent;
     private static readonly TimeSpan LoadingTimeout = TimeSpan.FromSeconds(12);
 
+    private readonly WebShortcutConfiguration _shortcutConfiguration;
     private readonly MptWebSurfaceRequest _request;
     private readonly WebSurfaceOcclusionState _occlusionState;
     private readonly Func<string, Task> _forwardShortcutAsync;
@@ -125,8 +129,11 @@ internal sealed class MacWebSurfaceControl : NativeControlHost, IDisposable
     public MacWebSurfaceControl(
         MptWebSurfaceRequest request,
         WebSurfaceOcclusionState occlusionState,
-        Func<string, Task> forwardShortcutAsync)
+        Func<string, Task> forwardShortcutAsync,
+        WebShortcutConfiguration? shortcuts = null)
     {
+        _shortcutConfiguration = shortcuts ?? new WebShortcutConfiguration();
+        _shortcutConfiguration.Changed += SendShortcutBindings;
         _request = request;
         _occlusionState = occlusionState;
         _forwardShortcutAsync = forwardShortcutAsync;
@@ -229,6 +236,7 @@ internal sealed class MacWebSurfaceControl : NativeControlHost, IDisposable
         {
             return;
         }
+        _shortcutConfiguration.Changed -= SendShortcutBindings;
         _occlusionState.Changed -= HandleOcclusionChanged;
         _loadingCancellation?.Cancel();
         _loadingCancellation?.Dispose();
@@ -288,6 +296,7 @@ internal sealed class MacWebSurfaceControl : NativeControlHost, IDisposable
             case MacWebViewNative.EventReady:
                 CancelLoadingTimeout();
                 NotifyState(MptWebSurfaceState.Ready);
+                SendShortcutBindings();
                 break;
             case MacWebViewNative.EventFailed:
                 CancelLoadingTimeout();
@@ -302,8 +311,28 @@ internal sealed class MacWebSurfaceControl : NativeControlHost, IDisposable
         }
     }
 
+    private void SendShortcutBindings()
+    {
+        if (_nativeHandle != 0 && Volatile.Read(ref _disposed) == 0)
+            MacWebViewNative.SendBridgeResponse(_nativeHandle, _shortcutConfiguration.Json);
+    }
+
     private async Task HandleBridgeRequestAsync(string requestJson)
     {
+        if (requestJson.Length <= 4096)
+        {
+            try
+            {
+                using var message = JsonDocument.Parse(requestJson);
+                if (message.RootElement.ValueKind == JsonValueKind.Object &&
+                    message.RootElement.TryGetProperty("__mptShortcut", out var shortcut))
+                {
+                    await ForwardShortcutAsync(shortcut.GetRawText());
+                    return;
+                }
+            }
+            catch (JsonException) { }
+        }
         if (_request.HandleBridgeRequestAsync is null || requestJson.Length > 16 * 1024)
         {
             return;

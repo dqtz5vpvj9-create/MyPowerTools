@@ -406,6 +406,11 @@ public sealed class HostControlGrpcService : HostProto.HostControl.HostControlBa
         {
             throw new RpcException(new Status(StatusCode.InvalidArgument, ex.Message));
         }
+        catch (Exception ex) when (request.ModuleId == ShortcutCatalog.SettingsModuleId &&
+                                   ex is InvalidDataException or System.Text.Json.JsonException)
+        {
+            throw new RpcException(new Status(StatusCode.InvalidArgument, ex.Message));
+        }
     }
 
     public override async Task TailLogs(HostProto.TailLogsRequest request, IServerStreamWriter<HostProto.LogEntry> responseStream, ServerCallContext context)

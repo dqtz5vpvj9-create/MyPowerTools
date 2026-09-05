@@ -51,6 +51,7 @@ public sealed partial class ShellWorkspaceController
                 return;
             }
 
+            viewModel = AddShortcutPaletteCommands(query, viewModel);
             await Dispatcher.UIThread.InvokeAsync(() =>
             {
                 _commandPaletteViewModel = viewModel;

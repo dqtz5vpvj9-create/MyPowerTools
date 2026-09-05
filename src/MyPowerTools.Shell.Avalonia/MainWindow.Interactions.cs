@@ -19,9 +19,7 @@ public sealed partial class MainWindow
 
     internal Task HandleForwardedWebToolShortcutAsync(string gesture)
     {
-        return ShellKeyboardShortcut.TryParseGesture(gesture, out var key, out var modifiers)
-            ? _workspace?.HandleShortcutAsync(key, modifiers) ?? Task.CompletedTask
-            : Task.CompletedTask;
+        return _workspace?.HandleWebShortcutAsync(gesture) ?? Task.CompletedTask;
     }
 
     private void OnShellKeyDown(object? sender, KeyEventArgs e)

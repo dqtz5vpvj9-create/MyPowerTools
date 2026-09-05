@@ -191,6 +191,7 @@ public sealed partial class ShellWorkspaceController
             entry => SetStatus($"[{entry.Level}] {entry.Message}"),
             callback => SubscribeSurfaceEvents(descriptor.OwnerModuleId, callback))
         {
+            OpenShortcutSettingsAsync = owner => OpenShortcutsForToolAsync(owner),
             WebSurfaces = _webSurfaceService
        };
        try

@@ -55,45 +55,10 @@
     </Border>
 
     <Border Classes="MptSettingsSection" IsVisible="{Binding HasHotkeys}">
-      <StackPanel Spacing="{DynamicResource MptSpacingS}">
-        <Grid ColumnDefinitions="*,Auto">
-          <TextBlock Classes="MptSectionTitle" Text="Module shortcuts" />
-          <TextBlock Grid.Column="1" Classes="MptMeta" Text="{Binding HotkeyStatusText}" />
-        </Grid>
-        <ItemsControl ItemsSource="{Binding Hotkeys}">
-          <ItemsControl.ItemTemplate>
-            <DataTemplate x:DataType="vm:HotkeyBindingViewModel">
-              <Border Classes="MptSettingsField" Margin="{DynamicResource MptGapBottomM}">
-                <Grid ColumnDefinitions="*,Auto,220,Auto"
-                      RowDefinitions="Auto,Auto"
-                      ColumnSpacing="{DynamicResource MptSpacingS}">
-                  <StackPanel Spacing="{DynamicResource MptSpacingXs}">
-                    <TextBlock FontWeight="SemiBold" Text="{Binding Id}" />
-                    <TextBlock Classes="MptMeta" Text="{Binding CommandId}" TextWrapping="Wrap" />
-                    <TextBlock Classes="MptMeta" Text="{Binding CommandArgsPreview}" TextWrapping="Wrap" />
-                  </StackPanel>
-                  <controls:MptCheckBox Grid.Column="1"
-                                        Content="Enabled"
-                                        IsChecked="{Binding Enabled, Mode=TwoWay}"
-                                        VerticalAlignment="Center" />
-                  <controls:MptTextBox Grid.Column="2"
-                                       Text="{Binding Gesture, Mode=TwoWay}"
-                                       IsEnabled="{Binding CanEdit}" />
-                  <controls:MptButton Grid.Column="3"
-                                      Content="Reset"
-                                      Command="{Binding ResetCommand}"
-                                      MinWidth="{DynamicResource MptDensityActionMinWidth}" />
-                  <TextBlock Grid.Row="1"
-                             Grid.ColumnSpan="4"
-                             Classes="MptMeta"
-                             Text="{Binding ResultPrompt}"
-                             IsVisible="{Binding HasResultPrompt}"
-                             TextWrapping="Wrap" />
-                </Grid>
-              </Border>
-            </DataTemplate>
-          </ItemsControl.ItemTemplate>
-        </ItemsControl>
+      <StackPanel Spacing="8">
+        <TextBlock Classes="MptSectionTitle" Text="Keyboard shortcuts" />
+        <TextBlock Text="Manage this module together with all application and tool actions in the shortcut center." TextWrapping="Wrap" />
+        <controls:MptButton Content="Open keyboard shortcuts" Command="{Binding OpenShortcutsCommand}" HorizontalAlignment="Left" />
       </StackPanel>
     </Border>
 

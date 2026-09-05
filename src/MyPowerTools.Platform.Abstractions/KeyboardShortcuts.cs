@@ -37,7 +37,18 @@ public sealed record KeyboardShortcutGesture(uint Modifiers, uint VirtualKey, st
             ["Left"] = 0x25,
             ["Up"] = 0x26,
             ["Right"] = 0x27,
-            ["Down"] = 0x28
+            ["Down"] = 0x28,
+            ["OemComma"] = 0xBC,
+            ["OemPeriod"] = 0xBE,
+            ["OemMinus"] = 0xBD,
+            ["OemPlus"] = 0xBB,
+            ["OemOpenBrackets"] = 0xDB,
+            ["OemCloseBrackets"] = 0xDD,
+            ["OemSemicolon"] = 0xBA,
+            ["OemQuotes"] = 0xDE,
+            ["OemQuestion"] = 0xBF,
+            ["OemPipe"] = 0xDC,
+            ["OemTilde"] = 0xC0
         };
 
     public static bool TryParse(string gesture, out KeyboardShortcutGesture? parsed, out string error)
@@ -118,7 +129,9 @@ public sealed record KeyboardShortcutGesture(uint Modifiers, uint VirtualKey, st
             var value when value.Equals("Shift", StringComparison.OrdinalIgnoreCase) => ModShift,
             var value when value.Equals("Win", StringComparison.OrdinalIgnoreCase) ||
                 value.Equals("Windows", StringComparison.OrdinalIgnoreCase) ||
-                value.Equals("Meta", StringComparison.OrdinalIgnoreCase) => ModWin,
+                value.Equals("Meta", StringComparison.OrdinalIgnoreCase) ||
+                value.Equals("Cmd", StringComparison.OrdinalIgnoreCase) ||
+                value.Equals("Command", StringComparison.OrdinalIgnoreCase) => ModWin,
             _ => null
         };
     }
@@ -171,7 +184,7 @@ public sealed record KeyboardShortcutGesture(uint Modifiers, uint VirtualKey, st
                                 ? "PageUp"
                                 : token.Equals("PgDn", StringComparison.OrdinalIgnoreCase)
                                     ? "PageDown"
-                                    : token;
+                                    : NamedKeys.Keys.First(name => name.Equals(token, StringComparison.OrdinalIgnoreCase));
             return true;
         }
 
