@@ -32,7 +32,7 @@ public sealed class ShortcutCenterViewModel : ShellPageViewModel, IDisposable
     private ShortcutRow? _selected;
     private string _query = "", _filter = "All", _ownerFilter = "All tools", _platform;
     private string _bindingText = "", _status = "Loading shortcuts…";
-    private bool _busy, _recording, _disposed;
+    private bool _busy, _recording, _disposed, _platformInitialized;
     private IReadOnlyList<ShortcutEdit>? _undo;
 
     public ShortcutCenterViewModel(ShortcutConfigurationClient client) : base("Keyboard shortcuts",
@@ -274,6 +274,14 @@ public sealed class ShortcutCenterViewModel : ShellPageViewModel, IDisposable
     private void Rebuild()
     {
         var snapshot = _client.Snapshot;
+        if (!_platformInitialized && _client.IsLoaded)
+        {
+            // The constructor cache can precede the first Runner response. Start editing the
+            // confirmed platform, then preserve explicit platform selections on later refreshes.
+            _platform = snapshot.Platform;
+            _platformInitialized = true;
+            OnPropertyChanged(nameof(EditorPlatform));
+        }
         var effective = ShortcutCatalog.Effective(snapshot);
         var definitions = snapshot.Commands.Concat(snapshot.Configuration.Overrides
             .Where(item => !snapshot.Commands.Any(command => command.Id.Equals(item.Id, StringComparison.OrdinalIgnoreCase)))
