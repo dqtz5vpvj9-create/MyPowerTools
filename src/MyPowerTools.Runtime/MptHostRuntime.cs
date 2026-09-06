@@ -2093,6 +2093,9 @@ public sealed partial class MptHostRuntime : IAsyncDisposable
         return _logRouter.Tail(moduleId);
     }
 
+    public Task WaitForHostEventsAsync(ulong lastEventSeq, CancellationToken cancellationToken) =>
+        _eventBus.WaitForEventsAsync(lastEventSeq, cancellationToken);
+
     public IReadOnlyList<Sdk.MptModuleEvent> HostEventsSince(ulong lastEventSeq)
     {
         return _eventBus.Since(lastEventSeq);

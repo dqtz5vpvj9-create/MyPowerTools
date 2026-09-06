@@ -5,6 +5,8 @@
     <TargetFramework>net10.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
+    <!-- Desktop background hosts do not need one server-GC heap per CPU core. -->
+    <ServerGarbageCollection Condition="('$(RuntimeIdentifier)' == '' And $([MSBuild]::IsOSPlatform('OSX'))) Or $([System.String]::Copy('$(RuntimeIdentifier)').StartsWith('osx-'))">false</ServerGarbageCollection>
   </PropertyGroup>
 
   <ItemGroup>

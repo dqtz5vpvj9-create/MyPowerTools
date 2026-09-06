@@ -1,4 +1,3 @@
-using System.Collections.Concurrent;
 using System.Text.Json.Nodes;
 using MyPowerTools.Abstractions;
 
@@ -10,38 +9,52 @@ namespace MyPowerTools.ServiceManager.Server;
 /// </summary>
 public sealed class UnitEventBus
 {
-    private readonly ConcurrentQueue<ServiceUnitEvent> _events = new();
+    private readonly object _gate = new();
+    private readonly Queue<ServiceUnitEvent> _events = new();
+    private TaskCompletionSource _changed = NewSignal();
+    private static TaskCompletionSource NewSignal() => new(TaskCreationOptions.RunContinuationsAsynchronously);
     private long _seq;
     private readonly int _capacity;
 
     public UnitEventBus(int capacity = 1000)
     {
-        _capacity = capacity;
+        _capacity = Math.Max(0, capacity);
     }
 
     public ulong CurrentSeq => (ulong)Volatile.Read(ref _seq);
 
     public ServiceUnitEvent Publish(string unitId, string type, JsonObject payload)
     {
-        var seq = (ulong)Interlocked.Increment(ref _seq);
-        var evt = new ServiceUnitEvent(unitId, seq, type, DateTimeOffset.UtcNow, payload);
-        _events.Enqueue(evt);
-
-        while (_events.Count > _capacity && _events.TryDequeue(out _))
+        TaskCompletionSource changed;
+        ServiceUnitEvent evt;
+        lock (_gate)
         {
+            evt = new ServiceUnitEvent(unitId, (ulong)++_seq, type, DateTimeOffset.UtcNow, payload);
+            _events.Enqueue(evt);
+            while (_events.Count > _capacity) _events.Dequeue();
+            changed = _changed;
+            _changed = NewSignal();
         }
+        changed.TrySetResult();
 
         return evt;
     }
 
     public IReadOnlyList<ServiceUnitEvent> Since(ulong lastEventSeq, string? unitId = null)
     {
-        IEnumerable<ServiceUnitEvent> query = _events;
-        if (!string.IsNullOrEmpty(unitId))
+        lock (_gate)
         {
-            query = query.Where(evt => string.Equals(evt.UnitId, unitId, StringComparison.OrdinalIgnoreCase));
+            return _events.Where(evt => evt.Seq > lastEventSeq &&
+                (string.IsNullOrEmpty(unitId) || string.Equals(evt.UnitId, unitId, StringComparison.OrdinalIgnoreCase)))
+                .ToArray();
         }
+    }
 
-        return query.Where(evt => evt.Seq > lastEventSeq).OrderBy(evt => evt.Seq).ToArray();
+    public Task WaitForEventsAsync(ulong lastEventSeq, CancellationToken cancellationToken)
+    {
+        lock (_gate)
+            return (ulong)_seq > lastEventSeq
+                ? Task.CompletedTask
+                : _changed.Task.WaitAsync(cancellationToken);
     }
 }

@@ -153,6 +153,7 @@ public sealed class ServiceManagerGrpcService : SM.ServiceManager.ServiceManager
         var lastSeq = request.LastEventSeq;
         while (!context.CancellationToken.IsCancellationRequested)
         {
+            var observedSeq = _engine.Events.CurrentSeq;
             foreach (var evt in _engine.Events.Since(lastSeq, string.IsNullOrEmpty(request.UnitId) ? null : request.UnitId))
             {
                 lastSeq = evt.Seq;
@@ -166,7 +167,9 @@ public sealed class ServiceManagerGrpcService : SM.ServiceManager.ServiceManager
 
             try
             {
-                await Task.Delay(TimeSpan.FromMilliseconds(250), context.CancellationToken);
+                // A filtered subscriber must also advance past other units' events.
+                lastSeq = Math.Max(lastSeq, observedSeq);
+                await _engine.Events.WaitForEventsAsync(lastSeq, context.CancellationToken);
             }
             catch (TaskCanceledException)
             {

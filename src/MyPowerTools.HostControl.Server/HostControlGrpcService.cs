@@ -447,7 +447,7 @@ public sealed class HostControlGrpcService : HostProto.HostControl.HostControlBa
                 lastSeq = evt.Seq;
             }
 
-            await Task.Delay(TimeSpan.FromSeconds(1), context.CancellationToken);
+            await _runtime.WaitForHostEventsAsync(lastSeq, context.CancellationToken);
         }
     }
 
