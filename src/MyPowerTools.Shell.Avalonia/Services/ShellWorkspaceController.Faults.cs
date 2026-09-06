@@ -219,12 +219,8 @@ public sealed partial class ShellWorkspaceController
             Dispatcher.UIThread.Post(() =>
             {
                 SetStatus(text);
-                if (text.Contains("disconnect", StringComparison.OrdinalIgnoreCase) ||
-                    text.Contains("unreachable", StringComparison.OrdinalIgnoreCase) ||
-                    text.Contains("connection", StringComparison.OrdinalIgnoreCase))
-                {
-                    ShowInfoBar(InfoBarSeverity.Warning, text);
-                }
+                // Connection state belongs to the affected workspace. A host event
+                // must not create a global banner over unrelated tools.
             });
         }
     }
@@ -241,8 +237,6 @@ public sealed partial class ShellWorkspaceController
     {
         PostUiEvent(async () =>
         {
-            _chromeViewModel.DismissInfoBarsOfSeverity(InfoBarSeverity.Warning);
-            ShowInfoBar(InfoBarSeverity.Success, "Connection restored.", autoDismissMs: 4000);
             await RefreshShellDataAsync();
         }, "Refresh after Runner recovery");
     }
