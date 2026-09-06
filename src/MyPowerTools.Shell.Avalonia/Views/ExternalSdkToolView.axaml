@@ -69,7 +69,7 @@
               Margin="{DynamicResource MptBorderThickness}"
               IsHitTestVisible="False">
         <StackPanel HorizontalAlignment="Center" VerticalAlignment="Center" Spacing="{DynamicResource MptSpacingM}">
-          <ProgressBar IsIndeterminate="True" Width="220" Height="4" />
+          <ProgressBar IsIndeterminate="{Binding IsSurfaceLoading}" Width="220" Height="4" />
           <TextBlock Text="{Binding SurfaceMessage}" HorizontalAlignment="Center" />
         </StackPanel>
       </Border>

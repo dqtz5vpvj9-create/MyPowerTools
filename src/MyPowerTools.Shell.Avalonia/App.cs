@@ -34,6 +34,7 @@ public sealed class App : Application
 
     public override void Initialize()
     {
+        MacIdleProgressAnimations.Install();
         Styles.Add(new FluentTheme());
         Styles.Add(new StyleInclude(ThemeBaseUri)
         {

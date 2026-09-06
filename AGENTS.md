@@ -120,3 +120,19 @@ pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts/prune-artifacts.ps1
 ```
 
 完整约定见 `docs/ARTIFACTS_GOVERNANCE.md`。
+
+## macOS 低功耗发布门槛（默认要求）
+
+macOS 版优先服务低内存、电池设备。每次 macOS 发布默认执行
+`docs/MACOS_POWER_ACCEPTANCE.md`，不是可选优化。
+
+- 必须在真实 macOS 完整安装版上测量，关闭窗口后保留全部已启用后台功能。
+- 使用 `scripts/measure-macos-idle.py`，预热后连续测量至少 120 秒；全部 MPT
+  进程及其子进程平均 CPU 合计应不超过单核的 1%。0% 是无工作时的方向，不能
+  通过停用服务、丢消息或延迟正常消息接收制造结果。
+- 同时验证通知接收/历史/手动刷新、窗口恢复、内存稳定性，并记录后台唤醒。
+- 超预算时必须用函数调用栈定位热点；Instruments 可用时使用 CPU/Time Profiler
+  与系统/能耗跟踪。没有 Instruments 时可使用 sample、dotnet-trace，但必须说明
+  归因限制，不能把等待栈占比当成 CPU 占比，也不能把 CPU 百分比换算成续航。
+- 未完成或未通过验收时，构建只能作为明确标注的待验收开发包；不得称作省电达标。
+  发布说明必须附测量条件、结果与未通过项目。详细门槛见上述文档。
