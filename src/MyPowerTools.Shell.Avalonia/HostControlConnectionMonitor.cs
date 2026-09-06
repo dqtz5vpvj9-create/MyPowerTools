@@ -1,5 +1,6 @@
 using MyPowerTools.HostControl;
 using MyPowerTools.Shell.Avalonia.Services;
+using System.Threading.Channels;
 
 namespace MyPowerTools.Shell.Avalonia;
 
@@ -37,6 +38,12 @@ public sealed class HostControlConnectionMonitor : IAsyncDisposable
     private readonly IHostControlConnectionProbe _probe;
     private readonly TimeSpan _pollInterval;
     private readonly TimeSpan _attemptTimeout;
+    private readonly bool _eventDriven;
+    private readonly Channel<byte> _checkRequests = Channel.CreateBounded<byte>(new BoundedChannelOptions(1)
+    {
+        SingleReader = true,
+        FullMode = BoundedChannelFullMode.DropWrite
+    });
     private readonly SemaphoreSlim _checkGate = new(1, 1);
     private readonly object _stateGate = new();
     private CancellationTokenSource? _stop;
@@ -48,11 +55,13 @@ public sealed class HostControlConnectionMonitor : IAsyncDisposable
     public HostControlConnectionMonitor(
         IHostControlConnectionProbe probe,
         TimeSpan? pollInterval = null,
-        TimeSpan? attemptTimeout = null)
+        TimeSpan? attemptTimeout = null,
+        bool? eventDriven = null)
     {
         _probe = probe;
         _pollInterval = pollInterval ?? TimeSpan.FromSeconds(5);
         _attemptTimeout = attemptTimeout ?? TimeSpan.FromSeconds(2);
+        _eventDriven = eventDriven ?? OperatingSystem.IsMacOS();
         LastSnapshot = new HostControlConnectionSnapshot(
             false,
             "unknown",
@@ -73,6 +82,10 @@ public sealed class HostControlConnectionMonitor : IAsyncDisposable
     public Func<Task>? RestartRunner { get; set; }
 
     public HostControlConnectionSnapshot LastSnapshot { get; private set; }
+
+    // The persistent host event stream detects a lost Runner without a parallel
+    // heartbeat. Coalesce faults so a burst cannot queue unbounded probes.
+    public void RequestCheck() => _checkRequests.Writer.TryWrite(0);
 
     public void Start()
     {
@@ -210,6 +223,22 @@ public sealed class HostControlConnectionMonitor : IAsyncDisposable
 
     private async Task RunAsync(CancellationToken cancellationToken)
     {
+        if (_eventDriven)
+        {
+            while (!cancellationToken.IsCancellationRequested)
+            {
+                var snapshot = await CheckOnceAsync(notify: true, cancellationToken);
+                using var wait = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                // Healthy connections have no timer; offline recovery retains a
+                // bounded retry even if no further stream fault arrives.
+                if (!snapshot.Online) wait.CancelAfter(_pollInterval);
+                try { await _checkRequests.Reader.WaitToReadAsync(wait.Token); }
+                catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) { }
+                while (_checkRequests.Reader.TryRead(out _)) { }
+            }
+            return;
+        }
+
         await CheckOnceAsync(notify: true, cancellationToken);
         using var timer = new PeriodicTimer(_pollInterval);
         while (await timer.WaitForNextTickAsync(cancellationToken))

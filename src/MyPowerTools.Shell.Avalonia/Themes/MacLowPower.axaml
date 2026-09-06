@@ -1,0 +1,24 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+                    x:CompileBindings="False">
+  <!-- Keep busy/determinate bindings intact; this template owns no animation clock. -->
+  <ControlTheme x:Key="{x:Type ProgressBar}" TargetType="ProgressBar">
+    <Setter Property="Height" Value="4" />
+    <Setter Property="Foreground" Value="#0078D4" />
+    <Setter Property="Background" Value="#20808080" />
+    <Setter Property="Template">
+      <ControlTemplate>
+        <Border Background="{TemplateBinding Background}" CornerRadius="2" ClipToBounds="True">
+          <Grid>
+            <Border x:Name="PART_Indicator" HorizontalAlignment="Left"
+                    Background="{TemplateBinding Foreground}" CornerRadius="2"
+                    IsVisible="{Binding !IsIndeterminate, RelativeSource={RelativeSource TemplatedParent}}" />
+            <Border Width="80" HorizontalAlignment="Left"
+                    Background="{TemplateBinding Foreground}" CornerRadius="2"
+                    IsVisible="{TemplateBinding IsIndeterminate}" />
+          </Grid>
+        </Border>
+      </ControlTemplate>
+    </Setter>
+  </ControlTheme>
+</ResourceDictionary>

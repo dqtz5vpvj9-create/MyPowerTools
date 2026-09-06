@@ -2113,6 +2113,8 @@ public sealed class GeneratedModule : IMptModule
 
                 yield return (HostProto.HostEvent)step;
             }
+
+            await Task.Delay(Timeout.InfiniteTimeSpan, cancellationToken);
         }
     }
 

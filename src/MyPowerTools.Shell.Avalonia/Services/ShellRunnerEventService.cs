@@ -98,6 +98,7 @@ public sealed class ShellRunnerEventService : IAsyncDisposable
     {
         if (Volatile.Read(ref _disposed) == 0)
         {
+            _connectionMonitor.RequestCheck();
             Publish(
                 StatusChanged,
                 $"Host event stream reconnecting: {SafeMessage(exception)}",

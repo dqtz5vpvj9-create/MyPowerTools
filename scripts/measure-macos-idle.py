@@ -8,11 +8,7 @@ import plistlib
 import subprocess
 import time
 
-REQUIRED = {
-    'MyPowerTools.Shell.Avalonia', 'MyPowerTools.Runner', 'MyPowerTools.ServiceManager',
-    'RemoteNotifications.Service', 'AdbForwarder.Service', 'DoubaoAgent.Controller.Service',
-    'ScreenEase.Service', 'MPTAndroidTools.Runtime',
-}
+REQUIRED = {'MyPowerTools.Shell.Avalonia', 'MyPowerTools.Runner', 'MyPowerTools.ServiceManager'}
 
 
 def cpu_seconds(value):
@@ -48,6 +44,7 @@ def main():
     parser.add_argument('--duration', type=float, default=120)
     parser.add_argument('--interval', type=float, default=5)
     parser.add_argument('--budget', type=float, default=1.0)
+    parser.add_argument('--required-host', action='append', default=[], help='Host required by an explicitly enabled background task')
     args = parser.parse_args()
     if platform.system() != 'Darwin':
         parser.error('Run this gate on the actual macOS device.')
@@ -64,7 +61,13 @@ def main():
     started = time.monotonic()
     previous, previous_time = before, started
     intervals, issues = [], set()
-    missing = REQUIRED - {row['name'] for row in before.values()}
+    required = REQUIRED | set(args.required_host)
+    for path in (app / 'Contents/MacOS/ServiceUnits/units').glob('*.json'):
+        manifest = json.loads(path.read_text(encoding='utf-8-sig'))
+        name = Path(manifest['exec']).name
+        if manifest.get('autostart', False): required.add(name)
+    running_names = {row['name'] for row in before.values()}
+    missing = required - running_names
     if missing:
         issues.add('Missing required hosts: ' + ', '.join(sorted(missing)))
     after = before

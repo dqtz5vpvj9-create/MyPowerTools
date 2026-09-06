@@ -451,6 +451,8 @@ foreach ($service in @(
     $manifestText = (Get-Content -LiteralPath (Join-Path $projectRoot 'unit-manifest.json') -Raw).
         Replace('%LOCALAPPDATA%', '~/Library/Application Support')
     $manifest = $manifestText | ConvertFrom-Json -AsHashtable
+    # Optional tools are demand-started by their surface/actions.
+    $manifest.autostart = $false
     $manifest.exec = "../../Services/$($service.Tool)/$($service.Project)"
     $manifest.workingDirectory = "../../Services/$($service.Tool)"
     if ($service.Tool -eq 'screenease') { $manifest.environment.ScreenEase__Driver = 'macos' }

@@ -236,7 +236,11 @@ static IReadOnlyList<string>? ResolveInitialEnabledModules(string[] args, Platfo
             .ToArray();
     }
 
-    // Discover and enable all supported installed modules unless explicitly restricted.
+    // On a fresh macOS install, leave optional device/automation tools disabled.
+    // ModuleStateStore preserves existing user choices once a state file exists.
+    if (platform.OperatingSystem == "macos")
+        return ["android-tools.notifications", "android-tools.remote-commands", "screenease", "paste-image"];
+
     return null;
 }
 
@@ -412,7 +416,10 @@ static async Task WatchRuntimeHotkeyBindingsAsync(
 
         try
         {
-            await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken);
+            if (OperatingSystem.IsMacOS())
+                await runtime.WaitForHostEventsAsync(lastEventSeq, cancellationToken);
+            else
+                await Task.Delay(TimeSpan.FromSeconds(1), cancellationToken);
         }
         catch (OperationCanceledException)
         {

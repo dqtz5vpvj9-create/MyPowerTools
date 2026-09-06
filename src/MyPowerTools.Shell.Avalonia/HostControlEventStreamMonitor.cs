@@ -103,6 +103,11 @@ public sealed class HostControlEventStreamMonitor : IAsyncDisposable
                     LastEventSeq = evt.Seq;
                     EventReceived?.Invoke(this, evt);
                 }
+
+                // An unexpected graceful end is still a disconnect. Without
+                // this, an empty stream spins and never wakes connection recovery.
+                if (!cancellationToken.IsCancellationRequested)
+                    throw new IOException("Runner event stream closed.");
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
