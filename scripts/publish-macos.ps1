@@ -49,6 +49,14 @@ function Invoke-Native {
     )
 
     & $FilePath @ArgumentList
+    # macOS can transiently reject a just-written runtime file while inspecting it.
+    # Retry only codesign; all other build failures remain immediate failures.
+    if ($FilePath -eq '/usr/bin/codesign') {
+        for ($attempt = 1; $LASTEXITCODE -ne 0 -and $attempt -lt 3; $attempt++) {
+            Start-Sleep -Milliseconds 250
+            & $FilePath @ArgumentList
+        }
+    }
     if ($LASTEXITCODE -ne 0) {
         throw "$Activity failed with exit code $LASTEXITCODE"
     }
