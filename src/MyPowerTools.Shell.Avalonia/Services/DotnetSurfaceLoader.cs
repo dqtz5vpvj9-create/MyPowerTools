@@ -44,6 +44,8 @@ internal sealed class DotnetSurfaceLoader
     /// </summary>
     public LoadedSurface Load(HostProto.ToolDescriptor descriptor, HostProto.ToolRoute route, MptAvaloniaSurfaceContext context)
     {
+        global::Avalonia.Threading.Dispatcher.UIThread.VerifyAccess();
+
         if (string.IsNullOrWhiteSpace(route.Assembly) || !File.Exists(route.Assembly))
         {
             throw new FileNotFoundException("Dotnet surface assembly was not found.", route.Assembly);

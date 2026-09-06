@@ -116,7 +116,7 @@ function Invoke-CodeSignPasses {
         [Parameter(Mandatory = $true)][string]$EntitlementsPath
     )
 
-    foreach ($candidate in $Files) {
+    foreach ($candidate in ($Files | Sort-Object { $_.FullName.Split([System.IO.Path]::DirectorySeparatorChar).Count } -Descending)) {
         $fileDescription = (& /usr/bin/file '-b' $candidate.FullName 2>$null) -join ' '
         if ($fileDescription.Contains('Mach-O', [StringComparison]::Ordinal)) {
             continue
@@ -126,7 +126,7 @@ function Invoke-CodeSignPasses {
         ) -Activity "codesign data file $($candidate.FullName)"
     }
 
-    foreach ($candidate in $Files) {
+    foreach ($candidate in ($Files | Sort-Object { $_.FullName.Split([System.IO.Path]::DirectorySeparatorChar).Count } -Descending)) {
         $fileDescription = (& /usr/bin/file '-b' $candidate.FullName 2>$null) -join ' '
         if (-not $fileDescription.Contains('Mach-O', [StringComparison]::Ordinal)) {
             continue
@@ -156,7 +156,9 @@ function Sign-AppBundle {
 
     Get-ChildItem -LiteralPath $BundlePath -Recurse -File -Filter '*.dll' |
         ForEach-Object {
-            Invoke-Native -FilePath '/bin/chmod' -ArgumentList @('-x', $_.FullName) -Activity "chmod -x $($_.FullName)"
+            $mode = [System.IO.File]::GetUnixFileMode($_.FullName)
+            $executeBits = [System.IO.UnixFileMode]::UserExecute -bor [System.IO.UnixFileMode]::GroupExecute -bor [System.IO.UnixFileMode]::OtherExecute
+            [System.IO.File]::SetUnixFileMode($_.FullName, ($mode -band (-bnot $executeBits)))
         }
 
     $helperBundles = @(

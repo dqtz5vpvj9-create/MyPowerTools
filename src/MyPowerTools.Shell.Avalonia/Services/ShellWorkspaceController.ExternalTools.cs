@@ -209,7 +209,9 @@ public sealed partial class ShellWorkspaceController
         {
             SetStatus($"Developer source sync skipped: {devSourceEx.Message}");
         }
-       return await Task.Run(() => _dotnetSurfaceLoader.Load(descriptor, route, context));
+       // Surface factories construct Avalonia controls and bindings, which must belong to the UI thread.
+       return await global::Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(
+           () => _dotnetSurfaceLoader.Load(descriptor, route, context));
     }
 
     internal static CommandExecutionResult ToSurfaceCommandExecutionResult(

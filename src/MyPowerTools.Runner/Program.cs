@@ -236,9 +236,8 @@ static IReadOnlyList<string>? ResolveInitialEnabledModules(string[] args, Platfo
             .ToArray();
     }
 
-    return string.Equals(platform.OperatingSystem, "macos", StringComparison.OrdinalIgnoreCase)
-        ? ["android-tools.notifications"]
-        : null;
+    // Discover and enable all supported installed modules unless explicitly restricted.
+    return null;
 }
 
 static IModuleTransportRuntime[] CreateTransportRuntimes()

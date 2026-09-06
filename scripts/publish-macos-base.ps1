@@ -402,6 +402,20 @@ foreach ($pattern in @('*.dll', '*.deps.json')) {
     Get-ChildItem -LiteralPath $surfaceSource -Filter $pattern -File |
         Copy-Item -Destination $surfaceDestination -Force
 }
+# The shared Android Tools package also declares Remote Commands. Its Surface must ship
+# alongside Notifications or the catalog advertises a tool that cannot be opened.
+$remoteCommandsSurface = Join-Path $stageRoot 'Surfaces/remote-commands'
+Invoke-Native -FilePath 'dotnet' -ArgumentList @(
+    'build', (Join-Path $repoRoot 'tools/remote-commands/current-integration/src/RemoteCommands.Surface/RemoteCommands.Surface.csproj'),
+    '--configuration', $Configuration, '--output', $remoteCommandsSurface,
+    '-p:DebugType=None', '-p:DebugSymbols=false'
+) -Activity 'Remote Commands Surface build'
+$remoteCommandsDestination = Join-Path $moduleStage 'modules/remote-commands/ui/surface'
+New-Item -ItemType Directory -Path $remoteCommandsDestination -Force | Out-Null
+foreach ($pattern in @('*.dll', '*.deps.json')) {
+    Get-ChildItem -LiteralPath $remoteCommandsSurface -Filter $pattern -File |
+        Copy-Item -Destination $remoteCommandsDestination -Force
+}
 $cliProject = Join-Path $repoRoot 'src/MyPowerTools.Cli/MyPowerTools.Cli.csproj'
 Invoke-Native -FilePath 'dotnet' -ArgumentList @(
     'run', '--project', $cliProject,
@@ -418,6 +432,43 @@ $serviceUnitsRoot = Join-Path $macRoot 'ServiceUnits/units'
 New-Item -ItemType Directory -Path $serviceUnitsRoot -Force | Out-Null
 Copy-Item -LiteralPath (Join-Path $repoRoot 'tools/remote-notifications/current-integration/src/RemoteNotifications.Service/unit-manifest.macos.json') `
     -Destination (Join-Path $serviceUnitsRoot 'remote-notifications.service.json') -Force
+
+# These services use .NET named pipes, which also work on macOS. Ship their
+# processes and translate the Windows installation paths in their manifests.
+foreach ($service in @(
+    @{ Tool = 'adb-forwarder'; Project = 'AdbForwarder.Service' },
+    @{ Tool = 'screenease'; Project = 'ScreenEase.Service' },
+    @{ Tool = 'doubao-computer-use'; Project = 'DoubaoAgent.Controller.Service' }
+)) {
+    $projectRoot = Join-Path $repoRoot "tools/$($service.Tool)/current-integration/src/$($service.Project)"
+    $destination = Join-Path $macRoot "Services/$($service.Tool)"
+    Invoke-Native -FilePath 'dotnet' -ArgumentList @(
+        'publish', (Join-Path $projectRoot "$($service.Project).csproj"),
+        '--configuration', $Configuration, '--runtime', $runtimeIdentifier,
+        '--self-contained', 'true', '--output', $destination,
+        '-p:DebugType=None', '-p:DebugSymbols=false', '-p:PublishSingleFile=false'
+    ) -Activity "publish macOS $($service.Project)"
+    $manifestText = (Get-Content -LiteralPath (Join-Path $projectRoot 'unit-manifest.json') -Raw).
+        Replace('%LOCALAPPDATA%', '~/Library/Application Support')
+    $manifest = $manifestText | ConvertFrom-Json -AsHashtable
+    $manifest.exec = "../../Services/$($service.Tool)/$($service.Project)"
+    $manifest.workingDirectory = "../../Services/$($service.Tool)"
+    if ($service.Tool -eq 'screenease') { $manifest.environment.ScreenEase__Driver = 'macos' }
+    $manifest | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath (Join-Path $serviceUnitsRoot "$($manifest.id).json") -Encoding utf8
+}
+
+# Fail the package build if a declared native tool page has no assembly.
+foreach ($toolFile in Get-ChildItem -LiteralPath (Join-Path $macRoot 'modules') -Filter 'tool.json' -Recurse -File) {
+    $tool = Get-Content -LiteralPath $toolFile.FullName -Raw | ConvertFrom-Json
+    foreach ($route in $tool.routes) {
+        if ($route.surface.kind -eq 'dotnet') {
+            $assembly = Join-Path $toolFile.DirectoryName $route.surface.assembly
+            if (-not (Test-Path -LiteralPath $assembly -PathType Leaf)) {
+                throw "Missing Surface for $($tool.toolId): $assembly"
+            }
+        }
+    }
+}
 
 if (-not $SkipNativeBuild) {
     if (-not $IsMacOS) {
@@ -475,7 +526,9 @@ if ($IsMacOS) {
     # are treated as data files by codesign.
     Get-ChildItem -LiteralPath $appBundle -Recurse -File -Filter '*.dll' |
         ForEach-Object {
-            Invoke-Native -FilePath '/bin/chmod' -ArgumentList @('-x', $_.FullName) -Activity "chmod -x $($_.FullName)"
+            $mode = [System.IO.File]::GetUnixFileMode($_.FullName)
+            $executeBits = [System.IO.UnixFileMode]::UserExecute -bor [System.IO.UnixFileMode]::GroupExecute -bor [System.IO.UnixFileMode]::OtherExecute
+            [System.IO.File]::SetUnixFileMode($_.FullName, ($mode -band (-bnot $executeBits)))
         }
 
     # Diagnostics: confirm whether the App was published as a single-file
@@ -528,7 +581,7 @@ if (-not $SkipCodeSign) {
         # it, and validates each sealed file as a nested code object. Managed PE assemblies,
         # JSON manifests, schema files and other data files must therefore carry a plain
         # ad-hoc signature before the native Mach-O objects (apphosts, dylibs) are signed.
-        foreach ($candidate in $Files) {
+        foreach ($candidate in ($Files | Sort-Object { $_.FullName.Split([System.IO.Path]::DirectorySeparatorChar).Count } -Descending)) {
             $fileDescription = (& /usr/bin/file '-b' $candidate.FullName 2>$null) -join ' '
             if ($fileDescription.Contains('Mach-O', [System.StringComparison]::Ordinal)) {
                 continue
@@ -539,7 +592,7 @@ if (-not $SkipCodeSign) {
         }
 
         # Pass 2: native Mach-O code objects, with entitlements on executables.
-        foreach ($candidate in $Files) {
+        foreach ($candidate in ($Files | Sort-Object { $_.FullName.Split([System.IO.Path]::DirectorySeparatorChar).Count } -Descending)) {
             $fileDescription = (& /usr/bin/file '-b' $candidate.FullName 2>$null) -join ' '
             if (-not $fileDescription.Contains('Mach-O', [System.StringComparison]::Ordinal)) {
                 continue
