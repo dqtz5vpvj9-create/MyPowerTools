@@ -123,8 +123,8 @@ public static class CodexQuotaReader
             await process.StandardInput.WriteLineAsync(
                 """{"jsonrpc":"2.0","id":"mpt-init","method":"initialize","params":{"clientInfo":{"name":"mypowertools-quota","title":"MyPowerTools Quota","version":"0.1.0"},"capabilities":{"experimentalApi":true,"optOutNotificationMethods":[]}}}""");
             await process.StandardInput.FlushAsync(timeout.Token);
-            await Task.Delay(TimeSpan.FromMilliseconds(250), timeout.Token);
             await ReadResponseLineAsync(process, "mpt-init", timeout.Token);
+            await process.StandardInput.WriteLineAsync("""{"jsonrpc":"2.0","method":"initialized"}""");
 
             await process.StandardInput.WriteLineAsync(
                 $$"""{"jsonrpc":"2.0","id":"mpt-rate-limits","method":"{{AppServerMethod}}"}""");
@@ -134,6 +134,10 @@ public static class CodexQuotaReader
                 "mpt-rate-limits",
                 timeout.Token);
             return ParseAppServerResponse(rateLimitResponse);
+        }
+        catch (OperationCanceledException ex) when (!cancellationToken.IsCancellationRequested)
+        {
+            throw new TimeoutException("Codex app-server quota request timed out.", ex);
         }
         finally
         {
@@ -375,11 +379,12 @@ public static class CodexQuotaReader
             foreach (var applicationRoot in new[]
             {
                 Path.Combine("/Applications", "Codex.app", "Contents"),
-                Path.Combine(userProfile, "Applications", "Codex.app", "Contents")
+                Path.Combine(userProfile, "Applications", "Codex.app", "Contents"),
+                Path.Combine("/Applications", "ChatGPT.app", "Contents"),
+                Path.Combine(userProfile, "Applications", "ChatGPT.app", "Contents")
             })
             {
-                AddCandidate(candidates, Path.Combine(applicationRoot, "MacOS", "Codex"));
-                AddCandidate(candidates, Path.Combine(applicationRoot, "MacOS", "codex"));
+                // The GUI executable is not an app-server CLI.
                 AddCandidate(candidates, Path.Combine(applicationRoot, "Resources", "codex"));
                 AddCandidates(candidates, Path.Combine(applicationRoot, "Resources"), "codex");
             }

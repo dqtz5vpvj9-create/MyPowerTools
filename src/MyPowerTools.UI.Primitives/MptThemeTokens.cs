@@ -5,7 +5,7 @@ namespace MyPowerTools.UI;
 
 public static class MptThemeTokens
 {
-    public const double LayoutSidebarWidth = 240;
+    public const double LayoutSidebarWidth = 280;
     public const double LayoutTopBarHeight = 56;
     public const double LayoutPageMaxWidth = 1440;
     public const double LayoutDashboardMaxWidth = 1400;

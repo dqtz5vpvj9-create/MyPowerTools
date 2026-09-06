@@ -28,24 +28,24 @@
                     HorizontalAlignment="Left"
                     VerticalAlignment="Center" />
             <Grid Grid.Column="1"
-                  Width="30"
-                  Height="30"
+                  Width="34"
+                  Height="34"
                   HorizontalAlignment="Center"
                   VerticalAlignment="Center">
               <TextBlock Text="{Binding IconGlyph}"
                          FontFamily="{DynamicResource MptFontFamilyIcons}"
-                         FontSize="{DynamicResource MptFontSizeCardTitle}"
+                         FontSize="20"
                          IsVisible="{Binding !IsMonogram}"
                          HorizontalAlignment="Center"
                          VerticalAlignment="Center" />
-              <Border Width="28"
-                      Height="28"
+              <Border Width="32"
+                      Height="32"
                       CornerRadius="{DynamicResource MptRadiusControl}"
                       Background="{DynamicResource MptBrushSurfaceInset}"
                       IsVisible="{Binding IsMonogram}">
                 <TextBlock Text="{Binding IconGlyph}"
                            FontFamily="{DynamicResource MptFontFamilyBody}"
-                           FontSize="{DynamicResource MptFontSizeMicro}"
+                           FontSize="14"
                            FontWeight="SemiBold"
                            Foreground="{DynamicResource MptBrushAccent}"
                            TextTrimming="CharacterEllipsis"
@@ -56,9 +56,9 @@
             <TextBlock Grid.Column="2"
                        Text="{Binding DisplayLabel}"
                        IsVisible="{Binding IsLabelVisible}"
-                       Margin="{DynamicResource MptGapRightL}"
+                       Margin="0,6,0,6"
                        FontSize="{DynamicResource MptFontSizeBody}"
-                       TextTrimming="CharacterEllipsis"
+                       TextWrapping="Wrap"
                        VerticalAlignment="Center" />
           </Grid>
         </controls:MptButton>
@@ -132,7 +132,7 @@
   <Grid x:Name="ShellLayoutGrid"
         Background="{DynamicResource MptBrushAppBackground}">
     <Grid.ColumnDefinitions>
-      <ColumnDefinition Width="240" />
+      <ColumnDefinition Width="280" />
       <ColumnDefinition Width="*" />
     </Grid.ColumnDefinitions>
     <Grid.RowDefinitions>
@@ -148,7 +148,7 @@
             chrome:WindowDecorationProperties.ElementRole="TitleBar">
       <Grid x:Name="TitleBarGrid">
         <Grid.ColumnDefinitions>
-          <ColumnDefinition Width="240" />
+          <ColumnDefinition Width="280" />
           <ColumnDefinition Width="*" />
           <ColumnDefinition Width="168" />
         </Grid.ColumnDefinitions>
@@ -221,7 +221,7 @@
                       CornerRadius="{DynamicResource MptRadiusControl}"
                       Background="{DynamicResource MptBrushAccent}">
                 <TextBlock Text="{Binding RuntimeModeLabel}"
-                           FontSize="{DynamicResource MptFontSizeMicro}"
+                           FontSize="14"
                            FontWeight="SemiBold"
                            Foreground="{DynamicResource MptBrushAccentText}"
                            VerticalAlignment="Center" />
@@ -323,16 +323,18 @@
                                     VerticalAlignment="Center"
                                     MinWidth="60" />
                 <controls:MptButton Grid.Column="3"
-                                    Content="&#xE711;"
+
                                     FontFamily="{DynamicResource MptFontFamilyIcons}"
                                     Command="{Binding DismissCommand}"
                                     Background="{DynamicResource MptBrushTransparent}"
                                     BorderBrush="{DynamicResource MptBrushTransparent}"
-                                    Width="28" Height="28"
-                                    Padding="{DynamicResource MptNoThickness}"
+                                    Width="28" Height="28" MinWidth="28" MinHeight="28"
+                                    Padding="0"
                                     Margin="{DynamicResource MptGapLeftXs}"
                                     VerticalAlignment="Center"
-                                    ToolTip.Tip="Dismiss" />
+                                    ToolTip.Tip="Dismiss">
+                  <TextBlock Text="×" FontFamily="{DynamicResource MptFontFamilyBody}" FontSize="20" />
+                </controls:MptButton>
               </Grid>
             </Border>
           </DataTemplate>
@@ -410,14 +412,16 @@
                                   Width="28"
                                   Height="28"
                                   Padding="{DynamicResource MptNoThickness}"
-                                  Content="&#xE8BB;"
+
                                   FontFamily="{DynamicResource MptFontFamilyIcons}"
                                   Background="{DynamicResource MptBrushTransparent}"
                                   BorderBrush="{DynamicResource MptBrushTransparent}"
                                   Command="{Binding CloseCommandPaletteCommand}"
                                   ToolTip.Tip="Close search results"
                                   AutomationProperties.Name="Close search results"
-                                  VerticalAlignment="Center" />
+                                  VerticalAlignment="Center">
+                  <TextBlock Text="×" FontFamily="{DynamicResource MptFontFamilyBody}" FontSize="20" />
+                </controls:MptButton>
             </Grid>
             <ContentControl x:Name="CommandPanel"
                             Grid.Row="1" />

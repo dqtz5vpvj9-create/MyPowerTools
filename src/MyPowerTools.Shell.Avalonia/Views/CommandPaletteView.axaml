@@ -167,10 +167,12 @@
         <Grid ColumnDefinitions="Auto,*,Auto"
               ColumnSpacing="8">
           <controls:MptButton Classes="CommandBackButton"
-                              Content="&#xE72B;"
+
                               Command="{Binding BackToResultsCommand}"
                               AutomationProperties.Name="Back to search results"
-                              ToolTip.Tip="Back to search results" />
+                              ToolTip.Tip="Back to search results">
+                  <TextBlock Text="&#xE72B;" FontFamily="{DynamicResource MptFontFamilyIcons}" FontSize="18" />
+                </controls:MptButton>
           <StackPanel Grid.Column="1"
                       Spacing="{DynamicResource MptSpacingXs}"
                       VerticalAlignment="Center">

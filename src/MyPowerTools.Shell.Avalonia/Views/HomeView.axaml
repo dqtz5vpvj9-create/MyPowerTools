@@ -77,8 +77,8 @@
     </Style>
 
     <Style Selector="Border.PowerDashboardIcon">
-      <Setter Property="Width" Value="34" />
-      <Setter Property="Height" Value="34" />
+      <Setter Property="Width" Value="38" />
+      <Setter Property="Height" Value="38" />
       <Setter Property="CornerRadius" Value="{DynamicResource MptRadiusCard}" />
       <Setter Property="Background" Value="{DynamicResource MptBrushSurfaceMuted}" />
       <Setter Property="BorderBrush" Value="{DynamicResource MptBrushBorder}" />
@@ -112,7 +112,7 @@
                   Background="{DynamicResource MptBrushSurfaceMuted}">
             <TextBlock Classes="PowerDashboardIconText"
                        Classes.symbol="{Binding IsSymbolIcon}"
-                       FontSize="{DynamicResource MptFontSizeCardTitle}"
+                       FontSize="24"
                        Text="{Binding IconGlyph}" />
           </Border>
           <TextBlock Text="{Binding Label}"
@@ -134,7 +134,7 @@
                           Command="{Binding OpenCommand}"
                           IsEnabled="{Binding CanOpen}"
                           ToolTip.Tip="{Binding Description}">
-        <Grid ColumnDefinitions="34,*,Auto"
+        <Grid ColumnDefinitions="38,*,Auto"
               ColumnSpacing="12">
           <Border Classes="PowerDashboardIcon">
             <TextBlock Classes="PowerDashboardIconText"
@@ -161,47 +161,27 @@
       <controls:MptButton Classes="PowerDashboardRow"
                           Command="{Binding OpenCommand}"
                           ToolTip.Tip="{Binding Description}">
-        <Grid ColumnDefinitions="34,*,Auto,Auto"
-              ColumnSpacing="12">
-          <Border Classes="PowerDashboardIcon">
-            <TextBlock Classes="PowerDashboardIconText"
-                       Text="{Binding IconGlyph}" />
+        <Grid ColumnDefinitions="38,*,Auto" ColumnSpacing="12">
+          <Border Classes="PowerDashboardIcon" VerticalAlignment="Top">
+            <TextBlock Classes="PowerDashboardIconText" Text="{Binding IconGlyph}" />
           </Border>
-          <StackPanel Grid.Column="1"
-                      VerticalAlignment="Center">
-            <TextBlock Text="{Binding Title}"
-                       FontWeight="SemiBold"
-                       TextTrimming="CharacterEllipsis" />
-            <TextBlock Classes="MptMeta"
-                       Text="{Binding PrimaryActionLabel}"
-                       TextTrimming="CharacterEllipsis" />
-          </StackPanel>
-          <StackPanel Grid.Column="2"
-                      VerticalAlignment="Center"
-                      HorizontalAlignment="Right"
-                      Spacing="{DynamicResource MptSpacing2Xs}">
+          <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+            <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextWrapping="Wrap" />
+            <TextBlock Classes="MptMeta" Text="{Binding PrimaryActionLabel}" TextWrapping="Wrap" />
             <Border Classes="MptStatusBadge"
                     Classes.running="{Binding IsReadyStatus}"
                     Classes.degraded="{Binding IsAttentionStatus}"
-                    Classes.error="{Binding IsUnavailable}"
-                    HorizontalAlignment="Right">
-              <TextBlock Classes="MptMeta"
-                         Text="{Binding StatusLabel}" />
+                    Classes.error="{Binding IsUnavailable}" HorizontalAlignment="Left">
+              <TextBlock Classes="MptMeta" Text="{Binding StatusLabel}" />
             </Border>
-            <TextBlock Classes="MptMeta"
-                       Text="{Binding StatusDetail}"
-                       IsVisible="{Binding IsAttentionStatus}"
-                       TextTrimming="CharacterEllipsis"
-                       MaxWidth="200"
-                       HorizontalAlignment="Right"
-                       Foreground="{DynamicResource MptBrushTextSecondary}" />
+            <TextBlock Classes="MptMeta" Text="{Binding StatusDetail}"
+                       IsVisible="{Binding IsAttentionStatus}" TextWrapping="Wrap"
+                       MaxLines="2" TextTrimming="CharacterEllipsis"
+                       ToolTip.Tip="{Binding StatusDetail}" />
           </StackPanel>
-          <TextBlock Grid.Column="3"
-                     Text="›"
-                     IsVisible="{Binding CanOpen}"
+          <TextBlock Grid.Column="2" Text="›" IsVisible="{Binding CanOpen}"
                      FontSize="{DynamicResource MptFontSizeSection}"
-                     Foreground="{DynamicResource MptBrushTextMuted}"
-                     VerticalAlignment="Center" />
+                     Foreground="{DynamicResource MptBrushTextMuted}" VerticalAlignment="Center" />
         </Grid>
       </controls:MptButton>
     </DataTemplate>

@@ -40,14 +40,15 @@
                               Width="{DynamicResource MptDensityControlHeight}"
                               Height="{DynamicResource MptDensityControlHeight}"
                               Padding="{DynamicResource MptNoThickness}"
-                              Content="&#xE72C;"
                               FontFamily="{DynamicResource MptFontFamilyIcons}"
                               FontSize="{DynamicResource MptFontSizeCardTitle}"
                               Command="{Binding RefreshCommand}"
                               ToolTip.Tip="Refresh tools"
                               AutomationProperties.Name="Refresh tools"
                               Margin="{DynamicResource MptGapRightS}"
-                              VerticalAlignment="Center" />
+                              VerticalAlignment="Center">
+        <TextBlock Text="&#xE72C;" FontFamily="{DynamicResource MptFontFamilyIcons}" FontSize="20" />
+      </controls:MptIconButton>
     </Grid>
 
     <StackPanel IsVisible="{Binding IsLoading}"

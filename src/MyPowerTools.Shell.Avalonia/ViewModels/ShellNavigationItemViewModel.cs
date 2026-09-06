@@ -6,7 +6,7 @@ public sealed class ShellNavigationItemViewModel : ObservableViewModel
 {
     private bool _isSelected;
     private bool _isLabelVisible = true;
-    private double _itemWidth = 216;
+    private double _itemWidth = 256;
     private string _selectionText = "";
     private string _displayLabel;
     private readonly string _defaultDisplayLabel;
@@ -92,7 +92,7 @@ public sealed class ShellNavigationItemViewModel : ObservableViewModel
     internal void SetCompact(bool compact)
     {
         IsLabelVisible = !compact;
-        ItemWidth = compact ? 52 : 216;
+        ItemWidth = compact ? 52 : 256;
         OnPropertyChanged(nameof(IsCloseButtonVisible));
     }
 

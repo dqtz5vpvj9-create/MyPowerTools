@@ -84,6 +84,8 @@ public sealed class App : Application
         MainWindow mainWindow)
     {
         var platform = PlatformPackFactory.Create();
+        if (Environment.GetEnvironmentVariable("MPT_TRAY_DIAGNOSTICS") == "1")
+            Console.Error.WriteLine($"Tray host={platform.TrayHost}, supported={platform.Capabilities.Resolve("tray").Supported}");
         if (platform.TrayHost != PlatformTrayHost.Shell ||
             !platform.Capabilities.Resolve("tray").Supported)
         {
@@ -128,6 +130,8 @@ public sealed class App : Application
                         }
                     },
                     CancellationToken.None);
+                if (Environment.GetEnvironmentVariable("MPT_TRAY_DIAGNOSTICS") == "1")
+                    Console.Error.WriteLine($"Tray start: {result}");
                 if (!result.Success)
                 {
                     await tray.DisposeAsync();

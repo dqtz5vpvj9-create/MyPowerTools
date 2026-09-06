@@ -446,6 +446,7 @@ static NSColor *MptQuotaAccentColor(NSInteger remainingPercent) {
 static NSImage *MptQuotaImage(NSInteger remainingPercent, NSString *toolTip) {
     remainingPercent = MAX(0, MIN(100, remainingPercent));
     const NSInteger canvasSize = 64;
+    // AppKit cannot draw into a non-premultiplied-alpha bitmap: its context is nil.
     NSBitmapImageRep *representation = [[NSBitmapImageRep alloc]
         initWithBitmapDataPlanes:nullptr
                       pixelsWide:canvasSize
@@ -455,7 +456,7 @@ static NSImage *MptQuotaImage(NSInteger remainingPercent, NSString *toolTip) {
                         hasAlpha:YES
                         isPlanar:NO
                   colorSpaceName:NSDeviceRGBColorSpace
-                    bitmapFormat:NSBitmapFormatAlphaNonpremultiplied
+                    bitmapFormat:0
                      bytesPerRow:0
                     bitsPerPixel:0];
     if (representation == nil) {
@@ -497,23 +498,6 @@ static NSImage *MptQuotaImage(NSInteger remainingPercent, NSString *toolTip) {
         [arc stroke];
     }
 
-    NSString *text = [NSString stringWithFormat:@"%ld", (long)remainingPercent];
-    CGFloat fontSize = remainingPercent >= 100 ? 19.0 : 24.0;
-    NSShadow *shadow = [[NSShadow alloc] init];
-    shadow.shadowColor = [NSColor colorWithWhite:0.0 alpha:0.82];
-    shadow.shadowOffset = NSMakeSize(1.0, -1.0);
-    shadow.shadowBlurRadius = 1.0;
-    NSDictionary<NSAttributedStringKey, id> *attributes = @{
-        NSFontAttributeName: [NSFont monospacedDigitSystemFontOfSize:fontSize
-                                                             weight:NSFontWeightBold],
-        NSForegroundColorAttributeName: NSColor.whiteColor,
-        NSShadowAttributeName: shadow
-    };
-    NSSize textSize = [text sizeWithAttributes:attributes];
-    [text drawAtPoint:NSMakePoint(
-        floor((canvasSize - textSize.width) / 2.0),
-        floor((canvasSize - textSize.height) / 2.0) - 1.0)
-       withAttributes:attributes];
     [context flushGraphics];
     [NSGraphicsContext restoreGraphicsState];
 
@@ -538,9 +522,11 @@ static NSImage *MptQuotaImage(NSInteger remainingPercent, NSString *toolTip) {
     }
     self.callback = callback;
     self.callbackContext = context;
-    self.statusItem = [NSStatusBar.systemStatusBar statusItemWithLength:NSSquareStatusItemLength];
+    self.statusItem = [NSStatusBar.systemStatusBar statusItemWithLength:NSVariableStatusItemLength];
     NSStatusBarButton *button = self.statusItem.button;
-    button.toolTip = toolTip;
+    button.toolTip = [toolTip stringByAppendingString:@"\nCodex quota: loading…"];
+    button.title = @"—%";
+    button.font = [NSFont monospacedDigitSystemFontOfSize:13 weight:NSFontWeightMedium];
     NSImage *image = iconPath.length > 0 ? [[NSImage alloc] initWithContentsOfFile:iconPath] : nil;
     if (image == nil) {
         image = [NSImage imageWithSystemSymbolName:@"bolt.circle" accessibilityDescription:toolTip];
@@ -594,13 +580,23 @@ static NSImage *MptQuotaImage(NSInteger remainingPercent, NSString *toolTip) {
     if (button == nil) {
         return NO;
     }
+    if (remainingPercent < 0) {
+        button.toolTip = toolTip;
+        button.title = @"—%";
+        button.image = [NSImage imageWithSystemSymbolName:@"questionmark.circle" accessibilityDescription:toolTip];
+        return YES;
+    }
     NSImage *image = MptQuotaImage(remainingPercent, toolTip);
     if (image == nil) {
         return NO;
     }
     button.toolTip = toolTip;
-    button.title = @"";
+    button.title = [NSString stringWithFormat:@" %ld%%", (long)remainingPercent];
     button.image = image;
+    if (getenv("MPT_TRAY_DIAGNOSTICS") != nullptr) {
+        fprintf(stderr, "MPT status item title=%s image=%s visible=%d\n",
+                button.title.UTF8String, button.image ? "present" : "missing", self.statusItem.visible);
+    }
     return YES;
 }
 

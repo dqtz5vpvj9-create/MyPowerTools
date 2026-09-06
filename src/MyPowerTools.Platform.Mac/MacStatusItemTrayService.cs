@@ -170,6 +170,8 @@ public sealed class MacStatusItemTrayService : ITrayService
             {
                 var snapshot = await CodexQuotaReader.ReadAsync(cancellationToken).ConfigureAwait(false);
                 var displayWindow = snapshot.DisplayWindow;
+                if (Environment.GetEnvironmentVariable("MPT_TRAY_DIAGNOSTICS") == "1")
+                    Console.Error.WriteLine($"Codex quota source={snapshot.Source} remaining={displayWindow?.RemainingPercent}%");
                 if (displayWindow is null ||
                     MacNative.UpdateStatusItemQuota(
                         statusItemHandle,
@@ -183,8 +185,13 @@ public sealed class MacStatusItemTrayService : ITrayService
             {
                 return;
             }
-            catch
+            catch (Exception ex)
             {
+                if (Environment.GetEnvironmentVariable("MPT_TRAY_DIAGNOSTICS") == "1")
+                    Console.Error.WriteLine($"Codex quota refresh failed: {ex.GetType().Name}: {ex.Message}");
+                System.Diagnostics.Trace.WriteLine($"Codex quota refresh failed: {ex.GetType().Name}: {ex.Message}");
+                MacNative.UpdateStatusItemQuota(statusItemHandle, -1,
+                    $"{baseToolTip}\nCodex quota unavailable; retrying in one minute.");
                 delay = retryDelay;
             }
 
