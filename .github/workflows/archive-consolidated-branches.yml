@@ -1,0 +1,58 @@
+name: Archive consolidated branches
+on:
+  push:
+    branches: [main]
+    paths: [.github/workflows/archive-consolidated-branches.yml]
+  workflow_dispatch:
+permissions:
+  contents: write
+concurrency:
+  group: archive-consolidated-branches
+  cancel-in-progress: false
+jobs:
+  archive:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - name: Archive exact original tips and retire old branches atomically
+        env:
+          EXPECTED_MAIN: ${{ github.sha }}
+          ARCHIVE_BRANCHES: >-
+            [{"branch":"agent/extensible-remote-commands-workspace","sha":"be58dd9b909eb439ecc221d16c74ee787fd8b705","archive_tag":"archive/2026-09-06/agent/extensible-remote-commands-workspace"},{"branch":"agent/remote-commands-host-selector","sha":"d819a49ced3f84dbd7c84deef2901b07cd0a657f","archive_tag":"archive/2026-09-06/agent/remote-commands-host-selector"},{"branch":"codex/feat-shortcut-center-2026-09-05","sha":"0bae463e7d0d2f0daacd2500f5de534b680e595c","archive_tag":"archive/2026-09-06/codex/feat-shortcut-center-2026-09-05"},{"branch":"codex/macos-install-safety-2026-09-05","sha":"7dbbf782749c31d640f1d3ec102ed15810f070b5","archive_tag":"archive/2026-09-06/codex/macos-install-safety-2026-09-05"},{"branch":"codex/macos-ota-completion-2026-09","sha":"dea028181627fe83a7306e03a30478844369dab2","archive_tag":"archive/2026-09-06/codex/macos-ota-completion-2026-09"},{"branch":"codex/personal-ux-favorites-recents-2026-09-05","sha":"8c990ccd19a206d50ca047c21ff4fe96427506be","archive_tag":"archive/2026-09-06/codex/personal-ux-favorites-recents-2026-09-05"},{"branch":"codex/personal-ux-logs-integration-2026-09-05","sha":"c8de43e07754965156c12d7cb9c8e24a451adb19","archive_tag":"archive/2026-09-06/codex/personal-ux-logs-integration-2026-09-05"},{"branch":"codex/personal-ux-tool-search-2026-09-05","sha":"2a1e5999988a78caa25ec96fe456c7e31a3ead12","archive_tag":"archive/2026-09-06/codex/personal-ux-tool-search-2026-09-05"},{"branch":"codex/remote-notifications-macos-production-2026-09","sha":"b50e50238c89831fc3ab8473ea2cc11325d882fc","archive_tag":"archive/2026-09-06/codex/remote-notifications-macos-production-2026-09"},{"branch":"codex/shortcut-compat-workspace-2026-09-05","sha":"6b5ba30186288174eb2db4ff6d5c6287001f4a11","archive_tag":"archive/2026-09-06/codex/shortcut-compat-workspace-2026-09-05"},{"branch":"codex/shortcut-publication-workspace-2026-09-05","sha":"a681b3bf7aae0171ea7dd7fb0fc038d94cea4875","archive_tag":"archive/2026-09-06/codex/shortcut-publication-workspace-2026-09-05"},{"branch":"codex/tool-product-rebuild","sha":"187e60cf692e425cc11db2cff58d61a4bc05565e","archive_tag":"archive/2026-09-06/codex/tool-product-rebuild"},{"branch":"codex/ux-back-navigation-2026-09-05","sha":"b1169eaf8daf501b5ce571d0ec05307739956c1f","archive_tag":"archive/2026-09-06/codex/ux-back-navigation-2026-09-05"},{"branch":"codex/ux-command-palette-ctrl-k-2026-09-05","sha":"a12b6e6d5300fb5d41a0fed1ea603c023be90c67","archive_tag":"archive/2026-09-06/codex/ux-command-palette-ctrl-k-2026-09-05"},{"branch":"codex/ux-platform-hardening-2026-09-noci","sha":"3dcd4c743608e9589bfa305a5ef51213cd2104f0","archive_tag":"archive/2026-09-06/codex/ux-platform-hardening-2026-09-noci"},{"branch":"codex/ux-review-workspace-2026-09-05","sha":"08e8c2480c0952f8078cf0fe548464ae4e14f916","archive_tag":"archive/2026-09-06/codex/ux-review-workspace-2026-09-05"},{"branch":"feature/dsh-hooks","sha":"d3e6202aab5bf891b9284162b48cbb559be7e935","archive_tag":"archive/2026-09-06/feature/dsh-hooks"},{"branch":"feature/session-metadata-v2","sha":"ec5a9484fd443bc1d9a1731f20b9cb63dd8759af","archive_tag":"archive/2026-09-06/feature/session-metadata-v2"},{"branch":"fix/remote-notifications-agent-filter","sha":"d4c94e9be2997da93966a412852e31400a560c71","archive_tag":"archive/2026-09-06/fix/remote-notifications-agent-filter"},{"branch":"main","sha":"43482640b22514587dd3c4ce398d18f8456bbab3","archive_tag":"archive/2026-09-06/main"}]
+        shell: python
+        run: |
+          import json, os, subprocess
+          
+          def git(*args):
+              return subprocess.check_output(["git", *args], text=True).strip()
+          
+          expected = json.loads(os.environ["ARCHIVE_BRANCHES"])
+          # Fail closed if main changed after this run was dispatched.
+          assert git("ls-remote", "origin", "refs/heads/main").split()[0] == os.environ["EXPECTED_MAIN"], "main changed; rerun after review"
+          leases, refspecs = [], []
+          for row in expected:
+              name, sha, tag = row["branch"], row["sha"], row["archive_tag"]
+              existing_tag = git("ls-remote", "origin", "refs/tags/" + tag)
+              if existing_tag:
+                  assert existing_tag.split()[0] == sha, "archive tag differs: " + tag
+              else:
+                  git("tag", tag, sha)
+                  refspecs.append("refs/tags/" + tag + ":refs/tags/" + tag)
+              if name == "main":
+                  continue
+              ref = "refs/heads/" + name
+              remote = git("ls-remote", "origin", ref)
+              if not remote:
+                  continue
+              assert remote.split()[0] == sha, "branch advanced; preserved: " + name
+              # All archived tips must remain reachable from the consolidated main.
+              subprocess.run(["git", "merge-base", "--is-ancestor", sha, "HEAD"], check=True)
+              leases.append("--force-with-lease=" + ref + ":" + sha)
+              refspecs.append(":" + ref)
+          if refspecs:
+              subprocess.run(["git", "push", "--atomic", *leases, "origin", *refspecs], check=True)
+          remaining = git("ls-remote", "--heads", "origin").splitlines()
+          assert len(remaining) == 1 and remaining[0].endswith("refs/heads/main"), "additional branches exist; preserved for review"
+          print("Archived the original tips and verified that main is the only branch.")

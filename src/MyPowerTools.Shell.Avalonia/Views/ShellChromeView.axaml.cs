@@ -14,6 +14,7 @@ public sealed partial class ShellChromeView : UserControl
     private const double CompactNavigationWidth = 64;
     private const double ExpandedNavigationWidth = MptThemeTokens.LayoutSidebarWidth;
     private const double CaptionReserveWidth = 168;
+    private const double MacTrafficLightInset = 72;
     private const double SearchMinWidth = 280;
     private const double SearchMaxWidth = MptThemeTokens.LayoutSearchMaxWidth;
     private const double ContentMaxWidth = MptThemeTokens.LayoutPageMaxWidth;
@@ -141,26 +142,35 @@ public sealed partial class ShellChromeView : UserControl
             ShellNavigationMode.Compact => CompactNavigationWidth,
             _ => 0
         };
+        var titleLeadingInset = OperatingSystem.IsMacOS() ? MacTrafficLightInset : 0;
+        var captionReserveWidth = OperatingSystem.IsMacOS() ? 0 : CaptionReserveWidth;
+        var titleNavigationWidth = navigationWidth + titleLeadingInset;
         _shellLayoutGrid.ColumnDefinitions[0].Width = new GridLength(navigationWidth);
-        _titleBarGrid.ColumnDefinitions[0].Width = new GridLength(navigationWidth);
+        _titleBarGrid.ColumnDefinitions[0].Width = new GridLength(titleNavigationWidth);
+        _titleBarGrid.ColumnDefinitions[2].Width = new GridLength(captionReserveWidth);
         _commandFlyout.Width = Math.Clamp(
-            width - navigationWidth - CaptionReserveWidth - 48,
+            width - titleNavigationWidth - captionReserveWidth - 48,
             SearchMinWidth,
             SearchMaxWidth);
         _contentHost.Width = Math.Min(
             Math.Max(0, width - navigationWidth - ContentHorizontalMargin),
             ContentMaxWidth);
-        var titleContentWidth = Math.Max(0, width - navigationWidth - CaptionReserveWidth);
-        var commandFlyoutLeft = navigationWidth + Math.Max(0, (titleContentWidth - _commandFlyout.Width) / 2);
+        var titleContentWidth = Math.Max(0, width - titleNavigationWidth - captionReserveWidth);
+        var commandFlyoutLeft = titleNavigationWidth + Math.Max(0, (titleContentWidth - _commandFlyout.Width) / 2);
         _commandFlyout.Margin = new Thickness(commandFlyoutLeft, TopBarHeight, 0, 0);
         _navigationHost.IsVisible = !hidden;
         _brandHost.IsVisible = !hidden;
         _brandTitle.IsVisible = !compact && !hidden;
         _toolSectionLabel.IsVisible = !compact && !hidden;
         _brandHost.ColumnSpacing = compact ? 0 : 12;
-        _brandHost.Margin = compact
+        var brandMargin = compact
             ? MptThemeTokens.ShellBrandCompactMargin
             : MptThemeTokens.ShellBrandExpandedMargin;
+        _brandHost.Margin = new Thickness(
+            brandMargin.Left + titleLeadingInset,
+            brandMargin.Top,
+            brandMargin.Right,
+            brandMargin.Bottom);
         _mainNavigationStack.Margin = compact
             ? MptThemeTokens.ShellNavigationCompactMargin
             : MptThemeTokens.ShellNavigationExpandedMargin;
@@ -180,8 +190,8 @@ public sealed partial class ShellChromeView : UserControl
             _ => "Navigation: hidden. Activate to expand."
         });
         _navigationModeButton.Content = NavigationMode == ShellNavigationMode.Hidden
-            ? "\uE76E"
-            : "\uE700";
+            ? "›"
+            : "☰";
     }
 }
 

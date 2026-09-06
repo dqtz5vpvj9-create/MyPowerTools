@@ -1,0 +1,41 @@
+name: macOS installer safety
+
+on:
+  pull_request:
+    paths:
+      - scripts/install-macos*.ps1
+      - scripts/verify-macos-install-safety.ps1
+      - .github/workflows/macos-install-safety.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: macos-install-safety-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  installer-safety:
+    name: Installer safety / ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-24.04, macos-14, macos-15-intel]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    steps:
+      - name: Checkout without submodules or credentials
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: Run rollback and native fixture regressions
+        shell: pwsh
+        run: ./scripts/verify-macos-install-safety.ps1 -ReportPath (Join-Path $env:RUNNER_TEMP 'macos-install-safety.json')
+      - name: Upload test evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: macos-install-safety-${{ matrix.os }}
+          path: ${{ runner.temp }}/macos-install-safety.json
+          if-no-files-found: error

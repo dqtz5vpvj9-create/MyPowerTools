@@ -350,6 +350,14 @@ commands:
             [inproc, grpc]);
 
         runtime.Load(Path.Combine(Root, "modules"));
+        // Runner initializes dynamic command providers before starting the continuous
+        // event pump. Mirror that production order here so a sidecar's readiness timeout
+        // is not confused with the bounded event-observation window.
+        await runtime.RefreshDynamicCommandsAsync(CancellationToken.None);
+        var notificationModule = runtime.ListModules(includeDisabled: true)
+            .Single(module => module.Module.Manifest.Id == "android-tools.notifications");
+        Assert.Equal("inproc-dotnet", notificationModule.Entrypoint?.Kind);
+
         var count = await runtime.CollectModuleEventsAsync(TimeSpan.FromMilliseconds(1500), CancellationToken.None);
         var events = runtime.HostEventsSince(0);
         var productionModuleIds = events

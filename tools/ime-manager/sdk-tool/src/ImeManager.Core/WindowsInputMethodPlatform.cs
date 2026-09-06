@@ -449,14 +449,10 @@ public sealed class WindowsInputMethodPlatform : IInputMethodPlatform
         foreach (var name in preload.GetValueNames().OrderBy(value => value, StringComparer.Ordinal))
         {
             var raw = Convert.ToString(preload.GetValue(name), CultureInfo.InvariantCulture);
-            if (raw is null ||
-                !uint.TryParse(raw, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var klid))
+            if (TryParsePreloadValue(raw, out var canonical))
             {
-                continue;
+                yield return canonical;
             }
-
-            var languageId = (ushort)(klid & 0xFFFF);
-            yield return ParsedTipString.CanonicalKeyboard(languageId, klid);
         }
     }
 
@@ -562,7 +558,7 @@ public sealed class WindowsInputMethodPlatform : IInputMethodPlatform
         {
             languageKey.SetValue(
                 index.ToString("00000000", CultureInfo.InvariantCulture),
-                languages[index].ToString("00000000", CultureInfo.InvariantCulture),
+                SortOrderLanguageValue(languages[index]),
                 RegistryValueKind.String);
         }
 
@@ -664,12 +660,28 @@ public sealed class WindowsInputMethodPlatform : IInputMethodPlatform
         var index = 1;
         foreach (var item in enabled)
         {
-            var value = item.Kind == InputMethodKind.KeyboardLayout
-                ? item.KeyboardLayoutId.ToString("00000000", CultureInfo.InvariantCulture)
-                : item.LanguageId.ToString("00000000", CultureInfo.InvariantCulture);
-            preload.SetValue(index.ToString(CultureInfo.InvariantCulture), value, RegistryValueKind.String);
+            preload.SetValue(index.ToString(CultureInfo.InvariantCulture), PreloadValue(item), RegistryValueKind.String);
             index++;
         }
+    }
+
+    /// <summary>Windows stores Preload entries as eight hexadecimal digits, so <see cref="TryParsePreloadValue"/> can read them back.</summary>
+    internal static string PreloadValue(ParsedTipString item) =>
+        item.Kind == InputMethodKind.KeyboardLayout
+            ? item.KeyboardLayoutId.ToString("X8", CultureInfo.InvariantCulture)
+            : item.LanguageId.ToString("X8", CultureInfo.InvariantCulture);
+
+    internal static bool TryParsePreloadValue(string? raw, out string canonical)
+    {
+        canonical = string.Empty;
+        if (raw is null ||
+            !uint.TryParse(raw, NumberStyles.HexNumber, CultureInfo.InvariantCulture, out var klid))
+        {
+            return false;
+        }
+
+        canonical = ParsedTipString.CanonicalKeyboard((ushort)(klid & 0xFFFF), klid);
+        return true;
     }
 
     private static void InvokeInstall(string tipString, uint dwFlags)
@@ -759,7 +771,11 @@ public sealed class WindowsInputMethodPlatform : IInputMethodPlatform
         }
     }
 
-    private static bool TryParseLanguageKey(string? raw, out ushort languageId)
+    /// <summary>Windows stores SortOrder language ids as hexadecimal, so <see cref="TryParseLanguageKey"/> can read them back.</summary>
+    internal static string SortOrderLanguageValue(ushort languageId) =>
+        languageId.ToString("X8", CultureInfo.InvariantCulture);
+
+    internal static bool TryParseLanguageKey(string? raw, out ushort languageId)
     {
         languageId = 0;
         if (string.IsNullOrWhiteSpace(raw))

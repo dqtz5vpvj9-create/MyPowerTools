@@ -37,7 +37,7 @@ public sealed class WindowsPlatformPack : IPlatformPack
         new("ipc.local", "user", true, "Named Pipes", "Named Pipe IPC available."),
         new("secret.store", "sensitive", true, "Windows Credential Manager", "Per-user Credential Manager secret references available."),
         new("process.inspect", "user", true, "Process API", "Process inspection available."),
-        new("adb.device", "user", true, "adb CLI", "ADB is resolved through diagnostics.")
+        new("adb.devices", "user", true, "adb CLI", "ADB is resolved through diagnostics.")
     ]);
 
     public IServiceManager Services { get; } = new WindowsServiceManager();

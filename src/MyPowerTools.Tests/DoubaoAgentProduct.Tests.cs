@@ -898,6 +898,280 @@ public sealed class DoubaoAgentProductTests
         }
     }
 
+    [Fact]
+    public async Task Product_configuration_saves_all_secrets_atomically_without_ever_returning_them()
+    {
+        using var runtime = new TemporaryDoubaoRuntime();
+        using var httpClient = new HttpClient(new DoubaoRuntimeHandler());
+        var settingsPath = Path.Combine(runtime.Root, "user-data", "settings.json");
+        using var service = new DoubaoAgentToolService(
+            httpClient,
+            runtime.Root,
+            runtime.SecretFile,
+            ConnectedTcpAsync,
+            runtimeController: SafeRuntimeController(),
+            settingsFilePath: settingsPath);
+
+        var saved = await service.SaveConfigurationAsync(new DoubaoAgentConfigurationUpdate(
+            new DoubaoSecretUpdate("ark-private-123", "local-auth-private-456", "local-auth-private-456"),
+            "https://ark.example.test/api/v3"));
+        var snapshot = await service.LoadAsync();
+        var serializedSnapshot = System.Text.Json.JsonSerializer.Serialize(snapshot);
+
+        Assert.True(saved.Success, saved.TechnicalDetails);
+        Assert.True(snapshot.Configuration.ArkApiKeyConfigured);
+        Assert.True(snapshot.Configuration.AuthKeyConfigured);
+        Assert.True(snapshot.Configuration.AuthApiKeyConfigured);
+        Assert.DoesNotContain("ark-private-123", saved.ToString(), StringComparison.Ordinal);
+        Assert.DoesNotContain("local-auth-private-456", saved.ToString(), StringComparison.Ordinal);
+        Assert.DoesNotContain("ark-private-123", serializedSnapshot, StringComparison.Ordinal);
+        Assert.DoesNotContain("local-auth-private-456", serializedSnapshot, StringComparison.Ordinal);
+        Assert.DoesNotContain(".tmp", string.Join(" ", Directory.EnumerateFiles(Path.GetDirectoryName(runtime.SecretFile)!)), StringComparison.OrdinalIgnoreCase);
+        Assert.DoesNotContain("ark-private-123", File.ReadAllText(settingsPath), StringComparison.Ordinal);
+        Assert.DoesNotContain("local-auth-private-456", File.ReadAllText(settingsPath), StringComparison.Ordinal);
+        Assert.DoesNotContain("ark-private-123", File.ReadAllText(service.PlannerOverrideConfigPath), StringComparison.Ordinal);
+        if (OperatingSystem.IsWindows())
+        {
+            var accessControl = System.IO.FileSystemAclExtensions.GetAccessControl(new FileInfo(runtime.SecretFile));
+            Assert.True(accessControl.AreAccessRulesProtected);
+        }
+        else
+        {
+            Assert.Equal(
+                UnixFileMode.UserRead | UnixFileMode.UserWrite,
+                File.GetUnixFileMode(runtime.SecretFile));
+        }
+
+        var specificationFactory = typeof(DoubaoSecureRuntimeController).GetMethod(
+            "BuildSpecifications",
+            System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Static)!;
+        var specifications = (System.Collections.IEnumerable)specificationFactory.Invoke(
+            null,
+            [runtime.Root, runtime.SecretFile])!;
+        foreach (var specification in specifications)
+        {
+            var arguments = (IEnumerable<string>)specification.GetType().GetProperty("Arguments")!.GetValue(specification)!;
+            var commandLine = string.Join(" ", arguments);
+            Assert.DoesNotContain("ark-private-123", commandLine, StringComparison.Ordinal);
+            Assert.DoesNotContain("local-auth-private-456", commandLine, StringComparison.Ordinal);
+        }
+
+        var updated = await service.SaveConfigurationAsync(new DoubaoAgentConfigurationUpdate(
+            new DoubaoSecretUpdate("ark-replaced", "", ""),
+            "https://ark.example.test/api/v3"));
+        var secretFile = File.ReadAllText(runtime.SecretFile);
+
+        Assert.True(updated.Success, updated.TechnicalDetails);
+        Assert.Contains("ARK_API_KEY=ark-replaced", secretFile, StringComparison.Ordinal);
+        Assert.Contains("AUTH_KEY=local-auth-private-456", secretFile, StringComparison.Ordinal);
+        Assert.Contains("AUTH_API_KEY=local-auth-private-456", secretFile, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Product_configuration_rejects_mismatched_local_authentication_before_writing()
+    {
+        using var runtime = new TemporaryDoubaoRuntime();
+        using var httpClient = new HttpClient(new DoubaoRuntimeHandler());
+        var originalSecretFile = File.ReadAllText(runtime.SecretFile);
+        using var service = new DoubaoAgentToolService(
+            httpClient,
+            runtime.Root,
+            runtime.SecretFile,
+            ConnectedTcpAsync,
+            runtimeController: SafeRuntimeController(),
+            settingsFilePath: Path.Combine(runtime.Root, "user-data", "settings.json"));
+
+        var saved = await service.SaveConfigurationAsync(new DoubaoAgentConfigurationUpdate(
+            new DoubaoSecretUpdate("", "tool-auth-private", "different-mcp-auth-private"),
+            "https://ark.example.test/api/v3"));
+
+        Assert.False(saved.Success);
+        Assert.Equal("auth-keys-mismatch", saved.TechnicalDetails);
+        Assert.Contains("必须相同", saved.Message, StringComparison.Ordinal);
+        Assert.Equal(originalSecretFile, File.ReadAllText(runtime.SecretFile));
+        Assert.DoesNotContain("tool-auth-private", saved.ToString(), StringComparison.Ordinal);
+        Assert.DoesNotContain("different-mcp-auth-private", saved.ToString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Product_configuration_tests_planner_and_model_api_without_exposing_authorization()
+    {
+        using var runtime = new TemporaryDoubaoRuntime();
+        var handler = new DoubaoRuntimeHandler();
+        using var httpClient = new HttpClient(handler);
+        using var service = new DoubaoAgentToolService(
+            httpClient,
+            runtime.Root,
+            runtime.SecretFile,
+            ConnectedTcpAsync,
+            runtimeController: SafeRuntimeController(),
+            settingsFilePath: Path.Combine(runtime.Root, "user-data", "settings.json"));
+        await service.SaveConfigurationAsync(new DoubaoAgentConfigurationUpdate(
+            new DoubaoSecretUpdate("ark-validation-secret", "shared-local-auth", "shared-local-auth"),
+            "https://ark.example.test/api/v3"));
+
+        var tested = await service.TestConfigurationAsync();
+
+        Assert.True(tested.Success, tested.TechnicalDetails);
+        Assert.Equal("Bearer ark-validation-secret", handler.LastAuthorization);
+        Assert.Equal("shared-local-auth", handler.LastToolAuthKey);
+        Assert.Contains("/config", handler.Requests);
+        Assert.Contains("/health", handler.Requests);
+        Assert.Contains("/sse", handler.Requests);
+        Assert.Contains("/api/v3/models", handler.Requests);
+        Assert.DoesNotContain("ark-validation-secret", tested.ToString(), StringComparison.Ordinal);
+        Assert.DoesNotContain("shared-local-auth", tested.ToString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Product_configuration_test_reports_tool_authentication_and_mcp_failures()
+    {
+        using var runtime = new TemporaryDoubaoRuntime();
+        var toolFailureHandler = new DoubaoRuntimeHandler
+        {
+            ToolConfigStatusCode = HttpStatusCode.Unauthorized
+        };
+        using var toolFailureHttpClient = new HttpClient(toolFailureHandler);
+        using var toolFailureService = new DoubaoAgentToolService(
+            toolFailureHttpClient,
+            runtime.Root,
+            runtime.SecretFile,
+            ConnectedTcpAsync,
+            runtimeController: SafeRuntimeController(),
+            settingsFilePath: Path.Combine(runtime.Root, "user-data", "tool-failure-settings.json"));
+
+        var toolFailure = await toolFailureService.TestConfigurationAsync();
+
+        Assert.False(toolFailure.Success);
+        Assert.Contains("Tool Server", toolFailure.Message, StringComparison.Ordinal);
+        Assert.Equal("HTTP 401", toolFailure.TechnicalDetails);
+        Assert.DoesNotContain("/api/v3/models", toolFailureHandler.Requests);
+
+        var mcpFailureHandler = new DoubaoRuntimeHandler
+        {
+            McpSseStatusCode = HttpStatusCode.ServiceUnavailable
+        };
+        using var mcpFailureHttpClient = new HttpClient(mcpFailureHandler);
+        using var mcpFailureService = new DoubaoAgentToolService(
+            mcpFailureHttpClient,
+            runtime.Root,
+            runtime.SecretFile,
+            ConnectedTcpAsync,
+            runtimeController: SafeRuntimeController(),
+            settingsFilePath: Path.Combine(runtime.Root, "user-data", "mcp-failure-settings.json"));
+
+        var mcpFailure = await mcpFailureService.TestConfigurationAsync();
+
+        Assert.False(mcpFailure.Success);
+        Assert.Contains("MCP Server", mcpFailure.Message, StringComparison.Ordinal);
+        Assert.Equal("HTTP 503", mcpFailure.TechnicalDetails);
+        Assert.DoesNotContain("/api/v3/models", mcpFailureHandler.Requests);
+    }
+
+    [Fact]
+    public async Task Product_configuration_test_uses_process_environment_when_the_secret_file_is_empty()
+    {
+        using var runtime = new TemporaryDoubaoRuntime();
+        File.WriteAllText(runtime.SecretFile, "");
+        using var environment = new EnvironmentVariableScope(
+            ("ARK_API_KEY", "process-only-ark-secret"),
+            ("AUTH_KEY", null),
+            ("AUTH_API_KEY", null));
+        var handler = new DoubaoRuntimeHandler();
+        using var httpClient = new HttpClient(handler);
+        using var service = new DoubaoAgentToolService(
+            httpClient,
+            runtime.Root,
+            runtime.SecretFile,
+            ConnectedTcpAsync,
+            runtimeController: SafeRuntimeController(),
+            settingsFilePath: Path.Combine(runtime.Root, "user-data", "settings.json"));
+
+        var tested = await service.TestConfigurationAsync();
+
+        Assert.True(tested.Success, tested.TechnicalDetails);
+        Assert.Equal("Bearer process-only-ark-secret", handler.LastAuthorization);
+        Assert.DoesNotContain("process-only-ark-secret", tested.ToString(), StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public async Task Saving_configuration_does_not_claim_external_runtime_was_restarted()
+    {
+        using var runtime = new TemporaryDoubaoRuntime();
+        using var httpClient = new HttpClient(new DoubaoRuntimeHandler());
+        var controller = new FakeRuntimeController(SafeSecurity(owned: false));
+        using var service = new DoubaoAgentToolService(
+            httpClient,
+            runtime.Root,
+            runtime.SecretFile,
+            ConnectedTcpAsync,
+            runtimeController: controller,
+            settingsFilePath: Path.Combine(runtime.Root, "user-data", "settings.json"));
+        using var viewModel = new DoubaoAgentViewModel(await service.LoadAsync(), service)
+        {
+            PlannerApiBaseUrl = "https://ark.example.test/api/v3"
+        };
+        var saveMethod = typeof(DoubaoAgentViewModel).GetMethod(
+            "SaveConfigurationAsync",
+            System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+
+        await (Task)saveMethod.Invoke(viewModel, null)!;
+
+        Assert.True(viewModel.HasSettingsError);
+        Assert.Contains("外部进程托管", viewModel.SettingsMessage, StringComparison.Ordinal);
+        Assert.Contains("尚未应用", viewModel.SettingsMessage, StringComparison.Ordinal);
+        Assert.DoesNotContain("服务状态已刷新", viewModel.SettingsMessage, StringComparison.Ordinal);
+        Assert.Equal(0, controller.StartCount);
+        Assert.Equal(0, controller.StopCount);
+    }
+
+    [Fact]
+    public void Product_preferences_survive_a_new_service_and_use_a_writable_planner_override()
+    {
+        using var runtime = new TemporaryDoubaoRuntime();
+        var settingsPath = Path.Combine(runtime.Root, "local-app-data", "settings.json");
+        using (var firstHttpClient = new HttpClient(new DoubaoRuntimeHandler()))
+        using (var first = new DoubaoAgentToolService(
+                   firstHttpClient,
+                   runtime.Root,
+                   runtime.SecretFile,
+                   ConnectedTcpAsync,
+                   runtimeController: SafeRuntimeController(),
+                   settingsFilePath: settingsPath))
+        {
+            first.Session.AutoStartEnabled = false;
+            first.Session.SelectedModelName = "doubao-seed-2-1-pro-260628";
+            first.Session.Instruction = "跨进程保留输入";
+            first.Session.SystemPrompt = "跨进程保留提示词";
+            first.Session.ShowSystemPrompt = true;
+            first.Session.OverlayX = 778;
+            first.Session.OverlayY = 449;
+            first.Session.PlannerApiBaseUrl = "https://ark.example.test/api/v3";
+
+            Assert.True(first.PersistSession().Success);
+            Assert.StartsWith(Path.GetDirectoryName(settingsPath)!, first.PlannerOverrideConfigPath, StringComparison.OrdinalIgnoreCase);
+            Assert.Contains("https://ark.example.test/api/v3", File.ReadAllText(first.PlannerOverrideConfigPath), StringComparison.Ordinal);
+        }
+
+        using var restoredHttpClient = new HttpClient(new DoubaoRuntimeHandler());
+        using var restored = new DoubaoAgentToolService(
+            restoredHttpClient,
+            runtime.Root,
+            runtime.SecretFile,
+            ConnectedTcpAsync,
+            runtimeController: SafeRuntimeController(),
+            settingsFilePath: settingsPath);
+
+        Assert.False(restored.Session.AutoStartEnabled);
+        Assert.Equal("doubao-seed-2-1-pro-260628", restored.Session.SelectedModelName);
+        Assert.Equal("跨进程保留输入", restored.Session.Instruction);
+        Assert.Equal("跨进程保留提示词", restored.Session.SystemPrompt);
+        Assert.True(restored.Session.ShowSystemPrompt);
+        Assert.Equal(778, restored.Session.OverlayX);
+        Assert.Equal(449, restored.Session.OverlayY);
+        Assert.Equal("https://ark.example.test/api/v3", restored.Session.PlannerApiBaseUrl);
+    }
+
     private static DoubaoAgentSnapshot ReadySnapshot()
     {
         return new DoubaoAgentSnapshot(
@@ -1082,9 +1356,12 @@ public sealed class DoubaoAgentProductTests
     {
         public string LastTaskRequestJson { get; private set; } = "";
         public string LastToolAuthKey { get; private set; } = "";
+        public string LastAuthorization { get; private set; } = "";
         public List<string> Requests { get; } = [];
         public bool BlockTaskUntilCanceled { get; init; }
         public bool IsAvailable { get; set; } = true;
+        public HttpStatusCode ToolConfigStatusCode { get; init; } = HttpStatusCode.OK;
+        public HttpStatusCode McpSseStatusCode { get; init; } = HttpStatusCode.OK;
         public TimeSpan RequestDelay { get; init; }
         public string OverlayActionJson { get; init; } = "";
         public string AvailabilityMarkerPath { get; init; } = "";
@@ -1112,6 +1389,7 @@ public sealed class DoubaoAgentProductTests
             {
                 await Task.Delay(RequestDelay, cancellationToken);
             }
+            LastAuthorization = request.Headers.Authorization?.ToString() ?? LastAuthorization;
             if (uri.Port == 38102 && request.Headers.TryGetValues("X-API-Key", out var authValues))
             {
                 LastToolAuthKey = authValues.Single();
@@ -1134,7 +1412,7 @@ public sealed class DoubaoAgentProductTests
                 return Response(TaskStream, "text/event-stream");
             }
 
-            if (uri.AbsolutePath == "/models")
+            if (uri.AbsolutePath.EndsWith("/models", StringComparison.Ordinal))
             {
                 return Response(ModelsJson);
             }
@@ -1164,7 +1442,14 @@ public sealed class DoubaoAgentProductTests
             }
             if (uri.AbsolutePath == "/config")
             {
-                return Response("{}");
+                return Response("{}", statusCode: ToolConfigStatusCode);
+            }
+            if (uri.AbsolutePath == "/sse")
+            {
+                return Response(
+                    "event: endpoint\ndata: /messages/?session_id=fixture\n\n",
+                    "text/event-stream",
+                    McpSseStatusCode);
             }
             return new HttpResponseMessage(HttpStatusCode.NotFound);
         }
@@ -1235,6 +1520,28 @@ public sealed class DoubaoAgentProductTests
             if (Directory.Exists(Root))
             {
                 Directory.Delete(Root, recursive: true);
+            }
+        }
+    }
+
+    private sealed class EnvironmentVariableScope : IDisposable
+    {
+        private readonly Dictionary<string, string?> _previous = new(StringComparer.OrdinalIgnoreCase);
+
+        public EnvironmentVariableScope(params (string Name, string? Value)[] values)
+        {
+            foreach (var (name, value) in values)
+            {
+                _previous[name] = Environment.GetEnvironmentVariable(name);
+                Environment.SetEnvironmentVariable(name, value);
+            }
+        }
+
+        public void Dispose()
+        {
+            foreach (var (name, value) in _previous)
+            {
+                Environment.SetEnvironmentVariable(name, value);
             }
         }
     }

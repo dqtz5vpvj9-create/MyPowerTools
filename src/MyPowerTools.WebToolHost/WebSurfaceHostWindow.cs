@@ -165,7 +165,7 @@ internal sealed class WebSurfaceHostWindow : Form
             webView.WebResourceRequested += OnWebResourceRequested;
             webView.ProcessFailed += OnProcessFailed;
             webView.WebMessageReceived += OnWebMessageReceived;
-            _controller.AcceleratorKeyPressed += OnAcceleratorKeyPressed;
+            await webView.AddScriptToExecuteOnDocumentCreatedAsync(ShortcutForwardingSource.Read());
             _controller.MoveFocusRequested += OnMoveFocusRequested;
             UpdateControllerBounds();
             _controllerReady = true;
@@ -270,6 +270,13 @@ internal sealed class WebSurfaceHostWindow : Form
         var json = eventArguments.WebMessageAsJson;
         if (json.Length <= 16 * 1024)
         {
+            using var message = System.Text.Json.JsonDocument.Parse(json);
+            if (message.RootElement.ValueKind == System.Text.Json.JsonValueKind.Object &&
+                message.RootElement.TryGetProperty("__mptShortcut", out var shortcut))
+            {
+                WebToolHostProtocol.WriteShortcut(shortcut.GetRawText());
+                return;
+            }
             WebToolHostProtocol.WriteBridgeRequest(json);
         }
     }
@@ -487,59 +494,6 @@ internal sealed class WebSurfaceHostWindow : Form
         WebToolHostProtocol.WriteFocusMove(direction);
     }
 
-    private static void OnAcceleratorKeyPressed(
-        object? sender,
-        CoreWebView2AcceleratorKeyPressedEventArgs args)
-    {
-        if (args.KeyEventKind is not (CoreWebView2KeyEventKind.KeyDown or CoreWebView2KeyEventKind.SystemKeyDown) ||
-            (args.KeyEventLParam & 0x40000000) != 0)
-        {
-            return;
-        }
-
-        var control = IsKeyDown(Win32Native.VkControl);
-        var alt = IsKeyDown(Win32Native.VkMenu);
-        var shift = IsKeyDown(Win32Native.VkShift);
-        var virtualKey = args.VirtualKey;
-        string? gesture = null;
-        if (control && !alt && !shift && virtualKey == 0x52)
-        {
-            gesture = "Ctrl+R";
-        }
-        else if (control && !alt && shift && virtualKey == 0x50)
-        {
-            gesture = "Ctrl+Shift+P";
-        }
-        else if (control && alt && !shift && virtualKey == 0x20)
-        {
-            gesture = "Ctrl+Alt+Space";
-        }
-        else if (!control && !alt && !shift && virtualKey == 0x74)
-        {
-            gesture = "F5";
-        }
-        else if (!control && !alt && !shift && virtualKey == 0x1B)
-        {
-            gesture = "Escape";
-        }
-        else if (control && !alt && !shift && virtualKey is >= 0x31 and <= 0x36)
-        {
-            gesture = $"Ctrl+{(char)virtualKey}";
-        }
-
-        if (gesture is null)
-        {
-            return;
-        }
-        args.Handled = true;
-        WebToolHostProtocol.WriteShortcut(gesture);
-    }
-
-    private static bool IsKeyDown(int virtualKey)
-    {
-        return (Win32Native.GetKeyState(virtualKey) & 0x8000) != 0;
-    }
-
     private void ApplyClipRegion(HostCommand command, int width, int height)
     {
         var left = Math.Clamp(command.ClipX, 0, width);
@@ -585,7 +539,7 @@ internal sealed class WebSurfaceHostWindow : Form
         }
         if (_controller is not null)
         {
-            _controller.AcceleratorKeyPressed -= OnAcceleratorKeyPressed;
+
             _controller.MoveFocusRequested -= OnMoveFocusRequested;
         }
         _controllerReady = false;

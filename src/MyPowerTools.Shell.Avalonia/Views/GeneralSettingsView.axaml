@@ -88,43 +88,12 @@
         </StackPanel>
       </Border>
 
-      <Border x:Name="KeyboardSettingsCard"
-              Grid.Column="1"
-              Classes="MptSettingsSection">
-        <StackPanel Spacing="{DynamicResource MptSpacingL}">
-          <StackPanel Spacing="{DynamicResource MptSpacingXs}">
-            <TextBlock Classes="MptSectionTitle" Text="Keyboard" />
-            <TextBlock Classes="MptPageSubtitle"
-                       Text="Application-wide shortcuts." />
-          </StackPanel>
-
-          <StackPanel>
-            <Grid MinHeight="44"
-                  ColumnDefinitions="*,Auto"
-                  ColumnSpacing="{DynamicResource MptSpacingM}">
-              <TextBlock FontWeight="SemiBold"
-                         Text="Search tools and settings"
-                         VerticalAlignment="Center" />
-              <Border Grid.Column="1"
-                      Classes="MptStatusBadge"
-                      VerticalAlignment="Center">
-                <TextBlock Classes="MptMono" Text="Ctrl+F" />
-              </Border>
-            </Grid>
-            <Border Height="1" Background="{DynamicResource MptBrushDivider}" />
-            <Grid MinHeight="44"
-                  ColumnDefinitions="*,Auto"
-                  ColumnSpacing="{DynamicResource MptSpacingM}">
-              <TextBlock FontWeight="SemiBold"
-                         Text="Open MyPowerTools search"
-                         VerticalAlignment="Center" />
-              <Border Grid.Column="1"
-                      Classes="MptStatusBadge"
-                      VerticalAlignment="Center">
-                <TextBlock Classes="MptMono" Text="Ctrl+Alt+Space" />
-              </Border>
-            </Grid>
-          </StackPanel>
+      <Border x:Name="KeyboardSettingsCard" Grid.Column="1" Classes="MptSettingsSection">
+        <StackPanel Spacing="{DynamicResource MptSpacingM}">
+          <TextBlock Classes="MptSectionTitle" Text="Keyboard shortcuts" />
+          <TextBlock Text="Manage background, application and tool shortcuts in one place. Changes apply without restarting."
+                     TextWrapping="Wrap" Classes="MptMeta" />
+          <controls:MptButton Content="Open keyboard shortcuts" Command="{Binding OpenShortcutsCommand}" HorizontalAlignment="Left" />
         </StackPanel>
       </Border>
     </Grid>
@@ -230,45 +199,6 @@
               </ItemsControl.ItemTemplate>
         </ItemsControl>
       </Grid>
-    </Border>
-
-    <Border Classes="MptSettingsSection" IsVisible="{Binding HasGlobalHotkeys}">
-      <StackPanel Spacing="{DynamicResource MptSpacingS}">
-        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{DynamicResource MptSpacingS}">
-          <TextBlock Classes="MptSectionTitle" Text="Keyboard shortcuts" />
-          <TextBlock Grid.Column="1" Classes="MptMeta" Text="{Binding GlobalHotkeyStatusText}" />
-        </Grid>
-        <TextBlock Classes="MptMeta"
-                   Text="Every global shortcut across modules and the command palette. Enable, disable, or rebind a shortcut on its module's settings page."
-                   TextWrapping="Wrap" />
-        <ItemsControl ItemsSource="{Binding GlobalHotkeys}">
-          <ItemsControl.ItemTemplate>
-            <DataTemplate x:DataType="vm:GlobalHotkeyViewModel">
-              <Border Classes="MptSettingsField" Margin="{DynamicResource MptGapBottomM}">
-                <Grid ColumnDefinitions="*,Auto,220" ColumnSpacing="{DynamicResource MptSpacingS}">
-                  <StackPanel Spacing="{DynamicResource MptSpacingXs}">
-                    <TextBlock FontWeight="SemiBold" Text="{Binding Id}" />
-                    <TextBlock Classes="MptMeta" Text="{Binding OwnerLabel}" />
-                    <TextBlock Classes="MptMeta"
-                               Text="{Binding Message}"
-                               IsVisible="{Binding HasMessage}"
-                               TextWrapping="Wrap" />
-                  </StackPanel>
-                  <TextBlock Grid.Column="1"
-                             Classes="MptMeta"
-                             Text="{Binding StateLabel}"
-                             VerticalAlignment="Center" />
-                  <TextBlock Grid.Column="2"
-                             Text="{Binding Gesture}"
-                             FontWeight="SemiBold"
-                             HorizontalAlignment="Right"
-                             VerticalAlignment="Center" />
-                </Grid>
-              </Border>
-            </DataTemplate>
-          </ItemsControl.ItemTemplate>
-        </ItemsControl>
-      </StackPanel>
     </Border>
 
     <Border Classes="MptSettingsSection">

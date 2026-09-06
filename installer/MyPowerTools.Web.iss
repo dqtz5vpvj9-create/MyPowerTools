@@ -4,6 +4,9 @@
 #ifndef MyReleaseChannel
   #define MyReleaseChannel "stable"
 #endif
+#ifndef MyRepositoryUrl
+  #define MyRepositoryUrl "https://github.com/dqtz5vpvj9-create/MyPowerTools"
+#endif
 #ifndef MyDownloadBaseUrl
   #if MyReleaseChannel == "nightly"
     #define MyDownloadBaseUrl "https://github.com/dqtz5vpvj9-create/MyPowerTools/releases/download/nightly-" + MyAppVersion + "-" + GetDateTimeString("yyyymmdd", "", "")
@@ -12,7 +15,16 @@
   #endif
 #endif
 
-#include "..\artifacts\release\web-installer-components.iss"
+#define WebCoreAsset "MyPowerTools-core-win-x64.zip"
+#define WebDotNetAsset "MyPowerTools-runtime-dotnet-10-win-x64.zip"
+#define WebPythonAsset "MyPowerTools-runtime-python-3.12-win-x64.zip"
+#define WebSmartBirdAsset "MyPowerTools-runtime-smartbird-" + MyAppVersion + "-win-x64.zip"
+#define WebDoubaoAsset "MyPowerTools-runtime-doubao-" + MyAppVersion + "-win-x64.zip"
+#define WebAdbAsset "MyPowerTools-runtime-android-platform-tools-win-x64.zip"
+
+#ifndef MyAllowUnsigned
+  #include "..\artifacts\release\web-installer-signing-key.iss"
+#endif
 
 [Setup]
 #ifdef MyInstallerTestMode
@@ -41,16 +53,23 @@ Compression=lzma2/max
 SolidCompression=yes
 ArchiveExtraction=full
 WizardStyle=modern dynamic
+WizardSizePercent=135,125
 DefaultDialogFontName=Microsoft YaHei UI
 UsePreviousSetupType=no
 DisableWelcomePage=no
 DisableReadyPage=no
-CloseApplications=yes
+CloseApplications=force
 CloseApplicationsFilter=MyPowerTools.exe,MyPowerTools.Runner.exe,MyPowerTools.Shell.Avalonia.exe,MyPowerTools.ServiceManager.exe
 RestartApplications=no
 SetupLogging=yes
+AllowCancelDuringInstall=yes
 VersionInfoVersion={#MyAppVersion}.0
 VersionInfoProductVersion={#MyAppVersion}
+
+#ifndef MyAllowUnsigned
+[ISSigKeys]
+Name: mptrelease; RuntimeID: {#WebISSigRuntimeID}; KeyID: "{#WebISSigKeyID}"; PublicX: "{#WebISSigPublicX}"; PublicY: "{#WebISSigPublicY}"
+#endif
 
 [Types]
 Name: "core"; Description: "核心安装（推荐）"
@@ -65,7 +84,7 @@ Name: "android"; Description: "Android Platform Tools（系统缺少 ADB 时约 
 
 [Messages]
 SetupAppTitle=MyPowerTools 安装程序
-SetupWindowTitle=安装 MyPowerTools %1
+SetupWindowTitle=安装 %1
 ButtonBack=< 上一步(&B)
 ButtonNext=下一步(&N) >
 ButtonInstall=安装(&I)
@@ -82,6 +101,8 @@ ReadyLabel1=MyPowerTools 已准备好安装。
 ReadyLabel2a=确认下面的组件与运行时方案，点击“安装”开始；需要修改时点击“上一步”。
 ReadyLabel2b=点击“安装”开始。
 InstallingLabel=正在安装 MyPowerTools。大组件会显示名称和预计文件数量。
+PreparingDesc=正在准备安装 MyPowerTools
+PreparingLabel2=正在安全关闭运行中的 MyPowerTools 组件，最长约 8 秒。完成后会立即开始安装。
 FinishedHeadingLabel=MyPowerTools 安装完成
 FinishedLabel=核心程序已经安装。勾选下方选项即可立即启动。
 FinishedLabelNoIcons=MyPowerTools 已安装完成。
@@ -93,6 +114,7 @@ StatusRunProgram=正在完成服务注册...
 ErrorDownloadAborted=下载已取消
 ErrorDownloadFailed=下载失败：%1 %2
 ErrorExtractionFailed=解压失败：%1
+ErrorCloseApplications=安装器无法关闭正在运行的 MyPowerTools 进程。请关闭 MyPowerTools 后重试。
 ExitSetupTitle=退出安装程序
 ExitSetupMessage=安装尚未完成。现在退出会保留原有安装。%n%n确定退出？
 
@@ -100,8 +122,13 @@ ExitSetupMessage=安装尚未完成。现在退出会保留原有安装。%n%n�
 Name: "desktopicon"; Description: "创建桌面快捷方式"; GroupDescription: "启动选项："; Flags: unchecked
 Name: "autostart"; Description: "登录 Windows 后自动启动后台 Runner"; GroupDescription: "启动选项："; Flags: unchecked
 
+[InstallDelete]
+Type: files; Name: "{app}\dev-update.manifest.json"
+
 [Files]
 Source: "{tmp}\{#WebCoreAsset}"; DestDir: "{app}"; Flags: external extractarchive recursesubdirs ignoreversion; BeforeInstall: BeginCoreInstall
+Source: "..\scripts\configure-user-services.ps1"; DestDir: "{app}"; Flags: ignoreversion
+Source: "..\scripts\web-installer-worker.ps1"; Flags: dontcopy
 Source: "{tmp}\{#WebDotNetAsset}"; DestDir: "{app}"; Flags: external extractarchive recursesubdirs ignoreversion; Check: NeedDotNetDownload; BeforeInstall: BeginDotNetInstall
 Source: "{tmp}\{#WebPythonAsset}"; DestDir: "{app}"; Flags: external extractarchive recursesubdirs ignoreversion; Check: NeedPythonDownload; BeforeInstall: BeginPythonInstall
 Source: "{tmp}\{#WebSmartBirdAsset}"; DestDir: "{app}"; Flags: external extractarchive recursesubdirs ignoreversion; Components: smartbird; BeforeInstall: BeginSmartBirdInstall
@@ -116,24 +143,36 @@ Name: "{autodesktop}\MyPowerTools"; Filename: "{app}\MyPowerTools.exe"; Paramete
 Root: HKCU; Subkey: "Software\Microsoft\Windows\CurrentVersion\Run"; ValueType: string; ValueName: "MyPowerTools"; ValueData: """{app}\Runner\MyPowerTools.Runner.exe"" --modules ""{app}\modules"" --data-root ""{localappdata}\MyPowerTools"""; Flags: uninsdeletevalue; Tasks: autostart; Check: ShouldRunPostInstall
 
 [Run]
-Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ""{app}\configure-user-services.ps1"" -Mode Uninstall -InstallRoot ""{app}"" -DataRoot ""{localappdata}\MyPowerTools"""; StatusMsg: "正在停止旧版后台服务..."; Flags: runhidden waituntilterminated; Check: ShouldRunPostInstall
-Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ""{app}\configure-user-services.ps1"" -Mode Install -InstallRoot ""{app}"" -DataRoot ""{localappdata}\MyPowerTools"""; StatusMsg: "正在注册 MyPowerTools 后台服务..."; Flags: runhidden waituntilterminated; Check: ShouldRunPostInstall
-Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoLogo -NoProfile -NonInteractive -File ""{app}\Runtimes\SmartBird\scripts\install-smartbird-thermostat-task.ps1"" -Mode Install -RepoRoot ""{app}\Runtimes\SmartBird"" -PythonPath ""{app}\Runtimes\Python312\python.exe"" -DataRoot ""{localappdata}\MyPowerTools\SmartBird"""; StatusMsg: "正在注册 SmartBird 温控任务..."; Flags: runhidden waituntilterminated; Check: ShouldRunPostInstall; Components: smartbird
-Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoLogo -NoProfile -NonInteractive -File ""{app}\Runtimes\SmartBird\scripts\install-energy-server-task.ps1"" -Mode Install -RepoRoot ""{app}\Runtimes\SmartBird"" -PythonPath ""{app}\Runtimes\Python312\python.exe"" -DataRoot ""{localappdata}\MyPowerTools\SmartBird"" -SettingsFile ""{localappdata}\MyPowerTools\SmartBird\settings.json"""; StatusMsg: "正在注册 SmartBird 能耗服务..."; Flags: runhidden waituntilterminated; Check: ShouldRunPostInstall; Components: smartbird
 Filename: "{app}\MyPowerTools.exe"; Parameters: "--data-root ""{localappdata}\MyPowerTools"""; Description: "启动 MyPowerTools"; Flags: nowait postinstall skipifsilent; Check: ShouldRunPostInstall
 
 [UninstallRun]
 Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File ""{app}\configure-user-services.ps1"" -Mode Uninstall -InstallRoot ""{app}"" -DataRoot ""{localappdata}\MyPowerTools"""; RunOnceId: "RemoveMyPowerToolsUserServices"; Flags: runhidden waituntilterminated; Check: ShouldRunPostInstall
-Filename: "{app}\Shell\MyPowerTools.Shell.Avalonia.exe"; Parameters: "--doubao-runtime stop --doubao-runtime-root ""{app}\Runtimes\Doubao"" --doubao-data-root ""{localappdata}\MyPowerTools\Doubao"""; RunOnceId: "StopDoubaoComputerUse"; Flags: runhidden waituntilterminated; Check: ShouldRunPostInstall
+Filename: "{sys}\cmd.exe"; Parameters: "/D /C exit /B 0"; RunOnceId: "StopDoubaoComputerUse"; Flags: runhidden waituntilterminated; Check: ShouldRunPostInstall
 Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoLogo -NoProfile -NonInteractive -File ""{app}\Runtimes\SmartBird\scripts\install-energy-server-task.ps1"" -Mode Uninstall -RepoRoot ""{app}\Runtimes\SmartBird"" -DataRoot ""{localappdata}\MyPowerTools\SmartBird"""; RunOnceId: "RemoveSmartBirdEnergyServerTask"; Flags: runhidden waituntilterminated; Check: ShouldUninstallSmartBird
 Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoLogo -NoProfile -NonInteractive -File ""{app}\Runtimes\SmartBird\scripts\install-smartbird-thermostat-task.ps1"" -Mode Uninstall -RepoRoot ""{app}\Runtimes\SmartBird"" -DataRoot ""{localappdata}\MyPowerTools\SmartBird"""; RunOnceId: "RemoveSmartBirdThermostatTask"; Flags: runhidden waituntilterminated; Check: ShouldUninstallSmartBird
 
 [UninstallDelete]
 Type: filesandordirs; Name: "{localappdata}\MyPowerTools\Doubao"; Check: ShouldRunPostInstall
+Type: filesandordirs; Name: "{app}"
 
 [Code]
 var
   DownloadPage: TDownloadWizardPage;
+  ShutdownPage: TWizardPage;
+  FinalizePage: TWizardPage;
+  InstallingLogMemo: TNewMemo;
+  ShutdownLogMemo: TNewMemo;
+  FinalizeLogMemo: TNewMemo;
+  InstallLogLines: TStringList;
+  WorkerTimerID: UINT_PTR;
+  WorkerActive: Boolean;
+  WorkerSucceeded: Boolean;
+  WorkerPhase: Integer;
+  WorkerLogPath: String;
+  WorkerResultPath: String;
+#ifdef MyInstallerTestAutoDrive
+  AutoDriveTimerID: UINT_PTR;
+#endif
   NeedPrivateDotNet: Boolean;
   NeedPrivatePython: Boolean;
   NeedPrivateAdb: Boolean;
@@ -142,6 +181,15 @@ var
   AdbRuntimeSource: String;
   LegacyDotNetRootCleared: Boolean;
   QueuedDownloadCount: Integer;
+#ifndef MyAllowUnsigned
+  AllowedKeysRuntimeIDs: TStringList;
+#endif
+
+function SetTimer(hWnd: HWND; nIDEvent: UINT_PTR; uElapse: UINT;
+  lpTimerFunc: LongWord): UINT_PTR;
+  external 'SetTimer@user32.dll stdcall';
+function KillTimer(hWnd: HWND; uIDEvent: UINT_PTR): BOOL;
+  external 'KillTimer@user32.dll stdcall';
 
 function ShouldRunPostInstall: Boolean;
 begin
@@ -268,42 +316,92 @@ begin
   Result := ExpandConstant('{localappdata}\MyPowerTools\installer-cache\{#MyAppVersion}\') + Asset;
 end;
 
-function PrepareCachedAsset(const Asset, Sha256: String): Boolean;
+function VerifySignedAsset(const AssetPath: String): Boolean;
+var
+  VerifiedStream: TFileStream;
+begin
+#ifdef MyAllowUnsigned
+  Result := FileExists(AssetPath);
+#else
+  Result := False;
+  VerifiedStream := nil;
+  try
+    try
+      VerifiedStream := ISSigVerify(AllowedKeysRuntimeIDs, AssetPath, True, False);
+      Result := True;
+    except
+      Log('Installer cache signature verification failed for ' + AssetPath + ': ' +
+        GetExceptionMessage);
+    end;
+  finally
+    if VerifiedStream <> nil then
+      VerifiedStream.Free;
+  end;
+#endif
+end;
+
+function PrepareCachedAsset(const Asset: String): Boolean;
 var
   SourcePath: String;
+  SourceSignaturePath: String;
   TargetPath: String;
+  TargetSignaturePath: String;
 begin
   SourcePath := CachePath(Asset);
+  SourceSignaturePath := SourcePath + '.issig';
   TargetPath := ExpandConstant('{tmp}\') + Asset;
+  TargetSignaturePath := TargetPath + '.issig';
   Log('Checking installer cache: ' + SourcePath);
-  if FileExists(SourcePath) then
-    Log('Installer cache SHA-256: ' + GetSHA256OfFile(SourcePath));
-  Result := FileExists(SourcePath) and
-    (CompareText(GetSHA256OfFile(SourcePath), Sha256) = 0);
+  DeleteFile(TargetPath);
+  DeleteFile(TargetSignaturePath);
+  Result := FileExists(SourcePath);
+#ifndef MyAllowUnsigned
+  Result := Result and FileExists(SourceSignaturePath);
+#endif
   if Result then begin
-    Log('Reusing verified installer cache: ' + SourcePath);
     Result := FileCopy(SourcePath, TargetPath, False);
+#ifndef MyAllowUnsigned
+    Result := Result and FileCopy(SourceSignaturePath, TargetSignaturePath, False);
+#endif
+  end;
+  if Result then
+    Result := VerifySignedAsset(TargetPath);
+  if Result then
+    Log('Reusing signature-verified installer cache: ' + SourcePath)
+  else begin
+    DeleteFile(TargetPath);
+    DeleteFile(TargetSignaturePath);
   end;
 end;
 
-procedure QueueAsset(const Asset, Sha256: String);
+procedure QueueAsset(const Asset: String);
 begin
-  if not PrepareCachedAsset(Asset, Sha256) then begin
-    DownloadPage.Add('{#MyDownloadBaseUrl}/' + Asset, Asset, Sha256);
+  if not PrepareCachedAsset(Asset) then begin
+#ifdef MyAllowUnsigned
+    DownloadPage.Add('{#MyDownloadBaseUrl}/' + Asset, Asset, '');
+#else
+    DownloadPage.AddWithISSigVerify(
+      '{#MyDownloadBaseUrl}/' + Asset, '', Asset, AllowedKeysRuntimeIDs);
+#endif
     QueuedDownloadCount := QueuedDownloadCount + 1;
   end;
 end;
 
-procedure PreserveAssetInCache(const Asset, Sha256: String);
+procedure PreserveAssetInCache(const Asset: String);
 var
   SourcePath: String;
+  SourceSignaturePath: String;
   TargetPath: String;
 begin
   SourcePath := ExpandConstant('{tmp}\') + Asset;
-  if FileExists(SourcePath) and (CompareText(GetSHA256OfFile(SourcePath), Sha256) = 0) then begin
+  SourceSignaturePath := SourcePath + '.issig';
+  if VerifySignedAsset(SourcePath) then begin
     ForceDirectories(ExtractFileDir(CachePath(Asset)));
     TargetPath := CachePath(Asset);
     FileCopy(SourcePath, TargetPath, False);
+#ifndef MyAllowUnsigned
+    FileCopy(SourceSignaturePath, TargetPath + '.issig', False);
+#endif
   end;
 end;
 
@@ -342,12 +440,367 @@ begin
   end;
 end;
 
+procedure SetMemoText(Memo: TNewMemo; const Value: String);
+begin
+  if Memo = nil then exit;
+  Memo.Text := Value;
+  Memo.SelStart := Length(Memo.Text);
+end;
+
+procedure RefreshInstallLogViews;
+begin
+  if InstallLogLines = nil then exit;
+  SetMemoText(InstallingLogMemo, InstallLogLines.Text);
+  if not WorkerActive then begin
+    SetMemoText(ShutdownLogMemo, InstallLogLines.Text);
+    SetMemoText(FinalizeLogMemo, InstallLogLines.Text);
+  end;
+end;
+
+procedure AppendInstallLog(const Message: String);
+begin
+  Log(Message);
+  if InstallLogLines <> nil then begin
+    InstallLogLines.Add(GetDateTimeString('hh:nn:ss', '-', ':') + '  ' + Message);
+    RefreshInstallLogViews;
+  end;
+end;
+
+function LoadUtf8TextFile(const FileName: String; var Value: String): Boolean;
+var
+  Lines: TArrayOfString;
+  LineIndex: Integer;
+begin
+  Value := '';
+  Result := LoadStringsFromFile(FileName, Lines);
+  if not Result then exit;
+  for LineIndex := 0 to GetArrayLength(Lines) - 1 do begin
+    if LineIndex > 0 then
+      Value := Value + #13#10;
+    Value := Value + Lines[LineIndex];
+  end;
+  if GetArrayLength(Lines) > 0 then
+    Value := Value + #13#10;
+end;
+
+procedure RefreshWorkerLog;
+var
+  WorkerText: String;
+  CombinedText: String;
+begin
+  WorkerText := '';
+  if LoadUtf8TextFile(WorkerLogPath, WorkerText) then
+    CombinedText := InstallLogLines.Text + WorkerText
+  else
+    CombinedText := InstallLogLines.Text;
+  if WorkerPhase = 1 then
+    SetMemoText(ShutdownLogMemo, CombinedText)
+  else if WorkerPhase = 2 then
+    SetMemoText(FinalizeLogMemo, CombinedText);
+end;
+
+procedure StartWorker(Phase: Integer);
+var
+  ResultCode: Integer;
+  Parameters: String;
+begin
+  WorkerPhase := Phase;
+  WorkerActive := True;
+  WorkerSucceeded := False;
+  WorkerLogPath := ExpandConstant('{tmp}\MyPowerTools-Web-Setup-worker-' +
+    IntToStr(Phase) + '.log');
+  WorkerResultPath := ExpandConstant('{tmp}\MyPowerTools-Web-Setup-worker-' +
+    IntToStr(Phase) + '.result');
+  DeleteFile(WorkerLogPath);
+  DeleteFile(WorkerResultPath);
+  ExtractTemporaryFile('web-installer-worker.ps1');
+
+  if Phase = 1 then begin
+    AppendInstallLog('正在关闭运行中的 MyPowerTools 组件。');
+    Parameters := '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass' +
+      ' -File "' + ExpandConstant('{tmp}\web-installer-worker.ps1') + '"' +
+      ' -Phase Quiesce';
+  end else begin
+    AppendInstallLog('正在注册后台服务并完成安装。');
+    Parameters := '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass' +
+      ' -File "' + ExpandConstant('{tmp}\web-installer-worker.ps1') + '"' +
+      ' -Phase Finalize';
+    if WantsSmartBird then
+      Parameters := Parameters + ' -InstallSmartBird';
+  end;
+  Parameters := Parameters +
+    ' -InstallRoot "' + ExpandConstant('{app}') + '"' +
+    ' -DataRoot "' + ExpandConstant('{localappdata}\MyPowerTools') + '"' +
+    ' -LogPath "' + WorkerLogPath + '"' +
+    ' -ResultPath "' + WorkerResultPath + '"';
+
+  WizardForm.BackButton.Enabled := False;
+  WizardForm.NextButton.Enabled := False;
+  WizardForm.CancelButton.Enabled := True;
+  if not Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
+    Parameters, '', SW_HIDE, ewNoWait, ResultCode) then begin
+    WorkerActive := False;
+    AppendInstallLog('后台安装任务启动失败：' + SysErrorMessage(ResultCode));
+    WizardForm.NextButton.Caption := '重试(&R)';
+    WizardForm.NextButton.Enabled := True;
+  end;
+end;
+
+function RunWorkerSynchronously(Phase: Integer): Boolean;
+var
+  ResultCode: Integer;
+  Parameters: String;
+  ResultText: String;
+  WorkerText: String;
+  PhaseName: String;
+begin
+  if Phase = 1 then
+    PhaseName := 'Quiesce'
+  else
+    PhaseName := 'Finalize';
+  WorkerLogPath := ExpandConstant('{tmp}\MyPowerTools-Web-Setup-sync-' +
+    IntToStr(Phase) + '.log');
+  WorkerResultPath := ExpandConstant('{tmp}\MyPowerTools-Web-Setup-sync-' +
+    IntToStr(Phase) + '.result');
+  DeleteFile(WorkerLogPath);
+  DeleteFile(WorkerResultPath);
+  ExtractTemporaryFile('web-installer-worker.ps1');
+  Parameters := '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass' +
+    ' -File "' + ExpandConstant('{tmp}\web-installer-worker.ps1') + '"' +
+    ' -Phase ' + PhaseName +
+    ' -InstallRoot "' + ExpandConstant('{app}') + '"' +
+    ' -DataRoot "' + ExpandConstant('{localappdata}\MyPowerTools') + '"' +
+    ' -LogPath "' + WorkerLogPath + '"' +
+    ' -ResultPath "' + WorkerResultPath + '"';
+  if (Phase = 2) and WantsSmartBird then
+    Parameters := Parameters + ' -InstallSmartBird';
+
+  Result := Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
+    Parameters, '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  ResultText := '';
+  Result := Result and LoadUtf8TextFile(WorkerResultPath, ResultText) and
+    (Trim(ResultText) = '0');
+  WorkerText := '';
+  if LoadUtf8TextFile(WorkerLogPath, WorkerText) then
+    Log(WorkerText);
+  if not Result then
+    Log('Synchronous installer worker failed in phase ' + PhaseName +
+      '; process result ' + IntToStr(ResultCode));
+end;
+
+procedure WorkerTimerProc(Arg1: HWND; Arg2: UINT; Arg3: UINT_PTR; Arg4: DWORD);
+var
+  ResultText: String;
+  WorkerText: String;
+begin
+  if not WorkerActive then exit;
+  RefreshWorkerLog;
+  ResultText := '';
+  if not LoadUtf8TextFile(WorkerResultPath, ResultText) then exit;
+
+  WorkerActive := False;
+  WorkerText := '';
+  LoadUtf8TextFile(WorkerLogPath, WorkerText);
+  if WorkerText <> '' then
+    InstallLogLines.Add(WorkerText);
+  WorkerSucceeded := Trim(ResultText) = '0';
+  if WorkerSucceeded then begin
+    if WorkerPhase = 1 then
+      AppendInstallLog('运行中组件已经关闭，开始写入安装文件。')
+    else
+      AppendInstallLog('后台服务注册完成，MyPowerTools 已经可以使用。');
+    WizardForm.NextButton.Caption := SetupMessage(msgButtonNext);
+    WizardForm.NextButton.Enabled := True;
+    WizardForm.NextButton.OnClick(WizardForm.NextButton);
+  end else begin
+    AppendInstallLog('当前阶段执行失败。完整错误已经显示在日志末尾。');
+    WizardForm.BackButton.Enabled := True;
+    WizardForm.NextButton.Caption := '重试(&R)';
+    WizardForm.NextButton.Enabled := True;
+  end;
+end;
+
+#ifdef MyInstallerTestAutoDrive
+procedure AutoDriveTimerProc(Arg1: HWND; Arg2: UINT; Arg3: UINT_PTR; Arg4: DWORD);
+begin
+  if WorkerActive then exit;
+  if (WizardForm.CurPageID <> wpPreparing) and
+    (WizardForm.CurPageID <> wpInstalling) and
+    WizardForm.NextButton.Enabled then
+    WizardForm.NextButton.OnClick(WizardForm.NextButton);
+end;
+#endif
+
 procedure InitializeWizard;
 begin
   DownloadPage := CreateDownloadPage(
     '正在准备 MyPowerTools',
     '正在下载并校验所选组件，下载中断后可以重新运行安装器。', nil);
   DownloadPage.ShowBaseNameInsteadOfUrl := True;
+  InstallLogLines := TStringList.Create;
+
+  ShutdownPage := CreateCustomPage(wpReady,
+    '正在安全关闭旧组件',
+    '窗口保持可移动；下方日志会持续追加。');
+  ShutdownLogMemo := TNewMemo.Create(ShutdownPage);
+  ShutdownLogMemo.Parent := ShutdownPage.Surface;
+  ShutdownLogMemo.SetBounds(0, 0, ShutdownPage.SurfaceWidth,
+    ShutdownPage.SurfaceHeight);
+  ShutdownLogMemo.Anchors := [akLeft, akTop, akRight, akBottom];
+  ShutdownLogMemo.ReadOnly := True;
+  ShutdownLogMemo.ScrollBars := ssBoth;
+  ShutdownLogMemo.WordWrap := False;
+  ShutdownLogMemo.Font.Name := 'Consolas';
+  ShutdownLogMemo.Font.Size := 9;
+
+  FinalizePage := CreateCustomPage(wpInstalling,
+    '正在完成 MyPowerTools 安装',
+    '窗口保持可移动；服务注册输出会实时显示在下方。');
+  FinalizeLogMemo := TNewMemo.Create(FinalizePage);
+  FinalizeLogMemo.Parent := FinalizePage.Surface;
+  FinalizeLogMemo.SetBounds(0, 0, FinalizePage.SurfaceWidth,
+    FinalizePage.SurfaceHeight);
+  FinalizeLogMemo.Anchors := [akLeft, akTop, akRight, akBottom];
+  FinalizeLogMemo.ReadOnly := True;
+  FinalizeLogMemo.ScrollBars := ssBoth;
+  FinalizeLogMemo.WordWrap := False;
+  FinalizeLogMemo.Font.Name := 'Consolas';
+  FinalizeLogMemo.Font.Size := 9;
+
+  InstallingLogMemo := TNewMemo.Create(WizardForm.InstallingPage);
+  InstallingLogMemo.Parent := WizardForm.InstallingPage;
+  InstallingLogMemo.SetBounds(0,
+    WizardForm.ProgressGauge.Top + WizardForm.ProgressGauge.Height + ScaleY(16),
+    WizardForm.InstallingPage.ClientWidth,
+    WizardForm.InstallingPage.ClientHeight - WizardForm.ProgressGauge.Top -
+      WizardForm.ProgressGauge.Height - ScaleY(16));
+  InstallingLogMemo.Anchors := [akLeft, akTop, akRight, akBottom];
+  InstallingLogMemo.ReadOnly := True;
+  InstallingLogMemo.ScrollBars := ssBoth;
+  InstallingLogMemo.WordWrap := False;
+  InstallingLogMemo.Font.Name := 'Consolas';
+  InstallingLogMemo.Font.Size := 9;
+
+  WorkerTimerID := SetTimer(0, 0, 200, CreateCallback(@WorkerTimerProc));
+#ifdef MyInstallerTestAutoDrive
+  AutoDriveTimerID := SetTimer(0, 0, 300, CreateCallback(@AutoDriveTimerProc));
+#endif
+  AppendInstallLog('安装器已启动。');
+#ifndef MyAllowUnsigned
+  AllowedKeysRuntimeIDs := TStringList.Create;
+  AllowedKeysRuntimeIDs.Add('{#WebISSigRuntimeID}');
+#endif
+end;
+
+procedure DeinitializeSetup;
+begin
+  if WorkerTimerID <> 0 then
+    KillTimer(0, WorkerTimerID);
+#ifdef MyInstallerTestAutoDrive
+  if AutoDriveTimerID <> 0 then
+    KillTimer(0, AutoDriveTimerID);
+#endif
+  if InstallLogLines <> nil then
+    InstallLogLines.Free;
+#ifndef MyAllowUnsigned
+  if AllowedKeysRuntimeIDs <> nil then
+    AllowedKeysRuntimeIDs.Free;
+#endif
+end;
+
+function RequestInstalledExit(const FileName, Parameters, FailureMessage: String): Boolean;
+var
+  ResultCode: Integer;
+begin
+  Result := True;
+  if not FileExists(FileName) then begin
+    Log('Shutdown client is absent: ' + FileName);
+    exit;
+  end;
+  Log('Running product shutdown client: ' + FileName + ' ' + Parameters);
+  if not Exec(FileName, Parameters, ExtractFileDir(FileName), SW_HIDE, ewNoWait,
+    ResultCode) then begin
+    Log(FailureMessage + ': unable to start client.');
+    Result := False;
+  end;
+end;
+
+procedure ForceStopProductImages;
+var
+  ResultCode: Integer;
+  Parameters: String;
+begin
+  Parameters :=
+    '/F /T' +
+    ' /IM "MyPowerTools.Shell.Avalonia.exe"' +
+    ' /IM "MyPowerTools.Runner.exe"' +
+    ' /IM "MyPowerTools.ServiceManager.exe"' +
+    ' /IM "MyPowerTools.WebToolHost.exe"' +
+    ' /IM "MyPowerTools.InputRemapHost.exe"' +
+    ' /IM "MyPowerTools.Broker.exe"' +
+    ' /IM "MyPowerTools.ElevatedBroker.exe"' +
+    ' /IM "MyPowerTools.Cli.exe"' +
+    ' /IM "AdbForwarder.Service.exe"' +
+    ' /IM "DoubaoAgent.Controller.Service.exe"' +
+    ' /IM "RemoteNotifications.Service.exe"' +
+    ' /IM "ScreenEase.Service.exe"';
+  if Exec(ExpandConstant('{sys}\taskkill.exe'), Parameters,
+    '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
+    Log('Batched taskkill exit code ' + IntToStr(ResultCode))
+  else
+    Log('Unable to start batched taskkill.');
+end;
+
+procedure QuiesceInstalledProduct;
+var
+  ResultCode: Integer;
+  ShellPath: String;
+  CliPath: String;
+begin
+  ShellPath := ExpandConstant('{app}\Shell\MyPowerTools.Shell.Avalonia.exe');
+  CliPath := ExpandConstant('{app}\Cli\MyPowerTools.Cli.exe');
+
+  RequestInstalledExit(ShellPath, '--shutdown-shell', 'Graceful Shell shutdown failed');
+  RequestInstalledExit(ShellPath,
+    '--smoke --timeout-ms 5000 --quit-runner --modules "' +
+    ExpandConstant('{app}\modules') + '" --data-root "' +
+    ExpandConstant('{localappdata}\MyPowerTools') + '"',
+    'Graceful Runner shutdown failed');
+  if DirExists(ExpandConstant('{app}\Runtimes\Doubao')) then
+    RequestInstalledExit(ShellPath,
+      '--doubao-runtime stop --doubao-runtime-root "' +
+      ExpandConstant('{app}\Runtimes\Doubao') + '" --doubao-data-root "' +
+      ExpandConstant('{localappdata}\MyPowerTools\Doubao') + '"',
+      'Graceful Doubao runtime shutdown failed');
+  RequestInstalledExit(CliPath, 'service quiesce',
+    'Graceful ServiceManager quiesce failed');
+  { Compatibility requests for installations whose CLI predates `service quiesce`. }
+  RequestInstalledExit(CliPath, 'service stop remote-notifications.service',
+    'Stopping Remote Notifications failed');
+  RequestInstalledExit(CliPath, 'service stop screenease.service',
+    'Stopping ScreenEase failed');
+  RequestInstalledExit(CliPath, 'service stop adb-forwarder.service',
+    'Stopping ADB Forwarder failed');
+  RequestInstalledExit(CliPath, 'service stop ddns.service',
+    'Stopping DDNS failed');
+  RequestInstalledExit(CliPath, 'service stop doubao-agent.controller.service',
+    'Stopping Doubao Agent Controller failed');
+  RequestInstalledExit(CliPath, 'service shutdown',
+    'Legacy ServiceManager shutdown failed');
+
+  if Exec(ExpandConstant('{sys}\schtasks.exe'),
+    '/End /TN "\MyPowerTools WinSpace Shift"', '', SW_HIDE,
+    ewWaitUntilTerminated, ResultCode) then
+    Log('Stopped elevated InputRemap task; exit code ' + IntToStr(ResultCode));
+
+  Sleep(1500);
+  ForceStopProductImages;
+end;
+
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+begin
+  if (CurUninstallStep = usUninstall) and ShouldRunPostInstall then
+    QuiesceInstalledProduct;
 end;
 
 function DownloadRequiredAssets: Boolean;
@@ -356,12 +809,12 @@ var
 begin
   DownloadPage.Clear;
   QueuedDownloadCount := 0;
-  QueueAsset('{#WebCoreAsset}', '{#WebCoreSha256}');
-  if NeedPrivateDotNet then QueueAsset('{#WebDotNetAsset}', '{#WebDotNetSha256}');
-  if NeedPythonDownload then QueueAsset('{#WebPythonAsset}', '{#WebPythonSha256}');
-  if WantsSmartBird then QueueAsset('{#WebSmartBirdAsset}', '{#WebSmartBirdSha256}');
-  if WantsDoubao then QueueAsset('{#WebDoubaoAsset}', '{#WebDoubaoSha256}');
-  if NeedAdbDownload then QueueAsset('{#WebAdbAsset}', '{#WebAdbSha256}');
+  QueueAsset('{#WebCoreAsset}');
+  if NeedPrivateDotNet then QueueAsset('{#WebDotNetAsset}');
+  if NeedPythonDownload then QueueAsset('{#WebPythonAsset}');
+  if WantsSmartBird then QueueAsset('{#WebSmartBirdAsset}');
+  if WantsDoubao then QueueAsset('{#WebDoubaoAsset}');
+  if NeedAdbDownload then QueueAsset('{#WebAdbAsset}');
 
   if QueuedDownloadCount > 0 then begin
     DownloadPage.Show;
@@ -383,12 +836,12 @@ begin
     end;
   end;
 
-  PreserveAssetInCache('{#WebCoreAsset}', '{#WebCoreSha256}');
-  if NeedPrivateDotNet then PreserveAssetInCache('{#WebDotNetAsset}', '{#WebDotNetSha256}');
-  if NeedPythonDownload then PreserveAssetInCache('{#WebPythonAsset}', '{#WebPythonSha256}');
-  if WantsSmartBird then PreserveAssetInCache('{#WebSmartBirdAsset}', '{#WebSmartBirdSha256}');
-  if WantsDoubao then PreserveAssetInCache('{#WebDoubaoAsset}', '{#WebDoubaoSha256}');
-  if NeedAdbDownload then PreserveAssetInCache('{#WebAdbAsset}', '{#WebAdbSha256}');
+  PreserveAssetInCache('{#WebCoreAsset}');
+  if NeedPrivateDotNet then PreserveAssetInCache('{#WebDotNetAsset}');
+  if NeedPythonDownload then PreserveAssetInCache('{#WebPythonAsset}');
+  if WantsSmartBird then PreserveAssetInCache('{#WebSmartBirdAsset}');
+  if WantsDoubao then PreserveAssetInCache('{#WebDoubaoAsset}');
+  if NeedAdbDownload then PreserveAssetInCache('{#WebAdbAsset}');
   Result := True;
 end;
 
@@ -397,8 +850,40 @@ begin
   if CurPageID = wpReady then begin
     DetectRuntimePlan;
     Result := DownloadRequiredAssets;
+    if Result and ShouldRunPostInstall and WizardSilent then
+      Result := RunWorkerSynchronously(1);
+  end else if (CurPageID = ShutdownPage.ID) or
+    (CurPageID = FinalizePage.ID) then begin
+    if WorkerSucceeded then
+      Result := True
+    else begin
+      if not WorkerActive then begin
+        if CurPageID = ShutdownPage.ID then
+          StartWorker(1)
+        else
+          StartWorker(2);
+      end;
+      Result := False;
+    end;
   end else
     Result := True;
+end;
+
+function ShouldSkipPage(PageID: Integer): Boolean;
+begin
+  Result := (not ShouldRunPostInstall or WizardSilent) and
+    ((PageID = ShutdownPage.ID) or (PageID = FinalizePage.ID));
+end;
+
+procedure CurPageChanged(CurPageID: Integer);
+begin
+  if (CurPageID = ShutdownPage.ID) and not WorkerActive then begin
+    WorkerSucceeded := False;
+    StartWorker(1);
+  end else if (CurPageID = FinalizePage.ID) and not WorkerActive then begin
+    WorkerSucceeded := False;
+    StartWorker(2);
+  end;
 end;
 
 function UpdateReadyMemo(Space, NewLine, MemoUserInfoInfo, MemoDirInfo,
@@ -436,6 +921,7 @@ procedure SetInstallPhase(const Message: String);
 begin
   WizardForm.StatusLabel.Caption := Message;
   WizardForm.FilenameLabel.Caption := '';
+  AppendInstallLog(Message);
 end;
 
 procedure BeginCoreInstall;
@@ -540,6 +1026,45 @@ begin
     RaiseException('Unable to write install.manifest.json.');
 end;
 
+procedure SeedOtaState;
+var
+  OtaDir: String;
+  ManifestSource: String;
+  ManifestTarget: String;
+  PublicKeySource: String;
+  ReleaseText: String;
+begin
+  OtaDir := ExpandConstant('{localappdata}\MyPowerTools\ota-state');
+  if not ForceDirectories(OtaDir) then
+    RaiseException('Unable to create the OTA state directory: ' + OtaDir);
+
+  ManifestSource := ExpandConstant('{app}\MyPowerTools-core-win-x64.manifest.json');
+  ManifestTarget := OtaDir + '\installed-files.manifest.json';
+  if not FileCopy(ManifestSource, ManifestTarget, False) then
+    RaiseException('Unable to seed the OTA file manifest from ' + ManifestSource);
+
+  PublicKeySource := ExpandConstant('{app}\ota-signing-public-key.txt');
+  if FileExists(PublicKeySource) then
+    FileCopy(PublicKeySource, OtaDir + '\ota-signing-public-key.txt', False);
+
+  ReleaseText := '{' + #13#10 +
+    '  "schemaVersion": 1,' + #13#10 +
+    '  "product": "MyPowerTools",' + #13#10 +
+    '  "version": "{#MyAppVersion}",' + #13#10 +
+    '  "channel": "{#MyReleaseChannel}",' + #13#10 +
+    '  "installedAt": "' + GetDateTimeString('yyyy-mm-dd', '-', ':') + 'T' +
+      GetDateTimeString('hh:nn:ss', '-', ':') + '",' + #13#10 +
+    '  "installDir": "' + JsonEscape(ExpandConstant('{app}')) + '",' + #13#10 +
+    '  "dataRoot": "' + JsonEscape(ExpandConstant('{localappdata}\MyPowerTools')) + '",' + #13#10 +
+    '  "repository": "{#MyRepositoryUrl}",' + #13#10 +
+    '  "manifestPath": "installed-files.manifest.json",' + #13#10 +
+    '  "manifestSha256": "' + Lowercase(GetSHA256OfFile(ManifestTarget)) + '",' + #13#10 +
+    '  "packageKind": "core",' + #13#10 +
+    '  "distributionMode": "web"' + #13#10 + '}' + #13#10;
+  if not SaveStringToFile(OtaDir + '\installed-release.json', ReleaseText, False) then
+    RaiseException('Unable to write installed-release.json.');
+end;
+
 procedure RewriteDoubaoVenvConfig;
 var
   ConfigPath: String;
@@ -569,10 +1094,18 @@ end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
 begin
-  if CurStep = ssInstall then
+  if CurStep = ssInstall then begin
+    AppendInstallLog('开始写入 MyPowerTools 安装文件。');
     ClearLegacyDotNetRoot;
+  end;
   if CurStep = ssPostInstall then begin
     RewriteDoubaoVenvConfig;
     WriteInstallManifest;
+    if ShouldRunPostInstall then
+      SeedOtaState;
+    AppendInstallLog('核心文件与运行时组件安装完成。');
+    if ShouldRunPostInstall and WizardSilent and
+      not RunWorkerSynchronously(2) then
+      RaiseException('MyPowerTools 后台服务注册失败，请查看安装日志。');
   end;
 end;

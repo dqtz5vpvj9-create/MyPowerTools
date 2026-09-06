@@ -573,7 +573,6 @@ public sealed partial class RuntimeAcceptanceTests
         var moduleImportDeadline = DateTime.UtcNow.AddSeconds(20);
         while (DateTime.UtcNow < moduleImportDeadline &&
                (process is null ||
-                !process.ModuleIds.Contains("android-tools.notifications") ||
                 !process.ModuleIds.Contains("android-tools.process-monitor") ||
                 !process.ModuleIds.Contains("android-tools.remote-commands")))
         {
@@ -591,9 +590,23 @@ public sealed partial class RuntimeAcceptanceTests
         Assert.Contains("// keep me", output);
         Assert.NotNull(process);
         Assert.Equal("package:android-tools-suite:runtime:module-host", process.PoolKey);
-        Assert.Contains("android-tools.notifications", process.ModuleIds);
+        Assert.DoesNotContain("android-tools.notifications", process.ModuleIds);
         Assert.Contains("android-tools.process-monitor", process.ModuleIds);
         Assert.Contains("android-tools.remote-commands", process.ModuleIds);
+
+        var notificationManifest = JsonNode.Parse(File.ReadAllText(Path.Combine(
+            Root,
+            "modules",
+            "android-tools-suite",
+            "modules",
+            "notifications",
+            "module.json")))!.AsObject();
+        var notificationEntrypoint = Assert.Single(
+            notificationManifest["entrypoints"]!.AsArray());
+        Assert.Equal("inproc-dotnet", notificationEntrypoint!["kind"]!.GetValue<string>());
+        Assert.Equal(
+            "AndroidTools.MyPowerTools.RemoteNotificationsServiceObserverModule",
+            notificationEntrypoint["type"]!.GetValue<string>());
     }
 
     [Fact]

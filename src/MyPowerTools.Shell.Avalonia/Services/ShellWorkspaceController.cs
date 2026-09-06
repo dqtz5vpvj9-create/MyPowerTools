@@ -21,6 +21,7 @@ public sealed partial class ShellWorkspaceController : IAsyncDisposable
     private const string ModulesPage = "Modules";
     private const string CommandsPage = "Commands";
     private const string SettingsPage = "Settings";
+    private const string ShortcutsPage = "Keyboard shortcuts";
     private const string LogsPage = "Logs";
     private const string NotificationsPage = "Notifications";
     // Tool page labels removed: navigation is now fully dynamic via the Tool Catalog.
@@ -126,6 +127,7 @@ public sealed partial class ShellWorkspaceController : IAsyncDisposable
         _unitStreamFaultedHandler = OnUnitStreamFaulted;
         _unitStreamRecoveredHandler = OnUnitStreamRecovered;
 
+        _shortcuts.Changed += OnShortcutConfigurationChanged;
         _searchBox.TextChanged += _searchTextChangedHandler;
         _searchBox.KeyDown += OnCommandSearchKeyDown;
         _searchBox.GotFocus += _searchGotFocusHandler;
@@ -145,6 +147,7 @@ public sealed partial class ShellWorkspaceController : IAsyncDisposable
     public async Task OpenAsync(IReadOnlyList<HostProto.ToolDescriptor>? startupTools = null)
     {
         _startupToolDescriptors = startupTools;
+        _ = RefreshShortcutCatalogAsync();
         await RefreshShellDataAsync(includeAuxiliaryData: false);
         CompleteStartup();
     }
@@ -152,6 +155,7 @@ public sealed partial class ShellWorkspaceController : IAsyncDisposable
     internal void CompleteStartup()
     {
         Dispatcher.UIThread.Post(StartEventMonitors, DispatcherPriority.Background);
+        Dispatcher.UIThread.Post(() => _ = CheckLastOtaUpdateAsync(), DispatcherPriority.Background);
     }
 
     public async Task RefreshAsync()
@@ -168,6 +172,7 @@ public sealed partial class ShellWorkspaceController : IAsyncDisposable
             return;
         }
 
+        _shortcuts.Changed -= OnShortcutConfigurationChanged;
         UnsubscribeShellEvents();
         if (_pageDataFactory.IsValueCreated)
         {
@@ -228,6 +233,14 @@ public sealed partial class ShellWorkspaceController : IAsyncDisposable
         if (!IsDisposed)
         {
             _chromeViewModel.StatusText = text;
+        }
+    }
+
+    private void ShowInfoBar(InfoBarSeverity severity, string message, string? actionLabel = null, Func<Task>? action = null, int? autoDismissMs = null)
+    {
+        if (!IsDisposed)
+        {
+            _chromeViewModel.ShowInfoBar(new InfoBarItem(severity, message, actionLabel, action, autoDismissMs));
         }
     }
 
@@ -298,6 +311,7 @@ public sealed partial class ShellWorkspaceController : IAsyncDisposable
             ToolsPage => ShellRoute.Tools,
             ActivityPage => ShellRoute.Activity,
             SettingsPage => ShellRoute.Settings,
+            ShortcutsPage => ShellRoute.KeyboardShortcuts,
             SystemPage => ShellRoute.System,
             ModulesPage => ShellRoute.Modules,
             PackagesPage => ShellRoute.Packages,
@@ -330,6 +344,7 @@ public sealed partial class ShellWorkspaceController : IAsyncDisposable
     private async Task ApplyHostEventAsync(HostProto.HostEvent evt)
     {
         var plan = ShellPageRefreshRouter.Route(_currentPage, evt);
+        if (plan.ReloadShortcutCatalog) await RefreshShortcutCatalogAsync();
         if (plan.ReloadBrokerAudit)
         {
             await LoadBrokerAuditAsync();

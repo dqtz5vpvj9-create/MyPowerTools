@@ -109,6 +109,7 @@
                                 Margin="{DynamicResource MptGapLeftS}"
                                 HorizontalAlignment="Right"
                                 VerticalAlignment="Center">
+                      <TextBlock Classes="MptMeta" Text="{Binding Command.ShortcutHint}" HorizontalAlignment="Right" />
                       <TextBlock Text="{Binding ActionHint}"
                                  FontSize="{DynamicResource MptFontSizeMeta}"
                                  Foreground="{DynamicResource MptBrushAccent}"

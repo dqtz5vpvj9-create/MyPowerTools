@@ -14,7 +14,8 @@ public sealed class GeneralSettingsViewModel : ShellPageViewModel
         Func<string, Task> selectTheme,
         Func<Task> openSystem,
         DevSourceSyncService? devSource = null,
-        IReadOnlyList<GlobalHotkeyViewModel>? globalHotkeys = null)
+        IReadOnlyList<GlobalHotkeyViewModel>? globalHotkeys = null,
+        Func<Task>? openShortcuts = null)
         : base("General", "Application preferences for MyPowerTools.", "ready")
     {
         _selectTheme = selectTheme ?? throw new ArgumentNullException(nameof(selectTheme));
@@ -40,6 +41,7 @@ public sealed class GeneralSettingsViewModel : ShellPageViewModel
             string.Equals(choice.Id, selectedTheme, StringComparison.OrdinalIgnoreCase))
             ?? Themes[0];
         OpenSystemCommand = new AsyncRelayCommand(openSystem);
+        OpenShortcutsCommand = new AsyncRelayCommand(openShortcuts ?? (() => Task.CompletedTask));
         DevSource = devSource is null ? null : new DevSourceSettingsViewModel(devSource);
         GlobalHotkeys = globalHotkeys ?? [];
         var conflicts = GlobalHotkeys.Count(hotkey => hotkey.IsConflict);
@@ -59,6 +61,7 @@ public sealed class GeneralSettingsViewModel : ShellPageViewModel
 
     public IReadOnlyList<ThemeChoiceViewModel> Themes { get; }
     public ICommand OpenSystemCommand { get; }
+    public ICommand OpenShortcutsCommand { get; }
     public DevSourceSettingsViewModel? DevSource { get; }
     public string ThemeSummary => SelectedTheme.Description;
 

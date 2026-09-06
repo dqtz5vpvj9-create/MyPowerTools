@@ -11,6 +11,7 @@ public sealed class LocalLagCleanerViewModel : MptObservableViewModel, IDisposab
 {
     private readonly MptAvaloniaSurfaceContext _context;
     private readonly CancellationTokenSource _lifetime = new();
+    private CancellationTokenSource? _operationCts;
     private LagDiagnosticSnapshot? _snapshot;
     private CleanupPlan? _plan;
     private bool _isBusy;
@@ -77,6 +78,7 @@ public sealed class LocalLagCleanerViewModel : MptObservableViewModel, IDisposab
             () => CreatePlanAsync("local-lag-cleaner.plan.windows-search"),
             "plan-windows-search");
         ApplyPlanCommand = Command(ApplyPlanAsync, "apply");
+        CancelScanCommand = new MptAsyncRelayCommand(CancelScanAsync, () => IsBusy, "local-lag-cleaner.cancel-scan");
     }
 
     public ObservableCollection<LagFindingRow> Findings { get; }
@@ -101,6 +103,7 @@ public sealed class LocalLagCleanerViewModel : MptObservableViewModel, IDisposab
     public MptAsyncRelayCommand PlanRemoteDesktopCommand { get; }
     public MptAsyncRelayCommand PlanWindowsSearchCommand { get; }
     public MptAsyncRelayCommand ApplyPlanCommand { get; }
+    public MptAsyncRelayCommand CancelScanCommand { get; }
 
     public bool IsBusy
     {
@@ -284,15 +287,19 @@ public sealed class LocalLagCleanerViewModel : MptObservableViewModel, IDisposab
         }
 
         IsBusy = true;
+        CancelScanCommand.NotifyCanExecuteChanged();
         StatusText = deep
             ? "正在执行 15 秒深度扫描：调度、分页、存储、GPU、进程 I/O 与稳定性事件…"
             : "正在执行 5 秒快速扫描：资源、调度、分页、磁盘与进程树…";
+        _operationCts?.Dispose();
+        _operationCts = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
+        _operationCts.CancelAfter(TimeSpan.FromSeconds(deep ? 60 : 30));
         try
         {
             var commandId = deep
                 ? "local-lag-cleaner.scan.deep"
                 : "local-lag-cleaner.scan.quick";
-            var payload = await ExecutePayloadAsync(commandId);
+            var payload = await ExecutePayloadAsync(commandId, cancellationToken: _operationCts.Token);
             var snapshotNode = payload?["snapshot"] ??
                                throw new InvalidDataException("Runtime 未返回诊断快照。");
             var snapshot = snapshotNode.Deserialize<LagDiagnosticSnapshot>(
@@ -309,6 +316,11 @@ public sealed class LocalLagCleanerViewModel : MptObservableViewModel, IDisposab
         {
             StatusText = "扫描已取消。";
         }
+        catch (OperationCanceledException)
+        {
+            StatusText = "扫描已取消。";
+            ActionMessage = "用户取消了扫描或扫描超时，现有诊断结果保持不变。";
+        }
         catch (Exception exception)
         {
             StatusText = $"扫描失败：{exception.Message}";
@@ -320,7 +332,14 @@ public sealed class LocalLagCleanerViewModel : MptObservableViewModel, IDisposab
         finally
         {
             IsBusy = false;
+            CancelScanCommand.NotifyCanExecuteChanged();
         }
+    }
+
+    private Task CancelScanAsync()
+    {
+        _operationCts?.Cancel();
+        return Task.CompletedTask;
     }
 
     private async Task CreatePlanAsync(string commandId)
@@ -488,12 +507,13 @@ public sealed class LocalLagCleanerViewModel : MptObservableViewModel, IDisposab
 
     private async Task<JsonObject?> ExecutePayloadAsync(
         string commandId,
-        JsonObject? arguments = null)
+        JsonObject? arguments = null,
+        CancellationToken? cancellationToken = null)
     {
         var command = await _context.ExecuteCommandAsync(
             commandId,
             arguments,
-            _lifetime.Token);
+            cancellationToken ?? _lifetime.Token);
         if (!command.Success)
         {
             throw new InvalidOperationException(
@@ -714,6 +734,7 @@ public sealed class LocalLagCleanerViewModel : MptObservableViewModel, IDisposab
         OnPropertyChanged(nameof(CanApply));
         QuickScanCommand.NotifyCanExecuteChanged();
         DeepScanCommand.NotifyCanExecuteChanged();
+        CancelScanCommand.NotifyCanExecuteChanged();
         ElevatedFileScanCommand.NotifyCanExecuteChanged();
         PlanMcpCommand.NotifyCanExecuteChanged();
         PlanWeFlowCommand.NotifyCanExecuteChanged();
@@ -794,6 +815,8 @@ public sealed class LocalLagCleanerViewModel : MptObservableViewModel, IDisposab
 
     public void Dispose()
     {
+        _operationCts?.Cancel();
+        _operationCts?.Dispose();
         _lifetime.Cancel();
         _lifetime.Dispose();
     }

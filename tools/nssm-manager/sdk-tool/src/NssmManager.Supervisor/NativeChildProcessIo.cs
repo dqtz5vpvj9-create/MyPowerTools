@@ -79,8 +79,8 @@ internal sealed class NativeChildProcessIo : IAsyncDisposable
         if (configuration.RotateFiles)
         {
             NssmIo.rotate_file(configuration.Name, path, configuration.RotateSeconds,
-                unchecked((uint)configuration.RotateBytes), unchecked((uint)(configuration.RotateBytes >> 32)),
-                configuration.RotateDelayMilliseconds, copyAndTruncate);
+                configuration.RotateDelayMilliseconds, unchecked((uint)configuration.RotateBytes),
+                unchecked((uint)(configuration.RotateBytes >> 32)), copyAndTruncate);
         }
 
         var file = NssmIo.write_to_file(path, sharing, disposition, flags)

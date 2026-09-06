@@ -34,7 +34,7 @@ public sealed class LogsViewModel : ShellPageViewModel
         ApplyFilter();
     }
 
-    public IReadOnlyList<ModulePickerItemViewModel> Modules { get; }
+    public IReadOnlyList<ModulePickerItemViewModel> Modules { get; private set; }
     public ObservableCollection<LogLineViewModel> Lines { get; }
     public ICommand RefreshCommand { get; }
     public ICommand ExportCommand { get; }
@@ -125,6 +125,27 @@ public sealed class LogsViewModel : ShellPageViewModel
         Environment.NewLine,
         Lines.Select(line => $"[{line.Time}] [{line.Level}] {line.Message}"));
 
+    /// <summary>Updates source data in place, preserving the user's query, level, wrapping and row identity.</summary>
+    public void RefreshFrom(LogsViewModel refreshed)
+    {
+        ArgumentNullException.ThrowIfNull(refreshed);
+        if (ReferenceEquals(this, refreshed)) return;
+        Modules = refreshed.Modules;
+        Subtitle = refreshed.Subtitle;
+        _allLines.Clear();
+        _allLines.AddRange(refreshed._allLines);
+        ErrorMessage = refreshed.ErrorMessage;
+        OnPropertyChanged(nameof(Modules));
+        OnPropertyChanged(nameof(HasNoModules));
+        ApplyFilter();
+    }
+
+    public void ReportRefreshFailure(string message)
+    {
+        ErrorMessage = message;
+        State = "error";
+    }
+
     private async Task ToggleWrapAsync()
     {
         WrapLines = !WrapLines;
@@ -161,7 +182,7 @@ public sealed class LogsViewModel : ShellPageViewModel
     private void ApplyFilter()
     {
         var query = _searchText?.Trim() ?? "";
-        Lines.Clear();
+        var desired = new List<LogLineViewModel>();
         foreach (var line in _allLines)
         {
             if (_levelFilter != "All" &&
@@ -177,9 +198,23 @@ public sealed class LogsViewModel : ShellPageViewModel
                 continue;
             }
 
-            Lines.Add(line);
+            desired.Add(line);
         }
 
+        // Reuse equal records instead of resetting ItemsSource on every refresh.
+        for (var index = 0; index < desired.Count; index++)
+        {
+            if (index < Lines.Count && Lines[index] == desired[index]) continue;
+            var existing = -1;
+            for (var candidate = index + 1; candidate < Lines.Count; candidate++)
+            {
+                if (Lines[candidate] == desired[index]) { existing = candidate; break; }
+            }
+            if (existing >= 0) Lines.Move(existing, index);
+            else Lines.Insert(index, desired[index]);
+        }
+        while (Lines.Count > desired.Count) Lines.RemoveAt(Lines.Count - 1);
+        OnPropertyChanged(nameof(CopyText));
         OnPropertyChanged(nameof(HasNoLogs));
         OnPropertyChanged(nameof(FilterSummary));
         State = HasError

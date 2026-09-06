@@ -14,7 +14,12 @@ public sealed class ServiceUnitSurfaceClientTests
     [Fact]
     public async Task Remote_notifications_uses_the_readiness_pipe_from_the_scoped_snapshot()
     {
-        var pipeName = $"mpt-rn-surface-{Guid.NewGuid():N}";
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var pipeName = $"rn-{Guid.NewGuid():N}";
         var snapshot = Unit(
             RemoteNotificationsServiceClient.UnitId,
             "remote-notifications",
@@ -42,7 +47,8 @@ public sealed class ServiceUnitSurfaceClientTests
     public async Task Remote_notifications_uses_the_readiness_unix_socket_from_the_scoped_snapshot()
     {
         Assert.True(Socket.OSSupportsUnixDomainSockets);
-        var socketPath = Path.Combine(Path.GetTempPath(), $"mpt-rn-{Guid.NewGuid():N}.sock");
+        var suffix = Guid.NewGuid().ToString("N")[..12];
+        var socketPath = Path.Combine(Path.GetTempPath(), $"rn-{suffix}.sock");
         var snapshot = Unit(
             RemoteNotificationsServiceClient.UnitId,
             "remote-notifications",
@@ -70,7 +76,12 @@ public sealed class ServiceUnitSurfaceClientTests
     [Fact]
     public async Task Doubao_surface_client_uses_the_readiness_pipe_from_the_scoped_snapshot()
     {
-        var pipeName = $"mpt-doubao-surface-{Guid.NewGuid():N}";
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        var pipeName = $"db-{Guid.NewGuid():N}";
         var snapshot = Unit(
             DoubaoServiceUnitRuntimeController.UnitId,
             "doubao-agent",

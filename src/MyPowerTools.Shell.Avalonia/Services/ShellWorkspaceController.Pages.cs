@@ -9,11 +9,14 @@ public sealed partial class ShellWorkspaceController
 {
     private async Task LoadDashboardPageAsync()
     {
+        var identity = _workspaceIdentity.Capture();
         try
         {
             var result = await _pageData.LoadDashboardAsync(
                 moduleId => ShowModuleDetailPageAsync(moduleId),
                 commandId => ExecuteCommandAsync(commandId));
+
+            if (!_workspaceIdentity.IsCurrent(identity)) return;
 
             SetOwnedContent(_contentHost, new DashboardView
             {
@@ -23,13 +26,16 @@ public sealed partial class ShellWorkspaceController
         }
         catch (Exception ex)
         {
+            if (IsStalePageFailure(nameof(LoadDashboardPageAsync), ex, identity)) return;
+
             var failure = ReportPageFailure(nameof(LoadDashboardPageAsync), ex);
-            SetOwnedContent(_contentHost, BuildUnavailablePage(DashboardPage, failure.Message));
+            SetOwnedContent(_contentHost, BuildUnavailablePage(DashboardPage, failure.Message, retry: () => LoadDashboardPageAsync()));
         }
     }
 
     private async Task LoadModulesPageAsync()
     {
+        var identity = _workspaceIdentity.Capture();
         try
         {
             var result = await _pageData.LoadModulesAsync(
@@ -37,6 +43,8 @@ public sealed partial class ShellWorkspaceController
                 moduleId => ShowModuleSettingsPageAsync(moduleId),
                 moduleId => ShowModuleLogsPageAsync(moduleId),
                 (moduleId, enabled) => SetModuleEnabledAsync(moduleId, enabled));
+
+            if (!_workspaceIdentity.IsCurrent(identity)) return;
 
             SetOwnedContent(_contentHost, new ModulesView
             {
@@ -46,8 +54,10 @@ public sealed partial class ShellWorkspaceController
         }
         catch (Exception ex)
         {
+            if (IsStalePageFailure(nameof(LoadModulesPageAsync), ex, identity)) return;
+
             var failure = ReportPageFailure(nameof(LoadModulesPageAsync), ex);
-            SetOwnedContent(_contentHost, BuildUnavailablePage(ModulesPage, failure.Message));
+            SetOwnedContent(_contentHost, BuildUnavailablePage(ModulesPage, failure.Message, retry: () => LoadModulesPageAsync()));
         }
     }
 
@@ -57,12 +67,15 @@ public sealed partial class ShellWorkspaceController
         _currentPage = ModulesPage;
         _chromeViewModel.SelectPage(ModulesPage);
 
+        var identity = _workspaceIdentity.Capture();
         try
         {
             var result = await _pageData.LoadModuleDetailAsync(
                 moduleId,
                 (targetModuleId, enabled) => SetModuleEnabledAsync(targetModuleId, enabled, showDetail: true),
                 commandId => ExecuteCommandAsync(commandId));
+
+            if (!_workspaceIdentity.IsCurrent(identity)) return;
 
             SetOwnedContent(_contentHost, new ModuleDetailView
             {
@@ -72,40 +85,27 @@ public sealed partial class ShellWorkspaceController
         }
         catch (Exception ex)
         {
+            if (IsStalePageFailure(nameof(ShowModuleDetailPageAsync), ex, identity)) return;
+
             var failure = ReportPageFailure(nameof(ShowModuleDetailPageAsync), ex);
-            SetOwnedContent(_contentHost, BuildUnavailablePage("Module Detail", failure.Message));
+            SetOwnedContent(_contentHost, BuildUnavailablePage("Module Detail", failure.Message, retry: () => ShowModuleDetailPageAsync(moduleId)));
         }
     }
 
-    private async Task LoadGeneralSettingsPage()
+    private Task LoadGeneralSettingsPage()
     {
-        IReadOnlyList<MyPowerTools.Shell.Avalonia.ViewModels.GlobalHotkeyViewModel> hotkeys = [];
-        try
-        {
-            hotkeys = await _pageData.LoadGlobalHotkeysAsync();
-        }
-        catch (Exception ex)
-        {
-            // The shortcuts overview is best-effort; settings must open even when
-            // the Runner diagnostics are unavailable.
-            ShellCommandFaultLog.Write("Load global hotkeys", ex, "settings");
-        }
-
-        var viewModel = new GeneralSettingsViewModel(
-            _appearance.CurrentTheme,
-            _appearance.SetThemeAsync,
-            () => ShowPageAsync(SystemPage),
-            _devSource,
-            hotkeys);
         SetOwnedContent(_contentHost, new GeneralSettingsView
         {
-            DataContext = viewModel
+            DataContext = new GeneralSettingsViewModel(_appearance.CurrentTheme, _appearance.SetThemeAsync,
+                () => ShowPageAsync(SystemPage), _devSource, openShortcuts: () => ShowPageAsync(ShortcutsPage))
         });
         SetStatus("Application preferences opened.");
+        return Task.CompletedTask;
     }
 
     private async Task LoadModuleSettingsPageAsync(string selectedModuleId)
     {
+        var identity = _workspaceIdentity.Capture();
         try
         {
             var result = await _pageData.LoadSettingsAsync(
@@ -113,6 +113,9 @@ public sealed partial class ShellWorkspaceController
                 moduleId => LoadModuleSettingsPageAsync(moduleId),
                 SaveSettingsPageAsync);
 
+            if (!_workspaceIdentity.IsCurrent(identity)) return;
+
+            result.ViewModel.OpenShortcutsCommand = new AsyncRelayCommand(() => OpenShortcutsForToolAsync(selectedModuleId));
             SetOwnedContent(_contentHost, new SettingsCenterView
             {
                 DataContext = result.ViewModel
@@ -121,8 +124,10 @@ public sealed partial class ShellWorkspaceController
         }
         catch (Exception ex)
         {
+            if (IsStalePageFailure(nameof(LoadModuleSettingsPageAsync), ex, identity)) return;
+
             var failure = ReportPageFailure(nameof(LoadModuleSettingsPageAsync), ex);
-            SetOwnedContent(_contentHost, BuildUnavailablePage(SettingsPage, failure.Message));
+            SetOwnedContent(_contentHost, BuildUnavailablePage(SettingsPage, failure.Message, retry: () => LoadModuleSettingsPageAsync(selectedModuleId)));
         }
     }
 
@@ -146,8 +151,12 @@ public sealed partial class ShellWorkspaceController
         SetStatus(result.StatusText);
     }
 
+    private long _logLoadVersion;
+
     private async Task LoadLogsPageAsync(string? selectedModuleId = null)
     {
+        var identity = _workspaceIdentity.Capture();
+        var requestVersion = Interlocked.Increment(ref _logLoadVersion);
         try
         {
             _logPageModuleId = selectedModuleId;
@@ -156,16 +165,33 @@ public sealed partial class ShellWorkspaceController
                 moduleId => LoadLogsPageAsync(moduleId),
                 refresh: () => LoadLogsPageAsync(_logPageModuleId));
 
-            SetOwnedContent(_contentHost, new LogsView
+            if (!_workspaceIdentity.IsCurrent(identity)) return;
+
+            if (requestVersion != Volatile.Read(ref _logLoadVersion)) return;
+            if (_contentHost.Content is LogsView { DataContext: LogsViewModel current })
             {
-                DataContext = result.ViewModel
-            });
+                current.RefreshFrom(result.ViewModel);
+            }
+            else
+            {
+                SetOwnedContent(_contentHost, new LogsView { DataContext = result.ViewModel });
+            }
             SetStatus(result.StatusText);
         }
         catch (Exception ex)
         {
+            if (requestVersion != Volatile.Read(ref _logLoadVersion) ||
+                IsStalePageFailure(nameof(LoadLogsPageAsync), ex, identity)) return;
+
             var failure = ReportPageFailure(nameof(LoadLogsPageAsync), ex);
-            SetOwnedContent(_contentHost, BuildUnavailablePage(LogsPage, failure.Message));
+            if (_contentHost.Content is LogsView { DataContext: LogsViewModel current })
+            {
+                current.ReportRefreshFailure(failure.Message);
+            }
+            else
+            {
+                SetOwnedContent(_contentHost, BuildUnavailablePage(LogsPage, failure.Message, retry: () => LoadLogsPageAsync(_logPageModuleId)));
+            }
         }
     }
 
@@ -180,9 +206,12 @@ public sealed partial class ShellWorkspaceController
 
     private async Task LoadNotificationsPageAsync()
     {
+        var identity = _workspaceIdentity.Capture();
         try
         {
             var result = await _pageData.LoadNotificationsAsync();
+
+            if (!_workspaceIdentity.IsCurrent(identity)) return;
 
             SetOwnedContent(_contentHost, new NotificationsView
             {
@@ -192,13 +221,16 @@ public sealed partial class ShellWorkspaceController
         }
         catch (Exception ex)
         {
+            if (IsStalePageFailure(nameof(LoadNotificationsPageAsync), ex, identity)) return;
+
             var failure = ReportPageFailure(nameof(LoadNotificationsPageAsync), ex);
-            SetOwnedContent(_contentHost, BuildUnavailablePage("Notifications", failure.Message));
+            SetOwnedContent(_contentHost, BuildUnavailablePage("Notifications", failure.Message, retry: () => LoadNotificationsPageAsync()));
         }
     }
 
     private async Task LoadPackagesPageAsync()
     {
+        var identity = _workspaceIdentity.Capture();
         try
         {
             var result = await _pageData.LoadPackagesAsync(
@@ -210,6 +242,8 @@ public sealed partial class ShellWorkspaceController
                 () => RunOtaCliAsync("check"),
                 progress => RunOtaCliAsync("apply", progress));
 
+            if (!_workspaceIdentity.IsCurrent(identity)) return;
+
             SetOwnedContent(_contentHost, new PackageManagerView
             {
                 DataContext = result.ViewModel
@@ -218,13 +252,16 @@ public sealed partial class ShellWorkspaceController
         }
         catch (Exception ex)
         {
+            if (IsStalePageFailure(nameof(LoadPackagesPageAsync), ex, identity)) return;
+
             var failure = ReportPageFailure(nameof(LoadPackagesPageAsync), ex);
-            SetOwnedContent(_contentHost, BuildUnavailablePage(PackagesPage, failure.Message));
+            SetOwnedContent(_contentHost, BuildUnavailablePage(PackagesPage, failure.Message, retry: () => LoadPackagesPageAsync()));
         }
     }
 
     private async Task LoadDiagnosticsPageAsync()
     {
+        var identity = _workspaceIdentity.Capture();
         try
         {
             var result = await _pageData.LoadDiagnosticsAsync(
@@ -236,6 +273,8 @@ public sealed partial class ShellWorkspaceController
                     expiresAt,
                     reason));
 
+            if (!_workspaceIdentity.IsCurrent(identity)) return;
+
             SetOwnedContent(_contentHost, new DiagnosticsView
             {
                 DataContext = result.ViewModel
@@ -244,13 +283,16 @@ public sealed partial class ShellWorkspaceController
         }
         catch (Exception ex)
         {
+            if (IsStalePageFailure(nameof(LoadDiagnosticsPageAsync), ex, identity)) return;
+
             var failure = ReportPageFailure(nameof(LoadDiagnosticsPageAsync), ex);
-            SetOwnedContent(_contentHost, BuildUnavailablePage(DiagnosticsPage, failure.Message));
+            SetOwnedContent(_contentHost, BuildUnavailablePage(DiagnosticsPage, failure.Message, retry: () => LoadDiagnosticsPageAsync()));
         }
     }
 
     private async Task LoadServicesPageAsync()
     {
+        var identity = _workspaceIdentity.Capture();
         try
         {
             var result = await _pageData.LoadServicesAsync(
@@ -263,6 +305,8 @@ public sealed partial class ShellWorkspaceController
                 refresh: () => { return LoadServicesPageAsync(); },
                 reloadManifests: ReloadServiceUnitsAsync);
 
+            if (!_workspaceIdentity.IsCurrent(identity)) return;
+
             SetOwnedContent(_contentHost, new ServicesView
             {
                 DataContext = result.ViewModel
@@ -271,6 +315,8 @@ public sealed partial class ShellWorkspaceController
         }
         catch (Exception ex)
         {
+            if (IsStalePageFailure(nameof(LoadServicesPageAsync), ex, identity)) return;
+
             var failure = ReportPageFailure(
                 nameof(LoadServicesPageAsync),
                 ex,
@@ -281,99 +327,4 @@ public sealed partial class ShellWorkspaceController
                 retry: TryStartServiceManagerThenLoadAsync));
         }
     }
-
-    private async Task TryStartServiceManagerThenLoadAsync()
-    {
-        // Spawns the ServiceManager process if it is not already reachable, then reloads the page.
-        // If startup still fails, LoadServicesPageAsync re-enters its catch and re-renders the
-        // unavailable page with the same Try-again affordance, so the user can retry repeatedly.
-        var result = await ShellServiceManagerBootstrapper.EnsureStartedAsync();
-        SetStatus(result.Message);
-        await LoadServicesPageAsync();
-    }
-
-    private async Task TailServiceUnitLogsAsync(string unitId)
-    {
-        // Tail logs is surfaced as a status update for now; a dedicated logs flyout can layer on later.
-        using var client = ServiceManagerAdminClient.ForDefaultEndpoint();
-        var entries = await client.TailLogsAsync(unitId, 50);
-        var summary = entries.Count == 0 ? "No recent log lines." : string.Join("\n", entries.Take(20).Select(e => $"[{e.Level}] {e.Message}"));
-        SetStatus($"Logs for {unitId}:\n{summary}");
-    }
-
-    private async Task OpenToolFromServicesAsync(string toolId)
-    {
-        // Navigate to the owning tool's page if it is a known first-party tool.
-        if (!string.IsNullOrEmpty(toolId))
-        {
-            await ShowToolPageAsync(toolId, "");
-        }
-    }
-
-    private async Task ToggleServiceUnitAutostartAsync(string unitId)
-    {
-        // Autostart is a property of the unit manifest; toggling rewrites the deployed manifest and reloads.
-        // For units whose manifest is managed by the ServiceManager deploy root, we update the file in place.
-        try
-        {
-            await ToggleDeployedUnitAutostartAsync(unitId);
-        }
-        catch (Exception ex)
-        {
-            SetStatus($"Could not toggle autostart for {unitId}: {ex.Message}");
-        }
-
-        await LoadServicesPageAsync();
-    }
-
-    private async Task ToggleDeployedUnitAutostartAsync(string unitId)
-    {
-        var dataRoot = Environment.GetEnvironmentVariable("MPT_DATA_ROOT")
-            ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MyPowerTools");
-        var deployRoot = Path.Combine(dataRoot, "ServiceManager");
-        var manifestPath = Path.Combine(deployRoot, "units", $"{unitId}.json");
-        if (!File.Exists(manifestPath))
-        {
-            SetStatus($"Manifest for {unitId} not found in deploy root; cannot toggle autostart.");
-            return;
-        }
-
-        var json = await File.ReadAllTextAsync(manifestPath);
-        var node = System.Text.Json.Nodes.JsonNode.Parse(json);
-        if (node is System.Text.Json.Nodes.JsonObject obj)
-        {
-            var current = obj["autostart"]?.GetValue<bool>() ?? false;
-            obj["autostart"] = !current;
-            await File.WriteAllTextAsync(manifestPath, obj.ToJsonString(new System.Text.Json.JsonSerializerOptions { WriteIndented = true }));
-        }
-    }
-
-    private async Task InvokeServiceUnitActionAsync(string unitId, ServiceUnitAction action)
-    {
-        using var client = ServiceManagerAdminClient.ForDefaultEndpoint();
-        switch (action)
-        {
-            case ServiceUnitAction.Start:
-                await client.StartAsync(unitId);
-                break;
-            case ServiceUnitAction.Stop:
-                await client.StopAsync(unitId);
-                break;
-            case ServiceUnitAction.Restart:
-                await client.RestartAsync(unitId);
-                break;
-        }
-
-        await LoadServicesPageAsync();
-    }
-
-    private async Task ReloadServiceUnitsAsync()
-    {
-        using var client = ServiceManagerAdminClient.ForDefaultEndpoint();
-        await client.ReloadAsync();
-        await LoadServicesPageAsync();
-    }
-
-    private enum ServiceUnitAction { Start, Stop, Restart }
-
 }

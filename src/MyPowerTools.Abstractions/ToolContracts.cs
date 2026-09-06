@@ -23,7 +23,11 @@ public sealed record ToolDescriptor(
     IReadOnlyList<ToolCommand>? Commands = null,
     IReadOnlyList<string>? DataRoots = null,
     string DataRetention = "preserve",
-    string? LoadError = null);
+    string? LoadError = null)
+{
+    /// <summary>Declarative Surface actions, discoverable before loading the UI assembly.</summary>
+    public IReadOnlyList<ShortcutDefinition> Shortcuts { get; init; } = [];
+}
 
 /// <summary>
 /// Maps a stable route identifier to a surface supplied by the owning module.

@@ -51,6 +51,7 @@ public sealed partial class ShellWorkspaceController
                 return;
             }
 
+            viewModel = AddShortcutPaletteCommands(query, viewModel);
             await Dispatcher.UIThread.InvokeAsync(() =>
             {
                 _commandPaletteViewModel = viewModel;
@@ -268,9 +269,12 @@ public sealed partial class ShellWorkspaceController
 
     private async Task RunPackageOperationAsync(string operation, string target)
     {
+        var identity = _workspaceIdentity.Capture();
         try
         {
             var result = await _hostActions.RunPackageOperationAsync(operation, target);
+            if (!_workspaceIdentity.IsCurrent(identity)) return;
+
             if (result.ShouldRefresh)
             {
                 await LoadPackagesPageAsync();
@@ -287,9 +291,12 @@ public sealed partial class ShellWorkspaceController
 
     private async Task RestartRuntimeProcessAsync(string transportKind, string poolKey)
     {
+        var identity = _workspaceIdentity.Capture();
         try
         {
             var result = await _hostActions.RestartRuntimeProcessAsync(transportKind, poolKey);
+            if (!_workspaceIdentity.IsCurrent(identity)) return;
+
             SetStatus(result.StatusText);
             await LoadDiagnosticsPageAsync();
         }
@@ -301,9 +308,12 @@ public sealed partial class ShellWorkspaceController
 
     private async Task SetRuntimeProcessRestartPolicyAsync(string transportKind, string poolKey, bool paused, DateTimeOffset? expiresAt = null, string? reason = null)
     {
+        var identity = _workspaceIdentity.Capture();
         try
         {
             var result = await _hostActions.SetRuntimeProcessRestartPolicyAsync(transportKind, poolKey, paused, expiresAt, reason);
+            if (!_workspaceIdentity.IsCurrent(identity)) return;
+
             SetStatus(result.StatusText);
             await LoadDiagnosticsPageAsync();
         }
@@ -315,9 +325,12 @@ public sealed partial class ShellWorkspaceController
 
     private async Task SetModuleEnabledAsync(string moduleId, bool enabled, bool showDetail = false)
     {
+        var identity = _workspaceIdentity.Capture();
         try
         {
             var result = await _hostActions.SetModuleEnabledAsync(moduleId, enabled);
+            if (!_workspaceIdentity.IsCurrent(identity)) return;
+
             SetStatus(result.StatusText);
             await LoadCommandsAsync(_searchBox.Text ?? "");
             await LoadBrokerAuditAsync();
@@ -342,7 +355,10 @@ public sealed partial class ShellWorkspaceController
 
     private async Task RefreshModuleStatusAsync(string moduleId, CancellationToken cancellationToken = default)
     {
+        var identity = _workspaceIdentity.Capture();
         await ExecuteRuntimeCommandAsync($"{moduleId}.status.refresh", cancellationToken: cancellationToken);
+        if (!_workspaceIdentity.IsCurrent(identity)) return;
+
         if (_currentPage == DashboardPage)
         {
             await LoadDashboardPageAsync();

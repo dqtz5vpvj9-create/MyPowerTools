@@ -96,6 +96,7 @@ public sealed class SettingsCenterViewModel : ShellPageViewModel
         : $"{Hotkeys.Count(hotkey => hotkey.Enabled)} of {Hotkeys.Count} shortcuts enabled.";
     public bool UsesRawJson => SelectedModuleId.Length > 0 && Fields.Count == 0;
     public ICommand SaveCommand { get; }
+    public ICommand? OpenShortcutsCommand { get; set; }
     public bool HasChanges => DirtyCount > 0;
     public bool HasPatchPreview => PatchPreview.Length > 0;
     public bool HasValidationErrors => ValidationMessage.Length > 0;

@@ -176,15 +176,26 @@
                        Text="{Binding PrimaryActionLabel}"
                        TextTrimming="CharacterEllipsis" />
           </StackPanel>
-          <Border Grid.Column="2"
-                  Classes="MptStatusBadge"
-                  Classes.running="{Binding IsReadyStatus}"
-                  Classes.degraded="{Binding IsAttentionStatus}"
-                  Classes.error="{Binding IsUnavailable}"
-                  VerticalAlignment="Center">
+          <StackPanel Grid.Column="2"
+                      VerticalAlignment="Center"
+                      HorizontalAlignment="Right"
+                      Spacing="{DynamicResource MptSpacing2Xs}">
+            <Border Classes="MptStatusBadge"
+                    Classes.running="{Binding IsReadyStatus}"
+                    Classes.degraded="{Binding IsAttentionStatus}"
+                    Classes.error="{Binding IsUnavailable}"
+                    HorizontalAlignment="Right">
+              <TextBlock Classes="MptMeta"
+                         Text="{Binding StatusLabel}" />
+            </Border>
             <TextBlock Classes="MptMeta"
-                       Text="{Binding StatusLabel}" />
-          </Border>
+                       Text="{Binding StatusDetail}"
+                       IsVisible="{Binding IsAttentionStatus}"
+                       TextTrimming="CharacterEllipsis"
+                       MaxWidth="200"
+                       HorizontalAlignment="Right"
+                       Foreground="{DynamicResource MptBrushTextSecondary}" />
+          </StackPanel>
           <TextBlock Grid.Column="3"
                      Text="›"
                      IsVisible="{Binding CanOpen}"
@@ -295,16 +306,27 @@
                 Margin="{DynamicResource MptGapLeft2Xl}"
                 HorizontalAlignment="Left"
                 VerticalAlignment="Center">
-            <Border Width="20"
-                    Height="20"
-                    CornerRadius="{DynamicResource MptRadiusLarge}"
-                    Background="{DynamicResource MptBrushSuccess}">
-              <TextBlock Text="✓"
-                         Foreground="{DynamicResource MptBrushAccentText}"
-                         FontSize="{DynamicResource MptFontSizeMeta}"
-                         HorizontalAlignment="Center"
-                         VerticalAlignment="Center" />
-            </Border>
+            <Panel Width="20" Height="20">
+              <Border CornerRadius="{DynamicResource MptRadiusLarge}"
+                      Background="{DynamicResource MptBrushSuccess}"
+                      IsVisible="{Binding !DashboardHasWarning}">
+                <TextBlock Text="✓"
+                           Foreground="{DynamicResource MptBrushAccentText}"
+                           FontSize="{DynamicResource MptFontSizeMeta}"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center" />
+              </Border>
+              <Border CornerRadius="{DynamicResource MptRadiusLarge}"
+                      Background="{DynamicResource MptBrushWarning}"
+                      IsVisible="{Binding DashboardHasWarning}">
+                <TextBlock Text="!"
+                           Foreground="{DynamicResource MptBrushAccentText}"
+                           FontSize="{DynamicResource MptFontSizeMeta}"
+                           FontWeight="Bold"
+                           HorizontalAlignment="Center"
+                           VerticalAlignment="Center" />
+              </Border>
+            </Panel>
             <StackPanel Grid.Column="1"
                         Spacing="{DynamicResource MptSpacingNone}">
               <TextBlock Text="{Binding DashboardStatusLabel}"
@@ -360,7 +382,7 @@
                            VerticalAlignment="Center" />
                 <TextBlock Grid.Column="1"
                            Classes="MptMeta"
-                           Text="Primary tool actions"
+                           Text="{Binding ActionShortcutsDetail}"
                            VerticalAlignment="Center" />
               </Grid>
               <Border Grid.Row="1"
@@ -382,7 +404,7 @@
             <Grid Margin="{DynamicResource MptCardHeaderCompactMargin}"
                   ColumnDefinitions="*,Auto">
               <TextBlock Classes="MptCardTitle"
-                         Text="Tools"
+                         Text="{Binding DashboardToolsTitle}"
                          VerticalAlignment="Center" />
               <controls:MptButton Grid.Column="1"
                                   Classes="PowerCardHeaderAction"

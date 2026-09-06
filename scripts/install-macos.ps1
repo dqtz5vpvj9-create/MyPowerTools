@@ -1,9 +1,21 @@
+<#
+.SYNOPSIS
+    Installs MyPowerTools.app and seeds the macOS OTA state.
+
+.DESCRIPTION
+    The bundle-copy and LaunchAgent work remains in install-macos-base.ps1. This wrapper adds the
+    OTA state contract and accepts -SkipOtaState for transactional OTA replacement, where the
+    signed channel manifest is downloaded and persisted by ota-update.ps1 after health succeeds.
+#>
 [CmdletBinding()]
 param(
     [string]$SourceApp = '',
     [string]$ApplicationsRoot = '',
     [string]$DataRoot = '',
-    [switch]$SkipLaunchAgents
+    [ValidateSet('stable', 'nightly', 'local')]
+    [string]$Channel = 'stable',
+    [switch]$SkipLaunchAgents,
+    [switch]$SkipOtaState
 )
 
 $ErrorActionPreference = 'Stop'
@@ -11,114 +23,143 @@ if (-not $IsMacOS) {
     throw 'MyPowerTools macOS installation must run on macOS.'
 }
 
-$repoRoot = [System.IO.Path]::GetFullPath((Join-Path $PSScriptRoot '..'))
-$userProfile = [Environment]::GetFolderPath([Environment+SpecialFolder]::UserProfile)
-if ([string]::IsNullOrWhiteSpace($SourceApp)) {
+function Write-Utf8TextFile {
+    param(
+        [Parameter(Mandatory = $true)][string]$Path,
+        [Parameter(Mandatory = $true)][string]$Value
+    )
+
+    $parent = Split-Path -Parent $Path
+    if (-not [string]::IsNullOrWhiteSpace($parent)) {
+        New-Item -ItemType Directory -Path $parent -Force | Out-Null
+    }
+    [IO.File]::WriteAllText($Path, $Value, [Text.UTF8Encoding]::new($false))
+}
+
+function Get-InstalledRuntimeIdentifier {
+    param([Parameter(Mandatory = $true)][string]$AppBundlePath)
+
+    $launcher = Join-Path $AppBundlePath 'Contents/MacOS/MyPowerTools'
+    if (Test-Path -LiteralPath $launcher -PathType Leaf) {
+        $architectures = @(& /usr/bin/lipo '-archs' $launcher 2>$null)
+        $global:LASTEXITCODE = 0
+        $tokens = @(
+            ($architectures -join ' ') -split '\s+' |
+                Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
+        )
+        if ($tokens -contains 'arm64' -and $tokens -notcontains 'x86_64') {
+            return 'osx-arm64'
+        }
+        if ($tokens -contains 'x86_64' -and $tokens -notcontains 'arm64') {
+            return 'osx-x64'
+        }
+    }
+
     $machineArchitecture = (& /usr/bin/uname '-m').Trim()
     if ($LASTEXITCODE -ne 0) {
         throw 'Could not determine the macOS machine architecture.'
     }
-    $publishArchitecture = if ($machineArchitecture -eq 'arm64') { 'arm64' } else { 'x64' }
-    $SourceApp = Join-Path $repoRoot "artifacts/publish/macos-$publishArchitecture/MyPowerTools.app"
+    return $(if ($machineArchitecture -eq 'arm64') { 'osx-arm64' } else { 'osx-x64' })
 }
-$SourceApp = [System.IO.Path]::GetFullPath($SourceApp)
-if (-not (Test-Path -LiteralPath (Join-Path $SourceApp 'Contents/Info.plist') -PathType Leaf)) {
-    throw "Source app bundle is invalid: $SourceApp"
+
+function Resolve-BundledSourceApp {
+    $resourcesRoot = Split-Path -Parent $PSScriptRoot
+    $contentsRoot = Split-Path -Parent $resourcesRoot
+    $bundleRoot = Split-Path -Parent $contentsRoot
+    if ($bundleRoot.EndsWith('.app', [StringComparison]::OrdinalIgnoreCase) -and
+        (Test-Path -LiteralPath (Join-Path $bundleRoot 'Contents/Info.plist') -PathType Leaf)) {
+        return [IO.Path]::GetFullPath($bundleRoot)
+    }
+    return ''
 }
+
+$userProfile = [Environment]::GetFolderPath([Environment+SpecialFolder]::UserProfile)
+$baseScript = Join-Path $PSScriptRoot 'install-macos-base.ps1'
+if (-not (Test-Path -LiteralPath $baseScript -PathType Leaf)) {
+    throw "Base macOS installer is missing: $baseScript"
+}
+
+if ([string]::IsNullOrWhiteSpace($SourceApp)) {
+    $SourceApp = Resolve-BundledSourceApp
+}
+
+$baseParameters = @{}
+if (-not [string]::IsNullOrWhiteSpace($SourceApp)) {
+    $baseParameters.SourceApp = $SourceApp
+}
+if (-not [string]::IsNullOrWhiteSpace($ApplicationsRoot)) {
+    $baseParameters.ApplicationsRoot = $ApplicationsRoot
+}
+if (-not [string]::IsNullOrWhiteSpace($DataRoot)) {
+    $baseParameters.DataRoot = $DataRoot
+}
+if ($SkipLaunchAgents) {
+    $baseParameters.SkipLaunchAgents = $true
+}
+
+$baseOutput = @(& $baseScript @baseParameters | ForEach-Object { [string]$_ })
 
 if ([string]::IsNullOrWhiteSpace($ApplicationsRoot)) {
     $ApplicationsRoot = Join-Path $userProfile 'Applications'
 }
-$ApplicationsRoot = [System.IO.Path]::GetFullPath($ApplicationsRoot)
 if ([string]::IsNullOrWhiteSpace($DataRoot)) {
     $DataRoot = Join-Path $userProfile 'Library/Application Support/MyPowerTools'
 }
-$DataRoot = [System.IO.Path]::GetFullPath($DataRoot)
-$targetApp = Join-Path $ApplicationsRoot 'MyPowerTools.app'
-if (-not ([System.IO.Path]::GetFullPath($targetApp)).StartsWith(
-        $ApplicationsRoot + [System.IO.Path]::DirectorySeparatorChar,
-        [System.StringComparison]::Ordinal)) {
-    throw 'The resolved app target left ApplicationsRoot.'
-}
+$ApplicationsRootFull = [IO.Path]::GetFullPath($ApplicationsRoot)
+$DataRootFull = [IO.Path]::GetFullPath($DataRoot)
+$targetApp = Join-Path $ApplicationsRootFull 'MyPowerTools.app'
 
-New-Item -ItemType Directory -Path $ApplicationsRoot, $DataRoot -Force | Out-Null
-if (Test-Path -LiteralPath $targetApp) {
-    $backupApp = Join-Path $ApplicationsRoot ("MyPowerTools.backup.{0}.app" -f (Get-Date -Format 'yyyyMMddHHmmss'))
-    Move-Item -LiteralPath $targetApp -Destination $backupApp
-    Write-Host "Previous app moved to $backupApp"
-}
-Copy-Item -LiteralPath $SourceApp -Destination $targetApp -Recurse -Force
-
-$macRoot = Join-Path $targetApp 'Contents/MacOS'
-foreach ($executable in @(
-    (Join-Path $macRoot 'MyPowerTools'),
-    (Join-Path $macRoot 'Shell/MyPowerTools.Shell.Avalonia'),
-    (Join-Path $macRoot 'Runner/MyPowerTools.Runner'),
-    (Join-Path $macRoot 'ServiceManager/MyPowerTools.ServiceManager'),
-    (Join-Path $macRoot 'RemoteNotifications.Service'),
-    (Join-Path $macRoot 'modules/android-tools-suite/macos/arm64/MPTAndroidTools.Runtime'),
-    (Join-Path $macRoot 'modules/android-tools-suite/macos/x64/MPTAndroidTools.Runtime')
-)) {
-    if (Test-Path -LiteralPath $executable -PathType Leaf) {
-        & /bin/chmod '+x' $executable
-        if ($LASTEXITCODE -ne 0) {
-            throw "chmod failed for $executable"
-        }
+if (-not $SkipOtaState) {
+    $infoBase = Join-Path $targetApp 'Contents/Info'
+    $version = (& /usr/bin/defaults 'read' $infoBase 'CFBundleShortVersionString').Trim()
+    if ($LASTEXITCODE -ne 0 -or $version -notmatch '^[0-9]+\.[0-9]+\.[0-9]+$') {
+        throw "Installed app bundle has an invalid CFBundleShortVersionString: $version"
     }
-}
 
-if (-not $SkipLaunchAgents) {
-    $userId = (& /usr/bin/id '-u').Trim()
-    if ($LASTEXITCODE -ne 0 -or -not ($userId -match '^\d+$')) {
-        throw 'Could not determine the current macOS user id.'
+    $stateRoot = Join-Path $DataRootFull 'ota-state'
+    New-Item -ItemType Directory -Path $stateRoot -Force | Out-Null
+    $manifestPath = Join-Path $stateRoot 'installed-files.manifest.json'
+    $manifestScript = Join-Path $PSScriptRoot 'new-ota-file-manifest.ps1'
+    if (-not (Test-Path -LiteralPath $manifestScript -PathType Leaf)) {
+        throw "OTA manifest generator is missing: $manifestScript"
     }
-    $launchAgentsRoot = Join-Path $userProfile 'Library/LaunchAgents'
-    $logsRoot = Join-Path $userProfile 'Library/Logs/MyPowerTools'
-    New-Item -ItemType Directory -Path $launchAgentsRoot, $logsRoot -Force | Out-Null
+    [void](& $manifestScript `
+        -Root $targetApp `
+        -OutputPath $manifestPath `
+        -Version $version)
 
-    function Write-LaunchAgent {
-        param(
-            [Parameter(Mandatory = $true)][string]$Label,
-            [Parameter(Mandatory = $true)][string[]]$ProgramArguments,
-            [Parameter(Mandatory = $true)][string]$WorkingDirectory
-        )
-        $escapedArguments = $ProgramArguments |
-            ForEach-Object { '<string>{0}</string>' -f [Security.SecurityElement]::Escape($_) }
-        $plist = @"
-<?xml version="1.0" encoding="UTF-8"?>
-<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
-<plist version="1.0">
-<dict>
-  <key>Label</key><string>$Label</string>
-  <key>ProgramArguments</key><array>$($escapedArguments -join '')</array>
-  <key>WorkingDirectory</key><string>$([Security.SecurityElement]::Escape($WorkingDirectory))</string>
-  <key>RunAtLoad</key><true/>
-  <key>KeepAlive</key><true/>
-  <key>ProcessType</key><string>Background</string>
-  <key>StandardOutPath</key><string>$([Security.SecurityElement]::Escape((Join-Path $logsRoot "$Label.log")))</string>
-  <key>StandardErrorPath</key><string>$([Security.SecurityElement]::Escape((Join-Path $logsRoot "$Label.error.log")))</string>
-</dict>
-</plist>
-"@
-        $plistPath = Join-Path $launchAgentsRoot "$Label.plist"
-        [System.IO.File]::WriteAllText($plistPath, $plist)
-        & /bin/launchctl 'bootout' "gui/$userId/$Label" 2>$null
-        & /bin/launchctl 'bootstrap' "gui/$userId" $plistPath
-        if ($LASTEXITCODE -ne 0) {
-            throw "launchctl bootstrap failed for $Label"
+    $scriptParent = Split-Path -Parent $PSScriptRoot
+    $publicKeySource = @(
+        (Join-Path $scriptParent 'ota-signing-public-key.txt'),
+        (Join-Path $scriptParent 'ota-history/ota-signing-public-key.txt')
+    ) | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf } | Select-Object -First 1
+    if ($publicKeySource) {
+        $publicKey = ([IO.File]::ReadAllText($publicKeySource, [Text.UTF8Encoding]::new($false))).Trim()
+        if ($publicKey -match '^[0-9a-fA-F]{64}$') {
+            Write-Utf8TextFile `
+                -Path (Join-Path $stateRoot 'ota-signing-public-key.txt') `
+                -Value $publicKey
         }
     }
 
-    Write-LaunchAgent -Label 'com.mypowertools.servicemanager' -WorkingDirectory $macRoot -ProgramArguments @(
-        (Join-Path $macRoot 'ServiceManager/MyPowerTools.ServiceManager'),
-        '--data-root', $DataRoot,
-        '--deploy-root', (Join-Path $macRoot 'ServiceUnits')
-    )
-    Write-LaunchAgent -Label 'com.mypowertools.runner' -WorkingDirectory $macRoot -ProgramArguments @(
-        (Join-Path $macRoot 'Runner/MyPowerTools.Runner'),
-        '--modules', (Join-Path $macRoot 'modules'),
-        '--data-root', $DataRoot
-    )
+    $release = [ordered]@{
+        schemaVersion = 1
+        product = 'MyPowerTools'
+        version = $version
+        channel = $Channel
+        installedAt = [DateTimeOffset]::UtcNow.ToString('O')
+        installDir = $targetApp
+        dataRoot = $DataRootFull
+        repository = 'https://github.com/dqtz5vpvj9-create/MyPowerTools'
+        manifestPath = 'installed-files.manifest.json'
+        manifestSha256 = (Get-FileHash -LiteralPath $manifestPath -Algorithm SHA256).Hash.ToLowerInvariant()
+        packageKind = 'full-install'
+        distributionMode = 'full'
+        runtimeIdentifier = (Get-InstalledRuntimeIdentifier -AppBundlePath $targetApp)
+    }
+    Write-Utf8TextFile `
+        -Path (Join-Path $stateRoot 'installed-release.json') `
+        -Value ($release | ConvertTo-Json -Depth 5)
 }
 
-Write-Host $targetApp
+$baseOutput

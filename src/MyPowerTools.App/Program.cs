@@ -2,6 +2,7 @@ using System.Buffers;
 using System.Buffers.Binary;
 using System.Diagnostics;
 using System.IO.Pipes;
+using System.Net.Sockets;
 using System.Runtime.InteropServices;
 using System.Text.Json;
 using Microsoft.Win32.SafeHandles;
@@ -32,9 +33,10 @@ internal static class Program
 
         var root = FindApplicationRoot(AppContext.BaseDirectory);
         DotNetRuntimeEnvironment.ConfigureCurrentProcess(root);
-        var shell = Path.Combine(root, "Shell", ExecutableName("MyPowerTools.Shell.Avalonia"));
+        var shell = ResolveShellExecutable(root);
         if (!File.Exists(shell))
         {
+            ShowStartupError(IncompletePackageMessage());
             return 2;
         }
 
@@ -126,9 +128,13 @@ internal static class Program
         return args;
     }
 
+    /// <summary>
+    /// Hands the activation to a Shell that is already running. The Shell acknowledges on
+    /// receipt, before it presents its window, so this stays a millisecond-scale handshake and a
+    /// missing acknowledgement means nobody took the request.
+    /// </summary>
     private static bool TryActivateRunningShell(ToolActivationRequest? toolActivation)
     {
-        var requestSent = false;
         try
         {
             using var pipe = new NamedPipeClientStream(
@@ -150,7 +156,6 @@ internal static class Program
             pipe.Write(header);
             pipe.Write(payload);
             pipe.Flush();
-            requestSent = true;
 
             using var responseTimeout = new CancellationTokenSource(
                 ActivationAcknowledgementTimeoutMilliseconds);
@@ -164,12 +169,14 @@ internal static class Program
                 return true;
             }
 
-            return requestSent;
+            // The write reached the pipe but nothing acknowledged it, so no Shell owns this
+            // request. Start a new instance rather than dropping the launch on the floor.
+            return false;
         }
         catch (Exception exception) when (
             exception is IOException or TimeoutException or UnauthorizedAccessException or OperationCanceledException)
         {
-            return requestSent;
+            return false;
         }
     }
 
@@ -238,10 +245,8 @@ internal static class Program
 
     private static void TryStartServiceManager(string root, string dataRoot)
     {
-        var executable = Path.Combine(
-            root,
-            "ServiceManager",
-            ExecutableName("MyPowerTools.ServiceManager"));
+        if (IsServiceManagerReachable()) return;
+        var executable = ResolveServiceManagerExecutable(root);
         var deployRoot = Path.Combine(root, "ServiceUnits");
         if (!File.Exists(executable) || !Directory.Exists(Path.Combine(deployRoot, "units")))
         {
@@ -269,6 +274,49 @@ internal static class Program
         }
     }
 
+    private static bool IsServiceManagerReachable()
+    {
+        try
+        {
+            if (OperatingSystem.IsWindows())
+            {
+                using var pipe = new NamedPipeClientStream(
+                    ".",
+                    "mypewertools.servicemanager.v1",
+                    PipeDirection.InOut,
+                    PipeOptions.Asynchronous);
+                pipe.Connect(150);
+                return pipe.IsConnected;
+            }
+
+            var socketPath = Path.Combine(
+                Path.GetTempPath(),
+                "mypewertools.servicemanager.v1.sock");
+            if (!File.Exists(socketPath))
+            {
+                return false;
+            }
+
+            using var socket = new Socket(
+                AddressFamily.Unix,
+                SocketType.Stream,
+                ProtocolType.Unspecified);
+            using var timeout = new CancellationTokenSource(TimeSpan.FromMilliseconds(250));
+            socket.ConnectAsync(
+                    new UnixDomainSocketEndPoint(socketPath),
+                    timeout.Token)
+                .AsTask()
+                .GetAwaiter()
+                .GetResult();
+            return socket.Connected;
+        }
+        catch (Exception exception) when (
+            exception is IOException or SocketException or TimeoutException or OperationCanceledException)
+        {
+            return false;
+        }
+    }
+
     private static bool HasOption(IReadOnlyList<string> args, string option)
     {
         return args.Any(arg => string.Equals(arg, option, StringComparison.OrdinalIgnoreCase));
@@ -293,7 +341,7 @@ internal static class Program
         var directory = new DirectoryInfo(start);
         while (directory is not null)
         {
-            if (File.Exists(Path.Combine(directory.FullName, "Shell", ExecutableName("MyPowerTools.Shell.Avalonia"))) &&
+            if (File.Exists(ResolveShellExecutable(directory.FullName)) &&
                 Directory.Exists(Path.Combine(directory.FullName, "modules")))
             {
                 return directory.FullName;
@@ -305,8 +353,101 @@ internal static class Program
         return AppContext.BaseDirectory;
     }
 
+    private static string IncompletePackageMessage()
+    {
+        if (OperatingSystem.IsMacOS())
+        {
+            return "MyPowerTools 应用包不完整，请重新安装 MyPowerTools.app。\n\n" +
+                "The MyPowerTools application bundle is incomplete. Please reinstall MyPowerTools.app.";
+        }
+
+        return "MyPowerTools 包不完整，请重新解压完整的 MyPowerTools-win-x64.zip。\n\n" +
+            "The MyPowerTools package is incomplete. Please re-extract the full zip.";
+    }
+
+    /// <summary>
+    /// Reports a launcher failure the user can act on. The launcher has no UI toolkit loaded,
+    /// so each platform gets the dialog its own shell provides and stderr always carries the
+    /// text for log capture.
+    /// </summary>
+    private static void ShowStartupError(string message)
+    {
+        Console.Error.WriteLine(message);
+        if (OperatingSystem.IsWindows())
+        {
+            MessageBoxW(IntPtr.Zero, message, "MyPowerTools", 0x00000010);
+            return;
+        }
+
+        if (!OperatingSystem.IsMacOS())
+        {
+            return;
+        }
+
+        try
+        {
+            var startInfo = new ProcessStartInfo
+            {
+                FileName = "/usr/bin/osascript",
+                UseShellExecute = false,
+                CreateNoWindow = true
+            };
+            startInfo.ArgumentList.Add("-e");
+            startInfo.ArgumentList.Add(
+                $"display alert {EscapeAppleScriptString("MyPowerTools")} " +
+                $"message {EscapeAppleScriptString(message)} as critical");
+            Process.Start(startInfo)?.WaitForExit(5000);
+        }
+        catch (Exception exception) when (exception is SystemException or InvalidOperationException)
+        {
+            // stderr already carries the message; a missing osascript must not replace the
+            // launcher's exit code with an unhandled exception.
+        }
+    }
+
+    private static string EscapeAppleScriptString(string value)
+    {
+        return "\"" + value
+            .Replace("\\", "\\\\", StringComparison.Ordinal)
+            .Replace("\"", "\\\"", StringComparison.Ordinal)
+            .Replace("\n", "\\n", StringComparison.Ordinal) + "\"";
+    }
+
     private static string ExecutableName(string baseName) =>
         OperatingSystem.IsWindows() ? baseName + ".exe" : baseName;
+
+    /// <summary>
+    /// Resolves a sibling host executable across both application layouts. The macOS bundle
+    /// ships each host as a nested helper bundle under Contents/MacOS/Helpers, because an
+    /// executable only gets an NSBundle identity when it sits in
+    /// &lt;bundle&gt;.app/Contents/MacOS. Windows and the repository layout keep the flat
+    /// &lt;root&gt;/&lt;host&gt;/&lt;executable&gt; form, which the macOS bundle also carries as
+    /// compatibility links, so the nested bundle is preferred and the flat path answers
+    /// everywhere else.
+    /// </summary>
+    private static string ResolveHostExecutable(
+        string root,
+        string hostDirectory,
+        string helperBundle,
+        string baseName)
+    {
+        if (OperatingSystem.IsMacOS())
+        {
+            var nested = Path.Combine(root, "Helpers", helperBundle, "Contents", "MacOS", baseName);
+            if (File.Exists(nested))
+            {
+                return nested;
+            }
+        }
+
+        return Path.Combine(root, hostDirectory, ExecutableName(baseName));
+    }
+
+    private static string ResolveShellExecutable(string root) =>
+        ResolveHostExecutable(root, "Shell", "MyPowerTools Shell.app", "MyPowerTools.Shell.Avalonia");
+
+    private static string ResolveServiceManagerExecutable(string root) =>
+        ResolveHostExecutable(root, "ServiceManager", "MyPowerTools ServiceManager.app", "MyPowerTools.ServiceManager");
 
     [DllImport("kernel32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
@@ -317,4 +458,7 @@ internal static class Program
     [DllImport("user32.dll", SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
     private static extern bool AllowSetForegroundWindow(uint processId);
+
+    [DllImport("user32.dll", CharSet = CharSet.Unicode)]
+    private static extern int MessageBoxW(IntPtr hWnd, string text, string caption, uint type);
 }

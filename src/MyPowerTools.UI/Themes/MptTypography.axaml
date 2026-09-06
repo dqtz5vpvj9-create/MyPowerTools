@@ -5,7 +5,7 @@
          backed by different text presenters from choosing different Han fallbacks. -->
     <FontFamily x:Key="MptFontFamilyBody">Microsoft YaHei UI, Segoe UI Variable, Segoe UI, Segoe UI Emoji, Segoe UI Symbol</FontFamily>
     <FontFamily x:Key="MptFontFamilyMono">Cascadia Mono, Consolas, Microsoft YaHei UI, Microsoft YaHei, Segoe UI Emoji, monospace</FontFamily>
-    <FontFamily x:Key="MptFontFamilyIcons">Segoe Fluent Icons, Segoe MDL2 Assets</FontFamily>
+    <FontFamily x:Key="MptFontFamilyIcons">Segoe Fluent Icons, Segoe MDL2 Assets, Apple Symbols, Noto Sans Symbols 2, Noto Sans Symbols, sans-serif</FontFamily>
     <x:Double x:Key="MptFontSizeTitle">30</x:Double>
     <x:Double x:Key="MptFontSizeSection">22</x:Double>
     <x:Double x:Key="MptFontSizeCardTitle">16</x:Double>

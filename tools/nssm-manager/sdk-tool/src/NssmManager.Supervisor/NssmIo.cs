@@ -240,7 +240,7 @@ public static class NssmIo
                 startupInfo.StandardInput = new FileStream(Environment.ExpandEnvironmentVariables(service.AppStdin), new FileStreamOptions { Mode = NssmFileOptions.Mode(service.AppStdinCreationDisposition), Access = FileAccess.Read, Share = NssmFileOptions.Share(service.AppStdinShareMode), Options = NssmFileOptions.Options(service.AppStdinFlagsAndAttributes) });
             if (service.AppStdout.Length > 0)
             {
-                if (service.RotateFiles) rotate_file(service.Name, Environment.ExpandEnvironmentVariables(service.AppStdout), service.RotateSeconds, unchecked((uint)service.RotateBytes), unchecked((uint)(service.RotateBytes >> 32)), service.RotateDelayMilliseconds, service.AppStdoutCopyAndTruncate);
+                if (service.RotateFiles) rotate_file(service.Name, Environment.ExpandEnvironmentVariables(service.AppStdout), service.RotateSeconds, service.RotateDelayMilliseconds, unchecked((uint)service.RotateBytes), unchecked((uint)(service.RotateBytes >> 32)), service.AppStdoutCopyAndTruncate);
                 startupInfo.StandardOutput = write_to_file(Environment.ExpandEnvironmentVariables(service.AppStdout), service.AppStdoutShareMode, service.AppStdoutCreationDisposition, service.AppStdoutFlagsAndAttributes);
                 if (startupInfo.StandardOutput is null) return 4;
             }
@@ -251,7 +251,7 @@ public static class NssmIo
                     startupInfo.StandardError = DuplicateStream(startupInfo.StandardOutput);
                 else
                 {
-                    if (service.RotateFiles) rotate_file(service.Name, Environment.ExpandEnvironmentVariables(service.AppStderr), service.RotateSeconds, unchecked((uint)service.RotateBytes), unchecked((uint)(service.RotateBytes >> 32)), service.RotateDelayMilliseconds, service.AppStderrCopyAndTruncate);
+                    if (service.RotateFiles) rotate_file(service.Name, Environment.ExpandEnvironmentVariables(service.AppStderr), service.RotateSeconds, service.RotateDelayMilliseconds, unchecked((uint)service.RotateBytes), unchecked((uint)(service.RotateBytes >> 32)), service.AppStderrCopyAndTruncate);
                     startupInfo.StandardError = write_to_file(Environment.ExpandEnvironmentVariables(service.AppStderr), service.AppStderrShareMode, service.AppStderrCreationDisposition, service.AppStderrFlagsAndAttributes);
                     if (startupInfo.StandardError is null) return 7;
                 }

@@ -13,8 +13,10 @@ public static class ShellPageRefreshRouter
                 ReloadBrokerAudit: true,
                 ReloadCurrentPage: currentPage is "Dashboard" or "Diagnostics"),
             "settings.updated" when currentPage == "Settings" => new(ReloadSettingsModuleId: evt.SourceId),
+            "shortcuts.updated" or "hotkeys.updated" => new(ReloadShortcutCatalog: true),
             "module.enabled" or "module.disabled" or "registry.loaded" or "commands.dynamic.refreshed" => new(
                 ReloadCommands: true,
+                ReloadShortcutCatalog: true,
                 ReloadHomeTools: evt.Type == "registry.loaded",
                 ReloadCurrentPage: currentPage is "Dashboard" or "Modules" or "Packages" or "Diagnostics"
                     or "Tools"),
@@ -33,6 +35,7 @@ public sealed record ShellPageRefreshPlan(
     bool ReloadHomeTools = false,
     bool ReloadCurrentPage = false,
     bool ReloadDiagnostics = false,
+    bool ReloadShortcutCatalog = false,
     string? ReloadSettingsModuleId = null)
 {
     public static ShellPageRefreshPlan None { get; } = new();

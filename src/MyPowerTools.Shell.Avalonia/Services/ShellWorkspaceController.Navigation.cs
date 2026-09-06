@@ -4,6 +4,8 @@ namespace MyPowerTools.Shell.Avalonia.Services;
 
 public sealed partial class ShellWorkspaceController
 {
+    private static readonly TimeSpan PendingPageIndicatorDelay = TimeSpan.FromMilliseconds(180);
+
     public async Task ShowPageAsync(string page)
     {
         if (IsDisposed)
@@ -23,19 +25,27 @@ public sealed partial class ShellWorkspaceController
             return;
         }
 
+        var previousPage = _currentPage;
         BeginWorkspace();
         _currentPage = page;
         _currentToolId = "";
         _currentToolRouteId = "";
-        var navigationPage = IsSystemDestination(page) ? SystemPage : page;
+        var navigationPage = page == ShortcutsPage ? SettingsPage : IsSystemDestination(page) ? SystemPage : page;
         _chromeViewModel.SelectPage(navigationPage);
-        _navigation.Navigate(ToShellRoute(page), addToHistory: true);
+        var route = string.Equals(page, NotificationsPage, StringComparison.OrdinalIgnoreCase)
+            ? ShellRoute.Notifications
+            : ToShellRoute(page);
+        _navigation.Navigate(route, addToHistory: true);
         if (!string.Equals(page, CommandsPage, StringComparison.OrdinalIgnoreCase))
         {
             _chromeViewModel.IsCommandPaletteOpen = false;
         }
 
         SetStatus($"Loading {page}");
+        if (!string.Equals(previousPage, page, StringComparison.OrdinalIgnoreCase))
+        {
+            SchedulePendingPageIndicator(page);
+        }
 
         switch (page)
         {
@@ -48,6 +58,9 @@ public sealed partial class ShellWorkspaceController
             case ActivityPage:
                 LoadActivityPage();
                 break;
+            case NotificationsPage:
+                await LoadNotificationsPageAsync();
+                break;
             case SystemPage:
                 LoadSystemPage();
                 break;
@@ -59,6 +72,9 @@ public sealed partial class ShellWorkspaceController
                 break;
             case CommandsPage:
                 await OpenCommandPaletteAsync();
+                break;
+            case ShortcutsPage:
+                await LoadShortcutCenterAsync();
                 break;
             case SettingsPage:
                 await LoadGeneralSettingsPage();
@@ -76,5 +92,33 @@ public sealed partial class ShellWorkspaceController
                 await LoadServicesPageAsync();
                 break;
         }
+    }
+
+    /// <summary>
+    /// Page loads are remote calls with multi-second deadlines, and until one returns the
+    /// workspace still shows the page the user just left, which reads as a click that did
+    /// nothing. After a short grace period -- long enough that a page loading from cache never
+    /// flashes a placeholder -- the content host switches to the loading message for the page
+    /// being opened. Only navigations to a different page schedule one, so refreshing a page in
+    /// place keeps its current content on screen.
+    /// </summary>
+    private void SchedulePendingPageIndicator(string page)
+    {
+        var identity = _workspaceIdentity.Capture();
+        var contentAtNavigation = _contentHost.Content;
+        PostUiEvent(
+            async () =>
+            {
+                await Task.Delay(PendingPageIndicatorDelay);
+                if (IsDisposed ||
+                    !_workspaceIdentity.IsCurrent(identity) ||
+                    !ReferenceEquals(_contentHost.Content, contentAtNavigation))
+                {
+                    return;
+                }
+
+                SetOwnedContent(_contentHost, BuildPageMessage($"Loading {page}"));
+            },
+            $"Show {page} loading state");
     }
 }

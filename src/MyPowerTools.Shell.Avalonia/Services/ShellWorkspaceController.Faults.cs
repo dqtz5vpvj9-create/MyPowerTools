@@ -10,6 +10,10 @@ namespace MyPowerTools.Shell.Avalonia.Services;
 
 public sealed partial class ShellWorkspaceController
 {
+    private static readonly TimeSpan ServicesReloadCoalesceWindow = TimeSpan.FromMilliseconds(250);
+
+    private long _servicesReloadVersion;
+
     internal bool IsDisposed => Volatile.Read(ref _disposed) != 0;
 
     internal void RunScopedUiEvent(Func<Task> action, string operation)
@@ -212,7 +216,16 @@ public sealed partial class ShellWorkspaceController
     {
         if (!IsDisposed)
         {
-            Dispatcher.UIThread.Post(() => SetStatus(text));
+            Dispatcher.UIThread.Post(() =>
+            {
+                SetStatus(text);
+                if (text.Contains("disconnect", StringComparison.OrdinalIgnoreCase) ||
+                    text.Contains("unreachable", StringComparison.OrdinalIgnoreCase) ||
+                    text.Contains("connection", StringComparison.OrdinalIgnoreCase))
+                {
+                    ShowInfoBar(InfoBarSeverity.Warning, text);
+                }
+            });
         }
     }
 
@@ -226,7 +239,12 @@ public sealed partial class ShellWorkspaceController
 
     private void OnRunnerRecovered()
     {
-        PostUiEvent(() => RefreshShellDataAsync(), "Refresh after Runner recovery");
+        PostUiEvent(async () =>
+        {
+            _chromeViewModel.DismissInfoBarsOfSeverity(InfoBarSeverity.Warning);
+            ShowInfoBar(InfoBarSeverity.Success, "Connection restored.", autoDismissMs: 4000);
+            await RefreshShellDataAsync();
+        }, "Refresh after Runner recovery");
     }
 
     private void OnHostEventReceived(HostProto.HostEvent evt)
@@ -241,8 +259,31 @@ public sealed partial class ShellWorkspaceController
         // their own units via the scoped IServiceUnitClient they own.
         if (string.Equals(_currentPage, ServicesPage, StringComparison.OrdinalIgnoreCase))
         {
-            PostUiEvent(() => LoadServicesPageAsync(), $"Apply unit event {evt.Type} on {evt.UnitId}");
+            QueueServicesPageReload($"Apply unit event {evt.Type} on {evt.UnitId}");
         }
+    }
+
+    /// <summary>
+    /// A single restart emits several unit events back to back, and a flapping unit emits them
+    /// continuously. Reloading the Services page per event meant a ListUnits RPC plus a rebuild of
+    /// every service card several times a second. Bursts collapse into one reload.
+    /// </summary>
+    private void QueueServicesPageReload(string operation)
+    {
+        var version = Interlocked.Increment(ref _servicesReloadVersion);
+        PostUiEvent(
+            async () =>
+            {
+                await Task.Delay(ServicesReloadCoalesceWindow);
+                if (version != Volatile.Read(ref _servicesReloadVersion) ||
+                    !string.Equals(_currentPage, ServicesPage, StringComparison.OrdinalIgnoreCase))
+                {
+                    return;
+                }
+
+                await LoadServicesPageAsync();
+            },
+            operation);
     }
 
     private void OnUnitStreamFaulted(object? sender, Exception ex)

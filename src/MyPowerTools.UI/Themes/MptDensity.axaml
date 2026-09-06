@@ -20,6 +20,7 @@
     <x:Double x:Key="MptLayoutGridGap">16</x:Double>
     <x:Double x:Key="MptLayoutOverlayWidth">760</x:Double>
     <x:Double x:Key="MptLayoutOverlayMaxHeight">600</x:Double>
+    <x:Double x:Key="MptLayoutLogViewerMaxHeight">560</x:Double>
     <x:Double x:Key="MptLayoutPermissionPromptWidth">520</x:Double>
     <x:Double x:Key="MptLayoutStatusBarHeight">28</x:Double>
     <x:Double x:Key="MptDensityControlHeight">36</x:Double>

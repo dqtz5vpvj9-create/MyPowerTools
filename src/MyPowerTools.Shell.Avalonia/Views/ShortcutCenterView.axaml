@@ -1,0 +1,67 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:controls="using:MyPowerTools.UI.Controls"
+             xmlns:vm="using:MyPowerTools.Shell.Avalonia.ViewModels"
+             x:Class="MyPowerTools.Shell.Avalonia.Views.ShortcutCenterView"
+             x:DataType="vm:ShortcutCenterViewModel">
+  <StackPanel MaxWidth="1180" Spacing="{DynamicResource MptSpacingM}" HorizontalAlignment="Stretch">
+    <TextBlock Classes="MptPageTitle" Text="Keyboard shortcuts" />
+    <TextBlock Classes="MptPageSubtitle" Text="{Binding Subtitle}" TextWrapping="Wrap" />
+    <TextBlock Classes="MptMeta" Text="{Binding Summary}" />
+    <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+      <controls:MptTextBox Text="{Binding Query, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
+               PlaceholderText="Search actions, tools or key combinations…" AutomationProperties.Name="Search keyboard shortcuts" />
+      <controls:MptComboBox Grid.Column="1" ItemsSource="{Binding Owners}" SelectedItem="{Binding OwnerFilter, Mode=TwoWay}"
+                MaxWidth="240" AutomationProperties.Name="Filter by tool" />
+      <controls:MptComboBox Grid.Column="2" ItemsSource="{Binding Filters}" SelectedItem="{Binding Filter, Mode=TwoWay}"
+                MinWidth="110" AutomationProperties.Name="Filter shortcut state" />
+    </Grid>
+    <WrapPanel>
+      <controls:MptButton Content="Refresh status" Command="{Binding RefreshCommand}" Margin="{DynamicResource MptGapRightS}" />
+      <controls:MptButton Content="Import…" Click="OnImportClick" IsEnabled="{Binding !IsBusy}" Margin="{DynamicResource MptGapRightS}" />
+      <controls:MptButton Content="Export…" Click="OnExportClick" IsEnabled="{Binding !IsBusy}" Margin="{DynamicResource MptGapRightS}" />
+      <controls:MptButton Content="Undo last change" Command="{Binding UndoCommand}" />
+    </WrapPanel>
+    <ListBox ItemsSource="{Binding Rows}" SelectedItem="{Binding Selected, Mode=TwoWay}"
+             Height="330" AutomationProperties.Name="Shortcut actions">
+      <ListBox.Styles>
+        <Style Selector="ListBoxItem">
+          <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+        </Style>
+      </ListBox.Styles>
+      <ListBox.ItemTemplate>
+        <DataTemplate x:DataType="vm:ShortcutRow">
+          <Grid RowDefinitions="Auto,Auto,Auto" ColumnDefinitions="*,Auto" ColumnSpacing="12" Margin="{DynamicResource MptUniformXs}">
+            <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+            <TextBlock Grid.Column="1" Text="{Binding Bindings}" MaxWidth="380" TextWrapping="Wrap" />
+            <TextBlock Grid.Row="1" Grid.ColumnSpan="2" Text="{Binding Summary}" Classes="MptMeta" TextWrapping="Wrap" />
+            <TextBlock Grid.Row="2" Grid.ColumnSpan="2" Text="{Binding Status}" Classes="MptMeta" TextWrapping="Wrap" />
+          </Grid>
+        </DataTemplate>
+      </ListBox.ItemTemplate>
+    </ListBox>
+    <Border Classes="MptSettingsSection" IsVisible="{Binding HasSelection}">
+      <StackPanel Spacing="{DynamicResource MptSpacingS}">
+        <TextBlock Text="{Binding Selected.Title}" Classes="MptSectionTitle" />
+        <TextBlock Text="{Binding SelectedDescription}" Classes="MptMeta" TextWrapping="Wrap" />
+        <StackPanel Orientation="Horizontal" Spacing="{DynamicResource MptSpacingM}">
+          <TextBlock Text="Edit platform" VerticalAlignment="Center" />
+          <controls:MptComboBox ItemsSource="{Binding Platforms}" SelectedItem="{Binding EditorPlatform, Mode=TwoWay}" IsEnabled="{Binding CanEdit}" />
+          <controls:MptButton x:Name="RecordButton" Content="{Binding RecordLabel}" Click="OnRecordClick" IsEnabled="{Binding CanEdit}"
+                              ToolTip.Tip="Record the next key combination. Escape is recorded too; click Stop recording to cancel." />
+        </StackPanel>
+        <controls:MptTextBox x:Name="BindingEditor" Text="{Binding BindingText, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" AcceptsReturn="True"
+                 MinHeight="78" MaxHeight="140" IsEnabled="{Binding CanEdit}" PlaceholderText="One combination per line, e.g. Ctrl+Shift+K"
+                 AutomationProperties.Name="Shortcut bindings, one per line" />
+        <TextBlock Text="{Binding Preview}" TextWrapping="Wrap" Classes="MptMeta" />
+        <WrapPanel>
+          <controls:MptButton Content="Save bindings" Command="{Binding SaveCommand}" Margin="{DynamicResource MptGapRightS}" />
+          <controls:MptButton Content="{Binding DisabledLabel}" Command="{Binding ToggleDisabledCommand}" Margin="{DynamicResource MptGapRightS}" />
+          <controls:MptButton Content="Restore defaults" Command="{Binding ResetCommand}" />
+        </WrapPanel>
+      </StackPanel>
+    </Border>
+    <TextBlock Text="{Binding Status}" TextWrapping="Wrap" />
+    <TextBlock Text="{Binding SystemStatus}" Classes="MptMeta" TextWrapping="Wrap" />
+  </StackPanel>
+</UserControl>

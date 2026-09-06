@@ -122,19 +122,19 @@ public sealed class ShellNavigationItemViewModel : ObservableViewModel
 
     private static string ResolveIconGlyph(string label) => label switch
     {
-        "Home" or "Dashboard" => "\uE80F",
-        "Tools" or "Modules" => "\uE71D",
-        "Activity" => "\uE823",
-        "Notifications" => "\uEA8F",
-        "ADB Forwarder" => "\uE968",
-        "ScreenEase" => "\uE706",
-        "Doubao Agent" => "\uE77B",
-        "SmartBird" => "\uEC15",
-        "Settings" => "\uE713",
-        "System" or "Diagnostics" => "\uE9D9",
-        "Commands" => "\uE756",
-        "Logs" => "\uE8A5",
-        "Packages" => "\uE7B8",
-        _ => "\uE946"
+        "Home" or "Dashboard" => "⌂",
+        "Tools" or "Modules" => "▦",
+        "Activity" => "↻",
+        "Notifications" => "●",
+        "ADB Forwarder" => "⇄",
+        "ScreenEase" => "☀",
+        "Doubao Agent" => "◆",
+        "SmartBird" => "♨",
+        "Settings" => "⚙",
+        "System" or "Diagnostics" => "◉",
+        "Commands" => "›",
+        "Logs" => "≡",
+        "Packages" => "▣",
+        _ => "•"
     };
 }

@@ -53,7 +53,11 @@
     <ProjectReference Include="..\MyPowerTools.SampleModules.DotNet\MyPowerTools.SampleModules.DotNet.csproj" />
     <ProjectReference Include="..\MyPowerTools.SampleSidecar.Grpc\MyPowerTools.SampleSidecar.Grpc.csproj" />
     <ProjectReference Include="..\MyPowerTools.Broker\MyPowerTools.Broker.csproj" />
+    <ProjectReference Include="..\MyPowerTools.ServiceManager.Server\MyPowerTools.ServiceManager.Server.csproj" />
     <ProjectReference Include="..\MyPowerTools.ElevatedBroker\MyPowerTools.ElevatedBroker.csproj" ReferenceOutputAssembly="false" />
+    <!-- NssmElevatedClient is the unprivileged half of the NSSM elevated path; its request/result
+         digest binding is covered by NssmBrokerSecurity.Tests.cs. -->
+    <ProjectReference Include="..\..\tools\nssm-manager\sdk-tool\src\NssmManager.Runtime\NssmManager.Runtime.csproj" />
     <ProjectReference Include="..\..\tools\screenease\current-integration\src\ScreenEase.MyPowerTools\ScreenEase.MyPowerTools.csproj" />
     <ProjectReference Include="..\..\tools\smartbird-thermostat\current-integration\src\SmartBirdThermostat.MyPowerTools\SmartBirdThermostat.MyPowerTools.csproj" />
     <ProjectReference Include="..\..\tools\input-monitor\current-integration\src\InputMonitor.Core\InputMonitor.Core.csproj" />

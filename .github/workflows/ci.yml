@@ -22,6 +22,10 @@ on:
         description: Optional version override (X.Y.Z). Defaults to version.json or the git tag.
         required: false
 
+concurrency:
+  group: ci-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: write
 
@@ -343,7 +347,7 @@ jobs:
           Copy-Item -LiteralPath artifacts\release\MyPowerTools-win-x64.manifest.json -Destination (Join-Path ota-history "MyPowerTools-win-x64-$version.manifest.json") -Force
           Copy-Item -LiteralPath artifacts\release\MyPowerTools-core-win-x64.manifest.json -Destination (Join-Path ota-history "MyPowerTools-core-win-x64-$version.manifest.json") -Force
 
-      - name: Create GitHub Release
+      - name: Publish payload, verify web assets, then publish installers
         shell: pwsh
         env:
           GH_TOKEN: ${{ github.token }}
@@ -356,6 +360,7 @@ jobs:
             'artifacts/release/MyPowerTools-win-x64.manifest.json'
             'artifacts/release/MyPowerTools-core-win-x64.zip'
             'artifacts/release/MyPowerTools-core-win-x64.zip.sha256'
+            'artifacts/release/MyPowerTools-core-win-x64.zip.issig'
             'artifacts/release/MyPowerTools-core-win-x64.manifest.json'
             'artifacts/release/channel-' + $channel + '.json'
             'artifacts/release/channel-' + $channel + '.json.sig'
@@ -368,14 +373,19 @@ jobs:
           ) | Where-Object { Test-Path -LiteralPath $_ }
           $assets += Get-ChildItem -LiteralPath artifacts/release/ota -File -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName }
           $assets += Get-ChildItem -LiteralPath artifacts/release/ota-web -File -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName }
-          $assets += Get-ChildItem -LiteralPath artifacts/release -Filter 'MyPowerTools-Setup-*.exe*' -File -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName }
-          $assets += Get-ChildItem -LiteralPath artifacts/release -Filter 'MyPowerTools-Web-Setup-*.exe*' -File -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName }
           $assets += Get-ChildItem -LiteralPath artifacts/release/runtime-components -File -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName }
           $assets += Get-ChildItem -LiteralPath artifacts/release -Filter 'MyPowerTools-Source-*.zip*' -File -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName }
           $assets += Get-ChildItem -LiteralPath artifacts/release/packages -Recurse -File -ErrorAction SilentlyContinue | ForEach-Object { $_.FullName }
           $assets = @($assets | Select-Object -Unique)
+          $installerAssets = @(
+            Get-ChildItem -LiteralPath artifacts/release -Filter 'MyPowerTools-Setup-*.exe*' -File -ErrorAction SilentlyContinue
+            Get-ChildItem -LiteralPath artifacts/release -Filter 'MyPowerTools-Web-Setup-*.exe*' -File -ErrorAction SilentlyContinue
+          ) | ForEach-Object { $_.FullName } | Select-Object -Unique
           if ($assets.Count -eq 0) {
             throw 'No release assets were produced.'
+          }
+          if ($installerAssets.Count -eq 0) {
+            throw 'No installer assets were produced.'
           }
           $title = "MyPowerTools ${{ steps.release-info.outputs.version }} (${{ steps.release-info.outputs.channel }})"
           $existing = gh release view $tag --repo dqtz5vpvj9-create/MyPowerTools --json tagName --jq '.tagName' 2>$null
@@ -396,20 +406,34 @@ jobs:
             )
             gh @editArgs
             gh release upload $tag --repo dqtz5vpvj9-create/MyPowerTools $assets --clobber
-            exit 0
+          } else {
+            $releaseArgs = @(
+              'release', 'create', $tag,
+              '--repo', 'dqtz5vpvj9-create/MyPowerTools',
+              '--target', 'main',
+              '--title', $title,
+              '--notes-file', 'artifacts/release/RELEASE_NOTES.md'
+            )
+            if ('${{ steps.release-info.outputs.channel }}' -eq 'nightly') {
+              $releaseArgs += '--prerelease'
+            }
+            $releaseArgs += $assets
+            gh @releaseArgs
           }
-          $releaseArgs = @(
-            'release', 'create', $tag,
-            '--repo', 'dqtz5vpvj9-create/MyPowerTools',
-            '--target', 'main',
-            '--title', $title,
-            '--notes-file', 'artifacts/release/RELEASE_NOTES.md'
+
+          $verifyArgs = @(
+            '-NoLogo', '-NoProfile', '-NonInteractive',
+            '-File', 'scripts\verify-web-installer-assets.ps1',
+            '-BaseUrl', "https://github.com/dqtz5vpvj9-create/MyPowerTools/releases/download/$tag",
+            '-RuntimeComponentsManifestPath', 'artifacts/release/runtime-components/runtime-components.json',
+            '-SigningKeyIncludePath', 'artifacts/release/web-installer-signing-key.iss',
+            '-EvidencePath', 'artifacts/release/web-installer-remote-verification.json'
           )
-          if ('${{ steps.release-info.outputs.channel }}' -eq 'nightly') {
-            $releaseArgs += '--prerelease'
+          pwsh.exe @verifyArgs
+          if ($LASTEXITCODE -ne 0) {
+            throw 'Remote web installer asset verification failed; installers were not uploaded.'
           }
-          $releaseArgs += $assets
-          gh @releaseArgs
+          gh release upload $tag --repo dqtz5vpvj9-create/MyPowerTools $installerAssets --clobber
 
       - name: Commit OTA history manifest
         shell: pwsh
@@ -420,8 +444,29 @@ jobs:
           git add ota-history/*.manifest.json
           if (-not (git diff --cached --quiet)) {
             git commit -m "chore(ota): record ${{ steps.release-info.outputs.version }} file manifest"
+            if ($LASTEXITCODE -ne 0) {
+              throw 'Failed to commit the OTA history manifest.'
+            }
+
+            # Release packaging can update tracked generated files outside ota-history.
+            # Keep the manifest commit and clean the ephemeral runner before rebasing it
+            # onto the latest main branch.
+            $remainingChanges = @(git status --porcelain --untracked-files=normal)
+            if ($remainingChanges.Count -gt 0) {
+              git stash push --include-untracked -m "release-worktree-${{ steps.release-info.outputs.version }}"
+              if ($LASTEXITCODE -ne 0) {
+                throw 'Failed to isolate release-build worktree changes before rebasing.'
+              }
+            }
+
             git pull --rebase origin main
+            if ($LASTEXITCODE -ne 0) {
+              throw 'Failed to rebase the OTA history manifest onto origin/main.'
+            }
             git push origin HEAD:main
+            if ($LASTEXITCODE -ne 0) {
+              throw 'Failed to push the OTA history manifest to origin/main.'
+            }
           }
 
   macos-release:

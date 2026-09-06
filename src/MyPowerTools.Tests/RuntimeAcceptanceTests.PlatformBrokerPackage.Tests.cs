@@ -446,9 +446,13 @@ public sealed partial class RuntimeAcceptanceTests
             Assert.Contains("Broker", windowsPrivilege.Message, StringComparison.OrdinalIgnoreCase);
         }
 
-        Assert.False(mac.Capabilities.Resolve("hotkey.global").Supported);
+        Assert.True(mac.Capabilities.Resolve("hotkey.global").Supported);
         Assert.False(mac.Capabilities.Resolve("privilege.elevated").Supported);
-        Assert.Equal("unsupported", macHotkey.State);
+        if (!OperatingSystem.IsMacOS())
+        {
+            // The mac pack only instantiates the Carbon-backed service on macOS itself.
+            Assert.Equal("unsupported", macHotkey.State);
+        }
         Assert.Equal("unsupported", macPrivilege.State);
         Assert.True(macPrivilege.RequiresBroker);
 
@@ -505,9 +509,12 @@ public sealed partial class RuntimeAcceptanceTests
             Assert.IsType<WindowsKeyboardShortcutService>(windows.KeyboardShortcuts);
         }
 
-        Assert.False(mac.Capabilities.Resolve("keyboard.shortcut").Supported);
+        Assert.True(mac.Capabilities.Resolve("keyboard.shortcut").Supported);
         Assert.False(linux.Capabilities.Resolve("keyboard.shortcut").Supported);
-        Assert.IsType<UnsupportedKeyboardShortcutService>(mac.KeyboardShortcuts);
+        if (!OperatingSystem.IsMacOS())
+        {
+            Assert.IsType<UnsupportedKeyboardShortcutService>(mac.KeyboardShortcuts);
+        }
         Assert.IsType<UnsupportedKeyboardShortcutService>(linux.KeyboardShortcuts);
     }
 
@@ -548,14 +555,17 @@ public sealed partial class RuntimeAcceptanceTests
         var startupOptions = File.ReadAllText(startupOptionsPath);
 
         Assert.Contains("StartHotkeysAsync", runner);
-        Assert.Contains("new HotkeyRegistration(\"command-palette\", \"Ctrl+Alt+Space\"", runner);
+        Assert.DoesNotContain("new HotkeyRegistration(\"command-palette\",", runner);
+        var catalog = File.ReadAllText(Path.Combine(Root, "src", "MyPowerTools.Runtime", "ShortcutConfiguration.cs"));
+        Assert.Contains("\"runner.command-palette\"", catalog);
+        Assert.Contains("\"Ctrl+Alt+Space\"", catalog);
         Assert.Contains("RunnerHotkeySynchronizer", runner);
-        Assert.Contains("runtime.ListHotkeyBindings()", hotkeySynchronizer);
+        Assert.Contains("_runtime.ListManagedHotkeyBindings()", hotkeySynchronizer);
         Assert.Contains("SyncModuleHotkeysAsync", runner);
         Assert.Contains("WatchRuntimeHotkeyBindingsAsync", runner);
-        Assert.Contains("hotkeys.UnregisterAsync", hotkeySynchronizer);
+        Assert.Contains("_hotkeys.UnregisterAsync", hotkeySynchronizer);
         Assert.Contains("RequiresHotkeySync(evt.Type)", runner);
-        Assert.Contains("new HotkeyRegistration(binding.Id, normalizedGesture, binding.Scope, binding.Reason)", hotkeySynchronizer);
+        Assert.Contains("new(nativeId, binding.Gesture, binding.Scope, binding.Reason)", hotkeySynchronizer);
         Assert.Contains("runtime.ExecuteCommandAsync", runner);
         Assert.Contains("CreateCommandRequest", runner);
         Assert.Contains("new Sdk.CommandRequest", hotkeySynchronizer);

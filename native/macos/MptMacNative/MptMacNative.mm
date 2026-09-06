@@ -3,10 +3,14 @@
 #import <UserNotifications/UserNotifications.h>
 #import <WebKit/WebKit.h>
 
-#include <cstdlib>
-#include <cstring>
-#include <climits>
-#include <cmath>
+#include <limits.h>
+#include <math.h>
+#include <stdlib.h>
+#include <string.h>
+
+static const char *MptShortcutForwardingScript =
+#include "../../../src/MyPowerTools.WebSurface.Shared/ShortcutForwarding.inc"
+;
 
 typedef void (*MptWebViewCallback)(void *context, int eventKind, const char *payload);
 typedef void (*MptTrayActionCallback)(void *context, const char *actionId);
@@ -33,6 +37,37 @@ static void MptEmit(MptWebViewCallback callback, void *context, int kind, NSStri
         return;
     }
     callback(context, kind, (payload ?: @"").UTF8String);
+}
+
+extern "C" __attribute__((visibility("default"))) void mpt_set_process_name(const char *name) {
+    @autoreleasepool {
+        NSString *productName = MptString(name);
+        setprogname(productName.UTF8String);
+        NSProcessInfo.processInfo.processName = productName;
+
+        NSMenuItem *applicationMenuItem = NSApp.mainMenu.itemArray.firstObject;
+        if (applicationMenuItem != nil) {
+            applicationMenuItem.title = productName;
+        }
+    }
+}
+
+extern "C" __attribute__((visibility("default"))) int mpt_set_application_icon(const char *iconPath) {
+    @autoreleasepool {
+        NSString *path = MptString(iconPath);
+        if (path.length == 0) {
+            return 0;
+        }
+
+        NSImage *image = [[NSImage alloc] initWithContentsOfFile:path];
+        if (image == nil) {
+            return 0;
+        }
+
+        [image setTemplate:NO];
+        [NSApp setApplicationIconImage:image];
+        return 1;
+    }
 }
 
 static NSArray<NSURL *> *MptParseOrigins(NSString *json) {
@@ -182,26 +217,14 @@ static NSArray<NSURL *> *MptParseOrigins(NSString *json) {
       try { callback(event); } catch {}
     }
   };
-  addEventListener('keydown', event => {
-    const command = event.metaKey || event.ctrlKey;
-    let gesture = '';
-    if (command && !event.altKey && event.shiftKey && event.key.toLowerCase() === 'p') gesture = 'Ctrl+Shift+P';
-    else if (command && !event.altKey && !event.shiftKey && event.key.toLowerCase() === 'r') gesture = 'Ctrl+R';
-    else if (command && event.altKey && !event.shiftKey && event.code === 'Space') gesture = 'Ctrl+Alt+Space';
-    else if (!command && !event.altKey && !event.shiftKey && event.key === 'F5') gesture = 'F5';
-    else if (!command && !event.altKey && !event.shiftKey && event.key === 'Escape') gesture = 'Escape';
-    else if (command && !event.altKey && !event.shiftKey && /^[1-6]$/.test(event.key)) gesture = 'Ctrl+' + event.key;
-    if (gesture) {
-      event.preventDefault();
-      window.webkit.messageHandlers.mptHost.postMessage({ kind: 'shortcut', value: gesture });
-    }
-  }, true);
+  %@
 })();
 )JS");
     return [NSString stringWithFormat:
         scriptTemplate,
         originsJson ?: @"[]",
-        cspJson ?: @"[\"default-src 'self'; object-src 'none'\"]"];
+        cspJson ?: @"[\"default-src 'self'; object-src 'none'\"]",
+        MptString(MptShortcutForwardingScript)];
 }
 
 - (BOOL)isAllowedURL:(NSURL *)url {
@@ -454,7 +477,7 @@ static NSImage *MptQuotaImage(NSInteger remainingPercent, NSString *toolTip) {
     const NSRect ringBounds = NSMakeRect(6.5, 6.5, 51.0, 51.0);
     NSBezierPath *track = [NSBezierPath bezierPathWithOvalInRect:ringBounds];
     track.lineWidth = 7.0;
-    track.lineCapStyle = NSRoundLineCapStyle;
+    track.lineCapStyle = NSLineCapStyleRound;
     [[NSColor colorWithSRGBRed:68.0 / 255.0
                         green:75.0 / 255.0
                          blue:88.0 / 255.0
@@ -464,7 +487,7 @@ static NSImage *MptQuotaImage(NSInteger remainingPercent, NSString *toolTip) {
     if (remainingPercent > 0) {
         NSBezierPath *arc = [NSBezierPath bezierPath];
         arc.lineWidth = 7.0;
-        arc.lineCapStyle = NSRoundLineCapStyle;
+        arc.lineCapStyle = NSLineCapStyleRound;
         [arc appendBezierPathWithArcWithCenter:NSMakePoint(32.0, 32.0)
                                        radius:25.5
                                    startAngle:90.0
@@ -488,8 +511,8 @@ static NSImage *MptQuotaImage(NSInteger remainingPercent, NSString *toolTip) {
     };
     NSSize textSize = [text sizeWithAttributes:attributes];
     [text drawAtPoint:NSMakePoint(
-        std::floor((canvasSize - textSize.width) / 2.0),
-        std::floor((canvasSize - textSize.height) / 2.0) - 1.0)
+        floor((canvasSize - textSize.width) / 2.0),
+        floor((canvasSize - textSize.height) / 2.0) - 1.0)
        withAttributes:attributes];
     [context flushGraphics];
     [NSGraphicsContext restoreGraphicsState];
@@ -753,36 +776,185 @@ void mpt_webview_destroy(void *handle) {
     }
 }
 
+// Status codes shared with MacNative.cs. Production callers receive success only after
+// UserNotifications has completed authorization and accepted the notification request.
+enum MptNotificationStatus {
+    MptNotificationOk = 0,
+    MptNotificationOsUnsupported = -1,
+    MptNotificationNoBundle = 2,
+    MptNotificationUnavailable = 3,
+    MptNotificationPermissionDenied = 4,
+    MptNotificationDeliveryFailed = 5,
+    MptNotificationTimedOut = 6
+};
+
+enum MptNotificationAuthorizationStatus {
+    MptNotificationAuthorizationUnavailable = -1,
+    MptNotificationAuthorizationTimedOut = -2,
+    MptNotificationAuthorizationNotDetermined = 0,
+    MptNotificationAuthorizationDenied = 1,
+    MptNotificationAuthorizationAuthorized = 2,
+    MptNotificationAuthorizationProvisional = 3
+};
+
+static BOOL MptWaitForSemaphore(dispatch_semaphore_t semaphore,
+                                NSTimeInterval timeoutSeconds) {
+    NSDate *deadline = [NSDate dateWithTimeIntervalSinceNow:timeoutSeconds];
+    while (deadline.timeIntervalSinceNow > 0) {
+        dispatch_time_t slice = dispatch_time(
+            DISPATCH_TIME_NOW,
+            (int64_t)(10 * NSEC_PER_MSEC));
+        if (dispatch_semaphore_wait(semaphore, slice) == 0) {
+            return YES;
+        }
+
+        // UserNotifications may deliver a completion on the main queue. Keep the main
+        // run loop moving when a caller happens to invoke this bridge from a UI thread.
+        if (NSThread.isMainThread) {
+            [[NSRunLoop currentRunLoop]
+                runMode:NSDefaultRunLoopMode
+                beforeDate:[NSDate dateWithTimeIntervalSinceNow:0.01]];
+        }
+    }
+    return NO;
+}
+
+static int MptMapNotificationAuthorizationStatus(UNAuthorizationStatus status) {
+    switch (status) {
+        case UNAuthorizationStatusNotDetermined:
+            return MptNotificationAuthorizationNotDetermined;
+        case UNAuthorizationStatusDenied:
+            return MptNotificationAuthorizationDenied;
+        case UNAuthorizationStatusAuthorized:
+            return MptNotificationAuthorizationAuthorized;
+        case UNAuthorizationStatusProvisional:
+            return MptNotificationAuthorizationProvisional;
+        default:
+            return MptNotificationAuthorizationUnavailable;
+    }
+}
+
+static int MptReadNotificationAuthorizationStatus(
+    UNUserNotificationCenter *center,
+    NSTimeInterval timeoutSeconds) {
+    __block UNAuthorizationStatus authorization = UNAuthorizationStatusNotDetermined;
+    dispatch_semaphore_t semaphore = dispatch_semaphore_create(0);
+    [center getNotificationSettingsWithCompletionHandler:^(UNNotificationSettings *settings) {
+        authorization = settings.authorizationStatus;
+        dispatch_semaphore_signal(semaphore);
+    }];
+    if (!MptWaitForSemaphore(semaphore, timeoutSeconds)) {
+        return MptNotificationAuthorizationTimedOut;
+    }
+    return MptMapNotificationAuthorizationStatus(authorization);
+}
+
+int mpt_notification_authorization_status(void) {
+    if (@available(macOS 11.0, *)) {
+        if (NSBundle.mainBundle.bundleIdentifier.length == 0) {
+            return MptNotificationAuthorizationUnavailable;
+        }
+        @try {
+            UNUserNotificationCenter *center =
+                UNUserNotificationCenter.currentNotificationCenter;
+            if (center == nil) {
+                return MptNotificationAuthorizationUnavailable;
+            }
+            // Install the click delegate during the startup authorization probe so
+            // notifications delivered before a worker restart remain actionable.
+            (void)MptNotificationDelegateInstance();
+            int status = MptReadNotificationAuthorizationStatus(center, 5.0);
+            return status == MptNotificationAuthorizationTimedOut
+                ? MptNotificationAuthorizationUnavailable
+                : status;
+        } @catch (NSException *exception) {
+            (void)exception;
+            return MptNotificationAuthorizationUnavailable;
+        }
+    }
+    return MptNotificationAuthorizationUnavailable;
+}
+
 int mpt_notification_publish(const char *identifier,
                              const char *title,
                              const char *body,
                              const char *activationUri) {
     if (@available(macOS 11.0, *)) {
-        UNUserNotificationCenter *center = UNUserNotificationCenter.currentNotificationCenter;
-        (void)MptNotificationDelegateInstance();
-        UNMutableNotificationContent *content = [[UNMutableNotificationContent alloc] init];
-        content.title = MptString(title);
-        content.body = MptString(body);
-        content.sound = UNNotificationSound.defaultSound;
-        NSString *uri = MptString(activationUri);
-        if (uri.length > 0) {
-            content.userInfo = @{ @"activationUri": uri };
+        if (NSBundle.mainBundle.bundleIdentifier.length == 0) {
+            return MptNotificationNoBundle;
         }
-        UNNotificationRequest *request = [UNNotificationRequest
-            requestWithIdentifier:MptString(identifier)
-            content:content
-            trigger:nil];
-        [center requestAuthorizationWithOptions:(UNAuthorizationOptionAlert |
-                                                  UNAuthorizationOptionSound |
-                                                  UNAuthorizationOptionBadge)
-                              completionHandler:^(BOOL granted, NSError *error) {
-            if (granted && error == nil) {
-                [center addNotificationRequest:request withCompletionHandler:nil];
+        @try {
+            UNUserNotificationCenter *center =
+                UNUserNotificationCenter.currentNotificationCenter;
+            if (center == nil) {
+                return MptNotificationUnavailable;
             }
-        }];
-        return 0;
+            (void)MptNotificationDelegateInstance();
+
+            int authorization = MptReadNotificationAuthorizationStatus(center, 5.0);
+            if (authorization == MptNotificationAuthorizationTimedOut) {
+                return MptNotificationTimedOut;
+            }
+            if (authorization == MptNotificationAuthorizationDenied) {
+                return MptNotificationPermissionDenied;
+            }
+            if (authorization == MptNotificationAuthorizationNotDetermined) {
+                __block BOOL granted = NO;
+                __block NSError *authorizationError = nil;
+                dispatch_semaphore_t authorizationSemaphore =
+                    dispatch_semaphore_create(0);
+                [center requestAuthorizationWithOptions:(UNAuthorizationOptionAlert |
+                                                          UNAuthorizationOptionSound |
+                                                          UNAuthorizationOptionBadge)
+                                      completionHandler:^(BOOL accepted, NSError *error) {
+                    granted = accepted;
+                    authorizationError = error;
+                    dispatch_semaphore_signal(authorizationSemaphore);
+                }];
+                if (!MptWaitForSemaphore(authorizationSemaphore, 10.0)) {
+                    return MptNotificationTimedOut;
+                }
+                if (!granted || authorizationError != nil) {
+                    return MptNotificationPermissionDenied;
+                }
+            } else if (authorization != MptNotificationAuthorizationAuthorized &&
+                       authorization != MptNotificationAuthorizationProvisional) {
+                return MptNotificationUnavailable;
+            }
+
+            UNMutableNotificationContent *content =
+                [[UNMutableNotificationContent alloc] init];
+            content.title = MptString(title);
+            content.body = MptString(body);
+            content.sound = UNNotificationSound.defaultSound;
+            NSString *uri = MptString(activationUri);
+            if (uri.length > 0) {
+                content.userInfo = @{ @"activationUri": uri };
+            }
+            UNNotificationRequest *request = [UNNotificationRequest
+                requestWithIdentifier:MptString(identifier)
+                content:content
+                trigger:nil];
+
+            __block NSError *deliveryError = nil;
+            dispatch_semaphore_t deliverySemaphore = dispatch_semaphore_create(0);
+            [center addNotificationRequest:request
+                     withCompletionHandler:^(NSError *error) {
+                deliveryError = error;
+                dispatch_semaphore_signal(deliverySemaphore);
+            }];
+            if (!MptWaitForSemaphore(deliverySemaphore, 10.0)) {
+                return MptNotificationTimedOut;
+            }
+            return deliveryError == nil
+                ? MptNotificationOk
+                : MptNotificationDeliveryFailed;
+        } @catch (NSException *exception) {
+            (void)exception;
+            return MptNotificationUnavailable;
+        }
     }
-    return -1;
+    return MptNotificationOsUnsupported;
 }
 
 int mpt_pasteboard_read_png(void **bytes,

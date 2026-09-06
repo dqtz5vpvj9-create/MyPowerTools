@@ -110,6 +110,12 @@ public sealed class ServiceUnitEventStreamMonitor : IAsyncDisposable
             {
                 await foreach (var evt in _source.SubscribeAsync(LastEventSeq, cancellationToken))
                 {
+                    if (IsFaulted)
+                    {
+                        IsFaulted = false;
+                        StreamRecovered?.Invoke(this, EventArgs.Empty);
+                    }
+
                     if (evt.Seq <= LastEventSeq)
                     {
                         continue;
@@ -135,12 +141,6 @@ public sealed class ServiceUnitEventStreamMonitor : IAsyncDisposable
                 {
                     break;
                 }
-            }
-
-            if (IsFaulted && !cancellationToken.IsCancellationRequested)
-            {
-                IsFaulted = false;
-                StreamRecovered?.Invoke(this, EventArgs.Empty);
             }
         }
     }

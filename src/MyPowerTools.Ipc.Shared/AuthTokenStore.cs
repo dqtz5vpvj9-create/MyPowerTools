@@ -73,6 +73,18 @@ public sealed class AuthTokenStore
             // File attributes are best-effort across platforms.
         }
 
+        if (!OperatingSystem.IsWindows())
+        {
+            try
+            {
+                File.SetUnixFileMode(path, UnixFileMode.UserRead | UnixFileMode.UserWrite);
+            }
+            catch (Exception)
+            {
+                // Unix file mode is best-effort; Windows uses ACLs instead.
+            }
+        }
+
         return token;
     }
 

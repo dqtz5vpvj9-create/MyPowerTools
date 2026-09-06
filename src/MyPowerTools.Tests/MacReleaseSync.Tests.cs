@@ -12,7 +12,7 @@ public sealed class MacReleaseSyncTests
     [Fact]
     public void Mac_release_keeps_the_full_tool_catalog_and_only_defaults_notifications_on()
     {
-        var publishScript = File.ReadAllText(Path.Combine(Root, "scripts", "publish-macos.ps1"));
+        var publishScript = ReadLayeredScript("publish-macos.ps1", "publish-macos-base.ps1");
         var runner = File.ReadAllText(Path.Combine(Root, "src", "MyPowerTools.Runner", "Program.cs"));
 
         foreach (var destination in new[]
@@ -59,6 +59,46 @@ public sealed class MacReleaseSyncTests
     }
 
     [Fact]
+    public void Mac_background_hosts_ship_as_nested_helper_bundles()
+    {
+        var publishScript = ReadLayeredScript("publish-macos.ps1", "publish-macos-base.ps1");
+        var installScript = ReadLayeredScript("install-macos.ps1", "install-macos-base.ps1");
+        var launcher = File.ReadAllText(Path.Combine(Root, "src", "MyPowerTools.App", "Program.cs"));
+        var helpersRoot = Path.Combine(Root, "packaging", "macos", "Helpers");
+
+        foreach (var helper in new[]
+        {
+            (Plist: "Shell.Info.plist", Identifier: "com.mypowertools.shell", Executable: "MyPowerTools.Shell.Avalonia"),
+            (Plist: "Runner.Info.plist", Identifier: "com.mypowertools.runner", Executable: "MyPowerTools.Runner"),
+            (Plist: "ServiceManager.Info.plist", Identifier: "com.mypowertools.servicemanager", Executable: "MyPowerTools.ServiceManager")
+        })
+        {
+            var plist = File.ReadAllText(Path.Combine(helpersRoot, helper.Plist));
+            Assert.Contains($"<string>{helper.Identifier}</string>", plist, StringComparison.Ordinal);
+            Assert.Contains($"<string>{helper.Executable}</string>", plist, StringComparison.Ordinal);
+            Assert.Contains($"Plist = '{helper.Plist}'", publishScript, StringComparison.Ordinal);
+
+            Assert.DoesNotContain("<key>CFBundleURLTypes</key>", plist, StringComparison.Ordinal);
+        }
+
+        var mainPlist = File.ReadAllText(Path.Combine(Root, "packaging", "macos", "Info.plist"));
+        Assert.Contains("<key>CFBundleURLTypes</key>", mainPlist, StringComparison.Ordinal);
+        Assert.Contains("<key>LSUIElement</key>", mainPlist, StringComparison.Ordinal);
+
+        Assert.Contains("Join-Path $macRoot 'Helpers'", installScript, StringComparison.Ordinal);
+        Assert.Contains(
+            "MyPowerTools Runner.app/Contents/MacOS/MyPowerTools.Runner",
+            installScript,
+            StringComparison.Ordinal);
+        Assert.Contains(
+            "MyPowerTools ServiceManager.app/Contents/MacOS/MyPowerTools.ServiceManager",
+            installScript,
+            StringComparison.Ordinal);
+        Assert.Contains("\"MyPowerTools Shell.app\"", launcher, StringComparison.Ordinal);
+        Assert.Contains("\"MyPowerTools ServiceManager.app\"", launcher, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Mac_webview_forwards_the_current_shell_shortcut_contract()
     {
         var nativeSource = File.ReadAllText(Path.Combine(
@@ -68,9 +108,16 @@ public sealed class MacReleaseSyncTests
             "MptMacNative",
             "MptMacNative.mm"));
 
-        Assert.Contains("gesture = 'Ctrl+Shift+P'", nativeSource, StringComparison.Ordinal);
-        Assert.Contains("gesture = 'Ctrl+R'", nativeSource, StringComparison.Ordinal);
-        Assert.DoesNotContain("['f', 'k', 'r']", nativeSource, StringComparison.Ordinal);
+        var forwarding = File.ReadAllText(Path.Combine(
+            Root, "src", "MyPowerTools.WebSurface.Shared", "ShortcutForwarding.inc"));
+        Assert.Contains("MptString(MptShortcutForwardingScript)", nativeSource, StringComparison.Ordinal);
+        Assert.Contains("MyPowerTools.WebSurface.Shared/ShortcutForwarding.inc", nativeSource, StringComparison.Ordinal);
+        Assert.Contains("'shortcut-bindings'", forwarding, StringComparison.Ordinal);
+        Assert.Contains("'keydown'", forwarding, StringComparison.Ordinal);
+        Assert.Contains("event.isComposing", forwarding, StringComparison.Ordinal);
+        Assert.Contains("binding.allowInTextInput", forwarding, StringComparison.Ordinal);
+        Assert.DoesNotContain("gesture = 'Ctrl+Shift+P'", nativeSource, StringComparison.Ordinal);
+        Assert.DoesNotContain("gesture = 'Ctrl+R'", nativeSource, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -105,6 +152,14 @@ public sealed class MacReleaseSyncTests
         Assert.True(capability.Supported);
         Assert.Equal("NSPasteboard", capability.Provider);
         Assert.IsType<MacPasteboardImageService>(platform.ClipboardImages);
+    }
+
+    private static string ReadLayeredScript(string entrypoint, string implementation)
+    {
+        return string.Concat(
+            File.ReadAllText(Path.Combine(Root, "scripts", entrypoint)),
+            Environment.NewLine,
+            File.ReadAllText(Path.Combine(Root, "scripts", implementation)));
     }
 
     private static string FindRepositoryRoot()

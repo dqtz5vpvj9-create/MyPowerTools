@@ -47,6 +47,7 @@ public sealed record GrpcIpcRestartPolicy(string State, string Reason, DateTimeO
 public sealed class GrpcIpcModuleHost : IAsyncDisposable
 {
     private const int MaxCapturedProcessLines = 20;
+    private static readonly JsonSerializerOptions CompactJsonOptions = new() { WriteIndented = false };
 
     private readonly List<Process> _ownedProcesses = [];
     private readonly object _stdioLock = new();
@@ -135,7 +136,7 @@ public sealed class GrpcIpcModuleHost : IAsyncDisposable
         {
             ModuleId = moduleId,
             ExpectedRevision = patch.ExpectedRevision,
-            PatchJson = patch.Patch.ToJsonString(new JsonSerializerOptions { WriteIndented = false })
+            PatchJson = patch.Patch.ToJsonString(CompactJsonOptions)
         }, cancellationToken: cancellationToken);
 
         return new SettingsValidationResult(
@@ -151,7 +152,7 @@ public sealed class GrpcIpcModuleHost : IAsyncDisposable
         {
             ModuleId = moduleId,
             ExpectedRevision = snapshot.Revision,
-            PatchJson = snapshot.Values.ToJsonString(new JsonSerializerOptions { WriteIndented = false })
+            PatchJson = snapshot.Values.ToJsonString(CompactJsonOptions)
         }, cancellationToken: cancellationToken);
 
         return new SettingsSnapshotDocument(
@@ -202,8 +203,8 @@ public sealed class GrpcIpcModuleHost : IAsyncDisposable
             ModuleId = moduleId,
             CommandId = request.CommandId,
             InvocationId = request.InvocationId,
-            TypedArgs = Google.Protobuf.WellKnownTypes.Struct.Parser.ParseJson(request.Args.ToJsonString(new JsonSerializerOptions { WriteIndented = false })),
-            ArgsJson = request.Args.ToJsonString(new JsonSerializerOptions { WriteIndented = false })
+            TypedArgs = Google.Protobuf.WellKnownTypes.Struct.Parser.ParseJson(request.Args.ToJsonString(CompactJsonOptions)),
+            ArgsJson = request.Args.ToJsonString(CompactJsonOptions)
         };
         foreach (var argument in ToGrpcArgs(request.Args))
         {
@@ -226,8 +227,8 @@ public sealed class GrpcIpcModuleHost : IAsyncDisposable
             ModuleId = moduleId,
             CommandId = request.CommandId,
             InvocationId = request.InvocationId,
-            TypedArgs = Google.Protobuf.WellKnownTypes.Struct.Parser.ParseJson(request.Args.ToJsonString(new JsonSerializerOptions { WriteIndented = false })),
-            ArgsJson = request.Args.ToJsonString(new JsonSerializerOptions { WriteIndented = false })
+            TypedArgs = Google.Protobuf.WellKnownTypes.Struct.Parser.ParseJson(request.Args.ToJsonString(CompactJsonOptions)),
+            ArgsJson = request.Args.ToJsonString(CompactJsonOptions)
         };
         foreach (var argument in ToGrpcArgs(request.Args))
         {
@@ -416,7 +417,7 @@ public sealed class GrpcIpcModuleHost : IAsyncDisposable
             }
         }
 
-        return node.ToJsonString(new JsonSerializerOptions { WriteIndented = false });
+        return node.ToJsonString(CompactJsonOptions);
     }
 
     public string Describe(SelectedEntrypoint entrypoint)

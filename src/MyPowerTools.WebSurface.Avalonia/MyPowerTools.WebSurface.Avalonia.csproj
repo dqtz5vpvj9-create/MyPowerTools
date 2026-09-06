@@ -16,6 +16,7 @@
 
   <ItemGroup>
     <InternalsVisibleTo Include="MyPowerTools.Tests" />
+    <InternalsVisibleTo Include="ShortcutCenter.Tests" />
   </ItemGroup>
 
 </Project>

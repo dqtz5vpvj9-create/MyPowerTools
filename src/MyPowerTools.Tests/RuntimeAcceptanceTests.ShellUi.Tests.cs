@@ -1579,7 +1579,8 @@ public sealed partial class RuntimeAcceptanceTests
         Assert.Contains("x:Name=\"TitleContentHost\"", shellChromeView);
         Assert.Contains("x:Name=\"NavigationModeButton\"", shellChromeView);
         Assert.Contains("x:Name=\"PageHeaderHost\"", shellChromeView);
-        Assert.Contains("Text=\"Ctrl+Shift+P\"", shellChromeView);
+        Assert.Contains("Text=\"{Binding CommandPaletteShortcutHint}\"", shellChromeView);
+        Assert.Contains("IsVisible=\"{Binding HasCommandPaletteShortcutHint}\"", shellChromeView);
         Assert.Contains("WindowDecorationProperties.ElementRole=\"TitleBar\"", shellChromeView);
         Assert.Contains("Classes.selected=\"{Binding IsSelected}\"", shellChromeView);
         Assert.Contains("x:Name=\"SearchBox\"", shellChromeView);
@@ -1652,6 +1653,10 @@ public sealed partial class RuntimeAcceptanceTests
         Assert.Contains("Microsoft YaHei UI", typography);
         Assert.Contains(">Microsoft YaHei UI, Segoe UI Variable, Segoe UI, Segoe UI Emoji, Segoe UI Symbol</FontFamily>", typography);
         Assert.DoesNotContain("WithInterFont", program, StringComparison.Ordinal);
+        Assert.Contains("new FontManagerOptions", program, StringComparison.Ordinal);
+        Assert.Contains("[\"Microsoft YaHei UI\"] = new FontFamily(\"PingFang SC\")", program, StringComparison.Ordinal);
+        Assert.Contains("[\"Segoe UI\"] = new FontFamily(\"PingFang SC\")", program, StringComparison.Ordinal);
+        Assert.Contains("[\"Cascadia Mono\"] = new FontFamily(\"Menlo\")", program, StringComparison.Ordinal);
         Assert.Contains("Microsoft YaHei UI", markdown);
         Assert.Contains("font-family: \"Microsoft YaHei UI\", \"Segoe UI Variable\"", markdown);
         Assert.Contains("x:Key=\"MptDensityControlHeight\"", density);

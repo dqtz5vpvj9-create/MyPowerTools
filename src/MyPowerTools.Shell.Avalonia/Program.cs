@@ -1,4 +1,6 @@
 using Avalonia;
+using Avalonia.Media;
+using System.Runtime.InteropServices;
 using MyPowerTools.Abstractions;
 using MyPowerTools.HostControl;
 using MyPowerTools.Platform.Abstractions;
@@ -54,6 +56,7 @@ internal static class Program
         App.RunnerBootstrapTask = ShellRunnerBootstrapper.EnsureStartedAsync(
             startupOptions,
             loadHomeTools: opensHome);
+        SetMacProcessName();
         BuildAvaloniaApp().StartWithClassicDesktopLifetime(
             args,
             global::Avalonia.Controls.ShutdownMode.OnExplicitShutdown);
@@ -62,9 +65,94 @@ internal static class Program
 
     private static AppBuilder BuildAvaloniaApp()
     {
-        return AppBuilder.Configure<App>()
+        var builder = AppBuilder.Configure<App>()
             .UsePlatformDetect();
+        if (OperatingSystem.IsMacOS())
+        {
+            builder = builder.With(new FontManagerOptions
+            {
+                DefaultFamilyName = "PingFang SC",
+                FontFamilyMappings = new Dictionary<string, FontFamily>(StringComparer.OrdinalIgnoreCase)
+                {
+                    ["Microsoft YaHei UI"] = new FontFamily("PingFang SC"),
+                    ["Segoe UI Variable"] = new FontFamily("PingFang SC"),
+                    ["Segoe UI"] = new FontFamily("PingFang SC"),
+                    ["Segoe UI Emoji"] = new FontFamily("Apple Color Emoji"),
+                    ["Segoe UI Symbol"] = new FontFamily("Apple Symbols"),
+                    ["Cascadia Mono"] = new FontFamily("Menlo"),
+                    ["Consolas"] = new FontFamily("Menlo")
+                }
+            });
+        }
+
+        return builder.With(new MacOSPlatformOptions
+        {
+            // The native host sets the product name before Avalonia creates
+            // the default application menu.
+            DisableSetProcessName = true
+        });
     }
+
+    internal static void SetMacProcessName()
+    {
+        if (!OperatingSystem.IsMacOS())
+        {
+            return;
+        }
+
+        try
+        {
+            MptSetProcessName("MyPowerTools");
+        }
+        catch (DllNotFoundException)
+        {
+            // Managed-only validation does not include the native macOS library.
+        }
+        catch (EntryPointNotFoundException)
+        {
+            // Allow an older installed native host to launch during an in-place update.
+        }
+    }
+
+    internal static void SetMacApplicationIcon()
+    {
+        if (!OperatingSystem.IsMacOS())
+        {
+            return;
+        }
+
+        var iconPath = Path.GetFullPath(Path.Combine(
+            AppContext.BaseDirectory,
+            "..",
+            "..",
+            "Resources",
+            "MyPowerTools.icns"));
+        if (!File.Exists(iconPath))
+        {
+            return;
+        }
+
+        try
+        {
+            _ = MptSetApplicationIcon(iconPath);
+        }
+        catch (DllNotFoundException)
+        {
+            // Managed-only validation does not include the native macOS library.
+        }
+        catch (EntryPointNotFoundException)
+        {
+            // Allow an older installed native host to launch during an in-place update.
+        }
+    }
+
+    [DllImport("MptMacNative", EntryPoint = "mpt_set_process_name")]
+    private static extern void MptSetProcessName(
+        [MarshalAs(UnmanagedType.LPUTF8Str)] string name);
+
+    [DllImport("MptMacNative", EntryPoint = "mpt_set_application_icon")]
+    private static extern int MptSetApplicationIcon(
+        [MarshalAs(UnmanagedType.LPUTF8Str)] string iconPath);
 
     private static async Task<int> RunHostControlSmokeAsync(string[] args, ShellStartupOptions startupOptions)
     {

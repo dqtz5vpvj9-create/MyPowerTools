@@ -88,6 +88,22 @@ internal sealed class ShellActivationPipe : IAsyncDisposable
     internal const string PipeName = "MyPowerTools.ShellActivation";
     private const int MaximumPayloadLength = 64 * 1024;
     private const byte ActivationAcknowledged = 0x06;
+    private static readonly byte[] AcknowledgementFrame = [ActivationAcknowledged];
+    private static readonly TimeSpan RequestReceiveTimeout = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan ListenerRetryDelay = TimeSpan.FromMilliseconds(100);
+
+    /// <summary>
+    /// Windows stamps the Low integrity label on the first pipe instance, and the access right
+    /// that asks for it overlaps FILE_FLAG_FIRST_PIPE_INSTANCE, so only one server instance can
+    /// exist there at a time. Unix tears the listening socket down together with its last
+    /// instance and drops whatever the kernel had queued on it, so there the listener has to
+    /// overlap instances across requests or a second launcher racing the first loses its
+    /// connection and starts a duplicate Shell.
+    /// </summary>
+    private static readonly int ServerInstances =
+        OperatingSystem.IsWindows() ? 1 : NamedPipeServerStream.MaxAllowedServerInstances;
+
+    private static bool ServesConnectionsConcurrently => !OperatingSystem.IsWindows();
 
     private readonly Func<ShellActivationRequest, Task> _handler;
     private readonly Action<ShellActivationRequest>? _afterAcknowledged;
@@ -190,54 +206,143 @@ internal sealed class ShellActivationPipe : IAsyncDisposable
     {
         while (!cancellationToken.IsCancellationRequested)
         {
+            NamedPipeServerStream? accepted = null;
             try
             {
-                await using var server = MptNamedPipePolicy.CreateServer(
+                accepted = MptNamedPipePolicy.CreateServer(
                     _pipeName,
                     PipeDirection.InOut,
-                    maxInstances: 1);
-                await server.WaitForConnectionAsync(cancellationToken).ConfigureAwait(false);
-
-                var header = new byte[sizeof(int)];
-                await ReadExactlyAsync(server, header, cancellationToken).ConfigureAwait(false);
-                var length = BinaryPrimitives.ReadInt32LittleEndian(header);
-                if (length is <= 0 or > MaximumPayloadLength)
-                {
-                    continue;
-                }
-
-                var payload = new byte[length];
-                await ReadExactlyAsync(server, payload, cancellationToken).ConfigureAwait(false);
-                var request = JsonSerializer.Deserialize<ShellActivationRequest>(payload);
-                if (request is not null)
-                {
-                    await _handler(request).ConfigureAwait(false);
-                    await server.WriteAsync(
-                        new byte[] { ActivationAcknowledged },
-                        cancellationToken).ConfigureAwait(false);
-                    await server.FlushAsync(cancellationToken).ConfigureAwait(false);
-                    try
-                    {
-                        _afterAcknowledged?.Invoke(request);
-                    }
-                    catch
-                    {
-                        // A post-acknowledgement lifecycle action cannot invalidate delivery.
-                    }
-                }
+                    ServerInstances);
+                await accepted.WaitForConnectionAsync(cancellationToken).ConfigureAwait(false);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
+                await DisposeQuietlyAsync(accepted).ConfigureAwait(false);
                 break;
-            }
-            catch (Exception exception) when (exception is IOException or EndOfStreamException or JsonException)
-            {
-                // Recreate the one-shot activation endpoint after malformed or disconnected clients.
             }
             catch
             {
-                // Keep the activation endpoint alive after a handler or platform failure.
+                // Another host may hold the endpoint for a moment during its own shutdown.
+                // Back off rather than spinning the CPU while it goes away.
+                await DisposeQuietlyAsync(accepted).ConfigureAwait(false);
+                try
+                {
+                    await Task.Delay(ListenerRetryDelay, cancellationToken).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                    break;
+                }
+
+                continue;
             }
+
+            if (ServesConnectionsConcurrently)
+            {
+                // The next instance is created right away, which keeps the Unix listening socket
+                // bound while this request is served.
+                _ = ServeConnectionAsync(accepted, cancellationToken);
+            }
+            else
+            {
+                await ServeConnectionAsync(accepted, cancellationToken).ConfigureAwait(false);
+            }
+        }
+    }
+
+    /// <summary>
+    /// Acknowledges the request as soon as it has been received and only then presents the
+    /// window. A launcher waits milliseconds for the acknowledgement while presentation waits on
+    /// the workspace, so the two cannot share a deadline without a slow UI making the launcher
+    /// start a second Shell.
+    /// </summary>
+    private async Task ServeConnectionAsync(
+        NamedPipeServerStream server,
+        CancellationToken cancellationToken)
+    {
+        ShellActivationRequest? request;
+        try
+        {
+            await using (server.ConfigureAwait(false))
+            {
+                request = await ReceiveRequestAsync(server, cancellationToken).ConfigureAwait(false);
+                if (request is null)
+                {
+                    return;
+                }
+
+                await server.WriteAsync(AcknowledgementFrame, cancellationToken).ConfigureAwait(false);
+                await server.FlushAsync(cancellationToken).ConfigureAwait(false);
+            }
+        }
+        catch (Exception exception) when (
+            exception is IOException or EndOfStreamException or JsonException or OperationCanceledException)
+        {
+            // A malformed or disconnected client leaves the endpoint ready for the next launcher.
+            return;
+        }
+
+        // The acknowledged request is now owned by this process, so the endpoint is free for the
+        // next launcher while the window is still coming up.
+        _ = PresentAsync(request);
+    }
+
+    private static async Task<ShellActivationRequest?> ReceiveRequestAsync(
+        NamedPipeServerStream server,
+        CancellationToken cancellationToken)
+    {
+        // A peer that connects and then stops sending would otherwise hold the endpoint open
+        // indefinitely, and on Windows that single instance is the whole activation surface.
+        using var receiveTimeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        receiveTimeout.CancelAfter(RequestReceiveTimeout);
+
+        var header = new byte[sizeof(int)];
+        await ReadExactlyAsync(server, header, receiveTimeout.Token).ConfigureAwait(false);
+        var length = BinaryPrimitives.ReadInt32LittleEndian(header);
+        if (length is <= 0 or > MaximumPayloadLength)
+        {
+            return null;
+        }
+
+        var payload = new byte[length];
+        await ReadExactlyAsync(server, payload, receiveTimeout.Token).ConfigureAwait(false);
+        return JsonSerializer.Deserialize<ShellActivationRequest>(payload);
+    }
+
+    private async Task PresentAsync(ShellActivationRequest request)
+    {
+        try
+        {
+            await _handler(request).ConfigureAwait(false);
+        }
+        catch
+        {
+            // A failed presentation cannot take the activation endpoint down with it.
+        }
+
+        try
+        {
+            _afterAcknowledged?.Invoke(request);
+        }
+        catch
+        {
+            // A post-acknowledgement lifecycle action cannot invalidate delivery.
+        }
+    }
+
+    private static async ValueTask DisposeQuietlyAsync(NamedPipeServerStream? server)
+    {
+        if (server is null)
+        {
+            return;
+        }
+
+        try
+        {
+            await server.DisposeAsync().ConfigureAwait(false);
+        }
+        catch (IOException)
+        {
         }
     }
 

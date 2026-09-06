@@ -93,6 +93,18 @@ public sealed class MacLaunchdServiceManager : IServiceManager
             return new BrokerOperationResult(false, "unsupported", "launchd services are available only on macOS.");
         }
 
+        // A stopped MyPowerTools agent has been booted out of the GUI domain, so it has to be
+        // bootstrapped from its plist again before kickstart has a service to start.
+        var loaded = await LaunchdSupport.RunAsync("print", LaunchdSupport.ServiceTarget(serviceName), cancellationToken);
+        if (loaded.ExitCode != 0)
+        {
+            var agentPath = LaunchdSupport.AgentPath(serviceName);
+            if (File.Exists(agentPath))
+            {
+                _ = await LaunchdSupport.RunAsync("bootstrap", LaunchdSupport.Domain, agentPath, cancellationToken);
+            }
+        }
+
         var result = await LaunchdSupport.RunAsync("kickstart", "-k", LaunchdSupport.ServiceTarget(serviceName), cancellationToken);
         return LaunchdSupport.OperationResult(result, "started", serviceName);
     }
@@ -105,8 +117,13 @@ public sealed class MacLaunchdServiceManager : IServiceManager
             return new BrokerOperationResult(false, "unsupported", "launchd services are available only on macOS.");
         }
 
-        var result = await LaunchdSupport.RunAsync("kill", "SIGTERM", LaunchdSupport.ServiceTarget(serviceName), cancellationToken);
-        return LaunchdSupport.OperationResult(result, "stopped", serviceName);
+        // MyPowerTools agents are installed with KeepAlive, so a signal alone only makes launchd
+        // restart them. bootout removes the service from the GUI domain and leaves the plist on
+        // disk, which is what keeps the next login working.
+        var result = await LaunchdSupport.RunAsync("bootout", LaunchdSupport.ServiceTarget(serviceName), cancellationToken);
+        return result.ExitCode is 0 or 3
+            ? new BrokerOperationResult(true, "stopped", $"launchd service '{serviceName}' stopped.")
+            : new BrokerOperationResult(false, "failed", LaunchdSupport.Message(result));
     }
 }
 

@@ -34,6 +34,7 @@ public static partial class ShellPageViewModelFactory
         IReadOnlySet<string> searchableToolIds)
     {
         var commands = new HostProto.ListCommandsResponse();
+        var matches = new List<(HostProto.CommandItem Command, int Score)>();
         var normalizedQuery = query?.Trim() ?? "";
         foreach (var tool in response.Tools
                      .Where(tool => searchableToolIds.Contains(tool.ToolId))
@@ -50,11 +51,13 @@ public static partial class ShellPageViewModelFactory
                 continue;
             }
 
-            if (normalizedQuery.Length == 0 ||
-                MatchesTool(tool, normalizedQuery) ||
-                MatchesRoute(tool, primaryRoute, normalizedQuery))
+            var score = Math.Max(
+                ToolSearchMatcher.Score(normalizedQuery, tool.Title, tool.ToolId,
+                    tool.Description, tool.Category, tool.HomeCard?.Summary ?? "", tool.HomeCard?.PrimaryActionLabel ?? ""),
+                RouteSearchScore(tool, primaryRoute, normalizedQuery));
+            if (score >= 0)
             {
-                commands.Commands.Add(CreateToolSearchCommand(tool, primaryRoute, primary: true));
+                matches.Add((CreateToolSearchCommand(tool, primaryRoute, primary: true), score));
             }
 
             if (normalizedQuery.Length == 0)
@@ -65,12 +68,13 @@ public static partial class ShellPageViewModelFactory
             foreach (var route in tool.Routes
                          .Where(route => !string.Equals(route.RouteId, primaryRoute.RouteId, StringComparison.OrdinalIgnoreCase))
                          .Where(route => !IsHiddenUserSearchRoute(route))
-                         .Where(route => MatchesRoute(tool, route, normalizedQuery)))
+                         .Where(route => RouteSearchScore(tool, route, normalizedQuery) >= 0))
             {
-                commands.Commands.Add(CreateToolSearchCommand(tool, route, primary: false));
+                matches.Add((CreateToolSearchCommand(tool, route, primary: false), RouteSearchScore(tool, route, normalizedQuery)));
             }
         }
 
+        commands.Commands.AddRange(matches.OrderByDescending(match => match.Score).Select(match => match.Command));
         return commands;
     }
 
@@ -102,28 +106,9 @@ public static partial class ShellPageViewModelFactory
         };
     }
 
-    private static bool MatchesTool(HostProto.ToolDescriptor tool, string query)
+    private static int RouteSearchScore(HostProto.ToolDescriptor tool, HostProto.ToolRoute route, string query)
     {
-        return ContainsAllTerms(
-            query,
-            tool.Title,
-            tool.Description,
-            tool.Category,
-            tool.HomeCard?.Summary ?? "",
-            tool.HomeCard?.PrimaryActionLabel ?? "");
-    }
-
-    private static bool MatchesRoute(HostProto.ToolDescriptor tool, HostProto.ToolRoute route, string query)
-    {
-        return ContainsAllTerms(query, tool.Title, tool.Category, route.Title, route.RouteId);
-    }
-
-    private static bool ContainsAllTerms(string query, params string[] values)
-    {
-        var haystack = string.Join(' ', values);
-        return query
-            .Split(' ', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-            .All(term => haystack.Contains(term, StringComparison.OrdinalIgnoreCase));
+        return ToolSearchMatcher.Score(query, route.Title, route.RouteId, tool.Title, tool.ToolId, tool.Category);
     }
 
     private static bool IsHiddenUserSearchRoute(HostProto.ToolRoute route)

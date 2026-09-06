@@ -90,4 +90,77 @@ public sealed class AdbForwarderEnvironmentSettingsTests
         Assert.Single(viewModel.ConfiguredForwardDeviceEditors);
         Assert.Single(viewModel.ConfiguredWifiDeviceEditors);
     }
+
+    [Fact]
+    public async Task Saving_an_unrelated_field_keeps_the_wifi_interval_and_wakeup_pad_from_the_service()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "mpt-adb-settings", Guid.NewGuid().ToString("N"));
+        var configPath = Path.Combine(directory, "devices.ini");
+        var configurationService = new AdbForwarderConfigurationService(configPath);
+        var serviceState = new AdbForwarderServiceSnapshot(
+            4242,
+            DateTimeOffset.UtcNow,
+            "active",
+            "1/1 台有线设备在线",
+            "adb",
+            configPath,
+            "WAKEUP-PAD",
+            [new AdbForwarderServiceDevice("USB-SERIAL-1", 15555, 30555, "online", DateTimeOffset.UtcNow, true, true, "")],
+            [new AdbForwarderServiceWifiDevice("Pixel 9a", false, "USB-SERIAL-2", "10.33.0.243", 5555, 900, "disabled", "")],
+            [],
+            []);
+        var configuredState = AdbForwarderToolService.BuildConfiguredState(serviceState);
+
+        Assert.Equal("WAKEUP-PAD", configuredState.WakeupPadDeviceId);
+        Assert.Equal(900, Assert.Single(configuredState.WifiDevices).IntervalSeconds);
+
+        var saved = new TaskCompletionSource<AdbForwarderEnvironmentSettings>(
+            TaskCreationOptions.RunContinuationsAsynchronously);
+        var snapshot = new AdbForwarderSnapshot(
+            true,
+            "adb",
+            [],
+            true,
+            [],
+            [],
+            new AdbForwarderPlan([], [], [], [], false),
+            [],
+            1)
+        {
+            AdbPath = "adb",
+            ConfiguredState = configuredState
+        };
+        var viewModel = new AdbForwarderViewModel(
+            snapshot,
+            "settings",
+            saveEnvironment: settings =>
+            {
+                saved.TrySetResult(settings);
+                return Task.CompletedTask;
+            });
+
+        try
+        {
+            viewModel.ConfiguredForwardDeviceEditors[0].Port = "15556";
+            viewModel.SaveEnvironmentCommand.Execute(null);
+            var environment = await saved.Task.WaitAsync(TimeSpan.FromSeconds(2));
+
+            Assert.Equal("WAKEUP-PAD", environment.Devices.WakeupPadDeviceId);
+            Assert.Equal(900, Assert.Single(environment.Devices.WifiDevices).IntervalSeconds);
+
+            await configurationService.SaveAsync(environment.Devices);
+            var reloaded = await configurationService.LoadAsync([], [], CancellationToken.None);
+
+            Assert.Equal("WAKEUP-PAD", reloaded.WakeupPadDeviceId);
+            Assert.Equal(900, Assert.Single(reloaded.WifiDevices).IntervalSeconds);
+            Assert.Equal(15556, Assert.Single(reloaded.ForwardDevices).Port);
+        }
+        finally
+        {
+            if (Directory.Exists(directory))
+            {
+                Directory.Delete(directory, recursive: true);
+            }
+        }
+    }
 }

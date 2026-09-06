@@ -60,6 +60,7 @@ try {
     $compileArguments = @(
         '/Qp',
         '/DMyInstallerTestMode=1',
+        '/DMyAllowUnsigned=1',
         "/DMyAppVersion=$TestVersion",
         '/DMyReleaseChannel=local',
         '/DMyDownloadBaseUrl=https://127.0.0.1/unused',

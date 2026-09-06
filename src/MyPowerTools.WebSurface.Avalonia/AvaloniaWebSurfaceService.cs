@@ -17,8 +17,11 @@ namespace MyPowerTools.WebSurface.Avalonia;
 /// <summary>
 /// Shell-side implementation of the Avalonia SDK web-surface host capability.
 /// </summary>
-public sealed class AvaloniaWebSurfaceService : IMptWebSurfaceService
+public sealed class AvaloniaWebSurfaceService : IMptWebSurfaceService, IConfigurableWebShortcuts
 {
+    private readonly WebShortcutConfiguration _shortcutConfiguration = new();
+    public void UpdateShortcutBindings(IReadOnlyList<WebShortcutBinding> bindings) => _shortcutConfiguration.Update(bindings);
+
     private static readonly TimeSpan DefaultLoadingTimeout = TimeSpan.FromSeconds(12);
     private readonly string _hostExecutablePath;
     private readonly WebSurfaceOcclusionState _occlusionState;
@@ -48,7 +51,8 @@ public sealed class AvaloniaWebSurfaceService : IMptWebSurfaceService
             _hostExecutablePath,
             _occlusionState,
             _forwardShortcutAsync,
-            _loadingTimeout));
+            _loadingTimeout,
+            _shortcutConfiguration));
     }
 
     public static string ResolveDefaultHostPath(string applicationBaseDirectory)
@@ -201,6 +205,7 @@ internal sealed class WebSurfaceControl : Control, IDisposable
 {
     internal const int MaximumHostFrameLength = 16 * 1024;
 
+    private readonly WebShortcutConfiguration _shortcutConfiguration;
     private readonly MptWebSurfaceRequest _request;
     private readonly string _hostExecutablePath;
     private readonly WebSurfaceOcclusionState _occlusionState;
@@ -225,8 +230,11 @@ internal sealed class WebSurfaceControl : Control, IDisposable
         string hostExecutablePath,
         WebSurfaceOcclusionState occlusionState,
         Func<string, Task> forwardShortcutAsync,
-        TimeSpan loadingTimeout)
+        TimeSpan loadingTimeout,
+        WebShortcutConfiguration? shortcuts = null)
     {
+        _shortcutConfiguration = shortcuts ?? new WebShortcutConfiguration();
+        _shortcutConfiguration.Changed += SendShortcutBindings;
         _request = request;
         _hostExecutablePath = hostExecutablePath;
         _occlusionState = occlusionState;
@@ -317,6 +325,7 @@ internal sealed class WebSurfaceControl : Control, IDisposable
             return;
         }
 
+        _shortcutConfiguration.Changed -= SendShortcutBindings;
         LayoutUpdated -= OnLayoutUpdated;
         if (_attached)
         {
@@ -604,6 +613,13 @@ internal sealed class WebSurfaceControl : Control, IDisposable
             _terminalStateReported = true;
         }
         NotifyState(hostEvent.State, hostEvent.Message);
+        if (hostEvent.State == MptWebSurfaceState.Ready) SendShortcutBindings();
+    }
+
+    private void SendShortcutBindings()
+    {
+        if (_hostInput is not null && Volatile.Read(ref _disposed) == 0)
+            _ = SendCommandAsync(new { type = "bridge-response", payload = _shortcutConfiguration.Payload }, _generation);
     }
 
     private async Task ForwardShortcutSafelyAsync(string gesture)
@@ -934,7 +950,7 @@ internal sealed class WebSurfaceControl : Control, IDisposable
                 root.TryGetProperty("gesture", out var gestureNode) && gestureNode.ValueKind == JsonValueKind.String)
             {
                 var gesture = gestureNode.GetString() ?? "";
-                if (gesture.Length is > 0 and <= 32)
+                if (WebShortcutMessage.TryRead(gesture, out _, out _))
                 {
                     hostEvent = new HostProcessEvent(HostProcessEventKind.Shortcut, MptWebSurfaceState.Ready, "", gesture);
                     return true;

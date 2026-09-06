@@ -82,7 +82,7 @@ internal static class WebToolHostProtocol
             JsonOptions);
     }
 
-    public static void WriteShortcut(string gesture)
+    public static void WriteShortcut(string gesture, TextWriter? output = null)
     {
         WritePayload(new
         {
@@ -90,7 +90,7 @@ internal static class WebToolHostProtocol
             gesture,
             pid = Environment.ProcessId,
             protocolVersion = 1
-        }, JsonOptions);
+        }, JsonOptions, output);
     }
 
     public static void WriteFocusMove(string direction)
@@ -116,13 +116,14 @@ internal static class WebToolHostProtocol
         }, JsonOptions);
     }
 
-    private static void WritePayload<T>(T value, JsonSerializerOptions options)
+    private static void WritePayload<T>(T value, JsonSerializerOptions options, TextWriter? output = null)
     {
         var payload = JsonSerializer.Serialize(value, options);
         lock (OutputLock)
         {
-            Console.Out.WriteLine(payload);
-            Console.Out.Flush();
+            var writer = output ?? Console.Out;
+            writer.WriteLine(payload);
+            writer.Flush();
         }
     }
 }

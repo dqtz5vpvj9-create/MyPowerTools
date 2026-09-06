@@ -241,7 +241,14 @@ public sealed class ToolRegistry
                 .ToArray(),
             string.IsNullOrWhiteSpace(manifest.DataRetention)
                 ? "preserve"
-                : manifest.DataRetention.Trim().ToLowerInvariant());
+                : manifest.DataRetention.Trim().ToLowerInvariant())
+        {
+            Shortcuts = manifest.Shortcuts.Select(item => new ShortcutDefinition(
+                item.Id, item.Id, item.Title, manifest.Title, "tool",
+                item.Bindings.Select(binding => new ShortcutBinding(binding.Gesture, binding.Platform)).ToArray(),
+                manifest.ToolId, item.Context, item.AllowInTextInput,
+                Description: item.Description) { ModuleId = ownerModuleId }).ToArray()
+        };
     }
 
     private static JsonObject ReadCommandExtensionData(MptToolCommandManifest command)

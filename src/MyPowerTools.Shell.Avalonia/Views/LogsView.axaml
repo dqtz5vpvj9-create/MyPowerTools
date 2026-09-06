@@ -104,8 +104,10 @@
           <TextBlock Classes="MptPageSubtitle" Text="No logs match the current filter." />
           <TextBlock Classes="MptMeta" Text="Try clearing the search text or switching the level filter." />
         </StackPanel>
-        <ItemsControl ItemsSource="{Binding Lines}">
-          <ItemsControl.ItemTemplate>
+        <ListBox Classes="MptLogViewer"
+                 ItemsSource="{Binding Lines}"
+                 MaxHeight="{DynamicResource MptLayoutLogViewerMaxHeight}">
+          <ListBox.ItemTemplate>
             <DataTemplate x:DataType="vm:LogLineViewModel">
               <Border Classes="MptLogRow" Margin="{DynamicResource MptGapBottomXs}">
                 <Grid ColumnDefinitions="128,84,72,*" ColumnSpacing="{DynamicResource MptSpacingS}">
@@ -122,8 +124,8 @@
                 </Grid>
               </Border>
             </DataTemplate>
-          </ItemsControl.ItemTemplate>
-        </ItemsControl>
+          </ListBox.ItemTemplate>
+        </ListBox>
       </StackPanel>
     </Border>
   </StackPanel>
