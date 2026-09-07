@@ -119,6 +119,26 @@ jobs:
           --filter "FullyQualifiedName!~AndroidTools_&FullyQualifiedName!~Runtime_collects_production_module_events_and_notifications"
 
 
+      - name: Release lingering module hosts
+        shell: pwsh
+        # The suite above loads modules/ and leaves gRPC module hosts and service
+        # managers behind; the runner only reaps those when the job ends. The Android
+        # Tools tests below bind
+        # \\.\pipe\mypowertools.android-tools-suite.module-host by name, so a survivor
+        # makes them wait out their 20 second budget for a command that can never
+        # appear. handoff-windows-gates never hit this because it ran no suite first.
+        run: |
+          $names = @('MPTAndroidTools.Runtime', 'MyPowerTools.ServiceManager', 'MyPowerTools.Runner')
+          foreach ($process in (Get-Process -Name $names -ErrorAction SilentlyContinue)) {
+            Write-Host "stopping $($process.ProcessName) ($($process.Id))"
+            try {
+              $process.Kill($true)
+              $null = $process.WaitForExit(5000)
+            } catch {
+              Write-Host "  already gone: $($_.Exception.Message)"
+            }
+          }
+
       - name: Architecture Gate (Quick)
         shell: pwsh
         run: pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\verify-architecture.ps1 -Tier Quick
