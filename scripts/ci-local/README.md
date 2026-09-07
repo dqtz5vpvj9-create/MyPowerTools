@@ -69,17 +69,20 @@ Not faithful, and it matters:
   `Sync-CiWorkspace.ps1` runs it on the superproject and every submodule.
 * **`actions/cache` is not reproduced.** The NuGet cache here is simply warm,
   so local runs are shorter than GitHub's. A cache-key change shows up on
-  GitHub only.
+  GitHub only. `artifacts/sdk/global-packages` is also the one path the
+  workspace scrub leaves alone — the workflow restores it from cache, so an
+  empty one would be less faithful, not more.
 * **Secrets are absent.** Steps needing `MPT_OTA_SIGNING_KEY_BASE64` are out of
   scope. The private `external/NotifyApp` submodule is covered: `preflight.sh`
   passes a `gh auth token` over stdin, standing in for `MPT_SUBMODULE_PAT`.
-* **There is no interactive logon session.** SSH on Windows runs commands
-  without one, so the Credential Manager is unreachable: `CredRead` returns
-  1312 `ERROR_NO_SUCH_LOGON_SESSION` where a GitHub runner returns 1168
-  `ERROR_NOT_FOUND`. Anything reading a secret through
-  `WindowsCredentialSecretStore` therefore fails here and passes on GitHub —
-  today that is the three `SmartBirdThermostatProductTests`. Treat a failure
-  whose message names `CredRead` as an artifact of this rig, and confirm it on
-  GitHub before touching the product.
+* **Someone has to be logged in.** SSH on Windows authenticates with a network
+  logon and no interactive session, and the Credential Manager refuses to answer
+  without one — `CredRead` returns 1312 `ERROR_NO_SUCH_LOGON_SESSION` where a
+  runner returns 1168 `ERROR_NOT_FOUND`. `Start-InSession.ps1` therefore runs the
+  job as a scheduled task with `-LogonType Interactive`, inside the session the
+  user is logged into, which restores the runner's behaviour. The cost is that
+  the host needs an active session: `query session` must show one for this user.
+  Output is tailed out of the task's log, so the caller still sees a live stream
+  and the real exit code.
 * **macOS is not covered at all.** Six workflows run on `macos-14`; there is no
   Mac in this rig.

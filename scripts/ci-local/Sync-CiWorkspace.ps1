@@ -91,10 +91,28 @@ if ($resolved -ne $Commit) {
     throw "refs/preflight/head resolved to $resolved, expected $Commit."
 }
 
+# `dotnet build` leaves MSBuild and compiler servers resident, holding assembly
+# locks on task DLLs inside artifacts/sdk/global-packages. A run over plain SSH
+# never noticed - the session ended and took its process tree with it - but the
+# job now runs as a scheduled task, which does not, so the next `git clean -xdff`
+# fails with "Invalid argument" on Avalonia.Build.Tasks.dll and friends. Shutting
+# the servers down is the sanctioned way to release those locks; they restart on
+# the next build.
+& dotnet build-server shutdown 2>&1 | Out-Null
+
 Write-Host "==> checking out $Commit"
 Invoke-Git checkout --detach --force refs/preflight/head
 Invoke-Git reset --hard --quiet
-Invoke-Git clean -xdff
+# artifacts/sdk/global-packages is excluded deliberately. The workflow restores it
+# with actions/cache, so a GitHub job does not start with it empty either, and the
+# resident MSBuild task assemblies inside it (Avalonia.Build.Tasks.dll and friends)
+# stay memory-mapped even after `dotnet build-server shutdown`, which made the
+# clean fail outright. Everything else still goes, which is the part that matters:
+# stale build output must not be able to satisfy a step that should have failed.
+# Passed as one array: PowerShell tries to bind a bare -e to its own common
+# parameters before it reaches ValueFromRemainingArguments, and reports it as
+# ambiguous with -ErrorAction.
+Invoke-Git @('clean', '-xdff', '-e', 'artifacts/sdk/global-packages')
 Invoke-Git submodule sync --recursive --quiet
 Invoke-Git submodule update --init --recursive --force
 git submodule foreach --recursive 'git clean -xdff' | Out-Null

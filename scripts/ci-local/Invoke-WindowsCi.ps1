@@ -57,18 +57,6 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
-# Tests that cannot run over SSH, with the reason each is here. SSH on Windows
-# has no interactive logon session, so the Credential Manager is unreachable:
-# CredRead returns 1312 ERROR_NO_SUCH_LOGON_SESSION where a GitHub runner
-# returns 1168 ERROR_NOT_FOUND, which WindowsCredentialSecretStore maps to null.
-# The gap is the rig's, not the product's, and these still run on GitHub.
-#
-# Nothing else belongs in this list. A test that fails here for any other reason
-# is a finding, and the whole point of the rig is to see it before pushing.
-$script:EnvironmentBlockedTests = @(
-    'SmartBirdThermostatProductTests'
-)
-
 $script:Steps = [System.Collections.Generic.List[object]]::new()
 $script:RunStart = [Diagnostics.Stopwatch]::StartNew()
 
@@ -120,6 +108,11 @@ function Invoke-Step {
 }
 
 function Complete-Run {
+    # Release the MSBuild and compiler servers this run started. They hold locks on
+    # NuGet task assemblies, and the scheduled task that hosts this job does not tear
+    # down its process tree the way an SSH session did.
+    & dotnet build-server shutdown 2>&1 | Out-Null
+
     $script:RunStart.Stop()
     Write-Host ''
     Write-Host ('-' * 72)
@@ -203,14 +196,6 @@ $env:RUNNER_OS = 'Windows'
 $env:RUNNER_TEMP = Join-Path $Workspace 'artifacts\runner-temp'
 New-Item -ItemType Directory -Path $env:RUNNER_TEMP -Force | Out-Null
 
-$script:BlockedFilter = ($script:EnvironmentBlockedTests |
-    ForEach-Object { "FullyQualifiedName!~$_" }) -join '&'
-if ($script:BlockedFilter) {
-    Write-Host ''
-    Write-Host 'Excluded here, still covered on GitHub:' -ForegroundColor Yellow
-    $script:EnvironmentBlockedTests | ForEach-Object { Write-Host "  $_ (no interactive logon session over SSH)" -ForegroundColor Yellow }
-}
-
 Invoke-Step 'Setup .NET SDK' {
     # setup-dotnet installs whatever global.json pins. Locally the SDK is
     # already installed, so the equivalent check is that the pinned version is
@@ -272,7 +257,7 @@ Invoke-Step 'Architecture Gate (Quick)' {
 if ($Suite -eq 'Quick') {
     Invoke-Step 'Test' {
         dotnet test MyPowerTools.slnx --no-build `
-            --filter "FullyQualifiedName!~AndroidTools_&FullyQualifiedName!~Runtime_collects_production_module_events_and_notifications&$script:BlockedFilter"
+            --filter "FullyQualifiedName!~AndroidTools_&FullyQualifiedName!~Runtime_collects_production_module_events_and_notifications"
     }
     Complete-Run
     exit 0
@@ -318,7 +303,7 @@ if ($Suite -eq 'Handoff' -or $Suite -eq 'Both') {
 if ($Suite -eq 'Ci' -or $Suite -eq 'Both') {
     Invoke-Step 'Test' {
         dotnet test MyPowerTools.slnx --no-build `
-            --filter "FullyQualifiedName!~AndroidTools_&FullyQualifiedName!~Runtime_collects_production_module_events_and_notifications&$script:BlockedFilter"
+            --filter "FullyQualifiedName!~AndroidTools_&FullyQualifiedName!~Runtime_collects_production_module_events_and_notifications"
     }
 }
 

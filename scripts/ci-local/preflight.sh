@@ -46,9 +46,16 @@ repo_root="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 cd "$repo_root"
 
 run_ci() {
-    ssh "$REMOTE" "pwsh -NoLogo -NoProfile -File ${WS_WIN}\\scripts\\ci-local\\Invoke-WindowsCi.ps1" \
-        "-Workspace ${WS_WIN} -Suite ${suite} -SkipSync" \
-        "-ReportPath ${WS_WIN}\\artifacts\\ci-local-report.json"
+    # Through the interactive logon session, not straight over SSH. An SSH network
+    # logon has no session attached, and the Credential Manager refuses to answer
+    # without one -- CredRead returns 1312 where a runner returns 1168 -- so
+    # anything reading a secret would fail here for a reason that has nothing to
+    # do with the code under test.
+    local args64
+    args64="$(printf '%s' "-Workspace ${WS_WIN} -Suite ${suite} -SkipSync -ReportPath ${WS_WIN}\\artifacts\\ci-local-report.json" | base64 -w0)"
+    ssh "$REMOTE" "pwsh -NoLogo -NoProfile -File ${WS_WIN}\\scripts\\ci-local\\Start-InSession.ps1" \
+        "-Script ${WS_WIN}\\scripts\\ci-local\\Invoke-WindowsCi.ps1" \
+        "-ArgumentsBase64 ${args64}"
 }
 
 collect_report() {
