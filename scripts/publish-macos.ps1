@@ -143,6 +143,38 @@ function Invoke-CodeSignPasses {
     }
 }
 
+function Invoke-NativeLibrarySign {
+    <#
+      codesign validates sibling nested code when it signs a file inside a bundle, so signing an
+      apphost while libMptMacNative.dylib next to it is still unsigned fails outright:
+
+        MyPowerTools: code object is not signed at all
+        In subcomponent: .../Contents/MacOS/libMptMacNative.dylib
+
+      The two sit at equal path depth, where the depth-descending sort in Invoke-CodeSignPasses
+      leaves their relative order undefined - arm64 happened to draw a working order and Intel did
+      not. Signing the library first makes it deterministic. Get-SignableFiles also refuses to walk
+      through symbolic links, and a helper reaches its executable directory through the
+      compatibility links under Contents/MacOS/<Host>/, so this reaches the file by resolved path.
+    #>
+    param(
+        [Parameter(Mandatory = $true)][string]$ExecutableRoot,
+        [Parameter(Mandatory = $true)][string]$Identity
+    )
+
+    $nativeLibrary = Join-Path $ExecutableRoot 'libMptMacNative.dylib'
+    if (-not (Test-Path -LiteralPath $nativeLibrary -PathType Leaf)) {
+        return
+    }
+
+    $resolved = (Resolve-Path -LiteralPath $nativeLibrary).ProviderPath
+    & /usr/bin/codesign '--remove-signature' $resolved 2>$null
+    $global:LASTEXITCODE = 0
+    Invoke-Native -FilePath '/usr/bin/codesign' -ArgumentList @(
+        '--force', '--sign', $Identity, '--timestamp=none', $resolved
+    ) -Activity "codesign $resolved"
+}
+
 function Sign-AppBundle {
     param(
         [Parameter(Mandatory = $true)][string]$BundlePath,
@@ -166,23 +198,7 @@ function Sign-AppBundle {
             Sort-Object Name
     )
     foreach ($helperBundle in $helperBundles) {
-        # Signed before the passes below, not after. codesign validates sibling nested code
-        # when it signs a file inside a bundle, so signing the apphost while the library next
-        # to it is still unsigned fails outright:
-        #   MyPowerTools.Runner: code object is not signed at
-        #   In subcomponent: .../MyPowerTools Runner.app/Contents/MacOS/libMptMacNative.dylib
-        # The two sit at equal path depth, where the depth-descending sort in
-        # Invoke-CodeSignPasses leaves their relative order undefined, so ordering it here is
-        # what makes the result deterministic rather than luck.
-        $nativeLibrary = Join-Path $helperBundle.FullName 'Contents/MacOS/libMptMacNative.dylib'
-        if (Test-Path -LiteralPath $nativeLibrary -PathType Leaf) {
-            $resolvedNative = (Resolve-Path -LiteralPath $nativeLibrary).ProviderPath
-            & /usr/bin/codesign '--remove-signature' $resolvedNative 2>$null
-            $global:LASTEXITCODE = 0
-            Invoke-Native -FilePath '/usr/bin/codesign' -ArgumentList @(
-                '--force', '--sign', $Identity, '--timestamp=none', $resolvedNative
-            ) -Activity "codesign $resolvedNative"
-        }
+        Invoke-NativeLibrarySign -ExecutableRoot (Join-Path $helperBundle.FullName 'Contents/MacOS') -Identity $Identity
 
         Invoke-CodeSignPasses `
             -Files (Get-SignableFiles -Root $helperBundle.FullName) `
@@ -197,6 +213,7 @@ function Sign-AppBundle {
         ) -Activity "codesign $($helperBundle.Name)"
     }
 
+    Invoke-NativeLibrarySign -ExecutableRoot $macRoot -Identity $Identity
     Invoke-CodeSignPasses `
         -Files (Get-SignableFiles `
             -Root $macRoot `
