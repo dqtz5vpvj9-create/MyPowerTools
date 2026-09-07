@@ -274,6 +274,14 @@ jobs:
         with:
           global-json-file: global.json
 
+      - name: Prepare local SDK feed
+        shell: pwsh
+        run: New-Item -ItemType Directory -Path artifacts/sdk/nuget -Force | Out-Null
+
+      - name: Build SDK packages
+        shell: pwsh
+        run: pwsh -NoLogo -NoProfile -NonInteractive -File scripts/build-sdk.ps1
+
       - name: Restore the shared app bundle
         uses: actions/download-artifact@v4
         with:
