@@ -324,7 +324,16 @@ public sealed partial class RuntimeAcceptanceTests
         Assert.Contains("[ISSigKeys]", installer);
         Assert.Contains("web-installer-signing-key.iss", installer);
         Assert.DoesNotContain("WebCoreSha256", installer);
-        Assert.DoesNotContain("GetSHA256OfFile", installer);
+        // Hand-rolled hashing is banned for download verification - the web installer proves
+        // component integrity with the ISSigVerify calls asserted above - but the same function
+        // legitimately records the installed manifest's digest in installed-release.json, which
+        // the OTA updater reads back and requires to be 64 hex characters
+        // (scripts/ota-update-macos.ps1). MyPowerTools.iss does exactly the same thing and this
+        // test does not object to it there, so the ban belongs on the download path, not on the
+        // function. WebCoreSha256 above is the old download-verification variable and stays banned.
+        Assert.All(
+            installer.Split('\n').Where(line => line.Contains("GetSHA256OfFile", StringComparison.Ordinal)),
+            line => Assert.Contains("manifestSha256", line, StringComparison.Ordinal));
         Assert.Contains("external extractarchive", installer);
         Assert.Contains("Source: \"..\\scripts\\configure-user-services.ps1\"", installer);
         Assert.Contains("Source: \"..\\scripts\\web-installer-worker.ps1\"; Flags: dontcopy", installer);

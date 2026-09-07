@@ -1661,7 +1661,14 @@ public sealed partial class RuntimeAcceptanceTests
         Assert.Contains("font-family: \"Microsoft YaHei UI\", \"Segoe UI Variable\"", markdown);
         Assert.Contains("x:Key=\"MptDensityControlHeight\"", density);
         Assert.Contains("Border.MptCard", controls);
-        Assert.All(new[] { theme, spacing, radii, typography, density, controls }, text => Assert.DoesNotContain("#", text, StringComparison.Ordinal));
+        // Raw hex colours are what token files must not carry. Banning the '#' character
+        // outright also bans Avalonia's font-family URI syntax, where '#' names the family
+        // inside an embedded font asset - "avares://MyPowerTools.UI/Assets/Fonts#MyPowerTools
+        // Icons" is the only way to reference the packaged icon font. The pattern below is the
+        // one MPTUI001 already uses in UiSurfaceGate, so the two agree on what a raw colour is.
+        Assert.All(
+            new[] { theme, spacing, radii, typography, density, controls },
+            text => Assert.DoesNotMatch("#[0-9A-Fa-f]{3,8}", text));
     }
 
     [Fact]

@@ -244,11 +244,25 @@ public sealed class ServiceUnitCatalog
         if (expanded.StartsWith("~/", StringComparison.Ordinal) ||
             expanded.StartsWith("~\\", StringComparison.Ordinal))
         {
-            return Path.Combine(
+            return NormalizeSeparators(Path.Combine(
                 Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-                expanded[2..]);
+                expanded[2..]));
         }
 
-        return expanded;
+        return NormalizeSeparators(expanded);
     }
+
+    /// <summary>
+    /// Rewrites the POSIX separators a cross-platform manifest is written with into the host's.
+    /// </summary>
+    /// <remarks>
+    /// A manifest that reads "$TMPDIR/mypowertools/remote-notifications.core.sock" expands on
+    /// Windows to a Windows temporary root followed by POSIX separators, so the result is a mixed
+    /// "C:\Users\...\Temp/mypowertools/..." that compares unequal to every path this process
+    /// builds for the same file. Windows accepts '/' when opening it, which is why the damage
+    /// shows up in comparisons rather than as a missing file. On Unix '\' is a legal character in
+    /// a file name, so the rewrite has to stay Windows-only.
+    /// </remarks>
+    private static string NormalizeSeparators(string path)
+        => OperatingSystem.IsWindows() ? path.Replace('/', Path.DirectorySeparatorChar) : path;
 }
