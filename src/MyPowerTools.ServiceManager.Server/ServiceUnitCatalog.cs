@@ -212,7 +212,10 @@ public sealed class ServiceUnitCatalog
             return path;
         }
 
-        if (Path.IsPathRooted(path))
+        // Only fully qualified paths are left alone: Path.IsPathRooted also accepts
+        // drive-relative values such as "/opt/sample" on Windows, and those must fall
+        // through to the manifest-relative branch instead of being kept verbatim.
+        if (Path.IsPathFullyQualified(path))
         {
             return path;
         }
@@ -246,7 +249,7 @@ public sealed class ServiceUnitCatalog
             expanded = Path.Combine(userRoot, expanded[2..]);
         }
 
-        return Path.IsPathRooted(expanded)
+        return Path.IsPathFullyQualified(expanded)
             ? Path.GetFullPath(expanded)
             : expanded;
     }
