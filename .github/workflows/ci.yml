@@ -110,6 +110,15 @@ jobs:
         shell: pwsh
         run: dotnet build MyPowerTools.slnx --no-restore --maxcpucount
 
+      - name: Test
+        shell: pwsh
+        # The Android Tools acceptance tests load modules\android-tools-suite and run in
+        # the step below, once the staging step above has populated it.
+        run: >-
+          dotnet test MyPowerTools.slnx --no-build
+          --filter "FullyQualifiedName!~AndroidTools_&FullyQualifiedName!~Runtime_collects_production_module_events_and_notifications"
+
+
       - name: Architecture Gate (Quick)
         shell: pwsh
         run: pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\verify-architecture.ps1 -Tier Quick
@@ -161,15 +170,6 @@ jobs:
         run: >-
           dotnet test MyPowerTools.slnx --no-build
           --filter "FullyQualifiedName~AndroidTools_|FullyQualifiedName~Runtime_collects_production_module_events_and_notifications"
-
-      - name: Test
-        shell: pwsh
-        # The Android Tools acceptance tests load modules\android-tools-suite and run in
-        # the step below, once the staging step above has populated it.
-        run: >-
-          dotnet test MyPowerTools.slnx --no-build
-          --filter "FullyQualifiedName!~AndroidTools_&FullyQualifiedName!~Runtime_collects_production_module_events_and_notifications"
-
 
       - name: Build tool packages from submodules
         shell: pwsh
