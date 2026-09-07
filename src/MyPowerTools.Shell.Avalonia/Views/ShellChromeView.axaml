@@ -34,7 +34,7 @@
                   VerticalAlignment="Center">
               <TextBlock Text="{Binding IconGlyph}"
                          FontFamily="{DynamicResource MptFontFamilyIcons}"
-                         FontSize="20"
+                         FontSize="{DynamicResource MptIconSizeM}"
                          IsVisible="{Binding !IsMonogram}"
                          HorizontalAlignment="Center"
                          VerticalAlignment="Center" />
@@ -45,7 +45,7 @@
                       IsVisible="{Binding IsMonogram}">
                 <TextBlock Text="{Binding IconGlyph}"
                            FontFamily="{DynamicResource MptFontFamilyBody}"
-                           FontSize="14"
+                           FontSize="{DynamicResource MptFontSizeBadge}"
                            FontWeight="SemiBold"
                            Foreground="{DynamicResource MptBrushAccent}"
                            TextTrimming="CharacterEllipsis"
@@ -56,7 +56,7 @@
             <TextBlock Grid.Column="2"
                        Text="{Binding DisplayLabel}"
                        IsVisible="{Binding IsLabelVisible}"
-                       Margin="0,6,0,6"
+                       Margin="{DynamicResource MptNavigationLabelMargin}"
                        FontSize="{DynamicResource MptFontSizeBody}"
                        TextWrapping="Wrap"
                        VerticalAlignment="Center" />
@@ -221,7 +221,7 @@
                       CornerRadius="{DynamicResource MptRadiusControl}"
                       Background="{DynamicResource MptBrushAccent}">
                 <TextBlock Text="{Binding RuntimeModeLabel}"
-                           FontSize="14"
+                           FontSize="{DynamicResource MptFontSizeBadge}"
                            FontWeight="SemiBold"
                            Foreground="{DynamicResource MptBrushAccentText}"
                            VerticalAlignment="Center" />
@@ -329,11 +329,11 @@
                                     Background="{DynamicResource MptBrushTransparent}"
                                     BorderBrush="{DynamicResource MptBrushTransparent}"
                                     Width="28" Height="28" MinWidth="28" MinHeight="28"
-                                    Padding="0"
+                                    Padding="{DynamicResource MptNoThickness}"
                                     Margin="{DynamicResource MptGapLeftXs}"
                                     VerticalAlignment="Center"
                                     ToolTip.Tip="Dismiss">
-                  <TextBlock Text="×" FontFamily="{DynamicResource MptFontFamilyBody}" FontSize="20" />
+                  <TextBlock Text="×" FontFamily="{DynamicResource MptFontFamilyBody}" FontSize="{DynamicResource MptIconSizeM}" />
                 </controls:MptButton>
               </Grid>
             </Border>
@@ -420,7 +420,7 @@
                                   ToolTip.Tip="Close search results"
                                   AutomationProperties.Name="Close search results"
                                   VerticalAlignment="Center">
-                  <TextBlock Text="×" FontFamily="{DynamicResource MptFontFamilyBody}" FontSize="20" />
+                  <TextBlock Text="×" FontFamily="{DynamicResource MptFontFamilyBody}" FontSize="{DynamicResource MptIconSizeM}" />
                 </controls:MptButton>
             </Grid>
             <ContentControl x:Name="CommandPanel"

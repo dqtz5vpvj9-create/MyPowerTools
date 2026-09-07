@@ -529,7 +529,14 @@ public sealed partial class RuntimeAcceptanceTests
         {
             Assert.NotNull(module.Manifest.RuntimePolicy);
             Assert.Null(module.Manifest.Development);
-            if (module.Manifest.PackageId == "android-tools-suite")
+            // The Android Tools modules that still drive devices in-process must stay out of the
+            // host, so they remain sidecar-only. Notifications is deliberately not among them any
+            // more: its polling, deduplication and history moved into the supervised
+            // RemoteNotifications Service Unit, and what loads in-process is the thin
+            // RemoteNotificationsServiceObserverModule that only observes it. Requiring that
+            // observer to be a sidecar would be asserting the architecture it replaced.
+            if (module.Manifest.PackageId == "android-tools-suite" &&
+                module.Manifest.Id != "android-tools.notifications")
             {
                 Assert.False(module.Manifest.RuntimePolicy!.AllowInProc);
                 Assert.Equal("sidecar", module.Manifest.RuntimePolicy.Preferred);

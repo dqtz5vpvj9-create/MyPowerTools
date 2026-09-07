@@ -609,6 +609,25 @@ public sealed partial class RuntimeAcceptanceTests
             notificationEntrypoint["type"]!.GetValue<string>());
     }
 
+    private static void RetireAndroidToolsModuleHosts()
+    {
+        foreach (var process in Process.GetProcessesByName("MPTAndroidTools.Runtime"))
+        {
+            using (process)
+            {
+                try
+                {
+                    process.Kill(entireProcessTree: true);
+                    process.WaitForExit(5000);
+                }
+                catch
+                {
+                    // Already gone, or owned by another session; either way it is not ours to wait on.
+                }
+            }
+        }
+    }
+
     [Fact]
     public async Task AndroidTools_module_host_preserves_dynamic_command_metadata_over_grpc()
     {
@@ -627,6 +646,15 @@ commands:
         Environment.SetEnvironmentVariable("MPT_ANDROIDTOOLS_COMMANDS", commandsPath);
         try
         {
+            // The module host is pooled behind a fixed pipe name, so a host another test in this
+            // assembly already started is reachable and gets reused - and it was started without
+            // MPT_ANDROIDTOOLS_COMMANDS, so it has no dynamic commands and never acquires any. The
+            // symptom is this test timing out with nothing in its catalog while every other module
+            // host test passes, and xUnit's unspecified order inside a class is what makes it
+            // intermittent rather than constant. Retiring any survivor guarantees the host this
+            // test talks to is one started under the variable set above.
+            RetireAndroidToolsModuleHosts();
+
             await using var host = new GrpcIpcModuleRuntime();
             await using var runtime = new MptHostRuntime(
                 new PackageReader(),
@@ -638,10 +666,14 @@ commands:
             var dynamicCount = await runtime.RefreshDynamicCommandsAsync(CancellationToken.None);
 
             // the Android Tools module host starts on demand and imports commands.yaml during its
-            // startup, so poll briefly until the dynamic command is exposed;
-            // the first gRPC handshake can race the import on cold runners.
+            // startup, so poll until the dynamic command is exposed; the first gRPC handshake can
+            // race the import on cold runners. Twenty seconds covered a warm machine and not a
+            // loaded CI runner, where the process start, JIT and handshake alone can spend most of
+            // it - and losing here also leaves the host holding its named pipe, which is why the
+            // next test in the same run then failed with "restart limit reached".
             MyPowerTools.Abstractions.MptCommandDescriptor? candidate = null;
-            var deadline = DateTime.UtcNow.AddSeconds(20);
+            var budget = TimeSpan.FromSeconds(90);
+            var deadline = DateTime.UtcNow + budget;
             while (candidate is null && DateTime.UtcNow < deadline)
             {
                 candidate = runtime
@@ -655,7 +687,9 @@ commands:
             }
 
             var command = candidate ?? throw new Xunit.Sdk.XunitException(
-                "the Android Tools module host did not expose the dynamic shell_echo command within 20 seconds.");
+                $"the Android Tools module host did not expose the dynamic shell_echo command within " +
+                $"{budget.TotalSeconds:0} seconds. Commands seen: " +
+                string.Join(", ", runtime.ListCommands("Shell Echo").Select(item => item.Id)));
 
             Assert.True(dynamicCount > 0);
             Assert.Equal("Android Tools", command.Category);

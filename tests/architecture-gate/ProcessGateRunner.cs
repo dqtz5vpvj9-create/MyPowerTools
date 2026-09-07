@@ -53,10 +53,32 @@ internal static class ProcessGateRunner
             firstManager = context.StartServiceManager("first");
             using var firstAdmin = await context.WaitForClientAsync(firstManager);
             managerStart.Stop();
+            // The claim is that the control plane serves RPCs while startup reconciliation is still
+            // blocked on the deliberately unready unit above. A wall-clock budget cannot express
+            // that: on a cold runner `dotnet` needs longer to start the manager at all than the 5s
+            // readiness timeout it was being compared against, so the old 4s budget measured runner
+            // speed rather than the ordering it claimed to check. The manager prints "reconciled"
+            // only after ReconcileAsync returns, so an admin RPC answered while that line is still
+            // absent is direct evidence of the ordering, on any machine.
+            var reconcileFinishedFirst = ManagerReconciled(firstManager);
             Add(records, "A3.0-control-plane-precedes-worker-readiness",
-                managerStart.Elapsed < TimeSpan.FromSeconds(4),
-                $"controlPlaneMs={managerStart.Elapsed.TotalMilliseconds:0}; blockedWorkerTimeoutMs=5000");
+                !reconcileFinishedFirst,
+                $"controlPlaneMs={managerStart.Elapsed.TotalMilliseconds:0}; blockedWorkerTimeoutMs=5000; reconcileFinishedFirst={reconcileFinishedFirst}");
             Add(records, "A3.1-real-manager-catalog", (await firstAdmin.ListUnitsAsync()).Units.Any(unit => unit.UnitId == unitId), unitId);
+
+            // A3.1b below asserts the orphans were adopted rather than duplicated. Adoption happens
+            // only in ReconcileAsync, through UnitSupervisor.TryReadoptAsync; an explicit Start on a
+            // supervisor that has not been reconciled yet spawns a process instead. That makes the
+            // assertion above and the one below direct opposites -- A3.0 requires the control plane
+            // to be usable before reconciliation ends, so the gate can and does get there first --
+            // and only an explicit wait can hold both. Without it the result is decided by how long
+            // the manager took to boot: slow CI runners reconcile long before the gate connects and
+            // pass, fast machines win the race and fail.
+            if (!await WaitForReconcileAsync(firstManager, TimeSpan.FromSeconds(30)))
+            {
+                throw new InvalidOperationException(
+                    $"ServiceManager never finished startup reconciliation: {firstManager.OutputText}");
+            }
 
             var scoped = new ScopedServiceUnitClient(firstAdmin, toolId);
             var started = await scoped.StartAsync(unitId);
@@ -723,6 +745,27 @@ internal static class ProcessGateRunner
             }
             throw new DirectoryNotFoundException("MyPowerTools repository root was not found.");
         }
+    }
+
+    /// <summary>
+    /// True once the manager has reported the end of startup reconciliation. Program.cs prints this
+    /// line immediately after ReconcileAsync returns, which makes it the one signal for "adoption
+    /// and autostart have been decided" that is visible from outside the process.
+    /// </summary>
+    private static bool ManagerReconciled(RunningServiceManager manager)
+        => manager.OutputText.Contains("MyPowerTools.ServiceManager reconciled", StringComparison.Ordinal);
+
+    private static async Task<bool> WaitForReconcileAsync(RunningServiceManager manager, TimeSpan timeout)
+    {
+        var deadline = DateTime.UtcNow + timeout;
+        while (DateTime.UtcNow < deadline)
+        {
+            if (ManagerReconciled(manager)) return true;
+            if (manager.HasExited) return false;
+            await Task.Delay(50);
+        }
+
+        return false;
     }
 
     internal sealed class RunningServiceManager
