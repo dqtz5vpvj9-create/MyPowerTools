@@ -115,6 +115,26 @@ public sealed class RemoteNotificationsProductTests
     }
 
     [Fact]
+    public void Service_worker_resumes_from_the_persisted_cursor_after_startup_backfill()
+    {
+        var worker = File.ReadAllText(Path.Combine(
+            Root,
+            "tools",
+            "remote-notifications",
+            "current-integration",
+            "src",
+            "RemoteNotifications.Service",
+            "Program.cs"));
+
+        Assert.Contains("state.PersistedWaterline = ResolveWaterline(snapshot.MessagesOldestFirst);", worker, StringComparison.Ordinal);
+        Assert.Contains("var persistedWaterline = state.PersistedWaterline;", worker, StringComparison.Ordinal);
+        Assert.Contains("var performBackfill = startupBackfill && string.IsNullOrWhiteSpace(persistedWaterline);", worker, StringComparison.Ordinal);
+        Assert.Contains("var waterline = performBackfill ? \"\" : persistedWaterline;", worker, StringComparison.Ordinal);
+        Assert.Contains("var shown = performBackfill", worker, StringComparison.Ordinal);
+        Assert.Contains("performBackfill ? RemoteNotificationsLegacyStore.MaximumMessages : null", worker, StringComparison.Ordinal);
+    }
+
+    [Fact]
     public void Session_chain_resolves_the_message_position_oldest_first()
     {
         const string sessionId = "session-42";
