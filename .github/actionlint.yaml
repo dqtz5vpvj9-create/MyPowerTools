@@ -1,0 +1,10 @@
+# actionlint configuration for MyPowerTools.
+#
+# actionlint ships a hard-coded list of GitHub-hosted runner labels and its
+# release cadence lags GitHub's. Labels that are real but newer than the pinned
+# actionlint build have to be declared here, otherwise every run reports a
+# false "label is unknown" error.
+self-hosted-runner:
+  labels:
+    # GitHub-hosted Intel macOS 15 image, used by macos-install-safety.yml.
+    - macos-15-intel
