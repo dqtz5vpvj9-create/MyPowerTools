@@ -47,6 +47,7 @@
     <Thickness x:Key="MptGapRightL">0,0,16,0</Thickness>
     <Thickness x:Key="MptGapBottom2Xl">0,0,0,24</Thickness>
     <Thickness x:Key="MptVerticalXsMargin">0,4</Thickness>
+    <Thickness x:Key="MptVerticalCompactMargin">0,6</Thickness>
     <Thickness x:Key="MptVerticalSMargin">0,8</Thickness>
     <Thickness x:Key="MptHorizontalSMargin">8,0</Thickness>
     <Thickness x:Key="MptHorizontalLMargin">16,0</Thickness>

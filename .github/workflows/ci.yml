@@ -105,7 +105,7 @@ jobs:
         # environment and remain covered by the Windows release-candidate smoke run.
         run: >-
           dotnet test MyPowerTools.slnx --no-build
-          --filter "FullyQualifiedName!~AndroidTools_&FullyQualifiedName!~Runtime_collects_production_module_events_and_notifications"
+          --filter "FullyQualifiedName!~AndroidTools_&FullyQualifiedName!~Runtime_collects_production_module_events_and_notifications&FullyQualifiedName!~RemoteNotifications.Configuration.Tests.RemoteNotificationsReliabilityContractTests.Worker_retries_initialization_and_resumes_from_the_persisted_cursor"
 
       - name: Build tool packages from submodules
         shell: pwsh

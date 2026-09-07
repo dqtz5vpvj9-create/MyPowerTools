@@ -238,17 +238,16 @@ public sealed class ServiceUnitCatalog
             .Replace("${HOME}", userRoot, StringComparison.Ordinal);
         if (expanded == "~")
         {
-            return Environment.GetFolderPath(Environment.SpecialFolder.UserProfile);
+            expanded = userRoot;
         }
-
-        if (expanded.StartsWith("~/", StringComparison.Ordinal) ||
-            expanded.StartsWith("~\\", StringComparison.Ordinal))
+        else if (expanded.StartsWith("~/", StringComparison.Ordinal) ||
+                 expanded.StartsWith("~\\", StringComparison.Ordinal))
         {
-            return Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-                expanded[2..]);
+            expanded = Path.Combine(userRoot, expanded[2..]);
         }
 
-        return expanded;
+        return Path.IsPathRooted(expanded)
+            ? Path.GetFullPath(expanded)
+            : expanded;
     }
 }

@@ -239,7 +239,7 @@ static IReadOnlyList<string>? ResolveInitialEnabledModules(string[] args, Platfo
     // On a fresh macOS install, leave optional device/automation tools disabled.
     // ModuleStateStore preserves existing user choices once a state file exists.
     if (platform.OperatingSystem == "macos")
-        return ["android-tools.notifications", "android-tools.remote-commands", "screenease", "paste-image"];
+        return ["android-tools.notifications"];
 
     return null;
 }

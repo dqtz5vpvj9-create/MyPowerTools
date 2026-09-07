@@ -47,7 +47,7 @@
                               AutomationProperties.Name="Refresh tools"
                               Margin="{DynamicResource MptGapRightS}"
                               VerticalAlignment="Center">
-        <TextBlock Text="&#xE72C;" FontFamily="{DynamicResource MptFontFamilyIcons}" FontSize="20" />
+        <TextBlock Text="&#xE72C;" FontFamily="{DynamicResource MptFontFamilyIcons}" FontSize="{DynamicResource MptFontSizeIcon}" />
       </controls:MptIconButton>
     </Grid>
 

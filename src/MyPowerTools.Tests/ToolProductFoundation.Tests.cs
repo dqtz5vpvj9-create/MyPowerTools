@@ -26,7 +26,7 @@ public sealed class ToolProductFoundationTests
             "ToolCatalogView.axaml"));
 
         Assert.Contains("<controls:MptIconButton", view, StringComparison.Ordinal);
-        Assert.Contains("Content=\"&#xE72C;\"", view, StringComparison.Ordinal);
+        Assert.Contains("<TextBlock Text=\"&#xE72C;\"", view, StringComparison.Ordinal);
         Assert.Contains("FontFamily=\"{DynamicResource MptFontFamilyIcons}\"", view, StringComparison.Ordinal);
         Assert.Contains("Command=\"{Binding RefreshCommand}\"", view, StringComparison.Ordinal);
         Assert.Contains("ToolTip.Tip=\"Refresh tools\"", view, StringComparison.Ordinal);

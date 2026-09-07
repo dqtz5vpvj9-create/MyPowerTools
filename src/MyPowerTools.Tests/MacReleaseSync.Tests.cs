@@ -28,7 +28,10 @@ public sealed class MacReleaseSyncTests
         }
 
         Assert.Contains("modules/android-tools-suite", publishScript, StringComparison.Ordinal);
-        Assert.Contains("? [\"android-tools.notifications\"]", runner, StringComparison.Ordinal);
+        Assert.Contains("return [\"android-tools.notifications\"];", runner, StringComparison.Ordinal);
+        Assert.DoesNotContain("android-tools.remote-commands", runner, StringComparison.Ordinal);
+        Assert.DoesNotContain("screenease", runner, StringComparison.Ordinal);
+        Assert.DoesNotContain("paste-image", runner, StringComparison.Ordinal);
     }
 
     [Fact]

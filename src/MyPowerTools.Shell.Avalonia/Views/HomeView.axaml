@@ -112,13 +112,13 @@
                   Background="{DynamicResource MptBrushSurfaceMuted}">
             <TextBlock Classes="PowerDashboardIconText"
                        Classes.symbol="{Binding IsSymbolIcon}"
-                       FontSize="24"
+                       FontSize="{DynamicResource MptFontSizeHero}"
                        Text="{Binding IconGlyph}" />
           </Border>
           <TextBlock Text="{Binding Label}"
                      TextAlignment="Center"
                      TextWrapping="Wrap"
-                     LineHeight="18"
+                     LineHeight="{DynamicResource MptLineHeightCaption}"
                      MaxWidth="132" />
           <TextBlock Classes="MptMeta"
                      Text="{Binding Detail}"
@@ -165,7 +165,7 @@
           <Border Classes="PowerDashboardIcon" VerticalAlignment="Top">
             <TextBlock Classes="PowerDashboardIconText" Text="{Binding IconGlyph}" />
           </Border>
-          <StackPanel Grid.Column="1" Spacing="4" VerticalAlignment="Center">
+          <StackPanel Grid.Column="1" Spacing="{DynamicResource MptSpacingXs}" VerticalAlignment="Center">
             <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextWrapping="Wrap" />
             <TextBlock Classes="MptMeta" Text="{Binding PrimaryActionLabel}" TextWrapping="Wrap" />
             <Border Classes="MptStatusBadge"

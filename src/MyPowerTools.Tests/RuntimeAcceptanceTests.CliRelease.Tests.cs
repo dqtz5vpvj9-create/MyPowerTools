@@ -324,7 +324,7 @@ public sealed partial class RuntimeAcceptanceTests
         Assert.Contains("[ISSigKeys]", installer);
         Assert.Contains("web-installer-signing-key.iss", installer);
         Assert.DoesNotContain("WebCoreSha256", installer);
-        Assert.DoesNotContain("GetSHA256OfFile", installer);
+        Assert.Contains("\"manifestSha256\":", installer);
         Assert.Contains("external extractarchive", installer);
         Assert.Contains("Source: \"..\\scripts\\configure-user-services.ps1\"", installer);
         Assert.Contains("Source: \"..\\scripts\\web-installer-worker.ps1\"; Flags: dontcopy", installer);

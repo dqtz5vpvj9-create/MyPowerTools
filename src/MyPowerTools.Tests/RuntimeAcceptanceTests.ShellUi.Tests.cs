@@ -1661,7 +1661,11 @@ public sealed partial class RuntimeAcceptanceTests
         Assert.Contains("font-family: \"Microsoft YaHei UI\", \"Segoe UI Variable\"", markdown);
         Assert.Contains("x:Key=\"MptDensityControlHeight\"", density);
         Assert.Contains("Border.MptCard", controls);
-        Assert.All(new[] { theme, spacing, radii, typography, density, controls }, text => Assert.DoesNotContain("#", text, StringComparison.Ordinal));
+        Assert.All(
+            new[] { theme, spacing, radii, typography, density, controls },
+            text => Assert.False(
+                System.Text.RegularExpressions.Regex.IsMatch(text, "#[0-9A-Fa-f]{3,8}"),
+                "Theme resources should not contain inline hex colors."));
     }
 
     [Fact]
