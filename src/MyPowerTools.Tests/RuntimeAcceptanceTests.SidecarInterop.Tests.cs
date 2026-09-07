@@ -609,6 +609,25 @@ public sealed partial class RuntimeAcceptanceTests
             notificationEntrypoint["type"]!.GetValue<string>());
     }
 
+    private static void RetireAndroidToolsModuleHosts()
+    {
+        foreach (var process in Process.GetProcessesByName("MPTAndroidTools.Runtime"))
+        {
+            using (process)
+            {
+                try
+                {
+                    process.Kill(entireProcessTree: true);
+                    process.WaitForExit(5000);
+                }
+                catch
+                {
+                    // Already gone, or owned by another session; either way it is not ours to wait on.
+                }
+            }
+        }
+    }
+
     [Fact]
     public async Task AndroidTools_module_host_preserves_dynamic_command_metadata_over_grpc()
     {
@@ -627,6 +646,15 @@ commands:
         Environment.SetEnvironmentVariable("MPT_ANDROIDTOOLS_COMMANDS", commandsPath);
         try
         {
+            // The module host is pooled behind a fixed pipe name, so a host another test in this
+            // assembly already started is reachable and gets reused - and it was started without
+            // MPT_ANDROIDTOOLS_COMMANDS, so it has no dynamic commands and never acquires any. The
+            // symptom is this test timing out with nothing in its catalog while every other module
+            // host test passes, and xUnit's unspecified order inside a class is what makes it
+            // intermittent rather than constant. Retiring any survivor guarantees the host this
+            // test talks to is one started under the variable set above.
+            RetireAndroidToolsModuleHosts();
+
             await using var host = new GrpcIpcModuleRuntime();
             await using var runtime = new MptHostRuntime(
                 new PackageReader(),
