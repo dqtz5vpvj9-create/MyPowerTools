@@ -166,17 +166,14 @@ function Sign-AppBundle {
             Sort-Object Name
     )
     foreach ($helperBundle in $helperBundles) {
-        Invoke-CodeSignPasses `
-            -Files (Get-SignableFiles -Root $helperBundle.FullName) `
-            -Identity $Identity `
-            -EntitlementsPath $entitlements
-
-        # Get-SignableFiles refuses to walk through symbolic links, and a helper reaches its
-        # executable directory through the compatibility links under Contents/MacOS/<Host>/, so
-        # the native library copied next to that apphost is never enumerated. Sealing the bundle
-        # then fails on it: "code object is not signed at In subcomponent: libMptMacNative.dylib".
-        # Signing it here by resolved path leaves the traversal rule alone - it still never signs
-        # the same file twice through a link, because this reaches the file directly.
+        # Signed before the passes below, not after. codesign validates sibling nested code
+        # when it signs a file inside a bundle, so signing the apphost while the library next
+        # to it is still unsigned fails outright:
+        #   MyPowerTools.Runner: code object is not signed at
+        #   In subcomponent: .../MyPowerTools Runner.app/Contents/MacOS/libMptMacNative.dylib
+        # The two sit at equal path depth, where the depth-descending sort in
+        # Invoke-CodeSignPasses leaves their relative order undefined, so ordering it here is
+        # what makes the result deterministic rather than luck.
         $nativeLibrary = Join-Path $helperBundle.FullName 'Contents/MacOS/libMptMacNative.dylib'
         if (Test-Path -LiteralPath $nativeLibrary -PathType Leaf) {
             $resolvedNative = (Resolve-Path -LiteralPath $nativeLibrary).ProviderPath
@@ -187,6 +184,10 @@ function Sign-AppBundle {
             ) -Activity "codesign $resolvedNative"
         }
 
+        Invoke-CodeSignPasses `
+            -Files (Get-SignableFiles -Root $helperBundle.FullName) `
+            -Identity $Identity `
+            -EntitlementsPath $entitlements
         Invoke-Native -FilePath '/usr/bin/codesign' -ArgumentList @(
             '--force', '--sign', $Identity,
             '--options', 'runtime',
