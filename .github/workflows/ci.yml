@@ -151,6 +151,17 @@ jobs:
           }
 
 
+      - name: Android Tools test
+        # Runs straight after staging, before the full suite. Those tests load
+        # modules/ as well, and a module host left holding
+        # \\.\pipe\mypowertools.android-tools-suite.module-host makes this one wait out
+        # its 20 second budget for a command that can never appear.
+        # handoff-windows-gates ran it in this position for the same reason.
+        shell: pwsh
+        run: >-
+          dotnet test MyPowerTools.slnx --no-build
+          --filter "FullyQualifiedName~AndroidTools_|FullyQualifiedName~Runtime_collects_production_module_events_and_notifications"
+
       - name: Test
         shell: pwsh
         # The Android Tools acceptance tests load modules\android-tools-suite and run in
@@ -159,12 +170,6 @@ jobs:
           dotnet test MyPowerTools.slnx --no-build
           --filter "FullyQualifiedName!~AndroidTools_&FullyQualifiedName!~Runtime_collects_production_module_events_and_notifications"
 
-
-      - name: Android Tools test
-        shell: pwsh
-        run: >-
-          dotnet test MyPowerTools.slnx --no-build
-          --filter "FullyQualifiedName~AndroidTools_|FullyQualifiedName~Runtime_collects_production_module_events_and_notifications"
 
       - name: Build tool packages from submodules
         shell: pwsh
