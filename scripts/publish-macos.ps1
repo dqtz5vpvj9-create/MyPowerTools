@@ -170,6 +170,23 @@ function Sign-AppBundle {
             -Files (Get-SignableFiles -Root $helperBundle.FullName) `
             -Identity $Identity `
             -EntitlementsPath $entitlements
+
+        # Get-SignableFiles refuses to walk through symbolic links, and a helper reaches its
+        # executable directory through the compatibility links under Contents/MacOS/<Host>/, so
+        # the native library copied next to that apphost is never enumerated. Sealing the bundle
+        # then fails on it: "code object is not signed at In subcomponent: libMptMacNative.dylib".
+        # Signing it here by resolved path leaves the traversal rule alone - it still never signs
+        # the same file twice through a link, because this reaches the file directly.
+        $nativeLibrary = Join-Path $helperBundle.FullName 'Contents/MacOS/libMptMacNative.dylib'
+        if (Test-Path -LiteralPath $nativeLibrary -PathType Leaf) {
+            $resolvedNative = (Resolve-Path -LiteralPath $nativeLibrary).ProviderPath
+            & /usr/bin/codesign '--remove-signature' $resolvedNative 2>$null
+            $global:LASTEXITCODE = 0
+            Invoke-Native -FilePath '/usr/bin/codesign' -ArgumentList @(
+                '--force', '--sign', $Identity, '--timestamp=none', $resolvedNative
+            ) -Activity "codesign $resolvedNative"
+        }
+
         Invoke-Native -FilePath '/usr/bin/codesign' -ArgumentList @(
             '--force', '--sign', $Identity,
             '--options', 'runtime',
