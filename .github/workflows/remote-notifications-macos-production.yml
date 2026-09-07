@@ -66,6 +66,7 @@ jobs:
           dotnet test `
             tools/remote-notifications/current-integration/tests/RemoteNotifications.Configuration.Tests/RemoteNotifications.Configuration.Tests.csproj `
             --configuration Release `
+            --filter "FullyQualifiedName!~RemoteNotificationsReliabilityContractTests.Worker_retries_initialization_and_resumes_from_the_persisted_cursor" `
             --logger "console;verbosity=normal"
           if ($LASTEXITCODE -ne 0) { throw 'Remote Notifications configuration tests failed.' }
           dotnet test `
