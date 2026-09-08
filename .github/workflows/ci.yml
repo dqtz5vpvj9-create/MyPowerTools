@@ -278,6 +278,43 @@ jobs:
       NUGET_XMLDOC_MODE: skip
 
     steps:
+      - name: Package an installable build
+        # Every green main build should leave something you can actually install. The release
+        # job below only runs for a v* tag or a manual dispatch, so until now a push to main
+        # produced module packages and UI snapshots and nothing you could run. Channel "local"
+        # and -AllowUnsigned keep this out of the OTA feed: it is a build to try, not a release.
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        shell: pwsh
+        run: |
+          # publish-windows.ps1 stages the bundled Python runtime, which lives in the runtime
+          # cache rather than the repository; the release job prepares it in its own step.
+          pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\prepare-runtime-cache.ps1
+          if ($LASTEXITCODE -ne 0) { throw "prepare-runtime-cache.ps1 failed with exit code $LASTEXITCODE." }
+
+          $versionJson = pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\get-product-version.ps1 -RepoRoot $env:GITHUB_WORKSPACE | ConvertFrom-Json
+          $version = [string]$versionJson.version
+          if ($version -notmatch '^[0-9]+\.[0-9]+\.[0-9]+$') { throw "Resolved version is invalid: $version" }
+          pwsh.exe -NoLogo -NoProfile -NonInteractive `
+            -File scripts\publish-windows.ps1 `
+            -Distribution Full `
+            -Version $version `
+            -Channel local `
+            -AllowUnsigned
+          if ($LASTEXITCODE -ne 0) { throw "publish-windows.ps1 failed with exit code $LASTEXITCODE." }
+
+      - name: Upload the installable build
+        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+        uses: actions/upload-artifact@v4
+        with:
+          name: MyPowerTools-install-win-x64
+          if-no-files-found: error
+          retention-days: 14
+          # The installer only. The portable layout it wraps is another 200MB and this
+          # runs on every push to main, so the zip stays out unless a release needs it.
+          path: |
+            artifacts/release/MyPowerTools-Setup-*.exe
+            artifacts/release/MyPowerTools-Setup-*.exe.sha256
+
       - name: Checkout
         uses: actions/checkout@v4
         with:
