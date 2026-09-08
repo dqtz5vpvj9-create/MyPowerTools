@@ -609,18 +609,13 @@ public sealed partial class RuntimeAcceptanceTests
             notificationEntrypoint["type"]!.GetValue<string>());
     }
 
-    /// <summary>
-    /// The dynamic command catalog the Android Tools module host imports at startup, exported to
-    /// the whole assembly so the host carries it no matter which test starts it first.
-    /// </summary>
-    private static readonly string AndroidToolsCommandsFile = CreateAndroidToolsCommandsFile();
-
-    private static string CreateAndroidToolsCommandsFile()
+    [Fact]
+    public async Task AndroidTools_module_host_preserves_dynamic_command_metadata_over_grpc()
     {
-        var root = Path.Combine(Path.GetTempPath(), "mpt-android-grpc-metadata", Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(root);
-        var path = Path.Combine(root, "commands.yaml");
-        File.WriteAllText(path, """
+        var commandsRoot = Path.Combine(Path.GetTempPath(), "mpt-android-grpc-metadata", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(commandsRoot);
+        var commandsPath = Path.Combine(commandsRoot, "commands.yaml");
+        await File.WriteAllTextAsync(commandsPath, """
 commands:
   - id: shell_echo
     label: Shell Echo
@@ -628,21 +623,9 @@ commands:
     description: Shell command with metadata.
     type: shell
 """);
-        Environment.SetEnvironmentVariable("MPT_ANDROIDTOOLS_COMMANDS", path);
-        return path;
-    }
-
-    [Fact]
-    public async Task AndroidTools_module_host_preserves_dynamic_command_metadata_over_grpc()
-    {
-        // AndroidToolsCommandsFile exports MPT_ANDROIDTOOLS_COMMANDS once for the whole assembly
-        // rather than here. The module host is pooled behind a fixed pipe name and outlives the
-        // runtime that started it, so whichever test starts it first decides what environment it
-        // carries: setting the variable inside this test only worked when this test happened to
-        // run first, and xUnit does not specify order within a class. Killing the survivor instead
-        // only moved the failure - the pool restarted into its own limit and the neighbouring test
-        // went red. Exporting it up front means every host has it, whoever starts it.
-        _ = AndroidToolsCommandsFile;
+        var previous = Environment.GetEnvironmentVariable("MPT_ANDROIDTOOLS_COMMANDS");
+        Environment.SetEnvironmentVariable("MPT_ANDROIDTOOLS_COMMANDS", commandsPath);
+        try
         {
             await using var host = new GrpcIpcModuleRuntime();
             await using var runtime = new MptHostRuntime(
@@ -655,14 +638,10 @@ commands:
             var dynamicCount = await runtime.RefreshDynamicCommandsAsync(CancellationToken.None);
 
             // the Android Tools module host starts on demand and imports commands.yaml during its
-            // startup, so poll until the dynamic command is exposed; the first gRPC handshake can
-            // race the import on cold runners. Twenty seconds covered a warm machine and not a
-            // loaded CI runner, where the process start, JIT and handshake alone can spend most of
-            // it - and losing here also leaves the host holding its named pipe, which is why the
-            // next test in the same run then failed with "restart limit reached".
+            // startup, so poll briefly until the dynamic command is exposed;
+            // the first gRPC handshake can race the import on cold runners.
             MyPowerTools.Abstractions.MptCommandDescriptor? candidate = null;
-            var budget = TimeSpan.FromSeconds(90);
-            var deadline = DateTime.UtcNow + budget;
+            var deadline = DateTime.UtcNow.AddSeconds(20);
             while (candidate is null && DateTime.UtcNow < deadline)
             {
                 candidate = runtime
@@ -676,9 +655,7 @@ commands:
             }
 
             var command = candidate ?? throw new Xunit.Sdk.XunitException(
-                $"the Android Tools module host did not expose the dynamic shell_echo command within " +
-                $"{budget.TotalSeconds:0} seconds. Commands seen: " +
-                string.Join(", ", runtime.ListCommands("Shell Echo").Select(item => item.Id)));
+                "the Android Tools module host did not expose the dynamic shell_echo command within 20 seconds.");
 
             Assert.True(dynamicCount > 0);
             Assert.Equal("Android Tools", command.Category);
@@ -694,6 +671,10 @@ commands:
             Assert.Contains(MptOperationConstraints.RequiresLongRunningLoop, command.Constraints!);
             Assert.True(command.SupportsProgress);
             Assert.True(command.SupportsCancellation);
+        }
+        finally
+        {
+            Environment.SetEnvironmentVariable("MPT_ANDROIDTOOLS_COMMANDS", previous);
         }
     }
 
