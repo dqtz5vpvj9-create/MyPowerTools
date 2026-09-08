@@ -358,7 +358,27 @@ commands:
             .Single(module => module.Module.Manifest.Id == "android-tools.notifications");
         Assert.Equal("inproc-dotnet", notificationModule.Entrypoint?.Kind);
 
-        var count = await runtime.CollectModuleEventsAsync(TimeSpan.FromMilliseconds(1500), CancellationToken.None);
+        // The Android Tools modules share one pooled sidecar, and when it dies the pool restarts
+        // it until restartLimit=4 within restartWindowSeconds=30 and then throws "restart limit
+        // reached" - a message that says the host kept dying without saying why. Its stderr is
+        // already collected in the process diagnostics, so surface it rather than leaving the
+        // next reader to guess.
+        int count;
+        try
+        {
+            count = await runtime.CollectModuleEventsAsync(TimeSpan.FromMilliseconds(1500), CancellationToken.None);
+        }
+        catch (InvalidOperationException ex)
+        {
+            var diagnostics = string.Join(
+                "\n",
+                grpc.GetProcessDiagnostics().Select(process =>
+                    $"  {process.PoolKey} state={process.State} pid={process.ProcessId} " +
+                    $"starts={process.StartCount}/{process.RestartLimit} " +
+                    $"stderr({process.StderrLineCount}): {process.LastStderr} " +
+                    $"stdout({process.StdoutLineCount}): {process.LastStdout}"));
+            throw new Xunit.Sdk.XunitException($"{ex.Message}\nSidecar diagnostics:\n{diagnostics}");
+        }
         var events = runtime.HostEventsSince(0);
         var productionModuleIds = events
             .Where(evt => evt.ModuleId is
