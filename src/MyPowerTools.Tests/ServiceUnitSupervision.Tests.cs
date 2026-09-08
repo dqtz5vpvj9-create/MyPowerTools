@@ -113,6 +113,18 @@ public sealed class ServiceUnitCatalogReloadTests : IDisposable
         Guid.NewGuid().ToString("N"));
 
     [Fact]
+    public void A_posix_style_exec_path_is_not_rebased_onto_the_current_drive()
+    {
+        // "/opt/sample/sample" is drive-relative on Windows (IsPathRooted but not
+        // IsPathFullyQualified); rebasing it onto the current drive corrupts the unit.
+        var path = WriteManifest("sample.service", "/opt/sample/sample");
+        var catalog = new ServiceUnitCatalog(_root);
+        Assert.Equal(1, catalog.Reload());
+
+        Assert.Equal("/opt/sample/sample", catalog.TryGet("sample.service")!.Exec);
+    }
+
+    [Fact]
     public void An_unparseable_manifest_keeps_the_definition_loaded_before_it()
     {
         var path = WriteManifest("sample.service", "/opt/sample/sample");
