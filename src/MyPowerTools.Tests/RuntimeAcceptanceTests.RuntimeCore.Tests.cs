@@ -341,6 +341,14 @@ commands:
     [Fact]
     public async Task Runtime_collects_production_module_events_and_notifications()
     {
+        // Both tests that exercise the Android Tools module host reach it through one pooled
+        // sidecar behind a fixed pipe name, and the host outlives the runtime that started it.
+        // Whichever runs second inherits the other's process: here that surfaced as "gRPC IPC
+        // runtime 'package:android-tools-suite:runtime:module-host' restart limit reached",
+        // because the pool kept finding a host it had not started and could not drive. Each test
+        // starts from no host at all, so neither depends on xUnit's unspecified order.
+        RetireAndroidToolsModuleHosts();
+
         await using var inproc = new InProcDotNetModuleHost();
         await using var grpc = new GrpcIpcModuleRuntime();
         await using var runtime = new MptHostRuntime(
