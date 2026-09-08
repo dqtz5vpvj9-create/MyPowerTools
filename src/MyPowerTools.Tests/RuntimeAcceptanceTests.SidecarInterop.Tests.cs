@@ -641,13 +641,9 @@ commands:
             // "did not expose the dynamic shell_echo command" failure. Settings travel with each
             // call, so a reused host honours them, and CommandsYamlCandidates already ranks
             // host-settings above the environment.
-            await runtime.UpdateSettingsWithApplyAsync(
-                new SettingsPatch(
-                    "android-tools.remote-commands",
-                    0,
-                    new JsonObject { ["commandsYamlPath"] = commandsPath }),
-                CancellationToken.None);
-
+            await SetRemoteCommandsCatalogAsync(runtime, commandsPath);
+            try
+            {
             var dynamicCount = await runtime.RefreshDynamicCommandsAsync(CancellationToken.None);
 
             // the Android Tools module host starts on demand and imports commands.yaml during its
@@ -684,7 +680,25 @@ commands:
             Assert.Contains(MptOperationConstraints.RequiresLongRunningLoop, command.Constraints!);
             Assert.True(command.SupportsProgress);
             Assert.True(command.SupportsCancellation);
+            }
+            finally
+            {
+                // The host is shared, so the setting outlives this runtime and the next test would
+                // see "1 command(s) imported from host-settings" instead of the module's own
+                // catalog. "auto" is what ConfiguredCatalogPath reads as "no override".
+                await SetRemoteCommandsCatalogAsync(runtime, "auto");
+            }
         }
+    }
+
+    private static async Task SetRemoteCommandsCatalogAsync(MptHostRuntime runtime, string path)
+    {
+        await runtime.UpdateSettingsWithApplyAsync(
+            new SettingsPatch(
+                "android-tools.remote-commands",
+                runtime.GetSettings("android-tools.remote-commands").Revision,
+                new JsonObject { ["commandsYamlPath"] = path }),
+            CancellationToken.None);
     }
 
     [Fact]
