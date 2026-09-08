@@ -609,32 +609,18 @@ public sealed partial class RuntimeAcceptanceTests
             notificationEntrypoint["type"]!.GetValue<string>());
     }
 
-    private static void RetireAndroidToolsModuleHosts()
-    {
-        foreach (var process in Process.GetProcessesByName("MPTAndroidTools.Runtime"))
-        {
-            using (process)
-            {
-                try
-                {
-                    process.Kill(entireProcessTree: true);
-                    process.WaitForExit(5000);
-                }
-                catch
-                {
-                    // Already gone, or owned by another session; either way it is not ours to wait on.
-                }
-            }
-        }
-    }
+    /// <summary>
+    /// The dynamic command catalog the Android Tools module host imports at startup, exported to
+    /// the whole assembly so the host carries it no matter which test starts it first.
+    /// </summary>
+    private static readonly string AndroidToolsCommandsFile = CreateAndroidToolsCommandsFile();
 
-    [Fact]
-    public async Task AndroidTools_module_host_preserves_dynamic_command_metadata_over_grpc()
+    private static string CreateAndroidToolsCommandsFile()
     {
-        var commandsRoot = Path.Combine(Path.GetTempPath(), "mpt-android-grpc-metadata", Guid.NewGuid().ToString("N"));
-        Directory.CreateDirectory(commandsRoot);
-        var commandsPath = Path.Combine(commandsRoot, "commands.yaml");
-        await File.WriteAllTextAsync(commandsPath, """
+        var root = Path.Combine(Path.GetTempPath(), "mpt-android-grpc-metadata", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        var path = Path.Combine(root, "commands.yaml");
+        File.WriteAllText(path, """
 commands:
   - id: shell_echo
     label: Shell Echo
@@ -642,19 +628,22 @@ commands:
     description: Shell command with metadata.
     type: shell
 """);
-        var previous = Environment.GetEnvironmentVariable("MPT_ANDROIDTOOLS_COMMANDS");
-        Environment.SetEnvironmentVariable("MPT_ANDROIDTOOLS_COMMANDS", commandsPath);
-        try
-        {
-            // The module host is pooled behind a fixed pipe name, so a host another test in this
-            // assembly already started is reachable and gets reused - and it was started without
-            // MPT_ANDROIDTOOLS_COMMANDS, so it has no dynamic commands and never acquires any. The
-            // symptom is this test timing out with nothing in its catalog while every other module
-            // host test passes, and xUnit's unspecified order inside a class is what makes it
-            // intermittent rather than constant. Retiring any survivor guarantees the host this
-            // test talks to is one started under the variable set above.
-            RetireAndroidToolsModuleHosts();
+        Environment.SetEnvironmentVariable("MPT_ANDROIDTOOLS_COMMANDS", path);
+        return path;
+    }
 
+    [Fact]
+    public async Task AndroidTools_module_host_preserves_dynamic_command_metadata_over_grpc()
+    {
+        // AndroidToolsCommandsFile exports MPT_ANDROIDTOOLS_COMMANDS once for the whole assembly
+        // rather than here. The module host is pooled behind a fixed pipe name and outlives the
+        // runtime that started it, so whichever test starts it first decides what environment it
+        // carries: setting the variable inside this test only worked when this test happened to
+        // run first, and xUnit does not specify order within a class. Killing the survivor instead
+        // only moved the failure - the pool restarted into its own limit and the neighbouring test
+        // went red. Exporting it up front means every host has it, whoever starts it.
+        _ = AndroidToolsCommandsFile;
+        {
             await using var host = new GrpcIpcModuleRuntime();
             await using var runtime = new MptHostRuntime(
                 new PackageReader(),
@@ -705,10 +694,6 @@ commands:
             Assert.Contains(MptOperationConstraints.RequiresLongRunningLoop, command.Constraints!);
             Assert.True(command.SupportsProgress);
             Assert.True(command.SupportsCancellation);
-        }
-        finally
-        {
-            Environment.SetEnvironmentVariable("MPT_ANDROIDTOOLS_COMMANDS", previous);
         }
     }
 
