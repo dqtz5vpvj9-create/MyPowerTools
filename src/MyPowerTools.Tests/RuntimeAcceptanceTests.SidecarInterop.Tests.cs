@@ -623,9 +623,6 @@ commands:
     description: Shell command with metadata.
     type: shell
 """);
-        var previous = Environment.GetEnvironmentVariable("MPT_ANDROIDTOOLS_COMMANDS");
-        Environment.SetEnvironmentVariable("MPT_ANDROIDTOOLS_COMMANDS", commandsPath);
-        try
         {
             await using var host = new GrpcIpcModuleRuntime();
             await using var runtime = new MptHostRuntime(
@@ -635,6 +632,18 @@ commands:
                 [host]);
 
             runtime.Load(Path.Combine(Root, "modules"));
+
+            // The catalog is pointed at through the module's commandsYamlPath setting rather than
+            // MPT_ANDROIDTOOLS_COMMANDS. The module host is pooled behind a fixed pipe name and
+            // outlives the runtime that started it, and it reads that variable out of its own
+            // environment - fixed when it was spawned. A host another test started therefore never
+            // sees a variable this test sets, which is exactly the intermittent
+            // "did not expose the dynamic shell_echo command" failure. Settings travel with each
+            // call, so a reused host honours them, and CommandsYamlCandidates already ranks
+            // host-settings above the environment.
+            await SetRemoteCommandsCatalogAsync(runtime, commandsPath);
+            try
+            {
             var dynamicCount = await runtime.RefreshDynamicCommandsAsync(CancellationToken.None);
 
             // the Android Tools module host starts on demand and imports commands.yaml during its
@@ -671,11 +680,25 @@ commands:
             Assert.Contains(MptOperationConstraints.RequiresLongRunningLoop, command.Constraints!);
             Assert.True(command.SupportsProgress);
             Assert.True(command.SupportsCancellation);
+            }
+            finally
+            {
+                // The host is shared, so the setting outlives this runtime and the next test would
+                // see "1 command(s) imported from host-settings" instead of the module's own
+                // catalog. "auto" is what ConfiguredCatalogPath reads as "no override".
+                await SetRemoteCommandsCatalogAsync(runtime, "auto");
+            }
         }
-        finally
-        {
-            Environment.SetEnvironmentVariable("MPT_ANDROIDTOOLS_COMMANDS", previous);
-        }
+    }
+
+    private static async Task SetRemoteCommandsCatalogAsync(MptHostRuntime runtime, string path)
+    {
+        await runtime.UpdateSettingsWithApplyAsync(
+            new SettingsPatch(
+                "android-tools.remote-commands",
+                runtime.GetSettings("android-tools.remote-commands").Revision,
+                new JsonObject { ["commandsYamlPath"] = path }),
+            CancellationToken.None);
     }
 
     [Fact]
