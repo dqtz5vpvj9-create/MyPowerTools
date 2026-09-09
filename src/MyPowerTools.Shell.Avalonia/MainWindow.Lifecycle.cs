@@ -20,7 +20,6 @@ public sealed partial class MainWindow
     private int _permanentCloseRequested;
     private WindowState _residentRestoreState = WindowState.Normal;
     private IActivatableLifetime? _platformActivation;
-    private object? _residentContent;
 
     private Task HandleShellActivationAsync(ShellActivationRequest request)
     {
@@ -110,39 +109,11 @@ public sealed partial class MainWindow
         }
 
         HideNativeWindowImmediately();
+        // Visibility is not ownership: keep pages, bindings and commands alive.
+        // Suspend unnecessary visual work at its source, never by tearing down Content.
         Hide();
-        SuspendResidentContent();
         ShowInTaskbar = false;
         ShellStartupDiagnostics.Mark("resident-hidden");
-    }
-
-    protected override void OnPropertyChanged(AvaloniaPropertyChangedEventArgs change)
-    {
-        base.OnPropertyChanged(change);
-        if (change.Property == WindowStateProperty && OperatingSystem.IsMacOS())
-        {
-            if (WindowState == WindowState.Minimized) SuspendResidentContent();
-            else RestoreResidentContent();
-        }
-    }
-
-    private void SuspendResidentContent()
-    {
-        if (OperatingSystem.IsMacOS() && Content is { } content)
-        {
-            // Detaching stops view observers and animation styles, without stopping tasks.
-            _residentContent = content;
-            Content = null;
-        }
-    }
-
-    private void RestoreResidentContent()
-    {
-        if (_residentContent is { } content)
-        {
-            _residentContent = null;
-            Content = content;
-        }
     }
 
     private void HideNativeWindowImmediately()
@@ -168,7 +139,6 @@ public sealed partial class MainWindow
 
         Interlocked.Exchange(ref _suppressInitialPresentation, 0);
         ShowInTaskbar = true;
-        RestoreResidentContent();
         if (!IsVisible)
         {
             WindowState = _residentRestoreState;

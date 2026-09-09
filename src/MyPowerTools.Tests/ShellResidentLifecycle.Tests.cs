@@ -1,3 +1,5 @@
+using Avalonia;
+
 namespace MyPowerTools.Tests;
 
 public sealed class ShellResidentLifecycleTests
@@ -52,6 +54,68 @@ public sealed class ShellResidentLifecycleTests
         Assert.Contains("--prewarm", shellProgram, StringComparison.Ordinal);
         Assert.Contains("--shutdown-shell", shellProgram, StringComparison.Ordinal);
         Assert.Contains("ShellActivationRequest.Shutdown", shellProgram, StringComparison.Ordinal);
+    }
+
+    [Fact]
+    public void Hidden_and_minimized_window_retains_live_page_and_draft()
+    {
+        if (!OperatingSystem.IsMacOS()) return;
+
+        MyPowerTools.Shell.Avalonia.ShellRealScreenshotWriter.RunHeadlessCheck(() =>
+        {
+            var window = new MyPowerTools.Shell.Avalonia.MainWindow();
+            // Exercise the real resident-window lifecycle without connecting a test to
+            // the user's Runner or initializing any installed tools.
+            typeof(MyPowerTools.Shell.Avalonia.MainWindow)
+                .GetField("_workspaceInitializationStarted",
+                    System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
+                .SetValue(window, 1);
+            var invocations = 0;
+            var detached = 0;
+            var draft = new Avalonia.Controls.TextBox { Text = "unsaved draft" };
+            var echo = new Avalonia.Controls.TextBlock();
+            using var binding = echo.Bind(Avalonia.Controls.TextBlock.TextProperty,
+                draft.GetObservable(Avalonia.Controls.TextBox.TextProperty));
+            var button = new Avalonia.Controls.Button
+            {
+                Command = new MyPowerTools.AvaloniaSdk.MptAsyncRelayCommand(
+                    () => { invocations++; return Task.CompletedTask; })
+            };
+            var page = new Avalonia.Controls.StackPanel { Children = { draft, echo, button } };
+            page.DetachedFromVisualTree += (_, _) => detached++;
+            window.Content = page;
+            try
+            {
+                window.Show();
+                for (var cycle = 0; cycle < 3; cycle++)
+                {
+                    window.Close(); // Closing to the status item is a hide, not disposal.
+                    Assert.False(window.IsVisible);
+                    Assert.Same(page, window.Content);
+                    Assert.Equal(0, detached);
+                    draft.Text = "updated while hidden";
+                    window.Show();
+                    window.WindowState = Avalonia.Controls.WindowState.Minimized;
+                    Assert.Same(page, window.Content);
+                    Assert.Equal(0, detached);
+                    window.WindowState = Avalonia.Controls.WindowState.Normal;
+                    Assert.Equal("updated while hidden", draft.Text);
+                    Assert.Equal(draft.Text, echo.Text);
+                    button.Focus();
+                    Avalonia.Headless.HeadlessWindowExtensions.KeyPress(window, Avalonia.Input.Key.Enter,
+                        Avalonia.Input.RawInputModifiers.None, Avalonia.Input.PhysicalKey.Enter, null);
+                    Avalonia.Headless.HeadlessWindowExtensions.KeyRelease(window, Avalonia.Input.Key.Enter,
+                        Avalonia.Input.RawInputModifiers.None, Avalonia.Input.PhysicalKey.Enter, null);
+                    Assert.Equal(cycle + 1, invocations);
+                }
+            }
+            finally
+            {
+                window.AllowPermanentClose();
+                window.Close();
+            }
+            Assert.Equal(1, detached);
+        });
     }
 
     private static string Read(params string[] segments) =>

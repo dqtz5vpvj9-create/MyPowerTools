@@ -32,6 +32,17 @@ public static class ShellRealScreenshotWriter
     private static bool _applicationInitialized;
     private static IBrush _headlessBackground = null!;
 
+    /// <summary>Run a behavioral UI check on the shared isolated headless UI thread.</summary>
+    public static void RunHeadlessCheck(Action check)
+    {
+        RenderThread.Value.Invoke(() =>
+        {
+            EnsureApplication("light");
+            check();
+            return true;
+        });
+    }
+
     public static string WriteSnapshotSet(string outputDirectory, string theme, string size, string density, string surface = "*")
     {
         return WriteSnapshotSetCore(
