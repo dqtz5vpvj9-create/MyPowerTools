@@ -103,16 +103,24 @@ if ($resolved -ne $Commit) {
 Write-Host "==> checking out $Commit"
 Invoke-Git checkout --detach --force refs/preflight/head
 Invoke-Git reset --hard --quiet
-# artifacts/sdk/global-packages is excluded deliberately. The workflow restores it
-# with actions/cache, so a GitHub job does not start with it empty either, and the
-# resident MSBuild task assemblies inside it (Avalonia.Build.Tasks.dll and friends)
-# stay memory-mapped even after `dotnet build-server shutdown`, which made the
-# clean fail outright. Everything else still goes, which is the part that matters:
-# stale build output must not be able to satisfy a step that should have failed.
+# Two download caches are excluded deliberately, and only those.
+#
+# artifacts/sdk/global-packages: the workflow restores it with actions/cache, so a
+# GitHub job does not start with it empty either, and the resident MSBuild task
+# assemblies inside it (Avalonia.Build.Tasks.dll and friends) stay memory-mapped
+# even after `dotnet build-server shutdown`, which made the clean fail outright.
+#
+# artifacts/runtime-cache: prepare-runtime-cache.ps1 downloads the bundled Python
+# and .NET runtimes into it. Wiping it makes every local run re-download hundreds
+# of megabytes, and a single flaky transfer then fails the run for a reason that
+# has nothing to do with the commit under test.
+#
+# Everything else still goes, which is the part that matters: stale build output
+# must not be able to satisfy a step that should have failed.
 # Passed as one array: PowerShell tries to bind a bare -e to its own common
 # parameters before it reaches ValueFromRemainingArguments, and reports it as
 # ambiguous with -ErrorAction.
-Invoke-Git @('clean', '-xdff', '-e', 'artifacts/sdk/global-packages')
+Invoke-Git @('clean', '-xdff', '-e', 'artifacts/sdk/global-packages', '-e', 'artifacts/runtime-cache')
 Invoke-Git submodule sync --recursive --quiet
 Invoke-Git submodule update --init --recursive --force
 git submodule foreach --recursive 'git clean -xdff' | Out-Null
