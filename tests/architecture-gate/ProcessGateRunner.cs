@@ -64,7 +64,6 @@ internal static class ProcessGateRunner
             Add(records, "A3.0-control-plane-precedes-worker-readiness",
                 !reconcileFinishedFirst,
                 $"controlPlaneMs={managerStart.Elapsed.TotalMilliseconds:0}; blockedWorkerTimeoutMs=5000; reconcileFinishedFirst={reconcileFinishedFirst}");
-            Add(records, "A3.1-real-manager-catalog", (await firstAdmin.ListUnitsAsync()).Units.Any(unit => unit.UnitId == unitId), unitId);
 
             // A3.1b below asserts the orphans were adopted rather than duplicated. Adoption happens
             // only in ReconcileAsync, through UnitSupervisor.TryReadoptAsync; an explicit Start on a
@@ -79,6 +78,8 @@ internal static class ProcessGateRunner
                 throw new InvalidOperationException(
                     $"ServiceManager never finished startup reconciliation: {firstManager.OutputText}");
             }
+
+            Add(records, "A3.1-real-manager-catalog", (await firstAdmin.ListUnitsAsync()).Units.Any(unit => unit.UnitId == unitId), unitId);
 
             var scoped = new ScopedServiceUnitClient(firstAdmin, toolId);
             var started = await scoped.StartAsync(unitId);
@@ -263,6 +264,23 @@ internal static class ProcessGateRunner
 
             manager = context.StartServiceManager("fault-domain");
             using var admin = await context.WaitForClientAsync(manager);
+            // RPC availability precedes catalog registration and startup reconciliation. A4
+            // exercises faults after startup, so wait for reconciliation before issuing Start.
+            // Keep WaitForClientAsync transport-only: A3 must still observe early RPC availability.
+            if (!await WaitForReconcileAsync(manager, TimeSpan.FromSeconds(30)))
+            {
+                throw new InvalidOperationException(
+                    $"ServiceManager never finished startup reconciliation: {manager.OutputText}; stderr={manager.ErrorText}");
+            }
+
+            var catalog = await admin.ListUnitsAsync();
+            var registered = catalog.Units.Select(unit => unit.UnitId).ToHashSet(StringComparer.OrdinalIgnoreCase);
+            if (!registered.Contains(unitA) || !registered.Contains(unitB))
+            {
+                throw new InvalidOperationException(
+                    $"Reconciled catalog is missing A4 units. Expected: {unitA}, {unitB}; actual: {string.Join(',', registered)}; stdout={manager.OutputText}; stderr={manager.ErrorText}");
+            }
+            Add(records, "A4.0-startup-catalog-ready", true, $"registered={unitA},{unitB}");
             var startA = await admin.StartAsync(unitA);
             var startB = await admin.StartAsync(unitB);
             if (startA.Pid > 0) trackedPids.Add(startA.Pid);
