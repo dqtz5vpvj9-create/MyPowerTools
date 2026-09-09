@@ -21,7 +21,7 @@ Defaults:
 
 Windows uses the Win32 Clipboard and the system OpenSSH client. macOS uses native NSPasteboard and `/usr/bin/ssh`. The host, directory, timeout, upload shortcut, after-upload shortcut, and enabled state can be changed in MyPowerTools settings. Leave the after-upload shortcut empty to disable automatic pasting. OpenSSH authentication stays in the current user's SSH configuration. Batch mode prevents a hidden upload from waiting for an interactive password prompt.
 
-The macOS global hotkey provider is still pending. Paste Image remains available from the Shell and command palette when the module is enabled.
+macOS global hotkeys use a blocking Carbon event queue. Automatic pasting additionally requires Accessibility permission for the MyPowerTools Runner helper app; a successful upload still copies the remote path when that permission is missing. Choose an after-upload shortcut appropriate for the destination app (normally `Cmd+V` on macOS). The Shell and command palette also expose the upload action.
 
 Build from the repository root:
 

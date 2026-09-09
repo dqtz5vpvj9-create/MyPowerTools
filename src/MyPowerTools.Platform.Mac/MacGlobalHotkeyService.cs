@@ -8,15 +8,14 @@ namespace MyPowerTools.Platform.Mac;
 /// <summary>
 /// System-wide hotkeys backed by Carbon's RegisterEventHotKey. The Runner has no NSApplication
 /// event loop, so the service owns a dedicated background thread that installs the Carbon event
-/// handler on its own dispatcher target and then blocks in CFRunLoopRun. Registration and
-/// unregistration are marshalled onto that thread through a CFRunLoopSource, the same way the
+/// handler on its dispatcher target and blocks in ReceiveNextEvent. Registration and
+/// unregistration are marshalled onto that thread through queued wake events, the same way the
 /// Windows service marshals through PostThreadMessage.
 /// </summary>
 [SupportedOSPlatform("macos")]
 public sealed class MacGlobalHotkeyService : IHotkeyService
 {
     private const string Carbon = "/System/Library/Frameworks/Carbon.framework/Carbon";
-    private const string CoreFoundation = "/System/Library/Frameworks/CoreFoundation.framework/CoreFoundation";
 
     private const uint HotkeySignature = 0x4D505448;      // 'MPTH'
     private const uint EventClassKeyboard = 0x6B657962;   // 'keyb'
@@ -28,9 +27,7 @@ public sealed class MacGlobalHotkeyService : IHotkeyService
     private const int EventHotKeyExistsErr = -9878;
     private const int InitialHotkeyId = 1;
 
-    private static readonly RunLoopPerformCallback PerformCallback = OnRunLoopPerform;
     private static readonly CarbonEventCallback HotkeyCallback = OnHotkeyEvent;
-    private static readonly Lazy<nint> RunLoopCommonModes = new(LoadRunLoopCommonModes);
 
     private readonly ConcurrentQueue<HotkeyCommand> _commands = new();
     private readonly Dictionary<string, RegisteredHotkey> _registrationsById = new(StringComparer.OrdinalIgnoreCase);
@@ -39,11 +36,11 @@ public sealed class MacGlobalHotkeyService : IHotkeyService
     private readonly TaskCompletionSource _ready = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly Thread _runLoopThread;
     private GCHandle _selfHandle;
-    private nint _runLoop;
-    private nint _wakeSource;
     private nint _eventHandler;
+    private nint _eventQueue;
     private uint _nextNativeId = InitialHotkeyId;
     private int _disposed;
+    private bool _quitRequested;
 
     public event EventHandler<HotkeyInvocation>? Pressed;
 
@@ -168,29 +165,12 @@ public sealed class MacGlobalHotkeyService : IHotkeyService
 
     private void RunHotkeyLoop()
     {
-        nint wakeSource = 0;
         try
         {
             _selfHandle = GCHandle.Alloc(this, GCHandleType.Normal);
-            _runLoop = CFRunLoopGetCurrent();
-
-            var sourceContext = new CFRunLoopSourceContext
-            {
-                Info = GCHandle.ToIntPtr(_selfHandle),
-                Perform = Marshal.GetFunctionPointerForDelegate(PerformCallback)
-            };
-            wakeSource = CFRunLoopSourceCreate(0, 0, ref sourceContext);
-            if (wakeSource == 0)
-            {
-                throw new InvalidOperationException("CFRunLoopSourceCreate returned a null source.");
-            }
-
-            CFRunLoopAddSource(_runLoop, wakeSource, RunLoopCommonModes.Value);
-            _wakeSource = wakeSource;
-
-            // Creating this thread's Carbon event queue installs its run loop source, so hot key
-            // events dispatched to this thread's target are delivered by CFRunLoopRun below.
-            GetCurrentEventQueue();
+            // Create the thread queue before registering its dispatcher. A CFRunLoop alone
+            // receives native sources but does not dequeue and dispatch Carbon events.
+            _eventQueue = GetCurrentEventQueue();
             var eventTypes = new[]
             {
                 new EventTypeSpec { EventClass = EventClassKeyboard, EventKind = EventHotKeyPressed }
@@ -208,7 +188,21 @@ public sealed class MacGlobalHotkeyService : IHotkeyService
             }
 
             _ready.TrySetResult();
-            CFRunLoopRun();
+            while (!_quitRequested)
+            {
+                var status = ReceiveNextEvent(0, 0, -1, true, out var nextEvent);
+                if (status != NoErr)
+                    throw new InvalidOperationException($"ReceiveNextEvent failed with OSStatus {status}.");
+                try
+                {
+                    DrainCommands();
+                    if (!_quitRequested) SendEventToEventTarget(nextEvent, GetEventDispatcherTarget());
+                }
+                finally
+                {
+                    ReleaseEvent(nextEvent);
+                }
+            }
         }
         catch (Exception ex)
         {
@@ -224,12 +218,7 @@ public sealed class MacGlobalHotkeyService : IHotkeyService
                 _eventHandler = 0;
             }
 
-            _wakeSource = 0;
-            if (wakeSource != 0)
-            {
-                CFRunLoopRemoveSource(_runLoop, wakeSource, RunLoopCommonModes.Value);
-                CFRelease(wakeSource);
-            }
+            _eventQueue = 0;
 
             if (_selfHandle.IsAllocated)
             {
@@ -240,16 +229,11 @@ public sealed class MacGlobalHotkeyService : IHotkeyService
 
     private bool SignalRunLoop()
     {
-        var wakeSource = _wakeSource;
-        var runLoop = _runLoop;
-        if (wakeSource == 0 || runLoop == 0)
-        {
+        var queue = _eventQueue;
+        if (queue == 0 || CreateEvent(0, HotkeySignature, 1, 0, 0, out var wakeEvent) != NoErr)
             return false;
-        }
-
-        CFRunLoopSourceSignal(wakeSource);
-        CFRunLoopWakeUp(runLoop);
-        return true;
+        try { return PostEventToQueue(queue, wakeEvent, 1) == NoErr; }
+        finally { ReleaseEvent(wakeEvent); }
     }
 
     private void DrainCommands()
@@ -273,7 +257,7 @@ public sealed class MacGlobalHotkeyService : IHotkeyService
             case HotkeyOperation.Dispose:
                 UnregisterAll();
                 command.Completion.TrySetResult(new HotkeyRegistrationResult(true, "disposed", "macOS global hotkey service disposed."));
-                CFRunLoopStop(_runLoop);
+                _quitRequested = true;
                 break;
         }
     }
@@ -463,21 +447,10 @@ public sealed class MacGlobalHotkeyService : IHotkeyService
         }
     }
 
-    private static void OnRunLoopPerform(nint info)
-    {
-        Resolve(info)?.DrainCommands();
-    }
-
     private static int OnHotkeyEvent(nint handlerCallRef, nint theEvent, nint userData)
     {
         var service = Resolve(userData);
         return service is null ? EventNotHandledErr : service.HandleHotkeyEvent(theEvent);
-    }
-
-    private static nint LoadRunLoopCommonModes()
-    {
-        var library = NativeLibrary.Load(CoreFoundation);
-        return Marshal.ReadIntPtr(NativeLibrary.GetExport(library, "kCFRunLoopCommonModes"));
     }
 
     private sealed record RegisteredHotkey(
@@ -522,9 +495,6 @@ public sealed class MacGlobalHotkeyService : IHotkeyService
     }
 
     [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
-    private delegate void RunLoopPerformCallback(nint info);
-
-    [UnmanagedFunctionPointer(CallingConvention.Cdecl)]
     private delegate int CarbonEventCallback(nint handlerCallRef, nint theEvent, nint userData);
 
     [StructLayout(LayoutKind.Sequential)]
@@ -539,21 +509,6 @@ public sealed class MacGlobalHotkeyService : IHotkeyService
     {
         public uint EventClass;
         public uint EventKind;
-    }
-
-    [StructLayout(LayoutKind.Sequential)]
-    private struct CFRunLoopSourceContext
-    {
-        public nint Version;
-        public nint Info;
-        public nint Retain;
-        public nint Release;
-        public nint CopyDescription;
-        public nint Equal;
-        public nint Hash;
-        public nint Schedule;
-        public nint Cancel;
-        public nint Perform;
     }
 
     [DllImport(Carbon)]
@@ -596,30 +551,20 @@ public sealed class MacGlobalHotkeyService : IHotkeyService
         nint actualSize,
         out EventHotKeyID data);
 
-    [DllImport(CoreFoundation)]
-    private static extern nint CFRunLoopGetCurrent();
+    [DllImport(Carbon)]
+    private static extern int CreateEvent(nint allocator, uint eventClass, uint kind, double time, uint attributes, out nint theEvent);
 
-    [DllImport(CoreFoundation)]
-    private static extern void CFRunLoopRun();
+    [DllImport(Carbon)]
+    private static extern int PostEventToQueue(nint queue, nint theEvent, short priority);
 
-    [DllImport(CoreFoundation)]
-    private static extern void CFRunLoopStop(nint runLoop);
+    [DllImport(Carbon)]
+    private static extern int ReceiveNextEvent(uint count, nint types, double timeout,
+        [MarshalAs(UnmanagedType.I1)] bool pullEvent, out nint nextEvent);
 
-    [DllImport(CoreFoundation)]
-    private static extern void CFRunLoopWakeUp(nint runLoop);
+    [DllImport(Carbon)]
+    private static extern int SendEventToEventTarget(nint theEvent, nint target);
 
-    [DllImport(CoreFoundation)]
-    private static extern nint CFRunLoopSourceCreate(nint allocator, nint order, ref CFRunLoopSourceContext context);
+    [DllImport(Carbon)]
+    private static extern int ReleaseEvent(nint theEvent);
 
-    [DllImport(CoreFoundation)]
-    private static extern void CFRunLoopSourceSignal(nint source);
-
-    [DllImport(CoreFoundation)]
-    private static extern void CFRunLoopAddSource(nint runLoop, nint source, nint mode);
-
-    [DllImport(CoreFoundation)]
-    private static extern void CFRunLoopRemoveSource(nint runLoop, nint source, nint mode);
-
-    [DllImport(CoreFoundation)]
-    private static extern void CFRelease(nint value);
 }

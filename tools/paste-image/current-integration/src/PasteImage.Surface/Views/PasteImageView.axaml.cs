@@ -17,13 +17,14 @@ public sealed partial class PasteImageView : UserControl
                 viewModel.ClipboardWriter = WriteClipboardTextAsync;
             }
         };
-        DetachedFromVisualTree += (_, args) =>
+        DetachedFromVisualTree += (_, _) =>
         {
-            // The macOS resident window temporarily detaches its content when hidden.
-            // Preserve draft settings, preview and cancellation state for restoration.
-            if (OperatingSystem.IsMacOS() && args.RootVisual is Window window &&
-                (!window.IsVisible || window.WindowState == WindowState.Minimized)) return;
-            (DataContext as IDisposable)?.Dispose();
+            // Detachment also happens during temporary host layout changes. The surface
+            // loader owns disposal; cancelling here leaves a restored page inoperable.
+            if (DataContext is PasteImageViewModel viewModel)
+            {
+                viewModel.ClipboardWriter = null;
+            }
         };
     }
 

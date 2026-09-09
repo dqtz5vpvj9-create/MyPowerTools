@@ -157,6 +157,14 @@ public static class ShellRunnerBootstrapper
         var modulesRoot = options.ModulesRoot ?? Path.Combine(appRoot, "modules");
         var dataRoot = options.DataRoot ?? HostControlAuthTokenStore.DefaultDataRoot();
         var releaseRunner = Path.Combine(appRoot, "Runner", ExecutableName("MyPowerTools.Runner"));
+        if (OperatingSystem.IsMacOS())
+        {
+            // Starting through the compatibility path loses NSBundle identity, breaking
+            // notification delivery and attributing Accessibility access to the wrong host.
+            var bundledRunner = Path.Combine(appRoot, "Helpers", "MyPowerTools Runner.app",
+                "Contents", "MacOS", "MyPowerTools.Runner");
+            if (File.Exists(bundledRunner)) releaseRunner = bundledRunner;
+        }
         if (File.Exists(releaseRunner))
         {
             var releaseStartInfo = CreateRunnerStartInfo(releaseRunner, appRoot, modulesRoot, dataRoot);
