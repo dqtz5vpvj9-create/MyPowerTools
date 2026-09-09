@@ -480,7 +480,9 @@ public sealed partial class RuntimeAcceptanceTests
             "sample-dotnet-leaky",
             "Leaky circuit fixture",
             typeof(LeakyDotNetModule).FullName!);
-        await SetInProcMaxCallAsync(packageRoot, 1000);
+        // This tests lifecycle isolation, not cold-load speed on a busy CI runner.
+        // Keep the explicit lifecycle assertions below independent of the callback budget.
+        await SetInProcMaxCallAsync(packageRoot, 30000);
 
         await using var host = new InProcDotNetModuleHost();
         await using var runtime = CreateInProcFixtureRuntime(host, "leaky-circuit-runtime");
@@ -605,7 +607,9 @@ public sealed partial class RuntimeAcceptanceTests
             "sample-dotnet-event-fault",
             "Paused event fixture",
             typeof(EventFaultInjectionDotNetModule).FullName!);
-        await SetInProcMaxCallAsync(packageRoot, 1000);
+        // This tests lifecycle isolation, not cold-load speed on a busy CI runner.
+        // Keep the explicit lifecycle assertions below independent of the callback budget.
+        await SetInProcMaxCallAsync(packageRoot, 30000);
 
         await using var host = new InProcDotNetModuleHost();
         await using var runtime = CreateInProcFixtureRuntime(host, "paused-event-runtime");
