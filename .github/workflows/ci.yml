@@ -279,10 +279,11 @@ jobs:
 
     steps:
       - name: Package an installable build
-        # Every green main build should leave something you can actually install. The release
+        # Every green main build should leave the actual product behind: the offline installer,
+        # which carries the runtimes, and the web installer, which downloads them. The release
         # job below only runs for a v* tag or a manual dispatch, so until now a push to main
-        # produced module packages and UI snapshots and nothing you could run. Channel "local"
-        # and -AllowUnsigned keep this out of the OTA feed: it is a build to try, not a release.
+        # produced module packages and UI snapshots and nothing anyone could install. Channel
+        # "local" and -AllowUnsigned keep these out of the OTA feed: builds to try, not a release.
         if: github.event_name == 'push' && github.ref == 'refs/heads/main'
         shell: pwsh
         run: |
@@ -296,7 +297,7 @@ jobs:
           if ($version -notmatch '^[0-9]+\.[0-9]+\.[0-9]+$') { throw "Resolved version is invalid: $version" }
           pwsh.exe -NoLogo -NoProfile -NonInteractive `
             -File scripts\publish-windows.ps1 `
-            -Distribution Full `
+            -Distribution All `
             -Version $version `
             -Channel local `
             -AllowUnsigned
@@ -309,11 +310,14 @@ jobs:
           name: MyPowerTools-install-win-x64
           if-no-files-found: error
           retention-days: 14
-          # The installer only. The portable layout it wraps is another 200MB and this
-          # runs on every push to main, so the zip stays out unless a release needs it.
+          # Both installers - the offline one carries the runtimes, the web one downloads
+          # them - and their checksums. The portable layouts they wrap are another 200MB
+          # each and this runs on every push to main, so the zips stay out.
           path: |
             artifacts/release/MyPowerTools-Setup-*.exe
             artifacts/release/MyPowerTools-Setup-*.exe.sha256
+            artifacts/release/MyPowerTools-Web-Setup-*.exe
+            artifacts/release/MyPowerTools-Web-Setup-*.exe.sha256
 
       - name: Checkout
         uses: actions/checkout@v4
