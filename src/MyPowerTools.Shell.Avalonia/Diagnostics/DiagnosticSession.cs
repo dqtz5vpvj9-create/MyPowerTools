@@ -225,14 +225,20 @@ internal sealed class DiagnosticSession : IDisposable
         _nativeStream = null;
     }
 
-    private static FileStream CreatePrivateFile(string path) => new(path, new FileStreamOptions
+    private static FileStream CreatePrivateFile(string path)
     {
-        Mode = FileMode.CreateNew,
-        Access = FileAccess.Write,
-        Share = FileShare.ReadWrite | FileShare.Delete,
-        BufferSize = 1,
-        UnixCreateMode = OperatingSystem.IsWindows() ? null : UnixFileMode.UserRead | UnixFileMode.UserWrite
-    });
+        var options = new FileStreamOptions
+        {
+            Mode = FileMode.CreateNew,
+            Access = FileAccess.Write,
+            Share = FileShare.ReadWrite | FileShare.Delete,
+            BufferSize = 1
+        };
+        // Guard the setter itself; even assigning null is a platform-specific API call.
+        if (!OperatingSystem.IsWindows())
+            options.UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite;
+        return new FileStream(path, options);
+    }
 
     private static void TryStderr(string message)
     {
