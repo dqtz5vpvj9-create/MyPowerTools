@@ -34,7 +34,7 @@ public static class PlatformWebSurfaceService
     }
 }
 
-public sealed class MacWebSurfaceService : IMptWebSurfaceService, IConfigurableWebShortcuts
+public sealed class MacWebSurfaceService : IMptWindowWebSurfaceService, IConfigurableWebShortcuts
 {
     private readonly WebShortcutConfiguration _shortcutConfiguration = new();
     public void UpdateShortcutBindings(IReadOnlyList<WebShortcutBinding> bindings) => _shortcutConfiguration.Update(bindings);
@@ -54,6 +54,16 @@ public sealed class MacWebSurfaceService : IMptWebSurfaceService, IConfigurableW
     {
         var normalized = WebSurfaceNavigationPolicy.Normalize(request);
         var control = new MacWebSurfaceControl(normalized, _occlusionState, _forwardShortcutAsync, _shortcutConfiguration);
+        return new NativeWebSurfaceSession(control);
+    }
+
+    public IMptWebSurfaceSession CreateWindowSession(MptWebSurfaceRequest request)
+    {
+        var normalized = WebSurfaceNavigationPolicy.Normalize(request);
+        // Detail windows remain independent when the Shell is hidden or shows an overlay.
+        // Shell tab shortcuts must not close/navigate the inbox behind this window.
+        var control = new MacWebSurfaceControl(normalized, new WebSurfaceOcclusionState(),
+            _ => Task.CompletedTask, new WebShortcutConfiguration());
         return new NativeWebSurfaceSession(control);
     }
 }
