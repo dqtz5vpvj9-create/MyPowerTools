@@ -11,7 +11,11 @@ namespace MyPowerTools.Shell.Avalonia;
 internal static class Program
 {
     [STAThread]
-    public static int Main(string[] args)
+    public static int Main(string[] args) => ShellDiagnostics.Run(
+        () => MainCore(args),
+        captureNativeStderr: !args.Contains("--smoke", StringComparer.OrdinalIgnoreCase));
+
+    private static int MainCore(string[] args)
     {
         var installRoot = Path.GetFullPath(Path.Combine(AppContext.BaseDirectory, ".."));
         DotNetRuntimeEnvironment.ConfigureCurrentProcess(installRoot);
@@ -43,6 +47,9 @@ internal static class Program
             return 0;
         }
 
+        // Only the primary Shell owns a running-session marker. Forwarding activations
+        // and HostControl smoke processes must not produce false crash-recovery notices.
+        ShellDiagnostics.BeginSession();
         App.StartupActivationRequest = toolActivation is not null
             ? ShellActivationRequest.ForTool(toolActivation)
             : prewarmShell
@@ -90,7 +97,7 @@ internal static class Program
             // The native host sets the product name before Avalonia creates
             // the default application menu.
             DisableSetProcessName = true
-        });
+        }).LogToTrace().AfterSetup(_ => ShellDiagnostics.AttachToUi());
     }
 
     internal static void SetMacProcessName()
