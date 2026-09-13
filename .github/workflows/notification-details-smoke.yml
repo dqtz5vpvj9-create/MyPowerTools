@@ -1,0 +1,70 @@
+name: Notification details native smoke
+
+on:
+  pull_request:
+    paths:
+      - "tools/remote-notifications"
+      - "src/MyPowerTools.AvaloniaSdk/**"
+      - "src/MyPowerTools.WebSurface.Avalonia/**"
+      - "native/macos/**"
+      - "tests/RemoteNotifications.Mac.NativeSmoke/**"
+      - "tests/remote-notifications-detail-bridge.test.cjs"
+      - ".github/workflows/notification-details-smoke.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: notification-details-native-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  native-details:
+    runs-on: macos-14
+    timeout-minutes: 25
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: 1
+      DOTNET_NOLOGO: true
+      EnableWindowsTargeting: true
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          token: ${{ secrets.MPT_SUBMODULE_PAT }}
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Execute JavaScript message-bridge tests
+        run: node --test tests/remote-notifications-detail-bridge.test.cjs
+      - name: Build local SDK packages
+        shell: pwsh
+        run: pwsh -NoLogo -NoProfile -NonInteractive -File scripts/build-sdk.ps1
+      - name: Build real native capability library
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/notification-native"
+          xcrun clang++ -std=c++17 -fobjc-arc -dynamiclib \
+            -framework Cocoa -framework Security -framework UserNotifications -framework WebKit \
+            native/macos/MptMacNative/MptMacNative.mm \
+            -o "$RUNNER_TEMP/notification-native/libMptMacNative.dylib"
+          codesign --force --sign - "$RUNNER_TEMP/notification-native/libMptMacNative.dylib"
+      - name: Open and exercise real WKWebView detail windows
+        shell: bash
+        timeout-minutes: 5
+        run: |
+          set -euo pipefail
+          export DYLD_LIBRARY_PATH="$RUNNER_TEMP/notification-native${DYLD_LIBRARY_PATH:+:$DYLD_LIBRARY_PATH}"
+          dotnet run --project tests/RemoteNotifications.Mac.NativeSmoke/RemoteNotifications.Mac.NativeSmoke.csproj \
+            --configuration Release 2>&1 | tee "$RUNNER_TEMP/notification-native/smoke.log"
+      - name: Upload native smoke evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: notification-details-native-smoke
+          path: ${{ runner.temp }}/notification-native/smoke.log
+          if-no-files-found: warn
