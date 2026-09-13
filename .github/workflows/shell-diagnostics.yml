@@ -1,0 +1,55 @@
+name: Shell crash diagnostics
+
+on:
+  pull_request:
+    paths:
+      - 'src/MyPowerTools.Shell.Avalonia/Diagnostics/**'
+      - 'src/MyPowerTools.Shell.Avalonia/Program.cs'
+      - 'src/MyPowerTools.AvaloniaSdk/MptCommandFaultBoundary.cs'
+      - 'src/MyPowerTools.Abstractions/MptLogRedactor.cs'
+      - 'tests/Shell.Diagnostics.Probe/**'
+      - '.github/workflows/shell-diagnostics.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: shell-diagnostics-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  injected-failures:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [macos-14, ubuntu-24.04]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 15
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: 1
+      DOTNET_NOLOGO: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - name: Build probe from production diagnostic sources
+        shell: bash
+        run: |
+          mkdir -p artifacts/sdk/nuget
+          dotnet build tests/Shell.Diagnostics.Probe/Shell.Diagnostics.Probe.csproj --configuration Release
+      - name: Inject failures in isolated child processes
+        shell: bash
+        run: |
+          set -euo pipefail
+          ulimit -c 0
+          python3 tests/Shell.Diagnostics.Probe/verify.py \
+            tests/Shell.Diagnostics.Probe/bin/Release/net10.0/Shell.Diagnostics.Probe.dll \
+            | tee "$RUNNER_TEMP/shell-diagnostics-verification.log"
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: shell-diagnostics-${{ matrix.os }}
+          path: ${{ runner.temp }}/shell-diagnostics-verification.log
+          if-no-files-found: warn
