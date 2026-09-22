@@ -28,3 +28,9 @@
 [submodule "tools/input-monitor"]
 	path = tools/input-monitor
 	url = https://github.com/dqtz5vpvj9-create/MyPowerTools-input-monitor.git
+[submodule "tools/screenshot"]
+	path = tools/screenshot
+	url = https://github.com/dqtz5vpvj9-create/MyPowerTools-screenshot.git
+[submodule "tools/xbrd"]
+	path = tools/xbrd
+	url = https://github.com/dqtz5vpvj9-create/MyPowerTools-xbrd.git

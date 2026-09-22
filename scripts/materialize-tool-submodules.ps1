@@ -74,7 +74,9 @@ $toolIds = @(
     'screenease',
     'smartbird-thermostat',
     'doubao-computer-use',
-    'input-monitor'
+    'input-monitor',
+    'screenshot',
+    'xbrd'
 )
 
 $generatedReadmeMarker = '<!-- mypowertools-materialized-source -->'

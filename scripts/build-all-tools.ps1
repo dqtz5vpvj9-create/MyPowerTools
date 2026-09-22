@@ -247,6 +247,16 @@ $toolRegistry = @(
         ServiceUnits     = @()
     },
     [pscustomobject]@{
+        Id               = 'screenshot'
+        Version          = '0.1.0'
+        BuildScript      = 'tools\screenshot\build.ps1'
+        SurfaceProject   = 'tools\screenshot\current-integration\src\Screenshot.Surface\Screenshot.Surface.csproj'
+        SurfaceAssembly  = 'Screenshot.Surface.dll'
+        SurfaceTarget    = 'ui\surface'
+        RuntimeStagePath = 'tools\screenshot\artifacts\package'
+        ServiceUnits     = @()
+    },
+    [pscustomobject]@{
         Id               = 'input-monitor'
         Version          = '0.1.0'
         BuildScript      = 'tools\input-monitor\build.ps1'
@@ -311,6 +321,30 @@ $toolRegistry = @(
         SurfaceTarget    = 'ui\surface'
         RuntimeStagePath = 'tools\smartbird-thermostat\artifacts\package'
         ServiceUnits     = @()
+    },
+    [pscustomobject]@{
+        # Remote XBRD panel + source health. The package is a pure HTTP-facade module
+        # (module.json entrypoints: [{ kind = 'http', baseUrl = publisher }]) plus two
+        # Service Units that publish quota.mem / quota.codex. No in-proc module assembly.
+        Id               = 'xbrd'
+        Version          = '0.1.0'
+        BuildScript      = 'tools\xbrd\build.ps1'
+        SurfaceProject   = 'tools\xbrd\current-integration\src\Xbrd.Surface\Xbrd.Surface.csproj'
+        SurfaceAssembly  = 'Xbrd.Surface.dll'
+        SurfaceTarget    = 'ui\surface'
+        RuntimeStagePath = 'tools\xbrd\artifacts\package'
+        ServiceUnits     = @(
+            [pscustomobject]@{
+                Project  = 'tools\xbrd\current-integration\src\Xbrd.Mem.Service\Xbrd.Mem.Service.csproj'
+                Manifest = 'tools\xbrd\current-integration\src\Xbrd.Mem.Service\unit-manifest.json'
+                UnitId   = 'xbrd.mem.service'
+            },
+            [pscustomobject]@{
+                Project  = 'tools\xbrd\current-integration\src\Xbrd.CodexQuota.Service\Xbrd.CodexQuota.Service.csproj'
+                Manifest = 'tools\xbrd\current-integration\src\Xbrd.CodexQuota.Service\unit-manifest.json'
+                UnitId   = 'xbrd.codex-quota.service'
+            }
+        )
     }
 )
 

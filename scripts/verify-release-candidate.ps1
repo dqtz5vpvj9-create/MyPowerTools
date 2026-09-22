@@ -119,16 +119,18 @@ $expectedTools = @(
     'local-lag-cleaner',
     'nssm-manager',
     'paste-image',
+    'screenshot',
     'remote-commands',
     'remote-notifications',
     'screenease',
-    'smartbird-thermostat'
+    'smartbird-thermostat',
+    'xbrd'
 )
 $actualTools = @($manifest.tools | ForEach-Object { [string]$_.toolId })
 $toolInventoryOk = $actualTools.Count -eq $expectedTools.Count -and @($expectedTools | Where-Object { $actualTools -notcontains $_ }).Count -eq 0
 Add-Record 'A5.1-candidate-tool-inventory' $toolInventoryOk "tools=$($actualTools -join ',')" $manifestPath
 
-$expectedServiceUnits = @('adb-forwarder.service', 'doubao-agent.controller.service', 'remote-notifications.service', 'screenease.service')
+$expectedServiceUnits = @('adb-forwarder.service', 'doubao-agent.controller.service', 'remote-notifications.service', 'screenease.service', 'xbrd.mem.service', 'xbrd.codex-quota.service')
 $actualServiceUnits = @($manifest.serviceUnits | ForEach-Object { [string]$_ })
 $serviceUnitInventoryOk = $actualServiceUnits.Count -eq $expectedServiceUnits.Count -and
     @($expectedServiceUnits | Where-Object { $actualServiceUnits -notcontains $_ }).Count -eq 0
@@ -171,7 +173,10 @@ $missingCritical = @($criticalPaths | Where-Object { -not (Test-Path -LiteralPat
 Add-Record 'A5.2-critical-process-payloads' ($missingCritical.Count -eq 0 -and $unitManifestErrors.Count -eq 0) "missing=$($missingCritical -join ','); manifestErrors=$($unitManifestErrors -join ',')" $payloadRoot
 
 $surfaceDlls = @(Get-ChildItem -LiteralPath (Join-Path $payloadRoot 'modules') -Recurse -File -Filter '*.Surface.dll')
-Add-Record 'A5.3-loadable-surfaces' ($surfaceDlls.Count -eq 8) "surfaceDlls=$($surfaceDlls.Count)" (($surfaceDlls.FullName) -join ';')
+# One loadable Surface per packaged tool that declares a SurfaceTarget. The count
+# tracks scripts\build-all-tools.ps1's registry, so adding a tool with a surface
+# (screenshot, then xbrd) moves this from 8 to 10.
+Add-Record 'A5.3-loadable-surfaces' ($surfaceDlls.Count -eq 10) "surfaceDlls=$($surfaceDlls.Count)" (($surfaceDlls.FullName) -join ';')
 
 $packages = @(Get-ChildItem -LiteralPath (Join-Path $payloadRoot 'packages') -File -Filter '*.mptpkg')
 Add-Record 'A5.4-independent-packages' ($packages.Count -eq $expectedTools.Count) "packages=$($packages.Count)" (($packages.FullName) -join ';')
@@ -236,9 +241,9 @@ try {
     $runnerResult = Invoke-Captured -FilePath (Join-Path $payloadRoot 'Runner\MyPowerTools.Runner.exe') -ArgumentList @(
         '--once', '--modules', (Join-Path $payloadRoot 'modules'), '--data-root', $localDataRoot
     ) -OutputPath $runnerLog
-    $discovered = @('adb-forwarder', 'android-tools.notifications', 'doubao-agent', 'ime-manager', 'local-lag-cleaner', 'nssm-manager', 'paste-image', 'screenease', 'smartbird-thermostat') |
+    $discovered = @('adb-forwarder', 'android-tools.notifications', 'doubao-agent', 'ime-manager', 'local-lag-cleaner', 'nssm-manager', 'paste-image', 'screenshot', 'screenease', 'smartbird-thermostat', 'xbrd') |
         Where-Object { $runnerResult.Output -match [regex]::Escape($_) }
-    Add-Record 'A5.7-local-runner-discovery' ($runnerResult.ExitCode -eq 0 -and $discovered.Count -eq 9) "exit=$($runnerResult.ExitCode); discovered=$($discovered -join ',')" $runnerLog
+    Add-Record 'A5.7-local-runner-discovery' ($runnerResult.ExitCode -eq 0 -and $discovered.Count -eq 11) "exit=$($runnerResult.ExitCode); discovered=$($discovered -join ',')" $runnerLog
 }
 finally {
     if (Test-Path -LiteralPath $localDataRoot) { Remove-Item -LiteralPath $localDataRoot -Recurse -Force -ErrorAction SilentlyContinue }

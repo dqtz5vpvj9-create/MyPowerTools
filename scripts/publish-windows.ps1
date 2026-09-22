@@ -507,12 +507,14 @@ $packageByTool = @{
     'remote-commands' = 'android-tools-suite'
     'process-monitor' = 'android-tools-suite'
     'paste-image' = 'paste-image'
+    'screenshot' = 'screenshot'
     'input-monitor' = 'input-monitor'
     'local-lag-cleaner' = 'local-lag-cleaner'
     'ime-manager' = 'ime-manager'
     'nssm-manager' = 'nssm-manager'
     'screenease' = 'screenease'
     'smartbird-thermostat' = 'smartbird-thermostat'
+    'xbrd' = 'xbrd'
     'doubao-computer-use' = 'doubao-agent'
 }
 $toolProvenance = foreach ($toolId in $packageByTool.Keys | Sort-Object) {

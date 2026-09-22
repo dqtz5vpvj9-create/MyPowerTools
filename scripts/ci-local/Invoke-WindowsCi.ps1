@@ -223,6 +223,8 @@ if ($Suite -eq 'Ci' -or $Suite -eq 'Both') {
             'smartbird-thermostat'
             'doubao-computer-use'
             'input-monitor'
+            'screenshot'
+            'xbrd'
         )
         $requiredFiles = @('tool-release.json', 'source-map.json')
         $missing = foreach ($toolId in $toolIds) {
