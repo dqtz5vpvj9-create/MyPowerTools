@@ -3,9 +3,9 @@
   "kind": "mypowertools-ota-file-manifest",
   "product": "MyPowerTools",
   "version": "0.3.25",
-  "generatedAtUtc": "2026-09-23T17:01:49.8329616+00:00",
+  "generatedAtUtc": "2026-09-23T17:42:21.6631177+00:00",
   "fileCount": 8281,
-  "totalBytes": 506865261,
+  "totalBytes": 506868091,
   "files": [
     {
       "path": "assets/MyPowerTools.ico",
@@ -20,12 +20,12 @@
     {
       "path": "Broker/MyPowerTools.ElevatedBroker.exe",
       "length": 3374131,
-      "sha256": "527b8e045f3478338ce8c6804764dc46ddda6426b1d0a3a7bbd873284c2cb4cb"
+      "sha256": "73651ce66c0300e267f6644586310a4b8d700139376dc410dce3d3e58ddac359"
     },
     {
       "path": "build-provenance.json",
       "length": 4928,
-      "sha256": "666dc4ce9116b76214380090ebacd5885669eec027ea3a5e12b0d456ca06185d"
+      "sha256": "5e95aff14343ab2f56f4e748d0cb386f4dd10649cdfdfa1b9d83e4f5d226acd2"
     },
     {
       "path": "Cli/Google.Protobuf.dll",
@@ -75,12 +75,12 @@
     {
       "path": "Cli/MyPowerTools.Abstractions.dll",
       "length": 160256,
-      "sha256": "b4fed6e334d31719bbdbcfe72a7104c34206d5e40480012217d0481b2c3721f5"
+      "sha256": "77b437ada88ac33221ab5655e77534ac8eaf05c0de6a19f562b986220eff9b2d"
     },
     {
       "path": "Cli/MyPowerTools.Broker.dll",
       "length": 141824,
-      "sha256": "60a48ad234ad62e315463ca9104c7c3b8d54e2b8af6c3888fa9d2f74335c30e1"
+      "sha256": "cc95a78fd50906bb7ee7e0c9d6044849c4acbcade61071c169c09333dc5f01ce"
     },
     {
       "path": "Cli/MyPowerTools.Cli.deps.json",
@@ -90,12 +90,12 @@
     {
       "path": "Cli/MyPowerTools.Cli.dll",
       "length": 106496,
-      "sha256": "b37b7b5852347bd5260d380fcfad0ed15c14e899b0f814a283db0dbb957de0ae"
+      "sha256": "c2a5736f12d8897a3788894f26ab31891e886343ac45a639ca11a7cd96afcbe3"
     },
     {
       "path": "Cli/MyPowerTools.Cli.exe",
       "length": 162304,
-      "sha256": "90ad67e3e1fc65779811ceb280c4a5c9c71e0ab1eacfd77edc259303c80e7fa9"
+      "sha256": "1c5b81184b8dfdfcdf8738e897c29c0ab469e4a4097b6b1976f4ed8419718742"
     },
     {
       "path": "Cli/MyPowerTools.Cli.runtimeconfig.json",
@@ -105,72 +105,72 @@
     {
       "path": "Cli/MyPowerTools.HostControl.Client.dll",
       "length": 43008,
-      "sha256": "de2beb610f622d9c2d97f55894e7a021b9505842fdaa5ae4788e0dc78a72dc90"
+      "sha256": "eeddc02bc27bdbfcf32332b0c7b3b4744106fef9c156b7feeffa0e6ee942b20c"
     },
     {
       "path": "Cli/MyPowerTools.HostControl.Contracts.dll",
       "length": 9728,
-      "sha256": "db42468bd0ddbc17fff02d47a62012a5b2cac4140046fdab930dd9c2b65593ce"
+      "sha256": "86d884b979e1b8fd42de69b21cfb4a68abc6b6111047632194b77048c3400381"
     },
     {
       "path": "Cli/MyPowerTools.HostControl.dll",
       "length": 4608,
-      "sha256": "daef2c9f4cd828453634cdaa47e99d030dd15614649d524925d65ff5ea7700b1"
+      "sha256": "59886686518d53a493fe904871a36ab8454a962a534b2527cfa07abdb8fb6cb4"
     },
     {
       "path": "Cli/MyPowerTools.HostControl.Server.dll",
       "length": 54784,
-      "sha256": "58eb3c4070b26174c859797cc03d357e258081281b892a62e0cd6b1b4e7e6801"
+      "sha256": "8a17af461372f94ad4b037b94dff21ae45dae06c37ba063ccf11023d144192a4"
     },
     {
       "path": "Cli/MyPowerTools.Ipc.Shared.dll",
       "length": 28672,
-      "sha256": "2eb872377705f8e8452cb2e9017c7fd272adebaa1a35a0ce6a784a73499bdc8b"
+      "sha256": "c2d2163be2be0d1e8e60193ef0a071a86f7d9eed7a9b2b120a60c9097fbf83f6"
     },
     {
       "path": "Cli/MyPowerTools.ModuleHost.GrpcIpc.dll",
       "length": 88064,
-      "sha256": "51c117e072aaa945dfaf159763fc3edccc8db038ea3be58e38c13c61fd2c8025"
+      "sha256": "944d1e7a63873faf05e1578fd9c85307752ac25cf44f6a4378176095cf3b9b99"
     },
     {
       "path": "Cli/MyPowerTools.ModuleHost.InProcDotNet.dll",
       "length": 144384,
-      "sha256": "06242a32ac688bec5e21a87ec698267ce59290b1eacf145167de354a67907a30"
+      "sha256": "787dcb7c6f96decf4a228208735cfef38e8b3a3021e31d2317dbb2636d70427c"
     },
     {
       "path": "Cli/MyPowerTools.ModuleHost.StdioCompat.dll",
       "length": 18432,
-      "sha256": "7c05dd45c0472e92bd675e10a6f1403bf7d0c145b02924cb39c7c6f93158e125"
+      "sha256": "be4b89d0c6de116c27d34221b9db09cf51f804bbc444b7eec2fba2d25e59d4b7"
     },
     {
       "path": "Cli/MyPowerTools.Packaging.dll",
       "length": 103936,
-      "sha256": "3f2ccc9c9b0a1931ed9b18452c722a1b8f5750fe47b1a3173cfe9314116255c2"
+      "sha256": "2ffd04bf5d81a283f8d6a4bb7232fe4c75ed629d7dfc5c206b3a9bd339e3ba40"
     },
     {
       "path": "Cli/MyPowerTools.Platform.Abstractions.dll",
       "length": 106496,
-      "sha256": "842e7c3c8f88b20db9757968350d976ec436f01c711560e9d7fc2f81bfe0b256"
+      "sha256": "0e724dececf825f558be5c509ec846382c2f16790c07ce27ee76dcf49de39275"
     },
     {
       "path": "Cli/MyPowerTools.Platform.Windows.dll",
       "length": 108544,
-      "sha256": "a2e97570281fe7bfb084d12b0ea36e79ac9c06d385c7fad26562ba09f739f434"
+      "sha256": "47c613527128793bacf5ba2140d898d3f42b99965b0158396913c49a502b04ce"
     },
     {
       "path": "Cli/MyPowerTools.Protocol.dll",
       "length": 499712,
-      "sha256": "e2969d90d94bc820c93964b84eed2040d558b42d4d9560a4b37dbc5d93112ebf"
+      "sha256": "abfb49255e11e8c04636f38ae914810c0debc93d7690c1b2a4eb591a72c87686"
     },
     {
       "path": "Cli/MyPowerTools.Runtime.dll",
       "length": 344064,
-      "sha256": "7852b6c34f1adee09f6d2bd1e245b06de7cc6a28f231a965e3ea1cc140a38a04"
+      "sha256": "de5fff04ca55a3b6339b80493371b2e932e0f65886e9b91a52d8c7b810f0219f"
     },
     {
       "path": "Cli/MyPowerTools.ServiceManager.Client.dll",
       "length": 34304,
-      "sha256": "1a582f2eed66ce45f3970f36879fbba4f3e689bc1f4a74ff3c7490c26355d489"
+      "sha256": "eb063015add9a8b5c1d7307469b6f377a7880874fedf95aeec7ae37ef143e6bc"
     },
     {
       "path": "Cli/schemas/tool.schema.json",
@@ -205,7 +205,7 @@
     {
       "path": "InputRemap/MyPowerTools.InputRemapHost.exe",
       "length": 2442887,
-      "sha256": "e9e6a7c229612895df071f120efc1c94b7e324b93345111e036b50de796fd341"
+      "sha256": "d9335cbac246dc65acfc1a702db6e9cff3d35883544eb39c4124952d76082bbf"
     },
     {
       "path": "install-windows.ps1",
@@ -225,7 +225,7 @@
     {
       "path": "modules/adb-forwarder/AdbForwarder.MyPowerTools.dll",
       "length": 100352,
-      "sha256": "5e445784a2942990c4f39165939b004c2ca322b5f451a403288d62c2067f997d"
+      "sha256": "6fa608318e42485b6d618b3d724cc46d59954ec92c241051a2849b5ded02bc58"
     },
     {
       "path": "modules/adb-forwarder/commands.index.json",
@@ -240,12 +240,12 @@
     {
       "path": "modules/adb-forwarder/shared/package.hashes.json",
       "length": 1744,
-      "sha256": "2fb5ed9f270fe8d0f202226fcc9c1bea0967687f2a38b41f0723584646de628e"
+      "sha256": "6148d41c400acf101a9f57ce3a69154d59700f738ad18c7e404eaca345c6de59"
     },
     {
       "path": "modules/adb-forwarder/shared/package.signature.json",
       "length": 537,
-      "sha256": "962425a8ac1e2451db04ff884c94e16758883602c7c3f096cc42bd9f6d316d7b"
+      "sha256": "9126af575c7187a30cddbf1b409e0adc4f9ef2b21aada7efd61f1ddf9fec1778"
     },
     {
       "path": "modules/adb-forwarder/ui/dashboard-card.json",
@@ -270,12 +270,12 @@
     {
       "path": "modules/adb-forwarder/ui/surface/AdbForwarder.Surface.deps.json",
       "length": 20106,
-      "sha256": "d027cad7dedd545be2324635a56add16f04c61b4c19be06b2aec2befa7a1d170"
+      "sha256": "70cd25e6f7442d80e3f762b3a132c4e92e815ebea99dc9da81b33c2fc045f53f"
     },
     {
       "path": "modules/adb-forwarder/ui/surface/AdbForwarder.Surface.dll",
       "length": 484864,
-      "sha256": "43e301af1082c3ad0364ba8864399874d5c8b5af7084b92f695f12c7ebeee23c"
+      "sha256": "e2839c29f36f1924255340588e033c16d7875a8dd3f9574f5799e3d427a2658b"
     },
     {
       "path": "modules/adb-forwarder/ui/tool.json",
@@ -285,7 +285,7 @@
     {
       "path": "modules/android-tools-suite/AndroidTools.MyPowerTools.dll",
       "length": 222720,
-      "sha256": "22ba2021ffba31d684e0189ea53b877db4a62fb7453423a0ad5e0c6be7e4b3c8"
+      "sha256": "f0544025766cfa7af96051df7d76093d2a1f3893c7874e934af54974ee2e0ff7"
     },
     {
       "path": "modules/android-tools-suite/modules/notifications/commands.index.json",
@@ -330,17 +330,17 @@
     {
       "path": "modules/android-tools-suite/modules/notifications/ui/surface/MyPowerTools.Ipc.Shared.dll",
       "length": 28672,
-      "sha256": "2eb872377705f8e8452cb2e9017c7fd272adebaa1a35a0ce6a784a73499bdc8b"
+      "sha256": "c2d2163be2be0d1e8e60193ef0a071a86f7d9eed7a9b2b120a60c9097fbf83f6"
     },
     {
       "path": "modules/android-tools-suite/modules/notifications/ui/surface/RemoteNotifications.Surface.deps.json",
       "length": 21315,
-      "sha256": "b516df26552bca796aeda28721095b1db6a2341c3a64a28433bd2b2e82c26d27"
+      "sha256": "61db723038f6b46577cf827fdfa1f989a35eb320bcbfa0d1e02d7b7750261751"
     },
     {
       "path": "modules/android-tools-suite/modules/notifications/ui/surface/RemoteNotifications.Surface.dll",
       "length": 323584,
-      "sha256": "920bb0e204ae266ff5af9262acae2894d131407993e585b0ebcabc4d7d65cc55"
+      "sha256": "48323d94811d3c0473ca7267167d19a97c3d4c88a1a8c65ce90d2b2654656e5a"
     },
     {
       "path": "modules/android-tools-suite/modules/notifications/ui/tool.json",
@@ -425,12 +425,12 @@
     {
       "path": "modules/android-tools-suite/modules/remote-commands/ui/surface/RemoteCommands.Surface.deps.json",
       "length": 13040,
-      "sha256": "7bff8d1743a2a8e7650a2ce68c24d83375e01306c78ab91fa3dbb1529fd77042"
+      "sha256": "68d1d2b98b17b911c2510efa7a1ad225a49b32fdebefc6da2aa232f56e3e7bff"
     },
     {
       "path": "modules/android-tools-suite/modules/remote-commands/ui/surface/RemoteCommands.Surface.dll",
       "length": 139264,
-      "sha256": "86ed1ec508fefe0c97ce15632086b44e3e80e2aeeb93759695ca18b528f1f1a3"
+      "sha256": "d19e1de0bdfc2241e46e45ee3f31e14e09391ff1bb28ec81535b160b3e9f1a97"
     },
     {
       "path": "modules/android-tools-suite/modules/remote-commands/ui/tool.json",
@@ -445,12 +445,12 @@
     {
       "path": "modules/android-tools-suite/shared/package.hashes.json",
       "length": 9209,
-      "sha256": "f4cbab95c0018857e95bc167a5d29ed08fea941f62a5adf505968c91fa79fd21"
+      "sha256": "f2da8288339815e058d6f4530613840053374b0b787b98adae9ef0140f007835"
     },
     {
       "path": "modules/android-tools-suite/shared/package.signature.json",
       "length": 543,
-      "sha256": "d0b78418a16811cc9bfd511b617e4b92304c609cacf3ace2f69296c028e53f0b"
+      "sha256": "1a3005a467b369a7df995a24a12a4bb0c8ef4bbc25ee52584d31846066d125be"
     },
     {
       "path": "modules/android-tools-suite/shared/powertool/commands.yaml",
@@ -465,7 +465,7 @@
     {
       "path": "modules/android-tools-suite/windows/x64/AndroidTools.MyPowerTools.dll",
       "length": 222720,
-      "sha256": "22ba2021ffba31d684e0189ea53b877db4a62fb7453423a0ad5e0c6be7e4b3c8"
+      "sha256": "f0544025766cfa7af96051df7d76093d2a1f3893c7874e934af54974ee2e0ff7"
     },
     {
       "path": "modules/android-tools-suite/windows/x64/BouncyCastle.Cryptography.dll",
@@ -510,7 +510,7 @@
     {
       "path": "modules/android-tools-suite/windows/x64/MPTAndroidTools.Runtime.deps.json",
       "length": 8827,
-      "sha256": "04aba3e3f4567125e4f452f650a775aef9c5fe2df6e3b167b8eee09c16d80ab7"
+      "sha256": "1b2e5cb591bad787702f07d3f4c110bd994cfadc6e36e4c6e8dae797a3519bd2"
     },
     {
       "path": "modules/android-tools-suite/windows/x64/MPTAndroidTools.Runtime.dll",
@@ -535,22 +535,22 @@
     {
       "path": "modules/android-tools-suite/windows/x64/MyPowerTools.Abstractions.dll",
       "length": 160256,
-      "sha256": "b4fed6e334d31719bbdbcfe72a7104c34206d5e40480012217d0481b2c3721f5"
+      "sha256": "77b437ada88ac33221ab5655e77534ac8eaf05c0de6a19f562b986220eff9b2d"
     },
     {
       "path": "modules/android-tools-suite/windows/x64/MyPowerTools.Ipc.Shared.dll",
       "length": 28672,
-      "sha256": "2eb872377705f8e8452cb2e9017c7fd272adebaa1a35a0ce6a784a73499bdc8b"
+      "sha256": "c2d2163be2be0d1e8e60193ef0a071a86f7d9eed7a9b2b120a60c9097fbf83f6"
     },
     {
       "path": "modules/android-tools-suite/windows/x64/MyPowerTools.Platform.Abstractions.dll",
       "length": 106496,
-      "sha256": "842e7c3c8f88b20db9757968350d976ec436f01c711560e9d7fc2f81bfe0b256"
+      "sha256": "0e724dececf825f558be5c509ec846382c2f16790c07ce27ee76dcf49de39275"
     },
     {
       "path": "modules/android-tools-suite/windows/x64/MyPowerTools.Protocol.dll",
       "length": 499712,
-      "sha256": "e2969d90d94bc820c93964b84eed2040d558b42d4d9560a4b37dbc5d93112ebf"
+      "sha256": "abfb49255e11e8c04636f38ae914810c0debc93d7690c1b2a4eb591a72c87686"
     },
     {
       "path": "modules/android-tools-suite/windows/x64/web.config",
@@ -565,7 +565,7 @@
     {
       "path": "modules/doubao-agent/DoubaoAgent.MyPowerTools.dll",
       "length": 44032,
-      "sha256": "9f9300ce97a5426c80d76ded58049b7b9da60fab919f7aa67d2329337a5e453c"
+      "sha256": "7f57e32339e35c7d8817a5814007ddafda08e669a0bf24429877fb7e77927e63"
     },
     {
       "path": "modules/doubao-agent/module.json",
@@ -575,12 +575,12 @@
     {
       "path": "modules/doubao-agent/shared/package.hashes.json",
       "length": 1739,
-      "sha256": "e15b10dc1c53fdac522d2b7260020ef07b4738cfaaae880902ab2c3f288a7e7c"
+      "sha256": "f6aeb5cee2a7d6f3338a42fe45b92ee1082ba4da129dba4f626729b304a9999c"
     },
     {
       "path": "modules/doubao-agent/shared/package.signature.json",
       "length": 536,
-      "sha256": "3a94d9bba6ded0e4e0cfd175e599cf16420fcf337516b67c7f9cfee772bad1bd"
+      "sha256": "a7a79c2cc409c4256c7803d2946c2fec4f3dfe136ee8436e5cde6ac38f14be76"
     },
     {
       "path": "modules/doubao-agent/ui/dashboard-card.json",
@@ -605,12 +605,12 @@
     {
       "path": "modules/doubao-agent/ui/surface/DoubaoAgent.Surface.deps.json",
       "length": 20103,
-      "sha256": "7c025648489156a98ba7d68d5bded0c758b112220d155a79a4330e2a3f16008d"
+      "sha256": "23074728928e736d8be7e1f7932e9f809fc5793dc67e60b9717ed9a6d8e8f0a5"
     },
     {
       "path": "modules/doubao-agent/ui/surface/DoubaoAgent.Surface.dll",
       "length": 352768,
-      "sha256": "5f8544e225e0f016aeea06d8329cd742ea9c56ae09b1972cfe56d33f3a7611ab"
+      "sha256": "86a98777ad648a28aa39d08ef034fa8345f0e4f6893e7335627801eab50de007"
     },
     {
       "path": "modules/doubao-agent/ui/tool.json",
@@ -645,22 +645,22 @@
     {
       "path": "modules/ime-manager/shared/package.hashes.json",
       "length": 3694,
-      "sha256": "a6b3ded1ab423c746946f10aafadc81b70edf98b59fae2dc6a792da567685528"
+      "sha256": "05fc58da1529e46857c0199bda9f8aca6e5f3174305e137d5352097503ffb264"
     },
     {
       "path": "modules/ime-manager/shared/package.signature.json",
       "length": 535,
-      "sha256": "77bcb70873c03591390493f3f2203f78890f213a24c438911937933a264acc61"
+      "sha256": "166fc791c695a23d47cc3c1ed3b510bfe1622da252487122ef6ffdacf1830440"
     },
     {
       "path": "modules/ime-manager/source-manifest.json",
       "length": 2931,
-      "sha256": "955c9cbb1ca6e2e8c99563a4111e2de98b348004544161f1c7259c675e3e5a6a"
+      "sha256": "0abcdaec8ca167f9b3640da6119676b0367ec1e26896deecaf614c0b51d88709"
     },
     {
       "path": "modules/ime-manager/src/ImeManager.Runtime/bin/Release/net10.0/ImeManager.Core.dll",
       "length": 56320,
-      "sha256": "ebf729a6cbb12c81179402ba1a2ba19b439f9a0b5dd60b1868c0a8d7c9902830"
+      "sha256": "c5a8e93c50e214275cdbb8d14815bb9f5c67213a6ab023fa90da138b9c90b151"
     },
     {
       "path": "modules/ime-manager/src/ImeManager.Runtime/bin/Release/net10.0/ImeManager.Runtime.deps.json",
@@ -670,12 +670,12 @@
     {
       "path": "modules/ime-manager/src/ImeManager.Runtime/bin/Release/net10.0/ImeManager.Runtime.dll",
       "length": 22528,
-      "sha256": "5f3aeed26e6a7c8e352918bce9f3b36465f2b4a78312301964a1f551fcc97472"
+      "sha256": "550252bf61eb58395f00d9f64c9b4cff0ba5fd9361afdb85b1996466a6d6bdb4"
     },
     {
       "path": "modules/ime-manager/src/ImeManager.Runtime/bin/Release/net10.0/ImeManager.Runtime.exe",
       "length": 162816,
-      "sha256": "46e3d4b93342fe42357ee94b4118374b67a330b21b3bccd0ad24f6008fd3bf39"
+      "sha256": "9ae8b94b3a3bd8f864a2fe196e3822f573cb7ea662734d3f3b0fb771665c36c2"
     },
     {
       "path": "modules/ime-manager/src/ImeManager.Runtime/bin/Release/net10.0/ImeManager.Runtime.runtimeconfig.json",
@@ -685,17 +685,17 @@
     {
       "path": "modules/ime-manager/src/ImeManager.Tool/bin/Release/net10.0/ImeManager.Core.dll",
       "length": 56320,
-      "sha256": "ebf729a6cbb12c81179402ba1a2ba19b439f9a0b5dd60b1868c0a8d7c9902830"
+      "sha256": "c5a8e93c50e214275cdbb8d14815bb9f5c67213a6ab023fa90da138b9c90b151"
     },
     {
       "path": "modules/ime-manager/src/ImeManager.Tool/bin/Release/net10.0/ImeManager.Tool.deps.json",
       "length": 5369,
-      "sha256": "e5e24e2335454c7c7937427983bce891e067a740eb393811a23cfd782454424d"
+      "sha256": "094eeaaf1836ae4813e1b7d18ddad57c1df15c1a18c78e8f45f2a29eed629a81"
     },
     {
       "path": "modules/ime-manager/src/ImeManager.Tool/bin/Release/net10.0/ImeManager.Tool.dll",
       "length": 78336,
-      "sha256": "3fd7d1a86e5648c86298bd8705107dfdafc1df4ce33686daa885cebc0e282dd4"
+      "sha256": "c8f7e0d18382e1bca7af24a7a6634e7519ff340372641ae3a16752b4a7a04e47"
     },
     {
       "path": "modules/ime-manager/tool.json",
@@ -735,12 +735,12 @@
     {
       "path": "modules/input-monitor/InputMonitor.MyPowerTools.deps.json",
       "length": 11532,
-      "sha256": "0eeaec8d943bc2983e5fe07575c6ec2f4332d70cb1cb336ce6049774af08c774"
+      "sha256": "2a53ce041613ef2135da9fec22111de1722ec084cbf4e07cd89fe78f2b02c045"
     },
     {
       "path": "modules/input-monitor/InputMonitor.MyPowerTools.dll",
       "length": 53760,
-      "sha256": "9c9596665f6b8b572e67621983c4b245b349286340d837e9d99ce438a9f1ef1c"
+      "sha256": "36a83f75262567cfcfdfe5a7a49d251222f03ab19423e4b117ec8a4ea063c4e2"
     },
     {
       "path": "modules/input-monitor/Microsoft.Data.Sqlite.dll",
@@ -770,12 +770,12 @@
     {
       "path": "modules/input-monitor/shared/package.hashes.json",
       "length": 3224,
-      "sha256": "9d6a719554e904bd25a9f2b84c5bbea5aa3ab342cf5cb5589b24d9b7bbea65a9"
+      "sha256": "7135ac3813c4545230e823733358c8dfdff2712f49e6ec31cce9e83c798c72b4"
     },
     {
       "path": "modules/input-monitor/shared/package.signature.json",
       "length": 537,
-      "sha256": "e8a9846331b44ad3d44dbc729ab6249cddd459b2ff1ee345f5fc3ac5960c2969"
+      "sha256": "dd07b889eb9405f24aed80a2916b6936f419ad984457f49f89c758d2f0f376ae"
     },
     {
       "path": "modules/input-monitor/SQLitePCLRaw.batteries_v2.dll",
@@ -815,12 +815,12 @@
     {
       "path": "modules/input-monitor/ui/surface/InputMonitor.Surface.deps.json",
       "length": 5056,
-      "sha256": "eda2f47ed470f1cac4c2505515fc355dc0a33e6bf97315d05590b535548bee2e"
+      "sha256": "d3427470bfdb599c111a7895e8827069bb29308e425be2e013430eacc5aefb37"
     },
     {
       "path": "modules/input-monitor/ui/surface/InputMonitor.Surface.dll",
       "length": 162304,
-      "sha256": "f03224c1974fcc8a77753e58d6d09f9c51ddc19885b5a21a427901f8837deb0c"
+      "sha256": "ca29c03fecb7bf5f37d823fd45a25d1e390a9bb56b1dc06ad0358e095ea046bb"
     },
     {
       "path": "modules/input-monitor/ui/tool.json",
@@ -855,22 +855,22 @@
     {
       "path": "modules/local-lag-cleaner/shared/package.hashes.json",
       "length": 3057,
-      "sha256": "4560f0990a9b37adec815a4f9f3d8d759d52d93af923395c68cf850b59a5d3cf"
+      "sha256": "e7c01a9e5816d2e73486183d8c90053e3303fb9f5bf421ea5a336c0bd8babfc5"
     },
     {
       "path": "modules/local-lag-cleaner/shared/package.signature.json",
       "length": 541,
-      "sha256": "30ea0a0112c44555b15ba2a85c4abc7d7c2f21dd4836a749d4b0017cbb74378a"
+      "sha256": "2b4470bd46341355d52747d610405879a3f79c66922468cb5c07521d0ade7129"
     },
     {
       "path": "modules/local-lag-cleaner/source-manifest.json",
       "length": 3017,
-      "sha256": "bebb438c1aeea4f236fc6a830be089cf146ef54a7f3dbef5f4ebceb4322cf523"
+      "sha256": "a71b082bf67343ebff9ef1de8c88f9b0a5b6a05da03f58a663f66bc45fbf9ec7"
     },
     {
       "path": "modules/local-lag-cleaner/src/LocalLagCleaner.Runtime/bin/Release/net10.0/LocalLagCleaner.Core.dll",
       "length": 446464,
-      "sha256": "9bcb7bae0c4d9fbb79464004c837455935a057d5678c528abe7a4b4ac7480ba1"
+      "sha256": "78899c7bac5417bf84de3be46672b302e96b3a72bdf35656116b31fd66dad9cb"
     },
     {
       "path": "modules/local-lag-cleaner/src/LocalLagCleaner.Runtime/bin/Release/net10.0/LocalLagCleaner.Runtime.deps.json",
@@ -880,12 +880,12 @@
     {
       "path": "modules/local-lag-cleaner/src/LocalLagCleaner.Runtime/bin/Release/net10.0/LocalLagCleaner.Runtime.dll",
       "length": 61952,
-      "sha256": "4b01a1e8847a2bd88429aca1a330e411f0327051d079a21045a08a26da16a955"
+      "sha256": "0ddeb02aa794a7c71c3d9d639e43f85bed974a66cb1c5dad335c2a0c57a49346"
     },
     {
       "path": "modules/local-lag-cleaner/src/LocalLagCleaner.Runtime/bin/Release/net10.0/LocalLagCleaner.Runtime.exe",
       "length": 162816,
-      "sha256": "2ea33218b311eb1503fc05a5b278138b587320859f0be029dbe46ce65b7466cc"
+      "sha256": "333986fcbffcd7869243ceb99de4a08d97ce1c74e04ce2365dcf007f52a46b20"
     },
     {
       "path": "modules/local-lag-cleaner/src/LocalLagCleaner.Runtime/bin/Release/net10.0/LocalLagCleaner.Runtime.runtimeconfig.json",
@@ -895,17 +895,17 @@
     {
       "path": "modules/local-lag-cleaner/src/LocalLagCleaner.Tool/bin/Release/net10.0/LocalLagCleaner.Core.dll",
       "length": 446464,
-      "sha256": "9bcb7bae0c4d9fbb79464004c837455935a057d5678c528abe7a4b4ac7480ba1"
+      "sha256": "78899c7bac5417bf84de3be46672b302e96b3a72bdf35656116b31fd66dad9cb"
     },
     {
       "path": "modules/local-lag-cleaner/src/LocalLagCleaner.Tool/bin/Release/net10.0/LocalLagCleaner.Tool.deps.json",
       "length": 5404,
-      "sha256": "15a75a5604f62a30a470aa2310a3a686424c5b97050e07eee29d2cac1120150b"
+      "sha256": "bb9f4bf2c9e62c0dbd119ba7753329f2c3ca60229e05ec9987e2743b13c04a27"
     },
     {
       "path": "modules/local-lag-cleaner/src/LocalLagCleaner.Tool/bin/Release/net10.0/LocalLagCleaner.Tool.dll",
       "length": 174592,
-      "sha256": "bb76851c02145d741a53f07238417be6848826a84967dbcb5a4f338ce9799c4c"
+      "sha256": "84144c84e1909782572f4f93188e93a347faa517a2d154ed96957d2a19a3ad7f"
     },
     {
       "path": "modules/local-lag-cleaner/tool.json",
@@ -955,32 +955,32 @@
     {
       "path": "modules/nssm-manager/shared/package.hashes.json",
       "length": 4190,
-      "sha256": "5da9635b97fd369acca5a8465dc6520a23e5dee2b551978d034a215c72f14f13"
+      "sha256": "73152c0ed4d9d655dbfce5b36ccb6a5e2fed5122bcb7549ccbd3631227491748"
     },
     {
       "path": "modules/nssm-manager/shared/package.signature.json",
       "length": 539,
-      "sha256": "911cb2a8ad0e632e05ef1c85e8b0b08cadb9677feafa56d049a23c5730b44b0b"
+      "sha256": "ca71abbb310548da28ce3ab4eab40c627e6d971bee0c63470ec6a37c8c8aaeca"
     },
     {
       "path": "modules/nssm-manager/source-manifest.json",
       "length": 3384,
-      "sha256": "e46201d607938c0160bc520fc840569acb67fc9614cd4efd398f9c768956e1f8"
+      "sha256": "d442cba316a4f74b78e7d24510fb5a1c99b743624f4609741110c4eadb9202a8"
     },
     {
       "path": "modules/nssm-manager/src/NssmManager.Executable/publish/win-x64/nssm-manager.exe",
       "length": 4686336,
-      "sha256": "ae881c9c067b9cf1995b2ea3df65222a56504a54e0b5fc5c6a2db334a84de718"
+      "sha256": "1941ab53efcc296d90b6f935066a07b90983bd3b7a28d4c5af5fbb12cbe18bdd"
     },
     {
       "path": "modules/nssm-manager/src/NssmManager.Runtime/bin/Release/net10.0/NssmManager.Compatibility.dll",
       "length": 55296,
-      "sha256": "4b26e279a70c74705941ccdd5714ef5abbd5760c1f685ec7a38cea29500cc01e"
+      "sha256": "2b1e513a3d7444814560a367125bfdc176313bfc76744ccd98ddec67eb59a2f3"
     },
     {
       "path": "modules/nssm-manager/src/NssmManager.Runtime/bin/Release/net10.0/NssmManager.Contracts.dll",
       "length": 53248,
-      "sha256": "5dca482c3ee9bf45a9e7f5796dc19d1e44e445a532e3c54c0c3591a7d353b3da"
+      "sha256": "0c436364e0663b9d1056ff29ced3a21093517928b517ab35d8338cec46708255"
     },
     {
       "path": "modules/nssm-manager/src/NssmManager.Runtime/bin/Release/net10.0/NssmManager.Runtime.deps.json",
@@ -990,12 +990,12 @@
     {
       "path": "modules/nssm-manager/src/NssmManager.Runtime/bin/Release/net10.0/NssmManager.Runtime.dll",
       "length": 30720,
-      "sha256": "2b9c8f44755619b421f693742f4f8d6df338c22a873beadbc42152f32c8d00d5"
+      "sha256": "72397c7f8ecfa10f54c41122d2d01aaa36f9231ef6823e50402843e21fe3e6ac"
     },
     {
       "path": "modules/nssm-manager/src/NssmManager.Runtime/bin/Release/net10.0/NssmManager.Runtime.exe",
       "length": 162816,
-      "sha256": "0db0095020d3889c204e3b745975297e19b9f20bb2b6d60991c8f8fe193a8dd5"
+      "sha256": "59cfc964fecc3f05117c42903b40267ec239be72a055d1f2eb36b680e11f87de"
     },
     {
       "path": "modules/nssm-manager/src/NssmManager.Runtime/bin/Release/net10.0/NssmManager.Runtime.runtimeconfig.json",
@@ -1005,22 +1005,22 @@
     {
       "path": "modules/nssm-manager/src/NssmManager.Runtime/bin/Release/net10.0/NssmManager.Windows.dll",
       "length": 324608,
-      "sha256": "528489475650edb9bc0724dbf69f4776dee75c30eb42f14015b09808bb95d85d"
+      "sha256": "01383950644489774c8e76f7d6fea3b6b9477194e88c23959302c0dd9bde25f4"
     },
     {
       "path": "modules/nssm-manager/src/NssmManager.Tool/bin/Release/net10.0/NssmManager.Contracts.dll",
       "length": 53248,
-      "sha256": "5dca482c3ee9bf45a9e7f5796dc19d1e44e445a532e3c54c0c3591a7d353b3da"
+      "sha256": "0c436364e0663b9d1056ff29ced3a21093517928b517ab35d8338cec46708255"
     },
     {
       "path": "modules/nssm-manager/src/NssmManager.Tool/bin/Release/net10.0/NssmManager.Tool.deps.json",
       "length": 5396,
-      "sha256": "6d4f01dfc959f8ac225ca42a520bf1c5bf723fa12a38ff028f68649b09718d8f"
+      "sha256": "0d8220d3bef8bc2adffddf348bc5fdad5a4c7f5049a9ce3ac80ba5aa88b791ac"
     },
     {
       "path": "modules/nssm-manager/src/NssmManager.Tool/bin/Release/net10.0/NssmManager.Tool.dll",
       "length": 167424,
-      "sha256": "3fb4cb71fda3ac38cb9f190da5bd2acf313cd82317fa95a0844396730eab6d3f"
+      "sha256": "16ab6b5a7e1e2a120edaac2f2d6dff9d676d5b2ea3a73bbd6d2030579335c0be"
     },
     {
       "path": "modules/nssm-manager/tool.json",
@@ -1050,17 +1050,17 @@
     {
       "path": "modules/nssm-manager/ui/surface/NssmManager.Contracts.dll",
       "length": 53248,
-      "sha256": "5dca482c3ee9bf45a9e7f5796dc19d1e44e445a532e3c54c0c3591a7d353b3da"
+      "sha256": "0c436364e0663b9d1056ff29ced3a21093517928b517ab35d8338cec46708255"
     },
     {
       "path": "modules/nssm-manager/ui/surface/NssmManager.Tool.deps.json",
       "length": 5396,
-      "sha256": "6d4f01dfc959f8ac225ca42a520bf1c5bf723fa12a38ff028f68649b09718d8f"
+      "sha256": "0d8220d3bef8bc2adffddf348bc5fdad5a4c7f5049a9ce3ac80ba5aa88b791ac"
     },
     {
       "path": "modules/nssm-manager/ui/surface/NssmManager.Tool.dll",
       "length": 167424,
-      "sha256": "3fb4cb71fda3ac38cb9f190da5bd2acf313cd82317fa95a0844396730eab6d3f"
+      "sha256": "16ab6b5a7e1e2a120edaac2f2d6dff9d676d5b2ea3a73bbd6d2030579335c0be"
     },
     {
       "path": "modules/paste-image/commands.index.json",
@@ -1075,22 +1075,22 @@
     {
       "path": "modules/paste-image/PasteImage.MyPowerTools.deps.json",
       "length": 3551,
-      "sha256": "8d1f92aa76efe8b0b75f87d3812023b4ce6180d9c095d60efa539c1b1e9bfeab"
+      "sha256": "1f81a9174dea680b8d890ffa0f4c9448bc3c5b690908f5d3f8c479ad2f6d570c"
     },
     {
       "path": "modules/paste-image/PasteImage.MyPowerTools.dll",
       "length": 78848,
-      "sha256": "a7a3757a7961d90e4560b474525848771052380e65b4d78c1c034abbc5014f55"
+      "sha256": "80bf24700818a211b8253dc10dc6e24758c05f33e9c4cb48ea8fa8f4b3c73570"
     },
     {
       "path": "modules/paste-image/shared/package.hashes.json",
       "length": 2842,
-      "sha256": "728232ce12700f45dfa7d2ba594b5ddce8f4b536f0434ea6868972dc809e5a40"
+      "sha256": "fff42d99e3950163b8b4ff0839b4bf373d1684ecb9d10aecc7ee6ba32fc2ed02"
     },
     {
       "path": "modules/paste-image/shared/package.signature.json",
       "length": 535,
-      "sha256": "bff6167ec16e6fb0a9ce36852cd21bf7f4148fa5e9b29d23fe4200a1768ac59b"
+      "sha256": "9ab303a5c7689983fc9be2934820e93813ad393362688db014022b3484fcf4e4"
     },
     {
       "path": "modules/paste-image/ui/dashboard-card.json",
@@ -1135,12 +1135,12 @@
     {
       "path": "modules/paste-image/ui/surface/PasteImage.Surface.deps.json",
       "length": 13028,
-      "sha256": "4a915a1cae5f94cc0d5dc16d600dafa097c1188c08466075ee2f95643f71a857"
+      "sha256": "304835ea4a841048e03de394a38247a7e3cbd637b22d8e1c3e2c0b5e36ee61da"
     },
     {
       "path": "modules/paste-image/ui/surface/PasteImage.Surface.dll",
       "length": 73728,
-      "sha256": "f2a974605e99265b04c16e2ae6433183fcc27d4a2fa3139fcccb3a58990f95c9"
+      "sha256": "14e8201b3b590fc04c92c684a5af904ffa5a1e30e76e0150462505c1e865ef1f"
     },
     {
       "path": "modules/paste-image/ui/tool.json",
@@ -1160,17 +1160,17 @@
     {
       "path": "modules/screenease/ScreenEase.MyPowerTools.dll",
       "length": 216576,
-      "sha256": "9c1cc9ecf33c002e4948adaf7b4ff3f2e0c437499e7ebcd96bf812e15dd6eac3"
+      "sha256": "fe0ea19d84f4116a399742b825845e8c373f9f1d32ef90c71a59453b9a0598cd"
     },
     {
       "path": "modules/screenease/shared/package.hashes.json",
       "length": 1734,
-      "sha256": "2ca65c118dd7cf49fe3db30397c4ceae7df71d8a3b1100732403754b065e5699"
+      "sha256": "87bc36817901fef8d1b5407568b15752e6ab1d011ecdc729ade39f44b48031c6"
     },
     {
       "path": "modules/screenease/shared/package.signature.json",
       "length": 534,
-      "sha256": "8837a4eb58e1847cbd6f1f1f48a61b79d8b060504c5efc2be5923894573a430e"
+      "sha256": "3dd6dc8a32c6877f0f04cacc27d6f8880d430100373b675f2580197794000bf9"
     },
     {
       "path": "modules/screenease/ui/dashboard-card.json",
@@ -1195,12 +1195,12 @@
     {
       "path": "modules/screenease/ui/surface/ScreenEase.Surface.deps.json",
       "length": 13028,
-      "sha256": "870909101e768ed058238ddecb28dc47b0e1a8c616c23def3de827a897a79067"
+      "sha256": "eb0841bf6e40183b0ecedc490fef92e92ea566a087e6d9617cd43f7b689742b8"
     },
     {
       "path": "modules/screenease/ui/surface/ScreenEase.Surface.dll",
       "length": 288256,
-      "sha256": "9baa4aca08b1faee9e637c788462b9b44f9fb383c6382b04a7ba222ed408ac5d"
+      "sha256": "9e3d5416d478068b1a6eb13c4e09a7c06952a62f519923645c3ec2513704ca1f"
     },
     {
       "path": "modules/screenease/ui/tool.json",
@@ -1220,22 +1220,22 @@
     {
       "path": "modules/screenshot/Screenshot.MyPowerTools.deps.json",
       "length": 3551,
-      "sha256": "39e63f64923ff1379c03e9889fa60ce31786ce6065bc302928ca7ca465820195"
+      "sha256": "fb62dddb9f7f0ae4684bf34eeb0286b60f737d7eb40353a46dfcaf5512e4d03f"
     },
     {
       "path": "modules/screenshot/Screenshot.MyPowerTools.dll",
       "length": 58880,
-      "sha256": "2cea6bb83998c1b225ef4fa2c8cd7ad80f614bfe716e3ea8d0194beaeeacd248"
+      "sha256": "d45559649b23ccd1acc3e837a422ad9fc7c36b39ef0f427ac7e1565321a5129e"
     },
     {
       "path": "modules/screenshot/shared/package.hashes.json",
       "length": 1885,
-      "sha256": "36e673e48b9bd82811ca6216c003e51390295fd85ed48ed4f82f2e5d74649055"
+      "sha256": "f9c54f74bfb5175c22e6702501b61dd9b51ae007767c8ca3acb074fea8c951c4"
     },
     {
       "path": "modules/screenshot/shared/package.signature.json",
       "length": 534,
-      "sha256": "8ba19778765366910dc1866530f919c7a43d7407ed202d730edf79341b8e14e0"
+      "sha256": "053d14663c41e38102305c6d0c387d5b8f964f5b6553cd6becd1edb1eb256b76"
     },
     {
       "path": "modules/screenshot/ui/dashboard-card.json",
@@ -1260,12 +1260,12 @@
     {
       "path": "modules/screenshot/ui/surface/Screenshot.Surface.deps.json",
       "length": 16605,
-      "sha256": "eb287a5bee03bf0ba9e69e1cc8b9fa69190abb529440c9b760ec507bda1fcc4a"
+      "sha256": "c3fb88675505df883814f18ce20b9136e9796f7704805bc434f2dbc66ab971b8"
     },
     {
       "path": "modules/screenshot/ui/surface/Screenshot.Surface.dll",
       "length": 53248,
-      "sha256": "da52431b07a975c77a8e3bc11d0452fa23d58db3031085164b346d798c04aef8"
+      "sha256": "6e721d8a9eacb44412cda0aaa3723afeeefa29fa53f000fadadce8001f6a4621"
     },
     {
       "path": "modules/screenshot/ui/tool.json",
@@ -1285,17 +1285,17 @@
     {
       "path": "modules/smartbird-thermostat/shared/package.hashes.json",
       "length": 1749,
-      "sha256": "0a53d03025f5179d6f0dd8c9a22b74953a601fb9a8b493a714eff37358e68691"
+      "sha256": "d48e00dd89c41964846a53006ece4aa5c6fc96c90a3cfb04d0c2d0095a02deb8"
     },
     {
       "path": "modules/smartbird-thermostat/shared/package.signature.json",
       "length": 544,
-      "sha256": "4987aba2d008777d3ef95d8892b02c6fe345ba1c77fc60fadd6bb229c3cc5c88"
+      "sha256": "fb2e1a83e91a8bb0533cf074d4ff56546ef8e8a5c4763e3d9fc0f33ec1ef47ac"
     },
     {
       "path": "modules/smartbird-thermostat/SmartBirdThermostat.MyPowerTools.dll",
       "length": 83456,
-      "sha256": "72f5db069442dfe62214cfccd994cf748a96198f2957216d70cb5904d7ae4b96"
+      "sha256": "18846a1c1e5b6159b36732b2546a06daa02303b1e57d3396eaf58953086fe6e9"
     },
     {
       "path": "modules/smartbird-thermostat/ui/dashboard-card.json",
@@ -1320,12 +1320,12 @@
     {
       "path": "modules/smartbird-thermostat/ui/surface/SmartBird.Surface.deps.json",
       "length": 20097,
-      "sha256": "a511b16a06b1054d2e329d9802ccc8e067ad29652579f474215212626c5d3fa1"
+      "sha256": "d83f46046830cbe8103391ba8b35f39153ae6b9364909452f51c6057d6206e48"
     },
     {
       "path": "modules/smartbird-thermostat/ui/surface/SmartBird.Surface.dll",
       "length": 196096,
-      "sha256": "4ea53dbb373b9662bd86f900c7c7329b4d939fcf9f4cb9bf3ded5974966d51f4"
+      "sha256": "39d5b1349b52eae5b83d144a84894b8e4d13d1ad85acbfd0961eef489afa1f49"
     },
     {
       "path": "modules/smartbird-thermostat/ui/tool.json",
@@ -1355,12 +1355,12 @@
     {
       "path": "modules/xbrd/shared/package.hashes.json",
       "length": 1695,
-      "sha256": "f04280de64c5d4fa62e610d3ca78b1915d0ad0d5a8b32188de255aeaba110ea0"
+      "sha256": "f4f00680fdf2451539ec8107aea118e54e99ff7fa8097fc1c5d4dec5dfcf49e3"
     },
     {
       "path": "modules/xbrd/shared/package.signature.json",
       "length": 528,
-      "sha256": "9ec5ea945af37e22d8fde55f8f23d234e02bc7f0c3a1ae5fa677b217d34d23cf"
+      "sha256": "72b5740726cb3d2a6c0e382589ec7d02ba773be22282797e145bf3ca294e253f"
     },
     {
       "path": "modules/xbrd/ui/dashboard-card.json",
@@ -1385,12 +1385,12 @@
     {
       "path": "modules/xbrd/ui/surface/Xbrd.Surface.deps.json",
       "length": 16632,
-      "sha256": "075584e80ec5103cc43c8d8ba3c674eace844b533f18d53c878c7d36fa14498b"
+      "sha256": "a3290efc5fc7732c5d7175d196d69d86b826c4688ce5c08469f99d5c83fc8f5e"
     },
     {
       "path": "modules/xbrd/ui/surface/Xbrd.Surface.dll",
       "length": 337920,
-      "sha256": "dc71043f214309511d8bb9a8bdc03a3b9c158bcc4473e29ad3dafe30f16b4086"
+      "sha256": "f5a988e3fb04a6a7539560af662767f5e6cf1259d0b6d6d7c696dc3d58d288b3"
     },
     {
       "path": "modules/xbrd/ui/tool.json",
@@ -1400,7 +1400,7 @@
     {
       "path": "MyPowerTools.exe",
       "length": 477221,
-      "sha256": "450bcb21df1eca59c017f9e83d862bada714bb411b79f70b9af4e5e3786a1879"
+      "sha256": "043fbb0937e54e5e851fc1a590285f4a4ab739091bf84db10b4f0b9b2ef77509"
     },
     {
       "path": "new-ota-delta-package.ps1",
@@ -1490,92 +1490,92 @@
     {
       "path": "Runner/MyPowerTools.Abstractions.dll",
       "length": 160256,
-      "sha256": "b4fed6e334d31719bbdbcfe72a7104c34206d5e40480012217d0481b2c3721f5"
+      "sha256": "77b437ada88ac33221ab5655e77534ac8eaf05c0de6a19f562b986220eff9b2d"
     },
     {
       "path": "Runner/MyPowerTools.Broker.dll",
       "length": 141824,
-      "sha256": "60a48ad234ad62e315463ca9104c7c3b8d54e2b8af6c3888fa9d2f74335c30e1"
+      "sha256": "cc95a78fd50906bb7ee7e0c9d6044849c4acbcade61071c169c09333dc5f01ce"
     },
     {
       "path": "Runner/MyPowerTools.HostControl.Client.dll",
       "length": 43008,
-      "sha256": "de2beb610f622d9c2d97f55894e7a021b9505842fdaa5ae4788e0dc78a72dc90"
+      "sha256": "eeddc02bc27bdbfcf32332b0c7b3b4744106fef9c156b7feeffa0e6ee942b20c"
     },
     {
       "path": "Runner/MyPowerTools.HostControl.Contracts.dll",
       "length": 9728,
-      "sha256": "db42468bd0ddbc17fff02d47a62012a5b2cac4140046fdab930dd9c2b65593ce"
+      "sha256": "86d884b979e1b8fd42de69b21cfb4a68abc6b6111047632194b77048c3400381"
     },
     {
       "path": "Runner/MyPowerTools.HostControl.dll",
       "length": 4608,
-      "sha256": "daef2c9f4cd828453634cdaa47e99d030dd15614649d524925d65ff5ea7700b1"
+      "sha256": "59886686518d53a493fe904871a36ab8454a962a534b2527cfa07abdb8fb6cb4"
     },
     {
       "path": "Runner/MyPowerTools.HostControl.Server.dll",
       "length": 54784,
-      "sha256": "58eb3c4070b26174c859797cc03d357e258081281b892a62e0cd6b1b4e7e6801"
+      "sha256": "8a17af461372f94ad4b037b94dff21ae45dae06c37ba063ccf11023d144192a4"
     },
     {
       "path": "Runner/MyPowerTools.Ipc.Shared.dll",
       "length": 28672,
-      "sha256": "2eb872377705f8e8452cb2e9017c7fd272adebaa1a35a0ce6a784a73499bdc8b"
+      "sha256": "c2d2163be2be0d1e8e60193ef0a071a86f7d9eed7a9b2b120a60c9097fbf83f6"
     },
     {
       "path": "Runner/MyPowerTools.ModuleHost.GrpcIpc.dll",
       "length": 88064,
-      "sha256": "51c117e072aaa945dfaf159763fc3edccc8db038ea3be58e38c13c61fd2c8025"
+      "sha256": "944d1e7a63873faf05e1578fd9c85307752ac25cf44f6a4378176095cf3b9b99"
     },
     {
       "path": "Runner/MyPowerTools.ModuleHost.Http.dll",
       "length": 12800,
-      "sha256": "5617ef3068cd43e314c92b6e750685172563233206ffab266100635588b02448"
+      "sha256": "cf9c8292716d557d41d9f7c724be90c981fe665b452240a898dd5641d3e43e32"
     },
     {
       "path": "Runner/MyPowerTools.ModuleHost.InProcDotNet.dll",
       "length": 144384,
-      "sha256": "06242a32ac688bec5e21a87ec698267ce59290b1eacf145167de354a67907a30"
+      "sha256": "787dcb7c6f96decf4a228208735cfef38e8b3a3021e31d2317dbb2636d70427c"
     },
     {
       "path": "Runner/MyPowerTools.ModuleHost.StdioCompat.dll",
       "length": 18432,
-      "sha256": "7c05dd45c0472e92bd675e10a6f1403bf7d0c145b02924cb39c7c6f93158e125"
+      "sha256": "be4b89d0c6de116c27d34221b9db09cf51f804bbc444b7eec2fba2d25e59d4b7"
     },
     {
       "path": "Runner/MyPowerTools.Packaging.dll",
       "length": 103936,
-      "sha256": "3f2ccc9c9b0a1931ed9b18452c722a1b8f5750fe47b1a3173cfe9314116255c2"
+      "sha256": "2ffd04bf5d81a283f8d6a4bb7232fe4c75ed629d7dfc5c206b3a9bd339e3ba40"
     },
     {
       "path": "Runner/MyPowerTools.Platform.Abstractions.dll",
       "length": 106496,
-      "sha256": "842e7c3c8f88b20db9757968350d976ec436f01c711560e9d7fc2f81bfe0b256"
+      "sha256": "0e724dececf825f558be5c509ec846382c2f16790c07ce27ee76dcf49de39275"
     },
     {
       "path": "Runner/MyPowerTools.Platform.dll",
       "length": 4608,
-      "sha256": "63da30eda5e359f875dd5aaa7fd293356ea0a45161f7f2e2985f61db3e08d6c9"
+      "sha256": "37afc93ba7ccf41dd763e2f6e498270020b563e2ada9d5afcf7ac67c5f1b2b1a"
     },
     {
       "path": "Runner/MyPowerTools.Platform.Linux.dll",
       "length": 18944,
-      "sha256": "7d18e12c9f92098898e18f05490fe188d0aaf9e8d7dfb7adbd76ffb1924a9eea"
+      "sha256": "2fa3021554280e7aff5c6d2a253ebbf339ea918e0c5a61b596d1a2e5751e4d08"
     },
     {
       "path": "Runner/MyPowerTools.Platform.Mac.dll",
       "length": 91136,
-      "sha256": "3f28e0d15bbd22e4e4730589a51ca38ee50285b4efe19f5b131eb1228d19a206"
+      "sha256": "b2f15322b30f7ce7060df60ab5f4750ae3ce3de4b08e7b79866bb7063d48e984"
     },
     {
       "path": "Runner/MyPowerTools.Platform.Windows.dll",
       "length": 108544,
-      "sha256": "a2e97570281fe7bfb084d12b0ea36e79ac9c06d385c7fad26562ba09f739f434"
+      "sha256": "47c613527128793bacf5ba2140d898d3f42b99965b0158396913c49a502b04ce"
     },
     {
       "path": "Runner/MyPowerTools.Protocol.dll",
       "length": 499712,
-      "sha256": "e2969d90d94bc820c93964b84eed2040d558b42d4d9560a4b37dbc5d93112ebf"
+      "sha256": "abfb49255e11e8c04636f38ae914810c0debc93d7690c1b2a4eb591a72c87686"
     },
     {
       "path": "Runner/MyPowerTools.Runner.deps.json",
@@ -1585,12 +1585,12 @@
     {
       "path": "Runner/MyPowerTools.Runner.dll",
       "length": 80896,
-      "sha256": "8cff8c72567953a2f6ae61e44e7bb14f6b942fe017d9343166137c873818ba61"
+      "sha256": "67432505ab09a3be36210e88d565a974014c4f8bb73a7017f300ff59c82ab562"
     },
     {
       "path": "Runner/MyPowerTools.Runner.exe",
       "length": 162816,
-      "sha256": "de456634b10200414695b8d35f75a592c3c5b5007d52c25c36c9ffccc32ca1fd"
+      "sha256": "edbbf4c1a47bff013248aafc4d9aabd0829159be029873e5faf159e3facac8f3"
     },
     {
       "path": "Runner/MyPowerTools.Runner.runtimeconfig.json",
@@ -1605,12 +1605,12 @@
     {
       "path": "Runner/MyPowerTools.Runtime.dll",
       "length": 344064,
-      "sha256": "7852b6c34f1adee09f6d2bd1e245b06de7cc6a28f231a965e3ea1cc140a38a04"
+      "sha256": "de5fff04ca55a3b6339b80493371b2e932e0f65886e9b91a52d8c7b810f0219f"
     },
     {
       "path": "Runner/MyPowerTools.ServiceManager.Client.dll",
       "length": 34304,
-      "sha256": "1a582f2eed66ce45f3970f36879fbba4f3e689bc1f4a74ff3c7490c26355d489"
+      "sha256": "eb063015add9a8b5c1d7307469b6f377a7880874fedf95aeec7ae37ef143e6bc"
     },
     {
       "path": "Runner/System.Drawing.Common.dll",
@@ -17040,17 +17040,17 @@
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/jwt/__init__.py",
       "length": 1805,
-      "sha256": "0564795b435a412848db0d678100fd138aa3096075e8cce364751c7e427d60fd"
+      "sha256": "a89665470bd274b49246e763e7cb793783f7416f6986399b58d9df3b1d291bd6"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/jwt/algorithms.py",
-      "length": 40244,
-      "sha256": "bec5299c75db1d4bd7a5f9f1c382c85fc648025715b7e522b320e161d3aeb55a"
+      "length": 40684,
+      "sha256": "31e174916a77d17f4ed9dbcd3b869e9264a146aaf8d97f02d9b43bf828fe0441"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/jwt/api_jwk.py",
-      "length": 6328,
-      "sha256": "5df9913bd4846fe7d257b9c00c39f8bc611c75f83274c98ae50338a7cb20c63f"
+      "length": 6469,
+      "sha256": "ed5a1f0f48e3a56b92fc94707af7772bc932fb90181440cea1c6c6c4d51e6c47"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/jwt/api_jws.py",
@@ -17059,8 +17059,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/jwt/api_jwt.py",
-      "length": 22244,
-      "sha256": "88fe0067b597c726ab53a49963207822a1a8efdbc138603146bd4324600cda18"
+      "length": 22343,
+      "sha256": "a2af9f3593c8cf9133163cb0b5b08223281b8292d5db5665309bc23c212cac76"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/jwt/exceptions.py",
@@ -17074,13 +17074,13 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/jwt/jwk_set_cache.py",
-      "length": 961,
-      "sha256": "037f79442909503c4a2e3fcce91654912e34e407837a9130ced538938c434a85"
+      "length": 1644,
+      "sha256": "64868576dc64be9b4411f9b9d485c123b4f9f68f136ea4a6055d935fec2a18f4"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/jwt/jwks_client.py",
-      "length": 11764,
-      "sha256": "00ba62de23c8c80d90fb1f73539a8fbf32c47a959d8d0fbaf51e46800c419ab7"
+      "length": 13151,
+      "sha256": "f67fdc9d770d0686d807fddff7da0ac8ca18ca4446a12053ce4e164881b12a57"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/jwt/py.typed",
@@ -17094,8 +17094,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/jwt/utils.py",
-      "length": 4067,
-      "sha256": "e4e3d4faf0b15c47a049940088e256434b6566920ec7163c172ce47684c29ac0"
+      "length": 4076,
+      "sha256": "b9d89ca2f37984f3779d6a85029b9acd535fa2a776444ffc32d2211b83853aaf"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/jwt/warnings.py",
@@ -17125,7 +17125,7 @@
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/mcp_server-0.1.0.dist-info/RECORD",
       "length": 1689,
-      "sha256": "1b48601d481eb5aadd70ef3fe23f0396be621cfc15bff378adb5240a4cac086b"
+      "sha256": "d9244f7041a4342a5d48bd972326ba0a949b243fc5836c04e7542877ada4e6c9"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/mcp_server-0.1.0.dist-info/REQUESTED",
@@ -17140,7 +17140,7 @@
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/mcp_server-0.1.0.dist-info/uv_cache.json",
       "length": 194,
-      "sha256": "3071318f4e884b02ce0af78da380d9a5fb2d309ba79d48d458d255d4dacd962c"
+      "sha256": "b200175bace29b52fdcf78b3294bce391740f8f99d865987ea5a96819e445ab2"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/mcp_server-0.1.0.dist-info/WHEEL",
@@ -29483,42 +29483,42 @@
       "sha256": "b11927ba4976b2d56de24f14a94e273fc0e450cb3b5777e9d3ea9347d735bbb5"
     },
     {
-      "path": "Runtimes/Doubao/.venv/Lib/site-packages/pyjwt-2.14.0.dist-info/INSTALLER",
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/pyjwt-2.15.0.dist-info/INSTALLER",
       "length": 2,
       "sha256": "e6184ce10e266134fdcfa401e8f1a95005bcd4f18d16b62b757323e2833fe9a9"
     },
     {
-      "path": "Runtimes/Doubao/.venv/Lib/site-packages/pyjwt-2.14.0.dist-info/licenses/AUTHORS.rst",
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/pyjwt-2.15.0.dist-info/licenses/AUTHORS.rst",
       "length": 322,
       "sha256": "925ce43461029eedbf558ec0b7cf7fc4b045def5120ebb97937c70814071cf07"
     },
     {
-      "path": "Runtimes/Doubao/.venv/Lib/site-packages/pyjwt-2.14.0.dist-info/licenses/LICENSE",
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/pyjwt-2.15.0.dist-info/licenses/LICENSE",
       "length": 1085,
       "sha256": "797a7a20231d4c433e9f1911db1731d06b5828b98f499819a034f7c0f56f5ce5"
     },
     {
-      "path": "Runtimes/Doubao/.venv/Lib/site-packages/pyjwt-2.14.0.dist-info/METADATA",
-      "length": 3449,
-      "sha256": "b854eb461aaeef80469612210786ac1fbf6d1064f1d51af5ee2619b7bbddb1ba"
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/pyjwt-2.15.0.dist-info/METADATA",
+      "length": 3500,
+      "sha256": "bf975d075729abd3be20eda40d21d6b013cce62a4d8e1778d9e839c65195d543"
     },
     {
-      "path": "Runtimes/Doubao/.venv/Lib/site-packages/pyjwt-2.14.0.dist-info/RECORD",
-      "length": 1591,
-      "sha256": "ae76231695b82bfadbd250bada0ff5040fa7edcfaebceb1f75f812b5e5704a95"
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/pyjwt-2.15.0.dist-info/RECORD",
+      "length": 1592,
+      "sha256": "f94d73076236ccf7adb0fb816f3f3cf0f477b1e65eebcd99ed925c8d2fbfe510"
     },
     {
-      "path": "Runtimes/Doubao/.venv/Lib/site-packages/pyjwt-2.14.0.dist-info/REQUESTED",
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/pyjwt-2.15.0.dist-info/REQUESTED",
       "length": 0,
       "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     {
-      "path": "Runtimes/Doubao/.venv/Lib/site-packages/pyjwt-2.14.0.dist-info/top_level.txt",
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/pyjwt-2.15.0.dist-info/top_level.txt",
       "length": 4,
       "sha256": "44fe431cdc896ccab691ad0599f4e0a12690ce1ededebe57b825823bc6b4d24f"
     },
     {
-      "path": "Runtimes/Doubao/.venv/Lib/site-packages/pyjwt-2.14.0.dist-info/WHEEL",
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/pyjwt-2.15.0.dist-info/WHEEL",
       "length": 91,
       "sha256": "61532836a2b3111b7ec23519c09df7c41180c27165fb872a6d8913b566b88ad1"
     },
@@ -34895,17 +34895,17 @@
     {
       "path": "Runtimes/Python312/Lib/site-packages/bin/clear_comtypes_cache.exe",
       "length": 108359,
-      "sha256": "9e72f172767cf025ce4848dff571362f28d592ff24189b0ab08cfccd9c92da21"
+      "sha256": "0573f507762261ad160c04c67b04bc05b0dda00bae9190482e2b641e6ed5c45c"
     },
     {
       "path": "Runtimes/Python312/Lib/site-packages/bin/flask.exe",
       "length": 108348,
-      "sha256": "dd245f7440ec6a34965e34619c858aabb785aebc1748ee0c62d78c69a50b5e34"
+      "sha256": "66b980a650a3b82eecbb16c8e45876af2099188d8f8d035df343ba849152cc2d"
     },
     {
       "path": "Runtimes/Python312/Lib/site-packages/bin/pywin32_postinstall.exe",
       "length": 108372,
-      "sha256": "2db94b4cd82149cc50d0282dee31e085c1f9dc5b05b25f24ff2d18ce9ca97ba5"
+      "sha256": "1515cea1dfd95948d9f873abdf9543db4baac0e05cf885e90cd924f1968255f8"
     },
     {
       "path": "Runtimes/Python312/Lib/site-packages/bin/pywin32_postinstall.py",
@@ -34915,7 +34915,7 @@
     {
       "path": "Runtimes/Python312/Lib/site-packages/bin/pywin32_testall.exe",
       "length": 108368,
-      "sha256": "81ed2c0749718533cf583188212ba48e4ba0744a75f7b7ed92b35137c81c6a58"
+      "sha256": "6654f313c14742dc9f6086f93e7a9202daa4fc029e9c3298a9373027a4252bd7"
     },
     {
       "path": "Runtimes/Python312/Lib/site-packages/bin/pywin32_testall.py",
@@ -35105,7 +35105,7 @@
     {
       "path": "Runtimes/Python312/Lib/site-packages/comtypes-1.4.16.dist-info/RECORD",
       "length": 22160,
-      "sha256": "06f9870ca6ce2d606385dfdabf18abfd34d288d52305e27475a3f263b81fa23d"
+      "sha256": "0ee254630a82004cd9300e9e14b479dfc4c580f94f49ef097401fa8791ca8dc6"
     },
     {
       "path": "Runtimes/Python312/Lib/site-packages/comtypes-1.4.16.dist-info/REQUESTED",
@@ -35274,23 +35274,23 @@
     },
     {
       "path": "Runtimes/Python312/Lib/site-packages/comtypes/gen/_00020430_0000_0000_C000_000000000046_0_2_0.py",
-      "length": 20268,
-      "sha256": "9fc31461868274d90c3ae59aa51858084a0195ba47120b2006118daea10376c0"
+      "length": 20272,
+      "sha256": "64ed1f05af2841acdca2956e0c951f8fe9d947c3ef015e31f8e818594e6ee1c6"
     },
     {
       "path": "Runtimes/Python312/Lib/site-packages/comtypes/gen/_944DE083_8FB8_45CF_BCB7_C477ACB2F897_0_1_0.py",
-      "length": 315891,
-      "sha256": "658a2751dd5f8107b794a6cae5ee0a7c86154bf3675de6fbafd9105a27dd7b17"
+      "length": 315881,
+      "sha256": "84abc6d69bfe0bfa370d288a9094c5ce2cf7727999c5c877e9d3411c9f75684d"
     },
     {
       "path": "Runtimes/Python312/Lib/site-packages/comtypes/gen/stdole.py",
       "length": 1987,
-      "sha256": "4c8f527bec3225183a3aaa9a33a86cbd3576c197c8903caaaad1eb56a0162348"
+      "sha256": "bcbf23427b22ce54a213942fd1cafcdf31f9138ed18347b391de5d8770b43134"
     },
     {
       "path": "Runtimes/Python312/Lib/site-packages/comtypes/gen/UIAutomationClient.py",
-      "length": 46270,
-      "sha256": "689618bc4af77f8ebee145ca80415e87e6bcebe9a46e380a410a6dfbccf29c95"
+      "length": 46295,
+      "sha256": "f4da25b7b32be4f2193bc4a4ebc15a1f3cb0a8cce43e7d8aeb196430c0437b76"
     },
     {
       "path": "Runtimes/Python312/Lib/site-packages/comtypes/git.py",
@@ -35920,7 +35920,7 @@
     {
       "path": "Runtimes/Python312/Lib/site-packages/flask-3.1.2.dist-info/RECORD",
       "length": 3725,
-      "sha256": "144eb0283d26d936ee49ac063ffff354de7a3f384a02d8e6ccb382f2d2a1ea67"
+      "sha256": "c75fc849b061578cadede918e0567ce76d72e35187d8b790e0455de78d4bc388"
     },
     {
       "path": "Runtimes/Python312/Lib/site-packages/flask-3.1.2.dist-info/REQUESTED",
@@ -37215,7 +37215,7 @@
     {
       "path": "Runtimes/Python312/Lib/site-packages/pywin32-310.dist-info/RECORD",
       "length": 81546,
-      "sha256": "6d0d151b3ecdf630f7bfb9eacdbcfb9eae704eb759e284b40f8c23a6273ad602"
+      "sha256": "9b817cf8db90716cd41d1433012a42c656fd310fd5f56d90255850eed20482c4"
     },
     {
       "path": "Runtimes/Python312/Lib/site-packages/pywin32-310.dist-info/REQUESTED",
@@ -40255,12 +40255,12 @@
     {
       "path": "service-units/adb-forwarder.service/bin/AdbForwarder.MyPowerTools.dll",
       "length": 100352,
-      "sha256": "5e445784a2942990c4f39165939b004c2ca322b5f451a403288d62c2067f997d"
+      "sha256": "6fa608318e42485b6d618b3d724cc46d59954ec92c241051a2849b5ded02bc58"
     },
     {
       "path": "service-units/adb-forwarder.service/bin/AdbForwarder.Service.deps.json",
       "length": 5575,
-      "sha256": "e7dfd61a1c1797124026122f91c7dfe1cdf1aef9eacca719387a7d4c6e609642"
+      "sha256": "e624dedb6876c573290c7569cca05dbe33a136bac22c264aa7e13907bd817d7b"
     },
     {
       "path": "service-units/adb-forwarder.service/bin/AdbForwarder.Service.dll",
@@ -40300,22 +40300,22 @@
     {
       "path": "service-units/adb-forwarder.service/bin/MyPowerTools.Abstractions.dll",
       "length": 160256,
-      "sha256": "b4fed6e334d31719bbdbcfe72a7104c34206d5e40480012217d0481b2c3721f5"
+      "sha256": "77b437ada88ac33221ab5655e77534ac8eaf05c0de6a19f562b986220eff9b2d"
     },
     {
       "path": "service-units/adb-forwarder.service/bin/MyPowerTools.Ipc.Shared.dll",
       "length": 28672,
-      "sha256": "2eb872377705f8e8452cb2e9017c7fd272adebaa1a35a0ce6a784a73499bdc8b"
+      "sha256": "c2d2163be2be0d1e8e60193ef0a071a86f7d9eed7a9b2b120a60c9097fbf83f6"
     },
     {
       "path": "service-units/adb-forwarder.service/bin/MyPowerTools.Platform.Abstractions.dll",
       "length": 106496,
-      "sha256": "842e7c3c8f88b20db9757968350d976ec436f01c711560e9d7fc2f81bfe0b256"
+      "sha256": "0e724dececf825f558be5c509ec846382c2f16790c07ce27ee76dcf49de39275"
     },
     {
       "path": "service-units/adb-forwarder.service/bin/MyPowerTools.Protocol.dll",
       "length": 499712,
-      "sha256": "e2969d90d94bc820c93964b84eed2040d558b42d4d9560a4b37dbc5d93112ebf"
+      "sha256": "abfb49255e11e8c04636f38ae914810c0debc93d7690c1b2a4eb591a72c87686"
     },
     {
       "path": "service-units/adb-forwarder.service/unit-manifest.json",
@@ -40375,12 +40375,12 @@
     {
       "path": "service-units/doubao-agent.controller.service/bin/MyPowerTools.Ipc.Shared.dll",
       "length": 28672,
-      "sha256": "2eb872377705f8e8452cb2e9017c7fd272adebaa1a35a0ce6a784a73499bdc8b"
+      "sha256": "c2d2163be2be0d1e8e60193ef0a071a86f7d9eed7a9b2b120a60c9097fbf83f6"
     },
     {
       "path": "service-units/doubao-agent.controller.service/bin/MyPowerTools.Platform.Abstractions.dll",
       "length": 106496,
-      "sha256": "842e7c3c8f88b20db9757968350d976ec436f01c711560e9d7fc2f81bfe0b256"
+      "sha256": "0e724dececf825f558be5c509ec846382c2f16790c07ce27ee76dcf49de39275"
     },
     {
       "path": "service-units/doubao-agent.controller.service/unit-manifest.json",
@@ -40410,22 +40410,22 @@
     {
       "path": "service-units/remote-notifications.service/bin/MyPowerTools.Abstractions.dll",
       "length": 160256,
-      "sha256": "b4fed6e334d31719bbdbcfe72a7104c34206d5e40480012217d0481b2c3721f5"
+      "sha256": "77b437ada88ac33221ab5655e77534ac8eaf05c0de6a19f562b986220eff9b2d"
     },
     {
       "path": "service-units/remote-notifications.service/bin/MyPowerTools.Ipc.Shared.dll",
       "length": 28672,
-      "sha256": "2eb872377705f8e8452cb2e9017c7fd272adebaa1a35a0ce6a784a73499bdc8b"
+      "sha256": "c2d2163be2be0d1e8e60193ef0a071a86f7d9eed7a9b2b120a60c9097fbf83f6"
     },
     {
       "path": "service-units/remote-notifications.service/bin/MyPowerTools.Platform.Abstractions.dll",
       "length": 106496,
-      "sha256": "842e7c3c8f88b20db9757968350d976ec436f01c711560e9d7fc2f81bfe0b256"
+      "sha256": "0e724dececf825f558be5c509ec846382c2f16790c07ce27ee76dcf49de39275"
     },
     {
       "path": "service-units/remote-notifications.service/bin/MyPowerTools.Platform.Mac.dll",
       "length": 91136,
-      "sha256": "3f28e0d15bbd22e4e4730589a51ca38ee50285b4efe19f5b131eb1228d19a206"
+      "sha256": "b2f15322b30f7ce7060df60ab5f4750ae3ce3de4b08e7b79866bb7063d48e984"
     },
     {
       "path": "service-units/remote-notifications.service/bin/RemoteNotifications.Service.deps.json",
@@ -40475,32 +40475,32 @@
     {
       "path": "service-units/screenease.service/bin/MyPowerTools.Abstractions.dll",
       "length": 160256,
-      "sha256": "b4fed6e334d31719bbdbcfe72a7104c34206d5e40480012217d0481b2c3721f5"
+      "sha256": "77b437ada88ac33221ab5655e77534ac8eaf05c0de6a19f562b986220eff9b2d"
     },
     {
       "path": "service-units/screenease.service/bin/MyPowerTools.Ipc.Shared.dll",
       "length": 28672,
-      "sha256": "2eb872377705f8e8452cb2e9017c7fd272adebaa1a35a0ce6a784a73499bdc8b"
+      "sha256": "c2d2163be2be0d1e8e60193ef0a071a86f7d9eed7a9b2b120a60c9097fbf83f6"
     },
     {
       "path": "service-units/screenease.service/bin/MyPowerTools.Platform.Abstractions.dll",
       "length": 106496,
-      "sha256": "842e7c3c8f88b20db9757968350d976ec436f01c711560e9d7fc2f81bfe0b256"
+      "sha256": "0e724dececf825f558be5c509ec846382c2f16790c07ce27ee76dcf49de39275"
     },
     {
       "path": "service-units/screenease.service/bin/MyPowerTools.Protocol.dll",
       "length": 499712,
-      "sha256": "e2969d90d94bc820c93964b84eed2040d558b42d4d9560a4b37dbc5d93112ebf"
+      "sha256": "abfb49255e11e8c04636f38ae914810c0debc93d7690c1b2a4eb591a72c87686"
     },
     {
       "path": "service-units/screenease.service/bin/ScreenEase.MyPowerTools.dll",
       "length": 216576,
-      "sha256": "9c1cc9ecf33c002e4948adaf7b4ff3f2e0c437499e7ebcd96bf812e15dd6eac3"
+      "sha256": "fe0ea19d84f4116a399742b825845e8c373f9f1d32ef90c71a59453b9a0598cd"
     },
     {
       "path": "service-units/screenease.service/bin/ScreenEase.Service.deps.json",
       "length": 5561,
-      "sha256": "f38278a16aeabfea22c4378bf3ef936a3749c4861d1e0bd9f3f6cb4472d318e8"
+      "sha256": "1c8fcbe98680ea3f87fc6de995c19c858fdcaa5a816ce78f384c4ab30f5633cb"
     },
     {
       "path": "service-units/screenease.service/bin/ScreenEase.Service.dll",
@@ -40525,12 +40525,12 @@
     {
       "path": "service-units/xbrd.codex-quota.service/bin/MyPowerTools.Platform.Abstractions.dll",
       "length": 106496,
-      "sha256": "842e7c3c8f88b20db9757968350d976ec436f01c711560e9d7fc2f81bfe0b256"
+      "sha256": "0e724dececf825f558be5c509ec846382c2f16790c07ce27ee76dcf49de39275"
     },
     {
       "path": "service-units/xbrd.codex-quota.service/bin/Xbrd.CodexQuota.Service.deps.json",
       "length": 1233,
-      "sha256": "01d06a312e9dad45dfed94dac73b7dabf0d5ba77ea8a534909efb76f69687161"
+      "sha256": "cfbac0cc648dedd0601001446889a436df65904ca92a1b5f243e4206e85b9afd"
     },
     {
       "path": "service-units/xbrd.codex-quota.service/bin/Xbrd.CodexQuota.Service.dll",
@@ -40615,27 +40615,27 @@
     {
       "path": "ServiceManager/MyPowerTools.Abstractions.dll",
       "length": 160256,
-      "sha256": "b4fed6e334d31719bbdbcfe72a7104c34206d5e40480012217d0481b2c3721f5"
+      "sha256": "77b437ada88ac33221ab5655e77534ac8eaf05c0de6a19f562b986220eff9b2d"
     },
     {
       "path": "ServiceManager/MyPowerTools.Ipc.Shared.dll",
       "length": 28672,
-      "sha256": "2eb872377705f8e8452cb2e9017c7fd272adebaa1a35a0ce6a784a73499bdc8b"
+      "sha256": "c2d2163be2be0d1e8e60193ef0a071a86f7d9eed7a9b2b120a60c9097fbf83f6"
     },
     {
       "path": "ServiceManager/MyPowerTools.Platform.Abstractions.dll",
       "length": 106496,
-      "sha256": "320ff98ba70e8a2dad5d3f920f5c8c4088dad77429b206fea26f6ecd15624b9d"
+      "sha256": "f32af2dab451935e09b139b83bd660ba235870111a28020ffb9984f515de9ba6"
     },
     {
       "path": "ServiceManager/MyPowerTools.Protocol.dll",
       "length": 499712,
-      "sha256": "e2969d90d94bc820c93964b84eed2040d558b42d4d9560a4b37dbc5d93112ebf"
+      "sha256": "abfb49255e11e8c04636f38ae914810c0debc93d7690c1b2a4eb591a72c87686"
     },
     {
       "path": "ServiceManager/MyPowerTools.ServiceManager.Client.dll",
       "length": 34304,
-      "sha256": "1a582f2eed66ce45f3970f36879fbba4f3e689bc1f4a74ff3c7490c26355d489"
+      "sha256": "eb063015add9a8b5c1d7307469b6f377a7880874fedf95aeec7ae37ef143e6bc"
     },
     {
       "path": "ServiceManager/MyPowerTools.ServiceManager.deps.json",
@@ -40645,12 +40645,12 @@
     {
       "path": "ServiceManager/MyPowerTools.ServiceManager.dll",
       "length": 15872,
-      "sha256": "16144dc857bed91ae1d8436b497caf961b97fd629b2ffdf07c28c403da2d5b51"
+      "sha256": "089ec5e4b916bd3c86dbae3fdf0bed449f8e4cbd1acc402faca6ad8b31268699"
     },
     {
       "path": "ServiceManager/MyPowerTools.ServiceManager.exe",
       "length": 162816,
-      "sha256": "c0b7a87e524482bf96e2278255009ad61f0c7036e4ceb7bbcfef4d2618ad8a25"
+      "sha256": "28577c86d6972bb9c2d0fb96d0038cfc4969c8f31d7b0e46cb837ae6861c1e96"
     },
     {
       "path": "ServiceManager/MyPowerTools.ServiceManager.runtimeconfig.json",
@@ -40660,7 +40660,7 @@
     {
       "path": "ServiceManager/MyPowerTools.ServiceManager.Server.dll",
       "length": 84992,
-      "sha256": "13d30d80603ccd76659b1ff0a0e9ce4cd112f3f77b1d696d59a6af39d587f044"
+      "sha256": "6c66c98efa8193269a803aad24eb03e3f6481f59f93c2309cc2bf0a795a97744"
     },
     {
       "path": "ServiceManager/MyPowerTools.ServiceManager.staticwebassets.endpoints.json",
@@ -40875,77 +40875,77 @@
     {
       "path": "Shell/MyPowerTools.Abstractions.dll",
       "length": 167936,
-      "sha256": "d50d1b3bdf89d680f25d9a45fa0d2bfcef9f0faf2554bb438792e877d9b6038d"
+      "sha256": "f65c1db0ba44199970fb639e858180d993bcd5f7ef222f629cc9437aae432f7b"
     },
     {
       "path": "Shell/MyPowerTools.AvaloniaSdk.dll",
       "length": 53248,
-      "sha256": "2be2ec5bb10c804d2cc11d120f60910674e65338612df581d7aeab7dc773d751"
+      "sha256": "6759962de362810edec9c0d413eb12c40227419afcfb74d06f3e074b1a5be7b3"
     },
     {
       "path": "Shell/MyPowerTools.Broker.dll",
       "length": 147456,
-      "sha256": "1aa4ca9cb02aa8ce75f649117bb4781a8fd8ae6e88610fdfaebb74129e824b28"
+      "sha256": "cb990596ab8fd364a288ba5e7641052de83a09020208d02973c03b46ceea1313"
     },
     {
       "path": "Shell/MyPowerTools.HostControl.Client.dll",
       "length": 49152,
-      "sha256": "d29c2d81fadf2d5c28a4c1f2133e8eb780cf9be3ee3f94153cced751f3e25037"
+      "sha256": "4d97a9ac369e4f3387aa9d49ca1ccb53e6d943cd632feab67b85a04c0486045a"
     },
     {
       "path": "Shell/MyPowerTools.HostControl.Contracts.dll",
       "length": 12288,
-      "sha256": "c4a72a690baefd40a8ea5ab777bbb7b3157c775e506d049bace64b188df6bb3f"
+      "sha256": "d25e5c27f7756bba02c0d4e3a0df047d6d4363579069bafa771148d4546cd06e"
     },
     {
       "path": "Shell/MyPowerTools.Ipc.Shared.dll",
       "length": 32768,
-      "sha256": "a4bdf37c5561637e3136dc7026f9c926544d83f0f8b696f48affcaf43f065c6b"
+      "sha256": "18c9280875d9abb5f7dac85590a16ec74c4024d82eccb7e6a203f3ef8e79ffce"
     },
     {
       "path": "Shell/MyPowerTools.Packaging.dll",
       "length": 110592,
-      "sha256": "8cd5a749e22d86b17ae08ca8e317256021b7beb11c3030160b796b49d7656037"
+      "sha256": "c78e948ca5d3a87adad9ede7d31fc61fe62073ce7f0a4a996de3bb43edc16973"
     },
     {
       "path": "Shell/MyPowerTools.Platform.Abstractions.dll",
       "length": 110592,
-      "sha256": "c85324b807b2e11107acb3a17535f7d358ac73a931a0f825db13f99d29dafa76"
+      "sha256": "03e89622abc5015cc937f487c609b5e98aea27b1fdb7d3db047df83378db6e76"
     },
     {
       "path": "Shell/MyPowerTools.Platform.dll",
       "length": 8192,
-      "sha256": "6e385003db5fef1f8bbf6e259605544bf03cf03d789ad9c3e7eb38b12f567d7f"
+      "sha256": "de9ee620a87f5dbab4955b4d0378b33ab0d61dd547b47da608ebc8df0e8d652a"
     },
     {
       "path": "Shell/MyPowerTools.Platform.Linux.dll",
       "length": 24576,
-      "sha256": "2ad7f674bb4f45cf0e71a042d370af74b434b401d22c249c503a7f2eaf006265"
+      "sha256": "f3bb3a72d594bfef275274c967761ac4ed72050b841942ea1de4f7d21495ad86"
     },
     {
       "path": "Shell/MyPowerTools.Platform.Mac.dll",
       "length": 94208,
-      "sha256": "9f4487f80a909a731407e9515fa88e50fdb195f3db82bc019e54feaa803a23a8"
+      "sha256": "866109cec38f31189a1cedb7a0e7b12a36777a96a32e3d44344113e883d7e05a"
     },
     {
       "path": "Shell/MyPowerTools.Platform.Windows.dll",
       "length": 114688,
-      "sha256": "2c336da9b5840e0e5f5a2fa85ec9ac0ec73812fdda7fd1e58118067420f7b7e3"
+      "sha256": "e0d43e6378c41b4f71b0a8e6767df6b595ab3b765502e7908ee433192fab4594"
     },
     {
       "path": "Shell/MyPowerTools.Protocol.dll",
       "length": 507904,
-      "sha256": "bd0ddc0501c9ab84d789812f6eb8eb939e7ab4a83db2875e8f5067559581f0f4"
+      "sha256": "81e4df62259f1082fc9e5adba148db5c6d55c646bc731608ce924d662dd1b5f9"
     },
     {
       "path": "Shell/MyPowerTools.Runtime.dll",
       "length": 352256,
-      "sha256": "3393d32933a889c19fe4b131fc9247e1f0ea56ac3ae392e451d94e5c8761bca9"
+      "sha256": "f701171ea1a608cfb79915c4b484cf637dcf5b8e2084196733887ce4e8608960"
     },
     {
       "path": "Shell/MyPowerTools.ServiceManager.Client.dll",
       "length": 36864,
-      "sha256": "7356a39fb404ec13cc5be1af96bc7ec5f6751d27f9a24851e7ce7694b3c40f29"
+      "sha256": "99bb14150a44c1ab4965b64d04363501bbfa3cb8f4fd4b1d133e325a508fa103"
     },
     {
       "path": "Shell/MyPowerTools.Shell.Avalonia.deps.json",
@@ -40955,17 +40955,17 @@
     {
       "path": "Shell/MyPowerTools.Shell.Avalonia.dll",
       "length": 1372160,
-      "sha256": "ade3349ba76092e1481c322e61d183977a022a3e87ef62419d9d14661161b6d0"
+      "sha256": "6eecb5139a890f04505b4617b3f5c054071497480efa886725e9389e327ee5db"
     },
     {
       "path": "Shell/MyPowerTools.Shell.Avalonia.exe",
       "length": 175616,
-      "sha256": "b7774f1e8785dce6624e071723f1eb4b472d71a69d3a5e2c676c64b52b57989a"
+      "sha256": "f2fb5a371f07b9f0cc1d9b01cbadedd66272d38d2cf69a98a0c6c50193a2e7bf"
     },
     {
       "path": "Shell/MyPowerTools.Shell.Avalonia.r2r.dll",
       "length": 33841152,
-      "sha256": "dce9401084fe8e51fe49db4a152845dc1b7b048532659e262528cb3bbf0d9ff1"
+      "sha256": "c0fdfc30ccf3454a8d2ccb88eb530e8edb09f53a8d835cbe85f083b20d63b791"
     },
     {
       "path": "Shell/MyPowerTools.Shell.Avalonia.runtimeconfig.json",
@@ -40975,17 +40975,17 @@
     {
       "path": "Shell/MyPowerTools.UI.dll",
       "length": 184320,
-      "sha256": "7e75b1c4cfcdbf37e25ba49db46dfb5b32980779a2867bfbde8ca8a5fc8c573d"
+      "sha256": "0269727783d9514f0a648db5afdf1d38deaa548396b7e080ae97842cb9699ebe"
     },
     {
       "path": "Shell/MyPowerTools.UI.Primitives.dll",
       "length": 20480,
-      "sha256": "1c6db22f57af6c9c0a34d9609982740e06c14f1aeef6ac6722e8ff834a014523"
+      "sha256": "9236c920c8ff462bb5491d2aec33dfdc91557f32e3f695e0deb9449e9f1c82ea"
     },
     {
       "path": "Shell/MyPowerTools.WebSurface.Avalonia.dll",
       "length": 73728,
-      "sha256": "9ea51c9a754a3f2f6e09eb0f16e4ed5ada705b3f5795e22443477b4b5b19c3e8"
+      "sha256": "b2474b48dd684ca2b761a298cb2081a0f094b8ebbcbb23d9461fd51d138786c6"
     },
     {
       "path": "Shell/SkiaSharp.dll",
@@ -41040,17 +41040,17 @@
     {
       "path": "Shell/WebToolHost/MyPowerTools.WebToolHost.dll",
       "length": 57344,
-      "sha256": "5de6e5f921944d42e148ac32b60e126ca3d07183b47ee9ac95be7fd5d506ef61"
+      "sha256": "f2874a4ad7530ea4a97803b33ca888d97923fee10521cf21ddc2a4f14aa9aed3"
     },
     {
       "path": "Shell/WebToolHost/MyPowerTools.WebToolHost.exe",
       "length": 163840,
-      "sha256": "5059e9c430f8cd390b2eb963bdd29d815ff4ed006e73e2954582adef4bba10e2"
+      "sha256": "bb4b7edc89daf110025e4015bb3e2c36d8e90a8232acaf545a03b03889c0b943"
     },
     {
       "path": "Shell/WebToolHost/MyPowerTools.WebToolHost.r2r.dll",
       "length": 540672,
-      "sha256": "0b1bd6968127540312da91d3a6b466682aa4888989234de1f68ea234355958e9"
+      "sha256": "2cb0319ce53e6585bbee70e41111b7c48d3aca8f4f21b12735f7fe28c68cdb98"
     },
     {
       "path": "Shell/WebToolHost/MyPowerTools.WebToolHost.runtimeconfig.json",
