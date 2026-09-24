@@ -191,6 +191,24 @@ jobs:
             throw 'The staged notification module is not using the supervised service observer.'
           }
 
+      - name: Release module hosts left by the architecture gates
+        shell: pwsh
+        # Architecture Gate (Process) starts a Runner, a Shell and the Android Tools
+        # module host and leaves them running. A survivor holds
+        # \\.\pipe\mypowertools.android-tools-suite.module-host, so the Android Tools
+        # test below hits "restart limit reached" depending on timing.
+        run: |
+          $names = @('MPTAndroidTools.Runtime', 'MyPowerTools.ServiceManager', 'MyPowerTools.Runner', 'MyPowerTools.Shell.Avalonia')
+          foreach ($process in (Get-Process -Name $names -ErrorAction SilentlyContinue)) {
+            Write-Host "stopping $($process.ProcessName) ($($process.Id))"
+            try {
+              $process.Kill($true)
+              $null = $process.WaitForExit(5000)
+            } catch {
+              Write-Host "  already gone: $($_.Exception.Message)"
+            }
+          }
+
       - name: Android Tools test
         # Runs straight after staging, before the full suite. Those tests load
         # modules/ as well, and a module host left holding
