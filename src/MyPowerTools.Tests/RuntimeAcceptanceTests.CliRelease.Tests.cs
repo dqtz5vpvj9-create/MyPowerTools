@@ -405,6 +405,87 @@ public sealed partial class RuntimeAcceptanceTests
     }
 
     [Fact]
+    public void Web_setup_never_leaves_a_half_installed_product_and_explains_failures()
+    {
+        var installer = File.ReadAllText(Path.Combine(Root, "installer", "MyPowerTools.Web.iss"));
+        var fullInstaller = File.ReadAllText(Path.Combine(Root, "installer", "MyPowerTools.iss"));
+        var serviceConfigurator = File.ReadAllText(Path.Combine(Root, "scripts", "configure-user-services.ps1"));
+
+        // One installer at a time, shared with the full installer (same AppId and directory).
+        Assert.Contains("SetupMutex=MyPowerToolsSetupMutex,Global\\MyPowerToolsSetupMutex", installer);
+        Assert.Contains("SetupMutex=MyPowerToolsSetupMutex,Global\\MyPowerToolsSetupMutex", fullInstaller);
+        Assert.Contains("MinVersion=10.0.17763", installer);
+
+        // Transaction: the old directory is moved aside in one rename, restored on any failure,
+        // cancel or crash (journal), and deleted only after the new files are verified.
+        Assert.Contains("procedure BeginInstallTransaction", installer);
+        Assert.Contains("RenameFile(TransactionAppDir, TransactionBackup)", installer);
+        Assert.Contains(".install-pending", installer);
+        Assert.Contains("procedure RestoreFromJournal", installer);
+        Assert.Contains("RecoverInterruptedInstall(AppDir)", installer);
+        Assert.Contains("RollbackInstallTransaction;", installer);
+        Assert.Contains("procedure CommitInstallTransaction", installer);
+        Assert.Contains("AfterInstall: VerifyCoreLayout", installer);
+        Assert.Contains("AfterInstall: VerifyDotNetLayout", installer);
+        Assert.True(
+            installer.IndexOf("AbandonInstall;", installer.IndexOf("CurStep = ssPostInstall", StringComparison.Ordinal), StringComparison.Ordinal) <
+            installer.IndexOf("CommitInstallTransaction;", installer.IndexOf("CurStep = ssPostInstall", StringComparison.Ordinal), StringComparison.Ordinal),
+            "A failed layout verification must abandon the install before the transaction commits.");
+        Assert.Contains("CurStepChanged(CurStep: TSetupStep)", installer);
+        Assert.Contains("BeginInstallTransaction;", installer);
+        Assert.Contains("ElevatedStopProductImages", installer);
+        Assert.Contains("ShellExec('runas'", installer);
+        // Runtimes that are not re-downloaded are carried over instead of being lost.
+        Assert.Contains("CarryFromBackup('Runtime\\dotnet'", installer);
+        Assert.Contains("CarryFromBackup('Runtimes\\Doubao', not WantsDoubao)", installer);
+        Assert.Contains("CarryUninstallerFiles", installer);
+
+        // Downloads: automatic retries with backoff, resume of finished files, mirrors,
+        // human-readable reasons, disk space check.
+        Assert.Contains("AutomaticDownloadAttempts = 3", installer);
+        Assert.Contains("Reusing signature-verified download from this session", installer);
+        Assert.Contains("PreserveDownloadedAssets", installer);
+        Assert.Contains("{param:MIRROR|}", installer);
+        Assert.Contains("function FriendlyDownloadError", installer);
+        Assert.Contains("GetSpaceOnDisk64", installer);
+        Assert.Contains("function IsAsciiText", installer);
+
+        // Upgrade / repair / downgrade awareness and a log the user can find.
+        Assert.Contains("function InitializeSetup", installer);
+        Assert.Contains("/ALLOWDOWNGRADE", installer);
+        Assert.Contains("MB_DEFBUTTON2, IDNO", installer);
+        Assert.Contains("WizardSelectComponents('smartbird')", installer);
+        Assert.Contains("MyPowerTools\\logs\\installer", installer);
+        Assert.Contains("procedure SaveInstallerLog", installer);
+        Assert.Contains("function GetCustomSetupExitCode", installer);
+        Assert.Contains("跳过并完成安装", installer);
+        Assert.Contains("QuiesceWorkerTimeoutMs", installer);
+
+        // Runtime detection that works on Windows on ARM and on the 32-bit registry view.
+        Assert.Contains("HKLM32", installer);
+        Assert.Contains("{pf64}\\dotnet\\x64", installer);
+        Assert.Contains("Microsoft.NETCore.App.deps.json", installer);
+
+        // Non-ASCII user profiles: files consumed as UTF-8 are written as UTF-8.
+        Assert.Contains("SaveStringsToUTF8FileWithoutBOM", installer);
+        Assert.DoesNotContain("SaveStringToFile(", installer);
+        Assert.DoesNotContain("SaveStringsToFile(", installer);
+        Assert.Contains("SaveStringsToUTF8FileWithoutBOM", fullInstaller);
+        Assert.DoesNotContain("SaveStringToFile(", fullInstaller);
+
+        // Every PowerShell the installers run must bypass the default Restricted policy.
+        foreach (var text in new[] { installer, fullInstaller })
+        {
+            Assert.All(
+                text.Split('\n').Where(line => line.Contains("powershell.exe\"; Parameters:", StringComparison.Ordinal)),
+                line => Assert.Contains("-ExecutionPolicy Bypass", line, StringComparison.Ordinal));
+        }
+
+        // Windows PowerShell 5.1 (.NET Framework) has no Process.Kill(bool).
+        Assert.Contains("catch { try { $process.Kill() } catch {} }", serviceConfigurator);
+    }
+
+    [Fact]
     public void Ota_apply_writes_reopen_plan_for_detected_programs()
     {
         var cli = File.ReadAllText(Path.Combine(Root, "src", "MyPowerTools.Cli", "Program.cs"));

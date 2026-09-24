@@ -34,7 +34,9 @@ function Invoke-NativeQuiet {
         $outputTask = $process.StandardOutput.ReadToEndAsync()
         $errorTask = $process.StandardError.ReadToEndAsync()
         if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {
-            try { $process.Kill($true) } catch {}
+            # Kill(bool) (whole process tree) needs .NET Core; the web installer runs this
+            # script in Windows PowerShell 5.1 (.NET Framework), which only has Kill().
+            try { $process.Kill($true) } catch { try { $process.Kill() } catch {} }
             [void]$process.WaitForExit(2000)
             return 124
         }
