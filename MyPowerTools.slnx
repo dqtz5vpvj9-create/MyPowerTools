@@ -12,6 +12,7 @@
     <Project Path="src/MyPowerTools.HostControl.Server/MyPowerTools.HostControl.Server.csproj" />
     <Project Path="src/MyPowerTools.Ipc.Shared/MyPowerTools.Ipc.Shared.csproj" />
     <Project Path="src/MyPowerTools.InputRemapHost/MyPowerTools.InputRemapHost.csproj" />
+    <Project Path="src/MyPowerTools.Installer.Mac/MyPowerTools.Installer.Mac.csproj" />
     <Project Path="src/MyPowerTools.ModuleHost.GrpcIpc/MyPowerTools.ModuleHost.GrpcIpc.csproj" />
     <Project Path="src/MyPowerTools.ModuleHost.Http/MyPowerTools.ModuleHost.Http.csproj" />
     <Project Path="src/MyPowerTools.ModuleHost.InProcDotNet/MyPowerTools.ModuleHost.InProcDotNet.csproj" />

@@ -14,6 +14,12 @@
   </ItemGroup>
 
   <ItemGroup>
+    <!-- The OTA feed verifier shared with the pwsh scripts (Add-Type) and the native macOS installer. -->
+    <Compile Include="..\..\scripts\ed25519.cs" Link="Ota\Ed25519.cs" />
+    <InternalsVisibleTo Include="MyPowerTools.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
     <ProjectReference Include="..\MyPowerTools.Protocol\MyPowerTools.Protocol.csproj" />
     <ProjectReference Include="..\MyPowerTools.Platform.Abstractions\MyPowerTools.Platform.Abstractions.csproj" />
   </ItemGroup>

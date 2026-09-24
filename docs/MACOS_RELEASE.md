@@ -48,7 +48,7 @@ artifacts/publish/macos-arm64/MyPowerTools.app
 artifacts/publish/macos-x64/MyPowerTools.app
 ```
 
-脚本会发布 App、Shell、Runner、ServiceManager 与 RemoteNotifications.Service，把 Shell、Runner、ServiceManager 装配成嵌套 helper bundle，构建并签名 6 个生产模块包，构建 `libMptMacNative.dylib`，生成 `.icns`，刷新本地包签名，并按「先签 helper bundle、再签外层应用包」的顺序执行签名与校验。`-CodeSignIdentity` 可传入 Developer ID Application 身份；默认 `-` 使用 ad-hoc 签名。
+脚本会发布 App、Shell、Runner、ServiceManager、RemoteNotifications.Service、`MyPowerTools.Cli`（`Contents/MacOS/Cli`）（图形在线安装器单独发布，见 [macOS 安装器](MACOS_INSTALLER.md)），把 Shell、Runner、ServiceManager 装配成嵌套 helper bundle，构建并签名 6 个生产模块包，构建 `libMptMacNative.dylib`，生成 `.icns`，刷新本地包签名，并按「先签 helper bundle、再签外层应用包」的顺序执行签名与校验。`-CodeSignIdentity` 可传入 Developer ID Application 身份；默认 `-` 使用 ad-hoc 签名。
 
 Windows 主机可执行托管交叉发布检查：
 
@@ -110,7 +110,9 @@ MyPowerTools.app
 
 ## 安装
 
-在 Mac 上执行：
+普通用户使用图形安装器：下载 Release 中的 `MyPowerTools-Installer-macos-arm64.zip`（Apple 芯片）或 `MyPowerTools-Installer-macos-x64.zip`（Intel），解压后双击「MyPowerTools Installer」，点击「安装 MyPowerTools」。不需要终端、.NET 或 PowerShell。首次打开的放行步骤、更新方式和开发者说明见 [macOS 安装器](MACOS_INSTALLER.md)。
+
+开发者也可以在 Mac 上执行脚本安装：
 
 ```powershell
 pwsh ./scripts/install-macos.ps1
@@ -158,12 +160,15 @@ launchctl print "gui/$(id -u)/com.mypowertools.runner" | grep -A2 'arguments'
 - 显示配置（`display.profile`）已通过 CoreGraphics gamma 表实现（`ScreenEaseMacGammaDisplayService`），screenease 在 macOS 上可用；Apple Silicon 内置屏幕可能被系统限制 gamma 写入，且不含 DDC/CI 硬件亮度。`adb.devices` 通过 PATH 与常见 SDK 路径解析 adb。
 - 截图（`screenshot`）随 macOS 应用包发布，调用用户已安装的 Snow Shot（Apple 芯片版）。「立即截图」通过 `keyboard.shortcut` 发送 Snow Shot 配置的截图快捷键（默认 Control+1，读取 `~/Library/Application Support/SnowShot/snow_shot/config.json`），需要辅助功能授权。
 - 仍未实现：特权代理（`privilege.elevated`）、系统级服务（`service.system`）、端口转发（`network.portForwarding`）。
-- OTA。`scripts/ota-update.ps1` 与 `scripts/invoke-ota-update.ps1` 只覆盖 Windows（`.exe` 路径、计划任务、HKCU Run 键），应用包内也不含更新器。macOS 升级方式是重新下载 zip 并再次执行 `install-macos.ps1`。
-- 命令行。`publish-macos.ps1` 不发布 `MyPowerTools.Cli`，应用包内没有 `mpt`。
+
+以下两项已不再是限制，保留说明以免沿用旧结论：
+
+- OTA 已支持 macOS。`MacNativeInstaller`（`src/MyPowerTools.Packaging`）原生完成检查、下载、验签、替换应用包、重启 launchd 服务、健康检查与失败回滚，不依赖 pwsh；发布端为每个架构生成 `MyPowerTools-osx-<arch>.zip`、文件清单与签名 feed `channel-<channel>-osx-<arch>.json`（只发布完整包，没有 delta）。`scripts/ota-update-macos.ps1` 仍保留给开发者。
+- 命令行已随应用包发布：`publish-macos.ps1` 把自包含的 `MyPowerTools.Cli` 发布到 `Contents/MacOS/Cli`。
 
 从 `git` 工作区直接跑（`dotnet run`、`artifacts/build/bin/...`）的 Shell 与 Runner 不在任何 bundle 里，`NSBundle.mainBundle` 没有 identifier，`UNUserNotificationCenter` 不可用，通知会回退到 `osascript` 横幅且不带点击跳转。安装后的应用包不走这条路径：三个 host 都从 helper bundle 启动，通知走 `UNUserNotificationCenter`，点击由原生 delegate 通过 `mypowertools://` 唤起 Shell。
 
-发布产物为 ad-hoc 签名且 `--timestamp=none`，未做 notarization；首次打开需要在「系统设置 → 隐私与安全性」中放行。
+发布产物为 ad-hoc 签名且 `--timestamp=none`，未做 notarization；首次打开需要在「系统设置 → 隐私与安全性」中放行。独立安装器 `MyPowerTools-Installer-macos-<arch>.zip` 由 `scripts/publish-macos-installer.ps1` 生成，配置 Developer ID 身份与 `MPT_NOTARY_*` 后可以公证。
 
 ## 运行时路径
 

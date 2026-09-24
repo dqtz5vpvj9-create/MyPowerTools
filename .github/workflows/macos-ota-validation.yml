@@ -8,6 +8,8 @@ on:
       - "scripts/new-ota-*.ps1"
       - "src/MyPowerTools.Cli/**"
       - "src/MyPowerTools.Packaging/**"
+      - "src/MyPowerTools.Installer.Mac/**"
+      - "packaging/macos/**"
       - "src/MyPowerTools.Tests/**"
       - ".github/workflows/macos-ota-validation.yml"
   workflow_dispatch:
@@ -53,7 +55,7 @@ jobs:
         run: >-
           dotnet test src/MyPowerTools.Tests/MyPowerTools.Tests.csproj
           --configuration Debug
-          --filter "FullyQualifiedName~MacOtaCompletionTests|FullyQualifiedName~MacReleaseSyncTests|FullyQualifiedName~OtaFeedLayoutTests|FullyQualifiedName~OtaUpdaterLocatorTests|FullyQualifiedName~MacOtaApplyScriptTests"
+          --filter "FullyQualifiedName~MacOtaCompletionTests|FullyQualifiedName~MacReleaseSyncTests|FullyQualifiedName~OtaFeedLayoutTests|FullyQualifiedName~OtaUpdaterLocatorTests|FullyQualifiedName~MacOtaApplyScriptTests|FullyQualifiedName~MacInstallerAppTests"
 
       - name: Publish signed macOS OTA candidate
         shell: pwsh
@@ -93,6 +95,44 @@ jobs:
           if ($archiveHash -ne [string]$feed.full.sha256) { throw 'macOS feed archive hash mismatch.' }
           if ($manifestHash -ne [string]$feed.full.manifestSha256) { throw 'macOS feed manifest hash mismatch.' }
 
+      - name: Build and verify the online installer app
+        shell: pwsh
+        run: |
+          pwsh -NoLogo -NoProfile -NonInteractive `
+            -File scripts/publish-macos-installer.ps1 `
+            -Architecture arm64 `
+            -Configuration Release `
+            -CodeSignIdentity '-'
+          if ($LASTEXITCODE -ne 0) { throw "publish-macos-installer.ps1 failed with exit code $LASTEXITCODE." }
+          $root = 'artifacts/publish/macos-installer-arm64'
+          $app = "$root/MyPowerTools Installer.app"
+          $required = @(
+            "$app/Contents/Info.plist",
+            "$app/Contents/PkgInfo",
+            "$app/Contents/MacOS/MyPowerToolsInstaller",
+            "$app/Contents/Resources/MyPowerTools.icns",
+            "$root/MyPowerTools-Installer-macos-arm64.zip",
+            "$root/MyPowerTools-Installer-macos-arm64.zip.sha256"
+          )
+          foreach ($path in $required) {
+            if (-not (Test-Path -LiteralPath $path -PathType Leaf)) { throw "Missing installer artifact: $path" }
+          }
+          $executable = "$app/Contents/MacOS/MyPowerToolsInstaller"
+          $kind = (& /usr/bin/file -b $executable) -join ' '
+          if (-not ($kind.Contains('Mach-O') -and $kind.Contains('arm64'))) {
+            throw 'The installer executable is not an arm64 Mach-O binary.'
+          }
+          $identifier = (& /usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$app/Contents/Info.plist")
+          if ($identifier -ne 'com.mypowertools.installer') { throw "Unexpected installer bundle id: $identifier" }
+          $bundleExecutable = (& /usr/libexec/PlistBuddy -c 'Print :CFBundleExecutable' "$app/Contents/Info.plist")
+          if ($bundleExecutable -ne 'MyPowerToolsInstaller') { throw "Unexpected CFBundleExecutable: $bundleExecutable" }
+          & /usr/bin/codesign --verify --deep --strict $app
+          if ($LASTEXITCODE -ne 0) { throw 'Installer codesign verification failed.' }
+          $listing = @(& /usr/bin/zipinfo -1 "$root/MyPowerTools-Installer-macos-arm64.zip")
+          if ($listing -notcontains 'MyPowerTools Installer.app/Contents/MacOS/MyPowerToolsInstaller') {
+            throw 'The installer archive does not keep the bundle as its top-level entry.'
+          }
+
       - name: Exercise macOS OTA check client
         shell: pwsh
         run: |
@@ -129,3 +169,4 @@ jobs:
             artifacts/release/MyPowerTools-osx-arm64.manifest.json
             artifacts/release/channel-local-osx-arm64.json
             artifacts/ota-validation-data/ota-state/last-check.json
+            artifacts/publish/macos-installer-arm64/MyPowerTools-Installer-macos-arm64.zip
