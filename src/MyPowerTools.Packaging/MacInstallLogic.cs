@@ -333,22 +333,22 @@ public static class MacInstallLogic
     public static IReadOnlyList<string> LaunchAgentProgramArguments(string label, string targetApp, string dataRoot)
     {
         var macRoot = MacRoot(targetApp);
-        var helpersRoot = Path.Combine(macRoot, "Helpers");
+        var helpersRoot = MacPath(macRoot, "Helpers");
         return label switch
         {
             ServiceManagerLabel =>
             [
-                Path.Combine(helpersRoot, "MyPowerTools ServiceManager.app/Contents/MacOS/MyPowerTools.ServiceManager"),
+                MacPath(helpersRoot, "MyPowerTools ServiceManager.app/Contents/MacOS/MyPowerTools.ServiceManager"),
                 "--data-root",
                 dataRoot,
                 "--deploy-root",
-                Path.Combine(macRoot, "ServiceUnits")
+                MacPath(macRoot, "ServiceUnits")
             ],
             RunnerLabel =>
             [
-                Path.Combine(helpersRoot, "MyPowerTools Runner.app/Contents/MacOS/MyPowerTools.Runner"),
+                MacPath(helpersRoot, "MyPowerTools Runner.app/Contents/MacOS/MyPowerTools.Runner"),
                 "--modules",
-                Path.Combine(macRoot, "modules"),
+                MacPath(macRoot, "modules"),
                 "--data-root",
                 dataRoot
             ],
@@ -356,7 +356,17 @@ public static class MacInstallLogic
         };
     }
 
-    public static string MacRoot(string targetApp) => Path.Combine(targetApp, "Contents", "MacOS");
+    public static string MacRoot(string targetApp) => MacPath(targetApp, "Contents", "MacOS");
+
+    /// <summary>
+    /// Joins macOS path segments with '/' whatever OS runs the code, so plist content and
+    /// launchd arguments stay identical when tests run on Windows.
+    /// </summary>
+    public static string MacPath(params string[] segments)
+    {
+        return string.Join('/', segments.Select((segment, index) =>
+            index == 0 ? segment.TrimEnd('/') : segment.Trim('/')));
+    }
 
     /// <summary>The LaunchAgent plist text, byte for byte what Write-LaunchAgent produces.</summary>
     public static string BuildLaunchAgentPlist(
@@ -378,8 +388,8 @@ public static class MacInstallLogic
             "  <key>RunAtLoad</key><true/>",
             "  <key>KeepAlive</key><true/>",
             "  <key>ProcessType</key><string>Background</string>",
-            $"  <key>StandardOutPath</key><string>{Escape(Path.Combine(logsRoot, label + ".log"))}</string>",
-            $"  <key>StandardErrorPath</key><string>{Escape(Path.Combine(logsRoot, label + ".error.log"))}</string>",
+            $"  <key>StandardOutPath</key><string>{Escape(MacPath(logsRoot, label + ".log"))}</string>",
+            $"  <key>StandardErrorPath</key><string>{Escape(MacPath(logsRoot, label + ".error.log"))}</string>",
             "</dict>",
             "</plist>"
         };
