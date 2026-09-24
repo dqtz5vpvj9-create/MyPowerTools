@@ -174,6 +174,7 @@ public sealed partial class MacNativeInstaller
         var fromVersion = "0.0.0";
         var latestVersion = string.Empty;
         var rolledBack = false;
+        string? relaunchAfterFailure = null;
         FileStream? stateLock = null;
         FileStream? installLock = null;
         try
@@ -233,6 +234,10 @@ public sealed partial class MacNativeInstaller
             var outcome = await InstallBundleAsync(layout, packagePath, package.Version, cancellationToken)
                 .ConfigureAwait(false);
             rolledBack = outcome.RolledBack;
+            if (outcome.RolledBack && context.Installed && _options.Relaunch)
+            {
+                relaunchAfterFailure = layout.TargetApp;
+            }
             if (outcome.Failure is not null)
             {
                 throw outcome.Failure;
@@ -319,6 +324,12 @@ public sealed partial class MacNativeInstaller
             }
             catch (Exception writeError) when (writeError is IOException or UnauthorizedAccessException)
             {
+            }
+
+            // State first, relaunch last (also on rollback): the restored Shell reads last-update.json.
+            if (relaunchAfterFailure is not null)
+            {
+                Relaunch(relaunchAfterFailure);
             }
 
             return failure;

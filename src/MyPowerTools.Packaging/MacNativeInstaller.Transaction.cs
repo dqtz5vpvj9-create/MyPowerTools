@@ -6,7 +6,9 @@ namespace MyPowerTools.Packaging.Ota;
 
 public sealed partial class MacNativeInstaller
 {
-    private static readonly TimeSpan HealthTimeout = TimeSpan.FromSeconds(45);
+    // Same budget as ota-apply-macos.ps1: a first launch of a freshly swapped bundle on a
+    // low-memory Mac can take well over 45 s, and a false negative rolls back a good update.
+    private static readonly TimeSpan HealthTimeout = TimeSpan.FromSeconds(90);
     private static readonly TimeSpan StopGracePeriod = TimeSpan.FromSeconds(5);
 
     /// <summary>Physical install locations, resolved once per apply.</summary>
@@ -270,11 +272,8 @@ public sealed partial class MacNativeInstaller
                     }
                 }
 
-                if (hadInstallation && _options.Relaunch)
-                {
-                    Relaunch(targetApp);
-                }
-
+                // The caller relaunches the restored app after it has written last-update.json,
+                // so the restarted Shell reports this failure instead of the previous result.
                 var prefix = hadInstallation ? "安装失败，已恢复之前的版本" : "安装失败，已撤销本次更改";
                 return new InstallOutcome(
                     new InvalidOperationException($"{prefix}：{failure.Message}", failure),

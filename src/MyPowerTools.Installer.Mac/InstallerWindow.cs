@@ -250,7 +250,13 @@ internal sealed class InstallerWindow : Window
         if (!GetBool(result, "success"))
         {
             var error = GetString(result, "error") ?? "未知错误。";
-            OnUi(() => SetState("安装失败：" + error + "\n原来的版本没有受到影响。", PrimaryAction.RetryApply, "重试"));
+            // Only claim the previous version is intact when there was one and rollback completed.
+            var note = error.Contains("回滚未完成", StringComparison.Ordinal)
+                ? string.Empty
+                : GetString(result, "fromVersion") is { } from && from != "0.0.0"
+                    ? "\n原来的版本没有受到影响。"
+                    : string.Empty;
+            OnUi(() => SetState("安装失败：" + error + note, PrimaryAction.RetryApply, "重试"));
             return;
         }
 

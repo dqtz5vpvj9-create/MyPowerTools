@@ -201,6 +201,9 @@ internal static class MacOtaCommand
                 }
             }
 
+            // ditto preserves the source directory's (old) mtime; stamp the copy as fresh so a
+            // concurrent run's RemoveStaleCopies cannot delete it while this update is using it.
+            Directory.SetLastWriteTimeUtc(copy, DateTime.UtcNow);
             var copiedExecutable = Path.Combine(copy, Path.GetFileName(executable));
             if (!File.Exists(copiedExecutable))
             {
