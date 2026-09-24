@@ -225,14 +225,14 @@ Name: "autostart"; Description: "登录 Windows 后自动启动后台 Runner"; G
 Type: files; Name: "{app}\dev-update.manifest.json"
 
 [Files]
-Source: "{tmp}\{#WebCoreAsset}"; DestDir: "{app}"; Flags: external extractarchive recursesubdirs ignoreversion; BeforeInstall: BeginCoreInstall; AfterInstall: VerifyCoreLayout
-Source: "..\scripts\configure-user-services.ps1"; DestDir: "{app}"; Flags: ignoreversion
+Source: "{tmp}\{#WebCoreAsset}"; DestDir: "{code:PayloadDir}"; Flags: external extractarchive recursesubdirs ignoreversion; BeforeInstall: BeginCoreInstall; AfterInstall: VerifyCoreLayout
+Source: "..\scripts\configure-user-services.ps1"; DestDir: "{code:PayloadDir}"; Flags: ignoreversion
 Source: "..\scripts\web-installer-worker.ps1"; Flags: dontcopy
-Source: "{tmp}\{#WebDotNetAsset}"; DestDir: "{app}"; Flags: external extractarchive recursesubdirs ignoreversion; Check: NeedDotNetDownload; BeforeInstall: BeginDotNetInstall; AfterInstall: VerifyDotNetLayout
-Source: "{tmp}\{#WebPythonAsset}"; DestDir: "{app}"; Flags: external extractarchive recursesubdirs ignoreversion; Check: NeedPythonDownload; BeforeInstall: BeginPythonInstall
-Source: "{tmp}\{#WebSmartBirdAsset}"; DestDir: "{app}"; Flags: external extractarchive recursesubdirs ignoreversion; Components: smartbird; BeforeInstall: BeginSmartBirdInstall
-Source: "{tmp}\{#WebDoubaoAsset}"; DestDir: "{app}"; Flags: external extractarchive recursesubdirs ignoreversion; Components: doubao; BeforeInstall: BeginDoubaoInstall
-Source: "{tmp}\{#WebAdbAsset}"; DestDir: "{app}"; Flags: external extractarchive recursesubdirs ignoreversion; Components: android; Check: NeedAdbDownload; BeforeInstall: BeginAdbInstall
+Source: "{tmp}\{#WebDotNetAsset}"; DestDir: "{code:PayloadDir}"; Flags: external extractarchive recursesubdirs ignoreversion; Check: NeedDotNetDownload; BeforeInstall: BeginDotNetInstall; AfterInstall: VerifyDotNetLayout
+Source: "{tmp}\{#WebPythonAsset}"; DestDir: "{code:PayloadDir}"; Flags: external extractarchive recursesubdirs ignoreversion; Check: NeedPythonDownload; BeforeInstall: BeginPythonInstall
+Source: "{tmp}\{#WebSmartBirdAsset}"; DestDir: "{code:PayloadDir}"; Flags: external extractarchive recursesubdirs ignoreversion; Components: smartbird; BeforeInstall: BeginSmartBirdInstall
+Source: "{tmp}\{#WebDoubaoAsset}"; DestDir: "{code:PayloadDir}"; Flags: external extractarchive recursesubdirs ignoreversion; Components: doubao; BeforeInstall: BeginDoubaoInstall
+Source: "{tmp}\{#WebAdbAsset}"; DestDir: "{code:PayloadDir}"; Flags: external extractarchive recursesubdirs ignoreversion; Components: android; Check: NeedAdbDownload; BeforeInstall: BeginAdbInstall
 
 [Icons]
 Name: "{autoprograms}\MyPowerTools"; Filename: "{app}\MyPowerTools.exe"; Parameters: "--data-root ""{localappdata}\MyPowerTools"""; WorkingDir: "{app}"; IconFilename: "{app}\assets\MyPowerTools.ico"; Check: ShouldRunPostInstall
@@ -269,6 +269,9 @@ const
     leave the wizard waiting forever. }
   QuiesceWorkerTimeoutMs = 120000;
   FinalizeWorkerTimeoutMs = 600000;
+  RunOnceRegKey = 'Software\Microsoft\Windows\CurrentVersion\RunOnce';
+  FinishUpdateRunOnceName = 'MyPowerToolsFinishUpdate';
+  CleanupRunOnceName = 'MyPowerToolsCleanup';
 
 var
   DownloadPage: TDownloadWizardPage;
@@ -314,6 +317,14 @@ var
     record the problem here and ssPostInstall abandons the install before committing. }
   InstallVerificationProblem: String;
   InstallFailed: Boolean;
+  { Files that stayed in use (opened without FILE_SHARE_DELETE by a program that could not
+    be closed) cannot be replaced now. The payload is then extracted beside the install and
+    merged in; whatever is still busy is finished by a one-time task at the next sign-in. }
+  UsePendingPayload: Boolean;
+  PendingAfterRestart: Boolean;
+  { Wine lets a directory be renamed while a file inside is open; Windows does not. Test
+    builds can switch directory renames off to exercise the Windows behaviour. }
+  TestNoDirectoryRename: Boolean;
 #ifndef MyAllowUnsigned
   AllowedKeysRuntimeIDs: TStringList;
 #endif
@@ -997,6 +1008,43 @@ begin
   end;
 end;
 
+{ The quiesce worker lists MyPowerTools processes it could not end because they run as
+  administrator. Only then, ask once and end them through a single UAC prompt. Declining is
+  fine: running program files can still be moved aside, so the install continues anyway. }
+procedure HandleElevatedSurvivors;
+var
+  Lines: TArrayOfString;
+  Index, Separator, Choice, ErrorCode: Integer;
+  ProcessIds, Names: String;
+begin
+  if not LoadStringsFromFile(WorkerResultPath + '.elevated', Lines) then exit;
+  ProcessIds := '';
+  Names := '';
+  for Index := 0 to GetArrayLength(Lines) - 1 do begin
+    Separator := Pos(#9, Lines[Index]);
+    if Separator <= 1 then continue;
+    ProcessIds := ProcessIds + ' /PID ' + Copy(Lines[Index], 1, Separator - 1);
+    Names := Names + #13#10 + '  ' + Copy(Lines[Index], Separator + 1, MaxInt);
+  end;
+  if ProcessIds = '' then exit;
+  AppendInstallLog('以下 MyPowerTools 组件以管理员身份运行，普通权限无法关闭：' + Names);
+  if WizardSilent then exit;
+  Choice := TaskDialogMsgBox('需要管理员权限关闭 MyPowerTools 后台组件',
+    '下面这些 MyPowerTools 组件是以管理员身份运行的，需要你确认一次才能关闭：' + Names + #13#10#13#10 +
+    '点“关闭这些组件”后，Windows 会弹出一次权限确认。' + #13#10 +
+    '也可以直接继续：安装仍会完成，个别仍被占用的文件会在重启电脑后自动更新。',
+    mbConfirmation, MB_OKCANCEL, ['关闭这些组件', '直接继续'], IDOK);
+  if Choice <> IDOK then begin
+    AppendInstallLog('未关闭管理员权限组件，继续安装。');
+    exit;
+  end;
+  if ShellExec('runas', ExpandConstant('{sys}\taskkill.exe'), '/F /T' + ProcessIds, '',
+    SW_HIDE, ewWaitUntilTerminated, ErrorCode) then
+    AppendInstallLog('已通过管理员权限关闭这些组件。')
+  else
+    AppendInstallLog('没有获得管理员权限（' + SysErrorMessage(ErrorCode) + '），继续安装。');
+end;
+
 procedure WorkerTimerProc(Arg1: HWND; Arg2: UINT; Arg3: UINT_PTR; Arg4: DWORD);
 var
   ResultText: String;
@@ -1024,8 +1072,10 @@ begin
   end;
   WorkerSucceeded := Trim(ResultText) = '0';
   if WorkerSucceeded then begin
-    if WorkerPhase = 1 then
-      AppendInstallLog('运行中组件已经关闭，开始写入安装文件。')
+    if WorkerPhase = 1 then begin
+      HandleElevatedSurvivors;
+      AppendInstallLog('运行中组件已经关闭，开始写入安装文件。');
+    end
     else
       AppendInstallLog('后台服务注册完成，MyPowerTools 已经可以使用。');
     AdvanceAfterWorker;
@@ -1076,22 +1126,128 @@ begin
     Log('Unable to move ' + Source + ' to ' + Target);
 end;
 
-{ Puts the previous installation back exactly as it was. Safe to run repeatedly: every step
-  checks what is already in place, so a crash half-way is finished by the next run. }
+{ A rename works for running .exe/.dll images and for files opened with FILE_SHARE_DELETE.
+  It fails for files opened without that share mode, and for a directory while anything
+  inside it is open or it is some process's working directory (an Explorer window, a
+  console). Antivirus and indexer handles are short-lived, so retry briefly. }
+function TryRename(const Source, Target: String; const Attempts: Integer): Boolean;
+var
+  Attempt: Integer;
+begin
+  Result := False;
+  for Attempt := 1 to Attempts do begin
+    if RenameFile(Source, Target) then begin
+      Result := True;
+      exit;
+    end;
+    if Attempt < Attempts then
+      Sleep(150 * Attempt);
+  end;
+end;
+
+{ Moves every entry of Source into Target, replacing files that already exist there. A
+  directory that cannot be renamed as a whole is recreated in Target and moved entry by
+  entry, so one busy file or an open folder window never blocks the rest. Entries that
+  cannot be moved stay where they are; their paths (relative to the first call) are added
+  to Stuck when it is not nil. Returns the number of entries left behind. }
+function MergeTree(const Source, Target, Relative: String; const Stuck: TStringList): Integer;
+var
+  FindRec: TFindRec;
+  Names: TStringList;
+  Index: Integer;
+  SourcePath, TargetPath, ChildRelative: String;
+begin
+  Result := 0;
+  Names := TStringList.Create;
+  try
+    if FindFirst(AddBackslash(Source) + '*', FindRec) then begin
+      try
+        repeat
+          if (FindRec.Name <> '.') and (FindRec.Name <> '..') then
+            Names.Add(FindRec.Name);
+        until not FindNext(FindRec);
+      finally
+        FindClose(FindRec);
+      end;
+    end;
+    if Names.Count > 0 then
+      ForceDirectories(Target);
+    for Index := 0 to Names.Count - 1 do begin
+      SourcePath := AddBackslash(Source) + Names[Index];
+      TargetPath := AddBackslash(Target) + Names[Index];
+      if Relative = '' then
+        ChildRelative := Names[Index]
+      else
+        ChildRelative := Relative + '\' + Names[Index];
+      if DirExists(SourcePath) then begin
+        if not PathExists(TargetPath) and not TestNoDirectoryRename then
+          if TryRename(SourcePath, TargetPath, 2) then
+            continue;
+        Result := Result + MergeTree(SourcePath, TargetPath, ChildRelative, Stuck);
+        RemoveDir(SourcePath);
+      end else begin
+        if FileExists(TargetPath) and not DeleteFile(TargetPath) then begin
+          Log('Cannot replace (in use): ' + TargetPath);
+          Result := Result + 1;
+          if Stuck <> nil then Stuck.Add(ChildRelative);
+          continue;
+        end;
+        if not TryRename(SourcePath, TargetPath, 3) then begin
+          Log('Cannot move (in use): ' + SourcePath);
+          Result := Result + 1;
+          if Stuck <> nil then Stuck.Add(ChildRelative);
+        end;
+      end;
+    end;
+  finally
+    Names.Free;
+  end;
+end;
+
+function PendingPayloadDirFor(const AppDir: String): String;
+begin
+  Result := RemoveBackslashUnlessRoot(AppDir) + '.new';
+end;
+
+function FinishUpdateScriptPath: String;
+begin
+  Result := ExpandConstant('{localappdata}\MyPowerTools\finish-update.ps1');
+end;
+
+{ An update staged earlier that still waits for a restart is superseded by a new install
+  (or removed by uninstall). }
+procedure DiscardPendingUpdate(const AppDir: String);
+begin
+  RegDeleteValue(HKCU, RunOnceRegKey, FinishUpdateRunOnceName);
+  if DirExists(PendingPayloadDirFor(AppDir)) then begin
+    Log('Discarding an update that was waiting for a restart: ' + PendingPayloadDirFor(AppDir));
+    DelTree(PendingPayloadDirFor(AppDir), True, True, True);
+  end;
+  DeleteFile(FinishUpdateScriptPath);
+end;
+
+{ Puts the previous installation back. Safe to run repeatedly: every step checks what is
+  already in place, so a crash half-way is finished by the next run.
+  What cannot be restored: nothing is lost, but a file that was in use the whole time was
+  never moved, so it simply keeps its (old) content; a restore that meets a file still in use
+  leaves the backup and the journal in place and the next installer run completes it. }
 procedure RestoreFromJournal(const AppDir, JournalPath: String);
 var
   Lines: TArrayOfString;
-  Index, Separator: Integer;
-  Backup, Line, Relative, Aside, FailedDir: String;
+  Index, Separator, Left: Integer;
+  Backup, Pending, Line, Relative, Aside: String;
 begin
   if not LoadStringsFromFile(JournalPath, Lines) then begin
     Log('Install transaction journal is unreadable; leaving it for inspection: ' + JournalPath);
     exit;
   end;
   Backup := '';
+  Pending := '';
   for Index := 0 to GetArrayLength(Lines) - 1 do begin
     if Pos('backup=', Lines[Index]) = 1 then
       Backup := Copy(Lines[Index], 8, MaxInt);
+    if Pos('pending=', Lines[Index]) = 1 then
+      Pending := Copy(Lines[Index], 9, MaxInt);
     if Lines[Index] = 'committed' then begin
       Log('Install transaction was already committed; removing the old backup.');
       DeleteFile(JournalPath);
@@ -1100,6 +1256,8 @@ begin
       exit;
     end;
   end;
+  if (Pending <> '') and DirExists(Pending) then
+    DelTree(Pending, True, True, True);
   if (Backup = '') or not DirExists(Backup) then begin
     Log('The previous installation was never moved aside; nothing to restore.');
     DeleteFile(JournalPath);
@@ -1111,8 +1269,18 @@ begin
     Line := Lines[Index];
     if (Pos('dir=', Line) = 1) or (Pos('file=', Line) = 1) then begin
       Relative := Copy(Line, Pos('=', Line) + 1, MaxInt);
-      if PathExists(AddBackslash(AppDir) + Relative) and
-         not PathExists(AddBackslash(Backup) + Relative) then
+      if PathExists(AddBackslash(AppDir) + Relative) then begin
+        if not PathExists(AddBackslash(Backup) + Relative) then
+          MovePath(AddBackslash(AppDir) + Relative, AddBackslash(Backup) + Relative)
+        else if DirExists(AddBackslash(AppDir) + Relative) then
+          MergeTree(AddBackslash(AppDir) + Relative, AddBackslash(Backup) + Relative, '', nil);
+      end;
+    end else if Pos('stuck=', Line) = 1 then begin
+      { Never moved because it was in use; if it is free now, keep it with the backup so
+        clearing the new files below cannot take it. }
+      Relative := Copy(Line, 7, MaxInt);
+      if FileExists(AddBackslash(AppDir) + Relative) and
+         not FileExists(AddBackslash(Backup) + Relative) then
         MovePath(AddBackslash(AppDir) + Relative, AddBackslash(Backup) + Relative);
     end else if Pos('aside=', Line) = 1 then begin
       Relative := Copy(Line, 7, MaxInt);
@@ -1127,18 +1295,23 @@ begin
     end;
   end;
 
-  if DirExists(AppDir) and not DelTree(AppDir, True, True, True) then begin
-    FailedDir := AppDir + '.failed';
-    DelTree(FailedDir, True, True, True);
-    if not RenameFile(AppDir, FailedDir) then
-      Log('The partially written installation could not be removed: ' + AppDir);
-  end;
-  if RenameFile(Backup, AppDir) then begin
+  { Clear what the new version wrote (anything still in use stays), then bring the old
+    files back: in one rename when possible, otherwise entry by entry. }
+  if DirExists(AppDir) then
+    DelTree(AppDir, True, True, True);
+  if not DirExists(AppDir) and RenameFile(Backup, AppDir) then begin
     Log('The previous installation was restored to ' + AppDir);
     DeleteFile(JournalPath);
+    exit;
+  end;
+  Left := MergeTree(Backup, AppDir, '', nil);
+  if Left = 0 then begin
+    DelTree(Backup, True, True, True);
+    DeleteFile(JournalPath);
+    Log('The previous installation was restored to ' + AppDir + ' (entry by entry).');
   end else
-    Log('Could not move ' + Backup + ' back to ' + AppDir +
-      '; the next run of the installer will try again.');
+    Log(IntToStr(Left) + ' entries could not be restored yet because they are in use; ' +
+      'the next run of the installer finishes the restore from ' + Backup);
 end;
 
 { Finishes whatever a previous run left behind: an interrupted install is rolled back,
@@ -1395,18 +1568,71 @@ begin
     Log('Unable to start batched taskkill.');
 end;
 
-{ Components started "as administrator" (for example the elevated broker) cannot be ended
-  by this per-user installer. Only on the user's explicit request, run the same batched
-  taskkill once through a UAC prompt. }
-procedure ElevatedStopProductImages;
+{ Fallback when WMI cannot be used: the same path-based stop, done by Windows PowerShell. }
+procedure StopProcessesUnderRootWithPowerShell(const Prefix: String);
 var
-  ErrorCode: Integer;
+  Lines: TArrayOfString;
+  Quoted, ScriptPath: String;
+  ResultCode: Integer;
 begin
-  if ShellExec('runas', ExpandConstant('{sys}\taskkill.exe'), ProductImageKillParameters,
-    '', SW_HIDE, ewWaitUntilTerminated, ErrorCode) then
-    Log('Elevated batched taskkill finished.')
+  Quoted := Prefix;
+  StringChangeEx(Quoted, '''', '''''', True);
+  SetArrayLength(Lines, 7);
+  Lines[0] := '$root = ''' + Quoted + '''';
+  Lines[1] := 'foreach ($process in Get-Process -ErrorAction SilentlyContinue) {';
+  Lines[2] := '    $path = $null; try { $path = $process.MainModule.FileName } catch {}';
+  Lines[3] := '    if ($path -and $path.StartsWith($root, [StringComparison]::OrdinalIgnoreCase) -and -not ([IO.Path]::GetFileName($path) -like ''unins*'')) {';
+  Lines[4] := '        Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue';
+  Lines[5] := '    }';
+  Lines[6] := '}';
+  ScriptPath := ExpandConstant('{tmp}\stop-under-root.ps1');
+  if not SaveStringsToUTF8File(ScriptPath, Lines, False) then exit;
+  if Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
+    '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + ScriptPath + '"',
+    '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
+    Log('PowerShell path-based stop finished with exit code ' + IntToStr(ResultCode))
   else
-    Log('Elevated batched taskkill was not run: ' + SysErrorMessage(ErrorCode));
+    Log('PowerShell path-based stop could not run: ' + SysErrorMessage(ResultCode));
+end;
+
+{ Ends every process whose program file lives under Root, found by path rather than by a
+  fixed name list (service units, python/pythonw and adb from Runtimes, helpers added in
+  later versions). Uses WMI so it also works in the uninstaller, where no PowerShell worker
+  is available. Processes started "as administrator" cannot be ended from here; the caller
+  handles those. }
+procedure StopProcessesUnderRoot(const Root: String);
+var
+  Locator, Service, Items, Item: Variant;
+  Index, Count, ResultCode: Integer;
+  Prefix, Path, ProcessIds: String;
+begin
+  Prefix := AddBackslash(RemoveBackslashUnlessRoot(Root));
+  ProcessIds := '';
+  try
+    Locator := CreateOleObject('WbemScripting.SWbemLocator');
+    Service := Locator.ConnectServer('.', 'root\CIMV2');
+    Items := Service.ExecQuery('SELECT ProcessId, ExecutablePath FROM Win32_Process');
+    Count := Items.Count;
+    for Index := 0 to Count - 1 do begin
+      Item := Items.ItemIndex(Index);
+      if VarIsNull(Item.ExecutablePath) or VarIsEmpty(Item.ExecutablePath) then
+        continue;
+      Path := Item.ExecutablePath;
+      if (Length(Path) > Length(Prefix)) and
+         (CompareText(Copy(Path, 1, Length(Prefix)), Prefix) = 0) and
+         (CompareText(Copy(ExtractFileName(Path), 1, 5), 'unins') <> 0) then begin
+        Log('Stopping process under the install directory: ' + Path + ' (PID ' + IntToStr(Item.ProcessId) + ')');
+        ProcessIds := ProcessIds + ' /PID ' + IntToStr(Item.ProcessId);
+      end;
+    end;
+  except
+    Log('Process enumeration through WMI failed: ' + GetExceptionMessage);
+    StopProcessesUnderRootWithPowerShell(Prefix);
+  end;
+  if ProcessIds <> '' then
+    if Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /T' + ProcessIds, '', SW_HIDE,
+      ewWaitUntilTerminated, ResultCode) then
+      Log('Path-based taskkill exit code ' + IntToStr(ResultCode));
 end;
 
 procedure QuiesceInstalledProduct;
@@ -1453,12 +1679,33 @@ begin
 
   Sleep(1500);
   ForceStopProductImages;
+  StopProcessesUnderRoot(ExpandConstant('{app}'));
+end;
+
+{ Uninstall must never fail on a busy file. Whatever could not be deleted now is removed by
+  a one-time command at the next sign-in (per-user installs cannot use the administrator-only
+  "delete on reboot" list). }
+procedure ScheduleLeftoverCleanup(const AppDir: String);
+begin
+  if not DirExists(AppDir) then exit;
+  DelTree(AppDir, True, True, True);
+  if not DirExists(AppDir) then exit;
+  Log('Some files are still in use; they are removed at the next sign-in: ' + AppDir);
+  RegWriteStringValue(HKCU, RunOnceRegKey, CleanupRunOnceName,
+    '"' + ExpandConstant('{sys}\cmd.exe') + '" /d /c rd /s /q "' + AppDir + '"');
 end;
 
 procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+var
+  AppDir: String;
 begin
+  AppDir := RemoveBackslashUnlessRoot(ExpandConstant('{app}'));
   if (CurUninstallStep = usUninstall) and ShouldRunPostInstall then
-    QuiesceInstalledProduct;
+    QuiesceInstalledProduct
+  else if (CurUninstallStep = usPostUninstall) and TransactionAllowed(AppDir) then begin
+    DiscardPendingUpdate(AppDir);
+    ScheduleLeftoverCleanup(AppDir);
+  end;
 end;
 
 { Stops the install before any file is written (or, after the old version was moved aside,
@@ -1472,12 +1719,18 @@ begin
 end;
 
 procedure CarryFromBackup(const Relative: String; const ShouldCarry: Boolean);
+var
+  Source, Target: String;
 begin
   if not ShouldCarry then exit;
-  if not PathExists(AddBackslash(TransactionBackup) + Relative) then exit;
+  Source := AddBackslash(TransactionBackup) + Relative;
+  Target := AddBackslash(TransactionAppDir) + Relative;
+  if not PathExists(Source) then exit;
   AppendJournalLine('dir=' + Relative);
-  if not MovePath(AddBackslash(TransactionBackup) + Relative, AddBackslash(TransactionAppDir) + Relative) then
-    FailBeforeInstall('无法保留已安装的组件 ' + Relative + '。安装已取消，原有安装会被恢复。');
+  { A folder that stayed behind (it was in use) is merged into instead of replaced. }
+  if PathExists(Target) or not MovePath(Source, Target) then
+    if DirExists(Source) then
+      MergeTree(Source, Target, '', nil);
   Log('Kept existing component: ' + Relative);
 end;
 
@@ -1504,26 +1757,51 @@ begin
     for Index := 0 to Names.Count - 1 do begin
       AppendJournalLine('file=' + Names[Index]);
       if not MovePath(AddBackslash(TransactionBackup) + Names[Index], AddBackslash(TransactionAppDir) + Names[Index]) then
-        FailBeforeInstall('无法保留卸载信息 ' + Names[Index] + '。安装已取消，原有安装会被恢复。');
+        Log('Could not keep uninstaller file ' + Names[Index] + '; a new uninstaller is created.');
     end;
   finally
     Names.Free;
   end;
 end;
 
+function DescribeStuckFiles(const Stuck: TStringList): String;
+var
+  Index: Integer;
+begin
+  Result := '';
+  for Index := 0 to Stuck.Count - 1 do begin
+    if Index = 5 then begin
+      Result := Result + #13#10 + '  …（共 ' + IntToStr(Stuck.Count) + ' 个）';
+      break;
+    end;
+    Result := Result + #13#10 + '  ' + Stuck[Index];
+  end;
+end;
+
+{ Moves the current installation out of the way so the new version is written into an empty
+  directory and a failure can put the old one back.
+  1. One directory rename (fast, atomic) when nothing inside is in use.
+  2. Otherwise entry by entry. Running programs' .exe/.dll files can still be moved; a folder
+     open in Explorer or used as a working directory simply stays (empty) in place.
+  3. Files that even then stay in use never block the install: the new files are extracted
+     beside the installation and merged in, and anything still busy is completed by a
+     one-time task at the next sign-in. The dialog is only shown in that last case, and it
+     always offers to continue. }
 procedure BeginInstallTransaction;
 var
-  Index, Attempt, Choice: Integer;
+  Index, Pass, Choice: Integer;
   Candidate: String;
   Moved: Boolean;
+  Stuck: TStringList;
 begin
   TransactionAppDir := RemoveBackslashUnlessRoot(ExpandConstant('{app}'));
-  if not DirExists(TransactionAppDir) then begin
-    Log('Fresh installation; there is no previous installation to protect.');
-    exit;
-  end;
   if not TransactionAllowed(TransactionAppDir) then begin
     Log('Install transaction skipped for a non-standard directory: ' + TransactionAppDir);
+    exit;
+  end;
+  DiscardPendingUpdate(TransactionAppDir);
+  if not DirExists(TransactionAppDir) then begin
+    Log('Fresh installation; there is no previous installation to protect.');
     exit;
   end;
 
@@ -1549,33 +1827,64 @@ begin
 
   AppendInstallLog('正在把当前版本移到备份位置，以便出错时自动恢复。');
   Moved := False;
-  repeat
-    for Attempt := 1 to 6 do begin
-      if RenameFile(TransactionAppDir, TransactionBackup) then begin
-        Moved := True;
+#ifdef MyInstallerTestMode
+  { Test builds can force the entry-by-entry path, which Wine never needs on its own. }
+  TestNoDirectoryRename := ExpandConstant('{param:TESTNOWHOLEMOVE|0}') = '1';
+#endif
+  if not TestNoDirectoryRename then
+    Moved := TryRename(TransactionAppDir, TransactionBackup, 3);
+  if not Moved then begin
+    ForceStopProductImages;
+    StopProcessesUnderRoot(TransactionAppDir);
+    if not TestNoDirectoryRename then
+      Moved := TryRename(TransactionAppDir, TransactionBackup, 2);
+  end;
+
+  if not Moved then begin
+    AppendInstallLog('安装目录中有文件夹正被其他程序使用（例如打开着的资源管理器窗口），改为逐个移动文件。');
+    AppendJournalLine('mode=entries');
+    Stuck := TStringList.Create;
+    try
+      Pass := 0;
+      while True do begin
+        Pass := Pass + 1;
+        Stuck.Clear;
+        MergeTree(TransactionAppDir, TransactionBackup, '', Stuck);
+        if Stuck.Count = 0 then
+          break;
+        Log(IntToStr(Stuck.Count) + ' file(s) are still in use after pass ' + IntToStr(Pass));
+        if Pass = 1 then begin
+          { Something may have restarted in the meantime; stop it and try once more. }
+          ForceStopProductImages;
+          StopProcessesUnderRoot(TransactionAppDir);
+          Sleep(1000);
+          continue;
+        end;
+        Choice := SuppressibleTaskDialogMsgBox('有 ' + IntToStr(Stuck.Count) + ' 个文件正被其他程序使用',
+          '以下文件暂时无法替换：' + DescribeStuckFiles(Stuck) + #13#10#13#10 +
+          '可以直接继续：安装会正常完成，MyPowerTools 可以马上使用，这几个文件会在下次重新启动电脑后自动更新。' + #13#10#13#10 +
+          '也可以先关闭可能在使用这些文件的程序（例如打开着的文件夹窗口、命令行窗口），然后点“重试”。',
+          mbInformation, MB_RETRYCANCEL, ['重试', '继续安装（重启电脑后完成更新）'], 0, IDCANCEL);
+        { Closing the dialog also continues: there is no dead end here. }
+        if Choice = IDRETRY then begin
+          ForceStopProductImages;
+          StopProcessesUnderRoot(TransactionAppDir);
+          Sleep(500);
+          continue;
+        end;
+        UsePendingPayload := True;
+        for Index := 0 to Stuck.Count - 1 do
+          AppendJournalLine('stuck=' + Stuck[Index]);
+        DelTree(PendingPayloadDirFor(TransactionAppDir), True, True, True);
+        AppendJournalLine('pending=' + PendingPayloadDirFor(TransactionAppDir));
+        AppendInstallLog('有 ' + IntToStr(Stuck.Count) + ' 个文件正在使用中；新文件先解压到 ' +
+          PendingPayloadDirFor(TransactionAppDir) + '，其余部分重启电脑后自动完成。');
         break;
       end;
-      Log('The installation directory is still in use (attempt ' + IntToStr(Attempt) + ').');
-      if Attempt = 3 then
-        ForceStopProductImages;
-      Sleep(500 * Attempt);
+    finally
+      Stuck.Free;
     end;
-    if not Moved then begin
-      Choice := SuppressibleTaskDialogMsgBox('MyPowerTools 的安装目录正在被占用',
-        '仍有程序在使用 ' + TransactionAppDir + ' 中的文件，安装器暂时无法更新它。原有安装目前没有任何改动。' + #13#10#13#10 +
-        '常见原因：MyPowerTools 的某个组件以管理员身份运行；资源管理器或命令行窗口正打开着这个文件夹；安全软件正在扫描。' + #13#10#13#10 +
-        '请关闭相关窗口后重试。如果仍然失败，重新启动电脑后再运行安装器。',
-        mbError, MB_YESNOCANCEL, ['以管理员身份结束 MyPowerTools 进程并重试', '重试', '取消安装'],
-        IDYES, IDCANCEL);
-      if Choice = IDYES then
-        ElevatedStopProductImages
-      else if Choice <> IDNO then begin
-        DeleteFile(TransactionJournal);
-        TransactionActive := False;
-        FailBeforeInstall('安装目录被占用，安装已取消。原有安装没有任何改动。');
-      end;
-    end;
-  until Moved;
+  end;
 
   ForceDirectories(TransactionAppDir);
   { Runtimes that are not being downloaded this time move into the new directory as-is. }
@@ -1585,9 +1894,8 @@ begin
       { The SmartBird package supplies site-packages; keep the old copy aside (inside the
         backup) so a rollback can restore it untouched. }
       AppendJournalLine('aside=Runtimes\Python312\Lib\site-packages|Runtimes\Python312.site-packages');
-      if not MovePath(TransactionBackup + '\Runtimes\Python312\Lib\site-packages',
-        TransactionBackup + '\Runtimes\Python312.site-packages') then
-        FailBeforeInstall('无法准备 Python 运行时。安装已取消，原有安装会被恢复。');
+      MovePath(TransactionBackup + '\Runtimes\Python312\Lib\site-packages',
+        TransactionBackup + '\Runtimes\Python312.site-packages');
     end;
     CarryFromBackup('Runtimes\Python312', True);
   end;
@@ -1597,6 +1905,95 @@ begin
   CarryUninstallerFiles;
   AppendInstallLog('旧版本已备份，开始写入新版本文件。');
 end;
+
+{ Where the [Files] entries extract to: the install directory, or - only when some old files
+  stayed in use - a sibling directory that is merged in after extraction. }
+function PayloadDir(Param: String): String;
+begin
+  if UsePendingPayload then
+    Result := PendingPayloadDirFor(ExpandConstant('{app}'))
+  else
+    Result := ExpandConstant('{app}');
+end;
+
+procedure MergePendingPayload;
+var
+  Pending: String;
+  Left: Integer;
+begin
+  if not UsePendingPayload then exit;
+  Pending := PendingPayloadDirFor(ExpandConstant('{app}'));
+  Left := MergeTree(Pending, ExpandConstant('{app}'), '', nil);
+  if Left = 0 then begin
+    DelTree(Pending, True, True, True);
+    AppendInstallLog('之前被占用的文件现在已经可以替换，更新已全部完成。');
+  end else begin
+    PendingAfterRestart := True;
+    AppendInstallLog(IntToStr(Left) + ' 个文件仍在使用中，会在下次登录 Windows 时自动更新。');
+  end;
+end;
+
+function PowerShellQuote(const Value: String): String;
+begin
+  Result := Value;
+  StringChangeEx(Result, '''', '''''', True);
+  Result := '''' + Result + '''';
+end;
+
+{ Per-user installs cannot use the administrator-only "replace on reboot" list, so a one-time
+  task at the next sign-in finishes the update: it stops MyPowerTools programs that sign-in
+  started from the old files, moves the remaining new files in, and starts them again. }
+procedure RegisterFinishAfterRestart;
+var
+  Lines: TArrayOfString;
+  Command: String;
+begin
+  if not PendingAfterRestart then exit;
+  Command := '"' + ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe') +
+    '" -NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -WindowStyle Hidden -File "' +
+    FinishUpdateScriptPath + '"';
+  SetArrayLength(Lines, 32);
+  Lines[0] := '$ErrorActionPreference = ''Continue''';
+  Lines[1] := '$app = ' + PowerShellQuote(ExpandConstant('{app}'));
+  Lines[2] := '$pending = ' + PowerShellQuote(PendingPayloadDirFor(ExpandConstant('{app}')));
+  Lines[3] := '$runOnce = ''HKCU:\Software\Microsoft\Windows\CurrentVersion\RunOnce''';
+  Lines[4] := '$command = ' + PowerShellQuote(Command);
+  Lines[5] := '$root = [IO.Path]::GetFullPath($app).TrimEnd(''\'') + ''\''';
+  Lines[6] := '$stopped = $false';
+  Lines[7] := 'foreach ($process in Get-Process -ErrorAction SilentlyContinue) {';
+  Lines[8] := '    $path = $null; try { $path = $process.MainModule.FileName } catch {}';
+  Lines[9] := '    if ($path -and $path.StartsWith($root, [StringComparison]::OrdinalIgnoreCase)) {';
+  Lines[10] := '        try { Stop-Process -Id $process.Id -Force -ErrorAction Stop; Wait-Process -Id $process.Id -Timeout 5 -ErrorAction SilentlyContinue; $stopped = $true } catch {}';
+  Lines[11] := '    }';
+  Lines[12] := '}';
+  Lines[13] := 'if (Test-Path -LiteralPath $pending) {';
+  Lines[14] := '    & "$env:SystemRoot\System32\robocopy.exe" $pending $app /E /MOVE /IS /IT /R:10 /W:2 /NFL /NDL /NJH /NJS /NP | Out-Null';
+  Lines[15] := '    if (Test-Path -LiteralPath $pending) {';
+  Lines[16] := '        if (@(Get-ChildItem -LiteralPath $pending -Recurse -File -Force -ErrorAction SilentlyContinue).Count -eq 0) {';
+  Lines[17] := '            Remove-Item -LiteralPath $pending -Recurse -Force -ErrorAction SilentlyContinue';
+  Lines[18] := '        } else {';
+  Lines[19] := '            Set-ItemProperty -LiteralPath $runOnce -Name ''' + FinishUpdateRunOnceName + ''' -Value $command';
+  Lines[20] := '        }';
+  Lines[21] := '    }';
+  Lines[22] := '}';
+  Lines[23] := 'if ($stopped) {';
+  Lines[24] := '    foreach ($name in @(''MyPowerTools.ServiceManager'', ''MyPowerTools'')) {';
+  Lines[25] := '        $value = (Get-ItemProperty -LiteralPath ''HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'' -Name $name -ErrorAction SilentlyContinue).$name';
+  Lines[26] := '        if ($value) { Start-Process -FilePath "$env:SystemRoot\System32\cmd.exe" -ArgumentList (''/d /c start "" '' + $value) -WindowStyle Hidden }';
+  Lines[27] := '    }';
+  Lines[28] := '}';
+  Lines[29] := 'if (-not (Test-Path -LiteralPath $pending)) {';
+  Lines[30] := '    Remove-Item -LiteralPath $PSCommandPath -Force -ErrorAction SilentlyContinue';
+  Lines[31] := '}';
+  ForceDirectories(ExtractFileDir(FinishUpdateScriptPath));
+  { UTF-8 with BOM: Windows PowerShell 5.1 reads a BOM-less script in the ANSI code page. }
+  if SaveStringsToUTF8File(FinishUpdateScriptPath, Lines, False) and
+     RegWriteStringValue(HKCU, RunOnceRegKey, FinishUpdateRunOnceName, Command) then
+    Log('Registered the one-time finish step for the next sign-in: ' + Command)
+  else
+    Log('Could not register the one-time finish step.');
+end;
+
 
 function FriendlyDownloadError(const Message: String): String;
 begin
@@ -1817,7 +2214,11 @@ begin
     WizardForm.FinishedHeadingLabel.Caption := 'MyPowerTools 安装没有完成';
     WizardForm.FinishedLabel.Caption := InstallVerificationProblem + #13#10#13#10 +
       '没有留下不完整的安装。请重新运行安装器；如需求助，请发送安装日志：' + #13#10 + InstallerLogDir;
-  end else if (CurPageID = wpFinished) and FinalizeSkipped then
+  end else if (CurPageID = wpFinished) and PendingAfterRestart then
+    WizardForm.FinishedLabel.Caption :=
+      'MyPowerTools 已经安装完成，可以立即使用。' + #13#10#13#10 +
+      '有少数文件安装时正被其他程序使用，会在下次重新启动电脑（登录 Windows）时自动更新，无需任何操作。'
+  else if (CurPageID = wpFinished) and FinalizeSkipped then
     WizardForm.FinishedLabel.Caption :=
       'MyPowerTools 程序文件已经安装，但后台服务没有注册成功。' + #13#10#13#10 +
       '主程序可以正常打开；需要后台服务的功能恢复前，请重新运行本安装器完成修复。' + #13#10 +
@@ -1876,7 +2277,7 @@ end;
 
 procedure RequireInstalledFile(const Relative: String; var Missing: String);
 begin
-  if not FileExists(ExpandConstant('{app}\') + Relative) then begin
+  if not FileExists(AddBackslash(PayloadDir('')) + Relative) then begin
     if Missing <> '' then Missing := Missing + '、';
     Missing := Missing + Relative;
   end;
@@ -1905,7 +2306,7 @@ end;
 
 procedure VerifyDotNetLayout;
 begin
-  if not HasDotNetRuntimeAtRoot(ExpandConstant('{app}\Runtime\dotnet')) then begin
+  if not HasDotNetRuntimeAtRoot(AddBackslash(PayloadDir('')) + 'Runtime\dotnet') then begin
     InstallVerificationProblem := '.NET 运行时解压不完整。下载的文件可能已损坏，或被安全软件删除。';
     AppendInstallLog(InstallVerificationProblem);
   end;
@@ -2123,6 +2524,8 @@ begin
   end else begin
     if TransactionAllowed(AppDir) and DirExists(AppDir) then
       DelTree(AppDir, True, True, True);
+    if TransactionAllowed(AppDir) then
+      DelTree(PendingPayloadDirFor(AppDir), True, True, True);
     RegDeleteKeyIncludingSubkeys(HKCU, UninstallRegKey);
     if ShouldRunPostInstall then begin
       DeleteFile(ExpandConstant('{autoprograms}\MyPowerTools.lnk'));
@@ -2150,11 +2553,13 @@ begin
       AbandonInstall;
       exit;
     end;
+    MergePendingPayload;
     CommitInstallTransaction;
     RewriteDoubaoVenvConfig;
     WriteInstallManifest;
     if ShouldRunPostInstall then
       SeedOtaState;
+    RegisterFinishAfterRestart;
     AppendInstallLog('核心文件与运行时组件安装完成。');
     if ShouldRunPostInstall and WizardSilent and
       not RunWorkerSynchronously(2) then begin
