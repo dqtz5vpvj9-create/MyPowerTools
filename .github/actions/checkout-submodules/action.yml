@@ -42,11 +42,22 @@ runs:
           export GIT_CONFIG_KEY_0="url.https://x-access-token:${SUBMODULE_TOKEN}@github.com/.insteadOf"
           export GIT_CONFIG_VALUE_0="https://github.com/"
         fi
-        mapfile -t paths < <(
-          git config --file .gitmodules --get-regexp '^submodule\..*\.path$' |
-            awk '{ print $2 }' |
-            grep -vxF -f <(printf '%s\n' "${SUBMODULE_EXCLUDE}" | sed '/^[[:space:]]*$/d') || true
-        )
+        # Plain while-read loop: macOS runners ship bash 3.2, which has no mapfile.
+        paths=()
+        while read -r _ path; do
+          [[ -z "${path}" ]] && continue
+          skip=0
+          while IFS= read -r excluded; do
+            excluded="${excluded#"${excluded%%[![:space:]]*}"}"
+            excluded="${excluded%"${excluded##*[![:space:]]}"}"
+            if [[ -n "${excluded}" && "${excluded}" == "${path}" ]]; then
+              skip=1
+            fi
+          done <<< "${SUBMODULE_EXCLUDE}"
+          if [[ ${skip} -eq 0 ]]; then
+            paths+=("${path}")
+          fi
+        done < <(git config --file .gitmodules --get-regexp '^submodule\..*\.path$')
         if [[ ${#paths[@]} -eq 0 ]]; then
           echo "::error::No submodules selected from .gitmodules."
           exit 1
