@@ -1,7 +1,18 @@
 name: Personal UX regression tests
 on:
   pull_request:
+    # Same exclusions as MyPowerTools CI: documentation-only changes cannot
+    # affect the Shell and Surface regressions this runs on three OSes.
+    paths-ignore:
+      - "docs/**"
+      - "adr/**"
+      - "ota-history/**"
+      - "**/*.md"
   workflow_dispatch:
+# A new push to the same PR supersedes the previous run's three runners.
+concurrency:
+  group: personal-ux-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 permissions:
   contents: read
 jobs:

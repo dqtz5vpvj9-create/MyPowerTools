@@ -54,13 +54,28 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          submodules: recursive
+          submodules: false
+          token: ${{ secrets.MPT_SUBMODULE_PAT }}
+
+      - name: Checkout submodules
+        uses: ./.github/actions/checkout-submodules
+        with:
           token: ${{ secrets.MPT_SUBMODULE_PAT }}
 
       - name: Setup .NET SDK
         uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
+
+      - name: Restore dependency caches
+        uses: actions/cache@v4
+        with:
+          path: |
+            artifacts/sdk/global-packages
+            ~/.npm
+          key: macos-dependencies-${{ hashFiles('global.json', 'NuGet.Config', '**/*.csproj', 'sdk/web-bridge/package-lock.json') }}
+          restore-keys: |
+            macos-dependencies-
 
       - name: Prepare local SDK feed
         shell: pwsh
@@ -109,13 +124,28 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          submodules: recursive
+          submodules: false
+          token: ${{ secrets.MPT_SUBMODULE_PAT }}
+
+      - name: Checkout submodules
+        uses: ./.github/actions/checkout-submodules
+        with:
           token: ${{ secrets.MPT_SUBMODULE_PAT }}
 
       - name: Setup .NET SDK
         uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
+
+      - name: Restore dependency caches
+        uses: actions/cache@v4
+        with:
+          path: |
+            artifacts/sdk/global-packages
+            ~/.npm
+          key: macos-dependencies-${{ hashFiles('global.json', 'NuGet.Config', '**/*.csproj', 'sdk/web-bridge/package-lock.json') }}
+          restore-keys: |
+            macos-dependencies-
 
       - name: Prepare local SDK feed
         shell: pwsh
@@ -209,6 +239,64 @@ jobs:
           -File scripts/verify-remote-notifications-macos-production.ps1
           -AppBundle artifacts/publish/macos-arm64/MyPowerTools.app
 
+      - name: Upload evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: remote-notifications-macos-production-evidence
+          if-no-files-found: warn
+          path: |
+            artifacts/remote-notifications-macos/**
+            artifacts/publish/macos-arm64/MyPowerTools.app/Contents/MacOS/ServiceUnits/units/remote-notifications.service.json
+
+  intel-bundle:
+    # Split out of production-gate, where it ran after the arm64 publish and the
+    # production gate (~7.5 min on the critical path). It depends on nothing
+    # those steps produce, so it now runs on its own runner in parallel.
+    name: Intel cross-publish and helper verification
+    runs-on: macos-14
+    timeout-minutes: 45
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: 1
+      DOTNET_NOLOGO: true
+      NUGET_XMLDOC_MODE: skip
+      EnableWindowsTargeting: true
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+          token: ${{ secrets.MPT_SUBMODULE_PAT }}
+
+      - name: Checkout submodules
+        uses: ./.github/actions/checkout-submodules
+        with:
+          token: ${{ secrets.MPT_SUBMODULE_PAT }}
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Restore dependency caches
+        uses: actions/cache@v4
+        with:
+          path: |
+            artifacts/sdk/global-packages
+            ~/.npm
+          key: macos-dependencies-${{ hashFiles('global.json', 'NuGet.Config', '**/*.csproj', 'sdk/web-bridge/package-lock.json') }}
+          restore-keys: |
+            macos-dependencies-
+
+      - name: Prepare local SDK feed
+        shell: pwsh
+        run: New-Item -ItemType Directory -Path artifacts/sdk/nuget -Force | Out-Null
+
+      - name: Build SDK packages
+        shell: pwsh
+        run: pwsh -NoLogo -NoProfile -NonInteractive -File scripts/build-sdk.ps1
+
       - name: Cross-publish Intel app bundle
         shell: pwsh
         run: >-
@@ -244,11 +332,9 @@ jobs:
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: remote-notifications-macos-production-evidence
+          name: remote-notifications-macos-intel-evidence
           if-no-files-found: warn
           path: |
-            artifacts/remote-notifications-macos/**
-            artifacts/publish/macos-arm64/MyPowerTools.app/Contents/MacOS/ServiceUnits/units/remote-notifications.service.json
             artifacts/publish/macos-x64/MyPowerTools.app/Contents/MacOS/ServiceUnits/units/remote-notifications.service.json
 
   installed-shape:
@@ -266,7 +352,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          submodules: recursive
+          submodules: false
+          token: ${{ secrets.MPT_SUBMODULE_PAT }}
+
+      - name: Checkout submodules
+        uses: ./.github/actions/checkout-submodules
+        with:
           token: ${{ secrets.MPT_SUBMODULE_PAT }}
 
       - name: Setup .NET SDK
@@ -278,9 +369,10 @@ jobs:
         shell: pwsh
         run: New-Item -ItemType Directory -Path artifacts/sdk/nuget -Force | Out-Null
 
-      - name: Build SDK packages
-        shell: pwsh
-        run: pwsh -NoLogo -NoProfile -NonInteractive -File scripts/build-sdk.ps1
+      # No "Build SDK packages" here: this job installs the prebuilt bundle and the
+      # production gate only builds tests/architecture-gate, whose references are
+      # all src/ ProjectReferences. The empty local feed above keeps NuGet.Config's
+      # source valid for that restore.
 
       - name: Restore the shared app bundle
         uses: actions/download-artifact@v4
@@ -381,7 +473,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          submodules: recursive
+          submodules: false
+          token: ${{ secrets.MPT_SUBMODULE_PAT }}
+
+      - name: Checkout submodules
+        uses: ./.github/actions/checkout-submodules
+        with:
           token: ${{ secrets.MPT_SUBMODULE_PAT }}
 
       - name: Setup .NET SDK
@@ -505,13 +602,28 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          submodules: recursive
+          submodules: false
+          token: ${{ secrets.MPT_SUBMODULE_PAT }}
+
+      - name: Checkout submodules
+        uses: ./.github/actions/checkout-submodules
+        with:
           token: ${{ secrets.MPT_SUBMODULE_PAT }}
 
       - name: Setup .NET SDK
         uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
+
+      - name: Restore dependency caches
+        uses: actions/cache@v4
+        with:
+          path: |
+            artifacts/sdk/global-packages
+            ~/.npm
+          key: macos-dependencies-${{ hashFiles('global.json', 'NuGet.Config', '**/*.csproj', 'sdk/web-bridge/package-lock.json') }}
+          restore-keys: |
+            macos-dependencies-
 
       - name: Prepare local SDK feed
         shell: pwsh

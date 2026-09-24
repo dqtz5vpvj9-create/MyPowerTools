@@ -10,7 +10,14 @@ on:
       - "src/MyPowerTools.Packaging/**"
       - "src/MyPowerTools.Installer.Mac/**"
       - "packaging/macos/**"
-      - "src/MyPowerTools.Tests/**"
+      # Only the test sources this workflow runs (the filter in "Run macOS OTA
+      # contract tests" below), not every test file: an unrelated test edit used
+      # to start a 17-minute macOS publish. The full suite still runs in
+      # MyPowerTools CI on every PR.
+      - "src/MyPowerTools.Tests/Mac*.cs"
+      - "src/MyPowerTools.Tests/Ota*.cs"
+      - "src/MyPowerTools.Tests/MyPowerTools.Tests.csproj"
+      - "src/MyPowerTools.Tests/xunit.runner.json"
       - ".github/workflows/macos-ota-validation.yml"
   workflow_dispatch:
 
@@ -24,6 +31,8 @@ permissions:
 jobs:
   validate:
     runs-on: macos-14
+    # A hung publish or codesign used to hold a macOS runner for the 6-hour default.
+    timeout-minutes: 45
     env:
       DOTNET_CLI_TELEMETRY_OPTOUT: 1
       DOTNET_NOLOGO: true
@@ -34,13 +43,28 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          submodules: recursive
+          submodules: false
+          token: ${{ secrets.MPT_SUBMODULE_PAT }}
+
+      - name: Checkout submodules
+        uses: ./.github/actions/checkout-submodules
+        with:
           token: ${{ secrets.MPT_SUBMODULE_PAT }}
 
       - name: Setup .NET SDK
         uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
+
+      - name: Restore dependency caches
+        uses: actions/cache@v4
+        with:
+          path: |
+            artifacts/sdk/global-packages
+            ~/.npm
+          key: macos-dependencies-${{ hashFiles('global.json', 'NuGet.Config', '**/*.csproj', 'sdk/web-bridge/package-lock.json') }}
+          restore-keys: |
+            macos-dependencies-
 
       - name: Prepare local NuGet source
         shell: pwsh
