@@ -471,6 +471,13 @@ static bool PromptOtaApplyConsent(IReadOnlyList<OtaCloseTarget> targets)
 
 static int Ota(string[] args, string root)
 {
+    if (OperatingSystem.IsMacOS())
+    {
+        // macOS end users have no PowerShell: the native installer checks, downloads, verifies,
+        // swaps and health-checks the bundle in process.
+        return MacOtaCommand.Run(args, static () => PromptOtaApplyConsent([]));
+    }
+
     var subcommand = args.FirstOrDefault() ?? "status";
     var bundleRoot = OperatingSystem.IsMacOS()
         ? OtaUpdaterLocator.FindMacBundleRoot(AppContext.BaseDirectory)

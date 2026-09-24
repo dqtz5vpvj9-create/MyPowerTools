@@ -29,14 +29,23 @@ on:
 
 concurrency:
   group: ci-${{ github.event.pull_request.number || github.ref }}
-  cancel-in-progress: true
+  # Only PR runs cancel older runs. A push to main must never cancel an in-flight release.
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 permissions:
   contents: write
 
 jobs:
-  windows:
-    name: Windows build, test, validate, package
+  # The Windows gate is split into two jobs that run side by side on separate
+  # runners. The test suites (~5.5 min of serial xUnit) and the tool-package
+  # build plus the validation/smoke chain (~9 min) used to run one after the
+  # other in a single job. Neither consumes the other's output: the tests read
+  # modules/ and the solution build output, the package chain reads
+  # artifacts/ci-modules, which only it produces. `windows` below keeps the
+  # original check name and is what `release` depends on, so branch protection
+  # and the release gate still see one result covering both.
+  windows-tests:
+    name: Windows tests and architecture gates
     runs-on: windows-latest
     timeout-minutes: 60
     env:
@@ -48,7 +57,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          submodules: recursive
+          submodules: false
+          token: ${{ secrets.MPT_SUBMODULE_PAT }}
+
+      - name: Checkout submodules
+        uses: ./.github/actions/checkout-submodules
+        with:
           token: ${{ secrets.MPT_SUBMODULE_PAT }}
 
       - name: Setup .NET SDK
@@ -99,7 +113,6 @@ jobs:
         shell: pwsh
         run: New-Item -ItemType Directory -Path artifacts\sdk\nuget -Force | Out-Null
 
-
       - name: Build SDK bundles
         shell: pwsh
         run: pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\build-sdk.ps1
@@ -119,7 +132,6 @@ jobs:
         run: >-
           dotnet test MyPowerTools.slnx --no-build
           --filter "FullyQualifiedName!~AndroidTools_&FullyQualifiedName!~Runtime_collects_production_module_events_and_notifications"
-
 
       - name: Release lingering module hosts
         shell: pwsh
@@ -145,11 +157,9 @@ jobs:
         shell: pwsh
         run: pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\verify-architecture.ps1 -Tier Quick
 
-
       - name: Architecture Gate (Process)
         shell: pwsh
         run: pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\verify-architecture.ps1 -Tier Process
-
 
       - name: Stage complete Android Tools package
         shell: pwsh
@@ -181,7 +191,6 @@ jobs:
             throw 'The staged notification module is not using the supervised service observer.'
           }
 
-
       - name: Android Tools test
         # Runs straight after staging, before the full suite. Those tests load
         # modules/ as well, and a module host left holding
@@ -193,10 +202,97 @@ jobs:
           dotnet test MyPowerTools.slnx --no-build
           --filter "FullyQualifiedName~AndroidTools_|FullyQualifiedName~Runtime_collects_production_module_events_and_notifications"
 
+      - name: Artifacts Governance Gate
+        shell: pwsh
+        run: pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\check-artifacts-governance.ps1 -Enforce -Refresh
+
+  windows-packages:
+    name: Windows tool packages, validate, smoke
+    runs-on: windows-latest
+    timeout-minutes: 60
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: 1
+      DOTNET_NOLOGO: true
+      NUGET_XMLDOC_MODE: skip
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          submodules: false
+          token: ${{ secrets.MPT_SUBMODULE_PAT }}
+
+      - name: Checkout submodules
+        uses: ./.github/actions/checkout-submodules
+        with:
+          token: ${{ secrets.MPT_SUBMODULE_PAT }}
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Restore dependency caches
+        uses: actions/cache@v4
+        with:
+          path: |
+            artifacts/sdk/global-packages
+            ~/AppData/Local/npm-cache
+          key: windows-dependencies-${{ hashFiles('global.json', 'NuGet.Config', '**/*.csproj', 'sdk/web-bridge/package-lock.json') }}
+          restore-keys: |
+            windows-dependencies-
+
+      - name: Verify tool submodules
+        shell: pwsh
+        run: |
+          $toolIds = @(
+            'adb-forwarder'
+            'remote-notifications'
+            'remote-commands'
+            'process-monitor'
+            'screenease'
+            'smartbird-thermostat'
+            'doubao-computer-use'
+            'input-monitor'
+            'screenshot'
+            'xbrd'
+          )
+          $requiredFiles = @('tool-release.json', 'source-map.json')
+          $missing = foreach ($toolId in $toolIds) {
+            foreach ($requiredFile in $requiredFiles) {
+              $requiredPath = Join-Path 'tools' $toolId $requiredFile
+              if (-not (Test-Path -LiteralPath $requiredPath -PathType Leaf)) {
+                $requiredPath
+              }
+            }
+          }
+          if ($missing) {
+            $missing | ForEach-Object { Write-Error "Missing tool submodule file: $_" }
+            throw 'Tool submodule checkout is incomplete.'
+          }
+
+      - name: Prepare local NuGet source
+        shell: pwsh
+        run: New-Item -ItemType Directory -Path artifacts\sdk\nuget -Force | Out-Null
+
+      - name: Build SDK bundles
+        shell: pwsh
+        run: pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\build-sdk.ps1
+
+      - name: Restore
+        shell: pwsh
+        run: dotnet restore MyPowerTools.slnx
+
+      - name: Build
+        shell: pwsh
+        run: dotnet build MyPowerTools.slnx --no-restore --maxcpucount
+
       - name: Build tool packages from submodules
         shell: pwsh
-        run: pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\build-tool-packages.ps1 -OutputRoot artifacts\ci-modules
-
+        # -SkipSdk: the "Build SDK bundles" step above already produced artifacts/sdk
+        # from the same sources and configuration (Release); without it
+        # build-all-tools.ps1 runs build-sdk.ps1 a second time (~60 s).
+        run: pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\build-tool-packages.ps1 -OutputRoot artifacts\ci-modules -SkipSdk
 
       - name: NSSM Manager PowerShell tests
         shell: pwsh
@@ -266,6 +362,26 @@ jobs:
             artifacts/ci-modules/**
             artifacts/ui-snapshots/**
             artifacts/shell-ui-snapshots/**
+
+  windows:
+    name: Windows build, test, validate, package
+    needs: [windows-tests, windows-packages]
+    # always(): a failed or cancelled dependency must turn this check red. A
+    # skipped required check would otherwise count as passing.
+    if: always()
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Require both Windows jobs to pass
+        env:
+          TESTS_RESULT: ${{ needs.windows-tests.result }}
+          PACKAGES_RESULT: ${{ needs.windows-packages.result }}
+        run: |
+          echo "windows-tests: ${TESTS_RESULT}"
+          echo "windows-packages: ${PACKAGES_RESULT}"
+          if [[ "${TESTS_RESULT}" != "success" || "${PACKAGES_RESULT}" != "success" ]]; then
+            exit 1
+          fi
 
   release:
     name: Publish GitHub Release + OTA feed
@@ -548,7 +664,7 @@ jobs:
           git remote set-url origin "https://x-access-token:${{ github.token }}@github.com/dqtz5vpvj9-create/MyPowerTools.git"
           git add ota-history/*.manifest.json
           if (-not (git diff --cached --quiet)) {
-            git commit -m "chore(ota): record ${{ steps.release-info.outputs.version }} file manifest"
+            git commit -m "chore(ota): record ${{ steps.release-info.outputs.version }} file manifest [skip ci]"
             if ($LASTEXITCODE -ne 0) {
               throw 'Failed to commit the OTA history manifest.'
             }

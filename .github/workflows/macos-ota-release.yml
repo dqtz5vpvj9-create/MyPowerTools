@@ -124,6 +124,24 @@ jobs:
             }
           }
 
+      - name: Publish arm64 and x64 online installer apps
+        shell: pwsh
+        env:
+          MPT_NOTARY_APPLE_ID: ${{ secrets.MPT_NOTARY_APPLE_ID }}
+          MPT_NOTARY_TEAM_ID: ${{ secrets.MPT_NOTARY_TEAM_ID }}
+          MPT_NOTARY_PASSWORD: ${{ secrets.MPT_NOTARY_PASSWORD }}
+        run: |
+          foreach ($architecture in @('arm64', 'x64')) {
+            pwsh -NoLogo -NoProfile -NonInteractive `
+              -File scripts/publish-macos-installer.ps1 `
+              -Architecture $architecture `
+              -Configuration Release `
+              -Version '${{ steps.release-info.outputs.version }}'
+            if ($LASTEXITCODE -ne 0) {
+              throw "publish-macos-installer.ps1 failed for $architecture with exit code $LASTEXITCODE."
+            }
+          }
+
       - name: Wait for the core release
         shell: pwsh
         env:
@@ -164,5 +182,24 @@ jobs:
           $assets = @($assets | Select-Object -Unique)
           if ($assets.Count -lt 8) {
             throw "The macOS publisher produced only $($assets.Count) release assets."
+          }
+          gh release upload $tag --repo dqtz5vpvj9-create/MyPowerTools $assets --clobber
+
+      - name: Upload macOS online installer apps
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          $tag = '${{ steps.release-info.outputs.tag }}'
+          $assets = @()
+          foreach ($architecture in @('arm64', 'x64')) {
+            $assets += @(
+              "artifacts/publish/macos-installer-$architecture/MyPowerTools-Installer-macos-$architecture.zip",
+              "artifacts/publish/macos-installer-$architecture/MyPowerTools-Installer-macos-$architecture.zip.sha256"
+            ) | Where-Object { Test-Path -LiteralPath $_ -PathType Leaf }
+          }
+          $assets = @($assets | Select-Object -Unique)
+          if ($assets.Count -lt 4) {
+            throw "The macOS installer publisher produced only $($assets.Count) release assets."
           }
           gh release upload $tag --repo dqtz5vpvj9-create/MyPowerTools $assets --clobber

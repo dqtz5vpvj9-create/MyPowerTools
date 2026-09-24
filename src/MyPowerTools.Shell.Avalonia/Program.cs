@@ -5,6 +5,7 @@ using MyPowerTools.Abstractions;
 using MyPowerTools.HostControl;
 using MyPowerTools.Platform.Abstractions;
 using MyPowerTools.Shell.Avalonia.Services;
+using HostProto = MyPowerTools.Protocol.HostControl.V1;
 
 namespace MyPowerTools.Shell.Avalonia;
 
@@ -169,38 +170,81 @@ internal static class Program
                 OperatingSystem.IsWindows() ? IpcTransport.NamedPipe : IpcTransport.UnixDomainSocket,
                 endpointAddress);
         var deadline = DateTimeOffset.UtcNow.AddMilliseconds(Math.Max(1000, timeoutMs));
+        var quitRunner = args.Contains("--quit-runner", StringComparer.OrdinalIgnoreCase);
+        // Phase 1: wait for the Runner to serve HostControl. A cold Runner only starts
+        // listening after it has probed every enabled module, so retrying here is expected.
+        // Only Ping is retried: it touches no module, so abandoning an attempt is harmless.
+        // A fresh client per attempt re-reads the auth token, which a Runner that is still
+        // starting may not have written yet.
+        HostControlClient? client = null;
+        HostProto.PingResponse? ping = null;
         Exception? lastError = null;
-
         while (DateTimeOffset.UtcNow < deadline)
         {
             using var attemptTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            var attempt = HostControlClient.ForEndpoint(endpoint);
             try
             {
-                using var client = HostControlClient.ForEndpoint(endpoint);
-                var ping = await client.PingAsync(attemptTimeout.Token);
-                var dashboard = await client.GetDashboardSnapshotAsync(attemptTimeout.Token);
-                var modules = await client.ListModulesAsync(attemptTimeout.Token);
-                var commands = await client.ListCommandsAsync(cancellationToken: attemptTimeout.Token);
-
-                Console.WriteLine($"Shell HostControl smoke connected: runner={ping.State} version={ping.RunnerVersion}");
-                Console.WriteLine($"Shell HostControl smoke modules={modules.Modules.Count} dashboardCards={dashboard.Cards.Count} commands={commands.Commands.Count}");
-                if (args.Contains("--quit-runner", StringComparer.OrdinalIgnoreCase))
-                {
-                    await client.QuitRunnerAsync(attemptTimeout.Token);
-                    Console.WriteLine("Shell HostControl smoke requested Runner shutdown.");
-                }
-
-                return 0;
+                ping = await attempt.PingAsync(attemptTimeout.Token);
+                client = attempt;
+                break;
             }
             catch (Exception ex)
             {
+                attempt.Dispose();
                 lastError = ex;
                 await Task.Delay(500);
             }
         }
 
-        Console.Error.WriteLine($"Shell HostControl smoke failed: {lastError?.Message ?? "timeout"}");
-        return 1;
+        using var connectedClient = client;
+        if (client is null || ping is null)
+        {
+            Console.Error.WriteLine($"Shell HostControl smoke failed: Runner did not answer Ping within {timeoutMs} ms: {lastError?.Message ?? "timeout"}");
+            return 1;
+        }
+
+        // Phase 2: exercise the module-facing RPCs exactly once, within the remaining budget.
+        // They are not retried under a short per-attempt timeout: cancelling a dashboard
+        // refresh mid-flight cancels module callbacks, and a callback that does not stop in
+        // time is quarantined by the in-proc host, which would turn a slow machine into a
+        // degraded Runner instead of a slow smoke.
+        var remaining = deadline - DateTimeOffset.UtcNow;
+        var verificationBudget = remaining > TimeSpan.FromSeconds(5) ? remaining : TimeSpan.FromSeconds(5);
+        using var verificationTimeout = new CancellationTokenSource(verificationBudget);
+        var exitCode = 0;
+        try
+        {
+            var dashboard = await client.GetDashboardSnapshotAsync(verificationBudget, verificationTimeout.Token);
+            var modules = await client.ListModulesAsync(verificationTimeout.Token);
+            var commands = await client.ListCommandsAsync(cancellationToken: verificationTimeout.Token);
+
+            Console.WriteLine($"Shell HostControl smoke connected: runner={ping.State} version={ping.RunnerVersion}");
+            Console.WriteLine($"Shell HostControl smoke modules={modules.Modules.Count} dashboardCards={dashboard.Cards.Count} commands={commands.Commands.Count}");
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Shell HostControl smoke failed: {ex.Message}");
+            exitCode = 1;
+        }
+
+        if (quitRunner)
+        {
+            // Also on failure, so a smoke-owned Runner is not left behind.
+            try
+            {
+                using var quitTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+                await client.QuitRunnerAsync(quitTimeout.Token);
+                Console.WriteLine("Shell HostControl smoke requested Runner shutdown.");
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine($"Shell HostControl smoke could not request Runner shutdown: {ex.Message}");
+                exitCode = 1;
+            }
+        }
+
+        return exitCode;
     }
 
     private static int GetIntOption(string[] args, string name, int defaultValue)

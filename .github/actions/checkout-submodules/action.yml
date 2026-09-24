@@ -1,0 +1,76 @@
+name: Checkout build submodules
+description: >-
+  Shallow, parallel checkout of every submodule except external/haidian.
+
+  actions/checkout with `submodules: recursive` clones all twelve submodules one
+  after another. external/haidian alone took ~110 of the ~135 seconds that
+  step cost on every Windows and macOS job, and nothing in the build, the tests,
+  the packaging scripts or the CI steps reads it. The release jobs still use
+  `submodules: recursive` (they build the source bundle), so what gets released
+  is unchanged.
+
+  Submodules are discovered from .gitmodules, so a newly added tool submodule is
+  picked up without editing this file. Pair it with actions/checkout using
+  `submodules: false`.
+
+inputs:
+  token:
+    description: >-
+      Token for the private submodules (external/NotifyApp). Applied through
+      GIT_CONFIG_* environment variables for this step only, so it is neither
+      written to .git/config nor visible on a command line.
+    required: false
+    default: ""
+  exclude:
+    description: Newline-separated submodule paths to leave uninitialised.
+    required: false
+    default: external/haidian
+
+runs:
+  using: composite
+  steps:
+    - name: Fetch submodules (shallow, parallel)
+      shell: bash
+      env:
+        SUBMODULE_TOKEN: ${{ inputs.token }}
+        SUBMODULE_EXCLUDE: ${{ inputs.exclude }}
+      run: |
+        set -euo pipefail
+        export GIT_TERMINAL_PROMPT=0
+        if [[ -n "${SUBMODULE_TOKEN}" ]]; then
+          export GIT_CONFIG_COUNT=1
+          export GIT_CONFIG_KEY_0="url.https://x-access-token:${SUBMODULE_TOKEN}@github.com/.insteadOf"
+          export GIT_CONFIG_VALUE_0="https://github.com/"
+        fi
+        # Plain while-read loop: macOS runners ship bash 3.2, which has no mapfile.
+        paths=()
+        while read -r _ path; do
+          [[ -z "${path}" ]] && continue
+          skip=0
+          while IFS= read -r excluded; do
+            excluded="${excluded#"${excluded%%[![:space:]]*}"}"
+            excluded="${excluded%"${excluded##*[![:space:]]}"}"
+            if [[ -n "${excluded}" && "${excluded}" == "${path}" ]]; then
+              skip=1
+            fi
+          done <<< "${SUBMODULE_EXCLUDE}"
+          if [[ ${skip} -eq 0 ]]; then
+            paths+=("${path}")
+          fi
+        done < <(git config --file .gitmodules --get-regexp '^submodule\..*\.path$')
+        if [[ ${#paths[@]} -eq 0 ]]; then
+          echo "::error::No submodules selected from .gitmodules."
+          exit 1
+        fi
+        printf 'submodule: %s\n' "${paths[@]}"
+        git submodule sync --recursive -- "${paths[@]}"
+        # Retry once: a transient GitHub fetch failure should not fail the whole job.
+        for attempt in 1 2; do
+          if git -c protocol.version=2 submodule update --init --force --recursive \
+               --depth=1 --jobs 8 -- "${paths[@]}"; then
+            exit 0
+          fi
+          echo "::warning::submodule update attempt ${attempt} failed"
+          sleep 5
+        done
+        exit 1

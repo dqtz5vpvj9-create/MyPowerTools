@@ -107,17 +107,62 @@ try {
         throw "Runner exited early with code $($runnerProcess.ExitCode)"
     }
 
-    $shellSmokeArguments = @('--smoke', '--timeout-ms', '30000')
+    # A cold Runner serves HostControl only after it has probed every enabled module,
+    # and the dashboard RPC refreshes every module's health serially. On a headless CI
+    # runner the module services are unreachable, so each probe runs to its own timeout:
+    # `Runner --once` over the same modules (the same work) takes 42-48 s there.
+    # 30 s could never cover that; 120 s leaves headroom without hiding a hang.
+    $shellSmokeTimeoutMs = 120000
+    $shellSmokeArguments = @('--smoke', '--timeout-ms', "$shellSmokeTimeoutMs")
     $startedOwnRunner = -not $runnerProcess.HasExited
     if ($startedOwnRunner) {
         $shellSmokeArguments += '--quit-runner'
+    } else {
+        Write-Host "Runner exited immediately with code $($runnerProcess.ExitCode); smoke uses the Runner that is already running."
     }
 
-    & $ShellExe @shellSmokeArguments
-    if ($LASTEXITCODE -ne 0) {
-        throw "Shell HostControl smoke failed with exit code $LASTEXITCODE"
+    # The Shell is a WinExe (GUI subsystem). `& $ShellExe` does not wait for a GUI
+    # process and leaves $LASTEXITCODE untouched, so the old call returned at once and
+    # the QuitRunner wait below started while the Shell was still waiting for the
+    # Runner. Start it explicitly, redirect its output into this log and wait for it.
+    $shellStartInfo = [System.Diagnostics.ProcessStartInfo]::new()
+    $shellStartInfo.FileName = $ShellExe
+    $shellStartInfo.WorkingDirectory = $RepoRoot
+    $shellStartInfo.UseShellExecute = $false
+    $shellStartInfo.CreateNoWindow = $true
+    $shellStartInfo.RedirectStandardOutput = $true
+    $shellStartInfo.RedirectStandardError = $true
+    $shellStartInfo.Environment['MPT_DATA_ROOT'] = $SmokeDataRoot
+    foreach ($argument in $shellSmokeArguments) {
+        $shellStartInfo.ArgumentList.Add($argument)
     }
 
+    $shellProcess = [System.Diagnostics.Process]::Start($shellStartInfo)
+    if ($null -eq $shellProcess) {
+        throw 'Shell smoke process did not start.'
+    }
+
+    try {
+        $shellStdout = $shellProcess.StandardOutput.ReadToEndAsync()
+        $shellStderr = $shellProcess.StandardError.ReadToEndAsync()
+        if (-not $shellProcess.WaitForExit($shellSmokeTimeoutMs + 30000)) {
+            $shellProcess.Kill($true)
+            $shellProcess.WaitForExit()
+            throw "Shell HostControl smoke did not finish within $(($shellSmokeTimeoutMs + 30000) / 1000) s."
+        }
+
+        $shellProcess.WaitForExit()
+        $shellStdout.Result.TrimEnd() | Where-Object { $_ } | ForEach-Object { Write-Host $_ }
+        $shellStderr.Result.TrimEnd() | Where-Object { $_ } | ForEach-Object { Write-Host $_ }
+        if ($shellProcess.ExitCode -ne 0) {
+            throw "Shell HostControl smoke failed with exit code $($shellProcess.ExitCode)"
+        }
+    } finally {
+        $shellProcess.Dispose()
+    }
+
+    # Measured from QuitRunner (the Shell has exited by now): graceful HostControl
+    # shutdown plus module host disposal, both bounded well below this in the Runner.
     if ($startedOwnRunner -and -not $runnerProcess.WaitForExit(10000)) {
         throw 'Runner did not exit after HostControl QuitRunner.'
     }

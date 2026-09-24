@@ -283,6 +283,72 @@ public sealed partial class RuntimeAcceptanceTests
     }
 
     [Fact]
+    public async Task Inproc_host_dispose_abandons_escaped_callbacks_of_quarantined_modules_without_waiting()
+    {
+        var packageRoot = Path.Combine(Path.GetTempPath(), "mpt-inproc-escaped-dispose", Guid.NewGuid().ToString("N"));
+        var faultRoot = Path.Combine(packageRoot, "fault");
+        Directory.CreateDirectory(faultRoot);
+        WriteInProcDotNetModulePackage(
+            faultRoot,
+            "sample.dotnet.fault-injection",
+            "sample-dotnet-fault-injection",
+            "Fault injection module",
+            typeof(FaultInjectionDotNetModule).FullName!);
+
+        var manifestPath = Path.Combine(faultRoot, "module.json");
+        var manifest = JsonNode.Parse(await File.ReadAllTextAsync(manifestPath))!.AsObject();
+        manifest["runtimePolicy"] = new JsonObject
+        {
+            ["preferred"] = "inproc",
+            ["allowInProc"] = true,
+            ["inProcRules"] = new JsonObject
+            {
+                ["maxCallMs"] = 1000,
+                ["allowNativeDll"] = false,
+                ["allowWindow"] = false,
+                ["allowBackgroundThreads"] = false,
+                ["loadContext"] = "collectible",
+                ["shadowCopy"] = true
+            }
+        };
+        await File.WriteAllTextAsync(
+            manifestPath,
+            manifest.ToJsonString(new JsonSerializerOptions { WriteIndented = true }));
+
+        var host = new InProcDotNetModuleHost();
+        await using var runtime = new MptHostRuntime(
+            new PackageReader(),
+            PlatformId.Current(),
+            RuntimePaths.Create(Path.Combine(Path.GetTempPath(), "mpt-runtime-escaped-dispose", Guid.NewGuid().ToString("N"))),
+            [host]);
+        runtime.Load(packageRoot);
+        await runtime.RefreshDynamicCommandsAsync(CancellationToken.None);
+
+        // The fixture ignores cancellation for 8 s: the call times out at 1 s, the callback
+        // escapes its boundary and the module is quarantined (same shape as a module whose
+        // status.get blocks on an unreachable service past maxCallMs).
+        var timedOut = await runtime.ExecuteCommandAsync(
+            new CommandRequest("escaped-dispose-timeout", "sample.dotnet.fault.ignore-timeout", new JsonObject()),
+            CancellationToken.None);
+        Assert.False(timedOut.Success);
+        Assert.Equal(
+            "runner-restart-required",
+            Assert.Single(
+                runtime.GetRuntimeDiagnostics().Processes,
+                process => process.PoolKey == "module:sample.dotnet.fault-injection").State);
+
+        // Host shutdown must not wait for the escaped callback (still running for ~7 s) nor
+        // pay the per-module drain grace for it. Before, this took at least the 2 s drain.
+        var stopwatch = Stopwatch.StartNew();
+        await host.DisposeAsync().AsTask().WaitAsync(TimeSpan.FromSeconds(10));
+        stopwatch.Stop();
+
+        Assert.True(
+            stopwatch.Elapsed < TimeSpan.FromSeconds(1.5),
+            $"Host dispose waited {stopwatch.Elapsed} for a quarantined module's escaped callback.");
+    }
+
+    [Fact]
     public async Task Inproc_initialization_faults_dispose_every_provisional_instance_before_circuit_reset()
     {
         var packageRoot = Path.Combine(Path.GetTempPath(), "mpt-inproc-init-failure", Guid.NewGuid().ToString("N"));

@@ -1,0 +1,34 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>CFBundleDevelopmentRegion</key>
+  <string>zh_CN</string>
+  <key>CFBundleDisplayName</key>
+  <string>MyPowerTools Installer</string>
+  <!-- Must match <AssemblyName> in src/MyPowerTools.Installer.Mac/MyPowerTools.Installer.Mac.csproj. -->
+  <key>CFBundleExecutable</key>
+  <string>MyPowerToolsInstaller</string>
+  <key>CFBundleIdentifier</key>
+  <string>com.mypowertools.installer</string>
+  <key>CFBundleInfoDictionaryVersion</key>
+  <string>6.0</string>
+  <key>CFBundleName</key>
+  <string>MyPowerTools Installer</string>
+  <key>CFBundlePackageType</key>
+  <string>APPL</string>
+  <!-- scripts/publish-macos-installer.ps1 stamps the two version keys below. -->
+  <key>CFBundleShortVersionString</key>
+  <string>0.0.0</string>
+  <key>CFBundleVersion</key>
+  <string>0.0.0</string>
+  <!-- Resources/MyPowerTools.icns, rendered from assets/MyPowerTools.svg the same way
+       scripts/publish-macos-base.ps1 renders the main app icon. -->
+  <key>CFBundleIconFile</key>
+  <string>MyPowerTools</string>
+  <key>LSMinimumSystemVersion</key>
+  <string>12.0</string>
+  <key>NSHighResolutionCapable</key>
+  <true/>
+</dict>
+</plist>
