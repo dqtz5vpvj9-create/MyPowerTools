@@ -234,6 +234,13 @@ $standaloneModules = @(
         SurfaceProject = 'tools/screenease/current-integration/src/ScreenEase.Surface/ScreenEase.Surface.csproj'
     },
     [pscustomobject]@{
+        Id = 'screenshot'
+        Destination = 'screenshot'
+        Template = 'tools/screenshot/current-integration/modules/screenshot'
+        AdapterProject = 'tools/screenshot/current-integration/src/Screenshot.MyPowerTools/Screenshot.MyPowerTools.csproj'
+        SurfaceProject = 'tools/screenshot/current-integration/src/Screenshot.Surface/Screenshot.Surface.csproj'
+    },
+    [pscustomobject]@{
         Id = 'smartbird-thermostat'
         Destination = 'smartbird-thermostat'
         Template = 'tools/smartbird-thermostat/current-integration/modules/smartbird-thermostat'

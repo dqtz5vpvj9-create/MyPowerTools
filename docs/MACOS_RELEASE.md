@@ -156,6 +156,7 @@ launchctl print "gui/$(id -u)/com.mypowertools.runner" | grep -A2 'arguments'
 
 - 全局热键（`hotkey.global`）与快捷键注入（`keyboard.shortcut`）已实现：热键走 Carbon `RegisterEventHotKey`（独立 CFRunLoop 线程），快捷键注入走 CoreGraphics `CGEvent`。注入需要在「系统设置 › 隐私与安全性 › 辅助功能」中授权 MyPowerTools；未授权时命令返回 `permission-required` 并附中文提示，热键注册本身不受影响。手势按字面映射（Ctrl = Control，Alt = Option，Win/Meta = ⌘），尚未在真机验证非主线程的热键投递。
 - 显示配置（`display.profile`）已通过 CoreGraphics gamma 表实现（`ScreenEaseMacGammaDisplayService`），screenease 在 macOS 上可用；Apple Silicon 内置屏幕可能被系统限制 gamma 写入，且不含 DDC/CI 硬件亮度。`adb.devices` 通过 PATH 与常见 SDK 路径解析 adb。
+- 截图（`screenshot`）随 macOS 应用包发布，调用用户已安装的 Snow Shot（Apple 芯片版）。「立即截图」通过 `keyboard.shortcut` 发送 Snow Shot 配置的截图快捷键（默认 Control+1，读取 `~/Library/Application Support/SnowShot/snow_shot/config.json`），需要辅助功能授权。
 - 仍未实现：特权代理（`privilege.elevated`）、系统级服务（`service.system`）、端口转发（`network.portForwarding`）。
 - OTA。`scripts/ota-update.ps1` 与 `scripts/invoke-ota-update.ps1` 只覆盖 Windows（`.exe` 路径、计划任务、HKCU Run 键），应用包内也不含更新器。macOS 升级方式是重新下载 zip 并再次执行 `install-macos.ps1`。
 - 命令行。`publish-macos.ps1` 不发布 `MyPowerTools.Cli`，应用包内没有 `mpt`。

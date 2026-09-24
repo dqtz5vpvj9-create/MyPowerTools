@@ -21,6 +21,7 @@ public sealed class MacReleaseSyncTests
             "doubao-agent",
             "paste-image",
             "screenease",
+            "screenshot",
             "smartbird-thermostat"
         })
         {
@@ -40,6 +41,7 @@ public sealed class MacReleaseSyncTests
             Path.Combine("tools", "doubao-computer-use", "current-integration", "modules", "doubao-agent", "module.json"),
             Path.Combine("tools", "paste-image", "current-integration", "modules", "paste-image", "module.json"),
             Path.Combine("tools", "screenease", "current-integration", "modules", "screenease", "module.json"),
+            Path.Combine("tools", "screenshot", "current-integration", "modules", "screenshot", "module.json"),
             Path.Combine("tools", "smartbird-thermostat", "current-integration", "modules", "smartbird-thermostat", "module.json")
         })
         {
