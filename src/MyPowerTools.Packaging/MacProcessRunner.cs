@@ -127,7 +127,23 @@ internal static class MacNative
     [DllImport("libc", EntryPoint = "free")]
     private static extern void Free(IntPtr pointer);
 
-    public static uint CurrentUserId() => GetUid();
+    public static uint CurrentUserId()
+    {
+        try
+        {
+            return GetUid();
+        }
+        catch (Exception exception) when (exception is DllNotFoundException or EntryPointNotFoundException)
+        {
+            var id = MacProcessRunner.Run("/usr/bin/id", ["-u"], TimeSpan.FromSeconds(10));
+            if (id.Succeeded && uint.TryParse(id.StandardOutput.Trim(), out var uid))
+            {
+                return uid;
+            }
+
+            throw new InvalidOperationException("无法确定当前 macOS 用户。");
+        }
+    }
 
     /// <summary>Physical path of an existing directory (symlinks resolved), or the input when unresolvable.</summary>
     public static string ResolvePhysicalPath(string path)
@@ -138,7 +154,16 @@ internal static class MacNative
             return full;
         }
 
-        var pointer = RealPath(full, IntPtr.Zero);
+        IntPtr pointer;
+        try
+        {
+            pointer = RealPath(full, IntPtr.Zero);
+        }
+        catch (Exception exception) when (exception is DllNotFoundException or EntryPointNotFoundException)
+        {
+            return full;
+        }
+
         if (pointer == IntPtr.Zero)
         {
             return full;

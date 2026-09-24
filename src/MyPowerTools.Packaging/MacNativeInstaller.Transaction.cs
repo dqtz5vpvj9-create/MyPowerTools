@@ -151,6 +151,7 @@ public sealed partial class MacNativeInstaller
         IReadOnlyList<AgentState> agents)
     {
         var targetApp = layout.TargetApp;
+        var hadInstallation = Directory.Exists(targetApp);
         var oldMoved = false;
         var newMoved = false;
         var activationStarted = false;
@@ -213,7 +214,7 @@ public sealed partial class MacNativeInstaller
         }
         catch (Exception failure)
         {
-            Report("rollback", oldMoved ? "安装失败，正在恢复之前的版本…" : "安装失败，正在撤销本次更改…");
+            Report("rollback", hadInstallation ? "安装失败，正在恢复之前的版本…" : "安装失败，正在撤销本次更改…");
             try
             {
                 if (activationStarted)
@@ -269,12 +270,12 @@ public sealed partial class MacNativeInstaller
                     }
                 }
 
-                if (oldMoved && _options.Relaunch)
+                if (hadInstallation && _options.Relaunch)
                 {
                     Relaunch(targetApp);
                 }
 
-                var prefix = oldMoved ? "安装失败，已恢复之前的版本" : "安装失败，已撤销本次更改";
+                var prefix = hadInstallation ? "安装失败，已恢复之前的版本" : "安装失败，已撤销本次更改";
                 return new InstallOutcome(
                     new InvalidOperationException($"{prefix}：{failure.Message}", failure),
                     true,
