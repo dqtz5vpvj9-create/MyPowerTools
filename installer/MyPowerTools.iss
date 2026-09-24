@@ -168,8 +168,104 @@ begin
     RaiseException('Unable to write installed-release.json.');
 end;
 
+{ The full installer overwrites files in place, so every program started from the install
+  directory has to be gone first - found by path (service units, python/adb from Runtimes,
+  helpers added later), not by a fixed name list. }
+procedure StopProcessesUnderRootWithPowerShell(const Prefix: String);
+var
+  Lines: TArrayOfString;
+  Quoted, ScriptPath: String;
+  ResultCode: Integer;
+begin
+  Quoted := Prefix;
+  StringChangeEx(Quoted, '''', '''''', True);
+  SetArrayLength(Lines, 7);
+  Lines[0] := '$root = ''' + Quoted + '''';
+  Lines[1] := 'foreach ($process in Get-Process -ErrorAction SilentlyContinue) {';
+  Lines[2] := '    $path = $null; try { $path = $process.MainModule.FileName } catch {}';
+  Lines[3] := '    if ($path -and $path.StartsWith($root, [StringComparison]::OrdinalIgnoreCase) -and -not ([IO.Path]::GetFileName($path) -like ''unins*'')) {';
+  Lines[4] := '        Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue';
+  Lines[5] := '    }';
+  Lines[6] := '}';
+  ScriptPath := ExpandConstant('{tmp}\stop-under-root.ps1');
+  if not SaveStringsToUTF8File(ScriptPath, Lines, False) then exit;
+  if Exec(ExpandConstant('{sys}\WindowsPowerShell\v1.0\powershell.exe'),
+    '-NoLogo -NoProfile -NonInteractive -ExecutionPolicy Bypass -File "' + ScriptPath + '"',
+    '', SW_HIDE, ewWaitUntilTerminated, ResultCode) then
+    Log('PowerShell path-based stop finished with exit code ' + IntToStr(ResultCode));
+end;
+
+procedure StopProcessesUnderRoot(const Root: String);
+var
+  Locator, Service, Items, Item: Variant;
+  Index, Count, ResultCode: Integer;
+  Prefix, Path, ProcessIds: String;
+begin
+  Prefix := AddBackslash(RemoveBackslashUnlessRoot(Root));
+  ProcessIds := '';
+  try
+    Locator := CreateOleObject('WbemScripting.SWbemLocator');
+    Service := Locator.ConnectServer('.', 'root\CIMV2');
+    Items := Service.ExecQuery('SELECT ProcessId, ExecutablePath FROM Win32_Process');
+    Count := Items.Count;
+    for Index := 0 to Count - 1 do begin
+      Item := Items.ItemIndex(Index);
+      if VarIsNull(Item.ExecutablePath) or VarIsEmpty(Item.ExecutablePath) then
+        continue;
+      Path := Item.ExecutablePath;
+      if (Length(Path) > Length(Prefix)) and
+         (CompareText(Copy(Path, 1, Length(Prefix)), Prefix) = 0) and
+         (CompareText(Copy(ExtractFileName(Path), 1, 5), 'unins') <> 0) then
+        ProcessIds := ProcessIds + ' /PID ' + IntToStr(Item.ProcessId);
+    end;
+  except
+    Log('Process enumeration through WMI failed: ' + GetExceptionMessage);
+    StopProcessesUnderRootWithPowerShell(Prefix);
+  end;
+  if ProcessIds <> '' then
+    if Exec(ExpandConstant('{sys}\taskkill.exe'), '/F /T' + ProcessIds, '', SW_HIDE,
+      ewWaitUntilTerminated, ResultCode) then
+      Log('Path-based taskkill exit code ' + IntToStr(ResultCode));
+end;
+
+procedure StopInstalledProduct;
+var
+  ResultCode: Integer;
+  CliPath: String;
+begin
+  CliPath := ExpandConstant('{app}\Cli\MyPowerTools.Cli.exe');
+  if FileExists(CliPath) then
+    Exec(CliPath, 'service quiesce', ExtractFileDir(CliPath), SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Exec(ExpandConstant('{sys}\schtasks.exe'), '/End /TN "\MyPowerTools WinSpace Shift"', '',
+    SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  Exec(ExpandConstant('{sys}\taskkill.exe'),
+    '/F /T /IM "MyPowerTools.ServiceManager.exe" /IM "MyPowerTools.Runner.exe" /IM "MyPowerTools.Shell.Avalonia.exe"',
+    '', SW_HIDE, ewWaitUntilTerminated, ResultCode);
+  StopProcessesUnderRoot(ExpandConstant('{app}'));
+  Sleep(500);
+end;
+
+{ Uninstall never fails on a busy file: what is left is removed by a one-time command at the
+  next sign-in (a per-user install cannot use the administrator-only reboot delete list). }
+procedure CurUninstallStepChanged(CurUninstallStep: TUninstallStep);
+var
+  AppDir: String;
+begin
+  AppDir := RemoveBackslashUnlessRoot(ExpandConstant('{app}'));
+  if CurUninstallStep = usUninstall then
+    StopProcessesUnderRoot(AppDir)
+  else if (CurUninstallStep = usPostUninstall) and DirExists(AppDir) then begin
+    DelTree(AppDir, True, True, True);
+    if DirExists(AppDir) then
+      RegWriteStringValue(HKCU, 'Software\Microsoft\Windows\CurrentVersion\RunOnce', 'MyPowerToolsCleanup',
+        '"' + ExpandConstant('{sys}\cmd.exe') + '" /d /c rd /s /q "' + AppDir + '"');
+  end;
+end;
+
 procedure CurStepChanged(CurStep: TSetupStep);
 begin
+  if CurStep = ssInstall then
+    StopInstalledProduct;
   if CurStep = ssPostInstall then
   begin
     RewriteDoubaoVenvConfig('');
