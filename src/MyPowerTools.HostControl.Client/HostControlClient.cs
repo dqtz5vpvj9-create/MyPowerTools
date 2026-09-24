@@ -50,6 +50,17 @@ public sealed class HostControlClient : IDisposable
         return await _client.GetDashboardSnapshotAsync(new HostProto.DashboardSnapshotRequest { Locale = "" }, deadline: DefaultDeadline(), cancellationToken: cancellationToken);
     }
 
+    /// <summary>
+    /// Dashboard snapshot with an explicit deadline. The Runner refreshes every enabled
+    /// module's health serially before answering, so on a machine where module services
+    /// are unreachable (for example a headless CI runner) the call legitimately takes
+    /// longer than the interactive default.
+    /// </summary>
+    public async Task<HostProto.DashboardSnapshot> GetDashboardSnapshotAsync(TimeSpan timeout, CancellationToken cancellationToken = default)
+    {
+        return await _client.GetDashboardSnapshotAsync(new HostProto.DashboardSnapshotRequest { Locale = "" }, deadline: DateTime.UtcNow.Add(timeout), cancellationToken: cancellationToken);
+    }
+
     public async Task<HostProto.ListToolsResponse> ListToolsAsync(bool includeDisabled = false, CancellationToken cancellationToken = default)
     {
         return await _client.ListToolsAsync(new HostProto.ListToolsRequest { IncludeDisabled = includeDisabled }, deadline: DefaultDeadline(), cancellationToken: cancellationToken);

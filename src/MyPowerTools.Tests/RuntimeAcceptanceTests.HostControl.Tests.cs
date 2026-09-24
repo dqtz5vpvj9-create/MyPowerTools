@@ -365,4 +365,31 @@ public sealed partial class RuntimeAcceptanceTests
         Assert.True(lifetime.StopRequested);
         Assert.True(lifetime.ApplicationStopping.IsCancellationRequested);
     }
+
+    [Fact]
+    public async Task HostControl_event_stream_ends_when_runner_stops_so_quit_is_not_held_by_resident_shells()
+    {
+        await using var runtime = new MptHostRuntime(new PackageReader(), PlatformId.Current());
+        var lifetime = new RecordingHostApplicationLifetime();
+        var service = new HostControlGrpcService(
+            runtime,
+            new AuditLog(Path.Combine(Path.GetTempPath(), "mpt-hostcontrol-stream-stop-audit", Guid.NewGuid().ToString("N"), "audit.jsonl")),
+            lifetime);
+        var writer = new RecordingServerStreamWriter<MyPowerTools.Protocol.HostControl.V1.HostEvent>();
+
+        // The client token never fires (like a resident Shell that stays connected).
+        var subscription = service.SubscribeHostEvents(
+            new MyPowerTools.Protocol.HostControl.V1.HostEventsRequest { LastEventSeq = runtime.CurrentEventSeq },
+            writer,
+            new TestServerCallContext());
+        await Task.Delay(100);
+        Assert.False(subscription.IsCompleted);
+
+        await service.QuitRunner(
+            new MyPowerTools.Protocol.HostControl.V1.QuitRunnerRequest(),
+            new TestServerCallContext());
+
+        // Completes normally (no cancellation fault surfaced as a gRPC error) and promptly.
+        await subscription.WaitAsync(TimeSpan.FromSeconds(2));
+    }
 }

@@ -431,23 +431,37 @@ public sealed class HostControlGrpcService : HostProto.HostControl.HostControlBa
 
     public override async Task SubscribeHostEvents(HostProto.HostEventsRequest request, IServerStreamWriter<HostProto.HostEvent> responseStream, ServerCallContext context)
     {
+        // This stream is open for as long as a Shell is resident. Kestrel's graceful
+        // shutdown waits for in-flight requests, so an event stream that only watched the
+        // client's token would hold QuitRunner/StopApplication for the whole host shutdown
+        // timeout. End it as soon as the Runner starts stopping.
+        var stopping = _applicationLifetime?.ApplicationStopping ?? CancellationToken.None;
+        using var streamCancellation = CancellationTokenSource.CreateLinkedTokenSource(context.CancellationToken, stopping);
+        var cancellationToken = streamCancellation.Token;
         var lastSeq = request.LastEventSeq;
-        while (!context.CancellationToken.IsCancellationRequested)
+        try
         {
-            foreach (var evt in _runtime.HostEventsSince(lastSeq))
+            while (!cancellationToken.IsCancellationRequested)
             {
-                await responseStream.WriteAsync(new HostProto.HostEvent
+                foreach (var evt in _runtime.HostEventsSince(lastSeq))
                 {
-                    Seq = evt.Seq,
-                    Type = evt.Type,
-                    SourceId = evt.ModuleId,
-                    Time = Timestamp.FromDateTimeOffset(evt.Time),
-                    Payload = JsonStructMapper.ToStruct(evt.Payload)
-                });
-                lastSeq = evt.Seq;
-            }
+                    await responseStream.WriteAsync(new HostProto.HostEvent
+                    {
+                        Seq = evt.Seq,
+                        Type = evt.Type,
+                        SourceId = evt.ModuleId,
+                        Time = Timestamp.FromDateTimeOffset(evt.Time),
+                        Payload = JsonStructMapper.ToStruct(evt.Payload)
+                    });
+                    lastSeq = evt.Seq;
+                }
 
-            await _runtime.WaitForHostEventsAsync(lastSeq, context.CancellationToken);
+                await _runtime.WaitForHostEventsAsync(lastSeq, cancellationToken);
+            }
+        }
+        catch (OperationCanceledException) when (stopping.IsCancellationRequested && !context.CancellationToken.IsCancellationRequested)
+        {
+            // Runner shutdown: complete the stream normally; the Shell reconnects to the next Runner.
         }
     }
 
