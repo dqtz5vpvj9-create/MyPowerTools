@@ -38,7 +38,7 @@ public sealed class RemoteNotificationsProductTests
     }
 
     [Fact]
-    public void Remote_notification_detail_window_renders_markdown_through_native_web_view()
+    public void Remote_notification_detail_window_renders_markdown_through_platform_scoped_viewer()
     {
         var integrationRoot = Path.Combine(
             Root, "tools", "remote-notifications", "current-integration", "src", "RemoteNotifications.Surface");
@@ -49,28 +49,36 @@ public sealed class RemoteNotificationsProductTests
         var service = File.ReadAllText(Path.Combine(integrationRoot, "Services", "RemoteNotificationDetailWindowService.cs"));
         var viewCode = File.ReadAllText(Path.Combine(integrationRoot, "Views", "RemoteNotificationsView.axaml.cs"));
         var factory = File.ReadAllText(Path.Combine(integrationRoot, "RemoteNotificationsSurfaceFactory.cs"));
+        var html = File.ReadAllText(Path.Combine(integrationRoot, "Services", "RemoteNotificationHtmlDocument.cs"));
+        var hosted = File.ReadAllText(Path.Combine(integrationRoot, "Services", "RemoteNotificationHostedDocument.cs"));
+        var legacyNative = File.ReadAllText(Path.Combine(integrationRoot, "Services", "RemoteNotificationNativeDocument.cs"));
 
         Assert.Contains("Avalonia.Controls.WebView", project, StringComparison.Ordinal);
         Assert.Contains("Markdig", project, StringComparison.Ordinal);
-        Assert.Contains("x:Name=\"MarkdownWebView\"", detail, StringComparison.Ordinal);
-        Assert.Contains("NativeWebView", detail, StringComparison.Ordinal);
+        Assert.Contains("x:Name=\"DocumentHost\"", detail, StringComparison.Ordinal);
+        Assert.DoesNotContain(System.Xml.Linq.XDocument.Parse(detail).Descendants(),
+            element => element.Name.LocalName == "NativeWebView");
         Assert.Contains("x:Name=\"FallbackViewer\"", detail, StringComparison.Ordinal);
         Assert.Contains("x:Name=\"FallbackStatus\"", detail, StringComparison.Ordinal);
         Assert.Contains("Text=\"{Binding DisplayMessage}\"", detail, StringComparison.Ordinal);
         Assert.DoesNotContain("MarkdownViewerHost", detail, StringComparison.Ordinal);
         Assert.DoesNotContain("MptMarkdownView", detail, StringComparison.Ordinal);
-        Assert.Contains("NavigateToString", detailCode, StringComparison.Ordinal);
-        Assert.Contains("Markdown.ToHtml", detailCode, StringComparison.Ordinal);
-        Assert.Contains("DisableHtml", detailCode, StringComparison.Ordinal);
-        Assert.Contains("UseAdvancedExtensions", detailCode, StringComparison.Ordinal);
+        Assert.Contains("NavigateToString", legacyNative, StringComparison.Ordinal);
+        Assert.Contains("Markdown.ToHtml", html, StringComparison.Ordinal);
+        Assert.Contains("DisableHtml", html, StringComparison.Ordinal);
+        Assert.Contains("UseAdvancedExtensions", html, StringComparison.Ordinal);
         Assert.Contains("UseShellExecute", detailCode, StringComparison.Ordinal);
         Assert.DoesNotContain("RemoteNotificationMarkdownViewerController", detailCode, StringComparison.Ordinal);
-        Assert.DoesNotContain("IMptWebSurfaceService", service, StringComparison.Ordinal);
-        Assert.Contains("new RemoteNotificationDetailWindow(message)", service, StringComparison.Ordinal);
+        Assert.Contains("IMptWebSurfaceService", service, StringComparison.Ordinal);
+        Assert.Contains("new RemoteNotificationDetailWindow(message, _store, _webSurfaces)", service, StringComparison.Ordinal);
         Assert.DoesNotContain("IMptWebSurfaceService", viewCode, StringComparison.Ordinal);
-        Assert.DoesNotContain("context.WebSurfaces", factory, StringComparison.Ordinal);
+        Assert.Contains("context.WebSurfaces", factory, StringComparison.Ordinal);
         Assert.DoesNotContain("RemoteNotificationsView(context.WebSurfaces", factory, StringComparison.Ordinal);
-        Assert.Contains("new RemoteNotificationDetailWindowService(store)", factory, StringComparison.Ordinal);
+        Assert.Contains("new RemoteNotificationDetailWindowService(", factory, StringComparison.Ordinal);
+        Assert.Contains("OperatingSystem.IsMacOS()", factory, StringComparison.Ordinal);
+        Assert.Contains("CreateWindowSession", hosted, StringComparison.Ordinal);
+        Assert.Contains("Opened += OnOpened", detailCode, StringComparison.Ordinal);
+        Assert.Contains("_documentHost.Content = null", detailCode, StringComparison.Ordinal);
 
         Assert.Contains("<controls:MptMarkdownView Markdown=\"{Binding DisplayMessage}\"", feed, StringComparison.Ordinal);
         Assert.Contains("ColumnDefinitions=\"*,320,Auto\"", feed, StringComparison.Ordinal);
@@ -93,6 +101,7 @@ public sealed class RemoteNotificationsProductTests
         var detailCode = File.ReadAllText(Path.Combine(integrationRoot, "Views", "RemoteNotificationDetailWindow.axaml.cs"));
         var itemViewModels = File.ReadAllText(Path.Combine(integrationRoot, "ViewModels", "RemoteNotificationItemViewModels.cs"));
         var chain = File.ReadAllText(Path.Combine(integrationRoot, "Services", "RemoteNotificationSessionChain.cs"));
+        var html = File.ReadAllText(Path.Combine(integrationRoot, "Services", "RemoteNotificationHtmlDocument.cs"));
 
         Assert.Contains("UpdateSessionPosition", detailCode, StringComparison.Ordinal);
         Assert.Contains("NavigatePrevious", detailCode, StringComparison.Ordinal);
@@ -100,8 +109,8 @@ public sealed class RemoteNotificationsProductTests
         Assert.Contains("Key.Left", detailCode, StringComparison.Ordinal);
         Assert.Contains("Key.Right", detailCode, StringComparison.Ordinal);
         Assert.Contains("SessionStore", detailCode, StringComparison.Ordinal);
-        Assert.Contains("post(\"previous\")", detailCode, StringComparison.Ordinal);
-        Assert.Contains("post(\"next\")", detailCode, StringComparison.Ordinal);
+        Assert.Contains("post(\"previous\")", html, StringComparison.Ordinal);
+        Assert.Contains("post(\"next\")", html, StringComparison.Ordinal);
         Assert.Contains("HasSessionPosition", itemViewModels, StringComparison.Ordinal);
         Assert.Contains("SessionPositionText", itemViewModels, StringComparison.Ordinal);
         Assert.Contains("SessionPositionTooltip", itemViewModels, StringComparison.Ordinal);
