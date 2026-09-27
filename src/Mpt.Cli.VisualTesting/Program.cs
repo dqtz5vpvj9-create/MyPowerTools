@@ -166,7 +166,7 @@ static async Task<string> WriteShellSnapshotFromFixtureHostControlAsync(
     builder.Services.AddSingleton(CreateDefaultAuditLog());
     if (OperatingSystem.IsWindows())
     {
-        builder.WebHost.UseNamedPipes(MptNamedPipePolicy.Configure);
+        builder.WebHost.UseNamedPipes(MptNamedPipeTransport.Configure);
     }
     builder.WebHost.ConfigureKestrel(options =>
     {

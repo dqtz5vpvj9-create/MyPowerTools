@@ -1,4 +1,5 @@
 <UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:adaptive="using:MyPowerTools.AvaloniaSdk"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:LocalLagCleaner.Tool"
              x:Class="LocalLagCleaner.Tool.LocalLagCleanerView"
@@ -44,7 +45,7 @@
             BorderThickness="1"
             CornerRadius="12"
             Padding="22,18">
-      <Grid ColumnDefinitions="*,Auto" ColumnSpacing="20">
+      <Grid adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="*,Auto" ColumnSpacing="20">
         <StackPanel Spacing="5">
           <TextBlock Text="本机卡顿专清"
                      FontSize="25"
@@ -55,7 +56,7 @@
                      FontSize="12"
                      Classes="secondary" />
         </StackPanel>
-        <StackPanel Grid.Column="1"
+        <StackPanel adaptive:MptAdaptiveLayout.StackBelow="480" Grid.Column="1"
                     Orientation="Horizontal"
                     Spacing="10"
                     VerticalAlignment="Center">
@@ -107,7 +108,7 @@
       <TabItem Header="诊断结果">
         <ScrollViewer HorizontalScrollBarVisibility="Disabled">
           <StackPanel Spacing="14" Margin="0,12,0,24">
-            <UniformGrid Columns="4">
+            <UniformGrid adaptive:MptAdaptiveLayout.StackBelow="600" Columns="4">
               <Border Classes="metric">
                 <StackPanel Spacing="7">
                   <TextBlock Text="综合健康分" Classes="secondary" />
@@ -193,7 +194,7 @@
                 <ItemsControl ItemsSource="{Binding Domains}">
                   <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:DomainHealthRow">
-                      <Grid ColumnDefinitions="150,74,52,*"
+                      <Grid adaptive:MptAdaptiveLayout.ColumnLabels="领域|严重度|分数|摘要" adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="150,74,52,*"
                             ColumnSpacing="12"
                             Margin="0,7">
                         <TextBlock Text="{Binding Domain}" FontWeight="SemiBold" />
@@ -233,7 +234,7 @@
                       <Border BorderBrush="{DynamicResource MptBrushDivider}"
                               BorderThickness="0,1,0,0"
                               Padding="0,13">
-                        <Grid ColumnDefinitions="72,*" ColumnSpacing="12">
+                        <Grid adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="72,*" ColumnSpacing="12">
                           <StackPanel Spacing="3">
                             <TextBlock Text="{Binding Severity}"
                                        Foreground="{Binding SeverityBrush}"
@@ -246,7 +247,7 @@
                                        Classes="secondary" />
                           </StackPanel>
                           <StackPanel Grid.Column="1" Spacing="5">
-                            <Grid ColumnDefinitions="*,Auto">
+                            <Grid adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="*,Auto">
                               <TextBlock Text="{Binding Title}" FontWeight="SemiBold" />
                               <TextBlock Grid.Column="1"
                                          Text="{Binding Risk, StringFormat='处置风险 {0}'}"
@@ -275,7 +276,7 @@
 
             <Border Classes="card">
               <StackPanel Spacing="9">
-                <Grid ColumnDefinitions="*,Auto">
+                <Grid adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="*,Auto">
                   <TextBlock Text="后台进程拆分（breakdown）"
                              Classes="section-title" />
                   <TextBlock Grid.Column="1"
@@ -288,7 +289,7 @@
                            Classes="secondary"
                            FontSize="12"
                            TextWrapping="Wrap" />
-                <Grid ColumnDefinitions="170,170,60,80,100,100,75,75,*"
+                <Grid adaptive:MptAdaptiveLayout.HideBelow="600" adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="170,170,60,80,100,100,75,75,*"
                       ColumnSpacing="8">
                   <TextBlock Text="进程组" FontWeight="SemiBold" />
                   <TextBlock Grid.Column="1" Text="角色" FontWeight="SemiBold" />
@@ -303,7 +304,7 @@
                 <ItemsControl ItemsSource="{Binding ProcessBreakdown}">
                   <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:ProcessBreakdownRow">
-                      <Grid ColumnDefinitions="170,170,60,80,100,100,75,75,*"
+                      <Grid adaptive:MptAdaptiveLayout.ColumnLabels="进程组|角色|数量|线程|私有提交|工作集|CPU|句柄|示例 PID" adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="170,170,60,80,100,100,75,75,*"
                             ColumnSpacing="8"
                             Margin="0,5">
                         <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
@@ -326,7 +327,7 @@
               <StackPanel Spacing="9">
                 <TextBlock Text="进程证据（CPU、提交、I/O、句柄、线程）"
                            Classes="section-title" />
-                <Grid ColumnDefinitions="150,60,170,70,100,100,74,74"
+                <Grid adaptive:MptAdaptiveLayout.HideBelow="600" adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="150,60,170,70,100,100,74,74"
                       ColumnSpacing="8">
                   <TextBlock Text="进程" FontWeight="SemiBold" />
                   <TextBlock Grid.Column="1" Text="PID" FontWeight="SemiBold" />
@@ -340,7 +341,7 @@
                 <ItemsControl ItemsSource="{Binding ProcessesDetail}">
                   <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:ProcessDetailRow">
-                      <Grid ColumnDefinitions="150,60,170,70,100,100,74,74"
+                      <Grid adaptive:MptAdaptiveLayout.ColumnLabels="进程|PID|角色|CPU|私有提交|I/O / 秒|句柄|线程" adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="150,60,170,70,100,100,74,74"
                             ColumnSpacing="8"
                             Margin="0,5">
                         <TextBlock Text="{Binding Name}" TextTrimming="CharacterEllipsis" />
@@ -365,7 +366,7 @@
                 <TextBlock Text="对 PID 4 的内核句柄表做一次聚合，显示对象类型、占比及全机同类型数量；高句柄场景自动采集。"
                            FontSize="12"
                            Classes="secondary" />
-                <Grid ColumnDefinitions="180,80,120,100,140"
+                <Grid adaptive:MptAdaptiveLayout.HideBelow="600" adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="180,80,120,100,140"
                       ColumnSpacing="10">
                   <TextBlock Text="对象类型" FontWeight="SemiBold" />
                   <TextBlock Grid.Column="1" Text="类型索引" FontWeight="SemiBold" />
@@ -376,7 +377,7 @@
                 <ItemsControl ItemsSource="{Binding SystemHandleTypes}">
                   <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:SystemHandleTypeRow">
-                      <Grid ColumnDefinitions="180,80,120,100,140"
+                      <Grid adaptive:MptAdaptiveLayout.ColumnLabels="对象类型|类型索引|PID 4|占比|全机同类型" adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="180,80,120,100,140"
                             ColumnSpacing="10"
                             Margin="0,5">
                         <TextBlock Text="{Binding TypeName}" />
@@ -403,7 +404,7 @@
                 <TextBlock Text="访问模式"
                            Margin="0,5,0,0"
                            FontWeight="SemiBold" />
-                <Grid ColumnDefinitions="120,*,120,100"
+                <Grid adaptive:MptAdaptiveLayout.HideBelow="600" adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="120,*,120,100"
                       ColumnSpacing="10">
                   <TextBlock Text="GrantedAccess" FontWeight="SemiBold" />
                   <TextBlock Grid.Column="1" Text="权限" FontWeight="SemiBold" />
@@ -413,7 +414,7 @@
                 <ItemsControl ItemsSource="{Binding FileAccessPatterns}">
                   <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:FileAccessPatternRow">
-                      <Grid ColumnDefinitions="120,*,120,100"
+                      <Grid adaptive:MptAdaptiveLayout.ColumnLabels="GrantedAccess|权限|句柄|File 占比" adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="120,*,120,100"
                             ColumnSpacing="10"
                             Margin="0,4">
                         <TextBlock Text="{Binding AccessMask}" />
@@ -431,7 +432,7 @@
                 <ItemsControl ItemsSource="{Binding FilePathGroups}">
                   <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:FilePathGroupRow">
-                      <Grid ColumnDefinitions="260,90,80,80,*"
+                      <Grid adaptive:MptAdaptiveLayout.ColumnLabels="路径组|类型|样本数|占比|示例" adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="260,90,80,80,*"
                             ColumnSpacing="10"
                             Margin="0,4">
                         <TextBlock Text="{Binding PathGroup}" />
@@ -450,7 +451,7 @@
                 <TextBlock Text="文件系统过滤驱动来源候选"
                            Margin="0,7,0,0"
                            FontWeight="SemiBold" />
-                <Grid ColumnDefinitions="120,70,150,170,90,150,*"
+                <Grid adaptive:MptAdaptiveLayout.HideBelow="600" adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="120,70,150,170,90,150,*"
                       ColumnSpacing="9">
                   <TextBlock Text="服务" FontWeight="SemiBold" />
                   <TextBlock Grid.Column="1" Text="状态" FontWeight="SemiBold" />
@@ -463,7 +464,7 @@
                 <ItemsControl ItemsSource="{Binding FileSystemFilters}">
                   <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:FileSystemFilterRow">
-                      <Grid ColumnDefinitions="120,70,150,170,90,150,*"
+                      <Grid adaptive:MptAdaptiveLayout.ColumnLabels="服务|状态|来源判断|加载组|Altitude|厂商|证据" adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="120,70,150,170,90,150,*"
                             ColumnSpacing="9"
                             Margin="0,5">
                         <TextBlock Text="{Binding ServiceName}" />
@@ -484,7 +485,7 @@
                 <TextBlock Text="管理员实时挂载实例"
                            Margin="0,9,0,0"
                            FontWeight="SemiBold" />
-                <Grid ColumnDefinitions="130,260,90,180,70,*"
+                <Grid adaptive:MptAdaptiveLayout.HideBelow="600" adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="130,260,90,180,70,*"
                       ColumnSpacing="9">
                   <TextBlock Text="过滤器" FontWeight="SemiBold" />
                   <TextBlock Grid.Column="1" Text="卷" FontWeight="SemiBold" />
@@ -496,7 +497,7 @@
                 <ItemsControl ItemsSource="{Binding FileSystemFilterInstances}">
                   <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:FileSystemFilterInstanceRow">
-                      <Grid ColumnDefinitions="130,260,90,180,70,*"
+                      <Grid adaptive:MptAdaptiveLayout.ColumnLabels="过滤器|卷|Altitude|实例|Frame|卷状态" adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="130,260,90,180,70,*"
                             ColumnSpacing="9"
                             Margin="0,4">
                         <TextBlock Text="{Binding FilterName}" />
@@ -522,7 +523,7 @@
                 <ItemsControl ItemsSource="{Binding Coverage}">
                   <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:CoverageRow">
-                      <Grid ColumnDefinitions="160,70,*"
+                      <Grid adaptive:MptAdaptiveLayout.ColumnLabels="探针|状态|说明" adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="160,70,*"
                             ColumnSpacing="10"
                             Margin="0,5">
                         <TextBlock Text="{Binding Probe}" FontWeight="SemiBold" />
@@ -618,7 +619,7 @@
                 <ItemsControl ItemsSource="{Binding ExecutionItems}">
                   <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:ExecutionResultRow">
-                      <Grid ColumnDefinitions="70,180,*"
+                      <Grid adaptive:MptAdaptiveLayout.ColumnLabels="状态|目标|说明" adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="70,180,*"
                             ColumnSpacing="10"
                             Margin="0,5">
                         <TextBlock Text="{Binding State}"

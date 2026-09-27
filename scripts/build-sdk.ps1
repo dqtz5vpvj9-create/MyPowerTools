@@ -32,6 +32,7 @@ $projects = @(
     'src\MyPowerTools.Abstractions\MyPowerTools.Abstractions.csproj',
     'src\MyPowerTools.Protocol\MyPowerTools.Protocol.csproj',
     'src\MyPowerTools.Ipc.Shared\MyPowerTools.Ipc.Shared.csproj',
+    'src\MyPowerTools.Ipc.AspNetCore\MyPowerTools.Ipc.AspNetCore.csproj',
     'src\MyPowerTools.Packaging\MyPowerTools.Packaging.csproj',
     'src\MyPowerTools.Platform.Windows\MyPowerTools.Platform.Windows.csproj',
     'src\MyPowerTools.Broker\MyPowerTools.Broker.csproj',

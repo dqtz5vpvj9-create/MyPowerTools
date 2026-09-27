@@ -1,11 +1,12 @@
 <UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:adaptive="using:MyPowerTools.AvaloniaSdk"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:controls="using:MyPowerTools.UI.Controls"
              xmlns:vm="using:MyPowerTools.Shell.Avalonia.ViewModels"
              x:Class="MyPowerTools.Shell.Avalonia.Views.ExternalSdkToolView"
              x:DataType="vm:ExternalSdkToolViewModel">
   <Grid RowDefinitions="Auto,Auto,*">
-    <Grid ColumnDefinitions="Auto,*,Auto,Auto,Auto"
+    <Grid adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="Auto,*,Auto,Auto,Auto"
           ColumnSpacing="{DynamicResource MptSpacingM}"
           Margin="{DynamicResource MptGapBottomM}"
           IsVisible="{Binding IsInlineHeaderVisible}">
@@ -26,7 +27,7 @@
             IsVisible="{Binding IsHostCommandBarVisible}">
       <ItemsControl ItemsSource="{Binding Commands}">
         <ItemsControl.ItemsPanel>
-          <ItemsPanelTemplate><StackPanel Orientation="Horizontal" Spacing="{DynamicResource MptSpacingS}" /></ItemsPanelTemplate>
+          <ItemsPanelTemplate><StackPanel adaptive:MptAdaptiveLayout.StackBelow="480" Orientation="Horizontal" Spacing="{DynamicResource MptSpacingS}" /></ItemsPanelTemplate>
         </ItemsControl.ItemsPanel>
         <ItemsControl.ItemTemplate>
           <DataTemplate x:DataType="vm:ExternalToolCommandViewModel">
@@ -57,7 +58,7 @@
         <StackPanel Spacing="{DynamicResource MptSpacingM}">
           <TextBlock Classes="MptSectionTitle" Text="The tool is currently unreachable" />
           <TextBlock Text="{Binding SurfaceMessage}" TextWrapping="Wrap" />
-          <StackPanel Orientation="Horizontal" Spacing="{DynamicResource MptSpacingS}">
+          <StackPanel adaptive:MptAdaptiveLayout.StackBelow="480" Orientation="Horizontal" Spacing="{DynamicResource MptSpacingS}">
             <controls:MptButton Classes="MptPrimaryButton" Content="Try again" Command="{Binding RefreshCommand}" />
             <controls:MptButton Content="Open externally" Command="{Binding OpenExternalCommand}" IsVisible="{Binding CanOpenExternal}" />
           </StackPanel>

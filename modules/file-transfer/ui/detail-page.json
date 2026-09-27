@@ -1,0 +1,9 @@
+{
+  "schemaVersion": "1.0",
+  "surfaceId": "file-transfer.detail",
+  "moduleId": "file-transfer",
+  "kind": "detail-page",
+  "layout": {
+    "mode": "component"
+  }
+}

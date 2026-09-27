@@ -4,7 +4,6 @@ using System.Runtime.InteropServices;
 using System.Security.AccessControl;
 using System.Security.Principal;
 using Microsoft.Win32.SafeHandles;
-using Microsoft.AspNetCore.Server.Kestrel.Transport.NamedPipes;
 
 namespace MyPowerTools.Ipc;
 
@@ -24,30 +23,6 @@ public static class MptNamedPipePolicy
     /// which also compares elevation level on Windows.
     /// </summary>
     public const PipeOptions ClientOptions = PipeOptions.Asynchronous;
-
-    /// <summary>
-    /// Configures Kestrel named pipes for connections across Windows elevation levels.
-    /// </summary>
-    public static void Configure(NamedPipeTransportOptions options)
-    {
-        ArgumentNullException.ThrowIfNull(options);
-
-        options.CurrentUserOnly = false;
-        if (OperatingSystem.IsWindows())
-        {
-            options.PipeSecurity = CreatePipeSecurity();
-            options.CreateNamedPipeServerStream = context => CreateWindowsServer(
-                context.NamedPipeEndPoint.PipeName,
-                PipeDirection.InOut,
-                NamedPipeServerStream.MaxAllowedServerInstances,
-                PipeTransmissionMode.Byte,
-                context.PipeOptions,
-                inBufferSize: 0,
-                outBufferSize: 0,
-                initializeLowIntegrityLabel:
-                    (context.PipeOptions & PipeOptions.FirstPipeInstance) != 0);
-        }
-    }
 
     /// <summary>
     /// Creates a server stream with the shared cross-elevation security descriptor.
@@ -87,7 +62,7 @@ public static class MptNamedPipePolicy
             initializeLowIntegrityLabel: true);
     }
 
-    private static NamedPipeServerStream CreateWindowsServer(
+    public static NamedPipeServerStream CreateWindowsServer(
         string pipeName,
         PipeDirection direction,
         int maxInstances,

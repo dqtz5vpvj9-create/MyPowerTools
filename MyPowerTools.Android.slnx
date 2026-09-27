@@ -1,0 +1,23 @@
+<Solution>
+  <Folder Name="/src/">
+    <Project Path="src/MyPowerTools.Android/MyPowerTools.Android.csproj" />
+    <Project Path="src/MyPowerTools.Platform.Android/MyPowerTools.Platform.Android.csproj" />
+    <!-- Phone surfaces of Android tool modules (net10.0, loaded by the in-proc module host). -->
+    <Project Path="src/MyPowerTools.MobileNotifications/MyPowerTools.MobileNotifications.csproj" />
+    <Project Path="src/MyPowerTools.MobileRemoteCommands/MyPowerTools.MobileRemoteCommands.csproj" />
+  </Folder>
+  <Folder Name="/src/tests/">
+    <Project Path="src/MyPowerTools.Platform.Android/tests/MyPowerTools.Platform.Android.Tests/MyPowerTools.Platform.Android.Tests.csproj" />
+  </Folder>
+  <Folder Name="/tools/">
+    <Project Path="tools/file-transfer/src/FileTransfer.Core/FileTransfer.Core.csproj" />
+    <Project Path="tools/file-transfer/src/FileTransfer.MyPowerTools/FileTransfer.MyPowerTools.csproj" />
+    <Project Path="tools/file-transfer/src/FileTransfer.Surface/FileTransfer.Surface.csproj" />
+    <Project Path="tools/remote-notifications/android-integration/src/RemoteNotifications.Android/RemoteNotifications.Android.csproj" />
+    <Project Path="tools/remote-commands/android-integration/src/RemoteCommands.Android/RemoteCommands.Android.csproj" />
+  </Folder>
+  <Folder Name="/tools/tests/">
+    <Project Path="tools/remote-notifications/android-integration/tests/RemoteNotifications.Android.Tests/RemoteNotifications.Android.Tests.csproj" />
+    <Project Path="tools/remote-commands/android-integration/tests/RemoteCommands.Android.Tests/RemoteCommands.Android.Tests.csproj" />
+  </Folder>
+</Solution>

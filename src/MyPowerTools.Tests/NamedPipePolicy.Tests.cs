@@ -18,7 +18,7 @@ public sealed class NamedPipePolicyTests
     {
         var options = new NamedPipeTransportOptions();
 
-        MptNamedPipePolicy.Configure(options);
+        MptNamedPipeTransport.Configure(options);
 
         Assert.False(options.CurrentUserOnly);
         if (OperatingSystem.IsWindows())
@@ -54,7 +54,7 @@ public sealed class NamedPipePolicyTests
         }
 
         var options = new NamedPipeTransportOptions();
-        MptNamedPipePolicy.Configure(options);
+        MptNamedPipeTransport.Configure(options);
         var factory = Assert.IsType<Func<CreateNamedPipeServerStreamContext, NamedPipeServerStream>>(
             options.CreateNamedPipeServerStream);
         var pipeName = $"mpt-kestrel-policy-test-{Guid.NewGuid():N}";
@@ -74,6 +74,20 @@ public sealed class NamedPipePolicyTests
 
         Assert.Equal(MptNamedPipePolicy.LowIntegrityLabelSddl, ReadIntegrityLabel(first.SafePipeHandle));
         Assert.Equal(MptNamedPipePolicy.LowIntegrityLabelSddl, ReadIntegrityLabel(second.SafePipeHandle));
+    }
+
+    [Fact]
+    public void Shared_pipe_policy_stays_free_of_aspnetcore_dependencies()
+    {
+        // Android builds the shared IPC project without the ASP.NET Core shared framework.
+        // Kestrel named-pipe integration must stay in MyPowerTools.Ipc.AspNetCore.
+        var aspNetCoreReferences = typeof(MptNamedPipePolicy).Assembly
+            .GetReferencedAssemblies()
+            .Select(reference => reference.Name ?? "")
+            .Where(name => name.StartsWith("Microsoft.AspNetCore", StringComparison.Ordinal))
+            .ToArray();
+
+        Assert.Empty(aspNetCoreReferences);
     }
 
     [SupportedOSPlatform("windows")]

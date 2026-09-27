@@ -1,0 +1,51 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Phone-first surface for the Remote Commands Android module.
+
+    The tool route in the Android package points at
+    surface/MyPowerTools.MobileRemoteCommands.dll + MyPowerTools.MobileRemoteCommands.RemoteCommandsMobileSurfaceFactory,
+    so this assembly is loaded exactly like any other dynamically catalogued MyPowerTools dotnet surface.
+
+    Everything the page does goes through the module's commands (`remote-commands-android.*`): catalog,
+    hosts, host keys, run, cancel, history. The page never spawns ssh.exe/scp.exe and never opens a
+    socket itself, so on Android there is exactly one SSH implementation (the module's managed client)
+    and one owner of the shared commands.yaml / settings.json / history.json data directory.
+
+    The shipped commands.yaml parser/validator (RemoteCommandDefinition + RemoteCommandsYaml) is the
+    same source the desktop surface and the module compile; it is linked read-only so the phone cannot
+    fork the schema. Never edit it through this project.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <AssemblyName>MyPowerTools.MobileRemoteCommands</AssemblyName>
+    <RootNamespace>MyPowerTools.MobileRemoteCommands</RootNamespace>
+    <Version>0.1.0</Version>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="12.0.5" />
+    <PackageReference Include="MyPowerTools.ToolSdk" Version="0.2.0" />
+    <PackageReference Include="MyPowerTools.AvaloniaSdk" Version="0.2.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
+      Shipped product sources, linked read-only. RemoteCommandsYaml's validator calls
+      RemoteCommandsStore.IsValidHost, and the store's atomic writer is RemoteCommandsFile, so that
+      three-file set is the compile closure of the parser. This surface uses only
+      RemoteCommandsYaml.TryValidate for read-only diagnostics of the shared commands.yaml: the module
+      remains the only reader/writer of commands.yaml, settings.json and history.json.
+    -->
+    <Compile Include="$(MyPowerToolsRepoRoot)/tools/remote-commands/current-integration/src/RemoteCommands.Surface/Services/RemoteCommandsYaml.cs"
+             Link="Linked\RemoteCommandsYaml.cs" />
+    <Compile Include="$(MyPowerToolsRepoRoot)/tools/remote-commands/current-integration/src/RemoteCommands.Surface/Services/RemoteCommandsStore.cs"
+             Link="Linked\RemoteCommandsStore.cs" />
+    <Compile Include="$(MyPowerToolsRepoRoot)/tools/remote-commands/current-integration/src/RemoteCommands.Surface/Services/RemoteCommandsFile.cs"
+             Link="Linked\RemoteCommandsFile.cs" />
+  </ItemGroup>
+
+</Project>

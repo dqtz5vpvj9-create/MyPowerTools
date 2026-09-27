@@ -1,0 +1,114 @@
+name: Android development preview
+
+# Manual-only: the Android workload must never be required by the desktop CI
+# (MyPowerTools CI) or by a normal Windows/macOS checkout. This workflow builds
+# the standalone Android solution and uploads the development APK.
+on:
+  workflow_dispatch:
+    inputs:
+      configuration:
+        description: Build configuration
+        type: choice
+        options:
+          - Debug
+          - Release
+        default: Debug
+      runtimeIdentifier:
+        description: Optional single ABI; leave empty for the universal arm64 + x64 preview
+        type: choice
+        options:
+          - ''
+          - android-arm64
+          - android-x64
+        default: ''
+
+permissions:
+  contents: read
+
+concurrency:
+  group: android-preview-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  android:
+    name: Android development preview
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: 1
+      DOTNET_NOLOGO: true
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup .NET SDK
+        uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install Android workload
+        run: dotnet workload install android --skip-manifest-update
+
+      - name: Build development APK
+        shell: pwsh
+        run: |
+          $arguments = @{
+            AndroidSdkDirectory = $env:ANDROID_HOME
+            JavaSdkDirectory    = $env:JAVA_HOME
+            Configuration       = '${{ inputs.configuration }}'
+          }
+          if ('${{ inputs.runtimeIdentifier }}') {
+            $arguments.RuntimeIdentifier = '${{ inputs.runtimeIdentifier }}'
+          }
+          ./scripts/build-android.ps1 @arguments
+
+      - name: Verify APK contents
+        shell: pwsh
+        run: |
+          $outputName = '${{ inputs.configuration }}'.ToLowerInvariant()
+          $runtimeIdentifier = '${{ inputs.runtimeIdentifier }}'
+          if ($runtimeIdentifier) { $outputName += "_$runtimeIdentifier" }
+          $apkDirectory = "artifacts/build/bin/MyPowerTools.Android/$outputName"
+          $apk = Get-ChildItem -LiteralPath $apkDirectory -Filter 'com.mypowertools.android-Signed.apk' -File |
+            Select-Object -First 1
+          if (-not $apk) { throw "No signed APK under $apkDirectory" }
+
+          $entries = & unzip -Z1 $apk.FullName
+          if ($LASTEXITCODE -ne 0) { throw "unzip failed for $($apk.FullName)" }
+          $abis = @($entries | Where-Object { $_ -like 'lib/*/' } |
+            ForEach-Object { ($_ -split '/')[1] } | Sort-Object -Unique)
+          if (-not $runtimeIdentifier) {
+            foreach ($required in @('arm64-v8a', 'x86_64')) {
+              if ($abis -notcontains $required) { throw "Universal APK is missing the $required ABI. Found: $($abis -join ', ')" }
+            }
+          }
+          $coreclr = @($entries | Where-Object { $_ -like 'lib/*/libcoreclr.so' })
+          if ($coreclr.Count -eq 0) { throw 'The APK does not carry the CoreCLR runtime (libcoreclr.so).' }
+          $fileTransferAssets = @($entries | Where-Object { $_ -like 'assets/modules/file-transfer/*' })
+          if ($fileTransferAssets.Count -eq 0) { throw 'The APK does not embed the File Transfer module.' }
+          $moduleCatalogs = @($entries | Where-Object { $_ -like 'assets/modules/*/module.json' })
+
+          $summary = @(
+            "APK: $($apk.FullName)"
+            "Size: $([math]::Round($apk.Length / 1MB, 1)) MB"
+            "ABIs: $($abis -join ', ')"
+            "CoreCLR entries: $($coreclr.Count)"
+            "Module catalogs: $($moduleCatalogs.Count)"
+            "File Transfer assets: $($fileTransferAssets.Count)"
+          )
+          $summary | ForEach-Object { Write-Host $_ }
+          $summary | Add-Content -LiteralPath $env:GITHUB_STEP_SUMMARY
+
+      - name: Upload APK
+        uses: actions/upload-artifact@v4
+        with:
+          name: MyPowerTools-Android-${{ inputs.configuration }}-${{ inputs.runtimeIdentifier || 'universal' }}-preview
+          path: artifacts/build/bin/MyPowerTools.Android/**/*.apk
+          if-no-files-found: error
+          retention-days: 14

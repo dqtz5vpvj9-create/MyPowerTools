@@ -1135,15 +1135,19 @@ try {
 
     foreach ($toolBuildScript in $toolBuildScripts) {
         $requestedToolId = [IO.Path]::GetFileName((Split-Path -Parent $toolBuildScript))
+        $toolBuildArguments = @(
+            '-NoLogo',
+            '-NoProfile',
+            '-NonInteractive',
+            '-File', $toolBuildScript,
+            '-MyPowerToolsRepoRoot', $repositoryRoot)
+        # Older tool build contracts always use Release and expose no configuration switch.
+        if ((Get-Command -Name $toolBuildScript).Parameters.ContainsKey('Configuration')) {
+            $toolBuildArguments += @('-Configuration', $Configuration)
+        }
         $toolBuildParameters = @{
             FilePath = $pwshCommand.Source
-            ArgumentList = @(
-                '-NoLogo',
-                '-NoProfile',
-                '-NonInteractive',
-                '-File', $toolBuildScript,
-                '-MyPowerToolsRepoRoot', $repositoryRoot,
-                '-Configuration', $Configuration)
+            ArgumentList = $toolBuildArguments
             Activity = "Building tool $requestedToolId"
         }
         Invoke-Native @toolBuildParameters

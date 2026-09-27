@@ -468,6 +468,13 @@
       "retention": { "mode": "age", "maxAgeDays": 14 }
     },
     {
+      "path": "test-results/*",
+      "class": "evidence",
+      "producer": "dotnet test --results-directory artifacts/test-results (mobile layout verification)",
+      "purpose": "Headless layout test output kept for review of the phone-width UI adaptation runs.",
+      "retention": { "mode": "age", "maxAgeDays": 14 }
+    },
+    {
       "path": "review-evidence",
       "class": "evidence",
       "producer": "scripts/create-review-evidence.ps1",

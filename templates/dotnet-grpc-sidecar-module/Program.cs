@@ -9,7 +9,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddGrpc();
 if (OperatingSystem.IsWindows())
 {
-    builder.WebHost.UseNamedPipes(MptNamedPipePolicy.Configure);
+    builder.WebHost.UseNamedPipes(MptNamedPipeTransport.Configure);
 }
 builder.WebHost.ConfigureKestrel(options =>
 {

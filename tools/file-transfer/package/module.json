@@ -1,0 +1,73 @@
+{
+  "schemaVersion": "1.0",
+  "id": "file-transfer",
+  "packageId": "file-transfer",
+  "displayName": "文件互传",
+  "version": "0.1.0",
+  "moduleSdk": "1.0",
+  "entrypoints": [
+    {
+      "kind": "inproc-dotnet",
+      "priority": 100,
+      "platforms": [
+        "windows-x64",
+        "windows-arm64",
+        "macos-arm64",
+        "macos-x64",
+        "android-arm64",
+        "android-x64"
+      ],
+      "assembly": "FileTransfer.MyPowerTools.dll",
+      "type": "FileTransfer.MyPowerTools.FileTransferModule"
+    }
+  ],
+  "capabilities": [
+    "lifecycle",
+    "status",
+    "commands",
+    "settings",
+    "logs",
+    "dashboardCard",
+    "detailPage"
+  ],
+  "runtimePolicy": {
+    "preferred": "inproc",
+    "allowInProc": true,
+    "inProcRules": {
+      "maxCallMs": 1200000,
+      "allowNativeDll": true,
+      "allowWindow": false,
+      "allowBackgroundThreads": true,
+      "loadContext": "collectible",
+      "shadowCopy": true
+    },
+    "operationRules": {
+      "status": "inproc-or-sidecar",
+      "settings": "inproc-or-sidecar",
+      "commandProvider": "inproc-or-sidecar",
+      "longRunningCommand": "inproc-or-sidecar",
+      "systemMutation": "broker-required",
+      "nativeHardware": "inproc-or-sidecar",
+      "elevatedWrite": "broker-required",
+      "externalProcess": "inproc-or-sidecar"
+    }
+  },
+  "requires": [
+    {
+      "capability": "secret.store",
+      "required": true,
+      "reason": "Store pairing and cloud credentials in the platform credential store."
+    }
+  ],
+  "permissions": [],
+  "hotkeys": [],
+  "staticIndexes": {
+    "commands": "commands.index.json"
+  },
+  "tools": [
+    "ui/tool.json"
+  ],
+  "uiSurfaces": [
+    "ui/detail-page.json"
+  ]
+}

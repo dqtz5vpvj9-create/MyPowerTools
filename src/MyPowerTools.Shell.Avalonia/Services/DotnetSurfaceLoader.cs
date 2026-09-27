@@ -60,7 +60,10 @@ internal sealed class DotnetSurfaceLoader
         var shadowDir = Path.Combine(_shadowRoot, cacheKey);
         var shadowAssemblyPath = ShadowCopy(route.Assembly!, shadowDir, cacheKey);
 
-        var loadContext = new SurfaceLoadContext(shadowAssemblyPath, SharedAssemblies);
+        var loadContext = new SurfaceLoadContext(
+            shadowAssemblyPath,
+            SharedAssemblies,
+            Path.GetDirectoryName(route.Assembly!));
         var assembly = loadContext.LoadFromAssemblyPath(shadowAssemblyPath);
         var factoryType = assembly.GetType(route.Type, throwOnError: true)!;
         if (Activator.CreateInstance(factoryType) is not IMptAvaloniaSurfaceFactory factory)
@@ -209,13 +212,21 @@ internal sealed class DotnetSurfaceLoader
     /// </summary>
     internal sealed class SurfaceLoadContext : AssemblyLoadContext
     {
-        private readonly AssemblyDependencyResolver _resolver;
+        private const int MaxProbeDepth = 2;
+
+        private readonly AssemblyDependencyResolver? _resolver;
+        private readonly string _assemblyDirectory;
+        private readonly string[] _probeDirectories;
         private readonly HashSet<string> _sharedAssemblies;
 
-        public SurfaceLoadContext(string mainAssemblyPath, IEnumerable<string> sharedAssemblies)
+        public SurfaceLoadContext(string mainAssemblyPath, IEnumerable<string> sharedAssemblies, string? probeRoot = null)
             : base(Path.GetFileNameWithoutExtension(mainAssemblyPath), isCollectible: true)
         {
-            _resolver = new AssemblyDependencyResolver(mainAssemblyPath);
+            _assemblyDirectory = Path.GetDirectoryName(mainAssemblyPath)!;
+            // Android does not provide the hostpolicy-based dependency resolver, so probing the
+            // shadow directory plus the packaged module root replaces it.
+            if (!OperatingSystem.IsAndroid()) _resolver = new AssemblyDependencyResolver(mainAssemblyPath);
+            _probeDirectories = BuildProbeDirectories(_assemblyDirectory, probeRoot);
             _sharedAssemblies = sharedAssemblies.ToHashSet(StringComparer.OrdinalIgnoreCase);
         }
 
@@ -223,17 +234,93 @@ internal sealed class DotnetSurfaceLoader
         {
             if (assemblyName.Name is not null && _sharedAssemblies.Contains(assemblyName.Name))
             {
-                return AssemblyLoadContext.Default.Assemblies.FirstOrDefault(assembly =>
-                    string.Equals(assembly.GetName().Name, assemblyName.Name, StringComparison.OrdinalIgnoreCase));
+                return ResolveShared(assemblyName.Name);
             }
 
-            var path = _resolver.ResolveAssemblyToPath(assemblyName);
+            var path = _resolver?.ResolveAssemblyToPath(assemblyName) ?? Probe(assemblyName.Name);
             return path is null ? null : LoadFromAssemblyPath(path);
+        }
+
+        /// <summary>
+        /// A shared contract must be the Shell's own copy. Returning a duplicate loaded from the
+        /// shadow directory would make the surface fail its <c>is IMptAvaloniaSurfaceFactory</c>
+        /// check, so a not-yet-loaded shared assembly is loaded into the default context by name
+        /// instead of being skipped.
+        /// </summary>
+        private static Assembly? ResolveShared(string name)
+        {
+            var loaded = AssemblyLoadContext.Default.Assemblies.FirstOrDefault(assembly =>
+                string.Equals(assembly.GetName().Name, name, StringComparison.OrdinalIgnoreCase));
+            if (loaded is not null)
+            {
+                return loaded;
+            }
+
+            try
+            {
+                return AssemblyLoadContext.Default.LoadFromAssemblyName(new AssemblyName(name));
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        private string? Probe(string? assemblyName)
+        {
+            if (string.IsNullOrEmpty(assemblyName))
+            {
+                return null;
+            }
+
+            foreach (var directory in _probeDirectories)
+            {
+                var candidate = Path.Combine(directory, assemblyName + ".dll");
+                if (File.Exists(candidate))
+                {
+                    return candidate;
+                }
+            }
+
+            return null;
+        }
+
+        private static string[] BuildProbeDirectories(string assemblyDirectory, string? probeRoot)
+        {
+            var directories = new List<string> { assemblyDirectory };
+            if (!OperatingSystem.IsAndroid())
+            {
+                return directories.ToArray();
+            }
+
+            // The shadow copy only carries the surface's own directory, so the packaged module root
+            // (and its directory above) is where sibling dependencies such as the module assembly
+            // still live on Android.
+            foreach (var root in new[] { probeRoot, assemblyDirectory })
+            {
+                if (string.IsNullOrWhiteSpace(root))
+                {
+                    continue;
+                }
+
+                var current = new DirectoryInfo(root!);
+                for (var depth = 0; current is not null && depth <= MaxProbeDepth; depth++)
+                {
+                    if (!directories.Contains(current.FullName, StringComparer.Ordinal))
+                    {
+                        directories.Add(current.FullName);
+                    }
+
+                    current = current.Parent;
+                }
+            }
+
+            return directories.ToArray();
         }
 
         protected override IntPtr LoadUnmanagedDll(string unmanagedDllName)
         {
-            var path = _resolver.ResolveUnmanagedDllToPath(unmanagedDllName);
+            var path = _resolver?.ResolveUnmanagedDllToPath(unmanagedDllName);
             return path is null ? IntPtr.Zero : LoadUnmanagedDllFromPath(path);
         }
     }

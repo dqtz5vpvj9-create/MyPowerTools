@@ -1,0 +1,17 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>true</IsPackable>
+    <PackageId>MyPowerTools.Ipc.AspNetCore</PackageId>
+    <Version>0.2.0</Version>
+    <Authors>MyPowerTools</Authors>
+    <Description>Kestrel named-pipe transport integration for the shared MyPowerTools IPC policy. Desktop hosts consume this package; MyPowerTools.Ipc.Shared stays free of the ASP.NET Core shared framework for Android builds.</Description>
+    <PackageTags>mypowertools grpc ipc kestrel named-pipe</PackageTags>
+  </PropertyGroup>
+  <ItemGroup>
+    <FrameworkReference Include="Microsoft.AspNetCore.App" />
+    <ProjectReference Include="../MyPowerTools.Ipc.Shared/MyPowerTools.Ipc.Shared.csproj" />
+  </ItemGroup>
+</Project>

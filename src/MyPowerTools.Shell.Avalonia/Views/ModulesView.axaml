@@ -1,4 +1,5 @@
 <UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:adaptive="using:MyPowerTools.AvaloniaSdk"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:controls="using:MyPowerTools.UI.Controls"
              xmlns:vm="using:MyPowerTools.Shell.Avalonia.ViewModels"
@@ -19,14 +20,14 @@
         <DataTemplate x:DataType="vm:ModuleSummaryItemViewModel">
           <Border Classes="MptModuleCard" Margin="{DynamicResource MptGapBottomL}">
             <StackPanel Spacing="{DynamicResource MptSpacingS}">
-              <Grid ColumnDefinitions="*,Auto">
+              <Grid adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="*,Auto">
                 <TextBlock Classes="MptSectionTitle" Text="{Binding DisplayName}" />
                 <TextBlock Grid.Column="1" Classes="MptMeta" Text="{Binding State}" />
               </Grid>
               <TextBlock Classes="MptPageSubtitle" Text="{Binding Summary}" />
               <TextBlock Classes="MptMeta" Text="{Binding Identity}" />
               <TextBlock Classes="MptMeta" Text="{Binding PermissionSummary}" TextWrapping="Wrap" />
-              <StackPanel Orientation="Horizontal" Spacing="{DynamicResource MptSpacingS}">
+              <StackPanel adaptive:MptAdaptiveLayout.StackBelow="480" Orientation="Horizontal" Spacing="{DynamicResource MptSpacingS}">
                 <controls:MptButton Content="Details" Command="{Binding DetailsCommand}" MinHeight="32" MinWidth="76" />
                 <controls:MptButton Content="Settings" Command="{Binding SettingsCommand}" MinHeight="32" MinWidth="76" />
                 <controls:MptButton Content="Logs" Command="{Binding LogsCommand}" MinHeight="32" MinWidth="76" />

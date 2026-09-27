@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "toolId": "file-transfer",
+  "sourceClassification": "native-mypowertools-module",
+  "sourceNote": "Native file transfer tool sharing the MyPowerTools module and Surface contracts across desktop and Android.",
+  "originalSnapshotPath": null,
+  "selectedEntries": [],
+  "currentIntegrationSnapshot": ".",
+  "currentIntegrationGlobs": ["package/**", "src/**", "tests/**"]
+}

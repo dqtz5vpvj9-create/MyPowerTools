@@ -1,0 +1,29 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Avalonia.Headless.XUnit" Version="12.0.5" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.3.0" />
+    <PackageReference Include="xunit.v3" Version="3.2.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5"><PrivateAssets>all</PrivateAssets></PackageReference>
+    <Using Include="Xunit" />
+    <ProjectReference Include="../../src/MyPowerTools.Shell.Avalonia/MyPowerTools.Shell.Avalonia.csproj" />
+    <ProjectReference Include="../../tools/adb-forwarder/current-integration/src/AdbForwarder.Surface/AdbForwarder.Surface.csproj" />
+    <ProjectReference Include="../../tools/doubao-computer-use/current-integration/src/DoubaoAgent.Surface/DoubaoAgent.Surface.csproj" />
+    <ProjectReference Include="../../tools/ime-manager/sdk-tool/src/ImeManager.Tool/ImeManager.Tool.csproj" />
+    <ProjectReference Include="../../tools/input-monitor/current-integration/src/InputMonitor.Surface/InputMonitor.Surface.csproj" />
+    <ProjectReference Include="../../tools/local-lag-cleaner/sdk-tool/src/LocalLagCleaner.Tool/LocalLagCleaner.Tool.csproj" />
+    <ProjectReference Include="../../tools/nssm-manager/sdk-tool/src/NssmManager.Tool/NssmManager.Tool.csproj" />
+    <ProjectReference Include="../../tools/paste-image/current-integration/src/PasteImage.Surface/PasteImage.Surface.csproj" />
+    <ProjectReference Include="../../tools/remote-commands/current-integration/src/RemoteCommands.Surface/RemoteCommands.Surface.csproj" />
+    <ProjectReference Include="../../tools/remote-notifications/current-integration/src/RemoteNotifications.Surface/RemoteNotifications.Surface.csproj" />
+    <ProjectReference Include="../../tools/screenease/current-integration/src/ScreenEase.Surface/ScreenEase.Surface.csproj" />
+    <ProjectReference Include="../../tools/smartbird-thermostat/current-integration/src/SmartBird.Surface/SmartBird.Surface.csproj" />
+    <ProjectReference Include="../../tools/file-transfer/src/FileTransfer.Surface/FileTransfer.Surface.csproj" />
+  </ItemGroup>
+</Project>

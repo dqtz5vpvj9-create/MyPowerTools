@@ -426,6 +426,22 @@ Copy-DirectoryContents -Source $moduleStage -Destination (Join-Path $macRoot 'mo
 foreach ($standaloneModule in $standaloneModules) {
     Build-StandaloneModule -Definition $standaloneModule -CliProject $cliProject
 }
+$fileTransferBuild = Join-Path $repoRoot 'tools/file-transfer/build.ps1'
+& $fileTransferBuild -MyPowerToolsRepoRoot $repoRoot -Configuration $Configuration
+if ($LASTEXITCODE -ne 0) {
+    throw "File Transfer module build failed with exit code $LASTEXITCODE"
+}
+$fileTransferStage = Join-Path $repoRoot 'tools/file-transfer/artifacts/package'
+# Release hygiene matches the standalone modules above: no debug symbols ship in
+# the signed module package.
+Get-ChildItem -LiteralPath $fileTransferStage -Recurse -Filter '*.pdb' -File |
+    Remove-Item -Force
+Invoke-Native -FilePath 'dotnet' -ArgumentList @(
+    'run', '--project', $cliProject,
+    '--configuration', $Configuration,
+    '--', 'package', 'sign-local', $fileTransferStage
+) -Activity 'sign macOS File Transfer module package'
+Copy-DirectoryContents -Source $fileTransferStage -Destination (Join-Path $macRoot 'modules/file-transfer')
 Copy-DirectoryContents -Source (Join-Path $repoRoot 'schemas') -Destination (Join-Path $macRoot 'schemas')
 
 $serviceUnitsRoot = Join-Path $macRoot 'ServiceUnits/units'

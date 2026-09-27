@@ -5,7 +5,7 @@
     <Nullable>enable</Nullable>
     <IsPackable>true</IsPackable>
     <PackageId>MyPowerTools.AvaloniaSdk</PackageId>
-    <Version>0.2.0</Version>
+    <Version>0.2.1</Version>
     <Authors>MyPowerTools</Authors>
     <Description>Stable Avalonia surface host contracts, command and navigation bridge, and theme resources for MyPowerTools.</Description>
     <PackageTags>mypowertools avalonia sdk surface</PackageTags>

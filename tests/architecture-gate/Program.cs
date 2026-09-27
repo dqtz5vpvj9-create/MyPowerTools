@@ -477,13 +477,17 @@ static int RunA1Gate()
     overall &= webSurfaceBoundaryReady;
 
     var productionSources = EnumerateProductionCSharpFiles(repoRoot);
-    var namedPipePolicyPath = Path.Combine(
-        repoRoot,
-        "src",
-        "MyPowerTools.Ipc.Shared",
-        "MptNamedPipePolicy.cs");
+    // Only the two files that implement the shared named-pipe policy may touch the
+    // elevation-sensitive CurrentUserOnly switch: the shared policy itself and the
+    // Kestrel integration project that hosts are required to register.
+    var namedPipePolicyPaths = new[]
+    {
+        Path.Combine(repoRoot, "src", "MyPowerTools.Ipc.Shared", "MptNamedPipePolicy.cs"),
+        Path.Combine(repoRoot, "src", "MyPowerTools.Ipc.AspNetCore", "MptNamedPipeTransport.cs")
+    };
     var currentUserOnlyViolations = productionSources
-        .Where(path => !string.Equals(path, namedPipePolicyPath, StringComparison.OrdinalIgnoreCase))
+        .Where(path => !namedPipePolicyPaths.Any(policyPath =>
+            string.Equals(path, policyPath, StringComparison.OrdinalIgnoreCase)))
         .Where(path => File.ReadAllText(path).Contains("CurrentUserOnly", StringComparison.Ordinal))
         .Select(path => Path.GetRelativePath(repoRoot, path))
         .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
@@ -584,6 +588,15 @@ static bool IsProductionSource(string path)
 
 static bool ProjectConfiguresNamedPipePolicy(string registrationFile, string repoRoot)
 {
+    // The Kestrel integration lives in MyPowerTools.Ipc.AspNetCore
+    // (MptNamedPipeTransport.Configure) so MyPowerTools.Ipc.Shared stays free of the
+    // ASP.NET Core shared framework for Android. Both names are legal registrations:
+    // hosts that still call the shared policy type directly keep passing the gate.
+    string[] policyConfigureMethodNames =
+    [
+        "MptNamedPipePolicy.Configure",
+        "MptNamedPipeTransport.Configure"
+    ];
     var directory = new DirectoryInfo(Path.GetDirectoryName(registrationFile)!);
     while (directory is not null &&
            directory.FullName.StartsWith(repoRoot, StringComparison.OrdinalIgnoreCase))
@@ -596,7 +609,8 @@ static bool ProjectConfiguresNamedPipePolicy(string registrationFile, string rep
                 .Select(path => File.ReadAllText(path.FullName))
                 .Any(content =>
                     content.Contains("UseNamedPipes(", StringComparison.Ordinal) &&
-                    content.Contains("MptNamedPipePolicy.Configure", StringComparison.Ordinal));
+                    policyConfigureMethodNames.Any(name =>
+                        content.Contains(name, StringComparison.Ordinal)));
         }
         directory = directory.Parent;
     }

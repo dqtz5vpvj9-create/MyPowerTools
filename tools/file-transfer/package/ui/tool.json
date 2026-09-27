@@ -1,0 +1,37 @@
+{
+  "schemaVersion": "1.0",
+  "toolId": "file-transfer",
+  "ownerModuleId": "file-transfer",
+  "title": "文件互传",
+  "description": "通过 Tailscale 直传，或使用国内网盘中转。",
+  "icon": "tool.file-transfer",
+  "category": "Files",
+  "type": "dotnet-surface",
+  "availability": "available",
+  "primaryRouteId": "main",
+  "routes": [
+    {
+      "routeId": "main",
+      "surfaceId": "file-transfer.detail",
+      "title": "文件互传",
+      "surface": {
+        "kind": "dotnet",
+        "assembly": "surface/FileTransfer.Surface.dll",
+        "type": "FileTransfer.Surface.FileTransferSurfaceFactory"
+      }
+    }
+  ],
+  "homeCard": {
+    "summary": "选择文件、点设备发送；电脑与手机随手互传。",
+    "primaryActionLabel": "打开文件互传",
+    "statusBinding": "module.status",
+    "order": 20
+  },
+  "shareMimeTypes": [
+    "*/*"
+  ],
+  "activationUriPrefixes": [
+    "mpt://pair/",
+    "mpt://cloud/"
+  ]
+}

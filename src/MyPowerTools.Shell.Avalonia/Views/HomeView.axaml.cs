@@ -38,6 +38,7 @@ public sealed partial class HomeView : UserControl
     {
         var availableWidth = Math.Max(0, e.NewSize.Width);
         _dashboardRoot.Width = Math.Min(DashboardMaxWidth, availableWidth);
+        Resources["MptHomeQuickActionWidth"] = Math.Min(148, Math.Max(96, (availableWidth - 48) / 2));
         ApplyResponsiveLayout(availableWidth < WideDashboardMinWidth);
     }
 

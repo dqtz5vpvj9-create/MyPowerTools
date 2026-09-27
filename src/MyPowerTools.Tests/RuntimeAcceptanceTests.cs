@@ -1540,9 +1540,29 @@ public sealed class GeneratedModule : IMptModule
         }
     }
 
+    // The host writes the unix socket path into the module manifest and the sample sidecar
+    // derives the same path independently from Path.GetTempPath() + args[0]. The platform
+    // rejects domain socket paths longer than 107 characters, and runners with a deep temp
+    // root (for example /mnt/cache/data-cache/mpt-file-transfer/<id>) leave almost no headroom,
+    // so endpoint names must stay short or the sidecar dies during startup and the pool never
+    // registers. Keep the generated name short instead of overflowing silently.
+    private const int MaxUnixDomainSocketPathLength = 107;
+
+    private static string NewSidecarEndpointName(string scope)
+    {
+        return $"mpt-{scope}-{Guid.NewGuid().ToString("N")[..8]}";
+    }
+
     private static void WriteGrpcSidecarModuleManifest(string packageRoot, string sidecarCommand, string pipeName)
     {
         var socketPath = Path.Combine(Path.GetTempPath(), $"{pipeName}.sock");
+        if (!OperatingSystem.IsWindows() && socketPath.Length > MaxUnixDomainSocketPathLength)
+        {
+            throw new InvalidOperationException(
+                $"The sample sidecar socket path '{socketPath}' is {socketPath.Length} characters long, but this platform " +
+                $"rejects domain socket paths longer than {MaxUnixDomainSocketPathLength}. Build the endpoint name with " +
+                "NewSidecarEndpointName(...) so the fixture keeps working when the runner's temp root is deep.");
+        }
         var manifest = new JsonObject
         {
             ["schemaVersion"] = "1.0",

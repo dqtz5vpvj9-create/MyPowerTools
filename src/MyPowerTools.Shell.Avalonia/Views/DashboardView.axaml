@@ -1,16 +1,17 @@
 <UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:adaptive="using:MyPowerTools.AvaloniaSdk"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:controls="using:MyPowerTools.UI.Controls"
              xmlns:vm="using:MyPowerTools.Shell.Avalonia.ViewModels"
              x:Class="MyPowerTools.Shell.Avalonia.Views.DashboardView"
              x:DataType="vm:DashboardViewModel">
   <StackPanel Spacing="{DynamicResource MptSpacingL}">
-    <Grid ColumnDefinitions="*,Auto">
+    <Grid adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="*,Auto">
       <StackPanel Spacing="{DynamicResource MptSpacingXs}">
         <TextBlock Classes="MptPageTitle" Text="MyPowerTools" />
         <TextBlock Classes="MptPageSubtitle" Text="{Binding Subtitle}" />
       </StackPanel>
-      <StackPanel Grid.Column="1"
+      <StackPanel adaptive:MptAdaptiveLayout.StackBelow="480" Grid.Column="1"
                   Orientation="Horizontal"
                   Spacing="{DynamicResource MptSpacingS}">
         <Border Classes="MptStatusBadge">
@@ -56,7 +57,7 @@
         <DataTemplate x:DataType="vm:DashboardCardViewModel">
           <Border Classes="MptModuleCard" Margin="{DynamicResource MptWrapItemMargin}">
             <Grid RowDefinitions="Auto,Auto,*,Auto">
-              <Grid ColumnDefinitions="*,Auto">
+              <Grid adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="*,Auto">
                 <StackPanel Spacing="{DynamicResource MptSpacingXs}">
                   <TextBlock Classes="MptCardTitle" Text="{Binding Title}" />
                   <TextBlock Classes="MptMeta" Text="{Binding ModuleId}" />
@@ -85,13 +86,13 @@
                   </DataTemplate>
                 </ItemsControl.ItemTemplate>
               </ItemsControl>
-              <StackPanel Grid.Row="3"
+              <StackPanel adaptive:MptAdaptiveLayout.StackBelow="480" Grid.Row="3"
                           Orientation="Horizontal"
                           Spacing="{DynamicResource MptSpacingS}">
                 <ItemsControl ItemsSource="{Binding Actions}">
                   <ItemsControl.ItemsPanel>
                     <ItemsPanelTemplate>
-                      <StackPanel Orientation="Horizontal" Spacing="{DynamicResource MptSpacingS}" />
+                      <StackPanel adaptive:MptAdaptiveLayout.StackBelow="480" Orientation="Horizontal" Spacing="{DynamicResource MptSpacingS}" />
                     </ItemsPanelTemplate>
                   </ItemsControl.ItemsPanel>
                   <ItemsControl.ItemTemplate>

@@ -1,0 +1,44 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Phone-first surface for the Remote Notifications Android module.
+
+    It renders the same persisted inbox the desktop product writes - RemoteNotificationsLegacyStore,
+    the settings store, the seen-id ring, the session chain and the message item view models are the
+    shipped RemoteNotifications.Surface sources, compiled in rather than copied - and drives all
+    work through module commands, because on Android there is no service unit to talk to and no
+    desktop window to open. The linked sources stay public here (they are the same public product
+    types) because they cross the assembly boundary of this surface; the module adapter compiles
+    them internal, matching the desktop AndroidTools adapter.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <AssemblyName>MyPowerTools.MobileNotifications</AssemblyName>
+    <RootNamespace>MyPowerTools.MobileNotifications</RootNamespace>
+    <Version>0.1.0</Version>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="12.0.5" />
+    <PackageReference Include="MyPowerTools.ToolSdk" Version="0.2.0" />
+    <PackageReference Include="MyPowerTools.AvaloniaSdk" Version="0.2.1" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Shipped product sources, linked read-only. Never edit these through this project. -->
+    <Compile Include="$(MyPowerToolsRepoRoot)/tools/remote-notifications/current-integration/src/RemoteNotifications.Surface/Services/RemoteNotificationsLegacyStore.cs"
+             Link="Linked\RemoteNotificationsLegacyStore.cs" />
+    <Compile Include="$(MyPowerToolsRepoRoot)/tools/remote-notifications/current-integration/src/RemoteNotifications.Surface/Services/RemoteNotificationSettingsStore.cs"
+             Link="Linked\RemoteNotificationSettingsStore.cs" />
+    <Compile Include="$(MyPowerToolsRepoRoot)/tools/remote-notifications/current-integration/src/RemoteNotifications.Surface/Services/RemoteNotificationSeenIdRing.cs"
+             Link="Linked\RemoteNotificationSeenIdRing.cs" />
+    <Compile Include="$(MyPowerToolsRepoRoot)/tools/remote-notifications/current-integration/src/RemoteNotifications.Surface/Services/RemoteNotificationSessionChain.cs"
+             Link="Linked\RemoteNotificationSessionChain.cs" />
+    <Compile Include="$(MyPowerToolsRepoRoot)/tools/remote-notifications/current-integration/src/RemoteNotifications.Surface/ViewModels/RemoteNotificationItemViewModels.cs"
+             Link="Linked\RemoteNotificationItemViewModels.cs" />
+  </ItemGroup>
+
+</Project>

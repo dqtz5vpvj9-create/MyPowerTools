@@ -340,9 +340,11 @@ try {
     $modules = Join-Path $installResult.installRoot 'modules'
     $onceCall = Invoke-NativeCapture -FilePath $runner -ArgumentList @('--once', '--modules', $modules, '--data-root', $dataRoot)
     $runnerOnceOutput = $onceCall.Output
-    $catalogOk = @('adb-forwarder', 'android-tools.notifications', 'doubao-agent', 'paste-image', 'screenease', 'smartbird-thermostat') |
+    # Every tool here must be indexed by the installed Runner; the explicit list keeps a
+    # tool that silently dropped out of the installed catalog from passing this gate.
+    $catalogOk = @('adb-forwarder', 'android-tools.notifications', 'doubao-agent', 'file-transfer', 'paste-image', 'screenease', 'smartbird-thermostat') |
         Where-Object { $runnerOnceOutput -match [regex]::Escape($_) }
-    Add-RemoteRecord 'A5.R4-installed-catalog-discovery' ($onceCall.ExitCode -eq 0 -and $catalogOk.Count -eq 6) "exit=$($onceCall.ExitCode); tools=$($catalogOk -join ',')"
+    Add-RemoteRecord 'A5.R4-installed-catalog-discovery' ($onceCall.ExitCode -eq 0 -and $catalogOk.Count -eq 7) "exit=$($onceCall.ExitCode); tools=$($catalogOk -join ',')"
 
     $runnerOut = Join-Path $testRootFull 'runner.out.log'
     $runnerErr = Join-Path $testRootFull 'runner.err.log'

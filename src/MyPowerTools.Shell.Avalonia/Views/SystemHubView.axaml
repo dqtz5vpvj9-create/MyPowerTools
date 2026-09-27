@@ -1,4 +1,5 @@
 <UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:adaptive="using:MyPowerTools.AvaloniaSdk"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:controls="using:MyPowerTools.UI.Controls"
              xmlns:vm="using:MyPowerTools.Shell.Avalonia.ViewModels"
@@ -35,7 +36,7 @@
   <StackPanel MaxWidth="{DynamicResource MptLayoutPageMaxWidth}"
               HorizontalAlignment="Stretch"
               Spacing="{DynamicResource MptSpacingL}">
-    <Grid ColumnDefinitions="*,Auto"
+    <Grid adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="*,Auto"
           ColumnSpacing="{DynamicResource MptSpacingM}">
       <StackPanel Spacing="{DynamicResource MptSpacingXs}">
         <TextBlock Classes="MptPageTitle"
@@ -62,7 +63,7 @@
 
     <Border Classes="MptErrorState"
             IsVisible="{Binding IsFailed}">
-      <Grid ColumnDefinitions="*,Auto"
+      <Grid adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="*,Auto"
             ColumnSpacing="{DynamicResource MptSpacingM}">
         <StackPanel Spacing="{DynamicResource MptSpacingXs}">
           <TextBlock Classes="MptCardTitle"
@@ -80,7 +81,7 @@
 
     <Border Classes="MptEmptyState"
             IsVisible="{Binding IsEmpty}">
-      <Grid ColumnDefinitions="*,Auto"
+      <Grid adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="*,Auto"
             ColumnSpacing="{DynamicResource MptSpacingM}">
         <StackPanel Spacing="{DynamicResource MptSpacingXs}">
           <TextBlock Classes="MptCardTitle"
@@ -120,7 +121,7 @@
                 <StackPanel Grid.Column="1"
                             Spacing="{DynamicResource MptSpacingXs}"
                             VerticalAlignment="Center">
-                  <StackPanel Orientation="Horizontal"
+                  <StackPanel adaptive:MptAdaptiveLayout.StackBelow="480" Orientation="Horizontal"
                               Spacing="{DynamicResource MptSpacingS}">
                     <TextBlock Classes="MptCardTitle"
                                Text="{Binding Title}" />

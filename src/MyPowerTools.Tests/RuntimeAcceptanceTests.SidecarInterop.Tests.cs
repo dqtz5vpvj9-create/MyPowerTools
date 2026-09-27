@@ -738,7 +738,7 @@ commands:
     public async Task HostControl_returns_grpc_process_diagnostics_snapshot()
     {
         var sidecarCommand = FindSampleGrpcSidecarCommand();
-        var pipeName = "mypowertools.sample.grpc.hostcontrol." + Guid.NewGuid().ToString("N");
+        var pipeName = NewSidecarEndpointName("hc-diag");
         var packageRoot = Path.Combine(Path.GetTempPath(), "mpt-hostcontrol-grpc-diagnostics", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(packageRoot);
         WriteGrpcSidecarModuleManifest(packageRoot, sidecarCommand, pipeName);
@@ -773,7 +773,7 @@ commands:
     public async Task HostControl_restarts_grpc_process_pool()
     {
         var sidecarCommand = FindSampleGrpcSidecarCommand();
-        var pipeName = "mypowertools.sample.grpc.hostcontrol.restart." + Guid.NewGuid().ToString("N");
+        var pipeName = NewSidecarEndpointName("hc-restart");
         var packageRoot = Path.Combine(Path.GetTempPath(), "mpt-hostcontrol-grpc-restart", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(packageRoot);
         WriteGrpcSidecarModuleManifest(packageRoot, sidecarCommand, pipeName);
@@ -815,7 +815,7 @@ commands:
     public async Task HostControl_sets_grpc_process_restart_policy()
     {
         var sidecarCommand = FindSampleGrpcSidecarCommand();
-        var pipeName = "mypowertools.sample.grpc.hostcontrol.policy." + Guid.NewGuid().ToString("N");
+        var pipeName = NewSidecarEndpointName("hc-policy");
         var packageRoot = Path.Combine(Path.GetTempPath(), "mpt-hostcontrol-grpc-policy", Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(packageRoot);
         WriteGrpcSidecarModuleManifest(packageRoot, sidecarCommand, pipeName);

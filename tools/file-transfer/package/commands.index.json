@@ -1,0 +1,175 @@
+{
+  "schemaVersion": "1.0",
+  "commands": [
+    {
+      "id": "file-transfer.inspect",
+      "title": "inspect",
+      "subtitle": "文件互传",
+      "kind": "action",
+      "category": "Files",
+      "execution": {
+        "type": "module.execute"
+      }
+    },
+    {
+      "id": "file-transfer.configure",
+      "title": "configure",
+      "subtitle": "文件互传",
+      "kind": "action",
+      "category": "Files",
+      "execution": {
+        "type": "module.execute"
+      }
+    },
+    {
+      "id": "file-transfer.pairing",
+      "title": "pairing",
+      "subtitle": "文件互传",
+      "kind": "action",
+      "category": "Files",
+      "execution": {
+        "type": "module.execute"
+      }
+    },
+    {
+      "id": "file-transfer.pair.import",
+      "title": "pair.import",
+      "subtitle": "文件互传",
+      "kind": "action",
+      "category": "Files",
+      "execution": {
+        "type": "module.execute"
+      }
+    },
+    {
+      "id": "file-transfer.receive.start",
+      "title": "receive.start",
+      "subtitle": "文件互传",
+      "kind": "action",
+      "category": "Files",
+      "execution": {
+        "type": "module.execute"
+      }
+    },
+    {
+      "id": "file-transfer.receive.stop",
+      "title": "receive.stop",
+      "subtitle": "文件互传",
+      "kind": "action",
+      "category": "Files",
+      "execution": {
+        "type": "module.execute"
+      }
+    },
+    {
+      "id": "file-transfer.send.direct",
+      "title": "send.direct",
+      "subtitle": "文件互传",
+      "kind": "action",
+      "category": "Files",
+      "execution": {
+        "type": "module.execute"
+      }
+    },
+    {
+      "id": "file-transfer.send.cloud",
+      "title": "send.cloud",
+      "subtitle": "文件互传",
+      "kind": "action",
+      "category": "Files",
+      "execution": {
+        "type": "module.execute"
+      }
+    },
+    {
+      "id": "file-transfer.cloud.list",
+      "title": "cloud.list",
+      "subtitle": "文件互传",
+      "kind": "action",
+      "category": "Files",
+      "execution": {
+        "type": "module.execute"
+      }
+    },
+    {
+      "id": "file-transfer.cloud.download",
+      "title": "cloud.download",
+      "subtitle": "文件互传",
+      "kind": "action",
+      "category": "Files",
+      "execution": {
+        "type": "module.execute"
+      }
+    },
+    {
+      "id": "file-transfer.cloud.check",
+      "title": "cloud.check",
+      "subtitle": "文件互传",
+      "kind": "action",
+      "category": "Files",
+      "execution": {
+        "type": "module.execute"
+      }
+    },
+    {
+      "id": "file-transfer.cancel",
+      "title": "cancel",
+      "subtitle": "文件互传",
+      "kind": "action",
+      "category": "Files",
+      "execution": {
+        "type": "module.execute"
+      }
+    },
+    {
+      "id": "file-transfer.openlist.start",
+      "title": "openlist.start",
+      "subtitle": "文件互传",
+      "kind": "action",
+      "category": "Files",
+      "execution": {
+        "type": "module.execute"
+      }
+    },
+    {
+      "id": "file-transfer.openlist.stop",
+      "title": "openlist.stop",
+      "subtitle": "文件互传",
+      "kind": "action",
+      "category": "Files",
+      "execution": {
+        "type": "module.execute"
+      }
+    },
+    {
+      "id": "file-transfer.openlist.connect",
+      "title": "openlist.connect",
+      "subtitle": "文件互传",
+      "kind": "action",
+      "category": "Files",
+      "execution": {
+        "type": "module.execute"
+      }
+    },
+    {
+      "id": "file-transfer.cloud.export",
+      "title": "cloud.export",
+      "subtitle": "文件互传",
+      "kind": "action",
+      "category": "Files",
+      "execution": {
+        "type": "module.execute"
+      }
+    },
+    {
+      "id": "file-transfer.cloud.import",
+      "title": "cloud.import",
+      "subtitle": "文件互传",
+      "kind": "action",
+      "category": "Files",
+      "execution": {
+        "type": "module.execute"
+      }
+    }
+  ]
+}

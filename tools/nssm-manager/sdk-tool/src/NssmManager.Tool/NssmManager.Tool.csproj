@@ -5,7 +5,7 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
-    <PackageReference Include="MyPowerTools.AvaloniaSdk" Version="0.2.0" />
+    <PackageReference Include="MyPowerTools.AvaloniaSdk" Version="0.2.1" />
     <PackageReference Include="MyPowerTools.ToolSdk" Version="0.2.0" />
     <ProjectReference Include="..\NssmManager.Contracts\NssmManager.Contracts.csproj" />
     <Compile Include="..\NssmManager.Runtime\NssmElevatedClient.cs" Link="Broker\NssmElevatedClient.cs" />

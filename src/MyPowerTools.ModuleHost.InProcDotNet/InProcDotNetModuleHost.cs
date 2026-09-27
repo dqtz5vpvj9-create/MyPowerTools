@@ -2305,13 +2305,19 @@ public sealed class InProcDotNetModuleHost : IModuleTransportRuntime, IModuleTra
 
 internal sealed class MptPluginLoadContext : AssemblyLoadContext
 {
-    private readonly AssemblyDependencyResolver _resolver;
+    private readonly AssemblyDependencyResolver? _resolver;
+    private readonly string _assemblyDirectory;
+    private readonly string[] _probeDirectories;
     private readonly HashSet<string> _sharedAssemblies;
 
     public MptPluginLoadContext(string mainAssemblyPath, IEnumerable<string> sharedAssemblies)
         : base(Path.GetFileNameWithoutExtension(mainAssemblyPath), isCollectible: true)
     {
-        _resolver = new AssemblyDependencyResolver(mainAssemblyPath);
+        _assemblyDirectory = Path.GetDirectoryName(mainAssemblyPath)!;
+        // Android does not provide the hostpolicy-based dependency resolver, so module
+        // dependencies are probed from the shadow-copied module directory by simple name.
+        if (!OperatingSystem.IsAndroid()) _resolver = new AssemblyDependencyResolver(mainAssemblyPath);
+        _probeDirectories = OperatingSystem.IsAndroid() ? ProbeDirectories(_assemblyDirectory) : [_assemblyDirectory];
         _sharedAssemblies = sharedAssemblies.ToHashSet(StringComparer.OrdinalIgnoreCase);
     }
 
@@ -2319,17 +2325,90 @@ internal sealed class MptPluginLoadContext : AssemblyLoadContext
     {
         if (assemblyName.Name is not null && _sharedAssemblies.Contains(assemblyName.Name))
         {
-            return AssemblyLoadContext.Default.Assemblies.FirstOrDefault(assembly =>
-                string.Equals(assembly.GetName().Name, assemblyName.Name, StringComparison.OrdinalIgnoreCase));
+            return ResolveShared(assemblyName.Name);
         }
 
-        var path = _resolver.ResolveAssemblyToPath(assemblyName);
+        var path = _resolver?.ResolveAssemblyToPath(assemblyName);
+        if (path is null && OperatingSystem.IsAndroid())
+        {
+            path = Probe(assemblyName.Name);
+            if (path is null && assemblyName.Name is { } missing)
+            {
+                // The ModuleHost has no logger on Android and a failed assembly bind otherwise
+                // surfaces only as a bare FileNotFoundException, so the probe list is recorded
+                // on the DOTNET logcat channel.
+                Console.Error.WriteLine(
+                    $"[mpt-inproc] unresolved assembly '{missing}' for {_assemblyDirectory}; probed {string.Join(", ", _probeDirectories)}");
+            }
+        }
+
         return path is null ? null : LoadFromAssemblyPath(path);
+    }
+
+    /// <summary>
+    /// A shared contract must be the host's own copy: loading a duplicate from the module shadow
+    /// directory would break the <c>is IMptModule</c> contract cast the host performs.
+    /// </summary>
+    private static Assembly? ResolveShared(string name)
+    {
+        var loaded = AssemblyLoadContext.Default.Assemblies.FirstOrDefault(assembly =>
+            string.Equals(assembly.GetName().Name, name, StringComparison.OrdinalIgnoreCase));
+        if (loaded is not null)
+        {
+            return loaded;
+        }
+
+        try
+        {
+            return AssemblyLoadContext.Default.LoadFromAssemblyName(new AssemblyName(name));
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private string? Probe(string? assemblyName)
+    {
+        if (string.IsNullOrEmpty(assemblyName))
+        {
+            return null;
+        }
+
+        foreach (var directory in _probeDirectories)
+        {
+            var candidate = Path.Combine(directory, assemblyName + ".dll");
+            if (File.Exists(candidate))
+            {
+                return candidate;
+            }
+        }
+
+        return null;
+    }
+
+    private static string[] ProbeDirectories(string assemblyDirectory)
+    {
+        var directories = new List<string> { assemblyDirectory };
+        // Packaged modules keep the module assembly and its dependencies side by side, but a
+        // redistributed dependency may sit one level down (lib/, runtime/).
+        foreach (var child in Directory.EnumerateDirectories(assemblyDirectory))
+        {
+            var name = Path.GetFileName(child);
+            if (name.Equals("lib", StringComparison.OrdinalIgnoreCase) ||
+                name.Equals("runtime", StringComparison.OrdinalIgnoreCase) ||
+                name.Equals("runtimes", StringComparison.OrdinalIgnoreCase))
+            {
+                directories.Add(child);
+            }
+        }
+
+        return directories.ToArray();
     }
 
     protected override IntPtr LoadUnmanagedDll(string unmanagedDllName)
     {
-        var path = _resolver.ResolveUnmanagedDllToPath(unmanagedDllName);
+        var path = _resolver?.ResolveUnmanagedDllToPath(unmanagedDllName);
         return path is null ? IntPtr.Zero : LoadUnmanagedDllFromPath(path);
     }
 }

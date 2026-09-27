@@ -1,16 +1,17 @@
 <UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:adaptive="using:MyPowerTools.AvaloniaSdk"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:controls="using:MyPowerTools.UI.Controls"
              xmlns:vm="using:MyPowerTools.Shell.Avalonia.ViewModels"
              x:Class="MyPowerTools.Shell.Avalonia.Views.DiagnosticsView"
              x:DataType="vm:DiagnosticsViewModel">
   <StackPanel Margin="{DynamicResource MptPagePadding}" Spacing="{DynamicResource MptSpacingM}">
-    <Grid ColumnDefinitions="*,Auto">
+    <Grid adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="*,Auto">
       <StackPanel Spacing="{DynamicResource MptSpacingXs}">
         <TextBlock Classes="MptPageTitle" Text="{Binding Title}" />
         <TextBlock Classes="MptPageSubtitle" Text="{Binding Subtitle}" />
       </StackPanel>
-      <StackPanel Grid.Column="1" Classes="MptActionBar" Orientation="Horizontal">
+      <StackPanel adaptive:MptAdaptiveLayout.StackBelow="480" Grid.Column="1" Classes="MptActionBar" Orientation="Horizontal">
         <controls:MptButton Content="Copy JSON"
                             MinWidth="{DynamicResource MptDensityActionMinWidth}" />
         <controls:MptButton Content="Refresh"
@@ -37,7 +38,7 @@
     </ItemsControl>
 
     <Border Classes="MptTabStrip">
-      <StackPanel Orientation="Horizontal" Spacing="{DynamicResource MptSpacingXs}">
+      <StackPanel adaptive:MptAdaptiveLayout.StackBelow="480" Orientation="Horizontal" Spacing="{DynamicResource MptSpacingXs}">
         <TextBlock Classes="MptTabItemSelected" Text="Runtime" />
         <TextBlock Classes="MptTabItem" Text="Transports" />
         <TextBlock Classes="MptTabItem" Text="Processes" />
@@ -47,18 +48,18 @@
       </StackPanel>
     </Border>
 
-    <Grid ColumnDefinitions="*,380" ColumnSpacing="{DynamicResource MptSpacingM}">
+    <Grid adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="*,380" ColumnSpacing="{DynamicResource MptSpacingM}">
       <StackPanel Spacing="{DynamicResource MptSpacingM}">
         <Border Classes="MptSettingsSection">
           <StackPanel Spacing="{DynamicResource MptSpacingS}">
-            <Grid ColumnDefinitions="*,Auto">
+            <Grid adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="*,Auto">
               <TextBlock Classes="MptSectionTitle" Text="Runtime Paths" />
               <TextBlock Grid.Column="1" Classes="MptMeta" Text="copy-ready" />
             </Grid>
             <ItemsControl ItemsSource="{Binding Paths}">
               <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="vm:MetricViewModel">
-                  <Grid ColumnDefinitions="132,*" Margin="{DynamicResource MptGapBottomXs}">
+                  <Grid adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="132,*" Margin="{DynamicResource MptGapBottomXs}">
                     <TextBlock Classes="MptMeta" Text="{Binding Label}" />
                     <TextBlock Grid.Column="1" Text="{Binding Value}" TextWrapping="Wrap" />
                   </Grid>
@@ -70,7 +71,7 @@
 
         <Border Classes="MptSettingsSection">
           <StackPanel Spacing="{DynamicResource MptSpacingS}">
-            <Grid ColumnDefinitions="*,Auto">
+            <Grid adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="*,Auto">
               <TextBlock Classes="MptSectionTitle" Text="Runtime Processes" />
               <TextBlock Grid.Column="1" Classes="MptMeta" Text="restart policy" />
             </Grid>
@@ -82,7 +83,7 @@
                 <DataTemplate x:DataType="vm:RuntimeProcessViewModel">
                   <Border Classes="MptSettingsField" Margin="{DynamicResource MptGapBottomM}">
                     <StackPanel Spacing="{DynamicResource MptSpacingS}">
-                      <Grid ColumnDefinitions="*,Auto">
+                      <Grid adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="*,Auto">
                         <StackPanel Spacing="{DynamicResource MptSpacingXs}">
                           <TextBlock FontWeight="SemiBold" Text="{Binding PoolKey}" TextWrapping="Wrap" />
                           <TextBlock Classes="MptMeta" Text="{Binding TransportKind}" />
@@ -91,31 +92,31 @@
                           <TextBlock Classes="MptMeta" Text="{Binding State}" />
                         </Border>
                       </Grid>
-                      <Grid ColumnDefinitions="132,*">
+                      <Grid adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="132,*">
                         <TextBlock Classes="MptMeta" Text="Process" />
                         <TextBlock Grid.Column="1" Text="{Binding ProcessText}" />
                       </Grid>
-                      <Grid ColumnDefinitions="132,*">
+                      <Grid adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="132,*">
                         <TextBlock Classes="MptMeta" Text="Endpoint" />
                         <TextBlock Grid.Column="1" Text="{Binding Endpoint}" TextWrapping="Wrap" />
                       </Grid>
-                      <Grid ColumnDefinitions="132,*">
+                      <Grid adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="132,*">
                         <TextBlock Classes="MptMeta" Text="Policy" />
                         <TextBlock Grid.Column="1" Text="{Binding PolicyText}" TextWrapping="Wrap" />
                       </Grid>
-                      <Grid ColumnDefinitions="132,*">
+                      <Grid adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="132,*">
                         <TextBlock Classes="MptMeta" Text="Modules" />
                         <TextBlock Grid.Column="1" Text="{Binding ModulesText}" TextWrapping="Wrap" />
                       </Grid>
-                      <Grid ColumnDefinitions="132,*">
+                      <Grid adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="132,*">
                         <TextBlock Classes="MptMeta" Text="Stdout" />
                         <TextBlock Grid.Column="1" Text="{Binding StdoutText}" TextWrapping="Wrap" />
                       </Grid>
-                      <Grid ColumnDefinitions="132,*">
+                      <Grid adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="132,*">
                         <TextBlock Classes="MptMeta" Text="Stderr" />
                         <TextBlock Grid.Column="1" Text="{Binding StderrText}" TextWrapping="Wrap" />
                       </Grid>
-                      <StackPanel Orientation="Horizontal" Spacing="{DynamicResource MptSpacingS}">
+                      <StackPanel adaptive:MptAdaptiveLayout.StackBelow="480" Orientation="Horizontal" Spacing="{DynamicResource MptSpacingS}">
                         <controls:MptButton Classes="MptPrimaryButton"
                                             Content="Restart"
                                             Command="{Binding RestartCommand}"
@@ -147,7 +148,7 @@
                 <DataTemplate x:DataType="vm:RuntimeModuleDiagnosticViewModel">
                   <Border Classes="MptSettingsField" Margin="{DynamicResource MptGapBottomM}">
                     <StackPanel Spacing="{DynamicResource MptSpacingS}">
-                      <Grid ColumnDefinitions="*,Auto">
+                      <Grid adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="*,Auto">
                         <TextBlock FontWeight="SemiBold" Text="{Binding DisplayName}" TextWrapping="Wrap" />
                         <Border Grid.Column="1" Classes="MptStatusBadge">
                           <TextBlock Classes="MptMeta" Text="{Binding State}" />
@@ -156,7 +157,7 @@
                       <ItemsControl ItemsSource="{Binding Details}">
                         <ItemsControl.ItemTemplate>
                           <DataTemplate x:DataType="vm:MetricViewModel">
-                            <Grid ColumnDefinitions="132,*" Margin="{DynamicResource MptGapBottomXs}">
+                            <Grid adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="132,*" Margin="{DynamicResource MptGapBottomXs}">
                               <TextBlock Classes="MptMeta" Text="{Binding Label}" />
                               <TextBlock Grid.Column="1" Text="{Binding Value}" TextWrapping="Wrap" />
                             </Grid>
@@ -183,7 +184,7 @@
               <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="vm:RuntimeTransportViewModel">
                   <Border Classes="MptSettingsField" Margin="{DynamicResource MptGapBottomM}">
-                    <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
+                    <Grid adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto">
                       <TextBlock FontWeight="SemiBold" Text="{Binding Kind}" />
                       <Border Grid.Column="1" Classes="MptStatusBadge">
                         <TextBlock Classes="MptMeta" Text="{Binding State}" />

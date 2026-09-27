@@ -1,4 +1,5 @@
 <UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:adaptive="using:MyPowerTools.AvaloniaSdk"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:controls="using:MyPowerTools.UI.Controls"
              xmlns:vm="using:MyPowerTools.Shell.Avalonia.ViewModels"
@@ -12,7 +13,7 @@
     <Border Classes="MptErrorState">
       <StackPanel Spacing="{DynamicResource MptSpacingM}">
         <TextBlock Text="{Binding Message}" TextWrapping="Wrap" />
-        <StackPanel Orientation="Horizontal"
+        <StackPanel adaptive:MptAdaptiveLayout.StackBelow="480" Orientation="Horizontal"
                     Spacing="{DynamicResource MptSpacingS}"
                     IsVisible="{Binding HasRetry}">
           <controls:MptButton Classes="MptPrimaryButton"

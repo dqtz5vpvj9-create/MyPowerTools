@@ -17,6 +17,7 @@ namespace MyPowerTools.Shell.Avalonia;
 
 public sealed class App : Application
 {
+    public static Func<global::Avalonia.Controls.Control>? SingleViewFactory { get; set; }
     private static readonly Uri ThemeBaseUri = new("avares://MyPowerTools.Shell.Avalonia/App.cs");
     // Labels written by scripts/install-macos.ps1 for the two hosts that outlive the Shell window.
     private const string LaunchdRunnerLabel = "com.mypowertools.runner";
@@ -34,6 +35,29 @@ public sealed class App : Application
 
     public override void Initialize()
     {
+        // Android has no way to set this from outside the app process, so the Shell trace is
+        // written into the app's private log directory instead of being silently disabled. This
+        // runs before the first Mark call initializes ShellStartupDiagnostics.
+        if (OperatingSystem.IsAndroid() && string.IsNullOrWhiteSpace(
+                Environment.GetEnvironmentVariable(ShellStartupDiagnostics.TracePathEnvironmentVariable)))
+        {
+            try
+            {
+                var logDirectory = Path.Combine(
+                    Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                    "MyPowerTools",
+                    "logs");
+                Directory.CreateDirectory(logDirectory);
+                Environment.SetEnvironmentVariable(
+                    ShellStartupDiagnostics.TracePathEnvironmentVariable,
+                    Path.Combine(logDirectory, "shell-startup.log"));
+            }
+            catch
+            {
+                // Diagnostics must never block application startup.
+            }
+        }
+
         MacIdleProgressAnimations.Install();
         Styles.Add(new FluentTheme());
         if (OperatingSystem.IsMacOS())
@@ -80,6 +104,26 @@ public sealed class App : Application
             StartPlatformTray(desktop, mainWindow);
         }
 
+        if (SingleViewFactory is { } factory)
+        {
+            // The activity lifetime is the Android host. There the view is not built until the
+            // shared runtime is ready, so loading the control styles on the idle queue keeps the
+            // first activity frame off a nineteen-file XAML parse; every other single-view host
+            // keeps the synchronous load.
+            if (ApplicationLifetime is IActivityApplicationLifetime)
+            {
+                ScheduleDeferredStyles();
+            }
+            else
+            {
+                EnsureDeferredStyles();
+            }
+
+            if (ApplicationLifetime is IActivityApplicationLifetime activities)
+                activities.MainViewFactory = factory;
+            else if (ApplicationLifetime is ISingleViewApplicationLifetime single)
+                single.MainView = factory();
+        }
         base.OnFrameworkInitializationCompleted();
     }
 

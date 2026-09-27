@@ -1,16 +1,17 @@
 <UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:adaptive="using:MyPowerTools.AvaloniaSdk"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:controls="using:MyPowerTools.UI.Controls"
              xmlns:vm="using:MyPowerTools.Shell.Avalonia.ViewModels"
              x:Class="MyPowerTools.Shell.Avalonia.Views.NotificationsView"
              x:DataType="vm:NotificationsViewModel">
   <StackPanel Margin="{DynamicResource MptPagePadding}" Spacing="{DynamicResource MptSpacingM}">
-    <Grid ColumnDefinitions="*,Auto">
+    <Grid adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="*,Auto">
       <StackPanel Spacing="{DynamicResource MptSpacingXs}">
         <TextBlock Classes="MptPageTitle" Text="{Binding Title}" />
         <TextBlock Classes="MptPageSubtitle" Text="{Binding Subtitle}" />
       </StackPanel>
-      <StackPanel Grid.Column="1" Classes="MptActionBar" Orientation="Horizontal">
+      <StackPanel adaptive:MptAdaptiveLayout.StackBelow="480" Grid.Column="1" Classes="MptActionBar" Orientation="Horizontal">
         <controls:MptButton Content="Mark read"
                             MinWidth="{DynamicResource MptDensityActionMinWidth}" />
         <controls:MptButton Content="Clear"
@@ -19,7 +20,7 @@
     </Grid>
 
     <Border Classes="MptToolbar">
-      <StackPanel Classes="MptToolbar" Orientation="Horizontal">
+      <StackPanel adaptive:MptAdaptiveLayout.StackBelow="480" Classes="MptToolbar" Orientation="Horizontal">
         <controls:MptTextBox PlaceholderText="Search notifications"
                              MinWidth="{DynamicResource MptPackageIdInputWidth}" />
         <controls:MptButton Content="Unread"
@@ -35,15 +36,15 @@
                Text="No notifications."
                IsVisible="{Binding IsEmpty}" />
 
-    <Grid ColumnDefinitions="*,340" ColumnSpacing="{DynamicResource MptSpacingM}">
+    <Grid adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="*,340" ColumnSpacing="{DynamicResource MptSpacingM}">
       <ItemsControl ItemsSource="{Binding Notifications}">
         <ItemsControl.ItemTemplate>
           <DataTemplate x:DataType="vm:NotificationItemViewModel">
             <Border Classes="MptNotificationItem" Margin="{DynamicResource MptGapBottomM}">
-              <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto">
+              <Grid adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto">
                 <StackPanel Spacing="{DynamicResource MptSpacingXs}">
                   <TextBlock FontWeight="SemiBold" Text="{Binding Title}" TextWrapping="Wrap" />
-                  <StackPanel Orientation="Horizontal" Spacing="{DynamicResource MptSpacingS}">
+                  <StackPanel adaptive:MptAdaptiveLayout.StackBelow="480" Orientation="Horizontal" Spacing="{DynamicResource MptSpacingS}">
                     <TextBlock Classes="MptMeta" Text="{Binding ModuleId}" />
                     <TextBlock Classes="MptMeta" Text="{Binding Time}" />
                   </StackPanel>

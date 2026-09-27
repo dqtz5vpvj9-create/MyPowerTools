@@ -110,7 +110,7 @@ builder.Services.AddSingleton(new PackageStore(modulesRoot, Path.Combine(root, "
 
 if (OperatingSystem.IsWindows())
 {
-    builder.WebHost.UseNamedPipes(MptNamedPipePolicy.Configure);
+    builder.WebHost.UseNamedPipes(MptNamedPipeTransport.Configure);
 }
 builder.WebHost.ConfigureKestrel(options =>
 {
@@ -134,14 +134,40 @@ var app = builder.Build();
 app.MapGrpcService<HostControlGrpcService>();
 app.MapGet("/", () => $"MyPowerTools.Runner {ProtocolConstants.HostVersion} is running.");
 
+// Bind HostControl before the desktop integration work below. The prewarmed Shell and
+// external clients connect as soon as the named pipe/socket exists, and a slow tray,
+// hotkey, or remapper provider must never delay (or block) the RPC endpoint.
+await app.StartAsync();
 Console.WriteLine($"MyPowerTools.Runner serving HostControl on {endpoint.Transport}:{endpoint.Address}");
-var tray = await StartTrayAsync(app, root, runtimePaths.Root, args, platformPack);
-var hotkeys = await StartHotkeysAsync(root, runtimePaths.Root, args, platformPack, runtime);
+
+// Desktop integration is best effort: if a provider stalls or fails, HostControl keeps
+// serving instead of leaving a live process without a reachable endpoint. A provider that
+// misses its startup budget is cancelled, cleaned up, and a late success is disposed
+// rather than leaked.
+var tray = await StartDesktopProviderAsync(
+    "tray",
+    cancellationToken => StartTrayAsync(app, root, runtimePaths.Root, args, platformPack, cancellationToken),
+    TimeSpan.FromSeconds(20),
+    () => platformPack.Tray);
+var hotkeys = await StartDesktopProviderAsync(
+    "hotkey",
+    cancellationToken => StartHotkeysAsync(root, runtimePaths.Root, args, platformPack, runtime, cancellationToken),
+    TimeSpan.FromSeconds(30),
+    () => platformPack.Hotkeys);
+
 ElevatedWinSpaceShiftRemapperController? winSpaceShiftRemapper = null;
 if (OperatingSystem.IsWindows())
 {
-    winSpaceShiftRemapper = new ElevatedWinSpaceShiftRemapperController(runtimePaths.Root);
-    winSpaceShiftRemapper.Start();
+    try
+    {
+        winSpaceShiftRemapper = new ElevatedWinSpaceShiftRemapperController(runtimePaths.Root);
+        winSpaceShiftRemapper.Start();
+    }
+    catch (Exception ex)
+    {
+        winSpaceShiftRemapper = null;
+        Console.WriteLine($"MyPowerTools.Runner Win+Space remapper startup failed: {ex.Message}");
+    }
 }
 if (!args.Contains("--no-shell-prewarm", StringComparer.OrdinalIgnoreCase))
 {
@@ -152,7 +178,7 @@ if (!args.Contains("--no-shell-prewarm", StringComparer.OrdinalIgnoreCase))
 // on-demand tool runtimes are selected by manifest via the transport runtime hosts.
 try
 {
-    await app.RunAsync();
+    await app.WaitForShutdownAsync();
 }
 finally
 {
@@ -277,11 +303,76 @@ static IReadOnlyDictionary<string, object> CreateCapabilityProviders(IPlatformPa
     {
         providers["keyboard.shortcut"] = platformPack.KeyboardShortcuts;
     }
+    if (platformPack.Capabilities.Resolve("secret.store").Supported)
+    {
+        providers["secret.store"] = platformPack.Secrets;
+    }
 
     return providers;
 }
 
-static async Task<ITrayService?> StartTrayAsync(WebApplication app, string root, string dataRoot, string[] args, IPlatformPack platform)
+/// <summary>
+/// Starts a desktop provider (tray, global hotkeys) within a startup budget. The budget
+/// cancels the provider's own initialization; anything that still completes afterwards is
+/// disposed instead of leaking its handle.
+/// </summary>
+static async Task<TProvider?> StartDesktopProviderAsync<TProvider>(
+    string label,
+    Func<CancellationToken, Task<TProvider?>> start,
+    TimeSpan timeout,
+    Func<IAsyncDisposable> providerFallback)
+    where TProvider : class, IAsyncDisposable
+{
+    var startup = new CancellationTokenSource(timeout);
+    Task<TProvider?> initialization;
+    try
+    {
+        initialization = start(startup.Token);
+    }
+    catch (Exception ex)
+    {
+        startup.Dispose();
+        Console.WriteLine($"MyPowerTools.Runner {label} startup failed: {ex.Message}");
+        return null;
+    }
+
+    try
+    {
+        return await initialization.WaitAsync(startup.Token);
+    }
+    catch (OperationCanceledException)
+    {
+        Console.WriteLine($"MyPowerTools.Runner {label} startup timed out; it is unavailable.");
+        await DisposeQuietlyAsync(providerFallback());
+        _ = initialization.ContinueWith(
+            async completed =>
+            {
+                startup.Dispose();
+                if (completed.Status == TaskStatus.RanToCompletion && completed.Result is { } lateProvider)
+                {
+                    await DisposeQuietlyAsync(lateProvider);
+                }
+            },
+            CancellationToken.None,
+            TaskContinuationOptions.ExecuteSynchronously,
+            TaskScheduler.Default);
+        return null;
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"MyPowerTools.Runner {label} startup failed: {ex.Message}");
+        return null;
+    }
+    finally
+    {
+        if (initialization.IsCompleted)
+        {
+            startup.Dispose();
+        }
+    }
+}
+
+static async Task<ITrayService?> StartTrayAsync(WebApplication app, string root, string dataRoot, string[] args, IPlatformPack platform, CancellationToken cancellationToken)
 {
     if (args.Contains("--no-tray", StringComparer.OrdinalIgnoreCase) ||
         platform.TrayHost != PlatformTrayHost.Runner ||
@@ -325,7 +416,7 @@ static async Task<ITrayService?> StartTrayAsync(WebApplication app, string root,
                 app.Lifetime.StopApplication();
             }
         },
-        CancellationToken.None);
+        cancellationToken);
 
     if (result.Success)
     {
@@ -338,7 +429,7 @@ static async Task<ITrayService?> StartTrayAsync(WebApplication app, string root,
     return null;
 }
 
-static async Task<IHotkeyService?> StartHotkeysAsync(string root, string dataRoot, string[] args, IPlatformPack platform, MptHostRuntime runtime)
+static async Task<IHotkeyService?> StartHotkeysAsync(string root, string dataRoot, string[] args, IPlatformPack platform, MptHostRuntime runtime, CancellationToken cancellationToken)
 {
     if (args.Contains("--no-hotkeys", StringComparer.OrdinalIgnoreCase) ||
         !platform.Capabilities.Resolve("hotkey.global").Supported)
@@ -391,7 +482,9 @@ static async Task<IHotkeyService?> StartHotkeysAsync(string root, string dataRoo
         });
     };
 
-    await SyncModuleHotkeysAsync(synchronizer, CancellationToken.None);
+    // The registration sync honors the startup budget; the binding watcher belongs to the
+    // returned hotkey service and is stopped by its disposal.
+    await SyncModuleHotkeysAsync(synchronizer, cancellationToken);
     _ = Task.Run(() => WatchRuntimeHotkeyBindingsAsync(runtime, synchronizer));
 
     return hotkeys;
@@ -435,6 +528,23 @@ static async Task SyncModuleHotkeysAsync(
     foreach (var sync in await synchronizer.SyncAsync(cancellationToken))
     {
         Console.WriteLine($"MyPowerTools.Runner module hotkey {sync.Operation} {sync.Result.State}: {sync.Result.Message}");
+    }
+}
+
+static async Task DisposeQuietlyAsync(IAsyncDisposable? disposable)
+{
+    if (disposable is null)
+    {
+        return;
+    }
+
+    try
+    {
+        await disposable.DisposeAsync();
+    }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"MyPowerTools.Runner provider cleanup failed: {ex.Message}");
     }
 }
 

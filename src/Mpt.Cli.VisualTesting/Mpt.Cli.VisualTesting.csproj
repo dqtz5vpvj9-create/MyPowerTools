@@ -8,6 +8,7 @@
     <IsPackable>false</IsPackable>
   </PropertyGroup>
   <ItemGroup>
+    <ProjectReference Include="../MyPowerTools.Ipc.AspNetCore/MyPowerTools.Ipc.AspNetCore.csproj" />
     <PackageReference Include="Avalonia.Headless" Version="12.0.5" />
     <PackageReference Include="Grpc.AspNetCore" Version="2.80.0" />
     <ProjectReference Include="..\MyPowerTools.Shell.Avalonia\MyPowerTools.Shell.Avalonia.csproj" />

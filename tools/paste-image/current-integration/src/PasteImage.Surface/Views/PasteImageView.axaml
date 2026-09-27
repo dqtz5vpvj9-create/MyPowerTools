@@ -1,4 +1,5 @@
 <UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:adaptive="using:MyPowerTools.AvaloniaSdk"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:controls="using:MyPowerTools.UI.Controls"
              xmlns:vm="using:PasteImage.Surface.ViewModels"
@@ -31,7 +32,7 @@
               BorderThickness="1"
               CornerRadius="{DynamicResource MptRadiusCard}"
               Padding="24,20">
-        <Grid ColumnDefinitions="*,Auto" ColumnSpacing="24">
+        <Grid adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="*,Auto" ColumnSpacing="24">
           <StackPanel Spacing="6">
             <TextBlock Text="复制、上传、粘贴"
                        FontSize="22"
@@ -55,7 +56,7 @@
         </Grid>
       </Border>
 
-      <Grid ColumnDefinitions="*,*" ColumnSpacing="14">
+      <Grid adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="*,*" ColumnSpacing="14">
         <Border Classes="card" MinHeight="132">
           <StackPanel Spacing="10">
             <TextBlock Text="上传目标" Classes="secondary" />
@@ -71,7 +72,7 @@
         <Border Grid.Column="1" Classes="card" MinHeight="132">
           <StackPanel Spacing="10">
             <TextBlock Text="连接状态" Classes="secondary" />
-            <StackPanel Orientation="Horizontal" Spacing="8">
+            <StackPanel adaptive:MptAdaptiveLayout.StackBelow="480" Orientation="Horizontal" Spacing="8">
               <Border Width="10"
                       Height="10"
                       CornerRadius="5"
@@ -90,7 +91,7 @@
         </Border>
       </Grid>
 
-      <StackPanel Orientation="Horizontal" Spacing="10">
+      <StackPanel adaptive:MptAdaptiveLayout.StackBelow="480" Orientation="Horizontal" Spacing="10">
         <controls:MptButton Content="上传剪贴板图片"
                             Command="{Binding UploadCommand}"
                             IsEnabled="{Binding CanUpload}"
@@ -122,7 +123,7 @@
         </Grid>
       </Border>
 
-      <Grid ColumnDefinitions="1.15*,0.85*" ColumnSpacing="14">
+      <Grid adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="1.15*,0.85*" ColumnSpacing="14">
         <Border Classes="card">
           <StackPanel Spacing="8">
             <TextBlock Text="最近上传图片" Classes="section-title" />
@@ -160,7 +161,7 @@
                   <Border BorderBrush="{DynamicResource MptBrushDivider}"
                           BorderThickness="0,1,0,0"
                           Padding="0,11">
-                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                    <Grid adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="*,Auto" ColumnSpacing="8">
                       <StackPanel Spacing="3">
                         <TextBlock Text="{Binding RemotePath}"
                                    FontWeight="Medium"

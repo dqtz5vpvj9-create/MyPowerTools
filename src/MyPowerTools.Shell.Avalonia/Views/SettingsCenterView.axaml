@@ -1,4 +1,5 @@
 <UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:adaptive="using:MyPowerTools.AvaloniaSdk"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:controls="using:MyPowerTools.UI.Controls"
              xmlns:vm="using:MyPowerTools.Shell.Avalonia.ViewModels"
@@ -6,7 +7,7 @@
              x:DataType="vm:SettingsCenterViewModel">
   <StackPanel Margin="{DynamicResource MptPagePadding}"
               Spacing="{DynamicResource MptSpacingM}">
-    <Grid ColumnDefinitions="*,Auto">
+    <Grid adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="*,Auto">
       <StackPanel Spacing="{DynamicResource MptSpacingXs}">
         <TextBlock Classes="MptPageTitle" Text="{Binding Title}" />
         <TextBlock Classes="MptPageSubtitle" Text="{Binding Subtitle}" />
@@ -18,7 +19,7 @@
 
     <Border Classes="MptSettingsSection">
       <StackPanel Spacing="{DynamicResource MptSpacingS}">
-        <Grid ColumnDefinitions="*,Auto">
+        <Grid adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="*,Auto">
           <StackPanel Spacing="{DynamicResource MptSpacingXs}">
             <TextBlock Classes="MptSectionTitle" Text="Module" />
             <TextBlock Classes="MptMeta"
@@ -38,7 +39,7 @@
               <controls:MptButton Command="{Binding SelectCommand}"
                                   MinHeight="{DynamicResource MptDensityCompactControlHeight}"
                                   Margin="{DynamicResource MptWrapItemMargin}">
-                <StackPanel Orientation="Horizontal" Spacing="{DynamicResource MptSpacingXs}">
+                <StackPanel adaptive:MptAdaptiveLayout.StackBelow="480" Orientation="Horizontal" Spacing="{DynamicResource MptSpacingXs}">
                   <TextBlock Text="{Binding DisplayName}" />
                   <TextBlock Classes="MptMeta"
                              Text="{Binding SelectionText}"
@@ -72,7 +73,7 @@
           <ItemsControl.ItemTemplate>
             <DataTemplate x:DataType="vm:SettingsFieldViewModel">
               <Border Classes="MptSettingsField" Margin="{DynamicResource MptGapBottomM}">
-                <Grid ColumnDefinitions="260,*" ColumnSpacing="{DynamicResource MptSpacingM}">
+                <Grid adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="260,*" ColumnSpacing="{DynamicResource MptSpacingM}">
                   <StackPanel Spacing="{DynamicResource MptSpacingXs}">
                     <TextBlock FontWeight="SemiBold" Text="{Binding Label}" TextWrapping="Wrap" />
                     <TextBlock Classes="MptPageSubtitle" Text="{Binding Description}" TextWrapping="Wrap" />
@@ -134,7 +135,7 @@
 
     <Border Classes="MptSettingsSection" IsVisible="{Binding HasSaveResult}">
       <StackPanel Spacing="{DynamicResource MptSpacingXs}">
-        <Grid ColumnDefinitions="*,Auto">
+        <Grid adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="*,Auto">
           <TextBlock FontWeight="SemiBold" Text="{Binding SaveResultTitle}" />
           <TextBlock Grid.Column="1" Classes="MptMeta" Text="{Binding SaveResultState}" />
         </Grid>
@@ -146,7 +147,7 @@
     </Border>
 
     <Border Classes="MptStickyFooter">
-      <Grid ColumnDefinitions="*,Auto" ColumnSpacing="{DynamicResource MptSpacingM}">
+      <Grid adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="*,Auto" ColumnSpacing="{DynamicResource MptSpacingM}">
         <StackPanel Spacing="{DynamicResource MptSpacingXs}">
           <TextBlock FontWeight="SemiBold" Text="{Binding ChangeSummary}" />
           <TextBlock Classes="MptMeta"

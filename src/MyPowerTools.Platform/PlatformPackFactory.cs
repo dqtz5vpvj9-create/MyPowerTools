@@ -7,8 +7,10 @@ namespace MyPowerTools.Platform;
 
 public static class PlatformPackFactory
 {
+    public static Func<IPlatformPack>? EmbeddedPlatformFactory { get; set; }
     public static IPlatformPack Create()
     {
+        if (EmbeddedPlatformFactory is { } factory) return factory();
         if (OperatingSystem.IsWindows())
         {
             return new WindowsPlatformPack();

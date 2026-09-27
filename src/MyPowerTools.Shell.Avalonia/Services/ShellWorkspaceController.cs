@@ -279,7 +279,7 @@ public sealed partial class ShellWorkspaceController : IAsyncDisposable
 
         EnsureEventSubscriptions();
         _runnerEvents.Start();
-        _unitEvents.Start();
+        if (!OperatingSystem.IsAndroid()) _unitEvents.Start();
     }
 
     private void EnsureEventSubscriptions()

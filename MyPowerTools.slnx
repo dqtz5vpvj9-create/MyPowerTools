@@ -10,6 +10,7 @@
     <Project Path="src/MyPowerTools.HostControl.Contracts/MyPowerTools.HostControl.Contracts.csproj" />
     <Project Path="src/MyPowerTools.HostControl.Client/MyPowerTools.HostControl.Client.csproj" />
     <Project Path="src/MyPowerTools.HostControl.Server/MyPowerTools.HostControl.Server.csproj" />
+    <Project Path="src/MyPowerTools.Ipc.AspNetCore/MyPowerTools.Ipc.AspNetCore.csproj" />
     <Project Path="src/MyPowerTools.Ipc.Shared/MyPowerTools.Ipc.Shared.csproj" />
     <Project Path="src/MyPowerTools.InputRemapHost/MyPowerTools.InputRemapHost.csproj" />
     <Project Path="src/MyPowerTools.ModuleHost.GrpcIpc/MyPowerTools.ModuleHost.GrpcIpc.csproj" />
@@ -39,6 +40,9 @@
     <Project Path="src/MyPowerTools.WebSurface.Avalonia/MyPowerTools.WebSurface.Avalonia.csproj" />
   </Folder>
   <Folder Name="/tools/">
+    <Project Path="tools/file-transfer/src/FileTransfer.Core/FileTransfer.Core.csproj" />
+    <Project Path="tools/file-transfer/src/FileTransfer.MyPowerTools/FileTransfer.MyPowerTools.csproj" />
+    <Project Path="tools/file-transfer/src/FileTransfer.Surface/FileTransfer.Surface.csproj" />
     <Project Path="tools/adb-forwarder/current-integration/src/AdbForwarder.MyPowerTools/AdbForwarder.MyPowerTools.csproj" />
     <Project Path="tools/adb-forwarder/current-integration/src/AdbForwarder.Surface/AdbForwarder.Surface.csproj" />
     <Project Path="tools/local-lag-cleaner/original-source/src/LocalLagCleaner.Cli/LocalLagCleaner.Cli.csproj" />
@@ -71,6 +75,11 @@
     <Project Path="tools/smartbird-thermostat/current-integration/src/SmartBirdThermostat.MyPowerTools/SmartBirdThermostat.MyPowerTools.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/MobileLayout.Tests/MobileLayout.Tests.csproj" />
+    <Project Path="tools/file-transfer/tests/FileTransfer.Core.Tests/FileTransfer.Core.Tests.csproj" />
+    <Project Path="tools/file-transfer/tests/FileTransfer.Surface.Tests/FileTransfer.Surface.Tests.csproj" />
+    <Project Path="tools/remote-notifications/android-integration/tests/RemoteNotifications.Android.Tests/RemoteNotifications.Android.Tests.csproj" />
+    <Project Path="tools/remote-commands/android-integration/tests/RemoteCommands.Android.Tests/RemoteCommands.Android.Tests.csproj" />
     <Project Path="tests/architecture-gate/ArchitectureGate.csproj" />
     <Project Path="tests/fixtures/test-service-unit/TestServiceUnit.csproj" />
   </Folder>
