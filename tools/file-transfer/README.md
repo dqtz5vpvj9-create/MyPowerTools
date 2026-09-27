@@ -32,3 +32,15 @@ dotnet test tools/file-transfer/tests/FileTransfer.Core.Tests/FileTransfer.Core.
 真实 OpenList 集成测试需要设置 `MPT_OPENLIST_TEST_BINARY` 为官方 v4.2.6 可执行文件路径；未设置时该用例明确跳过。测试会启动自己的 15244 端口服务，建立独立临时目录和 Local 挂载，完成管理员初始化、受限账号创建/更新、上传、收件列表、下载和停止。可用 `MPT_TEST_TEMP` 指定测试临时目录。
 
 测试覆盖：接收密钥错误、路径穿越、大小限制、断线、取消、同名文件、发布成功后才确认（发布异常必须 NACK 且下一个文件仍可接收）、遗留半成品清理、畸形握手不终止监听、监听器丢失上报；批量失败隔离与取消计数；历史/序号持久化、上限与损坏文件保留报错；待发布队列去重、上限与损坏保留报错；网盘重定向同主机明文可跟随且不带账号、外部明文主机被拒绝；设置键白名单与秘密不落盘、后台租约获取/释放、中断传输上报、损坏设置保留原文件并明确失败；多 MPT 专用账号在不明确身份时不被认领（单元 + 官方 OpenList 实测：新建随机账号且其它账号密码不变）。Local 挂载验证的是 OpenList 接口闭环；具体国内网盘仍需要用户完成对应驱动登录后验收。现有 Windows 验收机未连接 Tailscale，跨真实设备的 Tailnet 直传与 macOS 实机验收另行记录。
+
+## Android 数据面验收 fixture（仅测试，无生产代码改动）
+
+`tests/android-dataplane-fixture.sh` 用官方 OpenList v4.2.6 在 `127.0.0.1` 起一个隔离实例（Local 驱动挂载到 `<root>/storage`），通过生产 helper 建立一次性专用账号，写入一条可下载的来件，并打印交给 Android 设备的 WebDAV 地址、`mpt://cloud/...` 连接码、`mpt://pair/...` 设备码与逐字节校验命令。设备侧只需 `adb -s <serial> reverse tcp:<port> tcp:<port>` 即可用手机本地回环访问；不含真实网盘凭据、不涉及 Tailscale、不改动任何设备。
+
+```bash
+bash tools/file-transfer/tests/android-dataplane-fixture.sh start   # 启动 + 准备 + 打印 handover
+bash tools/file-transfer/tests/android-dataplane-fixture.sh status
+bash tools/file-transfer/tests/android-dataplane-fixture.sh stop [--purge]
+```
+
+状态目录默认 `/mnt/cache/data-cache/mpt-file-transfer/android-fixture`，端口默认 15244；端口被占用时直接报错并提示改用 `MPT_FIXTURE_PORT`，不会盲目再起一个服务。准备用例默认跳过（需 `MPT_FIXTURE_ROOT` + `MPT_FIXTURE_ADMIN_PASSWORD`，脚本会设置），因此常规 `dotnet test` 仍是 55 通过 + 1 跳过。

@@ -210,7 +210,7 @@ public sealed class MainActivity : AvaloniaMainActivity
             IReadOnlyList<(string Id, string Title)> targets;
             if (intent.Action == A.Content.Intent.ActionView && intent.DataString is { } link)
             {
-                AndroidStartupLog.Info("intent", "Deep link " + link);
+                AndroidStartupLog.Info("intent", "Received a tool link");
                 targets = AndroidHost.ActivationTargets(link);
                 activations.Add(link);
             }
