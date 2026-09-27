@@ -7,6 +7,7 @@
     <Project Path="src/MyPowerTools.MobileRemoteCommands/MyPowerTools.MobileRemoteCommands.csproj" />
   </Folder>
   <Folder Name="/src/tests/">
+    <Project Path="src/MyPowerTools.MobileRemoteCommands/tests/MyPowerTools.MobileRemoteCommands.Tests.csproj" />
     <Project Path="src/MyPowerTools.Platform.Android/tests/MyPowerTools.Platform.Android.Tests/MyPowerTools.Platform.Android.Tests.csproj" />
   </Folder>
   <Folder Name="/tools/">

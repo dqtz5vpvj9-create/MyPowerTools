@@ -155,11 +155,8 @@ internal sealed partial class RemoteCommandsMobileView : UserControl, IMptAvalon
         _catalogReloadButton.IsEnabled = vm.CanInteract;
         _catalogCopyButton.IsEnabled = vm.CatalogYaml.Length > 0;
 
-        _settingsDefaultHostField.IsEnabled = vm.CanInteract;
-        _settingsKnownHostsField.IsEnabled = vm.CanInteract;
-        _settingsRetentionField.IsEnabled = vm.CanInteract;
-        _settingsCondaField.IsEnabled = vm.CanInteract;
-        _settingsTimeoutField.IsEnabled = vm.CanInteract;
+        // The five settings controls stay editable while a refresh runs: they hold the user's draft,
+        // and only the save button reflects the busy state (so a click can explain itself).
         _settingsDirtyText.Text = vm.SettingsDirtyText;
         _settingsMessage.Text = vm.SettingsMessage;
         _settingsMessage.IsVisible = vm.HasSettingsMessage;
@@ -283,6 +280,32 @@ internal sealed partial class RemoteCommandsMobileView : UserControl, IMptAvalon
             });
         }
     }
+
+    /// <summary>
+    /// Save click path: the visible control text is committed to the draft first, so a save can never
+    /// validate a value the user has already replaced on screen.
+    /// </summary>
+    private async Task SaveSettingsFromControlsAsync()
+    {
+        _viewModel.CommitSettingsDraft(
+            _settingsDefaultHostField.Text ?? "",
+            _settingsKnownHostsField.Text ?? "",
+            _settingsRetentionField.Text ?? "",
+            _settingsCondaField.Text ?? "",
+            _settingsTimeoutField.Text ?? "");
+        await _viewModel.SaveSettingsAsync();
+    }
+
+    // ---------------------------------------------------------------- test seams
+
+    internal TextBox SettingsRetentionFieldForTests => _settingsRetentionField;
+
+    internal TextBox SettingsKnownHostsFieldForTests => _settingsKnownHostsField;
+
+    internal Button SettingsSaveButtonForTests => _settingsSaveButton;
+
+    /// <summary>Runs exactly what the save button click runs.</summary>
+    internal Task SaveSettingsForTestsAsync() => SaveSettingsFromControlsAsync();
 
     private Task CopyOutputAsync() => CopyTextAsync(_viewModel.OutputText, "输出");
 

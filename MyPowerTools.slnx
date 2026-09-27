@@ -75,6 +75,7 @@
     <Project Path="tools/smartbird-thermostat/current-integration/src/SmartBirdThermostat.MyPowerTools/SmartBirdThermostat.MyPowerTools.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="src/MyPowerTools.MobileRemoteCommands/tests/MyPowerTools.MobileRemoteCommands.Tests.csproj" />
     <Project Path="tests/MobileLayout.Tests/MobileLayout.Tests.csproj" />
     <Project Path="tools/file-transfer/tests/FileTransfer.Core.Tests/FileTransfer.Core.Tests.csproj" />
     <Project Path="tools/file-transfer/tests/FileTransfer.Surface.Tests/FileTransfer.Surface.Tests.csproj" />

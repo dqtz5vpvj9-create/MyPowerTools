@@ -14,13 +14,20 @@ public sealed partial class ShellWorkspaceController
     private readonly Dictionary<string, SurfaceActivationTarget> _activeSurfaceTargets =
         new(StringComparer.OrdinalIgnoreCase);
 
-    private int _activationSurfaceActivations;
-
     /// <summary>
-    /// Number of times an activation had to create a surface instead of reusing the one already on
-    /// screen. Reuse is the point: a rebuilt surface loses the selection and state the user had.
+    /// True while a tool page actually owns the content host. The page load sets the current tool id
+    /// before the surface finishes loading, so this also requires the hosted view to be present. The
+    /// mobile shell decides "back" from this rather than from a navigation highlight: a tool page can
+    /// be open while the top-level Home item still reads as selected.
     /// </summary>
-    internal int ActivationSurfaceActivations => Volatile.Read(ref _activationSurfaceActivations);
+    public bool IsToolPageOpen =>
+        !string.IsNullOrWhiteSpace(_currentToolId) && GetCurrentExternalSdkToolView() is not null;
+
+    /// <summary>True while the top-level Home page is the current page.</summary>
+    public bool IsHomePage => string.Equals(_currentPage, HomePage, StringComparison.OrdinalIgnoreCase);
+
+    /// <summary>The page key currently shown in the content host.</summary>
+    public string CurrentPageKey => _currentPage;
 
     /// <summary>
     /// Receives one activation delivered by the platform (share sheet, deep link, "open with", or the
@@ -115,31 +122,47 @@ public sealed partial class ShellWorkspaceController
         var target = new SurfaceActivationTarget(activation.ToolId, routeId, handler);
         _activeSurfaceTargets[activation.ToolId] = target;
         _currentToolRouteId = routeId;
-        Interlocked.Increment(ref _activationSurfaceActivations);
         await ForwardActivationAsync(target, activation, routeId).ConfigureAwait(true);
     }
 
     /// <summary>
-    /// A cached target only counts while its surface is still the one hosted on screen. A stale
-    /// entry would otherwise route an activation into a surface that was already disposed.
+    /// Resolves the surface that should receive an activation. The instance currently hosted for the
+    /// requested tool wins, whether it was opened by an earlier activation or by hand from the tool
+    /// catalog — a manually opened tool is just as live, and rebuilding it would drop the files the
+    /// user had already selected. A cached entry only counts while its surface is still the hosted one;
+    /// anything else would route an activation into a surface that was already disposed.
     /// </summary>
     private bool TryGetLiveTarget(string toolId, out SurfaceActivationTarget target)
     {
         target = null!;
-        if (!_activeSurfaceTargets.TryGetValue(toolId, out var candidate))
+        if (string.IsNullOrWhiteSpace(toolId))
         {
             return false;
         }
 
-        var hosted = GetCurrentExternalSdkToolView()?.ManagedSurface;
-        if (!ReferenceEquals(hosted, candidate.Handler))
+        var hosted = GetCurrentExternalSdkToolView()?.ManagedSurface as IMptAvaloniaSurfaceActivationHandler;
+        var hasCached = _activeSurfaceTargets.TryGetValue(toolId, out var cached);
+        if (hosted is not null && hasCached && ReferenceEquals(hosted, cached!.Handler))
+        {
+            target = cached!;
+            return true;
+        }
+
+        if (hosted is not null &&
+            string.Equals(_currentToolId, toolId, StringComparison.OrdinalIgnoreCase))
+        {
+            var live = new SurfaceActivationTarget(_currentToolId, _currentToolRouteId, hosted);
+            _activeSurfaceTargets[toolId] = live;
+            target = live;
+            return true;
+        }
+
+        if (hasCached)
         {
             _activeSurfaceTargets.Remove(toolId);
-            return false;
         }
 
-        target = candidate;
-        return true;
+        return false;
     }
 
     private async Task ForwardActivationAsync(

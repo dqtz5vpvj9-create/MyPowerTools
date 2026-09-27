@@ -11,12 +11,17 @@ namespace MyPowerTools.Android;
 
 [A.App.Activity(Label = "MyPowerTools", MainLauncher = true, Exported = true, Theme = "@style/Theme.AppCompat.DayNight.NoActionBar",
     ConfigurationChanges = A.Content.PM.ConfigChanges.Orientation | A.Content.PM.ConfigChanges.ScreenSize | A.Content.PM.ConfigChanges.UiMode,
-    LaunchMode = A.Content.PM.LaunchMode.SingleTop)]
+    // SingleTask keeps exactly one activity (and therefore one in-process runtime, one Shell and one
+    // static ready task) in the task. With SingleTop a share arriving from Files could create a
+    // second instance, overwrite the static Shell and orphan the activation that was still waiting
+    // for the first one; every later intent is delivered through OnNewIntent instead.
+    LaunchMode = A.Content.PM.LaunchMode.SingleTask)]
 [A.App.IntentFilter([A.Content.Intent.ActionSend, A.Content.Intent.ActionSendMultiple], Categories = [A.Content.Intent.CategoryDefault], DataMimeType = "*/*")]
 [A.App.IntentFilter([A.Content.Intent.ActionView], Categories = [A.Content.Intent.CategoryDefault, A.Content.Intent.CategoryBrowsable], DataScheme = "mpt")]
 [A.App.IntentFilter([A.Content.Intent.ActionView], Categories = [A.Content.Intent.CategoryDefault, A.Content.Intent.CategoryBrowsable], DataScheme = "mypowertools")]
 public sealed class MainActivity : AvaloniaMainActivity
 {
+    private static readonly object ShellGate = new();
     private static MobileShellView? _shell;
     private static TaskCompletionSource<MobileShellView> _shellReady = NewShellReady();
     private static TaskCompletionSource<MobileShellView> NewShellReady()
@@ -28,9 +33,28 @@ public sealed class MainActivity : AvaloniaMainActivity
         return completion;
     }
 
+    /// <summary>
+    /// The completion waiting activations observe. It is replaced only when it can no longer be
+    /// satisfied - a Shell is already live (the activity was recreated) or the previous attempt
+    /// failed - so two files shared while the first Shell is still being built wait on the same
+    /// instance instead of one of them waiting forever on an orphaned task.
+    /// </summary>
+    private static TaskCompletionSource<MobileShellView> ArmShellReady()
+    {
+        lock (ShellGate)
+        {
+            if (_shellReady.Task.IsCompleted)
+            {
+                _shellReady = NewShellReady();
+            }
+
+            return _shellReady;
+        }
+    }
+
     internal static Avalonia.Controls.Control CreateMainView()
     {
-        _shellReady = NewShellReady();
+        ArmShellReady();
         var view = new AndroidStartupView();
         _ = InitializeAsync(view);
         return view;
@@ -38,6 +62,7 @@ public sealed class MainActivity : AvaloniaMainActivity
 
     private static async Task InitializeAsync(AndroidStartupView view)
     {
+        var ready = ArmShellReady();
         try
         {
             await AndroidHost.InitializeAsync();
@@ -46,16 +71,17 @@ public sealed class MainActivity : AvaloniaMainActivity
                 AndroidStartupLog.Info("shell", "Building the touch Shell view");
                 _shell = new MobileShellView();
                 view.ShowShell(_shell);
-                _shellReady.TrySetResult(_shell);
+                ready.TrySetResult(_shell);
             });
         }
         catch (Exception ex)
         {
             AndroidStartupLog.Error("startup", ex);
-            _shellReady.TrySetException(ex);
+            ready.TrySetException(ex);
             await Dispatcher.UIThread.InvokeAsync(() => view.ShowFailure(ex, () =>
             {
                 AndroidStartupLog.Info("retry", "User requested a startup retry");
+                ArmShellReady();
                 _ = InitializeAsync(view);
             }));
         }
@@ -107,6 +133,14 @@ public sealed class MainActivity : AvaloniaMainActivity
     {
         base.OnNewIntent(intent);
         if (intent is not null) _ = HandleIntentAsync(intent);
+    }
+
+    protected override void OnDestroy()
+    {
+        // The activity (and its visual tree) is gone; the next one arms a fresh ready task instead
+        // of handing activations a control that no longer has a parent.
+        _shell = null;
+        base.OnDestroy();
     }
 
     /// <summary>
@@ -198,7 +232,10 @@ public sealed class MainActivity : AvaloniaMainActivity
             if (targets.Count == 0) throw new InvalidOperationException("尚未启用支持此内容的工具。");
             async Task OpenAsync(string toolId)
             {
+                // Wait for the Shell that actually owns the runtime, not for a timer: a share that
+                // arrives during startup must land on the same instance the UI shows.
                 var shell = await _shellReady.Task;
+                AndroidStartupLog.Info("intent", $"Activating {toolId} with {activations.Count} activation(s)");
                 foreach (var activation in activations)
                     await shell.ActivateAsync(new ToolActivationRequest(toolId, "", activation));
             }

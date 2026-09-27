@@ -12,6 +12,9 @@ using MyPowerTools.AvaloniaSdk;
 using MyPowerTools.Shell.Avalonia.Services;
 using MyPowerTools.Shell.Avalonia.ViewModels;
 using MyPowerTools.Shell.Avalonia.Views;
+using Grpc.Core;
+using MyPowerTools.HostControl;
+using HostProto = MyPowerTools.Protocol.HostControl.V1;
 using MyPowerTools.UI.Controls;
 
 namespace MobileLayout.Tests;
@@ -57,8 +60,6 @@ public sealed class MobileShellTests
         return (shell, workspace, pageHost, window);
     }
 
-    private static int SurfaceActivations(ShellWorkspaceController workspace) => workspace.ActivationSurfaceActivations;
-
     private static string CurrentPage(ShellWorkspaceController workspace) =>
         (string)typeof(ShellWorkspaceController)
             .GetField("_currentPage", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
@@ -67,31 +68,6 @@ public sealed class MobileShellTests
     private static void Pump(Window window)
     {
         for (var pass = 0; pass < 3; pass++) { Dispatcher.UIThread.RunJobs(); window.UpdateLayout(); }
-    }
-
-    private static async Task ActivateAsync(ShellWorkspaceController workspace, params ToolActivationRequest[] requests)
-    {
-        foreach (var request in requests)
-        {
-            await (Task)ActivateToolAsyncMethod.Invoke(workspace, [request])!;
-        }
-    }
-
-    /// <summary>
-    /// Seeds the target the way a loaded page does: the surface is hosted and registered as the live
-    /// activation target for its tool. This runs the same forwarding path production uses, without the
-    /// Runner round trip that a page load would need.
-    /// </summary>
-    private static void SeedOpenSurface(ShellWorkspaceController workspace, string toolId, string routeId, IMptAvaloniaSurfaceActivationHandler handler)
-    {
-        var targets = (System.Collections.IDictionary)typeof(ShellWorkspaceController)
-            .GetField("_activeSurfaceTargets", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
-            .GetValue(workspace)!;
-        var targetType = typeof(ShellWorkspaceController).GetNestedType("SurfaceActivationTarget")!;
-        targets[toolId] = Activator.CreateInstance(targetType, toolId, routeId, handler)!;
-        typeof(ShellWorkspaceController)
-            .GetField("_currentToolRouteId", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
-            .SetValue(workspace, routeId);
     }
 
     [AvaloniaTheory]
@@ -313,31 +289,44 @@ public sealed class MobileShellTests
         }
     }
 
+    /// <summary>
+    /// Regression for the Android multi-share failure. The shell starts its initial open when it is
+    /// attached, and the platform used to deliver the share activation before that finished: the late
+    /// open navigated to Home, began a new workspace generation and discarded the activation's page
+    /// load, so the user landed back on the gallery with an empty selection. The activation now waits
+    /// for <see cref="MobileShellView.Ready"/>. Nothing is seeded here — the descriptor comes through
+    /// the real HostControl client and the real page loader.
+    /// </summary>
     [AvaloniaFact]
-    public async Task Activation_reuses_the_open_surface_and_forwards_every_share()
+    public void Activation_that_races_the_initial_open_still_lands_on_the_tool_page()
     {
-        var navigations = new List<string>();
-        var chrome = CreateChrome(navigations.Add);
-        var (shell, workspace, host, window) = CreateShell(chrome, 360);
-        var handler = new RecordingActivationHandler();
-        var view = new ExternalSdkToolView();
-        view.SetManagedSurface(handler);
-        host.Content = view;
-        var surface = view.ManagedSurface;
-        SeedOpenSurface(workspace, "file-transfer", "main", handler);
-
+        using var host = new StubToolHost("file-transfer", "文件互传");
+        var shell = new MobileShellView();
+        var window = new Window { Width = 360, Height = 800, Content = shell };
         try
         {
-            var shareA = new ToolActivationRequest("file-transfer", "main", "file:///data/cache/shares/a%20file.txt");
-            var shareB = new ToolActivationRequest("file-transfer", "main", "file:///data/cache/shares/b.txt");
-            await ActivateAsync(workspace, shareA, shareB).WaitAsync(TimeSpan.FromSeconds(10));
+            var workspace = WorkspaceOf(shell);
 
-            // The surface that is already on screen received both files and was never rebuilt.
-            Assert.Equal(0, SurfaceActivations(workspace));
-            Assert.Equal([shareA, shareB], handler.Requests);
-            Assert.Same(surface, view.ManagedSurface);
-            Assert.Empty(navigations);
-            Assert.Equal(5, shell.NavigationButtons.Count);
+            // Start the activation in the same turn as the attach, before the initial open can finish.
+            window.Show();
+            Assert.False(shell.Ready.IsCompleted, "the initial open completed before the race could be exercised");
+            var activation = shell.ActivateAsync(
+                new ToolActivationRequest("file-transfer", "main", "file:///data/cache/shares/a%20file.txt"));
+            Assert.False(workspace.IsToolPageOpen, "the tool page opened before the initial catalog load finished");
+            host.CompleteInitialLoad();
+
+            PumpUntil(window, () => shell.Ready.IsCompleted && shell.PageHost.Content is ExternalSdkToolView,
+                "activation did not reach the tool page");
+
+            // Let anything the initial open queued behind it settle, then re-check the page survived.
+            Pump(window);
+            Pump(window);
+            Assert.True(workspace.IsToolPageOpen, "the late initial open navigated away from the activated tool");
+            Assert.Equal("Tools", workspace.CurrentPageKey);
+            Assert.Equal("file-transfer", CurrentToolId(workspace));
+            Assert.IsType<ExternalSdkToolView>(shell.PageHost.Content);
+            Assert.False(workspace.IsHomePage, "the activation was overwritten by the initial Home navigation");
+            Assert.True(activation.IsCompleted, "activation did not finish");
         }
         finally
         {
@@ -345,30 +334,278 @@ public sealed class MobileShellTests
         }
     }
 
+    /// <summary>
+    /// A sequential share (one activation per file) must not rebuild the tool page between files: the
+    /// surface that received the first file is the one that receives the last. The page is opened by the
+    /// real activation path and the surface is hosted through the same call the loader uses, so the
+    /// lookup under test is the production live-surface discovery.
+    /// </summary>
     [AvaloniaFact]
-    public async Task Activation_for_a_different_tool_does_not_reach_the_open_surface()
+    public void Sequential_share_activations_keep_one_tool_page_instance()
     {
-        var chrome = CreateChrome(_ => { });
-        var (_, workspace, host, window) = CreateShell(chrome, 360);
-        var handler = new RecordingActivationHandler();
-        var view = new ExternalSdkToolView();
-        view.SetManagedSurface(handler);
-        host.Content = view;
-        SeedOpenSurface(workspace, "file-transfer", "main", handler);
-
+        using var host = new StubToolHost("file-transfer", "文件互传");
+        var shell = new MobileShellView();
+        var window = new Window { Width = 360, Height = 800, Content = shell };
         try
         {
-            await ActivateAsync(workspace, new ToolActivationRequest("paste-image", "main", "file:///data/cache/shares/c.png"))
-                .WaitAsync(TimeSpan.FromSeconds(10));
+            window.Show();
+            host.CompleteInitialLoad();
+            PumpUntil(window, () => shell.Ready.IsCompleted, "shell never became ready");
 
-            // Without a Runner there is no descriptor for the other tool, so no page can load. The
-            // point is that the mismatch never reached the file-transfer surface in the content host.
-            Assert.Empty(handler.Requests);
+            // The tool is already open the way a catalog tap leaves it, then the files arrive one by one.
+            PumpUntil(window, () => FindToolCard(shell, "file-transfer") is not null, "the tool card was never rendered");
+            FindToolCard(shell, "file-transfer")!.OpenCommand.Execute(null);
+            PumpUntil(window, () => shell.PageHost.Content is ExternalSdkToolView, "the catalog tap did not open the tool page");
+            var opened = Assert.IsType<ExternalSdkToolView>(shell.PageHost.Content);
+            var handler = new RecordingActivationHandler();
+            opened.SetManagedSurface(handler);
+            Pump(window);
+
+            for (var index = 0; index < 3; index++)
+            {
+                var delivered = index + 1;
+                RunActivation(window, shell,
+                    new ToolActivationRequest("file-transfer", "main", $"file:///data/cache/shares/{index}.txt"),
+                    () => handler.Requests.Count == delivered, $"share {index} never reached the open surface");
+            }
+
+            Assert.Same(opened, shell.PageHost.Content);
+            Assert.Same(handler, opened.ManagedSurface);
+            Assert.Equal(3, handler.Requests.Count);
         }
         finally
         {
             window.Close();
         }
+    }
+
+    /// <summary>
+    /// A tool the user opened from the catalog is in no activation map, but it is the live surface for
+    /// that tool. A share arriving afterwards must reach it instead of rebuilding the page and losing
+    /// the files already selected there.
+    /// </summary>
+    [AvaloniaFact]
+    public void Manually_opened_tool_surface_receives_a_later_share()
+    {
+        using var host = new StubToolHost("file-transfer", "文件互传");
+        var shell = new MobileShellView();
+        var window = new Window { Width = 360, Height = 800, Content = shell };
+        try
+        {
+            window.Show();
+            host.CompleteInitialLoad();
+            PumpUntil(window, () => shell.Ready.IsCompleted, "shell never became ready");
+
+            // Open the tool the way a tap on the Home card does - no activation involved yet.
+            PumpUntil(window, () => FindToolCard(shell, "file-transfer") is not null, "the tool card was never rendered");
+            FindToolCard(shell, "file-transfer")!.OpenCommand.Execute(null);
+            PumpUntil(window, () => shell.PageHost.Content is ExternalSdkToolView, "the catalog tap did not open the tool page");
+
+            var openedView = Assert.IsType<ExternalSdkToolView>(shell.PageHost.Content);
+            var handler = new RecordingActivationHandler();
+            openedView.SetManagedSurface(handler);
+            Pump(window);
+
+            RunActivation(window, shell,
+                new ToolActivationRequest("file-transfer", "main", "file:///data/cache/shares/shared.txt"),
+                () => handler.Requests.Count == 1, "the share never reached the manually opened surface");
+
+            Assert.Same(openedView, shell.PageHost.Content);
+            Assert.Same(handler, openedView.ManagedSurface);
+            Assert.Single(handler.Requests);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    private static ToolCardViewModel? FindToolCard(MobileShellView shell, string toolId) =>
+        shell.GetVisualDescendants().OfType<Control>()
+            .Select(control => control.DataContext)
+            .OfType<ToolCardViewModel>()
+            .FirstOrDefault(card => string.Equals(card.ToolId, toolId, StringComparison.OrdinalIgnoreCase));
+
+    /// <summary>
+    /// Back must walk tool page -> gallery -> Home before it lets Android background the app. The old
+    /// check used the navigation highlight, which reports Home while a shared file is open.
+    /// </summary>
+    [AvaloniaFact]
+    public void Back_leaves_the_tool_page_before_it_lets_the_app_background()
+    {
+        using var host = new StubToolHost("file-transfer", "文件互传");
+        var shell = new MobileShellView();
+        var window = new Window { Width = 360, Height = 800, Content = shell };
+        try
+        {
+            window.Show();
+            host.CompleteInitialLoad();
+            PumpUntil(window, () => shell.Ready.IsCompleted, "shell never became ready");
+            var workspace = WorkspaceOf(shell);
+
+            RunActivation(window, shell,
+                new ToolActivationRequest("file-transfer", "main", "file:///data/cache/shares/a.txt"),
+                () => shell.PageHost.Content is ExternalSdkToolView, "tool page did not open");
+
+            Assert.True(RunBack(window, shell, () => !workspace.IsToolPageOpen, "back did not leave the tool page"),
+                "back left the app while a tool page was open");
+            Assert.Equal("Tools", workspace.CurrentPageKey);
+
+            Assert.True(RunBack(window, shell, () => workspace.IsHomePage, "back did not return Home"),
+                "back left the app from the tools gallery");
+            Assert.Equal("Home", workspace.CurrentPageKey);
+
+            Assert.False(RunBack(window, shell, () => true, "back did not settle from Home"),
+                "back must let Android background the app from Home");
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    private static ShellWorkspaceController WorkspaceOf(MobileShellView shell) =>
+        (ShellWorkspaceController)typeof(MobileShellView)
+            .GetField("_workspace", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
+            .GetValue(shell)!;
+
+    private static string CurrentToolId(ShellWorkspaceController workspace) =>
+        (string)typeof(ShellWorkspaceController)
+            .GetField("_currentToolId", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!
+            .GetValue(workspace)!;
+
+    /// <summary>Runs an activation without blocking the test thread on UI continuations.</summary>
+    private static void RunActivation(Window window, MobileShellView shell, ToolActivationRequest request, Func<bool> observed, string message)
+    {
+        var task = shell.ActivateAsync(request);
+        PumpUntil(window, () => task.IsCompleted && observed(), message);
+        task.GetAwaiter().GetResult();
+    }
+
+    private static bool RunBack(Window window, MobileShellView shell, Func<bool> observed, string message)
+    {
+        var task = shell.HandleBackAsync();
+        PumpUntil(window, () => task.IsCompleted && observed(), message);
+        return task.GetAwaiter().GetResult();
+    }
+
+    /// <summary>
+    /// Pumps the dispatcher until the condition holds or the deadline passes. A loading dotnet surface
+    /// needs a real assembly-context load, so this waits on wall-clock time rather than a pass count.
+    /// </summary>
+    private static void PumpUntil(Window window, Func<bool> condition, string message)
+    {
+        var deadline = DateTime.UtcNow + TimeSpan.FromSeconds(30);
+        while (!condition() && DateTime.UtcNow < deadline)
+        {
+            Dispatcher.UIThread.RunJobs();
+            window.UpdateLayout();
+            Thread.Sleep(2);
+        }
+
+        Assert.True(condition(), message);
+    }
+
+    /// <summary>
+    /// Serves tool descriptors through the real HostControl client so activations exercise the
+    /// production page loader without a Runner process.
+    /// </summary>
+    private sealed class StubToolHost : IDisposable
+    {
+        private readonly CallInvoker? _previous;
+        private readonly TaskCompletionSource _listToolsGate = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        private int _getToolCalls;
+
+        public StubToolHost(string toolId, string title, string? surfaceAssembly = null, string? surfaceType = null)
+        {
+            Descriptor = new HostProto.ToolDescriptor
+            {
+                ToolId = toolId,
+                Title = title,
+                Description = "test tool",
+                ToolType = surfaceAssembly is null ? "native-tool" : "dotnet-surface",
+                PrimaryRouteId = "main",
+                Availability = "available",
+                State = "ready",
+                SourceDirectory = "/nonexistent"
+            };
+            Descriptor.Routes.Add(surfaceAssembly is null
+                ? new HostProto.ToolRoute { RouteId = "main", Title = title, SurfaceKind = "native" }
+                : new HostProto.ToolRoute
+                {
+                    RouteId = "main",
+                    Title = title,
+                    SurfaceKind = "dotnet",
+                    Assembly = surfaceAssembly,
+                    Type = surfaceType ?? ""
+                });
+            _previous = HostControlClient.EmbeddedInvoker;
+            HostControlClient.EmbeddedInvoker = new DescriptorInvoker(this);
+        }
+
+        public HostProto.ToolDescriptor Descriptor { get; }
+
+        public int GetToolCalls => Volatile.Read(ref _getToolCalls);
+
+        /// <summary>Releases the initial catalog load, which models a Runner that answers slowly.</summary>
+        public void CompleteInitialLoad() => _listToolsGate.TrySetResult();
+
+        internal Task WaitInitialLoadAsync() => _listToolsGate.Task;
+
+        internal void CountGetTool() => Interlocked.Increment(ref _getToolCalls);
+
+        public void Dispose() => HostControlClient.EmbeddedInvoker = _previous;
+    }
+
+    private sealed class DescriptorInvoker(StubToolHost host) : CallInvoker
+    {
+        public override AsyncUnaryCall<TResponse> AsyncUnaryCall<TRequest, TResponse>(
+            Method<TRequest, TResponse> method,
+            string? hostName,
+            CallOptions options,
+            TRequest request)
+        {
+            if (method.Name == "GetTool")
+            {
+                host.CountGetTool();
+                return Unary((TResponse)(object)host.Descriptor);
+            }
+
+            if (method.Name == "ListTools")
+            {
+                var response = new HostProto.ListToolsResponse();
+                response.Tools.Add(host.Descriptor);
+                return Unary((TResponse)(object)response, host.WaitInitialLoadAsync());
+            }
+
+            return Failure<TResponse>(method.Name);
+        }
+
+        private static AsyncUnaryCall<T> Unary<T>(T response, Task? responseTask = null) => new(
+            responseTask is null ? Task.FromResult(response) : responseTask.ContinueWith(_ => response, TaskScheduler.Default),
+            Task.FromResult(new Metadata()),
+            () => Status.DefaultSuccess,
+            () => new Metadata(),
+            () => { });
+
+        private static AsyncUnaryCall<T> Failure<T>(string name) => new(
+            Task.FromException<T>(new RpcException(new Status(StatusCode.Unimplemented, name))),
+            Task.FromResult(new Metadata()),
+            () => new Status(StatusCode.Unimplemented, name),
+            () => new Metadata(),
+            () => { });
+
+        public override AsyncClientStreamingCall<TRequest, TResponse> AsyncClientStreamingCall<TRequest, TResponse>(
+            Method<TRequest, TResponse> method, string? hostName, CallOptions options) => throw new NotSupportedException(method.Name);
+
+        public override AsyncDuplexStreamingCall<TRequest, TResponse> AsyncDuplexStreamingCall<TRequest, TResponse>(
+            Method<TRequest, TResponse> method, string? hostName, CallOptions options) => throw new NotSupportedException(method.Name);
+
+        public override AsyncServerStreamingCall<TResponse> AsyncServerStreamingCall<TRequest, TResponse>(
+            Method<TRequest, TResponse> method, string? hostName, CallOptions options, TRequest request) => throw new NotSupportedException(method.Name);
+
+        public override TResponse BlockingUnaryCall<TRequest, TResponse>(
+            Method<TRequest, TResponse> method, string? hostName, CallOptions options, TRequest request) => throw new NotSupportedException(method.Name);
     }
 
     private sealed class RecordingActivationHandler : Control, IMptAvaloniaSurfaceActivationHandler

@@ -391,7 +391,7 @@ internal sealed partial class RemoteCommandsMobileView
 
     private Border BuildSettingsCard()
     {
-        _settingsSaveButton.Click += async (_, _) => await _viewModel.SaveSettingsAsync();
+        _settingsSaveButton.Click += async (_, _) => await SaveSettingsFromControlsAsync();
         _settingsResetButton.Click += (_, _) => _viewModel.DiscardSettingsEdits();
 
         var content = new StackPanel { Spacing = 8 };

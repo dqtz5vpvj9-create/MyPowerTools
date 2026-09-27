@@ -34,6 +34,19 @@
 
   <ItemGroup>
     <!--
+      Regression tests live in tests/ and are a separate project; they must never be compiled into
+      the surface assembly that the Android host loads.
+    -->
+    <Compile Remove="tests/**" />
+    <None Remove="tests/**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <InternalsVisibleTo Include="MyPowerTools.MobileRemoteCommands.Tests" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!--
       Shipped product sources, linked read-only. RemoteCommandsYaml's validator calls
       RemoteCommandsStore.IsValidHost, and the store's atomic writer is RemoteCommandsFile, so that
       three-file set is the compile closure of the parser. This surface uses only

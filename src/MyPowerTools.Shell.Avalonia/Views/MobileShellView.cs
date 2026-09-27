@@ -19,6 +19,7 @@ public sealed class MobileShellView : UserControl, IAsyncDisposable
     private ShellWorkspaceController _workspace = null!;
     private ShellChromeViewModel _chrome = null!;
     private readonly List<Button> _navigationButtons = [];
+    private readonly TaskCompletionSource _ready = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private ContentControl _pageHost = null!;
     private bool _opened;
 
@@ -171,12 +172,37 @@ public sealed class MobileShellView : UserControl, IAsyncDisposable
         {
             if (_opened) return;
             _opened = true;
-            try { await _workspace.OpenAsync(); }
-            catch (Exception ex) { content.Content = new TextBlock { Text = ex.Message, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(20) }; }
+            try
+            {
+                await _workspace.OpenAsync();
+            }
+            catch (Exception ex)
+            {
+                content.Content = new TextBlock { Text = ex.Message, TextWrapping = TextWrapping.Wrap, Margin = new Thickness(20) };
+            }
+            finally
+            {
+                // Published after the initial open, not after construction. OpenAsync navigates to the
+                // current page and starts a new workspace generation, so an activation that arrived
+                // before it finished was discarded and the user landed back on the gallery.
+                _ready.TrySetResult();
+            }
         };
     }
 
-    public Task ActivateAsync(MyPowerTools.Abstractions.ToolActivationRequest request) => _workspace.ActivateToolAsync(request);
+    /// <summary>
+    /// Completes once the workspace finished its initial open and the shell can accept activations.
+    /// Hosts that deliver an activation from outside the UI (the Android share intent) should await
+    /// this before calling <see cref="ActivateAsync"/>; the method also awaits it internally so a
+    /// request that races startup is ordered after it instead of being dropped.
+    /// </summary>
+    public Task Ready => _ready.Task;
+
+    public async Task ActivateAsync(MyPowerTools.Abstractions.ToolActivationRequest request)
+    {
+        await Ready.ConfigureAwait(true);
+        await _workspace.ActivateToolAsync(request).ConfigureAwait(true);
+    }
 
     /// <summary>
     /// The touch bar buttons in page order, for hosts that need to address the real instances.
@@ -186,11 +212,18 @@ public sealed class MobileShellView : UserControl, IAsyncDisposable
     /// <summary>The host that receives the current page. Also rendered by this shell's visual tree.</summary>
     internal ContentControl PageHost => _pageHost;
 
+    /// <summary>
+    /// Android back: close the top overlay, then leave the open tool, then leave a top-level page, and
+    /// only report <see langword="false"/> (let the app go to the background) from Home. This reads the
+    /// workspace's real page state; the previous navigation-highlight check reported "at Home" while a
+    /// shared file was open, so back dropped the user straight out of the app.
+    /// </summary>
     public async Task<bool> HandleBackAsync()
     {
         if (_chrome.IsPermissionPromptOpen) { await _workspace.DismissPermissionPromptAsync(); return true; }
         if (_chrome.IsCommandPaletteOpen) { await _workspace.CloseCommandPaletteAsync(); return true; }
-        if (!_chrome.NavigationItems[0].IsSelected) { await _workspace.ShowPageAsync("Home"); return true; }
+        if (_workspace.IsToolPageOpen) { await _workspace.ShowPageAsync("Tools"); return true; }
+        if (!_workspace.IsHomePage) { await _workspace.ShowPageAsync("Home"); return true; }
         return false;
     }
 

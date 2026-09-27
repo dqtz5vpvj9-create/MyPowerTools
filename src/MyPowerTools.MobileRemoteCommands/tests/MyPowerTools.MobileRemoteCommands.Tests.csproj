@@ -1,0 +1,33 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Regression tests for the phone surface. They drive the real view with a headless Avalonia host and
+    a fake module client, so the settings draft path (TextBox edit -> click save -> module payload) is
+    exercised exactly as on the device without SSH, without the Android host and without touching any
+    real tool data directory.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!-- TestApp uses FluentTheme, exactly like tests/MobileLayout.Tests. The theme ships in its own
+         package for Avalonia 12, so the reference must be explicit here: this project has no Shell
+         project to inherit it from. -->
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.0.5" />
+    <PackageReference Include="Avalonia.Headless.XUnit" Version="12.0.5" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.3.0" />
+    <PackageReference Include="xunit.v3" Version="3.2.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5"><PrivateAssets>all</PrivateAssets></PackageReference>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../MyPowerTools.MobileRemoteCommands.csproj" />
+  </ItemGroup>
+
+</Project>

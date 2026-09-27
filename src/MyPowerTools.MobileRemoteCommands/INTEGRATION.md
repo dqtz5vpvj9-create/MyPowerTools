@@ -85,6 +85,13 @@ Rules:
 * Client-side pre-checks (alias shape via the shipped `RemoteCommandsStore.IsValidHost`, retention
   10–5000, timeout 1–1440) only shorten the feedback loop; the module remains the authority.
 * 还原为模块状态 discards local edits and re-reads the module status.
+* The save click first commits the visible control text into the draft, so a save can never validate a
+  value the user already replaced on screen. Settings property setters pass their property name
+  explicitly (a `[CallerMemberName]` helper used to notify “SetSetting”, which left the two-way binding
+  without a source notification).
+* An async status refresh never overwrites a typed draft: the five settings controls keep the user's
+  text while `SettingsDirty`, and the commands.yaml editor keeps its text while `CatalogDirty`
+  (only 重新载入 or a successful save replaces it).
 
 ## Deep link
 
@@ -97,6 +104,22 @@ returns `false`), so the Shell can fall back to opening the tool page.
 ```bash
 dotnet build src/MyPowerTools.MobileRemoteCommands/MyPowerTools.MobileRemoteCommands.csproj -c Release
 ```
+
+## Tests
+
+`tests/` is a separate xunit + Avalonia.Headless project (excluded from the surface's `Compile` glob) that
+drives the real view: it types into the retention `TextBox`, clicks save, and asserts the exact
+`settings.update` payload. It uses a fake module client, so it needs no SSH, no Android host and writes no
+tool data.
+
+```bash
+dotnet test src/MyPowerTools.MobileRemoteCommands/tests/MyPowerTools.MobileRemoteCommands.Tests.csproj
+```
+
+Covered regressions: invalid edit rejected with the parser message; corrected edit reaching the module;
+visible draft and view model identical after a rejected save; a retry re-sending the same draft; a
+programmatic draft write reaching the typed control; the click path committing the visible text even
+before the binding round-trips.
 
 Output goes to `artifacts/build/bin/MyPowerTools.MobileRemoteCommands/<config>/` per the repository
 artifacts policy; the tool package must copy `MyPowerTools.MobileRemoteCommands.dll` (and its

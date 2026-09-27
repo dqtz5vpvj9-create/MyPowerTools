@@ -584,7 +584,7 @@ internal sealed class RemoteCommandsMobileViewModel : MptObservableViewModel, ID
         }
     }
 
-    public string CatalogDirtyText => CatalogDirty ? "有未保存的修改" : "与模块文件一致";
+    public string CatalogDirtyText => CatalogDirty ? "有未保存的修改" : "已保存";
 
     public string CatalogYamlStatus
     {
@@ -608,9 +608,19 @@ internal sealed class RemoteCommandsMobileViewModel : MptObservableViewModel, ID
 
     public bool CanSaveCatalog => !IsBusy && CatalogDirty && CatalogYaml.Trim().Length > 0;
 
-    /// <summary>Loads the editor from the module payload, falling back to the canonical file it named.</summary>
-    private void ApplyCatalogText(MobileCatalogSnapshot catalog)
+    /// <summary>
+    /// Loads the editor from the module payload, falling back to the canonical file it named. An async
+    /// status refresh must not silently discard unsaved YAML: only an explicit reload or a successful
+    /// save replaces the draft (<paramref name="force"/>).
+    /// </summary>
+    private void ApplyCatalogText(MobileCatalogSnapshot catalog, bool force = false)
     {
+        if (CatalogDirty && !force)
+        {
+            RefreshCommandsFileStatus();
+            return;
+        }
+
         var text = catalog.YamlText;
         if (text.Length == 0 && CommandsPath.Length > 0 && System.IO.File.Exists(CommandsPath))
         {
@@ -650,9 +660,9 @@ internal sealed class RemoteCommandsMobileViewModel : MptObservableViewModel, ID
 
         try
         {
-            ApplyCatalogText(await _client.CatalogAsync(_lifetime.Token).ConfigureAwait(true));
+            ApplyCatalogText(await _client.CatalogAsync(_lifetime.Token).ConfigureAwait(true), force: true);
             CatalogSaveMessage = "";
-            SetFeedback("已重新载入模块中的 commands.yaml。", "info");
+            SetFeedback("已重新载入 commands.yaml。", "info");
         }
         catch (OperationCanceledException)
         {
@@ -673,7 +683,7 @@ internal sealed class RemoteCommandsMobileViewModel : MptObservableViewModel, ID
         }
 
         CatalogYaml = text;
-        CatalogSaveMessage = "已导入剪贴板内容；保存后由模块校验并写入 commands.yaml。";
+        CatalogSaveMessage = "已粘贴命令配置，保存后生效。";
     }
 
     /// <summary>
@@ -696,7 +706,7 @@ internal sealed class RemoteCommandsMobileViewModel : MptObservableViewModel, ID
             var catalog = await _client.CatalogAsync(_lifetime.Token).ConfigureAwait(true);
             Commands = catalog.Commands;
             CatalogError = catalog.Error;
-            ApplyCatalogText(catalog);
+            ApplyCatalogText(catalog, force: true);
             SelectDefaultCommand();
             CatalogSaveMessage = $"已保存 commands.yaml（{Commands.Count} 个命令）。";
             SetFeedback("命令配置已保存。", "success");
@@ -721,31 +731,31 @@ internal sealed class RemoteCommandsMobileViewModel : MptObservableViewModel, ID
     public string SettingsDefaultHost
     {
         get => _settingsDefaultHost;
-        set => SetSetting(ref _settingsDefaultHost, value);
+        set => SetSetting(ref _settingsDefaultHost, value, nameof(SettingsDefaultHost));
     }
 
     public string SettingsKnownHosts
     {
         get => _settingsKnownHosts;
-        set => SetSetting(ref _settingsKnownHosts, value);
+        set => SetSetting(ref _settingsKnownHosts, value, nameof(SettingsKnownHosts));
     }
 
     public string SettingsRetention
     {
         get => _settingsRetention;
-        set => SetSetting(ref _settingsRetention, value);
+        set => SetSetting(ref _settingsRetention, value, nameof(SettingsRetention));
     }
 
     public string SettingsCondaExecutable
     {
         get => _settingsCondaExecutable;
-        set => SetSetting(ref _settingsCondaExecutable, value);
+        set => SetSetting(ref _settingsCondaExecutable, value, nameof(SettingsCondaExecutable));
     }
 
     public string SettingsTimeoutMinutes
     {
         get => _settingsTimeoutMinutes;
-        set => SetSetting(ref _settingsTimeoutMinutes, value);
+        set => SetSetting(ref _settingsTimeoutMinutes, value, nameof(SettingsTimeoutMinutes));
     }
 
     public bool SettingsDirty
@@ -761,9 +771,9 @@ internal sealed class RemoteCommandsMobileViewModel : MptObservableViewModel, ID
         }
     }
 
-    public string SettingsDirtyText => SettingsDirty ? "有未保存的修改" : "与模块状态一致";
+    public string SettingsDirtyText => SettingsDirty ? "有未保存的修改" : "已保存";
 
-    public bool CanSaveSettings => !IsBusy;
+    public bool CanSaveSettings => SettingsDirty;
 
     public string SettingsMessage
     {
@@ -786,11 +796,7 @@ internal sealed class RemoteCommandsMobileViewModel : MptObservableViewModel, ID
         _settingsRetention = state.HistoryRetention.ToString();
         _settingsCondaExecutable = state.CondaExecutable;
         _settingsTimeoutMinutes = state.CommandTimeoutMinutes.ToString();
-        OnPropertyChanged(nameof(SettingsDefaultHost));
-        OnPropertyChanged(nameof(SettingsKnownHosts));
-        OnPropertyChanged(nameof(SettingsRetention));
-        OnPropertyChanged(nameof(SettingsCondaExecutable));
-        OnPropertyChanged(nameof(SettingsTimeoutMinutes));
+        NotifySettingsDraftChanged();
     }
 
     /// <summary>Drops local settings edits and restores what the module currently has.</summary>
@@ -802,20 +808,51 @@ internal sealed class RemoteCommandsMobileViewModel : MptObservableViewModel, ID
             ApplySettingsDraft(state);
         }
 
-        SettingsMessage = "已还原为模块当前状态。";
+        SettingsMessage = "已还原为已保存的设置。";
     }
 
     /// <summary>All five keys are stored by the module; the surface writes no settings file itself.</summary>
     public string ModuleSettingsHint =>
-        "五项设置都通过模块的 settings.update 校验并保存；只有整体保存成功才会显示为与模块一致。";
+        "修改完成后，点保存使设置生效。";
 
-    private void SetSetting(ref string field, string value)
+    private void SetSetting(ref string field, string value, string propertyName)
     {
-        if (SetProperty(ref field, value))
+        // The property name must be passed in: SetProperty's [CallerMemberName] would report
+        // "SetSetting", leaving the two-way binding of that field without a source notification.
+        if (SetProperty(ref field, value, propertyName))
         {
             SettingsDirty = true;
             OnPropertyChanged(nameof(CanSaveSettings));
         }
+    }
+
+    /// <summary>
+    /// Pushes what the user currently sees in the five settings controls into the draft before a save.
+    /// The click path therefore never depends on a binding write-back having happened, so the visible
+    /// draft and the saved draft cannot drift apart.
+    /// </summary>
+    public void CommitSettingsDraft(
+        string defaultHost,
+        string knownHosts,
+        string retention,
+        string condaExecutable,
+        string timeoutMinutes)
+    {
+        SettingsDefaultHost = defaultHost;
+        SettingsKnownHosts = knownHosts;
+        SettingsRetention = retention;
+        SettingsCondaExecutable = condaExecutable;
+        SettingsTimeoutMinutes = timeoutMinutes;
+    }
+
+    /// <summary>Re-asserts the draft to the view; used after a rejected save so both sides stay identical.</summary>
+    private void NotifySettingsDraftChanged()
+    {
+        OnPropertyChanged(nameof(SettingsDefaultHost));
+        OnPropertyChanged(nameof(SettingsKnownHosts));
+        OnPropertyChanged(nameof(SettingsRetention));
+        OnPropertyChanged(nameof(SettingsCondaExecutable));
+        OnPropertyChanged(nameof(SettingsTimeoutMinutes));
     }
 
     /// <summary>
@@ -827,6 +864,9 @@ internal sealed class RemoteCommandsMobileViewModel : MptObservableViewModel, ID
     {
         if (IsBusy)
         {
+            // Never drop the click silently: the previous message would look like a repeated failure.
+            SettingsMessage = "正在刷新，请稍后再保存。";
+            SetFeedback(SettingsMessage, "info");
             return;
         }
 
@@ -877,7 +917,7 @@ internal sealed class RemoteCommandsMobileViewModel : MptObservableViewModel, ID
             // Only a complete save marks the draft clean; a rejected value keeps every edit on screen.
             SettingsDirty = false;
             await RefreshCoreAsync().ConfigureAwait(true);
-            SettingsMessage = "设置已保存：模块已校验并生效。";
+            SettingsMessage = "设置已保存。";
             SetFeedback(SettingsMessage, "success");
         }
         catch (OperationCanceledException)
@@ -887,6 +927,7 @@ internal sealed class RemoteCommandsMobileViewModel : MptObservableViewModel, ID
         {
             SettingsMessage = $"保存设置失败（草稿已保留）：{exception.Message}";
             SetFeedback(exception.Message, "error");
+            NotifySettingsDraftChanged();
         }
         finally
         {
@@ -1023,7 +1064,7 @@ internal sealed class RemoteCommandsMobileViewModel : MptObservableViewModel, ID
         }
         catch (Exception exception)
         {
-            StatusText = "读取模块状态失败";
+            StatusText = "读取状态失败";
             SetFeedback(exception.Message, "error");
         }
         finally
@@ -1079,7 +1120,7 @@ internal sealed class RemoteCommandsMobileViewModel : MptObservableViewModel, ID
         if (!string.IsNullOrWhiteSpace(state.ActiveInvocationId) && !IsRunning)
         {
             IsRunning = true;
-            RunStateText = $"模块正在执行（阶段 {Or(state.ActiveStage, "未知")}）";
+            RunStateText = $"正在执行（阶段 {Or(state.ActiveStage, "未知")}）";
         }
 
         StatusText = state.TransportAvailable
@@ -1098,7 +1139,7 @@ internal sealed class RemoteCommandsMobileViewModel : MptObservableViewModel, ID
         }
         SettingsSummary =
             $"共享 settings.json：默认主机 {Or(state.DefaultHost, "未设置")} · 别名 {state.KnownHostAliases.Count} 个 · " +
-            $"历史保留 {state.HistoryRetention} 条 · 模块偏好：超时 {state.CommandTimeoutMinutes} 分钟 · CONDA_EXE {Or(state.CondaExecutable, "未设置")}";
+            $"历史保留 {state.HistoryRetention} 条 · 超时 {state.CommandTimeoutMinutes} 分钟 · CONDA_EXE {Or(state.CondaExecutable, "未设置")}";
     }
 
     private void ApplyHosts(MobileHostsSnapshot snapshot)
@@ -1537,7 +1578,7 @@ internal sealed class RemoteCommandsMobileViewModel : MptObservableViewModel, ID
         var path = CommandsPath;
         if (string.IsNullOrWhiteSpace(path))
         {
-            CommandsFileStatus = "模块尚未报告 commands.yaml 路径。";
+            CommandsFileStatus = "命令配置尚未加载。";
             return;
         }
 
@@ -1545,7 +1586,7 @@ internal sealed class RemoteCommandsMobileViewModel : MptObservableViewModel, ID
         {
             if (!System.IO.File.Exists(path))
             {
-                CommandsFileStatus = "commands.yaml 不存在；模块会写入默认目录。";
+                CommandsFileStatus = "尚未创建命令配置，保存后即可使用。";
                 return;
             }
 
