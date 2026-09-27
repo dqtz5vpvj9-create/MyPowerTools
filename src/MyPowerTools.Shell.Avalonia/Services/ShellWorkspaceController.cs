@@ -387,8 +387,14 @@ public sealed partial class ShellWorkspaceController : IAsyncDisposable
             }
         }
 
-        if (plan.ReloadCurrentPage)
+        if (plan.ReloadCurrentPage && !IsToolPageActive)
         {
+            // An open tool page shares the "Tools" page key with the catalog. Reloading that key here
+            // used to clear the current tool, bump the workspace generation and replace the loading or
+            // open tool page with the gallery: on a cold start the registry.loaded / module.enabled
+            // burst arrives while the share activation is still loading its surface, so the file list
+            // was thrown away. With a tool page active the refresh is a no-op; the catalog reloads when
+            // the user returns to it.
             await ShowPageAsync(_currentPage);
         }
     }

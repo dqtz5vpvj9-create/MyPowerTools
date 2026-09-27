@@ -23,6 +23,14 @@ public sealed partial class ShellWorkspaceController
     public bool IsToolPageOpen =>
         !string.IsNullOrWhiteSpace(_currentToolId) && GetCurrentExternalSdkToolView() is not null;
 
+    /// <summary>
+    /// True while a tool page is current, including the window before its surface is hosted. Page
+    /// refreshes must not navigate while this holds: a tool page uses the same "Tools" page key as the
+    /// catalog, so reloading that key replaced a loading tool page with the gallery and dropped the
+    /// activation that opened it.
+    /// </summary>
+    internal bool IsToolPageActive => !string.IsNullOrWhiteSpace(_currentToolId);
+
     /// <summary>True while the top-level Home page is the current page.</summary>
     public bool IsHomePage => string.Equals(_currentPage, HomePage, StringComparison.OrdinalIgnoreCase);
 

@@ -222,7 +222,7 @@ public sealed class MobileShellView : UserControl, IAsyncDisposable
     {
         if (_chrome.IsPermissionPromptOpen) { await _workspace.DismissPermissionPromptAsync(); return true; }
         if (_chrome.IsCommandPaletteOpen) { await _workspace.CloseCommandPaletteAsync(); return true; }
-        if (_workspace.IsToolPageOpen) { await _workspace.ShowPageAsync("Tools"); return true; }
+        if (_workspace.IsToolPageActive) { await _workspace.ShowPageAsync("Tools"); return true; }
         if (!_workspace.IsHomePage) { await _workspace.ShowPageAsync("Home"); return true; }
         return false;
     }

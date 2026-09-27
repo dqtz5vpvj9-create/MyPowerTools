@@ -18,8 +18,6 @@ public sealed class MptAndroidApplication(nint handle, JniHandleOwnership owners
 
     public override void OnCreate()
     {
-        // Set the app-owned temporary directory before the host loads any tool modules.
-        ApplyWritableTempDirectory();
         base.OnCreate();
         AndroidStartupLog.UseRuntimeLogDirectory(null);
         AndroidStartupLog.Info("application", "Process start");
@@ -37,20 +35,4 @@ public sealed class MptAndroidApplication(nint handle, JniHandleOwnership owners
             AndroidStartupLog.Error("java-callable", args.Exception);
     }
 
-    /// <summary>
-    /// The CoreCLR PAL falls back to <c>/data/local/tmp</c> when <c>TMPDIR</c> is unset, and an app
-    /// process cannot write there: named-mutex files and other temp paths then fail with EACCES, so
-    /// a module that takes a cross-process lock dies while it loads ("The system cannot open the
-    /// device or file specified ... mkdtemp(/data/local/tmp/.dotnet.*) == nullptr; errno == EACCES").
-    /// Both the managed environment and the native environment are pointed at the app cache
-    /// directory; the native <c>setenv</c> matters because the PAL reads <c>TMPDIR</c> itself.
-    /// This only relocates temp files - it does not replace or weaken any host locking.
-    /// </summary>
-    private void ApplyWritableTempDirectory()
-    {
-        var directory = CacheDir!.AbsolutePath;
-        Environment.SetEnvironmentVariable("TMPDIR", directory);
-        A.Systems.Os.Setenv("TMPDIR", directory, true);
-        AndroidStartupLog.Info("tmpdir", "TMPDIR=" + directory);
-    }
 }

@@ -22,6 +22,15 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <!--
+      Same Android lock swap as the module adapter: this project compiles the shipped
+      RemoteNotificationsLegacyStore, whose named Mutex fails on Android. The file lock is linked
+      here (not referenced) so the surface and the module lock the same app-private lock file.
+    -->
+    <Using Include="RemoteNotifications.Android.RemoteNotificationAndroidFileLock" Alias="Mutex" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="Avalonia" Version="12.0.5" />
     <PackageReference Include="MyPowerTools.ToolSdk" Version="0.2.0" />
     <PackageReference Include="MyPowerTools.AvaloniaSdk" Version="0.2.1" />
@@ -29,6 +38,8 @@
 
   <ItemGroup>
     <!-- Shipped product sources, linked read-only. Never edit these through this project. -->
+    <Compile Include="$(MyPowerToolsRepoRoot)/tools/remote-notifications/android-integration/src/RemoteNotifications.Android/RemoteNotificationAndroidFileLock.cs"
+             Link="Linked\RemoteNotificationAndroidFileLock.cs" />
     <Compile Include="$(MyPowerToolsRepoRoot)/tools/remote-notifications/current-integration/src/RemoteNotifications.Surface/Services/RemoteNotificationsLegacyStore.cs"
              Link="Linked\RemoteNotificationsLegacyStore.cs" />
     <Compile Include="$(MyPowerToolsRepoRoot)/tools/remote-notifications/current-integration/src/RemoteNotifications.Surface/Services/RemoteNotificationSettingsStore.cs"

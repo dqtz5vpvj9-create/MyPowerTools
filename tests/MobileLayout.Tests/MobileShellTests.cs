@@ -427,6 +427,103 @@ public sealed class MobileShellTests
             .FirstOrDefault(card => string.Equals(card.ToolId, toolId, StringComparison.OrdinalIgnoreCase));
 
     /// <summary>
+    /// Cold start regression: the runtime emits its registry.loaded / module.enabled burst after the
+    /// shell is up, and that refresh used to reload the "Tools" page key while a share activation was
+    /// still loading its surface. The reload cleared the current tool, started a new workspace
+    /// generation and replaced the loading tool page with the gallery, so the shared files were lost.
+    /// The real router and the real host-event handler are exercised here; only the transport is stubbed.
+    /// </summary>
+    [AvaloniaFact]
+    public void Background_registry_refresh_does_not_evict_the_open_tool_page()
+    {
+        using var host = new StubToolHost("file-transfer", "文件互传");
+        var shell = new MobileShellView();
+        var window = new Window { Width = 360, Height = 800, Content = shell };
+        try
+        {
+            window.Show();
+            host.CompleteInitialLoad();
+            PumpUntil(window, () => shell.Ready.IsCompleted, "shell never became ready");
+            var workspace = WorkspaceOf(shell);
+
+            RunActivation(window, shell,
+                new ToolActivationRequest("file-transfer", "main", "file:///data/cache/shares/cold.txt"),
+                () => shell.PageHost.Content is ExternalSdkToolView, "the activation did not open the tool page");
+            var opened = Assert.IsType<ExternalSdkToolView>(shell.PageHost.Content);
+            var handler = new RecordingActivationHandler();
+            opened.SetManagedSurface(handler);
+            Pump(window);
+
+            ApplyHostEvent(window, workspace, "registry.loaded");
+
+            // The tool page and its surface survived the startup refresh burst.
+            Assert.Same(opened, shell.PageHost.Content);
+            Assert.Same(handler, opened.ManagedSurface);
+            Assert.Equal("file-transfer", CurrentToolId(workspace));
+            Assert.Equal("Tools", workspace.CurrentPageKey);
+
+            // A later share must still reach that same live surface. The first activation ran before a
+            // surface was hosted, so this is the first request the attached handler sees.
+            var afterRefresh = new ToolActivationRequest("file-transfer", "main", "file:///data/cache/shares/after.txt");
+            RunActivation(window, shell, afterRefresh,
+                () => handler.Requests.Count == 1, "a share after the refresh never reached the surface");
+            Assert.Equal([afterRefresh], handler.Requests);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    /// <summary>
+    /// The guard must not disable the refresh for the catalog itself: with no tool open, a registry
+    /// refresh still reloads the Tools gallery.
+    /// </summary>
+    [AvaloniaFact]
+    public void Background_registry_refresh_still_reloads_the_tool_catalog()
+    {
+        using var host = new StubToolHost("file-transfer", "文件互传");
+        var shell = new MobileShellView();
+        var window = new Window { Width = 360, Height = 800, Content = shell };
+        try
+        {
+            window.Show();
+            host.CompleteInitialLoad();
+            PumpUntil(window, () => shell.Ready.IsCompleted, "shell never became ready");
+            var workspace = WorkspaceOf(shell);
+
+            PumpUntil(window, () => FindToolCard(shell, "file-transfer") is not null, "the tool card was never rendered");
+            FindToolCard(shell, "file-transfer")!.OpenCommand.Execute(null);
+            PumpUntil(window, () => shell.PageHost.Content is ExternalSdkToolView, "the catalog tap did not open the tool page");
+            Assert.True(RunBack(window, shell, () => shell.PageHost.Content is not ExternalSdkToolView || !workspace.IsToolPageActive, "back did not leave the tool page"),
+                "back did not consume the tool page");
+            PumpUntil(window, () => shell.PageHost.Content is ToolCatalogView, "the gallery never became current");
+            Assert.False(workspace.IsToolPageActive);
+
+            ApplyHostEvent(window, workspace, "registry.loaded");
+
+            Assert.False(workspace.IsToolPageActive);
+            Assert.Equal("Tools", workspace.CurrentPageKey);
+            Assert.IsType<ToolCatalogView>(shell.PageHost.Content);
+        }
+        finally
+        {
+            window.Close();
+        }
+    }
+
+    /// <summary>Runs the real host-event handler through the real refresh router.</summary>
+    private static void ApplyHostEvent(Window window, ShellWorkspaceController workspace, string type)
+    {
+        var method = typeof(ShellWorkspaceController)
+            .GetMethod("ApplyHostEventAsync", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.NonPublic)!;
+        var evt = new HostProto.HostEvent { Type = type, SourceId = "file-transfer" };
+        var task = (Task)method.Invoke(workspace, [evt])!;
+        PumpUntil(window, () => task.IsCompleted, $"host event {type} did not settle");
+        task.GetAwaiter().GetResult();
+    }
+
+    /// <summary>
     /// Back must walk tool page -> gallery -> Home before it lets Android background the app. The old
     /// check used the navigation highlight, which reports Home while a shared file is open.
     /// </summary>

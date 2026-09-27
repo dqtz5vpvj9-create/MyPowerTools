@@ -90,6 +90,7 @@ public sealed class MainActivity : AvaloniaMainActivity
     protected override void OnCreate(A.OS.Bundle? savedInstanceState)
     {
         base.OnCreate(savedInstanceState);
+        OnBackPressedDispatcher.AddCallback(this, new BackCallback(this));
         AndroidBackgroundActivityService.NotificationPermissionRequest = RequestNotificationPermissionAsync;
         if (Intent is { } intent) _ = HandleIntentAsync(intent);
     }
@@ -114,7 +115,12 @@ public sealed class MainActivity : AvaloniaMainActivity
         completion?.TrySetResult(grantResults.Length > 0 && grantResults[0] == A.Content.PM.Permission.Granted);
     }
 
-    public override async void OnBackPressed()
+    private sealed class BackCallback(MainActivity activity) : global::AndroidX.Activity.OnBackPressedCallback(true)
+    {
+        public override void HandleOnBackPressed() => _ = activity.HandleBackAsync();
+    }
+
+    private async Task HandleBackAsync()
     {
         try
         {
