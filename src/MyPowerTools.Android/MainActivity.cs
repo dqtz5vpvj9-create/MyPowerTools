@@ -222,7 +222,7 @@ public sealed class MainActivity : AvaloniaMainActivity
                 targets = AndroidHost.ShareTargets(intent.Type ?? "application/octet-stream");
                 foreach (var uri in uris)
                 {
-                    var name = "shared-file";
+                    var name = uri.Scheme == "file" ? uri.LastPathSegment ?? "shared-file" : "shared-file";
                     using (var cursor = ContentResolver!.Query(uri, [A.Provider.IOpenableColumns.DisplayName], null, null, null))
                         if (cursor?.MoveToFirst() == true) name = cursor.GetString(0) ?? name;
                     name = Path.GetFileName(name.Replace('\\', '/'));

@@ -444,6 +444,130 @@ public sealed class SurfaceTests
         });
     }
 
+    [AvaloniaFact]
+    public async Task Terminal_event_racing_the_command_response_leaves_the_page_idle()
+    {
+        await RunAsync(async scope =>
+        {
+            var file = Path.Combine(scope.Root, "fast.bin");
+            await File.WriteAllTextAsync(file, "fast");
+            var fake = new Fake(scope.Root) { GatedCommand = "file-transfer.send.direct" };
+            var (window, view) = await OpenAsync(fake);
+            try
+            {
+                await view.ActivateAsync(new ToolActivationRequest("file-transfer", "main", new Uri(file).AbsoluteUri));
+                // Click without waiting: a tiny upload reports completion before the command response lands.
+                FindButton(view, "发送").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                await WaitAsync(() => fake.Commands.Contains("file-transfer.send.direct"), "send.direct issued");
+                fake.Raise("completed", "fast.bin", 4, 4);
+                await PumpAsync(3);
+                fake.Gate.SetResult();
+                await PumpAsync(8);
+
+                var cancel = FindButton(view, "取消传输");
+                var progress = view.GetLogicalDescendants().OfType<ProgressBar>().Single();
+                await WaitAsync(() => !cancel.IsEnabled, "cancel disabled once the batch settled");
+                Assert.False(progress.IsVisible, "the late command response must not revive the progress bar");
+                Assert.Contains("已完成", Named<TextBlock>(view, "StatusLine").Text);
+
+                // The page must accept the next send immediately.
+                await WaitAsync(() => FindButton(view, "发送").IsEnabled, "send enabled after the batch settled");
+                await ClickAsync(view, "发送");
+                await WaitAsync(() => fake.Commands.Count(command => command == "file-transfer.send.direct") >= 2, "second send.direct");
+            }
+            finally { window.Close(); }
+        });
+    }
+
+    [AvaloniaFact]
+    public async Task Failure_event_racing_the_command_response_still_tracks_a_retry()
+    {
+        await RunAsync(async scope =>
+        {
+            var file = Path.Combine(scope.Root, "flaky.bin");
+            await File.WriteAllTextAsync(file, "flaky");
+            var fake = new Fake(scope.Root) { GatedCommand = "file-transfer.send.direct" };
+            var (window, view) = await OpenAsync(fake);
+            try
+            {
+                await view.ActivateAsync(new ToolActivationRequest("file-transfer", "main", new Uri(file).AbsoluteUri));
+                FindButton(view, "发送").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                await WaitAsync(() => fake.Commands.Contains("file-transfer.send.direct"), "send.direct issued");
+                fake.Raise("failed", "flaky.bin", 0, 0, "连接被重置");
+                await PumpAsync(3);
+                fake.Gate.SetResult();
+                await PumpAsync(8);
+
+                var retry = FindButton(view, "重试上次");
+                await WaitAsync(() => retry.IsVisible && retry.IsEnabled, "retry offered after the failure event");
+                await ClickAsync(view, "重试上次");
+                await WaitAsync(() => fake.Commands.Count(command => command == "file-transfer.send.direct") >= 2, "retried send.direct");
+            }
+            finally { window.Close(); }
+        });
+    }
+
+    [AvaloniaFact]
+    public async Task Rejected_command_cannot_leave_a_phantom_transfer()
+    {
+        await RunAsync(async scope =>
+        {
+            var file = Path.Combine(scope.Root, "rejected.bin");
+            await File.WriteAllTextAsync(file, "rejected");
+            var fake = new Fake(scope.Root) { FailingCommand = "file-transfer.send.direct" };
+            var (window, view) = await OpenAsync(fake);
+            try
+            {
+                await view.ActivateAsync(new ToolActivationRequest("file-transfer", "main", new Uri(file).AbsoluteUri));
+                await ClickAsync(view, "发送");
+                await WaitAsync(() => fake.Commands.Contains("file-transfer.send.direct"), "send.direct attempted");
+                await PumpAsync(6);
+
+                var cancel = FindButton(view, "取消传输");
+                await WaitAsync(() => !cancel.IsEnabled, "cancel disabled after the rejection");
+                Assert.False(view.GetLogicalDescendants().OfType<ProgressBar>().Single().IsVisible, "rejection must not leave a progress bar");
+                Assert.Contains("已有传输正在进行", Named<TextBlock>(view, "StatusLine").Text);
+
+                // The page stays usable: the next send is issued instead of being blocked as "busy".
+                await WaitAsync(() => FindButton(view, "发送").IsEnabled, "send restored after the rejection");
+                fake.FailingCommand = null;
+                await ClickAsync(view, "发送");
+                await WaitAsync(() => fake.Commands.Count(command => command == "file-transfer.send.direct") >= 2, "second send.direct");
+            }
+            finally { window.Close(); }
+        });
+    }
+
+    [AvaloniaFact]
+    public async Task Unrelated_received_event_does_not_suppress_a_command_rejection()
+    {
+        await RunAsync(async scope =>
+        {
+            var file = Path.Combine(scope.Root, "racing.bin");
+            await File.WriteAllTextAsync(file, "racing");
+            var fake = new Fake(scope.Root) { GatedCommand = "file-transfer.send.direct", FailingCommand = "file-transfer.send.direct" };
+            var (window, view) = await OpenAsync(fake);
+            try
+            {
+                await view.ActivateAsync(new ToolActivationRequest("file-transfer", "main", new Uri(file).AbsoluteUri));
+                FindButton(view, "发送").RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+                await WaitAsync(() => fake.Commands.Contains("file-transfer.send.direct"), "send.direct attempted");
+                // An incoming file finishes while the rejected send command is still in flight.
+                fake.Raise("received", "incoming.bin", 5, 5);
+                await PumpAsync(3);
+                fake.Gate.SetResult();
+                await PumpAsync(8);
+
+                var cancel = FindButton(view, "取消传输");
+                await WaitAsync(() => !cancel.IsEnabled, "cancel disabled even though an unrelated file was received");
+                Assert.False(view.GetLogicalDescendants().OfType<ProgressBar>().Single().IsVisible, "rejection rollback must still run");
+                Assert.Contains("已有传输正在进行", Named<TextBlock>(view, "StatusLine").Text);
+                await WaitAsync(() => FindButton(view, "发送").IsEnabled, "send restored after the rejection");
+            }
+            finally { window.Close(); }
+        });
+    }
+
     // ---- helpers -----------------------------------------------------------------------------
 
     private static async Task RunAsync(Func<TempScope, Task> body)
@@ -526,13 +650,19 @@ public sealed class SurfaceTests
         }
     }
 
-    /// <summary>Scripted module: records every command and answers like the real one for the state the page reads.</summary>
+    /// <summary>Scripted module: records every command and answers like the real one for the state the page reads.
+    /// A gated command stays pending until the test releases it, which reproduces a terminal event racing
+    /// ahead of the command response.</summary>
     private sealed class Fake(string dataDirectory)
     {
         public List<(string Command, JsonObject? Args)> Calls { get; } = [];
         public JsonObject Inspect { get; set; } = DefaultInspect();
         public Action<MptSurfaceEvent>? Events { get; private set; }
         public string DataDirectory { get; } = dataDirectory;
+        public string? GatedCommand { get; set; }
+        public string? FailingCommand { get; set; }
+        public string Failure { get; set; } = "已有传输正在进行。";
+        public TaskCompletionSource Gate { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public JsonObject Settings => (JsonObject)Inspect["settings"]!;
         public IEnumerable<string> Commands => Calls.Select(call => call.Command);
         public JsonObject? Args(string command) => Calls.LastOrDefault(call => call.Command == command).Args;
@@ -570,9 +700,12 @@ public sealed class SurfaceTests
             _ => { },
             callback => { Events = callback; return new Subscription(); });
 
-        private Task<CommandExecutionResult> ExecuteAsync(string command, JsonObject? args, CancellationToken token)
+        private async Task<CommandExecutionResult> ExecuteAsync(string command, JsonObject? args, CancellationToken token)
         {
             Calls.Add((command, args?.DeepClone().AsObject()));
+            if (string.Equals(command, GatedCommand, StringComparison.Ordinal)) await Gate.Task;
+            if (string.Equals(command, FailingCommand, StringComparison.Ordinal))
+                return new CommandExecutionResult("test", command, "failed", false, Failure, new MptRuntimeError("file-transfer.failed", Failure));
             var json = command switch
             {
                 "file-transfer.inspect" => Inspect.ToJsonString(),
@@ -582,7 +715,7 @@ public sealed class SurfaceTests
                 "file-transfer.openlist.start" => "{\"adminUrl\":\"http://100.64.0.7:15244/@manage\",\"password\":\"adminpw\"}",
                 _ => "{}"
             };
-            return Task.FromResult(new CommandExecutionResult("test", command, "succeeded", true, json));
+            return new CommandExecutionResult("test", command, "succeeded", true, json);
         }
 
         private sealed class Subscription : IDisposable

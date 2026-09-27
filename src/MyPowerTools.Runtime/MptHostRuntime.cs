@@ -347,8 +347,14 @@ public sealed partial class MptHostRuntime : IAsyncDisposable
             .ThenBy(process => process.PoolKey, StringComparer.OrdinalIgnoreCase)
             .ToArray();
         var processPolicyHistory = _processPolicyStore.History(10);
+        // Duplicate module ids are a supported catalog state: a development tool that collides
+        // with an installed module id becomes an error card instead of aborting the catalog
+        // (see PackageRegistry.Load), so two records can share one manifest id. The supervisor
+        // keys its records by module id, which makes every snapshot for one id identical, so
+        // keep the first one instead of throwing on the duplicate key.
         var supervision = _moduleSupervisor.Snapshots(modules)
-            .ToDictionary(snapshot => snapshot.ModuleId, StringComparer.OrdinalIgnoreCase);
+            .GroupBy(snapshot => snapshot.ModuleId, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
 
         return new RuntimeDiagnosticsSnapshot(
             ProtocolConstants.HostVersion,

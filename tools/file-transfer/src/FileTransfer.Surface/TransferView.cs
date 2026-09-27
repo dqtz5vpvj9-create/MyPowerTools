@@ -463,7 +463,9 @@ public sealed partial class TransferView : UserControl, IMptAvaloniaSurfaceActiv
 
     private async Task StartAsync(string command, JsonObject args, string label)
     {
-        await CallAsync(command, args);
+        // Register the request and show the pending state *before* the call. A small file can report
+        // its terminal transfer.changed event while the command response is still in flight; a late
+        // response must never overwrite that result with "正在传输" again.
         _requests[label] = new PendingRequest(command, args.DeepClone().AsObject(), label);
         _confirmedStaged.Clear();
         _lastFailure = null;
@@ -473,6 +475,35 @@ public sealed partial class TransferView : UserControl, IMptAvaloniaSurfaceActiv
         _progressText.Text = "";
         UpdateSendButtons();
         SetStatus($"正在传输 {label}…");
+        try
+        {
+            await CallAsync(command, args);
+        }
+        catch
+        {
+            // A rejected command must never leave a phantom transfer behind; re-derive the module's
+            // real state, then still surface the rejection to the user.
+            await GuardAsync(RollbackStartAsync);
+            throw;
+        }
+        finally
+        {
+            // Runs after the click helper restored its own button, so state-dependent enablement wins.
+            Dispatcher.UIThread.Post(UpdateSendButtons, DispatcherPriority.Background);
+        }
+    }
+
+    /// <summary>Re-derives the module's real state after a rejected command instead of assuming idle.</summary>
+    private async Task RollbackStartAsync()
+    {
+        var state = await CallAsync("inspect");
+        _busy = Flag(state, "busy");
+        if (!_busy)
+        {
+            _progress.IsVisible = false;
+            _progressText.Text = "";
+        }
+        UpdateSendButtons();
     }
 
     private async Task CancelAsync()
