@@ -72,7 +72,9 @@ internal sealed partial class AssistantView
         _observedDraft = current;
         _draftRevision++;
         if (!_draftLoaded) return;
-        _draftSaveTimer ??= new DispatcherTimer(TimeSpan.FromMilliseconds(250), DispatcherPriority.Background, (_, _) =>
+        // Android may keep its native input queue non-idle while the page is visible. A draft
+        // save is required work: Background can starve indefinitely, so debounce at Normal.
+        _draftSaveTimer ??= new DispatcherTimer(TimeSpan.FromMilliseconds(250), DispatcherPriority.Normal, (_, _) =>
         {
             _draftSaveTimer!.Stop();
             _ = SaveDraftAsync();

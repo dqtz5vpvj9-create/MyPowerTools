@@ -1289,6 +1289,9 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
             {
                 Status = added ? $"已从分享添加 {_attachments.Count} 个文件，点发送即可。" : "分享的文件已在待发送列表里。"
             });
+            // A platform share is a completed action, unlike an unfinished keystroke. Persist it
+            // before returning to the host instead of depending on the background typing timer.
+            await SaveDraftAsync();
             return true;
         }
         // System "share text" arrives as mypowertools://file-assistant?text=…; the attachment form is
@@ -1300,7 +1303,10 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
             _input.Text = current.Length == 0 ? shared : current + "\n" + shared;
             _input.CaretIndex = _input.Text.Length;
             SyncComposer();
+            // TextChanged is queued by Avalonia; capture this value before acknowledging activation.
+            DraftChanged();
             _core.PublishOnUi(_core.Snapshot with { Status = "已从分享添加文字，点发送即可。" });
+            await SaveDraftAsync();
             return true;
         }
         if (value.StartsWith("mpt://assistant/", StringComparison.Ordinal))

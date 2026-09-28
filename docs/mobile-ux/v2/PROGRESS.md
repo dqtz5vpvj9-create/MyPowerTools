@@ -88,3 +88,9 @@ Windows `4d62fe9` 部署后已复验末条状态：18:07:33 UTC 完成官方 Too
 无动画键盘切换已在完整 APK 通过原序列复验：setting=0 时点输入框，保持焦点改成 1，再点同一输入框，`v2-insets-switch-fixed.png` 中输入栏和发送按钮立即位于键盘上方，不再需要 Back/重新聚焦。实际输入 `MPT-insets-live-20260928` 并发送，键盘收起、布局恢复，手机显示送达。测试后设置恢复为 0。完整构建 0 错误、3 个既有警告，日志 `/mnt/cache/data-cache/mpt-v2-insets-android-build.log`。
 
 升级复验另发现系统分享的两个附件草稿未恢复，目标也回到升级前的 LIS-IMAC，因此不能判草稿升级通过。只读核对分享缓存文件仍存在、持久偏好保存时间早于分享，排查重点是分享后的草稿没有成功保存，正在诊断。此次修复不宣称解决此前全白输入法画面的所有原因；可稳定复现的无动画避让缺陷已经修复。
+
+草稿故障对照继续：包含 `4d62fe9` 和键盘修复的新 APK 也复现系统分享后未落盘；已排除仅旧版问题。有效临时诊断显示分享发生在 UI 线程，timer 也属于 UI dispatcher；18:28:37 UTC 连续排程 revision 1–3 后，10 秒内没有 tick/save-entry/write。由此排除错误 dispatcher，当前对照只将草稿防抖 timer 的 Background 优先级改成 Normal，尚待实际结果。诊断日志只含阶段、时间、线程、计数，不含草稿内容或凭据。之前一次误装旧输出目录 APK 不计入诊断结果。
+
+Normal 单变量对照成功，尚未加入分享 await：18:36:33.305 scheduled，.570 tick，.572 write，.744 written，均在同一个 UI dispatcher。此前 Background 对照延长观察仍无 tick/write。当前 Android 主循环中 Background 防抖保存不推进是已验证的故障机制；修复改用 Normal 优先级，保留 250ms 内容防抖，没有增加轮询。正在撤下临时诊断并对最终构建做附件、未发送文字两种 force-stop 恢复验收。
+
+最终无诊断构建已通过两项实际恢复：系统 Files 分享 beta.txt、alpha.txt 后直接 force-stop，重开恢复两个附件和默认目标；输入未发送文字 MPT-draft-timer-20260928-final，等待防抖后直接 force-stop，重开精确恢复文字及附件。未依赖 Back、Detach 或 Send 保存。主 agent 已查看 restore-files.png、restore-typed.png；证据与 DRAFT-RESTORE.md 位于 artifacts/.tmp-android-verify/m7-device-v022/a09-a20-20260928/。Surface 152/152 通过，临时诊断源码和设备日志已移除。Windows 官方 Tools 更新于18:37:58 UTC完成，Input Monitor 文件大小及时间戳不变。开始准备0.2.3/code5通用开发预览包；此处尚不代表发布完成。

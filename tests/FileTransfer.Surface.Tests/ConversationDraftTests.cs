@@ -10,6 +10,66 @@ namespace FileTransfer.Surface.Tests;
 
 public sealed class ConversationDraftTests
 {
+    [AvaloniaFact]
+    public async Task Shared_files_and_target_are_saved_before_activation_returns_without_a_timer_or_detach()
+    {
+        var module = new FakeTransferModule();
+        module.DraftPreferences["targetDeviceId"] = "old-device";
+        module.DraftPreferences["draftText"] = "原有草稿";
+        var view = new TransferView(module.Context(Path.GetTempPath()));
+        using var host = new Host(view);
+        var folder = Path.Combine(Path.GetTempPath(), "mpt-share-draft-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(folder);
+        var paths = new[] { Path.Combine(folder, "beta.txt"), Path.Combine(folder, "alpha.txt") };
+        try
+        {
+            foreach (var path in paths)
+            {
+                File.WriteAllText(path, "shared file");
+                await view.ActivateAsync(new ToolActivationRequest("file-transfer", "", new Uri(path).AbsoluteUri));
+                Assert.Contains(path, module.DraftPreferences["attachmentPaths"]!.AsArray().Select(n => n!.GetValue<string>()));
+                Assert.Null(module.DraftPreferences["targetDeviceId"]);
+            }
+            Assert.Equal(2, module.DraftPreferences["attachmentPaths"]!.AsArray().Count);
+            Assert.Equal("原有草稿", module.DraftPreferences["draftText"]!.GetValue<string>());
+            Assert.Equal(0, module.CountCalls("assistant.send"));
+        }
+        finally { Directory.Delete(folder, true); }
+    }
+
+    [AvaloniaFact]
+    public async Task Shared_text_is_saved_before_the_queued_TextChanged_notification()
+    {
+        var module = new FakeTransferModule();
+        var view = new TransferView(module.Context(Path.GetTempPath()));
+        using var host = new Host(view);
+        await view.ActivateAsync(new ToolActivationRequest("file-transfer", "", "mypowertools://file-assistant?text=shared%20draft"));
+        Assert.Equal("shared draft", module.DraftPreferences["draftText"]!.GetValue<string>());
+        Assert.Equal(1, module.CountCalls("assistant.preferences.update"));
+        await SettleAsync();
+        Assert.Equal(1, module.CountCalls("assistant.preferences.update"));
+        Assert.Equal(0, module.CountCalls("assistant.send"));
+    }
+
+    [AvaloniaFact]
+    public async Task A_shared_draft_save_failure_keeps_the_content_and_warning_visible()
+    {
+        var module = new FakeTransferModule();
+        var context = module.Context(Path.GetTempPath());
+        var view = new TransferView(context with
+        {
+            ExecuteCommandAsync = (command, args, token) => command.EndsWith("preferences.update", StringComparison.Ordinal)
+                ? Task.FromException<CommandExecutionResult>(new IOException(PrivateFailure))
+                : context.ExecuteCommandAsync(command, args, token)
+        });
+        using var host = new Host(view);
+        await view.ActivateAsync(new ToolActivationRequest("file-transfer", "", "mypowertools://file-assistant?text=unsaved"));
+        Assert.Equal("unsaved", Composer(view).Text);
+        Assert.Contains(view.GetLogicalDescendants().OfType<TextBlock>(),
+            text => text.Text == "草稿尚未保存，请暂时保留此页面。");
+        Assert.Equal(0, module.CountCalls("assistant.send"));
+    }
+
     [AvaloniaTheory]
     [InlineData("")]
     [InlineData("上次保存的草稿")]
