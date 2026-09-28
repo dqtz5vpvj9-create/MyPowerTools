@@ -2,223 +2,310 @@ using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Data;
+using Avalonia.Input;
 using Avalonia.Layout;
 using Avalonia.Media;
+using ShapePath = Avalonia.Controls.Shapes.Path;
 
 namespace MyPowerTools.MobileRemoteCommands;
 
 /// <summary>
 /// Code-built, single-column phone layout for the Remote Commands module surface.
 ///
-/// The page is deliberately free of XAML: the Android CoreCLR host loads this assembly dynamically from
-/// the tool package, so keeping the surface to plain controls removes an Avalonia resource pipeline from
-/// the load path. Colours come from <see cref="RemoteCommandsMobilePalette"/>, which follows the Shell
-/// theme passed in <c>MptAvaloniaSurfaceContext.Theme</c>, so the page matches the rest of MPT on both
-/// light and dark phones.
+/// The page follows the approved prototype: the real <c>commands.yaml</c> catalog is the primary list,
+/// each job gets one bottom sheet (run, edit a command, manage the connection, edit the raw catalog),
+/// and progress/cancel/retry live with the run itself. The page is deliberately free of XAML: the
+/// Android CoreCLR host loads this assembly dynamically from the tool package, so keeping the surface to
+/// plain controls removes an Avalonia resource pipeline from the load path.
+///
+/// Every control carries the shared mobile theme classes (<see cref="RemoteCommandsMobileTheme"/>) and
+/// sets no local colour on them, so the SDK theme owns colours, typography and touch metrics. Marks are
+/// vector <see cref="Path"/> icons from the prototype rather than glyph characters, so they render the
+/// same on every device without an icon font.
 /// </summary>
 internal sealed partial class RemoteCommandsMobileView
 {
     private const double TouchTarget = 44;
 
+    private bool _dark;
+
     private Control BuildLayout()
     {
+        _dark = RemoteCommandsMobilePalette.ForTheme(_context.Theme).Dark;
+        RemoteCommandsMobilePalette.Current = RemoteCommandsMobilePalette.ForTheme(_context.Theme);
+        if (RemoteCommandsMobileTheme.CreateFallbackStyles(_dark) is { } fallback)
+        {
+            foreach (var style in fallback)
+            {
+                Styles.Add(style);
+            }
+        }
+
         CreateControls();
 
-        var root = new StackPanel
-        {
-            Spacing = 14,
-            Margin = new Thickness(14, 12, 14, 24),
-            HorizontalAlignment = HorizontalAlignment.Stretch
-        };
+        _pagePanel = new StackPanel { Spacing = 14, HorizontalAlignment = HorizontalAlignment.Stretch };
+        _pagePanel.Classes.Add(RemoteCommandsMobileTheme.PageClass);
+        _pagePanel.Children.Add(BuildSubnav());
+        _pagePanel.Children.Add(_pageTitle);
+        _pagePanel.Children.Add(_pageSubtitle);
+        _pagePanel.Children.Add(BuildStatusLine());
+        _pagePanel.Children.Add(_transportWarning);
+        _pagePanel.Children.Add(_feedbackText);
+        _pagePanel.Children.Add(BuildRunningCard());
+        _pagePanel.Children.Add(BuildCommandListSection());
+        _pagePanel.Children.Add(BuildLastResultSection());
+        _pagePanel.Children.Add(BuildFooter());
 
-        root.Children.Add(BuildHeaderCard());
-        root.Children.Add(BuildRunCard());
-        root.Children.Add(BuildCatalogEditorCard());
-        root.Children.Add(BuildSettingsCard());
-        root.Children.Add(BuildHostsCard());
-        root.Children.Add(BuildHostKeysCard());
-        root.Children.Add(BuildHistoryCard());
-        root.Children.Add(BuildDiagnosticsCard());
-
-        return new ScrollViewer
+        var scroller = new ScrollViewer
         {
-            Content = root,
+            Content = _pagePanel,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto
         };
+
+        var root = new Grid();
+        root.Classes.Add(RemoteCommandsMobileTheme.RootClass);
+        root.Children.Add(scroller);
+        root.Children.Add(BuildOverlay());
+
+        // 320 dp phones get the narrower page margin from the design table.
+        root.SizeChanged += (_, _) => ApplyPageMargin(root.Bounds.Width);
+
+        // Android's back key is routed by the host, but a hardware/desktop Escape key and the headless
+        // tests use the same page-level handler.
+        root.AddHandler(KeyDownEvent, OnRootKeyDown, Avalonia.Interactivity.RoutingStrategies.Tunnel);
+        return root;
     }
 
     /// <summary>
-    /// Builds every brush-bearing control here, after the palette was selected from the Shell theme.
+    /// Page margins come from the theme's page tokens; the page only selects the narrow variant on a
+    /// 320 dp screen, so a theme-side font scale or padding change still applies.
     /// </summary>
-    private void CreateControls()
+    private void ApplyPageMargin(double width)
     {
-        _pageTitle = new TextBlock { FontSize = 20, FontWeight = FontWeight.Bold, Foreground = Brush("Text"), TextWrapping = TextWrapping.Wrap };
-        _statusPill = new TextBlock { FontSize = 13, FontWeight = FontWeight.SemiBold, Foreground = Brush("Accent"), TextWrapping = TextWrapping.Wrap };
-        _statusDetail = new TextBlock { FontSize = 12, Foreground = Brush("Muted"), TextWrapping = TextWrapping.Wrap };
-        _transportWarning = new TextBlock { FontSize = 12, Foreground = Brush("Error"), TextWrapping = TextWrapping.Wrap };
-        _backgroundHint = new TextBlock { FontSize = 12, Foreground = Brush("Muted"), TextWrapping = TextWrapping.Wrap };
-        _feedbackText = new TextBlock { FontSize = 12, Foreground = Brush("Muted"), TextWrapping = TextWrapping.Wrap };
-
-        _refreshButton = PrimaryButton("刷新状态");
-        _cancelButton = SecondaryButton("取消执行");
-        _commandPicker = new ComboBox { MinHeight = TouchTarget, HorizontalAlignment = HorizontalAlignment.Stretch };
-        _commandDetail = Hint("");
-        _hostPicker = new ComboBox { MinHeight = TouchTarget, HorizontalAlignment = HorizontalAlignment.Stretch };
-        _missingAliases = Hint("");
-        _input1Box = Field("粘贴或输入第一个输入");
-        _input1Box.AcceptsReturn = true;
-        _input1Box.MinHeight = 96;
-        _input1Box.TextWrapping = TextWrapping.Wrap;
-        _secondInputToggle = new CheckBox { Content = "使用第二个输入", MinHeight = TouchTarget };
-        _input2Label = FieldLabel("输入 2");
-        _input2Box = Field("粘贴或输入第二个输入");
-        _input2Box.AcceptsReturn = true;
-        _input2Box.MinHeight = 80;
-        _input2Box.TextWrapping = TextWrapping.Wrap;
-        _runButton = PrimaryButton("运行");
-        _runCancelButton = SecondaryButton("取消");
-        _runState = new TextBlock { FontSize = 13, FontWeight = FontWeight.SemiBold, Foreground = Brush("Text"), TextWrapping = TextWrapping.Wrap };
-        _runEndpoint = new TextBlock { FontSize = 12, Foreground = Brush("Muted"), TextWrapping = TextWrapping.Wrap };
-        _runMessage = new TextBlock { FontSize = 12, Foreground = Brush("Error"), TextWrapping = TextWrapping.Wrap };
-        _outputViewer = new SelectableTextBlock
-        {
-            FontFamily = MonoFont,
-            FontSize = 11,
-            TextWrapping = TextWrapping.Wrap,
-            Foreground = Brush("Text")
-        };
-        _copyOutputButton = SecondaryButton("复制输出");
-
-        _pendingEndpoint = new TextBlock { FontSize = 13, FontWeight = FontWeight.SemiBold, Foreground = Brush("Warning"), TextWrapping = TextWrapping.Wrap };
-        _pendingReason = new TextBlock { FontSize = 12, Foreground = Brush("Text"), TextWrapping = TextWrapping.Wrap };
-        _pendingDetail = new SelectableTextBlock { FontFamily = MonoFont, FontSize = 12, TextWrapping = TextWrapping.Wrap, Foreground = Brush("Text") };
-        _pendingMessage = new TextBlock { FontSize = 12, Foreground = Brush("Muted"), TextWrapping = TextWrapping.Wrap };
-        _trustAcknowledged = new CheckBox { Content = "我已核对上面的 SHA256 指纹", MinHeight = TouchTarget };
-        _trustButton = PrimaryButton("信任此指纹并重新运行");
-        _trustDismissButton = SecondaryButton("取消");
-
-        _hostList = new ItemsControl { ItemsSource = _hostRows };
-        _removalPrompt = new TextBlock { FontSize = 12, Foreground = Brush("Warning"), TextWrapping = TextWrapping.Wrap };
-        _refreshAliasesButton = SecondaryButton("重新读取别名");
-        _missingAliasList = new ItemsControl { ItemsSource = _missingAliasRows };
-        _aliasField = Field("例如 r743");
-        _hostField = Field("例如 100.64.0.2 或 host.example.com");
-        _portField = Field("22");
-        _usernameField = Field("登录用户名");
-        _passwordAuth = new RadioButton { Content = "密码", GroupName = "rc-auth", MinHeight = TouchTarget, IsChecked = true };
-        _keyAuth = new RadioButton { Content = "私钥", GroupName = "rc-auth", MinHeight = TouchTarget };
-        _authHint = Hint("");
-        _passwordField = Field("登录密码（仅写入系统凭据库）");
-        _passwordField.PasswordChar = '●';
-        _privateKeyField = Field("-----BEGIN OPENSSH PRIVATE KEY-----");
-        _privateKeyField.AcceptsReturn = true;
-        _privateKeyField.MinHeight = 120;
-        _privateKeyField.TextWrapping = TextWrapping.NoWrap;
-        _privateKeyField.FontFamily = MonoFont;
-        _privateKeyField.FontSize = 11;
-        _passphraseField = Field("私钥口令（可留空）");
-        _passphraseField.PasswordChar = '●';
-        _saveHostButton = PrimaryButton("保存映射");
-        _clearFormButton = SecondaryButton("清空表单");
-        _formMessage = new TextBlock { FontSize = 12, Foreground = Brush("Muted"), TextWrapping = TextWrapping.Wrap };
-
-        _trustedKeyList = new ItemsControl { ItemsSource = _trustedKeyRows };
-        _trustedKeysEmpty = Hint("还没有确认过任何主机密钥。");
-
-        _historyText = new TextBlock { FontSize = 12, Foreground = Brush("Muted"), TextWrapping = TextWrapping.Wrap };
-        _clearHistoryButton = SecondaryButton("清空执行历史");
-
-        _commandsPath = new TextBlock { FontSize = 11, FontFamily = MonoFont, Foreground = Brush("Muted"), TextWrapping = TextWrapping.Wrap };
-        _commandsFileStatus = new TextBlock { FontSize = 12, Foreground = Brush("Text"), TextWrapping = TextWrapping.Wrap };
-        _catalogError = new TextBlock { FontSize = 12, Foreground = Brush("Error"), TextWrapping = TextWrapping.Wrap };
-        _settingsSummary = new TextBlock { FontSize = 12, Foreground = Brush("Muted"), TextWrapping = TextWrapping.Wrap };
-        _dataDirectory = new TextBlock { FontSize = 11, FontFamily = MonoFont, Foreground = Brush("Muted"), TextWrapping = TextWrapping.Wrap };
-        _revalidateButton = SecondaryButton("重新校验 commands.yaml");
-
-        _catalogToggleButton = SecondaryButton("展开命令配置（编辑 commands.yaml）");
-        _catalogEditor = new TextBox
-        {
-            AcceptsReturn = true,
-            TextWrapping = TextWrapping.NoWrap,
-            FontFamily = MonoFont,
-            FontSize = 11,
-            MinHeight = 240,
-            Watermark = "id: ...\nlabel: ...\ncommand: ...\ntype: shell",
-            HorizontalAlignment = HorizontalAlignment.Stretch
-        };
-        _catalogEditor.Bind(TextBox.TextProperty, new Binding(nameof(RemoteCommandsMobileViewModel.CatalogYaml))
-        {
-            Mode = BindingMode.TwoWay,
-            UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged
-        });
-        ScrollViewer.SetHorizontalScrollBarVisibility(_catalogEditor, ScrollBarVisibility.Auto);
-        ScrollViewer.SetVerticalScrollBarVisibility(_catalogEditor, ScrollBarVisibility.Auto);
-        _catalogDirtyText = new TextBlock { FontSize = 12, Foreground = Brush("Muted"), TextWrapping = TextWrapping.Wrap };
-        _catalogYamlStatus = Hint("");
-        _catalogSaveMessage = new TextBlock { FontSize = 12, Foreground = Brush("Warning"), TextWrapping = TextWrapping.Wrap };
-        _catalogSaveButton = PrimaryButton("保存到模块");
-        _catalogImportButton = SecondaryButton("从剪贴板导入");
-        _catalogReloadButton = SecondaryButton("重新载入");
-        _catalogCopyButton = SecondaryButton("复制当前 YAML");
-
-        _settingsDefaultHostField = Field("默认主机别名，例如 r743");
-        _settingsKnownHostsField = Field("每行一个别名");
-        _settingsKnownHostsField.AcceptsReturn = true;
-        _settingsKnownHostsField.MinHeight = 84;
-        _settingsKnownHostsField.TextWrapping = TextWrapping.Wrap;
-        _settingsRetentionField = Field("10-5000");
-        _settingsCondaField = Field("/home/user/miniconda3/bin/conda");
-        _settingsCondaField.FontFamily = MonoFont;
-        _settingsCondaField.FontSize = 12;
-        _settingsTimeoutField = Field("1-1440");
-        _settingsDirtyText = new TextBlock { FontSize = 12, Foreground = Brush("Muted"), TextWrapping = TextWrapping.Wrap };
-        _settingsMessage = new TextBlock { FontSize = 12, Foreground = Brush("Muted"), TextWrapping = TextWrapping.Wrap };
-        _modulePreferenceHint = Hint("");
-        _settingsSaveButton = PrimaryButton("保存设置");
-        _settingsResetButton = SecondaryButton("还原为模块状态");
+        var narrow = width > 0 && width < 340;
+        ToggleClass(_pagePanel, RemoteCommandsMobileTheme.PageNarrowClass, narrow);
     }
 
-    // ---------------------------------------------------------------- cards
-
-    private Border BuildHeaderCard()
+    private Control BuildSubnav()
     {
+        _backButton = BackButton();
+        _backButton.Content = Icon(MobileIcons.Back);
+        ToolTip.SetTip(_backButton, "返回工具库");
+        _backButton.Click += async (_, _) => await _context.NavigateAsync("", "", null);
+
+        _refreshButton = IconButton();
+        _refreshButton.Content = Icon(MobileIcons.Refresh);
+        ToolTip.SetTip(_refreshButton, "重新读取模块状态");
         _refreshButton.Click += async (_, _) => await _viewModel.RefreshAsync();
-        _cancelButton.Click += async (_, _) => await _viewModel.CancelAsync();
 
-        var content = new StackPanel { Spacing = 8 };
-        content.Children.Add(_pageTitle);
-        content.Children.Add(_statusPill);
-        content.Children.Add(_statusDetail);
-        content.Children.Add(_transportWarning);
-        content.Children.Add(_backgroundHint);
-        content.Children.Add(_feedbackText);
-        content.Children.Add(new WrapPanel
-        {
-            Orientation = Orientation.Horizontal,
-            Children = { _refreshButton, _cancelButton }
-        });
-        return Card(content);
+        var label = Text("远程命令", RemoteCommandsMobileTheme.MetaClass);
+        label.VerticalAlignment = VerticalAlignment.Center;
+
+        var row = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto") };
+        row.Children.Add(_backButton);
+        Grid.SetColumn(label, 1);
+        label.Margin = new Thickness(10, 0, 0, 0);
+        row.Children.Add(label);
+        Grid.SetColumn(_refreshButton, 2);
+        row.Children.Add(_refreshButton);
+        return row;
     }
 
-    private Border BuildRunCard()
+    private Control BuildStatusLine()
     {
+        _statusPillText = Text("", RemoteCommandsMobileTheme.PillTextClass);
+        _statusPill = new Border { Child = _statusPillText };
+        _statusPill.Classes.Add(RemoteCommandsMobileTheme.PillClass);
+
+        var panel = new StackPanel { Spacing = 6 };
+        panel.Children.Add(_statusPill);
+        panel.Children.Add(_statusDetail);
+        return panel;
+    }
+
+    private Control BuildRunningCard()
+    {
+        _runningCancelButton.Click += async (_, _) => await _viewModel.CancelAsync();
+
+        var header = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto") };
+        header.Children.Add(_runningState);
+        Grid.SetColumn(_runningCancelButton, 1);
+        header.Children.Add(_runningCancelButton);
+
         var content = new StackPanel { Spacing = 8 };
-        content.Children.Add(SectionTitle("运行命令"));
+        content.Children.Add(header);
+        content.Children.Add(_runningEndpoint);
+        content.Children.Add(_runningProgress);
+        _runningCard = Card(content);
+        _runningCard.IsVisible = false;
+        return _runningCard;
+    }
 
-        _commandPicker.SelectionChanged += (_, _) =>
+    private Control BuildCommandListSection()
+    {
+        var heading = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto") };
+        heading.Children.Add(SectionTitle("常用指令"));
+        Grid.SetColumn(_addCommandButton, 1);
+        heading.Children.Add(_addCommandButton);
+
+        _searchBox = new Border { Child = _searchField, IsVisible = false };
+        _searchBox.Classes.Add(RemoteCommandsMobileTheme.SearchBoxClass);
+
+        _commandList = new ItemsControl { ItemsSource = _commandRows };
+        var listCard = new Border { Child = _commandList };
+        listCard.Classes.Add(RemoteCommandsMobileTheme.ListCardClass);
+        listCard.Margin = new Thickness(0, 8, 0, 0);
+
+        var addFirst = SecondaryButton("添加第一条命令");
+        addFirst.HorizontalAlignment = HorizontalAlignment.Left;
+        addFirst.Margin = new Thickness(0, 10, 0, 0);
+        addFirst.Click += (_, _) => _viewModel.OpenCommandForm(null);
+        var emptyBody = new StackPanel { Spacing = 4 };
+        emptyBody.Children.Add(Text("还没有命令", RemoteCommandsMobileTheme.EmptyTitleClass));
+        emptyBody.Children.Add(_emptyCommandsText);
+        emptyBody.Children.Add(addFirst);
+        _emptyCommandsCard = Card(emptyBody);
+        _emptyCommandsCard.Margin = new Thickness(0, 8, 0, 0);
+
+        var section = new StackPanel { Spacing = 0 };
+        section.Children.Add(heading);
+        section.Children.Add(_commandListCaption);
+        section.Children.Add(_searchBox);
+        section.Children.Add(listCard);
+        section.Children.Add(_emptyCommandsCard);
+        section.Children.Add(_noMatchesText);
+        return section;
+    }
+
+    private Control BuildLastResultSection()
+    {
+        _lastResultCard.PointerPressed += (_, _) => _viewModel.OpenLastResultSheet();
+
+        var header = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto") };
+        header.Children.Add(SectionTitle("上次结果"));
+        Grid.SetColumn(_lastResultMeta, 1);
+        header.Children.Add(_lastResultMeta);
+
+        var stateRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        stateRow.Children.Add(_lastResultGlyph);
+        stateRow.Children.Add(_lastResultState);
+
+        var output = new Border { Child = _lastResultPreview, Margin = new Thickness(0, 4, 0, 0) };
+        output.Classes.Add(RemoteCommandsMobileTheme.CommandOutputClass);
+
+        var body = new StackPanel { Spacing = 6 };
+        body.Children.Add(stateRow);
+        body.Children.Add(_lastResultDetail);
+        body.Children.Add(output);
+
+        var empty = new StackPanel { Spacing = 6 };
+        empty.Children.Add(_lastResultEmptyGlyph);
+        empty.Children.Add(_lastResultEmpty);
+
+        _lastResultBody = body;
+        _lastResultEmptyPanel = empty;
+        _lastResultCard.Child = new StackPanel { Spacing = 8, Children = { body, empty } };
+
+        var section = new StackPanel { Spacing = 0 };
+        section.Children.Add(header);
+        section.Children.Add(_lastResultCard);
+        _lastResultCard.Margin = new Thickness(0, 8, 0, 0);
+        return section;
+    }
+
+    private Control BuildFooter()
+    {
+        _connectionButton = QuietButton("管理服务器连接");
+        _connectionButton.Click += (_, _) => _viewModel.OpenConnectionSheet();
+        _catalogButton = QuietButton("命令配置（YAML）");
+        _catalogButton.Click += (_, _) => _viewModel.OpenCatalogSheet();
+
+        var panel = new StackPanel { Spacing = 4, Margin = new Thickness(0, 8, 0, 0) };
+        panel.Children.Add(_connectionButton);
+        panel.Children.Add(_catalogButton);
+        return panel;
+    }
+
+    // ---------------------------------------------------------------- overlay
+
+    private Control BuildOverlay()
+    {
+        _scrim = new Border();
+        _scrim.Classes.Add(RemoteCommandsMobileTheme.OverlayClass);
+        _scrim.PointerPressed += (_, args) =>
         {
-            if (_syncing || _commandPicker.SelectedItem is not MobileCommandDefinition command)
-            {
-                return;
-            }
-
-            _viewModel.SelectedCommand = command;
+            _viewModel.CloseSheet();
+            args.Handled = true;
         };
-        content.Children.Add(FieldLabel("命令（来自共享 commands.yaml）"));
-        content.Children.Add(_commandPicker);
-        content.Children.Add(_commandDetail);
 
+        _sheetBody = new StackPanel { Spacing = 12 };
+        _sheetBody.Children.Add(BuildSheetHeader());
+        _sheetBody.Children.Add(BuildRunPanel());
+        _sheetBody.Children.Add(BuildCommandPanel());
+        _sheetBody.Children.Add(BuildConnectionPanel());
+        _sheetBody.Children.Add(BuildCatalogPanel());
+
+        var grabber = new Border();
+        grabber.Classes.Add(RemoteCommandsMobileTheme.SheetGrabberClass);
+
+        var sheetContent = new StackPanel { Spacing = 0 };
+        sheetContent.Children.Add(grabber);
+        sheetContent.Children.Add(new ScrollViewer
+        {
+            Content = _sheetBody,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto
+        });
+
+        _sheet = new Border
+        {
+            VerticalAlignment = VerticalAlignment.Bottom,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            Child = sheetContent
+        };
+        _sheet.Classes.Add(RemoteCommandsMobileTheme.SheetClass);
+
+        _overlay = new Grid { IsVisible = false };
+        _overlay.Children.Add(_scrim);
+        _overlay.Children.Add(_sheet);
+        _overlay.SizeChanged += (_, _) =>
+            _sheet.MaxHeight = Math.Max(320, _overlay.Bounds.Height * 0.92);
+        return _overlay;
+    }
+
+    private Control BuildSheetHeader()
+    {
+        _sheetCloseButton = CloseButton();
+        _sheetCloseButton.Content = Icon(MobileIcons.Close);
+        ToolTip.SetTip(_sheetCloseButton, "关闭");
+        _sheetCloseButton.Click += (_, _) => _viewModel.CloseSheet();
+
+        var copy = new StackPanel { Spacing = 4 };
+        copy.Children.Add(_sheetTitle);
+        copy.Children.Add(_sheetSubtitle);
+
+        var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto") };
+        grid.Children.Add(copy);
+        Grid.SetColumn(_sheetCloseButton, 1);
+        _sheetCloseButton.VerticalAlignment = VerticalAlignment.Top;
+        _sheetCloseButton.Margin = new Thickness(10, 0, 0, 0);
+        grid.Children.Add(_sheetCloseButton);
+        return grid;
+    }
+
+    // ---------------------------------------------------------------- run sheet
+
+    private Control BuildRunPanel()
+    {
+        _runButton.Click += async (_, _) => await RunFromControlsAsync();
+        _cancelRunButton.Click += async (_, _) => await _viewModel.CancelAsync();
+        _retryButton.Click += async (_, _) => await _viewModel.RetryAsync();
+        _editCommandButton.Click += (_, _) => _viewModel.EditSelectedCommand();
+        _runDoneButton.Click += (_, _) => _viewModel.CloseSheet();
+        _copyOutputButton.Click += async (_, _) => await CopyOutputAsync();
+        _trustButton.Click += async (_, _) => await _viewModel.TrustPendingHostKeyAndRunAsync();
+        _trustDismissButton.Click += (_, _) => _viewModel.DismissPendingHostKey();
         _hostPicker.SelectionChanged += (_, _) =>
         {
             if (_syncing || _hostPicker.SelectedItem is not MobileHostChoice choice)
@@ -228,39 +315,79 @@ internal sealed partial class RemoteCommandsMobileView
 
             _viewModel.SelectedHost = choice.Alias;
         };
-        content.Children.Add(FieldLabel("主机"));
-        content.Children.Add(_hostPicker);
-        content.Children.Add(_missingAliases);
 
-        content.Children.Add(FieldLabel("输入 1"));
-        content.Children.Add(_input1Box);
-        content.Children.Add(_secondInputToggle);
-        content.Children.Add(_input2Label);
-        content.Children.Add(_input2Box);
+        var panel = _runPanel;
+        panel.Spacing = 10;
+        panel.Children.Add(_runCommandDetail);
+        panel.Children.Add(FieldLabel("主机"));
+        panel.Children.Add(_hostPicker);
+        panel.Children.Add(_input1Label);
+        panel.Children.Add(_input1Box);
+        panel.Children.Add(_secondInputToggle);
+        panel.Children.Add(_input2Label);
+        panel.Children.Add(_input2Box);
+        panel.Children.Add(_runInputCaption);
 
-        _runButton.Click += async (_, _) => await _viewModel.RunAsync();
-        _runCancelButton.Click += async (_, _) => await _viewModel.CancelAsync();
-        content.Children.Add(new WrapPanel
+        var buttons = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto") };
+        buttons.Children.Add(_runButton);
+        Grid.SetColumn(_cancelRunButton, 1);
+        _cancelRunButton.Margin = new Thickness(8, 0, 0, 0);
+        buttons.Children.Add(_cancelRunButton);
+        panel.Children.Add(buttons);
+
+        var progress = new StackPanel { Spacing = 8 };
+        progress.Children.Add(_runProgress);
+        progress.Children.Add(_stageList);
+        panel.Children.Add(progress);
+
+        var stateRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        stateRow.Children.Add(_runStateGlyph);
+        stateRow.Children.Add(_runState);
+        panel.Children.Add(stateRow);
+        panel.Children.Add(_runEndpoint);
+        panel.Children.Add(_runMessage);
+        panel.Children.Add(BuildPermissionNotice());
+        panel.Children.Add(BuildPendingHostKeyCard());
+
+        // The command line and its transcript share one command-output surface, which is what gives the
+        // mono header the contrast the theme designed for it.
+        var outputBody = new StackPanel { Spacing = 6 };
+        outputBody.Children.Add(_outputHeader);
+        outputBody.Children.Add(new ScrollViewer
         {
-            Orientation = Orientation.Horizontal,
-            Children = { _runButton, _runCancelButton }
+            Content = _outputViewer,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            MaxHeight = 260
         });
+        var output = new Border { MinHeight = 140, Child = outputBody };
+        output.Classes.Add(RemoteCommandsMobileTheme.CommandOutputClass);
+        panel.Children.Add(output);
+        panel.Children.Add(_editCommandButton);
 
-        content.Children.Add(_runState);
-        content.Children.Add(_runEndpoint);
-        content.Children.Add(_runMessage);
-        content.Children.Add(BuildPendingHostKeyCard());
-        content.Children.Add(BuildOutputCard());
-        return Card(content);
+        var footer = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto,Auto") };
+        footer.Children.Add(_retryButton);
+        Grid.SetColumn(_copyOutputButton, 1);
+        _copyOutputButton.Margin = new Thickness(8, 0, 0, 0);
+        footer.Children.Add(_copyOutputButton);
+        Grid.SetColumn(_runDoneButton, 2);
+        _runDoneButton.Margin = new Thickness(8, 0, 0, 0);
+        footer.Children.Add(_runDoneButton);
+        panel.Children.Add(footer);
+
+        return panel;
+    }
+
+    private Control BuildPermissionNotice()
+    {
+        _permissionNotice = new Border { Child = _permissionText, IsVisible = false };
+        _permissionNotice.Classes.Add(RemoteCommandsMobileTheme.NoticeClass);
+        _permissionNotice.Classes.Add(RemoteCommandsMobileTheme.WarningClass);
+        return _permissionNotice;
     }
 
     private Border BuildPendingHostKeyCard()
     {
-        _trustAcknowledged.Click += (_, _) =>
-            _viewModel.TrustFingerprintAcknowledged = _trustAcknowledged.IsChecked == true;
-        _trustButton.Click += async (_, _) => await _viewModel.TrustPendingHostKeyAndRunAsync();
-        _trustDismissButton.Click += (_, _) => _viewModel.DismissPendingHostKey();
-
         var content = new StackPanel { Spacing = 8 };
         content.Children.Add(SectionTitle("确认主机密钥"));
         content.Children.Add(_pendingEndpoint);
@@ -273,186 +400,410 @@ internal sealed partial class RemoteCommandsMobileView
             Orientation = Orientation.Horizontal,
             Children = { _trustButton, _trustDismissButton }
         });
-        _pendingCard = Border(content, "WarningSurface", "Warning");
+
+        _pendingCard = new Border { Child = content, IsVisible = false };
+        _pendingCard.Classes.Add(RemoteCommandsMobileTheme.NoticeClass);
+        _pendingCard.Classes.Add(RemoteCommandsMobileTheme.WarningClass);
         return _pendingCard;
     }
 
-    private Border BuildOutputCard()
+    // ---------------------------------------------------------------- command sheet
+
+    private Control BuildCommandPanel()
     {
-        _copyOutputButton.Click += async (_, _) => await CopyOutputAsync();
-
-        var header = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto") };
-        header.Children.Add(SectionTitle("输出"));
-        Grid.SetColumn(_copyOutputButton, 1);
-        header.Children.Add(_copyOutputButton);
-
-        var content = new StackPanel { Spacing = 8 };
-        content.Children.Add(header);
-        content.Children.Add(new Border
+        _saveCommandButton.Click += async (_, _) => await SaveCommandFromControlsAsync();
+        _cancelCommandButton.Click += (_, _) => _viewModel.CancelCommandForm();
+        _formAdvancedToggle.Click += (_, _) => _viewModel.ToggleCommandFormAdvanced();
+        _deleteCommandButton.Click += async (_, _) =>
         {
-            Background = Brush("Inset"),
-            CornerRadius = new CornerRadius(10),
-            Padding = new Thickness(10),
-            Height = 240,
-            Child = new ScrollViewer
+            if (_viewModel.CommandDeletePending)
             {
-                Content = _outputViewer,
-                HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
-                VerticalScrollBarVisibility = ScrollBarVisibility.Auto
+                await _viewModel.ConfirmCommandRemovalAsync();
+                return;
             }
+
+            _viewModel.RequestCommandRemoval();
+        };
+
+        var advanced = new StackPanel { Spacing = 10, IsVisible = false };
+        advanced.Children.Add(FieldLabel("标识（历史与分享链接使用）"));
+        advanced.Children.Add(_formIdField);
+        advanced.Children.Add(FieldLabel("运行位置"));
+        advanced.Children.Add(new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 16,
+            Children = { _formShellType, _formLocalType }
         });
-        return Card(content);
+        advanced.Children.Add(FieldLabel("固定主机（可选）"));
+        advanced.Children.Add(_formHostField);
+        advanced.Children.Add(FieldLabel("输入 1 标签"));
+        advanced.Children.Add(_formInput1LabelField);
+        advanced.Children.Add(FieldLabel("输入 1 提示"));
+        advanced.Children.Add(_formInput1PlaceholderField);
+        advanced.Children.Add(_formSecondInputToggle);
+        advanced.Children.Add(FieldLabel("输入 2 标签"));
+        advanced.Children.Add(_formInput2LabelField);
+        advanced.Children.Add(FieldLabel("输入 2 提示"));
+        advanced.Children.Add(_formInput2PlaceholderField);
+        _formAdvancedPanel = advanced;
+
+        var panel = _commandPanel;
+        panel.Spacing = 10;
+        panel.Children.Add(FieldLabel("名称"));
+        panel.Children.Add(_formLabelField);
+        panel.Children.Add(FieldLabel("命令"));
+        panel.Children.Add(_formCommandField);
+        panel.Children.Add(FieldLabel("说明"));
+        panel.Children.Add(_formDescriptionField);
+        panel.Children.Add(_formTypeHint);
+        panel.Children.Add(_formAdvancedToggle);
+        panel.Children.Add(advanced);
+
+        var buttons = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto") };
+        buttons.Children.Add(_saveCommandButton);
+        Grid.SetColumn(_cancelCommandButton, 1);
+        _cancelCommandButton.Margin = new Thickness(8, 0, 0, 0);
+        buttons.Children.Add(_cancelCommandButton);
+        panel.Children.Add(buttons);
+        panel.Children.Add(_deleteCommandButton);
+        panel.Children.Add(_commandFormMessage);
+        panel.Children.Add(Text(
+            "保存由模块用同一份解析器校验后写入唯一正式的 commands.yaml；校验不通过时这里会显示原因，表单内容不会被丢弃。",
+            RemoteCommandsMobileTheme.NoteClass));
+
+        return panel;
     }
 
-    private Border BuildHostsCard()
+    // ---------------------------------------------------------------- connection sheet
+
+    private Control BuildConnectionPanel()
     {
-        _refreshAliasesButton.Click += async (_, _) => await _viewModel.RefreshAsync();
+        _saveHostButton.Click += async (_, _) => await _viewModel.SaveHostAsync();
+        _clearFormButton.Click += (_, _) => _viewModel.ClearHostForm();
+        _revalidateButton.Click += (_, _) => _viewModel.RefreshCommandsFileStatus();
+        _openCatalogButton.Click += (_, _) => _viewModel.OpenCatalogSheet();
+        _clearHistoryButton.Click += async (_, _) =>
+        {
+            if (_viewModel.HistoryClearPending)
+            {
+                await _viewModel.ConfirmHistoryClearAsync();
+                return;
+            }
 
-        var content = new StackPanel { Spacing = 8 };
-        content.Children.Add(SectionTitle("主机映射"));
-        content.Children.Add(Hint("手机上没有 ~/.ssh/config：别名必须显式映射到真实地址，凭据只存系统凭据库。"));
-        content.Children.Add(_hostList);
-        content.Children.Add(_removalPrompt);
-        content.Children.Add(_refreshAliasesButton);
-        content.Children.Add(_missingAliasList);
+            _viewModel.RequestHistoryClear();
+        };
 
-        content.Children.Add(SectionTitle("添加或更新映射"));
-        content.Children.Add(FieldLabel("别名"));
-        content.Children.Add(_aliasField);
-        content.Children.Add(FieldLabel("真实主机"));
-        content.Children.Add(_hostField);
-        content.Children.Add(FieldLabel("端口"));
-        content.Children.Add(_portField);
-        content.Children.Add(FieldLabel("用户名"));
-        content.Children.Add(_usernameField);
-        content.Children.Add(FieldLabel("认证方式"));
-        content.Children.Add(new StackPanel
+        var panel = _connectionPanel;
+        panel.Spacing = 10;
+        panel.Children.Add(SectionTitle("已保存的连接"));
+        panel.Children.Add(_hostSummary);
+        panel.Children.Add(_hostList);
+        panel.Children.Add(_hostEmptyText);
+        panel.Children.Add(_removalPrompt);
+        panel.Children.Add(_missingAliasesText);
+        panel.Children.Add(_missingAliasList);
+
+        panel.Children.Add(SectionTitle("添加或更新映射"));
+        panel.Children.Add(FieldLabel("别名（与命令里的主机名一致）"));
+        panel.Children.Add(_aliasField);
+        panel.Children.Add(FieldLabel("真实主机"));
+        panel.Children.Add(_realHostField);
+        panel.Children.Add(FieldLabel("端口"));
+        panel.Children.Add(_portField);
+        panel.Children.Add(FieldLabel("用户名"));
+        panel.Children.Add(_usernameField);
+        panel.Children.Add(FieldLabel("认证方式"));
+        panel.Children.Add(new StackPanel
         {
             Orientation = Orientation.Horizontal,
             Spacing = 16,
             Children = { _passwordAuth, _keyAuth }
         });
-        content.Children.Add(_authHint);
-        content.Children.Add(_passwordField);
-        content.Children.Add(_privateKeyField);
-        content.Children.Add(_passphraseField);
-
-        _saveHostButton.Click += async (_, _) => await _viewModel.SaveHostAsync();
-        _clearFormButton.Click += (_, _) => _viewModel.ClearHostForm();
-        content.Children.Add(new WrapPanel
+        panel.Children.Add(_authHint);
+        panel.Children.Add(_passwordField);
+        panel.Children.Add(_privateKeyField);
+        panel.Children.Add(_passphraseField);
+        panel.Children.Add(new WrapPanel
         {
             Orientation = Orientation.Horizontal,
             Children = { _saveHostButton, _clearFormButton }
         });
-        content.Children.Add(_formMessage);
-        return Card(content);
+        panel.Children.Add(_formMessage);
+
+        panel.Children.Add(SectionTitle("已确认的主机密钥"));
+        panel.Children.Add(Text(
+            "MPT 从不自动信任任何主机：每个指纹都由你单独确认，换钥会重新询问。",
+            RemoteCommandsMobileTheme.NoteClass));
+        panel.Children.Add(_trustedKeyList);
+        panel.Children.Add(_trustedKeysEmpty);
+        panel.Children.Add(_keyRevocationPrompt);
+
+        panel.Children.Add(SectionTitle("共享设置"));
+        panel.Children.Add(FieldLabel("默认主机"));
+        panel.Children.Add(_settingsDefaultHostField);
+        panel.Children.Add(FieldLabel("主机别名列表（每行一个）"));
+        panel.Children.Add(_settingsKnownHostsField);
+        panel.Children.Add(FieldLabel("历史保留条数"));
+        panel.Children.Add(_settingsRetentionField);
+        panel.Children.Add(FieldLabel("CONDA_EXE（远端前缀）"));
+        panel.Children.Add(_settingsCondaField);
+        panel.Children.Add(FieldLabel("单次执行超时（分钟）"));
+        panel.Children.Add(_settingsTimeoutField);
+        panel.Children.Add(new WrapPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Children = { _settingsSaveButton, _settingsResetButton }
+        });
+        panel.Children.Add(_settingsDirtyText);
+        panel.Children.Add(_modulePreferenceHint);
+        panel.Children.Add(_settingsMessage);
+
+        panel.Children.Add(SectionTitle("执行历史"));
+        panel.Children.Add(_historyText);
+        panel.Children.Add(_clearHistoryButton);
+
+        panel.Children.Add(SectionTitle("高级"));
+        panel.Children.Add(_openCatalogButton);
+        panel.Children.Add(_revalidateButton);
+        panel.Children.Add(_backgroundHint);
+        panel.Children.Add(_commandsPath);
+        panel.Children.Add(_commandsFileStatus);
+        panel.Children.Add(_catalogError);
+        panel.Children.Add(_settingsSummary);
+        panel.Children.Add(_dataDirectory);
+        panel.Children.Add(Text(
+            "上面“设置”里的改动会写入模块读取的同一份文件；这里显示的是模块当前生效的状态。",
+            RemoteCommandsMobileTheme.NoteClass));
+
+        return panel;
     }
 
-    private Border BuildHostKeysCard()
-    {
-        var content = new StackPanel { Spacing = 8 };
-        content.Children.Add(SectionTitle("已确认的主机密钥"));
-        content.Children.Add(Hint("MPT 从不自动信任任何主机：每个指纹都由你单独确认，换钥会重新询问。"));
-        content.Children.Add(_trustedKeyList);
-        content.Children.Add(_trustedKeysEmpty);
-        return Card(content);
-    }
+    // ---------------------------------------------------------------- catalog sheet
 
-    private Border BuildCatalogEditorCard()
+    private Control BuildCatalogPanel()
     {
-        _catalogToggleButton.Click += (_, _) =>
-            _viewModel.CatalogEditorExpanded = !_viewModel.CatalogEditorExpanded;
         _catalogSaveButton.Click += async (_, _) => await _viewModel.SaveCatalogAsync();
         _catalogImportButton.Click += async (_, _) => await ImportCatalogFromClipboardAsync();
         _catalogCopyButton.Click += async (_, _) => await CopyTextAsync(_viewModel.CatalogYaml, "命令配置");
         _catalogReloadButton.Click += async (_, _) => await _viewModel.ReloadCatalogYamlAsync();
 
-        _catalogEditorBody = new StackPanel { Spacing = 8, IsVisible = false };
-        _catalogEditorBody.Children.Add(_catalogEditor);
-        _catalogEditorBody.Children.Add(_catalogDirtyText);
-        _catalogEditorBody.Children.Add(_catalogYamlStatus);
-        _catalogEditorBody.Children.Add(new WrapPanel
+        var buttons = new WrapPanel { Orientation = Orientation.Horizontal };
+        buttons.Children.Add(_catalogSaveButton);
+        buttons.Children.Add(_catalogImportButton);
+        buttons.Children.Add(_catalogReloadButton);
+        buttons.Children.Add(_catalogCopyButton);
+
+        var panel = _catalogPanel;
+        panel.Spacing = 10;
+        panel.Children.Add(_catalogDirtyText);
+        panel.Children.Add(_catalogYamlStatus);
+        panel.Children.Add(_catalogEditor);
+        panel.Children.Add(buttons);
+        panel.Children.Add(_catalogSaveMessage);
+        panel.Children.Add(Text(
+            "这里是高级编辑：格式错误时模块会拒绝保存并说明原因，文本会保留。普通添加与修改请用命令表单。",
+            RemoteCommandsMobileTheme.NoteClass));
+        return panel;
+    }
+
+    // ---------------------------------------------------------------- controls
+
+    /// <summary>
+    /// Builds every control here, after the palette was selected from the Shell theme. Contract classes
+    /// are added instead of local colours wherever the mobile theme covers the role.
+    /// </summary>
+    private void CreateControls()
+    {
+        _pageTitle = Text("远程命令", RemoteCommandsMobileTheme.PageTitleClass);
+        _pageSubtitle = Text("", RemoteCommandsMobileTheme.PageSubtitleClass);
+        _transportWarning = Text("", RemoteCommandsMobileTheme.NoteClass);
+        _feedbackText = Text("", RemoteCommandsMobileTheme.NoteClass);
+        _feedbackText.IsVisible = false;
+        _backgroundHint = Text("", RemoteCommandsMobileTheme.MetaClass);
+        _statusDetail = Text("", RemoteCommandsMobileTheme.MetaClass);
+
+        _addCommandButton = TextButton("添加");
+        _addCommandButton.Click += (_, _) => _viewModel.OpenCommandForm(null);
+
+        _lastResultGlyph = Icon(MobileIcons.Dot);
+        _lastResultEmptyGlyph = Icon(MobileIcons.Circle);
+        _lastResultState = Text("", RemoteCommandsMobileTheme.RowTitleClass);
+        _lastResultMeta = Text("", RemoteCommandsMobileTheme.RowMetaClass);
+        _lastResultDetail = Text("", RemoteCommandsMobileTheme.NoteClass);
+        _lastResultPreview = new SelectableTextBlock { TextWrapping = TextWrapping.Wrap };
+        _lastResultPreview.Classes.Add(RemoteCommandsMobileTheme.MonoClass);
+        _lastResultEmpty = Text("", RemoteCommandsMobileTheme.NoteClass);
+        _lastResultCard = Card(new StackPanel());
+
+        _commandListCaption = Text("", RemoteCommandsMobileTheme.MetaClass);
+        _searchField = new TextBox { PlaceholderText = "搜索命令" };
+        _searchField.Classes.Add(RemoteCommandsMobileTheme.SearchClass);
+        _emptyCommandsText = Text("", RemoteCommandsMobileTheme.NoteClass);
+        _noMatchesText = Text("没有匹配的命令。", RemoteCommandsMobileTheme.NoteClass);
+        _noMatchesText.IsVisible = false;
+
+        _runningState = Text("", RemoteCommandsMobileTheme.RowTitleClass);
+        _runningEndpoint = Text("", RemoteCommandsMobileTheme.MetaClass);
+        _runningProgress = Progress();
+        _runningCancelButton = SecondaryButton("取消执行");
+
+        _hostSummary = Text("", RemoteCommandsMobileTheme.NoteClass);
+        _hostList = new ItemsControl { ItemsSource = _hostRows };
+        _hostEmptyText = Text("还没有映射任何主机。", RemoteCommandsMobileTheme.NoteClass);
+        _removalPrompt = Text("", RemoteCommandsMobileTheme.NoteClass);
+        _removalPrompt.IsVisible = false;
+        _missingAliasList = new ItemsControl { ItemsSource = _missingAliasRows };
+        _missingAliasesText = Text("", RemoteCommandsMobileTheme.NoteClass);
+        _hostPicker = new ComboBox { MinHeight = TouchTarget, HorizontalAlignment = HorizontalAlignment.Stretch };
+        _input1Label = FieldLabel("输入 1");
+        _input1Box = Field("粘贴或输入第一个输入");
+        _input1Box.AcceptsReturn = true;
+        _input2Label = FieldLabel("输入 2");
+        _input2Box = Field("粘贴或输入第二个输入");
+        _input2Box.AcceptsReturn = true;
+        _secondInputToggle = Check("使用第二个输入");
+        _runCommandDetail = Text("", RemoteCommandsMobileTheme.NoteClass);
+        _runButton = PrimaryButton("运行");
+        _runButton.HorizontalAlignment = HorizontalAlignment.Stretch;
+        _cancelRunButton = SecondaryButton("取消");
+        _cancelRunButton.IsVisible = false;
+        _runProgress = Progress();
+        _stageList = new ItemsControl { ItemsSource = _stageRows };
+        _runStateGlyph = Icon(MobileIcons.Dot);
+        _runState = Text("", RemoteCommandsMobileTheme.RowTitleClass);
+        _runEndpoint = Text("", RemoteCommandsMobileTheme.MetaClass);
+        _runMessage = Text("", RemoteCommandsMobileTheme.NoteClass);
+        _runInputCaption = Text(
+            "输入会写入远端临时文件，并作为 --file1/--file2 传给命令；页面不会把输入显示成执行结果。",
+            RemoteCommandsMobileTheme.NoteClass);
+        _permissionText = Text("", RemoteCommandsMobileTheme.NoteClass);
+        _pendingEndpoint = Text("", RemoteCommandsMobileTheme.RowTitleClass);
+        _pendingReason = Text("", RemoteCommandsMobileTheme.NoteClass);
+        _pendingDetail = MonoSelectable();
+        _pendingMessage = Text("", RemoteCommandsMobileTheme.MetaClass);
+        _trustAcknowledged = Check("我已核对上面的 SHA256 指纹");
+        _trustButton = PrimaryButton("信任此指纹并重新运行");
+        _trustDismissButton = SecondaryButton("取消");
+        _outputHeader = MonoText();
+        _outputViewer = new SelectableTextBlock { TextWrapping = TextWrapping.Wrap };
+        _outputViewer.Classes.Add(RemoteCommandsMobileTheme.MonoClass);
+        _copyOutputButton = SecondaryButton("复制输出");
+        _retryButton = SecondaryButton("重试");
+        _editCommandButton = SecondaryButton("编辑命令");
+        _runDoneButton = SecondaryButton("完成");
+
+        _formLabelField = Field("例如：查看磁盘空间");
+        _formCommandField = Field("例如：df -h");
+        _formDescriptionField = Field("这条命令做什么（可选）");
+        _formAdvancedToggle = SecondaryButton("更多设置（标识、类型、输入提示）");
+        _formAdvancedToggle.HorizontalAlignment = HorizontalAlignment.Left;
+        _formIdField = Field("自动生成，可修改");
+        _formShellType = Radio("在电脑上执行", "rc-command-type", true);
+        _formLocalType = Radio("手机本地转换", "rc-command-type", false);
+        _formTypeHint = Text("", RemoteCommandsMobileTheme.NoteClass);
+        _formHostField = Field("留空表示跟随当前主机");
+        _formInput1LabelField = Field("输入 1 标签");
+        _formInput1PlaceholderField = Field("输入 1 提示");
+        _formSecondInputToggle = Check("需要第二个输入");
+        _formInput2LabelField = Field("输入 2 标签");
+        _formInput2PlaceholderField = Field("输入 2 提示");
+        _saveCommandButton = PrimaryButton("保存新命令");
+        _saveCommandButton.HorizontalAlignment = HorizontalAlignment.Stretch;
+        _cancelCommandButton = SecondaryButton("取消");
+        _deleteCommandButton = SecondaryButton("从 commands.yaml 删除");
+        _deleteCommandButton.IsVisible = false;
+        _commandFormMessage = Text("", RemoteCommandsMobileTheme.NoteClass);
+
+        _aliasField = Field("例如 r743");
+        _realHostField = Field("例如 100.64.0.2 或 host.example.com");
+        _portField = Field("22");
+        _usernameField = Field("登录用户名");
+        _passwordAuth = Radio("密码", "rc-auth", true);
+        _keyAuth = Radio("私钥", "rc-auth", false);
+        _authHint = Text("", RemoteCommandsMobileTheme.NoteClass);
+        _passwordField = Field("登录密码（仅写入系统凭据库）");
+        _passwordField.PasswordChar = '●';
+        _privateKeyField = Field("-----BEGIN OPENSSH PRIVATE KEY-----");
+        _privateKeyField.AcceptsReturn = true;
+        _privateKeyField.TextWrapping = TextWrapping.NoWrap;
+        _privateKeyField.FontFamily = MonoFont;
+        _passphraseField = Field("私钥口令（可留空）");
+        _passphraseField.PasswordChar = '●';
+        _saveHostButton = PrimaryButton("保存映射");
+        _clearFormButton = SecondaryButton("清空表单");
+        _formMessage = Text("", RemoteCommandsMobileTheme.NoteClass);
+        _trustedKeyList = new ItemsControl { ItemsSource = _trustedKeyRows };
+        _trustedKeysEmpty = Text("还没有确认过任何主机密钥。", RemoteCommandsMobileTheme.NoteClass);
+        _keyRevocationPrompt = Text("", RemoteCommandsMobileTheme.NoteClass);
+        _keyRevocationPrompt.IsVisible = false;
+        _settingsDefaultHostField = Field("默认主机别名，例如 r743");
+        _settingsKnownHostsField = Field("每行一个别名");
+        _settingsKnownHostsField.AcceptsReturn = true;
+        _settingsRetentionField = Field("10-5000");
+        _settingsCondaField = Field("/home/user/miniconda3/bin/conda");
+        _settingsCondaField.FontFamily = MonoFont;
+        _settingsTimeoutField = Field("1-1440");
+        _settingsDirtyText = Text("", RemoteCommandsMobileTheme.MetaClass);
+        _settingsMessage = Text("", RemoteCommandsMobileTheme.NoteClass);
+        _modulePreferenceHint = Text("", RemoteCommandsMobileTheme.NoteClass);
+        _settingsSaveButton = PrimaryButton("保存设置");
+        _settingsResetButton = SecondaryButton("还原为模块状态");
+        _historyText = Text("", RemoteCommandsMobileTheme.NoteClass);
+        _clearHistoryButton = SecondaryButton("清空执行历史");
+        _commandsPath = MonoText();
+        _commandsFileStatus = Text("", RemoteCommandsMobileTheme.NoteClass);
+        _catalogError = Text("", RemoteCommandsMobileTheme.NoteClass);
+        _settingsSummary = Text("", RemoteCommandsMobileTheme.MetaClass);
+        _dataDirectory = MonoText();
+        _revalidateButton = SecondaryButton("重新校验 commands.yaml");
+        _openCatalogButton = SecondaryButton("打开命令配置（YAML 编辑器）");
+        _openCatalogButton.HorizontalAlignment = HorizontalAlignment.Left;
+
+        _catalogEditor = new TextBox
         {
-            Orientation = Orientation.Horizontal,
-            Children = { _catalogSaveButton, _catalogImportButton, _catalogReloadButton, _catalogCopyButton }
+            AcceptsReturn = true,
+            TextWrapping = TextWrapping.NoWrap,
+            FontFamily = MonoFont,
+            MinHeight = 240,
+            PlaceholderText = "id: ...\nlabel: ...\ncommand: ...\ntype: shell",
+            HorizontalAlignment = HorizontalAlignment.Stretch
+        };
+        _catalogEditor.Classes.Add(RemoteCommandsMobileTheme.FieldClass);
+        _catalogEditor.Bind(TextBox.TextProperty, new Binding(nameof(RemoteCommandsMobileViewModel.CatalogYaml))
+        {
+            Mode = BindingMode.TwoWay,
+            UpdateSourceTrigger = UpdateSourceTrigger.PropertyChanged
         });
-        _catalogEditorBody.Children.Add(_catalogSaveMessage);
-        _catalogEditorBody.Children.Add(Hint(
-            "保存由模块用同一份解析器校验后写入唯一正式的 commands.yaml；校验不通过时这里会显示原因，编辑内容不会被丢弃。"));
+        ScrollViewer.SetHorizontalScrollBarVisibility(_catalogEditor, ScrollBarVisibility.Auto);
+        ScrollViewer.SetVerticalScrollBarVisibility(_catalogEditor, ScrollBarVisibility.Auto);
+        _catalogDirtyText = Text("", RemoteCommandsMobileTheme.MetaClass);
+        _catalogYamlStatus = Text("", RemoteCommandsMobileTheme.MetaClass);
+        _catalogSaveMessage = Text("", RemoteCommandsMobileTheme.NoteClass);
+        _catalogSaveButton = PrimaryButton("保存到模块");
+        _catalogImportButton = SecondaryButton("从剪贴板导入");
+        _catalogReloadButton = SecondaryButton("重新载入");
+        _catalogCopyButton = SecondaryButton("复制当前 YAML");
 
-        var content = new StackPanel { Spacing = 8 };
-        content.Children.Add(SectionTitle("命令配置"));
-        content.Children.Add(Hint("手机可以直接维护共享的 commands.yaml：改完点保存，模块校验通过后命令目录立即刷新。"));
-        content.Children.Add(_catalogToggleButton);
-        content.Children.Add(_catalogEditorBody);
-        _catalogEditorCard = Card(content);
-        return _catalogEditorCard;
-    }
+        _sheetTitle = Text("", RemoteCommandsMobileTheme.SheetTitleClass);
+        _sheetSubtitle = Text("", RemoteCommandsMobileTheme.MetaClass);
 
-    private Border BuildSettingsCard()
-    {
-        _settingsSaveButton.Click += async (_, _) => await SaveSettingsFromControlsAsync();
-        _settingsResetButton.Click += (_, _) => _viewModel.DiscardSettingsEdits();
-
-        var content = new StackPanel { Spacing = 8 };
-        content.Children.Add(SectionTitle("设置（可直接编辑）"));
-        content.Children.Add(FieldLabel("默认主机"));
-        content.Children.Add(_settingsDefaultHostField);
-        content.Children.Add(FieldLabel("主机别名列表（每行一个）"));
-        content.Children.Add(_settingsKnownHostsField);
-        content.Children.Add(FieldLabel("历史保留条数"));
-        content.Children.Add(_settingsRetentionField);
-        content.Children.Add(FieldLabel("CONDA_EXE（远端前缀）"));
-        content.Children.Add(_settingsCondaField);
-        content.Children.Add(FieldLabel("单次执行超时（分钟）"));
-        content.Children.Add(_settingsTimeoutField);
-        content.Children.Add(new WrapPanel
+        // Single-line fields commit on Enter, which is how a phone keyboard's action key behaves.
+        foreach (var field in new[]
+                 {
+                     _formLabelField, _formCommandField, _formIdField, _formHostField, _aliasField,
+                     _realHostField, _portField, _usernameField, _settingsDefaultHostField,
+                     _settingsRetentionField, _settingsTimeoutField
+                 })
         {
-            Orientation = Orientation.Horizontal,
-            Children = { _settingsSaveButton, _settingsResetButton }
-        });
-        content.Children.Add(_settingsDirtyText);
-        content.Children.Add(_modulePreferenceHint);
-        content.Children.Add(_settingsMessage);
-        return Card(content);
-    }
-
-    private Border BuildHistoryCard()
-    {
-        _clearHistoryButton.Click += async (_, _) => await OnClearHistoryClickedAsync();
-
-        var content = new StackPanel { Spacing = 8 };
-        content.Children.Add(SectionTitle("执行历史"));
-        content.Children.Add(_historyText);
-        content.Children.Add(_clearHistoryButton);
-        return Card(content);
-    }
-
-    private async Task OnClearHistoryClickedAsync()
-    {
-        if (_viewModel.HistoryClearPending)
-        {
-            await _viewModel.ConfirmHistoryClearAsync();
-            return;
+            field.AcceptsReturn = false;
+            field.KeyDown += OnFieldKeyDown;
         }
 
-        _viewModel.RequestHistoryClear();
-    }
-
-    private Border BuildDiagnosticsCard()
-    {
-        _revalidateButton.Click += (_, _) => _viewModel.RefreshCommandsFileStatus();
-
-        var content = new StackPanel { Spacing = 8 };
-        content.Children.Add(SectionTitle("命令文件与共享设置"));
-        content.Children.Add(_commandsPath);
-        content.Children.Add(_commandsFileStatus);
-        content.Children.Add(_catalogError);
-        content.Children.Add(_settingsSummary);
-        content.Children.Add(_dataDirectory);
-        content.Children.Add(_revalidateButton);
-        content.Children.Add(Hint("上面“设置”卡片里的改动会写入模块读取的同一份文件；这里显示的是模块当前生效的状态。"));
-        return Card(content);
+        _catalogPanel = new StackPanel();
+        _commandPanel = new StackPanel();
+        _connectionPanel = new StackPanel();
+        _runPanel = new StackPanel();
     }
 
     // ---------------------------------------------------------------- primitives
@@ -461,109 +812,157 @@ internal sealed partial class RemoteCommandsMobileView
 
     private static IBrush Brush(string role) => RemoteCommandsMobilePalette.Current.Brush(role);
 
-    private static TextBlock SectionTitle(string text) => new()
+    internal static void ToggleClass(StyledElement element, string className, bool on)
     {
-        Text = text,
-        FontSize = 16,
-        FontWeight = FontWeight.SemiBold,
-        Foreground = Brush("Text")
-    };
+        if (on)
+        {
+            if (!element.Classes.Contains(className))
+            {
+                element.Classes.Add(className);
+            }
 
-    private static TextBlock FieldLabel(string text) => new()
+            return;
+        }
+
+        element.Classes.Remove(className);
+    }
+
+    private static TextBlock Text(string text, string className)
     {
-        Text = text,
-        FontSize = 12,
-        FontWeight = FontWeight.Medium,
-        Foreground = Brush("Muted"),
-        Margin = new Thickness(0, 4, 0, 0)
-    };
+        var block = new TextBlock { Text = text, TextWrapping = TextWrapping.Wrap };
+        block.Classes.Add(className);
+        return block;
+    }
 
-    private static TextBlock Hint(string text) => new()
+    private static TextBlock MonoText() => Text("", RemoteCommandsMobileTheme.MonoClass);
+
+    private static SelectableTextBlock MonoSelectable()
     {
-        Text = text,
-        FontSize = 12,
-        TextWrapping = TextWrapping.Wrap,
-        Foreground = Brush("Muted")
-    };
+        var block = new SelectableTextBlock { TextWrapping = TextWrapping.Wrap };
+        block.Classes.Add(RemoteCommandsMobileTheme.MonoClass);
+        return block;
+    }
 
-    private static TextBox Field(string watermark) => new()
+    private static TextBlock SectionTitle(string text) => Text(text, RemoteCommandsMobileTheme.SectionTitleClass);
+
+    private static TextBlock FieldLabel(string text) => Text(text, RemoteCommandsMobileTheme.FieldLabelClass);
+
+    private static TextBox Field(string placeholder)
     {
-        Watermark = watermark,
-        MinHeight = TouchTarget,
-        FontSize = 14
-    };
+        var field = new TextBox { PlaceholderText = placeholder };
+        field.Classes.Add(RemoteCommandsMobileTheme.FieldClass);
+        return field;
+    }
 
-    private static Button PrimaryButton(string text) => new()
+    private static CheckBox Check(string content)
     {
-        Content = text,
-        MinHeight = TouchTarget,
-        Padding = new Thickness(16, 8),
-        Margin = new Thickness(0, 0, 8, 0),
-        Background = Brush("Accent"),
-        Foreground = Brush("AccentText"),
-        HorizontalContentAlignment = HorizontalAlignment.Center
-    };
+        var check = new CheckBox { Content = content };
+        check.Classes.Add(RemoteCommandsMobileTheme.CheckClass);
+        return check;
+    }
 
-    private static Button SecondaryButton(string text) => new()
+    private static RadioButton Radio(string content, string group, bool isChecked)
     {
-        Content = text,
-        MinHeight = TouchTarget,
-        Padding = new Thickness(14, 8),
-        Margin = new Thickness(0, 0, 8, 0),
-        HorizontalContentAlignment = HorizontalAlignment.Center
-    };
+        var radio = new RadioButton
+        {
+            // The theme's touch target styles target CheckBox; a radio keeps the metric locally.
+            Content = content,
+            GroupName = group,
+            MinHeight = TouchTarget,
+            IsChecked = isChecked
+        };
+        radio.Classes.Add(RemoteCommandsMobileTheme.CheckClass);
+        return radio;
+    }
 
-    private static Border Card(Control child) => Border(child, "Card", "Border");
-
-    private static Border Border(Control child, string backgroundRole, string borderRole) => new()
+    private static ProgressBar Progress()
     {
-        Background = Brush(backgroundRole),
-        BorderBrush = Brush(borderRole),
-        BorderThickness = new Thickness(1),
-        CornerRadius = new CornerRadius(12),
-        Padding = new Thickness(14),
-        Child = child
-    };
+        var bar = new ProgressBar { IsIndeterminate = true };
+        bar.Classes.Add(RemoteCommandsMobileTheme.ProgressClass);
+        return bar;
+    }
+
+    private static Button PrimaryButton(string text)
+    {
+        var button = new Button { Content = text };
+        button.Classes.Add(RemoteCommandsMobileTheme.PrimaryClass);
+        return button;
+    }
+
+    private static Button SecondaryButton(string text)
+    {
+        var button = new Button { Content = text };
+        button.Classes.Add(RemoteCommandsMobileTheme.SecondaryClass);
+        return button;
+    }
+
+    private static Button IconButton()
+    {
+        var button = new Button();
+        button.Classes.Add(RemoteCommandsMobileTheme.IconButtonClass);
+        return button;
+    }
+
+    private static Button BackButton()
+    {
+        var button = new Button();
+        button.Classes.Add(RemoteCommandsMobileTheme.BackButtonClass);
+        return button;
+    }
+
+    private static Button CloseButton()
+    {
+        var button = new Button();
+        button.Classes.Add(RemoteCommandsMobileTheme.CloseButtonClass);
+        return button;
+    }
+
+    private static Button QuietButton(string text)
+    {
+        var button = new Button { Content = text };
+        button.Classes.Add(RemoteCommandsMobileTheme.QuietButtonClass);
+        return button;
+    }
+
+    private static Button TextButton(string text)
+    {
+        var button = new Button { Content = text };
+        button.Classes.Add(RemoteCommandsMobileTheme.TextButtonClass);
+        return button;
+    }
+
+    private static Border Card(Control child)
+    {
+        var border = new Border { Child = child };
+        border.Classes.Add(RemoteCommandsMobileTheme.CardClass);
+        return border;
+    }
+
+    /// <summary>A prototype stroke icon. No icon font is required, so it renders on every device.</summary>
+    private static ShapePath Icon(string data)
+    {
+        var path = new ShapePath { Data = Geometry.Parse(data), VerticalAlignment = VerticalAlignment.Center };
+        path.Classes.Add(RemoteCommandsMobileTheme.IconClass);
+        return path;
+    }
 }
 
-/// <summary>Small palette that follows the Shell theme so the phone page does not fight the host.</summary>
-internal sealed record RemoteCommandsMobilePalette(bool Dark)
+/// <summary>
+/// Vector marks taken from the approved prototype's icon set (24 dp box, stroke only).
+/// </summary>
+internal static class MobileIcons
 {
-    public static RemoteCommandsMobilePalette ForTheme(string? theme) =>
-        new(string.Equals(theme, "dark", StringComparison.OrdinalIgnoreCase));
-
-    public static RemoteCommandsMobilePalette Current { get; set; } = new(false);
-
-    public IBrush Brush(string role) => new SolidColorBrush(Color.Parse(ColorFor(role)));
-
-    private string ColorFor(string role) => (Dark, role) switch
-    {
-        (false, "Page") => "#F7F8FA",
-        (false, "Card") => "#FFFFFF",
-        (false, "Inset") => "#F3F4F6",
-        (false, "Border") => "#D8DEE7",
-        (false, "Text") => "#111827",
-        (false, "Muted") => "#6B7280",
-        (false, "Accent") => "#2563EB",
-        (false, "AccentText") => "#FFFFFF",
-        (false, "Success") => "#15803D",
-        (false, "Warning") => "#B45309",
-        (false, "WarningSurface") => "#FEF3C7",
-        (false, "Error") => "#B91C1C",
-        (false, "ErrorSurface") => "#FEE2E2",
-        (true, "Page") => "#111827",
-        (true, "Card") => "#1F2937",
-        (true, "Inset") => "#111827",
-        (true, "Border") => "#374151",
-        (true, "Text") => "#F9FAFB",
-        (true, "Muted") => "#9CA3AF",
-        (true, "Accent") => "#60A5FA",
-        (true, "AccentText") => "#0B1220",
-        (true, "Success") => "#4ADE80",
-        (true, "Warning") => "#FCD34D",
-        (true, "WarningSurface") => "#78350F",
-        (true, "Error") => "#FCA5A5",
-        (true, "ErrorSurface") => "#7F1D1D",
-        _ => "#00000000"
-    };
+    public const string Back = "m15 5-7 7 7 7";
+    public const string Close = "m6 6 12 12M6 18 18 6";
+    public const string Refresh = "M20 9a8 8 0 0 0-14-4L3 8m0-5v5h5M4 15a8 8 0 0 0 14 4l3-3m0 5v-5h-5";
+    public const string Chevron = "m9 5 7 7-7 7";
+    public const string Terminal = "m5 6 5 6-5 6M13 18h6";
+    public const string Code = "m8 5-6 7 6 7M16 5l6 7-6 7";
+    public const string Check = "m5 12 4 4L19 6";
+    public const string Failed = "m6 6 12 12M6 18 18 6";
+    public const string Cancelled = "M7 7h10v10H7z";
+    public const string Warning = "M12 3 2 20h20zM12 9v5M12 17h.01";
+    public const string Active = "M12 9a3 3 0 1 0 0 6 3 3 0 0 0 0-6z";
+    public const string Circle = "M12 5a7 7 0 1 0 0 14 7 7 0 0 0 0-14z";
+    public const string Dot = "M12 12h.01";
 }

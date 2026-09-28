@@ -78,10 +78,24 @@ internal static class RemoteCommandsMobileContract
     public const string StateCancelled = "cancelled";
     public const string StateHostKeyRequired = "host-key-required";
 
+    /// <summary>
+    /// Host-level state for a brokered command the runtime refused before it reached the module
+    /// (<c>MptHostRuntime.BrokerRequestCommand</c>). It arrives as a failed result whose error code is
+    /// <see cref="ErrorPermissionRequired"/> and whose payload carries no run state at all.
+    /// </summary>
+    public const string StatePermissionRequired = "permission-required";
+
     public const string ErrorPermissionRequired = "MPT_PERMISSION_REQUIRED";
     public const string ErrorValidationFailed = "MPT_VALIDATION_FAILED";
     public const string ErrorNotFound = "MPT_NOT_FOUND";
     public const string ErrorRuntimeUnavailable = "MPT_RUNTIME_UNAVAILABLE";
+
+    // ------------------------------------------------------------------ run stages
+    /// <summary>Stage names the runner publishes on <c>run.stage</c>; <c>connecting</c> is the
+    /// implicit stage between <c>run.started</c> and the first <c>uploading</c> event.</summary>
+    public const string StageConnecting = "connecting";
+    public const string StageUploading = "uploading";
+    public const string StageRunning = "running";
 
     // ------------------------------------------------------------------ module events
     public const string EventRunStarted = "run.started";
@@ -94,6 +108,12 @@ internal static class RemoteCommandsMobileContract
     public const string EventHostUpdated = "host.updated";
     public const string EventHostRemoved = "host.removed";
     public const string EventHistoryCleared = "history.cleared";
+
+    /// <summary>Published after the module writes the shared <c>commands.yaml</c>.</summary>
+    public const string EventCatalogSaved = "catalog.saved";
+
+    /// <summary>Published after the module writes the shared <c>settings.json</c>.</summary>
+    public const string EventSettingsUpdated = "settings.updated";
 
     /// <summary>Default port the module applies when <c>host.add</c> omits it.</summary>
     public const int DefaultPort = 22;

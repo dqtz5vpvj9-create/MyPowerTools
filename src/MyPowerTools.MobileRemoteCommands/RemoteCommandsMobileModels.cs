@@ -1,3 +1,4 @@
+using System.Globalization;
 using System.Text.Json.Nodes;
 
 namespace MyPowerTools.MobileRemoteCommands;
@@ -22,11 +23,38 @@ internal sealed record MobileCommandDefinition(
 
     public string TypeBadge => IsLocalTransform ? "本地转换" : "SSH";
 
+    /// <summary>Read-only commands still run on the host; the badge only states what the phone knows.</summary>
+    public string RunBadge => IsLocalTransform ? "本地" : "远程";
+
     public string HostText => string.IsNullOrWhiteSpace(Host) ? "跟随当前主机" : $"固定 {Host}";
 
     public string Input1LabelText => string.IsNullOrWhiteSpace(Input1Label) ? "输入 1" : Input1Label;
 
     public string Input2LabelText => string.IsNullOrWhiteSpace(Input2Label) ? "输入 2" : Input2Label;
+
+    /// <summary>Single-line command text for a list row, matching the prototype's “uptime · 只读” line.</summary>
+    public string ListCommandText
+    {
+        get
+        {
+            var command = (Command ?? "").Replace('\n', ' ').Trim();
+            if (command.Length > 48)
+            {
+                command = command[..47] + "…";
+            }
+
+            return command.Length == 0 ? "（未填写命令）" : command;
+        }
+    }
+
+    /// <summary>Row subtitle: the real command text plus the real execution target.</summary>
+    public string ListSubtitleText => $"{ListCommandText} · {RunBadge}";
+
+    /// <summary>
+    /// A one-character mark for the row leading badge. No icon font is guaranteed on Android, so the
+    /// page draws a glyph instead of an SVG/codepoint that may render as a box.
+    /// </summary>
+    public string Glyph => IsLocalTransform ? "⇄" : ">_";
 
     public override string ToString() => string.IsNullOrWhiteSpace(Label) ? Id : Label;
 }
@@ -49,6 +77,12 @@ internal sealed record MobileHostEntry(
     /// <summary>Only the presence of a credential is ever shown; its value stays in the secret store.</summary>
     public string CredentialText => CredentialConfigured ? "凭据已保存" : "缺少凭据";
 
+    /// <summary>True when this mapping can be used for a run at all.</summary>
+    public bool Ready => CredentialConfigured;
+
+    /// <summary>Row subtitle: the real endpoint and the real credential state.</summary>
+    public string SubtitleText => $"{EndpointText} · {AuthText} · {CredentialText}";
+
     public override string ToString() => $"{Alias} → {EndpointText}";
 }
 
@@ -65,6 +99,10 @@ internal sealed record MobileHostKeyEntry(
     public string FingerprintText => string.IsNullOrWhiteSpace(Fingerprint) ? "（未记录指纹）" : Fingerprint;
 
     public string AddedAtText => string.IsNullOrWhiteSpace(AddedAt) ? "" : $"确认于 {AddedAt}";
+
+    public string SubtitleText => string.IsNullOrWhiteSpace(AddedAt) ? FingerprintText : $"{FingerprintText} · {AddedAt}";
+
+    public override string ToString() => EndpointText;
 }
 
 internal sealed record MobileHistorySummary(
@@ -150,6 +188,8 @@ internal sealed record MobileModuleState(
         .Split(['\n', '\r', ','], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
         .Distinct(StringComparer.OrdinalIgnoreCase)
         .ToArray();
+
+    public bool HasActiveRun => ActiveInvocationId.Length > 0;
 }
 
 /// <summary>Terminal outcome of one <c>run</c> invocation.</summary>
@@ -171,16 +211,119 @@ internal sealed record MobileRunOutcome(
 
     public bool Cancelled => string.Equals(State, RemoteCommandsMobileContract.StateCancelled, StringComparison.Ordinal);
 
+    /// <summary>True for a run that reached the host/module and came back unsuccessful.</summary>
+    public bool Failed => !Succeeded && !Cancelled && !NeedsHostKeyTrust;
+
+    /// <summary>An outcome that never reached the module (for example: no host configured for the alias).</summary>
+    public static MobileRunOutcome NotStarted(string message) =>
+        new(RemoteCommandsMobileContract.StateFailed, message, null, "", "", "", "", null, "");
+
     public string EndpointText => string.IsNullOrWhiteSpace(Alias)
         ? ResolvedHost
         : $"{Alias} → {ResolvedHost}";
 
+    /// <summary>Execution target as the module reported it; empty when the module never resolved a host.</summary>
+    public string DeviceText
+    {
+        get
+        {
+            if (Alias.Length == 0)
+            {
+                return ResolvedHost;
+            }
+
+            return ResolvedHost.Length == 0 ? Alias : $"{Alias}（{ResolvedHost}）";
+        }
+    }
+
+    public string StateText => State switch
+    {
+        RemoteCommandsMobileContract.StateSucceeded => "运行完成",
+        RemoteCommandsMobileContract.StateCancelled => "已取消",
+        RemoteCommandsMobileContract.StateHostKeyRequired => "等待确认主机密钥",
+        _ => "运行失败"
+    };
+
+    public string Glyph => State switch
+    {
+        RemoteCommandsMobileContract.StateSucceeded => "✓",
+        RemoteCommandsMobileContract.StateCancelled => "■",
+        RemoteCommandsMobileContract.StateHostKeyRequired => "⚠",
+        _ => "✗"
+    };
+
+    /// <summary>One of <c>success</c>, <c>info</c>, <c>warning</c>, <c>error</c> for the page palette.</summary>
+    public string Tone => State switch
+    {
+        RemoteCommandsMobileContract.StateSucceeded => "success",
+        RemoteCommandsMobileContract.StateCancelled => "info",
+        RemoteCommandsMobileContract.StateHostKeyRequired => "warning",
+        _ => "error"
+    };
+
+    /// <summary>Readable result line: the module message, or the exit code when it has no message.</summary>
+    public string DetailText
+    {
+        get
+        {
+            if (ExitCode is not { } code)
+            {
+                return Message;
+            }
+
+            var number = code.ToString(CultureInfo.InvariantCulture);
+            var suffix = $"退出码 {number}";
+
+            // The module's own message already names the exit code; repeating it reads as two facts.
+            return Message.Length == 0 ? suffix
+                : Message.Contains(number, StringComparison.Ordinal) ? Message
+                : $"{Message} · {suffix}";
+        }
+    }
+
     public string ResultText => State switch
     {
-        RemoteCommandsMobileContract.StateSucceeded => $"执行成功（退出码 {ExitCode?.ToString() ?? "0"}）",
+        RemoteCommandsMobileContract.StateSucceeded => $"执行成功（退出码 {ExitCode?.ToString(CultureInfo.InvariantCulture) ?? "0"}）",
         RemoteCommandsMobileContract.StateCancelled => "已取消",
         RemoteCommandsMobileContract.StateHostKeyRequired => "等待确认主机密钥",
         _ => string.IsNullOrWhiteSpace(Message) ? "执行失败" : $"执行失败：{Message}"
+    };
+}
+
+/// <summary>
+/// A module call that failed before it produced a product payload. <see cref="PermissionRequired"/>
+/// distinguishes "the host/module is asking for authorization" from an ordinary failure, so the page
+/// can say so and offer the same retry instead of inventing a permission system.
+/// </summary>
+internal sealed class MobileModuleException(string message, string code, bool permissionRequired = false)
+    : InvalidOperationException(message)
+{
+    public string Code { get; } = code;
+
+    public bool PermissionRequired { get; } =
+        permissionRequired ||
+        string.Equals(code, RemoteCommandsMobileContract.ErrorPermissionRequired, StringComparison.OrdinalIgnoreCase) ||
+        string.Equals(code, RemoteCommandsMobileContract.StatePermissionRequired, StringComparison.OrdinalIgnoreCase);
+}
+
+/// <summary>One step of the run progress list shown while a command executes.</summary>
+internal sealed record MobileRunStageItem(string Title, string Detail, string State)
+{
+    public string Glyph => State switch
+    {
+        "done" => "✓",
+        "active" => "●",
+        "failed" => "✗",
+        _ => "○"
+    };
+
+    /// <summary>One of <c>success</c>, <c>accent</c>, <c>error</c>, <c>muted</c>.</summary>
+    public string Tone => State switch
+    {
+        "done" => "success",
+        "active" => "accent",
+        "failed" => "error",
+        _ => "muted"
     };
 }
 
@@ -194,18 +337,23 @@ internal static class RemoteCommandsMobileJson
             return "";
         }
 
-        return value.TryGetValue<string>(out var text) ? text : "";
-    }
-
-    public static int Int(JsonObject? json, string key, int fallback = 0)
-    {
-        if (json is null || !json.TryGetPropertyValue(key, out var node) || node is not JsonValue value)
+        if (value.TryGetValue<string>(out var text))
         {
-            return fallback;
+            return text;
         }
 
-        return value.TryGetValue<int>(out var number) ? number : fallback;
+        // A host that normalises structured payloads through protobuf has no integer type; a string is
+        // still a legitimate shape for a textual field.
+        return value.TryGetValue<double>(out var number) ? number.ToString(CultureInfo.InvariantCulture) : "";
     }
+
+    /// <summary>
+    /// Reads an integer from any shape a host can deliver. The Android HostControl trip converts the
+    /// arguments (and any normalised payload) to protobuf <c>Struct</c>, which has no integer type, so
+    /// an integral <see cref="double"/> and an integral numeric string must both read back exactly -
+    /// this is the phone-side half of the 299/300 settings regression.
+    /// </summary>
+    public static int Int(JsonObject? json, string key, int fallback = 0) => NullableInt(json, key) ?? fallback;
 
     public static int? NullableInt(JsonObject? json, string key)
     {
@@ -214,7 +362,32 @@ internal static class RemoteCommandsMobileJson
             return null;
         }
 
-        return value.TryGetValue<int>(out var number) ? number : null;
+        if (value.TryGetValue<int>(out var number))
+        {
+            return number;
+        }
+
+        if (value.TryGetValue<long>(out var wide) && wide is >= int.MinValue and <= int.MaxValue)
+        {
+            return (int)wide;
+        }
+
+        if (value.TryGetValue<double>(out var floating) &&
+            !double.IsNaN(floating) &&
+            !double.IsInfinity(floating) &&
+            Math.Floor(floating) == floating &&
+            floating is >= int.MinValue and <= int.MaxValue)
+        {
+            return (int)floating;
+        }
+
+        if (value.TryGetValue<string>(out var text) &&
+            int.TryParse(text.Trim(), NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed))
+        {
+            return parsed;
+        }
+
+        return null;
     }
 
     public static bool Flag(JsonObject? json, string key)

@@ -1,6 +1,7 @@
 using Avalonia;
 using Avalonia.Headless;
 using Avalonia.Headless.XUnit;
+using Avalonia.Markup.Xaml.Styling;
 using Avalonia.Themes.Fluent;
 
 [assembly: AvaloniaTestApplication(typeof(MyPowerTools.MobileRemoteCommands.Tests.TestAppBuilder))]
@@ -9,16 +10,29 @@ using Avalonia.Themes.Fluent;
 namespace MyPowerTools.MobileRemoteCommands.Tests;
 
 /// <summary>
-/// Minimal host application for the headless tests. The surface paints itself from its own palette and
-/// uses plain Avalonia controls, so the Fluent theme is all it needs; no Skia, no Shell, no Android host.
+/// Host application for the headless tests.
+///
+/// It registers the **real** mobile theme from the SDK package
+/// (<c>avares://MyPowerTools.AvaloniaSdk/Themes/MptMobileTheme.axaml</c>), exactly like the Android
+/// Shell does, so the tests exercise the shipped <c>MptMobile*</c> tokens, typography, surfaces and
+/// control styles instead of only this page's pre-theme fallback. The page therefore has to prove it
+/// works with the theme present.
 /// </summary>
 public sealed class TestApp : Application
 {
-    public override void Initialize() => Styles.Add(new FluentTheme());
+    public override void Initialize()
+    {
+        Styles.Add(new FluentTheme());
+        Styles.Add(new StyleInclude(new Uri("avares://MyPowerTools.AvaloniaSdk/"))
+        {
+            Source = new Uri("avares://MyPowerTools.AvaloniaSdk/Themes/MptMobileTheme.axaml")
+        });
+    }
 }
 
 public static class TestAppBuilder
 {
     public static AppBuilder BuildAvaloniaApp() => AppBuilder.Configure<TestApp>()
-        .UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = true });
+        .UseSkia()
+        .UseHeadless(new AvaloniaHeadlessPlatformOptions { UseHeadlessDrawing = false });
 }
