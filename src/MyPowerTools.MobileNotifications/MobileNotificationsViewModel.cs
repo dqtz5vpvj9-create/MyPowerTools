@@ -20,11 +20,18 @@ namespace MyPowerTools.MobileNotifications;
 /// commands (<c>sync-now</c>, <c>polling.start/stop</c>, <c>configure</c>, key import/clear,
 /// <c>inbox.clear</c>) because the Android build has no service unit and must not poll on its own:
 /// the module owns the single signed pull loop and the tray notifications.
+///
+/// Everything the page shows is real: history comes from the shared inbox file, status and errors
+/// come from the module, background state changes only after the module reports it, and a missing
+/// signing key is offered as a configuration step instead of a simulated success.
 /// </summary>
 public sealed class MobileNotificationsViewModel : MptObservableViewModel, IDisposable
 {
     private const string ClaudeTaskLabel = "Claude Task";
     private const string AllLabelsFilter = RemoteNotificationsLegacyStore.FilterAll;
+
+    /// <summary>Module error code that means "the user must grant or configure something first".</summary>
+    public const string PermissionRequiredCode = "MPT_PERMISSION_REQUIRED";
 
     private readonly MptAvaloniaSurfaceContext _context;
     private readonly RemoteNotificationsLegacyStore _store;
@@ -32,7 +39,6 @@ public sealed class MobileNotificationsViewModel : MptObservableViewModel, IDisp
     private readonly CancellationTokenSource _lifetime = new();
     private readonly List<MobileNotificationCardViewModel> _all = [];
     private readonly HashSet<string> _unreadLabels = new(StringComparer.Ordinal);
-    private readonly SemaphoreSlim _operationGate = new(1, 1);
 
     private IDisposable? _events;
     private IReadOnlyList<string> _knownLabels = [];
@@ -44,13 +50,17 @@ public sealed class MobileNotificationsViewModel : MptObservableViewModel, IDisp
     private bool _isSettingsVisible;
     private bool _isBusy;
     private bool _isErrorDetailsVisible;
+    private bool _isClearConfirmVisible;
     private string _connectionState = "starting";
     private string _lastPoll = "";
     private string _lastError = "";
+    private string _lastErrorCode = "";
+    private Func<Task>? _retry;
     private string _syncResult = "";
     private string _serverText = "";
     private bool _keyConfigured;
     private bool _backgroundActive;
+    private bool _backgroundSwitchOn;
     private bool _backgroundAvailable;
     private bool _backgroundRequested;
     private string _healthText = "";
@@ -62,6 +72,8 @@ public sealed class MobileNotificationsViewModel : MptObservableViewModel, IDisp
     private string _portDraft = RemoteNotificationSettings.DefaultPort.ToString(CultureInfo.InvariantCulture);
     private string _channelDraft = RemoteNotificationSettings.DefaultChannel;
     private string _pollIntervalDraft = RemoteNotificationSettings.DefaultPollIntervalSeconds.ToString(CultureInfo.InvariantCulture);
+    private MobileNotificationDetailViewModel? _detail;
+    private RemoteNotificationSessionPosition? _detailPosition;
     private bool _disposed;
 
     public MobileNotificationsViewModel(
@@ -74,6 +86,7 @@ public sealed class MobileNotificationsViewModel : MptObservableViewModel, IDisp
         _settingsStore = settingsStore ?? throw new ArgumentNullException(nameof(settingsStore));
 
         Messages = [];
+        MessageGroups = [];
         Labels = [];
         SyncCommand = new MptAsyncRelayCommand(() => SyncAsync(), () => !IsBusy, "remote-notifications.sync");
         ToggleSettingsCommand = new MptAsyncRelayCommand(() =>
@@ -83,6 +96,7 @@ public sealed class MobileNotificationsViewModel : MptObservableViewModel, IDisp
             {
                 LoadDrafts();
                 IsSearchVisible = false;
+                CloseSheets();
             }
 
             return Task.CompletedTask;
@@ -97,14 +111,16 @@ public sealed class MobileNotificationsViewModel : MptObservableViewModel, IDisp
 
             return Task.CompletedTask;
         });
-        ToggleBackgroundCommand = new MptAsyncRelayCommand(ToggleBackgroundAsync, () => !IsBusy);
+        ToggleBackgroundCommand = new MptAsyncRelayCommand(
+            () => SetBackgroundAsync(!BackgroundActive),
+            () => !IsBusy && CanToggleBackground);
         SaveSettingsCommand = new MptAsyncRelayCommand(SaveSettingsAsync, () => !IsBusy);
         ImportKeyCommand = new MptAsyncRelayCommand(ImportKeyAsync, () => !IsBusy);
         ClearKeyCommand = new MptAsyncRelayCommand(ClearKeyAsync, () => !IsBusy);
         ClearInboxCommand = new MptAsyncRelayCommand(ClearInboxAsync, () => !IsBusy);
         MarkReadCommand = new MptAsyncRelayCommand(() =>
         {
-            MarkVisibleAsRead();
+            MarkAllAsRead();
             return Task.CompletedTask;
         });
         ToggleErrorDetailsCommand = new MptAsyncRelayCommand(() =>
@@ -112,10 +128,40 @@ public sealed class MobileNotificationsViewModel : MptObservableViewModel, IDisp
             IsErrorDetailsVisible = !IsErrorDetailsVisible;
             return Task.CompletedTask;
         });
-        OpenSettingsFromErrorCommand = new MptAsyncRelayCommand(() =>
+        OpenSettingsFromErrorCommand = new MptAsyncRelayCommand(() => OpenSettingsAsync());
+        OpenKeySettingsCommand = new MptAsyncRelayCommand(() => OpenSettingsAsync(requestKeySection: true));
+        EmptyActionCommand = new MptAsyncRelayCommand(EmptyActionAsync);
+        ErrorActionCommand = new MptAsyncRelayCommand(ErrorActionAsync);
+        CloseDetailCommand = new MptAsyncRelayCommand(() =>
         {
-            IsSettingsVisible = true;
-            LoadDrafts();
+            CloseSheets();
+            return Task.CompletedTask;
+        });
+        ShowDetailPreviousCommand = new MptAsyncRelayCommand(
+            () => { ShowAdjacentDetail(-1); return Task.CompletedTask; },
+            () => CanShowDetailPrevious);
+        ShowDetailNextCommand = new MptAsyncRelayCommand(
+            () => { ShowAdjacentDetail(1); return Task.CompletedTask; },
+            () => CanShowDetailNext);
+        MarkDetailReadCommand = new MptAsyncRelayCommand(() =>
+        {
+            if (Detail is { } detail)
+            {
+                SetRead(detail.Card, isRead: true);
+            }
+
+            return Task.CompletedTask;
+        });
+        OpenClearHistoryCommand = new MptAsyncRelayCommand(() =>
+        {
+            Detail = null;
+            _detailPosition = null;
+            IsClearConfirmVisible = true;
+            return Task.CompletedTask;
+        });
+        CancelClearHistoryCommand = new MptAsyncRelayCommand(() =>
+        {
+            IsClearConfirmVisible = false;
             return Task.CompletedTask;
         });
 
@@ -123,10 +169,16 @@ public sealed class MobileNotificationsViewModel : MptObservableViewModel, IDisp
         ReloadSnapshot(markNewUnread: false);
     }
 
+    /// <summary>Raised when the user asked for the signing-key section; the view scrolls it into view.</summary>
+    public event Action? KeySectionRequested;
+
     // ---------------------------------------------------------------- collections
 
     /// <summary>Cards after label, Claude Task and search filtering, newest first.</summary>
     public ObservableCollection<MobileNotificationCardViewModel> Messages { get; }
+
+    /// <summary>Same cards, grouped into the real 今天 / 昨天 / date buckets the list renders.</summary>
+    public ObservableCollection<MobileNotificationDayGroupViewModel> MessageGroups { get; }
 
     /// <summary>Horizontal label strip: 全部, one chip per known label, then Claude Task.</summary>
     public ObservableCollection<MobileNotificationLabelViewModel> Labels { get; }
@@ -142,6 +194,15 @@ public sealed class MobileNotificationsViewModel : MptObservableViewModel, IDisp
     public ICommand MarkReadCommand { get; }
     public ICommand ToggleErrorDetailsCommand { get; }
     public ICommand OpenSettingsFromErrorCommand { get; }
+    public ICommand OpenKeySettingsCommand { get; }
+    public ICommand EmptyActionCommand { get; }
+    public ICommand ErrorActionCommand { get; }
+    public ICommand CloseDetailCommand { get; }
+    public ICommand ShowDetailPreviousCommand { get; }
+    public ICommand ShowDetailNextCommand { get; }
+    public ICommand MarkDetailReadCommand { get; }
+    public ICommand OpenClearHistoryCommand { get; }
+    public ICommand CancelClearHistoryCommand { get; }
 
     // ---------------------------------------------------------------- view state
 
@@ -157,18 +218,28 @@ public sealed class MobileNotificationsViewModel : MptObservableViewModel, IDisp
             {
                 OnPropertyChanged(nameof(IsNotBusy));
                 OnPropertyChanged(nameof(SyncButtonText));
-                ((MptAsyncRelayCommand)SyncCommand).NotifyCanExecuteChanged();
-                ((MptAsyncRelayCommand)ToggleBackgroundCommand).NotifyCanExecuteChanged();
-                ((MptAsyncRelayCommand)SaveSettingsCommand).NotifyCanExecuteChanged();
-                ((MptAsyncRelayCommand)ImportKeyCommand).NotifyCanExecuteChanged();
-                ((MptAsyncRelayCommand)ClearKeyCommand).NotifyCanExecuteChanged();
-                ((MptAsyncRelayCommand)ClearInboxCommand).NotifyCanExecuteChanged();
+                NotifyCommandStates();
             }
         }
     }
 
     public bool IsNotBusy => !IsBusy;
     public string SyncButtonText => IsBusy ? "同步中…" : "立即同步";
+
+    private void NotifyCommandStates()
+    {
+        foreach (var command in new[]
+                 {
+                     SyncCommand, ToggleBackgroundCommand, SaveSettingsCommand, ImportKeyCommand,
+                     ClearKeyCommand, ClearInboxCommand, ShowDetailPreviousCommand, ShowDetailNextCommand
+                 })
+        {
+            if (command is MptAsyncRelayCommand relay)
+            {
+                relay.NotifyCanExecuteChanged();
+            }
+        }
+    }
 
     public string ConnectionState
     {
@@ -178,8 +249,6 @@ public sealed class MobileNotificationsViewModel : MptObservableViewModel, IDisp
             if (SetProperty(ref _connectionState, value))
             {
                 OnPropertyChanged(nameof(StatusText));
-                OnPropertyChanged(nameof(StatusColor));
-                OnPropertyChanged(nameof(StatusBackground));
             }
         }
     }
@@ -192,24 +261,6 @@ public sealed class MobileNotificationsViewModel : MptObservableViewModel, IDisp
         "auth" => "需要签名密钥",
         "error" => "同步异常",
         _ => "准备中"
-    };
-
-    public string StatusColor => ConnectionState switch
-    {
-        "running" => "#1D4ED8",
-        "ok" => "#15803D",
-        "idle" => "#4B5563",
-        "auth" or "error" => "#B91C1C",
-        _ => "#4B5563"
-    };
-
-    public string StatusBackground => ConnectionState switch
-    {
-        "running" => "#DBEAFE",
-        "ok" => "#DCFCE7",
-        "idle" => "#F3F4F6",
-        "auth" or "error" => "#FEE2E2",
-        _ => "#F3F4F6"
     };
 
     public string LastPoll
@@ -235,22 +286,67 @@ public sealed class MobileNotificationsViewModel : MptObservableViewModel, IDisp
     public string ServerText
     {
         get => _serverText;
-        private set => SetProperty(ref _serverText, value);
+        private set
+        {
+            if (SetProperty(ref _serverText, value))
+            {
+                OnPropertyChanged(nameof(EndpointText));
+            }
+        }
     }
 
-    public string CountText => Messages.Count == 0 ? "暂无通知" : $"{Messages.Count} 条通知";
+    public string CountText => _all.Count == 0 ? "暂无通知" : $"共 {_all.Count} 条通知";
+
+    /// <summary>Real configured endpoint, shown on the connection settings page (never in the list).</summary>
+    public string EndpointText => string.IsNullOrWhiteSpace(ServerText) ? "当前端点：尚未配置" : $"当前端点：{ServerText}";
+
+    /// <summary>Prototype page heading and its real subtitle (unread count / empty prompt).</summary>
+    public string HeadingTitle => "值得你看一眼。";
+
+    public string HeadingSubtitle => UnreadCount > 0
+        ? $"来自设备的 {UnreadCount} 条新消息。"
+        : _all.Count == 0
+            ? "还没有收到通知，点“立即同步”检查一次。"
+            : "所有消息都已读完。";
+
+    public int UnreadCount => _all.Count(card => card.IsUnread);
+
+    public bool HasUnread => UnreadCount > 0;
 
     public bool ShowsEmptyState => Messages.Count == 0;
-    public string EmptyText => SearchQuery.Trim().Length > 0
-        ? $"没有匹配“{SearchQuery.Trim()}”的通知"
+
+    public string EmptyTitle => SearchQuery.Trim().Length > 0
+        ? "换个词试试"
         : IsClaudeTaskVisible
             ? "还没有 Claude Task 通知"
             : _filterLabel is not null
                 ? $"没有“{_filterLabel}”标签的通知"
-                : "还没有收到通知，点“立即同步”检查一次。";
+                : "还没有收到通知";
+
+    public string EmptyText => SearchQuery.Trim().Length > 0
+        ? $"没有匹配“{SearchQuery.Trim()}”的通知。"
+        : "电脑端发来通知后，会自动出现在这里。";
+
+    public string EmptyActionText => SearchQuery.Trim().Length > 0 || _filterLabel is not null || IsClaudeTaskVisible
+        ? "查看全部通知"
+        : "立即同步";
+
+    public string NoticeText => "只提醒你关心的事。来源、频道与同步间隔都能在“通知设置”里调整，历史保存在本机。";
 
     public bool HasError => _lastError.Length > 0 || ConnectionState is "error" or "auth";
     public string ErrorText => _lastError.Length > 0 ? _lastError : "最近一次同步未成功。";
+
+    /// <summary>Actionable next step for the current failure; never a bare "failed" message.</summary>
+    public string ErrorHint => _lastErrorCode == PermissionRequiredCode
+        ? KeyConfigured
+            ? "开启后台接收时系统会请求通知权限；授予后即可重新开启。"
+            : "签名密钥决定能否与电脑端建立可信同步，导入后即可重试。"
+        : _lastErrorCode == "MPT_VALIDATION_FAILED"
+            ? "请检查服务器地址、端口与频道。"
+            : "";
+
+    public bool HasErrorHint => ErrorHint.Length > 0;
+
     public string ErrorDetails => $"服务器：{ServerText}\n上次同步：{LastPollText}\n\n{_lastError}";
     public bool IsErrorDetailsVisible
     {
@@ -265,6 +361,12 @@ public sealed class MobileNotificationsViewModel : MptObservableViewModel, IDisp
     }
 
     public string ErrorDetailsActionText => IsErrorDetailsVisible ? "收起详情" : "查看详情";
+
+    public string ErrorActionText => _lastErrorCode == PermissionRequiredCode
+        ? KeyConfigured ? "重试" : "去配置签名密钥"
+        : "打开通知设置";
+
+    public bool HasErrorAction => HasError;
 
     public string SearchQuery
     {
@@ -311,7 +413,7 @@ public sealed class MobileNotificationsViewModel : MptObservableViewModel, IDisp
         }
     }
 
-    public string PageTitle => IsClaudeTaskVisible ? "Claude Task" : "通知";
+    public string PageTitle => IsClaudeTaskVisible ? "Claude Task" : "远程通知";
 
     public bool IsSettingsVisible
     {
@@ -321,11 +423,13 @@ public sealed class MobileNotificationsViewModel : MptObservableViewModel, IDisp
             if (SetProperty(ref _isSettingsVisible, value))
             {
                 OnPropertyChanged(nameof(IsInboxVisible));
+                OnPropertyChanged(nameof(SettingsTitle));
             }
         }
     }
 
     public bool IsInboxVisible => !IsSettingsVisible;
+    public string SettingsTitle => "通知设置";
 
     public string HealthText
     {
@@ -341,6 +445,86 @@ public sealed class MobileNotificationsViewModel : MptObservableViewModel, IDisp
 
     public bool HasHealthText => HealthText.Length > 0;
 
+    // ---------------------------------------------------------------- detail sheet
+
+    public MobileNotificationDetailViewModel? Detail
+    {
+        get => _detail;
+        private set
+        {
+            if (SetProperty(ref _detail, value))
+            {
+                OnPropertyChanged(nameof(HasDetail));
+                OnPropertyChanged(nameof(IsDetailVisible));
+                OnPropertyChanged(nameof(IsSheetVisible));
+                OnPropertyChanged(nameof(CanShowDetailPrevious));
+                OnPropertyChanged(nameof(CanShowDetailNext));
+                NotifyCommandStates();
+            }
+        }
+    }
+
+    public bool HasDetail => Detail is not null;
+
+    public bool IsDetailVisible => Detail is not null;
+
+    public bool CanShowDetailPrevious => _detailPosition is { Index: > 0 };
+    public bool CanShowDetailNext => _detailPosition is { } position && position.Index < position.Count - 1;
+
+    /// <summary>Shows the full message (quoted block included) in the phone bottom sheet.</summary>
+    public void ShowDetail(MobileNotificationCardViewModel card)
+    {
+        ArgumentNullException.ThrowIfNull(card);
+        _detailPosition = RemoteNotificationSessionChain.Resolve(OrderedRecords(), card.Message.Source);
+        card.Message.UpdateSessionPosition(_detailPosition);
+        Detail = new MobileNotificationDetailViewModel(card);
+    }
+
+    private void ShowAdjacentDetail(int delta)
+    {
+        if (_detailPosition is not { } position ||
+            !RemoteNotificationSessionChain.TryNavigate(position, delta, out var target))
+        {
+            return;
+        }
+
+        var targetId = RemoteNotificationsLegacyStore.StableId(target);
+        var card = _all.FirstOrDefault(candidate => string.Equals(candidate.Id, targetId, StringComparison.Ordinal));
+        if (card is not null)
+        {
+            ShowDetail(card);
+        }
+    }
+
+    public bool IsClearConfirmVisible
+    {
+        get => _isClearConfirmVisible;
+        private set
+        {
+            if (SetProperty(ref _isClearConfirmVisible, value))
+            {
+                OnPropertyChanged(nameof(IsSheetVisible));
+            }
+        }
+    }
+
+    /// <summary>True while any bottom sheet is open; the back key closes the sheet before leaving the page.</summary>
+    public bool IsSheetVisible => IsDetailVisible || IsClearConfirmVisible;
+
+    public void CloseSheets()
+    {
+        if (IsDetailVisible)
+        {
+            Detail = null;
+            _detailPosition = null;
+        }
+
+        IsClearConfirmVisible = false;
+    }
+
+    private IReadOnlyList<RemoteNotificationRecord> OrderedRecords() =>
+        _all.Select(card => card.Message.Source).Reverse().ToArray();
+
     // ---------------------------------------------------------------- background state
 
     public bool BackgroundActive
@@ -353,6 +537,8 @@ public sealed class MobileNotificationsViewModel : MptObservableViewModel, IDisp
                 OnPropertyChanged(nameof(BackgroundToggleText));
                 OnPropertyChanged(nameof(BackgroundHint));
                 OnPropertyChanged(nameof(BackgroundActionText));
+                OnPropertyChanged(nameof(BackgroundStateText));
+                SyncBackgroundSwitch();
             }
         }
     }
@@ -366,6 +552,7 @@ public sealed class MobileNotificationsViewModel : MptObservableViewModel, IDisp
             {
                 OnPropertyChanged(nameof(BackgroundHint));
                 OnPropertyChanged(nameof(CanToggleBackground));
+                NotifyCommandStates();
             }
         }
     }
@@ -378,20 +565,71 @@ public sealed class MobileNotificationsViewModel : MptObservableViewModel, IDisp
             if (SetProperty(ref _backgroundRequested, value))
             {
                 OnPropertyChanged(nameof(BackgroundHint));
+                OnPropertyChanged(nameof(BackgroundStateText));
             }
         }
     }
 
     public bool CanToggleBackground => BackgroundAvailable;
+
+    /// <summary>
+    /// Two-way target of the settings switch. It carries the user's requested position only until the
+    /// module answers, then <see cref="SyncBackgroundSwitch"/> snaps it to the state that really
+    /// exists - so a refused notification permission leaves the switch off instead of pretending it
+    /// turned on. The value is kept separately from <see cref="BackgroundActive"/> because a two-way
+    /// binding ignores a source notification that repeats the value it already produced.
+    /// </summary>
+    public bool BackgroundSwitchOn
+    {
+        get => _backgroundSwitchOn;
+        set
+        {
+            if (value == _backgroundSwitchOn)
+            {
+                return;
+            }
+
+            _backgroundSwitchOn = value;
+            OnPropertyChanged();
+            if (!CanToggleBackground || IsBusy)
+            {
+                SyncBackgroundSwitch();
+                return;
+            }
+
+            // Run the module call after the two-way binding has finished writing this value to the
+            // source, so the revert below is a real source change the binding will apply.
+            Dispatcher.UIThread.Post(() => _ = SetBackgroundAsync(value), DispatcherPriority.Background);
+        }
+    }
+
+    /// <summary>Snaps the switch to the module's real state when the two differ.</summary>
+    private void SyncBackgroundSwitch()
+    {
+        if (_backgroundSwitchOn == _backgroundActive)
+        {
+            return;
+        }
+
+        _backgroundSwitchOn = _backgroundActive;
+        OnPropertyChanged(nameof(BackgroundSwitchOn));
+    }
+
     public string BackgroundToggleText => BackgroundActive ? "后台接收已开启" : "后台接收已关闭";
     public string BackgroundActionText => BackgroundActive ? "停止后台接收" : "开启后台接收";
+    public string BackgroundStateText => BackgroundActive
+        ? "后台接收已开启"
+        : BackgroundRequested
+            ? "上次开启过，需要重新开启"
+            : "后台接收未开启";
+
     public string BackgroundHint => !BackgroundAvailable
         ? "当前主机没有 background.activity 能力，退到后台后不会继续接收。"
         : BackgroundActive
             ? "正在后台接收：系统通知栏会显示一个可停止的常驻任务。"
             : BackgroundRequested
-                ? "上次已开启后台接收。应用启动后需要手动恢复，点右侧按钮即可。"
-                : "开启后应用退到后台仍会继续接收；关闭后立即停止轮询并释放后台任务。";
+                ? "上次已开启后台接收，应用启动后需要手动恢复，打开开关即可。"
+                : "开启后应用退到后台仍会继续接收；系统会先请求通知权限，拒绝则不会开启。";
 
     // ---------------------------------------------------------------- signing key
 
@@ -403,7 +641,11 @@ public sealed class MobileNotificationsViewModel : MptObservableViewModel, IDisp
             if (SetProperty(ref _keyConfigured, value))
             {
                 OnPropertyChanged(nameof(KeyStatusText));
-                OnPropertyChanged(nameof(KeyStatusColor));
+                OnPropertyChanged(nameof(KeyNeedsAttention));
+                OnPropertyChanged(nameof(ShowsKeySetupWarning));
+                OnPropertyChanged(nameof(ErrorHint));
+                OnPropertyChanged(nameof(HasErrorHint));
+                OnPropertyChanged(nameof(ErrorActionText));
             }
         }
     }
@@ -411,7 +653,14 @@ public sealed class MobileNotificationsViewModel : MptObservableViewModel, IDisp
     public string KeyStatusText => KeyConfigured
         ? "签名密钥已保存在系统凭据库。"
         : "尚未导入签名密钥，无法进行签名同步。";
-    public string KeyStatusColor => KeyConfigured ? "#15803D" : "#B45309";
+
+    /// <summary>Whether the key needs attention; the theme's warning text class carries the colour.</summary>
+    public bool KeyNeedsAttention => !KeyConfigured;
+
+    /// <summary>The inbox shows an actionable configuration callout while the key is missing.</summary>
+    public bool ShowsKeySetupWarning => !KeyConfigured;
+    public string KeySetupText => "还没有签名密钥，无法与电脑端进行可信同步。";
+    public string KeySetupActionText => "导入签名密钥";
 
     public string KeyInput
     {
@@ -464,12 +713,9 @@ public sealed class MobileNotificationsViewModel : MptObservableViewModel, IDisp
     }
 
     public bool HasSettingsFeedback => SettingsFeedback.Length > 0;
-    public string SettingsFeedbackColor => _settingsFeedbackState switch
-    {
-        "success" => "#15803D",
-        "error" => "#B91C1C",
-        _ => "#4B5563"
-    };
+
+    /// <summary>Feedback severity; the view maps it to the theme's success/warning text classes.</summary>
+    public string SettingsFeedbackState => _settingsFeedbackState;
 
     // ---------------------------------------------------------------- lifecycle
 
@@ -496,7 +742,6 @@ public sealed class MobileNotificationsViewModel : MptObservableViewModel, IDisp
         Deactivate();
         _lifetime.Cancel();
         _lifetime.Dispose();
-        _operationGate.Dispose();
     }
 
     public void RefreshRelativeTimes()
@@ -505,31 +750,52 @@ public sealed class MobileNotificationsViewModel : MptObservableViewModel, IDisp
         {
             card.RefreshRelativeTime();
         }
+
+        Detail?.Refresh();
     }
 
     // ---------------------------------------------------------------- module interaction
 
-    private async Task<JsonObject> CallAsync(string commandId, JsonObject? args, CancellationToken cancellationToken)
+    /// <summary>
+    /// One module answer: the parsed state, or the real error code/message it failed with.
+    /// Success requires a state object: a failed result that carries no <c>Error</c> object (or a
+    /// payload the host could not parse) leaves <see cref="State"/> null and is therefore reported as
+    /// a failure instead of being mistaken for a successful empty answer.
+    /// </summary>
+    private sealed record CallOutcome(JsonObject? State, string ErrorCode, string ErrorMessage)
+    {
+        public bool Success => State is not null;
+    }
+
+    private async Task<CallOutcome> CallAsync(string commandId, JsonObject? args, CancellationToken cancellationToken)
     {
         var result = await _context.ExecuteCommandAsync(commandId, args, cancellationToken).ConfigureAwait(true);
         if (!result.Success)
         {
-            throw new InvalidOperationException(
-                string.IsNullOrWhiteSpace(result.Error?.Message) ? result.Output : result.Error!.Message);
+            // The host may report a failure without an Error object; fall back to the output text and,
+            // when even that is empty, to a plain statement so the page never shows an empty error.
+            var message = !string.IsNullOrWhiteSpace(result.Error?.Message)
+                ? result.Error!.Message
+                : !string.IsNullOrWhiteSpace(result.Output)
+                    ? result.Output
+                    : $"命令 {commandId} 未成功，且宿主未提供错误详情。";
+            return new CallOutcome(null, result.Error?.Code ?? "", message);
         }
 
         if (string.IsNullOrWhiteSpace(result.Output))
         {
-            return new JsonObject();
+            return new CallOutcome(new JsonObject(), "", "");
         }
 
         try
         {
-            return JsonNode.Parse(result.Output) as JsonObject ?? new JsonObject();
+            return JsonNode.Parse(result.Output) is JsonObject state
+                ? new CallOutcome(state, "", "")
+                : new CallOutcome(null, "", $"命令 {commandId} 返回了无法解析的结果。");
         }
         catch (System.Text.Json.JsonException)
         {
-            return new JsonObject();
+            return new CallOutcome(null, "", $"命令 {commandId} 返回了无法解析的结果。");
         }
     }
 
@@ -537,7 +803,17 @@ public sealed class MobileNotificationsViewModel : MptObservableViewModel, IDisp
     {
         try
         {
-            ApplyState(await CallAsync("remote-notifications-android.status", null, _lifetime.Token).ConfigureAwait(true));
+            var outcome = await CallAsync("remote-notifications-android.status", null, _lifetime.Token).ConfigureAwait(true);
+            if (!outcome.Success)
+            {
+                Fail(outcome, null);
+                return;
+            }
+
+            ApplyState(outcome.State!);
+            // A status refresh deliberately keeps the last operation error: a refused permission must
+            // stay actionable until an operation actually succeeds, and this refresh runs right after
+            // such a failure.
             ReloadSnapshot(markNewUnread: false);
         }
         catch (OperationCanceledException)
@@ -545,7 +821,7 @@ public sealed class MobileNotificationsViewModel : MptObservableViewModel, IDisp
         }
         catch (Exception exception)
         {
-            Fail(exception.Message);
+            Fail(new CallOutcome(null, "", exception.Message), null);
         }
     }
 
@@ -559,8 +835,17 @@ public sealed class MobileNotificationsViewModel : MptObservableViewModel, IDisp
         IsBusy = true;
         try
         {
-            var state = await CallAsync("remote-notifications-android.sync-now", null, _lifetime.Token).ConfigureAwait(true);
+            var outcome = await CallAsync("remote-notifications-android.sync-now", null, _lifetime.Token).ConfigureAwait(true);
+            if (!outcome.Success)
+            {
+                Fail(outcome, () => SyncAsync());
+                SetSettingsFeedback(outcome.ErrorMessage, "error");
+                return;
+            }
+
+            var state = outcome.State!;
             ApplyState(state);
+            ClearError();
             ReloadSnapshot(markNewUnread: true);
             var accepted = ReadLong(state, "accepted");
             var fetched = ReadLong(state, "fetched");
@@ -572,7 +857,7 @@ public sealed class MobileNotificationsViewModel : MptObservableViewModel, IDisp
         }
         catch (Exception exception)
         {
-            Fail(exception.Message);
+            Fail(new CallOutcome(null, "", exception.Message), () => SyncAsync());
         }
         finally
         {
@@ -580,7 +865,12 @@ public sealed class MobileNotificationsViewModel : MptObservableViewModel, IDisp
         }
     }
 
-    private async Task ToggleBackgroundAsync()
+    /// <summary>
+    /// Turns the real background state on or off through the module. Enabling is where Android asks
+    /// for the notification permission (the module's foreground-activity lease does that), so a
+    /// denial surfaces here as a permission failure with a retry instead of a fake "已开启".
+    /// </summary>
+    private async Task SetBackgroundAsync(bool enable)
     {
         if (IsBusy)
         {
@@ -590,21 +880,34 @@ public sealed class MobileNotificationsViewModel : MptObservableViewModel, IDisp
         IsBusy = true;
         try
         {
-            var command = BackgroundActive
-                ? "remote-notifications-android.polling.stop"
-                : "remote-notifications-android.polling.start";
-            var state = await CallAsync(command, null, _lifetime.Token).ConfigureAwait(true);
-            ApplyState(state);
-            SetSettingsFeedback(
-                BackgroundActive ? "后台接收已开启。" : "后台接收已停止。",
-                "success");
+            var command = enable
+                ? "remote-notifications-android.polling.start"
+                : "remote-notifications-android.polling.stop";
+            var outcome = await CallAsync(command, null, _lifetime.Token).ConfigureAwait(true);
+            if (!outcome.Success)
+            {
+                Fail(outcome, () => SetBackgroundAsync(enable));
+                SetSettingsFeedback(outcome.ErrorMessage, "error");
+                // Re-read the module and push the real state back into the switch, so a refused
+                // permission leaves it off instead of showing the position the user tapped.
+                await RefreshStatusAsync().ConfigureAwait(true);
+                SyncBackgroundSwitch();
+                return;
+            }
+
+            ApplyState(outcome.State!);
+            ClearError();
+            SyncBackgroundSwitch();
+            SetSettingsFeedback(enable ? "后台接收已开启。" : "后台接收已停止。", "success");
         }
         catch (OperationCanceledException)
         {
         }
         catch (Exception exception)
         {
-            Fail(exception.Message);
+            Fail(new CallOutcome(null, "", exception.Message), () => SetBackgroundAsync(enable));
+            SetSettingsFeedback(exception.Message, "error");
+            SyncBackgroundSwitch();
         }
         finally
         {
@@ -637,8 +940,16 @@ public sealed class MobileNotificationsViewModel : MptObservableViewModel, IDisp
                 ["channel"] = ChannelDraft,
                 ["pollIntervalSeconds"] = interval
             };
-            var state = await CallAsync("remote-notifications-android.configure", args, _lifetime.Token).ConfigureAwait(true);
-            ApplyState(state);
+            var outcome = await CallAsync("remote-notifications-android.configure", args, _lifetime.Token).ConfigureAwait(true);
+            if (!outcome.Success)
+            {
+                Fail(outcome, null);
+                SetSettingsFeedback(outcome.ErrorMessage, "error");
+                return;
+            }
+
+            ApplyState(outcome.State!);
+            ClearError();
             SetSettingsFeedback("服务器设置已保存。", "success");
         }
         catch (OperationCanceledException)
@@ -646,7 +957,7 @@ public sealed class MobileNotificationsViewModel : MptObservableViewModel, IDisp
         }
         catch (Exception exception)
         {
-            Fail(exception.Message);
+            Fail(new CallOutcome(null, "", exception.Message), null);
             SetSettingsFeedback(exception.Message, "error");
         }
         finally
@@ -668,17 +979,29 @@ public sealed class MobileNotificationsViewModel : MptObservableViewModel, IDisp
         try
         {
             var args = new JsonObject { ["privateKey"] = material };
-            var state = await CallAsync("remote-notifications-android.signing-key.import", args, _lifetime.Token).ConfigureAwait(true);
+            var outcome = await CallAsync("remote-notifications-android.signing-key.import", args, _lifetime.Token).ConfigureAwait(true);
+            if (!outcome.Success)
+            {
+                Fail(outcome, null);
+                SetSettingsFeedback(outcome.ErrorMessage, "error");
+                return;
+            }
+
             KeyInput = "";
-            KeyConfigured = ReadBool(state, "keyConfigured");
-            SetSettingsFeedback("签名密钥已保存到系统凭据库，不会回显，也不会写入普通文件。", "success");
+            KeyConfigured = ReadBool(outcome.State!, "keyConfigured");
+            ClearError();
+            SetSettingsFeedback(
+                KeyConfigured
+                    ? "签名密钥已保存到系统凭据库，不会回显，也不会写入普通文件。"
+                    : "模块没有确认密钥已保存，请重试。",
+                KeyConfigured ? "success" : "error");
         }
         catch (OperationCanceledException)
         {
         }
         catch (Exception exception)
         {
-            Fail(exception.Message);
+            Fail(new CallOutcome(null, "", exception.Message), null);
             SetSettingsFeedback(exception.Message, "error");
         }
         finally
@@ -692,9 +1015,17 @@ public sealed class MobileNotificationsViewModel : MptObservableViewModel, IDisp
         IsBusy = true;
         try
         {
-            var state = await CallAsync("remote-notifications-android.signing-key.clear", null, _lifetime.Token).ConfigureAwait(true);
-            KeyConfigured = ReadBool(state, "keyConfigured");
+            var outcome = await CallAsync("remote-notifications-android.signing-key.clear", null, _lifetime.Token).ConfigureAwait(true);
+            if (!outcome.Success)
+            {
+                Fail(outcome, null);
+                SetSettingsFeedback(outcome.ErrorMessage, "error");
+                return;
+            }
+
+            KeyConfigured = ReadBool(outcome.State!, "keyConfigured");
             BackgroundActive = false;
+            ClearError();
             SetSettingsFeedback("签名密钥已清除，后台接收已停止。", "success");
         }
         catch (OperationCanceledException)
@@ -702,7 +1033,8 @@ public sealed class MobileNotificationsViewModel : MptObservableViewModel, IDisp
         }
         catch (Exception exception)
         {
-            Fail(exception.Message);
+            Fail(new CallOutcome(null, "", exception.Message), null);
+            SetSettingsFeedback(exception.Message, "error");
         }
         finally
         {
@@ -715,12 +1047,18 @@ public sealed class MobileNotificationsViewModel : MptObservableViewModel, IDisp
         IsBusy = true;
         try
         {
-            var state = await CallAsync("remote-notifications-android.inbox.clear", null, _lifetime.Token).ConfigureAwait(true);
-            _all.Clear();
-            Messages.Clear();
-            _unreadLabels.Clear();
-            RefreshCounters();
-            ApplyState(state);
+            var outcome = await CallAsync("remote-notifications-android.inbox.clear", null, _lifetime.Token).ConfigureAwait(true);
+            if (!outcome.Success)
+            {
+                Fail(outcome, null);
+                SetSettingsFeedback(outcome.ErrorMessage, "error");
+                return;
+            }
+
+            ClearLocalInbox();
+            ApplyState(outcome.State!);
+            ClearError();
+            IsClearConfirmVisible = false;
             SetSettingsFeedback("通知历史已清空。", "success");
         }
         catch (OperationCanceledException)
@@ -728,7 +1066,7 @@ public sealed class MobileNotificationsViewModel : MptObservableViewModel, IDisp
         }
         catch (Exception exception)
         {
-            Fail(exception.Message);
+            Fail(new CallOutcome(null, "", exception.Message), null);
         }
         finally
         {
@@ -740,7 +1078,9 @@ public sealed class MobileNotificationsViewModel : MptObservableViewModel, IDisp
 
     private void OnModuleEvent(MptSurfaceEvent surfaceEvent)
     {
-        if (surfaceEvent.Type is not ("message.received" or "polling.started" or "polling.stopped" or "server.connected" or "server.disconnected"))
+        if (surfaceEvent.Type is not ("message.received" or "inbox.cleared" or "polling.started" or
+            "polling.stopped" or "server.connected" or "server.disconnected" or "signing-key.updated" or
+            "signing-key.cleared" or "module.running"))
         {
             return;
         }
@@ -752,15 +1092,30 @@ public sealed class MobileNotificationsViewModel : MptObservableViewModel, IDisp
                 return;
             }
 
-            if (surfaceEvent.Type == "message.received")
+            switch (surfaceEvent.Type)
             {
-                ReloadSnapshot(markNewUnread: true);
-            }
-            else
-            {
-                _ = RefreshStatusAsync();
+                case "message.received":
+                    ReloadSnapshot(markNewUnread: true);
+                    break;
+                case "inbox.cleared":
+                    ClearLocalInbox();
+                    break;
+                default:
+                    _ = RefreshStatusAsync();
+                    break;
             }
         });
+    }
+
+    private void ClearLocalInbox()
+    {
+        _all.Clear();
+        Messages.Clear();
+        MessageGroups.Clear();
+        _unreadLabels.Clear();
+        Detail = null;
+        _detailPosition = null;
+        RefreshCounters();
     }
 
     private void ReloadSnapshot(bool markNewUnread)
@@ -772,7 +1127,7 @@ public sealed class MobileNotificationsViewModel : MptObservableViewModel, IDisp
         }
         catch (Exception exception)
         {
-            Fail(exception.Message);
+            Fail(new CallOutcome(null, "", exception.Message), null);
             return;
         }
 
@@ -811,7 +1166,7 @@ public sealed class MobileNotificationsViewModel : MptObservableViewModel, IDisp
 
         HealthText = health;
         _knownLabels = snapshot.KnownLabels;
-        if (added > 0 || Messages.Count == 0)
+        if (added > 0 || Messages.Count == 0 || Labels.Count == 0)
         {
             RebuildLabels(_knownLabels);
         }
@@ -877,6 +1232,35 @@ public sealed class MobileNotificationsViewModel : MptObservableViewModel, IDisp
     }
 
     /// <summary>
+    /// Page-local Back for the host's back key: the topmost layer consumes it first - the open bottom
+    /// sheet, then the settings page, then the search field. False hands the key back to the Shell so
+    /// it can leave the tool page.
+    /// </summary>
+    public bool TryHandleBack()
+    {
+        if (IsSheetVisible)
+        {
+            CloseSheets();
+            return true;
+        }
+
+        if (IsSettingsVisible)
+        {
+            IsSettingsVisible = false;
+            return true;
+        }
+
+        if (IsSearchVisible)
+        {
+            IsSearchVisible = false;
+            SearchQuery = "";
+            return true;
+        }
+
+        return false;
+    }
+
+    /// <summary>
     /// Expands the message a tray-notification tap pointed at, switching back to the inbox (or the
     /// Claude Task page) when the message is hidden by the current filter.
     /// </summary>
@@ -898,12 +1282,11 @@ public sealed class MobileNotificationsViewModel : MptObservableViewModel, IDisp
         IsSettingsVisible = false;
         IsClaudeTaskVisible = string.Equals(card.Label, ClaudeTaskLabel, StringComparison.Ordinal);
         _filterLabel = null;
+        SearchQuery = "";
         RebuildLabels(_knownLabels);
         RefreshVisible();
-        card.IsExpanded = true;
-        card.IsUnread = false;
-        _unreadLabels.Remove(card.Label);
-        RefreshCounters();
+        SetRead(card, isRead: true);
+        ShowDetail(card);
         return true;
     }
 
@@ -929,7 +1312,7 @@ public sealed class MobileNotificationsViewModel : MptObservableViewModel, IDisp
 
         if (query.Length > 0)
         {
-            filtered = filtered.Where(card => card.Message.MatchesSearch(query));
+            filtered = filtered.Where(card => card.MatchesSearch(query));
         }
 
         Messages.Clear();
@@ -938,22 +1321,65 @@ public sealed class MobileNotificationsViewModel : MptObservableViewModel, IDisp
             Messages.Add(card);
         }
 
+        RebuildGroups();
         RefreshCounters();
+    }
+
+    /// <summary>Builds the real day buckets (今天 / 昨天 / 具体日期) the list renders as sections.</summary>
+    private void RebuildGroups()
+    {
+        MessageGroups.Clear();
+        var today = DateTime.Today;
+        var first = true;
+        foreach (var group in Messages
+                     .GroupBy(card => card.LocalDay)
+                     .OrderByDescending(group => group.Key))
+        {
+            MessageGroups.Add(new MobileNotificationDayGroupViewModel(
+                MobileNotificationDetailViewModel.FormatDayTitle(group.Key, today),
+                group,
+                first));
+            first = false;
+        }
     }
 
     private void RefreshCounters()
     {
         OnPropertyChanged(nameof(CountText));
         OnPropertyChanged(nameof(ShowsEmptyState));
+        OnPropertyChanged(nameof(EmptyTitle));
         OnPropertyChanged(nameof(EmptyText));
+        OnPropertyChanged(nameof(EmptyActionText));
+        OnPropertyChanged(nameof(UnreadCount));
+        OnPropertyChanged(nameof(HasUnread));
+        OnPropertyChanged(nameof(HeadingSubtitle));
     }
 
-    private void MarkVisibleAsRead()
+    /// <summary>Marks the whole inbox read (the prototype's 全部已读).</summary>
+    public void MarkAllAsRead()
     {
-        var labels = Messages.Select(card => card.Label).Distinct(StringComparer.Ordinal).ToArray();
-        foreach (var label in labels)
+        _unreadLabels.Clear();
+        foreach (var card in _all)
         {
-            _unreadLabels.Remove(label);
+            card.IsUnread = false;
+        }
+
+        foreach (var chip in Labels)
+        {
+            chip.IsUnread = false;
+        }
+
+        Detail?.Refresh();
+        RefreshCounters();
+    }
+
+    private void SetRead(MobileNotificationCardViewModel card, bool isRead)
+    {
+        card.IsUnread = !isRead;
+        if (isRead && !_all.Any(candidate =>
+                candidate.IsUnread && string.Equals(candidate.Label, card.Label, StringComparison.Ordinal)))
+        {
+            _unreadLabels.Remove(card.Label);
         }
 
         foreach (var chip in Labels)
@@ -961,13 +1387,58 @@ public sealed class MobileNotificationsViewModel : MptObservableViewModel, IDisp
             chip.IsUnread = chip.FilterValue is { } value && _unreadLabels.Contains(value);
         }
 
-        foreach (var card in _all)
+        Detail?.Refresh();
+        RefreshCounters();
+    }
+
+    private async Task EmptyActionAsync()
+    {
+        if (SearchQuery.Trim().Length > 0 || _filterLabel is not null || IsClaudeTaskVisible)
         {
-            if (labels.Contains(card.Label, StringComparer.Ordinal))
+            SearchQuery = "";
+            _filterLabel = null;
+            IsClaudeTaskVisible = false;
+            RebuildLabels(_knownLabels);
+            RefreshVisible();
+            return;
+        }
+
+        await SyncAsync().ConfigureAwait(true);
+    }
+
+    private async Task OpenSettingsAsync(bool requestKeySection = false)
+    {
+        IsSettingsVisible = true;
+        LoadDrafts();
+        IsSearchVisible = false;
+        CloseSheets();
+        if (requestKeySection)
+        {
+            KeySectionRequested?.Invoke();
+        }
+
+        await Task.CompletedTask.ConfigureAwait(true);
+    }
+
+    private async Task ErrorActionAsync()
+    {
+        if (_lastErrorCode == PermissionRequiredCode)
+        {
+            if (!KeyConfigured)
             {
-                card.IsUnread = false;
+                await OpenSettingsAsync(requestKeySection: true).ConfigureAwait(true);
+                return;
+            }
+
+            var retry = _retry;
+            if (retry is not null)
+            {
+                await retry().ConfigureAwait(true);
+                return;
             }
         }
+
+        await OpenSettingsAsync().ConfigureAwait(true);
     }
 
     // ---------------------------------------------------------------- state helpers
@@ -976,7 +1447,15 @@ public sealed class MobileNotificationsViewModel : MptObservableViewModel, IDisp
     {
         ConnectionState = ReadString(state, "connectionState") is { Length: > 0 } connection ? connection : "idle";
         LastPoll = ReadString(state, "lastPoll");
-        _lastError = ReadString(state, "lastError");
+
+        // The module state only carries a message, never an error code, and a healthy refresh must not
+        // wipe the last operation error: a refused permission stays visible with its action button
+        // until an operation actually succeeds (success paths call ClearError).
+        var stateError = ReadString(state, "lastError");
+        if (stateError.Length > 0)
+        {
+            _lastError = stateError;
+        }
         ServerText = ReadString(state, "endpoint");
         KeyConfigured = ReadBool(state, "keyConfigured");
         BackgroundAvailable = ReadBool(state, "backgroundAvailable");
@@ -990,16 +1469,44 @@ public sealed class MobileNotificationsViewModel : MptObservableViewModel, IDisp
 
         OnPropertyChanged(nameof(HasError));
         OnPropertyChanged(nameof(ErrorText));
+        OnPropertyChanged(nameof(ErrorHint));
+        OnPropertyChanged(nameof(HasErrorHint));
+        OnPropertyChanged(nameof(ErrorActionText));
         OnPropertyChanged(nameof(ErrorDetails));
         OnPropertyChanged(nameof(ConnectionState));
     }
 
-    private void Fail(string message)
+    private void Fail(CallOutcome outcome, Func<Task>? retry)
     {
-        _lastError = message;
-        ConnectionState = "error";
+        _lastError = outcome.ErrorMessage.Length > 0 ? outcome.ErrorMessage : "操作未成功。";
+        _lastErrorCode = outcome.ErrorCode;
+        _retry = retry;
+        ConnectionState = outcome.ErrorCode == PermissionRequiredCode ? "auth" : "error";
         OnPropertyChanged(nameof(HasError));
         OnPropertyChanged(nameof(ErrorText));
+        OnPropertyChanged(nameof(ErrorHint));
+        OnPropertyChanged(nameof(HasErrorHint));
+        OnPropertyChanged(nameof(ErrorActionText));
+        OnPropertyChanged(nameof(HasErrorAction));
+        OnPropertyChanged(nameof(ErrorDetails));
+    }
+
+    private void ClearError()
+    {
+        if (_lastError.Length == 0 && _lastErrorCode.Length == 0)
+        {
+            return;
+        }
+
+        _lastError = "";
+        _lastErrorCode = "";
+        _retry = null;
+        OnPropertyChanged(nameof(HasError));
+        OnPropertyChanged(nameof(ErrorText));
+        OnPropertyChanged(nameof(ErrorHint));
+        OnPropertyChanged(nameof(HasErrorHint));
+        OnPropertyChanged(nameof(ErrorActionText));
+        OnPropertyChanged(nameof(HasErrorAction));
         OnPropertyChanged(nameof(ErrorDetails));
     }
 
@@ -1021,7 +1528,7 @@ public sealed class MobileNotificationsViewModel : MptObservableViewModel, IDisp
     {
         _settingsFeedbackState = state;
         SettingsFeedback = message;
-        OnPropertyChanged(nameof(SettingsFeedbackColor));
+        OnPropertyChanged(nameof(SettingsFeedbackState));
     }
 
     private static string ReadString(JsonObject values, string key) =>
