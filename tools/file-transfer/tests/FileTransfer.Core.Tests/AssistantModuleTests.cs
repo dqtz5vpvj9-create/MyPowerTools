@@ -23,10 +23,18 @@ public sealed class AssistantModuleTests : IAsyncDisposable
     private readonly List<FileTransferModule> _modules = [];
     private readonly List<FakeWebDav> _relays = [];
 
-    public AssistantModuleTests() => Directory.CreateDirectory(_root);
+    public AssistantModuleTests()
+    {
+        Directory.CreateDirectory(_root);
+        // A module with no custom relay would otherwise dial the real public endpoint (no network in
+        // tests) or, worse, the simulated relay another test class installed. A dead loopback port
+        // keeps this class independent of both.
+        PublicRelayClient.BaseAddressOverride = () => new Uri("http://127.0.0.1:1/");
+    }
 
     public async ValueTask DisposeAsync()
     {
+        PublicRelayClient.BaseAddressOverride = null;
         foreach (var module in _modules) await module.DisposeAsync(CancellationToken.None);
         foreach (var relay in _relays) await relay.DisposeAsync();
         if (Directory.Exists(_root)) Directory.Delete(_root, true);
@@ -128,9 +136,12 @@ public sealed class AssistantModuleTests : IAsyncDisposable
         var inspect = await CallAsync(module, "file-transfer.assistant.inspect");
         Assert.False(inspect["identity"]!["linked"]!.GetValue<bool>());
         Assert.Equal("phone-a", inspect["identity"]!["id"]!.GetValue<string>());
-        // Without a configured relay the items stay queued: local persistence is not "synced".
-        Assert.All(Items(inspect), item => Assert.Equal("queued", item!["state"]!.GetValue<string>()));
-        Assert.Equal("unconfigured", inspect["relay"]!["state"]!.GetValue<string>());
+        // Persistence is local: nothing is claimed as delivered, and the default public relay is the
+        // transport (unreachable in this sandbox, so an item may honestly be queued or failed).
+        Assert.All(Items(inspect), item => Assert.Contains(item!["state"]!.GetValue<string>(), new[] { "queued", "failed" }));
+        Assert.DoesNotContain(Items(inspect), item => item!["state"]!.GetValue<string>() is "stored" or "delivered" or "available");
+        Assert.True(inspect["relay"]!["configured"]!.GetValue<bool>());
+        Assert.True(inspect["relay"]!["public"]!.GetValue<bool>());
 
         // A restart reloads the same durable rows with their payload copies.
         var root = Path.Combine(_root, "phone-a");

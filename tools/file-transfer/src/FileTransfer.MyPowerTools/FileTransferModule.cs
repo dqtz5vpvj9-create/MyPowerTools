@@ -207,20 +207,51 @@ public sealed partial class FileTransferModule : IMptModule
             {
                 case "file-transfer.inspect":
                     result = new { settings = _settings.DeepClone(), addresses = TransferFiles.LocalAddresses(),
-                        receiving = Volatile.Read(ref _session) is not null, openListRunning = _openList.Running, adminUrl = _openList.AdminUrl,
+                        // The same real state the assistant reports: receiving means the module receives
+                        // (relay queue included), while tailnetListener tells whether the socket is up.
+                        receiving = _receivingEnabled, tailnetListener = Volatile.Read(ref _session) is not null,
+                        openListRunning = _openList.Running, adminUrl = _openList.AdminUrl,
                         busy = _work is { IsCompleted: false }, progress = _progress, history = History(),
-                        localDeviceId = Setting("deviceId"), localName = DeviceName(), peers = PeerStates(), cloud = CloudSummary() }; break;
+                        localDeviceId = Setting("deviceId"), localName = DeviceName(), peers = PeerStates(),
+                        cloud = CloudSummary(), assistantRelay = RelayJson(), inbox = InboxJson() }; break;
                 case "file-transfer.pairing":
+                    // One stable connection code, always the pairing contract: it works offline and its
+                    // address is only an optional direct candidate, so it never changes kind. The inbox
+                    // adds file-delivery permission for the public relay; owner/conversation keys never
+                    // appear in it.
                     if (Setting("listenAddress").Length == 0) _settings["listenAddress"] = TransferFiles.LocalAddresses().FirstOrDefault() ?? "";
-                    if (Setting("listenAddress").Length == 0) throw new InvalidOperationException("请先连接 Tailscale 网络，然后重试。");
-                    result = new { code = new Pairing(Setting("deviceId"), OperatingSystem.IsAndroid() ? "MPT 手机 " + Setting("deviceId") : Environment.MachineName, Setting("listenAddress"), (await SecretAsync("receiver-token", token))!).Encode() }; break;
+                    var myInbox = await EnsureInboxAsync(token);
+                    result = new
+                    {
+                        code = new Pairing(Setting("deviceId"), DeviceName(), Setting("listenAddress"),
+                            (await SecretAsync("receiver-token", token))!, myInbox.Pairing).Encode(),
+                        kind = "pair",
+                        address = Setting("listenAddress"),
+                        inboxId = myInbox.InboxId
+                    };
+                    break;
                 case "file-transfer.pair.preview":
                     var preview = Pairing.Decode(SettingsJson.ReadString(request.Args, "code") ?? "");
-                    result = new { deviceId = preview.DeviceId, name = preview.Name, address = preview.Address }; break;
+                    result = new
+                    {
+                        deviceId = preview.DeviceId,
+                        name = preview.Name,
+                        address = preview.Address,
+                        hasInbox = preview.Inbox is not null,
+                        inboxId = preview.Inbox?.InboxId ?? ""
+                    };
+                    break;
                 case "file-transfer.pair.import":
                     var paired = Pairing.Decode(SettingsJson.ReadString(request.Args, "code") ?? "");
                     // Importing our own code would pair the device with itself and shadow the real peer.
                     if (paired.DeviceId == Setting("deviceId")) throw new ArgumentException("这是本机自己的连接码，请粘贴对方设备生成的连接码。");
+                    var depositInbox = paired.Inbox;
+                    if (depositInbox is not null)
+                    {
+                        // The deposit key is file-delivery-only and lives in the secret store, never in
+                        // the settings file. It grants no access to this device's conversation or inbox.
+                        await _secrets.SaveAsync(Id, "inbox-deposit-" + paired.DeviceId, depositInbox.DepositKey, token);
+                    }
                     await _operations.WaitAsync(token);
                     try
                     {
@@ -229,7 +260,7 @@ public sealed partial class FileTransferModule : IMptModule
                         // concurrently always reads one complete list instead of a half-updated array.
                         lock (_stateLock)
                         {
-                            _settings["peers"] = WithPeer(paired.DeviceId, paired.Name, paired.Address);
+                            _settings["peers"] = WithPeer(paired.DeviceId, paired.Name, paired.Address, depositInbox?.InboxId);
                             // The address in the new code replaces the old one, so the previous probe result is void.
                             _peerChecks.Remove(paired.DeviceId);
                         }
@@ -276,9 +307,9 @@ public sealed partial class FileTransferModule : IMptModule
                     result = new { saved = true, receiving = Volatile.Read(ref _session) is not null, note = _receiveNote }; break;
                 case "file-transfer.receive.start":
                     await _operations.WaitAsync(token);
-                    try { await StartReceiveAsync(token); }
+                    try { await TryStartReceiveAsync(token); }
                     finally { _operations.Release(); }
-                    result = new { receiving = true }; break;
+                    result = new { receiving = _receivingEnabled, tailnetListener = Volatile.Read(ref _session) is not null, note = _receiveNote }; break;
                 case "file-transfer.receive.stop":
                     await _operations.WaitAsync(token);
                     try { await StopReceiveAsync(); }
@@ -502,15 +533,27 @@ public sealed partial class FileTransferModule : IMptModule
     }
 
     /// <summary>Builds the peer array with one entry added or replaced; the caller publishes it under the state lock.</summary>
-    private JsonArray WithPeer(string deviceId, string name, string address)
+    /// <summary>
+    /// Adds or replaces a peer. The inbox id is public display/route data (the deposit key stays in the
+    /// secret store); re-importing an old code without one keeps the inbox this device already knows.
+    /// </summary>
+    private JsonArray WithPeer(string deviceId, string name, string address, string? inboxId = null)
     {
         var updated = new JsonArray();
+        var keptInbox = "";
         foreach (var node in Peers())
         {
-            if (node is JsonObject peer && peer["deviceId"]?.GetValue<string>() == deviceId) continue;
+            if (node is JsonObject peer && peer["deviceId"]?.GetValue<string>() == deviceId)
+            {
+                if (PeerText(peer, "inboxId") is { Length: > 0 } existing) keptInbox = existing;
+                continue;
+            }
             if (node is not null) updated.Add(node.DeepClone());
         }
-        updated.Add(new JsonObject { ["deviceId"] = deviceId, ["name"] = name, ["address"] = address });
+        var entry = new JsonObject { ["deviceId"] = deviceId, ["name"] = name, ["address"] = address };
+        var inbox = inboxId is { Length: > 0 } ? inboxId : keptInbox;
+        if (inbox.Length > 0) entry["inboxId"] = inbox;
+        updated.Add(entry);
         return updated;
     }
 
@@ -654,14 +697,21 @@ public sealed partial class FileTransferModule : IMptModule
         finally { if (receiving) await TryStartReceiveAsync(token); }
     }
 
-    /// <summary>Starts the receiver when the configuration allows it; otherwise records why it stays off.</summary>
+    /// <summary>
+    /// Enables receiving. The public relay is the transport that always works, so a missing Tailnet
+    /// address only means the direct listener stays off; it is never an error and never a setup step.
+    /// </summary>
     private async Task TryStartReceiveAsync(CancellationToken token)
     {
+        _receivingEnabled = true;
+        StartRelayReceive();
+        StartInboxReceive();
+        WakeReceive();
+        WakeInbox();
         try
         {
             await StartReceiveAsync(token);
-            _receiveNote = "";
-            // Discoverability follows the receiver: enabled together, stopped together.
+            // Discoverability follows the listener: enabled together, stopped together.
             await StartBeaconAsync(token);
         }
         catch (Exception ex) when (ex is InvalidOperationException or SocketException or IOException or UnauthorizedAccessException)
@@ -670,6 +720,7 @@ public sealed partial class FileTransferModule : IMptModule
         }
     }
 
+    /// <summary>Starts the Tailnet listener when an address exists; otherwise the relay carries receiving.</summary>
     private async Task StartReceiveAsync(CancellationToken token)
     {
         var current = Volatile.Read(ref _session);
@@ -680,7 +731,13 @@ public sealed partial class FileTransferModule : IMptModule
         }
         if (Volatile.Read(ref _session) is not null) return;
         if (Setting("listenAddress").Length == 0) _settings["listenAddress"] = TransferFiles.LocalAddresses().FirstOrDefault() ?? "";
-        if (Setting("listenAddress").Length == 0) throw new InvalidOperationException("请先连接 Tailscale 网络，再开启接收。");
+        if (Setting("listenAddress").Length == 0)
+        {
+            // No direct candidate on this machine: the relay engine keeps receiving and the listener
+            // simply stays off. This is a normal state, not a setup step or an error.
+            _receiveNote = "";
+            return;
+        }
         var activity = _background is null ? null : await _background.BeginAsync(Id, "文件互传正在等待来件", true, token);
         Func<string, CancellationToken, Task>? publish = _downloads is null ? null : PublishAsync;
         ReceiveSession session;
@@ -705,6 +762,14 @@ public sealed partial class FileTransferModule : IMptModule
 
     private async Task StopReceiveAsync()
     {
+        _receivingEnabled = false;
+        // Cancelling the in-flight long poll is what makes "disable" immediate instead of waiting out
+        // the server's 25 second hold.
+        var poll = Interlocked.Exchange(ref _receiveCts, null);
+        try { poll?.Cancel(); } catch (ObjectDisposedException) { }
+        // The inbox long poll is a real task too and must end with receiving, not linger until dispose.
+        var inboxPoll = Interlocked.Exchange(ref _inboxCts, null);
+        try { inboxPoll?.Cancel(); } catch (ObjectDisposedException) { }
         var session = Interlocked.Exchange(ref _session, null);
         if (session is not null) await CloseAsync(session);
         await StopBeaconAsync();
@@ -1092,6 +1157,24 @@ public sealed partial class FileTransferModule : IMptModule
         var session = Interlocked.Exchange(ref _session, null);
         if (session is not null) await CloseAsync(session);
         await StopBeaconAsync();
+        // The long poll links this module's lifetime, so disposing must end it; the bounded wait proves
+        // there is no hang instead of leaving a detached request behind.
+        if (_relayReceiveLoop is { } loop)
+        {
+            try { await loop.WaitAsync(TimeSpan.FromSeconds(5)); }
+            catch (Exception ex) when (ex is TimeoutException or OperationCanceledException or IOException) { }
+        }
+        if (_inboxLoop is { } inboxLoop)
+        {
+            try { await inboxLoop.WaitAsync(TimeSpan.FromSeconds(5)); }
+            catch (Exception ex) when (ex is TimeoutException or OperationCanceledException or IOException) { }
+        }
+        if (_depositLoop is { } depositLoop)
+        {
+            try { await depositLoop.WaitAsync(TimeSpan.FromSeconds(5)); }
+            catch (Exception ex) when (ex is TimeoutException or OperationCanceledException or IOException) { }
+        }
+        _publicRelay?.Dispose();
         Task[] watches;
         lock (_stateLock) watches = _watches.ToArray();
         try { await Task.WhenAll(watches); } catch (Exception) { }

@@ -348,6 +348,8 @@ public sealed class FileTransferPeerTests : IAsyncDisposable
         preferences["webDavUrl"] = $"http://127.0.0.1:{relay.Port}/dav";
         preferences["username"] = "mpt-relay";
         var module = await StartAsync(preferences);
+        // Receiving is parked so no background pass re-checks the relay while the test asserts the cache.
+        await CallAsync(module, "0", "file-transfer.receive.stop");
         await CallAsync(module, "1", "file-transfer.cloud.check");
         Assert.True((await CallAsync(module, "2", "file-transfer.inspect"))["cloud"]!["reachable"]!.GetValue<bool>());
 

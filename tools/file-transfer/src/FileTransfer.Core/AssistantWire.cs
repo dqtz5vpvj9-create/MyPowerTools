@@ -66,15 +66,32 @@ public static class AssistantWire
     /// or delivered after the payload was saved. A re-run with the same <paramref name="frame"/>
     /// id is idempotent on the receiving side.
     /// </summary>
+    /// <param name="connectBudget">
+    /// Bounds only the TCP connect. A dead candidate must not hold the exchange budget: the caller uses a
+    /// short connect window and keeps the longer budget for the transfer itself.
+    /// </param>
     public static async Task<ItemReply> SendItemAsync(string address, int port, Frame frame, string? payloadPath,
-        Action<long, long>? progress, TimeSpan budget, CancellationToken token)
+        Action<long, long>? progress, TimeSpan budget, CancellationToken token, TimeSpan? connectBudget = null)
     {
         var ip = IPAddress.Parse(address);
         DirectTransfer.RequirePrivateAddress(ip);
         using var client = new TcpClient(ip.AddressFamily);
         using var window = CancellationTokenSource.CreateLinkedTokenSource(token);
         window.CancelAfter(budget);
-        await client.ConnectAsync(ip, port, window.Token);
+        if (connectBudget is { } connect && connect < budget)
+        {
+            using var attempt = CancellationTokenSource.CreateLinkedTokenSource(window.Token);
+            attempt.CancelAfter(connect);
+            try { await client.ConnectAsync(ip, port, attempt.Token); }
+            catch (OperationCanceledException) when (!token.IsCancellationRequested && !window.IsCancellationRequested)
+            {
+                throw new IOException("连接对端超时。");
+            }
+        }
+        else
+        {
+            await client.ConnectAsync(ip, port, window.Token);
+        }
         var stream = client.GetStream();
         await DirectTransfer.WriteJsonAsync(stream, frame, window.Token);
         var admitted = await DirectTransfer.ReadJsonAsync<ItemReply>(stream, window.Token);

@@ -25,9 +25,27 @@ public sealed partial class FileTransferModule
     /// <summary>A device that already acknowledged an item is never offered the same item again.</summary>
     private static readonly TimeSpan DirectRetryDelay = TimeSpan.FromSeconds(30);
 
+    private readonly SemaphoreSlim _receiveSignal = new(0, 1);
+    private readonly SemaphoreSlim _publicRelayInitGate = new(1, 1);
+    private readonly object _publicRelayLock = new();
+    private int _publicRelayGeneration;
+    private readonly HashSet<string> _discovered = new(StringComparer.Ordinal);
+    private PublicRelayClient? _publicRelay;
+    private string _publicRelayIdentity = "";
+    private string _relayAuthError = "";
+    // The public relay keeps its own health: a default URL is not a verified relay, and it must not
+    // overwrite the state of a user's own OpenList either.
+    private bool _assistantRelayReachable;
+    private DateTimeOffset? _assistantRelayCheckedAt;
+    private string _assistantRelayMessage = "";
+    private bool _receivingEnabled = true;
+    private CancellationTokenSource? _receiveCts;
+    private Task? _relayReceiveLoop;
+    private long _relayRevision = -1;
     private readonly SemaphoreSlim _directGate = new(1, 1);
     private readonly SemaphoreSlim _relayGate = new(1, 1);
-    private Task<(AssistantSyncResult Result, string Error)>? _relayPass;
+    private Task? _relayPass;
+    private readonly SemaphoreSlim _relaySignal = new(0, 1);
     private readonly SemaphoreSlim _assistantSignal = new(0, int.MaxValue);
     private readonly ReceiveAuthorization _receiveAuthorization = new();
     private readonly Dictionary<string, OwnDevice> _ownDevices = new(StringComparer.Ordinal);
@@ -65,6 +83,11 @@ public sealed partial class FileTransferModule
         await LoadOwnDevicesAsync(token);
         _assistant = await _assistantStore.ConfigureAsync(Identity(), token);
         StartAssistantWorker();
+        // Enabled module means receiving: the public relay carries it with no Tailscale and no settings.
+        StartRelayReceive();
+        StartInboxReceive();
+        StartDepositLoop();
+        SignalAssistant();
     }
 
     /// <summary>
@@ -139,6 +162,8 @@ public sealed partial class FileTransferModule
         EmitAssistantChanged("own-device");
     }
 
+    private bool IsConversationMember(string deviceId) => OwnDevices().Any(device => device.DeviceId == deviceId);
+
     private OwnDevice[] OwnDevices()
     {
         lock (_stateLock) return _ownDevices.Values.ToArray();
@@ -207,17 +232,114 @@ public sealed partial class FileTransferModule
         await beacon.DisposeAsync();
     }
 
+    /// <summary>
+    /// Receives through the public relay. It blocks in the server's long poll instead of polling on a
+    /// timer, backs off in bounded steps when the network fails, and lets a new send interrupt that
+    /// backoff so a queue recovers on its own without a manual retry.
+    /// </summary>
+    private void StartRelayReceive()
+    {
+        if (_relayReceiveLoop is not null) return;
+        _relayReceiveLoop = Task.Run(RelayReceiveLoopAsync);
+    }
+
+    private async Task RelayReceiveLoopAsync()
+    {
+        var backoff = TimeSpan.FromSeconds(2);
+        while (!_lifetime.IsCancellationRequested)
+        {
+            if (!_receivingEnabled)
+            {
+                await WaitForReceiveEventAsync(Timeout.InfiniteTimeSpan);
+                continue;
+            }
+            if (CustomRelayConfigured)
+            {
+                await WaitForReceiveEventAsync(TimeSpan.FromSeconds(OfflineReceiveSyncSeconds));
+                if (_receivingEnabled) KickRelayLeg();
+                continue;
+            }
+            var poll = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
+            _receiveCts = poll;
+            try
+            {
+                var relay = await PublicRelayAsync(poll.Token);
+                if (relay is null)
+                {
+                    // No identity yet, or a rejected key: wait for a signal instead of spinning.
+                    await WaitForReceiveEventAsync(TimeSpan.FromSeconds(30));
+                    continue;
+                }
+                var conversation = _conversationId;
+                var revision = await relay.ChangesAsync(_relayRevision < 0 ? null : _relayRevision, poll.Token);
+                if (conversation != _conversationId) continue;
+                if (revision != _relayRevision)
+                {
+                    _relayRevision = revision;
+                    // New conversation data: run one sync pass (durable relay + direct accelerator).
+                    SignalAssistant();
+                }
+                else if (HasPendingOutgoing())
+                {
+                    // The relay is reachable again and something is still waiting: recover by itself.
+                    SignalAssistant();
+                }
+                backoff = TimeSpan.FromSeconds(2);
+            }
+            catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { return; }
+            catch (OperationCanceledException) { /* receive.stop cancelled this poll */ }
+            catch (PublicRelayAuthException) { await WaitForReceiveEventAsync(TimeSpan.FromMinutes(1)); }
+            catch (Exception)
+            {
+                await WaitForReceiveEventAsync(backoff);
+                backoff = TimeSpan.FromTicks(Math.Min(backoff.Ticks * 2, TimeSpan.FromMinutes(2).Ticks));
+            }
+            finally
+            {
+                if (ReferenceEquals(_receiveCts, poll)) _receiveCts = null;
+                poll.Dispose();
+            }
+        }
+    }
+
+    /// <summary>Cheap in-memory check for queued or failed outgoing work; never touches the network.</summary>
+    private bool HasPendingOutgoing()
+    {
+        var state = _assistant;
+        if (state is null) return false;
+        return state.Items.Any(item => item.SenderDeviceId == Setting("deviceId")
+            && item.State is AssistantItemState.Queued or AssistantItemState.Failed);
+    }
+
+    /// <summary>A bounded wait that a new send or a receive change interrupts immediately.</summary>
+    private async Task WaitForReceiveEventAsync(TimeSpan wait)
+    {
+        try { await _receiveSignal.WaitAsync(wait, _lifetime.Token); }
+        catch (OperationCanceledException) { }
+    }
+
     /// <summary>Wakes the queue worker; there is no timer when nothing is queued and nothing is enabled.</summary>
     private void SignalAssistant()
     {
-        if (_assistantWorker is null || _lifetime.IsCancellationRequested) return;
+        if (_lifetime.IsCancellationRequested) return;
         _assistantSignal.Release();
+        KickRelayLeg();
+        KickDeposit();
+        // A new send is also the moment to leave a backoff: the queue must recover by itself.
+        WakeReceive();
+    }
+
+    private void WakeReceive()
+    {
+        try { _receiveSignal.Release(); }
+        catch (SemaphoreFullException) { }
     }
 
     private void StartAssistantWorker()
     {
         if (_assistantWorker is not null) return;
         _assistantWorker = Task.Run(AssistantLoopAsync);
+        _relayPass = Task.Run(RelayWorkLoopAsync);
     }
 
     /// <summary>
@@ -239,10 +361,7 @@ public sealed partial class FileTransferModule
             var more = false;
             try
             {
-                // Only the direct leg is awaited here: a relay that is slow or stuck must not stop the
-                // next direct delivery, and the durable relay copy continues in its own single flight.
                 var direct = await RunDirectLegAsync(Identity(), _lifetime.Token);
-                KickRelayLeg(Identity());
                 more = direct.HasMore;
             }
             catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { return; }
@@ -311,25 +430,53 @@ public sealed partial class FileTransferModule
         await _relayGate.WaitAsync(token);
         try
         {
+            identity = Identity(); // a queued pass may have waited while another device joined
             var store = _assistantStore ?? throw new InvalidOperationException("会话存储尚未就绪。");
             var outcome = await RunRelayPassAsync(store, identity, token);
-            if (outcome.Result.ReceiptsRead > 0) await ConfirmReceiptSendersAsync(token);
+            // Any item or receipt that arrived proves its writer holds the conversation key, so the
+            // membership scan runs after every pass instead of only when receipts were read.
+            await ConfirmConversationMembersAsync(outcome.Result, token);
             return outcome;
         }
         finally { _relayGate.Release(); }
     }
 
-    /// <summary>Starts the relay leg in the background unless one is already in flight.</summary>
-    private void KickRelayLeg(AssistantIdentity identity)
+    // A bounded signal retains a request that arrives during a pass. Checking IsCompleted and
+    // dropping the request loses this race: the previous pass may have already read the queue.
+    private void KickRelayLeg()
     {
-        if (_relayPass is { IsCompleted: false }) return;
-        _relayPass = RunRelayLegAsync(identity, _lifetime.Token)
-            .ContinueWith(task =>
+        try { _relaySignal.Release(); }
+        catch (SemaphoreFullException) { /* one pending pass already covers this wake-up */ }
+    }
+
+    private async Task RelayWorkLoopAsync()
+    {
+        var wait = Timeout.InfiniteTimeSpan;
+        var backoff = TimeSpan.FromSeconds(2);
+        while (!_lifetime.IsCancellationRequested)
+        {
+            try
             {
-                var outcome = task.IsCompletedSuccessfully ? task.Result : (new AssistantSyncResult(0, 0, 0, 0, 0, 0, false, null), "");
-                if (outcome.Item1.HasMore && !_lifetime.IsCancellationRequested) _ = ContinueSoonAsync();
-                return outcome;
-            }, TaskScheduler.Default);
+                await _relaySignal.WaitAsync(wait, _lifetime.Token);
+                var (result, error) = await RunRelayLegAsync(Identity(), _lifetime.Token);
+                if ((result.RetryAfter is not null || error.Length > 0) && _relayAuthError.Length == 0)
+                {
+                    wait = CustomRelayConfigured ? result.RetryAfter ?? backoff : backoff;
+                    backoff = TimeSpan.FromSeconds(Math.Min(120, backoff.TotalSeconds * 2));
+                }
+                else
+                {
+                    backoff = TimeSpan.FromSeconds(2);
+                    wait = result.HasMore ? TimeSpan.FromMilliseconds(250) : Timeout.InfiniteTimeSpan;
+                }
+            }
+            catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { return; }
+            catch (Exception ex)
+            {
+                NoteRelayHealth(false, MptLogRedactor.Redact(ex.Message));
+                wait = TimeSpan.FromSeconds(5);
+            }
+        }
     }
 
     /// <summary>
@@ -340,43 +487,74 @@ public sealed partial class FileTransferModule
     private async Task<(AssistantSyncResult Result, string Error)> RunRelayPassAsync(AssistantStore store,
         AssistantIdentity identity, CancellationToken token)
     {
-        if (!await RelayReadyAsync(token)) return (new AssistantSyncResult(0, 0, 0, 0, 0, 0, false, null), "");
+        OpenListClient? cloud;
+        try { cloud = await AssistantRelayAsync(token); }
+        catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
+        catch (Exception ex)
+        {
+            var failure = MptLogRedactor.Redact(ex.Message);
+            NoteRelayHealth(false, failure);
+            return (new AssistantSyncResult(0, 0, 0, 0, 0, 0, false, null), failure);
+        }
+        if (cloud is null) return (new AssistantSyncResult(0, 0, 0, 0, 0, 0, false, null), _relayAuthError);
         try
         {
-            using var cloud = await CloudAsync(token);
-            var sync = new AssistantSync(store, cloud) { ItemCancellation = ItemToken };
+            using var _ = cloud;
+            // A message for a device outside this conversation is not written into this namespace: the
+            // direct channel is its real path, and the item reports honestly when that is unreachable.
+            var sync = new AssistantSync(store, cloud)
+            {
+                ItemCancellation = ItemToken,
+                PublishFilter = item => item.TargetDeviceId is not { Length: > 0 } target || IsConversationMember(target)
+            };
             var result = await sync.SyncAsync(identity, token);
             if (result.RetryAfter is not null)
             {
                 // The relay answered with a failure it wants retried: that is not a healthy relay.
-                var message = result.Message is { Length: > 0 } text ? text : "中转网盘暂时不可用，稍后会自动重试。";
-                NoteRelayUnreachable(message);
+                var message = result.Message is { Length: > 0 } text ? text : "文件助手连接暂时不可用，稍后会自动重试。";
+                NoteRelayHealth(false, message);
                 return (result, message);
             }
-            NoteRelayReachable();
+            NoteRelayHealth(true, "");
             return (result, "");
         }
         catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
         catch (Exception ex)
         {
             var message = MptLogRedactor.Redact(ex.Message);
-            NoteRelayUnreachable("连接中转网盘失败：" + message);
+            NoteRelayHealth(false, "连接文件助手失败：" + message);
             return (new AssistantSyncResult(0, 0, 0, 0, 0, 0, false, null), message);
         }
     }
 
-    /// <summary>A receipt that arrived in this conversation is proof the writer shares it.</summary>
-    private async Task ConfirmReceiptSendersAsync(CancellationToken token)
+    /// <summary>
+    /// Records the outcome of an assistant pass on whichever relay it used. It deliberately does not
+    /// touch the legacy OpenList check cache: only the explicit cloud commands verify that relay, and a
+    /// configured URL is not proof either.
+    /// </summary>
+    private void NoteRelayHealth(bool reachable, string message)
     {
-        var store = _assistantStore!;
-        var state = await store.LoadAsync(token);
-        foreach (var item in state.Outgoing(Setting("deviceId")).ToArray())
+        lock (_stateLock)
         {
-            foreach (var receipt in item.Receipts)
-            {
-                if (receipt.DeviceId.Length == 0 || receipt.DeviceId == Setting("deviceId")) continue;
-                await ConfirmOwnDeviceAsync(receipt.DeviceId, receipt.DeviceName, "", token);
-            }
+            _assistantRelayReachable = reachable;
+            _assistantRelayCheckedAt = DateTimeOffset.UtcNow;
+            _assistantRelayMessage = message;
+        }
+    }
+
+    /// <summary>
+    /// Own devices are confirmed only from data this pass really read back over the shared conversation:
+    /// a manifest it listed, or a receipt it fetched through the conversation DAV. The local store is
+    /// deliberately not consulted — an entry that arrived through a device-pairing inbox is stored in the
+    /// same place, and its sender is not a member of this conversation.
+    /// </summary>
+    private async Task ConfirmConversationMembersAsync(AssistantSyncResult? result, CancellationToken token)
+    {
+        if (result?.Verified is not { Count: > 0 } proofs) return;
+        foreach (var proof in proofs)
+        {
+            if (proof.DeviceId.Length == 0 || proof.DeviceId == Setting("deviceId")) continue;
+            await ConfirmOwnDeviceAsync(proof.DeviceId, proof.Name, "", token);
         }
     }
 
@@ -386,6 +564,18 @@ public sealed partial class FileTransferModule
     /// </summary>
     private CancellationTokenSource ItemScope(string itemId) =>
         _itemCancellation.GetOrAdd(itemId, _ => new CancellationTokenSource());
+
+    /// <summary>
+    /// The same per-item scope, additionally linked to a caller's token: aborting the surrounding work
+    /// (a stopped loop, a disposed module) aborts the item's request too, and the user's cancel of one
+    /// item still aborts only that item.
+    /// </summary>
+    private CancellationTokenSource ItemScope(string itemId, CancellationToken parent)
+    {
+        var scope = ItemScope(itemId);
+        var linked = CancellationTokenSource.CreateLinkedTokenSource(scope.Token, parent);
+        return linked;
+    }
 
     private CancellationToken ItemToken(string itemId) => ItemScope(itemId).Token;
 
@@ -441,7 +631,11 @@ public sealed partial class FileTransferModule
                 }
                 attempted++;
                 var reply = await SendDirectItemAsync(device, item, identity, token);
-                if (reply is null) continue;
+                if (reply is null)
+                {
+                    await NoteUnreachableTargetAsync(item, device, token);
+                    continue;
+                }
                 if (reply.Pending) pending++;
                 if (!reply.Ok || !string.Equals(reply.State, AssistantWire.DeliveredState, StringComparison.Ordinal)) continue;
                 delivered++;
@@ -454,7 +648,26 @@ public sealed partial class FileTransferModule
                 }, token);
             }
         }
+        // Paired devices are reached by the independent deposit scheduler, never from here: a direct
+        // attempt may wait minutes for a first-contact confirmation and must not hold the public copy.
+        KickDeposit();
         return new DirectOutcome(delivered, pending, false);
+    }
+
+    /// <summary>
+    /// A message for a device outside the conversation has only the direct channel; when that fails the
+    /// entry carries the real reason instead of a delivery claim.
+    /// </summary>
+    private async Task NoteUnreachableTargetAsync(AssistantItem item, DiscoveredDevice device, CancellationToken token)
+    {
+        if (item.TargetDeviceId is not { Length: > 0 }) return;
+        if (IsConversationMember(item.TargetDeviceId)) return;
+        await _assistantStore!.MutateAsync(state =>
+        {
+            var row = state.Find(item.Id);
+            if (row is null || row.State is AssistantItemState.Delivered or AssistantItemState.Cancelled) return;
+            row.Error = $"{device.Name} 不在同一个文件助手会话，且直连不可达；请让对方加入连接码，或稍后重试。";
+        }, token);
     }
 
     private async Task<AssistantWire.ItemReply?> SendDirectItemAsync(DiscoveredDevice device, AssistantItem item,
@@ -485,9 +698,15 @@ public sealed partial class FileTransferModule
                 item.TargetDeviceId,
                 Address: Setting("listenAddress"));
             // A first contact may hold this connection while its user decides, so the budget covers it.
+            // A self send only goes to own devices, which answer immediately or not at all: the connect
+            // window is short so a dead candidate never holds the queue or the relay's schedule, while a
+            // user-picked target may legitimately wait for its first-contact confirmation.
+            var targeted = item.TargetDeviceId is { Length: > 0 };
+            var budget = targeted ? TimeSpan.FromMinutes(5) : TimeSpan.FromSeconds(30);
+            var connect = targeted ? TimeSpan.FromSeconds(15) : TimeSpan.FromSeconds(3);
             // Progress goes through the store, so the shared snapshot is never written from this thread.
             return await AssistantWire.SendItemAsync(device.Address, device.Port, frame, payload,
-                (done, _) => _assistantStore?.ReportProgress(item.Id, done), TimeSpan.FromMinutes(5), itemCancellation.Token);
+                (done, _) => _assistantStore?.ReportProgress(item.Id, done), budget, itemCancellation.Token, connect);
         }
         catch (OperationCanceledException) when (itemCancellation.IsCancellationRequested && !token.IsCancellationRequested)
         {
@@ -579,8 +798,11 @@ public sealed partial class FileTransferModule
             ["items"] = items,
             ["pendingRequests"] = pending,
             ["relay"] = RelayJson(),
-            ["receiving"] = session is not null,
-            ["receivingDetails"] = ReceivingDetailsJson(session is not null)
+            // The device's own deposit inbox is its own namespace, next to (never inside) the conversation.
+            ["inbox"] = InboxJson(),
+            // Receiving is the module state: the public relay keeps receiving without a Tailnet listener.
+            ["receiving"] = _receivingEnabled,
+            ["receivingDetails"] = ReceivingDetailsJson(_receivingEnabled)
         };
     }
 
@@ -593,7 +815,16 @@ public sealed partial class FileTransferModule
     {
         var target = SettingsJson.ReadString(args, "targetDeviceId") ?? "";
         if (target.Length > 0 && target == Setting("deviceId")) target = "";
-        if (target.Length > 0) TransferFiles.DeviceId(target);
+        if (target.Length > 0)
+        {
+            TransferFiles.DeviceId(target);
+            // A target has to be a device this conversation already knows: an own device, a paired
+            // device, or one this session discovered. An arbitrary id is refused.
+            var known = OwnDevices().Any(device => device.DeviceId == target)
+                || FindPeer(target) is not null
+                || _discovered.Contains(target);
+            if (!known) throw new ArgumentException("请先在设备列表里选择要发送的设备。");
+        }
         var text = SettingsJson.ReadString(args, "text");
         var paths = BatchSend.Paths(args);
         if (string.IsNullOrEmpty(text) && paths.Count == 0) throw new ArgumentException("请输入文字或选择要发送的文件。");
@@ -700,11 +931,11 @@ public sealed partial class FileTransferModule
         var target = AssistantContent.OpenTarget(item);
         if (!target.NeedsDownload) return new { itemId, path = target.Path, text = target.Text, needsDownload = false };
         if (item.Kind == AssistantItemKind.Text) throw new InvalidOperationException("这条消息没有可打开的内容。");
-        if (!await RelayReadyAsync(token)) throw new InvalidOperationException("本机还没有这条内容，且未配置中转网盘。");
         await _relayGate.WaitAsync(token);
         try
         {
-            using var cloud = await CloudAsync(token);
+            using var cloud = await AssistantRelayAsync(token)
+                ?? throw new InvalidOperationException(_relayAuthError.Length > 0 ? _relayAuthError : "文件助手连接尚未就绪，请稍后重试。");
             await new AssistantSync(_assistantStore!, cloud) { ItemCancellation = ItemToken }.EnsureLocalAsync(Identity(), itemId, token);
         }
         finally { _relayGate.Release(); }
@@ -734,6 +965,12 @@ public sealed partial class FileTransferModule
         }
         var devices = new JsonArray();
         var seen = new HashSet<string>(StringComparer.Ordinal);
+        lock (_stateLock)
+        {
+            _discovered.Clear();
+            foreach (var result in report.Devices)
+                if (result.Device.DeviceId.Length > 0 && result.Device.DeviceId != Setting("deviceId")) _discovered.Add(result.Device.DeviceId);
+        }
         foreach (var result in report.Devices)
         {
             if (result.Device.DeviceId.Length == 0 || result.Device.DeviceId == Setting("deviceId")) continue;
@@ -817,7 +1054,7 @@ public sealed partial class FileTransferModule
         // One scan has to be enough: the code carries the relay configuration too, so the other device
         // can sync offline without a second setup. Secrets still only ever live in the secret store.
         var cloud = "";
-        if (await RelayReadyAsync(token))
+        if (CustomRelayConfigured && await SecretAsync("password", token) is { Length: > 0 })
             cloud = new CloudConnection(Setting("webDavUrl"), Setting("username"), await SecretAsync("password", token) ?? "").Encode();
         var code = LinkCode.Encode(new LinkCode.Payload(1, _conversationId, _conversationKey,
             Setting("deviceId"), DeviceName(), address, TransferFiles.Port, PlatformName(), cloud));
@@ -845,6 +1082,15 @@ public sealed partial class FileTransferModule
     }
 
     private async Task<object> AssistantLinkImportAsync(JsonObject args, CancellationToken token)
+    {
+        // A running pass owns a snapshot of the old conversation. Finish it before switching the
+        // durable store, or it can restore the old identity after the join notice has been enqueued.
+        await _relayGate.WaitAsync(token);
+        try { return await AssistantLinkImportCoreAsync(args, token); }
+        finally { _relayGate.Release(); }
+    }
+
+    private async Task<object> AssistantLinkImportCoreAsync(JsonObject args, CancellationToken token)
     {
         var payload = LinkCode.Decode(SettingsJson.ReadString(args, "code") ?? "");
         if (payload.DeviceId == Setting("deviceId")) throw new ArgumentException("这是本机自己的连接码，请扫描另一台设备的码。");
@@ -882,7 +1128,13 @@ public sealed partial class FileTransferModule
         }
         finally { _operations.Release(); }
         await ConfirmOwnDeviceAsync(payload.DeviceId, payload.Name, payload.Address, token);
+        // The conversation changed, so the relay client and its long poll authenticate with the new identity.
+        ResetPublicRelay();
         _assistant = await _assistantStore!.ConfigureAsync(Identity(), token);
+        _relayRevision = -1;
+        // Announcing the join is what lets the other side see this device without faking a delivery.
+        var notice = await _assistantStore.EnqueueAsync(Identity(),
+            AssistantDraft.ForText($"已加入文件助手：{DeviceName()}", null), token);
         EmitAssistantChanged("link.import");
         SignalAssistant();
         return new
@@ -892,7 +1144,8 @@ public sealed partial class FileTransferModule
             deviceId = payload.DeviceId,
             name = payload.Name,
             relayImported,
-            linked = Linked
+            linked = Linked,
+            membershipNotice = notice.Count > 0
         };
     }
 
@@ -935,21 +1188,111 @@ public sealed partial class FileTransferModule
         OperatingSystem.IsAndroid() ? "android" : OperatingSystem.IsWindows() ? "windows" :
         OperatingSystem.IsMacOS() ? "macos" : OperatingSystem.IsLinux() ? "linux" : "";
 
-    private async Task<bool> RelayReadyAsync(CancellationToken token) =>
-        Setting("webDavUrl").Length > 0 && Setting("username").Length > 0
-        && await SecretAsync("password", token) is { Length: > 0 };
+    /// <summary>True when the user configured their own relay; the public relay is only the default.</summary>
+    private bool CustomRelayConfigured => Setting("webDavUrl").Length > 0 && Setting("username").Length > 0;
+
+    /// <summary>
+    /// The relay client this conversation uses right now: the user's own OpenList when it is configured,
+    /// otherwise the public relay with the persisted conversation key. No user setting is required for
+    /// the default path, and a custom relay is never overridden.
+    /// </summary>
+    private async Task<OpenListClient?> AssistantRelayAsync(CancellationToken token)
+    {
+        if (CustomRelayConfigured && await SecretAsync("password", token) is { Length: > 0 } password)
+            return new OpenListClient(Setting("webDavUrl"), Setting("username"), password);
+        var relay = await PublicRelayAsync(token);
+        return relay?.CreateDavClient();
+    }
+
+    /// <summary>Registers (once per conversation identity) and returns the public relay client.</summary>
+    private async Task<PublicRelayClient?> PublicRelayAsync(CancellationToken token)
+    {
+        await _publicRelayInitGate.WaitAsync(token);
+        try
+        {
+            PublicRelayClient client;
+            string identity;
+            int generation;
+            lock (_publicRelayLock)
+            {
+                if (_conversationId.Length == 0 || _conversationKey.Length != 64 || _relayAuthError.Length > 0) return null;
+                identity = _conversationId + ":" + _conversationKey;
+                if (_publicRelay is not null && _publicRelayIdentity == identity) return _publicRelay;
+                generation = _publicRelayGeneration;
+                client = new PublicRelayClient(_conversationId, _conversationKey);
+            }
+            try { await client.RegisterAsync(token); }
+            catch (PublicRelayAuthException ex)
+            {
+                client.Dispose();
+                lock (_publicRelayLock)
+                {
+                    if (generation != _publicRelayGeneration) return null;
+                    _relayAuthError = ex.Message;
+                }
+                NoteRelayHealth(false, ex.Message);
+                return null;
+            }
+            catch { client.Dispose(); throw; }
+            lock (_publicRelayLock)
+            {
+                // A join can change identity while registration is in flight. Its old client must
+                // never overwrite the newly joined conversation or authenticate the next poll.
+                if (generation != _publicRelayGeneration)
+                {
+                    client.Dispose();
+                    return null;
+                }
+                _publicRelay?.Dispose();
+                _publicRelay = client;
+                _publicRelayIdentity = identity;
+                return client;
+            }
+        }
+        finally { _publicRelayInitGate.Release(); }
+    }
+
+    private void ResetPublicRelay()
+    {
+        lock (_publicRelayLock)
+        {
+            _publicRelayGeneration++;
+            _publicRelay?.Dispose();
+            _publicRelay = null;
+            _publicRelayIdentity = "";
+            _relayAuthError = "";
+        }
+    }
 
     private JsonObject RelayJson()
     {
-        var configured = Setting("webDavUrl").Length > 0 && Setting("username").Length > 0;
+        // The public relay is the default transport, so "configured" means "a relay is available",
+        // not "the user filled in settings".
+        var custom = CustomRelayConfigured;
+        var configured = custom || (_conversationId.Length > 0 && _conversationKey.Length == 64);
         string state;
         string message;
         lock (_stateLock)
         {
-            state = !configured ? "unconfigured" : _cloudCheckedAt is null ? "unknown" : _cloudReachable ? "available" : "unavailable";
-            message = configured && _cloudCheckedAt is null ? "尚未检查中转网盘连接。" : _cloudMessage;
+            var checkedAt = _assistantRelayCheckedAt;
+            var reachable = _assistantRelayReachable;
+            var detail = _assistantRelayMessage;
+            state = _relayAuthError.Length > 0 ? "unavailable"
+                : !configured ? "unconfigured"
+                : checkedAt is null ? "unknown" : reachable ? "available" : "unavailable";
+            message = _relayAuthError.Length > 0 ? _relayAuthError
+                : configured && checkedAt is null ? "文件助手连接尚未开始同步。" : detail;
         }
-        return new JsonObject { ["configured"] = configured, ["state"] = state, ["message"] = message };
+        return new JsonObject
+        {
+            ["configured"] = configured,
+            ["state"] = state,
+            ["message"] = message,
+            ["public"] = !custom,
+            ["custom"] = custom,
+            ["revision"] = Math.Max(0, _relayRevision),
+            ["receiving"] = _receivingEnabled
+        };
     }
 
     private JsonObject ReceivingDetailsJson(bool enabled)
@@ -957,6 +1300,9 @@ public sealed partial class FileTransferModule
         var json = new JsonObject
         {
             ["enabled"] = enabled,
+            ["engine"] = "public-relay",
+            ["publicRelay"] = !CustomRelayConfigured,
+            ["tailnetListener"] = Volatile.Read(ref _session) is not null,
             ["address"] = Setting("listenAddress"),
             ["port"] = TransferFiles.Port,
             ["pendingRequests"] = _receiveAuthorization.Pending().Count,

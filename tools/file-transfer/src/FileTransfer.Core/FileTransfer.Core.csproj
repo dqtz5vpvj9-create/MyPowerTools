@@ -7,5 +7,7 @@
   <ItemGroup>
     <!-- System.Net.Http.Json provides ReadFromJsonAsync for the WebDAV content reads. -->
     <Using Include="System.Net.Http.Json" />
+    <!-- The tests inject the simulated public relay endpoint; production keeps the fixed HTTPS address. -->
+    <InternalsVisibleTo Include="FileTransfer.Core.Tests" />
   </ItemGroup>
 </Project>

@@ -16,7 +16,17 @@ public static class TransferFiles
             : address.ToString().StartsWith("fd7a:115c:a1e0:", StringComparison.OrdinalIgnoreCase);
     }
 
-    public static IReadOnlyList<string> LocalAddresses() => NetworkInterface.GetAllNetworkInterfaces()
+    /// <summary>
+    /// Test seam: a machine with no usable Tailnet interface is a real state (phones without Tailscale,
+    /// CI hosts), so tests replace the enumeration instead of inventing an unreachable address.
+    /// Production never sets this.
+    /// </summary>
+    internal static Func<IReadOnlyList<string>>? LocalAddressesOverride { get; set; }
+
+    public static IReadOnlyList<string> LocalAddresses() =>
+        LocalAddressesOverride?.Invoke() ?? EnumerateLocalAddresses();
+
+    private static IReadOnlyList<string> EnumerateLocalAddresses() => NetworkInterface.GetAllNetworkInterfaces()
         .Where(n => n.OperationalStatus == OperationalStatus.Up)
         .SelectMany(n => n.GetIPProperties().UnicastAddresses)
         .Select(a => a.Address).Where(IsTailAddress).Select(a => a.ToString()).Distinct().ToArray();

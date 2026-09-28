@@ -16,7 +16,16 @@ public sealed record AssistantSyncLimits(int Publish = 8, int Pull = 50, int Dow
 /// </summary>
 public sealed record AssistantSyncResult(int Published, int Failed, int Received, int Downloaded,
     int ReceiptsWritten, int ReceiptsRead, bool HasMore, string? Message,
-    int ReceiptsChecked = 0, TimeSpan? RetryAfter = null);
+    int ReceiptsChecked = 0, TimeSpan? RetryAfter = null,
+    IReadOnlyList<AssistantMemberProof>? Verified = null);
+
+/// <summary>
+/// Proof of conversation membership, produced only by data this pass really read back over the shared
+/// conversation (a manifest listed from the relay, or a receipt fetched by <c>ListAssistantReceiptsAsync</c>).
+/// Local store contents are never proof: an entry that arrived through a device-pairing inbox lands in the
+/// same store, and it must not make its sender an own device of the conversation.
+/// </summary>
+public sealed record AssistantMemberProof(string DeviceId, string Name);
 
 /// <summary>
 /// One reusable synchronisation pass: publish what is pending, resolve real receipts, pull new entries and
@@ -38,6 +47,14 @@ public sealed class AssistantSync
     /// hook keeps the original pass-wide behaviour.
     /// </summary>
     public Func<string, CancellationToken>? ItemCancellation { get; set; }
+
+    /// <summary>
+    /// Optional: returns false for an entry this conversation must not publish. The module uses it so a
+    /// message addressed to a device that is not part of the conversation is never written into the
+    /// sender's own namespace as if the target could read it. A filtered entry also stops counting as
+    /// pending work, so it cannot make the scheduler spin.
+    /// </summary>
+    public Func<AssistantItem, bool>? PublishFilter { get; set; }
 
     private CancellationTokenSource ItemScope(string itemId, CancellationToken token) =>
         ItemCancellation is { } hook
@@ -85,6 +102,7 @@ public sealed class AssistantSync
         // 1. Publish local pending entries. Fewer previous attempts first, so one bad entry never starves new ones.
         var queue = state.Outgoing(identity.DeviceId)
             .Where(item => item.State is AssistantItemState.Queued or AssistantItemState.Failed)
+            .Where(item => PublishFilter?.Invoke(item) ?? true)
             .OrderBy(item => item.Attempts).ThenBy(item => item.CreatedAt).ThenBy(item => item.Id, StringComparer.Ordinal)
             .Take(_limits.Publish).ToArray();
         foreach (var item in queue)
@@ -104,6 +122,7 @@ public sealed class AssistantSync
         // 2. Real receipts turn a targeted send into "delivered"; a self send keeps its per-device receipts.
         // The order is a bounded fair rotation: never-confirmed entries first, then the least recently checked.
         string? pullError = null;
+        var verified = new List<AssistantMemberProof>();
         if (!relayUnhealthy)
         {
             var now = DateTimeOffset.UtcNow;
@@ -122,6 +141,12 @@ public sealed class AssistantSync
                 catch (Exception ex) when (IsRelayFailure(ex)) { relayUnhealthy = true; break; }
                 read += receipts.Count;
                 checkedReceipts++;
+                // Only receipts actually read from the shared conversation prove their writer is a member.
+                foreach (var receipt in receipts)
+                {
+                    if (receipt.DeviceId.Length > 0 && receipt.DeviceId != identity.DeviceId)
+                        verified.Add(new AssistantMemberProof(receipt.DeviceId, receipt.DeviceName));
+                }
                 var itemId = item.Id;
                 await _store.MutateAsync(changed =>
                 {
@@ -154,6 +179,12 @@ public sealed class AssistantSync
             }
             if (!relayUnhealthy)
             {
+                // A manifest listed from the shared conversation proves its writer holds its credentials.
+                foreach (var manifest in page.Items)
+                {
+                    if (manifest.SenderDeviceId.Length > 0 && manifest.SenderDeviceId != identity.DeviceId)
+                        verified.Add(new AssistantMemberProof(manifest.SenderDeviceId, manifest.SenderName));
+                }
                 // Oldest discovery first, so the newest ids stay in front of the bounded known set.
                 var known = page.Items.Select(manifest => manifest.Id).Reverse().ToArray();
                 var invalid = page.InvalidItemIds.ToArray();
@@ -267,14 +298,16 @@ public sealed class AssistantSync
         // spinning, and those ids stay re-fetchable so a late manifest is still picked up later.
         var progressed = published > 0 || received > 0 || downloaded > 0 || written > 0 || checkedReceipts > 0
             || page.InvalidItemIds.Count > 0;
-        var pending = state.Outgoing(identity.DeviceId).Any(item => item.State == AssistantItemState.Queued)
+        var pending = state.Outgoing(identity.DeviceId)
+                .Any(item => item.State == AssistantItemState.Queued && (PublishFilter?.Invoke(item) ?? true))
             || state.Incoming(identity.DeviceId).Any(item => item.Kind != AssistantItemKind.Text
                 && IsAddressedToMe(item, identity.DeviceId) && item.State == AssistantItemState.Stored);
         var hasMore = !relayUnhealthy && progressed && (page.HasMore || pending);
         var message = $"发布 {published} 条，失败 {failed} 条，接收 {received} 条，下载 {downloaded} 个，回执 {written} 份。";
         if (pullError is not null) message += $" 拉取失败：{pullError}";
         return new(published, failed, received, downloaded, written, read, hasMore, message,
-            checkedReceipts, relayUnhealthy ? TimeSpan.FromSeconds(_limits.RetryDelaySeconds) : null);
+            checkedReceipts, relayUnhealthy ? TimeSpan.FromSeconds(_limits.RetryDelaySeconds) : null,
+            verified.Count == 0 ? null : verified);
     }
 
     /// <summary>
