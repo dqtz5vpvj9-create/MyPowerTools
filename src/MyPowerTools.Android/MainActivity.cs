@@ -10,6 +10,7 @@ using Avalonia.Media;
 using Avalonia.Threading;
 using MyPowerTools.Abstractions;
 using MyPowerTools.Android.Files;
+using MyPowerTools.Android.Input;
 using MyPowerTools.Android.Pairing;
 using MyPowerTools.Platform.Abstractions;
 using MyPowerTools.Platform.Android;
@@ -351,10 +352,49 @@ public sealed class MainActivity : AvaloniaMainActivity
         if (intent is not null) _ = HandleIntentAsync(intent);
     }
 
+    private readonly AndroidTouchLifecycle _touchLifecycle = new();
+
+    public override bool DispatchTouchEvent(MotionEvent? e)
+    {
+        if (e is null) return base.DispatchTouchEvent(e);
+        _touchLifecycle.BeforeDispatch(e);
+        if (e.ActionMasked == MotionEventActions.Cancel &&
+            _touchLifecycle.Cancel(FindAvaloniaView(Window?.DecorView), "native-cancel"))
+            return true;
+        try { return base.DispatchTouchEvent(e); }
+        finally { _touchLifecycle.AfterDispatch(e); }
+    }
+
+    protected override void OnPause()
+    {
+        // Android can pause us for a viewer/scanner before the gesture's terminal event arrives.
+        // Avalonia keeps implicit touch capture until TouchEnd/TouchCancel; a resume is not an end.
+        _touchLifecycle.Cancel(FindAvaloniaView(Window?.DecorView), "pause");
+        base.OnPause();
+    }
+
+    public override void OnWindowFocusChanged(bool hasFocus)
+    {
+        if (!hasFocus)
+            _touchLifecycle.Cancel(FindAvaloniaView(Window?.DecorView), "window-focus-lost");
+        base.OnWindowFocusChanged(hasFocus);
+    }
+
+    private static AvaloniaView? FindAvaloniaView(A.Views.View? view)
+    {
+        if (view is AvaloniaView avaloniaView) return avaloniaView;
+        if (view is not A.Views.ViewGroup group) return null;
+        for (var index = 0; index < group.ChildCount; index++)
+            if (FindAvaloniaView(group.GetChildAt(index)) is { } result) return result;
+        return null;
+    }
+
     protected override void OnDestroy()
     {
         // The activity (and its visual tree) is gone; the next one arms a fresh ready task instead
         // of handing activations a control that no longer has a parent.
+        _touchLifecycle.Cancel(FindAvaloniaView(Window?.DecorView), "destroy");
+        _touchLifecycle.Dispose();
         _shell = null;
         if (ReferenceEquals(Current, this)) Current = null;
         base.OnDestroy();

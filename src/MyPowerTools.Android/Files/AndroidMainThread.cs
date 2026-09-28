@@ -6,8 +6,8 @@ namespace MyPowerTools.Android.Files;
 /// Marshals one short UI operation onto the platform's main thread. Starting a viewer and reading
 /// the provider's path configuration both touch framework state that belongs to the UI thread, so
 /// the launcher runs there even when a surface calls it from a module thread. The delegate is
-/// bounded: it is posted once and never retried, and cancellation is only observed before the post
-/// because an already-submitted launch cannot be recalled.
+/// bounded: it is posted once and never retried. Cancellation is checked before queuing and before
+/// execution; a launch that has already executed cannot be recalled.
 /// </summary>
 internal static class AndroidMainThread
 {
@@ -25,24 +25,16 @@ internal static class AndroidMainThread
             return Task.FromException<T>(MptFileOpenErrors.LaunchFailed("系统界面线程不可用。"));
         }
 
-        if (A.OS.Looper.MyLooper() == mainLooper)
-        {
-            try
-            {
-                return Task.FromResult(action());
-            }
-            catch (Exception ex)
-            {
-                return Task.FromException<T>(ex);
-            }
-        }
-
+        // Always post, including calls from the UI thread. A surface opens files from a Click
+        // handler while Avalonia is still delivering PointerReleased; starting another activity
+        // inline can take the window before that gesture has released its capture.
         var completion = new TaskCompletionSource<T>(TaskCreationOptions.RunContinuationsAsynchronously);
         var handler = new A.OS.Handler(mainLooper);
         var posted = handler.Post(new Java.Lang.Runnable(() =>
         {
             try
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 completion.TrySetResult(action());
             }
             catch (Exception ex)

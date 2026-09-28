@@ -3,6 +3,7 @@ using Avalonia;
 using Avalonia.Android;
 using Avalonia.Media;
 using MyPowerTools.Shell.Avalonia;
+using MyPowerTools.Android.Files;
 using A = global::Android;
 
 namespace MyPowerTools.Android;
@@ -53,6 +54,8 @@ public sealed class MptAndroidApplication(nint handle, JniHandleOwnership owners
     public override void OnCreate()
     {
         base.OnCreate();
+        // Register before the first activity resumes, so its first viewer launch stays in this task.
+        MptCurrentActivity.EnsureRegistered(this);
         AndroidStartupLog.UseRuntimeLogDirectory(null);
         AndroidStartupLog.Info("application", "Process start");
         // A managed exception that escapes the Avalonia loop otherwise only surfaces as a process
