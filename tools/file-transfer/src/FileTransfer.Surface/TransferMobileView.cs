@@ -122,6 +122,7 @@ internal sealed partial class TransferMobileView : UserControl, IMptAvaloniaSurf
 
         MobileUi.With(this, MobileUi.Classes.Root);
         var page = MobileUi.With(new Border { Child = layout }, MobileUi.Classes.Root, MobileUi.Classes.Page);
+        MobileUi.EnsureMobileTheme(page);
         // The page follows the host's theme variant, so dark resolves the theme's own dark palette.
         Content = new ThemeVariantScope
         {
@@ -698,6 +699,13 @@ internal sealed partial class TransferMobileView : UserControl, IMptAvaloniaSurf
             _pairCode.Text = value;
             ShowSheet(_pairSheet);
             _core.PublishOnUi(_core.Snapshot with { Status = "已收到设备连接码，确认后点“添加设备”。" });
+            return true;
+        }
+        if (value.StartsWith("mpt://cloud/", StringComparison.Ordinal))
+        {
+            _cloudCode.Text = value;
+            ShowSheet(_relaySheet);
+            _core.PublishOnUi(_core.Snapshot with { Status = "已收到网盘连接码，确认后点“导入连接码”。" });
             return true;
         }
         return false;

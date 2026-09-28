@@ -5,6 +5,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Layout;
+using Avalonia.Markup.Xaml.Styling;
 using Avalonia.Media;
 using Avalonia.Input.Platform;
 using Avalonia.Platform.Storage;
@@ -198,15 +199,25 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
         };
         _sheetScrim.PointerPressed += (_, e) => { if (ReferenceEquals(e.Source, _sheetScrim)) CloseSheet(); };
 
-        var layout = new Grid { RowDefinitions = new RowDefinitions("Auto,*,Auto") };
+        // The header, thread and composer share one bounded column, so a desktop window shows a
+        // readable conversation instead of text stretched the full width of the monitor.
+        _conversationColumn = new Grid
+        {
+            RowDefinitions = new RowDefinitions("Auto,*,Auto"),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Stretch
+        };
         var header = BuildHeader();
         Grid.SetRow(header, 0);
-        layout.Children.Add(header);
+        _conversationColumn.Children.Add(header);
         Grid.SetRow(_threadScroll, 1);
-        layout.Children.Add(_threadScroll);
+        _conversationColumn.Children.Add(_threadScroll);
         var composer = BuildComposer();
         Grid.SetRow(composer, 2);
-        layout.Children.Add(composer);
+        _conversationColumn.Children.Add(composer);
+
+        var layout = new Grid { RowDefinitions = new RowDefinitions("*") };
+        layout.Children.Add(_conversationColumn);
         // The sheet overlays the whole page: without the span it would only cover the header row and
         // leave the composer visible and tappable underneath.
         Grid.SetRowSpan(_sheetScrim, 3);
@@ -214,6 +225,10 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
 
         MobileUi.With(this, MobileUi.Classes.Root);
         var page = MobileUi.With(new Border { Child = layout }, MobileUi.Classes.Root, MobileUi.Classes.Page);
+        // The tool carries its own copy of the mobile styles, so it renders correctly on a desktop
+        // host that never loads the mobile theme.
+        MobileUi.EnsureMobileTheme(this);
+        _pageRoot = page;
         Content = new ThemeVariantScope
         {
             RequestedThemeVariant = string.Equals(context.Theme, "dark", StringComparison.OrdinalIgnoreCase)
@@ -266,6 +281,7 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
         row.Children.Add(_input);
 
         var actions = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 8 };
+        _composerActions = actions;
         Grid.SetColumn(_send, 0);
         actions.Children.Add(_send);
         Grid.SetColumn(_sendToDevice, 1);
@@ -289,6 +305,10 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
     }
 
     private Border? _composer;
+    private Grid? _composerActions;
+    private Border? _sheetGrabber;
+    private Grid? _conversationColumn;
+    private Border? _pageRoot;
 
     private StackPanel BuildEmptyState()
     {
@@ -320,8 +340,8 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
         }
         _emptyTitle.Text = "先发给自己，也可以连上你的设备。";
         _emptyNote.Text = state.RelayBlocked
-            ? "现在只会保存在这台手机上。想在其他设备上看到，先连接我的设备；内容不会经过第三方服务器。"
-            : "现在只会保存在这台手机上。连接我的设备后，另一台设备也能在同一个会话里看到。";
+            ? "现在只会保存在这台设备上。想在其他设备上看到，先连接我的设备；内容不会经过第三方服务器。"
+            : "现在只会保存在这台设备上。连接我的设备后，另一台设备也能在同一个会话里看到。";
         _emptyConnect.IsVisible = true;
     }
 
@@ -343,6 +363,7 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
         Grid.SetColumn(_sheetClose, 1);
         row.Children.Add(_sheetClose);
         var grabber = MobileUi.With(new Border { HorizontalAlignment = HorizontalAlignment.Center }, MobileUi.Classes.SheetGrabber);
+        _sheetGrabber = grabber;
         return MobileUi.Stack(10, grabber, row);
     }
 
@@ -358,14 +379,14 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
         var choices = new StackPanel { Spacing = 2 };
         choices.Children.Add(MobileUi.ListRow("MptMobileIconDevices", "连接我的设备", "用连接码把另一台设备加入这个会话",
             () => { ShowSheet(_linkSheet); SyncLinkSheet(); return Task.CompletedTask; }));
-        choices.Children.Add(MobileUi.ListRow("MptMobileIconReceive", "接收文件", "允许另一台设备直接发文件到这台手机",
+        choices.Children.Add(MobileUi.ListRow("MptMobileIconReceive", "接收文件", "允许另一台设备直接发文件到这台设备",
             () => { ShowSheet(_receiveSheet); SyncReceive(); return Task.CompletedTask; }));
         choices.Children.Add(MobileUi.ListRow("MptMobileIconSend", "发给设备", "把待发送的内容直接发给某一台设备",
             () => { ShowDeviceSheet(); return Task.CompletedTask; }));
-        var advanced = MobileUi.QuietButton("高级设置（IP、端口、WebDAV、经典传输）");
+        var advanced = MobileUi.QuietButton("更多设置");
         advanced.Click += (_, _) => _ = OpenAdvancedAsync();
         return MobileUi.Stack(10,
-            MobileUi.Note("日常发送不需要打开这里。"),
+            MobileUi.Note("管理设备连接与文件接收。"),
             MobileUi.ListCard(choices),
             MobileUi.Divider(),
             advanced);
@@ -413,8 +434,8 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
     }
 
     private StackPanel BuildReceiveSheet() => MobileUi.Stack(10,
-        MobileUi.Note("开启后，另一台设备可以直接把文件发到这台手机；需要保持 MPT 在运行。"),
-        MobileUi.Note("这不等同于离线收件：接收文件时本机必须在线并有 MPT 在运行，手机不在线时对方无法留文件。"),
+        MobileUi.Note("开启后，另一台设备可以直接把文件发到这台设备；需要保持 MPT 在运行。"),
+        MobileUi.Note("这不等同于离线收件：接收文件时本机必须在线并有 MPT 在运行，本机不在线时对方无法留文件。"),
         _receiveState,
         _receiveToggle,
         _receiveFolder);
@@ -500,6 +521,17 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
     /// <summary>The QR symbol's size, from the shared control's own default.</summary>
     internal double QrSize => _qrValue?.Width ?? MptQrCode.RecommendedDisplaySize;
 
+    /// <summary>True when this page loaded the mobile theme into its own styles.</summary>
+    internal bool HasScopedMobileTheme => Styles.OfType<StyleInclude>().Any(include =>
+            include.Source?.AbsolutePath.Contains("MptMobileTheme.axaml", StringComparison.Ordinal) == true);
+
+    /// <summary>The bounded conversation column's measured size, for the desktop layout assertions.</summary>
+    internal Rect ConversationColumnBounds => _conversationColumn?.Bounds ?? default;
+
+    /// <summary>Where the conversation column starts inside a host window.</summary>
+    internal Point? ConversationOriginIn(Visual host) =>
+        _conversationColumn?.TranslatePoint(default, host);
+
     /// <summary>What the QR region currently hosts, so a test can prove the symbol replaced the hint.</summary>
     internal Control? QrHolderChild => _qrHolder.Child;
 
@@ -576,6 +608,21 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
     public void ApplyViewport(double width)
     {
         if (width > 0) _viewport = width;
+        var desktop = _viewport >= PhoneWidth;
+        if (_pageRoot is not null)
+        {
+            if (desktop) _pageRoot.Padding = new Thickness(22, 16);
+            else _pageRoot.ClearValue(Border.PaddingProperty);
+        }
+        if (_sheetGrabber is not null) _sheetGrabber.IsVisible = !desktop;
+        if (_composerActions is not null)
+        {
+            _composerActions.ColumnDefinitions = new ColumnDefinitions(desktop ? "Auto,Auto" : "*,Auto");
+            _composerActions.HorizontalAlignment = desktop ? HorizontalAlignment.Right : HorizontalAlignment.Stretch;
+            Grid.SetColumn(_send, desktop ? 1 : 0);
+            Grid.SetColumn(_sendToDevice, desktop ? 0 : 1);
+            _send.MinWidth = desktop ? 96 : 0;
+        }
         var side = _viewport <= 340 ? SidePaddingNarrow : SidePaddingWide;
         if (_viewport <= 340) _sheetHost.Padding = new Thickness(16, 10, 16, 30);
         else _sheetHost.ClearValue(Border.PaddingProperty);
@@ -588,6 +635,17 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
         _pendingRequests.Margin = new Thickness(side, 8, side, 0);
         _emptyState.Margin = new Thickness(side, 0, side, 0);
         if (_composer is not null) _composer.Padding = new Thickness(side, 8, side, 10);
+        // A desktop window is wide, so the conversation keeps a readable column and the sheet becomes a
+        // bounded dialog rather than a full-width panel.
+        if (_conversationColumn is not null)
+        {
+            _conversationColumn.Width = _viewport < PhoneWidth ? double.NaN : Math.Min(720, _viewport);
+            _conversationColumn.MaxWidth = 720;
+        }
+        _sheetHost.MaxWidth = _viewport < PhoneWidth ? double.PositiveInfinity : DialogMaxWidth;
+        _sheetHost.HorizontalAlignment = _viewport < PhoneWidth ? HorizontalAlignment.Stretch : HorizontalAlignment.Center;
+        _sheetHost.VerticalAlignment = _viewport < PhoneWidth ? VerticalAlignment.Bottom : VerticalAlignment.Center;
+        _sheetHost.CornerRadius = _viewport < PhoneWidth ? new CornerRadius(24, 24, 0, 0) : new CornerRadius(24);
         // The composer is never stacked by the shared adaptive layout: stacking a four-column row
         // pushes the text field off screen. Instead the icons keep their 44 dp target, the field
         // takes the remaining width, and the send action moves to its own full-width line on a
@@ -597,6 +655,9 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
 
     /// <summary>The width below which the tool uses its phone presentation.</summary>
     internal const double PhoneWidth = 640;
+
+    /// <summary>The widest a desktop dialog grows, so it reads as a dialog and not as a page.</summary>
+    internal const double DialogMaxWidth = 520;
 
     // ---- state projection -------------------------------------------------------------------
 
@@ -1334,15 +1395,6 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
         if (value.StartsWith("mpt://assistant/", StringComparison.Ordinal))
         {
             // A connection entry only previews: joining stays the user's confirmation.
-            _linkCode.Text = value;
-            ShowSheet(_linkSheet);
-            SyncLinkSheet();
-            await PreviewLinkAsync();
-            _core.PublishOnUi(_core.Snapshot with { Status = "已收到连接码，确认后点“加入这台设备”。" });
-            return true;
-        }
-        if (value.StartsWith("mpt://pair/", StringComparison.Ordinal) || value.StartsWith("mpt://cloud/", StringComparison.Ordinal))
-        {
             _linkCode.Text = value;
             ShowSheet(_linkSheet);
             SyncLinkSheet();

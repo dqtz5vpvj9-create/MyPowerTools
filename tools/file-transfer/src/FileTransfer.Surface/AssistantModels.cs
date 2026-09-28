@@ -71,7 +71,7 @@ internal sealed record AssistantItem(
     public bool CanCancel => State is AssistantItemState.Queued or AssistantItemState.Sending or AssistantItemState.Downloading;
 
     /// <summary>True when there is local content to open on this device.</summary>
-    public bool CanOpen => LocalPath is { Length: > 0 } && State != AssistantItemState.Failed;
+    public bool CanOpen => LocalPath is { Length: > 0 };
 
     /// <summary>True when the module can fetch the payload on demand rather than open a local path.</summary>
     public bool NeedsDownload => IsFile && LocalPath is not { Length: > 0 } &&

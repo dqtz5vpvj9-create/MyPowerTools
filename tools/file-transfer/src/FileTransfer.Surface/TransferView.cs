@@ -40,6 +40,9 @@ public sealed partial class TransferView : UserControl, IMptAvaloniaSurfaceActiv
 
     public TransferView(MptAvaloniaSurfaceContext context)
     {
+        // The conversation pins its composer and scrolls its own history. Ask desktop hosts for a
+        // finite viewport; the advanced presentations also provide their own scroll viewers.
+        Classes.Add("MptViewportSurface");
         _context = context;
         _core = new TransferCore(context);
         _assistantCore = new AssistantCore(context);
@@ -705,6 +708,8 @@ public sealed partial class TransferView : UserControl, IMptAvaloniaSurfaceActiv
         }
         if (value.StartsWith("mpt://pair/", StringComparison.Ordinal))
         {
+            ShowAdvanced(true);
+            if (_mobileShown) return await _mobile.ActivateAsync(request, cancellationToken);
             _pair.Text = value;
             _pairExpander.IsExpanded = true;
             SetStatus("已收到设备连接码：确认无误后点『添加设备』。");
@@ -712,6 +717,8 @@ public sealed partial class TransferView : UserControl, IMptAvaloniaSurfaceActiv
         }
         if (value.StartsWith("mpt://cloud/", StringComparison.Ordinal))
         {
+            ShowAdvanced(true);
+            if (_mobileShown) return await _mobile.ActivateAsync(request, cancellationToken);
             _cloudCode.Text = value;
             _cloudExpander.IsExpanded = true;
             SetStatus("已收到网盘连接码：确认无误后点『导入连接码』。");

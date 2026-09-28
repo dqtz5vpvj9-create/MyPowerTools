@@ -340,7 +340,8 @@
           </DataTemplate>
         </ItemsControl.ItemTemplate>
       </ItemsControl>
-      <ScrollViewer Grid.Row="1"
+      <ScrollViewer x:Name="ContentScrollHost"
+                    Grid.Row="1"
                     Margin="{DynamicResource MptPagePadding}"
                     HorizontalContentAlignment="Stretch"
                     HorizontalScrollBarVisibility="Disabled"

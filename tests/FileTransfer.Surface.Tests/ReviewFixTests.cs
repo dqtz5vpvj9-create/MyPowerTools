@@ -325,6 +325,44 @@ public sealed class ReviewFixTests : IDisposable
 
     // ---- helpers ----------------------------------------------------------------------------
 
+    [AvaloniaTheory]
+    [InlineData(390, false)]
+    [InlineData(390, true)]
+    [InlineData(1024, false)]
+    [InlineData(1024, true)]
+    public async Task Existing_connection_links_open_their_own_confirmation_flow(int width, bool cloud)
+    {
+        var view = Open(width, out var window);
+        var code = cloud
+            ? new FileTransfer.Core.CloudConnection("https://relay.example.test/dav", "test", "synthetic-password").Encode()
+            : new FileTransfer.Core.Pairing("test-pc", "测试电脑", "100.64.0.9", new string('a', 64)).Encode();
+        var handled = await view.ActivateAsync(new global::MyPowerTools.Abstractions.ToolActivationRequest(
+            "file-transfer", "main", code));
+        window.UpdateLayout();
+
+        Assert.True(handled);
+        Assert.False(view.IsConversationVisible);
+        Assert.Equal(width < 640, view.IsMobileLayout);
+        Assert.Contains(Descendants(view).OfType<TextBox>(), box => box.IsEffectivelyVisible && box.Text == code);
+        Assert.Equal(0, _module.CountCalls("assistant.link.preview"));
+        Assert.Equal(0, _module.CountCalls(cloud ? "cloud.import" : "pair.import"));
+    }
+
+    [AvaloniaFact]
+    public void A_failed_upload_keeps_its_local_file_available_to_open()
+    {
+        var path = Touch("本地报告.pdf");
+        _module.AssistantItems.Add(new System.Text.Json.Nodes.JsonObject
+        {
+            ["id"] = "local-failed", ["kind"] = "file", ["name"] = "本地报告.pdf",
+            ["state"] = "failed", ["localPath"] = path, ["error"] = "中转暂不可用"
+        });
+        var view = Open(390, out _);
+        Assert.True(Assert.Single(view.Assistant.Snapshot.Items).CanOpen);
+        Assert.Contains(Descendants(view).OfType<Button>(), button =>
+            button.IsEffectivelyVisible && button.Content as string == "打开");
+    }
+
     private string Touch(string name)
     {
         var path = Path.Combine(_root, name);

@@ -3,6 +3,8 @@ using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Layout;
 using Avalonia.Controls.Primitives;
+using Avalonia.Markup.Xaml.Styling;
+using Avalonia.Styling;
 using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Media;
 
@@ -81,6 +83,24 @@ internal static class MobileUi
         public const string DeviceTile = "MptMobileDeviceTile";
         public const string Check = "MptMobileCheck";
         public const string PageHeader = "MptMobilePageHeader";
+    }
+
+    /// <summary>
+    /// The shared SDK mobile theme, as a resource the tool owns.
+    ///
+    /// A desktop host loads only its own desktop theme, so a page that depends on the mobile styles
+    /// cannot assume the application already has them: on Windows every <c>MptMobile*</c> class went
+    /// unstyled, which showed up as blank icons and default buttons. Adding the theme to the page
+    /// root's own <see cref="StyledElement.Styles"/> applies it to that page and its children only —
+    /// the application is never touched, and a host that already loaded the theme globally simply gets
+    /// a second, harmless copy of the same selectors.
+    /// </summary>
+    public static void EnsureMobileTheme(StyledElement pageRoot)
+    {
+        var uri = new Uri("avares://MyPowerTools.AvaloniaSdk/Themes/MptMobileTheme.axaml");
+        foreach (var style in pageRoot.Styles)
+            if (style is StyleInclude include && include.Source == uri) return;
+        pageRoot.Styles.Add(new StyleInclude(new Uri("avares://MyPowerTools.AvaloniaSdk/")) { Source = uri });
     }
 
     /// <summary>Applies the shared class contract to one control. An unknown class is inert.</summary>

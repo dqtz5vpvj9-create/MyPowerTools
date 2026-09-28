@@ -17,6 +17,7 @@
     <Using Include="Xunit" />
   </ItemGroup>
   <ItemGroup>
+    <ProjectReference Include="../../src/MyPowerTools.UI/MyPowerTools.UI.csproj" />
     <ProjectReference Include="../../tools/file-transfer/src/FileTransfer.Surface/FileTransfer.Surface.csproj" />
     <ProjectReference Include="../../tools/file-transfer/src/FileTransfer.MyPowerTools/FileTransfer.MyPowerTools.csproj" />
   </ItemGroup>

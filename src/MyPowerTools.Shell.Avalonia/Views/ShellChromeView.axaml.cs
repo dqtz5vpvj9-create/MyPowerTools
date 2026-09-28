@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Interactivity;
 using Avalonia.Markup.Xaml;
 using MyPowerTools.Shell.Avalonia.ViewModels;
@@ -21,10 +22,20 @@ public sealed partial class ShellChromeView : UserControl
     private const double ContentHorizontalMargin = 56;
     private const double TopBarHeight = MptThemeTokens.LayoutTopBarHeight;
 
+    /// <summary>
+    /// Opt-in marker for a managed surface that lays itself out for a finite viewport and owns its own
+    /// scrolling (a message list with a composer pinned to the bottom, a centred dialog layer). Only a
+    /// surface that declares this class switches the page scroller to a bounded, non-scrolling frame;
+    /// every other surface and every normal page keeps the ordinary page scrolling, so tools such as
+    /// Paste Image - which have no ScrollViewer of their own - are never clipped.
+    /// </summary>
+    internal const string ViewportSurfaceClass = "MptViewportSurface";
+
     private readonly Grid _globalOverlayHost;
     private readonly Grid _permissionOverlayHost;
     private readonly Border _commandFlyout;
     private readonly ContentControl _contentHost;
+    private readonly ScrollViewer _contentScrollHost;
     private readonly Grid _shellLayoutGrid;
     private readonly Grid _titleBarGrid;
     private readonly Grid _brandHost;
@@ -36,6 +47,7 @@ public sealed partial class ShellChromeView : UserControl
     private readonly MptButton _navigationModeButton;
     private ShellNavigationMode _navigationMode = ShellNavigationMode.Expanded;
     private WebSurfaceOcclusionState? _webSurfaceOcclusion;
+    private ExternalSdkToolView? _managedSurfaceView;
 
     public WebSurfaceOcclusionState? WebSurfaceOcclusion
     {
@@ -58,6 +70,8 @@ public sealed partial class ShellChromeView : UserControl
             ?? throw new InvalidOperationException("Shell permission overlay host was not found.");
         _contentHost = this.FindControl<ContentControl>("ContentHost")
             ?? throw new InvalidOperationException("Shell content host was not found.");
+        _contentScrollHost = this.FindControl<ScrollViewer>("ContentScrollHost")
+            ?? throw new InvalidOperationException("Shell content scroll host was not found.");
         _shellLayoutGrid = this.FindControl<Grid>("ShellLayoutGrid")
             ?? throw new InvalidOperationException("Shell layout grid was not found.");
         _titleBarGrid = this.FindControl<Grid>("TitleBarGrid")
@@ -78,6 +92,7 @@ public sealed partial class ShellChromeView : UserControl
             ?? throw new InvalidOperationException("Shell navigation mode button was not found.");
         SizeChanged += OnShellSizeChanged;
         DataContextChanged += (_, _) => ApplyLayout(Bounds.Width);
+        _contentHost.PropertyChanged += OnContentHostPropertyChanged;
         _globalOverlayHost.PropertyChanged += OnOverlayVisibilityChanged;
         _permissionOverlayHost.PropertyChanged += OnOverlayVisibilityChanged;
         UpdateNativeWebSurfaceVisibility();
@@ -86,6 +101,49 @@ public sealed partial class ShellChromeView : UserControl
     private void OnShellSizeChanged(object? sender, SizeChangedEventArgs e)
     {
         ApplyLayout(e.NewSize.Width);
+    }
+
+    private void OnContentHostPropertyChanged(object? sender, AvaloniaPropertyChangedEventArgs eventArguments)
+    {
+        if (eventArguments.Property != ContentControl.ContentProperty)
+        {
+            return;
+        }
+
+        DetachManagedSurfaceView();
+        if (eventArguments.NewValue is ExternalSdkToolView toolView)
+        {
+            _managedSurfaceView = toolView;
+            toolView.ManagedSurfaceChanged += OnManagedSurfaceChanged;
+        }
+
+        UpdatePageScrollMode();
+    }
+
+    private void DetachManagedSurfaceView()
+    {
+        if (_managedSurfaceView is not null)
+        {
+            _managedSurfaceView.ManagedSurfaceChanged -= OnManagedSurfaceChanged;
+            _managedSurfaceView = null;
+        }
+    }
+
+    private void OnManagedSurfaceChanged(object? sender, EventArgs eventArguments) => UpdatePageScrollMode();
+
+    /// <summary>
+    /// A surface that declares <see cref="ViewportSurfaceClass"/> is a full-height page layout that
+    /// owns its own scrolling; the page scroller must give it the finite viewport instead of measuring
+    /// it with unbounded height (which pushed composers and centred dialogs below the fold). Any other
+    /// hosted surface keeps the page scrolling it has always had.
+    /// </summary>
+    private void UpdatePageScrollMode()
+    {
+        var selfScrolling = _managedSurfaceView?.ManagedSurface is { } surface &&
+                            surface.Classes.Contains(ViewportSurfaceClass);
+        _contentScrollHost.VerticalScrollBarVisibility = selfScrolling
+            ? ScrollBarVisibility.Disabled
+            : ScrollBarVisibility.Auto;
     }
 
     private void OnOverlayVisibilityChanged(object? sender, AvaloniaPropertyChangedEventArgs eventArguments)
