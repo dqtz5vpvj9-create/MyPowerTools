@@ -13,8 +13,9 @@ Android 使用原生 Avalonia 页面；复用同一运行时，不嵌入网页�
 2. 首页用高频动作、真实收藏、最近记录和必要设备状态组织内容，移除桌面诊断面板式首页。
 3. 工具库覆盖交付清单中的 12 个工具，支持搜索、用途分组、手机/电脑筛选和收藏。
    ScreenEase 是显示舒适/护眼工具，不能误写成远程桌面；Paste Image 包含图片上传与路径复用。
-4. 文件发送按照选文件、选设备、进度、结果组织；系统分享直接进入待发送状态。
-   网盘中转明确区分已上传、等待领取、已接收，不能由 HTTP 成功或入队成功推导送达。
+4. 文件助手以“发给自己”的持久会话和“发给设备”的自动发现为主流程，系统分享直接进入待发送区。
+   按用户最新要求执行 [文件助手合同](FILE_ASSISTANT_CONTRACT.md)，替代原来的文件发送向导。
+   直传、中转、重试由模块处理，只有真实接收回执才能显示对方已收到。
 5. 通知、SSH 和设置采用同一视觉语言；使用真实历史、连接与执行结果。
 6. 电脑专属能力显示实际执行设备和权限。手机遥控必须连接真实受控端后启用；
    不以静态状态或点击后 toast 代替实现，也不因 UI 重做删除桌面功能。
@@ -44,6 +45,9 @@ Android 使用原生 Avalonia 页面；复用同一运行时，不嵌入网页�
 不得重写桌面默认样式。所有移动页面根容器添加 `MptMobileRoot` class。
 首轮无需依赖新的公共 C# 类型：页面可先用标准 Avalonia 控件和约定 class 并行实现。
 
+整合阶段的返回键合同为 `IMptAvaloniaSurfaceBackHandler.TryHandleBack()`：公开 Surface
+可以关闭自己的面板或返回上一步；Shell 在离开工具之前调用，避免引用模块内部视图类型。
+
 统一资源键：`MptMobileBackgroundBrush`、`MptMobileCardBrush`、`MptMobileTextBrush`、
 `MptMobileSecondaryTextBrush`、`MptMobileAccentBrush`、`MptMobileDividerBrush`。
 统一样式 class：`MptMobilePageTitle`、`MptMobileSectionTitle`、`MptMobileBody`、
@@ -59,8 +63,10 @@ Android 使用原生 Avalonia 页面；复用同一运行时，不嵌入网页�
 | --- | --- | --- | --- |
 | M1 | 手机设计资源、组件样式、深浅色、触控与字体缩放 | `src/MyPowerTools.AvaloniaSdk/Themes/*Mobile*`、主题入口的 include、该 SDK 项目必要资源登记 | 无 |
 | M2 | 手机 Shell，常用/工具/设备/动态/设置，收藏与真实目录，通用弹层和返回 | `src/MyPowerTools.Shell.Avalonia/Views/Mobile*`、新增 `Views/Mobile/`、`ViewModels/Mobile/`、`Services/Mobile/`（不含 M4 文件）、`Styles/Mobile.axaml`，必要的 `ShellWorkspaceController*` 手机适配点及 `tests/MobileLayout.Tests` | M1 样式合同；M4 数据合同 |
-| M3 | 文件互传分步 UI、系统文件选择、分享入口、进度/取消/重试/结果、设备和网盘设置 | `tools/file-transfer/src/FileTransfer.Surface/`、`tests/FileTransfer.Surface.Tests/` | 保持现有命令兼容；M4 扩展可选消费 |
-| M4 | 真实设备状态/配对移除/中转状态合同及 Shell 适配服务 | `tools/file-transfer/src/FileTransfer.Core/`、`FileTransfer.MyPowerTools/`、Core tests、`package/` 命令描述；`src/MyPowerTools.Shell.Avalonia/Services/Mobile/MobileDeviceService.cs` 及同名模型文件 | 无；不修改 M3 的 Surface |
+| M3 | 文件助手会话、自动发现设备面板、系统分享与接收确认、移动和桌面交互 | `tools/file-transfer/src/FileTransfer.Surface/`、`tests/FileTransfer.Surface.Tests/` | 文件助手命令合同；M4 后端 |
+| M4 | 文件助手模块、接收授权、持久队列调度、自动路由、中转回执、Shell 服务 | `tools/file-transfer/src/FileTransfer.Core/`（除 F2/F3 新目录）、`FileTransfer.MyPowerTools/`、原 Core tests、`package/`；`MobileDeviceService.cs` 及同名模型文件 | F2 发现和 F3 会话存储，按合同整合 |
+| F2 | 有界设备发现，Tailnet 候选与身份探测 | Core/Discovery/ 与 Core.Tests/Discovery/ | M4 的 v3 身份应答 |
+| F3 | 持久会话与待发附件、OpenList 会话和逐设备回执 | Core/Assistant/ 与 Core.Tests/Assistant/ | 复用 OpenListClient 的 partial 扩展 |
 | M5 | 手机通知列表、未读/详情/搜索、后台接收与按需设置 | `src/MyPowerTools.MobileNotifications/`，仅手机 UI 的新增测试文件 | M1 样式；保留现有消息语义 |
 | M6 | 手机 SSH 常用命令、结果、连接设置与真实执行反馈 | `src/MyPowerTools.MobileRemoteCommands/` 及其现有 tests | M1 样式；保留已修复的 wire 数值处理 |
 | M7 | Android 安全区/键盘/系统返回/冷暖分享/启动外观，配对扫码接入可行性与原生入口 | `src/MyPowerTools.Android/`、`src/MyPowerTools.Platform.Android/`、必要 `MobileServices.cs`、`scripts/build-android.ps1`；新接口在报告中明确告知整合方 | 保持 MobileShellView 已有公共方法兼容；不得重写 Shell |
