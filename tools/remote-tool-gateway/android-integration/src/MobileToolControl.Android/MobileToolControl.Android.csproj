@@ -1,0 +1,38 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Phone-side adapter for the Remote Tool Gateway (G1) described by
+    docs/mobile-ux/REMOTE_CONTROL_CONTRACT.md.
+
+    This assembly is a normal MyPowerTools module: lifecycle, commands, events and tool surfaces use
+    the same contracts as every other module. It owns the only HTTP client on the phone that talks to
+    a computer over the Tailnet gateway, plus the imported device records and the grant token in the
+    platform secret store. It never performs work on its own: no listener, no timer, no polling loop.
+
+    The page lives in src/MyPowerTools.MobileToolControl (separate deliverable, same tool id) and
+    drives this module exclusively through the commands declared in MobileToolControlOptions.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <AssemblyName>MobileToolControl.Android</AssemblyName>
+    <RootNamespace>MobileToolControl.Android</RootNamespace>
+    <Version>0.1.0</Version>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MyPowerTools.ToolSdk" Version="0.2.0" />
+    <PackageReference Include="MyPowerTools.Platform.Abstractions" Version="0.3.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- Regression tests live in tools/remote-tool-gateway/android-integration/tests/ and must never
+         be compiled into the module assembly the Android host loads. -->
+    <InternalsVisibleTo Include="MobileToolControl.Android.Tests" />
+    <!-- The real-combination integration suite drives the module's loopback test seam. -->
+    <InternalsVisibleTo Include="MyPowerTools.MobileToolControl.Integration.Tests" />
+  </ItemGroup>
+
+</Project>

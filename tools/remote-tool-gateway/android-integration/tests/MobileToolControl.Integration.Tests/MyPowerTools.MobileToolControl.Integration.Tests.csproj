@@ -1,0 +1,49 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Real-combination integration suite for the phone half of the remote tool contract.
+
+    Unlike the two contract suites, this one wires the real pieces together:
+      * the real desktop gateway (tools/remote-tool-gateway/src/RemoteToolGateway.Core),
+        started on a real loopback HTTP listener,
+      * the real Android module (tools/remote-tool-gateway/android-integration/src/MobileToolControl.Android),
+      * the real phone page view model and view (src/MyPowerTools.MobileToolControl),
+    and replaces ONLY IHostControlBridge, so the desktop execution itself stays a test command.
+
+    The wire is therefore never re-implemented here: catalog, invoke, status and cancel all travel
+    through the gateway's own listener and the module's own HTTP client. The gateway's
+    AllowLoopbackTransport option and the module's internal endpoint policy are constructor/setter
+    seams that exist for tests only; production keeps the literal-Tailnet rule and the platform
+    secret store.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <AssemblyName>MyPowerTools.MobileToolControl.Integration.Tests</AssemblyName>
+    <RootNamespace>MyPowerTools.MobileToolControl.Integration.Tests</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.0.5" />
+    <PackageReference Include="Avalonia.Skia" Version="12.0.5" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Linux" Version="3.119.4" />
+    <PackageReference Include="Avalonia.Headless.XUnit" Version="12.0.5" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.3.0" />
+    <PackageReference Include="xunit.v3" Version="3.2.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5"><PrivateAssets>all</PrivateAssets></PackageReference>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <!-- The real phone module (Android adapter; plain net10.0 library in this build). -->
+    <ProjectReference Include="../../src/MobileToolControl.Android/MobileToolControl.Android.csproj" />
+    <!-- The real phone page. -->
+    <ProjectReference Include="../../../../../src/MyPowerTools.MobileToolControl/MyPowerTools.MobileToolControl.csproj" />
+    <!-- The real desktop gateway. Referenced read-only; nothing in this suite modifies G1. -->
+    <ProjectReference Include="../../../src/RemoteToolGateway.Core/RemoteToolGateway.Core.csproj" />
+  </ItemGroup>
+
+</Project>

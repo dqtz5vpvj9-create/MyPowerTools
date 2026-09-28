@@ -1,0 +1,117 @@
+{
+  "schemaVersion": "1.0",
+  "commands": [
+    {
+      "id": "mobile-tool-control.workspace.open",
+      "title": "打开电脑工具",
+      "subtitle": "查看已导入电脑的实际工具与命令",
+      "kind": "open",
+      "category": "电脑工具",
+      "execution": {
+        "type": "navigation",
+        "toolId": "mobile-tool-control",
+        "routeId": "workspace"
+      }
+    },
+    {
+      "id": "mobile-tool-control.status",
+      "title": "查看电脑工具状态",
+      "subtitle": "已导入电脑、凭据状态与地址边界",
+      "kind": "action",
+      "category": "电脑工具",
+      "execution": {
+        "type": "module.execute"
+      }
+    },
+    {
+      "id": "mobile-tool-control.import.preview",
+      "title": "预览连接码",
+      "subtitle": "解析 mpt://control 连接码，不保存任何内容",
+      "kind": "action",
+      "category": "电脑工具",
+      "execution": {
+        "type": "module.execute"
+      }
+    },
+    {
+      "id": "mobile-tool-control.import.confirm",
+      "title": "确认导入连接码",
+      "subtitle": "用户确认后把凭据写入平台凭据库",
+      "kind": "action",
+      "category": "电脑工具",
+      "execution": {
+        "type": "module.execute"
+      }
+    },
+    {
+      "id": "mobile-tool-control.devices.list",
+      "title": "列出已导入电脑",
+      "subtitle": "读取本机保存的电脑记录",
+      "kind": "action",
+      "category": "电脑工具",
+      "execution": {
+        "type": "module.execute"
+      }
+    },
+    {
+      "id": "mobile-tool-control.devices.check",
+      "title": "检查电脑连接",
+      "subtitle": "显式检查一次网关是否可达",
+      "kind": "action",
+      "category": "电脑工具",
+      "execution": {
+        "type": "module.execute"
+      }
+    },
+    {
+      "id": "mobile-tool-control.devices.remove",
+      "title": "移除电脑",
+      "subtitle": "删除本机记录与授权凭据",
+      "kind": "action",
+      "category": "电脑工具",
+      "execution": {
+        "type": "module.execute"
+      }
+    },
+    {
+      "id": "mobile-tool-control.catalog",
+      "title": "读取电脑工具目录",
+      "subtitle": "只显示电脑真实提供的工具与命令",
+      "kind": "action",
+      "category": "电脑工具",
+      "execution": {
+        "type": "module.execute"
+      }
+    },
+    {
+      "id": "mobile-tool-control.invoke",
+      "title": "调用电脑命令",
+      "subtitle": "提交一次调用并返回电脑给出的状态",
+      "kind": "action",
+      "category": "电脑工具",
+      "execution": {
+        "type": "module.execute"
+      }
+    },
+    {
+      "id": "mobile-tool-control.invocation.status",
+      "title": "读取调用状态",
+      "subtitle": "按需读取一次调用状态",
+      "kind": "action",
+      "category": "电脑工具",
+      "execution": {
+        "type": "module.execute"
+      }
+    },
+    {
+      "id": "mobile-tool-control.invoke.cancel",
+      "title": "取消调用",
+      "subtitle": "请求电脑取消这次调用",
+      "kind": "action",
+      "category": "电脑工具",
+      "execution": {
+        "type": "module.execute"
+      }
+    }
+  ]
+}

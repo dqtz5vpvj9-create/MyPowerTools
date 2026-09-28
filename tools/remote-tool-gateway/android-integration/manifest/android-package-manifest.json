@@ -1,0 +1,79 @@
+{
+  "schemaVersion": "1.0",
+  "packageId": "mobile-tool-control",
+  "moduleId": "mobile-tool-control",
+  "toolId": "mobile-tool-control",
+  "platforms": [
+    "android-arm64",
+    "android-x64"
+  ],
+  "packageRoot": "tools/remote-tool-gateway/android-integration/artifacts/package/mobile-tool-control",
+  "apkAssetRoot": "modules/mobile-tool-control",
+  "notes": [
+    "android-integration/build.ps1 stages this package and fails if any required file is missing.",
+    "The Android app embeds the staged package as APK assets; the Shell resolves the phone page from ui/tool.json.",
+    "This build never mirrors the package into <repo>/modules (pass -Mirror only when a desktop catalog scan explicitly needs it), so it cannot overwrite the modules/ tree other tasks own.",
+    "MyPowerTools.* host contracts are intentionally not listed: the host resolves Abstractions, Platform.Abstractions and AvaloniaSdk from its own load context, and shipping a second copy would load a duplicate contract assembly.",
+    "The module has no third-party runtime dependency: the gateway client uses System.Net.Http from the shared framework."
+  ],
+  "files": [
+    {
+      "path": "module.json",
+      "role": "module-manifest",
+      "source": "package/module.json",
+      "required": true
+    },
+    {
+      "path": "commands.index.json",
+      "role": "command-index",
+      "source": "package/commands.index.json",
+      "required": true
+    },
+    {
+      "path": "ui/tool.json",
+      "role": "tool-manifest",
+      "source": "package/ui/tool.json",
+      "required": true
+    },
+    {
+      "path": "ui/dashboard-card.json",
+      "role": "ui-descriptor",
+      "source": "package/ui/dashboard-card.json",
+      "required": true
+    },
+    {
+      "path": "ui/detail-page.json",
+      "role": "ui-descriptor",
+      "source": "package/ui/detail-page.json",
+      "required": true
+    },
+    {
+      "path": "ui/settings.json",
+      "role": "ui-descriptor",
+      "source": "package/ui/settings.json",
+      "required": true
+    },
+    {
+      "path": "ui/logs.json",
+      "role": "ui-descriptor",
+      "source": "package/ui/logs.json",
+      "required": true
+    },
+    {
+      "path": "MobileToolControl.Android.dll",
+      "role": "module-adapter",
+      "source": "src/MobileToolControl.Android/MobileToolControl.Android.csproj",
+      "required": true,
+      "platforms": [
+        "android-arm64",
+        "android-x64"
+      ]
+    },
+    {
+      "path": "ui/surface/MyPowerTools.MobileToolControl.dll",
+      "role": "tool-surface",
+      "source": "src/MyPowerTools.MobileToolControl/MyPowerTools.MobileToolControl.csproj",
+      "required": true
+    }
+  ]
+}

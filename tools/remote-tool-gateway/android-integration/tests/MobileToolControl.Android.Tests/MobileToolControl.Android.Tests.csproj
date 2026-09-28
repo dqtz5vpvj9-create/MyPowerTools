@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Tests for the Android "电脑工具" (remote tool control) adapter.
+
+    The module sources are compiled directly into this test assembly (the same technique the Remote
+    Commands and Remote Notifications Android tests use), so the tests exercise the shipped adapter,
+    the address policy and the real HTTP client - never a private copy.
+
+    Every network test drives a real HTTP gateway double on 127.0.0.1 through the internal loopback
+    policy seam, which is reachable only from tests: no test opens a connection to a computer, and no
+    test result may be read as "a real Tailnet gateway was verified".
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
+    <PackageReference Include="xunit" Version="2.5.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.5.3" />
+    <PackageReference Include="MyPowerTools.ToolSdk" Version="0.2.0" />
+    <PackageReference Include="MyPowerTools.Platform.Abstractions" Version="0.3.0" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+    <Using Include="System.Text.Json.Nodes" />
+    <Using Include="MyPowerTools.Abstractions" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\src\MobileToolControl.Android\**\*.cs"
+             Exclude="..\..\src\MobileToolControl.Android\bin\**;..\..\src\MobileToolControl.Android\obj\**"
+             LinkBase="Product\Android" />
+  </ItemGroup>
+
+</Project>

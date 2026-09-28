@@ -1,0 +1,35 @@
+{
+  "schemaVersion": "1.0",
+  "toolId": "mobile-tool-control",
+  "ownerModuleId": "mobile-tool-control",
+  "title": "电脑工具",
+  "description": "用手机查看并使用已授权电脑上的工具：导入 mpt://control 连接码，读取电脑真实的工具与命令目录，填写参数后调用，查看进度、结果与等待电脑确认，并随时取消。凭据只保存在本机凭据库，地址只允许 Tailnet 字面 IP。",
+  "icon": "tool.mobile-tool-control",
+  "category": "Automation",
+  "type": "dotnet-surface",
+  "availability": "available",
+  "primaryRouteId": "workspace",
+  "routes": [
+    {
+      "routeId": "workspace",
+      "surfaceId": "mobile-tool-control.workspace",
+      "title": "电脑工具",
+      "icon": "route.workspace",
+      "surface": {
+        "kind": "dotnet",
+        "assembly": "surface/MyPowerTools.MobileToolControl.dll",
+        "type": "MyPowerTools.MobileToolControl.MobileToolControlSurfaceFactory"
+      }
+    }
+  ],
+  "homeCard": {
+    "summary": "导入电脑后，在这里查看它的工具授权、填写参数并调用；需要电脑确认的操作会等待电脑用户处理。",
+    "primaryActionLabel": "打开电脑工具",
+    "statusBinding": "module.status",
+    "order": 31
+  },
+  "activationUriPrefixes": [
+    "mypowertools://device-tool",
+    "mpt://control/"
+  ]
+}
