@@ -94,7 +94,7 @@ public sealed class InputMonitorProductTests
     }
 
     [Fact]
-    public void Fatigue_skip_raises_the_threshold_and_rest_done_resets()
+    public void Fatigue_skip_starts_a_full_interval_and_rest_done_resets()
     {
         var settings = new MonitorSettings { RemindIntervalMinutes = 1 };
         var engine = new FatigueEngine(settings);
@@ -109,12 +109,21 @@ public sealed class InputMonitorProductTests
         }
 
         Assert.True(engine.Value >= 100);
-        Assert.True(reminded >= 1);
+        Assert.Equal(1, reminded);
 
         engine.Skip();
-        Assert.Equal(100, engine.Value, 3);
-        Assert.Equal(120, engine.Threshold);
+        Assert.Equal(0, engine.Value);
+        Assert.Equal(100, engine.Threshold);
 
+        for (var tick = 0; tick < 59; tick++)
+        {
+            engine.Tick(now);
+        }
+        Assert.Equal(1, reminded);
+        engine.Tick(now);
+        Assert.Equal(2, reminded);
+
+        engine.BeginResting();
         engine.RestDone();
         Assert.Equal(0, engine.Value);
         Assert.Equal(100, engine.Threshold);

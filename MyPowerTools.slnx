@@ -79,6 +79,7 @@
     <Project Path="tests/MobileLayout.Tests/MobileLayout.Tests.csproj" />
     <Project Path="tools/file-transfer/tests/FileTransfer.Core.Tests/FileTransfer.Core.Tests.csproj" />
     <Project Path="tools/file-transfer/tests/FileTransfer.Surface.Tests/FileTransfer.Surface.Tests.csproj" />
+    <Project Path="tools/input-monitor/tests/InputMonitor.Core.Tests/InputMonitor.Core.Tests.csproj" />
     <Project Path="tools/remote-notifications/android-integration/tests/RemoteNotifications.Android.Tests/RemoteNotifications.Android.Tests.csproj" />
     <Project Path="tools/remote-commands/android-integration/tests/RemoteCommands.Android.Tests/RemoteCommands.Android.Tests.csproj" />
     <Project Path="tests/architecture-gate/ArchitectureGate.csproj" />
