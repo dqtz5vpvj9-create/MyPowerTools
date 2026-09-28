@@ -126,6 +126,7 @@ $expectedTools = @(
     'paste-image',
     'remote-commands',
     'remote-notifications',
+    'remote-tool-gateway',
     'screenease',
     'smartbird-thermostat'
 )
@@ -178,8 +179,8 @@ Add-Record 'A5.2-critical-process-payloads' ($missingCritical.Count -eq 0 -and $
 $surfaceDlls = @(Get-ChildItem -LiteralPath (Join-Path $payloadRoot 'modules') -Recurse -File -Filter '*.Surface.dll')
 # One loadable dotnet surface per surface tool: adb-forwarder, doubao-agent,
 # file-transfer, input-monitor, paste-image, remote-commands, remote-notifications,
-# screenease, smartbird-thermostat.
-Add-Record 'A5.3-loadable-surfaces' ($surfaceDlls.Count -eq 9) "surfaceDlls=$($surfaceDlls.Count)" (($surfaceDlls.FullName) -join ';')
+# remote-tool-gateway, screenease, smartbird-thermostat.
+Add-Record 'A5.3-loadable-surfaces' ($surfaceDlls.Count -eq 10) "surfaceDlls=$($surfaceDlls.Count)" (($surfaceDlls.FullName) -join ';')
 
 $packages = @(Get-ChildItem -LiteralPath (Join-Path $payloadRoot 'packages') -File -Filter '*.mptpkg')
 Add-Record 'A5.4-independent-packages' ($packages.Count -eq $expectedTools.Count) "packages=$($packages.Count)" (($packages.FullName) -join ';')
@@ -244,9 +245,9 @@ try {
     $runnerResult = Invoke-Captured -FilePath (Join-Path $payloadRoot 'Runner\MyPowerTools.Runner.exe') -ArgumentList @(
         '--once', '--modules', (Join-Path $payloadRoot 'modules'), '--data-root', $localDataRoot
     ) -OutputPath $runnerLog
-    $discovered = @('adb-forwarder', 'android-tools.notifications', 'doubao-agent', 'file-transfer', 'ime-manager', 'local-lag-cleaner', 'nssm-manager', 'paste-image', 'screenease', 'smartbird-thermostat') |
+    $discovered = @('adb-forwarder', 'android-tools.notifications', 'doubao-agent', 'file-transfer', 'ime-manager', 'local-lag-cleaner', 'nssm-manager', 'paste-image', 'remote-tool-gateway', 'screenease', 'smartbird-thermostat') |
         Where-Object { $runnerResult.Output -match [regex]::Escape($_) }
-    Add-Record 'A5.7-local-runner-discovery' ($runnerResult.ExitCode -eq 0 -and $discovered.Count -eq 10) "exit=$($runnerResult.ExitCode); discovered=$($discovered -join ',')" $runnerLog
+    Add-Record 'A5.7-local-runner-discovery' ($runnerResult.ExitCode -eq 0 -and $discovered.Count -eq 11) "exit=$($runnerResult.ExitCode); discovered=$($discovered -join ',')" $runnerLog
 }
 finally {
     if (Test-Path -LiteralPath $localDataRoot) { Remove-Item -LiteralPath $localDataRoot -Recurse -Force -ErrorAction SilentlyContinue }

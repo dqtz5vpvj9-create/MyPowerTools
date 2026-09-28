@@ -57,6 +57,8 @@ token 只进 secret store，不进入 preferences、日志、历史、错误摘�
 `result` 是现有 HostControl `CommandExecutionResponse` 的兼容 JSON：
 `invocationId,state,summary,logCursor,errorCode,errorMessage,retryable,errorDetails`。
 提交响应允许 202（已接收但未结束）；只有 terminal 和实际 result 能决定成功/失败。
+桌面待确认状态为 `awaiting-confirmation`；手机将其显示为“等待电脑确认”。
+取消响应中的 `accepted` / `cancelAccepted` 只表示取消请求是否被接受，不能据此推导终态。
 
 ### GET /invocations/{id}
 
@@ -79,6 +81,12 @@ token 只进 secret store，不进入 preferences、日志、历史、错误摘�
 触发原有确认/提权链。不能自动 approve、静默 RunAs 或用 SYSTEM 身份绕过 UAC。
 未经真实排队不能返回“等待电脑确认”；未支持的确认类型返回明确错误并保留可重试路径。
 
+桌面 Surface 确认后使用可选 SDK 能力 `ExecuteCommandWithInvocationAsync(invocationId,
+commandId, args, cancellationToken)`，经同一个 Shell 执行入口保留手机调用编号，
+使查询与取消始终指向原始调用。旧宿主没有此能力时明确提示更新，不改用随机编号。
+待确认记录只能被占用一次；取消、授权撤销与占用必须采用一致的状态转换。
+`permission-required` 是运行时的真实结果；现有权限面板只展示原因与审计，不自动继续执行。
+
 本地审计包含 grantId/设备、commandId、invocationId、状态与结果，不记录 token 或秘密参数。
 敏感参数遵守现有 MptLogRedactor；不向另一个 grant 暴露历史与审计。
 
@@ -89,6 +97,10 @@ token 只进 secret store，不进入 preferences、日志、历史、错误摘�
 其他工具由实际 command 参数构造可触控表单，保留描述、权限、取消和确认。
 不得为未知响应编造统计、图片或运行状态；不把完整原始 JSON 当默认产品页面。
 设置允许按需查看技术详情。禁止新增可任意读取电脑文件的通用 HTTP 接口。
+
+`mpt://control/` 激活只打开导入预览，用户确认后才保存授权。`mypowertools://device-tool`
+激活只定位设备、工具或操作表单，执行仍需点击页面按钮。此处的设备编号是电脑控制授权
+`grantId`，来自 `mobile-tool-control.devices.list`，不能直接使用文件互传的配对设备编号。
 
 ## 最小验收
 

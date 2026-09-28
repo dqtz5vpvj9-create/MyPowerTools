@@ -49,7 +49,11 @@ param(
     [string]$JavaSdkDirectory = '',
 
     [ValidateSet('', 'android-arm64', 'android-x64')]
-    [string]$RuntimeIdentifier = ''
+    [string]$RuntimeIdentifier = '',
+
+    # Skips the phone-side unit tests. Packaging runs pass this; release and acceptance runs leave
+    # the tests on, which is the default because the tests take seconds and guard secret handling.
+    [switch]$SkipTests
 )
 
 $ErrorActionPreference = 'Stop'
@@ -113,6 +117,20 @@ $moduleStages = @(
             'ui/surface/MyPowerTools.MobileRemoteCommands.dll'
         )
         Optional     = $false
+    },
+    [pscustomobject]@{
+        # Remote Tool Gateway (G2): phone-side module adapter plus its own page. Android-only; its
+        # build script only mirrors when -Mirror is passed explicitly, so nothing lands in
+        # <repo>/modules for this stage.
+        ToolId       = 'mobile-tool-control'
+        BuildScript  = 'tools/remote-tool-gateway/android-integration/build.ps1'
+        Stage        = 'tools/remote-tool-gateway/android-integration/artifacts/package/mobile-tool-control'
+        Manifest     = 'module.json'
+        RequireFiles = @(
+            'MobileToolControl.Android.dll',
+            'ui/surface/MyPowerTools.MobileToolControl.dll'
+        )
+        Optional     = $false
     }
 )
 
@@ -164,7 +182,7 @@ function Invoke-Dotnet {
         [string]$Activity
     )
     if ($Activity) { Write-Host "  > $Activity" -ForegroundColor DarkGray }
-    & $dotnet @ArgumentList
+    & $dotnet @ArgumentList '-p:StageRepositoryModule=false'
     if ($LASTEXITCODE -ne 0) {
         throw "dotnet $($ArgumentList[0]) failed with exit code $LASTEXITCODE. If the failure mentions the Android workload, run: dotnet workload install android --skip-manifest-update"
     }
@@ -223,8 +241,11 @@ try {
             $buildArguments += @('-Configuration', $Configuration)
         }
         # Android-only packages are embedded directly from their stage; keep them out of
-        # the desktop modules catalog where their desktop counterparts already exist.
-        if ($module.ToolId -eq 'remote-commands-android') {
+        # the desktop modules catalog where their desktop counterparts already exist. Pass the switch
+        # only to a build script that exposes it: some opt in with -Mirror instead, and forwarding an
+        # unknown parameter would fail the stage.
+        $buildScriptParameters = (Get-Command -Name $buildScript).Parameters
+        if ($buildScriptParameters.ContainsKey('NoMirror')) {
             $buildArguments += '-NoMirror'
         }
         Write-Host "  > $($module.ToolId)" -ForegroundColor DarkGray
@@ -267,6 +288,25 @@ try {
             '--configuration', $Configuration, '--nologo', '-m:1',
             "-p:AndroidSdkDirectory=$androidSdk",
             "-p:JavaSdkDirectory=$javaSdk")
+    }
+
+    Write-Host '==> Running the Android phone-side tests' -ForegroundColor Cyan
+    # The Android-free rules of the phone host (pairing-code classification and secret hygiene, the
+    # QR decoder, shared-file names) are linked into a plain net10.0 test project so they run on a
+    # build machine. They are gated behind -SkipTests because the packaging workflow only needs the
+    # APK; the release/acceptance run leaves them on, so a hosted CI job can call this script
+    # directly instead of discovering the project path on its own.
+    $androidTestProject = 'src/MyPowerTools.Android/tests/MyPowerTools.Android.Tests/MyPowerTools.Android.Tests.csproj'
+    if ($SkipTests) {
+        Write-Host '  skipped (-SkipTests)' -ForegroundColor DarkGray
+    }
+    elseif (-not (Test-Path -LiteralPath (Join-Path $repositoryRoot $androidTestProject) -PathType Leaf)) {
+        throw "The Android test project is missing: $androidTestProject"
+    }
+    else {
+        Invoke-Dotnet -Activity 'dotnet test MyPowerTools.Android.Tests' -ArgumentList @(
+            'test', $androidTestProject,
+            '--configuration', $Configuration, '--nologo', '-m:1')
     }
 
     $outputName = $configurationDir

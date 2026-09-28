@@ -43,10 +43,20 @@ Android 使用原生 Avalonia 页面；复用同一运行时，不嵌入网页�
 
 通用主题放在既有 AvaloniaSdk，采用新增且隔离的 `MptMobile*` 资源/样式；
 不得重写桌面默认样式。所有移动页面根容器添加 `MptMobileRoot` class。
-首轮无需依赖新的公共 C# 类型：页面可先用标准 Avalonia 控件和约定 class 并行实现。
+组件已落到 AvaloniaSdk 0.3.0；页面使用共享资源、二维码控件和公共 Surface 接口。
+
+同时在桌面显示的 Surface 必须在自己的根容器加载所需样式和资源，不能依赖 Android
+宿主全局注册主题。文件助手的桌面回归测试使用未预载移动主题的宿主，检查图标、文字、
+输入区和弹窗；桌面弹窗居中且限制宽度，手机保留底部面板。最终验收必须查看 Windows
+完整安装布局上运行的 Dev 窗口截图，测试宿主截图不能代替这一步。
 
 整合阶段的返回键合同为 `IMptAvaloniaSurfaceBackHandler.TryHandleBack()`：公开 Surface
 可以关闭自己的面板或返回上一步；Shell 在离开工具之前调用，避免引用模块内部视图类型。
+扫码由可选的 `MptAvaloniaSurfaceContext.ScanConnectionCodeAsync(CancellationToken)` 转发到
+宿主注入的原生扫码器，返回完整连接码或取消时的 null；Surface 调用所属模块预览并确认，
+不引用 Android 程序集，不自动导入，也不记录返回的凭据。
+原生宿主在打开工具前通过 `ShellWorkspaceController.SetNativeSurfaceServices` 注入扫码和
+文件查看器委托。`OpenFileAsync` 在 Android 上提供单文件只读 URI 授权，桌面保留 Launcher。
 
 统一资源键：`MptMobileBackgroundBrush`、`MptMobileCardBrush`、`MptMobileTextBrush`、
 `MptMobileSecondaryTextBrush`、`MptMobileAccentBrush`、`MptMobileDividerBrush`。
@@ -54,8 +64,9 @@ Android 使用原生 Avalonia 页面；复用同一运行时，不嵌入网页�
 `MptMobileCaption`、`MptMobileCard`、`MptMobilePrimary`、`MptMobileSecondary`、
 `MptMobileIconButton`、`MptMobileListRow`、`MptMobileSearch`。
 
-现有 SDK 版本和外部依赖由整合阶段统一决定；各任务不要独立批量 bump 或清空包缓存。
-首轮添加资源和 selector，不引入消费方编译所必需的新 API，避免等待组件线完成。
+AvaloniaSdk 0.3.0 包含二维码、页面返回、原生扫码与文件打开委托，以及保留调用编号的执行入口。
+Platform.Abstractions 0.3.0 提供移动扫码和 Wi-Fi 发现租约合同。消费新能力的工程统一更新到
+对应版本；原有桌面插件保持兼容，不清空整个 SDK 或 NuGet 缓存。
 
 ## 并行任务及文件归属
 
@@ -67,10 +78,13 @@ Android 使用原生 Avalonia 页面；复用同一运行时，不嵌入网页�
 | M4 | 文件助手模块、接收授权、持久队列调度、自动路由、中转回执、Shell 服务 | `tools/file-transfer/src/FileTransfer.Core/`（除 F2/F3 新目录）、`FileTransfer.MyPowerTools/`、原 Core tests、`package/`；`MobileDeviceService.cs` 及同名模型文件 | F2 发现和 F3 会话存储，按合同整合 |
 | F2 | 有界设备发现，Tailnet 候选与身份探测 | Core/Discovery/ 与 Core.Tests/Discovery/ | M4 的 v3 身份应答 |
 | F3 | 持久会话与待发附件、OpenList 会话和逐设备回执 | Core/Assistant/ 与 Core.Tests/Assistant/ | 复用 OpenListClient 的 partial 扩展 |
+| F4 | Android 单文件只读授权、系统查看器和 MIME 处理 | `src/MyPowerTools.Android/Files/`、`Resources/xml/mpt_shared_files.xml`、`tests/AndroidFileOpen.Tests/` | M7 注入原生委托，M3 调用 |
 | M5 | 手机通知列表、未读/详情/搜索、后台接收与按需设置 | `src/MyPowerTools.MobileNotifications/`，仅手机 UI 的新增测试文件 | M1 样式；保留现有消息语义 |
 | M6 | 手机 SSH 常用命令、结果、连接设置与真实执行反馈 | `src/MyPowerTools.MobileRemoteCommands/` 及其现有 tests | M1 样式；保留已修复的 wire 数值处理 |
 | M7 | Android 安全区/键盘/系统返回/冷暖分享/启动外观，配对扫码接入可行性与原生入口 | `src/MyPowerTools.Android/`、`src/MyPowerTools.Platform.Android/`、必要 `MobileServices.cs`、`scripts/build-android.ps1`；新接口在报告中明确告知整合方 | 保持 MobileShellView 已有公共方法兼容；不得重写 Shell |
 | M8 | 架构和桌面回归审查、远程电脑工具的真实接入方案、安全权限边界、后续实现任务合同 | 只读分析；向主代理交付可直接派发的合同和风险证据 | 无 |
+| G1 | 电脑工具网关、逐设备授权、真实命令执行与撤销 | `tools/remote-tool-gateway/`，不含 `android-integration/` | 既有 HostControl、Shell 权限链 |
+| G2 | 手机电脑工具目录、参数表单、进度、取消与连接 | `tools/remote-tool-gateway/android-integration/`、`src/MyPowerTools.MobileToolControl/` | G1 的真实 HTTP 合同，M2 导航接入 |
 
 主代理独占：计划与验收文档、根解决方案登记、产物策略、Git 提交/推送、版本与发布、
 Windows 部署调度及最终 Android 构建/设备验收调度。子代理不得提交、推送或部署。
@@ -118,6 +132,8 @@ M8 先核查现有 HostControl、远程命令、文件配对、权限/审计和�
   `artifacts/.tmp-android-verify/`，并说明此受限执行条件，不使用 `/tmp`。
 - 同仓库编译/打包共享公共输出。使用 `flock artifacts/.tmp-android-verify/mobile-build.lock`
   串行执行会写公共 build/cache 的命令；源码实现本身保持并行。
+- 各任务也可用 MSBuild 全局 `ArtifactsPath` 指向独占的临时构建目录；先检查实际 bin/obj
+  都已隔离，再并发运行。依赖继续使用仓库已有 NuGet 缓存，不为每个任务复制一份。
 - 不运行全套测试来反复验证局部样式。各任务执行与交互/生命周期改变相符的定向检查；
   最后由主代理统一编译与回归，防止 8 个代理重复完整构建。
 - Windows 只有最终指定的一个部署任务能修改远端安装目录。先保留当前工作源码，检查子模块

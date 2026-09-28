@@ -59,6 +59,11 @@ state 为 `queued|sending|stored|delivered|downloading|available|failed|cancelle
 激活只准备内容，不自动发送。`mpt://assistant/` 属于 file-transfer 的连接入口，
 只打开 `assistant.link.preview`，确认后才调用 import；日志不输出 URI 或编码后的片段。
 
+Android 的文件打开使用宿主 `MptAvaloniaSurfaceContext.OpenFileAsync(path, token)`，
+为系统查看器临时授予单个文件的读取权限；桌面可用原有 Launcher。显示路径不是打开成功。
+现有 AndroidDownloadsService.PublishAsync 会删除发布前的私有副本，助手的持久附件不能
+直接交给它删除；发布到下载目录时使用副本，并保留会话原件供再次打开和转发。
+
 ## 并行实现归属
 
 - **M3**：FileTransfer.Surface 和其 tests，交付手机与桌面的会话、设备选择、接收确认、
@@ -68,6 +73,8 @@ state 为 `queued|sending|stored|delivered|downloading|available|failed|cancelle
 - **F2**：仅新增 Core/Discovery/ 和 Core.Tests/Discovery/。提供自动发现，不写模块或 Surface。
 - **F3**：仅新增 Core/Assistant/ 和 Core.Tests/Assistant/。提供持久会话、待发内容、OpenList
   会话存储和回执，不写模块或 Surface。可以新增 OpenListClient partial 文件，根类由 M4 改为 partial。
+- **F4**：仅新增 Android/Files/、Android/Resources/xml/mpt_shared_files.xml 与其独立测试，
+  提供 Android 文件查看器、只读 FileProvider 和宿主委托；不改 M7 的 Activity 或 manifest。
 - 主代理：文档、最终接线、跨设备验收、部署和发布。
 
 ### F2 给 M4 的接口

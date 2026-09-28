@@ -55,6 +55,37 @@ Android-only 模块（`remote-commands-android`）不镜像进仓库 `modules/`�
 - 12 个桌面 Surface 均已按窄屏规则适配；`tests/MobileLayout.Tests` 在
   320/360/390/768 逻辑像素宽度下回归这些布局。
 - 文件互传页面在 Android 上隐藏桌面专属入口（打开文件夹、本机 OpenList），改为明确提示。
+- 启动外观取已批准的移动设计：品牌字标、一行真实初始化状态、进度条与已用时间；
+  启动日志折叠在“启动日志”按钮后面，失败时保留原因、日志与重试。窗口主题
+  （`Properties/values{,-night}/styles.xml`）让冷启动首帧就是页面底色而不是主题默认色。
+- 系统栏明暗随系统夜间模式：浅色页面底色 `#F6F7F9` 配深色图标，深色 `#171B22` 配浅色图标。
+  安全区与软键盘内边距由 Avalonia 的 `AndroidInsetsManager` 应用；返回键先收键盘，
+  再交给 Shell 返回栈，最后才退到后台。
+- 配对扫码是原生入口：`PairingQrScannerActivity`（camera2 + `ZXing.Net` 解码，无 WebView、
+  无 Google Play Services 依赖）。相机权限只在该界面申请，清单中 `<uses-feature>` 为
+  `required="false"`；没有授权倒计时，只有真实授权结果与 Activity 生命周期。识别结果接受
+  `mpt://pair/…`、`mpt://cloud/…`、`mpt://control/…` 与 `mpt://assistant/…`，并交给对应模块
+  的导入命令校验、存储与确认。日志、toast 与界面都不含凭据：`MobileQrPayload.Describe` 只有
+  类型与长度，不再保留任何 payload 字符；没有六位短码，也不模拟识别成功。
+  平台合同是 `Platform.Abstractions.IMobileQrScanner` + `MobileQrScanResult`，Android 实现是
+  `MyPowerTools.Android.MobileQrScan.Default`（见下面“宿主接线”）。
+- 系统分享：纯文字/网址（`EXTRA_TEXT`、`EXTRA_HTML_TEXT`、ClipData 文本）不再被丢弃，映射为
+  `mypowertools://file-assistant?text=<转义>`，与同一意图的附件一起进入文件助手同一次 compose；
+  不自动发送、不记录文本内容。附件分享仍按 `shareMimeTypes` 路由，多个候选才弹选择框。
+- 局域网发现需要的 Wi-Fi 多播锁由 `AndroidWifiMulticast` 提供，经
+  `Platform.Abstractions.MobileWifiMulticast.Current` 发布；只在页面发现窗口或已启用接收真正
+  监听时持有，引用计数归零立即释放，不常驻、不自建 VPN。发现本身由 F2 的 Core 实现。
+
+### 宿主接线（主代理）
+
+| 位置 | 状态 / 最小改动 |
+| --- | --- |
+| Shell 原生能力注入 | **已接线**：`MainActivity` 构造 `MobileShellView` 后、任何激活之前调用 `SetNativeSurfaceServices(ScanConnectionCodeAsync, OpenLocalFileAsync)`。扫码委托返回 `mpt://` 连接码或取消时的 `null`，打开委托走 F4 的 `AndroidFileLauncher`。 |
+| 扫码按钮 | surface 侧用 `MptAvaloniaSurfaceContext.ScanConnectionCodeAsync`：拿到码后交给该工具自己的 `*.link.preview` → 用户确认 → `*.link.import`/`ImportPairingAsync`。宿主不自动导入，也不把码写日志。 |
+| `modules/file-transfer/ui/tool.json`（M4/主代理） | `activationUriPrefixes` 建议增加 `mypowertools://file-assistant` 与 `mpt://assistant/`。宿主已有内建兜底：即使未声明，分享文字与 `mpt://assistant/` 也路由到 file-transfer；声明后以声明为准。 |
+| LAN 发现（F2/M4/主代理） | 发现窗口与已启用接收处 `using var lease = MobileWifiMulticast.AcquireIfAvailable("lan-discovery");`，随窗口关闭、禁用接收或生命周期结束释放。未接 `Current` 时返回空租约；此时发现必须报告“当前 WiFi 发现不可用”，不能当成零设备。 |
+| G2 电脑工具模块 | **已接线**：`scripts/build-android.ps1` 增加 `mobile-tool-control` 阶段（必需，缺任一程序集即失败），应用项目引用其模块与页面项目，并把 `artifacts/package/mobile-tool-control/**` 作为 `modules/mobile-tool-control` 资产嵌入。 |
+| `scripts/build-android.ps1` | 默认运行 `tests/MyPowerTools.Android.Tests`；打包可传 `-SkipTests`。`-NoMirror` 只在对应 build script 真正暴露该参数时转发（G2 是 `-Mirror` 显式 opt-in）。 |
 
 ## 4. 构建与产物
 

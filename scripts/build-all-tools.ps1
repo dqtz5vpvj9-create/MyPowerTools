@@ -185,6 +185,16 @@ $dotnet = (Get-Command 'dotnet' -CommandType Application -ErrorAction Stop).Sour
 # under strict mode can wrap single string values in one-element arrays).
 $toolRegistry = @(
     [pscustomobject]@{
+        Id               = 'remote-tool-gateway'
+        Version          = '0.1.0'
+        BuildScript      = 'tools\remote-tool-gateway\build.ps1'
+        SurfaceProject   = 'tools\remote-tool-gateway\src\RemoteToolGateway.Surface\RemoteToolGateway.Surface.csproj'
+        SurfaceAssembly  = 'RemoteToolGateway.Surface.dll'
+        SurfaceTarget    = 'ui\surface'
+        RuntimeStagePath = 'tools\remote-tool-gateway\artifacts\package'
+        ServiceUnits     = @()
+    },
+    [pscustomobject]@{
         Id               = 'file-transfer'
         Version          = '0.1.0'
         BuildScript      = 'tools\file-transfer\build.ps1'

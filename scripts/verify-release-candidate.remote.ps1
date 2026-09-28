@@ -342,9 +342,9 @@ try {
     $runnerOnceOutput = $onceCall.Output
     # Every tool here must be indexed by the installed Runner; the explicit list keeps a
     # tool that silently dropped out of the installed catalog from passing this gate.
-    $catalogOk = @('adb-forwarder', 'android-tools.notifications', 'doubao-agent', 'file-transfer', 'paste-image', 'screenease', 'smartbird-thermostat') |
+    $catalogOk = @('adb-forwarder', 'android-tools.notifications', 'doubao-agent', 'file-transfer', 'paste-image', 'remote-tool-gateway', 'screenease', 'smartbird-thermostat') |
         Where-Object { $runnerOnceOutput -match [regex]::Escape($_) }
-    Add-RemoteRecord 'A5.R4-installed-catalog-discovery' ($onceCall.ExitCode -eq 0 -and $catalogOk.Count -eq 7) "exit=$($onceCall.ExitCode); tools=$($catalogOk -join ',')"
+    Add-RemoteRecord 'A5.R4-installed-catalog-discovery' ($onceCall.ExitCode -eq 0 -and $catalogOk.Count -eq 8) "exit=$($onceCall.ExitCode); tools=$($catalogOk -join ',')"
 
     $runnerOut = Join-Path $testRootFull 'runner.out.log'
     $runnerErr = Join-Path $testRootFull 'runner.err.log'
