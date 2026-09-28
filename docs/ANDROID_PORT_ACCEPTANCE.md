@@ -74,8 +74,26 @@ bash tools/file-transfer/tests/android-dataplane-fixture.sh start
 ## Windows 与实际网络边界
 
 Windows 使用完整安装目录上的 Dev overlay 验证，开发目录为独立源码副本。
-已实际启动开发版，并验证模块目录、路由与文件互传命令。最后一轮全部工具更新仍遇到
-`adb-forwarder.service/bin` 目录占用，正在修复；当前不将 Windows 更新计为完成。
+2026-09-28 的回归排查确认，移动适配分支漏合入了 Windows 开发分支的改动，
+使 Input Monitor 的休息提醒退回旧实现。现已合并原有的深色提醒、高 DPI 布局、
+前台应用识别和提醒周期逻辑，并保留移动布局。Windows 工作目录中的未提交源码也已
+纳入恢复合并，包括 Paste Image 的历史预览、NSSM 的服务操作界面和 Local Lag Cleaner
+的一键操作；原 Windows 工作目录和用户数据保留。
+
+Core、Input Monitor、NSSM Manager、Paste Image 和 Local Lag Cleaner 已通过官方 Dev
+更新及启动检查，HostControl 的 8 项接口检查通过。Input Monitor、NSSM Manager 和
+Paste Image 的安装包与构建产物逐字节一致；Local Lag Cleaner 的 Dev 元数据与暂存包
+一致，其 SDK 工具程序集已重建并保留一键操作。后续工具更新重启 Runner 后，
+Input Monitor 的安装包仍与恢复后的构建一致。更新验收曾因
+仪表盘读取同步等待所有工具的健康检查而超时回滚；现在仪表盘读取缓存，显式刷新命令仍
+执行健康检查。此修复通过 53 项 HostControl/InProc 回归检查，并用慢模块验证旧行为失败、
+新行为通过。
+
+恢复合并后的检查还包括 Input Monitor Core 20 项、父仓库 Input Monitor 12 项、
+Local Lag Cleaner 与 SDK 契约 29 项、NSSM Broker 安全检查 15 项，以及所有工具在
+320/360/390/768 四种宽度下的布局检查。NSSM 完整测试在 Linux 上仍有 22 项依赖
+Windows 原生 API 的失败，与恢复前基线相同；没有把这些用例计为通过。
+
 RDP 会话断开导致无法获取可用桌面截图，窗口句柄与进程响应也不等于视觉验收。
 本次没有发布 Windows/macOS 安装包。
 
