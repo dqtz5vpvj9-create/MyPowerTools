@@ -10,6 +10,9 @@
     <PackageReference Include="Avalonia.Headless.XUnit" Version="12.0.5" />
     <PackageReference Include="Avalonia.Skia" Version="12.0.5" />
     <PackageReference Include="Avalonia.Themes.Fluent" Version="12.0.5" />
+    <!-- The tests decode the pixels the control actually rendered, with the same ZXing build the
+         Android pairing scanner uses. -->
+    <PackageReference Include="ZXing.Net" Version="0.16.10" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.3.0" />
     <PackageReference Include="xunit.v3" Version="3.2.2" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5"><PrivateAssets>all</PrivateAssets></PackageReference>

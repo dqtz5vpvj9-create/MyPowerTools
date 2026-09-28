@@ -23,6 +23,15 @@ public interface IMptAvaloniaSurfaceActivationHandler
         CancellationToken cancellationToken = default);
 }
 
+/// <summary>
+/// Optional page-local Back handling for a dynamically loaded surface. The host offers Back here
+/// before leaving the tool so a sheet, form or previous step can consume it first.
+/// </summary>
+public interface IMptAvaloniaSurfaceBackHandler
+{
+    bool TryHandleBack();
+}
+
 public sealed record MptAvaloniaSurfaceContext(
     string ToolId,
     string RouteId,
@@ -40,6 +49,26 @@ public sealed record MptAvaloniaSurfaceContext(
     /// </summary>
     public IMptWebSurfaceService? WebSurfaces { get; init; }
     public Func<string?, Task>? OpenShortcutSettingsAsync { get; init; }
+    /// <summary>
+    /// Executes through the same host command and permission path while preserving a caller-owned
+    /// invocation id. Arguments are invocation id, command id, command arguments and cancellation.
+    /// Surfaces coordinating remote progress or cancellation require this capability; older hosts
+    /// leave it null.
+    /// </summary>
+    public Func<string, string, JsonObject?, CancellationToken, Task<CommandExecutionResult>>?
+        ExecuteCommandWithInvocationAsync { get; init; }
+    /// <summary>
+    /// Opens the host's native connection-code scanner. A null result means the user dismissed it.
+    /// The returned code may contain credentials: pass it to the owning module's preview command,
+    /// then ask the user to confirm before importing it. Hosts without a camera leave this null.
+    /// </summary>
+    public Func<CancellationToken, Task<string?>>? ScanConnectionCodeAsync { get; init; }
+    /// <summary>
+    /// Opens a local file with the platform viewer. Mobile hosts grant the viewer temporary read
+    /// access to this file; a true result means the viewer was launched, not that the file was read.
+    /// Surfaces may use TopLevel.Launcher when a desktop host leaves this capability null.
+    /// </summary>
+    public Func<string, CancellationToken, Task<bool>>? OpenFileAsync { get; init; }
 }
 
 public enum MptWebSurfaceState

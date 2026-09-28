@@ -7,7 +7,7 @@
 | ServiceManager protocol | 1.0 | Existing lifecycle fields remain stable; additive readiness fields carry instance-specific endpoints. |
 | `MyPowerTools.ToolSdk` | 0.2.0 | Minor releases may add members; breaking source changes require the next major package. |
 | `MyPowerTools.Protocol` | 0.2.0 | Generated contract follows module, HostControl, and ServiceManager protocol 1.x. |
-| `MyPowerTools.AvaloniaSdk` | 0.2.0 | Factory contract version is checked before surface creation. |
+| `MyPowerTools.AvaloniaSdk` | 0.3.0 | Factory contract remains 1.0. Surfaces using the mobile theme, QR control, Back handler or native-service delegates require the 0.3.0 host SDK. |
 | `@mypowertools/web-bridge` | 0.2.0 | Promise methods and event names remain compatible within 0.2.x. |
 
 Tool manifests should declare the lowest SDK version they consume once a release channel is established. Protocol clients must ignore unknown fields.
