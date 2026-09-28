@@ -13,6 +13,30 @@ namespace FileTransfer.Surface.Tests;
 
 public sealed class ConversationV2Tests
 {
+    [AvaloniaFact]
+    public void Receive_page_exports_the_ordinary_file_code_without_sharing_the_conversation()
+    {
+        var module = new FakeTransferModule();
+        var view = new TransferView(module.Context(Path.GetTempPath()));
+        using var host = new Host(view);
+        view.Conversation.OpenSetup();
+        var receive = view.Conversation.SheetHost.GetLogicalDescendants().OfType<Button>()
+            .Single(b => b.GetLogicalDescendants().OfType<TextBlock>().Any(t => t.Text == "接收文件"));
+        Click(host.Window, receive);
+        var export = view.Conversation.SheetHost.GetLogicalDescendants().OfType<Button>()
+            .Single(b => Equals(b.Content, "显示我的文件互传码"));
+        Click(host.Window, export);
+        Assert.Equal(1, module.CountCalls("pairing"));
+        Assert.Equal(0, module.CountCalls("assistant.link.export"));
+        var qr = view.Conversation.SheetHost.GetLogicalDescendants()
+            .OfType<global::MyPowerTools.AvaloniaSdk.Controls.MptQrCode>().Single();
+        Assert.StartsWith("mpt://pair/", qr.Value);
+        Assert.Contains(view.Conversation.SheetHost.GetLogicalDescendants().OfType<TextBlock>(),
+            t => t.Text == "仅允许向这台设备发送文件和文字");
+        Assert.Contains(view.Conversation.SheetHost.GetLogicalDescendants().OfType<Button>(),
+            b => Equals(b.Content, "复制连接码"));
+    }
+
     [AvaloniaTheory]
     [InlineData("配对码里的投递密钥与服务器不一致，请让收件设备重新出示配对码。", "重新出示连接码")]
     [InlineData("文件超过中转单文件上限，无法投递。", "压缩或拆分")]

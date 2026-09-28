@@ -459,12 +459,18 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
             import);
     }
 
-    private StackPanel BuildReceiveSheet() => MobileUi.Stack(10,
-        MobileUi.Note("开启后自动接收发给这台设备的内容。"),
-        MobileUi.Note("离线时文件会等待你回来；重新打开 MPT 后继续接收。"),
-        _receiveState,
-        _receiveToggle,
-        _receiveFolder);
+    private StackPanel BuildReceiveSheet()
+    {
+        var pairCode = MobileUi.SecondaryButton("显示我的文件互传码");
+        pairCode.Click += async (_, _) => await RunAsync(ShowMyPairCodeAsync);
+        return MobileUi.Stack(10,
+            MobileUi.Note("开启后自动接收发给这台设备的内容。"),
+            MobileUi.Note("离线时文件会等待你回来；重新打开 MPT 后继续接收。"),
+            pairCode,
+            _receiveState,
+            _receiveToggle,
+            _receiveFolder);
+    }
 
     private void ShowSetupSheet()
     {

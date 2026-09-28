@@ -104,19 +104,21 @@ internal sealed partial class AssistantView
             await PreviewPairAsync();
         });
         var export = MobileUi.QuietButton("显示我的文件互传码");
-        export.Click += async (_, _) => await RunAsync(async () =>
-        {
-            var answer = await _legacy.CallAsync("pairing");
-            var code = answer["code"]?.GetValue<string>() ?? "";
-            var qr = new MptQrCode { Value = code, Width = 240, Height = 240, HorizontalAlignment = HorizontalAlignment.Center };
-            var copy = MobileUi.SecondaryButton("复制连接码");
-            copy.Click += async (_, _) => await RunAsync(() => CopyTextAsync(code));
-            _sheetTitle.Text = "我的文件互传码";
-            _sheetScroll.Content = MobileUi.Stack(8, MobileUi.Caption("仅允许向这台设备发送文件和文字"), qr, copy);
-        });
+        export.Click += async (_, _) => await RunAsync(ShowMyPairCodeAsync);
         _sheetScroll.Content = MobileUi.Stack(8, MobileUi.Caption("仅允许文件互传，不共享自己的会话或电脑控制权限。"), scan,
             _pairCode, _pairPreview, preview, _pairConfirm, export);
         OpenSheet();
+    }
+
+    private async Task ShowMyPairCodeAsync()
+    {
+        var answer = await _legacy.CallAsync("pairing");
+        var code = answer["code"]?.GetValue<string>() ?? "";
+        var qr = new MptQrCode { Value = code, Width = 240, Height = 240, HorizontalAlignment = HorizontalAlignment.Center };
+        var copy = MobileUi.SecondaryButton("复制连接码");
+        copy.Click += async (_, _) => await RunAsync(() => CopyTextAsync(code));
+        _sheetTitle.Text = "我的文件互传码";
+        _sheetScroll.Content = MobileUi.Stack(8, MobileUi.Caption("仅允许向这台设备发送文件和文字"), qr, copy);
     }
 
     private async Task PreviewPairAsync()
