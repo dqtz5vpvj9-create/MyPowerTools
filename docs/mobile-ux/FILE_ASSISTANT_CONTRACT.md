@@ -4,6 +4,32 @@
 本合同替代 IMPLEMENTATION_PLAN 中原来的文件发送向导，其他 MPT 手机迁移目标不变。
 实现继续使用现有模块、HostControl、Surface、secret store、Tailscale 与托管 OpenList。
 
+## 2026-09-28 修正：身份不依赖网络，连通性属于设备之间的路径
+
+本节覆盖此前将本机 Tailscale 地址、网盘配置或接收监听器作为使用前提的设计。
+用户现有环境已经能访问 Tailnet；不能因本机未枚举到 `100.x` 网卡地址，就判定用户
+“没有连接 Tailscale”。经网关访问、系统路由与本机安装客户端是不同的接入方式。
+
+1. **本机身份**：设备标识、名称和密钥在本地生成并持久保存。首次启动完全断网也能
+   生成、查看、复制和展示连接码；不调用网络探测、公网注册或网盘检查，不等待对方设备。
+   切换网络和重启不能改变设备身份。连接码中的候选地址可以缺省，不能充当身份主键。
+2. **设备关系**：扫码或导入连接码是在确认目标身份及授权范围，不是在确认双方已经连通。
+   对方离线也能预览并保存连接关系。文件接收授权、自己的会话加入和远程控制授权继续分开，
+   不因知道一个设备编号、发现一个地址或加入 Tailnet 就自动获得权限。
+3. **传输路径**：只有确定目标设备或会话后，才评估本机到该目标的具体路径。
+   同时允许 A 到 B 的 Tailnet 路径可用、A 到 C 通过公网中转；不存在用于阻止整个工具的
+   全局“这台设备不在 Tailscale”状态。Tailscale 内部经 DERP 通信仍是可用的 Tailnet 路径，
+   不能把非直连误判成离线。候选地址存在、网络探测失败和目标确实应答分别记录。
+4. **公网保底**：没有可用的 Tailnet 路径时，自动通过 `https://proxy.lixinrui000.cn`
+   收发。普通用户不填写 IP、端口、WebDAV 或服务器账号；自定义 OpenList/国内网盘继续
+   作为可选存储。未授权国内网盘不影响基本收发。公网也暂不可达时，保留待发内容并自动恢复。
+5. **体验**：用户只看到设备、内容和真实进度。生成连接码、打开会话和点击发送不出现
+   “先连接 Tailscale”的门槛；路由选择不进入操作流程。诊断可以按目标显示某条路径的结果，
+   不能把某条路径失败显示成设备整体不可用。接收端离线时允许发送，收到真实回执才显示送达。
+
+实施顺序是先修身份与连接码的本地生成，再修按目标选择路径和现有 Tailnet 的误判，
+随后接入公网保底并完成双端验证。新增中转服务本身不能算作上述错误已修复。
+
 ## 用户实际操作
 
 **发给自己**是固定入口，打开即为跨设备共用的会话。底部输入文字，附件按钮选文件或图片，
@@ -15,9 +41,10 @@
 第一次由对方确认接收并选择是否记住。已信任设备不重复配对；单次接收不默认变为永久信任。
 系统负责发现、选择直传或中转、保存进度和重试。接收方可在接收提示或会话中打开文件。
 
-首次设置集中在“连接我的设备”和“启用离线收件”。设备在已有 Tailscale 网络中自动发现；
-扫码作为跨网络加入自己设备的入口。OpenList 的安装和启动由 MPT 管理，网盘授权只做一次。
-没有网盘授权时仍能使用本机会话与已连接设备；不能把本地保存显示成已同步到其他设备。
+首次只需确认要关联的自己的设备，不要求先启用网络或配置离线收件。发现来源包括已记住的
+设备、已授权会话成员和可用网络上的候选；扫码不受当前网络及目标在线状态限制。
+默认公网中转由产品提供。用户选择自己的网盘时，OpenList 的安装和启动由 MPT 管理，
+网盘授权只做一次；这条可选路径不阻塞基本收发。本地保存不能显示成已同步到其他设备。
 IP、端口、口令、WebDAV、检查连接、传输模式放在高级设置，不进入普通发送界面。
 
 ## Surface 命令合同
@@ -34,13 +61,17 @@ IP、端口、口令、WebDAV、检查连接、传输模式放在高级设置，
 | `assistant.open` | `{itemId}` | `{path?, text?, needsDownload?}`；本地没有文件时实际下载后再返回可打开路径 |
 | `assistant.devices` | 无 | `{devices, discoveryState, message?}`；一次有界发现，关闭页面取消 |
 | `assistant.receive.respond` | `{requestId, accept, remember:false}` | 对应接收请求的结果；拒绝/超时不写永久凭据 |
-| `assistant.link.export` | 无 | `{code}`；仅在用户打开“连接我的设备”时展示完整二维码 |
+| `assistant.link.export` | 无 | `{code}`；纯本地生成，不检查网络、不注册服务器；仅在用户打开“连接我的设备”时展示完整二维码 |
 | `assistant.link.preview` | `{code}` | 不含密钥的名称/加入范围预览，不落盘、不联网、不自动加入 |
 | `assistant.link.import` | `{code}` | 用户确认后加入自己的会话；凭据只进 secret store |
 
-`identity={id,name,linked}`。`relay={configured,state,message?}`，state 为
-`unconfigured|unknown|available|unavailable`，与旧 inspect.cloud 保持一致含义。
-`devices[]` 必须包含 `deviceId,name,address,platform,paired,available`；地址不在常规 UI 展示。
+`identity={id,name,linked}`。identity 不含控制本机能否使用工具的网络状态。
+`relay={configured,state,message?}`，state 保留 `unconfigured|unknown|available|unavailable`
+以兼容旧接口；默认公网服务不是需要用户配置的项目，也不能仅凭内置地址就宣称服务可用。
+`devices[]` 保留 `deviceId,name,address,platform,paired,available` 以兼容旧消费者；address
+允许为空，available 的旧含义不得被用于禁止发送。新增按本机、目标、路径记录的探测结果，
+明确 `unknown|reachable|unreachable`、检查时间和已选路径。公网可排队不等于目标在线。
+具体 DTO 由后端负责人一次定义并交给 Surface 消费，不由不同代理重复推断。
 `pendingRequests[]` 包含 `requestId,deviceId,name,itemNames,expiresAt`，无凭据。
 
 `items[]`：`id,kind,text?,name?,size,createdAt,senderDeviceId,senderName,targetDeviceId?,
@@ -66,8 +97,9 @@ Android 的文件打开使用宿主 `MptAvaloniaSurfaceContext.OpenFileAsync(pat
 
 ## 并行实现归属
 
-- **M3**：FileTransfer.Surface 和其 tests，交付手机与桌面的会话、设备选择、接收确认、
-  初次连接面板与系统分享接线。沿用共享 MptMobile 主题和公开返回接口。禁止模拟成功。
+- **GPT/Claude（接管 M3）**：FileTransfer.Surface 和其 tests，交付手机与桌面的会话、设备选择、
+  接收确认、初次连接面板与系统分享接线；负责视觉和交互决策及实际截图验收。
+  DSH 不再自行设计或改造 UI。沿用共享 MptMobile 主题和公开返回接口，禁止模拟成功。
 - **M4**：FileTransferModule、DirectTransfer、既有 Core（下述新目录除外）、package 命令元数据、
   MobileDeviceService 与原有测试；负责命令、接收确认、凭据、队列调度、设备发现和收件箱的真实整合。
 - **F2**：仅新增 Core/Discovery/ 和 Core.Tests/Discovery/。提供自动发现，不写模块或 Surface。
@@ -83,9 +115,11 @@ Android 的文件打开使用宿主 `MptAvaloniaSurfaceContext.OpenFileAsync(pat
 `DiscoveredDevice(string DeviceId,string Name,string Address,int Port,string Platform)`；
 `DeviceDiscovery.DiscoverAsync(IReadOnlyList<DiscoveredDevice> known,CancellationToken)`。
 默认文件端口复用 DirectReceiver 实际默认端口，禁止新猜测端口。实现应有可注入候选来源与探测器。
-候选来自已知设备、可用的 Tailscale peer API/CLI，以及局域网发现提供的 Tailnet 地址。
-网络探测只访问 Tailnet IP，不扫描整个网段，不上传或广播密钥；发现消息不是授权。
-不支持的来源作为明确诊断返回，不能把未实现的平台写成已支持。
+候选来自已知设备、已授权会话成员、可用的 Tailscale peer API/CLI，以及局域网发现提供的
+Tailnet 地址。未能读取本机 Tailscale API 只表示该候选来源不可用，不表示不能访问目标，
+也不能阻止已知设备的探测和公网发送。Tailnet 身份探测继续只访问允许的 Tailnet IP；
+公网路径使用独立的 HTTPS 中转客户端，不放宽旧直传地址白名单，不扫描整个网段，
+不上传或广播密钥。发现消息不是授权，不支持的发现来源不得伪装为完整发现结果。
 
 身份探测沿用 int32 大端长度 + JSON，请求 `{version:3,kind:"hello"}`，
 应答 `{ok:true,deviceId,name,address,port,platform}`。M4 在现有接收器里实现此无文件身份应答；
@@ -109,6 +143,20 @@ WriteAssistantReceiptAsync、ListAssistantReceiptsAsync；每个调用显式传�
 文本无需伪装为待下载文件；图片可有预览，原文件必须保留。
 
 ## 必须实际完成的验收
+
+以下四项是修正后的首要验收，不得用公网 health 成功或协议单测替代：
+
+1. 全新数据目录、完全断网、无 Tailscale 网卡和客户端、未配置网盘：成功生成身份及二维码；
+   导出/预览过程没有网络调用，重启和切换网络后身份不变，对方是否存在不影响结果。
+2. 用户实际 Windows Dev 与 Android 环境：核对系统到目标的路由及 MPT 的真实请求。
+   记录 `http://nav.tail.lixinrui000.cn/` 作为现有 Tailnet 接入的检查入口；导航站可访问
+   不能替代目标文件服务的端到端验证。本机无 Tailnet 地址但可经网关访问目标的情形不得误拦。
+3. 同一发送端同时面对 B、C：B 的 Tailnet 路径成功，C 的该路径失败但公网可达；两者都能
+   完成文字和文件收发，失败路径不拖住另一条路径，不要求用户切换模式或修改本机状态。
+4. 已授权目标离线时接受发送并持久保存；目标恢复后自动收到，发送端取得实际回执。
+   完全断网时排队；网络恢复、切换以及进程重启后自动继续，不重复消息，不假报送达。
+
+同时保留以下完整产品验收：
 
 1. 手机系统分享一张图片和一个文件到“发给自己”，电脑同一会话出现，能打开原内容；反向亦然。
 2. 发给自己不打开设备列表，不输入 IP/连接码，不选择传输方式。
