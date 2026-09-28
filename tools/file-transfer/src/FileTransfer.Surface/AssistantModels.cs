@@ -90,7 +90,7 @@ internal sealed record AssistantItem(
         AssistantItemState.Stored => "已同步到中转",
         AssistantItemState.Delivered => "已送达",
         AssistantItemState.Downloading => Size > 0 ? $"接收中 {Progress:F0}%" : "接收中",
-        AssistantItemState.Available => "待领取",
+        AssistantItemState.Available => IsText || CanOpen ? "已接收" : "待下载",
         AssistantItemState.Failed => Error is { Length: > 0 } error ? "发送失败：" + error : "发送失败",
         AssistantItemState.Cancelled => "已取消",
         _ => ""

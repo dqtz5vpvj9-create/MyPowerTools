@@ -101,6 +101,7 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
     private bool _sheetOpen;
     private AssistantItem? _pendingForward;
     private int _lastItemCount = -1;
+    private bool _followThreadEnd = true;
 
     public AssistantView(MptAvaloniaSurfaceContext context, AssistantCore core, TransferCore legacy)
     {
@@ -158,6 +159,22 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
             HorizontalContentAlignment = HorizontalAlignment.Stretch,
             VerticalContentAlignment = VerticalAlignment.Top
+        };
+        _threadScroll.ScrollChanged += (_, e) =>
+        {
+            // Extent and viewport settle during layout, after a snapshot rebuilt the rows.
+            // Keep following the latest entry through those size changes, including receipt text
+            // wrapping and the Android keyboard changing the viewport.
+            if (e.ExtentDelta.Y != 0 || e.ViewportDelta.Y != 0)
+            {
+                if (_followThreadEnd) _threadScroll.ScrollToEnd();
+            }
+            else if (e.OffsetDelta.Y != 0)
+            {
+                // A person scrolling into history owns that position until another message arrives.
+                _followThreadEnd = _threadScroll.Offset.Y >=
+                    _threadScroll.Extent.Height - _threadScroll.Viewport.Height - 1;
+            }
         };
 
         _sheetClose = MobileUi.CloseButton();
@@ -667,6 +684,7 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
         // A fresh page gets a fresh lifetime: the previous one was cancelled on detach.
         if (_lifetime.IsCancellationRequested) _lifetime = new CancellationTokenSource();
         _core.Changed += Sync;
+        _followThreadEnd = true;
         Sync();
     }
 
@@ -705,6 +723,11 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
         // A refresh must not fight the user's cursor: remember the caret before any relayout.
         var caret = _input.CaretIndex;
         var state = _core.Snapshot;
+        if (state.Items.Count != _lastItemCount)
+        {
+            _lastItemCount = state.Items.Count;
+            _followThreadEnd = true;
+        }
 
         _headerTitle.Text = state.Title;
         _headerState.Text = state.Identity.Linked
@@ -723,11 +746,7 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
 
         // A conversation reads from the bottom: the newest entry and the composer should be what the
         // user sees, not the oldest entry scrolled to the top.
-        if (state.Items.Count != _lastItemCount)
-        {
-            _lastItemCount = state.Items.Count;
-            Dispatcher.UIThread.Post(() => { try { _threadScroll.UpdateLayout(); _threadScroll.ScrollToEnd(); } catch (Exception) { } }, DispatcherPriority.Background);
-        }
+        if (_followThreadEnd) _threadScroll.ScrollToEnd();
 
         _emptyState.IsVisible = state.IsEmpty && !state.HasPendingRequest;
         SyncEmptyState(state);

@@ -54,6 +54,10 @@ public sealed class ConversationLiveRefreshTests
 
             Assert.Equal(13, view.Assistant.Snapshot.Items.Count);
             AssertVisibleAtEnd(view, "电脑刚发来的消息");
+            item["state"] = "available";
+            module.EmitAssistantChanged();
+            Settle(window);
+            Assert.Equal("已接收", view.Assistant.Snapshot.Items.Last().StateText);
             item["state"] = "delivered";
             item["receipts"] = new JsonArray(new JsonObject
             {
@@ -64,6 +68,38 @@ public sealed class ConversationLiveRefreshTests
             AssertVisibleAtEnd(view, "电脑刚发来的消息");
             Assert.Contains(view.Conversation.ThreadPanel.Children.Last().GetLogicalDescendants().OfType<TextBlock>(),
                 text => text.Text?.Contains("已保存到 工作电脑") == true);
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaFact]
+    public void Receipt_wrapping_and_keyboard_resize_keep_the_latest_row_visible()
+    {
+        var module = WithHistory();
+        var latest = Message("new", "最新消息", DateTimeOffset.UtcNow);
+        module.AssistantItems.Insert(0, latest);
+        var view = new TransferView(module.Context(Path.GetTempPath()));
+        var window = new Window { Width = 390, Height = 820, Content = view };
+        try
+        {
+            window.Show();
+            Settle(window);
+            AssertVisibleAtEnd(view, "最新消息");
+            // Receipt-only refresh keeps the item count unchanged but makes many rows taller.
+            foreach (var item in module.AssistantItems)
+            {
+                item["state"] = "delivered";
+                item["receipts"] = new JsonArray(new JsonObject
+                {
+                    ["deviceId"] = "pc", ["deviceName"] = "名字很长的工作电脑与另外一台已经接收成功的电脑"
+                });
+            }
+            module.EmitAssistantChanged();
+            Settle(window);
+            AssertVisibleAtEnd(view, "最新消息");
+            window.Height = 650;
+            Settle(window);
+            AssertVisibleAtEnd(view, "最新消息");
         }
         finally { window.Close(); }
     }
