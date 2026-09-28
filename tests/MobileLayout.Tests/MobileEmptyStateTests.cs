@@ -38,7 +38,7 @@ public sealed class MobileEmptyStateTests
             Assert.Equal("还没有连接设备", viewModel.EmptyTitle);
             Assert.Equal(UnavailableMobileDeviceService.NotConnectedNotice, viewModel.Notice);
             Assert.False(viewModel.RelayConfigured);
-            Assert.Equal("连接一个网盘", viewModel.RelaySummary);
+            Assert.Equal("同步服务尚未就绪", viewModel.RelaySummary);
 
             var texts = shell.PhoneHost.GetVisualDescendants().OfType<TextBlock>()
                 .Select(block => block.Text ?? "")
@@ -98,8 +98,8 @@ public sealed class MobileEmptyStateTests
             var peer = shell.ViewModel.Devices.Peers[0];
             Assert.False(peer.IsOnline);
             Assert.True(peer.IsUnknown);
-            Assert.Equal("已配对 · 尚未检查", peer.StateLabel);
-            Assert.Contains("不会显示在线", peer.StateDetail);
+            Assert.Equal("已配对", peer.StateLabel);
+            Assert.Contains("自动选择", peer.StateDetail);
 
             // The only state change is a real, user-triggered check.
             Assert.Equal(0, devices.CheckCalls);

@@ -232,8 +232,9 @@ public sealed class ConversationInteractionTests : IDisposable
             $"widths={string.Join(",", tiles.Select(tile => $"{tile.Bounds.Width:0}"))} " +
             $"panel={_deviceGridWidth(view):0}");
 
-        // The unavailable device still says so instead of looking ready.
-        Assert.Contains("已配对，当前不可用", TextOf(view));
+        // A remembered device remains selectable even when no direct path has answered.
+        Assert.Contains("已配对", TextOf(view));
+        Assert.DoesNotContain("当前不可用", TextOf(view));
     }
 
     [AvaloniaFact]
