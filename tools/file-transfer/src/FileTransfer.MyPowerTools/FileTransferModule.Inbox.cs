@@ -1,3 +1,4 @@
+using System.Net;
 using System.Text.Json.Nodes;
 using FileTransfer.Core;
 using FileTransfer.Core.Assistant;
@@ -341,20 +342,23 @@ public sealed partial class FileTransferModule
     /// <summary>
     /// Deposits the queued messages whose target is a paired device. Returns how many entries still need
     /// work. The entry only becomes <c>delivered</c> after the owner acknowledged a saved file; a deposit
-    /// that is not accepted yet stays queued with a retryable reason.
+    /// that is not accepted yet stays queued with a retryable reason, while a permanent failure is parked
+    /// as <c>failed</c> and only the user's explicit retry puts it back in the queue.
     /// </summary>
     private async Task<int> DepositPendingAsync(AssistantIdentity identity, CancellationToken token)
     {
         var store = _assistantStore!;
         var state = await store.LoadAsync(token);
-        var pending = 0;
-        foreach (var item in state.Outgoing(identity.DeviceId)
-            // Stored means the deposit already succeeded and only the owner's receipt is outstanding, so
-            // the entry waits for its receipt instead of being re-uploaded.
+        // The scheduler owns only what is still queued. Stored means the deposit already succeeded and
+        // only the owner's receipt is outstanding, and Failed means a permanent failure the user has not
+        // retried: neither may be re-uploaded by an automatic round.
+        var candidates = state.Outgoing(identity.DeviceId)
             .Where(item => item.TargetDeviceId is { Length: > 0 } && item.Receipts.Count == 0
                 && !IsConversationMember(item.TargetDeviceId)
-                && item.State is AssistantItemState.Queued or AssistantItemState.Failed)
-            .OrderBy(item => item.Attempts).ThenBy(item => item.CreatedAt).Take(8).ToArray())
+                && item.State == AssistantItemState.Queued)
+            .OrderBy(item => item.Attempts).ThenBy(item => item.CreatedAt).ToArray();
+        var pending = 0;
+        foreach (var item in candidates.Take(8))
         {
             token.ThrowIfCancellationRequested();
             var target = item.TargetDeviceId!;
@@ -363,13 +367,10 @@ public sealed partial class FileTransferModule
                 var inbox = await PeerInboxAsync(target, token);
                 if (inbox is null)
                 {
-                    // An old pairing code has no deposit permission: say so instead of pretending to send.
-                    await store.MutateAsync(current =>
-                    {
-                        var row = current.Find(item.Id);
-                        if (row is null || row.State is AssistantItemState.Delivered or AssistantItemState.Cancelled) return;
-                        row.Error = "对方是旧版配对码，没有公网投递权限；请让对方重新扫码后再发送。";
-                    }, token);
+                    // An old pairing code has no deposit permission: say so instead of pretending to
+                    // send, and park the entry — re-scanning the code is a user action, not a retry.
+                    await SetDepositStateAsync(store, item.Id, AssistantItemState.Failed,
+                        "对方是旧版配对码，没有公网投递权限；请让对方重新扫码后再发送。", token);
                     continue;
                 }
                 // Client construction validates the stored credential; a bad pairing must surface on the
@@ -409,23 +410,37 @@ public sealed partial class FileTransferModule
                 // The user cancelled this item (or its scope went stale): keep the loop alive.
                 pending++;
             }
-            catch (PublicInboxUnavailableException ex)
-            {
-                // "inbox not ready" and the relay's own transient states: retry later, never a fake success.
-                await SetDepositStateAsync(store, item.Id, AssistantItemState.Queued, ex.Message, token);
-                pending++;
-            }
             catch (Exception ex) when (ex is PublicInboxException or IOException or InvalidOperationException or ArgumentException)
             {
-                await SetDepositStateAsync(store, item.Id, AssistantItemState.Failed, ex.Message, token);
+                // A transient relay state stays queued and recovers on its own; a permanent one is parked
+                // in failed until the user explicitly retries it, so the same bytes are never re-uploaded
+                // by every automatic round.
+                var retryable = IsTransientDepositFailure(ex);
+                await SetDepositStateAsync(store, item.Id,
+                    retryable ? AssistantItemState.Queued : AssistantItemState.Failed,
+                    ex is FileNotFoundException or DirectoryNotFoundException ? "待发副本不存在。" : ex.Message, token);
+                if (retryable) pending++;
             }
         }
-        // A full batch must schedule the next batch even if this one needed no retry.
-        if (state.Outgoing(identity.DeviceId).Count(item => item.TargetDeviceId is { Length: > 0 } target
-            && !IsConversationMember(target) && PeerInboxId(target)?.Length > 0
-            && item.State is AssistantItemState.Queued or AssistantItemState.Failed) > 0) pending++;
+        // A full batch must schedule the next batch even if this one needed no retry. Only an entry that
+        // is still queued counts: a parked failure must not keep the scheduler awake.
+        if (candidates.Any(item => item.State == AssistantItemState.Queued)) pending++;
         return pending;
     }
+
+    /// <summary>
+    /// True when retrying the same deposit can succeed later with no user action: the inbox is not
+    /// registered yet, the relay is throttled or busy, the transport failed, or the relay answered a
+    /// server-side 5xx (which its own bounded retry may already have exhausted). Every other failure in
+    /// this path — a rejected credential, an oversized entry, a missing local copy, a malformed response
+    /// — is permanent, and the entry waits for the user instead of being re-uploaded every few seconds.
+    /// </summary>
+    private static bool IsTransientDepositFailure(Exception exception) =>
+        exception is PublicInboxUnavailableException
+        || exception is PublicInboxException
+        {
+            Status: HttpStatusCode.InternalServerError or HttpStatusCode.BadGateway or HttpStatusCode.GatewayTimeout
+        };
 
     private static async Task SetDepositStateAsync(AssistantStore store, string itemId, AssistantItemState state, string message, CancellationToken token)
     {

@@ -268,14 +268,140 @@ public sealed class PublicInboxPairingTests : IAsyncDisposable
         Assert.Equal("等收件端上线", received["text"]!.GetValue<string>());
     }
 
+    /// <summary>
+    /// A rejected deposit credential is permanent: the entry is attempted once, parked as failed, and no
+    /// later automatic round re-uploads it. Only the user's explicit retry puts it back in the queue once
+    /// the cause is fixed, and that retry reuses the same entry id.
+    /// </summary>
+    [Fact]
+    public async Task ARejectedDepositIsAttemptedOnceAndWaitsForTheUser()
+    {
+        var relay = Relay();
+        var sender = await StartAsync("permanent-sender", "permanent-sender");
+        var receiver = await StartAsync("permanent-receiver", "permanent-receiver");
+        var pairing = await CallAsync(receiver, "file-transfer.pairing");
+        await CallAsync(sender, "file-transfer.pair.import", new JsonObject { ["code"] = pairing["code"]!.GetValue<string>() });
+        var receiverInboxId = Pairing.Decode(pairing["code"]!.GetValue<string>()).Inbox!.InboxId;
+        var registered = DateTimeOffset.UtcNow.AddSeconds(20);
+        while (!relay.IsRegistered(receiverInboxId) && DateTimeOffset.UtcNow < registered) await Task.Delay(50);
+        Assert.True(relay.IsRegistered(receiverInboxId), $"收件端必须先注册：{receiverInboxId} relay={relay.Dump()}");
+
+        // The relay rejects the stored deposit credential with 401: re-sending the same bytes cannot help.
+        relay.RejectDeposits = true;
+        var sent = await CallAsync(sender, "file-transfer.assistant.send",
+            new JsonObject { ["text"] = "只有手动重试才会再发", ["targetDeviceId"] = "permanent-receiver" });
+        var itemId = sent["itemIds"]!.AsArray()[0]!.GetValue<string>();
+        var failed = await WaitForItemAsync(sender, itemId,
+            row => row["state"]!.GetValue<string>() == "failed" && row["error"] is JsonValue,
+            "relay=" + relay.Dump());
+        Assert.Equal(1, failed["attempts"]!.GetValue<int>());
+        Assert.Equal(1, relay.DepositAttempts);
+
+        // A new send wakes the same scheduler; the parked entry must stay untouched by that round too.
+        var wake = await CallAsync(sender, "file-transfer.assistant.send",
+            new JsonObject { ["text"] = "唤醒调度器", ["targetDeviceId"] = "permanent-receiver" });
+        var wakeId = wake["itemIds"]!.AsArray()[0]!.GetValue<string>();
+        await WaitForItemAsync(sender, wakeId, row => row["state"]!.GetValue<string>() == "failed",
+            "relay=" + relay.Dump());
+        await Task.Delay(2000);
+        var parked = Items(await CallAsync(sender, "file-transfer.assistant.inspect"))
+            .First(item => item!["id"]!.GetValue<string>() == itemId)!;
+        Assert.Equal("failed", parked["state"]!.GetValue<string>());
+        Assert.Equal(1, parked["attempts"]!.GetValue<int>());
+        Assert.Equal(2, relay.DepositAttempts);   // the two first attempts only; the parked entry never retried
+
+        // With the cause fixed, the user's retry sends exactly the same entry, and the receiver saves it.
+        relay.RejectDeposits = false;
+        var retried = await CallAsync(sender, "file-transfer.assistant.retry", new JsonObject { ["itemId"] = itemId });
+        Assert.True(retried["retried"]!.GetValue<bool>());
+        var delivered = await WaitForItemAsync(sender, itemId, row => row["state"]!.GetValue<string>() == "delivered",
+            "relay=" + relay.Dump() + " inbox=" + (await CallAsync(sender, "file-transfer.assistant.inspect"))["inbox"]!.ToJsonString());
+        Assert.Single(delivered["receipts"]!.AsArray());
+        var received = await WaitForItemAsync(receiver, itemId, row => row["state"]!.GetValue<string>() == "available",
+            "relay=" + relay.Dump());
+        Assert.Equal("只有手动重试才会再发", received["text"]!.GetValue<string>());
+        Assert.True(relay.HasItem(receiverInboxId, itemId), "手动重试必须复用同一个 itemId");
+    }
+
+    /// <summary>
+    /// A missing durable payload copy is a permanent local failure: the entry is parked instead of being
+    /// re-opened by every automatic round, and once the copy is restored the user's retry sends the same
+    /// entry.
+    /// </summary>
+    [Fact]
+    public async Task AMissingLocalCopyParksTheEntryUntilTheUserRetriesIt()
+    {
+        var relay = Relay();
+        var sender = await StartAsync("missing-sender", "missing-sender");
+        var receiver = await StartAsync("missing-receiver", "missing-receiver");
+        var pairing = await CallAsync(receiver, "file-transfer.pairing");
+        await CallAsync(sender, "file-transfer.pair.import", new JsonObject { ["code"] = pairing["code"]!.GetValue<string>() });
+        var receiverInboxId = Pairing.Decode(pairing["code"]!.GetValue<string>()).Inbox!.InboxId;
+
+        // Hold the relay in its retryable "not registered yet" state, so no deposit can succeed while the
+        // durable copy is removed: the next attempt then fails locally, before any upload.
+        relay.NotReady = true;
+        var content = "本机副本被删掉";
+        var file = Path.Combine(_root, "missing.txt");
+        await File.WriteAllTextAsync(file, content);
+        var sent = await CallAsync(sender, "file-transfer.assistant.send",
+            new JsonObject { ["paths"] = new JsonArray(file), ["targetDeviceId"] = "missing-receiver" });
+        var itemId = sent["itemIds"]!.AsArray()[0]!.GetValue<string>();
+        var payload = Path.Combine(_root, "missing-sender", "assistant", "payload", itemId, "missing.txt");
+        Assert.True(File.Exists(payload), payload);
+        File.Delete(payload);
+
+        // The next automatic round fails on the local copy: it must be parked as failed, not kept alive by
+        // the scheduler (a 503 alone would stay queued, so failed here can only be the missing copy).
+        var failed = await WaitForItemAsync(sender, itemId,
+            row => row["state"]!.GetValue<string>() == "failed" && row["error"] is JsonValue,
+            "relay=" + relay.Dump());
+        Assert.Equal("待发副本不存在。", failed["error"]!.GetValue<string>());
+        var attempts = failed["attempts"]!.GetValue<int>();
+
+        // Let the receiver register again, then wake the scheduler with another entry: the parked one must
+        // not be attempted by that round either.
+        relay.NotReady = false;
+        var registered = DateTimeOffset.UtcNow.AddSeconds(20);
+        while (!relay.IsRegistered(receiverInboxId) && DateTimeOffset.UtcNow < registered) await Task.Delay(50);
+        Assert.True(relay.IsRegistered(receiverInboxId), $"收件端必须先注册：{receiverInboxId} relay={relay.Dump()}");
+        var wake = await CallAsync(sender, "file-transfer.assistant.send",
+            new JsonObject { ["text"] = "唤醒调度器", ["targetDeviceId"] = "missing-receiver" });
+        var wakeId = wake["itemIds"]!.AsArray()[0]!.GetValue<string>();
+        await WaitForItemAsync(sender, wakeId, row => row["state"]!.GetValue<string>() is "stored" or "delivered",
+            "relay=" + relay.Dump());
+        await Task.Delay(2000);
+        var parked = Items(await CallAsync(sender, "file-transfer.assistant.inspect"))
+            .First(item => item!["id"]!.GetValue<string>() == itemId)!;
+        Assert.Equal("failed", parked["state"]!.GetValue<string>());
+        Assert.Equal(attempts, parked["attempts"]!.GetValue<int>());
+
+        // Restoring the durable copy and retrying sends the very same entry.
+        await File.WriteAllTextAsync(payload, content);
+        var retried = await CallAsync(sender, "file-transfer.assistant.retry", new JsonObject { ["itemId"] = itemId });
+        Assert.True(retried["retried"]!.GetValue<bool>());
+        await WaitForItemAsync(sender, itemId, row => row["state"]!.GetValue<string>() == "delivered",
+            "relay=" + relay.Dump());
+        var received = await WaitForItemAsync(receiver, itemId, row => row["state"]!.GetValue<string>() == "available",
+            "relay=" + relay.Dump());
+        Assert.Equal("missing.txt", received["name"]!.GetValue<string>());
+        Assert.True(relay.HasItem(receiverInboxId, itemId), "手动重试必须复用同一个 itemId");
+    }
+
     [Fact]
     public async Task DisablingReceivingStopsTheInboxLongPollAndDisposeDoesNotHang()
     {
         var relay = Relay();
         var receiver = await StartAsync("phone", "phone-b");
-        var receiverInbox = (await CallAsync(receiver, "file-transfer.assistant.inspect"))["inbox"]!.AsObject();
-        var inboxId = receiverInbox["id"]!.GetValue<string>();
+        // The receive loop creates the inbox identity, so wait for it before measuring that inbox's polls:
+        // an inspect that wins that race returns an empty id and would then measure polls for nobody.
         var deadline = DateTimeOffset.UtcNow.AddSeconds(20);
+        var inboxId = "";
+        while (inboxId.Length == 0 && DateTimeOffset.UtcNow < deadline)
+        {
+            inboxId = (await CallAsync(receiver, "file-transfer.assistant.inspect"))["inbox"]!["id"]!.GetValue<string>();
+            if (inboxId.Length == 0) await Task.Delay(50);
+        }
         while (relay.PollsFor(inboxId) == 0 && DateTimeOffset.UtcNow < deadline) await Task.Delay(50);
         var inboxState = (await CallAsync(receiver, "file-transfer.assistant.inspect"))["inbox"]!.AsObject();
         Assert.True(relay.PollsFor(inboxId) > 0, "收件端没有进入 owner 长轮询：" + inboxState.ToJsonString());
@@ -550,6 +676,7 @@ public sealed class PublicInboxPairingTests : IAsyncDisposable
         private Task? _loop;
         private long _revision;
         private int _deposits;
+        private int _depositAttempts;
         private int _receiptReads;
         private int _inboxPolls;
         private readonly List<string> _log = [];
@@ -557,9 +684,15 @@ public sealed class PublicInboxPairingTests : IAsyncDisposable
         /// <summary>When set, registration answers 503 so a caller exercises the retry path.</summary>
         public bool NotReady { get; set; }
 
+        /// <summary>When set, a deposit PUT answers 401: the stored deposit credential is rejected for good.</summary>
+        public bool RejectDeposits { get; set; }
+
         public int Port { get; private set; }
         public Uri BaseAddress => new($"http://127.0.0.1:{Port}/");
         public int Deposits => Volatile.Read(ref _deposits);
+
+        /// <summary>Every deposit PUT that reached the relay, including the ones it rejected.</summary>
+        public int DepositAttempts => Volatile.Read(ref _depositAttempts);
         public int ReceiptReads => Volatile.Read(ref _receiptReads);
         public int InboxPolls => Volatile.Read(ref _inboxPolls);
 
@@ -734,7 +867,9 @@ public sealed class PublicInboxPairingTests : IAsyncDisposable
             // must present the deposit key, and a repeat of the same item is an idempotent 200 with JSON.
             if (method == "PUT" && isItemRoute && segments.Length == 1)
             {
+                Interlocked.Increment(ref _depositAttempts);
                 if (NotReady) return Status("503 Service Unavailable", "Retry-After: 1");
+                if (RejectDeposits) return Status("401 Unauthorized");
                 string depositKey;
                 lock (_gate)
                 {

@@ -68,7 +68,37 @@ internal sealed record AssistantItem(
     public bool CanRetry => State is AssistantItemState.Failed;
 
     /// <summary>True while the entry has not finished, so the row offers cancel.</summary>
-    public bool CanCancel => State is AssistantItemState.Queued or AssistantItemState.Sending or AssistantItemState.Downloading;
+    public bool CanCancel => Receipts.Count == 0 && State is AssistantItemState.Queued or AssistantItemState.Sending
+        or AssistantItemState.Downloading or AssistantItemState.Failed;
+
+    // The module currently supplies an error string, not a typed failure code. Match known module
+    // messages explicitly; never display arbitrary server detail, local paths or exception stacks.
+    public string ErrorExplanation => Error switch
+    {
+        null or "" => "",
+        "配对码里的投递密钥与服务器不一致，请让收件设备重新出示配对码。"
+            or "该收件箱已经用另一个投递密钥注册；旧配对码仍然有效，请让收件设备重新出示配对码。"
+            or "对方是旧版配对码，没有公网投递权限；请让对方重新扫码后再发送。"
+            => "这台设备的配对信息需要更新。请让对方重新出示连接码，再添加这台设备后重试。",
+        "文件超过中转单文件上限，无法投递。"
+            => "文件超过单文件大小上限。请压缩或拆分文件后重新发送。",
+        "中转空间不足，请先在收件设备上清理已接收的文件。"
+            => "中转空间不足。请在收件设备上清理已接收的文件，然后重试。",
+        "待发副本不存在。"
+            => "待发送的文件副本已丢失。请取消此条记录，重新选择原文件发送。",
+        "投递密钥只能投递和查询自己那一条回执，不能列出、读取内容或写回执。"
+            or "该操作需要投递密钥，owner 凭据不能用于投递。"
+            => "当前配对信息没有此次发送所需的权限。请重新添加收件设备后重试。",
+        "操作过于频繁（HTTP 429），请稍后重试。"
+            => "发送过于频繁，正在等待重试。也可以取消此条发送。",
+        "收件端还没有注册这个收件箱（HTTP 503），稍后会自动重试。"
+            => "对方尚未准备好接收。请让对方打开文件助手，本条会自动重试。",
+        "中转服务暂时不可用（HTTP 503），请稍后重试。"
+            => "中转服务暂时不可用，内容已保留，稍后会自动重试。",
+        "同一条目 id 已经存在且内容不同，请换一个新的 itemId 重试。"
+            => "此条记录与已暂存的内容冲突。请取消此条记录，重新选择内容发送。",
+        _ => "发送未完成，内容仍保留。可以重试或取消此条发送；若再次失败，请在连接诊断中检查服务配置。"
+    };
 
     /// <summary>True when there is local content to open on this device.</summary>
     public bool CanOpen => LocalPath is { Length: > 0 };

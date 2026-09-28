@@ -127,6 +127,7 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
         }, MobileUi.Classes.Field);
         // The text box handles Enter itself, so the shortcut is registered for handled events too,
         // which is the only way the key reaches this page before the control consumes it.
+        AutomationProperties.SetName(_input, "消息内容");
         _input.AddHandler(KeyDownEvent, OnInputKeyDown, Avalonia.Interactivity.RoutingStrategies.Tunnel);
         _input.AddHandler(KeyDownEvent, OnInputKeyDown, Avalonia.Interactivity.RoutingStrategies.Bubble, handledEventsToo: true);
         // Enablement follows the real text, not a later module refresh: typing must light up 发送.

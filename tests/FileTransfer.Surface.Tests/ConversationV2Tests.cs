@@ -13,6 +13,40 @@ namespace FileTransfer.Surface.Tests;
 
 public sealed class ConversationV2Tests
 {
+    [AvaloniaTheory]
+    [InlineData("配对码里的投递密钥与服务器不一致，请让收件设备重新出示配对码。", "重新出示连接码")]
+    [InlineData("文件超过中转单文件上限，无法投递。", "压缩或拆分")]
+    [InlineData("中转空间不足，请先在收件设备上清理已接收的文件。", "清理已接收")]
+    [InlineData("待发副本不存在。", "重新选择原文件")]
+    [InlineData("System.IO.IOException: https://private.example/path?token=SECRET at /private/file.txt", "可以重试或取消")]
+    public void Failed_message_shows_actionable_private_details_and_can_be_cancelled(string error, string expected)
+    {
+        var module = new FakeTransferModule();
+        var item = Item(0, false);
+        item["state"] = "failed";
+        item["error"] = error;
+        module.AssistantItems.Add(item);
+        var view = new TransferView(module.Context(Path.GetTempPath()));
+        using var host = new Host(view);
+        void OpenMenu() => Click(host.Window, view.GetLogicalDescendants().OfType<Button>()
+            .Single(b => AutomationProperties.GetName(b)?.StartsWith("消息操作 ") == true));
+        Button Action(string text) => view.Conversation.SheetHost.GetLogicalDescendants().OfType<Button>()
+            .Single(b => Equals(b.Content, text));
+        OpenMenu();
+        Assert.True(Action("取消发送").IsEnabled);
+        Click(host.Window, Action("查看详情"));
+        var details = string.Join("\n", view.Conversation.SheetHost.GetLogicalDescendants().OfType<TextBlock>().Select(t => t.Text));
+        Assert.Contains(expected, details);
+        Assert.DoesNotContain("SECRET", details);
+        Assert.DoesNotContain("private.example", details);
+        Assert.DoesNotContain("/private/file.txt", details);
+        view.Conversation.TryHandleBack();
+        OpenMenu();
+        Click(host.Window, Action("取消发送"));
+        Assert.Equal("row0", module.LastArgs("assistant.cancel")["itemId"]!.GetValue<string>());
+        Assert.Equal("cancelled", module.AssistantItems[0]["state"]!.GetValue<string>());
+    }
+
     [AvaloniaFact]
     public async Task Cached_target_is_selectable_during_discovery_and_selection_does_not_send()
     {
@@ -44,6 +78,7 @@ public sealed class ConversationV2Tests
         var view = new TransferView(module.Context(Path.GetTempPath()));
         using var host = new Host(view);
         var input = Composer(view);
+        Assert.Equal("消息内容", AutomationProperties.GetName(input));
         input.Focus();
         input.Text = "第一行";
         input.CaretIndex = input.Text.Length;

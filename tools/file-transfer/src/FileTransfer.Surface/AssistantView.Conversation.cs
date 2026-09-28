@@ -246,7 +246,7 @@ internal sealed partial class AssistantView
             _sheetTitle.Text = "消息详情";
             _sheetScroll.Content = MobileUi.Stack(8, MobileUi.Body(item.DisplayName), MobileUi.Caption(item.CreatedAt?.ToLocalTime().ToString("g") ?? ""),
                 MobileUi.Caption(item.StateText), MobileUi.Caption(item.ReceiptText.Length > 0 ? "已保存到 " + item.ReceiptText : "尚无其他设备接收回执"),
-                MobileUi.Caption(string.IsNullOrWhiteSpace(item.Error) ? "" : "发送遇到问题，请检查连接或稍后重试。"));
+                MobileUi.Caption(item.ErrorExplanation));
             return Task.CompletedTask;
         });
         _sheetScroll.Content = actions;
