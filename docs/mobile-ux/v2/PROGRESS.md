@@ -78,3 +78,13 @@ A20 以 25ms 间隔对同一发送按钮调用两次 UIA Invoke，第二次被�
 重启 AVD 后先前输入的草稿完整恢复，未发现内容丢失。随后再次断网（`Active default network: none`），通过 UI 发送 `MPT-A10-offline-restart-20260928`，手机显示等待发送；强制关闭并离线重开，条目仍在。恢复网络后无需重试即自动送达，Windows UI 显示同文“已接收”。主代理已亲看 `v2-a10-queued.png`、`v2-a10-network-restored.png` 和 `/mnt/cache/data-cache/mpt-a10-windows-received.png`。A10 的文字排队/进程重启/自动续传边界通过；附件尚未覆盖，之前输入法异常仍单列待诊断。
 
 两个修复已完成源码与回归：公网暂存/失败持久化后通知 UI，状态未变不重复通知，PublicInboxPairingTests 14/14通过；恢复草稿的延迟 TextChanged 不再把未修改内容误当编辑，Surface 149/149通过。两个事件回归在关闭通知时均失败，两个草稿加载回归在修复前均失败。正在部署后复验，尚未发布。
+
+Windows `4d62fe9` 部署后已复验末条状态：18:07:33 UTC 完成官方 Tools Dev 更新，向仍停用的用户 10 只发 `MPT-A09-20260928-B7-refresh-fix`，未导航/再次发送/手动同步，最新行自动显示“已暂存，等待接收”。主代理亲看 `a09-a20-20260928/windows-refresh-fix.png`；辅助落盘同一条为 stored、回执为空。Input Monitor 大小和时间戳均未变。
+
+系统分享实测从 Android Files 长按 beta.txt、追加选择 alpha.txt，经原生“Sharing 2 files”面板点击 MyPowerTools，两个附件进入同一未发送草稿，目标为“文件传输助手”。主代理亲看 `v2-share-mpt-settled.png`；没有自动发送。尚未覆盖文字与两个附件一起分享，草稿留待升级复验。
+
+输入法问题进一步获得稳定对照：重启后硬键盘模式（show_ime_with_hard_keyboard=0）点输入框正常；保持焦点改为 1 并点同一输入框，键盘出现但遮住输入栏；Back 收起再打开后避让正常。`v2-ime-reboot-soft-settled.png` 与 `v2-ime-refocus.png` 均已亲看。此前不同阶段的 native dump 中 IME 可见/输入视图状态不同，不应合并为同一快照。修复补充无动画的原生 insets 变化通知，不替换 Avalonia listener、不轮询；Android 88/88 单测及 Compile 通过，完整 APK 正在构建，设备复验待完成。
+
+无动画键盘切换已在完整 APK 通过原序列复验：setting=0 时点输入框，保持焦点改成 1，再点同一输入框，`v2-insets-switch-fixed.png` 中输入栏和发送按钮立即位于键盘上方，不再需要 Back/重新聚焦。实际输入 `MPT-insets-live-20260928` 并发送，键盘收起、布局恢复，手机显示送达。测试后设置恢复为 0。完整构建 0 错误、3 个既有警告，日志 `/mnt/cache/data-cache/mpt-v2-insets-android-build.log`。
+
+升级复验另发现系统分享的两个附件草稿未恢复，目标也回到升级前的 LIS-IMAC，因此不能判草稿升级通过。只读核对分享缓存文件仍存在、持久偏好保存时间早于分享，排查重点是分享后的草稿没有成功保存，正在诊断。此次修复不宣称解决此前全白输入法画面的所有原因；可稳定复现的无动画避让缺陷已经修复。

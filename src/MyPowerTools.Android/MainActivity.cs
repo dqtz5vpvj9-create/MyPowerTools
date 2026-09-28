@@ -77,7 +77,9 @@ public sealed class MainActivity : AvaloniaMainActivity
         WarmFontStack();
         var view = new AndroidStartupView();
         _ = InitializeAsync(view);
-        return new AndroidImeHost(view);
+        var host = new AndroidImeHost(view);
+        if (Current is { } activity) activity._imeHost = host;
+        return host;
     }
 
     /// <summary>
@@ -169,6 +171,7 @@ public sealed class MainActivity : AvaloniaMainActivity
         Current = this;
         base.OnCreate(savedInstanceState);
         ApplySystemBars();
+        InstallImeInsetsObserver();
         // The LAN discovery module runs in this process and takes a multicast lease only while a
         // discovery window (or an enabled receiver) is actually listening. Publishing the factory here
         // is the single wiring point; nothing is acquired at startup, and the module never references
@@ -177,6 +180,68 @@ public sealed class MainActivity : AvaloniaMainActivity
         OnBackPressedDispatcher.AddCallback(this, new BackCallback(this));
         AndroidBackgroundActivityService.NotificationPermissionRequest = RequestNotificationPermissionAsync;
         if (Intent is { } intent) _ = HandleIntentAsync(intent);
+    }
+
+    private AndroidImeHost? _imeHost;
+    private ImeInsetsObserver? _imeInsetsObserver;
+
+    private void InstallImeInsetsObserver()
+    {
+        if (Window?.DecorView is not A.Views.ViewGroup decor) return;
+        // Avalonia owns the DecorView's insets listener. An inert child observes the same dispatch
+        // without replacing that listener, consuming insets, taking focus or entering accessibility.
+        _imeInsetsObserver = new ImeInsetsObserver(this, () =>
+        {
+            if (ReferenceEquals(Current, this)) _imeHost?.RefreshInputPane();
+        });
+        decor.AddView(_imeInsetsObserver, new A.Views.ViewGroup.LayoutParams(0, 0));
+    }
+
+    private sealed class ImeInsetsObserver : A.Views.View
+    {
+        private readonly Action _refresh;
+        private bool _posted;
+        private long _attachment;
+
+        public ImeInsetsObserver(A.Content.Context context, Action refresh) : base(context)
+        {
+            _refresh = refresh;
+            Focusable = false;
+            FocusableInTouchMode = false;
+            Clickable = false;
+            ImportantForAccessibility = ImportantForAccessibility.No;
+        }
+
+        public override WindowInsets? OnApplyWindowInsets(WindowInsets? insets)
+        {
+            if (!_posted)
+            {
+                _posted = true;
+                var attachment = _attachment;
+                // Read after the complete native dispatch, when Avalonia's parent listener has
+                // updated InputPane.State and the window exposes the newly applied root insets.
+                Post(() =>
+                {
+                    if (attachment != _attachment) return;
+                    _posted = false;
+                    if (IsAttachedToWindow) _refresh();
+                });
+            }
+            return insets;
+        }
+
+        protected override void OnAttachedToWindow()
+        {
+            base.OnAttachedToWindow();
+            ViewCompat.RequestApplyInsets(this);
+        }
+
+        protected override void OnDetachedFromWindow()
+        {
+            ++_attachment;
+            _posted = false;
+            base.OnDetachedFromWindow();
+        }
     }
 
     /// <summary>
@@ -396,6 +461,13 @@ public sealed class MainActivity : AvaloniaMainActivity
         // of handing activations a control that no longer has a parent.
         _touchLifecycle.Cancel(FindAvaloniaView(Window?.DecorView), "destroy");
         _touchLifecycle.Dispose();
+        _imeHost = null;
+        if (_imeInsetsObserver is { } observer)
+        {
+            (observer.Parent as A.Views.ViewGroup)?.RemoveView(observer);
+            observer.Dispose();
+            _imeInsetsObserver = null;
+        }
         _shell = null;
         if (ReferenceEquals(Current, this)) Current = null;
         base.OnDestroy();
