@@ -269,9 +269,75 @@ public sealed class PublicInboxPairingTests : IAsyncDisposable
     }
 
     /// <summary>
-    /// A rejected deposit credential is permanent: the entry is attempted once, parked as failed, and no
-    /// later automatic round re-uploads it. Only the user's explicit retry puts it back in the queue once
-    /// the cause is fixed, and that retry reuses the same entry id.
+    /// The final send must refresh from its deposit event, even with the receiver stopped and no next
+    /// send or manual refresh. Both success and failure are already persisted when the event arrives.
+    /// </summary>
+    [Theory]
+    [InlineData(false, "stored")]
+    [InlineData(true, "failed")]
+    public async Task LastDepositPublishesItsCommittedStateWithoutAnotherSend(bool reject, string expectedState)
+    {
+        var relay = Relay();
+        var sender = await StartAsync("event-sender", "event-sender");
+        var receiver = await StartAsync("event-receiver", "event-receiver");
+        var pairing = await CallAsync(receiver, "file-transfer.pairing");
+        await CallAsync(sender, "file-transfer.pair.import", new JsonObject { ["code"] = pairing["code"]!.GetValue<string>() });
+        var inboxId = Pairing.Decode(pairing["code"]!.GetValue<string>()).Inbox!.InboxId;
+        var deadline = DateTimeOffset.UtcNow.AddSeconds(20);
+        while (!relay.IsRegistered(inboxId) && DateTimeOffset.UtcNow < deadline) await Task.Delay(50);
+        Assert.True(relay.IsRegistered(inboxId));
+        await CallAsync(receiver, "file-transfer.receive.stop");
+        relay.RejectDeposits = reject;
+
+        using var cancellation = new CancellationTokenSource();
+        var snapshots = new System.Collections.Concurrent.ConcurrentQueue<JsonObject>();
+        var first = new TaskCompletionSource<JsonObject>(TaskCreationOptions.RunContinuationsAsynchronously);
+        var observe = Task.Run(async () =>
+        {
+            try
+            {
+                await foreach (var change in sender.SubscribeEventsAsync(new EventCursor(0), cancellation.Token))
+                {
+                    if (change.Type != "file-transfer.assistant.changed" || change.Payload["reason"]?.GetValue<string>() != "inbox.deposit") continue;
+                    // Match the Surface: inspect only in response to the event, not by polling state.
+                    var snapshot = await CallAsync(sender, "file-transfer.assistant.inspect");
+                    snapshots.Enqueue(snapshot);
+                    first.TrySetResult(snapshot);
+                }
+            }
+            catch (OperationCanceledException) when (cancellation.IsCancellationRequested) { }
+        });
+        try
+        {
+            var sent = await CallAsync(sender, "file-transfer.assistant.send",
+                new JsonObject { ["text"] = "最后一条也要刷新", ["targetDeviceId"] = "event-receiver" });
+            var id = sent["itemIds"]!.AsArray()[0]!.GetValue<string>();
+            var snapshot = await first.Task.WaitAsync(TimeSpan.FromSeconds(15));
+            var row = Assert.Single(Items(snapshot));
+            Assert.Equal(id, row!["id"]!.GetValue<string>());
+            Assert.Equal(expectedState, row["state"]!.GetValue<string>());
+            Assert.Empty(row["receipts"]!.AsArray());
+            if (reject) Assert.NotNull(row["error"]);
+            else
+            {
+                Assert.Null(row["error"]);
+                var reads = relay.ReceiptReads;
+                deadline = DateTimeOffset.UtcNow.AddSeconds(15);
+                while (relay.ReceiptReads <= reads && DateTimeOffset.UtcNow < deadline) await Task.Delay(50);
+                Assert.True(relay.ReceiptReads > reads, "A receipt-only round must actually run before checking event silence.");
+                Assert.Single(snapshots);
+            }
+            Assert.Equal(1, relay.DepositAttempts);
+        }
+        finally
+        {
+            cancellation.Cancel();
+            await observe;
+        }
+    }
+
+    /// <summary>
+    /// A rejected deposit credential is permanent: only explicit retry requeues it, using the same id.
     /// </summary>
     [Fact]
     public async Task ARejectedDepositIsAttemptedOnceAndWaitsForTheUser()

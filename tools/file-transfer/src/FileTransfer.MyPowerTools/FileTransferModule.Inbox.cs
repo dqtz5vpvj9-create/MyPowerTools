@@ -391,14 +391,7 @@ public sealed partial class FileTransferModule
                         ? await client.DepositTextAsync(item.Id, item.Text ?? "", identity.DeviceId, identity.Name, item.CreatedAt, target, scope.Token)
                         : await client.DepositFileAsync(item.Id, payload ?? throw new IOException("待发副本不存在。"), item.Name, identity.DeviceId, identity.Name, item.CreatedAt, target, scope.Token);
                     if (scope.IsCancellationRequested && !token.IsCancellationRequested) continue;
-                    await store.MutateAsync(current =>
-                    {
-                        var row = current.Find(item.Id);
-                        if (row is null || row.State is AssistantItemState.Delivered or AssistantItemState.Cancelled) return;
-                        row.State = AssistantItemState.Stored;
-                        row.Error = null;
-                        row.BytesDone = row.Size;
-                    }, token);
+                    await SetDepositStateAsync(store, item.Id, AssistantItemState.Stored, null, token);
                     // Real success only: a 503 or a rejected key must never mark the inbox healthy.
                     NoteInboxAvailable();
                 }
@@ -442,15 +435,25 @@ public sealed partial class FileTransferModule
             Status: HttpStatusCode.InternalServerError or HttpStatusCode.BadGateway or HttpStatusCode.GatewayTimeout
         };
 
-    private static async Task SetDepositStateAsync(AssistantStore store, string itemId, AssistantItemState state, string message, CancellationToken token)
+    private async Task SetDepositStateAsync(AssistantStore store, string itemId, AssistantItemState state, string? message, CancellationToken token)
     {
-        await store.MutateAsync(current =>
+        var changed = false;
+        var error = message is null ? null : MptLogRedactor.Redact(message);
+        await store.MutateIfChangedAsync(current =>
         {
             var row = current.Find(itemId);
-            if (row is null || row.State is AssistantItemState.Delivered or AssistantItemState.Cancelled) return;
+            if (row is null || row.State is AssistantItemState.Delivered or AssistantItemState.Cancelled) return false;
+            var bytesDone = state == AssistantItemState.Stored ? row.Size : row.BytesDone;
+            if (row.State == state && row.Error == error && row.BytesDone == bytesDone) return false;
             row.State = state;
-            row.Error = MptLogRedactor.Redact(message);
+            row.Error = error;
+            row.BytesDone = bytesDone;
+            return changed = true;
         }, token);
+        // Deposit runs independently of conversation sync. Notify only after its visible state has
+        // committed, so the last send refreshes without another send, receipt or page navigation.
+        // Repeated identical transient errors and receipt-only scheduler rounds stay silent.
+        if (changed) EmitAssistantChanged("inbox.deposit");
     }
 
     /// <summary>
