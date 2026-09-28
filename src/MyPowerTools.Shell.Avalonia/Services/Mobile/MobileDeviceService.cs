@@ -84,7 +84,9 @@ public sealed class MobileDeviceService : IMobileDeviceService
         }
 
         var peers = Peers(state["peers"] as JsonArray);
-        var relay = RelayState(state["cloud"] as JsonObject);
+        // The assistant prefers the module's assistant-relay view: it knows the public default transport,
+        // which the legacy OpenList summary cannot describe. Older modules only report the legacy view.
+        var relay = RelayState(state["assistantRelay"] as JsonObject ?? state["cloud"] as JsonObject);
         var settings = state["settings"] as JsonObject;
         return new MobileDeviceSnapshot(
             Text(state, "localName"),
@@ -115,7 +117,7 @@ public sealed class MobileDeviceService : IMobileDeviceService
     {
         var result = await ReadAsync(PairingCommand, new JsonObject(), cancellationToken);
         var code = Text(result, "code");
-        if (code.Length == 0) throw new InvalidOperationException("没有生成设备连接码，请连接 Tailscale 网络后重试。");
+        if (code.Length == 0) throw new InvalidOperationException("暂时无法生成设备连接码，请重试。");
         return code;
     }
 
@@ -147,20 +149,22 @@ public sealed class MobileDeviceService : IMobileDeviceService
     /// Maps the module's last relay measurement. <c>reachable</c> is null until a real conversation
     /// with the relay happened, and that state is reported as "not checked yet" rather than offline.
     /// </summary>
-    private static (bool Configured, bool Checked, bool Running, string Description) RelayState(JsonObject? cloud)
+    private static (bool Configured, bool Checked, bool Running, string Description) RelayState(JsonObject? relay)
     {
-        var configured = Flag(cloud, "configured");
-        if (!configured) return (false, false, false, "尚未配置中转网盘；手机可以用 Tailscale 直传，或先导入电脑的网盘连接码。");
+        var configured = Flag(relay, "configured");
+        var state = Text(relay, "state");
+        var message = Text(relay, "message");
+        if (!configured) return (false, false, false, "发送后会自动开始同步。");
 
-        var checkedAt = Timestamp(cloud, "checkedAt");
-        var message = Text(cloud, "message");
-        if (checkedAt is null)
-            return (true, false, false, "尚未检查中转网盘连接；可在文件互传设置里检查。会话里的条目会等待各设备写回真实回执。");
-
-        if (Flag(cloud, "reachable"))
-            return (true, true, true, "中转网盘可连接。文件助手会话里的条目由收到内容的设备写回真实回执；旧版文件记录没有回执信息，只显示已上传。");
-
-        return (true, true, false, message.Length > 0 ? message : "中转网盘暂时无法连接，请检查地址、网络和网盘状态。");
+        var checkedNow = state is "available" or "unavailable";
+        var running = state == "available";
+        var description = state switch
+        {
+            "available" => "同步连接正常。",
+            "unavailable" => message.Length > 0 ? message : "暂时无法同步，连接恢复后会继续。",
+            _ => "等待同步。"
+        };
+        return (true, checkedNow, running, description);
     }
 
     private static IReadOnlyList<MobilePeerInfo> Peers(JsonArray? peers)
