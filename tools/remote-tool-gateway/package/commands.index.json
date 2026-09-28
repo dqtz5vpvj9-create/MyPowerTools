@@ -1,0 +1,95 @@
+{
+  "schemaVersion": "1.0",
+  "commands": [
+    {
+      "id": "remote-tool-gateway.inspect",
+      "title": "inspect",
+      "subtitle": "远程工具访问",
+      "kind": "action",
+      "category": "Remote",
+      "execution": {
+        "type": "module.execute"
+      }
+    },
+    {
+      "id": "remote-tool-gateway.listener.start",
+      "title": "listener.start",
+      "subtitle": "远程工具访问",
+      "kind": "action",
+      "category": "Remote",
+      "execution": {
+        "type": "module.execute"
+      }
+    },
+    {
+      "id": "remote-tool-gateway.listener.stop",
+      "title": "listener.stop",
+      "subtitle": "远程工具访问",
+      "kind": "action",
+      "category": "Remote",
+      "execution": {
+        "type": "module.execute"
+      }
+    },
+    {
+      "id": "remote-tool-gateway.grant.create",
+      "title": "grant.create",
+      "subtitle": "远程工具访问",
+      "kind": "action",
+      "category": "Remote",
+      "execution": {
+        "type": "module.execute"
+      }
+    },
+    {
+      "id": "remote-tool-gateway.grant.update",
+      "title": "grant.update",
+      "subtitle": "远程工具访问",
+      "kind": "action",
+      "category": "Remote",
+      "execution": {
+        "type": "module.execute"
+      }
+    },
+    {
+      "id": "remote-tool-gateway.grant.revoke",
+      "title": "grant.revoke",
+      "subtitle": "远程工具访问",
+      "kind": "action",
+      "category": "Remote",
+      "execution": {
+        "type": "module.execute"
+      }
+    },
+    {
+      "id": "remote-tool-gateway.grant.code",
+      "title": "grant.code",
+      "subtitle": "远程工具访问",
+      "kind": "action",
+      "category": "Remote",
+      "execution": {
+        "type": "module.execute"
+      }
+    },
+    {
+      "id": "remote-tool-gateway.confirmation.claim",
+      "title": "confirmation.claim",
+      "subtitle": "远程工具访问",
+      "kind": "action",
+      "category": "Remote",
+      "execution": {
+        "type": "module.execute"
+      }
+    },
+    {
+      "id": "remote-tool-gateway.confirmation.resolve",
+      "title": "confirmation.resolve",
+      "subtitle": "远程工具访问",
+      "kind": "action",
+      "category": "Remote",
+      "execution": {
+        "type": "module.execute"
+      }
+    }
+  ]
+}
