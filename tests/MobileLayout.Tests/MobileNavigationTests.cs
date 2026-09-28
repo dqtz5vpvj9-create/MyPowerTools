@@ -46,6 +46,27 @@ public sealed class MobileNavigationTests
     }
 
     [AvaloniaFact]
+    public void Toasts_do_not_cover_the_exported_pairing_qr()
+    {
+        using var host = new TestToolHost(TestToolHost.DefaultPhoneCatalog());
+        var (shell, window) = CreateShell(390, new FakeMobileDeviceService());
+        try
+        {
+            host.CompleteInitialLoad();
+            MobileShellTests.PumpUntil(window, () => shell.Ready.IsCompleted && shell.PageLoad.IsCompleted, "home never loaded");
+            shell.ShowToast("已添加设备");
+            shell.ShowSheetAsync(MobileSheetKeys.LocalPairingCode).GetAwaiter().GetResult();
+            Pump(window);
+            var toast = Assert.Single(shell.GetVisualDescendants().OfType<Border>(), border => border.Classes.Contains("MptMobileToast"));
+            Assert.False(toast.IsVisible);
+            shell.ShowToast("连接码已复制");
+            Pump(window);
+            Assert.Equal(Avalonia.Layout.VerticalAlignment.Top, toast.VerticalAlignment);
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaFact]
     public void Local_pairing_code_renders_a_qr_without_network_state_and_clears_on_close()
     {
         var devices = new FakeMobileDeviceService

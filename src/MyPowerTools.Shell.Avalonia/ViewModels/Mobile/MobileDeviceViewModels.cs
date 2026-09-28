@@ -316,14 +316,14 @@ public sealed class MobileDevicesViewModel : ObservableViewModel
     {
         if (string.IsNullOrWhiteSpace(code))
         {
-            throw new ArgumentException("请输入电脑端显示的连接码。", nameof(code));
+            throw new ArgumentException("请输入另一台设备的连接码。", nameof(code));
         }
 
         await _devices.ImportPairingAsync(code.Trim()).ConfigureAwait(true);
         _data.InvalidateSnapshot();
         await LoadAsync(force: true).ConfigureAwait(true);
         await Navigator.CloseSheetAsync().ConfigureAwait(true);
-        Navigator.ShowToast("连接码已发送，请在电脑上确认这次配对");
+        Navigator.ShowToast("已添加设备");
     }
 
     /// <summary>The code this phone shows to the other device; the real secret-store value.</summary>

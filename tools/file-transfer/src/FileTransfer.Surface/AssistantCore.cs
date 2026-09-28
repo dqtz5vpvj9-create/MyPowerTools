@@ -394,9 +394,11 @@ internal sealed class AssistantCore : IDisposable
                 Str(item, "error"),
                 ReadReceipts(item["receipts"] as JsonArray)));
         }
-        // Newest first, the way a conversation reads. Entries without a time keep module order.
+        // The composer and ScrollToEnd are below the thread: append new messages at the bottom.
+        // The module returns newest first for its bounded history query, so reverse chronology here.
+        // Entries without a time keep their relative module order.
         return items
-            .OrderByDescending(item => item.CreatedAt ?? DateTimeOffset.MinValue)
+            .OrderBy(item => item.CreatedAt ?? DateTimeOffset.MinValue)
             .ToArray();
     }
 

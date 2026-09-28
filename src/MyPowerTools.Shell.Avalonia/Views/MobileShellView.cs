@@ -471,6 +471,8 @@ public sealed class MobileShellView : UserControl, IAsyncDisposable, IMobileNavi
         _focusBeforeSheet = TopLevel.GetTopLevel(this)?.FocusManager?.GetFocusedElement() as InputElement
             ?? _lastFocusedOutsideSheet;
         FocusDiagnostics = $"captured={_focusBeforeSheet?.GetType().Name ?? "null"}";
+        _toastTimer.Stop();
+        _toast.IsVisible = false;
         _viewModel.OpenSheet(sheetKey, argument);
         return Task.CompletedTask;
     }
@@ -531,6 +533,16 @@ public sealed class MobileShellView : UserControl, IAsyncDisposable, IMobileNavi
         }
 
         _toastText.Text = message;
+        if (_viewModel.IsSheetOpen)
+        {
+            _toast.VerticalAlignment = VerticalAlignment.Top;
+            _toast.Margin = new Thickness(20, 12, 20, 0);
+        }
+        else
+        {
+            _toast.ClearValue(VerticalAlignmentProperty);
+            _toast.ClearValue(MarginProperty);
+        }
         _toast.IsVisible = true;
         _toastTimer.Stop();
         _toastTimer.Start();

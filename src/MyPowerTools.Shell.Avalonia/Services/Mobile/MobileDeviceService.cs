@@ -195,7 +195,7 @@ public sealed class MobileDeviceService : IMobileDeviceService
             };
         var message = Text(peer, "message");
         if (message.Length == 0 && connection == MobilePeerConnectionState.Unknown)
-            message = address.Length == 0 ? "尚未记录地址，请重新导入对方连接码。" : "已配对，尚未检查。";
+            message = "已配对，发送时会自动选择连接方式。";
         return new MobilePeerInfo(
             deviceId,
             Text(peer, "name") is { Length: > 0 } name ? name : deviceId,
