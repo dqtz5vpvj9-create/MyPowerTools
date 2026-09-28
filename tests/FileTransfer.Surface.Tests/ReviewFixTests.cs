@@ -226,8 +226,8 @@ public sealed class ReviewFixTests : IDisposable
 
         Assert.Equal(AssistantDiscoveryState.Partial, view.Assistant.Snapshot.Discovery);
         Assert.Single(view.Assistant.Snapshot.Devices);
-        Assert.Contains("还有设备没有应答", view.Assistant.Snapshot.Status);
-        Assert.DoesNotContain("没有找到设备", view.Assistant.Snapshot.Status);
+        Assert.Contains("还有设备没有应答", view.Assistant.Snapshot.DiscoveryMessage);
+        Assert.DoesNotContain("没有找到设备", view.Assistant.Snapshot.DiscoveryMessage);
     }
 
     [AvaloniaFact]
@@ -241,8 +241,8 @@ public sealed class ReviewFixTests : IDisposable
         window.UpdateLayout();
 
         Assert.Equal(AssistantDiscoveryState.Unsupported, view.Assistant.Snapshot.Discovery);
-        Assert.Contains("无法自动查找", view.Assistant.Snapshot.Status);
-        Assert.DoesNotContain("没有找到设备", view.Assistant.Snapshot.Status);
+        Assert.Contains("无法自动查找", view.Assistant.Snapshot.DiscoveryMessage);
+        Assert.DoesNotContain("没有找到设备", view.Assistant.Snapshot.DiscoveryMessage);
     }
 
     [AvaloniaFact]

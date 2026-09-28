@@ -195,7 +195,8 @@ internal sealed record AssistantSnapshot(
     IReadOnlyList<AssistantDevice> Devices,
     AssistantDiscoveryState Discovery,
     string Status,
-    bool Busy)
+    bool Busy,
+    string DiscoveryMessage = "")
 {
     public static readonly AssistantSnapshot Empty = new(
         new AssistantIdentity("", "", false), [], [], AssistantRelayState.Unknown, "", false, [],

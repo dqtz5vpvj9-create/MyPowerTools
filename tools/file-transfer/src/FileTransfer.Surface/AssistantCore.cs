@@ -242,7 +242,7 @@ internal sealed class AssistantCore : IDisposable
         var run = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
         _discovery = run;
         var token = run.Token;
-        Publish(_snapshot with { Discovery = AssistantDiscoveryState.Searching, Status = "正在查找你的设备…" });
+        Publish(_snapshot with { Discovery = AssistantDiscoveryState.Searching, DiscoveryMessage = "正在查找你的设备…" });
         try
         {
             var answer = await CallAsync("devices", null, token);
@@ -265,7 +265,7 @@ internal sealed class AssistantCore : IDisposable
                     message is { Length: > 0 } ? message
                         : devices.Count == 0 ? "没有找到可用的设备。" : $"找到 {devices.Count} 台设备。")
             };
-            Publish(_snapshot with { Devices = devices, Discovery = discovery, Status = status });
+            Publish(_snapshot with { Devices = devices, Discovery = discovery, DiscoveryMessage = status });
         }
         catch (OperationCanceledException)
         {
@@ -275,15 +275,14 @@ internal sealed class AssistantCore : IDisposable
         {
             if (IsCurrentRun(run) && _pickerOpen)
             {
-                _capabilityMissing = true;
-                Publish(_snapshot with { Discovery = AssistantDiscoveryState.Unsupported, Status = "当前文件互传模块还没有设备发现功能。" });
+                Publish(_snapshot with { Discovery = AssistantDiscoveryState.Unsupported, DiscoveryMessage = "当前文件互传模块还没有设备发现功能。" });
             }
         }
         catch (Exception ex)
         {
             // A failure that lands after the picker closed is noise; the user has moved on.
             if (IsCurrentRun(run) && _pickerOpen)
-                Publish(_snapshot with { Discovery = AssistantDiscoveryState.Failed, Status = "查找设备失败：" + ex.Message });
+                Publish(_snapshot with { Discovery = AssistantDiscoveryState.Failed, DiscoveryMessage = "查找设备失败：" + ex.Message });
         }
         finally
         {

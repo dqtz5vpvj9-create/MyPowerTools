@@ -292,7 +292,8 @@ internal sealed partial class AssistantView
 
     private static string FriendlyStatus(string status)
     {
-        if (string.IsNullOrWhiteSpace(status) || status.Contains("查找") || status.Contains("中转") || status.Contains("模块") || status.Contains("同步") || status.Contains("http", StringComparison.OrdinalIgnoreCase) || status.Contains("Connection", StringComparison.OrdinalIgnoreCase)) return "";
+        if (status.Contains("http", StringComparison.OrdinalIgnoreCase) || status.Contains("Connection", StringComparison.OrdinalIgnoreCase))
+            return "操作未完成，请重试。连接详情可在诊断中查看。";
         return status;
     }
 }

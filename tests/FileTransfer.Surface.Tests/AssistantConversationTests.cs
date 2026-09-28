@@ -293,7 +293,7 @@ public sealed class AssistantConversationTests : IDisposable
 
         Assert.Equal(AssistantDiscoveryState.Completed, _core.Snapshot.Discovery);
         Assert.Empty(_core.Snapshot.Devices);
-        Assert.Contains("没有找到", _core.Snapshot.Status);
+        Assert.Contains("没有找到", _core.Snapshot.DiscoveryMessage);
     }
 
     [AvaloniaFact]
@@ -313,7 +313,7 @@ public sealed class AssistantConversationTests : IDisposable
         Assert.Equal(AssistantDiscoveryState.Failed, _core.Snapshot.Discovery);
         // A failed scan must not erase devices the module already told us about.
         Assert.Single(_core.Snapshot.Devices);
-        Assert.Contains("查找设备失败", _core.Snapshot.Status);
+        Assert.Contains("查找设备失败", _core.Snapshot.DiscoveryMessage);
     }
 
     [AvaloniaFact]

@@ -400,6 +400,13 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
             () => { ShowSheet(_receiveSheet); SyncReceive(); return Task.CompletedTask; }));
         choices.Children.Add(MobileUi.ListRow("MptMobileIconSend", "发给设备", "把待发送的内容直接发给某一台设备",
             () => { ShowDeviceSheet(); return Task.CompletedTask; }));
+        choices.Children.Add(MobileUi.ListRow("MptMobileIconPulse", "连接诊断", "查看最近的连接检查结果", () =>
+        {
+            _sheetTitle.Text = "连接诊断";
+            _sheetScroll.Content = MobileUi.Stack(8, MobileUi.Body(_core.Snapshot.DiscoveryMessage), MobileUi.Body(_core.Snapshot.RelayMessage));
+            OpenSheet();
+            return Task.CompletedTask;
+        }));
         var advanced = MobileUi.QuietButton("更多设置");
         advanced.Click += (_, _) => _ = OpenAdvancedAsync();
         return MobileUi.Stack(10,

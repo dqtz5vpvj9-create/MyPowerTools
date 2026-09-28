@@ -174,6 +174,33 @@ public sealed class ConversationV2Tests
         Assert.Equal(0, module.CountCalls("assistant.send"));
     }
 
+    [AvaloniaFact]
+    public void Discovery_diagnostics_do_not_replace_send_feedback_or_disable_remembered_targets()
+    {
+        var module = new FakeTransferModule
+        {
+            AssistantDiscoveryState = "unsupported",
+            AssistantDevicesMessage = "Tailscale 不可用，本次没有 Tailnet 候选。"
+        };
+        module.AddPeer("laptop", "LIS-IMAC", "");
+        var view = new TransferView(module.Context(Path.GetTempPath()));
+        using var host = new Host(view);
+        view.Assistant.PublishOnUi(view.Assistant.Snapshot with { Status = "发送未完成，请重新添加这台设备。" });
+        view.Conversation.OpenDevicePicker();
+        host.Settle();
+        Assert.Contains("Tailscale", view.Assistant.Snapshot.DiscoveryMessage);
+        Assert.Equal("发送未完成，请重新添加这台设备。", view.Assistant.Snapshot.Status);
+        var target = view.Conversation.SheetHost.GetLogicalDescendants().OfType<Button>()
+            .Single(b => AutomationProperties.GetName(b) == "选择 LIS-IMAC");
+        Assert.True(target.IsEnabled);
+        Click(host.Window, target);
+        Assert.Equal("laptop", view.Conversation.SelectedTargetDeviceId);
+        Assert.DoesNotContain(view.GetLogicalDescendants().OfType<TextBlock>(),
+            t => t.IsEffectivelyVisible && (t.Text?.Contains("Tailscale") == true || t.Text?.Contains("Tailnet") == true));
+        Assert.Contains(view.GetLogicalDescendants().OfType<TextBlock>(),
+            t => t.IsEffectivelyVisible && t.Text == "发送未完成，请重新添加这台设备。");
+    }
+
     private static FakeTransferModule History(bool files)
     {
         var module = new FakeTransferModule { AssistantLinked = true };
