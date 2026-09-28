@@ -20,6 +20,32 @@ namespace MobileLayout.Tests;
 public sealed class MobileNavigationTests
 {
     [AvaloniaFact]
+    public void Scanning_a_device_code_prepares_the_form_without_importing_it()
+    {
+        var devices = new FakeMobileDeviceService();
+        using var host = new TestToolHost(TestToolHost.DefaultPhoneCatalog());
+        var (shell, window) = CreateShell(390, devices);
+        try
+        {
+            host.CompleteInitialLoad();
+            MobileShellTests.PumpUntil(window, () => shell.Ready.IsCompleted && shell.PageLoad.IsCompleted, "home never loaded");
+            shell.SetNativeSurfaceServices(_ => Task.FromResult<string?>(devices.PairingCode), null);
+            shell.ShowSheetAsync(MobileSheetKeys.PairDevice).GetAwaiter().GetResult();
+            Pump(window);
+            var scan = Assert.Single(shell.GetVisualDescendants().OfType<Button>(),
+                button => AutomationProperties.GetName(button) == "扫描设备连接码");
+            scan.Command!.Execute(null);
+            Pump(window);
+            var field = Assert.Single(shell.GetVisualDescendants().OfType<TextBox>(),
+                box => AutomationProperties.GetName(box) == "连接码");
+            Assert.Equal(devices.PairingCode, field.Text);
+            Assert.Empty(devices.ImportedCodes);
+            Assert.True(shell.IsSheetOpen);
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaFact]
     public void Local_pairing_code_renders_a_qr_without_network_state_and_clears_on_close()
     {
         var devices = new FakeMobileDeviceService

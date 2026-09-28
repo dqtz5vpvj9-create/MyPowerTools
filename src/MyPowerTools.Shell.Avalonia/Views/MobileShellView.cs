@@ -48,6 +48,7 @@ public sealed class MobileShellView : UserControl, IAsyncDisposable, IMobileNavi
     private TextBlock _sheetSubtitle = null!;
     private int _sheetGeneration;
     private MyPowerTools.AvaloniaSdk.Controls.MptQrCode? _pairingQr;
+    private Func<CancellationToken, Task<string?>>? _scanConnectionCodeAsync;
     private Border _toast = null!;
     private TextBlock _toastText = null!;
     private DispatcherTimer _toastTimer = null!;
@@ -301,8 +302,11 @@ public sealed class MobileShellView : UserControl, IAsyncDisposable, IMobileNavi
     /// </summary>
     public void SetNativeSurfaceServices(
         Func<CancellationToken, Task<string?>>? scanConnectionCodeAsync,
-        Func<string, CancellationToken, Task<bool>>? openFileAsync) =>
+        Func<string, CancellationToken, Task<bool>>? openFileAsync)
+    {
+        _scanConnectionCodeAsync = scanConnectionCodeAsync;
         _workspace.SetNativeSurfaceServices(scanConnectionCodeAsync, openFileAsync);
+    }
 
     public async Task ActivateAsync(ToolActivationRequest request)
     {
@@ -857,9 +861,10 @@ public sealed class MobileShellView : UserControl, IAsyncDisposable, IMobileNavi
     private (string Title, string Subtitle, Control Content) BuildPairSheet()
     {
         var viewModel = _viewModel.Devices;
+        var generation = _sheetGeneration;
         var stack = new StackPanel { Spacing = 12 };
         stack.Children.Add(MobileElements.Banner(
-            "在电脑上打开 MPT，选择“添加设备”，再输入那边显示的连接码。双方确认后才会连接。",
+            "在另一台设备打开“本机连接码”，扫描或粘贴到这里。",
             "MptMobileBannerQuiet"));
         stack.Children.Add(MobileElements.Caption("连接码"));
         var input = new TextBox { PlaceholderText = "连接码", MinHeight = 48 };
@@ -869,6 +874,26 @@ public sealed class MobileShellView : UserControl, IAsyncDisposable, IMobileNavi
         var error = MobileElements.Text("", "MptMobileErrorText");
         error.IsVisible = false;
         stack.Children.Add(error);
+        if (_scanConnectionCodeAsync is { } scan)
+        {
+            stack.Children.Insert(1, MobileElements.Secondary("扫描二维码", new AsyncRelayCommand(async () =>
+            {
+                try
+                {
+                    var value = await scan(CancellationToken.None).ConfigureAwait(true);
+                    if (generation != _sheetGeneration || !_viewModel.IsSheetOpen || string.IsNullOrWhiteSpace(value)) return;
+                    input.Text = value;
+                    error.IsVisible = false;
+                }
+                catch (OperationCanceledException) { }
+                catch (Exception ex)
+                {
+                    if (generation != _sheetGeneration || !_viewModel.IsSheetOpen) return;
+                    error.Text = ex.Message;
+                    error.IsVisible = true;
+                }
+            }), "扫描设备连接码"));
+        }
         var connect = MobileElements.Primary("连接设备", null, "连接设备");
         connect.Command = new AsyncRelayCommand(async () =>
         {
