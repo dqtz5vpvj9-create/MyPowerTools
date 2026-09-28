@@ -30,7 +30,7 @@ internal sealed class MobileSettingsView : UserControl
         BindRowSubtitle(appearance, viewModel, nameof(MobileSettingsViewModel.AppearanceLabel));
 
         var permissions = MobileElements.ListRow("\u26E8", "设备权限与审计", "查看已允许的操作与 Broker 记录", "", viewModel.PermissionsCommand, "设备权限与审计");
-        var relay = MobileElements.ListRow("\u2601", "网盘中转", "", "", viewModel.RelayCommand, "网盘中转");
+        var relay = MobileElements.ListRow("\u2601", "文件同步", "", "", viewModel.RelayCommand, "文件同步");
         BindRowSubtitle(relay, viewModel, nameof(MobileSettingsViewModel.RelaySummary));
 
         var notice = MobileElements.Banner("", "MptMobileBannerQuiet");

@@ -326,6 +326,26 @@ public sealed class ReviewFixTests : IDisposable
     // ---- helpers ----------------------------------------------------------------------------
 
     [AvaloniaTheory]
+    [InlineData("unconfigured")]
+    [InlineData("unavailable")]
+    public async Task A_connection_code_stays_available_when_no_network_path_is_ready(string relay)
+    {
+        _module.AssistantRelayState = relay;
+        var view = Open(390, out var window);
+        await TestPump.RunAsync(() => view.Conversation.OpenLinkSheetForTestAsync());
+        window.UpdateLayout();
+
+        Assert.Equal(_module.LinkCode, view.Conversation.QrValue);
+        var copy = Assert.Single(Descendants(view.Conversation.SheetHost).OfType<Button>(),
+            button => button.Content as string == "复制连接码");
+        Assert.True(copy.IsEnabled);
+        var text = TextOf(view.Conversation.SheetHost);
+        Assert.DoesNotContain("先连接", text);
+        Assert.DoesNotContain("中转暂时不可用", text);
+        Assert.DoesNotContain("启用中转", text);
+    }
+
+    [AvaloniaTheory]
     [InlineData("unconfigured", false)]
     [InlineData("available", false)]
     [InlineData("unavailable", true)]

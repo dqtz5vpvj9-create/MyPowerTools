@@ -137,7 +137,7 @@ internal sealed record AssistantDevice(
     };
 
     /// <summary>Only the module's answer turns a discovered device into a reachable one.</summary>
-    public string StateText => Available ? "可用" : Paired ? "已配对，当前不可用" : "需要对方确认";
+    public string StateText => Available ? "当前可连接" : Paired ? "已配对" : "需要对方确认";
 }
 
 /// <summary>One inbound transfer waiting for this device to accept or reject it.</summary>
@@ -222,10 +222,10 @@ internal sealed record AssistantSnapshot(
 
     public string RelayText => Relay switch
     {
-        AssistantRelayState.Unconfigured => "未启用离线收件：只在本机保存，不会同步到其他设备。",
-        AssistantRelayState.Available => "离线收件已启用。",
+        AssistantRelayState.Unconfigured => "同步服务尚未就绪，待发内容会保存在本机。",
+        AssistantRelayState.Available => "同步服务可用。",
         AssistantRelayState.Unavailable => RelayMessage is { Length: > 0 } message ? "中转暂时不可用：" + message : "中转暂时不可用，恢复后会自动继续。",
-        _ => "中转状态尚未检查。"
+        _ => "等待同步。"
     };
 
     /// <summary>Only a checked-and-available relay may claim that other devices will see an entry.</summary>

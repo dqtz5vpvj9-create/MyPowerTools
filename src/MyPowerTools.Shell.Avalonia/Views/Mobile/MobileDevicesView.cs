@@ -162,10 +162,10 @@ internal sealed class MobileDevicesView : UserControl
             HorizontalContentAlignment = HorizontalAlignment.Stretch
         };
         button.Classes.Add("MptMobileListRow");
-        AutomationProperties.SetName(button, "网盘中转");
+        AutomationProperties.SetName(button, "文件同步");
 
         var section = new StackPanel { Spacing = 8 };
-        section.Children.Add(MobileElements.SectionTitle("网盘中转"));
+        section.Children.Add(MobileElements.SectionTitle("文件同步"));
         section.Children.Add(MobileElements.Card(button, "MptMobileListCard"));
         return section;
     }

@@ -67,9 +67,9 @@ public sealed class MobileSettingsViewModel : ObservableViewModel
 
     public string RelaySummary => _data.Snapshot is { RelayConfigured: true } snapshot
         ? snapshot.RelayRunning
-            ? "已连接 · 正在运行"
-            : snapshot.RelayChecked ? "已连接 · 未运行" : "已连接 · 尚未检查"
-        : "还未设置";
+            ? "同步服务可用"
+            : snapshot.RelayChecked ? "等待恢复连接" : "等待同步"
+        : "同步服务尚未就绪";
 
     public string DeviceNotice => _data.Snapshot?.Notice ?? "";
     public bool HasDeviceNotice => DeviceNotice.Length > 0;

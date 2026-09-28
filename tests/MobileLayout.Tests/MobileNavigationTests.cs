@@ -20,6 +20,34 @@ namespace MobileLayout.Tests;
 public sealed class MobileNavigationTests
 {
     [AvaloniaFact]
+    public void Local_pairing_code_renders_a_qr_without_network_state_and_clears_on_close()
+    {
+        var devices = new FakeMobileDeviceService
+        {
+            Snapshot = new MobileDeviceSnapshot("本机", false, [], false, false, null, [], LocalAddress: null)
+        };
+        using var host = new TestToolHost(TestToolHost.DefaultPhoneCatalog());
+        var (shell, window) = CreateShell(390, devices);
+        try
+        {
+            host.CompleteInitialLoad();
+            MobileShellTests.PumpUntil(window, () => shell.Ready.IsCompleted && shell.PageLoad.IsCompleted, "home never loaded");
+            shell.ShowSheetAsync(MobileSheetKeys.LocalPairingCode).GetAwaiter().GetResult();
+            Pump(window);
+            var qr = Assert.Single(shell.GetVisualDescendants().OfType<MyPowerTools.AvaloniaSdk.Controls.MptQrCode>());
+            Assert.Equal(devices.PairingCode, qr.Value);
+            Assert.True(qr.IsVisible);
+            Assert.True(qr.Bounds.Width >= 240);
+            var copy = Assert.Single(shell.GetVisualDescendants().OfType<Button>(),
+                button => AutomationProperties.GetName(button) == "复制连接码");
+            Assert.True(copy.IsEnabled);
+            RunBack(window, shell);
+            Assert.Null(qr.Value);
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaFact]
     public void Avatar_opens_settings_and_back_returns_to_常用()
     {
         using var host = new TestToolHost(TestToolHost.DefaultPhoneCatalog());
@@ -173,7 +201,7 @@ public sealed class MobileNavigationTests
             MobileShellTests.PumpUntil(window, () => shell.PageLoad.IsCompleted && shell.ViewModel.Devices.Peers.Count == 1, "设备 tab never loaded");
 
             var peer = shell.ViewModel.Devices.Peers[0];
-            Assert.Equal("已配对 · 尚未检查", peer.StateLabel);
+            Assert.Equal("已配对", peer.StateLabel);
             peer.OpenCommand.Execute(null);
             MobileShellTests.PumpUntil(window, () => shell.CurrentPhonePageKey == MobilePageKeys.DeviceDetail, "device detail never opened");
             Assert.Equal("书房的电脑", shell.ViewModel.DeviceDetail!.Name);

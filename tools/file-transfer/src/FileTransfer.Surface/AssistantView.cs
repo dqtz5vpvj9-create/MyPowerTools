@@ -433,8 +433,8 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
     }
 
     private StackPanel BuildReceiveSheet() => MobileUi.Stack(10,
-        MobileUi.Note("开启后，另一台设备可以直接把文件发到这台设备；需要保持 MPT 在运行。"),
-        MobileUi.Note("这不等同于离线收件：接收文件时本机必须在线并有 MPT 在运行，本机不在线时对方无法留文件。"),
+        MobileUi.Note("开启后自动接收发给这台设备的内容。"),
+        MobileUi.Note("离线时文件会等待你回来；重新打开 MPT 后继续接收。"),
         _receiveState,
         _receiveToggle,
         _receiveFolder);
@@ -957,13 +957,12 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
         var receiving = _core.Snapshot.Receiving;
         _receiveToggle.Content = receiving ? "停止接收" : "允许接收";
         _receiveFolder.IsVisible = !OperatingSystem.IsAndroid();
-        // The receiving session is the direct receiver: it accepts files while MPT runs, and it does
-        // not make this device reachable while it is offline.
+        // This is the user's receiving preference, independent of any individual network listener.
         _receiveState.Text = receiving
             ? OperatingSystem.IsAndroid()
-                ? "接收已开启，保持 MPT 运行即可收到文件，收到的文件会发布到系统“下载”目录。"
-                : "接收已开启，保持 MPT 运行即可收到文件，文件会保存到收件文件夹。"
-            : "接收未开启：另一台设备现在发不过来。";
+                ? "已开启自动接收，收到的文件可直接打开。"
+                : "已开启自动接收，收到的文件会保存在本机。"
+            : "已暂停自动接收。";
     }
 
     private void SyncLinkSheet()
@@ -971,7 +970,7 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
         var state = _core.Snapshot;
         _linkState.Text = state.Identity.Linked
             ? $"已连接：{state.Identity.DisplayName}"
-            : state.RelayBlocked ? state.RelayText : "还没有连接其他设备。";
+            : "用另一台设备扫描，即可共享你的文件助手。";
     }
 
     private static string Kind(string name)
@@ -1074,7 +1073,7 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
         {
             AssistantRelayState.Available => "已加入会话，其他设备打开后会看到。",
             AssistantRelayState.Unavailable => "已在本机排队。中转暂时不可用，恢复后会自动继续。",
-            AssistantRelayState.Unconfigured => "已在本机排队。启用中转后才会同步到其他设备。",
+            AssistantRelayState.Unconfigured => "已在本机排队，等待同步服务就绪。",
             _ => "已在本机排队，中转状态尚未确认。"
         };
     }
@@ -1238,7 +1237,7 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
         var start = !_core.Snapshot.Receiving;
         await _legacy.CallAsync(start ? "receive.start" : "receive.stop");
         await _core.RefreshAsync();
-        _core.PublishOnUi(_core.Snapshot with { Status = start ? "已允许接收，保持 MPT 运行才能收到文件。" : "已停止接收。" });
+        _core.PublishOnUi(_core.Snapshot with { Status = start ? "已开启自动接收。" : "已暂停自动接收。" });
         SyncReceive();
     }
 

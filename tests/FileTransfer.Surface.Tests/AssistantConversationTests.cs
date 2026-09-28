@@ -82,7 +82,7 @@ public sealed class AssistantConversationTests : IDisposable
 
         var device = Assert.Single(_core.Snapshot.Devices);
         Assert.False(device.Paired);
-        Assert.Equal("可用", device.StateText);
+        Assert.Equal("当前可连接", device.StateText);
 
         await TestPump.RunAsync(() => _core.SendAsync(null, [file], device.DeviceId));
 
@@ -144,7 +144,7 @@ public sealed class AssistantConversationTests : IDisposable
         Assert.Single(_core.Snapshot.Items);
         Assert.Equal(AssistantRelayState.Unconfigured, _core.Snapshot.Relay);
         Assert.True(_core.Snapshot.RelayBlocked);
-        Assert.Contains("不会同步到其他设备", _core.Snapshot.RelayText);
+        Assert.Contains("待发内容会保存在本机", _core.Snapshot.RelayText);
         Assert.False(_core.Snapshot.CanSync);
     }
 

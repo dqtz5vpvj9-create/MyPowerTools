@@ -46,6 +46,8 @@ public sealed class MobileShellView : UserControl, IAsyncDisposable, IMobileNavi
     private Grid _sheetLayer = null!;
     private TextBlock _sheetTitle = null!;
     private TextBlock _sheetSubtitle = null!;
+    private int _sheetGeneration;
+    private MyPowerTools.AvaloniaSdk.Controls.MptQrCode? _pairingQr;
     private Border _toast = null!;
     private TextBlock _toastText = null!;
     private DispatcherTimer _toastTimer = null!;
@@ -826,6 +828,9 @@ public sealed class MobileShellView : UserControl, IAsyncDisposable, IMobileNavi
 
     private void RebuildSheet()
     {
+        _sheetGeneration++;
+        if (_pairingQr is not null) _pairingQr.Value = null;
+        _pairingQr = null;
         if (!_viewModel.IsSheetOpen)
         {
             _sheetHost.Content = null;
@@ -880,16 +885,25 @@ public sealed class MobileShellView : UserControl, IAsyncDisposable, IMobileNavi
         });
         stack.Children.Add(connect);
         stack.Children.Add(MobileElements.Secondary("显示本机连接码", viewModel.ShowPairingCodeCommand, "显示本机连接码"));
-        return ("添加设备", "使用现有连接码，不使用截短的短码。", stack);
+        return ("添加设备", "粘贴对方的连接码，确认后添加。", stack);
     }
 
     private (string Title, string Subtitle, Control Content) BuildPairingCodeSheet()
     {
         var viewModel = _viewModel.Devices;
+        var generation = _sheetGeneration;
         var stack = new StackPanel { Spacing = 12 };
-        var code = MobileElements.Text("正在读取…", "MptMobileConnectionCode");
+        var qr = new MyPowerTools.AvaloniaSdk.Controls.MptQrCode
+        {
+            Width = 240, Height = 240,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            IsVisible = false
+        };
+        _pairingQr = qr;
+        stack.Children.Add(qr);
+        var code = MobileElements.Caption("正在生成连接码…");
         stack.Children.Add(code);
-        stack.Children.Add(MobileElements.Caption("在另一台设备的 MPT 里选择“添加设备”，输入这个连接码。"));
+        stack.Children.Add(MobileElements.Caption("用另一台设备扫描，或复制连接码到“添加设备”。"));
         var copy = MobileElements.Secondary("复制连接码", null, "复制连接码");
         copy.IsEnabled = false;
         stack.Children.Add(copy);
@@ -897,17 +911,21 @@ public sealed class MobileShellView : UserControl, IAsyncDisposable, IMobileNavi
         error.IsVisible = false;
         stack.Children.Add(error);
         _ = LoadCodeAsync();
-        return ("本机连接码", "只在本机显示。", stack);
+        return ("本机连接码", viewModel.LocalName, stack);
 
         async Task LoadCodeAsync()
         {
             try
             {
                 var value = await viewModel.GetPairingCodeAsync().ConfigureAwait(true);
-                code.Text = value;
+                if (generation != _sheetGeneration || !_viewModel.IsSheetOpen) return;
+                qr.Value = value;
+                qr.IsVisible = true;
+                code.IsVisible = false;
                 copy.IsEnabled = true;
                 copy.Command = new AsyncRelayCommand(async () =>
                 {
+                    if (generation != _sheetGeneration || !_viewModel.IsSheetOpen) return;
                     if (TopLevel.GetTopLevel(this)?.Clipboard is { } clipboard)
                     {
                         var data = new DataTransfer();
@@ -919,7 +937,8 @@ public sealed class MobileShellView : UserControl, IAsyncDisposable, IMobileNavi
             }
             catch (Exception ex)
             {
-                code.Text = "暂时无法读取连接码";
+                if (generation != _sheetGeneration || !_viewModel.IsSheetOpen) return;
+                code.Text = "暂时无法生成连接码";
                 error.Text = ex.Message;
                 error.IsVisible = true;
             }
@@ -930,14 +949,14 @@ public sealed class MobileShellView : UserControl, IAsyncDisposable, IMobileNavi
     {
         var viewModel = _viewModel.Devices;
         var stack = new StackPanel { Spacing = 12 };
-        var state = MobileElements.ListRow("\u2601", viewModel.RelaySummary, viewModel.RelayDetail, "", null, "网盘中转");
+        var state = MobileElements.ListRow("\u2601", viewModel.RelaySummary, viewModel.RelayDetail, "", null, "文件同步");
         stack.Children.Add(MobileElements.Card(state, "MptMobileListCard"));
         stack.Children.Add(MobileElements.Banner(
-            "网盘中转由已配对的电脑提供。这里显示设备服务报告的真实状态，不会代替授权。",
+            "发送时自动选择可用连接。对方离线时先保留文件，上线后继续接收。",
             "MptMobileBannerQuiet"));
         stack.Children.Add(MobileElements.Secondary("刷新状态", new AsyncRelayCommand(() => viewModel.LoadAsync(force: true)), "刷新中转状态"));
         stack.Children.Add(MobileElements.Primary("完成", new AsyncRelayCommand(CloseSheetAsync), "完成"));
-        return ("网盘中转", viewModel.RelaySummary, stack);
+        return ("文件同步", viewModel.RelaySummary, stack);
     }
 
     private (string Title, string Subtitle, Control Content) BuildPermissionsSheet()

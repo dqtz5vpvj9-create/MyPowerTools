@@ -741,7 +741,7 @@ internal sealed partial class TransferMobileView : UserControl, IMptAvaloniaSurf
     private async Task CopyPairingAsync()
     {
         var response = await _core.CallAsync("pairing");
-        var code = TransferCore.Str(response, "code") ?? throw new InvalidOperationException("无法生成本机连接码，请先连接 Tailscale 网络。");
+        var code = TransferCore.Str(response, "code") ?? throw new InvalidOperationException("未能生成本机连接码，请重试。");
         await CopyTextAsync(code);
         _core.PublishOnUi(_core.Snapshot with { Status = "连接码已复制，发给另一台设备导入。" });
     }

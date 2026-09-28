@@ -52,9 +52,9 @@ public sealed class MobilePeerItemViewModel : ObservableViewModel
 
     public string StateLabel => _peer.ConnectionState switch
     {
-        MobilePeerConnectionState.Online => "在线",
-        MobilePeerConnectionState.Offline => "离线",
-        _ => "已配对 · 尚未检查"
+        MobilePeerConnectionState.Online => "当前可连接",
+        MobilePeerConnectionState.Offline => "已配对 · 等待连接",
+        _ => "已配对"
     };
 
     public string StateDetail => _peer.Message is { Length: > 0 } message
@@ -67,7 +67,7 @@ public sealed class MobilePeerItemViewModel : ObservableViewModel
             MobilePeerConnectionState.Offline => _peer.CheckedAt is { } offline
                 ? $"最近检查未应答 · {MobileHomeViewModel.FormatTimestamp(offline)}"
                 : "最近检查未收到应答",
-            _ => "只有设备地址时不会显示在线；点“检查连接”向设备发起一次真实请求。"
+            _ => "发送时会自动选择可用的连接。"
         };
 
     public string CapabilityLabel => _peer.SupportsToolControl ? "允许电脑工具控制" : "仅文件互传与通知";
@@ -171,17 +171,17 @@ public sealed class MobileDevicesViewModel : ObservableViewModel
         ? snapshot.LocalDeviceName
         : "本机";
     public string LocalDetail => (_data.Snapshot?.Receiving ?? false)
-        ? "正在接收文件"
-        : "接收状态未知或未开启";
+        ? "自动接收已开启"
+        : "自动接收未开启";
     public bool Receiving => _data.Snapshot?.Receiving ?? false;
 
     public bool RelayConfigured => _data.Snapshot?.RelayConfigured ?? false;
     public bool RelayRunning => _data.Snapshot?.RelayRunning ?? false;
     public string RelaySummary => RelayConfigured
-        ? (RelayRunning ? "中转服务运行中" : RelayChecked ? "已配置 · 未运行" : "已配置 · 尚未检查")
-        : "连接一个网盘";
+        ? (RelayRunning ? "同步服务可用" : RelayChecked ? "等待恢复连接" : "等待同步")
+        : "同步服务尚未就绪";
     public string RelayDetail => _data.Snapshot?.RelayDescription
-        ?? (RelayConfigured ? "设备离线时也能转交" : "给不在线的设备，留一份文件");
+        ?? "待发内容会保留，连接恢复后继续发送。";
 
     /// <summary>True when the relay state is a measured result rather than "never checked".</summary>
     public bool RelayChecked => _data.Snapshot?.RelayChecked ?? false;
