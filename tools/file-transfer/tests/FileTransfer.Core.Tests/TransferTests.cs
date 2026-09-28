@@ -1,6 +1,7 @@
 using System.Net;
 using System.Net.Sockets;
 using FileTransfer.Core;
+using FileTransfer.Core.Assistant;
 using MyPowerTools.Abstractions;
 
 namespace FileTransfer.Tests;

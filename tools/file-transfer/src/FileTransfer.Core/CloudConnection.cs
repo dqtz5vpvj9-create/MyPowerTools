@@ -1,6 +1,10 @@
 using System.Text.Json;
+using FileTransfer.Core.Assistant;
 
 namespace FileTransfer.Core;
+
+/// <summary>One item in a relay inbox, as published by its manifest.</summary>
+public sealed record CloudFile(int Version, string Id, string Name, long Size, string Sender, DateTimeOffset CreatedAt);
 
 public sealed record CloudConnection(string Url, string Username, string Password)
 {

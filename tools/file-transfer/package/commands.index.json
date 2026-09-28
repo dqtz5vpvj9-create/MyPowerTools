@@ -42,6 +42,26 @@
       }
     },
     {
+      "id": "file-transfer.peer.check",
+      "title": "peer.check",
+      "subtitle": "文件互传",
+      "kind": "action",
+      "category": "Files",
+      "execution": {
+        "type": "module.execute"
+      }
+    },
+    {
+      "id": "file-transfer.peers.remove",
+      "title": "peers.remove",
+      "subtitle": "文件互传",
+      "kind": "action",
+      "category": "Files",
+      "execution": {
+        "type": "module.execute"
+      }
+    },
+    {
       "id": "file-transfer.receive.start",
       "title": "receive.start",
       "subtitle": "文件互传",
@@ -164,6 +184,116 @@
     {
       "id": "file-transfer.cloud.import",
       "title": "cloud.import",
+      "subtitle": "文件互传",
+      "kind": "action",
+      "category": "Files",
+      "execution": {
+        "type": "module.execute"
+      }
+    },
+    {
+      "id": "file-transfer.assistant.inspect",
+      "title": "assistant.inspect",
+      "subtitle": "文件互传",
+      "kind": "action",
+      "category": "Files",
+      "execution": {
+        "type": "module.execute"
+      }
+    },
+    {
+      "id": "file-transfer.assistant.send",
+      "title": "assistant.send",
+      "subtitle": "文件互传",
+      "kind": "action",
+      "category": "Files",
+      "execution": {
+        "type": "module.execute"
+      }
+    },
+    {
+      "id": "file-transfer.assistant.sync",
+      "title": "assistant.sync",
+      "subtitle": "文件互传",
+      "kind": "action",
+      "category": "Files",
+      "execution": {
+        "type": "module.execute"
+      }
+    },
+    {
+      "id": "file-transfer.assistant.retry",
+      "title": "assistant.retry",
+      "subtitle": "文件互传",
+      "kind": "action",
+      "category": "Files",
+      "execution": {
+        "type": "module.execute"
+      }
+    },
+    {
+      "id": "file-transfer.assistant.cancel",
+      "title": "assistant.cancel",
+      "subtitle": "文件互传",
+      "kind": "action",
+      "category": "Files",
+      "execution": {
+        "type": "module.execute"
+      }
+    },
+    {
+      "id": "file-transfer.assistant.open",
+      "title": "assistant.open",
+      "subtitle": "文件互传",
+      "kind": "action",
+      "category": "Files",
+      "execution": {
+        "type": "module.execute"
+      }
+    },
+    {
+      "id": "file-transfer.assistant.devices",
+      "title": "assistant.devices",
+      "subtitle": "文件互传",
+      "kind": "action",
+      "category": "Files",
+      "execution": {
+        "type": "module.execute"
+      }
+    },
+    {
+      "id": "file-transfer.assistant.receive.respond",
+      "title": "assistant.receive.respond",
+      "subtitle": "文件互传",
+      "kind": "action",
+      "category": "Files",
+      "execution": {
+        "type": "module.execute"
+      }
+    },
+    {
+      "id": "file-transfer.assistant.link.export",
+      "title": "assistant.link.export",
+      "subtitle": "文件互传",
+      "kind": "action",
+      "category": "Files",
+      "execution": {
+        "type": "module.execute"
+      }
+    },
+    {
+      "id": "file-transfer.assistant.link.preview",
+      "title": "assistant.link.preview",
+      "subtitle": "文件互传",
+      "kind": "action",
+      "category": "Files",
+      "execution": {
+        "type": "module.execute"
+      }
+    },
+    {
+      "id": "file-transfer.assistant.link.import",
+      "title": "assistant.link.import",
       "subtitle": "文件互传",
       "kind": "action",
       "category": "Files",

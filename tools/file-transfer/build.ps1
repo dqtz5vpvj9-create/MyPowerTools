@@ -2,7 +2,8 @@
 param(
     [string]$MyPowerToolsRepoRoot,
     [ValidateSet('Debug', 'Release')]
-    [string]$Configuration = 'Release'
+    [string]$Configuration = 'Release',
+    [switch]$NoMirror
 )
 $ErrorActionPreference = 'Stop'
 $repo = if ($MyPowerToolsRepoRoot) { [IO.Path]::GetFullPath($MyPowerToolsRepoRoot) } else { [IO.Path]::GetFullPath((Join-Path $PSScriptRoot '../..')) }
@@ -34,7 +35,7 @@ foreach ($item in Get-ChildItem -LiteralPath $template) {
 
 foreach ($project in @('FileTransfer.MyPowerTools', 'FileTransfer.Surface')) {
     $destination = if ($project.EndsWith('.Surface')) { $surface } else { $staging }
-    & $dotnet build (Join-Path $PSScriptRoot "src/$project/$project.csproj") -c $Configuration --nologo -o $destination "-p:MyPowerToolsRepoRoot=$repo"
+    & $dotnet build (Join-Path $PSScriptRoot "src/$project/$project.csproj") -c $Configuration --nologo -o $destination "-p:MyPowerToolsRepoRoot=$repo" '-p:StageRepositoryModule=false'
     if ($LASTEXITCODE -ne 0) { throw "Build failed: $project" }
 }
 
@@ -53,11 +54,13 @@ if (Test-Path -LiteralPath $package) {
 }
 Move-Item -LiteralPath $staging -Destination $package
 
-if (Test-Path -LiteralPath $module) {
-    Remove-Item -LiteralPath $module -Recurse -Force
-}
-New-Item -ItemType Directory -Path $module -Force | Out-Null
-foreach ($item in Get-ChildItem -LiteralPath $package) {
-    Copy-Item -LiteralPath $item.FullName -Destination $module -Recurse -Force
+if (-not $NoMirror) {
+    if (Test-Path -LiteralPath $module) {
+        Remove-Item -LiteralPath $module -Recurse -Force
+    }
+    New-Item -ItemType Directory -Path $module -Force | Out-Null
+    foreach ($item in Get-ChildItem -LiteralPath $package) {
+        Copy-Item -LiteralPath $item.FullName -Destination $module -Recurse -Force
+    }
 }
 Write-Output "File Transfer staged at $package"

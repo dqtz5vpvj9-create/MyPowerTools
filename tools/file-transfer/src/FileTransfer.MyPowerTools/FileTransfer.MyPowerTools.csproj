@@ -2,7 +2,7 @@
   <PropertyGroup><TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable></PropertyGroup>
   <ItemGroup>
     <PackageReference Include="MyPowerTools.ToolSdk" Version="0.2.0" />
-    <PackageReference Include="MyPowerTools.Platform.Abstractions" Version="0.2.1" />
+    <PackageReference Include="MyPowerTools.Platform.Abstractions" Version="0.3.0" />
     <ProjectReference Include="../FileTransfer.Core/FileTransfer.Core.csproj" />
   </ItemGroup>
 </Project>

@@ -5,11 +5,15 @@ using System.Text;
 using System.Text.Json;
 using System.Xml.Linq;
 
-namespace FileTransfer.Core;
+using FileTransfer.Core;
 
-public sealed record CloudFile(int Version, string Id, string Name, long Size, string Sender, DateTimeOffset CreatedAt);
+namespace FileTransfer.Core.Assistant;
 
-public sealed class OpenListClient : IDisposable
+/// <summary>
+/// The WebDAV face of the managed relay. This file keeps the transfer, listing and redirect rules;
+/// the assistant conversation namespace is added by a partial file that lives in its own directory.
+/// </summary>
+public sealed partial class OpenListClient : IDisposable
 {
     private readonly HttpClient _http;
     private readonly Uri _root;

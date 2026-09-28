@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using FileTransfer.Core;
+using FileTransfer.Core.Assistant;
 
 namespace FileTransfer.Tests;
 

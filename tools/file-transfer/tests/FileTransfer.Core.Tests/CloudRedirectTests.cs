@@ -2,6 +2,7 @@ using System.Net;
 using System.Net.Sockets;
 using System.Text;
 using FileTransfer.Core;
+using FileTransfer.Core.Assistant;
 
 namespace FileTransfer.Tests;
 

@@ -4,4 +4,8 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
   </PropertyGroup>
+  <ItemGroup>
+    <!-- System.Net.Http.Json provides ReadFromJsonAsync for the WebDAV content reads. -->
+    <Using Include="System.Net.Http.Json" />
+  </ItemGroup>
 </Project>

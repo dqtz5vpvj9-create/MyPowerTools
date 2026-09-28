@@ -10,7 +10,7 @@
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
     <PackageReference Include="xunit" Version="2.5.3" />
     <PackageReference Include="xunit.runner.visualstudio" Version="2.5.3" />
-    <PackageReference Include="MyPowerTools.Platform.Abstractions" Version="0.2.1" />
+    <PackageReference Include="MyPowerTools.Platform.Abstractions" Version="0.3.0" />
     <ProjectReference Include="../../src/FileTransfer.Core/FileTransfer.Core.csproj" />
     <ProjectReference Include="../../src/FileTransfer.MyPowerTools/FileTransfer.MyPowerTools.csproj" />
     <ProjectReference Include="../../../../src/MyPowerTools.Abstractions/MyPowerTools.Abstractions.csproj" />
