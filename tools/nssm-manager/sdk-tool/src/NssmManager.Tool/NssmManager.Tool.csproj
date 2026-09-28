@@ -10,4 +10,8 @@
     <ProjectReference Include="..\NssmManager.Contracts\NssmManager.Contracts.csproj" />
     <Compile Include="..\NssmManager.Runtime\NssmElevatedClient.cs" Link="Broker\NssmElevatedClient.cs" />
   </ItemGroup>
+  <ItemGroup>
+    <!-- Windows worktree addition: the tool tests reach internal translation helpers directly. -->
+    <InternalsVisibleTo Include="NssmManager.Tests" />
+  </ItemGroup>
 </Project>

@@ -78,7 +78,19 @@ if (Test-Path -LiteralPath $publishDirectory) {
         -not $publishFull.EndsWith('NssmManager.Executable\publish\win-x64', [System.StringComparison]::OrdinalIgnoreCase)) {
         throw "Unsafe nssm-manager publish path '$publishFull'."
     }
-    Remove-Item -LiteralPath $publishFull -Recurse -Force
+    try {
+        Remove-Item -LiteralPath $publishFull -Recurse -Force
+    }
+    catch [System.IO.IOException], [System.UnauthorizedAccessException] {
+        foreach ($publishChild in @(Get-ChildItem -LiteralPath $publishFull -Force)) {
+            Remove-Item -LiteralPath $publishChild.FullName -Recurse -Force
+        }
+        $stalePublishItem = Get-ChildItem -LiteralPath $publishFull -Force | Select-Object -First 1
+        if ($null -ne $stalePublishItem) {
+            throw
+        }
+        Write-Warning "The NSSM publish directory is locked by a Windows directory handle; its contents were removed and verified before publishing."
+    }
 }
 
 $publishArguments = @(

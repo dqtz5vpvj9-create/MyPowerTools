@@ -21,6 +21,39 @@
       <Setter Property="FontSize" Value="18" />
       <Setter Property="FontWeight" Value="SemiBold" />
     </Style>
+    <Style Selector="Border.history-row">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="CornerRadius" Value="{DynamicResource MptRadiusControl}" />
+      <Setter Property="Padding" Value="0,2" />
+    </Style>
+    <Style Selector="Border.history-row:pointerover">
+      <Setter Property="Background" Value="{DynamicResource MptBrushNavigationHover}" />
+    </Style>
+    <Style Selector="Border.history-row.selected">
+      <Setter Property="Background" Value="{DynamicResource MptBrushNavigationSelected}" />
+    </Style>
+    <Style Selector="Border.history-row.selected:pointerover">
+      <Setter Property="Background" Value="{DynamicResource MptBrushNavigationSelected}" />
+    </Style>
+    <Style Selector="controls|MptButton.history-select">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+      <Setter Property="Padding" Value="8,8" />
+      <Setter Property="MinHeight" Value="0" />
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+      <Setter Property="HorizontalContentAlignment" Value="Left" />
+      <Setter Property="VerticalContentAlignment" Value="Center" />
+      <Setter Property="Cursor" Value="Hand" />
+    </Style>
+    <Style Selector="controls|MptButton.history-select:pointerover">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+    </Style>
+    <Style Selector="controls|MptButton.history-select:pressed">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+    </Style>
   </UserControl.Styles>
 
   <Border Padding="40,24,40,40"
@@ -126,8 +159,8 @@
       <Grid adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="1.15*,0.85*" ColumnSpacing="14">
         <Border Classes="card">
           <StackPanel Spacing="8">
-            <TextBlock Text="最近上传图片" Classes="section-title" />
-            <TextBlock Text="热键或页面上传完成后立即更新" FontSize="12" Classes="secondary" />
+            <TextBlock Text="图片预览" Classes="section-title" />
+            <TextBlock Text="默认显示最近一次，点击右侧记录可切换" FontSize="12" Classes="secondary" />
             <Grid MinHeight="230">
               <Image Source="{Binding Preview}"
                      IsVisible="{Binding HasPreview}"
@@ -135,9 +168,10 @@
                      MaxHeight="280"
                      HorizontalAlignment="Center"
                      VerticalAlignment="Center" />
-              <TextBlock Text="上传一张图片后，这里会显示最近预览。"
+              <TextBlock Text="{Binding PreviewPlaceholder}"
                          IsVisible="{Binding IsPreviewEmpty}"
                          Classes="secondary"
+                         TextAlignment="Center"
                          HorizontalAlignment="Center"
                          VerticalAlignment="Center" />
             </Grid>
@@ -150,7 +184,7 @@
         <Border Grid.Column="1" Classes="card">
           <StackPanel Spacing="8">
             <TextBlock Text="最近上传记录" Classes="section-title" />
-            <TextBlock Text="显示最近 5 次成功上传" FontSize="12" Classes="secondary" />
+            <TextBlock Text="点击一条记录查看对应图片" FontSize="12" Classes="secondary" />
             <TextBlock Text="暂无上传记录"
                        IsVisible="{Binding IsHistoryEmpty}"
                        Classes="secondary"
@@ -158,18 +192,25 @@
             <ItemsControl ItemsSource="{Binding History}" IsVisible="{Binding HasHistory}">
               <ItemsControl.ItemTemplate>
                 <DataTemplate x:DataType="vm:UploadHistoryRow">
-                  <Border BorderBrush="{DynamicResource MptBrushDivider}"
+                  <Border Classes="history-row"
+                          Classes.selected="{Binding IsSelected}"
+                          BorderBrush="{DynamicResource MptBrushDivider}"
                           BorderThickness="0,1,0,0"
-                          Padding="0,11">
+                          Margin="0,2">
                     <Grid adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="*,Auto" ColumnSpacing="8">
-                      <StackPanel Spacing="3">
-                        <TextBlock Text="{Binding RemotePath}"
-                                   FontWeight="Medium"
-                                   TextTrimming="CharacterEllipsis" />
-                        <TextBlock Text="{Binding UploadedAtText}"
-                                   Foreground="{DynamicResource MptBrushTextSecondary}"
-                                   FontSize="12" />
-                      </StackPanel>
+                      <controls:MptButton Classes="history-select"
+                                          Command="{Binding SelectCommand}"
+                                          AutomationProperties.Name="查看这张图片"
+                                          ToolTip.Tip="查看这张图片">
+                        <StackPanel Spacing="3">
+                          <TextBlock Text="{Binding RemotePath}"
+                                     FontWeight="Medium"
+                                     TextTrimming="CharacterEllipsis" />
+                          <TextBlock Text="{Binding UploadedAtText}"
+                                     Foreground="{DynamicResource MptBrushTextSecondary}"
+                                     FontSize="12" />
+                        </StackPanel>
+                      </controls:MptButton>
                       <controls:MptButton Grid.Column="1"
                                           Content="复制"
                                           Command="{Binding CopyCommand}"

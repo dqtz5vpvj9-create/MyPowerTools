@@ -11,7 +11,8 @@ namespace NssmManager.Supervisor;
 internal static class NativeChildProcess
 {
     private const uint StartfUseStdHandles = 0x00000100;
-    private const uint CreateNewConsole = 0x00000010;
+    internal const uint CreateNewConsole = 0x00000010;
+    internal const uint CreateNoWindow = 0x08000000;
     private const uint CreateSuspended = 0x00000004;
     private const uint CreateUnicodeEnvironment = 0x00000400;
     private const uint IdlePriorityClass = 0x00000040;
@@ -41,7 +42,7 @@ internal static class NativeChildProcess
         if (!string.IsNullOrWhiteSpace(configuration.AppParameters)) commandLine.Append(' ').Append(Expand(configuration.AppParameters, environment));
         var affinity = ManagedServiceRuntime.ParseAffinity(configuration.Affinity);
         var flags = Priority(configuration.Priority) |
-            (configuration.NoConsole ? 0 : CreateNewConsole) |
+            ConsoleCreationFlags(configuration) |
             (affinity == 0 ? 0 : CreateSuspended);
         var information = StartProcess(commandLine, workingDirectory, BuildEnvironment(environment), io.HasStandardHandles, flags, startup);
         try
@@ -146,6 +147,22 @@ internal static class NativeChildProcess
     }
 
     private static string Quote(string value) => '"' + value.Replace("\"", "\\\"") + '"';
+
+    /// <summary>
+    /// Upstream asks for CREATE_NEW_CONSOLE because its service always runs under the
+    /// Service Control Manager on the invisible session-0 window station, where that
+    /// console window can never be seen. This translation is also hosted by interactive
+    /// processes - the NSSM unit tests and the dev ServiceManager - where
+    /// CREATE_NEW_CONSOLE would drop a console window onto the user's desktop and steal
+    /// focus. Interactive hosts give the application its own windowless console instead,
+    /// so console applications keep a console to talk to but never open a window.
+    /// </summary>
+    internal static uint ConsoleCreationFlags(NssmServiceConfiguration configuration)
+    {
+        if (configuration.NoConsole) return 0;
+        return NssmConsole.IsServiceHost() ? CreateNewConsole : CreateNoWindow;
+    }
+
     private static uint Priority(string value) => value.ToUpperInvariant() switch
     {
         "REALTIME_PRIORITY_CLASS" => RealtimePriorityClass,
