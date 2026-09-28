@@ -326,6 +326,18 @@ public sealed class ReviewFixTests : IDisposable
     // ---- helpers ----------------------------------------------------------------------------
 
     [AvaloniaTheory]
+    [InlineData("unconfigured", false)]
+    [InlineData("available", false)]
+    [InlineData("unavailable", true)]
+    public void Sync_retry_is_offered_only_for_a_failed_configured_relay(string relay, bool visible)
+    {
+        _module.AssistantRelayState = relay;
+        var view = Open(1024, out _);
+        var retry = Assert.Single(Descendants(view).OfType<Button>(), button => button.Content as string == "重新同步");
+        Assert.Equal(visible, retry.IsVisible);
+    }
+
+    [AvaloniaTheory]
     [InlineData(390, false)]
     [InlineData(390, true)]
     [InlineData(1024, false)]

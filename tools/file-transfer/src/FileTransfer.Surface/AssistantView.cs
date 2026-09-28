@@ -136,7 +136,8 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
         _sendToDevice = MobileUi.SecondaryButton("发给设备");
         // AirDrop lives on the composer, one tap away, not inside the settings sheet.
         _sendToDevice.Click += (_, _) => ShowDeviceSheet();
-        _retrySync = MobileUi.SecondaryButton("重新同步");
+        _retrySync = MobileUi.TextButton("重新同步");
+        _retrySync.HorizontalAlignment = HorizontalAlignment.Right;
         _retrySync.Click += async (_, _) => await RunAsync(() => _core.SyncAsync());
 
         _emptyState = BuildEmptyState();
@@ -339,9 +340,7 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
             return;
         }
         _emptyTitle.Text = "先发给自己，也可以连上你的设备。";
-        _emptyNote.Text = state.RelayBlocked
-            ? "现在只会保存在这台设备上。想在其他设备上看到，先连接我的设备；内容不会经过第三方服务器。"
-            : "现在只会保存在这台设备上。连接我的设备后，另一台设备也能在同一个会话里看到。";
+        _emptyNote.Text = "文字、图片和文件会保存在这台设备上。连接其他设备后，就能在它们之间收发。";
         _emptyConnect.IsVisible = true;
     }
 
@@ -713,7 +712,7 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
             : state.Identity.Name is { Length: > 0 } name ? name : "只在本机保存";
         _status.Text = state.Status;
         _status.IsVisible = state.Status.Length > 0;
-        _retrySync.IsVisible = state.RelayBlocked;
+        _retrySync.IsVisible = state.Relay == AssistantRelayState.Unavailable;
         _setupButton.IsVisible = true;
 
         RenderPendingRequests(state);
