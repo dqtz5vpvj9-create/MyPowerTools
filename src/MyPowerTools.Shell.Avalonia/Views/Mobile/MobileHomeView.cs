@@ -19,7 +19,6 @@ internal sealed class MobileHomeView : UserControl
         Classes.Add("MptMobilePageRoot");
         Content = MobileElements.Page(
             BuildHeader(viewModel),
-            BuildHeadline(viewModel),
             BuildHero(viewModel),
             BuildDeviceStrip(viewModel),
             BuildFavorites(viewModel),
@@ -48,28 +47,13 @@ internal sealed class MobileHomeView : UserControl
         return grid;
     }
 
-    private static Control BuildHeadline(MobileHomeViewModel viewModel)
-    {
-        var title = MobileElements.PageTitle(viewModel.Headline);
-        title.Classes.Add("MptMobileHomeTitle");
-        return title;
-    }
-
     private static Control BuildHero(MobileHomeViewModel viewModel)
     {
-        var stack = new StackPanel { Spacing = 10 };
-        stack.Children.Add(MobileElements.Text(viewModel.HeroTitle, "MptMobileHeroTitle"));
-        stack.Children.Add(MobileElements.Text(viewModel.HeroDetail, "MptMobileRowSubtitle"));
-
-        var status = MobileElements.Text("", "MptMobileCaption");
-        status.Bind(TextBlock.TextProperty, viewModel, nameof(MobileHomeViewModel.HeroStatus));
-        var statusRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6 };
-        statusRow.Children.Add(MobileElements.IconBox("\u21C4"));
-        statusRow.Children.Add(status);
-        stack.Children.Add(statusRow);
-
-        var send = MobileElements.Primary("发送文件", viewModel.SendFileCommand, "发送文件");
-        stack.Children.Add(send);
+        var stack = new StackPanel { Spacing = 6 };
+        stack.Children.Add(MobileElements.Text("文件传输助手", "MptMobileHeroTitle"));
+        stack.Children.Add(MobileElements.Text("文字和文件，在设备间顺手传递。", "MptMobileRowSubtitle"));
+        var open = MobileElements.Primary("打开文件传输助手", viewModel.SendFileCommand, "打开文件传输助手");
+        stack.Children.Add(open);
         return MobileElements.Card(stack, "MptMobileHero MptMobileHeroCard");
     }
 
@@ -82,18 +66,10 @@ internal sealed class MobileHomeView : UserControl
         add.Classes.Add("MptMobileChip");
         AutomationProperties.SetName(add, "添加设备");
 
-        var panel = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 8 };
+        var panel = new StackPanel { Spacing = 8 };
         panel.Classes.Add("MptMobileDeviceStrip");
         panel.Children.Add(chips);
         panel.Children.Add(add);
-
-        var scroller = new ScrollViewer
-        {
-            Content = panel,
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Disabled
-        };
-        scroller.Classes.Add("MptMobileDeviceStripScroller");
 
         var notice = MobileElements.Banner("", "MptMobileBannerQuiet");
         notice.Bind(IsVisibleProperty, viewModel, nameof(MobileHomeViewModel.HasDeviceNotice));
@@ -101,7 +77,7 @@ internal sealed class MobileHomeView : UserControl
         noticeText.Bind(TextBlock.TextProperty, viewModel, nameof(MobileHomeViewModel.DeviceNotice));
 
         var stack = new StackPanel { Spacing = 8 };
-        stack.Children.Add(scroller);
+        stack.Children.Add(panel);
         stack.Children.Add(notice);
         return stack;
     }

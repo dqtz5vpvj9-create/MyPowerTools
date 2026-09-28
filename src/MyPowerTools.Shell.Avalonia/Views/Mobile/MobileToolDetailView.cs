@@ -1,6 +1,10 @@
 using Avalonia;
+using Avalonia.Automation;
 using Avalonia.Controls;
+using Avalonia.Controls.Templates;
+using Avalonia.Data;
 using Avalonia.Layout;
+using MyPowerTools.Shell.Avalonia.Services.Mobile;
 using MyPowerTools.Shell.Avalonia.ViewModels;
 using MyPowerTools.Shell.Avalonia.ViewModels.Mobile;
 
@@ -32,13 +36,13 @@ internal sealed class MobileToolDetailView : UserControl
         feature.Children.Add(title);
         feature.Children.Add(MobileElements.Body(viewModel.Description));
 
-        var requirement = MobileElements.ListRow(
-            viewModel.IsComputerTool ? "\u25A3" : "\u2713",
-            viewModel.RequirementTitle,
-            viewModel.RequirementDetail,
-            viewModel.StatusLabel,
-            null,
-            viewModel.RequirementTitle);
+        var requirement = new StackPanel { Spacing = 6, Margin = new Thickness(14) };
+        var requirementTitle = MobileElements.Body(viewModel.RequirementTitle);
+        requirementTitle.Bind(TextBlock.TextProperty, viewModel, nameof(MobileToolDetailViewModel.RequirementTitle));
+        var requirementDetail = MobileElements.Caption(viewModel.RequirementDetail);
+        requirementDetail.Bind(TextBlock.TextProperty, viewModel, nameof(MobileToolDetailViewModel.RequirementDetail));
+        requirement.Children.Add(requirementTitle);
+        requirement.Children.Add(requirementDetail);
 
         var statusDetail = MobileElements.Banner(viewModel.StatusDetail, "MptMobileBannerQuiet");
         statusDetail.Bind(IsVisibleProperty, viewModel, nameof(MobileToolDetailViewModel.HasStatusDetail));
@@ -50,13 +54,31 @@ internal sealed class MobileToolDetailView : UserControl
         }
         else if (viewModel.IsComputerTool && viewModel.HasControlDevice)
         {
+            actions.Children.Add(MobileElements.Caption("执行电脑"));
+            var computers = new ComboBox
+            {
+                ItemsSource = viewModel.ControlDevices,
+                PlaceholderText = "选择执行电脑",
+                MinHeight = 48,
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                ItemTemplate = new FuncDataTemplate<MobileControlDevice>((device, _) =>
+                    MobileElements.Body(device is null ? "" : viewModel.ControlDeviceLabel(device)))
+            };
+            AutomationProperties.SetName(computers, "选择执行电脑");
+            computers.Bind(ComboBox.SelectedItemProperty, new Binding(nameof(MobileToolDetailViewModel.SelectedControlDevice))
+            {
+                Source = viewModel, Mode = BindingMode.TwoWay
+            });
+            actions.Children.Add(computers);
             var open = MobileElements.Primary("在电脑上打开", viewModel.OpenOnComputerCommand, $"在电脑上打开{viewModel.Title}");
-            open.Bind(IsEnabledProperty, viewModel, nameof(MobileToolDetailViewModel.HasControlDevice));
+            open.Bind(IsEnabledProperty, viewModel, nameof(MobileToolDetailViewModel.CanOpenOnComputer));
             actions.Children.Add(open);
-            var state = MobileElements.Caption($"{viewModel.ControlDeviceName} · {viewModel.ControlDeviceState}");
+            var state = MobileElements.Caption(viewModel.ControlDeviceState);
+            state.Bind(TextBlock.TextProperty, viewModel, nameof(MobileToolDetailViewModel.ControlDeviceState));
             actions.Children.Add(state);
+            actions.Children.Add(MobileElements.Secondary("连接其他电脑", viewModel.ConnectComputerCommand, "连接其他电脑"));
         }
-        else
+        else if (viewModel.IsComputerTool)
         {
             // No imported computer yet: the only honest action is to connect one; the tool never
             // pretends to run on the phone.

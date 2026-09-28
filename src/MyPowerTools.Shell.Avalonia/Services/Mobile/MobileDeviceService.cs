@@ -153,6 +153,10 @@ public sealed class MobileDeviceService : IMobileDeviceService
     {
         var configured = Flag(relay, "configured");
         var state = Text(relay, "state");
+        // Older modules expose the explicit probe result as nullable reachable. Only use it when
+        // the current state contract is absent; an unknown measurement is never a failed probe.
+        if (state.Length == 0 && relay?["reachable"] is JsonValue reachable && reachable.TryGetValue<bool>(out var legacyReachable))
+            state = legacyReachable ? "available" : "unavailable";
         var message = Text(relay, "message");
         if (!configured) return (false, false, false, "发送后会自动开始同步。");
 
@@ -240,12 +244,14 @@ public sealed class MobileDeviceService : IMobileDeviceService
             "started" => "active",
             "sending" or "uploading" or "downloading" or "receiving" => state,
             "completed" when delivery == "relay-uploaded" => "uploaded",
-            "completed" when delivery is "direct" or "local" or "relay-downloaded" => "received",
+            "completed" when delivery == "direct" => direction == "receive" ? "received" : "delivered",
+            "completed" when delivery == "local" => "saved",
+            "completed" when delivery == "relay-downloaded" => "received",
             "completed" => "completed",
             "received" => "received",
             "cancelled" => "cancelled",
             "failed" => "failed",
-            _ => "completed"
+            _ => "unknown"
         };
         var total = ReadLong(record, "total");
         return new MobileTransferActivity(

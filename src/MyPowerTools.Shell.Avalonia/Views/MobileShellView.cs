@@ -376,7 +376,8 @@ public sealed class MobileShellView : UserControl, IAsyncDisposable, IMobileNavi
             return;
         }
 
-        await _workspace.OpenToolSurfaceAsync(toolId).ConfigureAwait(true);
+        var implementationId = _viewModel.Tools.Find(toolId)?.ImplementationId ?? toolId;
+        await _workspace.OpenToolSurfaceAsync(implementationId).ConfigureAwait(true);
         _viewModel.IsToolSurfaceOpen = true;
     }
 
@@ -397,19 +398,14 @@ public sealed class MobileShellView : UserControl, IAsyncDisposable, IMobileNavi
     {
         await _viewModel.Tools.LoadAsync().ConfigureAwait(true);
         var item = _viewModel.Tools.Find(toolId);
-        // A computer tool offers the real control entry only when a computer was actually imported.
-        var controlDevice = item is { IsComputerTool: true }
-            ? await FindControlDeviceAsync().ConfigureAwait(true)
-            : null;
-        _viewModel.SetToolDetail(item is null ? null : new MobileToolDetailViewModel(item, this, controlDevice));
+        IReadOnlyList<MobileControlDevice>? controlDevices = null;
+        if (item is { IsComputerTool: true })
+        {
+            await _viewModel.Devices.LoadControlDevicesAsync().ConfigureAwait(true);
+            controlDevices = _viewModel.Devices.ControlDevices.Select(entry => entry.Device).ToArray();
+        }
+        _viewModel.SetToolDetail(item is null ? null : new MobileToolDetailViewModel(item, this, controlDevices: controlDevices));
         _viewModel.Navigate(MobilePageKeys.ToolDetail, toolId);
-    }
-
-    /// <summary>The first imported computer, when the control module really reports one.</summary>
-    private async Task<MobileControlDevice?> FindControlDeviceAsync()
-    {
-        await _viewModel.Devices.LoadControlDevicesAsync().ConfigureAwait(true);
-        return _viewModel.Devices.ControlDevices.FirstOrDefault()?.Device;
     }
 
     /// <summary>
@@ -718,6 +714,8 @@ public sealed class MobileShellView : UserControl, IAsyncDisposable, IMobileNavi
 
     private void UpdateTabSelection()
     {
+        _tabBar.IsVisible = !_viewModel.IsToolSurfaceOpen &&
+            MobilePageKeys.Tabs.Contains(_viewModel.CurrentPageKey, StringComparer.Ordinal);
         for (var index = 0; index < _navigationButtons.Count && index < _viewModel.Tabs.Count; index++)
         {
             var selected = string.Equals(_viewModel.Tabs[index].PageKey, _viewModel.SelectedTabKey, StringComparison.Ordinal);
@@ -906,13 +904,29 @@ public sealed class MobileShellView : UserControl, IAsyncDisposable, IMobileNavi
                 }
             }), "扫描设备连接码"));
         }
-        var connect = MobileElements.Primary("连接设备", null, "连接设备");
+        var connect = MobileElements.Primary("继续", null, "连接设备");
         connect.Command = new AsyncRelayCommand(async () =>
         {
             error.IsVisible = false;
             try
             {
-                await viewModel.ImportPairingAsync(input.Text ?? "").ConfigureAwait(true);
+                var code = (input.Text ?? "").Trim();
+                if (Uri.TryCreate(code, UriKind.Absolute, out var link) &&
+                    string.Equals(link.Scheme, "mpt", StringComparison.OrdinalIgnoreCase))
+                {
+                    var module = link.Host.ToLowerInvariant() switch
+                    {
+                        "pair" or "assistant" or "cloud" => "file-transfer",
+                        "control" => MobileControlDeviceService.ToolId,
+                        _ => throw new InvalidOperationException("这不是受支持的设备连接码。")
+                    };
+                    await ActivateToolAsync(module, "workspace", code).ConfigureAwait(true);
+                    await CloseSheetAsync().ConfigureAwait(true);
+                }
+                else
+                {
+                    await viewModel.ImportPairingAsync(code).ConfigureAwait(true);
+                }
             }
             catch (Exception ex)
             {

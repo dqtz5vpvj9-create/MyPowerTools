@@ -51,7 +51,7 @@ public sealed class MobileDeviceServiceTests
         Assert.Null(peer.CheckedAt);
         Assert.Equal("100.64.0.9", peer.Address);
         Assert.Equal("书房电脑", peer.Name);
-        Assert.Equal("已配对，尚未检查。", peer.Message);
+        Assert.Equal("已配对，发送时会自动选择连接方式。", peer.Message);
         // A snapshot must not turn an address into a reachability claim anywhere in the list.
         Assert.DoesNotContain(snapshot.Peers, item => item.ConnectionState == MobilePeerConnectionState.Online);
         Assert.Equal("100.64.0.7", snapshot.LocalAddress);
@@ -90,7 +90,7 @@ public sealed class MobileDeviceServiceTests
             """));
         var peer = Assert.Single((await new MobileDeviceService(commands.ExecuteAsync).GetSnapshotAsync()).Peers);
         Assert.Equal(MobilePeerConnectionState.Unknown, peer.ConnectionState);
-        Assert.Contains("重新导入", peer.Message);
+        Assert.Contains("自动选择连接方式", peer.Message);
     }
 
     [Fact]
@@ -110,7 +110,7 @@ public sealed class MobileDeviceServiceTests
     }
 
     [Fact]
-    public async Task ARelayUploadIsWaitingForPickupWhileAConfirmedTransferIsReceived()
+    public async Task ARelayUploadWaitsForPickupWhileDirectSendAndReceiveKeepTheirDirection()
     {
         var commands = new FakeCommands().On("file-transfer.inspect", Inspect("""[]""", """
             [
@@ -123,7 +123,7 @@ public sealed class MobileDeviceServiceTests
         var snapshot = await new MobileDeviceService(commands.ExecuteAsync).GetSnapshotAsync();
 
         // Newest first, and a successful upload only ever means "waiting for pickup".
-        Assert.Equal(new[] { "received", "received", "uploaded", "completed" }, snapshot.Activities.Select(item => item.State));
+        Assert.Equal(new[] { "received", "delivered", "uploaded", "completed" }, snapshot.Activities.Select(item => item.State));
         Assert.Equal("来件.zip", snapshot.Activities[0].Name);
         Assert.Equal("receive", snapshot.Activities[0].Direction);
         Assert.Equal(2048L, snapshot.Activities[2].Bytes);
@@ -169,7 +169,7 @@ public sealed class MobileDeviceServiceTests
         // "Never checked" is not "offline", and RelayChecked says so.
         Assert.False(snapshot.RelayChecked);
         Assert.False(snapshot.RelayRunning);
-        Assert.Contains("尚未检查", snapshot.RelayDescription);
+        Assert.Equal("等待同步。", snapshot.RelayDescription);
     }
 
     [Fact]
@@ -181,9 +181,8 @@ public sealed class MobileDeviceServiceTests
 
         Assert.True(snapshot.RelayChecked);
         Assert.True(snapshot.RelayRunning);
-        // The assistant conversation has real receipts now; only legacy file records stay unconfirmed.
-        Assert.Contains("真实回执", snapshot.RelayDescription);
-        Assert.Contains("旧版文件记录没有回执信息", snapshot.RelayDescription);
+        Assert.Equal("同步连接正常。", snapshot.RelayDescription);
+        Assert.DoesNotContain("已送达", snapshot.RelayDescription);
     }
 
     [Fact]
@@ -209,7 +208,7 @@ public sealed class MobileDeviceServiceTests
         Assert.False(snapshot.RelayConfigured);
         Assert.False(snapshot.RelayRunning);
         Assert.False(snapshot.RelayChecked);
-        Assert.Contains("尚未配置", snapshot.RelayDescription);
+        Assert.Contains("发送后会自动开始同步", snapshot.RelayDescription);
         Assert.DoesNotContain(commands.Calls, call => call.Command == CloudCheckCommand);
     }
 

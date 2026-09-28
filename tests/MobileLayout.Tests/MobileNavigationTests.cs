@@ -20,6 +20,32 @@ namespace MobileLayout.Tests;
 public sealed class MobileNavigationTests
 {
     [AvaloniaFact]
+    public void Detail_and_tool_surface_hide_tabs_and_back_restores_them()
+    {
+        using var host = new TestToolHost(TestToolHost.DefaultPhoneCatalog());
+        var (shell, window) = CreateShell(390);
+        try
+        {
+            host.CompleteInitialLoad();
+            MobileShellTests.PumpUntil(window, () => shell.Ready.IsCompleted && shell.PageLoad.IsCompleted, "home never loaded");
+            var tabs = Assert.Single(shell.GetVisualDescendants().OfType<Border>(),
+                border => border.Classes.Contains("MptMobileTabBar"));
+            Assert.True(tabs.IsVisible);
+            shell.ViewModel.Navigate(MobilePageKeys.Settings, null);
+            Pump(window);
+            Assert.False(tabs.IsVisible);
+            RunBack(window, shell);
+            Assert.True(tabs.IsVisible);
+            shell.ViewModel.IsToolSurfaceOpen = true;
+            Pump(window);
+            Assert.False(tabs.IsVisible);
+            RunBack(window, shell);
+            Assert.True(tabs.IsVisible);
+        }
+        finally { window.Close(); }
+    }
+
+    [AvaloniaFact]
     public void Scanning_a_device_code_prepares_the_form_without_importing_it()
     {
         var devices = new FakeMobileDeviceService();

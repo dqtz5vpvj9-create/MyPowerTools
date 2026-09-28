@@ -44,9 +44,9 @@
     <Setter Property="Foreground" Value="{DynamicResource MptBrushAccent}" />
   </Style>
 
-  <!-- Phone page shell: margins from the plan (22-24 dp, 18 dp at 320 dp). -->
+  <!-- Phone page shell: V2 uses 16 dp gutters. -->
   <Style Selector="StackPanel.MptMobilePage">
-    <Setter Property="Margin" Value="22,10,22,22" />
+    <Setter Property="Margin" Value="16,10,16,16" />
     <Setter Property="Spacing" Value="16" />
   </Style>
   <Style Selector="ScrollViewer.MptMobileScroller">
@@ -157,9 +157,9 @@
     <Setter Property="Margin" Value="0,18,0,18" />
   </Style>
 
-  <!-- Cards: 20-24 dp radius, no stacked decoration shadows. -->
+  <!-- Cards use a compact radius; messages have their own lightweight rows. -->
   <Style Selector="Border.MptMobileCard">
-    <Setter Property="CornerRadius" Value="22" />
+    <Setter Property="CornerRadius" Value="14" />
     <Setter Property="Padding" Value="16" />
     <Setter Property="BorderThickness" Value="1" />
     <Setter Property="BorderBrush" Value="{DynamicResource MptMobileDividerBrush}" />
@@ -247,7 +247,7 @@
     <Setter Property="Height" Value="44" />
     <Setter Property="MinWidth" Value="44" />
     <Setter Property="MinHeight" Value="44" />
-    <Setter Property="CornerRadius" Value="22" />
+    <Setter Property="CornerRadius" Value="14" />
     <Setter Property="HorizontalContentAlignment" Value="Center" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
     <Setter Property="FontSize" Value="17" />
@@ -285,7 +285,7 @@
   <Style Selector="Button.MptMobileChip">
     <Setter Property="MinHeight" Value="44" />
     <Setter Property="Padding" Value="14,8" />
-    <Setter Property="CornerRadius" Value="22" />
+    <Setter Property="CornerRadius" Value="14" />
     <Setter Property="Background" Value="{DynamicResource MptMobileCardBrush}" />
     <Setter Property="BorderThickness" Value="1" />
     <Setter Property="BorderBrush" Value="{DynamicResource MptMobileDividerBrush}" />

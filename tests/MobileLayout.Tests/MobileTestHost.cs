@@ -77,8 +77,8 @@ internal sealed class TestToolHost : IDisposable
     public static HostProto.ToolDescriptor[] DefaultPhoneCatalog() =>
     [
         PhoneTool("file-transfer", "文件互传", "通过 Tailscale 直传，或使用国内网盘中转。"),
-        PhoneTool("remote-notifications", "Remote Notifications", "Receive notifications from paired computers."),
-        PhoneTool("remote-commands", "Remote Commands", "Run saved SSH commands on a paired computer.")
+        PhoneTool("remote-notifications-android", "远程通知", "Receive notifications from the configured server."),
+        PhoneTool("remote-commands-android", "远程命令", "Run saved SSH commands on the configured host.")
     ];
 
     private sealed class Invoker(TestToolHost host) : CallInvoker

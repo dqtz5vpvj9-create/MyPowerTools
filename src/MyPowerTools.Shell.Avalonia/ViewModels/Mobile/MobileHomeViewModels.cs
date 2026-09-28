@@ -85,7 +85,7 @@ public sealed class MobileHomeViewModel : ObservableViewModel
     }
 
     public string Headline => "你的随身工具箱。";
-    public string HeroTitle => "发给自己，或发给设备";
+    public string HeroTitle => "文件传输助手";
     public string HeroDetail => "打开文件助手会话；从系统分享进来的内容会进入待发送区。";
 
     public bool IsLoading
@@ -235,7 +235,7 @@ public sealed class MobileHomeViewModel : ObservableViewModel
 
         if (!string.IsNullOrWhiteSpace(activity.State))
         {
-            parts.Add(activity.State);
+            parts.Add(MobileStatusText.TransferState(activity.State));
         }
 
         if (!string.IsNullOrWhiteSpace(activity.Message))

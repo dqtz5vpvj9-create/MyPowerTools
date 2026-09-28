@@ -500,7 +500,7 @@ public sealed class MobileActivityViewModel : ObservableViewModel
             {
                 foreach (var activity in snapshot.Activities)
                 {
-                    var relay = activity.State.Contains("relay", StringComparison.OrdinalIgnoreCase)
+                    var relay = activity.State == "uploaded" || activity.State.Contains("relay", StringComparison.OrdinalIgnoreCase)
                         || activity.State.Contains("上传", StringComparison.Ordinal)
                         || activity.State.Contains("等待领取", StringComparison.Ordinal);
                     Items.Add(new MobileActivityItemViewModel(
@@ -540,7 +540,7 @@ public sealed class MobileActivityViewModel : ObservableViewModel
         var parts = new List<string>();
         if (!string.IsNullOrWhiteSpace(activity.Direction))
         {
-            parts.Add(activity.Direction);
+            parts.Add(MobileStatusText.TransferDirection(activity.Direction));
         }
 
         if (!string.IsNullOrWhiteSpace(activity.PeerName))
@@ -550,7 +550,7 @@ public sealed class MobileActivityViewModel : ObservableViewModel
 
         if (!string.IsNullOrWhiteSpace(activity.State))
         {
-            parts.Add(activity.State);
+            parts.Add(MobileStatusText.TransferState(activity.State));
         }
 
         if (!string.IsNullOrWhiteSpace(activity.Message))

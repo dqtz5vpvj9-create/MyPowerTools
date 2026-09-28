@@ -9,7 +9,7 @@ namespace MobileLayout.Tests;
 /// The phone tool library must cover the delivery list, group it by 用途, split 手机/电脑 honestly and
 /// persist favorites through the one shared preferences store.
 /// </summary>
-public sealed class MobileToolLibraryTests
+public sealed partial class MobileToolLibraryTests
 {
     private static readonly string[] PrototypeDeliveryToolIds =
     [
@@ -111,7 +111,7 @@ public sealed class MobileToolLibraryTests
             FakeMobileControlDeviceService.Device("grant-1", "工作电脑", "reachable", "今天 09:12 应答"));
         Assert.True(withComputer.HasControlDevice);
         Assert.Equal("在 工作电脑 上运行", withComputer.RequirementTitle);
-        Assert.Equal("已连接", withComputer.ControlDeviceState);
+        Assert.Equal("Windows · 已连接", withComputer.ControlDeviceState);
         Assert.True(withComputer.OpenOnComputerCommand.CanExecute(null));
 
         withComputer.OpenOnComputerCommand.Execute(null);

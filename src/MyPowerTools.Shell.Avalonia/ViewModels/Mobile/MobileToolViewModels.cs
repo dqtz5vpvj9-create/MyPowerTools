@@ -1,5 +1,6 @@
 using System.Collections.ObjectModel;
 using System.Windows.Input;
+using MyPowerTools.Shell.Avalonia.Services;
 using MyPowerTools.Shell.Avalonia.Services.Mobile;
 
 namespace MyPowerTools.Shell.Avalonia.ViewModels.Mobile;
@@ -34,7 +35,7 @@ public sealed class MobileToolItemViewModel : ObservableViewModel
         _entry = entry ?? throw new ArgumentNullException(nameof(entry));
         _navigator = navigator ?? throw new ArgumentNullException(nameof(navigator));
         OpenCommand = new AsyncRelayCommand(
-            () => _navigator.OpenToolSurfaceAsync(_entry.ToolId),
+            () => _navigator.OpenToolSurfaceAsync(_entry.ImplementationId),
             () => CanOpen,
             operationName: $"Open {_entry.ToolId}");
         ShowDetailCommand = new AsyncRelayCommand(
@@ -57,6 +58,8 @@ public sealed class MobileToolItemViewModel : ObservableViewModel
 
     public MobileToolEntry Entry => _entry;
     public string ToolId => _entry.ToolId;
+    public string ProductId => _entry.ProductId;
+    public string ImplementationId => _entry.ImplementationId;
     public string Title => _entry.Title;
     public string Description => _entry.Description;
     public string Group => _entry.Group;
@@ -65,7 +68,12 @@ public sealed class MobileToolItemViewModel : ObservableViewModel
     public string StatusDetail => _entry.StatusDetail;
     public bool CanOpen => _entry.CanOpen;
     public bool IsComputerTool => _entry.Platform == MobileToolPlatform.Computer;
-    public string PlatformLabel => IsComputerTool ? "电脑" : "手机";
+    public string PlatformLabel => _entry.ExecutionLocation switch
+    {
+        MobileToolPlatform.Computer => "电脑",
+        MobileToolPlatform.ThisDevice => "手机",
+        _ => "待适配"
+    };
     public bool IsAvailable => _entry.Availability == ToolAvailability.Available;
     public bool NeedsAttention => !CanOpen;
     public string AutomationName => $"{Title}，{PlatformLabel}，{StatusLabel}";
@@ -186,7 +194,7 @@ public sealed class MobileToolsViewModel : ObservableViewModel
 
     /// <summary>The live item for a tool id, or null when the catalog does not offer it.</summary>
     public MobileToolItemViewModel? Find(string toolId) => _all.FirstOrDefault(item =>
-        string.Equals(item.ToolId, toolId, StringComparison.OrdinalIgnoreCase));
+        string.Equals(item.ProductId, ToolProductIdentity.ProductId(toolId), StringComparison.OrdinalIgnoreCase));
 
     public string Title => "工具";
     public string Subtitle => "每一种本领，都有用武之地。";
@@ -322,7 +330,7 @@ public sealed class MobileToolsViewModel : ObservableViewModel
 
     private bool MatchesFilter(MobileToolItemViewModel item) => _selectedFilter switch
     {
-        FilterThisDevice => !item.IsComputerTool,
+        FilterThisDevice => !item.IsComputerTool && item.CanOpen,
         FilterComputer => item.IsComputerTool,
         FilterFavorites => item.IsFavorite,
         _ => true
@@ -336,21 +344,24 @@ public sealed class MobileToolsViewModel : ObservableViewModel
 public sealed class MobileToolDetailViewModel : ObservableViewModel
 {
     private readonly MobileToolItemViewModel _item;
-    private readonly MobileControlDevice? _controlDevice;
+    private MobileControlDevice? _selectedControlDevice;
 
     public MobileToolDetailViewModel(
         MobileToolItemViewModel item,
         IMobileNavigator navigator,
-        MobileControlDevice? controlDevice = null)
+        MobileControlDevice? controlDevice = null,
+        IReadOnlyList<MobileControlDevice>? controlDevices = null)
     {
         _item = item ?? throw new ArgumentNullException(nameof(item));
         Navigator = navigator ?? throw new ArgumentNullException(nameof(navigator));
-        _controlDevice = controlDevice;
+        ControlDevices = (controlDevices ?? (controlDevice is null ? [] : new[] { controlDevice }))
+            .DistinctBy(device => device.DeviceId, StringComparer.Ordinal).ToArray();
+        _selectedControlDevice = ControlDevices.Count == 1 ? ControlDevices[0] : null;
         OpenCommand = item.OpenCommand;
         ToggleFavoriteCommand = item.ToggleFavoriteCommand;
         OpenOnComputerCommand = new AsyncRelayCommand(
             OpenOnComputerAsync,
-            () => HasControlDevice,
+            () => CanOpenOnComputer,
             operationName: $"Open {item.Title} on the computer");
         ConnectComputerCommand = new AsyncRelayCommand(
             () => navigator.ActivateToolAsync(
@@ -384,27 +395,53 @@ public sealed class MobileToolDetailViewModel : ObservableViewModel
     public ICommand OpenOnComputerCommand { get; }
     public ICommand ConnectComputerCommand { get; }
 
-    public bool HasControlDevice => _controlDevice is not null;
-    public string ControlDeviceName => _controlDevice?.Name is { Length: > 0 } name ? name : "已导入的电脑";
-    public string ControlDeviceState => _controlDevice?.StateLabel ?? "";
+    public IReadOnlyList<MobileControlDevice> ControlDevices { get; }
+    public bool HasControlDevice => ControlDevices.Count > 0;
+    public bool CanOpenOnComputer => IsComputerTool && SelectedControlDevice?.CredentialConfigured == true;
+    public MobileControlDevice? SelectedControlDevice
+    {
+        get => _selectedControlDevice;
+        set
+        {
+            var selected = value is null ? null : ControlDevices.FirstOrDefault(device => device.DeviceId == value.DeviceId);
+            if (!SetProperty(ref _selectedControlDevice, selected)) return;
+            OnPropertyChanged(nameof(CanOpenOnComputer));
+            OnPropertyChanged(nameof(ControlDeviceName));
+            OnPropertyChanged(nameof(ControlDeviceState));
+            OnPropertyChanged(nameof(RequirementTitle));
+            OnPropertyChanged(nameof(RequirementDetail));
+            (OpenOnComputerCommand as AsyncRelayCommand)?.NotifyCanExecuteChanged();
+        }
+    }
+    public string ControlDeviceName => SelectedControlDevice?.Name is { Length: > 0 } name ? name : "请选择电脑";
+    public string ControlDeviceState => SelectedControlDevice is null ? "选择后查看这台电脑的工具权限。"
+        : !SelectedControlDevice.CredentialConfigured ? "授权凭据缺失，请重新连接这台电脑。"
+        : $"{SelectedControlDevice.PlatformLabel} · {SelectedControlDevice.StateLabel}";
+
+    public string ControlDeviceLabel(MobileControlDevice device)
+    {
+        var suffix = ControlDevices.Count(candidate => candidate.Name == device.Name) > 1
+            ? $" · {device.DeviceId[^Math.Min(6, device.DeviceId.Length)..]}" : "";
+        return $"{device.Name} · {device.PlatformLabel}{suffix}";
+    }
 
     /// <summary>The device capability this tool actually needs, in the user's words.</summary>
     public string RequirementTitle => IsComputerTool
-        ? (HasControlDevice ? $"在 {ControlDeviceName} 上运行" : "需要一台电脑")
-        : "在本机运行";
+        ? (SelectedControlDevice is not null ? $"在 {ControlDeviceName} 上运行" : HasControlDevice ? "选择执行电脑" : "需要一台电脑")
+        : CanOpen ? "在本机运行" : "此设备暂不可用";
 
     public string RequirementDetail => IsComputerTool
         ? (HasControlDevice
-            ? "动作通过电脑工具控制执行：授权、提权和结果都由电脑端决定，手机只提交请求。"
+            ? "选择电脑后查看它允许使用的工具；授权、确认和结果由该电脑提供。"
             : "此工具在电脑上运行。先连接电脑（需要电脑端已启用远程工具访问并授权这台手机），再从这里打开。")
-        : "此工具已在本机注册，点“打开”会进入它自己的界面。";
+        : CanOpen ? "此工具在手机上运行，点“打开”进入它的界面。" : _item.Entry.OpenUnavailableReason;
 
     public bool HasStatusDetail => StatusDetail.Length > 0;
 
-    private Task OpenOnComputerAsync() => _controlDevice is null
+    private Task OpenOnComputerAsync() => !CanOpenOnComputer
         ? Task.CompletedTask
         : Navigator.ActivateToolAsync(
             MobileControlDeviceService.ToolId,
             MobileControlDeviceService.FallbackRouteId,
-            MobileControlDeviceService.BuildActivationUri(_controlDevice.DeviceId, ToolId));
+            MobileControlDeviceService.BuildActivationUri(SelectedControlDevice!.DeviceId, ToolId));
 }

@@ -51,8 +51,8 @@ public sealed class MobileScreenshotTests
                 false,
                 "我的网盘 · 已连接",
                 [
-                    new MobileTransferActivity("1", "设计稿.pdf", "已送达", "send", "书房的电脑", 2048, DateTimeOffset.Now),
-                    new MobileTransferActivity("2", "素材.zip", "已存入网盘 · 等待领取", "send", "书房的电脑", 4096, DateTimeOffset.Now)
+                    new MobileTransferActivity("1", "设计稿.pdf", "delivered", "send", "书房的电脑", 2048, DateTimeOffset.Now),
+                    new MobileTransferActivity("2", "素材.zip", "uploaded", "send", "书房的电脑", 4096, DateTimeOffset.Now)
                 ])
         };
         using var host = new TestToolHost(TestToolHost.DefaultPhoneCatalog());
