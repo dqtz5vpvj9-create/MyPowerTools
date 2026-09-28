@@ -39,9 +39,14 @@ public sealed class HostControlGrpcService : HostProto.HostControl.HostControlBa
         });
     }
 
-    public override async Task<HostProto.DashboardSnapshot> GetDashboardSnapshot(HostProto.DashboardSnapshotRequest request, ServerCallContext context)
+    public override Task<HostProto.DashboardSnapshot> GetDashboardSnapshot(HostProto.DashboardSnapshotRequest request, ServerCallContext context)
     {
-        await _runtime.RefreshHealthAsync(context.CancellationToken);
+        // The dashboard is a read model over the runtime's cached module status; it must not sweep
+        // every module here. RefreshHealthAsync awaits each enabled module in turn, so a single
+        // slow module (ScreenEase spends its full 10s status budget when the native display writer
+        // is unavailable) pushed this call past the client's 15s deadline. The cache stays current
+        // through the Runner's startup RefreshDynamicCommandsAsync, the module health monitor and
+        // event pump, and the explicit `host.status.refresh` command, which remains the sweep path.
         var snapshot = _runtime.GetDashboardSnapshot();
         var response = new HostProto.DashboardSnapshot
         {
@@ -80,7 +85,7 @@ public sealed class HostControlGrpcService : HostProto.HostControl.HostControlBa
             Body = alert.Body
         }));
 
-        return response;
+        return Task.FromResult(response);
     }
 
     public override Task<HostProto.ListToolsResponse> ListTools(HostProto.ListToolsRequest request, ServerCallContext context)

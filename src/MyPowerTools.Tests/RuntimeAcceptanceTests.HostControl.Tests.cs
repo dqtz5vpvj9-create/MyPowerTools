@@ -372,4 +372,95 @@ public sealed partial class RuntimeAcceptanceTests
         Assert.True(lifetime.StopRequested);
         Assert.True(lifetime.ApplicationStopping.IsCancellationRequested);
     }
+
+    [Fact]
+    public async Task HostControl_dashboard_snapshot_reads_cached_status_without_a_health_sweep()
+    {
+        var packageRoot = Path.Combine(Path.GetTempPath(), "mpt-hostcontrol-dashboard-cache", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(packageRoot);
+        WriteInProcDotNetModulePackage(
+            packageRoot,
+            "sample.slow-status",
+            "sample-slow-status",
+            "Slow Status Module",
+            typeof(SampleDotNetModule).FullName!);
+
+        var slowTransport = new SlowStatusTransportRuntime(TimeSpan.FromSeconds(2));
+        var runtime = new MptHostRuntime(
+            new PackageReader(),
+            PlatformId.Current(),
+            RuntimePaths.Create(Path.Combine(Path.GetTempPath(), "mpt-hostcontrol-dashboard-cache-data", Guid.NewGuid().ToString("N"))),
+            [slowTransport]);
+        runtime.Load(packageRoot);
+        var service = new HostControlGrpcService(
+            runtime,
+            new AuditLog(Path.Combine(Path.GetTempPath(), "mpt-hostcontrol-dashboard-cache-audit", Guid.NewGuid().ToString("N"), "audit.jsonl")));
+
+        // Regression: the read path used to await RefreshHealthAsync, so one slow module (ScreenEase
+        // spends its whole 10s status budget) pushed the dashboard past the client's 15s deadline.
+        var readStarted = Stopwatch.StartNew();
+        var dashboard = await service.GetDashboardSnapshot(
+            new MyPowerTools.Protocol.HostControl.V1.DashboardSnapshotRequest(),
+            new TestServerCallContext());
+        readStarted.Stop();
+
+        Assert.Equal(0, slowTransport.StatusCalls);
+        Assert.True(
+            readStarted.Elapsed < TimeSpan.FromSeconds(1),
+            $"dashboard read waited on module health for {readStarted.Elapsed.TotalSeconds:0.00}s");
+        var cached = Assert.Single(dashboard.Cards.Where(card => card.ModuleId == "sample.slow-status"));
+        Assert.Equal("indexed", cached.State);
+
+        // Refresh semantics stay with the startup/explicit paths: the module card's
+        // `{module}.status.refresh` action (host.status.refresh) still sweeps the modules, and the
+        // next dashboard read serves the freshly recorded status from the cache.
+        var refresh = await runtime.ExecuteCommandAsync(
+            new CommandRequest("dashboard-cache-refresh", "sample.slow-status.status.refresh", new JsonObject()),
+            CancellationToken.None);
+        Assert.True(refresh.Success, refresh.Error?.Message);
+        Assert.Equal(1, slowTransport.StatusCalls);
+
+        var refreshed = await service.GetDashboardSnapshot(
+            new MyPowerTools.Protocol.HostControl.V1.DashboardSnapshotRequest(),
+            new TestServerCallContext());
+        Assert.Equal("running", refreshed.Cards.Single(card => card.ModuleId == "sample.slow-status").State);
+        Assert.Equal(1, slowTransport.StatusCalls);
+    }
+
+    private sealed class SlowStatusTransportRuntime(TimeSpan statusDelay) : IModuleTransportRuntime
+    {
+        private int _statusCalls;
+
+        public string Kind => "inproc-dotnet";
+
+        public int StatusCalls => Volatile.Read(ref _statusCalls);
+
+        public async ValueTask<ModuleStatusSnapshot?> GetStatusAsync(RuntimeModuleRecord module, ModuleContext context, CancellationToken cancellationToken)
+        {
+            Interlocked.Increment(ref _statusCalls);
+            await Task.Delay(statusDelay, cancellationToken);
+            return new ModuleStatusSnapshot(
+                module.Module.Manifest.Id,
+                "running",
+                "slow status transport",
+                DateTimeOffset.UtcNow,
+                [],
+                0);
+        }
+
+        public ValueTask<SettingsSchemaDocument> GetSettingsSchemaAsync(RuntimeModuleRecord module, ModuleContext context, CancellationToken cancellationToken)
+        {
+            return ValueTask.FromResult(new SettingsSchemaDocument(module.Module.Manifest.Id, "{}"));
+        }
+
+        public ValueTask<IReadOnlyList<MptCommandDescriptor>> ListCommandsAsync(RuntimeModuleRecord module, ModuleContext context, CancellationToken cancellationToken)
+        {
+            return ValueTask.FromResult<IReadOnlyList<MptCommandDescriptor>>([]);
+        }
+
+        public ValueTask<CommandExecutionResult> ExecuteCommandAsync(RuntimeModuleRecord module, ModuleContext context, CommandRequest request, CancellationToken cancellationToken)
+        {
+            return ValueTask.FromResult(new CommandExecutionResult(request.InvocationId, request.CommandId, "succeeded", true, "slow status transport"));
+        }
+    }
 }

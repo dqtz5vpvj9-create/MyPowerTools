@@ -68,6 +68,123 @@ $installedWebToolHostExecutable = Join-Path $canonicalInstallRoot 'Shell\WebTool
 $installedRuntimeScript = Join-Path $canonicalInstallRoot 'start-user-runtime.ps1'
 $installedAppExecutable = Join-Path $canonicalInstallRoot 'MyPowerTools.exe'
 $installedOverlayManifest = Join-Path $canonicalInstallRoot 'dev-update.manifest.json'
+
+# The canonical tool registry (scripts\build-all-tools.ps1) is the single source of truth for
+# each tool's RuntimeStagePath. Shared bundles (remote-commands and process-monitor surface
+# into remote-notifications' android-tools-suite bundle) must resolve to that owner bundle and
+# the owner must be built before its contributors, whatever order -ToolId was passed in.
+$toolRegistry = @()
+$buildRegistryPath = Join-Path $repositoryRoot 'scripts\build-all-tools.ps1'
+if (Test-Path -LiteralPath $buildRegistryPath -PathType Leaf) {
+    $registryText = Get-Content -LiteralPath $buildRegistryPath -Raw
+    $registryStart = $registryText.IndexOf('$toolRegistry = @(')
+    if ($registryStart -ge 0) {
+        $registryEnd = $registryText.IndexOf("`n)", $registryStart)
+        if ($registryEnd -gt $registryStart) {
+            $registryBlock = $registryText.Substring($registryStart, $registryEnd - $registryStart + 2)
+            $toolRegistry = @(& ([scriptblock]::Create($registryBlock + "`n`$toolRegistry")))
+        }
+    }
+}
+
+function Get-ToolRegistryEntry {
+    param([Parameter(Mandatory = $true)][string]$RequestedToolId)
+
+    return @($toolRegistry | Where-Object { $_.Id -eq $RequestedToolId }) | Select-Object -First 1
+}
+
+function Get-ToolStagePath {
+    param([Parameter(Mandatory = $true)][string]$RequestedToolId)
+
+    $entry = Get-ToolRegistryEntry -RequestedToolId $RequestedToolId
+    if ($null -ne $entry -and -not [string]::IsNullOrWhiteSpace([string]$entry.RuntimeStagePath)) {
+        return [IO.Path]::GetFullPath((Join-Path $repositoryRoot ([string]$entry.RuntimeStagePath)))
+    }
+    return [IO.Path]::GetFullPath((Join-Path $repositoryRoot "tools\$RequestedToolId\artifacts\package"))
+}
+
+function Get-ToolStageOwner {
+    param([Parameter(Mandatory = $true)][string]$RequestedToolId)
+
+    $stagePath = Get-ToolStagePath -RequestedToolId $RequestedToolId
+    $toolsRoot = [IO.Path]::GetFullPath((Join-Path $repositoryRoot 'tools')).TrimEnd(
+        [IO.Path]::DirectorySeparatorChar,
+        [IO.Path]::AltDirectorySeparatorChar) + [IO.Path]::DirectorySeparatorChar
+    if (-not $stagePath.StartsWith($toolsRoot, [StringComparison]::OrdinalIgnoreCase)) {
+        return $RequestedToolId
+    }
+    $relative = $stagePath.Substring($toolsRoot.Length)
+    return ($relative -split '[\\/]')[0]
+}
+
+function Expand-ToolIdsWithStageContributors {
+    param([AllowNull()][AllowEmptyCollection()][string[]]$RequestedToolIds = @())
+
+    # A registry-owned bundle is assembled by every registry entry that stages into it:
+    # remote-notifications owns tools\remote-notifications\artifacts\package\android-tools-suite
+    # and remote-commands contributes its Surface into that same bundle. Requesting any one
+    # contributor must build the owner plus the other contributors, so the canonical bundle is
+    # always complete (AGENTS documents -ToolId remote-notifications on its own) and no tool
+    # falls back to a contributor's stale private snapshot. Tools with their own package are
+    # unaffected.
+    $expanded = [Collections.Generic.List[string]]::new()
+    $seen = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+    $stagePaths = [Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
+    foreach ($id in $RequestedToolIds) {
+        if (-not $seen.Add($id)) {
+            continue
+        }
+        $expanded.Add($id)
+        [void]$stagePaths.Add((Get-ToolStagePath -RequestedToolId $id))
+    }
+    foreach ($entry in $toolRegistry) {
+        $entryId = [string]$entry.Id
+        if ([string]::IsNullOrWhiteSpace($entryId) -or $seen.Contains($entryId)) {
+            continue
+        }
+        if ([string]::IsNullOrWhiteSpace([string]$entry.RuntimeStagePath)) {
+            continue
+        }
+        $entryStagePath = [IO.Path]::GetFullPath((Join-Path $repositoryRoot ([string]$entry.RuntimeStagePath)))
+        if ($stagePaths.Contains($entryStagePath)) {
+            [void]$seen.Add($entryId)
+            $expanded.Add($entryId)
+        }
+    }
+    return $expanded.ToArray()
+}
+
+function Get-OrderedToolIds {
+    param([AllowNull()][AllowEmptyCollection()][string[]]$RequestedToolIds = @())
+
+    $ordered = [Collections.Generic.List[string]]::new()
+    $pending = [Collections.Generic.List[string]]::new()
+    foreach ($id in $RequestedToolIds) {
+        if (-not $pending.Contains($id)) {
+            $pending.Add($id)
+        }
+    }
+    while ($pending.Count -gt 0) {
+        $progressed = $false
+        foreach ($candidate in @($pending)) {
+            $owner = Get-ToolStageOwner -RequestedToolId $candidate
+            if ($owner -eq $candidate -or
+                -not $pending.Contains($owner) -or
+                $ordered.Contains($owner)) {
+                $ordered.Add($candidate)
+                [void]$pending.Remove($candidate)
+                $progressed = $true
+            }
+        }
+        if (-not $progressed) {
+            foreach ($candidate in @($pending)) {
+                $ordered.Add($candidate)
+            }
+            break
+        }
+    }
+    return $ordered.ToArray()
+}
 $shellProject = Join-Path $repositoryRoot 'src\MyPowerTools.Shell.Avalonia\MyPowerTools.Shell.Avalonia.csproj'
 $runnerProject = Join-Path $repositoryRoot 'src\MyPowerTools.Runner\MyPowerTools.Runner.csproj'
 $elevatedBrokerProject = Join-Path $repositoryRoot 'src\MyPowerTools.ElevatedBroker\MyPowerTools.ElevatedBroker.csproj'
@@ -433,19 +550,50 @@ function Request-ServiceManagerShutdown {
     }
 }
 
+function Copy-DirectoryFileSet {
+    param(
+        [Parameter(Mandatory = $true)][string]$Source,
+        [Parameter(Mandatory = $true)][string]$Destination,
+        # Mirrors the source file set by deleting destination files the source no longer has.
+        # In-place component updates need this so obsolete binaries do not survive; rollback
+        # uses it to restore the exact snapshot. Directories are left in place (a locked unit
+        # bin may remain empty) and a failed deletion is surfaced instead of being hidden.
+        [switch]$Prune
+    )
+
+    if (-not (Test-Path -LiteralPath $Source -PathType Container)) {
+        throw "Directory source is missing: $Source"
+    }
+    $sourceFull = [IO.Path]::GetFullPath($Source).TrimEnd(
+        [IO.Path]::DirectorySeparatorChar,
+        [IO.Path]::AltDirectorySeparatorChar)
+    $destinationFull = [IO.Path]::GetFullPath($Destination).TrimEnd(
+        [IO.Path]::DirectorySeparatorChar,
+        [IO.Path]::AltDirectorySeparatorChar)
+    New-Item -ItemType Directory -Path $destinationFull -Force | Out-Null
+    foreach ($item in Get-ChildItem -LiteralPath $sourceFull -Force) {
+        Copy-Item -LiteralPath $item.FullName -Destination $destinationFull -Recurse -Force
+    }
+    if (-not $Prune.IsPresent) {
+        return
+    }
+    $sourceFiles = @(Get-ChildItem -LiteralPath $sourceFull -Recurse -File -Force |
+        ForEach-Object { $_.FullName.Substring($sourceFull.Length).TrimStart('\', '/') })
+    foreach ($file in @(Get-ChildItem -LiteralPath $destinationFull -Recurse -File -Force)) {
+        $relative = $file.FullName.Substring($destinationFull.Length).TrimStart('\', '/')
+        if ($sourceFiles -notcontains $relative) {
+            Remove-Item -LiteralPath $file.FullName -Force -ErrorAction Stop
+        }
+    }
+}
+
 function Copy-DirectoryContents {
     param(
         [Parameter(Mandatory = $true)][string]$Source,
         [Parameter(Mandatory = $true)][string]$Destination
     )
 
-    if (-not (Test-Path -LiteralPath $Source -PathType Container)) {
-        throw "Directory source is missing: $Source"
-    }
-    New-Item -ItemType Directory -Path $Destination -Force | Out-Null
-    foreach ($item in Get-ChildItem -LiteralPath $Source -Force) {
-        Copy-Item -LiteralPath $item.FullName -Destination $Destination -Recurse -Force
-    }
+    Copy-DirectoryFileSet -Source $Source -Destination $Destination
 }
 
 function Get-ToolPackageRuntimeExecutables {
@@ -477,13 +625,99 @@ function Get-ToolPackageRuntimeExecutables {
     return @($executableNames | Sort-Object -Unique)
 }
 
-function Get-ProcessesInDirectory {
-    param([Parameter(Mandatory = $true)][string]$Directory)
+function Get-CommandLineExecutablePath {
+    param([Parameter(Mandatory = $true)][string]$CommandLine)
 
+    # Only the executable token of the command line counts. A path merely mentioned as an
+    # argument (sibling directory, log viewer, editor) must never select a process for kill.
+    $trimmed = $CommandLine.TrimStart()
+    if ($trimmed.Length -eq 0) {
+        return $null
+    }
+    if ($trimmed[0] -eq '"') {
+        $closing = $trimmed.IndexOf('"', 1)
+        if ($closing -le 1) {
+            return $null
+        }
+        $candidate = $trimmed.Substring(1, $closing - 1)
+    }
+    else {
+        $spaceIndex = $trimmed.IndexOf(' ')
+        $candidate = if ($spaceIndex -lt 0) { $trimmed } else { $trimmed.Substring(0, $spaceIndex) }
+    }
+    if ([string]::IsNullOrWhiteSpace($candidate) -or -not [IO.Path]::IsPathRooted($candidate)) {
+        return $null
+    }
+    return $candidate
+}
+
+function Get-ProcessesInDirectory {
+    param(
+        [Parameter(Mandatory = $true)][string]$Directory,
+        # Elevated or otherwise protected processes can hide ExecutablePath; fall back to the
+        # executable token of the command line, still validated with Test-IsInsidePath.
+        [switch]$MatchCommandLine
+    )
+
+    $directoryFull = [IO.Path]::GetFullPath($Directory)
     return @(Get-CimInstance Win32_Process | Where-Object {
-        -not [string]::IsNullOrWhiteSpace($_.ExecutablePath) -and
-        (Test-IsInsidePath -Parent $Directory -Child $_.ExecutablePath)
+        if (-not [string]::IsNullOrWhiteSpace($_.ExecutablePath) -and
+            (Test-IsInsidePath -Parent $directoryFull -Child $_.ExecutablePath)) {
+            return $true
+        }
+        if ($MatchCommandLine.IsPresent -and -not [string]::IsNullOrWhiteSpace($_.CommandLine)) {
+            $commandLineExecutable = Get-CommandLineExecutablePath -CommandLine $_.CommandLine
+            if (-not [string]::IsNullOrWhiteSpace($commandLineExecutable) -and
+                (Test-IsInsidePath -Parent $directoryFull -Child $commandLineExecutable)) {
+                return $true
+            }
+        }
+        return $false
     })
+}
+
+function Stop-ServiceUnitProcesses {
+    param([Parameter(Mandatory = $true)][string[]]$UnitDirectories)
+
+    # Service units are supervised (autostart + restart policy), so one Stop-Process can race
+    # with a restart and leave the unit bin locked when the swap moves directories. Only a
+    # managed ServiceManager (the one the swap already asked to stop) blocks this update; a
+    # supervisor from another checkout is out of scope. This runs before the transaction
+    # starts: survivors abort the update with every target untouched instead of failing
+    # halfway through the move.
+    $supervisors = @(Get-ProductProcessRecords -Name @('MyPowerTools.ServiceManager') |
+        Where-Object Managed)
+    if ($supervisors.Count -gt 0) {
+        throw "Managed ServiceManager supervisor is still running (pid=$($supervisors[0].Id)); stopping service units now would race with its restart policy."
+    }
+    $deadline = [DateTimeOffset]::UtcNow.AddSeconds(20)
+    do {
+        $running = [Collections.Generic.List[object]]::new()
+        foreach ($unitDirectory in $UnitDirectories) {
+            foreach ($process in (Get-ProcessesInDirectory -Directory $unitDirectory -MatchCommandLine)) {
+                $running.Add($process)
+            }
+        }
+        if ($running.Count -eq 0) {
+            return
+        }
+
+        foreach ($process in $running) {
+            Stop-Process -Id $process.ProcessId -Force -ErrorAction SilentlyContinue
+            Wait-Process -Id $process.ProcessId -Timeout 3 -ErrorAction SilentlyContinue
+        }
+        Start-Sleep -Milliseconds 500
+    } while ([DateTimeOffset]::UtcNow -lt $deadline)
+
+    $survivors = [Collections.Generic.List[string]]::new()
+    foreach ($unitDirectory in $UnitDirectories) {
+        foreach ($process in (Get-ProcessesInDirectory -Directory $unitDirectory -MatchCommandLine)) {
+            $survivors.Add("$($process.Name) pid=$($process.ProcessId)")
+        }
+    }
+    if ($survivors.Count -gt 0) {
+        throw "Service unit processes still hold the directories being replaced: $($survivors -join '; ')"
+    }
 }
 
 function Stop-ToolPackageRuntimes {
@@ -561,14 +795,25 @@ function Publish-ManagedComponent {
 function Get-ToolPackageDescriptor {
     param([Parameter(Mandatory = $true)][string]$RequestedToolId)
 
-    $packageRoot = Join-Path $repositoryRoot "tools\$RequestedToolId\artifacts\package"
-    if (-not (Test-Path -LiteralPath $packageRoot -PathType Container)) {
-        return $null
+    # The registry's RuntimeStagePath is authoritative. Tools that contribute into another
+    # tool's bundle (remote-commands -> remote-notifications' android-tools-suite) must use
+    # that owner bundle, never their own private staging snapshot.
+    $candidateRoots = [Collections.Generic.List[string]]::new()
+    foreach ($root in @(
+            (Get-ToolStagePath -RequestedToolId $RequestedToolId),
+            (Join-Path $repositoryRoot "tools\$RequestedToolId\artifacts\package"))) {
+        if (-not (Test-Path -LiteralPath $root -PathType Container)) {
+            continue
+        }
+        if (-not $candidateRoots.Contains($root)) {
+            $candidateRoots.Add($root)
+        }
+        foreach ($child in @(Get-ChildItem -LiteralPath $root -Directory -ErrorAction SilentlyContinue)) {
+            if (-not $candidateRoots.Contains($child.FullName)) {
+                $candidateRoots.Add($child.FullName)
+            }
+        }
     }
-
-    $candidateRoots = @($packageRoot)
-    $candidateRoots += @(Get-ChildItem -LiteralPath $packageRoot -Directory -ErrorAction SilentlyContinue |
-        ForEach-Object FullName)
     foreach ($candidateRoot in $candidateRoots) {
         $moduleManifest = Join-Path $candidateRoot 'module.json'
         $packageManifest = Join-Path $candidateRoot 'package.json'
@@ -646,16 +891,47 @@ function Add-ToolSurfaceToPackage {
         throw "Tool Surface assembly is missing: $surfaceAssemblyPath"
     }
 
-    $matchingToolManifests = @(
+    $toolManifests = @(
         Get-ChildItem -LiteralPath $PackageRoot -Recurse -File -Filter 'tool.json' |
-            Where-Object {
+            ForEach-Object {
                 $toolManifest = Get-Content -LiteralPath $_.FullName -Raw | ConvertFrom-Json
-                [string]$toolManifest.toolId -eq $RequestedToolId
+                # Under Set-StrictMode -Version Latest, routes without a dotnet surface must be
+                # skipped through PSObject.Properties instead of demanding every route has one.
+                $routesProperty = $toolManifest.PSObject.Properties['routes']
+                $surfaceAssemblies = @(
+                    @($(if ($null -eq $routesProperty) { @() } else { @($routesProperty.Value) })) |
+                        ForEach-Object {
+                            $surfaceProperty = $_.PSObject.Properties['surface']
+                            if ($null -eq $surfaceProperty -or $null -eq $surfaceProperty.Value) { return }
+                            $assemblyProperty = $surfaceProperty.Value.PSObject.Properties['assembly']
+                            if ($null -eq $assemblyProperty) { return }
+                            [string]$assemblyProperty.Value
+                        } |
+                        Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
+                        ForEach-Object { [IO.Path]::GetFileName($_) })
+                [pscustomobject]@{
+                    Path              = $_.FullName
+                    ToolId            = [string]$toolManifest.toolId
+                    SurfaceAssemblies = $surfaceAssemblies
+                }
             })
-    if ($matchingToolManifests.Count -ne 1) {
-        throw "Expected one tool.json for Surface tool '$RequestedToolId', found $($matchingToolManifests.Count)."
+    $matchingToolManifests = @($toolManifests | Where-Object { $_.ToolId -eq $RequestedToolId })
+    if ($matchingToolManifests.Count -eq 0) {
+        # Adapters whose module id differs from the tool directory (doubao-agent) declare the
+        # built Surface assembly in their route metadata; match that exact file name instead
+        # of guessing from partial tool id tokens. An ambiguous toolId (count > 1) never falls
+        # back, so a real duplicate stays a loud failure.
+        $matchingToolManifests = @($toolManifests | Where-Object {
+            $_.SurfaceAssemblies -contains $surfaceAssemblyName
+        })
     }
-    $surfaceTarget = Join-Path $matchingToolManifests[0].Directory.FullName 'surface'
+    if ($matchingToolManifests.Count -ne 1) {
+        $candidates = @($toolManifests | ForEach-Object {
+            "$($_.ToolId)[$($_.SurfaceAssemblies -join '|')]"
+        }) -join ', '
+        throw "Expected one tool.json for Surface tool '$RequestedToolId' ($surfaceAssemblyName), found $($matchingToolManifests.Count). Candidates: $candidates"
+    }
+    $surfaceTarget = Join-Path (Split-Path -Parent $matchingToolManifests[0].Path) 'surface'
     New-Item -ItemType Directory -Path $surfaceTarget -Force | Out-Null
     foreach ($extension in @('*.dll', '*.pdb', '*.deps.json')) {
         Get-ChildItem -LiteralPath $surfaceOutput -File -Filter $extension |
@@ -896,11 +1172,28 @@ function Restore-OverlayTransaction {
         if ($AppliedComponents.Count -gt 0) {
             foreach ($component in @($AppliedComponents)[($AppliedComponents.Count - 1)..0]) {
                 if ($component.Applied -and (Test-Path -LiteralPath $component.Target)) {
+                    if ($component.InPlace) {
+                        # In-place components keep their (locked) directory: restore the snapshot
+                        # file set exactly. A failed deletion throws so the rollback is never
+                        # reported as successful while stale files remain.
+                        if (Test-Path -LiteralPath $component.Backup -PathType Container) {
+                            Copy-DirectoryFileSet -Source $component.Backup -Destination $component.Target -Prune
+                        }
+                        continue
+                    }
                     Remove-VerifiedDirectory -Path $component.Target -AllowedParent $canonicalInstallRoot
                 }
                 if ($component.HadOriginal -and (Test-Path -LiteralPath $component.Backup)) {
                     New-Item -ItemType Directory -Path (Split-Path -Parent $component.Target) -Force | Out-Null
-                    Move-Item -LiteralPath $component.Backup -Destination $component.Target
+                    if (Test-Path -LiteralPath $component.Target) {
+                        # A locked target can survive the removal above. Restore the backup
+                        # contents instead of moving the backup directory inside it, which
+                        # would nest the component (target\<name>\...).
+                        Copy-DirectoryFileSet -Source $component.Backup -Destination $component.Target -Prune
+                    }
+                    else {
+                        Move-Item -LiteralPath $component.Backup -Destination $component.Target
+                    }
                 }
             }
         }
@@ -921,7 +1214,7 @@ function Restore-OverlayTransaction {
 }
 
 $toolBuildScripts = [Collections.Generic.List[string]]::new()
-foreach ($requestedToolId in $ToolId) {
+foreach ($requestedToolId in (Get-OrderedToolIds -RequestedToolIds (Expand-ToolIdsWithStageContributors -RequestedToolIds $ToolId))) {
     if ($requestedToolId -notmatch '^[A-Za-z0-9_.-]+$') {
         throw "ToolId contains unsupported characters: $requestedToolId"
     }
@@ -1181,6 +1474,27 @@ try {
         }
     }
 
+    # Two tools can stage the same physical package because the registry points both at one
+    # owner bundle (remote-notifications owns tools\remote-notifications\artifacts\package\
+    # android-tools-suite; remote-commands contributes its Surface into that same bundle).
+    # Builds run owner-first and descriptors resolve to the owner bundle, so both components
+    # carry the assembled package. Collapse them by relative path: swapping a path twice would
+    # move the freshly installed target into the backup directory that already holds the
+    # previous copy and fail with "same name already exists".
+    if ($stagedComponents.Count -gt 1) {
+        $lastIndexByPath = [Collections.Generic.Dictionary[string, int]]::new([StringComparer]::OrdinalIgnoreCase)
+        for ($index = 0; $index -lt $stagedComponents.Count; $index++) {
+            $lastIndexByPath[[string]$stagedComponents[$index].RelativePath] = $index
+        }
+        $dedupedComponents = [Collections.Generic.List[object]]::new()
+        for ($index = 0; $index -lt $stagedComponents.Count; $index++) {
+            if ($lastIndexByPath[[string]$stagedComponents[$index].RelativePath] -eq $index) {
+                $dedupedComponents.Add($stagedComponents[$index])
+            }
+        }
+        $stagedComponents = $dedupedComponents
+    }
+
     if (Test-Path -LiteralPath $transactionRoot) {
         Remove-VerifiedDirectory -Path $transactionRoot -AllowedParent $installationParent
     }
@@ -1208,15 +1522,12 @@ try {
         Wait-Process -Id $process.ProcessId -Timeout 3 -ErrorAction SilentlyContinue
     }
     Stop-ToolPackageRuntimes -Components $stagedComponents
-    foreach ($component in $stagedComponents) {
-        if ($component.Kind -ne 'service-unit') {
-            continue
-        }
-        $unitDirectory = Resolve-InstalledRelativePath -RelativePath $component.RelativePath
-        foreach ($process in @(Get-ProcessesInDirectory -Directory $unitDirectory)) {
-            Stop-Process -Id $process.ProcessId -Force -ErrorAction SilentlyContinue
-            Wait-Process -Id $process.ProcessId -Timeout 3 -ErrorAction SilentlyContinue
-        }
+    $serviceUnitDirectories = @($stagedComponents |
+        Where-Object { $_.Kind -eq 'service-unit' } |
+        ForEach-Object { Resolve-InstalledRelativePath -RelativePath $_.RelativePath })
+    if ($serviceUnitDirectories.Count -gt 0) {
+        Write-Phase 'Stopping installed service units that are about to be replaced'
+        Stop-ServiceUnitProcesses -UnitDirectories $serviceUnitDirectories
     }
     $transactionStarted = $true
 
@@ -1230,6 +1541,7 @@ try {
             Backup = $backup
             HadOriginal = (Test-Path -LiteralPath $target)
             Applied = $false
+            InPlace = $false
             PackageId = [string]$component.PackageId
             RuntimeExecutables = @($component.RuntimeExecutables)
         }
@@ -1237,7 +1549,33 @@ try {
 
         New-Item -ItemType Directory -Path (Split-Path -Parent $backup) -Force | Out-Null
         if ($record.HadOriginal) {
-            Move-Item -LiteralPath $target -Destination $backup
+            try {
+                Move-Item -LiteralPath $target -Destination $backup -ErrorAction Stop
+            }
+            catch {
+                if ($component.Kind -ne 'service-unit' -or
+                    -not (Test-Path -LiteralPath $target -PathType Container)) {
+                    throw
+                }
+                # A process outside MyPowerTools can hold a directory handle on a unit bin while
+                # every file inside stays unlocked, so the directory itself cannot be moved or
+                # deleted. Snapshot the installed unit and update its files in place instead of
+                # skipping it: the Tools overlay still ships the new unit content and rollback
+                # can restore the snapshot.
+                Copy-DirectoryFileSet -Source $target -Destination $backup
+                $record.InPlace = $true
+                Write-Host "  Locked unit directory kept; updating files in place: $($component.RelativePath)" -ForegroundColor DarkYellow
+            }
+        }
+        if ($record.InPlace) {
+            # Applied must be set before the first mutation: a copy that fails halfway still
+            # has to be rolled back from the snapshot.
+            $record.Applied = $true
+            Copy-DirectoryFileSet -Source $payload -Destination $target -Prune
+            continue
+        }
+        if (Test-Path -LiteralPath $target) {
+            throw "Component target still exists after the backup move: $($component.RelativePath)"
         }
         New-Item -ItemType Directory -Path (Split-Path -Parent $target) -Force | Out-Null
         Move-Item -LiteralPath $payload -Destination $target
@@ -1354,6 +1692,7 @@ try {
         RuntimeFileCount = $inventoryAfter.RuntimeFileCount
         ServiceUnitFileCount = $inventoryAfter.ServiceUnitFileCount
         OverlayComponents = @($stagedComponents | ForEach-Object RelativePath)
+        InPlaceComponents = @($appliedComponents | Where-Object InPlace | ForEach-Object RelativePath)
         ToolIds = $ToolId
     }
 }
