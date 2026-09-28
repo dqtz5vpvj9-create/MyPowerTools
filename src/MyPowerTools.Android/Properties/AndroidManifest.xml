@@ -2,9 +2,24 @@
   <uses-permission android:name="android.permission.INTERNET" />
   <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
   <uses-permission android:name="android.permission.CHANGE_NETWORK_STATE" />
+  <uses-permission android:name="android.permission.ACCESS_WIFI_STATE" />
+  <uses-permission android:name="android.permission.CHANGE_WIFI_MULTICAST_STATE" />
   <uses-permission android:name="android.permission.FOREGROUND_SERVICE" />
   <uses-permission android:name="android.permission.FOREGROUND_SERVICE_CONNECTED_DEVICE" />
   <uses-permission android:name="android.permission.FOREGROUND_SERVICE_DATA_SYNC" />
   <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+  <!--
+    Camera is requested only by PairingQrScannerActivity, and only while the user is scanning a
+    pairing QR code on the device that is being paired. It is never requested at launch and no
+    other feature uses it. required="false" keeps the app installable on a device without a camera,
+    where the scanner reports that instead of blocking installation; everything else still works.
+  -->
+  <uses-permission android:name="android.permission.CAMERA" />
+  <!--
+    Both features are declared so a device without a camera is not silently filtered out of the
+    store listing. Neither feature grants a runtime permission; they only describe the hardware.
+  -->
+  <uses-feature android:name="android.hardware.camera" android:required="false" />
+  <uses-feature android:name="android.hardware.camera.autofocus" android:required="false" />
   <application android:label="MyPowerTools" android:allowBackup="false" android:usesCleartextTraffic="true" />
 </manifest>

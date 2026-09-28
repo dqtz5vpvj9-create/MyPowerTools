@@ -5,8 +5,8 @@
     <OutputType>Exe</OutputType>
     <ApplicationId>com.mypowertools.android</ApplicationId>
     <ApplicationTitle>MyPowerTools</ApplicationTitle>
-    <ApplicationVersion>1</ApplicationVersion>
-    <ApplicationDisplayVersion>0.1.0</ApplicationDisplayVersion>
+    <ApplicationVersion>3</ApplicationVersion>
+    <ApplicationDisplayVersion>0.2.1</ApplicationDisplayVersion>
     <ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable>
     <RuntimeIdentifiers>android-arm64;android-x64</RuntimeIdentifiers>
     <!-- CoreCLR preserves the host collectible-module lifecycle; this APK is a development preview. -->
@@ -27,7 +27,36 @@
     -->
     <ErrorOnDuplicatePublishOutputFiles>false</ErrorOnDuplicatePublishOutputFiles>  </PropertyGroup>
   <ItemGroup>
+    <!--
+      The phone-side unit tests live under this project's directory (tests/MyPowerTools.Android.Tests)
+      and target plain net10.0, so the application must not glob them into its own compile: without
+      this the app tried to compile xunit [Fact] attributes it has no reference for. The Android-free
+      rule files they link are listed in that test project instead.
+    -->
+    <Compile Remove="tests/**/*.cs" />
+    <None Remove="tests/**" />
+  </ItemGroup>
+  <ItemGroup>
     <PackageReference Include="Avalonia.Android" Version="12.0.5" />
+    <!--
+      QR decoding for the pairing-code scanner. ZXing.Net is a pure managed port: it adds no native
+      Android libraries, no Google Play Services dependency and no network access, so the scanner
+      also works on a device without Play Services and the APK gains one managed assembly. Only the
+      decoder is used; the camera preview and the frame pipeline come from the platform.
+    -->
+    <PackageReference Include="ZXing.Net" Version="0.16.10" />
+    <!--
+      AndroidX Core and AppCompat are already in the graph through Avalonia.Android, but the host
+      compiles against them directly: WindowCompat/WindowInsetsCompat give the API 29 compatible
+      keyboard-inset and system-bar-icon APIs (the platform equivalents are API 30), and
+      AppCompatDelegate reports the night mode the window theme resolved.
+
+      The versions are the ones Avalonia.Android 12.0.5 already selects (AppCompat 1.7.1.3, and Core
+      1.17.0.2 through AndroidX.Window 1.5.1.2). Naming them is what makes the compile-time surface
+      explicit; naming an older one is a package downgrade and NuGet rejects it (NU1605).
+    -->
+    <PackageReference Include="Xamarin.AndroidX.Core" Version="1.17.0.2" />
+    <PackageReference Include="Xamarin.AndroidX.AppCompat" Version="1.7.1.3" />
     <ProjectReference Include="../MyPowerTools.Shell.Avalonia/MyPowerTools.Shell.Avalonia.csproj" AdditionalProperties="OutputType=Library" />
     <ProjectReference Include="../MyPowerTools.Platform.Android/MyPowerTools.Platform.Android.csproj" />
     <ProjectReference Include="../MyPowerTools.HostControl.Server/MyPowerTools.HostControl.Server.csproj" />
@@ -39,6 +68,9 @@
     <ProjectReference Include="../MyPowerTools.MobileNotifications/MyPowerTools.MobileNotifications.csproj" />
     <ProjectReference Include="../../tools/remote-commands/android-integration/src/RemoteCommands.Android/RemoteCommands.Android.csproj" />
     <ProjectReference Include="../MyPowerTools.MobileRemoteCommands/MyPowerTools.MobileRemoteCommands.csproj" />
+    <!-- Remote Tool Gateway (G2): phone module adapter plus its own controller page. -->
+    <ProjectReference Include="../../tools/remote-tool-gateway/android-integration/src/MobileToolControl.Android/MobileToolControl.Android.csproj" />
+    <ProjectReference Include="../MyPowerTools.MobileToolControl/MyPowerTools.MobileToolControl.csproj" />
   </ItemGroup>
   <ItemGroup>
     <!--
@@ -63,24 +95,23 @@
       leaving these files out cannot abort the catalog load.
     -->
     <AndroidAsset Include="../../modules/**/module.json;../../modules/**/package.json;../../modules/**/commands.index.json;../../modules/**/ui/tool.json;../../modules/**/ui/dashboard-card.json;../../modules/**/ui/detail-page.json;../../modules/**/ui/settings.json;../../modules/**/ui/logs.json"
-                  Exclude="../../modules/**/state/**;../../modules/**/*.local.json;../../modules/**/settings.values.json;../../modules/**/settings.secrets.json;../../modules/**/secrets.json;../../modules/**/shared/**;../../modules/android-tools-suite/modules/notifications/**;../../modules/android-tools-suite/modules/remote-commands/**;../../modules/remote-commands-android/**">
+                  Exclude="../../modules/**/state/**;../../modules/**/*.local.json;../../modules/**/settings.values.json;../../modules/**/settings.secrets.json;../../modules/**/secrets.json;../../modules/**/shared/**;../../modules/android-tools-suite/modules/notifications/**;../../modules/android-tools-suite/modules/remote-commands/**;../../modules/remote-commands-android/**;../../modules/file-transfer/**;../../modules/mobile-tool-control/**">
       <Link>modules/%(RecursiveDir)%(Filename)%(Extension)</Link>
     </AndroidAsset>
     <!--
-      File Transfer: adapter and phone surface assemblies. Metadata JSON documents already come from
-      the modules/** whitelist above (the tool build mirrors the same files into
-      modules/file-transfer), so they are excluded here to keep exactly one source per asset.
+      File Transfer: adapter, phone surface and current metadata all come from this package.
+      Android builds use NoMirror, so the repository desktop mirror may contain older commands and
+      activation links; it is excluded above to keep exactly one source per asset.
       Host contracts are named explicitly: no MyPowerTools.* wildcard, which would also drop a
       nested Surface assembly such as ui/surface/MyPowerTools.MobileNotifications.dll.
     -->
     <AndroidAsset Include="../../tools/file-transfer/artifacts/package/**/*"
-                  Exclude="../../tools/file-transfer/artifacts/package/**/*.pdb;../../tools/file-transfer/artifacts/package/MyPowerTools.Abstractions.dll;../../tools/file-transfer/artifacts/package/MyPowerTools.Platform.Abstractions.dll;../../tools/file-transfer/artifacts/package/MyPowerTools.AvaloniaSdk.dll;../../tools/file-transfer/artifacts/package/Avalonia*.dll;../../tools/file-transfer/artifacts/package/module.json;../../tools/file-transfer/artifacts/package/package.json;../../tools/file-transfer/artifacts/package/commands.index.json;../../tools/file-transfer/artifacts/package/ui/*.json;../../tools/file-transfer/artifacts/package/**/state/**;../../tools/file-transfer/artifacts/package/**/*.local.json">
+                  Exclude="../../tools/file-transfer/artifacts/package/**/*.pdb;../../tools/file-transfer/artifacts/package/MyPowerTools.Abstractions.dll;../../tools/file-transfer/artifacts/package/MyPowerTools.Platform.Abstractions.dll;../../tools/file-transfer/artifacts/package/MyPowerTools.AvaloniaSdk.dll;../../tools/file-transfer/artifacts/package/Avalonia*.dll;../../tools/file-transfer/artifacts/package/**/state/**;../../tools/file-transfer/artifacts/package/**/*.local.json">
       <Link>modules/file-transfer/%(RecursiveDir)%(Filename)%(Extension)</Link>
     </AndroidAsset>
     <!--
       Remote Notifications (Android): adapter, its BouncyCastle dependency, descriptors and the
-      phone surface at ui/surface/MyPowerTools.MobileNotifications.dll. Unlike file-transfer this
-      package's descriptors are not mirrored into modules/, so module.json, commands.index.json and
+      phone surface at ui/surface/MyPowerTools.MobileNotifications.dll. This package's descriptors are not mirrored into modules/, so module.json, commands.index.json and
       ui/*.json must come from the package itself. Only the two host contract assemblies are
       excluded, by exact name.
     -->
@@ -99,6 +130,16 @@
     <AndroidAsset Include="../../tools/remote-commands/android-integration/artifacts/package/remote-commands-android/**/*"
                   Exclude="../../tools/remote-commands/android-integration/artifacts/package/remote-commands-android/**/*.pdb;../../tools/remote-commands/android-integration/artifacts/package/remote-commands-android/**/*.deps.json;../../tools/remote-commands/android-integration/artifacts/package/remote-commands-android/MyPowerTools.Abstractions.dll;../../tools/remote-commands/android-integration/artifacts/package/remote-commands-android/MyPowerTools.Platform.Abstractions.dll;../../tools/remote-commands/android-integration/artifacts/package/remote-commands-android/MyPowerTools.AvaloniaSdk.dll;../../tools/remote-commands/android-integration/artifacts/package/remote-commands-android/Avalonia*.dll;../../tools/remote-commands/android-integration/artifacts/package/remote-commands-android/**/state/**;../../tools/remote-commands/android-integration/artifacts/package/remote-commands-android/**/*.local.json">
       <Link>modules/remote-commands-android/%(RecursiveDir)%(Filename)%(Extension)</Link>
+    </AndroidAsset>
+    <!--
+      Remote Tool Gateway (G2, tool id mobile-tool-control): adapter, its controller page at
+      ui/surface/MyPowerTools.MobileToolControl.dll and the declarative descriptors. Android-only and
+      never mirrored into modules/, so the staged package is the single metadata source. Symbols and
+      deps.json (the in-proc host resolves from the package directory) stay out by exact name.
+    -->
+    <AndroidAsset Include="../../tools/remote-tool-gateway/android-integration/artifacts/package/mobile-tool-control/**/*"
+                  Exclude="../../tools/remote-tool-gateway/android-integration/artifacts/package/mobile-tool-control/**/*.pdb;../../tools/remote-tool-gateway/android-integration/artifacts/package/mobile-tool-control/**/*.deps.json;../../tools/remote-tool-gateway/android-integration/artifacts/package/mobile-tool-control/MyPowerTools.Abstractions.dll;../../tools/remote-tool-gateway/android-integration/artifacts/package/mobile-tool-control/MyPowerTools.Platform.Abstractions.dll;../../tools/remote-tool-gateway/android-integration/artifacts/package/mobile-tool-control/MyPowerTools.AvaloniaSdk.dll;../../tools/remote-tool-gateway/android-integration/artifacts/package/mobile-tool-control/Avalonia*.dll;../../tools/remote-tool-gateway/android-integration/artifacts/package/mobile-tool-control/**/state/**;../../tools/remote-tool-gateway/android-integration/artifacts/package/mobile-tool-control/**/*.local.json">
+      <Link>modules/mobile-tool-control/%(RecursiveDir)%(Filename)%(Extension)</Link>
     </AndroidAsset>
   </ItemGroup>
 </Project>

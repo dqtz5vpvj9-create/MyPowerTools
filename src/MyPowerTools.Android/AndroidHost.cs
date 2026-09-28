@@ -6,6 +6,7 @@ using MyPowerTools.HostControl;
 using MyPowerTools.ModuleHost.InProcDotNet;
 using MyPowerTools.Packaging;
 using MyPowerTools.Platform;
+using MyPowerTools.Android.Pairing;
 using MyPowerTools.Platform.Android;
 using MyPowerTools.Runtime;
 using A = global::Android;
@@ -299,13 +300,48 @@ internal static class AndroidHost
         }
     }
 
+    /// <summary>
+    /// The tool that owns a share or deep link: manifest-declared prefixes first, then the host's
+    /// built-in product entry points. The file assistant is a first-class entry (a plain system share
+    /// of text, or its <c>mpt://assistant/</c> connection link), so it must resolve even when the
+    /// bundled catalog has not declared the prefix yet; a declaration still wins when it exists.
+    /// </summary>
     internal static IReadOnlyList<(string Id, string Title)> ActivationTargets(string uri)
     {
-        return ToolManifests().Where(tool =>
+        var declared = ToolManifests().Where(tool =>
         {
             var prefixes = tool.Manifest?["activationUriPrefixes"]?.AsArray();
             return prefixes?.Any(p => p?.GetValue<string>() is { } prefix && uri.StartsWith(prefix, StringComparison.Ordinal)) == true;
-        }).Select(tool => (tool.Id, tool.Title)).ToArray();
+        }).Select(tool => (tool.Id, tool.Title)).ToList();
+        if (declared.Count > 0)
+        {
+            return declared;
+        }
+
+        var owner = AssistantToolFor(uri);
+        return owner is null ? [] : [owner.Value];
+    }
+
+    /// <summary>The file-transfer tool that owns the assistant session and its connection links.</summary>
+    internal const string AssistantToolId = "file-transfer";
+
+    /// <summary>Title shown when the assistant entry is resolved from the host table.</summary>
+    private const string AssistantToolTitle = "文件助手";
+
+    /// <summary>
+    /// The built-in owner of a product entry point, or <see langword="null"/>. The tool must actually
+    /// be loaded: the host never activates an id the runtime does not have.
+    /// </summary>
+    internal static (string Id, string Title)? AssistantToolFor(string uri)
+    {
+        if (!ShareActivation.IsAssistantEntryPoint(uri))
+        {
+            return null;
+        }
+
+        return ToolManifests().Any(tool => tool.Id == AssistantToolId)
+            ? (AssistantToolId, AssistantToolTitle)
+            : null;
     }
 
     // Share destinations are declared by tools, not selected by a tool-specific switch in the host.
