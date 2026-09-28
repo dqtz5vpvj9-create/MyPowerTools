@@ -67,7 +67,7 @@ public sealed class ConversationLiveRefreshTests
             Settle(window);
             AssertVisibleAtEnd(view, "电脑刚发来的消息");
             Assert.Contains(view.Conversation.ThreadPanel.Children.Last().GetLogicalDescendants().OfType<TextBlock>(),
-                text => text.Text?.Contains("已保存到 工作电脑") == true);
+                text => text.Text?.Contains("已送达") == true);
         }
         finally { window.Close(); }
     }

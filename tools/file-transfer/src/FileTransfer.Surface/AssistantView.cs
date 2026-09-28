@@ -1,5 +1,6 @@
 using System.Text.Json.Nodes;
 using Avalonia;
+using Avalonia.Markup.Xaml.MarkupExtensions;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
@@ -31,8 +32,8 @@ namespace FileTransfer.Surface;
 /// </summary>
 internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceActivationHandler, IMptAvaloniaSurfaceBackHandler
 {
-    private const double SidePaddingWide = 22;
-    private const double SidePaddingNarrow = 18;
+    private const double SidePaddingWide = 16;
+    private const double SidePaddingNarrow = 12;
 
     private readonly MptAvaloniaSurfaceContext _context;
     private readonly AssistantCore _core;
@@ -47,7 +48,7 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
     private readonly Button _setupButton;
 
     // --- thread
-    private readonly StackPanel _thread = new() { Spacing = 12 };
+    private readonly StackPanel _thread = new() { Spacing = 10 };
     private readonly StackPanel _pendingRequests = new() { Spacing = 10 };
     private readonly ScrollViewer _threadScroll;
     private readonly StackPanel _emptyState;
@@ -119,22 +120,26 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
             // stays one keystroke and a longer note is still possible.
             AcceptsReturn = true,
             TextWrapping = TextWrapping.Wrap,
-            MaxHeight = 120
+            MaxHeight = 104,
+            FontSize = 15,
+            MinHeight = 44,
+            Padding = new Thickness(10, 8)
         }, MobileUi.Classes.Field);
         // The text box handles Enter itself, so the shortcut is registered for handled events too,
         // which is the only way the key reaches this page before the control consumes it.
         _input.AddHandler(KeyDownEvent, OnInputKeyDown, Avalonia.Interactivity.RoutingStrategies.Tunnel);
         _input.AddHandler(KeyDownEvent, OnInputKeyDown, Avalonia.Interactivity.RoutingStrategies.Bubble, handledEventsToo: true);
         // Enablement follows the real text, not a later module refresh: typing must light up 发送.
-        _input.TextChanged += (_, _) => SyncComposer();
+        _input.TextChanged += (_, _) => { SyncComposer(); DraftChanged(); };
+        _pairCode.TextChanged += (_, _) => { if (_pairConfirm is not null) _pairConfirm.IsEnabled = _previewedPairCode is not null && _pairCode.Text == _previewedPairCode; };
 
         _attachFiles = MobileUi.IconButton("MptMobileIconPlus", "添加文件");
-        _attachFiles.Click += async (_, _) => await PickAsync(false);
+        _attachFiles.Click += (_, _) => ShowAttachmentSheet();
         _attachImages = MobileUi.IconButton("MptMobileIconImage", "添加图片");
         _attachImages.Click += async (_, _) => await PickAsync(true);
         _send = MobileUi.PrimaryButton("发送");
-        _send.Click += async (_, _) => await SendAsync(null);
-        _sendToDevice = MobileUi.SecondaryButton("发给设备");
+        _send.Click += async (_, _) => await RunAsync(() => SendAsync(_targetDeviceId));
+        _sendToDevice = MobileUi.TextButton("发给 文件传输助手 ▾");
         // AirDrop lives on the composer, one tap away, not inside the settings sheet.
         _sendToDevice.Click += (_, _) => ShowDeviceSheet();
         _retrySync = MobileUi.TextButton("重新同步");
@@ -271,59 +276,53 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
 
     private Control BuildHeader()
     {
-        var copy = new StackPanel
-        {
-            Spacing = 2,
-            VerticalAlignment = VerticalAlignment.Center,
-            Children = { _headerTitle, _headerState }
-        };
-        var row = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 8 };
-        Grid.SetColumn(copy, 0);
-        row.Children.Add(copy);
-        Grid.SetColumn(_setupButton, 1);
+        _headerTitle.FontSize = 18;
+        _headerTitle.HorizontalAlignment = HorizontalAlignment.Center;
+        _headerTitle.VerticalAlignment = VerticalAlignment.Center;
+        _setupButton.Width = 44;
+        _setupButton.Height = 44;
+        var row = new Grid { ColumnDefinitions = new ColumnDefinitions("44,*,44"), Height = 56 };
+        Grid.SetColumn(_headerTitle, 1);
+        row.Children.Add(_headerTitle);
+        Grid.SetColumn(_setupButton, 2);
         row.Children.Add(_setupButton);
-        return MobileUi.With(new Border { Child = row }, "MptMobilePageHeader");
+        _sendToDevice.Height = 36;
+        _sendToDevice.MinHeight = 36;
+        _sendToDevice.FontSize = 12;
+        _sendToDevice.HorizontalAlignment = HorizontalAlignment.Stretch;
+        AutomationProperties.SetName(_sendToDevice, "选择发送目标");
+        return new StackPanel { Children = { row, _sendToDevice } };
     }
 
     private Control BuildComposer()
     {
-        // Two icon buttons then the text field, which owns the remaining width. The actions sit on
-        // their own line: a four-column row leaves the field a sliver, and stacking the row through
-        // the shared adaptive layout hides the field entirely.
-        var row = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,Auto,*"), ColumnSpacing = 8 };
-        Grid.SetColumn(_attachFiles, 0);
+        var row = new Grid { ColumnDefinitions = new ColumnDefinitions("44,*,Auto"), ColumnSpacing = 6 };
+        _attachFiles.Width = 44;
+        _attachFiles.Height = 44;
+        AutomationProperties.SetName(_attachFiles, "添加附件");
         row.Children.Add(_attachFiles);
-        Grid.SetColumn(_attachImages, 1);
-        row.Children.Add(_attachImages);
-        Grid.SetColumn(_input, 2);
+        Grid.SetColumn(_input, 1);
         row.Children.Add(_input);
-
-        var actions = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 8 };
-        _composerActions = actions;
-        Grid.SetColumn(_send, 0);
-        actions.Children.Add(_send);
-        Grid.SetColumn(_sendToDevice, 1);
-        actions.Children.Add(_sendToDevice);
-
-        var attachments = new StackPanel { Spacing = 2, Children = { _attachmentSummary, _attachmentRow } };
-        var panel = new StackPanel
+        _send.MinHeight = 44;
+        _send.MinWidth = 56;
+        _send.Padding = new Thickness(10, 8);
+        _send.FontSize = 14;
+        Grid.SetColumn(_send, 2);
+        row.Children.Add(_send);
+        var attachments = new ScrollViewer
         {
-            Spacing = 8,
-            Children =
-            {
-                attachments,
-                row,
-                actions,
-                _status,
-                _retrySync
-            }
+            Content = new StackPanel { Spacing = 2, Children = { _attachmentSummary, _attachmentRow } },
+            MaxHeight = 96, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled
         };
-        _composer = MobileUi.With(new Border { Child = panel }, "MptMobilePageHeader");
+        _newMessages.Click += (_, _) => { _followThreadEnd = true; _newMessages.IsVisible = false; _threadScroll.ScrollToEnd(); };
+        var panel = new StackPanel { Spacing = 4, Children = { _newMessages, attachments, row, _status } };
+        _composer = new Border { Child = panel, Padding = new Thickness(8), BorderThickness = new Thickness(0, 1, 0, 0) };
+        _composer.Bind(Border.BackgroundProperty, new DynamicResourceExtension("MptMobileCardBrush"));
+        _composer.Bind(Border.BorderBrushProperty, new DynamicResourceExtension("MptMobileDividerBrush"));
         return _composer;
     }
 
     private Border? _composer;
-    private Grid? _composerActions;
     private Border? _sheetGrabber;
     private Grid? _conversationColumn;
     private Border? _pageRoot;
@@ -351,13 +350,15 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
     {
         if (state.Identity.Linked)
         {
-            _emptyTitle.Text = "发给自己，已连接的设备都能看到。";
+            _emptyTitle.Text = "会话已在关联设备间同步。";
             _emptyNote.Text = "写一段文字，或用下面的按钮添加文件、图片。另一台设备打开 MPT 后会在同一个会话里看到，点一下就能打开原文件。";
             _emptyConnect.IsVisible = false;
             return;
         }
-        _emptyTitle.Text = "先发给自己，也可以连上你的设备。";
-        _emptyNote.Text = "文字、图片和文件会保存在这台设备上。连接其他设备后，就能在它们之间收发。";
+        _emptyTitle.Text = "内容保存在这台设备";
+        _emptyTitle.FontSize = 12;
+        _emptyNote.Text = "尚未关联其他设备，内容暂时只在本机可见。";
+        _emptyNote.FontSize = 12;
         _emptyConnect.IsVisible = true;
     }
 
@@ -437,6 +438,7 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
         import.Click += async (_, _) => await RunAsync(ImportLinkAsync);
 
         return MobileUi.Stack(8,
+            MobileUi.Caption("关联后，这台设备可查看文件传输助手中的文字和文件。"),
             _linkState,
             _qrHolder,
             actions,
@@ -508,7 +510,7 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
     internal Border SheetHost => _sheetHost;
 
     /// <summary>The composer's own send, so a test can drive it without pointer routing.</summary>
-    internal Task SendFromComposerAsync(string? targetDeviceId = null) => SendAsync(targetDeviceId);
+    internal Task SendFromComposerAsync(string? targetDeviceId = null) => SendAsync(targetDeviceId ?? _targetDeviceId);
 
     /// <summary>The scan action, so a test can exercise it without pointer routing.</summary>
     internal Task ScanForTestAsync() => ScanAsync();
@@ -554,23 +556,11 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
     /// <summary>The AirDrop step: the current attachment, then a row of devices. One tap sends.</summary>
     private void ShowDeviceSheet()
     {
-        _deviceSheetBody.Children.Clear();
-        _deviceSheetBody.Children.Add(MobileUi.Note(_attachments.Count == 0 && (_input.Text ?? "").Trim().Length == 0
-            ? "先写点文字或添加文件，再选择要发送的设备。"
-            : "选一台设备，立刻发送。第一次由对方确认接收。"));
-        if (_pendingForward is { } pending)
-            _deviceSheetBody.Children.Add(MobileUi.Note($"转发“{pending.DisplayName}”到这台设备。"));
-        _deviceSheetBody.Children.Add(_deviceSheetHint);
-        _deviceGrid.HorizontalAlignment = HorizontalAlignment.Stretch;
-        _deviceSheetBody.Children.Add(_deviceGrid);
-        var refresh = MobileUi.SecondaryButton("重新查找设备");
-        refresh.Click += async (_, _) => await RunAsync(() => _core.DiscoverAsync());
-        _deviceSheetBody.Children.Add(refresh);
+        _sheetTitle.Text = "发给谁";
         _sheetScroll.Content = _deviceSheetBody;
-        _sheetTitle.Text = "发给设备";
-        OpenSheet();
         _core.PickerOpen = true;
-        // Every open starts one fresh pass, so the list reflects right now rather than the last visit.
+        RenderTargets(_core.Snapshot);
+        OpenSheet();
         _ = RunAsync(() => _core.DiscoverAsync());
     }
 
@@ -584,6 +574,7 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
     {
         if (!_sheetOpen) return;
         _sheetOpen = false;
+        _pendingForward = null;
         _sheetScrim.IsVisible = false;
         // The pending forward is deliberately kept: a device tap closes the sheet and then sends, so
         // clearing it here would make the send fall back to the composer's own draft.
@@ -624,21 +615,14 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
     public void ApplyViewport(double width)
     {
         if (width > 0) _viewport = width;
+        if (_messageRows.Count > 0) RenderCompactThread(_core.Snapshot);
         var desktop = _viewport >= PhoneWidth;
         if (_pageRoot is not null)
         {
             if (desktop) _pageRoot.Padding = new Thickness(22, 16);
-            else _pageRoot.ClearValue(Border.PaddingProperty);
+            else _pageRoot.Padding = new Thickness(0);
         }
         if (_sheetGrabber is not null) _sheetGrabber.IsVisible = !desktop;
-        if (_composerActions is not null)
-        {
-            _composerActions.ColumnDefinitions = new ColumnDefinitions(desktop ? "Auto,Auto" : "*,Auto");
-            _composerActions.HorizontalAlignment = desktop ? HorizontalAlignment.Right : HorizontalAlignment.Stretch;
-            Grid.SetColumn(_send, desktop ? 1 : 0);
-            Grid.SetColumn(_sendToDevice, desktop ? 0 : 1);
-            _send.MinWidth = desktop ? 96 : 0;
-        }
         var side = _viewport <= 340 ? SidePaddingNarrow : SidePaddingWide;
         if (_viewport <= 340) _sheetHost.Padding = new Thickness(16, 10, 16, 30);
         else _sheetHost.ClearValue(Border.PaddingProperty);
@@ -650,11 +634,12 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
         _thread.Margin = new Thickness(side, 8, side, 8);
         _pendingRequests.Margin = new Thickness(side, 8, side, 0);
         _emptyState.Margin = new Thickness(side, 0, side, 0);
-        if (_composer is not null) _composer.Padding = new Thickness(side, 8, side, 10);
+        if (_composer is not null) _composer.Padding = new Thickness(8);
         // A desktop window is wide, so the conversation keeps a readable column and the sheet becomes a
         // bounded dialog rather than a full-width panel.
         if (_conversationColumn is not null)
         {
+            _conversationColumn.HorizontalAlignment = _viewport < PhoneWidth ? HorizontalAlignment.Stretch : HorizontalAlignment.Center;
             _conversationColumn.Width = _viewport < PhoneWidth ? double.NaN : Math.Min(720, _viewport);
             _conversationColumn.MaxWidth = 720;
         }
@@ -683,7 +668,9 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
         _attached = true;
         // A fresh page gets a fresh lifetime: the previous one was cancelled on detach.
         if (_lifetime.IsCancellationRequested) _lifetime = new CancellationTokenSource();
+        _ = EnsureDraftLoadedAsync();
         _core.Changed += Sync;
+        _legacy.Changed += Sync;
         _followThreadEnd = true;
         Sync();
     }
@@ -696,9 +683,16 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
     {
         if (!_attached) return;
         _attached = false;
+        _draftSaveTimer?.Stop();
+        _ = SaveDraftAsync();
         _core.Changed -= Sync;
+        _legacy.Changed -= Sync;
         _core.CancelDiscovery();
         _lifetime.Cancel();
+        foreach (var image in _imagePreviews.Values) image.Dispose();
+        _imagePreviews.Clear();
+        _messageRows.Clear();
+        _thread.Children.Clear();
         // Credentials never survive leaving the page: a late scan or preview callback is void.
         ClearCredentialSurface();
     }
@@ -711,6 +705,10 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
     {
         _linkCode.Text = "";
         _linkPreview.Text = "";
+        _pairCode.Text = "";
+        _pairPreview.Text = "";
+        _previewedPairCode = null;
+        if (_sheetTitle.Text == "我的文件互传码") _sheetScroll.Content = null;
         if (_qrValue is not null) _qrValue.Value = null;
     }
 
@@ -726,16 +724,18 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
         if (state.Items.Count != _lastItemCount)
         {
             _lastItemCount = state.Items.Count;
-            _followThreadEnd = true;
+            if (_lastRenderedCount < 0) _followThreadEnd = true;
+            else if (!_followThreadEnd) _newMessages.IsVisible = true;
+            _lastRenderedCount = state.Items.Count;
         }
 
         _headerTitle.Text = state.Title;
         _headerState.Text = state.Identity.Linked
             ? $"{state.Identity.DisplayName} · 已连接"
             : state.Identity.Name is { Length: > 0 } name ? name : "只在本机保存";
-        _status.Text = state.Status;
-        _status.IsVisible = state.Status.Length > 0;
-        _retrySync.IsVisible = state.Relay == AssistantRelayState.Unavailable;
+        _status.Text = FriendlyStatus(state.Status);
+        _status.IsVisible = _status.Text.Length > 0;
+        _retrySync.IsVisible = false;
         _setupButton.IsVisible = true;
 
         RenderPendingRequests(state);
@@ -748,7 +748,7 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
         // user sees, not the oldest entry scrolled to the top.
         if (_followThreadEnd) _threadScroll.ScrollToEnd();
 
-        _emptyState.IsVisible = state.IsEmpty && !state.HasPendingRequest;
+        _emptyState.IsVisible = !state.Identity.Linked && _targetDeviceId is null && !state.HasPendingRequest;
         SyncEmptyState(state);
         _input.IsEnabled = !_core.IsUnsupported;
         SyncComposer();
@@ -760,6 +760,7 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
     private bool HasComposerContent => (_input.Text ?? "").Trim().Length > 0 || _attachments.Count > 0;
 
     private bool _sendDisabled;
+    private bool _preparingAttachments;
 
     /// <summary>
     /// Updates only what the composer's own state decides. It runs on every keystroke, so it must not
@@ -767,10 +768,11 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
     /// </summary>
     private void SyncComposer()
     {
-        _send.IsEnabled = !_core.IsUnsupported && HasComposerContent && !_sendDisabled;
+        _send.IsEnabled = !_core.IsUnsupported && _targetUsable && HasComposerContent && !_sendDisabled && !_preparingAttachments;
         _sendToDevice.IsEnabled = !_core.IsUnsupported && !_sendDisabled;
-        _send.Content = _attachments.Count > 0 ? $"发送 {_attachments.Count} 个文件" : "发送";
-        _attachFiles.IsEnabled = !_core.IsUnsupported && !_sendDisabled;
+        _send.Content = "发送";
+        _sendToDevice.Content = "发给 " + _targetName + " ▾";
+        _attachFiles.IsEnabled = !_core.IsUnsupported && !_sendDisabled && !_preparingAttachments;
         _attachImages.IsEnabled = !_core.IsUnsupported && !_sendDisabled;
     }
 
@@ -807,155 +809,9 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
             actions));
     }
 
-    private void RenderThread(AssistantSnapshot state)
-    {
-        _thread.Children.Clear();
-        foreach (var item in state.Items)
-            _thread.Children.Add(BuildItemRow(item, state));
-    }
+    private void RenderThread(AssistantSnapshot state) => RenderCompactThread(state);
 
-    /// <summary>
-    /// One conversation entry. A text entry is a plain bubble; an image or file entry is a card with
-    /// its real size, its module-reported state and only the actions that state allows.
-    /// </summary>
-    private Control BuildItemRow(AssistantItem item, AssistantSnapshot state)
-    {
-        var meta = new List<string>();
-        // "From me" is the common case in a session shared with your own devices, so it is not labelled.
-        if (item.SenderName is { Length: > 0 } sender && item.SenderDeviceId != state.Identity.Id) meta.Add("来自 " + sender);
-        if (item.CreatedAt is { } created) meta.Add(created.ToLocalTime().ToString("MM-dd HH:mm"));
-        if (item.StateText is { Length: > 0 } stateText) meta.Add(stateText);
-        if (item.ReceiptText is { Length: > 0 } receipts) meta.Add("已保存到 " + receipts);
-
-        if (item.IsText)
-        {
-            // A text entry is a bubble, but it still carries the same actions as a file: forwarding is
-            // how a message reaches one device instead of the whole session.
-            var bubble = new StackPanel { Spacing = 4, Children = { MobileUi.Body(item.DisplayName), MobileUi.Caption(string.Join(" · ", meta)) } };
-            var textActions = BuildItemActions(item);
-            return MobileUi.Card(MobileUi.Stack(10, MobileUi.Inset(bubble), textActions));
-        }
-
-        var head = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto"), ColumnSpacing = 12 };
-        var glyph = MobileUi.Icon(item.IsImage ? "MptMobileIconImage" : "MptMobileIconClipboard", [MobileUi.Classes.Icon, MobileUi.Classes.IconAccent]);
-        glyph.VerticalAlignment = VerticalAlignment.Center;
-        Grid.SetColumn(glyph, 0);
-        head.Children.Add(glyph);
-        var title = new StackPanel
-        {
-            Spacing = 2,
-            VerticalAlignment = VerticalAlignment.Center,
-            Children = { MobileUi.CardTitle(item.DisplayName), MobileUi.Caption(string.Join(" · ", meta)) }
-        };
-        Grid.SetColumn(title, 1);
-        head.Children.Add(title);
-        if (item.InFlight)
-        {
-            var percent = MobileUi.With(new TextBlock { Text = $"{item.Progress:F0}%" }, MobileUi.Classes.Meta);
-            percent.VerticalAlignment = VerticalAlignment.Center;
-            Grid.SetColumn(percent, 2);
-            head.Children.Add(percent);
-        }
-        else if (item.CanOpen || item.NeedsDownload)
-        {
-            // "下载并打开" is honest only when the payload is not on this device yet.
-            var open = MobileUi.TextButton(item.NeedsDownload ? "下载" : "打开");
-            open.VerticalAlignment = VerticalAlignment.Center;
-            open.Click += async (_, _) => await RunAsync(() => OpenItemAsync(item));
-            Grid.SetColumn(open, 2);
-            head.Children.Add(open);
-        }
-
-        var children = new List<Control> { head };
-        if (item.InFlight)
-        {
-            var progress = MobileUi.With(new ProgressBar { Minimum = 0, Maximum = 100, Value = item.Progress }, MobileUi.Classes.Progress);
-            children.Add(progress);
-        }
-
-        children.Add(BuildItemActions(item));
-        return MobileUi.Card(MobileUi.Stack(10, [.. children]));
-    }
-
-    /// <summary>
-    /// The actions one entry allows: retry only after a failure, cancel only while unfinished, and
-    /// forward to one device always. Forwarding carries this entry's content, not the composer's.
-    /// </summary>
-    private Control BuildItemActions(AssistantItem item)
-    {
-        var actions = new WrapPanel { Orientation = Orientation.Horizontal };
-        if (item.CanRetry)
-        {
-            var retry = MobileUi.TextButton("重试");
-            retry.Click += async (_, _) => await RunAsync(() => _core.RetryAsync(item.Id));
-            actions.Children.Add(retry);
-        }
-        if (item.CanCancel)
-        {
-            var cancel = MobileUi.TextButton("取消");
-            cancel.Click += async (_, _) => await RunAsync(() => _core.CancelAsync(item.Id));
-            actions.Children.Add(cancel);
-        }
-        var forward = MobileUi.TextButton("转发到设备");
-        forward.Click += (_, _) => { _pendingForward = item; ShowDeviceSheet(); };
-        actions.Children.Add(forward);
-        return actions;
-    }
-
-    private void RenderDeviceSheet(AssistantSnapshot state)
-    {
-        _deviceGrid.Children.Clear();
-        _deviceSheetHint.Text = state.Discovery switch
-        {
-            AssistantDiscoveryState.Searching => "正在查找同一网络里的设备…",
-            AssistantDiscoveryState.Completed when state.Devices.Count == 0 => "没有找到设备。确认对方打开了 MPT，或先用连接码加入。",
-            AssistantDiscoveryState.Partial => "查找时间到了，列表里是已经应答的设备。可以再查一次。",
-            AssistantDiscoveryState.Unsupported => "这台设备当前无法自动查找，请用连接码添加。",
-            AssistantDiscoveryState.Failed => "查找设备失败。可以重试，或先用连接码加入。",
-            _ => "点一下设备即可发送。"
-        };
-        _deviceSheetHint.IsVisible = true;
-
-        foreach (var device in state.Devices)
-        {
-            var captured = device;
-            // A compact avatar tile: icon above the name, about a hundred dp tall, so a 390 dp sheet
-            // shows two devices side by side and the whole list is comparable at a glance. No second
-            // bordered card around the tile.
-            var tile = new StackPanel
-            {
-                Spacing = 4,
-                Width = 92,
-                HorizontalAlignment = HorizontalAlignment.Center,
-                Children =
-                {
-                    MobileUi.Icon(device.Platform == "android" ? "MptMobileIconPhone" : "MptMobileIconDesktop",
-                        [MobileUi.Classes.Icon, MobileUi.Classes.IconDevice, MobileUi.Classes.IconLarge]),
-                    MobileUi.With(new TextBlock
-                    {
-                        Text = device.Name,
-                        TextAlignment = TextAlignment.Center,
-                        TextWrapping = TextWrapping.Wrap
-                    }, MobileUi.Classes.CardTitle),
-                    MobileUi.With(new TextBlock
-                    {
-                        Text = device.StateText,
-                        TextAlignment = TextAlignment.Center,
-                        TextWrapping = TextWrapping.Wrap
-                    }, MobileUi.Classes.Meta)
-                }
-            };
-            // AirDrop behaviour: choosing the device is the send, not the start of a wizard.
-            var button = MobileUi.DeviceTile(tile, () => SendAsync(captured.DeviceId));
-            button.Width = 92;
-            button.MinHeight = 112;
-            button.Margin = new Thickness(0, 0, 8, 8);
-            button.Padding = new Thickness(6);
-            button.HorizontalAlignment = HorizontalAlignment.Left;
-            AutomationProperties.SetName(button, "发送到 " + device.Name);
-            _deviceGrid.Children.Add(button);
-        }
-    }
+    private void RenderDeviceSheet(AssistantSnapshot state) => RenderTargets(state);
 
     private void RenderAttachments()
     {
@@ -964,8 +820,19 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
         {
             var captured = path;
             var name = Path.GetFileName(path);
-            var size = _legacy.IsStaged(path) ? "已复制到应用" : "";
-            _attachmentRow.Children.Add(MobileUi.FileRow(Kind(name), name, size, () => RemoveAttachment(captured)));
+            var size = File.Exists(path) ? AssistantItem.FormatSize(new FileInfo(path).Length) : "文件不可用";
+            var row = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,44"), ColumnSpacing = 8 };
+            if (Path.GetExtension(name).ToLowerInvariant() is ".png" or ".jpg" or ".jpeg" or ".webp" or ".gif" or ".bmp" && PreviewImage(path, 40) is { } preview) row.Children.Add(preview);
+            var copy = new StackPanel { Spacing = 2, VerticalAlignment = VerticalAlignment.Center, Children =
+            {
+                new TextBlock { Text = name, FontSize = 12, TextTrimming = TextTrimming.CharacterEllipsis }, MobileUi.Caption(size)
+            }};
+            Grid.SetColumn(copy, 1); row.Children.Add(copy);
+            var remove = MobileUi.IconButton("MptMobileIconClose", "移除 " + name);
+            remove.Width = 44; remove.Height = 44; remove.IsEnabled = !_sendDisabled;
+            remove.Click += (_, _) => RemoveAttachment(captured);
+            Grid.SetColumn(remove, 2); row.Children.Add(remove);
+            _attachmentRow.Children.Add(row);
         }
         _attachmentSummary.Text = _attachments.Count == 0 ? "" : $"待发送 {_attachments.Count} 个文件";
         _attachmentSummary.IsVisible = _attachments.Count > 0;
@@ -1002,12 +869,9 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
 
     private void OnInputKeyDown(object? sender, KeyEventArgs e)
     {
-        if (e.Key != Key.Enter) return;
-        // Shift+Enter inserts a line break: a longer note should not be impossible.
-        if (e.KeyModifiers.HasFlag(KeyModifiers.Shift)) return;
+        if (e.Key != Key.Enter || !(e.KeyModifiers.HasFlag(KeyModifiers.Control) || e.KeyModifiers.HasFlag(KeyModifiers.Meta))) return;
         e.Handled = true;
-        if (!HasComposerContent || _sendDisabled) return;
-        _ = SendAsync(null);
+        if (HasComposerContent && !_sendDisabled) _ = RunAsync(() => SendAsync(_targetDeviceId));
     }
 
     /// <summary>
@@ -1020,7 +884,7 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
     /// </summary>
     private async Task SendAsync(string? targetDeviceId)
     {
-        if (_sendDisabled) return;
+        if (_sendDisabled || !_targetUsable) return;
 
         // Capture what is being sent. Anything the user types or attaches while the module answers
         // belongs to the next message and must survive this send.
@@ -1031,6 +895,8 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
         var paths = pending is null ? _attachments.ToArray() : [];
         if (pending is null && text.Length == 0 && paths.Length == 0) return;
 
+        _followThreadEnd = true;
+        _newMessages.IsVisible = false;
         _sendDisabled = true;
         SyncComposer();
         try
@@ -1048,6 +914,8 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
             // Only the exact content that was sent is cleared; a draft typed while waiting stays.
             if ((_input.Text ?? "").Trim() == text) _input.Text = "";
             foreach (var path in paths) _attachments.Remove(path);
+            DraftChanged();
+            await SaveDraftAsync();
             _core.PublishOnUi(_core.Snapshot with { Status = SendStatus(targetDeviceId) });
         }
         finally
@@ -1087,14 +955,8 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
     /// </summary>
     private string SendStatus(string? targetDeviceId)
     {
-        if (targetDeviceId is { Length: > 0 }) return "已交给模块发送，等待对方确认接收。";
-        return _core.Snapshot.Relay switch
-        {
-            AssistantRelayState.Available => "已加入会话，其他设备打开后会看到。",
-            AssistantRelayState.Unavailable => "已在本机排队。中转暂时不可用，恢复后会自动继续。",
-            AssistantRelayState.Unconfigured => "已在本机排队，等待同步服务就绪。",
-            _ => "已在本机排队，中转状态尚未确认。"
-        };
+        if (targetDeviceId is { Length: > 0 }) return "";
+        return "";
     }
 
     private async Task PickAsync(bool imagesOnly)
@@ -1104,10 +966,16 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
         var picked = await top.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions
         {
             Title = imagesOnly ? "选择图片" : "选择文件",
-            AllowMultiple = true
+            AllowMultiple = true,
+            FileTypeFilter = imagesOnly ? [FilePickerFileTypes.ImageAll] : null
         });
         if (picked.Count == 0) return;
-        var added = await AddPickedAsync(picked);
+        _preparingAttachments = true;
+        SyncComposer();
+        _core.PublishOnUi(_core.Snapshot with { Status = "正在准备附件…" });
+        int added;
+        try { added = await AddPickedAsync(picked); }
+        finally { _preparingAttachments = false; SyncComposer(); }
         _core.PublishOnUi(_core.Snapshot with { Status = added == 0 ? "没有添加新内容。" : $"已添加 {added} 个，点发送。" });
     }
 
@@ -1130,6 +998,7 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
         if (string.IsNullOrWhiteSpace(path) || !File.Exists(path)) return false;
         if (_attachments.Any(existing => string.Equals(existing, path, StringComparison.Ordinal))) return false;
         _attachments.Add(path);
+        DraftChanged();
         Sync();
         return true;
     }
@@ -1137,6 +1006,7 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
     private void RemoveAttachment(string path)
     {
         _attachments.Remove(path);
+        DraftChanged();
         // A staged copy is ours to reclaim; a file the user picked is never deleted.
         _legacy.RemoveFile(path);
         Sync();
@@ -1154,7 +1024,7 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
             var local = Path.Combine(staging, name);
             await using var input = await item.OpenReadAsync();
             await using var output = File.Create(local);
-            await input.CopyToAsync(output);
+            await input.CopyToAsync(output, _lifetime.Token);
             return local;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
@@ -1388,9 +1258,18 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
     /// </summary>
     public async ValueTask<bool> ActivateAsync(ToolActivationRequest request, CancellationToken cancellationToken = default)
     {
+        await EnsureDraftLoadedAsync();
         var value = (request.ActivationUri ?? "").Trim();
+        if (value.StartsWith("mpt://pair/", StringComparison.Ordinal))
+        {
+            ShowPairSheet();
+            _pairCode.Text = value;
+            await PreviewPairAsync();
+            return true;
+        }
         if (Uri.TryCreate(value, UriKind.Absolute, out var uri) && uri.IsFile)
         {
+            SelectTarget(null, "文件传输助手");
             var added = AddAttachment(uri.LocalPath);
             _core.PublishOnUi(_core.Snapshot with
             {
@@ -1402,6 +1281,7 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
         // a file URI above. Both append to the same composer and never send on their own.
         if (TryReadSharedText(value) is { Length: > 0 } shared)
         {
+            SelectTarget(null, "文件传输助手");
             var current = _input.Text ?? "";
             _input.Text = current.Length == 0 ? shared : current + "\n" + shared;
             _input.CaretIndex = _input.Text.Length;

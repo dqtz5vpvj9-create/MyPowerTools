@@ -47,6 +47,7 @@ internal sealed class FakeTransferModule
 
     /// <summary>The conversation as the module would report it, keyed by item id.</summary>
     public List<JsonObject> AssistantItems { get; } = [];
+    public JsonObject DraftPreferences { get; private set; } = new();
 
     /// <summary>Inbound requests waiting for this device's answer.</summary>
     public List<JsonObject> AssistantRequests { get; } = [];
@@ -163,6 +164,7 @@ internal sealed class FakeTransferModule
         {
             "inspect" => Inspect(),
             "pairing" => """{"code":"mpt://pair/eyJuYW1lIjoiV29yayBQQyJ9"}""",
+            "pair.preview" => """{"deviceId":"pc-new","name":"新电脑"}""",
             "pair.import" => PairImport(args),
             "cloud.import" => """{"connected":true}""",
             "cloud.export" => """{"code":"mpt://cloud/eyJ1cmwiOiJodHRwczovL29wZW5saXN0LmV4YW1wbGUudGVzdC9kYXYvdHJhbnNmZXIifQ=="}""",
@@ -201,6 +203,10 @@ internal sealed class FakeTransferModule
         var name = command.StartsWith("assistant.", StringComparison.Ordinal) ? command["assistant.".Length..] : command;
         switch (name)
         {
+            case "preferences.inspect": return DraftPreferences.ToJsonString();
+            case "preferences.update":
+                DraftPreferences = args!.DeepClone().AsObject();
+                return DraftPreferences.ToJsonString();
             case "inspect":
             case "sync":
                 return AssistantSession();

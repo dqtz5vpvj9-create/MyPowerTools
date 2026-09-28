@@ -193,7 +193,8 @@ public sealed partial class FileTransferModule : IMptModule
     }
 
     private static readonly string[] Commands = ["inspect", "configure", "pairing", "pair.preview", "pair.import", "peers.remove", "peer.check", "receive.start", "receive.stop", "send.direct", "send.cloud", "cloud.list", "cloud.download", "cloud.check", "cloud.export", "cloud.import", "cancel", "openlist.start", "openlist.connect", "openlist.stop",
-        "assistant.inspect", "assistant.send", "assistant.sync", "assistant.retry", "assistant.cancel", "assistant.open", "assistant.devices", "assistant.receive.respond", "assistant.link.export", "assistant.link.preview", "assistant.link.import"];
+        "assistant.inspect", "assistant.send", "assistant.sync", "assistant.retry", "assistant.cancel", "assistant.open", "assistant.devices", "assistant.receive.respond", "assistant.link.export", "assistant.link.preview", "assistant.link.import",
+        "assistant.preferences.inspect", "assistant.preferences.update"];
     public ValueTask<IReadOnlyList<MptCommandDescriptor>> ListCommandsAsync(CancellationToken token) => ValueTask.FromResult<IReadOnlyList<MptCommandDescriptor>>(
         Commands.Select(c => new MptCommandDescriptor($"{Id}.{c}", Id, c, "文件互传", "action", TimeoutMs: c == "openlist.start" ? 1200000 : 60000,
             SupportsCancellation: true)).ToArray());
@@ -270,6 +271,10 @@ public sealed partial class FileTransferModule : IMptModule
                     result = new { paired = paired.Name, deviceId = paired.DeviceId, address = paired.Address }; break;
                 case "file-transfer.assistant.inspect":
                     result = await AssistantInspectAsync(token); break;
+                case "file-transfer.assistant.preferences.inspect":
+                    result = await AssistantPreferencesInspectAsync(token); break;
+                case "file-transfer.assistant.preferences.update":
+                    result = await AssistantPreferencesUpdateAsync(request.Args, token); break;
                 case "file-transfer.assistant.send":
                     result = await AssistantSendAsync(request.Args, token); break;
                 case "file-transfer.assistant.sync":

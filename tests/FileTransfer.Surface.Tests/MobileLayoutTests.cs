@@ -41,7 +41,7 @@ public sealed class MobileLayoutTests : IDisposable
 
         // The empty state names the promise and the composer is right there.
         Assert.Contains("文件助手", text);
-        Assert.Contains("发给自己", text);
+        Assert.Contains("文件传输助手", text);
 
         var input = Descendants(view).OfType<TextBox>().First(box => box.IsVisible && box.IsEnabled);
         var send = Descendants(view).OfType<Button>().First(button => (button.Content as string) == "发送");

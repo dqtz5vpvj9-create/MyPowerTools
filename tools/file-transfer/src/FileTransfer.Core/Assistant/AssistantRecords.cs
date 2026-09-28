@@ -198,6 +198,12 @@ public sealed record AssistantState
     public List<AssistantItem> Items { get; set; } = [];
     public List<string> KnownRemoteIds { get; set; } = [];
 
+    /// <summary>
+    /// The local composer draft. It lives in the same durable state file and the same store
+    /// transaction as everything else, but it is never published and never becomes a timeline entry.
+    /// </summary>
+    public AssistantPreferences? Preferences { get; set; }
+
     public AssistantItem? Find(string itemId) => Items.FirstOrDefault(item => item.Id == itemId);
 
     public IEnumerable<AssistantItem> Outgoing(string deviceId) =>
@@ -249,7 +255,8 @@ public sealed record AssistantState
         Version = Version,
         Identity = Identity,
         Items = [.. Items.Select(item => item.Copy())],
-        KnownRemoteIds = [.. KnownRemoteIds]
+        KnownRemoteIds = [.. KnownRemoteIds],
+        Preferences = Preferences?.Copy()
     };
 
     /// <summary>
@@ -271,6 +278,7 @@ public sealed record AssistantState
         }
         Items = restored;
         KnownRemoteIds = backup.KnownRemoteIds;
+        Preferences = backup.Preferences?.Copy();
     }
 }
 

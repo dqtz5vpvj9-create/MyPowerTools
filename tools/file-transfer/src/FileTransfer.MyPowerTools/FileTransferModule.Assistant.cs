@@ -20,6 +20,8 @@ public sealed partial class FileTransferModule
 {
     /// <summary>How often an enabled receiver polls the relay for new items while no push exists.</summary>
     private const int OfflineReceiveSyncSeconds = 60;
+    /// <summary>The display name of the "send to myself" target in the draft contract.</summary>
+    private const string SelfTargetName = "文件传输助手";
     /// <summary>Direct deliveries attempted in one sync round; the next round continues immediately.</summary>
     private const int DirectDeliveryLimit = 8;
     /// <summary>A device that already acknowledged an item is never offered the same item again.</summary>
@@ -804,6 +806,157 @@ public sealed partial class FileTransferModule
             ["receiving"] = _receivingEnabled,
             ["receivingDetails"] = ReceivingDetailsJson(_receivingEnabled)
         };
+    }
+
+    /// <summary>
+    /// Reads the durable composer draft. It is a pure local read: no relay call, no discovery, no
+    /// receiver restart, and it never creates or changes a conversation entry.
+    /// </summary>
+    private async Task<object> AssistantPreferencesInspectAsync(CancellationToken token)
+    {
+        var state = await AssistantStateAsync(token);
+        return PreferencesJson(state.Preferences, null);
+    }
+
+    /// <summary>
+    /// Saves one coherent composer snapshot. Every field present in the request replaces the stored
+    /// value and an explicit null/empty value clears it, so a cleared draft can never be resurrected by
+    /// a later read; a field that is absent keeps its stored value. The whole snapshot is one store
+    /// transaction: a rejected value changes nothing on disk and in memory. This writes local
+    /// preferences only — it never contacts the relay, restarts the receiver, emits a conversation
+    /// change event or creates a message.
+    /// </summary>
+    private async Task<object> AssistantPreferencesUpdateAsync(JsonObject args, CancellationToken token)
+    {
+        foreach (var key in args.Select(pair => pair.Key))
+            if (key is not ("draftText" or "attachmentPaths" or "targetDeviceId"))
+                throw new ArgumentException($"不支持设置项：{key}。");
+        var store = _assistantStore ?? throw new InvalidOperationException("会话存储尚未就绪。");
+        // The references this request asked for but could not restore; reported by name in the answer.
+        List<string> missing = [];
+        // An unchanged snapshot is not a new save: the store skips the disk write but still answers with
+        // the full current snapshot, so a UI that re-saves on every tick cannot churn the state file.
+        var state = await store.MutateIfChangedAsync(current =>
+        {
+            var candidate = (current.Preferences ?? new AssistantPreferences()).Copy();
+            if (args.TryGetPropertyValue("draftText", out var textNode))
+                candidate.DraftText = AssistantPreferenceRules.Text(ReadOptionalString(textNode, "draftText"));
+            if (args.TryGetPropertyValue("attachmentPaths", out var pathsNode))
+            {
+                var usable = new List<string>();
+                missing = [];
+                // Only references that exist right now are stored; the rest stay in the answer as a
+                // clear missing list instead of a stored path that would fail at send time.
+                foreach (var path in AssistantPreferenceRules.Attachments(ReadPathArray(pathsNode)))
+                {
+                    if (File.Exists(path)) usable.Add(path);
+                    else missing.Add(path);
+                }
+                candidate.AttachmentPaths = usable;
+            }
+            if (args.TryGetPropertyValue("targetDeviceId", out var targetNode))
+            {
+                var target = AssistantPreferenceRules.Target(ReadOptionalString(targetNode, "targetDeviceId"));
+                // "This device" is self, not a remote target; both spellings must not diverge.
+                candidate.TargetDeviceId = target == Setting("deviceId") ? null : target;
+            }
+            if (SamePreferences(current.Preferences, candidate)) return false;
+            candidate.SavedAt = DateTimeOffset.UtcNow;
+            current.Preferences = candidate;
+            return true;
+        }, token);
+        return PreferencesJson(state.Preferences, missing);
+    }
+
+    /// <summary>Value equality of one snapshot; the save time is bookkeeping and never a difference.</summary>
+    private static bool SamePreferences(AssistantPreferences? stored, AssistantPreferences candidate) =>
+        stored is not null
+            ? stored.DraftText == candidate.DraftText
+                && stored.TargetDeviceId == candidate.TargetDeviceId
+                && stored.AttachmentPaths.SequenceEqual(candidate.AttachmentPaths, AssistantPreferenceRules.PathComparer)
+            : candidate.DraftText is null && candidate.TargetDeviceId is null && candidate.AttachmentPaths.Count == 0;
+
+    /// <summary>
+    /// The one inspect/update snapshot shape. Attachment references are re-checked here: only files
+    /// that exist right now are restored, and everything that could not be restored is listed with its
+    /// file name so the page can say exactly what is missing instead of silently dropping it.
+    /// </summary>
+    private JsonObject PreferencesJson(AssistantPreferences? preferences, IReadOnlyList<string>? missingFromUpdate)
+    {
+        var usable = new JsonArray();
+        var missing = new List<string>();
+        var missingSeen = new HashSet<string>(AssistantPreferenceRules.PathComparer);
+        foreach (var path in missingFromUpdate ?? []) if (missingSeen.Add(path)) missing.Add(path);
+        var usableSeen = new HashSet<string>(AssistantPreferenceRules.PathComparer);
+        foreach (var path in preferences?.AttachmentPaths ?? [])
+        {
+            if (!usableSeen.Add(path)) continue;
+            if (File.Exists(path)) usable.Add(path);
+            else if (missingSeen.Add(path)) missing.Add(path);
+        }
+        var missingJson = new JsonArray();
+        foreach (var path in missing)
+            missingJson.Add(new JsonObject
+            {
+                ["path"] = path,
+                ["name"] = Path.GetFileName(path) is { Length: > 0 } name ? name : path
+            });
+        var target = preferences?.TargetDeviceId;
+        var (targetName, targetUsable) = DescribeTarget(target);
+        return new JsonObject
+        {
+            ["draftText"] = preferences?.DraftText,
+            ["attachmentPaths"] = usable,
+            ["missingAttachments"] = missingJson,
+            ["targetDeviceId"] = target,
+            ["targetName"] = targetName,
+            ["targetUsable"] = targetUsable,
+            ["savedAt"] = preferences?.SavedAt?.ToString("O")
+        };
+    }
+
+    /// <summary>
+    /// Local knowledge only: a target counts as usable when it is this device, one of the conversation's
+    /// own devices or a remembered peer — a relationship the user already confirmed. A device that was
+    /// merely discovered is a candidate, not an authorization, so it stays unusable until the user pairs
+    /// it. Nothing is probed here, and a stored target that is no longer known keeps its stable id
+    /// instead of being silently cleared or sent to self.
+    /// </summary>
+    private (string Name, bool Usable) DescribeTarget(string? targetDeviceId)
+    {
+        // No target is "send to myself", whose label is the tool's own name.
+        if (string.IsNullOrEmpty(targetDeviceId) || targetDeviceId == Setting("deviceId")) return (SelfTargetName, true);
+        var own = OwnDevices().FirstOrDefault(device => device.DeviceId == targetDeviceId);
+        if (own is not null) return (own.Name.Length > 0 ? own.Name : targetDeviceId, true);
+        if (FindPeer(targetDeviceId) is { } peer)
+        {
+            var peerName = PeerText(peer, "name");
+            return (peerName.Length > 0 ? peerName : targetDeviceId, true);
+        }
+        return ("", false);
+    }
+
+    /// <summary>A JSON string or null. Any other type is a client error, never a silent clear.</summary>
+    private static string? ReadOptionalString(JsonNode? node, string key)
+    {
+        if (node is null) return null;
+        if (node is JsonValue value && value.TryGetValue<string>(out var text)) return text;
+        throw new ArgumentException($"设置项 {key} 需要文本值或 null。");
+    }
+
+    /// <summary>A JSON array of strings or null; null clears the attachment list.</summary>
+    private static IReadOnlyList<string> ReadPathArray(JsonNode? node)
+    {
+        if (node is null) return [];
+        if (node is not JsonArray array) throw new ArgumentException("设置项 attachmentPaths 需要路径数组或 null。");
+        var paths = new List<string>(array.Count);
+        foreach (var item in array)
+        {
+            if (item is null) continue;
+            if (item is JsonValue value && value.TryGetValue<string>(out var path)) { paths.Add(path); continue; }
+            throw new ArgumentException("设置项 attachmentPaths 需要路径数组或 null。");
+        }
+        return paths;
     }
 
     /// <summary>

@@ -87,11 +87,11 @@ internal sealed record AssistantItem(
     {
         AssistantItemState.Queued => "等待发送",
         AssistantItemState.Sending => Size > 0 ? $"发送中 {Progress:F0}%" : "发送中",
-        AssistantItemState.Stored => "已同步到中转",
+        AssistantItemState.Stored => TargetDeviceId is { Length: > 0 } ? "已暂存，等待接收" : "已同步",
         AssistantItemState.Delivered => "已送达",
         AssistantItemState.Downloading => Size > 0 ? $"接收中 {Progress:F0}%" : "接收中",
         AssistantItemState.Available => IsText || CanOpen ? "已接收" : "待下载",
-        AssistantItemState.Failed => Error is { Length: > 0 } error ? "发送失败：" + error : "发送失败",
+        AssistantItemState.Failed => "发送失败，可重试",
         AssistantItemState.Cancelled => "已取消",
         _ => ""
     };

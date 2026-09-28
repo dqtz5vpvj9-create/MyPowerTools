@@ -169,7 +169,7 @@ public sealed class AssistantConversationTests : IDisposable
         Assert.True(_core.Snapshot.CanSync);
         Assert.Equal(AssistantItemState.Stored, Assert.Single(_core.Snapshot.Items).State);
         // "Stored" is the relay saving it, never a claim that a device received it.
-        Assert.Equal("已同步到中转", Assert.Single(_core.Snapshot.Items).StateText);
+        Assert.Equal("已同步", Assert.Single(_core.Snapshot.Items).StateText);
     }
 
     [AvaloniaFact]
@@ -203,7 +203,7 @@ public sealed class AssistantConversationTests : IDisposable
         await TestPump.RunAsync(() => _core.RefreshAsync());
 
         var item = Assert.Single(_core.Snapshot.Items);
-        Assert.Equal("已同步到中转", item.StateText);
+        Assert.Equal("已同步", item.StateText);
         Assert.Equal("", item.ReceiptText);
     }
 
@@ -220,7 +220,7 @@ public sealed class AssistantConversationTests : IDisposable
 
         var item = Assert.Single(_core.Snapshot.Items);
         Assert.True(item.CanRetry);
-        Assert.Contains("网络中断", item.StateText);
+        Assert.Contains("可重试", item.StateText);
 
         await TestPump.RunAsync(() => _core.RetryAsync("item-9"));
 

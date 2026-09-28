@@ -314,12 +314,12 @@ public sealed class ReviewFixTests : IDisposable
     {
         var unlinked = Open(390, out var first);
         var unlinkedText = TextOf(unlinked);
-        Assert.Contains("先发给自己", unlinkedText);
+        Assert.Contains("内容保存在这台设备", unlinkedText);
         Assert.DoesNotContain("都能看到", unlinkedText);
 
         _module.AssistantLinked = true;
         var linked = Open(390, out _);
-        Assert.Contains("已连接的设备都能看到", TextOf(linked));
+        Assert.DoesNotContain(Descendants(linked).OfType<TextBlock>(), t => t.IsEffectivelyVisible && t.Text == "内容保存在这台设备");
         _ = first;
     }
 
@@ -348,13 +348,12 @@ public sealed class ReviewFixTests : IDisposable
     [AvaloniaTheory]
     [InlineData("unconfigured", false)]
     [InlineData("available", false)]
-    [InlineData("unavailable", true)]
+    [InlineData("unavailable", false)]
     public void Sync_retry_is_offered_only_for_a_failed_configured_relay(string relay, bool visible)
     {
         _module.AssistantRelayState = relay;
         var view = Open(1024, out _);
-        var retry = Assert.Single(Descendants(view).OfType<Button>(), button => button.Content as string == "重新同步");
-        Assert.Equal(visible, retry.IsVisible);
+        Assert.DoesNotContain(Descendants(view).OfType<Button>(), button => button.IsEffectivelyVisible && button.Content as string == "重新同步");
     }
 
     [AvaloniaTheory]
@@ -373,8 +372,8 @@ public sealed class ReviewFixTests : IDisposable
         window.UpdateLayout();
 
         Assert.True(handled);
-        Assert.False(view.IsConversationVisible);
-        Assert.Equal(width < 640, view.IsMobileLayout);
+        Assert.Equal(!cloud, view.IsConversationVisible);
+        Assert.Equal(cloud && width < 640, view.IsMobileLayout);
         Assert.Contains(Descendants(view).OfType<TextBox>(), box => box.IsEffectivelyVisible && box.Text == code);
         Assert.Equal(0, _module.CountCalls("assistant.link.preview"));
         Assert.Equal(0, _module.CountCalls(cloud ? "cloud.import" : "pair.import"));
@@ -392,7 +391,7 @@ public sealed class ReviewFixTests : IDisposable
         var view = Open(390, out _);
         Assert.True(Assert.Single(view.Assistant.Snapshot.Items).CanOpen);
         Assert.Contains(Descendants(view).OfType<Button>(), button =>
-            button.IsEffectivelyVisible && button.Content as string == "打开");
+            button.IsEffectivelyVisible && Avalonia.Automation.AutomationProperties.GetName(button)?.StartsWith("打开 ") == true);
     }
 
     private string Touch(string name)

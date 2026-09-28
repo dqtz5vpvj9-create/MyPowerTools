@@ -108,6 +108,9 @@ internal sealed class AssistantCore : IDisposable
         catch (JsonException) { return new JsonObject(); }
     }
 
+    public Task<JsonNode> InspectPreferencesAsync() => CallAsync("preferences.inspect");
+    public Task<JsonNode> SavePreferencesAsync(JsonObject values) => CallAsync("preferences.update", values);
+
     /// <summary>Reads the cached session. It must not make the module go online.</summary>
     public async Task RefreshAsync()
     {

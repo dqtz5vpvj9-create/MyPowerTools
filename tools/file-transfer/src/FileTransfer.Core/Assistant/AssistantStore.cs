@@ -4,9 +4,9 @@ using System.Text.Json;
 namespace FileTransfer.Core.Assistant;
 
 /// <summary>
-/// Durable local state for the assistant conversation: the unified timeline, the pending payload
-/// copies and the downloaded inbox. Everything the user sent survives a crash, a restart and a
-/// network outage; nothing is trimmed to the legacy 50-record transfer history cap, and no file
+/// Durable local state for the assistant: the unified timeline, the pending payload copies, the
+/// downloaded inbox and the local composer draft. Everything the user sent survives a crash, a restart
+/// and a network outage; nothing is trimmed to the legacy 50-record transfer history cap, and no file
 /// outside this store's own directory is ever touched or deleted.
 /// </summary>
 public sealed class AssistantStore
@@ -211,6 +211,35 @@ public sealed class AssistantStore
     }
 
     /// <summary>
+    /// Atomic read-modify-write for a local preference that changes far more often than the timeline:
+    /// <paramref name="change"/> reports whether anything really changed, and an unchanged snapshot
+    /// skips the disk write. It must only mutate the snapshot when it returns true. The decision is made
+    /// inside the same gate as a commit, so a no-op can never race a concurrent transaction, and a
+    /// failed write still restores the snapshot exactly.
+    /// </summary>
+    public async Task<AssistantState> MutateIfChangedAsync(Func<AssistantState, bool> change, CancellationToken token)
+    {
+        ArgumentNullException.ThrowIfNull(change);
+        await _gate.WaitAsync(token);
+        try
+        {
+            var state = await LoadCoreAsync(token);
+            var backup = state.Copy();
+            try
+            {
+                if (change(state)) await WriteAsync(state, token);
+            }
+            catch
+            {
+                state.RestoreFrom(backup);
+                throw;
+            }
+            return state;
+        }
+        finally { _gate.Release(); }
+    }
+
+    /// <summary>
     /// Display-only transfer progress. It takes the store gate, so it can never mutate the snapshot while a
     /// transaction serializes it, and it never blocks a transfer: a busy gate just skips the tick. The
     /// authoritative value is committed when the transfer finishes.
@@ -333,6 +362,9 @@ public sealed class AssistantStore
         if (state.KnownRemoteIds is null) state.KnownRemoteIds = [];
         if (state.Identity is not null) AssistantValidation.Identity(state.Identity);
         foreach (var item in state.Items) Normalize(item);
+        // The draft is recoverable local UI state, so a preference that no longer satisfies its own
+        // rules is repaired instead of blocking the whole conversation the way a damaged message does.
+        state.Preferences = AssistantPreferenceRules.Normalize(state.Preferences);
         return state;
     }
 

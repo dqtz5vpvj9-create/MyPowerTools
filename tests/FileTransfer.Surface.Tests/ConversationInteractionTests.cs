@@ -69,7 +69,7 @@ public sealed class ConversationInteractionTests : IDisposable
         window.UpdateLayout();
         Assert.Equal(0, _module.CountCalls("assistant.send"));
 
-        window.KeyPress(Key.Enter, RawInputModifiers.None, PhysicalKey.Enter, null);
+        window.KeyPress(Key.Enter, RawInputModifiers.Control, PhysicalKey.Enter, null);
         window.UpdateLayout();
 
         Assert.Equal(1, _module.CountCalls("assistant.send"));
@@ -111,7 +111,7 @@ public sealed class ConversationInteractionTests : IDisposable
     public void The_attachment_and_image_actions_are_visible_and_tappable()
     {
         var view = Open(390, out var window);
-        foreach (var name in new[] { "添加文件", "添加图片" })
+        foreach (var name in new[] { "添加附件" })
         {
             var button = Descendants(view).OfType<Button>()
                 .First(candidate => AutomationName(candidate) == name);
@@ -159,10 +159,10 @@ public sealed class ConversationInteractionTests : IDisposable
                 $"at {width} the draft field must stay usable, was {input.Bounds.Width:0}");
             var send = Button(view, "发送");
             Assert.True(send.IsEffectivelyVisible, $"at {width} the send action must be visible");
-            var device = Button(view, "发给设备");
+            var device = Button(view, "发给 文件传输助手 ▾");
             Assert.True(device.IsEffectivelyVisible, $"at {width} the device action must be visible");
             // The icons must not be pushed off by that field.
-            foreach (var name in new[] { "添加文件", "添加图片" })
+            foreach (var name in new[] { "添加附件" })
             {
                 var button = Descendants(view).OfType<Button>().First(candidate => AutomationName(candidate) == name);
                 Assert.True(button.IsEffectivelyVisible, $"at {width} {name} must be visible");
@@ -180,7 +180,7 @@ public sealed class ConversationInteractionTests : IDisposable
         window.UpdateLayout();
 
         // The device picker opens from the composer itself, not from the settings sheet.
-        Click(window, Button(view, "发给设备"));
+        Click(window, Button(view, "发给 文件传输助手 ▾"));
         window.UpdateLayout();
 
         Assert.True(view.Conversation.IsSheetOpen);
@@ -211,13 +211,13 @@ public sealed class ConversationInteractionTests : IDisposable
         _module.AssistantDevices.Add(Device("old-3", "书房台式机", available: false));
         var view = Open(390, out var window);
 
-        Click(window, Button(view, "发给设备"));
+        Click(window, Button(view, "发给 文件传输助手 ▾"));
         window.UpdateLayout();
         TestPump.Drain();
         window.UpdateLayout();
 
         var tiles = Descendants(view).OfType<Button>()
-            .Where(candidate => candidate.IsEffectivelyVisible && AutomationName(candidate).StartsWith("发送到 ", StringComparison.Ordinal))
+            .Where(candidate => candidate.IsEffectivelyVisible && AutomationName(candidate).StartsWith("选择 ", StringComparison.Ordinal))
             .ToArray();
         Assert.Equal(3, tiles.Length);
         foreach (var tile in tiles)
@@ -225,15 +225,8 @@ public sealed class ConversationInteractionTests : IDisposable
             Assert.True(tile.Bounds.Height <= 140, $"a device tile must stay compact, was {tile.Bounds.Height:0}");
             Assert.True(tile.IsEffectivelyVisible, "every device tile must be reachable without scrolling");
         }
-        // Three compact tiles wrap, so at least two sit on the first line at 390 wide.
-        var firstRow = tiles.Count(tile => Math.Abs(tile.Bounds.Y - tiles[0].Bounds.Y) < 1);
-        Assert.True(firstRow >= 2,
-            $"at 390 wide at least two devices must be comparable side by side, got {firstRow}; " +
-            $"widths={string.Join(",", tiles.Select(tile => $"{tile.Bounds.Width:0}"))} " +
-            $"panel={_deviceGridWidth(view):0}");
-
-        // A remembered device remains selectable even when no direct path has answered.
-        Assert.Contains("已配对", TextOf(view));
+        Assert.Equal(3, tiles.Select(tile => tile.Bounds.Y).Distinct().Count());
+        Assert.Contains("可发送", TextOf(view));
         Assert.DoesNotContain("当前不可用", TextOf(view));
     }
 
@@ -247,15 +240,17 @@ public sealed class ConversationInteractionTests : IDisposable
         view.Conversation.AddAttachment(file);
         window.UpdateLayout();
 
-        Click(window, Button(view, "发给设备"));
+        Click(window, Button(view, "发给 文件传输助手 ▾"));
         window.UpdateLayout();
         TestPump.Drain();
         window.UpdateLayout();
 
-        var tile = Descendants(view).OfType<Button>().First(candidate => AutomationName(candidate) == "发送到 工作电脑");
+        var tile = Descendants(view).OfType<Button>().First(candidate => AutomationName(candidate) == "选择 工作电脑");
         Click(window, tile);
         window.UpdateLayout();
 
+        Assert.Equal(0, _module.CountCalls("assistant.send"));
+        Click(window, Button(view, "发送"));
         Assert.Equal(1, _module.CountCalls("assistant.send"));
         Assert.Equal("pc-1", _module.LastArgs("assistant.send")["targetDeviceId"]!.GetValue<string>());
         // The chosen device is the send, so the picker closes by itself.
@@ -268,14 +263,14 @@ public sealed class ConversationInteractionTests : IDisposable
         _module.AssistantDevices.Add(Device("pc-1", "工作电脑", available: true));
         var view = Open(390, out var window);
 
-        Click(window, Button(view, "发给设备"));
+        Click(window, Button(view, "发给 文件传输助手 ▾"));
         TestPump.Drain();
         Assert.True(_module.CountCalls("assistant.devices") >= 1, "opening the picker must look for devices");
 
         // A second open asks again rather than reusing a stale list.
         Click(window, Descendants(view).OfType<Button>().First(candidate => candidate.IsEffectivelyVisible && AutomationName(candidate) == "关闭"));
         window.UpdateLayout();
-        Click(window, Button(view, "发给设备"));
+        Click(window, Button(view, "发给 文件传输助手 ▾"));
         TestPump.Drain();
         Assert.True(_module.CountCalls("assistant.devices") >= 2, "reopening the picker must look again");
 
@@ -322,11 +317,13 @@ public sealed class ConversationInteractionTests : IDisposable
         window.KeyTextInput("不该被转发的草稿");
         window.UpdateLayout();
 
-        Click(window, ThreadButton(view, "转发到设备"));
+        Click(window, view.Conversation.ThreadPanel.GetLogicalDescendants().OfType<Button>().First(b => AutomationName(b).StartsWith("消息操作 ")));
+        Click(window, Button(view, "转发"));
         window.UpdateLayout();
         TestPump.Drain();
         window.UpdateLayout();
         Click(window, DeviceTile(view, "工作电脑"));
+        Click(window, Button(view, "确认转发"));
         await TestPump.SettleAsync();
 
         var sent = _module.LastArgs("assistant.send");
@@ -354,12 +351,14 @@ public sealed class ConversationInteractionTests : IDisposable
         window.KeyTextInput("我的草稿");
         window.UpdateLayout();
 
-        Click(window, ThreadButton(view, "转发到设备"));
+        Click(window, view.Conversation.ThreadPanel.GetLogicalDescendants().OfType<Button>().First(b => AutomationName(b).StartsWith("消息操作 ")));
+        Click(window, Button(view, "转发"));
         window.UpdateLayout();
         TestPump.Drain();
         window.UpdateLayout();
         var tiles = Descendants(Sheet(view)).OfType<Button>().Select(AutomationName).Where(n => n.Length > 0).ToArray();
         Click(window, DeviceTile(view, "工作电脑"));
+        Click(window, Button(view, "确认转发"));
         await TestPump.SettleAsync();
         window.UpdateLayout();
 
@@ -458,7 +457,7 @@ public sealed class ConversationInteractionTests : IDisposable
     /// <summary>One device tile in the open picker, chosen by the device's own name.</summary>
     private static Button DeviceTile(TransferView view, string deviceName) =>
         Descendants(Sheet(view)).OfType<Button>()
-            .First(button => AutomationName(button) == "发送到 " + deviceName);
+            .First(button => AutomationName(button) == "选择 " + deviceName);
 
     private static Button Button(TransferView view, string content) =>
         Descendants(view).OfType<Button>()
