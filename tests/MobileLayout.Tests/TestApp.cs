@@ -12,6 +12,10 @@ public sealed class TestApp : Application
     public override void Initialize()
     {
         Styles.Add(new FluentTheme());
+        // The real shipped mobile theme (M1): the phone tests and the reference screenshots must run
+        // with the same palette, typography and component styles the Android build uses.
+        Styles.Add(new StyleInclude(new Uri("avares://MyPowerTools.AvaloniaSdk/"))
+        { Source = new Uri("avares://MyPowerTools.AvaloniaSdk/Themes/MptMobileTheme.axaml") });
         Styles.Add(new StyleInclude(new Uri("avares://MyPowerTools.UI/"))
         { Source = new Uri("avares://MyPowerTools.UI/Themes/MptTheme.axaml") });
     }

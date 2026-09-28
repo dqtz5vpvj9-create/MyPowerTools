@@ -60,6 +60,11 @@ public sealed class App : Application
 
         MacIdleProgressAnimations.Install();
         Styles.Add(new FluentTheme());
+        if (OperatingSystem.IsAndroid() || SingleViewFactory is not null)
+            Styles.Add(new StyleInclude(ThemeBaseUri)
+            {
+                Source = new Uri("avares://MyPowerTools.AvaloniaSdk/Themes/MptMobileTheme.axaml")
+            });
         if (OperatingSystem.IsMacOS())
             Resources.MergedDictionaries.Add(new ResourceInclude(ThemeBaseUri)
             { Source = new Uri("avares://MyPowerTools.Shell.Avalonia/Themes/MacLowPower.axaml") });

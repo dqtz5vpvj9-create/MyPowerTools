@@ -1,6 +1,12 @@
 <Styles xmlns="https://github.com/avaloniaui"
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
         xmlns:controls="using:MyPowerTools.UI.Controls">
+  <!--
+    Phone shell styles. The MptMobile*Brush resource keys and the MptMobile*Type/component classes are
+    the shared mobile theme contract; the values here follow docs/mobile-ux/IMPLEMENTATION_PLAN.md and
+    are the phone fallback until the dedicated mobile theme resources are included (they resolve to the
+    same palette, so the two layers do not disagree).
+  -->
   <Styles.Resources>
     <Thickness x:Key="MptPagePadding">0,8,0,12</Thickness>
     <Thickness x:Key="MptCardPadding">12</Thickness>
@@ -17,6 +23,7 @@
     <x:Double x:Key="MptPackageSourceInputWidth">0</x:Double>
     <x:Double x:Key="MptPackageIdInputWidth">0</x:Double>
   </Styles.Resources>
+
   <Style Selector="TextBlock">
     <Setter Property="TextWrapping" Value="Wrap" />
   </Style>
@@ -35,5 +42,356 @@
   <Style Selector="Button.MobileNavigation.selected">
     <Setter Property="Background" Value="{DynamicResource MptBrushNavigationSelected}" />
     <Setter Property="Foreground" Value="{DynamicResource MptBrushAccent}" />
+  </Style>
+
+  <!-- Phone page shell: margins from the plan (22-24 dp, 18 dp at 320 dp). -->
+  <Style Selector="StackPanel.MptMobilePage">
+    <Setter Property="Margin" Value="22,10,22,22" />
+    <Setter Property="Spacing" Value="16" />
+  </Style>
+  <Style Selector="ScrollViewer.MptMobileScroller">
+    <Setter Property="Padding" Value="0" />
+  </Style>
+  <Style Selector="StackPanel.MptMobileSection">
+    <Setter Property="Spacing" Value="8" />
+  </Style>
+  <Style Selector="Grid.MptMobileSectionHeader">
+    <Setter Property="Margin" Value="0,4,0,0" />
+  </Style>
+
+  <!-- Contract typography: 28 / 14 / 12 dp. -->
+  <Style Selector="TextBlock.MptMobilePageTitle">
+    <Setter Property="FontSize" Value="28" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Foreground" Value="{DynamicResource MptMobileTextBrush}" />
+  </Style>
+  <Style Selector="TextBlock.MptMobileHomeTitle">
+    <Setter Property="Margin" Value="0,-4,0,0" />
+  </Style>
+  <Style Selector="TextBlock.MptMobileSectionTitle">
+    <Setter Property="FontSize" Value="17" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Foreground" Value="{DynamicResource MptMobileTextBrush}" />
+  </Style>
+  <Style Selector="TextBlock.MptMobileBody">
+    <Setter Property="FontSize" Value="14" />
+    <Setter Property="Foreground" Value="{DynamicResource MptMobileSecondaryTextBrush}" />
+  </Style>
+  <Style Selector="TextBlock.MptMobileCaption">
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="Foreground" Value="{DynamicResource MptMobileSecondaryTextBrush}" />
+  </Style>
+  <Style Selector="TextBlock.MptMobileRowTitle">
+    <Setter Property="FontSize" Value="15" />
+    <Setter Property="FontWeight" Value="Medium" />
+    <Setter Property="Foreground" Value="{DynamicResource MptMobileTextBrush}" />
+  </Style>
+  <Style Selector="TextBlock.MptMobileRowSubtitle">
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="Foreground" Value="{DynamicResource MptMobileSecondaryTextBrush}" />
+  </Style>
+  <Style Selector="TextBlock.MptMobileRowMeta">
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="Foreground" Value="{DynamicResource MptMobileSecondaryTextBrush}" />
+  </Style>
+  <Style Selector="TextBlock.MptMobileMicroLabel">
+    <Setter Property="FontSize" Value="10" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Foreground" Value="{DynamicResource MptMobileSecondaryTextBrush}" />
+  </Style>
+  <Style Selector="TextBlock.MptMobileHello">
+    <Setter Property="FontSize" Value="22" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Foreground" Value="{DynamicResource MptMobileTextBrush}" />
+  </Style>
+  <Style Selector="TextBlock.MptMobileHeroTitle">
+    <Setter Property="FontSize" Value="19" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Foreground" Value="{DynamicResource MptMobileTextBrush}" />
+  </Style>
+  <Style Selector="TextBlock.MptMobileTileTitle">
+    <Setter Property="FontSize" Value="14" />
+    <Setter Property="FontWeight" Value="Medium" />
+    <Setter Property="Foreground" Value="{DynamicResource MptMobileTextBrush}" />
+  </Style>
+  <Style Selector="TextBlock.MptMobileTileDetail">
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="Foreground" Value="{DynamicResource MptMobileSecondaryTextBrush}" />
+  </Style>
+  <Style Selector="TextBlock.MptMobileDetailValue">
+    <Setter Property="FontSize" Value="24" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Foreground" Value="{DynamicResource MptMobileTextBrush}" />
+  </Style>
+  <Style Selector="TextBlock.MptMobileSheetTitle">
+    <Setter Property="FontSize" Value="19" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Foreground" Value="{DynamicResource MptMobileTextBrush}" />
+  </Style>
+  <Style Selector="TextBlock.MptMobileSheetSubtitle">
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="Foreground" Value="{DynamicResource MptMobileSecondaryTextBrush}" />
+  </Style>
+  <Style Selector="TextBlock.MptMobileErrorText">
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="Foreground" Value="{DynamicResource MptMobileErrorBrush}" />
+  </Style>
+  <Style Selector="TextBlock.MptMobileCodeText">
+    <Setter Property="FontSize" Value="24" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Foreground" Value="{DynamicResource MptMobileTextBrush}" />
+  </Style>
+  <Style Selector="TextBlock.MptMobileEmptyTitle">
+    <Setter Property="FontSize" Value="17" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="HorizontalAlignment" Value="Center" />
+    <Setter Property="Foreground" Value="{DynamicResource MptMobileTextBrush}" />
+  </Style>
+  <Style Selector="TextBlock.MptMobileEmptyDetail">
+    <Setter Property="FontSize" Value="12" />
+    <Setter Property="TextAlignment" Value="Center" />
+    <Setter Property="HorizontalAlignment" Value="Center" />
+    <Setter Property="Foreground" Value="{DynamicResource MptMobileSecondaryTextBrush}" />
+  </Style>
+  <Style Selector="StackPanel.MptMobileEmpty">
+    <Setter Property="Margin" Value="0,18,0,18" />
+  </Style>
+
+  <!-- Cards: 20-24 dp radius, no stacked decoration shadows. -->
+  <Style Selector="Border.MptMobileCard">
+    <Setter Property="CornerRadius" Value="22" />
+    <Setter Property="Padding" Value="16" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MptMobileDividerBrush}" />
+    <Setter Property="Background" Value="{DynamicResource MptMobileCardBrush}" />
+  </Style>
+  <Style Selector="Border.MptMobileHero">
+    <Setter Property="Padding" Value="18" />
+  </Style>
+  <Style Selector="Border.MptMobileListCard">
+    <Setter Property="Padding" Value="4,4" />
+  </Style>
+  <Style Selector="Border.MptMobileDivider">
+    <Setter Property="Height" Value="1" />
+  </Style>
+  <Style Selector="Border.MptMobileIconBox">
+    <Setter Property="CornerRadius" Value="12" />
+    <Setter Property="Width" Value="40" />
+    <Setter Property="Height" Value="40" />
+  </Style>
+  <Style Selector="Border.MptMobileIconBoxLarge">
+    <Setter Property="Width" Value="56" />
+    <Setter Property="Height" Value="56" />
+    <Setter Property="CornerRadius" Value="18" />
+  </Style>
+
+  <!-- Buttons: 14-16 dp radius, 44 dp minimum targets, 48 dp primary. -->
+  <Style Selector="Button.MptMobilePrimary">
+    <Setter Property="MinHeight" Value="48" />
+    <Setter Property="CornerRadius" Value="16" />
+    <Setter Property="Padding" Value="18,10" />
+    <Setter Property="FontSize" Value="16" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Background" Value="{DynamicResource MptMobileAccentBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource MptMobileOnAccentBrush}" />
+    <Setter Property="BorderThickness" Value="0" />
+  </Style>
+  <Style Selector="Button.MptMobilePrimary:disabled">
+    <Setter Property="Opacity" Value="0.45" />
+  </Style>
+  <Style Selector="Button.MptMobileSecondary">
+    <Setter Property="MinHeight" Value="48" />
+    <Setter Property="CornerRadius" Value="16" />
+    <Setter Property="Padding" Value="18,10" />
+    <Setter Property="FontSize" Value="15" />
+    <Setter Property="Background" Value="{DynamicResource MptMobileSoftFillBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource MptMobileAccentBrush}" />
+    <Setter Property="BorderThickness" Value="0" />
+  </Style>
+  <Style Selector="Button.MptMobileDanger">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource MptMobileErrorBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MptMobileErrorBrush}" />
+  </Style>
+  <Style Selector="Button.MptMobileTextButton">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="MinHeight" Value="44" />
+    <Setter Property="Padding" Value="8,4" />
+    <Setter Property="FontSize" Value="13" />
+    <Setter Property="Foreground" Value="{DynamicResource MptMobileAccentBrush}" />
+  </Style>
+  <Style Selector="Button.MptMobileIconButton">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="MinWidth" Value="44" />
+    <Setter Property="MinHeight" Value="44" />
+    <Setter Property="CornerRadius" Value="12" />
+    <Setter Property="FontSize" Value="18" />
+    <Setter Property="Foreground" Value="{DynamicResource MptMobileSecondaryTextBrush}" />
+  </Style>
+  <Style Selector="Button.MptMobileStar">
+    <Setter Property="FontSize" Value="20" />
+    <Setter Property="Foreground" Value="{DynamicResource MptMobileAccentBrush}" />
+  </Style>
+  <Style Selector="Button.MptMobileBack">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="MinHeight" Value="44" />
+    <Setter Property="Padding" Value="4,4" />
+    <Setter Property="Foreground" Value="{DynamicResource MptMobileAccentBrush}" />
+  </Style>
+  <Style Selector="Button.MptMobileAvatar">
+    <Setter Property="Width" Value="44" />
+    <Setter Property="Height" Value="44" />
+    <Setter Property="MinWidth" Value="44" />
+    <Setter Property="MinHeight" Value="44" />
+    <Setter Property="CornerRadius" Value="22" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="FontSize" Value="17" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="Background" Value="{DynamicResource MptMobileSoftFillBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource MptMobileAccentBrush}" />
+    <Setter Property="BorderThickness" Value="0" />
+  </Style>
+
+  <!-- Rows and tiles. -->
+  <Style Selector="Button.MptMobileListRow">
+    <Setter Property="MinHeight" Value="56" />
+    <Setter Property="Padding" Value="12,8" />
+    <Setter Property="CornerRadius" Value="16" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+  </Style>
+  <Style Selector="Button.MptMobileListRow:pointerover">
+    <Setter Property="Background" Value="{DynamicResource MptMobileSoftFillBrush}" />
+  </Style>
+  <Style Selector="Grid.MptMobileRowWithAction">
+    <Setter Property="ColumnSpacing" Value="4" />
+  </Style>
+  <Style Selector="Button.MptMobileTile">
+    <Setter Property="MinHeight" Value="104" />
+    <Setter Property="Padding" Value="14" />
+    <Setter Property="Margin" Value="0,0,10,10" />
+    <Setter Property="CornerRadius" Value="20" />
+    <Setter Property="Background" Value="{DynamicResource MptMobileCardBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MptMobileDividerBrush}" />
+  </Style>
+  <Style Selector="Button.MptMobileChip">
+    <Setter Property="MinHeight" Value="44" />
+    <Setter Property="Padding" Value="14,8" />
+    <Setter Property="CornerRadius" Value="22" />
+    <Setter Property="Background" Value="{DynamicResource MptMobileCardBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MptMobileDividerBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource MptMobileTextBrush}" />
+    <Setter Property="FontSize" Value="13" />
+  </Style>
+  <Style Selector="Button.MptMobileChip.selected">
+    <Setter Property="Background" Value="{DynamicResource MptMobileAccentBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource MptMobileOnAccentBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MptMobileAccentBrush}" />
+  </Style>
+  <Style Selector="StackPanel.MptMobileFilterBar">
+    <Setter Property="Spacing" Value="8" />
+    <Setter Property="Margin" Value="0,2,0,2" />
+  </Style>
+
+  <!-- Search / fields. -->
+  <Style Selector="TextBox.MptMobileSearch">
+    <Setter Property="MinHeight" Value="48" />
+    <Setter Property="CornerRadius" Value="14" />
+    <Setter Property="Padding" Value="14,10" />
+    <Setter Property="FontSize" Value="14" />
+    <Setter Property="Background" Value="{DynamicResource MptMobileCardBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MptMobileDividerBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource MptMobileTextBrush}" />
+  </Style>
+  <Style Selector="TextBox.MptMobileField">
+    <Setter Property="MinHeight" Value="48" />
+    <Setter Property="CornerRadius" Value="14" />
+    <Setter Property="Padding" Value="14,10" />
+    <Setter Property="Background" Value="{DynamicResource MptMobileCardBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MptMobileDividerBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource MptMobileTextBrush}" />
+  </Style>
+
+  <!-- Banners. -->
+  <Style Selector="Border.MptMobileBanner">
+    <Setter Property="CornerRadius" Value="16" />
+    <Setter Property="Padding" Value="14" />
+    <Setter Property="Background" Value="{DynamicResource MptMobileSoftFillBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MptMobileDividerBrush}" />
+  </Style>
+  <Style Selector="Border.MptMobileBannerError">
+    <Setter Property="BorderBrush" Value="{DynamicResource MptMobileErrorBrush}" />
+  </Style>
+  <Style Selector="Border.MptMobileBannerInfo">
+    <Setter Property="Margin" Value="16,6,16,0" />
+  </Style>
+
+  <!-- Four equal tabs; safe-area aware bottom padding is applied by the host. -->
+  <Style Selector="Grid.MptMobileTabBar">
+    <Setter Property="MinHeight" Value="64" />
+    <Setter Property="Background" Value="{DynamicResource MptMobileCardBrush}" />
+  </Style>
+  <Style Selector="Button.MptMobileTab">
+    <Setter Property="MinHeight" Value="56" />
+    <Setter Property="MinWidth" Value="44" />
+    <Setter Property="Padding" Value="2,6" />
+    <Setter Property="CornerRadius" Value="14" />
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Foreground" Value="{DynamicResource MptMobileSecondaryTextBrush}" />
+  </Style>
+  <Style Selector="Button.MptMobileTab.selected">
+    <Setter Property="Foreground" Value="{DynamicResource MptMobileAccentBrush}" />
+    <Setter Property="Background" Value="{DynamicResource MptMobileSoftFillBrush}" />
+  </Style>
+
+  <!-- Overlays: one bottom sheet, scrollable, with a dimmed backdrop. -->
+  <Style Selector="Grid.MptMobileSheetLayer">
+    <Setter Property="ZIndex" Value="50" />
+  </Style>
+  <Style Selector="Border.MptMobileBackdrop">
+    <Setter Property="Background" Value="{DynamicResource MptMobileBackdropBrush}" />
+  </Style>
+  <Style Selector="Border.MptMobileSheet">
+    <Setter Property="CornerRadius" Value="24,24,0,0" />
+    <Setter Property="Padding" Value="18,10,18,18" />
+    <Setter Property="MaxHeight" Value="620" />
+    <Setter Property="VerticalAlignment" Value="Bottom" />
+  </Style>
+  <Style Selector="Border.MptMobileGrabber">
+    <Setter Property="CornerRadius" Value="2" />
+    <Setter Property="Margin" Value="0,0,0,6" />
+  </Style>
+  <Style Selector="Border.MptMobileOverlay">
+    <Setter Property="ZIndex" Value="40" />
+  </Style>
+  <Style Selector="Border.MptMobileToast">
+    <Setter Property="CornerRadius" Value="14" />
+    <Setter Property="Padding" Value="14,10" />
+    <Setter Property="Margin" Value="22,0,22,92" />
+    <Setter Property="HorizontalAlignment" Value="Center" />
+    <Setter Property="VerticalAlignment" Value="Bottom" />
+    <Setter Property="ZIndex" Value="60" />
+  </Style>
+  <Style Selector="TextBlock.MptMobileToastText">
+    <Setter Property="FontSize" Value="13" />
+    <Setter Property="TextAlignment" Value="Center" />
+  </Style>
+
+  <!-- Narrowest supported phone: tighter page margins. -->
+  <Style Selector="StackPanel.MptMobilePage.narrow">
+    <Setter Property="Margin" Value="18,10,18,18" />
   </Style>
 </Styles>

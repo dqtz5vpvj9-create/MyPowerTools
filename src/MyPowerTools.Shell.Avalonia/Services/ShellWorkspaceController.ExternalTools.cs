@@ -192,6 +192,13 @@ public sealed partial class ShellWorkspaceController
             callback => SubscribeSurfaceEvents(descriptor.OwnerModuleId, callback))
         {
             OpenShortcutSettingsAsync = owner => OpenShortcutsForToolAsync(owner),
+            ExecuteCommandWithInvocationAsync = async (invocationId, commandId, args, cancellationToken) =>
+            {
+                var result = await ExecuteRuntimeCommandAsync(commandId, args, invocationId, cancellationToken);
+                return ToSurfaceCommandExecutionResult(invocationId, commandId, result);
+            },
+            ScanConnectionCodeAsync = _scanConnectionCodeAsync,
+            OpenFileAsync = _openNativeFileAsync,
             WebSurfaces = _webSurfaceService
        };
        try

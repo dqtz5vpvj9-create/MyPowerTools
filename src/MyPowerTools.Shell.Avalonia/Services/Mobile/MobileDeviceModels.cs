@@ -14,7 +14,9 @@ public sealed record MobilePeerInfo(
     string Address,
     MobilePeerConnectionState ConnectionState,
     DateTimeOffset? CheckedAt = null,
-    bool SupportsToolControl = false);
+    bool SupportsToolControl = false,
+    // Why the last check ended in this state, so the UI can offer a next step.
+    string? Message = null);
 
 public sealed record MobileTransferActivity(
     string Id,
@@ -26,6 +28,12 @@ public sealed record MobileTransferActivity(
     DateTimeOffset? Timestamp,
     string? Message = null);
 
+/// <summary>
+/// One screen's worth of real device state. <paramref name="LocalAddress"/> and
+/// <paramref name="RelayChecked"/> are trailing additions; every earlier positional argument keeps
+/// its original meaning. RelayChecked is false when RelayRunning only means "never checked" rather
+/// than a measured result.
+/// </summary>
 public sealed record MobileDeviceSnapshot(
     string LocalDeviceName,
     bool Receiving,
@@ -34,7 +42,9 @@ public sealed record MobileDeviceSnapshot(
     bool RelayRunning,
     string? RelayDescription,
     IReadOnlyList<MobileTransferActivity> Activities,
-    string? Notice = null);
+    string? Notice = null,
+    string? LocalAddress = null,
+    bool RelayChecked = false);
 
 /// <summary>Mobile presentation facade over the existing module command and HostControl boundary.</summary>
 public interface IMobileDeviceService
