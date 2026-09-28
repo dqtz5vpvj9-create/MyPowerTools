@@ -1,6 +1,7 @@
 <UserControl xmlns="https://github.com/avaloniaui"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:LocalLagCleaner.Tool"
+             xmlns:core="using:LocalLagCleaner.MyPowerTools"
              x:Class="LocalLagCleaner.Tool.LocalLagCleanerView"
              x:DataType="vm:LocalLagCleanerViewModel">
   <UserControl.Styles>
@@ -49,7 +50,7 @@
           <TextBlock Text="本机卡顿专清"
                      FontSize="25"
                      FontWeight="SemiBold" />
-          <TextBlock Text="多阶段采样 CPU 调度、分页、磁盘延迟、GPU、进程 I/O、内核资源与稳定性事件，并将证据绑定到精确处置计划。"
+          <TextBlock Text="检查卡顿原因，自动处理支持的项目，并验证处理效果。"
                      Classes="secondary" />
           <TextBlock Text="{Binding StatusText}"
                      FontSize="12"
@@ -68,23 +69,24 @@
                        Foreground="{Binding SeverityBrush}"
                        FontWeight="SemiBold" />
           </Border>
-          <Button Content="5 秒快速扫描"
+          <Button Content="重新检查"
                   Command="{Binding QuickScanCommand}"
                   IsEnabled="{Binding CanInteract}"
                   Padding="16,9" />
-          <Button Content="15 秒深度扫描"
-                  Command="{Binding DeepScanCommand}"
+          <Button Content="一键检查并处理"
+                  Command="{Binding AutomaticCareCommand}"
                   IsEnabled="{Binding CanInteract}"
                   Classes="accent"
                   Padding="16,9" />
           <Button Content="管理员 File 归因"
+                  IsVisible="False"
                   Command="{Binding ElevatedFileScanCommand}"
                   IsEnabled="{Binding CanInteract}"
                   Padding="16,9"
                   ToolTip.Tip="触发 Windows UAC，由受控 Broker 只读抽样最多 512 个 PID 4 File 句柄。" />
           <Button Content="取消"
                   Command="{Binding CancelScanCommand}"
-                  IsVisible="{Binding IsBusy}"
+                  IsVisible="{Binding CanCancelScan}"
                   Padding="16,9" />
         </StackPanel>
       </Grid>
@@ -103,10 +105,39 @@
                  Classes="secondary" />
     </StackPanel>
 
-    <TabControl Grid.Row="2" Margin="28,12,28,28">
-      <TabItem Header="诊断结果">
+    <TabControl Grid.Row="2" Margin="28,12,28,28" SelectedIndex="{Binding SelectedTabIndex}">
+      <TabItem Header="电脑体检">
         <ScrollViewer HorizontalScrollBarVisibility="Disabled">
           <StackPanel Spacing="14" Margin="0,12,0,24">
+            <Border Classes="card">
+              <StackPanel Spacing="12">
+                <TextBlock Text="让工具完成检查和处理" Classes="section-title" />
+                <TextBlock Text="自动查清内存读盘来源、比较系统内存增长、清理已确认的旧工具连接，并减轻持续繁忙的后台程序抢占。" Classes="secondary" />
+                <TextBlock Text="同时清理超过 7 天且当前未被占用的 .tmp/.temp 临时文件。临时文件删除后无法撤销；后台调度调整可以恢复。" Classes="secondary" />
+                <WrapPanel>
+                  <Button Content="一键检查并处理" Command="{Binding AutomaticCareCommand}" IsEnabled="{Binding CanInteract}" Classes="accent" Margin="0,0,12,8" />
+                  <Button Content="撤销后台调度调整" Command="{Binding RestoreCareCommand}" IsEnabled="{Binding CanInteract}" Margin="0,0,12,8" />
+                </WrapPanel>
+                <TextBlock Text="{Binding CareSummary}" FontWeight="SemiBold" TextWrapping="Wrap" />
+                <ItemsControl ItemsSource="{Binding CareResults}">
+                  <ItemsControl.ItemTemplate>
+                    <DataTemplate x:DataType="core:CareItem">
+                      <Border BorderBrush="{DynamicResource MptBrushDivider}" BorderThickness="0,1,0,0" Padding="0,12">
+                        <StackPanel Spacing="5">
+                          <Grid ColumnDefinitions="*,Auto">
+                            <TextBlock Text="{Binding Title}" FontWeight="SemiBold" />
+                            <TextBlock Grid.Column="1" Text="{Binding State}" Classes="secondary" />
+                          </Grid>
+                          <TextBlock Text="{Binding Message}" Classes="secondary" />
+                        </StackPanel>
+                      </Border>
+                    </DataTemplate>
+                  </ItemsControl.ItemTemplate>
+                </ItemsControl>
+              </StackPanel>
+            </Border>
+            <Expander Header="查看详细检测数据" HorizontalAlignment="Stretch">
+            <StackPanel Spacing="14">
             <UniformGrid Columns="4">
               <Border Classes="metric">
                 <StackPanel Spacing="7">
@@ -134,7 +165,7 @@
               </Border>
               <Border Classes="metric">
                 <StackPanel Spacing="7">
-                  <TextBlock Text="硬分页" Classes="secondary" />
+                  <TextBlock Text="硬缺页读入（含文件载入）" Classes="secondary" />
                   <TextBlock Text="{Binding Paging}" Classes="metric-value" />
                 </StackPanel>
               </Border>
@@ -217,6 +248,8 @@
                        Classes="secondary"
                        FontSize="12"
                        TextTrimming="CharacterEllipsis" />
+            </StackPanel>
+            </Expander>
           </StackPanel>
         </ScrollViewer>
       </TabItem>
@@ -226,7 +259,7 @@
           <StackPanel Spacing="14" Margin="0,12,0,24">
             <Border Classes="card">
               <StackPanel Spacing="8">
-                <TextBlock Text="诊断发现与因果链" Classes="section-title" />
+                <TextBlock Text="诊断发现与证据" Classes="section-title" />
                 <ItemsControl ItemsSource="{Binding Findings}">
                   <ItemsControl.ItemTemplate>
                     <DataTemplate x:DataType="vm:LagFindingRow">
@@ -256,7 +289,7 @@
                             <TextBlock Text="{Binding Evidence}"
                                        Classes="secondary"
                                        TextWrapping="Wrap" />
-                            <TextBlock Text="{Binding CausalChain, StringFormat='因果链：{0}'}"
+                            <TextBlock Text="{Binding CausalChain, StringFormat='关联证据：{0}'}"
                                        FontSize="12"
                                        Classes="secondary"
                                        TextWrapping="Wrap" />
@@ -264,6 +297,10 @@
                                        FontSize="12"
                                        Classes="secondary"
                                        TextWrapping="Wrap" />
+                            <StackPanel Orientation="Horizontal" Spacing="12" Margin="0,6,0,0">
+                              <Button Content="查看对应方案" Command="{Binding ShowSolutionCommand}" />
+                              <TextBlock Text="{Binding SolutionStatus}" Classes="secondary" VerticalAlignment="Center" />
+                            </StackPanel>
                           </StackPanel>
                         </Grid>
                       </Border>
@@ -545,6 +582,39 @@
       <TabItem Header="修复操作">
         <ScrollViewer HorizontalScrollBarVisibility="Disabled">
           <StackPanel Spacing="14" Margin="0,12,0,24">
+            <Border Classes="card">
+              <StackPanel Spacing="12">
+                <TextBlock Text="逐项处理方案" Classes="section-title" />
+                <TextBlock Text="选择要处理的项目，工具会自动采集所需数据，并展示处理结果。" Classes="secondary" />
+                <ComboBox ItemsSource="{Binding Remediations}" SelectedItem="{Binding SelectedRemediation}" HorizontalAlignment="Stretch">
+                  <ComboBox.ItemTemplate>
+                    <DataTemplate x:DataType="vm:RemediationRow">
+                      <TextBlock Text="{Binding Plan.Title}" />
+                    </DataTemplate>
+                  </ComboBox.ItemTemplate>
+                </ComboBox>
+                <ContentControl Content="{Binding SelectedRemediation}">
+                  <ContentControl.ContentTemplate>
+                    <DataTemplate x:DataType="vm:RemediationRow">
+                      <StackPanel Spacing="10">
+                        <TextBlock Text="{Binding Plan.Status}" FontWeight="SemiBold" />
+                        <TextBlock Text="{Binding Plan.Target, StringFormat='处理对象与证据：{0}'}" Classes="secondary" />
+                        <Button Content="{Binding Plan.ActionLabel}" Command="{Binding PrimaryCommand}" HorizontalAlignment="Left" Classes="accent" />
+                        <Expander Header="查看技术说明">
+                          <StackPanel Spacing="8">
+                            <TextBlock Text="{Binding Plan.Steps}" TextWrapping="Wrap" />
+                            <TextBlock Text="{Binding Plan.Verification, StringFormat='完成标准：{0}'}" Classes="secondary" />
+                            <TextBlock Text="{Binding Plan.Recovery, StringFormat='恢复与影响：{0}'}" Classes="secondary" />
+                          </StackPanel>
+                        </Expander>
+                      </StackPanel>
+                    </DataTemplate>
+                  </ContentControl.ContentTemplate>
+                </ContentControl>
+                <Button Content="处理后深度复测" Command="{Binding DeepScanCommand}" IsEnabled="{Binding CanInteract}" HorizontalAlignment="Left" />
+                <TextBlock Text="{Binding ActionMessage}" Classes="secondary" />
+              </StackPanel>
+            </Border>
             <Border Classes="card">
               <StackPanel Spacing="12">
                 <TextBlock Text="单动作、精确目标、执行前复核"

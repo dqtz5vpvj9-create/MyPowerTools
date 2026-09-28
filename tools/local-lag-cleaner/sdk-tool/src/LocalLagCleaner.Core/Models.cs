@@ -261,6 +261,14 @@ public sealed record SystemSignalSample(
     double DiskQueueLength,
     double DiskBytesPerSecond);
 
+public sealed record PagingSample(
+    DateTimeOffset CapturedAtUtc,
+    double PagesInputPerSecond,
+    double? PageReadsPerSecond,
+    double? AvailableBytes,
+    double? CommitUsedPercent,
+    double? DiskLatencyMilliseconds);
+
 public sealed record SystemSignalSummary(
     double AverageCpuPercent,
     double PeakCpuPercent,
@@ -418,6 +426,11 @@ public sealed record LagDiagnosticSnapshot(
     IReadOnlyList<string> Recommendations)
 {
     public IReadOnlyList<SystemSignalSample> SignalSamples { get; init; } = [];
+    public IReadOnlyList<PagingSample> PagingSamples { get; init; } = [];
+    public IReadOnlyList<ProcessHardFaultRate> HardFaultProcesses { get; init; } = [];
+    public string HardFaultAttributionError { get; init; } = "";
+    public IReadOnlyList<FindingRemediation> Remediations =>
+        Findings.Select(finding => RemediationCatalog.Create(this, finding)).ToArray();
     public SystemSignalSummary? Signals { get; init; }
     public IReadOnlyList<ProcessBreakdownSnapshot> ProcessBreakdown { get; init; } = [];
     public IReadOnlyList<ProcessSnapshot> TopIoProcesses { get; init; } = [];
