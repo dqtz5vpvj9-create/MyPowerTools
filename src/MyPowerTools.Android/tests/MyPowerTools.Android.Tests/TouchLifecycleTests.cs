@@ -9,6 +9,7 @@ using System.Reflection;
 
 namespace MyPowerTools.Android.Tests;
 
+[Collection("Android Avalonia host")]
 public sealed class TouchLifecycleTests
 {
     [Fact]

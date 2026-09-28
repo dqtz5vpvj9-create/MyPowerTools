@@ -26,7 +26,8 @@ namespace MyPowerTools.Android;
     // static ready task) in the task. With SingleTop a share arriving from Files could create a
     // second instance, overwrite the static Shell and orphan the activation that was still waiting
     // for the first one; every later intent is delivered through OnNewIntent instead.
-    LaunchMode = A.Content.PM.LaunchMode.SingleTask)]
+    LaunchMode = A.Content.PM.LaunchMode.SingleTask,
+    WindowSoftInputMode = SoftInput.AdjustResize)]
 [A.App.IntentFilter([A.Content.Intent.ActionSend, A.Content.Intent.ActionSendMultiple], Categories = [A.Content.Intent.CategoryDefault], DataMimeType = "*/*")]
 [A.App.IntentFilter([A.Content.Intent.ActionView], Categories = [A.Content.Intent.CategoryDefault, A.Content.Intent.CategoryBrowsable], DataScheme = "mpt")]
 [A.App.IntentFilter([A.Content.Intent.ActionView], Categories = [A.Content.Intent.CategoryDefault, A.Content.Intent.CategoryBrowsable], DataScheme = "mypowertools")]
@@ -76,7 +77,7 @@ public sealed class MainActivity : AvaloniaMainActivity
         WarmFontStack();
         var view = new AndroidStartupView();
         _ = InitializeAsync(view);
-        return view;
+        return new AndroidImeHost(view);
     }
 
     /// <summary>
