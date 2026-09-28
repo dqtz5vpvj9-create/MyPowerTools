@@ -32,6 +32,7 @@
   ],
   "activationUriPrefixes": [
     "mpt://pair/",
-    "mpt://cloud/"
+    "mpt://cloud/",
+    "mpt://assistant/"
   ]
 }

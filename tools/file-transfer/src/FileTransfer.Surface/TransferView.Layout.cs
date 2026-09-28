@@ -11,6 +11,9 @@ namespace FileTransfer.Surface;
 // Layout half of the shared file-transfer surface. Every row stacks below phone width through
 // MptAdaptiveLayout, and list rows use a star column so long file names wrap instead of pushing
 // their buttons off screen.
+//
+// This is the wide layout, kept for Windows and macOS. It is built on the same TransferCore as the
+// phone layout in TransferMobileView, so no transfer state exists twice.
 public sealed partial class TransferView
 {
     private const double NarrowWidth = 640;
@@ -64,13 +67,15 @@ public sealed partial class TransferView
         _cloudSave = Button("保存并测试", SaveCloudAsync);
     }
 
-    private void BuildUi()
+    private void BuildDesktopUi()
     {
         CreateButtons();
         // A code can arrive from an external app; the page must name the target before import.
         _pair.TextChanged += (_, _) => UpdateCodePreview(_pair, _pairPreview);
         _cloudCode.TextChanged += (_, _) => UpdateCodePreview(_cloudCode, _cloudPreview);
         _directory.TextChanged += (_, _) => UpdateSaveSummary();
+        _devices.SelectionChanged += (_, _) => OnDeviceSelectionChanged();
+        _method.SelectionChanged += (_, _) => OnMethodSelectionChanged();
         var content = new StackPanel { Spacing = 16, Margin = new Thickness(28), MaxWidth = 1000, HorizontalAlignment = HorizontalAlignment.Stretch };
         content.Children.Add(Text("文件互传", 28));
         content.Children.Add(Text("电脑与手机，随手互传。", 15));
@@ -96,10 +101,12 @@ public sealed partial class TransferView
         content.Children.Add(_inbox);
         content.Children.Add(Section("最近传输"));
         content.Children.Add(_history);
-        Content = new ScrollViewer { Content = content, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
+        _desktopContent = content;
         _retryLast.IsVisible = false;
         _deviceHint.IsVisible = false;
     }
+
+    private StackPanel? _desktopContent;
 
     private static TextBlock Text(string text, double size, string? name = null)
     {
@@ -210,14 +217,14 @@ public sealed partial class TransferView
         panel.Children.Add(Row(Button("选择文件夹", PickDirectoryAsync)));
         panel.Children.Add(Field("本机收件箱名称", _deviceId));
         panel.Children.Add(Field("本机 Tailscale IP（自动填写）", _listen));
-        panel.Children.Add(Row(Button("保存设置", SaveAsync), Button("重新读取", RefreshAsync)));
+        panel.Children.Add(Row(Button("保存设置", SaveAsync), Button("重新读取", () => Core.RefreshAsync())));
         return new Expander { Header = "更多设置", Content = panel, HorizontalAlignment = HorizontalAlignment.Stretch };
     }
 
-    private void ApplyDensity(double width)
+    private void ApplyDesktopDensity(double width)
     {
-        if (Content is not ScrollViewer viewer || viewer.Content is not StackPanel content) return;
-        content.Margin = new Thickness(width < NarrowWidth ? 16 : 28);
+        if (_desktopContent is null) return;
+        _desktopContent.Margin = new Thickness(width < NarrowWidth ? 16 : 28);
         _cloudState.MaxWidth = width < NarrowWidth ? double.PositiveInfinity : 420;
     }
 

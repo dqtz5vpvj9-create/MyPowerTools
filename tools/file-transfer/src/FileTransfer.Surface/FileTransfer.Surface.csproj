@@ -1,8 +1,19 @@
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup><TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><Version>0.1.0</Version></PropertyGroup>
   <ItemGroup>
+    <!-- The phone step flow and the shared transfer state stay internal on purpose; the
+         file-transfer test project drives them directly instead of widening the public API. -->
+    <InternalsVisibleTo Include="FileTransfer.Surface.Tests" />
+  </ItemGroup>
+  <ItemGroup>
     <PackageReference Include="Avalonia" Version="12.0.5" />
     <PackageReference Include="MyPowerTools.ToolSdk" Version="0.2.0" />
-    <PackageReference Include="MyPowerTools.AvaloniaSdk" Version="0.2.1" />
+    <!--
+      This surface implements IMptAvaloniaSurfaceBackHandler and styles itself with the shared
+      MptMobile theme, neither of which is in the published 0.2.1 AvaloniaSdk package yet. Building
+      against the in-repo SDK project is the same public contract (no Shell-internal types); the
+      parent unifies the SDK version and packaging later.
+    -->
+    <ProjectReference Include="../../../../src/MyPowerTools.AvaloniaSdk/MyPowerTools.AvaloniaSdk.csproj" />
   </ItemGroup>
 </Project>

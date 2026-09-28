@@ -1,9 +1,9 @@
-using System.Text.Json;
 using System.Text.Json.Nodes;
+using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Controls.Primitives;
 using Avalonia.Input;
 using Avalonia.Platform.Storage;
-using Avalonia.Threading;
 using MyPowerTools.Abstractions;
 using MyPowerTools.AvaloniaSdk;
 
@@ -13,68 +13,147 @@ namespace FileTransfer.Surface;
 /// The single file-transfer surface shared by Windows, macOS and Android. It owns layout and view
 /// state only: sending, receiving, pairing and OpenList work all go through file-transfer module
 /// commands, so the same page keeps working on a phone where no desktop service can run.
+///
+/// The surface has two presentations over one <see cref="TransferCore"/>: the wide form
+/// (Windows / macOS / tablet) and the phone step flow in <see cref="TransferMobileView"/>. Only one
+/// of them is attached at a time, so neither keeps a second copy of the transfer state.
 /// </summary>
-public sealed partial class TransferView : UserControl, IMptAvaloniaSurfaceActivationHandler
+public sealed partial class TransferView : UserControl, IMptAvaloniaSurfaceActivationHandler, IMptAvaloniaSurfaceBackHandler
 {
-    private const int MaximumFiles = 200;
     private readonly MptAvaloniaSurfaceContext _context;
-    private readonly CancellationTokenSource _lifetime = new();
-    private readonly List<string> _paths = [];
-    private readonly List<string> _confirmedStaged = [];
-    private readonly Dictionary<string, PendingRequest> _requests = new(StringComparer.Ordinal);
-    private JsonArray _peers = [];
-    private IDisposable? _events;
-    private PendingRequest? _lastFailure;
+    private readonly TransferCore _core;
+    private readonly AssistantCore _assistantCore;
+    private readonly AssistantView _assistant;
+    private readonly TransferMobileView _mobile;
+    private readonly ScrollViewer _desktopScroller;
+    private bool _mobileShown;
+    private bool _activated;
+    private bool _advancedShown;
+
+    // Presentation-only mirrors of module state owned by the core. They exist so the wide form's
+    // cloud/OpenList wording does not have to re-derive it on every re-render.
     private bool _receiving;
-    private bool _busy;
-    private bool _busyQueued;
     private bool _openListRunning;
+    private string _savedDirectory = "";
     private string _adminUrl = "";
     private string _localAuthority = "";
-    private string _savedDirectory = "";
 
     public TransferView(MptAvaloniaSurfaceContext context)
     {
         _context = context;
-        BuildUi();
+        _core = new TransferCore(context);
+        _assistantCore = new AssistantCore(context);
+        BuildDesktopUi();
+        _desktopScroller = new ScrollViewer { Content = _desktopContent, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
+        _mobile = new TransferMobileView(context, _core);
+        // The conversation is the tool's default screen on every platform. The classic form stays
+        // reachable from it as an advanced page rather than greeting the user with a settings table.
+        _assistant = new AssistantView(context, _assistantCore, _core);
+        _assistant.AdvancedRequested += (_, _) => ShowAdvanced(true);
+        Content = _assistant;
         SizeChanged += (_, e) => ApplyDensity(e.NewSize.Width);
-        AttachedToVisualTree += (_, _) =>
+        AttachedToVisualTree += (_, _) => Attach();
+        DetachedFromVisualTree += (_, _) => Detach();
+    }
+
+    /// <summary>The shared transfer state, exposed for the phone page and for headless layout tests.</summary>
+    internal TransferCore Core => _core;
+
+    /// <summary>The conversation state, exposed for headless behaviour tests.</summary>
+    internal AssistantCore Assistant => _assistantCore;
+
+    /// <summary>The conversation page, exposed for headless behaviour tests.</summary>
+    internal AssistantView Conversation => _assistant;
+
+    /// <summary>True while the conversation is the visible screen (the default).</summary>
+    public bool IsConversationVisible => !_advancedShown;
+
+    /// <summary>Switches between the conversation and the classic transfer form.</summary>
+    public void ShowAdvanced(bool advanced)
+    {
+        if (advanced == _advancedShown) return;
+        _advancedShown = advanced;
+        ApplyPresentation(Bounds.Width > 0 ? Bounds.Width : _lastWidth);
+    }
+
+    /// <summary>The phone presentation. It is only attached below phone width.</summary>
+    internal TransferMobileView Mobile => _mobile;
+
+    /// <summary>True while the phone layout owns the surface. Used by tests to assert the breakpoint.</summary>
+    public bool IsMobileLayout => _mobileShown;
+
+    private void Attach()
+    {
+        if (_activated) { _mobile.Attach(); _assistant.Attach(); return; }
+        _activated = true;
+        _core.Changed += SyncFromCore;
+        _core.Attach();
+        // The conversation reads both cores: the assistant contract for the session, and the legacy
+        // commands for receive settings and the advanced form it links to.
+        _assistantCore.Attach();
+        _mobile.Attach();
+        _assistant.Attach();
+        _ = GuardAsync(async () =>
         {
-            _events ??= _context.SubscribeEvents?.Invoke(OnEvent);
-            _ = GuardAsync(RefreshAsync);
-        };
-        DetachedFromVisualTree += (_, _) =>
+            await _core.RefreshAsync();
+            await _assistantCore.RefreshAsync();
+            // Entering the page is a real event, so this is where the session is pulled once. There
+            // is no polling: further updates arrive on file-transfer.assistant.changed.
+            await _assistantCore.SyncAsync();
+        });
+    }
+
+    private void Detach()
+    {
+        if (!_activated) return;
+        _activated = false;
+        _core.Changed -= SyncFromCore;
+        _desktopContent = _desktopScroller.Content as StackPanel;
+        _core.Detach();
+        _assistantCore.Detach();
+        _mobile.Detach();
+        _assistant.Detach();
+    }
+
+    /// <summary>Selects the phone presentation for phone widths and the wide form everywhere else.</summary>
+    private void ApplyDensity(double width)
+    {
+        if (width > 0) _lastWidth = width;
+        ApplyPresentation(_lastWidth);
+    }
+
+    private double _lastWidth;
+
+    /// <summary>Shows either the conversation or the advanced form for the current width.</summary>
+    private void ApplyPresentation(double width)
+    {
+        var mobile = width > 0 && width < NarrowWidth;
+        ApplyDesktopDensity(width);
+        _mobile.ApplyViewport(width);
+        _assistant.ApplyViewport(width);
+        if (!_advancedShown)
         {
-            _events?.Dispose();
-            _events = null;
-            // The selection ends with this instance; reclaim the copies this page staged itself.
-            if (!_busy) foreach (var path in _paths.ToArray()) DiscardStaged(path);
-        };
+            // The conversation is one layout at both widths: a phone column at 320 and a wider, still
+            // single-column thread on a desktop window.
+            _mobileShown = false;
+            Content = _assistant;
+            return;
+        }
+        _mobileShown = mobile;
+        Content = mobile ? _mobile : _desktopScroller;
+        if (mobile) _mobile.Sync();
     }
 
     // ---- commands ---------------------------------------------------------------------------
 
-    private async Task<JsonNode> CallAsync(string command, JsonObject? args = null)
-    {
-        var response = await _context.ExecuteCommandAsync("file-transfer." + command, args, _lifetime.Token);
-        if (!response.Success)
-        {
-            var message = response.Error?.Message;
-            throw new InvalidOperationException(string.IsNullOrWhiteSpace(message) ? response.Output : message);
-        }
-        if (string.IsNullOrWhiteSpace(response.Output)) return new JsonObject();
-        try { return JsonNode.Parse(response.Output) ?? new JsonObject(); }
-        catch (JsonException) { return new JsonObject(); }
-    }
-
     private async Task GuardAsync(Func<Task> action)
     {
         try { await action(); }
-        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { }
+        catch (OperationCanceledException) { }
         catch (Exception ex) { SetStatus(ex.Message); }
     }
 
-    private void SetStatus(string message) => _status.Text = message;
+    private void SetStatus(string message) => _core.PublishOnUi(_core.Snapshot with { Status = message });
 
     /// <summary>Names the target of a pending import so a code from an external app is never applied blind.</summary>
     private void UpdateCodePreview(TextBox box, TextBlock preview)
@@ -87,157 +166,75 @@ public sealed partial class TransferView : UserControl, IMptAvaloniaSurfaceActiv
     /// <summary>One short line for the first screen: the full path stays editable in 更多设置.</summary>
     private void UpdateSaveSummary() => _saveSummary.Text = OperatingSystem.IsAndroid()
         ? "保存到系统下载 / MPT"
-        : "保存到 " + ShortPath(_directory.Text);
-
-    private static string ShortPath(string? path)
-    {
-        var value = (path ?? "").Trim();
-        if (value.Length <= 36) return value;
-        var parts = value.Split(['/', '\\'], StringSplitOptions.RemoveEmptyEntries);
-        return parts.Length >= 2 ? "…/" + string.Join('/', parts[^2..]) : "…" + value[^32..];
-    }
-
-    private static string? Str(JsonNode? node, string key) =>
-        node?[key] is JsonValue value && value.TryGetValue<string>(out var text) ? text : null;
-    private static bool Flag(JsonNode? node, string key) =>
-        node?[key] is JsonValue value && value.TryGetValue<bool>(out var flag) && flag;
-    private static long Number(JsonNode? node, string key) =>
-        node?[key] is JsonValue value && value.TryGetValue<long>(out var number) ? number : 0;
-
-    private static string Size(long bytes) => bytes >= 1073741824 ? $"{bytes / 1073741824d:F2} GB"
-        : bytes >= 1048576 ? $"{bytes / 1048576d:F1} MB"
-        : bytes >= 1024 ? $"{bytes / 1024d:F0} KB" : $"{bytes} B";
-
-    private static string Authority(string url) =>
-        Uri.TryCreate(url, UriKind.Absolute, out var uri) ? uri.Authority : "";
+        : "保存到 " + TransferCore.ShortPath(_directory.Text);
 
     // ---- state ------------------------------------------------------------------------------
 
-    private async Task RefreshAsync()
+    /// <summary>Projects the shared snapshot onto the wide form. The phone page reads the same snapshot.</summary>
+    private void SyncFromCore()
     {
-        var state = await CallAsync("inspect");
-        var settings = state["settings"] as JsonObject;
-        if (Str(settings, "receiveDirectory") is { Length: > 0 } directory) _directory.Text = directory;
-        if (Str(settings, "deviceId") is { Length: > 0 } deviceId) _deviceId.Text = deviceId;
-        if (Str(settings, "listenAddress") is { Length: > 0 } listen) _listen.Text = listen;
-        if (Str(settings, "webDavUrl") is { Length: > 0 } webDav) _webDav.Text = webDav;
-        if (Str(settings, "username") is { Length: > 0 } username) _username.Text = username;
-        _savedDirectory = (Str(settings, "webDavUrl") ?? "").Trim();
-        _openListRunning = Flag(state, "openListRunning");
-        if (Str(state, "adminUrl") is { Length: > 0 } adminUrl) { _adminUrl = adminUrl; _localAuthority = Authority(adminUrl); }
-        _receiving = Flag(state, "receiving");
-        _busy = Flag(state, "busy");
-        UpdatePeers(settings, Str(settings, "lastPeer") ?? "");
+        var state = _core.Snapshot;
+        _status.Text = state.Status;
+        _receiving = state.Receiving;
+        _openListRunning = state.OpenListRunning;
+        _savedDirectory = state.RelayDescription;
+        SyncDevices(state);
         UpdateReceive();
-        UpdateSaveSummary();
         UpdateCloudState();
         UpdateSendButtons();
-        if (state["progress"] is JsonObject progress && Str(progress, "state") is "sending" or "uploading" or "downloading" or "receiving")
-            DisplayProgress(progress, addHistory: false);
-        _history.Children.Clear();
-        if (state["history"] is JsonArray history)
-            foreach (var item in history.Reverse().Take(20))
-                if (item is JsonObject entry) _history.Children.Add(HistoryRow(entry));
-        if (_history.Children.Count == 0) _history.Children.Add(Text("还没有传输记录。", 13));
-        SweepOutbox();
+        if (state.Busy)
+        {
+            _progress.IsVisible = true;
+            _progress.Value = state.Progress;
+            _progressText.Text = state.ProgressText;
+        }
+        else
+        {
+            _progress.IsVisible = false;
+            _progressText.Text = "";
+        }
+        RefreshFileList(state);
+        RefreshHistory(state);
     }
 
-    // ---- staged outbox cleanup ---------------------------------------------------------------
+    private bool _syncingDevices;
 
-    private string OutboxRoot => Path.Combine(_context.DataDirectory, "outbox");
-
-    /// <summary>True only for copies this surface staged under its own outbox. User-picked files are never deleted.</summary>
-    private bool IsStaged(string path)
+    private void SyncDevices(TransferSnapshot state)
     {
+        _syncingDevices = true;
         try
         {
-            var root = Path.GetFullPath(OutboxRoot) + Path.DirectorySeparatorChar;
-            var full = Path.GetFullPath(path);
-            return full.StartsWith(root, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal);
+            var items = state.Peers
+                .Select(peer => peer.Address.Length > 0 ? $"{peer.Name} · {peer.Address}" : peer.Name)
+                .ToArray();
+            if (!items.SequenceEqual(_devices.ItemsSource?.Cast<string>() ?? []))
+                _devices.ItemsSource = items;
+            var index = state.PeerId is null ? -1 : state.Peers.ToList().FindIndex(peer => peer.DeviceId == state.PeerId);
+            if (_devices.SelectedIndex != index) _devices.SelectedIndex = index;
+            _deviceHint.IsVisible = items.Length == 0;
         }
-        catch (Exception ex) when (ex is ArgumentException or NotSupportedException or PathTooLongException)
-        {
-            return false;
-        }
+        finally { _syncingDevices = false; }
     }
 
-    /// <summary>Deletes a staged copy only when no transfer can still be reading it.</summary>
-    private void DiscardStaged(string path)
+    private void OnDeviceSelectionChanged()
     {
-        if (_busy || !IsStaged(path)) return;
-        try
-        {
-            if (File.Exists(path)) File.Delete(path);
-            if (Path.GetDirectoryName(path) is { Length: > 0 } folder && Directory.Exists(folder) && !Directory.EnumerateFileSystemEntries(folder).Any())
-                Directory.Delete(folder);
-        }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-        }
+        if (_syncingDevices) return;
+        var state = _core.Snapshot;
+        var index = _devices.SelectedIndex;
+        _core.SelectPeer(index >= 0 && index < state.Peers.Count ? state.Peers[index].DeviceId : null);
     }
 
-    /// <summary>Removes staged copies older than a day once the module reports no transfer in flight.
-    /// The age gate also covers a transfer started from a previous surface instance.</summary>
-    private void SweepOutbox()
+    private void OnMethodSelectionChanged()
     {
-        if (_busy || !Directory.Exists(OutboxRoot)) return;
-        var cutoff = DateTime.UtcNow - TimeSpan.FromHours(24);
-        try
+        var relay = _method.SelectedIndex == 1;
+        if (relay && !_core.Snapshot.RelayConfigured)
         {
-            foreach (var folder in Directory.EnumerateDirectories(OutboxRoot))
-            {
-                if (Directory.GetLastWriteTimeUtc(folder) >= cutoff) continue;
-                foreach (var file in Directory.EnumerateFiles(folder))
-                    if (!_paths.Contains(file, StringComparer.Ordinal)) File.Delete(file);
-                if (!Directory.EnumerateFileSystemEntries(folder).Any()) Directory.Delete(folder);
-            }
+            // Refusing here keeps the visible method switch and the core route from disagreeing.
+            _method.SelectedIndex = 0;
+            SetStatus("请先在『网盘中转设置』里点『保存并测试』连接网盘，再选择网盘中转。");
+            return;
         }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
-        {
-        }
-    }
-
-    /// <summary>Pairs one reported completion with one staged copy that was actually sent, so duplicate
-    /// file names in one batch cannot reclaim a copy the batch still needs.</summary>
-    private void NoteCompleted(string name)
-    {
-        var staged = _paths.FirstOrDefault(path => IsStaged(path)
-            && !_confirmedStaged.Contains(path, StringComparer.Ordinal)
-            && string.Equals(Path.GetFileName(path), name, StringComparison.Ordinal));
-        if (staged is not null) _confirmedStaged.Add(staged);
-    }
-
-    /// <summary>Called once the module is idle again: the batch is over, so confirmed copies can go.</summary>
-    private void RetireConfirmedStaged()
-    {
-        if (_confirmedStaged.Count == 0) return;
-        foreach (var path in _confirmedStaged)
-        {
-            _paths.Remove(path);
-            DiscardStaged(path);
-        }
-        _confirmedStaged.Clear();
-        RefreshFileList();
-    }
-
-    private void UpdatePeers(JsonObject? settings, string lastPeer)
-    {
-        _peers = settings?["peers"] as JsonArray ?? [];
-        var items = new List<string>();
-        var selected = -1;
-        for (var index = 0; index < _peers.Count; index++)
-        {
-            if (_peers[index] is not JsonObject peer) { items.Add("未命名设备"); continue; }
-            var name = Str(peer, "name") ?? "未命名设备";
-            var address = Str(peer, "address");
-            var isLast = lastPeer.Length > 0 && string.Equals(Str(peer, "deviceId"), lastPeer, StringComparison.Ordinal);
-            if (isLast) selected = index;
-            var label = address is { Length: > 0 } ? $"{name} · {address}" : name;
-            items.Add(isLast ? "✓ " + label : label);
-        }
-        _devices.ItemsSource = items;
-        _devices.SelectedIndex = items.Count == 0 ? -1 : Math.Max(0, selected);
-        _deviceHint.IsVisible = items.Count == 0;
+        _core.SelectRoute(relay ? TransferRoute.Relay : TransferRoute.Direct);
     }
 
     private void UpdateReceive()
@@ -250,9 +247,10 @@ public sealed partial class TransferView : UserControl, IMptAvaloniaSurfaceActiv
 
     private void UpdateSendButtons()
     {
-        _send.IsEnabled = !_busy && _paths.Count > 0;
-        _cancel.IsEnabled = _busy;
-        _retryLast.IsVisible = _lastFailure is not null && !_busy;
+        var state = _core.Snapshot;
+        _send.IsEnabled = !state.Busy && state.Files.Count > 0;
+        _cancel.IsEnabled = state.Busy;
+        _retryLast.IsVisible = _core.HasFailure && !state.Busy;
     }
 
     private void UpdateCloudState()
@@ -279,11 +277,9 @@ public sealed partial class TransferView : UserControl, IMptAvaloniaSurfaceActiv
 
     private async Task ToggleReceiveAsync()
     {
-        var start = !_receiving;
-        await CallAsync(start ? "receive.start" : "receive.stop");
-        _receiving = start;
-        UpdateReceive();
-        UpdateSendButtons();
+        var start = !_core.Snapshot.Receiving;
+        await _core.CallAsync(start ? "receive.start" : "receive.stop");
+        await _core.RefreshAsync();
         SetStatus(start ? "接收已开启：保持 MPT 运行即可收到直传文件。" : "接收已停止。");
     }
 
@@ -299,7 +295,7 @@ public sealed partial class TransferView : UserControl, IMptAvaloniaSurfaceActiv
             return;
         }
         _directory.Text = path;
-        await CallAsync("configure", new JsonObject { ["receiveDirectory"] = path });
+        await _core.CallAsync("configure", new JsonObject { ["receiveDirectory"] = path });
         UpdateSaveSummary();
         SetStatus("收件 / 下载保存路径已更新：" + path);
     }
@@ -334,13 +330,23 @@ public sealed partial class TransferView : UserControl, IMptAvaloniaSurfaceActiv
         if (top is null) return;
         var files = await top.StorageProvider.OpenFilePickerAsync(new FilePickerOpenOptions { Title = "选择要发送的文件", AllowMultiple = true });
         if (files.Count == 0) return;
+        await AddPickedAsync(files);
+    }
+
+    /// <summary>Shared by the wide form and the phone page. Content-URI files are copied into the
+    /// page's own outbox first, so a share that only grants a temporary read still sends.</summary>
+    private async Task<int> AddPickedAsync(IReadOnlyList<IStorageFile> files)
+    {
         var added = 0;
         foreach (var item in files)
         {
-            if (item.TryGetLocalPath() is { Length: > 0 } path) { if (SelectFile(path)) added++; continue; }
-            if (await StageAsync(item) is { } staged && SelectFile(staged)) added++;
+            if (item.TryGetLocalPath() is { Length: > 0 } path) { if (_core.AddFile(path)) added++; continue; }
+            if (await StageAsync(item) is { } staged && _core.AddStage(staged)) added++;
         }
-        SetStatus(added == 0 ? "没有添加新文件。" : $"已添加 {added} 个文件（共 {_paths.Count} 个），选择设备后点『发送』。");
+        SetStatus(added == 0
+            ? "没有添加新文件。"
+            : $"已添加 {added} 个文件（共 {_core.Files.Count} 个），选择设备后点『发送』。");
+        return added;
     }
 
     private async Task<string?> StageAsync(IStorageFile item)
@@ -348,12 +354,12 @@ public sealed partial class TransferView : UserControl, IMptAvaloniaSurfaceActiv
         try
         {
             var name = string.IsNullOrWhiteSpace(item.Name) ? Guid.NewGuid().ToString("N") : Path.GetFileName(item.Name);
-            var staging = Path.Combine(_context.DataDirectory, "outbox", Guid.NewGuid().ToString("N"));
+            var staging = Path.Combine(_core.OutboxRoot, Guid.NewGuid().ToString("N"));
             Directory.CreateDirectory(staging);
             var local = Path.Combine(staging, name);
             await using var input = await item.OpenReadAsync();
             await using var output = File.Create(local);
-            await input.CopyToAsync(output, _lifetime.Token);
+            await input.CopyToAsync(output);
             return local;
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or NotSupportedException)
@@ -371,170 +377,80 @@ public sealed partial class TransferView : UserControl, IMptAvaloniaSurfaceActiv
         {
             if (item.TryGetLocalPath() is not { Length: > 0 } path) continue;
             if (Directory.Exists(path)) { folders++; continue; }
-            if (SelectFile(path)) added++;
+            if (_core.AddFile(path)) added++;
         }
         SetStatus(folders > 0 && added == 0 ? "文件夹请先压缩后再发送。"
             : added == 0 ? "没有添加新文件。"
-            : $"已添加 {added} 个文件（共 {_paths.Count} 个），选择设备后点『发送』。");
+            : $"已添加 {added} 个文件（共 {_core.Files.Count} 个），选择设备后点『发送』。");
     }
 
-    private bool SelectFile(string path)
-    {
-        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path)) return false;
-        if (_paths.Contains(path, StringComparer.Ordinal)) return false;
-        if (_paths.Count >= MaximumFiles) { SetStatus($"一次最多发送 {MaximumFiles} 个文件。"); return false; }
-        _paths.Add(path);
-        RefreshFileList();
-        return true;
-    }
+    private void RefreshFileList() => RefreshFileList(_core.Snapshot);
 
-    private void RefreshFileList()
+    private void RefreshFileList(TransferSnapshot state)
     {
         _fileList.Children.Clear();
-        if (_paths.Count == 0)
+        if (state.Files.Count == 0)
         {
             _dropHint.Text = "把文件拖到这里，或点击选择文件（可多选）";
-            UpdateSendButtons();
             return;
         }
-        long total = 0;
-        foreach (var path in _paths) total += Length(path);
-        _dropHint.Text = $"已选择 {_paths.Count} 个文件 · {Size(total)}";
-        foreach (var path in _paths)
+        _dropHint.Text = $"已选择 {state.Files.Count} 个文件 · {TransferCore.Size(state.TotalBytes)}";
+        foreach (var file in state.Files)
         {
-            var captured = path;
-            _fileList.Children.Add(ItemRow(Text($"{Path.GetFileName(captured)} · {Size(Length(captured))}", 14),
-                Button("移除", () => { RemoveFile(captured); return Task.CompletedTask; })));
+            var captured = file.Path;
+            _fileList.Children.Add(ItemRow(
+                Text($"{file.Name} · {TransferCore.Size(file.Length)}", 14),
+                Button("移除", () => { _core.RemoveFile(captured); return Task.CompletedTask; })));
         }
-        UpdateSendButtons();
-    }
-
-    private static long Length(string path)
-    {
-        try { return new FileInfo(path).Length; }
-        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException) { return 0; }
-    }
-
-    /// <summary>Drops one pending file and reclaims the staged copy it came from when it is safe.</summary>
-    private void RemoveFile(string path)
-    {
-        _paths.Remove(path);
-        DiscardStaged(path);
-        RefreshFileList();
     }
 
     private Task ClearFilesAsync()
     {
-        // Staged copies are only reclaimed when nothing can still be reading them.
-        if (!_busy) foreach (var path in _paths.ToArray()) DiscardStaged(path);
-        _paths.Clear();
-        _confirmedStaged.Clear();
-        RefreshFileList();
+        _core.ClearFiles();
         SetStatus("已清空待发送文件。");
         return Task.CompletedTask;
     }
 
-    private async Task SendAsync()
-    {
-        if (_busy) throw new InvalidOperationException("已有传输正在进行，请等待完成或点『取消传输』。");
-        if (_paths.Count == 0) throw new InvalidOperationException("请先选择要发送的文件。");
-        if (_devices.SelectedIndex < 0 || _devices.SelectedIndex >= _peers.Count)
-            throw new InvalidOperationException("请先在『连接新设备』里导入接收设备的连接码。");
-        var peerId = Str(_peers[_devices.SelectedIndex], "deviceId")
-            ?? throw new InvalidOperationException("这台设备的连接码不完整，请重新导入。");
-        var missing = _paths.Where(path => !File.Exists(path)).ToArray();
-        if (missing.Length > 0)
-        {
-            foreach (var path in missing) _paths.Remove(path);
-            RefreshFileList();
-            throw new InvalidOperationException($"{missing.Length} 个文件已不在设备上，已从列表移除。");
-        }
-        var cloud = _method.SelectedIndex == 1;
-        if (cloud && _savedDirectory.Length == 0)
-            throw new InvalidOperationException("请先在『网盘中转设置』里点『保存并测试』连接网盘，再发送。");
-        var args = new JsonObject
-        {
-            ["paths"] = new JsonArray(_paths.Select(path => (JsonNode?)JsonValue.Create(path)).ToArray()),
-            ["peerId"] = peerId
-        };
-        var label = _paths.Count == 1 ? Path.GetFileName(_paths[0]) : $"{_paths.Count} 个文件";
-        await StartAsync(cloud ? "send.cloud" : "send.direct", args, label);
-    }
-
-    private async Task StartAsync(string command, JsonObject args, string label)
-    {
-        // Register the request and show the pending state *before* the call. A small file can report
-        // its terminal transfer.changed event while the command response is still in flight; a late
-        // response must never overwrite that result with "正在传输" again.
-        _requests[label] = new PendingRequest(command, args.DeepClone().AsObject(), label);
-        _confirmedStaged.Clear();
-        _lastFailure = null;
-        _busy = true;
-        _progress.IsVisible = true;
-        _progress.Value = 0;
-        _progressText.Text = "";
-        UpdateSendButtons();
-        SetStatus($"正在传输 {label}…");
-        try
-        {
-            await CallAsync(command, args);
-        }
-        catch
-        {
-            // A rejected command must never leave a phantom transfer behind; re-derive the module's
-            // real state, then still surface the rejection to the user.
-            await GuardAsync(RollbackStartAsync);
-            throw;
-        }
-        finally
-        {
-            // Runs after the click helper restored its own button, so state-dependent enablement wins.
-            Dispatcher.UIThread.Post(UpdateSendButtons, DispatcherPriority.Background);
-        }
-    }
-
-    /// <summary>Re-derives the module's real state after a rejected command instead of assuming idle.</summary>
-    private async Task RollbackStartAsync()
-    {
-        var state = await CallAsync("inspect");
-        _busy = Flag(state, "busy");
-        if (!_busy)
-        {
-            _progress.IsVisible = false;
-            _progressText.Text = "";
-        }
-        UpdateSendButtons();
-    }
+    private Task SendAsync() => _core.SendAsync();
 
     private async Task CancelAsync()
     {
-        await CallAsync("cancel");
-        SetStatus("已请求取消当前传输。");
+        await _core.CancelAsync();
     }
 
     private async Task RetryLastAsync()
     {
-        if (_lastFailure is not { } request) { SetStatus("没有可重试的传输。"); return; }
-        await RetryAsync(request);
+        if (!_core.HasFailure) { SetStatus("没有可重试的传输。"); return; }
+        await _core.RetryAsync();
     }
 
-    private async Task RetryAsync(PendingRequest request)
+    /// <summary>Keeps the wide form's history panel aligned with the module-reported entries.</summary>
+    private void RefreshHistory(TransferSnapshot state)
     {
-        var args = request.Args.DeepClone().AsObject();
-        if (args["paths"] is JsonArray paths)
+        _history.Children.Clear();
+        if (state.History.Count == 0)
         {
-            var missing = paths.Select(path => path?.GetValue<string>() ?? "").Where(path => path.Length == 0 || !File.Exists(path)).ToArray();
-            if (missing.Length > 0) throw new InvalidOperationException("原文件已不在设备上，请重新选择文件。");
+            _history.Children.Add(Text("还没有传输记录。", 13));
+            return;
         }
-        await StartAsync(request.Command, args, request.Label);
+        for (var index = 0; index < state.History.Count; index++)
+        {
+            var entry = state.History[index];
+            var retry = _core.HasFailure && index == 0
+                ? Button("重试", RetryLastAsync)
+                : null;
+            _history.Children.Add(retry is null
+                ? ItemRow(Text(TransferCore.Describe(entry), 13))
+                : ItemRow(Text(TransferCore.Describe(entry), 13), retry));
+        }
     }
 
     // ---- pairing and cloud codes ------------------------------------------------------------
 
     private async Task CopyPairingAsync()
     {
-        var response = await CallAsync("pairing");
-        var code = Str(response, "code") ?? throw new InvalidOperationException("无法生成本机连接码，请先连接 Tailscale 网络。");
+        var response = await _core.CallAsync("pairing");
+        var code = TransferCore.Str(response, "code") ?? throw new InvalidOperationException("无法生成本机连接码，请先连接 Tailscale 网络。");
         await CopyTextAsync(code);
         SetStatus("连接码已复制。在另一台 MPT 的『连接新设备』里粘贴并点『添加设备』。");
     }
@@ -545,25 +461,26 @@ public sealed partial class TransferView : UserControl, IMptAvaloniaSurfaceActiv
         if (code.Length == 0) throw new InvalidOperationException("请先粘贴或输入设备连接码。");
         if (code.StartsWith("mpt://cloud/", StringComparison.Ordinal))
             throw new InvalidOperationException("这是网盘连接码，请在『网盘中转设置』里导入。");
-        var result = await CallAsync("pair.import", new JsonObject { ["code"] = code });
-        var name = Str(result, "paired");
+        var result = await _core.CallAsync("pair.import", new JsonObject { ["code"] = code });
+        var name = TransferCore.Str(result, "paired");
         _pair.Text = "";
-        await RefreshAsync();
+        await _core.RefreshAsync();
         SelectPeerByName(name);
         SetStatus($"设备 {name ?? "已保存"} 已添加，发送时直接选择它即可。");
     }
 
     private void SelectPeerByName(string? name)
     {
-        if (_peers.Count == 0) return;
-        var index = name is null ? -1 : _peers.ToList().FindIndex(peer => string.Equals(Str(peer, "name"), name, StringComparison.Ordinal));
-        _devices.SelectedIndex = index >= 0 ? index : _peers.Count - 1;
+        var state = _core.Snapshot;
+        if (state.Peers.Count == 0) return;
+        var match = name is null ? null : state.Peers.FirstOrDefault(peer => string.Equals(peer.Name, name, StringComparison.Ordinal));
+        _core.SelectPeer(match?.DeviceId ?? state.Peers[^1].DeviceId);
     }
 
     private async Task ExportCloudAsync()
     {
-        var response = await CallAsync("cloud.export");
-        var code = Str(response, "code") ?? throw new InvalidOperationException("还没有网盘连接码，请先连接网盘。");
+        var response = await _core.CallAsync("cloud.export");
+        var code = TransferCore.Str(response, "code") ?? throw new InvalidOperationException("还没有网盘连接码，请先连接网盘。");
         await CopyTextAsync(code);
         SetStatus("网盘连接码已复制。在另一台 MPT 的『网盘中转设置』里粘贴并点『导入连接码』。");
     }
@@ -574,9 +491,9 @@ public sealed partial class TransferView : UserControl, IMptAvaloniaSurfaceActiv
         if (code.Length == 0) throw new InvalidOperationException("请先粘贴网盘连接码。");
         if (code.StartsWith("mpt://pair/", StringComparison.Ordinal))
             throw new InvalidOperationException("这是设备连接码，请在『连接新设备』里导入。");
-        await CallAsync("cloud.import", new JsonObject { ["code"] = code });
+        await _core.CallAsync("cloud.import", new JsonObject { ["code"] = code });
         _cloudCode.Text = "";
-        await RefreshAsync();
+        await _core.RefreshAsync();
         SetStatus("网盘已连接，可以直接中转文件。");
     }
 
@@ -586,7 +503,7 @@ public sealed partial class TransferView : UserControl, IMptAvaloniaSurfaceActiv
         if (string.IsNullOrWhiteSpace(text)) { SetStatus("剪贴板里没有文本，请先复制连接码或地址。"); return; }
         target.Text = text.Trim();
         SetStatus(target == _cloudCode ? "已粘贴网盘连接码，点『导入连接码』确认使用。"
-            : target == _pair ? "已粘贴设备连接码，点『添加设备』确认添加。"
+            : target == _pair ? "已粘贴设备连接码，确认后点『添加设备』。"
             : "已粘贴，确认后点『保存并测试』。");
     }
 
@@ -595,13 +512,13 @@ public sealed partial class TransferView : UserControl, IMptAvaloniaSurfaceActiv
     private async Task StartOpenListAsync()
     {
         SetStatus("正在安装并启动 OpenList，首次需要下载，可能要几分钟…");
-        var state = await CallAsync("openlist.start");
+        var state = await _core.CallAsync("openlist.start");
         _openListRunning = true;
-        if (Str(state, "adminUrl") is { Length: > 0 } url) { _adminUrl = url; _localAuthority = Authority(url); }
-        var password = Str(state, "password");
+        if (TransferCore.Str(state, "adminUrl") is { Length: > 0 } url) { _adminUrl = url; _localAuthority = TransferCore.Authority(url); }
+        var password = TransferCore.Str(state, "password");
         if (password is { Length: > 0 }) await CopyTextAsync(password);
         if (((_webDav.Text ?? "").Trim().Length == 0) && _localAuthority.Length > 0) _webDav.Text = "http://" + _localAuthority + "/dav/";
-        await RefreshAsync();
+        await _core.RefreshAsync();
         SetStatus(password is { Length: > 0 }
             ? "OpenList 已启动，管理员密码已复制（用户名 admin）。请在打开的页面登录，挂载网盘并建好互传文件夹。"
             : "OpenList 已启动。请在打开的页面登录，挂载网盘并建好互传文件夹。");
@@ -610,32 +527,32 @@ public sealed partial class TransferView : UserControl, IMptAvaloniaSurfaceActiv
 
     private async Task OpenAdminAsync()
     {
-        if (!_openListRunning) { SetStatus("OpenList 还没有运行：请先点『一键安装并启用 OpenList』。"); return; }
+        if (!_core.Snapshot.OpenListRunning) { SetStatus("OpenList 还没有运行：请先点『一键安装并启用 OpenList』。"); return; }
         if (_adminUrl.Length == 0) { SetStatus("还没有拿到网盘管理地址，请重新启用一次 OpenList。"); return; }
         await OpenUrlAsync(_adminUrl);
     }
 
     private async Task CopyAdminPasswordAsync()
     {
-        var state = await CallAsync("openlist.start");
+        var state = await _core.CallAsync("openlist.start");
         _openListRunning = true;
-        if (Str(state, "adminUrl") is { Length: > 0 } url) { _adminUrl = url; _localAuthority = Authority(url); }
-        if (Str(state, "password") is { Length: > 0 } password)
+        if (TransferCore.Str(state, "adminUrl") is { Length: > 0 } url) { _adminUrl = url; _localAuthority = TransferCore.Authority(url); }
+        if (TransferCore.Str(state, "password") is { Length: > 0 } password)
         {
             await CopyTextAsync(password);
             SetStatus("管理员密码已复制（用户名 admin）。");
         }
         else SetStatus("本机没有保存的管理员密码；如忘记可在网盘管理页重置。");
-        await RefreshAsync();
+        await _core.RefreshAsync();
     }
 
     private async Task StopOpenListAsync()
     {
-        await CallAsync("openlist.stop");
+        await _core.CallAsync("openlist.stop");
         _openListRunning = false;
         UpdateCloudState();
         SetStatus("OpenList 已停止；已保存的账号和网盘连接仍然可用。");
-        await RefreshAsync();
+        await _core.RefreshAsync();
     }
 
     private async Task SaveCloudAsync()
@@ -651,9 +568,9 @@ public sealed partial class TransferView : UserControl, IMptAvaloniaSurfaceActiv
         {
             // Idempotent: creates the relay account once, then re-scopes it whenever the mount changes.
             // The state comes from inspect, so reopening the page never asks for the password again.
-            await CallAsync("openlist.connect", new JsonObject { ["url"] = directory });
+            await _core.CallAsync("openlist.connect", new JsonObject { ["url"] = directory });
             _password.Text = "";
-            await RefreshAsync();
+            await _core.RefreshAsync();
             SetStatus("网盘已连接：已在这台 OpenList 的挂载目录上建立专用账号，可以直接中转文件。");
             return;
         }
@@ -666,8 +583,8 @@ public sealed partial class TransferView : UserControl, IMptAvaloniaSurfaceActiv
         }
         else if (!string.Equals(directory, _savedDirectory, StringComparison.Ordinal))
             await ConfigureAsync(new JsonObject { ["webDavUrl"] = directory });
-        await CallAsync("cloud.check");
-        await RefreshAsync();
+        await _core.CallAsync("cloud.check");
+        await _core.RefreshAsync();
         SetStatus("网盘连接正常，可以中转文件。");
     }
 
@@ -694,7 +611,7 @@ public sealed partial class TransferView : UserControl, IMptAvaloniaSurfaceActiv
 
     private async Task ConfigureAsync(JsonObject values)
     {
-        await CallAsync("configure", values);
+        await _core.CallAsync("configure", values);
         _password.Text = "";
     }
 
@@ -712,7 +629,7 @@ public sealed partial class TransferView : UserControl, IMptAvaloniaSurfaceActiv
         if ((_password.Text ?? "").Length > 0) values["password"] = _password.Text;
         if ((_webDav.Text ?? "").Trim() is { Length: > 0 }) values["webDavUrl"] = DirectoryValue();
         await ConfigureAsync(values);
-        await RefreshAsync();
+        await _core.RefreshAsync();
         SetStatus("设置已保存。");
     }
 
@@ -720,7 +637,7 @@ public sealed partial class TransferView : UserControl, IMptAvaloniaSurfaceActiv
 
     private async Task RefreshInboxAsync()
     {
-        var items = await CallAsync("cloud.list") as JsonArray ?? [];
+        var items = await _core.CallAsync("cloud.list") as JsonArray ?? [];
         _inbox.Children.Clear();
         if (items.Count == 0)
         {
@@ -730,10 +647,10 @@ public sealed partial class TransferView : UserControl, IMptAvaloniaSurfaceActiv
         foreach (var item in items)
         {
             if (item is not JsonObject file) continue;
-            var name = Str(file, "name") ?? "来件";
-            var sender = Str(file, "sender");
+            var name = TransferCore.Str(file, "name") ?? "来件";
+            var sender = TransferCore.Str(file, "sender");
             var copy = file.DeepClone().AsObject();
-            var detail = sender is { Length: > 0 } ? $"{name} · {Size(Number(file, "size"))} · 来自 {sender}" : $"{name} · {Size(Number(file, "size"))}";
+            var detail = sender is { Length: > 0 } ? $"{name} · {TransferCore.Size(TransferCore.Number(file, "size"))} · 来自 {sender}" : $"{name} · {TransferCore.Size(TransferCore.Number(file, "size"))}";
             _inbox.Children.Add(ItemRow(Text(detail, 14), Button("下载", () => DownloadAsync(copy, name))));
         }
     }
@@ -741,118 +658,66 @@ public sealed partial class TransferView : UserControl, IMptAvaloniaSurfaceActiv
     private async Task DownloadAsync(JsonObject file, string name)
     {
         if (string.IsNullOrWhiteSpace(_directory.Text)) throw new InvalidOperationException("请先设置收件 / 下载保存路径。");
-        await StartAsync("cloud.download", new JsonObject { ["file"] = file.DeepClone() }, name);
+        await _core.StartDownloadAsync(file, name);
     }
 
-    // ---- events and progress -----------------------------------------------------------------
-
-    private void OnEvent(MptSurfaceEvent e)
+    /// <summary>
+    /// The host's back request for this tool, in the order the plan requires: close an open sheet
+    /// first, then leave the advanced page for the conversation, then step the phone flow back, and
+    /// finally decline so the host can leave the tool. This is the public contract, so the Shell never
+    /// reaches into the page's internals.
+    /// </summary>
+    public bool TryHandleBack()
     {
-        if (e.SourceId != "file-transfer" || e.Type != "transfer.changed") return;
-        var payload = (JsonObject)e.Payload.DeepClone();
-        Dispatcher.UIThread.Post(() => DisplayProgress(payload, addHistory: true));
-    }
-
-    private void DisplayProgress(JsonObject item, bool addHistory)
-    {
-        var state = Str(item, "state") ?? "";
-        var active = state is "sending" or "uploading" or "downloading" or "receiving";
-        var total = Number(item, "total");
-        var done = Number(item, "done");
-        if (active)
+        if (_assistant.TryHandleBack()) return true;
+        if (_advancedShown)
         {
-            _progress.IsVisible = true;
-            _progress.Value = total > 0 ? Math.Clamp(done * 100d / total, 0, 100) : 0;
-            _progressText.Text = total > 0 ? $"{done * 100d / total:F0}% · {Size(done)} / {Size(total)}" : "";
+            ShowAdvanced(false);
+            return true;
         }
-        if (state is "sending" or "uploading" or "downloading")
-        {
-            _busy = true;
-            UpdateSendButtons();
-        }
-        SetStatus(Describe(item));
-        if (state is not ("completed" or "received" or "failed" or "cancelled")) return;
-        _progress.IsVisible = false;
-        _progressText.Text = "";
-        if (state == "completed" && Str(item, "name") is { } sent) NoteCompleted(sent);
-        if (state is "failed" or "cancelled" && Str(item, "name") is { } label && _requests.TryGetValue(label, out var request))
-            _lastFailure = request;
-        if (addHistory)
-        {
-            _history.Children.Insert(0, HistoryRow(item));
-            while (_history.Children.Count > 30) _history.Children.RemoveAt(_history.Children.Count - 1);
-        }
-        ScheduleBusyRefresh();
+        return _mobileShown && _mobile.TryHandleBack();
     }
 
-    private Control HistoryRow(JsonObject item)
-    {
-        var retry = Str(item, "state") is "failed" or "cancelled" && Str(item, "name") is { } label && _requests.TryGetValue(label, out var request)
-            ? Button("重试", () => RetryAsync(request))
-            : null;
-        return retry is null ? ItemRow(Text(Describe(item), 13)) : ItemRow(Text(Describe(item), 13), retry);
-    }
+    /// <summary>True while a sheet owns the page, so the host can restore focus after closing it.</summary>
+    public bool IsSheetOpen => _assistant.IsSheetOpen
+        || (_mobileShown && _mobile.IsSheetOpen)
+        || (_advancedShown && _mobile.IsSheetOpen);
 
-    private static string Describe(JsonObject item)
-    {
-        var state = Str(item, "state") switch
-        {
-            "completed" => "已完成", "received" => "已接收", "cancelled" => "已取消", "failed" => "失败",
-            "uploading" => "上传中", "downloading" => "下载中", "receiving" => "接收中", _ => "发送中"
-        };
-        var name = Str(item, "name") ?? "文件";
-        var message = Str(item, "message");
-        return string.IsNullOrWhiteSpace(message) ? $"{name} · {state}" : $"{name} · {state} · {message}";
-    }
-
-    /// <summary>A multi-file send reports one file at a time; ask the module again shortly after an
-    /// item finishes so the cancel button is only disabled when the whole batch is done.</summary>
-    private void ScheduleBusyRefresh()
-    {
-        if (_busyQueued) return;
-        _busyQueued = true;
-        DispatcherTimer.RunOnce(() =>
-        {
-            _busyQueued = false;
-            _ = GuardAsync(async () =>
-            {
-                var state = await CallAsync("inspect");
-                _busy = Flag(state, "busy");
-                UpdateSendButtons();
-                if (!_busy) RetireConfirmedStaged();
-            });
-        }, TimeSpan.FromMilliseconds(500));
-    }
+    /// <summary>True while the phone page has a sheet open. Exposed for host focus and test assertions.</summary>
+    public bool IsMobileSheetOpen => _mobile.IsSheetOpen;
 
     // ---- activation --------------------------------------------------------------------------
 
-    public ValueTask<bool> ActivateAsync(ToolActivationRequest request, CancellationToken cancellationToken = default)
+    public async ValueTask<bool> ActivateAsync(ToolActivationRequest request, CancellationToken cancellationToken = default)
     {
+        // The conversation is this tool's main screen, so it gets the activation first: a system share
+        // becomes a pending attachment in the composer, not an entry in the classic send list.
+        if (await _assistant.ActivateAsync(request, cancellationToken)) return true;
+
         var value = (request.ActivationUri ?? "").Trim();
         if (Uri.TryCreate(value, UriKind.Absolute, out var uri) && uri.IsFile)
         {
-            // The Shell keeps one Surface per tool/route, so a multi-file share accumulates right here.
-            var added = SelectFile(uri.LocalPath);
+            var added = _core.AddFile(uri.LocalPath);
             SetStatus(added
-                ? $"已从分享添加文件（共 {_paths.Count} 个），选择设备后点『发送』。"
-                : $"分享的文件已在待发送列表里（共 {_paths.Count} 个）。");
-            return ValueTask.FromResult(true);
+                ? $"已从分享添加文件（共 {_core.Files.Count} 个），选择设备后点『发送』。"
+                : $"分享的文件已在待发送列表里（共 {_core.Files.Count} 个）。");
+            return true;
         }
         if (value.StartsWith("mpt://pair/", StringComparison.Ordinal))
         {
             _pair.Text = value;
             _pairExpander.IsExpanded = true;
             SetStatus("已收到设备连接码：确认无误后点『添加设备』。");
-            return ValueTask.FromResult(true);
+            return true;
         }
         if (value.StartsWith("mpt://cloud/", StringComparison.Ordinal))
         {
             _cloudCode.Text = value;
             _cloudExpander.IsExpanded = true;
             SetStatus("已收到网盘连接码：确认无误后点『导入连接码』。");
-            return ValueTask.FromResult(true);
+            return true;
         }
-        return ValueTask.FromResult(false);
+        return await _mobile.ActivateAsync(request, cancellationToken);
     }
 
     // ---- clipboard and links ------------------------------------------------------------------
@@ -897,6 +762,4 @@ public sealed partial class TransferView : UserControl, IMptAvaloniaSurfaceActiv
         }
         if (!await launcher.LaunchUriAsync(uri)) SetStatus("无法自动打开，请手动访问：" + target);
     }
-
-    private sealed record PendingRequest(string Command, JsonObject Args, string Label);
 }
