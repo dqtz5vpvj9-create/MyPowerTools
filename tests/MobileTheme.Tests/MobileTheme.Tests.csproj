@@ -1,0 +1,28 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Avalonia.Headless.XUnit" Version="12.0.5" />
+    <PackageReference Include="Avalonia.Skia" Version="12.0.5" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.0.5" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.3.0" />
+    <PackageReference Include="xunit.v3" Version="3.2.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5"><PrivateAssets>all</PrivateAssets></PackageReference>
+    <Using Include="Xunit" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../../src/MyPowerTools.AvaloniaSdk/MyPowerTools.AvaloniaSdk.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- The token-parity test parses the shipped token file. It is copied next to the test
+         binary instead of being read through avares:// so the assertion does not depend on
+         the asset loader's assembly cache. -->
+    <None Include="../../src/MyPowerTools.AvaloniaSdk/Themes/MptMobileTokens.axaml"
+          Link="Assets/MptMobileTokens.axaml" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+</Project>

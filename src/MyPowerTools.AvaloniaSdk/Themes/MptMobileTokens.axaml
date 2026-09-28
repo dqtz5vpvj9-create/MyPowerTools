@@ -1,0 +1,268 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!--
+    MPT mobile design tokens (approved prototype: .lavish/mpt-mobile/app.css, baseline 2a7620c).
+
+    Contract resource keys (see docs/mobile-ux/IMPLEMENTATION_PLAN.md):
+      MptMobileBackgroundBrush, MptMobileCardBrush, MptMobileTextBrush,
+      MptMobileSecondaryTextBrush, MptMobileAccentBrush, MptMobileDividerBrush
+    Matching MptMobile*Color keys exist for the six contract tokens so callers that need a
+    Color (status bar tint, system chrome, per-control resource overrides) do not have to
+    pull the value back out of a brush.
+
+    Every brush is declared in BOTH the Light and the Dark theme dictionary. The palette
+    follows Application.RequestedThemeVariant / ThemeVariantScope, so a mobile page only has
+    to switch the theme variant to get the prototype's dark appearance. No value in here is
+    referenced by the desktop theme: desktop UI keeps MptTheme/MptBrush* untouched.
+
+    Contrast: the prototype's light greys and status green/brown sat between 2.3:1 and 4.4:1 on
+    the light surfaces, which fails the plan's high-contrast requirement for the small (10-12dp)
+    labels they colour. Eleven Light values were darkened inside the same hue until every text
+    pair reaches >= 4.5:1 and every glyph-only pair >= 3:1; the Dark palette already met both.
+    Only light greys/status colours moved: the six contract hues and the whole Dark palette are
+    the approved prototype values. MobileThemeTests enforces the ratios.
+
+    Typography and metric values are theme independent and stay next to the palette so a
+    single override (for example a font scale multiplier applied by the Android host)
+    rescales every mobile page that uses these classes.
+  -->
+  <ResourceDictionary.ThemeDictionaries>
+    <ResourceDictionary x:Key="Light">
+      <!-- Surfaces -->
+      <Color x:Key="MptMobileBackgroundColor">#FFF6F7F9</Color>
+      <Color x:Key="MptMobileCardColor">#FFFFFFFF</Color>
+      <SolidColorBrush x:Key="MptMobileBackgroundBrush" Color="{StaticResource MptMobileBackgroundColor}" />
+      <SolidColorBrush x:Key="MptMobileCardBrush" Color="{StaticResource MptMobileCardColor}" />
+      <SolidColorBrush x:Key="MptMobileCardBorderBrush" Color="#FFE9EDF1" />
+      <SolidColorBrush x:Key="MptMobileDividerBrush" Color="#FFEDF0F3" />
+      <SolidColorBrush x:Key="MptMobileSearchBackgroundBrush" Color="#FFE9ECF0" />
+      <SolidColorBrush x:Key="MptMobileFieldBorderBrush" Color="#FFDCE2EA" />
+      <SolidColorBrush x:Key="MptMobileDashedBorderBrush" Color="#FFCBD3DD" />
+      <SolidColorBrush x:Key="MptMobileCommandSurfaceBrush" Color="#FF1F2836" />
+      <SolidColorBrush x:Key="MptMobileHoverOverlayBrush" Color="#14000000" />
+      <SolidColorBrush x:Key="MptMobilePressedOverlayBrush" Color="#1F000000" />
+
+      <!-- Text -->
+      <Color x:Key="MptMobileTextColor">#FF1C2025</Color>
+      <Color x:Key="MptMobileSecondaryTextColor">#FF66707C</Color>
+      <SolidColorBrush x:Key="MptMobileTextBrush" Color="{StaticResource MptMobileTextColor}" />
+      <SolidColorBrush x:Key="MptMobileSecondaryTextBrush" Color="{StaticResource MptMobileSecondaryTextColor}" />
+      <SolidColorBrush x:Key="MptMobileMutedTextBrush" Color="#FF6A7078" />
+      <SolidColorBrush x:Key="MptMobileInactiveTabBrush" Color="#FF6E747B" />
+      <SolidColorBrush x:Key="MptMobileChevronBrush" Color="#FF878E96" />
+      <SolidColorBrush x:Key="MptMobileCommandTextBrush" Color="#FFE6EDF9" />
+      <SolidColorBrush x:Key="MptMobileToastTextBrush" Color="#FFFFFFFF" />
+      <SolidColorBrush x:Key="MptMobileNoticeTextBrush" Color="#FF4E6C92" />
+      <SolidColorBrush x:Key="MptMobileOfflineHintBrush" Color="#FF8B7049" />
+
+      <!-- Accent -->
+      <Color x:Key="MptMobileAccentColor">#FF0965EE</Color>
+      <SolidColorBrush x:Key="MptMobileAccentBrush" Color="{StaticResource MptMobileAccentColor}" />
+      <SolidColorBrush x:Key="MptMobileAccentHoverBrush" Color="#FF0A57CC" />
+      <SolidColorBrush x:Key="MptMobileAccentPressedBrush" Color="#FF084CB3" />
+      <SolidColorBrush x:Key="MptMobileAccentSoftBrush" Color="#FFEDF3FF" />
+      <SolidColorBrush x:Key="MptMobileAccentSoftHoverBrush" Color="#FFE1EBFF" />
+      <SolidColorBrush x:Key="MptMobileAccentSoftPressedBrush" Color="#FFD5E2FF" />
+      <SolidColorBrush x:Key="MptMobileOnAccentBrush" Color="#FFFFFFFF" />
+      <SolidColorBrush x:Key="MptMobileFocusBrush" Color="{StaticResource MptMobileAccentColor}" />
+      <SolidColorBrush x:Key="MptMobileFocusOnAccentBrush" Color="#FFFFFFFF" />
+
+      <!-- Status -->
+      <Color x:Key="MptMobileSuccessColor">#FF1F7A5F</Color>
+      <SolidColorBrush x:Key="MptMobileSuccessBrush" Color="{StaticResource MptMobileSuccessColor}" />
+      <SolidColorBrush x:Key="MptMobileSuccessSoftBrush" Color="#FFEAF4EF" />
+      <SolidColorBrush x:Key="MptMobileWarningBrush" Color="#FF856235" />
+      <SolidColorBrush x:Key="MptMobileWarningSoftBrush" Color="#FFFBF2E6" />
+      <SolidColorBrush x:Key="MptMobileNeutralPillBackgroundBrush" Color="#FFF0F1F3" />
+      <SolidColorBrush x:Key="MptMobileNeutralPillTextBrush" Color="#FF666E77" />
+      <SolidColorBrush x:Key="MptMobileStatusDotOffBrush" Color="#FFADB3BA" />
+      <SolidColorBrush x:Key="MptMobilePurpleSoftBrush" Color="#FFF0EDFB" />
+      <SolidColorBrush x:Key="MptMobilePurpleBrush" Color="#FF7B69B2" />
+      <SolidColorBrush x:Key="MptMobileOrangeSoftBrush" Color="#FFFBF0E7" />
+      <SolidColorBrush x:Key="MptMobileOrangeBrush" Color="#FFB5804B" />
+      <SolidColorBrush x:Key="MptMobileDeviceIconBrush" Color="#FF667990" />
+
+      <!-- Controls -->
+      <SolidColorBrush x:Key="MptMobileAvatarBackgroundBrush" Color="#FFE9EDF1" />
+      <SolidColorBrush x:Key="MptMobileAvatarTextBrush" Color="#FF4D5C6D" />
+      <SolidColorBrush x:Key="MptMobileAvatarBorderBrush" Color="#FFDCE3E9" />
+      <SolidColorBrush x:Key="MptMobileSwitchTrackOffBrush" Color="#FFC9CFD6" />
+      <SolidColorBrush x:Key="MptMobileSwitchThumbBrush" Color="#FFFFFFFF" />
+      <SolidColorBrush x:Key="MptMobileGrabberBrush" Color="#FFD4D9DF" />
+      <SolidColorBrush x:Key="MptMobileOverlayScrimBrush" Color="#40121C34" />
+      <SolidColorBrush x:Key="MptMobileToastBackgroundBrush" Color="#EE202A3F" />
+
+      <!-- File type thumbs -->
+      <SolidColorBrush x:Key="MptMobileFileThumbBackgroundBrush" Color="#FFF4EBE2" />
+      <SolidColorBrush x:Key="MptMobileFileThumbTextBrush" Color="#FF8A623C" />
+      <SolidColorBrush x:Key="MptMobileFileThumbPhotoBackgroundBrush" Color="#FFE4EFEC" />
+      <SolidColorBrush x:Key="MptMobileFileThumbPhotoTextBrush" Color="#FF35745D" />
+      <SolidColorBrush x:Key="MptMobileFileThumbArchiveBackgroundBrush" Color="#FFE7EDF8" />
+      <SolidColorBrush x:Key="MptMobileFileThumbArchiveTextBrush" Color="#FF546A94" />
+    </ResourceDictionary>
+
+    <ResourceDictionary x:Key="Dark">
+      <!-- Surfaces -->
+      <Color x:Key="MptMobileBackgroundColor">#FF171B22</Color>
+      <Color x:Key="MptMobileCardColor">#FF222731</Color>
+      <SolidColorBrush x:Key="MptMobileBackgroundBrush" Color="{StaticResource MptMobileBackgroundColor}" />
+      <SolidColorBrush x:Key="MptMobileCardBrush" Color="{StaticResource MptMobileCardColor}" />
+      <SolidColorBrush x:Key="MptMobileCardBorderBrush" Color="#FF333A46" />
+      <SolidColorBrush x:Key="MptMobileDividerBrush" Color="#FF333A46" />
+      <SolidColorBrush x:Key="MptMobileSearchBackgroundBrush" Color="#FF262D38" />
+      <SolidColorBrush x:Key="MptMobileFieldBorderBrush" Color="#FF4A5361" />
+      <SolidColorBrush x:Key="MptMobileDashedBorderBrush" Color="#FF4A5361" />
+      <SolidColorBrush x:Key="MptMobileCommandSurfaceBrush" Color="#FF1B2330" />
+      <SolidColorBrush x:Key="MptMobileHoverOverlayBrush" Color="#14FFFFFF" />
+      <SolidColorBrush x:Key="MptMobilePressedOverlayBrush" Color="#24FFFFFF" />
+
+      <!-- Text -->
+      <Color x:Key="MptMobileTextColor">#FFEBEDF2</Color>
+      <Color x:Key="MptMobileSecondaryTextColor">#FFA0AABA</Color>
+      <SolidColorBrush x:Key="MptMobileTextBrush" Color="{StaticResource MptMobileTextColor}" />
+      <SolidColorBrush x:Key="MptMobileSecondaryTextBrush" Color="{StaticResource MptMobileSecondaryTextColor}" />
+      <SolidColorBrush x:Key="MptMobileMutedTextBrush" Color="#FF969DA7" />
+      <SolidColorBrush x:Key="MptMobileInactiveTabBrush" Color="#FF8A93A1" />
+      <SolidColorBrush x:Key="MptMobileChevronBrush" Color="#FF6E7887" />
+      <SolidColorBrush x:Key="MptMobileCommandTextBrush" Color="#FFE6EDF9" />
+      <SolidColorBrush x:Key="MptMobileToastTextBrush" Color="#FFF2F5FA" />
+      <SolidColorBrush x:Key="MptMobileNoticeTextBrush" Color="#FFB2CBED" />
+      <SolidColorBrush x:Key="MptMobileOfflineHintBrush" Color="#FFD8B98A" />
+
+      <!-- Accent -->
+      <Color x:Key="MptMobileAccentColor">#FF6BA5FF</Color>
+      <SolidColorBrush x:Key="MptMobileAccentBrush" Color="{StaticResource MptMobileAccentColor}" />
+      <SolidColorBrush x:Key="MptMobileAccentHoverBrush" Color="#FF8CBCFF" />
+      <SolidColorBrush x:Key="MptMobileAccentPressedBrush" Color="#FFA6CCFF" />
+      <SolidColorBrush x:Key="MptMobileAccentSoftBrush" Color="#FF27364E" />
+      <SolidColorBrush x:Key="MptMobileAccentSoftHoverBrush" Color="#FF31435F" />
+      <SolidColorBrush x:Key="MptMobileAccentSoftPressedBrush" Color="#FF3A4E6E" />
+      <SolidColorBrush x:Key="MptMobileOnAccentBrush" Color="#FF101B2C" />
+      <SolidColorBrush x:Key="MptMobileFocusBrush" Color="{StaticResource MptMobileAccentColor}" />
+      <SolidColorBrush x:Key="MptMobileFocusOnAccentBrush" Color="#FF101B2C" />
+
+      <!-- Status -->
+      <Color x:Key="MptMobileSuccessColor">#FF7BC6A1</Color>
+      <SolidColorBrush x:Key="MptMobileSuccessBrush" Color="{StaticResource MptMobileSuccessColor}" />
+      <SolidColorBrush x:Key="MptMobileSuccessSoftBrush" Color="#FF263F37" />
+      <SolidColorBrush x:Key="MptMobileWarningBrush" Color="#FFE2CDA7" />
+      <SolidColorBrush x:Key="MptMobileWarningSoftBrush" Color="#FF423A2E" />
+      <SolidColorBrush x:Key="MptMobileNeutralPillBackgroundBrush" Color="#FF323740" />
+      <SolidColorBrush x:Key="MptMobileNeutralPillTextBrush" Color="#FFA4ADBB" />
+      <SolidColorBrush x:Key="MptMobileStatusDotOffBrush" Color="#FF6B7482" />
+      <SolidColorBrush x:Key="MptMobilePurpleSoftBrush" Color="#FF37324A" />
+      <SolidColorBrush x:Key="MptMobilePurpleBrush" Color="#FFB5A6DB" />
+      <SolidColorBrush x:Key="MptMobileOrangeSoftBrush" Color="#FF43382F" />
+      <SolidColorBrush x:Key="MptMobileOrangeBrush" Color="#FFDBB48B" />
+      <SolidColorBrush x:Key="MptMobileDeviceIconBrush" Color="#FF93A4BC" />
+
+      <!-- Controls -->
+      <SolidColorBrush x:Key="MptMobileAvatarBackgroundBrush" Color="#FF303B4A" />
+      <SolidColorBrush x:Key="MptMobileAvatarTextBrush" Color="#FFD4DDEB" />
+      <SolidColorBrush x:Key="MptMobileAvatarBorderBrush" Color="#FF4D596A" />
+      <SolidColorBrush x:Key="MptMobileSwitchTrackOffBrush" Color="#FF4A5260" />
+      <SolidColorBrush x:Key="MptMobileSwitchThumbBrush" Color="#FFF2F4F8" />
+      <SolidColorBrush x:Key="MptMobileGrabberBrush" Color="#FF4A5260" />
+      <SolidColorBrush x:Key="MptMobileOverlayScrimBrush" Color="#80101A2A" />
+      <SolidColorBrush x:Key="MptMobileToastBackgroundBrush" Color="#F2263243" />
+
+      <!-- File type thumbs -->
+      <SolidColorBrush x:Key="MptMobileFileThumbBackgroundBrush" Color="#FF44392F" />
+      <SolidColorBrush x:Key="MptMobileFileThumbTextBrush" Color="#FFDEC09E" />
+      <SolidColorBrush x:Key="MptMobileFileThumbPhotoBackgroundBrush" Color="#FF2B423A" />
+      <SolidColorBrush x:Key="MptMobileFileThumbPhotoTextBrush" Color="#FF9DCEBA" />
+      <SolidColorBrush x:Key="MptMobileFileThumbArchiveBackgroundBrush" Color="#FF2D3B50" />
+      <SolidColorBrush x:Key="MptMobileFileThumbArchiveTextBrush" Color="#FFB3C8E7" />
+    </ResourceDictionary>
+  </ResourceDictionary.ThemeDictionaries>
+
+  <!-- Type scale: title / body / caption are the plan contract (28 / 14 / 12). -->
+  <x:Double x:Key="MptMobileFontSizePageTitle">28</x:Double>
+  <x:Double x:Key="MptMobileLineHeightPageTitle">38</x:Double>
+  <x:Double x:Key="MptMobileFontSizePageSubtitle">13</x:Double>
+  <x:Double x:Key="MptMobileLineHeightPageSubtitle">20</x:Double>
+  <x:Double x:Key="MptMobileFontSizeSectionTitle">16</x:Double>
+  <x:Double x:Key="MptMobileLineHeightSectionTitle">24</x:Double>
+  <x:Double x:Key="MptMobileFontSizeBody">14</x:Double>
+  <x:Double x:Key="MptMobileLineHeightBody">22</x:Double>
+  <x:Double x:Key="MptMobileFontSizeCaption">12</x:Double>
+  <x:Double x:Key="MptMobileLineHeightCaption">19</x:Double>
+  <x:Double x:Key="MptMobileFontSizeMeta">11</x:Double>
+  <x:Double x:Key="MptMobileLineHeightMeta">18</x:Double>
+  <x:Double x:Key="MptMobileFontSizeMicro">10</x:Double>
+  <x:Double x:Key="MptMobileLineHeightMicro">16</x:Double>
+  <x:Double x:Key="MptMobileFontSizeHeroTitle">20</x:Double>
+  <x:Double x:Key="MptMobileFontSizeSheetTitle">22</x:Double>
+  <x:Double x:Key="MptMobileLineHeightSheetTitle">31</x:Double>
+  <x:Double x:Key="MptMobileFontSizeEmptyTitle">22</x:Double>
+  <x:Double x:Key="MptMobileFontSizeDetailValue">30</x:Double>
+  <x:Double x:Key="MptMobileFontSizeButton">15</x:Double>
+  <x:Double x:Key="MptMobileFontSizeSecondaryButton">13</x:Double>
+  <x:Double x:Key="MptMobileFontSizeConnectionCode">28</x:Double>
+  <x:Double x:Key="MptMobileLetterSpacingMicro">1.6</x:Double>
+  <x:Double x:Key="MptMobileLetterSpacingConnectionCode">8</x:Double>
+
+  <!-- Touch targets. Interactive styles never go below MptMobileTouchTargetMin, and text
+       containers use MinHeight (never Height) so a larger system font still fits. -->
+  <x:Double x:Key="MptMobileTouchTargetMin">44</x:Double>
+  <x:Double x:Key="MptMobilePrimaryButtonMinHeight">48</x:Double>
+  <x:Double x:Key="MptMobileSecondaryButtonMinHeight">46</x:Double>
+  <x:Double x:Key="MptMobileQuietButtonMinHeight">44</x:Double>
+  <x:Double x:Key="MptMobileIconButtonSize">44</x:Double>
+  <x:Double x:Key="MptMobileAvatarSize">38</x:Double>
+  <x:Double x:Key="MptMobileListRowMinHeight">72</x:Double>
+  <x:Double x:Key="MptMobileSettingRowMinHeight">65</x:Double>
+  <x:Double x:Key="MptMobileTargetRowMinHeight">83</x:Double>
+  <x:Double x:Key="MptMobileFileChoiceMinHeight">80</x:Double>
+  <x:Double x:Key="MptMobileSearchMinHeight">44</x:Double>
+  <x:Double x:Key="MptMobileFieldMinHeight">47</x:Double>
+  <x:Double x:Key="MptMobileTabBarMinHeight">58</x:Double>
+  <x:Double x:Key="MptMobileTabButtonMinHeight">52</x:Double>
+  <x:Double x:Key="MptMobileTileMinHeight">102</x:Double>
+  <x:Double x:Key="MptMobileAddDeviceMinHeight">60</x:Double>
+  <x:Double x:Key="MptMobileStatusDotSize">5</x:Double>
+  <x:Double x:Key="MptMobileDividerThickness">1</x:Double>
+  <x:Double x:Key="MptMobileProgressHeight">5</x:Double>
+  <x:Double x:Key="MptMobileIconSize">24</x:Double>
+  <x:Double x:Key="MptMobileIconSizeSmall">16</x:Double>
+  <x:Double x:Key="MptMobileIconSizeMedium">20</x:Double>
+  <x:Double x:Key="MptMobileIconSizeLarge">29</x:Double>
+  <x:Double x:Key="MptMobileIconSizeEmpty">65</x:Double>
+  <x:Double x:Key="MptMobileIconSizeSuccess">36</x:Double>
+  <x:Double x:Key="MptMobileIconBoxSize">39</x:Double>
+  <x:Double x:Key="MptMobileIconBoxIconSize">21</x:Double>
+  <x:Double x:Key="MptMobileSuccessIconSize">76</x:Double>
+  <x:Double x:Key="MptMobileFileThumbWidth">42</x:Double>
+  <x:Double x:Key="MptMobileFileThumbHeight">49</x:Double>
+  <x:Double x:Key="MptMobileIconStrokeThickness">1.65</x:Double>
+
+  <!-- Corner radii (plan contract: cards 20-24, buttons 14-16). -->
+  <CornerRadius x:Key="MptMobileCardCornerRadius">22</CornerRadius>
+  <CornerRadius x:Key="MptMobileHeroCardCornerRadius">24</CornerRadius>
+  <CornerRadius x:Key="MptMobileTileCornerRadius">19</CornerRadius>
+  <CornerRadius x:Key="MptMobilePanelCornerRadius">20</CornerRadius>
+  <CornerRadius x:Key="MptMobileButtonCornerRadius">15</CornerRadius>
+  <CornerRadius x:Key="MptMobileSecondaryButtonCornerRadius">14</CornerRadius>
+  <CornerRadius x:Key="MptMobileControlCornerRadius">12</CornerRadius>
+  <CornerRadius x:Key="MptMobilePillCornerRadius">20</CornerRadius>
+  <CornerRadius x:Key="MptMobileBadgeCornerRadius">7</CornerRadius>
+  <CornerRadius x:Key="MptMobileSheetCornerRadius">29,29,0,0</CornerRadius>
+
+  <!-- Spacing. Two page paddings only: the plan allows 320dp screens to fall back to 18. -->
+  <Thickness x:Key="MptMobilePagePadding">22,14,22,24</Thickness>
+  <Thickness x:Key="MptMobilePagePaddingNarrow">18,14,18,24</Thickness>
+  <Thickness x:Key="MptMobileCardPadding">19</Thickness>
+  <Thickness x:Key="MptMobileHeroCardPadding">21,17,21,15</Thickness>
+  <Thickness x:Key="MptMobileListRowPadding">15</Thickness>
+  <Thickness x:Key="MptMobileTilePadding">15</Thickness>
+  <Thickness x:Key="MptMobileSearchPadding">13,0</Thickness>
+  <Thickness x:Key="MptMobileFieldPadding">12,10</Thickness>
+  <Thickness x:Key="MptMobileSheetPadding">23,10,23,30</Thickness>
+  <Thickness x:Key="MptMobileTabBarPadding">12,6,12,2</Thickness>
+  <Thickness x:Key="MptMobilePillPadding">8,5</Thickness>
+  <Thickness x:Key="MptMobileNoticePadding">15,14</Thickness>
+  <Thickness x:Key="MptMobileButtonPadding">16,13</Thickness>
+  <Thickness x:Key="MptMobileSectionHeaderMargin">0,17,0,10</Thickness>
+  <Thickness x:Key="MptMobilePageHeaderMargin">0,0,0,17</Thickness>
+  <Thickness x:Key="MptMobileBottomSpaceMargin">0,23,0,0</Thickness>
+</ResourceDictionary>

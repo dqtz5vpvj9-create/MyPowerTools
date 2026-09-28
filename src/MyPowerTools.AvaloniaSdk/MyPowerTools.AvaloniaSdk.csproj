@@ -19,6 +19,12 @@
   </ItemGroup>
   <ItemGroup>
     <AvaloniaResource Include="Themes\MptSdkTheme.axaml" />
+    <AvaloniaResource Include="Themes\MptMobileTheme.axaml" />
+    <AvaloniaResource Include="Themes\MptMobileTokens.axaml" />
+    <AvaloniaResource Include="Themes\MptMobileTypography.axaml" />
+    <AvaloniaResource Include="Themes\MptMobileSurfaces.axaml" />
+    <AvaloniaResource Include="Themes\MptMobileControls.axaml" />
+    <AvaloniaResource Include="Themes\MptMobileIcons.axaml" />
     <None Include="..\..\docs\sdk\dotnet-surface.md" Pack="true" PackagePath="README.md" />
   </ItemGroup>
 </Project>

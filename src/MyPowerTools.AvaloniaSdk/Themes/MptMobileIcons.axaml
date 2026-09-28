@@ -1,0 +1,64 @@
+<ResourceDictionary xmlns="https://github.com/avaloniaui"
+                    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!--
+    MPT mobile icon geometry catalog (M1), copied one-to-one from the approved prototype
+    (.lavish/mpt-mobile/app.js paths map, baseline 2a7620c).
+
+    Every geometry is drawn in the prototype's 24x24 stroke space, so use it with the
+    stroked icon class, which keeps Stretch="None" and therefore the designed padding:
+
+      <Path Data="{StaticResource MptMobileIconHome}" Classes="MptMobileIcon" />
+      <Path Data="{StaticResource MptMobileIconSend}" Classes="MptMobileIcon MptMobileIconAccent" />
+
+    Colour comes from the MptMobileIcon* classes (text / accent / secondary / muted / success /
+    warning / device / on-accent), size from MptMobileIconSmall|Medium|Large. PathIcon also
+    works, but it stretches the geometry to fill its box, which drops the 24dp optical
+    padding; prefer Path for this catalog.
+
+    These are theme-independent resources: the glyph shape never changes with the palette,
+    only the stroke colour does, so they are declared once rather than per theme variant.
+  -->
+  <PathGeometry x:Key="MptMobileIconHome" Figures="M3 11 12 3l9 8M5 10v10h5v-6h4v6h5V10" />
+  <PathGeometry x:Key="MptMobileIconGrid" Figures="M3 3h7v7H3zM14 3h7v7h-7zM3 14h7v7H3zM14 14h7v7h-7z" />
+  <PathGeometry x:Key="MptMobileIconDevices" Figures="M3 5h13v10H3zM1 18h11M18 9h5v12h-5z" />
+  <PathGeometry x:Key="MptMobileIconActivity" Figures="M4 4h16v16H4zM8 8h8M8 12h8M8 16h4" />
+  <PathGeometry x:Key="MptMobileIconSend" Figures="m12 3 0 13M7 8l5-5 5 5M5 13v7h14v-7" />
+  <PathGeometry x:Key="MptMobileIconReceive" Figures="M12 3v13m-5-5 5 5 5-5M5 15v6h14v-6" />
+  <PathGeometry x:Key="MptMobileIconArrow" Figures="M4 12h16m-6-6 6 6-6 6" />
+  <PathGeometry x:Key="MptMobileIconChevron" Figures="m9 5 7 7-7 7" />
+  <PathGeometry x:Key="MptMobileIconBack" Figures="m15 5-7 7 7 7" />
+  <PathGeometry x:Key="MptMobileIconClose" Figures="m6 6 12 12M6 18 18 6" />
+  <PathGeometry x:Key="MptMobileIconPlus" Figures="M12 4v16M4 12h16" />
+  <PathGeometry x:Key="MptMobileIconCheck" Figures="m5 12 4 4L19 6" />
+  <PathGeometry x:Key="MptMobileIconLaptop" Figures="M4 4h16v12H4zM1 19h22l-3 2H4z" />
+  <PathGeometry x:Key="MptMobileIconDesktop" Figures="M3 3h18v13H3zM12 16v5M8 21h8" />
+  <PathGeometry x:Key="MptMobileIconPhone" Figures="M7 2h10v20H7zM10 18h4" />
+  <PathGeometry x:Key="MptMobileIconCloud" Figures="M7 18a5 5 0 0 1-1-10 7 7 0 0 1 13 1 4.5 4.5 0 0 1-1 9z" />
+  <PathGeometry x:Key="MptMobileIconBell" Figures="M6 9a6 6 0 0 1 12 0v5l2 3H4l2-3zM9 20h6" />
+  <PathGeometry x:Key="MptMobileIconTerminal" Figures="m5 6 5 6-5 6M13 18h6" />
+  <PathGeometry x:Key="MptMobileIconFocus" Figures="M12 3v3m0 12v3M3 12h3m12 0h3M5.5 5.5l2 2m9 9 2 2m0-13-2 2m-9 9-2 2M9 12a3 3 0 1 0 6 0 3 3 0 0 0-6 0" />
+  <PathGeometry x:Key="MptMobileIconClipboard" Figures="M9 3h6v4H9zM9 5H5v17h14V5h-4M9 12h6m-6 4h5" />
+  <PathGeometry x:Key="MptMobileIconSearch" Figures="M10 3a7 7 0 1 0 0 14 7 7 0 0 0 0-14zm5 12 6 6" />
+  <PathGeometry x:Key="MptMobileIconSettings" Figures="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8M3 7l3-4 4 2h4l4-2 3 4-2 4v2l2 4-3 4-4-2h-4l-4 2-3-4 2-4v-2z" />
+  <PathGeometry x:Key="MptMobileIconSun" Figures="M12 3v2m0 14v2M3 12h2m14 0h2M5 5l2 2m10 10 2 2M5 19l2-2M17 7l2-2M8 12a4 4 0 1 0 8 0 4 4 0 0 0-8 0" />
+  <PathGeometry x:Key="MptMobileIconMoon" Figures="M19 15A8 8 0 0 1 9 5a8 8 0 1 0 10 10z" />
+  <PathGeometry x:Key="MptMobileIconShield" Figures="m12 2 8 4v6c0 5-8 10-8 10S4 17 4 12V6zM8 12l3 3 5-6" />
+  <PathGeometry x:Key="MptMobileIconLink" Figures="m9 15 6-6M8 9l-3 3a4 4 0 0 0 6 6l3-3M10 9l3-3a4 4 0 0 1 6 6l-3 3" />
+  <PathGeometry x:Key="MptMobileIconScan" Figures="M8 3H3v5m13-5h5v5M3 16v5h5m13-5v5h-5M6 12h12" />
+  <PathGeometry x:Key="MptMobileIconImage" Figures="M3 3h18v18H3zM3 17l6-6 5 5 3-3 4 4M15 7h1" />
+  <PathGeometry x:Key="MptMobileIconKeyboard" Figures="M2 6h20v13H2zM5 10h1m3 0h1m3 0h1m3 0h1M5 14h1m3 0h9" />
+  <PathGeometry x:Key="MptMobileIconPulse" Figures="M2 13h4l3-8 5 15 3-7h5" />
+  <PathGeometry x:Key="MptMobileIconServer" Figures="M3 3h18v7H3zM3 14h18v7H3zM7 6h1m-1 11h1M16 6h2m-2 11h2" />
+  <PathGeometry x:Key="MptMobileIconSpark" Figures="m12 2 2.5 7.5L22 12l-7.5 2.5L12 22l-2.5-7.5L2 12l7.5-2.5z" />
+  <PathGeometry x:Key="MptMobileIconFan" Figures="M12 12c-8-10 5-13 5-6 0 3-5 6-5 6Zm0 0c13-2 9 11 3 7-3-1-3-7-3-7Zm0 0c-5 12-14 2-7-1 3-1 7 1 7 1Z" />
+  <PathGeometry x:Key="MptMobileIconCode" Figures="m8 5-6 7 6 7M16 5l6 7-6 7" />
+  <PathGeometry x:Key="MptMobileIconStar" Figures="m12 3 3 6 7 1-5 5 1 7-6-3-6 3 1-7-5-5 7-1z" />
+  <PathGeometry x:Key="MptMobileIconFile" Figures="M5 2h9l5 5v15H5zM14 2v6h5M9 13h6m-6 4h6" />
+  <PathGeometry x:Key="MptMobileIconRefresh" Figures="M20 9a8 8 0 0 0-14-4L3 8m0-5v5h5M4 15a8 8 0 0 0 14 4l3-3m0 5v-5h-5" />
+  <PathGeometry x:Key="MptMobileIconClock" Figures="M12 3a9 9 0 1 0 0 18 9 9 0 0 0 0-18zm0 4v6h4" />
+  <PathGeometry x:Key="MptMobileIconPower" Figures="M12 2v10M6 5a9 9 0 1 0 12 0" />
+  <!-- The prototype draws its overflow dots as 0.01-long round-capped segments. That figure has
+       empty bounds in Avalonia and never renders, so the three dots are real 1.6dp circles on the
+       same centres; the visible result matches the round-capped stroke. -->
+  <PathGeometry x:Key="MptMobileIconDots" Figures="M4.2 12a.8.8 0 1 0 1.6 0 .8.8 0 1 0-1.6 0M11.2 12a.8.8 0 1 0 1.6 0 .8.8 0 1 0-1.6 0M18.2 12a.8.8 0 1 0 1.6 0 .8.8 0 1 0-1.6 0" />
+</ResourceDictionary>
