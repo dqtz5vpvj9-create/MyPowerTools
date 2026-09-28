@@ -82,10 +82,17 @@ Windows 使用完整安装目录上的 Dev overlay 验证，开发目录为独�
 
 Core、Input Monitor、NSSM Manager、Paste Image 和 Local Lag Cleaner 已通过官方 Dev
 更新及启动检查，HostControl 的 8 项接口检查通过。Input Monitor、NSSM Manager 和
-Paste Image 的安装包与构建产物逐字节一致；Local Lag Cleaner 的 Dev 元数据与暂存包
-一致，其 SDK 工具程序集已重建并保留一键操作。后续工具更新重启 Runner 后，
-Input Monitor 的安装包仍与恢复后的构建一致。更新验收曾因
-仪表盘读取同步等待所有工具的健康检查而超时回滚；现在仪表盘读取缓存，显式刷新命令仍
+Paste Image 的安装包与构建产物逐字节一致。后续工具更新重启 Runner 后，
+Input Monitor 的安装包仍与恢复后的构建一致。
+
+Local Lag Cleaner 的独立调用检查还发现，Debug 构建目录与清单中的 Release 路径不一致，
+导致打包漏掉运行组件，虽然 Shell 启动检查通过，工具仍不可用。构建脚本现按所选配置编译，
+将产物输出到清单声明的路径，并在打包前后检查必需文件。Windows 上的 Release 构建和
+默认 Debug Dev 更新均通过，安装包包含 21 个文件，运行入口和界面程序集均存在；
+实际 `local-lag-cleaner.health` 调用成功，内层结果为 `ready`，
+`result.payload.toolId` 为 `local-lag-cleaner`。打包契约回归测试也已通过。
+
+更新验收曾因仪表盘读取同步等待所有工具的健康检查而超时回滚；现在仪表盘读取缓存，显式刷新命令仍
 执行健康检查。此修复通过 53 项 HostControl/InProc 回归检查，并用慢模块验证旧行为失败、
 新行为通过。
 
