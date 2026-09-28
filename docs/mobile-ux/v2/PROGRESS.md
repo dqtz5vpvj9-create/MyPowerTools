@@ -94,3 +94,7 @@ Windows `4d62fe9` 部署后已复验末条状态：18:07:33 UTC 完成官方 Too
 Normal 单变量对照成功，尚未加入分享 await：18:36:33.305 scheduled，.570 tick，.572 write，.744 written，均在同一个 UI dispatcher。此前 Background 对照延长观察仍无 tick/write。当前 Android 主循环中 Background 防抖保存不推进是已验证的故障机制；修复改用 Normal 优先级，保留 250ms 内容防抖，没有增加轮询。正在撤下临时诊断并对最终构建做附件、未发送文字两种 force-stop 恢复验收。
 
 最终无诊断构建已通过两项实际恢复：系统 Files 分享 beta.txt、alpha.txt 后直接 force-stop，重开恢复两个附件和默认目标；输入未发送文字 MPT-draft-timer-20260928-final，等待防抖后直接 force-stop，重开精确恢复文字及附件。未依赖 Back、Detach 或 Send 保存。主 agent 已查看 restore-files.png、restore-typed.png；证据与 DRAFT-RESTORE.md 位于 artifacts/.tmp-android-verify/m7-device-v022/a09-a20-20260928/。Surface 152/152 通过，临时诊断源码和设备日志已移除。Windows 官方 Tools 更新于18:37:58 UTC完成，Input Monitor 文件大小及时间戳不变。开始准备0.2.3/code5通用开发预览包；此处尚不代表发布完成。
+
+## 0.2.3 开发预览发布
+
+提交6a50682已推送；0.2.3/code5通用APK构建91秒、0错误、3个既有警告，包含arm64与x64。实际覆盖安装与冷启动后文字、两附件、默认目标保留，主agent亲看v023-upgrade-restored.png；UPGRADE-0.2.3.md记录版本及过程。GitHub预览版 https://github.com/dqtz5vpvj9-create/MyPowerTools/releases/tag/android-v0.2.3-preview.1 已发布，非latest；公开链接重新下载成功，140669838字节，两ABI可读。已通过agently-mail向weather2020@qq.com提交发布通知，服务返回queued=true（不等同收件确认）。完整工具迁移、真实手机、macOS及所有布局矩阵仍未完成；发布说明已明确范围。
