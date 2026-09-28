@@ -13,9 +13,7 @@ public sealed class LocalLagCleanerViewModel : MptObservableViewModel, IDisposab
     private readonly CancellationTokenSource _lifetime = new();
     private CancellationTokenSource? _operationCts;
     private LagDiagnosticSnapshot? _snapshot;
-    private CleanupPlan? _plan;
     private bool _isBusy;
-    private bool _hasPlan;
     private string _statusText = "等待首次多阶段扫描";
     private string _severityLabel = "等待";
     private IBrush _severityBrush = Brushes.SlateGray;
@@ -35,8 +33,7 @@ public sealed class LocalLagCleanerViewModel : MptObservableViewModel, IDisposab
     private string _uptime = "—";
     private string _idleState = "—";
     private string _powerPlan = "—";
-    private string _planSummary = "";
-    private string _actionMessage = "所有扫描在隔离 Runtime 中执行；系统变更需要计划令牌。";
+    private string _actionMessage = "点一下即执行。没有可清理目标时会直接说明原因。";
     private string _reportPath = "";
 
     public LocalLagCleanerViewModel(MptAvaloniaSurfaceContext context)
@@ -60,24 +57,23 @@ public sealed class LocalLagCleanerViewModel : MptObservableViewModel, IDisposab
             ScanElevatedFileHandlesAsync,
             "scan-file-handles-elevated");
         PlanMcpCommand = Command(
-            () => CreatePlanAsync("local-lag-cleaner.plan.mcp"),
+            () => RunActionAsync("local-lag-cleaner.plan.mcp"),
             "plan-mcp");
         PlanWeFlowCommand = Command(
-            () => CreatePlanAsync("local-lag-cleaner.plan.weflow"),
+            () => RunActionAsync("local-lag-cleaner.plan.weflow"),
             "plan-weflow");
         PlanDeliveryOptimizationCommand = Command(
-            () => CreatePlanAsync("local-lag-cleaner.plan.delivery-optimization"),
+            () => RunActionAsync("local-lag-cleaner.plan.delivery-optimization"),
             "plan-delivery-optimization");
         PlanNvidiaCommand = Command(
-            () => CreatePlanAsync("local-lag-cleaner.plan.nvidia-container"),
+            () => RunActionAsync("local-lag-cleaner.plan.nvidia-container"),
             "plan-nvidia");
         PlanRemoteDesktopCommand = Command(
-            () => CreatePlanAsync("local-lag-cleaner.plan.remote-desktop"),
+            () => RunActionAsync("local-lag-cleaner.plan.remote-desktop"),
             "plan-remote-desktop");
         PlanWindowsSearchCommand = Command(
-            () => CreatePlanAsync("local-lag-cleaner.plan.windows-search"),
+            () => RunActionAsync("local-lag-cleaner.plan.windows-search"),
             "plan-windows-search");
-        ApplyPlanCommand = Command(ApplyPlanAsync, "apply");
         CancelScanCommand = new MptAsyncRelayCommand(CancelScanAsync, () => IsBusy, "local-lag-cleaner.cancel-scan");
     }
 
@@ -102,7 +98,6 @@ public sealed class LocalLagCleanerViewModel : MptObservableViewModel, IDisposab
     public MptAsyncRelayCommand PlanNvidiaCommand { get; }
     public MptAsyncRelayCommand PlanRemoteDesktopCommand { get; }
     public MptAsyncRelayCommand PlanWindowsSearchCommand { get; }
-    public MptAsyncRelayCommand ApplyPlanCommand { get; }
     public MptAsyncRelayCommand CancelScanCommand { get; }
 
     public bool IsBusy
@@ -118,24 +113,6 @@ public sealed class LocalLagCleanerViewModel : MptObservableViewModel, IDisposab
     }
 
     public bool CanInteract => !IsBusy;
-    public bool CanApply =>
-        !IsBusy &&
-        HasPlan;
-
-    public bool HasPlan
-    {
-        get => _hasPlan;
-        private set
-        {
-            if (SetProperty(ref _hasPlan, value))
-            {
-                OnPropertyChanged(nameof(CanApply));
-                OnPropertyChanged(nameof(PlanRequiresServiceRestart));
-            }
-        }
-    }
-
-    public bool PlanRequiresServiceRestart => _plan?.RequiresAdministrator == true;
 
     public string StatusText
     {
@@ -251,12 +228,6 @@ public sealed class LocalLagCleanerViewModel : MptObservableViewModel, IDisposab
         private set => SetProperty(ref _powerPlan, value);
     }
 
-    public string PlanSummary
-    {
-        get => _planSummary;
-        private set => SetProperty(ref _planSummary, value);
-    }
-
     public string ActionMessage
     {
         get => _actionMessage;
@@ -342,7 +313,7 @@ public sealed class LocalLagCleanerViewModel : MptObservableViewModel, IDisposab
         return Task.CompletedTask;
     }
 
-    private async Task CreatePlanAsync(string commandId)
+    private async Task RunActionAsync(string commandId)
     {
         if (IsBusy)
         {
@@ -350,42 +321,69 @@ public sealed class LocalLagCleanerViewModel : MptObservableViewModel, IDisposab
         }
 
         IsBusy = true;
+        ExecutionItems.Clear();
+        var actionLabel = ActionLabel(commandId);
+        StatusText = $"正在扫描并执行：{actionLabel}…";
+        ActionMessage = "目标在执行前按 PID、名称和启动时间复核。";
+        var stage = "plan";
+        var applied = false;
         try
         {
-            var payload = await ExecutePayloadAsync(commandId);
-            var plan = payload?.Deserialize<CleanupPlan>(LagCleanerJson.Compact) ??
+            var planPayload = await ExecutePayloadAsync(commandId);
+            var plan = planPayload?.Deserialize<CleanupPlan>(LagCleanerJson.Compact) ??
                        throw new InvalidDataException("Runtime 未返回处置计划。");
-            _plan = plan;
-            PlanSummary =
-                $"{ActionName(plan.Action)}｜风险 {RiskName(plan.Risk)}｜{plan.Scope}。" +
-                $"{plan.Impact} 验证：{plan.VerificationPlan} 恢复：{plan.RecoveryPlan} " +
-                $"计划于 {plan.ExpiresAtUtc.ToLocalTime():HH:mm:ss} 过期。";
-            HasPlan = true;
-            if (plan.RequiresAdministrator)
-            {
-                ActionMessage =
-                    plan.MayDisconnectSession
-                        ? "点击执行将请求管理员权限，并立即断开当前远程桌面会话；服务恢复后可重新连接。"
-                        : "点击执行将请求管理员权限重启计划中的服务，并等待 SCM 回到 Running。";
-            }
-            else
-            {
-                ActionMessage = plan.Action == CleanupAction.McpResidue
-                    ? $"核对精确目标与证据：{McpEvidenceSummary(plan.McpEvidence)}。计划凭据已自动绑定。"
-                    : "核对精确目标、影响、验证和恢复步骤。计划凭据已自动绑定。";
-            }
             Log(
                 "warning",
                 $"Cleanup plan {plan.PlanId} created for {plan.Action}; targets={plan.Targets.Count}.");
+            stage = "apply";
+            StatusText = $"正在执行：{actionLabel}…";
+            var payload = await ExecutePayloadAsync(
+                "local-lag-cleaner.cleanup.apply",
+                new JsonObject
+                {
+                    ["planId"] = plan.PlanId,
+                    ["expectedAction"] = JsonSerializer.SerializeToNode(
+                        plan.Action,
+                        LagCleanerJson.Compact),
+                    ["confirmationToken"] = plan.ConfirmationToken,
+                    ["allowDisconnect"] = plan.MayDisconnectSession,
+                    ["allowServiceRestart"] = plan.RequiresAdministrator
+                });
+            var result = payload?.Deserialize<CleanupExecutionResult>(LagCleanerJson.Compact) ??
+                         throw new InvalidDataException("Runtime 未返回处置结果。");
+            foreach (var item in result.Items)
+            {
+                ExecutionItems.Add(new ExecutionResultRow(
+                    item.Succeeded ? "成功" : "失败",
+                    item.Target,
+                    item.Message,
+                    item.Succeeded ? Brushes.SeaGreen : Brushes.Crimson));
+            }
+
+            var succeeded = result.Items.Count(item => item.Succeeded);
+            var failed = result.Items.Count - succeeded;
+            ActionMessage = result.Succeeded
+                ? $"处置完成：{succeeded} 个目标已处理；{result.VerificationSummary}"
+                : $"处置结束：成功 {succeeded} 个，失败 {failed} 个；{result.RecoverySummary}";
+            applied = true;
+            Log(result.Succeeded ? "info" : "warning", ActionMessage);
         }
         catch (Exception exception)
         {
-            ActionMessage = $"计划生成失败：{exception.Message}";
+            ActionMessage = stage == "plan"
+                ? $"计划生成失败：{exception.Message}"
+                : $"执行被拒绝：{exception.Message}";
+            StatusText = ActionMessage;
             Log("warning", ActionMessage);
         }
         finally
         {
             IsBusy = false;
+        }
+
+        if (applied)
+        {
+            await ScanAsync(deep: false);
         }
     }
 
@@ -441,67 +439,6 @@ public sealed class LocalLagCleanerViewModel : MptObservableViewModel, IDisposab
         finally
         {
             IsBusy = false;
-        }
-    }
-
-    private async Task ApplyPlanAsync()
-    {
-        if (!CanApply)
-        {
-            return;
-        }
-
-        IsBusy = true;
-        ExecutionItems.Clear();
-        try
-        {
-            var plan = _plan ??
-                       throw new InvalidOperationException("当前没有可执行计划。");
-            var payload = await ExecutePayloadAsync(
-                "local-lag-cleaner.cleanup.apply",
-                new JsonObject
-                {
-                    ["planId"] = plan.PlanId,
-                    ["expectedAction"] = JsonSerializer.SerializeToNode(
-                        plan.Action,
-                        LagCleanerJson.Compact),
-                    ["confirmationToken"] = plan.ConfirmationToken,
-                    ["allowDisconnect"] = plan.MayDisconnectSession,
-                    ["allowServiceRestart"] = plan.RequiresAdministrator
-                });
-            var result = payload?.Deserialize<CleanupExecutionResult>(LagCleanerJson.Compact) ??
-                         throw new InvalidDataException("Runtime 未返回处置结果。");
-            foreach (var item in result.Items)
-            {
-                ExecutionItems.Add(new ExecutionResultRow(
-                    item.Succeeded ? "成功" : "失败",
-                    item.Target,
-                    item.Message,
-                    item.Succeeded ? Brushes.SeaGreen : Brushes.Crimson));
-            }
-            var succeeded = result.Items.Count(item => item.Succeeded);
-            var failed = result.Items.Count - succeeded;
-            ActionMessage = result.Succeeded
-                ? $"处置完成：{succeeded} 个目标已处理；{result.VerificationSummary}"
-                : $"处置结束：成功 {succeeded} 个，失败 {failed} 个；{result.RecoverySummary}";
-            HasPlan = false;
-            _plan = null;
-            PlanSummary = "";
-            Log(result.Succeeded ? "info" : "warning", ActionMessage);
-        }
-        catch (Exception exception)
-        {
-            ActionMessage = $"执行被拒绝：{exception.Message}";
-            Log("warning", ActionMessage);
-        }
-        finally
-        {
-            IsBusy = false;
-        }
-
-        if (!HasPlan)
-        {
-            await ScanAsync(deep: false);
         }
     }
 
@@ -731,7 +668,6 @@ public sealed class LocalLagCleanerViewModel : MptObservableViewModel, IDisposab
     private void NotifyCommandState()
     {
         OnPropertyChanged(nameof(CanInteract));
-        OnPropertyChanged(nameof(CanApply));
         QuickScanCommand.NotifyCanExecuteChanged();
         DeepScanCommand.NotifyCanExecuteChanged();
         CancelScanCommand.NotifyCanExecuteChanged();
@@ -742,7 +678,6 @@ public sealed class LocalLagCleanerViewModel : MptObservableViewModel, IDisposab
         PlanNvidiaCommand.NotifyCanExecuteChanged();
         PlanRemoteDesktopCommand.NotifyCanExecuteChanged();
         PlanWindowsSearchCommand.NotifyCanExecuteChanged();
-        ApplyPlanCommand.NotifyCanExecuteChanged();
     }
 
     private void Log(string level, string message)
@@ -792,26 +727,16 @@ public sealed class LocalLagCleanerViewModel : MptObservableViewModel, IDisposab
         _ => "只读"
     };
 
-    private static string ActionName(CleanupAction action) => action switch
+    private static string ActionLabel(string commandId) => commandId switch
     {
-        CleanupAction.McpResidue => "清理旧 MCP 会话",
-        CleanupAction.WeFlow => "退出高 CPU WeFlow",
-        CleanupAction.DeliveryOptimization => "重启 Delivery Optimization",
-        CleanupAction.NvidiaContainer => "重启 NVIDIA Display Container",
-        CleanupAction.RemoteDesktop => "重启 Remote Desktop Services",
-        CleanupAction.WindowsSearch => "重启 Windows Search",
-        _ => action.ToString()
+        "local-lag-cleaner.plan.mcp" => "清理旧 MCP 会话",
+        "local-lag-cleaner.plan.weflow" => "退出高 CPU WeFlow",
+        "local-lag-cleaner.plan.delivery-optimization" => "重启 Delivery Optimization",
+        "local-lag-cleaner.plan.nvidia-container" => "重启 NVIDIA Container",
+        "local-lag-cleaner.plan.windows-search" => "重启 Windows Search",
+        "local-lag-cleaner.plan.remote-desktop" => "重启 Remote Desktop（断开当前会话）",
+        _ => commandId
     };
-
-    private static string McpEvidenceSummary(
-        IReadOnlyList<McpCleanupGroupEvidence> evidence)
-    {
-        var orphaned = evidence.Count(
-            item => item.Kind == McpCleanupEvidenceKind.OrphanedParent);
-        var superseded = evidence.Count(
-            item => item.Kind == McpCleanupEvidenceKind.SupersededByNewerSameParent);
-        return $"高可信孤儿组 {orphaned} 个，中可信同父替代组 {superseded} 个";
-    }
 
     public void Dispose()
     {

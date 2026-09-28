@@ -548,37 +548,37 @@
           <StackPanel Spacing="14" Margin="0,12,0,24">
             <Border Classes="card">
               <StackPanel Spacing="12">
-                <TextBlock Text="单动作、精确目标、执行前复核"
+                <TextBlock Text="点一下即执行"
                            Classes="section-title" />
-                <TextBlock Text="每份计划只包含一种动作。进程按 PID、名称与启动时间复核；服务动作重新推导权限和断连风险。"
+                <TextBlock Text="点一下即执行；目标在执行前按 PID、名称和启动时间复核。"
                            Classes="secondary" />
                 <WrapPanel Orientation="Horizontal">
-                  <Button Content="旧 MCP 会话"
+                  <Button Content="清理旧 MCP 会话"
                           Command="{Binding PlanMcpCommand}"
                           IsEnabled="{Binding CanInteract}"
                           Margin="0,0,8,8"
                           Padding="13,8" />
-                  <Button Content="高 CPU WeFlow"
+                  <Button Content="退出高 CPU WeFlow"
                           Command="{Binding PlanWeFlowCommand}"
                           IsEnabled="{Binding CanInteract}"
                           Margin="0,0,8,8"
                           Padding="13,8" />
-                  <Button Content="Delivery Optimization"
+                  <Button Content="重启 Delivery Optimization"
                           Command="{Binding PlanDeliveryOptimizationCommand}"
                           IsEnabled="{Binding CanInteract}"
                           Margin="0,0,8,8"
                           Padding="13,8" />
-                  <Button Content="NVIDIA Container"
+                  <Button Content="重启 NVIDIA Container"
                           Command="{Binding PlanNvidiaCommand}"
                           IsEnabled="{Binding CanInteract}"
                           Margin="0,0,8,8"
                           Padding="13,8" />
-                  <Button Content="Windows Search"
+                  <Button Content="重启 Windows Search"
                           Command="{Binding PlanWindowsSearchCommand}"
                           IsEnabled="{Binding CanInteract}"
                           Margin="0,0,8,8"
                           Padding="13,8" />
-                  <Button Content="Remote Desktop"
+                  <Button Content="重启 Remote Desktop（断开当前会话）"
                           Command="{Binding PlanRemoteDesktopCommand}"
                           IsEnabled="{Binding CanInteract}"
                           Margin="0,0,8,8"
@@ -587,28 +587,18 @@
               </StackPanel>
             </Border>
 
-            <Border Classes="card" IsVisible="{Binding HasPlan}">
-              <StackPanel Spacing="11">
-                <TextBlock Text="待执行计划" Classes="section-title" />
-                <TextBlock Text="{Binding PlanSummary}" TextWrapping="Wrap" />
-                <TextBlock Text="普通计划可直接执行；计划凭据由当前计划自动绑定，无需手动输入。"
-                           Classes="secondary"
-                           TextWrapping="Wrap" />
+
+            <Border Classes="card">
+              <StackPanel Spacing="9">
+                <TextBlock Text="执行前请确认" Classes="section-title" />
                 <Border Background="{DynamicResource MptBrushWarningBackground}"
                         BorderBrush="{DynamicResource MptBrushWarning}"
                         BorderThickness="1"
                         CornerRadius="8"
-                        Padding="14"
-                        IsVisible="{Binding PlanRequiresServiceRestart}">
-                  <TextBlock Text="点击执行将请求管理员权限；远程桌面计划会立即断开当前会话。"
+                        Padding="14">
+                  <TextBlock Text="点击执行将请求管理员权限；远程桌面计划会立即断开当前会话，服务类动作在执行前复核 PID、名称与启动时间。"
                              TextWrapping="Wrap" />
                 </Border>
-                <Button Content="执行并验证该计划"
-                        Command="{Binding ApplyPlanCommand}"
-                        IsEnabled="{Binding CanApply}"
-                        Classes="accent"
-                        Padding="18,10"
-                        HorizontalAlignment="Left" />
               </StackPanel>
             </Border>
 

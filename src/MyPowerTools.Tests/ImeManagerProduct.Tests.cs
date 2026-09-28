@@ -193,7 +193,7 @@ public sealed class ImeManagerProductTests
         Assert.Equal(2, packageReferences.Length);
         Assert.Contains(
             packageReferences,
-            reference => reference is { Include: "MyPowerTools.AvaloniaSdk", Version: "0.2.0" });
+            reference => reference is { Include: "MyPowerTools.AvaloniaSdk", Version: "0.2.1" });
         Assert.Contains(
             packageReferences,
             reference => reference is { Include: "MyPowerTools.ToolSdk", Version: "0.2.0" });
