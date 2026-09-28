@@ -9,6 +9,8 @@
 - `59c4c29`：紧凑消息与文件行、单一发送按钮、明确目标、配对预览、草稿/附件/目标持久化、系统图片过滤。
 - `447304d`：设备发现诊断与日常会话状态分离。默认目标名称为“文件传输助手”，未改已有发送协议。
 - `bb7253c`：Android 软键盘避让，已重装并通过真实键盘输入/发送复验。
+- `3dbd816`：永久投递错误等待手动重试，失败任务可取消，详情提供明确操作建议。
+- `3c29627`：接收文件页直接展示普通文件互传码入口。
 
 ## 已完成的自动检查
 
@@ -16,10 +18,10 @@
 | --- | --- | --- |
 | 移动目录与导航 | 38/38 | `/mnt/cache/data-cache/mpt-mobile-catalog-tests.log` |
 | 共享 Shell 产品与设备服务 | 54/54 | `/mnt/cache/data-cache/mpt-catalog-shared-tests.log` |
-| 文件助手 Surface（含发现诊断回归） | 135/135 | `/mnt/cache/data-cache/mpt-v2-discovery-tests.log` |
-| FileTransfer.Core | 244 通过，3 跳过，0 失败 | DSH `1f45be05-526a-4fce-93f7-97fa9344773c` 的测试结果；主代理已审查持久化与授权目标代码 |
-| Android 开发构建 | 成功 | `/mnt/cache/data-cache/mpt-v2-android-build.log`；仍为 CoreCLR experimental preview |
-| Windows 官方 Tools Dev 更新 | 成功启动 | 2026-09-28 15:20:42 UTC；完整安装目录 Shell PID 1091112，Input Monitor DLL 保持 69120 字节 |
+| 文件助手 Surface（含失败恢复与接收码入口） | 141/141 | `/mnt/cache/data-cache/mpt-receive-code-tests.log` |
+| FileTransfer.Core | 246 通过，3 跳过，0 失败 | DSH `047b4fb9-40d1-4aa7-afe8-bdd4639c5b29`；主代理已审查代码，并重跑错误文案相关 2 项回归 |
+| Android 开发构建 | 成功 | `/mnt/cache/data-cache/mpt-v2-code-android-build.log`；仍为 CoreCLR experimental preview |
+| Windows 官方 Tools Dev 更新 | 成功启动 | 2026-09-28 16:29:32 UTC；完整安装目录启动，Input Monitor DLL 保持 69120 字节 |
 
 主代理逐张看过 320/390 宽度的文字和文件截图。此前发现的文件裁切及文字布局问题已修复。截图不是双端功能验收。
 
@@ -49,6 +51,18 @@ Android 设备为专用测试 AVD `127.0.0.1:15683`；Windows 为 LIS-IMAC 的�
 
 DSH `047b4fb9-40d1-4aa7-afe8-bdd4639c5b29` 修复永久投递失败仍被自动重传的问题：永久失败等待手动重试，临时网络/中转错误仍自动退避恢复，重试保持原 itemId。Core 全套 246 通过、3 跳过；主代理补齐文件副本丢失的明确错误文案后，两个相关回归再次通过（`/mnt/cache/data-cache/mpt-v2-inbox-final-tests.log`）。Surface 增加失败条目取消、明确错误原因及输入框无障碍名称；140/140 测试通过，名称断言另已通过。以上故障用例为自动测试，尚未记作真实双端故障验收。
 
+## 干净配置与公网实际验收
+
+专用 AVD 新建隔离用户 10（`MPT-Fresh-QA-20260928`），未复制 owner 0 数据。测试前暂时停止 owner 的 MPT 进程，保留全部数据。开启飞行模式并关闭 Wi-Fi 后，系统报告 `Active default network: none`，冷启动仍可打开主页、文件助手并生成完整普通配对二维码。码内直连地址为空、包含公网投递权限、不含自定义云配置；升级 APK 和重启进程后二维码逐字一致。二维码证据仅保存在本地测试目录，包含测试凭据，不应公开发布。
+
+联网后通过 Windows 实际 UI 粘贴扫码所得内容，预览显示 `MPT 手机 phone-35363a66 · 允许文件互传`，确认后选择该设备；Windows 界面发送，Android 干净会话随后显示消息和 LIS-IMAC 已接收，Windows 显示对端已送达。Android 日志确认 `custom=false` 且 16:26:19 UTC 产生 `inbox.received`。证明无 Tailnet 直连候选时默认公网可投递；未以该结果代替 Tailnet 直连或全部离线队列验收。
+
+新接收页的“显示我的文件互传码”按钮在 Android 实际界面可见且能打开码；Surface 141/141 通过。测试过程中曾短暂出现空白草稿未保存提示，收件后消失，原因仍在调查，不能当作传输失败或忽略。测试已切回 owner 0，并恢复飞行模式关闭、AndroidWifi 已连接；隔离用户 10 暂留作为后续验收实例，MPT 进程已停止。
+
+另外，Windows UI 发出的 `MPT V2 Windows UI reply 1605` 已在 owner 0 手机会话中亲眼确认（`v2-root-windows-reply.png`）。
+
 ## 本轮仍待完成
 
-Windows 文件打开后的查看器内容与返回；干净配置默认公网路径、共享会话、离线恢复、图片与系统分享；完整工具逐项任务；macOS 实机功耗与功能验收。尚未发布新的 APK Release，也未发送新的发布邮件。
+Windows 文件打开后的查看器内容与返回；默认公网双向文件、共享会话、离线恢复、图片与系统分享；完整工具逐项任务；macOS 实机功耗与功能验收。尚未发布新的 APK Release，也未发送新的发布邮件。
+
+最新 Windows Tools Dev 更新完成于 16:29:32 UTC，Input Monitor DLL 仍为 69120 字节；最终 APK 已安装到专用 AVD，owner 0 与用户 10 均保持独立数据。
