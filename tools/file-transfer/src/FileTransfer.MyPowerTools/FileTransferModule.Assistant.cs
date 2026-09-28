@@ -1085,32 +1085,51 @@ public static class LinkCode
         Prefix + Convert.ToBase64String(JsonSerializer.SerializeToUtf8Bytes(payload, DirectTransfer.Json))
             .TrimEnd('=').Replace('+', '-').Replace('/', '_');
 
+    /// <summary>
+    /// Reads an external connection code. The payload is untrusted input: every field is checked for
+    /// presence and shape before it is used, so a producer that omits one gets an "invalid connection
+    /// code" answer instead of an exception from inside the parser.
+    /// </summary>
     public static Payload Decode(string code)
     {
         var trimmed = (code ?? "").Trim();
+        if (trimmed.Length == 0 || trimmed.Length > 16384)
+            throw new ArgumentException("请粘贴或扫描“连接我的设备”里的连接码。");
+        // A code from another flow is routed to the command that handles it.
+        if (trimmed.StartsWith(Pairing.Prefix, StringComparison.Ordinal))
+            throw new ArgumentException("这是设备连接码，请在“更多设置”的“添加设备”中导入。");
+        if (trimmed.StartsWith("mpt://cloud/", StringComparison.Ordinal))
+            throw new ArgumentException("这是网盘连接码，请在“更多设置”的“网盘中转”中导入。");
         var prefix = trimmed.StartsWith(Prefix, StringComparison.Ordinal) ? Prefix
             : trimmed.StartsWith(LegacyPrefix, StringComparison.Ordinal) ? LegacyPrefix : "";
-        if (prefix.Length == 0 || trimmed.Length > 16384)
-            throw new ArgumentException("请粘贴或扫描“连接我的设备”里的连接码。");
+        if (prefix.Length == 0) throw new ArgumentException("请粘贴或扫描“连接我的设备”里的连接码。");
         var base64 = trimmed[prefix.Length..].Replace('-', '+').Replace('_', '/');
         Payload? payload;
         try
         {
             payload = JsonSerializer.Deserialize<Payload>(Convert.FromBase64String(base64.PadRight((base64.Length + 3) / 4 * 4, '=')), DirectTransfer.Json);
         }
-        catch (Exception ex) when (ex is FormatException or JsonException) { throw new ArgumentException("连接码无效。"); }
-        if (payload is null || payload.Version != 1) throw new ArgumentException("连接码无效。");
-        TransferFiles.DeviceId(payload.ConversationId);
-        TransferFiles.DeviceId(payload.DeviceId);
-        if (payload.Key.Length != 64 || !payload.Key.All(Uri.IsHexDigit)) throw new ArgumentException("连接码无效。");
-        if (payload.Name.Length > 100 || payload.Name.Any(char.IsControl)) throw new ArgumentException("连接码无效。");
-        if (payload.Address.Length > 0 && !System.Net.IPAddress.TryParse(payload.Address, out var address))
-            throw new ArgumentException("连接码里的地址无效。");
+        catch (Exception ex) when (ex is FormatException or JsonException) { throw new ArgumentException("连接码无效：内容无法识别。", ex); }
+        if (payload is null) throw new ArgumentException("连接码无效：内容为空。");
+        if (payload.Version != 1) throw new ArgumentException($"连接码无效：不支持的版本 {payload.Version}。");
+        if (string.IsNullOrWhiteSpace(payload.ConversationId)) throw new ArgumentException("连接码无效：缺少会话标识。");
+        if (string.IsNullOrWhiteSpace(payload.DeviceId)) throw new ArgumentException("连接码无效：缺少设备标识。");
+        if (string.IsNullOrWhiteSpace(payload.Key)) throw new ArgumentException("连接码无效：缺少会话密钥。");
+        TransferFiles.DeviceId(payload.ConversationId!);
+        TransferFiles.DeviceId(payload.DeviceId!);
+        if (payload.Key!.Length != 64 || !payload.Key.All(Uri.IsHexDigit)) throw new ArgumentException("连接码无效：会话密钥格式不正确。");
+        var name = payload.Name ?? "";
+        if (name.Length > 100 || name.Any(char.IsControl)) throw new ArgumentException("连接码无效：设备名称不正确。");
+        var address = payload.Address ?? "";
+        if (address.Length > 0 && !System.Net.IPAddress.TryParse(address, out _))
+            throw new ArgumentException("连接码无效：地址格式不正确。");
         if (payload.Cloud is { Length: > 0 } cloud)
         {
-            var connection = CloudConnection.Decode(cloud);
+            CloudConnection connection;
+            try { connection = CloudConnection.Decode(cloud); }
+            catch (ArgumentException ex) { throw new ArgumentException("连接码无效：网盘配置无法识别。", ex); }
             payload = payload with { Cloud = new CloudConnection(connection.Url, connection.Username, connection.Password).Encode() };
         }
-        return payload;
+        return payload with { Name = name, Address = address, Platform = payload.Platform ?? "" };
     }
 }

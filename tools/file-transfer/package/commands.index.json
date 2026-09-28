@@ -32,6 +32,16 @@
       }
     },
     {
+      "id": "file-transfer.pair.preview",
+      "title": "pair.preview",
+      "subtitle": "文件互传",
+      "kind": "action",
+      "category": "Files",
+      "execution": {
+        "type": "module.execute"
+      }
+    },
+    {
       "id": "file-transfer.pair.import",
       "title": "pair.import",
       "subtitle": "文件互传",

@@ -192,7 +192,7 @@ public sealed partial class FileTransferModule : IMptModule
             (ulong)Interlocked.Read(ref _seq)));
     }
 
-    private static readonly string[] Commands = ["inspect", "configure", "pairing", "pair.import", "peers.remove", "peer.check", "receive.start", "receive.stop", "send.direct", "send.cloud", "cloud.list", "cloud.download", "cloud.check", "cloud.export", "cloud.import", "cancel", "openlist.start", "openlist.connect", "openlist.stop",
+    private static readonly string[] Commands = ["inspect", "configure", "pairing", "pair.preview", "pair.import", "peers.remove", "peer.check", "receive.start", "receive.stop", "send.direct", "send.cloud", "cloud.list", "cloud.download", "cloud.check", "cloud.export", "cloud.import", "cancel", "openlist.start", "openlist.connect", "openlist.stop",
         "assistant.inspect", "assistant.send", "assistant.sync", "assistant.retry", "assistant.cancel", "assistant.open", "assistant.devices", "assistant.receive.respond", "assistant.link.export", "assistant.link.preview", "assistant.link.import"];
     public ValueTask<IReadOnlyList<MptCommandDescriptor>> ListCommandsAsync(CancellationToken token) => ValueTask.FromResult<IReadOnlyList<MptCommandDescriptor>>(
         Commands.Select(c => new MptCommandDescriptor($"{Id}.{c}", Id, c, "文件互传", "action", TimeoutMs: c == "openlist.start" ? 1200000 : 60000,
@@ -214,6 +214,9 @@ public sealed partial class FileTransferModule : IMptModule
                     if (Setting("listenAddress").Length == 0) _settings["listenAddress"] = TransferFiles.LocalAddresses().FirstOrDefault() ?? "";
                     if (Setting("listenAddress").Length == 0) throw new InvalidOperationException("请先连接 Tailscale 网络，然后重试。");
                     result = new { code = new Pairing(Setting("deviceId"), OperatingSystem.IsAndroid() ? "MPT 手机 " + Setting("deviceId") : Environment.MachineName, Setting("listenAddress"), (await SecretAsync("receiver-token", token))!).Encode() }; break;
+                case "file-transfer.pair.preview":
+                    var preview = Pairing.Decode(SettingsJson.ReadString(request.Args, "code") ?? "");
+                    result = new { deviceId = preview.DeviceId, name = preview.Name, address = preview.Address }; break;
                 case "file-transfer.pair.import":
                     var paired = Pairing.Decode(SettingsJson.ReadString(request.Args, "code") ?? "");
                     // Importing our own code would pair the device with itself and shadow the real peer.

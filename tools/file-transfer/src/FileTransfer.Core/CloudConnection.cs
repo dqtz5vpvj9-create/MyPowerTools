@@ -18,7 +18,19 @@ public sealed record CloudConnection(string Url, string Username, string Passwor
         const string prefix = "mpt://cloud/";
         if (!code.Trim().StartsWith(prefix, StringComparison.Ordinal) || code.Length > 16384) throw new ArgumentException("请粘贴网盘连接码。");
         var b64 = code.Trim()[prefix.Length..].Replace('-', '+').Replace('_', '/');
-        var connection = JsonSerializer.Deserialize<CloudConnection>(Convert.FromBase64String(b64.PadRight((b64.Length + 3) / 4 * 4, '=')), DirectTransfer.Json) ?? throw new ArgumentException("网盘连接码无效。");
+        CloudConnection? connection;
+        try
+        {
+            connection = JsonSerializer.Deserialize<CloudConnection>(Convert.FromBase64String(b64.PadRight((b64.Length + 3) / 4 * 4, '=')), DirectTransfer.Json);
+        }
+        catch (Exception ex) when (ex is FormatException or JsonException)
+        {
+            throw new ArgumentException("网盘连接码无效：内容无法识别。", ex);
+        }
+        if (connection is null) throw new ArgumentException("网盘连接码无效：内容为空。");
+        if (string.IsNullOrWhiteSpace(connection.Url)) throw new ArgumentException("网盘连接码无效：缺少地址。");
+        if (string.IsNullOrWhiteSpace(connection.Username)) throw new ArgumentException("网盘连接码无效：缺少账号。");
+        if (string.IsNullOrEmpty(connection.Password)) throw new ArgumentException("网盘连接码无效：缺少密码。");
         connection.Validate();
         return connection;
     }
