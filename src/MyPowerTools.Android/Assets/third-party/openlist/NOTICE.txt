@@ -1,17 +1,34 @@
-OpenList v4.2.6
+OpenList v4.2.6 (embedded Android runtime)
 Copyright: The OpenList Projects Contributors
 License: GNU Affero General Public License v3.0; see LICENSE.txt.
 
-This application distributes the official, unmodified Android OpenList executable
-as libopenlist.so and runs it as a separate local process when enabled.
+lib/<abi>/libopenlist.so is a source build of the pinned OpenList v4.2.6 tag, produced by
+tools/file-transfer/runtime/build-openlist-android-runtime.ps1 from the pins in
+tools/file-transfer/runtime/openlist-runtime.json, and runs as a separate local process only when
+the user enables cloud storage.
 
-Project and corresponding source:
-https://github.com/OpenListTeam/OpenList/tree/v4.2.6
-https://github.com/OpenListTeam/OpenList/archive/refs/tags/v4.2.6.tar.gz
+It is deliberately not the official release binary. The official v4.2.6 Android asset is built with
+-tags=jsoniter only, so its GORM SQLite driver is the pure-Go modernc.org stack, whose libc shim
+issues the raw lstat syscall that the Android app seccomp filter rejects: admin initialization dies
+with SIGSYS before the server can start. The source build keeps the upstream source unchanged and
+changes build configuration only:
 
-Official binaries and build instructions:
-https://github.com/OpenListTeam/OpenList/releases/tag/v4.2.6
-https://github.com/OpenListTeam/OpenList/blob/v4.2.6/build.sh
+  * -tags=jsoniter,sqlite_cgo_compat, the upstream build tag that selects gorm.io/driver/sqlite with
+    github.com/mattn/go-sqlite3 compiled by the Android NDK against Bionic libc (Bionic implements
+    stat/lstat through fstatat, which app seccomp allows);
+  * GOOS=android, CGO_ENABLED=1, NDK r27 (27.0.12077973) *-linux-android24-clang, Go 1.27.0;
+  * -buildmode=pie -trimpath, upstream ldflags version stamping and llvm-strip;
+  * -Wl,-z,max-page-size=16384 for Android 15/16 16 KB memory page devices;
+  * the OpenList-Frontend v4.2.6 web interface embedded as public/dist.
 
-Bundled OpenList web interface source:
-https://github.com/OpenListTeam/OpenList-Frontend
+Corresponding source for the distributed binary:
+  OpenList v4.2.6          https://github.com/OpenListTeam/OpenList/archive/refs/tags/v4.2.6.tar.gz
+  OpenList-Frontend v4.2.6 https://github.com/OpenListTeam/OpenList-Frontend/releases/tag/v4.2.6
+  build recipe             tools/file-transfer/runtime/build-openlist-android-runtime.ps1
+                           tools/file-transfer/runtime/openlist-runtime.json
+  upstream build script    https://github.com/OpenListTeam/OpenList/blob/v4.2.6/build.sh
+
+Components bundled inside that payload:
+  * SQLite (public domain), compiled through github.com/mattn/go-sqlite3 v1.14.22 (MIT License).
+  * OpenList-Frontend v4.2.6 (MIT License), embedded as the admin web interface.
+  * The Go standard library and the Go modules recorded in the go.mod of the pinned OpenList tag.

@@ -371,7 +371,8 @@ public sealed partial class FileTransferModule : IMptModule
                     {
                         var initialPassword = await _openList.InitializeAdminAsync(token);
                         if (initialPassword is not null) await _secrets.SaveAsync(Id, "openlist-admin", initialPassword, token);
-                        await _openList.StartAsync(string.IsNullOrWhiteSpace(Setting("listenAddress")) ? "127.0.0.1" : Setting("listenAddress"), token);
+                        await _openList.StartAsync(OperatingSystem.IsAndroid() || string.IsNullOrWhiteSpace(Setting("listenAddress"))
+                            ? "127.0.0.1" : Setting("listenAddress"), token);
                     }
                     finally { _operations.Release(); }
                     result = new { adminUrl = _openList.AdminUrl, password = await SecretAsync("openlist-admin", token) }; break;

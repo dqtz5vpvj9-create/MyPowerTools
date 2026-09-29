@@ -20,11 +20,11 @@ Windows 使用完整安装布局上的 Dev overlay；Android 使用专用测试�
 
 用户实际手机的 Mihomo `type: tailscale` 是 userspace Tailnet 节点；是否能建立 MPT 直连仍要对具体设备、方向和端口探测。系统接口没有 Tail IP、域名可访问、节点在线都不能单独证明或否定该文件传输路径。
 
-公网服务器原来缺少到 Tail relay 的路径，现已部署独立 userspace connector：loopback 127.0.0.1:18766 固定连接 100.64.0.1:80。1 MiB 认证传输、隔离、长轮询及服务重启恢复通过；默认路由、默认 tailscaled 和 ACL 未改变。公网共享代理的正式部署验收另行记录。
+公网服务器原来缺少到 Tail relay 的路径，现已部署独立 userspace connector：loopback 127.0.0.1:18766 固定连接 100.64.0.1:80。1 MiB 认证传输、隔离、长轮询及服务重启恢复通过；默认路由、默认 tailscaled 和 ACL 未改变。公网共享代理已部署，真实 file/image 各 1 MiB 的旧路径下载、发送进程退出后领取、公网无附件落盘和权限隔离通过；部署证据为 `/mnt/cache/data-cache/mpt-public-relay-release-2d42c08.md`。
 
 ## 当前发布阻碍
 
-Android 官方 OpenList v4.2.6 x86_64 二进制在实际应用进程内初始化 SQLite 时触发 SIGSYS：modernc libc 使用了应用 seccomp 禁止的 lstat 系统调用。run-as CLI 成功不能代替应用内验证。兼容 runtime 重建和实际按钮启停验收尚未完成。
+Android 官方 OpenList v4.2.6 x86_64 二进制的 SQLite 初始化 SIGSYS 已通过同版本源码的 sqlite_cgo_compat 构建解决。0.2.5 功能包已通过实际应用内首次建库、打开管理页、停止服务；ARM64 真机尚未验证。新的网盘产品界面正在单独制作交互原型，当前功能包不作为该新界面的最终发布。
 
 共享文件 Tail 存储与公网按需代理的代码已完成：Python 服务端 211/211，Surface 164/164；Core 全套 309 通过、3 环境跳过，另一个此前等待服务端的认证拒绝用例已在 19/19 协议专项中补验。图片兼容、旧客户端恢复请求、发送端离线领取的本地双 relay 测试通过，生产部署与最终双端界面验证仍需分别验收。
 

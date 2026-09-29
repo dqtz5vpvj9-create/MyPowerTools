@@ -8,11 +8,13 @@ Static verification of the packaged artifact, no device required:
   * lib/<abi>/libopenlist.so exists for every requested ABI;
   * each payload is a 64-bit little-endian PIE of the right ABI that links /system/bin/linker64
     and carries no glibc/musl loader (i.e. a real Android build, not a Linux ELF);
+  * each payload does not link the pure-Go modernc.org/libc SQLite shim, whose raw lstat syscall
+    the Android app seccomp filter rejects;
   * AndroidManifest.xml still extracts native libraries (extractNativeLibs=true), because
     OpenListRuntime executes the copy in the app's native library directory.
 
-The PT_LOAD alignment of the official binary is reported as a warning: the pinned v4.2.6 payloads
-are 4 KB aligned and therefore not compatible with 16 KB memory page Android devices.
+The PT_LOAD alignment is reported; pass -Require16KbPages to also fail payloads that are only 4 KB
+aligned (the source build produces 16 KB aligned payloads, the official release asset does not).
 
 Without -AllowMissing a missing runtime is an error: that is the state where Android would have to
 fall back to a runtime it cannot execute, which is exactly what this integration removes.
@@ -33,7 +35,11 @@ param(
     # governed repository scratch class artifacts/.tmp-*.
     [string]$ScratchDirectory = '',
 
-    [switch]$AllowMissing
+    [switch]$AllowMissing,
+
+    # The source build produces 16 KB aligned payloads; fail instead of warn when an APK still
+    # carries a 4 KB payload that cannot run on Android 15/16 16 KB page devices.
+    [switch]$Require16KbPages
 )
 
 $ErrorActionPreference = 'Stop'
@@ -72,7 +78,7 @@ try {
 
             $extracted = Join-Path $scratch "$androidAbi-$libraryFileName"
             [IO.Compression.ZipFileExtensions]::ExtractToFile($entry, $extracted, $true)
-            $verdict = Test-OpenListAndroidElf -Path $extracted -ExpectedMachine $expectedMachine[$androidAbi]
+            $verdict = Test-OpenListAndroidElf -Path $extracted -ExpectedMachine $expectedMachine[$androidAbi] -Require16KbPages:$Require16KbPages
             if ($verdict.Problems.Count -gt 0) {
                 $failures.Add("$entryName is not an Android $androidAbi runtime: " + ($verdict.Problems -join '; '))
                 Write-Host "    INVALID  $entryName" -ForegroundColor Red
@@ -81,7 +87,7 @@ try {
             foreach ($warning in $verdict.Warnings) { Write-Warning "$entryName : $warning" }
 
             Write-Host ("    ok       {0}  ({1} {2}, {3:N1} MB, PT_LOAD {4})" -f $entryName, $verdict.Facts.Machine,
-                $verdict.Facts.Type, ($verdict.Facts.Size / 1MB), $verdict.Facts.MaxLoadAlignment) -ForegroundColor Green
+                $verdict.Facts.Type, ($verdict.Facts.Size / 1MB), $verdict.Facts.MinLoadAlignment) -ForegroundColor Green
         }
     }
     finally { $zip.Dispose() }
@@ -106,7 +112,7 @@ if ($missing.Count -gt 0) {
     $message = @(
         "The APK does not embed the OpenList Android runtime: $($missing -join ', ').",
         'The Android host project packages it with an AndroidNativeLibrary item for each ABI.',
-        'Run package-openlist-android-runtime.ps1 to produce the staged tree, then rebuild the APK.'
+        'Run package-openlist-android-runtime.ps1 (source build by default) to produce the staged tree, then rebuild the APK.'
     ) -join [Environment]::NewLine
     if ($AllowMissing) { Write-Warning $message } else { $failures.Add($message) }
 }

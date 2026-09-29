@@ -1,18 +1,54 @@
 {
-  "schemaVersion": 1,
+  "schemaVersion": 2,
   "comment": [
     "Pinned OpenList release the embedded Android runtime is taken from.",
     "Desktop hosts keep downloading the same pinned release at first use; Android never downloads.",
-    "The Android payload is validated structurally (Android/Bionic ELF, expected ABI, loader, page",
-    "alignment), not with an extra checksum scheme: the trust boundary stays the pinned version plus",
-    "the official HTTPS release origin, the same one the desktop download path already uses."
+    "The Android payload is now built from the pinned source tag (android.build) instead of the",
+    "official release asset: the official v4.2.6 Android build passes only -tags=jsoniter, so its",
+    "GORM SQLite driver is the pure-Go glebarez/modernc stack, and modernc.org/libc v1.22.5 calls the",
+    "raw lstat syscall (x86_64 syscall 6) which the Android app seccomp filter rejects. Admin",
+    "initialization therefore dies with SIGSYS before the server starts. The source build keeps the",
+    "same tag and adds the project's own sqlite_cgo_compat tag, selecting github.com/mattn/go-sqlite3",
+    "compiled by the NDK against Bionic libc (Bionic implements stat/lstat through fstatat, which",
+    "apps are allowed to call), and links with 16 KB page alignment.",
+    "Payload integrity stays on the pinned version plus official HTTPS origins (OpenList source tag,",
+    "OpenList-Frontend release, NDK); no extra checksum scheme is introduced."
   ],
   "version": "v4.2.6",
   "releaseDownloadBase": "https://github.com/OpenListTeam/OpenList/releases/download",
   "runtimeVariable": "MPT_OPENLIST_RUNTIME",
   "android": {
     "libraryFileName": "libopenlist.so",
-    "sourceNote": "Built by the official build.sh BuildReleaseAndroid: GOOS=android, NDK r26b *-linux-android24-clang, CGO_ENABLED=1, llvm-strip.",
+    "sourceNote": "Built from the pinned OpenList v4.2.6 source tag with the official build.sh settings (GOOS=android, NDK *-linux-android24-clang, CGO_ENABLED=1, llvm-strip) plus -tags=jsoniter,sqlite_cgo_compat and -Wl,-z,max-page-size=16384.",
+    "build": {
+      "sourceUrl": "https://github.com/OpenListTeam/OpenList/archive/refs/tags/v4.2.6.tar.gz",
+      "sourceArchiveRoot": "OpenList-4.2.6",
+      "gitCommit": "2bdf16d5967d0a403f67d809efd5a418b8f5bd30",
+      "officialBuildScript": "https://github.com/OpenListTeam/OpenList/blob/v4.2.6/build.sh",
+      "goToolchain": "go1.27.0",
+      "goMinimum": "1.25.0",
+      "tags": [
+        "jsoniter",
+        "sqlite_cgo_compat"
+      ],
+      "sqliteDriver": "github.com/mattn/go-sqlite3 v1.14.22 (CGO, NDK/Bionic libc)",
+      "sqliteDriverEvidence": "The built payload must report a github.com/mattn/go-sqlite3 dependency and no modernc.org/* dependency in `go version -m`; that is what proves the raw-lstat driver is gone.",
+      "builtAt": "2026-09-01 15:17:54 +0000",
+      "gitAuthor": "The OpenList Projects Contributors <noreply@openlist.team>",
+      "loaderPageSize": 16384,
+      "frontend": {
+        "downloadBase": "https://github.com/OpenListTeam/OpenList-Frontend/releases/download",
+        "tag": "v4.2.6",
+        "asset": "openlist-frontend-dist-v4.2.6.tar.gz",
+        "note": "The same frontend release build.sh FetchWebRelease embedded for the official v4.2.6 build (newest non-lite dist on 2026-09-01); pinned here so the source build keeps the admin web UI."
+      },
+      "ndk": {
+        "release": "r27",
+        "revision": "27.0.12077973",
+        "apiLevel": 24,
+        "downloadUrl": "https://dl.google.com/android/repository/android-ndk-r27-linux.zip"
+      }
+    },
     "abis": [
       {
         "runtimeIdentifier": "android-arm64",
@@ -20,7 +56,8 @@
         "asset": "openlist-android-arm64.tar.gz",
         "archiveEntry": "openlist",
         "expectedElfMachine": "aarch64",
-        "ndkTriple": "aarch64-linux-android24"
+        "ndkTriple": "aarch64-linux-android24",
+        "goArch": "arm64"
       },
       {
         "runtimeIdentifier": "android-x64",
@@ -28,7 +65,8 @@
         "asset": "openlist-android-amd64.tar.gz",
         "archiveEntry": "openlist",
         "expectedElfMachine": "x86-64",
-        "ndkTriple": "x86_64-linux-android24"
+        "ndkTriple": "x86_64-linux-android24",
+        "goArch": "amd64"
       }
     ]
   }
