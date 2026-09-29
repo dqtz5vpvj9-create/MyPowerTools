@@ -80,15 +80,15 @@ public sealed class ConversationV2Tests
         module.BeforeAnswer = command => command == "assistant.devices" ? pending.Task : null;
         var view = new TransferView(module.Context(Path.GetTempPath()));
         using var host = new Host(view);
-        Composer(view).Text = "交给电脑的文字";
         view.Conversation.OpenDevicePicker();
         host.Settle();
         var target = view.Conversation.SheetHost.GetLogicalDescendants().OfType<Button>()
-            .Single(b => AutomationProperties.GetName(b) == "选择 LIS-IMAC");
+            .Single(b => AutomationProperties.GetName(b) == "打开会话 LIS-IMAC");
         Click(host.Window, target);
         Assert.Equal("laptop", view.Conversation.SelectedTargetDeviceId);
         Assert.Equal(0, module.CountCalls("assistant.send"));
-        Assert.Equal("交给电脑的文字", Composer(view).Text);
+        Composer(view).Text = "交给电脑的文字";
+        host.Settle();
         Click(host.Window, view.GetLogicalDescendants().OfType<Button>().Single(b => Equals(b.Content, "发送")));
         Assert.Equal("laptop", module.LastArgs("assistant.send")["targetDeviceId"]!.GetValue<string>());
         pending.SetResult();
@@ -183,10 +183,10 @@ public sealed class ConversationV2Tests
             var first = new TransferView(module.Context(Path.GetTempPath()));
             using (var host = new Host(first))
             {
+                first.Conversation.OpenDevicePicker(); host.Settle();
+                Click(host.Window, first.Conversation.SheetHost.GetLogicalDescendants().OfType<Button>().Single(b => AutomationProperties.GetName(b) == "打开会话 LIS-IMAC"));
                 Composer(first).Text = "重开后还在的草稿";
                 first.Conversation.AddAttachment(path);
-                first.Conversation.OpenDevicePicker(); host.Settle();
-                Click(host.Window, first.Conversation.SheetHost.GetLogicalDescendants().OfType<Button>().Single(b => AutomationProperties.GetName(b) == "选择 LIS-IMAC"));
             }
             var second = new TransferView(module.Context(Path.GetTempPath()));
             using var reopened = new Host(second);
@@ -250,7 +250,7 @@ public sealed class ConversationV2Tests
         Assert.Contains("Tailscale", view.Assistant.Snapshot.DiscoveryMessage);
         Assert.Equal("发送未完成，请重新添加这台设备。", view.Assistant.Snapshot.Status);
         var target = view.Conversation.SheetHost.GetLogicalDescendants().OfType<Button>()
-            .Single(b => AutomationProperties.GetName(b) == "选择 LIS-IMAC");
+            .Single(b => AutomationProperties.GetName(b) == "打开会话 LIS-IMAC");
         Assert.True(target.IsEnabled);
         Click(host.Window, target);
         Assert.Equal("laptop", view.Conversation.SelectedTargetDeviceId);
@@ -273,11 +273,11 @@ public sealed class ConversationV2Tests
         ["id"] = "row" + i, ["kind"] = file ? "file" : "text", ["text"] = i % 2 == 0 ? "项目资料收到了，谢谢。" : "请看这一版，已更新。",
         ["name"] = file ? $"项目资料 · 修订{i}.pdf" : null, ["size"] = file ? 24000 : 0,
         ["senderDeviceId"] = i % 2 == 0 ? "mpt-phone" : "laptop", ["senderName"] = "LIS-IMAC",
-        ["targetDeviceId"] = i % 2 == 0 ? "laptop" : null, ["state"] = i % 2 == 0 ? "delivered" : "available",
+        ["conversationKey"] = "shared", ["targetDeviceId"] = null, ["state"] = i % 2 == 0 ? "delivered" : "available",
         ["createdAt"] = DateTimeOffset.UtcNow.AddMinutes(i - 10).ToString("O"), ["receipts"] = new JsonArray()
     };
 
-    private static TextBox Composer(Control view) => view.GetLogicalDescendants().OfType<TextBox>().First(t => t.IsEffectivelyVisible);
+    private static TextBox Composer(Control view) => view.GetLogicalDescendants().OfType<TextBox>().First(t => AutomationProperties.GetName(t) == "消息内容");
     private static void Click(Window window, Control control)
     {
         window.UpdateLayout();
@@ -300,6 +300,7 @@ public sealed class ConversationV2Tests
         {
             Window = new Window { Width = width, Height = 844, Content = view };
             Window.Show(); Settle();
+            if (view is TransferView transfer) ConversationTestNavigation.Open(Window, transfer);
         }
         public void Settle() { for (var i = 0; i < 6; i++) { Dispatcher.UIThread.RunJobs(); Window.UpdateLayout(); } }
         public void Dispose() => Window.Close();

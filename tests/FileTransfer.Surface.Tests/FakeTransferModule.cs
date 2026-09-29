@@ -205,7 +205,13 @@ internal sealed class FakeTransferModule
         {
             case "preferences.inspect": return DraftPreferences.ToJsonString();
             case "preferences.update":
+                var drafts = DraftPreferences["drafts"]?.DeepClone() as JsonObject;
                 DraftPreferences = args!.DeepClone().AsObject();
+                if (drafts is not null && args["conversationKey"]?.GetValue<string>() is { } conversationKey)
+                {
+                    drafts[conversationKey] = args.DeepClone();
+                    DraftPreferences["drafts"] = drafts;
+                }
                 return DraftPreferences.ToJsonString();
             case "inspect":
             case "sync":

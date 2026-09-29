@@ -40,10 +40,10 @@ public sealed class MobileLayoutTests : IDisposable
         var text = TextOf(view);
 
         // The empty state names the promise and the composer is right there.
-        Assert.Contains("文件助手", text);
+        Assert.Contains("文件传输助手", text);
         Assert.Contains("文件传输助手", text);
 
-        var input = Descendants(view).OfType<TextBox>().First(box => box.IsVisible && box.IsEnabled);
+        var input = Descendants(view).OfType<TextBox>().First(box => Avalonia.Automation.AutomationProperties.GetName(box) == "消息内容");
         var send = Descendants(view).OfType<Button>().First(button => (button.Content as string) == "发送");
         Assert.True(input.Bounds.Width > 80, $"the composer input must stay usable at {width}, was {input.Bounds.Width:0}");
         Assert.True(send.Bounds.Height >= 44, $"the send action must be tappable at {width}, was {send.Bounds.Height:0}");
@@ -72,7 +72,7 @@ public sealed class MobileLayoutTests : IDisposable
     public void A_draft_survives_a_sync_arriving_mid_sentence()
     {
         var view = OpenConversation(390, out var window);
-        var input = Descendants(view).OfType<TextBox>().First(box => box.IsVisible && box.IsEnabled);
+        var input = Descendants(view).OfType<TextBox>().First(box => Avalonia.Automation.AutomationProperties.GetName(box) == "消息内容");
         input.Text = "正在写的草稿";
         input.CaretIndex = 4;
 
@@ -82,7 +82,7 @@ public sealed class MobileLayoutTests : IDisposable
 
         Assert.Equal("正在写的草稿", input.Text);
         Assert.Equal(4, input.CaretIndex);
-        Assert.Same(input, Descendants(view).OfType<TextBox>().First(box => box.IsVisible && box.IsEnabled));
+        Assert.Same(input, Descendants(view).OfType<TextBox>().First(box => Avalonia.Automation.AutomationProperties.GetName(box) == "消息内容"));
     }
 
     [AvaloniaFact]
@@ -109,7 +109,7 @@ public sealed class MobileLayoutTests : IDisposable
     public void Back_closes_a_sheet_then_leaves_the_advanced_page_then_declines()
     {
         var view = OpenConversation(390, out var window);
-        var setup = Descendants(view).OfType<Button>().First(button => button.Classes.Contains("MptMobileIconButton"));
+        var setup = Descendants(view).OfType<Button>().First(button => Avalonia.Automation.AutomationProperties.GetName(button) == "会话详情");
         Click(window, setup);
         window.UpdateLayout();
         Assert.True(view.IsSheetOpen, "tapping the setup icon should open a sheet");
@@ -121,14 +121,15 @@ public sealed class MobileLayoutTests : IDisposable
         window.UpdateLayout();
         Assert.True(view.TryHandleBack(), "back should leave the advanced page for the conversation");
         Assert.True(view.IsConversationVisible);
-        Assert.False(view.TryHandleBack(), "the conversation is the root, so the host may leave the tool");
+        Assert.True(view.TryHandleBack(), "back returns from chat to the conversation list");
+        Assert.False(view.TryHandleBack(), "the list is the tool root");
     }
 
     [AvaloniaFact]
     public void Escape_closes_a_sheet_without_leaving_the_page()
     {
         var view = OpenConversation(390, out var window);
-        var setup = Descendants(view).OfType<Button>().First(button => button.Classes.Contains("MptMobileIconButton"));
+        var setup = Descendants(view).OfType<Button>().First(button => Avalonia.Automation.AutomationProperties.GetName(button) == "会话详情");
         Click(window, setup);
         window.UpdateLayout();
         Assert.True(view.IsSheetOpen);
@@ -164,6 +165,8 @@ public sealed class MobileLayoutTests : IDisposable
         window.UpdateLayout();
 
         Assert.True(handled);
+        Assert.Equal("分享到会话", view.Conversation.SheetTitle);
+        ConversationTestNavigation.ChooseShare(window, view);
         var text = TextOf(view);
         Assert.True(text.Contains("分享的照片.png"), "share text missing; full text was:\n" + text);
     }
@@ -177,6 +180,7 @@ public sealed class MobileLayoutTests : IDisposable
         for (var pass = 0; pass < 4; pass++) { Dispatcher.UIThread.RunJobs(); window.UpdateLayout(); }
         TestPump.Drain();
         window.UpdateLayout();
+        ConversationTestNavigation.Open(window, view);
         return view;
     }
 

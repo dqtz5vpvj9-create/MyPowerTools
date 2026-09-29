@@ -508,7 +508,7 @@ public sealed partial class FileTransferModule
             {
                 ItemCancellation = ItemToken,
                 Changed = NotifyAssistantTransferChanged,
-                PublishFilter = item => item.TargetDeviceId is not { Length: > 0 } target || IsConversationMember(target)
+                PublishFilter = item => item.TargetDeviceId is null && AssistantConversations.IsShared(item, identity.ConversationId)
             };
             var result = await sync.SyncAsync(identity, token);
             if (result.RetryAfter is not null)
@@ -615,6 +615,7 @@ public sealed partial class FileTransferModule
         // A relay pass may have claimed an entry as "sending" at the same moment; that must not hide it
         // from the direct path, because the two transports are independent.
         foreach (var item in state.Items.Where(item => string.Equals(item.SenderDeviceId, identity.DeviceId, StringComparison.Ordinal)
+            && (AssistantConversations.IsPrivate(item) || AssistantConversations.IsShared(item, identity.ConversationId))
             && item.State is AssistantItemState.Queued or AssistantItemState.Sending or AssistantItemState.Stored or AssistantItemState.Failed)
             .OrderBy(item => item.CreatedAt).ToArray())
         {
@@ -687,12 +688,12 @@ public sealed partial class FileTransferModule
             var frame = new AssistantWire.Frame(
                 AssistantWire.Version,
                 AssistantWire.ItemKind,
-                await DirectTokenAsync(device.DeviceId, token),
+                await DirectTokenAsync(device.DeviceId, AssistantConversations.IsPrivate(item), token),
                 item.Name,
                 item.Size,
                 identity.DeviceId,
                 item.Id,
-                identity.ConversationId,
+                item.ConversationId,
                 item.Kind switch
                 {
                     AssistantItemKind.Text => AssistantWire.TextItem,
@@ -702,7 +703,8 @@ public sealed partial class FileTransferModule
                 item.Text,
                 identity.Name,
                 item.TargetDeviceId,
-                Address: Setting("listenAddress"));
+                Address: Setting("listenAddress"),
+                Scope: AssistantConversations.IsPrivate(item) ? "device" : "shared");
             // A first contact may hold this connection while its user decides, so the budget covers it.
             // A self send only goes to own devices, which answer immediately or not at all: the connect
             // window is short so a dead candidate never holds the queue or the relay's schedule, while a
@@ -729,15 +731,18 @@ public sealed partial class FileTransferModule
     }
 
     /// <summary>The credential presented to a device: a stored pairing token, or the conversation key.</summary>
-    private async Task<string> DirectTokenAsync(string deviceId, CancellationToken token)
+    private async Task<string> DirectTokenAsync(string deviceId, bool privateMessage, CancellationToken token)
     {
+        if (!privateMessage) return _conversationKey;
         var peer = FindPeer(deviceId);
         if (peer is not null)
         {
             var stored = await SecretAsync("peer-" + deviceId, token);
             if (!string.IsNullOrEmpty(stored)) return stored;
         }
-        return _conversationKey;
+        // Old remembered contacts may lack a stored token: the receiver's existing first-contact
+        // confirmation remains available, but a shared credential never substitutes for private trust.
+        return "";
     }
 
     private static void MergeReceipt(AssistantState state, AssistantItem item, DiscoveredDevice device)
@@ -779,7 +784,11 @@ public sealed partial class FileTransferModule
         var state = await AssistantStateAsync(token);
         var items = new JsonArray();
         foreach (var item in state.Items.OrderByDescending(item => item.CreatedAt).Take(200))
-            items.Add(JsonSerializer.SerializeToNode(item, AssistantJson.Options));
+        {
+            var json = JsonSerializer.SerializeToNode(item, AssistantJson.Options)!.AsObject();
+            json["conversationKey"] = AssistantConversations.Key(item, Setting("deviceId"));
+            items.Add(json);
+        }
         var pending = new JsonArray();
         foreach (var request in _receiveAuthorization.Pending())
             pending.Add(new JsonObject
@@ -799,9 +808,17 @@ public sealed partial class FileTransferModule
                 ["name"] = DeviceName(),
                 ["linked"] = Linked,
                 ["linkState"] = LinkState,
-                ["ownDevices"] = OwnDevices().Length
+                ["ownDevices"] = OwnDevices().Length,
+                ["conversationId"] = _conversationId,
+                ["conversationKey"] = AssistantConversations.Shared(_conversationId)
             },
             ["items"] = items,
+            ["members"] = new JsonArray(OwnDevices().Select(device => (JsonNode?)new JsonObject
+            {
+                ["id"] = device.DeviceId, ["name"] = device.Name, ["address"] = device.Address,
+                ["canPrivateMessage"] = FindPeer(device.DeviceId) is not null,
+                ["requiresPairing"] = FindPeer(device.DeviceId) is null
+            }).ToArray()),
             ["pendingRequests"] = pending,
             ["relay"] = RelayJson(),
             // The device's own deposit inbox is its own namespace, next to (never inside) the conversation.
@@ -819,7 +836,7 @@ public sealed partial class FileTransferModule
     private async Task<object> AssistantPreferencesInspectAsync(CancellationToken token)
     {
         var state = await AssistantStateAsync(token);
-        return PreferencesJson(state.Preferences, null);
+        return PreferencesJson(state, null);
     }
 
     /// <summary>
@@ -833,24 +850,26 @@ public sealed partial class FileTransferModule
     private async Task<object> AssistantPreferencesUpdateAsync(JsonObject args, CancellationToken token)
     {
         foreach (var key in args.Select(pair => pair.Key))
-            if (key is not ("draftText" or "attachmentPaths" or "targetDeviceId"))
+            if (key is not ("draftText" or "attachmentPaths" or "targetDeviceId" or "conversationKey" or "scrollOffset" or "lastReadAt"))
                 throw new ArgumentException($"不支持设置项：{key}。");
         var store = _assistantStore ?? throw new InvalidOperationException("会话存储尚未就绪。");
-        // The references this request asked for but could not restore; reported by name in the answer.
+        var explicitKey = args.TryGetPropertyValue("conversationKey", out var keyNode)
+            ? AssistantConversations.ValidateKey(ReadOptionalString(keyNode, "conversationKey") ?? throw new ArgumentException("会话标识不能为空。"))
+            : null;
         List<string> missing = [];
-        // An unchanged snapshot is not a new save: the store skips the disk write but still answers with
-        // the full current snapshot, so a UI that re-saves on every tick cannot churn the state file.
         var state = await store.MutateIfChangedAsync(current =>
         {
-            var candidate = (current.Preferences ?? new AssistantPreferences()).Copy();
+            var activeKey = current.ActiveConversationKey ?? AssistantConversations.DraftKey(Identity(), current.Preferences);
+            var key = explicitKey ?? activeKey;
+            var candidate = explicitKey is null
+                ? (current.Preferences ?? new AssistantPreferences()).Copy()
+                : current.Drafts.TryGetValue(key, out var existing) ? existing.Copy()
+                : new AssistantPreferences { TargetDeviceId = key.StartsWith("device:", StringComparison.Ordinal) ? key[7..] : null };
             if (args.TryGetPropertyValue("draftText", out var textNode))
                 candidate.DraftText = AssistantPreferenceRules.Text(ReadOptionalString(textNode, "draftText"));
             if (args.TryGetPropertyValue("attachmentPaths", out var pathsNode))
             {
                 var usable = new List<string>();
-                missing = [];
-                // Only references that exist right now are stored; the rest stay in the answer as a
-                // clear missing list instead of a stored path that would fail at send time.
                 foreach (var path in AssistantPreferenceRules.Attachments(ReadPathArray(pathsNode)))
                 {
                     if (File.Exists(path)) usable.Add(path);
@@ -861,15 +880,42 @@ public sealed partial class FileTransferModule
             if (args.TryGetPropertyValue("targetDeviceId", out var targetNode))
             {
                 var target = AssistantPreferenceRules.Target(ReadOptionalString(targetNode, "targetDeviceId"));
-                // "This device" is self, not a remote target; both spellings must not diverge.
                 candidate.TargetDeviceId = target == Setting("deviceId") ? null : target;
             }
-            if (SamePreferences(current.Preferences, candidate)) return false;
-            candidate.SavedAt = DateTimeOffset.UtcNow;
+            if (explicitKey is not null)
+            {
+                var expectedTarget = key.StartsWith("device:", StringComparison.Ordinal) ? key[7..] : null;
+                if (candidate.TargetDeviceId != expectedTarget)
+                    throw new ArgumentException("草稿接收设备与会话不一致。");
+            }
+            else key = AssistantConversations.DraftKey(Identity(), candidate);
+            if (args.TryGetPropertyValue("scrollOffset", out var offsetNode))
+            {
+                if (offsetNode?.GetValueKind() != JsonValueKind.Number
+                    || !double.TryParse(offsetNode.ToJsonString(), System.Globalization.NumberStyles.Float,
+                        System.Globalization.CultureInfo.InvariantCulture, out var offset)
+                    || !double.IsFinite(offset) || offset < 0)
+                    throw new ArgumentException("滚动位置必须是非负有限数值。");
+                candidate.ScrollOffset = offset;
+            }
+            if (args.TryGetPropertyValue("lastReadAt", out var readNode))
+            {
+                var text = ReadOptionalString(readNode, "lastReadAt");
+                if (text is null) candidate.LastReadAt = null;
+                else if (DateTimeOffset.TryParse(text, System.Globalization.CultureInfo.InvariantCulture,
+                    System.Globalization.DateTimeStyles.RoundtripKind, out var readAt)) candidate.LastReadAt = readAt;
+                else throw new ArgumentException("已读时间格式无效。");
+            }
+            var previous = current.Drafts.GetValueOrDefault(key);
+            if (activeKey == key && SamePreferences(previous ?? current.Preferences, candidate)) return false;
+            candidate.SavedAt = SamePreferences(previous, candidate) ? previous?.SavedAt : DateTimeOffset.UtcNow;
+            // Preserve every other conversation; selecting a new one only changes the flat compatibility projection.
+            current.Drafts = new Dictionary<string, AssistantPreferences>(current.Drafts, StringComparer.Ordinal) { [key] = candidate.Copy() };
+            current.ActiveConversationKey = key;
             current.Preferences = candidate;
             return true;
         }, token);
-        return PreferencesJson(state.Preferences, missing);
+        return PreferencesJson(state, missing);
     }
 
     /// <summary>Value equality of one snapshot; the save time is bookkeeping and never a difference.</summary>
@@ -877,15 +923,29 @@ public sealed partial class FileTransferModule
         stored is not null
             ? stored.DraftText == candidate.DraftText
                 && stored.TargetDeviceId == candidate.TargetDeviceId
+                && stored.ScrollOffset == candidate.ScrollOffset && stored.LastReadAt == candidate.LastReadAt
                 && stored.AttachmentPaths.SequenceEqual(candidate.AttachmentPaths, AssistantPreferenceRules.PathComparer)
-            : candidate.DraftText is null && candidate.TargetDeviceId is null && candidate.AttachmentPaths.Count == 0;
+            : candidate.DraftText is null && candidate.TargetDeviceId is null && candidate.AttachmentPaths.Count == 0
+                && candidate.ScrollOffset == 0 && candidate.LastReadAt is null;
 
     /// <summary>
     /// The one inspect/update snapshot shape. Attachment references are re-checked here: only files
     /// that exist right now are restored, and everything that could not be restored is listed with its
     /// file name so the page can say exactly what is missing instead of silently dropping it.
     /// </summary>
-    private JsonObject PreferencesJson(AssistantPreferences? preferences, IReadOnlyList<string>? missingFromUpdate)
+    private JsonObject PreferencesJson(AssistantState state, IReadOnlyList<string>? missingFromUpdate)
+    {
+        var key = state.ActiveConversationKey ?? AssistantConversations.DraftKey(Identity(), state.Preferences);
+        var result = DraftJson(state.Preferences, missingFromUpdate);
+        result["conversationKey"] = key;
+        var drafts = new JsonObject();
+        foreach (var pair in state.Drafts) drafts[pair.Key] = DraftJson(pair.Value, pair.Key == key ? missingFromUpdate : null);
+        if (!drafts.ContainsKey(key)) drafts[key] = DraftJson(state.Preferences, missingFromUpdate);
+        result["drafts"] = drafts;
+        return result;
+    }
+
+    private JsonObject DraftJson(AssistantPreferences? preferences, IReadOnlyList<string>? missingFromUpdate)
     {
         var usable = new JsonArray();
         var missing = new List<string>();
@@ -915,7 +975,9 @@ public sealed partial class FileTransferModule
             ["targetDeviceId"] = target,
             ["targetName"] = targetName,
             ["targetUsable"] = targetUsable,
-            ["savedAt"] = preferences?.SavedAt?.ToString("O")
+            ["savedAt"] = preferences?.SavedAt?.ToString("O"),
+            ["scrollOffset"] = preferences?.ScrollOffset ?? 0,
+            ["lastReadAt"] = preferences?.LastReadAt?.ToString("O")
         };
     }
 
@@ -931,7 +993,7 @@ public sealed partial class FileTransferModule
         // No target is "send to myself", whose label is the tool's own name.
         if (string.IsNullOrEmpty(targetDeviceId) || targetDeviceId == Setting("deviceId")) return (SelfTargetName, true);
         var own = OwnDevices().FirstOrDefault(device => device.DeviceId == targetDeviceId);
-        if (own is not null) return (own.Name.Length > 0 ? own.Name : targetDeviceId, true);
+        if (own is not null) return (own.Name.Length > 0 ? own.Name : targetDeviceId, FindPeer(targetDeviceId) is not null);
         if (FindPeer(targetDeviceId) is { } peer)
         {
             var peerName = PeerText(peer, "name");
@@ -971,16 +1033,23 @@ public sealed partial class FileTransferModule
     private async Task<object> AssistantSendAsync(JsonObject args, CancellationToken token)
     {
         var target = SettingsJson.ReadString(args, "targetDeviceId") ?? "";
+        if (args["conversationKey"] is { } keyNode)
+        {
+            var key = AssistantConversations.ValidateKey(ReadOptionalString(keyNode, "conversationKey") ?? "");
+            if (key == AssistantConversations.History) throw new ArgumentException("历史记录只读，请选择接收会话后转发。");
+            var resolvedTarget = key.StartsWith("device:", StringComparison.Ordinal) ? key[7..] : "";
+            if (resolvedTarget.Length == 0 && key != AssistantConversations.Shared(_conversationId))
+                throw new ArgumentException("当前未连接这个共享会话，请先重新连接。");
+            if (target.Length > 0 && target != resolvedTarget) throw new ArgumentException("接收设备与会话不一致。");
+            target = resolvedTarget;
+        }
         if (target.Length > 0 && target == Setting("deviceId")) target = "";
         if (target.Length > 0)
         {
             TransferFiles.DeviceId(target);
             // A target has to be a device this conversation already knows: an own device, a paired
             // device, or one this session discovered. An arbitrary id is refused.
-            var known = OwnDevices().Any(device => device.DeviceId == target)
-                || FindPeer(target) is not null
-                || _discovered.Contains(target);
-            if (!known) throw new ArgumentException("请先在设备列表里选择要发送的设备。");
+            if (FindPeer(target) is null) throw new ArgumentException("请先与这台设备配对，再发送私聊消息。共享成员身份不会授予私聊投递权限。");
         }
         var text = SettingsJson.ReadString(args, "text");
         var paths = BatchSend.Paths(args);
@@ -1143,7 +1212,7 @@ public sealed partial class FileTransferModule
         foreach (var device in OwnDevices())
         {
             if (device.DeviceId == Setting("deviceId") || !seen.Add(device.DeviceId)) continue;
-            devices.Add(DeviceJson(new DiscoveredDevice(device.DeviceId, device.Name, device.Address, TransferFiles.Port, ""), true, true, ""));
+            devices.Add(DeviceJson(new DiscoveredDevice(device.DeviceId, device.Name, device.Address, TransferFiles.Port, ""), FindPeer(device.DeviceId) is not null, PeerAvailable(device.DeviceId), ""));
         }
         var message = report.Message;
         if (MobileWifiMulticast.Current is null && OperatingSystem.IsAndroid() && message.Length == 0)
@@ -1161,7 +1230,9 @@ public sealed partial class FileTransferModule
             ["platform"] = device.Platform,
             ["paired"] = paired,
             ["available"] = available,
-            ["own"] = OwnDevices().Any(own => own.DeviceId == device.DeviceId)
+            ["own"] = OwnDevices().Any(own => own.DeviceId == device.DeviceId),
+            ["canPrivateMessage"] = FindPeer(device.DeviceId) is not null,
+            ["requiresPairing"] = FindPeer(device.DeviceId) is null
         };
         var known = FindPeer(device.DeviceId);
         if (known is not null)
@@ -1355,8 +1426,12 @@ public sealed partial class FileTransferModule
     /// </summary>
     private async Task<OpenListClient?> AssistantRelayAsync(CancellationToken token)
     {
-        if (CustomRelayConfigured && await SecretAsync("password", token) is { Length: > 0 } password)
+        if (CustomRelayConfigured)
+        {
+            var password = await SecretAsync("password", token);
+            if (password is not { Length: > 0 }) throw new InvalidOperationException("自定义存储缺少密码，请补全连接设置。");
             return new OpenListClient(Setting("webDavUrl"), Setting("username"), password);
+        }
         var relay = await PublicRelayAsync(token);
         return relay?.CreateDavClient();
     }
@@ -1530,6 +1605,8 @@ public sealed partial class FileTransferModule
     /// </summary>
     private async Task OnReceivedItemAsync(ReceivedItem received, CancellationToken token)
     {
+        if (received.Scope == "shared" && received.ConversationId != _conversationId)
+            throw new InvalidDataException("收到的共享消息不属于当前会话。");
         var store = _assistantStore ?? throw new InvalidOperationException("会话存储尚未就绪。");
         var item = new AssistantItem
         {
@@ -1547,6 +1624,11 @@ public sealed partial class FileTransferModule
             SenderDeviceId = received.DeviceId,
             SenderName = received.SenderName,
             TargetDeviceId = received.TargetDeviceId,
+            ConversationId = received.ConversationId.Length > 0 ? received.ConversationId : null,
+            Provenance = received.Scope == "shared" ? AssistantConversations.DirectShared
+                : received.Scope == "device" ? AssistantConversations.DirectDevice
+                : received.TargetDeviceId is null && received.ConversationId.Length > 0 ? AssistantConversations.DirectShared
+                : null,
             State = AssistantItemState.Available,
             BytesDone = received.Size
         };

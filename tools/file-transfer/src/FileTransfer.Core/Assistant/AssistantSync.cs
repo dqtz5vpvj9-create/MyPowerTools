@@ -126,7 +126,7 @@ public sealed class AssistantSync
         // can never serialize a half-updated record.
 
         // 1. Publish local pending entries. Fewer previous attempts first, so one bad entry never starves new ones.
-        var queue = state.Outgoing(identity.DeviceId)
+        var queue = state.Outgoing(identity.DeviceId).Where(item => AssistantConversations.IsShared(item, identity.ConversationId))
             .Where(item => item.State is AssistantItemState.Queued or AssistantItemState.Failed)
             .Where(item => PublishFilter?.Invoke(item) ?? true)
             .OrderBy(item => item.Attempts).ThenBy(item => item.CreatedAt).ThenBy(item => item.Id, StringComparer.Ordinal)
@@ -152,7 +152,7 @@ public sealed class AssistantSync
         if (!relayUnhealthy)
         {
             var now = DateTimeOffset.UtcNow;
-            var checks = state.Outgoing(identity.DeviceId)
+            var checks = state.Outgoing(identity.DeviceId).Where(item => AssistantConversations.IsShared(item, identity.ConversationId))
                 .Where(item => NeedsReceiptCheck(item, now))
                 .OrderBy(item => item.TargetDeviceId is not null ? 0 : item.Receipts.Count == 0 ? 1 : 2)
                 .ThenBy(item => item.ReceiptCheckedAt ?? DateTimeOffset.MinValue)
@@ -216,7 +216,7 @@ public sealed class AssistantSync
                 var invalid = page.InvalidItemIds.ToArray();
                 var discovered = page.Items
                     .Where(manifest => state.Find(manifest.Id) is null)
-                    .Select(FromManifest).ToArray();
+                    .Select(manifest => FromManifest(manifest, identity.ConversationId)).ToArray();
                 if (known.Length > 0 || invalid.Length > 0 || discovered.Length > 0)
                 {
                     // One transaction: bookkeeping and a whole page of entries commit together or not at all.
@@ -233,7 +233,7 @@ public sealed class AssistantSync
         }
 
         // 4. Local-only bookkeeping: text needs no payload, so it becomes available without any relay call.
-        var texts = state.Incoming(identity.DeviceId)
+        var texts = state.Incoming(identity.DeviceId).Where(item => AssistantConversations.IsShared(item, identity.ConversationId))
             .Where(item => item.Kind == AssistantItemKind.Text && item.State == AssistantItemState.Stored
                 && IsAddressedToMe(item, identity.DeviceId)).Select(item => item.Id).ToArray();
         if (texts.Length > 0)
@@ -255,7 +255,7 @@ public sealed class AssistantSync
 
         if (!relayUnhealthy)
         {
-            var downloads = state.Incoming(identity.DeviceId)
+            var downloads = state.Incoming(identity.DeviceId).Where(item => AssistantConversations.IsShared(item, identity.ConversationId))
                 .Where(item => item.Kind != AssistantItemKind.Text && IsAddressedToMe(item, identity.DeviceId)
                     && item.State is AssistantItemState.Stored or AssistantItemState.Failed)
                 .OrderBy(item => item.Attempts).ThenBy(item => item.CreatedAt).ThenBy(item => item.Id, StringComparer.Ordinal)
@@ -276,7 +276,7 @@ public sealed class AssistantSync
         // 5. A receipt is written only after the content was saved locally, and only for another device's entry.
         if (!relayUnhealthy)
         {
-            var acknowledgements = state.Incoming(identity.DeviceId)
+            var acknowledgements = state.Incoming(identity.DeviceId).Where(item => AssistantConversations.IsShared(item, identity.ConversationId))
                 .Where(item => item.State == AssistantItemState.Available && item.ReceiptAt is null
                     && IsAddressedToMe(item, identity.DeviceId))
                 .OrderBy(item => item.CreatedAt).Take(_limits.Receipts).ToArray();
@@ -328,9 +328,9 @@ public sealed class AssistantSync
         // spinning, and those ids stay re-fetchable so a late manifest is still picked up later.
         var progressed = published > 0 || received > 0 || downloaded > 0 || written > 0 || checkedReceipts > 0
             || page.InvalidItemIds.Count > 0;
-        var pending = state.Outgoing(identity.DeviceId)
+        var pending = state.Outgoing(identity.DeviceId).Where(item => AssistantConversations.IsShared(item, identity.ConversationId))
                 .Any(item => item.State == AssistantItemState.Queued && (PublishFilter?.Invoke(item) ?? true))
-            || state.Incoming(identity.DeviceId).Any(item => item.Kind != AssistantItemKind.Text
+            || state.Incoming(identity.DeviceId).Where(item => AssistantConversations.IsShared(item, identity.ConversationId)).Any(item => item.Kind != AssistantItemKind.Text
                 && IsAddressedToMe(item, identity.DeviceId) && item.State == AssistantItemState.Stored);
         var hasMore = !relayUnhealthy && progressed && (page.HasMore || pending);
         var message = $"发布 {published} 条，失败 {failed} 条，接收 {received} 条，下载 {downloaded} 个，回执 {written} 份。";
@@ -354,6 +354,8 @@ public sealed class AssistantSync
             var state = await _store.ConfigureAsync(identity, token);
             var item = state.Find(itemId) ?? throw new KeyNotFoundException($"会话中没有这条记录：{itemId}。");
             if (AssistantContent.HasLocalContent(item)) return AssistantContent.OpenTarget(item);
+            if (!AssistantConversations.IsShared(item, identity.ConversationId))
+                throw new InvalidOperationException("这条记录不属于当前共享会话，无法从该会话下载。请重新连接原设备或会话。");
             if (item.Kind == AssistantItemKind.Text)
             {
                 await MutateItemAsync(itemId, changed =>
@@ -580,7 +582,7 @@ public sealed class AssistantSync
     private static bool IsRelayFailure(Exception exception) => exception is HttpRequestException or TaskCanceledException
         or IOException or JsonException or System.Xml.XmlException or InvalidDataException or NotSupportedException or UriFormatException;
 
-    private static AssistantItem FromManifest(AssistantManifest manifest) => new()
+    private static AssistantItem FromManifest(AssistantManifest manifest, string conversationId) => new()
     {
         Id = manifest.Id,
         Kind = manifest.Kind,
@@ -591,6 +593,8 @@ public sealed class AssistantSync
         SenderDeviceId = manifest.SenderDeviceId,
         SenderName = manifest.SenderName,
         TargetDeviceId = manifest.TargetDeviceId,
+        ConversationId = conversationId,
+        Provenance = AssistantConversations.SharedRelay,
         State = AssistantItemState.Stored
     };
 

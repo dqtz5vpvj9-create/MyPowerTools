@@ -29,19 +29,7 @@ internal sealed partial class AssistantView
     private Button? _pairConfirm;
 
     internal string? SelectedTargetDeviceId => _targetDeviceId;
-
-    private void SelectTarget(string? id, string name)
-    {
-        _targetDeviceId = id;
-        _targetName = name;
-        _targetUsable = true;
-        DraftChanged();
-        SyncComposer();
-        _emptyState.IsVisible = id is null && !_core.Snapshot.Identity.Linked;
-        var forward = _pendingForward;
-        CloseSheet();
-        if (forward is not null) { _pendingForward = forward; ShowForwardConfirmation(); }
-    }
+    internal string SelectedConversationName => _targetName;
 
     private void ShowAttachmentSheet()
     {
@@ -63,26 +51,7 @@ internal sealed partial class AssistantView
     private void RenderTargets(AssistantSnapshot state)
     {
         if (_sheetTitle.Text != "发给谁") return;
-        _deviceSheetBody.Children.Clear();
-        _deviceSheetBody.Children.Add(MobileUi.ListRow("MptMobileIconDevices", "文件传输助手", "在已关联的设备间继续会话", () =>
-        { SelectTarget(null, "文件传输助手"); return Task.CompletedTask; }));
-        var devices = RememberedDevices().ToArray();
-        foreach (var device in devices)
-        {
-            var duplicateName = devices.Count(d => d.Name == device.Name) > 1;
-            var subtitle = duplicateName ? $"{device.Platform} · {device.DeviceId[^Math.Min(6, device.DeviceId.Length)..]}" : "可发送";
-            var row = MobileUi.ListRow(device.Platform == "android" ? "MptMobileIconPhone" : "MptMobileIconDesktop", device.Name, subtitle,
-                () => { SelectTarget(device.DeviceId, device.Name); return Task.CompletedTask; });
-            AutomationProperties.SetName(row, "选择 " + device.Name);
-            _deviceSheetBody.Children.Add(row);
-        }
-        _deviceSheetBody.Children.Add(MobileUi.ListRow("MptMobileIconPlus", "添加设备", "扫描或粘贴另一台设备的连接码", () =>
-        { ShowPairSheet(); return Task.CompletedTask; }));
-        if (devices.Length == 0)
-            _deviceSheetBody.Children.Add(MobileUi.Caption("添加一次，以后直接选择设备发送。"));
-        // New untrusted discoveries cannot become send targets without an explicit pairing preview.
-        if (state.Devices.Any(d => !d.Paired))
-            _deviceSheetBody.Children.Add(MobileUi.Caption("发现了其他设备。请使用对方的连接码添加。"));
+        RenderConversationChoices();
     }
 
     private void ShowPairSheet()
@@ -151,7 +120,7 @@ internal sealed partial class AssistantView
             await _legacy.RefreshAsync();
             var id = result["deviceId"]?.GetValue<string>();
             var peer = _legacy.Snapshot.Peers.FirstOrDefault(p => p.DeviceId == id);
-            if (peer is not null) SelectTarget(peer.DeviceId, peer.Name);
+            if (peer is not null) ShowContactCard(new AssistantDevice(peer.DeviceId, peer.Name, peer.Address, "", true, peer.IsOnline));
             else ShowDeviceSheet();
             _pairCode.Text = "";
             _pairPreview.Text = "";
@@ -206,7 +175,8 @@ internal sealed partial class AssistantView
             file.Click += async (_, _) => await RunAsync(() => OpenItemAsync(item));
             body = file;
         }
-        var available = Math.Min(560, Math.Max(220, _viewport * .82));
+        var chatWidth = _viewport >= PhoneWidth ? Math.Max(280, _viewport - 300) : _viewport;
+        var available = Math.Min(560, Math.Max(220, chatWidth * .82));
         body.MaxWidth = available - 64;
         var bubbleWidth = Math.Min(available, 290);
         content.Children.Add(body);
@@ -217,9 +187,8 @@ internal sealed partial class AssistantView
         content.Children.Add(more);
         var bubble = new Border { Child = content, Padding = new Thickness(10, 5), CornerRadius = new CornerRadius(14) };
         bubble.Bind(Border.BackgroundProperty, new DynamicResourceExtension(mine ? "MptMobileAccentSoftBrush" : "MptMobileCardBrush"));
-        var target = item.TargetDeviceId is { Length: > 0 } id ? RememberedDevices().FirstOrDefault(d => d.DeviceId == id)?.Name ?? id : "文件传输助手";
         var status = item.State == AssistantItemState.Queued && mine && item.TargetDeviceId is null ? "已保存到本机" : item.StateText;
-        var meta = MobileUi.Caption((mine ? target : item.SenderName) + " · " + status);
+        var meta = MobileUi.Caption(mine ? status : item.SenderName + " · " + status);
         meta.FontSize = 12;
         meta.Margin = new Thickness(4, 2, 4, 0);
         meta.TextAlignment = mine ? TextAlignment.Right : TextAlignment.Left;

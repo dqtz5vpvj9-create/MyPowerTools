@@ -50,6 +50,8 @@ internal sealed record AssistantItem(
     string? Error,
     IReadOnlyList<AssistantReceipt> Receipts)
 {
+    public string ConversationKey { get; init; } = "";
+
     public bool IsText => Kind == AssistantItemKind.Text;
 
     public bool IsImage => Kind == AssistantItemKind.Image;
@@ -142,6 +144,7 @@ internal sealed record AssistantReceipt(string DeviceId, string DeviceName, Date
 /// <summary>This device's identity inside the shared conversation.</summary>
 internal sealed record AssistantIdentity(string Id, string Name, bool Linked)
 {
+    public string ConversationKey { get; init; } = "";
     public string DisplayName => Name is { Length: > 0 } name ? name : "本机";
 }
 
@@ -157,6 +160,9 @@ internal sealed record AssistantDevice(
     bool Paired,
     bool Available)
 {
+    public bool CanPrivateMessage { get; init; } = true;
+    public bool RequiresPairing { get; init; }
+
     public string PlatformText => Platform switch
     {
         "windows" => "Windows",
@@ -228,6 +234,8 @@ internal sealed record AssistantSnapshot(
     bool Busy,
     string DiscoveryMessage = "")
 {
+    public IReadOnlyList<AssistantDevice> Members { get; init; } = [];
+
     public static readonly AssistantSnapshot Empty = new(
         new AssistantIdentity("", "", false), [], [], AssistantRelayState.Unknown, "", false, [],
         AssistantDiscoveryState.Idle, "", false);

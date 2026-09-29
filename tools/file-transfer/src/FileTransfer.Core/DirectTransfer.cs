@@ -394,6 +394,9 @@ public sealed class DirectReceiver : IAsyncDisposable
         {
             if (deviceId.Length == 0 || frame.ItemId is not { Length: > 0 } itemId) throw new InvalidDataException("来件缺少设备或条目标识。");
             TransferFiles.DeviceId(deviceId);
+            if (frame.Scope is not (null or "shared" or "device")) throw new InvalidDataException("消息作用域无效。");
+            if (frame.Scope == "device" && string.IsNullOrEmpty(frame.TargetDeviceId)) throw new InvalidDataException("私聊消息缺少接收设备。");
+            if (frame.Scope == "shared" && !string.IsNullOrEmpty(frame.TargetDeviceId)) throw new InvalidDataException("共享消息不应指定私聊设备。");
             var itemKind = frame.ItemKind is { Length: > 0 } kind ? kind : AssistantWire.FileItem;
             if (itemKind is not (AssistantWire.TextItem or AssistantWire.ImageItem or AssistantWire.FileItem))
                 throw new InvalidDataException("来件类型不受支持。");
@@ -466,7 +469,7 @@ public sealed class DirectReceiver : IAsyncDisposable
             // a stored path that the platform publisher deleted is not an openable message.
             if (_onItem is not null)
                 await _onItem(new ReceivedItem(itemId, frame.ConversationId ?? "", deviceId, DisplayName(frame.SenderName, deviceId),
-                    itemKind, text, frame.Name, saved, frame.Size, DateTimeOffset.UtcNow, frame.TargetDeviceId), token);
+                    itemKind, text, frame.Name, saved, frame.Size, DateTimeOffset.UtcNow, frame.TargetDeviceId, frame.Scope), token);
             var displayName = saved is null ? DisplayName(frame.Name, "内容") : Path.GetFileName(saved);
             _changedDetailed(displayName, frame.Size, frame.Size, "received", "", deviceId);
             await DirectTransfer.WriteJsonAsync(stream, new AssistantWire.ItemReply(true, displayName,

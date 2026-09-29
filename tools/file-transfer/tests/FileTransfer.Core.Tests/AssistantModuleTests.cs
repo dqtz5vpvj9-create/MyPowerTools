@@ -14,7 +14,7 @@ namespace FileTransfer.Tests;
 /// durable before it is accepted, two devices of one conversation exchange items and receipts, and a
 /// first contact only delivers after the receiving device's user accepted it.
 /// </summary>
-public sealed class AssistantModuleTests : IAsyncDisposable
+public sealed class AssistantModuleTests : IAsyncLifetime
 {
     private const string RelayPassword = "relay-password";
     private readonly string _root = Path.Combine(
@@ -32,10 +32,12 @@ public sealed class AssistantModuleTests : IAsyncDisposable
         PublicRelayClient.BaseAddressOverride = () => new Uri("http://127.0.0.1:1/");
     }
 
-    public async ValueTask DisposeAsync()
+    public Task InitializeAsync() => Task.CompletedTask;
+
+    public async Task DisposeAsync()
     {
-        PublicRelayClient.BaseAddressOverride = null;
         foreach (var module in _modules) await module.DisposeAsync(CancellationToken.None);
+        PublicRelayClient.BaseAddressOverride = null;
         foreach (var relay in _relays) await relay.DisposeAsync();
         if (Directory.Exists(_root)) Directory.Delete(_root, true);
     }
@@ -289,6 +291,9 @@ public sealed class AssistantModuleTests : IAsyncDisposable
 
         var inbound = await WaitForItemAsync(receiver, itemId, item => item["state"]!.GetValue<string>() == "available");
         Assert.Equal("phone-a", inbound["senderDeviceId"]!.GetValue<string>());
+        Assert.Equal("device:phone-a", inbound["conversationKey"]!.GetValue<string>());
+        Assert.Equal("direct-device", inbound["provenance"]!.GetValue<string>());
+        Assert.Equal("device:phone-b", confirmed["conversationKey"]!.GetValue<string>());
         // The durable copy is what the receiver opens, and it is not the file the publisher may delete.
         Assert.True(File.Exists(inbound["localPath"]!.GetValue<string>()));
 

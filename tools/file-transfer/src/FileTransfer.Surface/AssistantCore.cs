@@ -357,7 +357,8 @@ internal sealed class AssistantCore : IDisposable
             Identity = new AssistantIdentity(
                 Str(identity, "id") ?? "",
                 Str(identity, "name") ?? "",
-                Flag(identity, "linked")),
+                Flag(identity, "linked")) { ConversationKey = Str(identity, "conversationKey") ?? "" },
+            Members = ReadDevices(answer["members"] as JsonArray),
             Items = ReadItems(answer["items"] as JsonArray),
             PendingRequests = ReadRequests(answer["pendingRequests"] as JsonArray),
             Relay = ReadRelayState(Str(relay, "state")),
@@ -394,7 +395,7 @@ internal sealed class AssistantCore : IDisposable
                 Number(item, "bytesDone"),
                 Str(item, "localPath"),
                 Str(item, "error"),
-                ReadReceipts(item["receipts"] as JsonArray)));
+                ReadReceipts(item["receipts"] as JsonArray)) { ConversationKey = Str(item, "conversationKey") ?? "" });
         }
         // The composer and ScrollToEnd are below the thread: append new messages at the bottom.
         // The module returns newest first for its bounded history query, so reverse chronology here.
@@ -459,7 +460,11 @@ internal sealed class AssistantCore : IDisposable
                 Str(device, "address") ?? "",
                 Str(device, "platform") ?? "",
                 Flag(device, "paired"),
-                Flag(device, "available")));
+                Flag(device, "available"))
+            {
+                CanPrivateMessage = device["canPrivateMessage"] is null ? Flag(device, "paired") : Flag(device, "canPrivateMessage"),
+                RequiresPairing = Flag(device, "requiresPairing")
+            });
         }
         return devices;
     }

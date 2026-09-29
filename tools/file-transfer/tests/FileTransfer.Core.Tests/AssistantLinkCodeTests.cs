@@ -13,7 +13,7 @@ namespace FileTransfer.Tests;
 /// of a NullReferenceException, a legacy pair code must say which command handles it, and a real
 /// export must preview successfully without ever returning the conversation key.
 /// </summary>
-public sealed class AssistantLinkCodeTests : IAsyncDisposable
+public sealed class AssistantLinkCodeTests : IAsyncLifetime
 {
     private const string MalformedAndroidDeeplink =
         "mpt://assistant/eyJ2ZXJzaW9uIjoxLCJjb252ZXJzYXRpb25JZCI6InNlbGYtdGVzdC1jb252IiwiZGV2aWNlTmFtZSI6Iua1i-ivleeUteiEkSIsInRva2VuIjoiczNjcmV0LWdyYW50LXRva2VuLTAxMjM0NTY3ODlhYmNkZWYifQ";
@@ -24,7 +24,9 @@ public sealed class AssistantLinkCodeTests : IAsyncDisposable
 
     public AssistantLinkCodeTests() => Directory.CreateDirectory(_root);
 
-    public async ValueTask DisposeAsync()
+    public Task InitializeAsync() => Task.CompletedTask;
+
+    public async Task DisposeAsync()
     {
         if (Directory.Exists(_root)) Directory.Delete(_root, true);
     }

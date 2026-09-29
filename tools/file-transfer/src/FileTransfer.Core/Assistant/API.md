@@ -325,3 +325,63 @@ public sealed class AssistantSync
   不要把 publish 用的临时文件传进来（M4 侧已在处理）。
 - 发送端：直传得到 `ItemReply{State="delivered"}` 后，用 `MutateAsync` 把本机条目置 `Delivered` 并补一条
   `AssistantReceipt{DeviceId=目标设备}`——`delivered` 必须来自目标设备真实保存，不能凭本地发送成功自报。
+
+
+## V3 conversation grouping and isolated drafts
+
+Every new `AssistantItem` persists its origin in `provenance`: `local-shared`, `local-device`,
+`shared-relay`, `paired-inbox`, `direct-shared`, or `direct-device`. Shared records also persist
+`conversationId`, taken from the authenticated source namespace or the direct frame. A message
+never changes its conversation when the local device later joins another shared conversation.
+Missing legacy provenance remains `history`; sender and target alone do not establish a shared
+message's original scope. No migration removes messages, files, or resends ambiguous old work.
+
+`assistant.inspect.items[].conversationKey` is `shared:<source conversationId>`, `device:<peer id>`,
+or `history`. `identity` includes `conversationId` and the current shared `conversationKey`.
+`members` contains actual confirmed shared members, with `id`, `name`, `address`,
+`canPrivateMessage`, and `requiresPairing`. Ordinary pairing and shared membership remain separate.
+A member without ordinary pairing must pair before starting a private conversation.
+
+Private sends use their paired deposit inbox and directed transport. `AssistantSync` excludes
+private records from shared manifest/payload publication, receipt reads/writes, and downloads even
+when a caller supplies an unrestricted `PublishFilter`. Direct frames append optional `scope`
+(`shared` or `device`) without changing framing or protocol version. Legacy frames are accepted;
+a targeted frame without this evidence stays in history. A private send never substitutes the
+shared conversation credential for a pairing token. Legacy remembered direct contacts without a
+token can still use the existing receiver confirmation flow.
+
+`assistant.preferences.inspect` returns `conversationKey`, `drafts` keyed by conversation, and the
+original flat fields for the active draft. Each draft carries `draftText`, `attachmentPaths`,
+`missingAttachments`, `targetDeviceId`, `targetName`, `targetUsable`, `savedAt`, `scrollOffset`,
+and `lastReadAt`. `preferences.update` with `conversationKey` updates only that draft and selects it;
+missing fields retain their value, explicit null clears nullable fields. `scrollOffset` must be finite
+and nonnegative; `lastReadAt` is an ISO timestamp or null. Invalid updates leave every draft intact.
+Requests without a key retain the old flat semantics. The former single draft migrates using its
+saved target or original shared identity before an identity change. Drafts never grant permission.
+
+`assistant.send` also accepts optional `conversationKey`; it must agree with any `targetDeviceId`.
+History is read-only and a different shared namespace requires reconnecting before sending.
+
+## Private inbox relay routing
+
+The default private inbox registers the same locally persisted owner/deposit identity independently
+on fixed `tail` and `public` services. Each owner loop has its own revision and cancellation scope;
+having no local Tailscale IP does not stop either loop. The trusted Tail endpoint is
+`http://mpt-relay.tail.lixinrui000.cn:80`; no user-supplied plaintext host is accepted.
+
+Outgoing items persist `depositRoutes[]` (`relayId`, `attemptedAt`, `storedAt`) before uploading.
+Tail is attempted first. Network failures and retryable server errors permit public fallback;
+401/403 and message conflicts do not. A receipt probe recognizes an already stored item after a
+lost response, avoiding a second payload upload. A Tail copy that remains unconfirmed for 30 seconds
+may gain a public copy under the same item id. The scheduler rechecks original-route receipts before
+copying, and a real saved receipt ends the private delivery task. Restart keeps all route metadata.
+
+Incoming items persist `sourceRelay`. Two concurrent sources for one id serialize local adoption,
+reuse the saved payload, and acknowledge each source without duplicate downloads. Route health is
+reported individually in `inbox.routes`; one unavailable route cannot hide another working route.
+
+A custom WebDAV configuration disables both built-in private inbox transports and keeps private
+direct delivery; the UI receives a clear reason when no direct delivery succeeds. Missing custom
+credentials never select the public shared store implicitly. Shared conversations continue using
+their existing public/custom transport; this private routing change does not implement shared
+locator publication or shared Tail-first delivery.

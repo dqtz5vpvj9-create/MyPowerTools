@@ -90,6 +90,19 @@ public sealed class PublicInboxClientTests : IAsyncLifetime
     }
 
     [Fact]
+    public void PlainHttpCredentialsAreLimitedToTheFixedTailRelayAndLoopbackTests()
+    {
+        var identity = PublicInboxIdentity.CreateNew();
+        using var trusted = PublicInboxClient.Owner(identity, baseAddress: InboxRelays.TailAddress);
+        FileTransfer.Core.Assistant.OpenListClient.ValidateUrl(new Uri(InboxRelays.TailAddress, "/mpt/relay/dav/"));
+        foreach (var url in new[] { "http://example.com", "http://mpt-relay.tail.lixinrui000.cn.evil.test", "http://mpt-relay.tail.lixinrui000.cn:8080" })
+        {
+            Assert.Throws<ArgumentException>(() => PublicInboxClient.Owner(identity, baseAddress: new Uri(url)));
+            Assert.Throws<ArgumentException>(() => FileTransfer.Core.Assistant.OpenListClient.ValidateUrl(new Uri(url)));
+        }
+    }
+
+    [Fact]
     public void TheDefaultTransportIsTheFixedPublicRelayAndNoRoleIsChosenByAccident()
     {
         Assert.Equal(new Uri("https://proxy.lixinrui000.cn"), PublicRelayClient.ProductionBaseAddress);

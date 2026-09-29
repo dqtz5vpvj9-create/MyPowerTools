@@ -388,36 +388,43 @@ public sealed class AssistantRelayTests : IAsyncDisposable
     }
 
     [Fact]
-    public async Task TargetedSendBecomesDeliveredOnlyAfterTheTargetSavedIt()
+    public async Task PrivateSendNeverEntersSharedNamespaceEvenWithAPermissivePublishFilter()
     {
         var server = StartServer();
         var sender = NewDevice("desktop-1", server.Url);
         var target = NewDevice("phone-1", server.Url);
         var bystander = NewDevice("tablet-1", server.Url);
-        const string content = "for the phone only";
         var item = Assert.Single(await sender.Store.EnqueueAsync(sender.Identity,
-            AssistantDraft.ForPaths([SourceFile("only.bin", content)], "phone-1"), CancellationToken.None));
-
-        await sender.Sync.SyncAsync(sender.Identity, CancellationToken.None);
-        Assert.Equal(AssistantItemState.Stored, item.State);   // on the relay, not delivered yet
-        Assert.Empty(item.Receipts);
-
-        // A device that is not the target keeps the entry in its timeline but never downloads or acknowledges it.
-        var payloadGets = server.Count("GET", "/payload");
-        await bystander.Sync.SyncAsync(bystander.Identity, CancellationToken.None);
-        var seen = Assert.Single(await bystander.ItemsAsync(CancellationToken.None));
-        Assert.Equal(AssistantItemState.Stored, seen.State);
-        Assert.Null(seen.LocalPath);
-        Assert.Null(seen.ReceiptAt);
-        Assert.Equal(payloadGets, server.Count("GET", "/payload"));
-
+            AssistantDraft.ForPaths([SourceFile("private.bin", "private payload")], "phone-1"), CancellationToken.None));
+        sender.Sync.PublishFilter = _ => true;
+        var result = await sender.Sync.SyncAsync(sender.Identity, CancellationToken.None);
+        Assert.Equal(0, result.Published);
+        Assert.Equal(AssistantItemState.Queued, item.State);
+        Assert.False(File.Exists(server.DiskPath($"assistant/{Conversation}/{item.Id}/manifest.json")));
+        Assert.False(File.Exists(server.DiskPath($"assistant/{Conversation}/{item.Id}/payload")));
         await target.Sync.SyncAsync(target.Identity, CancellationToken.None);
-        Assert.Equal(content, await File.ReadAllTextAsync(Assert.Single(await target.ItemsAsync(CancellationToken.None)).LocalPath!));
+        await bystander.Sync.SyncAsync(bystander.Identity, CancellationToken.None);
+        Assert.Empty(await target.ItemsAsync(CancellationToken.None));
+        Assert.Empty(await bystander.ItemsAsync(CancellationToken.None));
+    }
 
-        await sender.Sync.SyncAsync(sender.Identity, CancellationToken.None);
-        var mine = (await sender.StateAsync(CancellationToken.None)).Find(item.Id)!;
-        Assert.Equal(AssistantItemState.Delivered, mine.State);
-        Assert.Equal("phone-1", Assert.Single(mine.Receipts).DeviceId);
+    [Fact]
+    public async Task PrivateReceiptsAndOldSharedNamespaceNeverLeakIntoCurrentSharedSync()
+    {
+        var server = StartServer();
+        var device = NewDevice("phone-1", server.Url);
+        var old = Assert.Single(await device.Store.EnqueueAsync(device.Identity with { ConversationId = "old-conversation" },
+            AssistantDraft.ForText("old namespace"), CancellationToken.None));
+        var incoming = new AssistantItem { Id = Guid.NewGuid().ToString("N"), Kind = AssistantItemKind.Text,
+            Text = "secret", Size = 6, CreatedAt = DateTimeOffset.UtcNow, SenderDeviceId = "desktop-1", SenderName = "desktop-1",
+            TargetDeviceId = "phone-1", Provenance = AssistantConversations.PairedInbox };
+        await device.Store.AdoptAsync(device.Identity, incoming, CancellationToken.None);
+        var result = await device.Sync.SyncAsync(device.Identity, CancellationToken.None);
+        Assert.Equal(0, result.Published);
+        Assert.Equal(0, result.ReceiptsWritten);
+        Assert.Equal(0, result.ReceiptsChecked);
+        Assert.Equal(AssistantItemState.Queued, old.State);
+        Assert.DoesNotContain(server.Requests, request => request.Method == "PUT");
     }
 
     [Fact]
@@ -498,7 +505,7 @@ public sealed class AssistantRelayTests : IAsyncDisposable
         var receiver = NewDevice("phone-1", server.Url);
         const string content = "must actually arrive";
         var item = Assert.Single(await sender.Store.EnqueueAsync(sender.Identity,
-            AssistantDraft.ForPaths([SourceFile("arrive.bin", content)], "phone-1"), CancellationToken.None));
+            AssistantDraft.ForPaths([SourceFile("arrive.bin", content)]), CancellationToken.None));
         await sender.Sync.SyncAsync(sender.Identity, CancellationToken.None);
 
         server.Intercept = (context, request) =>
@@ -522,12 +529,14 @@ public sealed class AssistantRelayTests : IAsyncDisposable
         await sender.Sync.SyncAsync(sender.Identity, CancellationToken.None);
         Assert.Equal(AssistantItemState.Stored, (await sender.StateAsync(CancellationToken.None)).Find(item.Id)!.State);
 
-        // Once the relay recovers the same entry is retried in place and only then becomes delivered.
+        // Recovery keeps the same shared entry and adds the receiver's real saved receipt.
         server.Intercept = null;
         Assert.Equal(1, (await receiver.Sync.SyncAsync(receiver.Identity, CancellationToken.None)).Downloaded);
         Assert.Equal(AssistantItemState.Available, Assert.Single(await receiver.ItemsAsync(CancellationToken.None)).State);
         await sender.Sync.SyncAsync(sender.Identity, CancellationToken.None);
-        Assert.Equal(AssistantItemState.Delivered, (await sender.StateAsync(CancellationToken.None)).Find(item.Id)!.State);
+        var confirmed = (await sender.StateAsync(CancellationToken.None)).Find(item.Id)!;
+        Assert.Equal(AssistantItemState.Stored, confirmed.State);
+        Assert.Equal("phone-1", Assert.Single(confirmed.Receipts).DeviceId);
     }
 
     [Fact]
@@ -563,7 +572,7 @@ public sealed class AssistantRelayTests : IAsyncDisposable
         var sender = NewDevice("desktop-1", server.Url);
         const string content = "arrived over the direct transport";
         var item = Assert.Single(await sender.Store.EnqueueAsync(sender.Identity,
-            AssistantDraft.ForPaths([SourceFile("direct.bin", content)], "phone-1"), CancellationToken.None));
+            AssistantDraft.ForPaths([SourceFile("direct.bin", content)]), CancellationToken.None));
         await sender.Sync.SyncAsync(sender.Identity, CancellationToken.None);
 
         // M4's direct transport already saved the file; the receiver adopts it into the same durable timeline.
@@ -580,7 +589,9 @@ public sealed class AssistantRelayTests : IAsyncDisposable
             CreatedAt = item.CreatedAt,
             SenderDeviceId = sender.Identity.DeviceId,
             SenderName = sender.Identity.Name,
-            TargetDeviceId = receiver.Identity.DeviceId,
+            TargetDeviceId = null,
+            ConversationId = Conversation,
+            Provenance = AssistantConversations.DirectShared,
             LocalPath = saved
         }, CancellationToken.None);
 
@@ -592,7 +603,7 @@ public sealed class AssistantRelayTests : IAsyncDisposable
 
         await sender.Sync.SyncAsync(sender.Identity, CancellationToken.None);
         var mine = (await sender.StateAsync(CancellationToken.None)).Find(item.Id)!;
-        Assert.Equal(AssistantItemState.Delivered, mine.State);
+        Assert.Equal(AssistantItemState.Stored, mine.State);
         Assert.Equal("phone-1", Assert.Single(mine.Receipts).DeviceId);
     }
 
@@ -603,7 +614,7 @@ public sealed class AssistantRelayTests : IAsyncDisposable
         var sender = NewDevice("desktop-1", server.Url);
         const string content = "direct arrival after the manifest";
         var item = Assert.Single(await sender.Store.EnqueueAsync(sender.Identity,
-            AssistantDraft.ForPaths([SourceFile("late.bin", content)], "phone-1"), CancellationToken.None));
+            AssistantDraft.ForPaths([SourceFile("late.bin", content)]), CancellationToken.None));
         await sender.Sync.SyncAsync(sender.Identity, CancellationToken.None);
 
         // The receiver knew the entry from the relay manifest only: metadata, no local content, not "saved".
@@ -620,6 +631,8 @@ public sealed class AssistantRelayTests : IAsyncDisposable
             SenderDeviceId = known.SenderDeviceId,
             SenderName = known.SenderName,
             TargetDeviceId = known.TargetDeviceId,
+            ConversationId = Conversation,
+            Provenance = AssistantConversations.SharedRelay,
             State = AssistantItemState.Stored
         });
         await receiver.Store.SaveAsync(state, CancellationToken.None);
@@ -638,7 +651,9 @@ public sealed class AssistantRelayTests : IAsyncDisposable
             CreatedAt = known.CreatedAt,
             SenderDeviceId = "desktop-1",
             SenderName = "desktop-1",
-            TargetDeviceId = "phone-1",
+            TargetDeviceId = null,
+            ConversationId = Conversation,
+            Provenance = AssistantConversations.DirectShared,
             LocalPath = saved
         }, CancellationToken.None);
         Assert.Equal(AssistantItemState.Available, adopted.State);
@@ -651,7 +666,7 @@ public sealed class AssistantRelayTests : IAsyncDisposable
         Assert.Equal("phone-1", Assert.Single(await receiver.Client.ListAssistantReceiptsAsync(Conversation, item.Id, CancellationToken.None)).DeviceId);
 
         await sender.Sync.SyncAsync(sender.Identity, CancellationToken.None);
-        Assert.Equal(AssistantItemState.Delivered, (await sender.StateAsync(CancellationToken.None)).Find(item.Id)!.State);
+        Assert.Equal(AssistantItemState.Stored, (await sender.StateAsync(CancellationToken.None)).Find(item.Id)!.State);
     }
 
     [Fact]
@@ -987,13 +1002,15 @@ public sealed class AssistantRelayTests : IAsyncDisposable
         {
             Id = Guid.NewGuid().ToString("N"), Kind = AssistantItemKind.Text, Text = "已发布", Size = 9,
             CreatedAt = now.AddMinutes(-5), SenderDeviceId = identity.DeviceId, SenderName = identity.Name,
+            ConversationId = Conversation,
+            Provenance = AssistantConversations.SharedRelay,
             State = AssistantItemState.Stored
         });
         state.Add(new AssistantItem
         {
             Id = Guid.NewGuid().ToString("N"), Kind = AssistantItemKind.Text, Text = "待回执", Size = 9,
             CreatedAt = now.AddMinutes(-3), SenderDeviceId = "phone-1", SenderName = "phone-1",
-            TargetDeviceId = identity.DeviceId, State = AssistantItemState.Available
+            TargetDeviceId = identity.DeviceId, ConversationId = Conversation, Provenance = AssistantConversations.SharedRelay, State = AssistantItemState.Available
         });
         await store.SaveAsync(state, CancellationToken.None);
 
@@ -1054,6 +1071,8 @@ public sealed class AssistantRelayTests : IAsyncDisposable
             SenderDeviceId = "phone-1",
             SenderName = "phone-1",
             TargetDeviceId = identity.DeviceId,
+            ConversationId = Conversation,
+            Provenance = AssistantConversations.SharedRelay,
             State = AssistantItemState.Stored
         });
         store.SaveAsync(state, CancellationToken.None).GetAwaiter().GetResult();

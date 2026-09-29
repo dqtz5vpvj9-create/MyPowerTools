@@ -48,6 +48,14 @@ public sealed record AssistantItem
     public string SenderDeviceId { get; init; } = "";
     public string SenderName { get; init; } = "";
     public string? TargetDeviceId { get; init; }
+    /// <summary>The source shared namespace, captured before a device joins another conversation.</summary>
+    public string? ConversationId { get; init; }
+    /// <summary>Local evidence of the route that created this item. Missing legacy evidence stays in history.</summary>
+    public string? Provenance { get; init; }
+    /// <summary>The fixed relay id that supplied the local incoming copy.</summary>
+    public string? SourceRelay { get; init; }
+    /// <summary>Durable deposit attempts, including requests whose response was lost.</summary>
+    public List<AssistantDepositRoute> DepositRoutes { get; set; } = [];
 
     public AssistantItemState State { get; set; } = AssistantItemState.Queued;
     public long BytesDone { get; set; }
@@ -60,7 +68,7 @@ public sealed record AssistantItem
     public DateTimeOffset? ReceiptCheckedAt { get; set; }
 
     /// <summary>A detached copy used for rollback; the receipt list is copied so mutations cannot leak.</summary>
-    public AssistantItem Copy() => this with { Receipts = [.. Receipts] };
+    public AssistantItem Copy() => this with { Receipts = [.. Receipts], DepositRoutes = [.. DepositRoutes] };
 
     /// <summary>
     /// Reverts the delivery metadata in place from a snapshot. The identity fields of an entry are written
@@ -77,6 +85,7 @@ public sealed record AssistantItem
         Attempts = backup.Attempts;
         ReceiptAt = backup.ReceiptAt;
         ReceiptCheckedAt = backup.ReceiptCheckedAt;
+        DepositRoutes = [.. backup.DepositRoutes];
     }
 
     /// <summary>Cancel is refused once another device confirmed it saved the content.</summary>
@@ -100,6 +109,8 @@ public sealed record AssistantItem
         TargetDeviceId = TargetDeviceId
     };
 }
+
+public sealed record AssistantDepositRoute(string RelayId, DateTimeOffset AttemptedAt, DateTimeOffset? StoredAt = null);
 
 /// <summary>
 /// A device's confirmation that it saved this entry locally. It never means the entry was read:
@@ -203,6 +214,8 @@ public sealed record AssistantState
     /// transaction as everything else, but it is never published and never becomes a timeline entry.
     /// </summary>
     public AssistantPreferences? Preferences { get; set; }
+    public string? ActiveConversationKey { get; set; }
+    public Dictionary<string, AssistantPreferences> Drafts { get; set; } = new(StringComparer.Ordinal);
 
     public AssistantItem? Find(string itemId) => Items.FirstOrDefault(item => item.Id == itemId);
 
@@ -256,7 +269,9 @@ public sealed record AssistantState
         Identity = Identity,
         Items = [.. Items.Select(item => item.Copy())],
         KnownRemoteIds = [.. KnownRemoteIds],
-        Preferences = Preferences?.Copy()
+        Preferences = Preferences?.Copy(),
+        ActiveConversationKey = ActiveConversationKey,
+        Drafts = Drafts.ToDictionary(pair => pair.Key, pair => pair.Value.Copy(), StringComparer.Ordinal)
     };
 
     /// <summary>
@@ -279,6 +294,8 @@ public sealed record AssistantState
         Items = restored;
         KnownRemoteIds = backup.KnownRemoteIds;
         Preferences = backup.Preferences?.Copy();
+        ActiveConversationKey = backup.ActiveConversationKey;
+        Drafts = backup.Drafts.ToDictionary(pair => pair.Key, pair => pair.Value.Copy(), StringComparer.Ordinal);
     }
 }
 

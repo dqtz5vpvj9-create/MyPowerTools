@@ -410,6 +410,7 @@ public sealed class ReviewFixTests : IDisposable
         for (var pass = 0; pass < 4; pass++) { Dispatcher.UIThread.RunJobs(); window.UpdateLayout(); }
         TestPump.Drain();
         window.UpdateLayout();
+        ConversationTestNavigation.Open(window, view);
         return view;
     }
 

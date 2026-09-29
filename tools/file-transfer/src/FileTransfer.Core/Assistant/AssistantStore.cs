@@ -58,7 +58,13 @@ public sealed class AssistantStore
         try
         {
             var state = await LoadCoreAsync(token);
-            if (state.Identity != identity) await CommitAsync(state, () => state.Identity = identity, token);
+            if (state.Identity != identity || state.ActiveConversationKey is null)
+                await CommitAsync(state, () =>
+                {
+                    AssistantConversations.MigrateDrafts(state);
+                    state.Identity = identity;
+                    AssistantConversations.MigrateDrafts(state);
+                }, token);
             return state;
         }
         finally { _gate.Release(); }
@@ -157,6 +163,9 @@ public sealed class AssistantStore
                 SenderDeviceId = manifest.SenderDeviceId,
                 SenderName = manifest.SenderName,
                 LocalPath = item.LocalPath,
+                ConversationId = item.ConversationId,
+                Provenance = item.Provenance,
+                SourceRelay = item.SourceRelay,
                 State = AssistantItemState.Available,
                 BytesDone = manifest.Size
             };
@@ -342,6 +351,8 @@ public sealed class AssistantStore
             SenderDeviceId = identity.DeviceId,
             SenderName = identity.Name,
             TargetDeviceId = target,
+            ConversationId = target is null ? identity.ConversationId : null,
+            Provenance = target is null ? AssistantConversations.LocalShared : AssistantConversations.LocalDevice,
             State = AssistantItemState.Queued
         };
 
@@ -367,6 +378,9 @@ public sealed class AssistantStore
         // The draft is recoverable local UI state, so a preference that no longer satisfies its own
         // rules is repaired instead of blocking the whole conversation the way a damaged message does.
         state.Preferences = AssistantPreferenceRules.Normalize(state.Preferences);
+        state.Drafts = (state.Drafts ?? []).ToDictionary(pair => pair.Key,
+            pair => AssistantPreferenceRules.Normalize(pair.Value) ?? new AssistantPreferences(), StringComparer.Ordinal);
+        AssistantConversations.MigrateDrafts(state);
         return state;
     }
 
@@ -442,6 +456,8 @@ public sealed class AssistantStore
             SenderDeviceId = identity.DeviceId,
             SenderName = identity.Name,
             TargetDeviceId = target,
+            ConversationId = target is null ? identity.ConversationId : null,
+            Provenance = target is null ? AssistantConversations.LocalShared : AssistantConversations.LocalDevice,
             State = AssistantItemState.Queued,
             LocalPath = final
         };

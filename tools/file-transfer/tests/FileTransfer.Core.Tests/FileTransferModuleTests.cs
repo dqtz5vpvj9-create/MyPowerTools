@@ -6,7 +6,7 @@ using MyPowerTools.Platform.Abstractions;
 
 namespace FileTransfer.Tests;
 
-public sealed class FileTransferModuleTests : IAsyncDisposable
+public sealed class FileTransferModuleTests : IAsyncLifetime
 {
     private readonly string _root = Path.Combine(Environment.GetEnvironmentVariable("MPT_TEST_TEMP") ?? Path.GetTempPath(), "mpt-module-test-" + Guid.NewGuid().ToString("N"));
     private readonly InMemorySecretStore _secrets = new();
@@ -15,7 +15,9 @@ public sealed class FileTransferModuleTests : IAsyncDisposable
 
     public FileTransferModuleTests() => Directory.CreateDirectory(_root);
 
-    public async ValueTask DisposeAsync()
+    public Task InitializeAsync() => Task.CompletedTask;
+
+    public async Task DisposeAsync()
     {
         if (_module is not null) await _module.DisposeAsync(CancellationToken.None);
         if (Directory.Exists(_root)) Directory.Delete(_root, true);

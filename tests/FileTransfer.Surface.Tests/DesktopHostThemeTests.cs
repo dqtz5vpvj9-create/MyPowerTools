@@ -72,10 +72,10 @@ public sealed class DesktopHostThemeTests : IDisposable
             Assert.True(icon.Stroke is not null && icon.StrokeThickness > 0,
                 "a stroke icon without a stroke paints nothing");
             Assert.True(icon.Bounds.Width >= 16 && icon.Bounds.Height >= 16,
-                $"an icon collapsed to {icon.Bounds.Width:0}x{icon.Bounds.Height:0}");
+                $"{icon.IconKey} icon collapsed to {icon.Bounds.Width:0}x{icon.Bounds.Height:0}");
         }
 
-        foreach (var button in Descendants(view).OfType<Button>().Where(b => b.Classes.Contains("MptMobileIconButton")))
+        foreach (var button in Descendants(view).OfType<Button>().Where(b => b.IsEffectivelyVisible && b.Classes.Contains("MptMobileIconButton")))
             Assert.True(button.Bounds.Width >= 44 && button.Bounds.Height >= 44,
                 $"an icon button lost its target: {button.Bounds.Width:0}x{button.Bounds.Height:0}");
         window.UpdateLayout();
@@ -96,16 +96,23 @@ public sealed class DesktopHostThemeTests : IDisposable
     }
 
     [AvaloniaFact]
-    public void The_conversation_keeps_a_readable_bounded_column_on_a_wide_window()
+    public void Desktop_directory_and_chat_keep_messages_readable_on_a_wide_window()
     {
+        _module.AssistantItems.Add(new System.Text.Json.Nodes.JsonObject
+        {
+            ["id"] = "wide-message", ["kind"] = "text", ["text"] = "这是一段需要在宽窗口中保持可读行宽的消息。",
+            ["state"] = "available", ["senderDeviceId"] = "mpt-phone", ["receipts"] = new System.Text.Json.Nodes.JsonArray()
+        });
         var view = Open(1600, 900, out var window);
+        var message = Assert.Single(view.Conversation.ThreadPanel.Children);
+        Assert.InRange(message.Bounds.Width, 160, 560);
 
         var column = view.Conversation.ConversationColumnBounds;
-        Assert.True(column.Width <= 721, $"the conversation must stay bounded, was {column.Width:0}");
+        Assert.True(column.Width <= window.Width - 290, $"the conversation must leave room for the directory, was {column.Width:0}");
         Assert.True(column.Width >= 320, $"the conversation must stay readable, was {column.Width:0}");
         var origin = view.Conversation.ConversationOriginIn(window);
         Assert.NotNull(origin);
-        Assert.True(origin.Value.X > 100, $"the column must be centred, started at {origin.Value.X:0}");
+        Assert.True(origin.Value.X > 100, $"the chat must follow the directory, started at {origin.Value.X:0}");
         window.UpdateLayout();
     }
 
@@ -172,6 +179,7 @@ public sealed class DesktopHostThemeTests : IDisposable
         for (var pass = 0; pass < 4; pass++) { Dispatcher.UIThread.RunJobs(); window.UpdateLayout(); }
         TestPump.Drain();
         window.UpdateLayout();
+        ConversationTestNavigation.Open(window, view);
         return view;
     }
 

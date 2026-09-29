@@ -23,6 +23,7 @@ public sealed class ConversationLiveRefreshTests
         {
             window.Show();
             Settle(window);
+            ConversationTestNavigation.Open(window, view);
             view.Conversation.GetLogicalDescendants().OfType<TextBox>().First(t => t.PlaceholderText == "写点文字，或添加文件…").Text = "刚刚发送的新消息";
             await view.Conversation.SendFromComposerAsync();
             Settle(window);
@@ -46,6 +47,7 @@ public sealed class ConversationLiveRefreshTests
         {
             window.Show();
             Settle(window);
+            ConversationTestNavigation.Open(window, view);
             var item = Message("new", "电脑刚发来的消息", DateTimeOffset.UtcNow);
             // Real module inspect returns newest first; the UI must project it as a conversation.
             module.AssistantItems.Insert(0, item);
@@ -84,6 +86,7 @@ public sealed class ConversationLiveRefreshTests
         {
             window.Show();
             Settle(window);
+            ConversationTestNavigation.Open(window, view);
             AssertVisibleAtEnd(view, "最新消息");
             // Receipt-only refresh keeps the item count unchanged but makes many rows taller.
             foreach (var item in module.AssistantItems)

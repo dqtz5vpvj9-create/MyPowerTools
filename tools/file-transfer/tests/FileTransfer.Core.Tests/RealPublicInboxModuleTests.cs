@@ -22,7 +22,7 @@ public sealed class RealInboxCollection
 }
 
 [Collection(RealInboxCollection.Name)]
-public sealed class RealPublicInboxModuleTests : IAsyncDisposable
+public sealed class RealPublicInboxModuleTests : IAsyncLifetime
 {
     private readonly string _root = Path.Combine(
         Environment.GetEnvironmentVariable("MPT_REAL_INBOX_TEST_ROOT") ?? Path.Combine(
@@ -30,6 +30,7 @@ public sealed class RealPublicInboxModuleTests : IAsyncDisposable
         Guid.NewGuid().ToString("N"));
     private readonly List<FileTransferModule> _modules = [];
     private RelayProcess? _relay;
+    private readonly List<RelayProcess> _additionalRelays = [];
 
     public RealPublicInboxModuleTests()
     {
@@ -38,12 +39,16 @@ public sealed class RealPublicInboxModuleTests : IAsyncDisposable
         TransferFiles.LocalAddressesOverride = () => [];
     }
 
-    public async ValueTask DisposeAsync()
+    public Task InitializeAsync() => Task.CompletedTask;
+
+    public async Task DisposeAsync()
     {
-        PublicRelayClient.BaseAddressOverride = null;
-        TransferFiles.LocalAddressesOverride = null;
         foreach (var module in _modules) await module.DisposeAsync(CancellationToken.None);
+        PublicRelayClient.BaseAddressOverride = null;
+        InboxRelays.EndpointsOverride = null;
+        TransferFiles.LocalAddressesOverride = null;
         if (_relay is not null) await _relay.DisposeAsync();
+        foreach (var relay in _additionalRelays) await relay.DisposeAsync();
         try { if (Directory.Exists(_root)) Directory.Delete(_root, true); } catch (IOException) { }
     }
 
@@ -185,6 +190,45 @@ public sealed class RealPublicInboxModuleTests : IAsyncDisposable
             Assert.True(list.StatusCode is System.Net.HttpStatusCode.Forbidden or System.Net.HttpStatusCode.Unauthorized,
                 $"deposit 凭据不得列出收件箱：{(int)list.StatusCode}");
         }
+    }
+
+    [Fact]
+    public async Task AReceiverNeverRegisteredOnTailStillReceivesThroughTheRealPublicRelay()
+    {
+        var publicRelay = await RelayAsync();
+        var tail = new RelayProcess();
+        _additionalRelays.Add(tail);
+        await tail.StartAsync();
+        InboxRelays.EndpointsOverride = () => [new(InboxRelays.Tail, tail.BaseAddress), new(InboxRelays.Public, publicRelay.BaseAddress)];
+        var identity = PublicInboxIdentity.CreateNew("inbox-" + Guid.NewGuid().ToString("N"));
+        using var owner = PublicInboxClient.Owner(identity, PublicInboxRetryPolicy.None, publicRelay.BaseAddress);
+        await owner.RegisterAsync();
+        using (var tailProbe = PublicInboxClient.Deposit(identity.Pairing, PublicInboxRetryPolicy.None, tail.BaseAddress))
+        {
+            var absent = await Assert.ThrowsAsync<PublicInboxUnavailableException>(
+                () => tailProbe.GetReceiptAsync(PublicInboxIds.NewItemId()));
+            Assert.Equal(System.Net.HttpStatusCode.ServiceUnavailable, absent.Status);
+            Assert.Equal("inbox_not_ready", absent.Code);
+            var putAbsent = await Assert.ThrowsAsync<PublicInboxUnavailableException>(
+                () => tailProbe.DepositTextAsync(PublicInboxIds.NewItemId(), "not registered"));
+            Assert.Equal(System.Net.HttpStatusCode.ServiceUnavailable, putAbsent.Status);
+            Assert.Equal("inbox_not_ready", putAbsent.Code);
+        }
+        var sender = await StartAsync("laptop", "laptop-a");
+        var code = new Pairing("phone-b", "Public only phone", "", new string('a', 64), identity.Pairing).Encode();
+        await CallAsync(sender, "file-transfer.pair.import", new JsonObject { ["code"] = code });
+        var sent = await CallAsync(sender, "file-transfer.assistant.send",
+            new JsonObject { ["text"] = "only public is reachable", ["targetDeviceId"] = "phone-b" });
+        var id = sent["itemIds"]!.AsArray()[0]!.GetValue<string>();
+        await WaitForItemAsync(sender, id, item => item["state"]!.GetValue<string>() == "stored");
+        var page = await owner.PollAsync();
+        Assert.Equal(id, Assert.Single(page.Items).ItemId);
+        using var buffer = new MemoryStream();
+        await owner.DownloadAsync(id, buffer);
+        Assert.Equal("only public is reachable", System.Text.Encoding.UTF8.GetString(buffer.ToArray()));
+        await owner.AcknowledgeAsync(id, buffer.Length, deviceId: "phone-b", deviceName: "Public only phone");
+        var delivered = await WaitForItemAsync(sender, id, item => item["state"]!.GetValue<string>() == "delivered");
+        Assert.Equal("public", Assert.Single(delivered["depositRoutes"]!.AsArray())!["relayId"]!.GetValue<string>());
     }
 
     /// <summary>Starts the repository's real relay as a child process, mirroring the client-test fixture.</summary>

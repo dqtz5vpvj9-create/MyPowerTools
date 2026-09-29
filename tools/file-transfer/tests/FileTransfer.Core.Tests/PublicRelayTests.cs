@@ -27,7 +27,7 @@ public sealed class RelayCollection
 /// assertions about delivery timing.
 /// </summary>
 [Collection(RelayCollection.Name)]
-public sealed class PublicRelayTests : IAsyncDisposable
+public sealed class PublicRelayTests : IAsyncLifetime
 {
     private readonly string _root = Path.Combine(
         Environment.GetEnvironmentVariable("MPT_TEST_TEMP") ?? Path.GetTempPath(),
@@ -43,11 +43,13 @@ public sealed class PublicRelayTests : IAsyncDisposable
         TransferFiles.LocalAddressesOverride = () => [];
     }
 
-    public async ValueTask DisposeAsync()
+    public Task InitializeAsync() => Task.CompletedTask;
+
+    public async Task DisposeAsync()
     {
+        foreach (var module in _modules) await module.DisposeAsync(CancellationToken.None);
         PublicRelayClient.BaseAddressOverride = null;
         TransferFiles.LocalAddressesOverride = null;
-        foreach (var module in _modules) await module.DisposeAsync(CancellationToken.None);
         foreach (var relay in _relays) await relay.DisposeAsync();
         if (Directory.Exists(_root)) Directory.Delete(_root, true);
     }
@@ -431,7 +433,7 @@ public sealed class PublicRelayTests : IAsyncDisposable
         var result = await TryAsync(module, "file-transfer.assistant.send",
             new JsonObject { ["text"] = "发给陌生人", ["targetDeviceId"] = "never-seen-device" });
         Assert.False(result.Success);
-        Assert.Contains("设备列表", result.Output);
+        Assert.Contains("配对", result.Output);
     }
 
     /// <summary>
@@ -543,7 +545,7 @@ public sealed class PublicRelayTests : IAsyncDisposable
 
         private async Task HandleAsync(TcpClient client, CancellationToken token)
         {
-            Interlocked.Increment(ref _active);
+            var activeRequest = false;
             using (client)
             {
                 try
@@ -557,6 +559,10 @@ public sealed class PublicRelayTests : IAsyncDisposable
                         header.Append((char)buffer[0]);
                     }
                     var request = header.ToString();
+                    // HttpClient may open a pooled socket before a cancelled request sends headers.
+                    // An idle accepted socket is not an in-flight HTTP request.
+                    Interlocked.Increment(ref _active);
+                    activeRequest = true;
                     Interlocked.Increment(ref _requests);
                     var lines = request.Split("\r\n");
                     var parts = lines[0].Split(' ');
@@ -582,7 +588,7 @@ public sealed class PublicRelayTests : IAsyncDisposable
                     await stream.FlushAsync(token);
                 }
                 catch (Exception ex) when (ex is IOException or OperationCanceledException or SocketException or ObjectDisposedException) { }
-                finally { Interlocked.Decrement(ref _active); }
+                finally { if (activeRequest) Interlocked.Decrement(ref _active); }
             }
         }
 

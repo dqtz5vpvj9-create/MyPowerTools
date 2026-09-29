@@ -18,18 +18,7 @@ using MyPowerTools.AvaloniaSdk.Controls;
 
 namespace FileTransfer.Surface;
 
-/// <summary>
-/// The file-assistant page: one shared conversation, plus an AirDrop-style "send to a device" picker.
-///
-/// The first screen is the conversation itself — a text field at the bottom, attachment and image
-/// buttons beside it — because "send to myself" needs no device, no mode and no connection setup.
-/// Choosing a device is a second, optional entry point that acts on the current attachment, and the
-/// first-time setup work (connect my devices, enable offline receiving) lives in sheets that open
-/// only when the user asks for them.
-///
-/// Colour and shape come from the shared MyPowerTools.AvaloniaSdk mobile theme through
-/// <c>MptMobile*</c> classes; this file hardcodes none, so light and dark both resolve from the theme.
-/// </summary>
+/// <summary>Conversation navigation and the shared native chat surface.</summary>
 internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceActivationHandler, IMptAvaloniaSurfaceBackHandler
 {
     private const double SidePaddingWide = 16;
@@ -58,7 +47,6 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
     private readonly Button _attachFiles;
     private readonly Button _attachImages;
     private readonly Button _send;
-    private readonly Button _sendToDevice;
     private readonly StackPanel _attachmentRow = new() { Spacing = 2 };
     private readonly TextBlock _attachmentSummary = MobileUi.Caption("");
     private readonly List<string> _attachments = [];
@@ -110,8 +98,10 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
         _core = core;
         _legacy = legacy;
 
-        _setupButton = MobileUi.IconButton("MptMobileIconSettings", "连接与接收设置");
-        _setupButton.Click += (_, _) => ShowSetupSheet();
+        _setupButton = MobileUi.IconButton("MptMobileIconDots", "会话详情");
+        ((Control)_setupButton.Content!).Width = 20;
+        ((Control)_setupButton.Content!).Height = 20;
+        _setupButton.Click += (_, _) => ShowConversationDetails();
 
         _input = MobileUi.With(new TextBox
         {
@@ -131,7 +121,7 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
         _input.AddHandler(KeyDownEvent, OnInputKeyDown, Avalonia.Interactivity.RoutingStrategies.Tunnel);
         _input.AddHandler(KeyDownEvent, OnInputKeyDown, Avalonia.Interactivity.RoutingStrategies.Bubble, handledEventsToo: true);
         // Enablement follows the real text, not a later module refresh: typing must light up 发送.
-        _input.TextChanged += (_, _) => { SyncComposer(); DraftChanged(); };
+        _input.TextChanged += (_, _) => { SyncComposer(); DraftChanged(); RefreshConversationNavigation(); };
         _pairCode.TextChanged += (_, _) => { if (_pairConfirm is not null) _pairConfirm.IsEnabled = _previewedPairCode is not null && _pairCode.Text == _previewedPairCode; };
 
         _attachFiles = MobileUi.IconButton("MptMobileIconPlus", "添加文件");
@@ -140,9 +130,6 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
         _attachImages.Click += async (_, _) => await PickAsync(true);
         _send = MobileUi.PrimaryButton("发送");
         _send.Click += async (_, _) => await RunAsync(() => SendAsync(_targetDeviceId));
-        _sendToDevice = MobileUi.TextButton("发给 文件传输助手 ▾");
-        // AirDrop lives on the composer, one tap away, not inside the settings sheet.
-        _sendToDevice.Click += (_, _) => ShowDeviceSheet();
         _retrySync = MobileUi.TextButton("重新同步");
         _retrySync.HorizontalAlignment = HorizontalAlignment.Right;
         _retrySync.Click += async (_, _) => await RunAsync(() => _core.SyncAsync());
@@ -177,6 +164,7 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
             }
             else if (e.OffsetDelta.Y != 0)
             {
+                ConversationScrollChanged();
                 // A person scrolling into history owns that position until another message arrives.
                 _followThreadEnd = _threadScroll.Offset.Y >=
                     _threadScroll.Extent.Height - _threadScroll.Viewport.Height - 1;
@@ -184,7 +172,7 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
         };
 
         _sheetClose = MobileUi.CloseButton();
-        _sheetClose.Click += (_, _) => CloseSheet();
+        _sheetClose.Click += (_, _) => DismissSheet();
         _receiveToggle = MobileUi.SecondaryButton("允许接收");
         _receiveToggle.Click += async (_, _) => await RunAsync(ToggleReceiveAsync);
         _receiveFolder = MobileUi.QuietButton("选择收件保存位置");
@@ -221,7 +209,7 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
             Background = new SolidColorBrush(Color.Parse("#66000000")),
             Child = _sheetHost
         };
-        _sheetScrim.PointerPressed += (_, e) => { if (ReferenceEquals(e.Source, _sheetScrim)) CloseSheet(); };
+        _sheetScrim.PointerPressed += (_, e) => { if (ReferenceEquals(e.Source, _sheetScrim)) DismissSheet(); };
 
         // The header, thread and composer share one bounded column, so a desktop window shows a
         // readable conversation instead of text stretched the full width of the monitor.
@@ -241,7 +229,7 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
         _conversationColumn.Children.Add(composer);
 
         var layout = new Grid { RowDefinitions = new RowDefinitions("*") };
-        layout.Children.Add(_conversationColumn);
+        layout.Children.Add(BuildConversationNavigation(_conversationColumn));
         // The sheet overlays the whole page: without the span it would only cover the header row and
         // leave the composer visible and tappable underneath.
         Grid.SetRowSpan(_sheetScrim, 3);
@@ -287,12 +275,11 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
         row.Children.Add(_headerTitle);
         Grid.SetColumn(_setupButton, 2);
         row.Children.Add(_setupButton);
-        _sendToDevice.Height = 36;
-        _sendToDevice.MinHeight = 36;
-        _sendToDevice.FontSize = 12;
-        _sendToDevice.HorizontalAlignment = HorizontalAlignment.Stretch;
-        AutomationProperties.SetName(_sendToDevice, "选择发送目标");
-        return new StackPanel { Children = { row, _sendToDevice } };
+        _chatBack = MobileUi.TextButton("‹");
+        AutomationProperties.SetName(_chatBack, "返回会话列表");
+        _chatBack.Click += (_, _) => ReturnToConversationList();
+        row.Children.Add(_chatBack);
+        return row;
     }
 
     private Control BuildComposer()
@@ -399,7 +386,7 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
             () => { ShowSheet(_linkSheet); SyncLinkSheet(); return Task.CompletedTask; }));
         choices.Children.Add(MobileUi.ListRow("MptMobileIconReceive", "接收文件", "允许另一台设备直接发文件到这台设备",
             () => { ShowSheet(_receiveSheet); SyncReceive(); return Task.CompletedTask; }));
-        choices.Children.Add(MobileUi.ListRow("MptMobileIconSend", "发给设备", "把待发送的内容直接发给某一台设备",
+        choices.Children.Add(MobileUi.ListRow("MptMobileIconSend", "设备私聊", "打开与一台设备的独立会话",
             () => { ShowDeviceSheet(); return Task.CompletedTask; }));
         choices.Children.Add(MobileUi.ListRow("MptMobileIconPulse", "连接诊断", "查看最近的连接检查结果", () =>
         {
@@ -446,7 +433,7 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
         import.Click += async (_, _) => await RunAsync(ImportLinkAsync);
 
         return MobileUi.Stack(8,
-            MobileUi.Caption("关联后，这台设备可查看文件传输助手中的文字和文件。"),
+            MobileUi.Caption("加入后可查看此共享会话的历史和后续文字、文件。请只邀请你信任的设备；对方需确认加入。"),
             _linkState,
             _qrHolder,
             actions,
@@ -567,7 +554,7 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
     /// <summary>What the QR region currently hosts, so a test can prove the symbol replaced the hint.</summary>
     internal Control? QrHolderChild => _qrHolder.Child;
 
-    /// <summary>The AirDrop step: the current attachment, then a row of devices. One tap sends.</summary>
+    /// <summary>Chooses a conversation; forwarding still requires a separate confirmation.</summary>
     private void ShowDeviceSheet()
     {
         _sheetTitle.Text = "发给谁";
@@ -590,8 +577,6 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
         _sheetOpen = false;
         _pendingForward = null;
         _sheetScrim.IsVisible = false;
-        // The pending forward is deliberately kept: a device tap closes the sheet and then sends, so
-        // clearing it here would make the send fall back to the composer's own draft.
         // A bounded discovery run belongs to the open picker; closing the sheet ends it and marks the
         // picker closed, so a late answer cannot publish a stale list or an error.
         _core.PickerOpen = false;
@@ -620,20 +605,21 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
     /// </summary>
     public bool TryHandleBack()
     {
-        if (!_sheetOpen) return false;
-        CloseSheet();
-        return true;
+        if (!IsEffectivelyVisible || TopLevel.GetTopLevel(this) is null) return false;
+        if (_sheetOpen) { DismissSheet(); return true; }
+        if (_chatOpen && _viewport < PhoneWidth) { ReturnToConversationList(); return true; }
+        return false;
     }
 
     /// <summary>Applies the plan's viewport rule: 22 dp side padding, 18 dp at 320 dp.</summary>
     public void ApplyViewport(double width)
     {
         if (width > 0) _viewport = width;
-        if (_messageRows.Count > 0) RenderCompactThread(_core.Snapshot);
+        if (_messageRows.Count > 0) RenderCompactThread(CurrentConversationSnapshot());
         var desktop = _viewport >= PhoneWidth;
         if (_pageRoot is not null)
         {
-            if (desktop) _pageRoot.Padding = new Thickness(22, 16);
+            if (desktop) _pageRoot.Padding = new Thickness(0);
             else _pageRoot.Padding = new Thickness(0);
         }
         if (_sheetGrabber is not null) _sheetGrabber.IsVisible = !desktop;
@@ -653,14 +639,15 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
         // bounded dialog rather than a full-width panel.
         if (_conversationColumn is not null)
         {
-            _conversationColumn.HorizontalAlignment = _viewport < PhoneWidth ? HorizontalAlignment.Stretch : HorizontalAlignment.Center;
-            _conversationColumn.Width = _viewport < PhoneWidth ? double.NaN : Math.Min(720, _viewport);
-            _conversationColumn.MaxWidth = 720;
+            _conversationColumn.HorizontalAlignment = HorizontalAlignment.Stretch;
+            _conversationColumn.Width = double.NaN;
+            _conversationColumn.MaxWidth = double.PositiveInfinity;
         }
         _sheetHost.MaxWidth = _viewport < PhoneWidth ? double.PositiveInfinity : DialogMaxWidth;
         _sheetHost.HorizontalAlignment = _viewport < PhoneWidth ? HorizontalAlignment.Stretch : HorizontalAlignment.Center;
         _sheetHost.VerticalAlignment = _viewport < PhoneWidth ? VerticalAlignment.Bottom : VerticalAlignment.Center;
         _sheetHost.CornerRadius = _viewport < PhoneWidth ? new CornerRadius(24, 24, 0, 0) : new CornerRadius(24);
+        UpdateNavigationLayout();
         // The composer is never stacked by the shared adaptive layout: stacking a four-column row
         // pushes the text field off screen. Instead the icons keep their 44 dp target, the field
         // takes the remaining width, and the send action moves to its own full-width line on a
@@ -734,7 +721,9 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
     {
         // A refresh must not fight the user's cursor: remember the caret before any relayout.
         var caret = _input.CaretIndex;
-        var state = _core.Snapshot;
+        var state = CurrentConversationSnapshot();
+        RefreshConversationNavigation();
+        MarkVisibleConversationRead();
         if (state.Items.Count != _lastItemCount)
         {
             _lastItemCount = state.Items.Count;
@@ -743,7 +732,7 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
             _lastRenderedCount = state.Items.Count;
         }
 
-        _headerTitle.Text = state.Title;
+        _headerTitle.Text = ActiveConversationKey == "history" ? "历史记录" : _targetName;
         _headerState.Text = state.Identity.Linked
             ? $"{state.Identity.DisplayName} · 已连接"
             : state.Identity.Name is { Length: > 0 } name ? name : "只在本机保存";
@@ -753,6 +742,7 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
         _setupButton.IsVisible = true;
 
         RenderPendingRequests(state);
+        _pendingRequests.IsVisible = ActiveConversationKey == SharedConversationKey;
         RenderThread(state);
         RenderDeviceSheet(state);
         RenderAttachments();
@@ -764,6 +754,7 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
 
         _emptyState.IsVisible = !state.Identity.Linked && _targetDeviceId is null && !state.HasPendingRequest;
         SyncEmptyState(state);
+        _composer!.IsVisible = ActiveConversationKey == SharedConversationKey || ActiveConversationKey.StartsWith("device:", StringComparison.Ordinal);
         _input.IsEnabled = !_core.IsUnsupported;
         SyncComposer();
 
@@ -783,9 +774,7 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
     private void SyncComposer()
     {
         _send.IsEnabled = !_core.IsUnsupported && _targetUsable && HasComposerContent && !_sendDisabled && !_preparingAttachments;
-        _sendToDevice.IsEnabled = !_core.IsUnsupported && !_sendDisabled;
         _send.Content = "发送";
-        _sendToDevice.Content = "发给 " + _targetName + " ▾";
         _attachFiles.IsEnabled = !_core.IsUnsupported && !_sendDisabled && !_preparingAttachments;
         _attachImages.IsEnabled = !_core.IsUnsupported && !_sendDisabled;
     }
@@ -889,8 +878,7 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
     }
 
     /// <summary>
-    /// Sends what the composer holds, optionally to one device. With no target this is "send to
-    /// myself", so the user never has to pick a device for their own devices to see it.
+    /// Sends the current conversation's draft within its fixed shared or private scope.
     ///
     /// A forward is a different operation: the entry's *content* is resolved first through
     /// <c>assistant.open</c> (which downloads a file the module has not fetched yet) and the composer
@@ -898,7 +886,7 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
     /// </summary>
     private async Task SendAsync(string? targetDeviceId)
     {
-        if (_sendDisabled || !_targetUsable) return;
+        if (_sendDisabled || !_targetUsable || (ActiveConversationKey != SharedConversationKey && !ActiveConversationKey.StartsWith("device:", StringComparison.Ordinal))) return;
 
         // Capture what is being sent. Anything the user types or attaches while the module answers
         // belongs to the next message and must survive this send.
@@ -1267,8 +1255,7 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
     // ---- activation -------------------------------------------------------------------------
 
     /// <summary>
-    /// A system share lands here as a local file: it becomes a pending attachment in the conversation
-    /// rather than starting a device wizard, which is the whole point of "share to MPT".
+    /// A system share waits for a conversation choice before merging into that draft. It never sends.
     /// </summary>
     public async ValueTask<bool> ActivateAsync(ToolActivationRequest request, CancellationToken cancellationToken = default)
     {
@@ -1283,30 +1270,16 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
         }
         if (Uri.TryCreate(value, UriKind.Absolute, out var uri) && uri.IsFile)
         {
-            SelectTarget(null, "文件传输助手");
-            var added = AddAttachment(uri.LocalPath);
-            _core.PublishOnUi(_core.Snapshot with
-            {
-                Status = added ? $"已从分享添加 {_attachments.Count} 个文件，点发送即可。" : "分享的文件已在待发送列表里。"
-            });
-            // A platform share is a completed action, unlike an unfinished keystroke. Persist it
-            // before returning to the host instead of depending on the background typing timer.
-            await SaveDraftAsync();
+            _sharedFiles.Add(uri.LocalPath);
+            ShowConversationChoiceForShare();
             return true;
         }
         // System "share text" arrives as mypowertools://file-assistant?text=…; the attachment form is
         // a file URI above. Both append to the same composer and never send on their own.
         if (TryReadSharedText(value) is { Length: > 0 } shared)
         {
-            SelectTarget(null, "文件传输助手");
-            var current = _input.Text ?? "";
-            _input.Text = current.Length == 0 ? shared : current + "\n" + shared;
-            _input.CaretIndex = _input.Text.Length;
-            SyncComposer();
-            // TextChanged is queued by Avalonia; capture this value before acknowledging activation.
-            DraftChanged();
-            _core.PublishOnUi(_core.Snapshot with { Status = "已从分享添加文字，点发送即可。" });
-            await SaveDraftAsync();
+            _sharedTexts.Add(shared);
+            ShowConversationChoiceForShare();
             return true;
         }
         if (value.StartsWith("mpt://assistant/", StringComparison.Ordinal))

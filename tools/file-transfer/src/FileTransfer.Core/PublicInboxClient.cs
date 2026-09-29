@@ -73,6 +73,9 @@ public sealed class PublicInboxClient : IDisposable
         Uri baseAddress,
         PublicInboxRetryPolicy retry)
     {
+        if (baseAddress.Scheme != Uri.UriSchemeHttps
+            && !(baseAddress.Scheme == Uri.UriSchemeHttp && (baseAddress.IsLoopback || InboxRelays.IsTrustedHttp(baseAddress))))
+            throw new ArgumentException("投递凭据只允许通过 HTTPS 或内置的可信 Tail relay 传输。", nameof(baseAddress));
         _role = role;
         _inboxId = inboxId;
         _key = key;
@@ -83,7 +86,7 @@ public sealed class PublicInboxClient : IDisposable
         {
             // A redirect would replay the Basic credential at an address the pairing code never named.
             AllowAutoRedirect = false,
-            ConnectTimeout = TimeSpan.FromSeconds(15)
+            ConnectTimeout = TimeSpan.FromSeconds(4)
         })
         {
             // Every call carries its own budget or is explicitly cancellable by the caller.

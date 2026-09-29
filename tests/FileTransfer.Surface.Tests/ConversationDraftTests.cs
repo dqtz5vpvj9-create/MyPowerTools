@@ -1,5 +1,7 @@
 using System.Text.Json.Nodes;
 using Avalonia.Controls;
+using Avalonia.Automation;
+using Avalonia.Interactivity;
 using Avalonia.Headless.XUnit;
 using Avalonia.LogicalTree;
 using Avalonia.Threading;
@@ -11,10 +13,10 @@ namespace FileTransfer.Surface.Tests;
 public sealed class ConversationDraftTests
 {
     [AvaloniaFact]
-    public async Task Shared_files_and_target_are_saved_before_activation_returns_without_a_timer_or_detach()
+    public async Task Shared_files_are_saved_after_choosing_a_conversation_without_sending()
     {
         var module = new FakeTransferModule();
-        module.DraftPreferences["targetDeviceId"] = "old-device";
+
         module.DraftPreferences["draftText"] = "原有草稿";
         var view = new TransferView(module.Context(Path.GetTempPath()));
         using var host = new Host(view);
@@ -27,6 +29,8 @@ public sealed class ConversationDraftTests
             {
                 File.WriteAllText(path, "shared file");
                 await view.ActivateAsync(new ToolActivationRequest("file-transfer", "", new Uri(path).AbsoluteUri));
+                ChooseSharedConversation(view);
+                await SettleAsync();
                 Assert.Contains(path, module.DraftPreferences["attachmentPaths"]!.AsArray().Select(n => n!.GetValue<string>()));
                 Assert.Null(module.DraftPreferences["targetDeviceId"]);
             }
@@ -38,12 +42,14 @@ public sealed class ConversationDraftTests
     }
 
     [AvaloniaFact]
-    public async Task Shared_text_is_saved_before_the_queued_TextChanged_notification()
+    public async Task Shared_text_is_saved_once_after_choosing_a_conversation()
     {
         var module = new FakeTransferModule();
         var view = new TransferView(module.Context(Path.GetTempPath()));
         using var host = new Host(view);
         await view.ActivateAsync(new ToolActivationRequest("file-transfer", "", "mypowertools://file-assistant?text=shared%20draft"));
+        ChooseSharedConversation(view);
+        await SettleAsync();
         Assert.Equal("shared draft", module.DraftPreferences["draftText"]!.GetValue<string>());
         Assert.Equal(1, module.CountCalls("assistant.preferences.update"));
         await SettleAsync();
@@ -64,6 +70,8 @@ public sealed class ConversationDraftTests
         });
         using var host = new Host(view);
         await view.ActivateAsync(new ToolActivationRequest("file-transfer", "", "mypowertools://file-assistant?text=unsaved"));
+        ChooseSharedConversation(view);
+        await SettleAsync();
         Assert.Equal("unsaved", Composer(view).Text);
         Assert.Contains(view.GetLogicalDescendants().OfType<TextBlock>(),
             text => text.Text == "草稿尚未保存，请暂时保留此页面。");
@@ -228,6 +236,54 @@ public sealed class ConversationDraftTests
         await SettleAsync();
         Assert.Equal(2, writes);
         Assert.Equal("第二版", module.DraftPreferences["draftText"]!.GetValue<string>());
+    }
+
+    [AvaloniaFact]
+    public async Task Conversation_drafts_survive_view_restart_without_crossing_destinations()
+    {
+        var module = new FakeTransferModule();
+        module.DraftPreferences["conversationKey"] = "shared";
+        module.DraftPreferences["drafts"] = new JsonObject();
+        module.AddPeer("laptop", "笔记本");
+        var view = new TransferView(module.Context("/mnt/cache/data-cache"));
+        using (var host = new Host(view))
+        {
+            OpenConversation(view, "文件传输助手");
+            Composer(view).Text = "共享草稿";
+            await SettleAsync();
+            view.Conversation.TryHandleBack();
+            OpenConversation(view, "笔记本");
+            Assert.Equal("", Composer(view).Text ?? "");
+            Composer(view).Text = "私聊草稿";
+            await SettleAsync();
+        }
+        var reopened = new TransferView(module.Context("/mnt/cache/data-cache"));
+        using var second = new Host(reopened);
+        await SettleAsync();
+        OpenConversation(reopened, "笔记本");
+        Assert.Equal("私聊草稿", Composer(reopened).Text);
+        reopened.Conversation.TryHandleBack();
+        OpenConversation(reopened, "文件传输助手");
+        Assert.Equal("共享草稿", Composer(reopened).Text);
+        Assert.Equal(0, module.CountCalls("assistant.send"));
+    }
+
+    private static void OpenConversation(TransferView view, string name)
+    {
+        Dispatcher.UIThread.RunJobs();
+        var button = view.GetLogicalDescendants().OfType<Button>()
+            .First(b => b.IsEffectivelyVisible && AutomationProperties.GetName(b) == "打开会话 " + name);
+        button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Dispatcher.UIThread.RunJobs();
+    }
+
+    private static void ChooseSharedConversation(TransferView view)
+    {
+        Dispatcher.UIThread.RunJobs();
+        var button = view.Conversation.SheetHost.GetLogicalDescendants().OfType<Button>()
+            .Single(b => AutomationProperties.GetName(b) == "打开会话 文件传输助手");
+        button.RaiseEvent(new RoutedEventArgs(Button.ClickEvent));
+        Dispatcher.UIThread.RunJobs();
     }
 
     private const string PrivateFailure = "不能写进诊断的草稿正文 /private/document.txt token=DO_NOT_LOG";

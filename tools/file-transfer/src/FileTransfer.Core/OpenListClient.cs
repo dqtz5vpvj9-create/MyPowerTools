@@ -34,6 +34,7 @@ public sealed partial class OpenListClient : IDisposable
         if (!string.IsNullOrEmpty(url.UserInfo) || !string.IsNullOrEmpty(url.Query) || !string.IsNullOrEmpty(url.Fragment))
             throw new ArgumentException("WebDAV 地址不能包含账号、查询参数或片段。");
         if (url.Scheme == "https") return;
+        if (InboxRelays.IsTrustedHttp(url)) return;
         if (url.Scheme == "http" && IPAddress.TryParse(url.Host.Trim('[', ']'), out var ip) &&
             (IPAddress.IsLoopback(ip) || TransferFiles.IsTailAddress(ip))) return;
         throw new ArgumentException("OpenList 请使用 HTTPS，或 Tailscale IP 上的 HTTP 地址。");

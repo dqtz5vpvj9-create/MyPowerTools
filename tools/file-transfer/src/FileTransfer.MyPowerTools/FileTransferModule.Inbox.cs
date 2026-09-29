@@ -34,6 +34,11 @@ public sealed partial class FileTransferModule
     private CancellationTokenSource? _inboxCts;
     private long _inboxRevision = -1;
     private readonly SemaphoreSlim _inboxGate = new(1, 1);
+    private readonly SemaphoreSlim _inboxItemGate = new(1, 1);
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, long> _inboxRevisions = new();
+    private sealed record InboxRouteHealth(bool Available, string Message, DateTimeOffset CheckedAt);
+    private readonly System.Collections.Concurrent.ConcurrentDictionary<string, InboxRouteHealth> _inboxHealth = new();
+    private IReadOnlyList<InboxRelay> InboxRoutes => CustomRelayConfigured ? [] : InboxRelays.All;
     private readonly SemaphoreSlim _inboxSignal = new(0, 1);
     // Retained wake-up, exactly like the relay leg: one pending run covers a signal that arrives while a
     // run is in flight, so a send during a slow deposit is never lost.
@@ -62,7 +67,7 @@ public sealed partial class FileTransferModule
         finally { _inboxGate.Release(); }
     }
 
-    private string? PeerInboxId(string deviceId) => FindPeer(deviceId) is { } peer ? PeerText(peer, "inboxId") : "";
+    private string PeerInboxId(string deviceId) => FindPeer(deviceId) is { } peer ? PeerText(peer, "inboxId") : "";
 
     /// <summary>The deposit credential of a paired device, read from the secret store, or null.</summary>
     private async Task<PublicInboxPairing?> PeerInboxAsync(string deviceId, CancellationToken token)
@@ -96,52 +101,67 @@ public sealed partial class FileTransferModule
     /// </summary>
     private async Task InboxLoopAsync()
     {
-        var backoff = TimeSpan.FromSeconds(2);
         while (!_lifetime.IsCancellationRequested)
         {
-            if (!_receivingEnabled)
+            if (!_receivingEnabled || CustomRelayConfigured)
             {
                 await WaitInboxEventAsync(Timeout.InfiniteTimeSpan);
                 continue;
             }
-            var poll = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
+            using var poll = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
             _inboxCts = poll;
             try
             {
                 var identity = await EnsureInboxAsync(poll.Token);
-                using var client = PublicInboxClient.Owner(identity);
-                await client.RegisterAsync(poll.Token);
-                NoteInboxAvailable();
-                while (_receivingEnabled && !poll.IsCancellationRequested)
+                await Task.WhenAll(InboxRoutes.Select(route => ReceiveInboxRouteAsync(route, identity, poll.Token)));
+            }
+            catch (OperationCanceledException) { }
+            finally { if (ReferenceEquals(_inboxCts, poll)) _inboxCts = null; }
+        }
+    }
+
+    private async Task ReceiveInboxRouteAsync(InboxRelay route, PublicInboxIdentity identity, CancellationToken token)
+    {
+        var backoff = TimeSpan.FromSeconds(2);
+        while (_receivingEnabled && !token.IsCancellationRequested)
+        {
+            try
+            {
+                using var client = PublicInboxClient.Owner(identity, PublicInboxRetryPolicy.None, route.Address);
+                await client.RegisterAsync(token);
+                NoteInboxAvailable(route.Id);
+                while (_receivingEnabled && !token.IsCancellationRequested)
                 {
-                    var page = await client.PollAsync(_inboxRevision < 0 ? null : _inboxRevision, token: poll.Token);
-                    if (page.Revision != _inboxRevision) _inboxRevision = page.Revision;
+                    var revision = _inboxRevisions.GetValueOrDefault(route.Id, -1);
+                    var page = await client.PollAsync(revision < 0 ? null : revision, token: token);
+                    _inboxRevisions[route.Id] = page.HasMore ? -1 : page.Revision;
+                    _inboxRevision = page.Revision;
                     _inboxLastItems = page.Items.Count;
-                    NoteInboxAvailable();
+                    NoteInboxAvailable(route.Id);
                     var failed = false;
                     foreach (var item in page.Items)
                     {
-                        if (!await ReceiveInboxItemAsync(client, item, poll.Token)) failed = true;
+                        // The two relays may deliver the same id together. Serialize adoption so only
+                        // one payload is downloaded; the other route receives its own real receipt.
+                        await _inboxItemGate.WaitAsync(token);
+                        try { if (!await ReceiveInboxItemAsync(client, item, route.Id, token)) failed = true; }
+                        finally { _inboxItemGate.Release(); }
                     }
-                    if (page.HasMore) _inboxRevision = -1;
-                    // A failure backs off before the next round; additional pages do not wait for a new upload.
-                    if (failed) { await WaitInboxEventAsync(backoff); backoff = Bump(backoff); }
+                    if (failed) { await Task.Delay(backoff, token); backoff = Bump(backoff); }
                     else backoff = TimeSpan.FromSeconds(2);
                 }
             }
-            catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { return; }
-            catch (OperationCanceledException) { /* receive.stop or a new identity cancelled this poll */ }
-            catch (PublicInboxAuthException ex) { NoteInboxUnavailable(ex.Message); await WaitInboxEventAsync(TimeSpan.FromMinutes(5)); }
+            catch (OperationCanceledException) when (token.IsCancellationRequested) { return; }
+            catch (PublicInboxAuthException ex)
+            {
+                NoteInboxUnavailable(ex.Message, route.Id);
+                await Task.Delay(TimeSpan.FromMinutes(5), token);
+            }
             catch (Exception ex)
             {
-                NoteInboxUnavailable(MptLogRedactor.Redact(ex.Message));
-                await WaitInboxEventAsync(backoff);
+                NoteInboxUnavailable(MptLogRedactor.Redact(ex.Message), route.Id);
+                await Task.Delay(backoff, token);
                 backoff = Bump(backoff);
-            }
-            finally
-            {
-                if (ReferenceEquals(_inboxCts, poll)) _inboxCts = null;
-                poll.Dispose();
             }
         }
     }
@@ -155,7 +175,7 @@ public sealed partial class FileTransferModule
     /// because deleting it would also remove the receipt the sender still has to confirm.
     /// Returns false when this item needs a backoff before the next attempt.
     /// </summary>
-    private async Task<bool> ReceiveInboxItemAsync(PublicInboxClient client, PublicInboxItem item, CancellationToken token)
+    private async Task<bool> ReceiveInboxItemAsync(PublicInboxClient client, PublicInboxItem item, string sourceRelay, CancellationToken token)
     {
         var store = _assistantStore ?? throw new InvalidOperationException("会话存储尚未就绪。");
         var spool = Path.Combine(_data, "inbox-spool");
@@ -172,7 +192,7 @@ public sealed partial class FileTransferModule
         long bytes = existing?.BytesDone ?? item.Size;
         try
         {
-            if (existing is { State: AssistantItemState.Available, LocalPath: { Length: > 0 } localCopy } && File.Exists(localCopy))
+            if (existing is { State: AssistantItemState.Available } && AssistantContent.HasLocalContent(existing))
             {
                 // A previous round saved the file but the receipt did not land; reuse it instead of
                 // downloading and committing a second copy.
@@ -202,7 +222,7 @@ public sealed partial class FileTransferModule
                     await client.DeleteAsync(item.ItemId, token);
                     return true;
                 }
-                await store.AdoptAsync(Identity(), AdoptedItem(item, null, bytes, text), token);
+                await store.AdoptAsync(Identity(), AdoptedItem(item, null, bytes, text, sourceRelay), token);
             }
             else
             {
@@ -218,7 +238,7 @@ public sealed partial class FileTransferModule
                     var directory = Path.Combine(store.InboxRoot, item.ItemId);
                     Directory.CreateDirectory(directory);
                     var saved = TransferFiles.Commit(temporary, directory, TransferFiles.FileName(item.Name ?? "来件"));
-                    await store.AdoptAsync(Identity(), AdoptedItem(item, saved, bytes, null), token);
+                    await store.AdoptAsync(Identity(), AdoptedItem(item, saved, bytes, null, sourceRelay), token);
                 }
                 finally
                 {
@@ -264,7 +284,7 @@ public sealed partial class FileTransferModule
         NoteInboxUnavailable(reason);
     }
 
-    private AssistantItem AdoptedItem(PublicInboxItem item, string? path, long bytes, string? text) => new()
+    private AssistantItem AdoptedItem(PublicInboxItem item, string? path, long bytes, string? text, string sourceRelay) => new()
     {
         Id = item.ItemId,
         Kind = item.Kind switch
@@ -280,6 +300,8 @@ public sealed partial class FileTransferModule
         SenderDeviceId = item.SenderDeviceId is { Length: > 0 } sender ? sender : "paired-device",
         SenderName = item.SenderName is { Length: > 0 } name ? name : "配对设备",
         TargetDeviceId = Setting("deviceId"),
+        Provenance = item.SenderDeviceId is { Length: > 0 } ? AssistantConversations.PairedInbox : null,
+        SourceRelay = sourceRelay,
         State = AssistantItemState.Available,
         LocalPath = path,
         BytesDone = bytes
@@ -325,8 +347,8 @@ public sealed partial class FileTransferModule
             try
             {
                 var identity = Identity();
-                if (_conversationId.Length > 0) remaining += await DepositPendingAsync(identity, _lifetime.Token);
                 remaining += await ConfirmDepositReceiptsAsync(_lifetime.Token);
+                if (_conversationId.Length > 0) remaining += await DepositPendingAsync(identity, _lifetime.Token);
             }
             catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { return; }
             catch (Exception ex)
@@ -349,65 +371,100 @@ public sealed partial class FileTransferModule
     {
         var store = _assistantStore!;
         var state = await store.LoadAsync(token);
-        // The scheduler owns only what is still queued. Stored means the deposit already succeeded and
-        // only the owner's receipt is outstanding, and Failed means a permanent failure the user has not
-        // retried: neither may be re-uploaded by an automatic round.
         var candidates = state.Outgoing(identity.DeviceId)
             .Where(item => item.TargetDeviceId is { Length: > 0 } && item.Receipts.Count == 0
-                && !IsConversationMember(item.TargetDeviceId)
-                && item.State == AssistantItemState.Queued)
+                && AssistantConversations.IsPrivate(item)
+                && (item.State == AssistantItemState.Queued || NeedsPublicFallback(item)))
             .OrderBy(item => item.Attempts).ThenBy(item => item.CreatedAt).ToArray();
-        var pending = 0;
+        var pending = candidates.Length > 8 ? 1 : 0;
         foreach (var item in candidates.Take(8))
         {
             token.ThrowIfCancellationRequested();
             var target = item.TargetDeviceId!;
             try
             {
+                if (CustomRelayConfigured)
+                {
+                    await SetDepositStateAsync(store, item.Id, AssistantItemState.Failed,
+                        "当前使用自定义存储，私聊仅通过设备直连发送，不会转存到内置中转。", token);
+                    continue;
+                }
                 var inbox = await PeerInboxAsync(target, token);
                 if (inbox is null)
                 {
-                    // An old pairing code has no deposit permission: say so instead of pretending to
-                    // send, and park the entry — re-scanning the code is a user action, not a retry.
                     await SetDepositStateAsync(store, item.Id, AssistantItemState.Failed,
-                        "对方是旧版配对码，没有公网投递权限；请让对方重新扫码后再发送。", token);
+                        "对方是旧版配对码，没有中转投递权限；请让对方重新扫码后再发送。", token);
                     continue;
                 }
-                // Client construction validates the stored credential; a bad pairing must surface on the
-                // entry, never disappear into a generic sync failure.
-                using var client = PublicInboxClient.Deposit(inbox);
-                await store.MutateAsync(current =>
+                var routes = InboxRoutes;
+                if (NeedsPublicFallback(item))
                 {
-                    if (current.Find(item.Id) is { } row) row.Attempts++;
-                }, token);
-                if (item.State != AssistantItemState.Stored)
-                {
-                    var payload = store.GetPayloadPath(item);
-                    // The same itemId is reused on every retry, which is what makes the relay's duplicate
-                    // detection work; a text needs no payload file. The item scope is what makes the user's
-                    // cancel abort the upload instead of letting it finish.
-                    using var scope = ItemScope(item.Id, token);
-                    _ = item.Kind == AssistantItemKind.Text
-                        ? await client.DepositTextAsync(item.Id, item.Text ?? "", identity.DeviceId, identity.Name, item.CreatedAt, target, scope.Token)
-                        : await client.DepositFileAsync(item.Id, payload ?? throw new IOException("待发副本不存在。"), item.Name, identity.DeviceId, identity.Name, item.CreatedAt, target, scope.Token);
-                    if (scope.IsCancellationRequested && !token.IsCancellationRequested) continue;
-                    await SetDepositStateAsync(store, item.Id, AssistantItemState.Stored, null, token);
-                    // Real success only: a 503 or a rejected key must never mark the inbox healthy.
-                    NoteInboxAvailable();
+                    foreach (var previous in routes.Where(route => item.DepositRoutes.Any(saved => saved.RelayId == route.Id && saved.StoredAt is not null)))
+                    {
+                        using var original = PublicInboxClient.Deposit(inbox, PublicInboxRetryPolicy.None, previous.Address);
+                        try
+                        {
+                            var receipt = await ProbeDepositReceiptAsync(original, item.Id, token);
+                            if (receipt?.Saved == true)
+                                await ConfirmInboxReceiptAsync(store, item.Id, target, receipt, token);
+                        }
+                        catch (Exception ex) when (IsTransientDepositFailure(ex)) { }
+                    }
+                    if (item.Receipts.Count > 0 || item.State is AssistantItemState.Delivered or AssistantItemState.Cancelled) continue;
                 }
-                pending++;
+                // Once public was attempted, retries remain on that route. A stored Tail copy gets a
+                // public copy only after the receipt grace, preserving its original id and provenance.
+                if (item.DepositRoutes.Any(row => row.RelayId == InboxRelays.Public)
+                    || item.DepositRoutes.Any(row => row.StoredAt is not null))
+                    routes = routes.Where(route => route.Id == InboxRelays.Public).ToArray();
+                Exception? lastFailure = null;
+                foreach (var route in routes)
+                {
+                    if (item.Receipts.Count > 0 || item.State is AssistantItemState.Delivered or AssistantItemState.Cancelled) break;
+                    using var client = PublicInboxClient.Deposit(inbox, PublicInboxRetryPolicy.None, route.Address);
+                    using var scope = ItemScope(item.Id, token);
+                    try
+                    {
+                        // Probe this exact id before sending bytes. A lost PUT response may already have
+                        // stored or delivered it; neither case needs another file upload.
+                        var receipt = await ProbeDepositReceiptAsync(client, item.Id, scope.Token);
+                        if (receipt is not null)
+                        {
+                            await RememberDepositRouteAsync(store, item.Id, route.Id, stored: true, token);
+                            if (receipt.Saved) await ConfirmInboxReceiptAsync(store, item.Id, target, receipt, token);
+                            else await SetDepositStateAsync(store, item.Id, AssistantItemState.Stored, null, token);
+                            break;
+                        }
+                        await RememberDepositRouteAsync(store, item.Id, route.Id, stored: false, token);
+                        if (item.Receipts.Count > 0 || item.State is AssistantItemState.Delivered or AssistantItemState.Cancelled) break;
+                        var payload = store.GetPayloadPath(item);
+                        _ = item.Kind == AssistantItemKind.Text
+                            ? await client.DepositTextAsync(item.Id, item.Text ?? "", identity.DeviceId, identity.Name, item.CreatedAt, target, scope.Token)
+                            : await client.DepositFileAsync(item.Id, payload ?? throw new IOException("待发副本不存在。"), item.Name, identity.DeviceId, identity.Name, item.CreatedAt, target, scope.Token);
+                        if (scope.IsCancellationRequested) break;
+                        await RememberDepositRouteAsync(store, item.Id, route.Id, stored: true, token);
+                        await SetDepositStateAsync(store, item.Id, AssistantItemState.Stored, null, token);
+                        NoteInboxAvailable();
+                        lastFailure = null;
+                        break;
+                    }
+                    catch (Exception ex) when (IsTransientDepositFailure(ex))
+                    {
+                        lastFailure = ex;
+                        // Only a transient error moves to the next fixed route. Rejected credentials,
+                        // redirects, malformed metadata and other permanent failures leave this loop.
+                    }
+                }
+                if (lastFailure is not null)
+                    await SetDepositStateAsync(store, item.Id,
+                        item.DepositRoutes.Any(route => route.StoredAt is not null) ? AssistantItemState.Stored : AssistantItemState.Queued,
+                        lastFailure.Message, token);
+                if (item.Receipts.Count == 0 && item.State is AssistantItemState.Queued or AssistantItemState.Stored) pending++;
             }
             catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { throw; }
-            catch (OperationCanceledException)
-            {
-                // The user cancelled this item (or its scope went stale): keep the loop alive.
-                pending++;
-            }
+            catch (OperationCanceledException) { pending++; }
             catch (Exception ex) when (ex is PublicInboxException or IOException or InvalidOperationException or ArgumentException)
             {
-                // A transient relay state stays queued and recovers on its own; a permanent one is parked
-                // in failed until the user explicitly retries it, so the same bytes are never re-uploaded
-                // by every automatic round.
                 var retryable = IsTransientDepositFailure(ex);
                 await SetDepositStateAsync(store, item.Id,
                     retryable ? AssistantItemState.Queued : AssistantItemState.Failed,
@@ -415,11 +472,35 @@ public sealed partial class FileTransferModule
                 if (retryable) pending++;
             }
         }
-        // A full batch must schedule the next batch even if this one needed no retry. Only an entry that
-        // is still queued counts: a parked failure must not keep the scheduler awake.
-        if (candidates.Any(item => item.State == AssistantItemState.Queued)) pending++;
         return pending;
     }
+
+    private static bool NeedsPublicFallback(AssistantItem item) => item.State == AssistantItemState.Stored
+        && !item.DepositRoutes.Any(route => route.RelayId == InboxRelays.Public && route.StoredAt is not null)
+        && item.DepositRoutes.Any(route => route.RelayId == InboxRelays.Tail && route.StoredAt is { } at
+            && DateTimeOffset.UtcNow - at >= InboxRelays.FallbackDelay);
+
+    private static async Task<PublicInboxReceipt?> ProbeDepositReceiptAsync(PublicInboxClient client, string itemId, CancellationToken token)
+    {
+        using var budget = CancellationTokenSource.CreateLinkedTokenSource(token);
+        budget.CancelAfter(TimeSpan.FromSeconds(4));
+        try { return await client.GetReceiptAsync(itemId, budget.Token); }
+        catch (PublicInboxNotFoundException) { return null; }
+        catch (OperationCanceledException) when (!token.IsCancellationRequested)
+        { throw new PublicInboxUnavailableException("中转服务暂时无法连接。"); }
+    }
+
+    private static Task RememberDepositRouteAsync(AssistantStore store, string itemId, string relayId, bool stored, CancellationToken token) =>
+        store.MutateAsync(state =>
+        {
+            var item = state.Find(itemId);
+            if (item is null || item.State is AssistantItemState.Cancelled or AssistantItemState.Delivered) return;
+            var old = item.DepositRoutes.FirstOrDefault(route => route.RelayId == relayId);
+            var now = DateTimeOffset.UtcNow;
+            var route = new AssistantDepositRoute(relayId, old?.AttemptedAt ?? now, stored ? old?.StoredAt ?? now : old?.StoredAt);
+            item.DepositRoutes = [.. item.DepositRoutes.Where(row => row.RelayId != relayId), route];
+            if (!stored) item.Attempts++;
+        }, token);
 
     /// <summary>
     /// True when retrying the same deposit can succeed later with no user action: the inbox is not
@@ -464,62 +545,75 @@ public sealed partial class FileTransferModule
     private async Task<int> ConfirmDepositReceiptsAsync(CancellationToken token)
     {
         var store = _assistantStore;
-        if (store is null) return 0;
+        if (store is null || CustomRelayConfigured) return 0;
         var state = await store.LoadAsync(token);
-        var outstanding = 0;
         var candidates = state.Outgoing(Setting("deviceId"))
-            .Where(item => item.State == AssistantItemState.Stored && item.Receipts.Count == 0
-                && item.TargetDeviceId is { Length: > 0 } target && PeerInboxId(target)?.Length > 0)
+            .Where(item => AssistantConversations.IsPrivate(item)
+                && item.State is AssistantItemState.Stored or AssistantItemState.Queued && item.Receipts.Count == 0
+                && item.TargetDeviceId is { Length: > 0 } target && PeerInboxId(target).Length > 0
+                && (item.DepositRoutes.Count > 0 || item.State == AssistantItemState.Stored))
             .OrderBy(item => item.ReceiptCheckedAt ?? DateTimeOffset.MinValue)
             .ThenBy(item => item.CreatedAt).ToArray();
         var pending = candidates.Take(8).ToArray();
-        outstanding = candidates.Length - pending.Length;
+        var outstanding = candidates.Length - pending.Length;
         foreach (var item in pending)
         {
             token.ThrowIfCancellationRequested();
-            var target = item.TargetDeviceId!;
-            try
+            var inbox = await PeerInboxAsync(item.TargetDeviceId!, token);
+            if (inbox is null) continue;
+            // Old stored entries were sent only to public. Missing new metadata never redirects them.
+            var routeIds = item.DepositRoutes.Count == 0 ? [InboxRelays.Public]
+                : item.DepositRoutes.Select(route => route.RelayId).ToArray();
+            foreach (var route in InboxRoutes.Where(route => routeIds.Contains(route.Id)))
             {
-                var inbox = await PeerInboxAsync(target, token);
-                if (inbox is null) continue;
-                using var client = PublicInboxClient.Deposit(inbox);
-                using var scope = ItemScope(item.Id, token);
-                await store.MutateAsync(current =>
+                if (item.Receipts.Count > 0 || item.State is AssistantItemState.Delivered or AssistantItemState.Cancelled) break;
+                try
                 {
-                    if (current.Find(item.Id) is { } row) row.ReceiptCheckedAt = DateTimeOffset.UtcNow;
-                }, token);
-                var receipt = await client.GetReceiptAsync(item.Id, scope.Token);
-                _depositConfirmReads++;
-                if (!receipt.Saved) { outstanding++; continue; }
-                var confirmed = 0;
-                await store.MutateAsync(current =>
+                    using var client = PublicInboxClient.Deposit(inbox, PublicInboxRetryPolicy.None, route.Address);
+                    using var scope = ItemScope(item.Id, token);
+                    await store.MutateAsync(current =>
+                    {
+                        if (current.Find(item.Id) is { } row) row.ReceiptCheckedAt = DateTimeOffset.UtcNow;
+                    }, token);
+                    var receipt = await ProbeDepositReceiptAsync(client, item.Id, scope.Token);
+                    _depositConfirmReads++;
+                    if (receipt?.Saved == true)
+                        await ConfirmInboxReceiptAsync(store, item.Id, item.TargetDeviceId!, receipt, token);
+                }
+                catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { throw; }
+                catch (OperationCanceledException) { }
+                catch (PublicInboxException ex) when (ex.Status is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden)
                 {
-                    var row = current.Find(item.Id);
-                    if (row is null || row.State == AssistantItemState.Cancelled) return;
-                    MergeInboxReceipt(current, row, target, receipt);
-                    row.State = AssistantItemState.Delivered;
-                    row.Error = null;
-                    confirmed = 1;
-                }, token);
-                _depositConfirmMarked += confirmed;
-                if (confirmed == 0) _depositLastError = "回执已读回，但条目不在可确认状态。";
-                NoteInboxAvailable();
-                EmitAssistantChanged("inbox.delivered");
+                    // In particular, an auth failure on Tail cannot cause a copy to be sent to public.
+                    await SetDepositStateAsync(store, item.Id, AssistantItemState.Failed, ex.Message, token);
+                    break;
+                }
+                catch (Exception ex) when (ex is PublicInboxException or IOException or InvalidOperationException or ArgumentException)
+                { NoteInboxUnavailable(MptLogRedactor.Redact(ex.Message)); }
             }
-            catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { throw; }
-            catch (OperationCanceledException)
-            {
-                // A cancelled item keeps its stored state and is confirmed on a later round.
-                outstanding++;
-            }
-            catch (Exception ex) when (ex is PublicInboxException or IOException or InvalidOperationException or ArgumentException)
-            {
-                // A receipt read is best effort; the entry keeps its stored state and is retried later.
-                NoteInboxUnavailable(MptLogRedactor.Redact(ex.Message));
-                outstanding++;
-            }
+            if (item.Receipts.Count == 0 && item.State is AssistantItemState.Stored or AssistantItemState.Queued) outstanding++;
         }
         return outstanding;
+    }
+
+    private async Task ConfirmInboxReceiptAsync(AssistantStore store, string itemId, string target, PublicInboxReceipt receipt, CancellationToken token)
+    {
+        var confirmed = false;
+        await store.MutateIfChangedAsync(current =>
+        {
+            var row = current.Find(itemId);
+            if (row is null || row.State is AssistantItemState.Cancelled or AssistantItemState.Delivered) return false;
+            MergeInboxReceipt(current, row, target, receipt);
+            row.State = AssistantItemState.Delivered;
+            row.Error = null;
+            return confirmed = true;
+        }, token);
+        if (confirmed)
+        {
+            _depositConfirmMarked++;
+            NoteInboxAvailable();
+            EmitAssistantChanged("inbox.delivered");
+        }
     }
 
     /// <summary>
@@ -546,8 +640,9 @@ public sealed partial class FileTransferModule
         catch (OperationCanceledException) { }
     }
 
-    private void NoteInboxAvailable()
+    private void NoteInboxAvailable(string? routeId = null)
     {
+        if (routeId is not null) _inboxHealth[routeId] = new(true, "", DateTimeOffset.UtcNow);
         lock (_stateLock)
         {
             _inboxMessage = "";
@@ -555,8 +650,9 @@ public sealed partial class FileTransferModule
         }
     }
 
-    private void NoteInboxUnavailable(string message)
+    private void NoteInboxUnavailable(string message, string? routeId = null)
     {
+        if (routeId is not null) _inboxHealth[routeId] = new(false, message, DateTimeOffset.UtcNow);
         lock (_stateLock)
         {
             _inboxMessage = message;
@@ -575,12 +671,29 @@ public sealed partial class FileTransferModule
             checkedAt = _inboxCheckedAt;
             _inboxAvailable = message.Length == 0 && checkedAt is not null;
         }
+        var routes = new JsonArray();
+        var healthyRoute = false;
+        foreach (var route in InboxRoutes)
+        {
+            _inboxHealth.TryGetValue(route.Id, out var health);
+            healthyRoute |= health?.Available == true;
+            routes.Add(new JsonObject
+            {
+                ["id"] = route.Id,
+                ["state"] = health is null ? "unknown" : health.Available ? "available" : "unavailable",
+                ["message"] = health?.Message ?? "",
+                ["revision"] = Math.Max(0, _inboxRevisions.GetValueOrDefault(route.Id, -1))
+            });
+        }
+        // One unreachable relay cannot make a working receiving route appear unavailable.
+        if (healthyRoute) { _inboxAvailable = true; message = ""; }
         return new JsonObject
         {
             ["configured"] = _inbox is not null,
             ["id"] = _inbox?.InboxId ?? "",
             ["state"] = _inbox is null ? "unknown" : _inboxAvailable ? "available" : checkedAt is null ? "unknown" : "unavailable",
             ["message"] = message,
+            ["routes"] = routes,
             ["revision"] = Math.Max(0, _inboxRevision),
             ["lastItems"] = _inboxLastItems,
             ["rejected"] = _inboxRejected,

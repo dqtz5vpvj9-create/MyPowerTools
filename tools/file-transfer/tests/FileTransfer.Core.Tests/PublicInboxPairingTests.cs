@@ -22,13 +22,14 @@ public sealed class InboxCollection
 }
 
 [Collection(InboxCollection.Name)]
-public sealed class PublicInboxPairingTests : IAsyncDisposable
+public sealed class PublicInboxPairingTests : IAsyncLifetime
 {
     private readonly string _root = Path.Combine(
         Environment.GetEnvironmentVariable("MPT_TEST_TEMP") ?? Path.GetTempPath(),
         "mpt-inbox-" + Guid.NewGuid().ToString("N"));
     private readonly List<FileTransferModule> _modules = [];
     private readonly List<FakeInboxRelay> _relays = [];
+    private readonly Dictionary<string, InMemorySecretStore> _secrets = new();
 
     public PublicInboxPairingTests()
     {
@@ -36,16 +37,20 @@ public sealed class PublicInboxPairingTests : IAsyncDisposable
         TransferFiles.LocalAddressesOverride = () => [];
     }
 
-    public async ValueTask DisposeAsync()
+    public Task InitializeAsync() => Task.CompletedTask;
+
+    public async Task DisposeAsync()
     {
-        PublicRelayClient.BaseAddressOverride = null;
-        TransferFiles.LocalAddressesOverride = null;
         foreach (var module in _modules) await module.DisposeAsync(CancellationToken.None);
+        PublicRelayClient.BaseAddressOverride = null;
+        InboxRelays.EndpointsOverride = null;
+        InboxRelays.FallbackDelayOverride = null;
+        TransferFiles.LocalAddressesOverride = null;
         foreach (var relay in _relays) await relay.DisposeAsync();
         if (Directory.Exists(_root)) Directory.Delete(_root, true);
     }
 
-    private async Task<FileTransferModule> StartAsync(string name, string deviceId)
+    private async Task<FileTransferModule> StartAsync(string name, string deviceId, string? customUrl = null)
     {
         var root = Path.Combine(_root, name);
         Directory.CreateDirectory(root);
@@ -56,9 +61,12 @@ public sealed class PublicInboxPairingTests : IAsyncDisposable
             ["receiveDirectory"] = Path.Combine(root, "inbox"),
             ["peers"] = new JsonArray()
         };
-        await File.WriteAllTextAsync(Path.Combine(root, "preferences.json"), preferences.ToJsonString());
+        if (customUrl is not null) { preferences["webDavUrl"] = customUrl; preferences["username"] = "private-owner"; }
+        if (!File.Exists(Path.Combine(root, "preferences.json")))
+            await File.WriteAllTextAsync(Path.Combine(root, "preferences.json"), preferences.ToJsonString());
+        if (!_secrets.TryGetValue(name, out var secrets)) _secrets[name] = secrets = new InMemorySecretStore();
         var context = new ModuleContext("test", "1.0", "file-transfer", "file-transfer", root, root, root, "linux",
-            ["secret.store"], new Dictionary<string, object> { ["secret.store"] = new InMemorySecretStore() });
+            ["secret.store"], new Dictionary<string, object> { ["secret.store"] = secrets });
         var module = new FileTransferModule();
         _modules.Add(module);
         Assert.True((await module.InitializeAsync(context, CancellationToken.None)).Ok);
@@ -134,6 +142,162 @@ public sealed class PublicInboxPairingTests : IAsyncDisposable
             await Assert.ThrowsAsync<PublicInboxNotFoundException>(
                 () => sender.GetReceiptAsync(PublicInboxIds.NewItemId()));
         }
+    }
+
+    private (FakeInboxRelay Tail, FakeInboxRelay Public) DualRelays()
+    {
+        var publicRelay = Relay();
+        var tail = new FakeInboxRelay();
+        _relays.Add(tail);
+        InboxRelays.EndpointsOverride = () => [new(InboxRelays.Tail, tail.BaseAddress), new(InboxRelays.Public, publicRelay.BaseAddress)];
+        InboxRelays.FallbackDelayOverride = TimeSpan.FromSeconds(1);
+        return (tail, publicRelay);
+    }
+
+    private static async Task AwaitAsync(Func<bool> ready)
+    {
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        while (!ready()) await Task.Delay(50, deadline.Token);
+    }
+
+    private async Task<string> PairAsync(FileTransferModule sender, FileTransferModule receiver, FakeInboxRelay tail, FakeInboxRelay publicRelay)
+    {
+        var pairing = await CallAsync(receiver, "file-transfer.pairing");
+        var inboxId = pairing["inboxId"]!.GetValue<string>();
+        await AwaitAsync(() => tail.IsRegistered(inboxId) && publicRelay.IsRegistered(inboxId));
+        await CallAsync(sender, "file-transfer.pair.import", new JsonObject { ["code"] = pairing["code"]!.GetValue<string>() });
+        return inboxId;
+    }
+
+    [Fact]
+    public async Task DualRelayPrefersTailAndARealReceiptPreventsPublicReplication()
+    {
+        var (tail, publicRelay) = DualRelays();
+        var sender = await StartAsync("sender", "laptop-a");
+        var receiver = await StartAsync("receiver", "phone-b");
+        var inbox = await PairAsync(sender, receiver, tail, publicRelay);
+        var path = Path.Combine(_root, "tail-picture.png");
+        await File.WriteAllBytesAsync(path, new byte[4096]);
+        var result = await CallAsync(sender, "file-transfer.assistant.send",
+            new JsonObject { ["paths"] = new JsonArray(path), ["targetDeviceId"] = "phone-b" });
+        var id = result["itemIds"]!.AsArray()[0]!.GetValue<string>();
+        var received = await WaitForItemAsync(receiver, id, item => item["state"]!.GetValue<string>() == "available");
+        await WaitForItemAsync(sender, id, item => item["state"]!.GetValue<string>() == "delivered");
+        Assert.Equal("tail", received["sourceRelay"]!.GetValue<string>());
+        Assert.True(tail.HasItem(inbox, id));
+        await Task.Delay(1500); // beyond the fallback grace, after a real receiver receipt
+        Assert.Equal(0, publicRelay.Deposits);
+        var durable = await new AssistantStore(Path.Combine(_root, "sender", "assistant")).LoadAsync(CancellationToken.None);
+        var route = Assert.Single(durable.Find(id)!.DepositRoutes);
+        Assert.Equal(InboxRelays.Tail, route.RelayId);
+        Assert.NotNull(route.StoredAt);
+    }
+
+    [Fact]
+    public async Task AnUnreachableTailRouteDoesNotHideWorkingPublicReception()
+    {
+        var relay = Relay();
+        InboxRelays.EndpointsOverride = () => [new(InboxRelays.Tail, new Uri("http://127.0.0.1:1")), new(InboxRelays.Public, relay.BaseAddress)];
+        var sender = await StartAsync("sender", "laptop-a");
+        var receiver = await StartAsync("receiver", "phone-b");
+        var pairing = await CallAsync(receiver, "file-transfer.pairing");
+        await AwaitAsync(() => relay.IsRegistered(pairing["inboxId"]!.GetValue<string>()));
+        await CallAsync(sender, "file-transfer.pair.import", new JsonObject { ["code"] = pairing["code"]!.GetValue<string>() });
+        var result = await CallAsync(sender, "file-transfer.assistant.send",
+            new JsonObject { ["text"] = "no Tail route", ["targetDeviceId"] = "phone-b" });
+        var id = result["itemIds"]!.AsArray()[0]!.GetValue<string>();
+        await WaitForItemAsync(receiver, id, item => item["state"]!.GetValue<string>() == "available");
+        await WaitForItemAsync(sender, id, item => item["state"]!.GetValue<string>() == "delivered");
+        var inbox = (await CallAsync(receiver, "file-transfer.assistant.inspect"))["inbox"]!;
+        Assert.Equal("available", inbox["state"]!.GetValue<string>());
+        Assert.Equal("", inbox["message"]!.GetValue<string>());
+        Assert.Equal("unavailable", inbox["routes"]!.AsArray().Single(route => route!["id"]!.GetValue<string>() == "tail")!["state"]!.GetValue<string>());
+    }
+
+    [Fact]
+    public async Task DualRelayTransientTailFailureFallsBackToPublic()
+    {
+        var (tail, publicRelay) = DualRelays();
+        var sender = await StartAsync("sender", "laptop-a");
+        var receiver = await StartAsync("receiver", "phone-b");
+        await PairAsync(sender, receiver, tail, publicRelay);
+        tail.NotReady = true;
+        var result = await CallAsync(sender, "file-transfer.assistant.send",
+            new JsonObject { ["text"] = "public fallback", ["targetDeviceId"] = "phone-b" });
+        var id = result["itemIds"]!.AsArray()[0]!.GetValue<string>();
+        var received = await WaitForItemAsync(receiver, id, item => item["state"]!.GetValue<string>() == "available");
+        await WaitForItemAsync(sender, id, item => item["state"]!.GetValue<string>() == "delivered");
+        Assert.Equal("public", received["sourceRelay"]!.GetValue<string>());
+        Assert.Equal(0, tail.Deposits);
+        Assert.Equal(1, publicRelay.Deposits);
+    }
+
+    [Theory]
+    [InlineData(401)]
+    [InlineData(403)]
+    public async Task DualRelayRejectedTailCredentialNeverFallsBack(int status)
+    {
+        var (tail, publicRelay) = DualRelays();
+        var sender = await StartAsync("sender", "laptop-a");
+        var receiver = await StartAsync("receiver", "phone-b");
+        await PairAsync(sender, receiver, tail, publicRelay);
+        tail.RejectDeposits = true;
+        tail.RejectedDepositStatus = status;
+        var result = await CallAsync(sender, "file-transfer.assistant.send",
+            new JsonObject { ["text"] = "must not move namespaces", ["targetDeviceId"] = "phone-b" });
+        var id = result["itemIds"]!.AsArray()[0]!.GetValue<string>();
+        await WaitForItemAsync(sender, id, item => item["state"]!.GetValue<string>() == "failed");
+        Assert.Equal(0, publicRelay.DepositAttempts);
+        Assert.Equal(1, tail.DepositAttempts);
+    }
+
+    [Fact]
+    public async Task DualRelayRestartKeepsTheStoredRouteAndDuplicatesDownloadOnce()
+    {
+        var (tail, publicRelay) = DualRelays();
+        InboxRelays.FallbackDelayOverride = TimeSpan.FromSeconds(30);
+        var sender = await StartAsync("sender", "laptop-a");
+        var receiver = await StartAsync("receiver", "phone-b");
+        var inbox = await PairAsync(sender, receiver, tail, publicRelay);
+        await CallAsync(receiver, "file-transfer.receive.stop");
+        var path = Path.Combine(_root, "restart.bin");
+        await File.WriteAllBytesAsync(path, new byte[32768]);
+        var result = await CallAsync(sender, "file-transfer.assistant.send",
+            new JsonObject { ["paths"] = new JsonArray(path), ["targetDeviceId"] = "phone-b" });
+        var id = result["itemIds"]!.AsArray()[0]!.GetValue<string>();
+        await WaitForItemAsync(sender, id, item => item["state"]!.GetValue<string>() == "stored");
+        await sender.DisposeAsync(CancellationToken.None);
+        _modules.Remove(sender);
+        InboxRelays.FallbackDelayOverride = TimeSpan.Zero;
+        sender = await StartAsync("sender", "laptop-a");
+        await AwaitAsync(() => publicRelay.HasItem(inbox, id));
+        Assert.Equal(1, tail.DepositAttempts);
+        await CallAsync(receiver, "file-transfer.receive.start");
+        await WaitForItemAsync(receiver, id, item => item["state"]!.GetValue<string>() == "available");
+        await WaitForItemAsync(sender, id, item => item["state"]!.GetValue<string>() == "delivered");
+        await AwaitAsync(() => tail.ReceiptWrites > 0 && publicRelay.ReceiptWrites > 0);
+        Assert.Equal(1, tail.PayloadReads + publicRelay.PayloadReads);
+        Assert.Single(Items(await CallAsync(receiver, "file-transfer.assistant.inspect")));
+        var durable = await new AssistantStore(Path.Combine(_root, "sender", "assistant")).LoadAsync(CancellationToken.None);
+        Assert.Equal(new[] { "public", "tail" }, durable.Find(id)!.DepositRoutes.Select(route => route.RelayId).Order().ToArray());
+    }
+
+    [Fact]
+    public async Task CustomStorageDoesNotRegisterOrDepositIntoBuiltInRelays()
+    {
+        var (tail, publicRelay) = DualRelays();
+        var sender = await StartAsync("sender", "laptop-a", "http://127.0.0.1:1/dav/");
+        var receiver = await StartAsync("receiver", "phone-b");
+        await PairAsync(sender, receiver, tail, publicRelay);
+        var ownId = (await CallAsync(sender, "file-transfer.pairing"))["inboxId"]!.GetValue<string>();
+        var result = await CallAsync(sender, "file-transfer.assistant.send",
+            new JsonObject { ["text"] = "private custom data", ["targetDeviceId"] = "phone-b" });
+        var id = result["itemIds"]!.AsArray()[0]!.GetValue<string>();
+        var failed = await WaitForItemAsync(sender, id, item => item["state"]!.GetValue<string>() == "failed");
+        Assert.Contains("自定义存储", failed["error"]!.GetValue<string>());
+        Assert.False(tail.IsRegistered(ownId));
+        Assert.False(publicRelay.IsRegistered(ownId));
+        Assert.Equal(0, tail.DepositAttempts + publicRelay.DepositAttempts);
     }
 
     // ---- the real path: a paired device receives a file and a text over the public relay ----------
@@ -499,6 +663,35 @@ public sealed class PublicInboxPairingTests : IAsyncDisposable
     /// of conversation membership, so ownDevices must not grow and a later self send must not go direct.
     /// </summary>
     [Fact]
+    public async Task SharedMembershipDoesNotRedirectPrivateMessagesAwayFromThePairedInbox()
+    {
+        var relay = Relay();
+        var sender = await StartAsync("dual-sender", "dual-sender");
+        var receiver = await StartAsync("dual-receiver", "dual-receiver");
+        var shared = await CallAsync(receiver, "file-transfer.assistant.link.export");
+        await CallAsync(sender, "file-transfer.assistant.link.import", new JsonObject { ["code"] = shared["code"]!.GetValue<string>() });
+        var before = await CallAsync(sender, "file-transfer.assistant.inspect");
+        var member = Assert.Single(before["members"]!.AsArray().OfType<JsonObject>(), row => row["id"]!.GetValue<string>() == "dual-receiver");
+        Assert.True(member["requiresPairing"]!.GetValue<bool>());
+        var denied = await sender.ExecuteCommandAsync(new CommandRequest("unpaired-member", "file-transfer.assistant.send",
+            new JsonObject { ["text"] = "not authorized", ["targetDeviceId"] = "dual-receiver" }), CancellationToken.None);
+        Assert.False(denied.Success);
+        var pairing = await CallAsync(receiver, "file-transfer.pairing");
+        var inbox = Pairing.Decode(pairing["code"]!.GetValue<string>()).Inbox!;
+        await CallAsync(sender, "file-transfer.pair.import", new JsonObject { ["code"] = pairing["code"]!.GetValue<string>() });
+        var sent = await CallAsync(sender, "file-transfer.assistant.send",
+            new JsonObject { ["text"] = "private despite shared membership", ["targetDeviceId"] = "dual-receiver" });
+        var id = sent["itemIds"]![0]!.GetValue<string>();
+        var incoming = await WaitForItemAsync(receiver, id, row => row["state"]!.GetValue<string>() == "available");
+        var outgoing = await WaitForItemAsync(sender, id, row => row["state"]!.GetValue<string>() == "delivered");
+        Assert.True(relay.HasItem(inbox.InboxId, id));
+        Assert.Equal("device:dual-sender", incoming["conversationKey"]!.GetValue<string>());
+        Assert.Equal("paired-inbox", incoming["provenance"]!.GetValue<string>());
+        Assert.Equal("device:dual-receiver", outgoing["conversationKey"]!.GetValue<string>());
+        Assert.NotEqual(before["identity"]!["conversationKey"]!.GetValue<string>(), outgoing["conversationKey"]!.GetValue<string>());
+    }
+
+    [Fact]
     public async Task APairedDeviceNeverBecomesAConversationMember()
     {
         var relay = Relay();
@@ -752,6 +945,7 @@ public sealed class PublicInboxPairingTests : IAsyncDisposable
 
         /// <summary>When set, a deposit PUT answers 401: the stored deposit credential is rejected for good.</summary>
         public bool RejectDeposits { get; set; }
+        public int RejectedDepositStatus { get; set; } = 401;
 
         public int Port { get; private set; }
         public Uri BaseAddress => new($"http://127.0.0.1:{Port}/");
@@ -935,7 +1129,7 @@ public sealed class PublicInboxPairingTests : IAsyncDisposable
             {
                 Interlocked.Increment(ref _depositAttempts);
                 if (NotReady) return Status("503 Service Unavailable", "Retry-After: 1");
-                if (RejectDeposits) return Status("401 Unauthorized");
+                if (RejectDeposits) return Status(RejectedDepositStatus == 403 ? "403 Forbidden" : "401 Unauthorized");
                 string depositKey;
                 lock (_gate)
                 {

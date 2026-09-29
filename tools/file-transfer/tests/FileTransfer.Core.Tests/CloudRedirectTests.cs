@@ -10,7 +10,7 @@ namespace FileTransfer.Tests;
 /// The relay may redirect a download to its own address or to a storage provider. The account must
 /// never follow a redirect to a foreign plain-HTTP host, and must never carry credentials there.
 /// </summary>
-public sealed class CloudRedirectTests : IAsyncDisposable
+public sealed class CloudRedirectTests : IAsyncLifetime
 {
     private const string Payload = "redirected payload\n";
     private readonly string _root = Path.Combine(Environment.GetEnvironmentVariable("MPT_TEST_TEMP") ?? Path.GetTempPath(), "mpt-redirect-test-" + Guid.NewGuid().ToString("N"));
@@ -18,7 +18,9 @@ public sealed class CloudRedirectTests : IAsyncDisposable
 
     public CloudRedirectTests() => Directory.CreateDirectory(_root);
 
-    public async ValueTask DisposeAsync()
+    public Task InitializeAsync() => Task.CompletedTask;
+
+    public async Task DisposeAsync()
     {
         foreach (var server in _servers) await server.DisposeAsync();
         if (Directory.Exists(_root)) Directory.Delete(_root, true);

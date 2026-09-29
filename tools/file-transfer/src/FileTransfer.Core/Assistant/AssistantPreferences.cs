@@ -20,6 +20,9 @@ public sealed record AssistantPreferences
     /// <summary>When this snapshot last changed; null for a draft that was never saved.</summary>
     public DateTimeOffset? SavedAt { get; set; }
 
+    public double ScrollOffset { get; set; }
+    public DateTimeOffset? LastReadAt { get; set; }
+
     /// <summary>A detached copy used as the rollback point of one store transaction.</summary>
     public AssistantPreferences Copy() => this with { AttachmentPaths = [.. AttachmentPaths] };
 }
@@ -81,7 +84,8 @@ public static class AssistantPreferenceRules
     public static AssistantPreferences? Normalize(AssistantPreferences? preferences)
     {
         if (preferences is null) return null;
-        var result = new AssistantPreferences { SavedAt = preferences.SavedAt };
+        var result = new AssistantPreferences { SavedAt = preferences.SavedAt, LastReadAt = preferences.LastReadAt,
+            ScrollOffset = double.IsFinite(preferences.ScrollOffset) && preferences.ScrollOffset >= 0 ? preferences.ScrollOffset : 0 };
         try { result.DraftText = Text(preferences.DraftText); }
         catch (ArgumentException) { }
         try { result.TargetDeviceId = Target(preferences.TargetDeviceId); }

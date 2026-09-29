@@ -45,7 +45,8 @@ public static class AssistantWire
         string? SenderName = null,
         string? TargetDeviceId = null,
         string? Platform = null,
-        string? Address = null);
+        string? Address = null,
+        string? Scope = null);
 
     /// <summary>The public half of a device's identity: returned to an unauthenticated hello.</summary>
     /// <summary>
@@ -122,4 +123,4 @@ public static class AssistantWire
 /// duplicate set, so the receiver reports the saved metadata instead of writing history itself.
 /// </summary>
 public sealed record ReceivedItem(string ItemId, string ConversationId, string DeviceId, string SenderName,
-    string ItemKind, string? Text, string? Name, string? Path, long Size, DateTimeOffset At, string? TargetDeviceId = null);
+    string ItemKind, string? Text, string? Name, string? Path, long Size, DateTimeOffset At, string? TargetDeviceId = null, string? Scope = null);

@@ -22,7 +22,7 @@ public sealed class PreferencesCollection
 /// relay or the receiver. The draft is a preference, not a conversation entry.
 /// </summary>
 [Collection(PreferencesCollection.Name)]
-public sealed class AssistantPreferencesTests : IAsyncDisposable
+public sealed class AssistantPreferencesTests : IAsyncLifetime
 {
     private readonly string _root = Path.Combine(
         Environment.GetEnvironmentVariable("MPT_TEST_TEMP") ?? Path.GetTempPath(),
@@ -32,7 +32,9 @@ public sealed class AssistantPreferencesTests : IAsyncDisposable
 
     public AssistantPreferencesTests() => Directory.CreateDirectory(_root);
 
-    public async ValueTask DisposeAsync()
+    public Task InitializeAsync() => Task.CompletedTask;
+
+    public async Task DisposeAsync()
     {
         foreach (var module in _modules) await module.DisposeAsync(CancellationToken.None);
         foreach (var endpoint in _endpoints) await endpoint.DisposeAsync();
@@ -113,6 +115,38 @@ public sealed class AssistantPreferencesTests : IAsyncDisposable
         var path = Path.Combine(_root, name);
         File.WriteAllText(path, name);
         return path;
+    }
+
+    [Fact]
+    public async Task ConversationDraftsStayIndependentAcrossSwitchRestartAndRejectedUpdates()
+    {
+        var module = await StartAsync("map", "phone-a", "127.0.0.88", Peers(("phone-b", "Phone B")));
+        var shared = (await CallAsync(module, "file-transfer.assistant.inspect"))["identity"]!["conversationKey"]!.GetValue<string>();
+        var attachment = SourceFile("draft-map.txt");
+        await CallAsync(module, "file-transfer.assistant.preferences.update", new JsonObject
+        { ["conversationKey"] = shared, ["draftText"] = "shared draft", ["scrollOffset"] = 12.5,
+            ["attachmentPaths"] = new JsonArray(attachment), ["lastReadAt"] = "2026-09-29T00:00:00Z" });
+        var second = await CallAsync(module, "file-transfer.assistant.preferences.update", new JsonObject
+        { ["conversationKey"] = "device:phone-b", ["draftText"] = "private draft", ["scrollOffset"] = 30 });
+        Assert.Equal("device:phone-b", Text(second, "conversationKey"));
+        Assert.Equal("phone-b", Text(second, "targetDeviceId"));
+        Assert.Equal("shared draft", second["drafts"]![shared]!["draftText"]!.GetValue<string>());
+        Assert.Empty(Paths(second));
+        var switched = await CallAsync(module, "file-transfer.assistant.preferences.update", new JsonObject { ["conversationKey"] = shared });
+        Assert.Equal("shared draft", Text(switched, "draftText"));
+        Assert.Equal(new[] { attachment }, Paths(switched));
+        Assert.Equal(12.5, switched["scrollOffset"]!.GetValue<double>());
+        Assert.Equal("private draft", switched["drafts"]!["device:phone-b"]!["draftText"]!.GetValue<string>());
+        var rejected = await module.ExecuteCommandAsync(new CommandRequest("bad-map", "file-transfer.assistant.preferences.update",
+            new JsonObject { ["conversationKey"] = "device:phone-b", ["draftText"] = "must roll back", ["scrollOffset"] = -1 }), CancellationToken.None);
+        Assert.False(rejected.Success);
+        var unchanged = await CallAsync(module, "file-transfer.assistant.preferences.inspect");
+        Assert.Equal(shared, Text(unchanged, "conversationKey"));
+        Assert.Equal("private draft", unchanged["drafts"]!["device:phone-b"]!["draftText"]!.GetValue<string>());
+        var restored = await new AssistantStore(Path.Combine(_root, "map", "assistant")).LoadAsync(CancellationToken.None);
+        Assert.Equal("shared draft", restored.Drafts[shared].DraftText);
+        Assert.Equal("private draft", restored.Drafts["device:phone-b"].DraftText);
+        Assert.Equal(12.5, restored.Drafts[shared].ScrollOffset);
     }
 
     [Fact]
@@ -287,11 +321,11 @@ public sealed class AssistantPreferencesTests : IAsyncDisposable
         Assert.False(removed["targetUsable"]!.GetValue<bool>());
         Assert.Equal("", Text(removed, "targetName"));
 
-        // Being discovered still allows a send (the existing protocol), which proves the window really
-        // did remember the device: the unusable answer is about authorization, not about forgetting it.
-        var sent = await CallAsync(module, "file-transfer.assistant.send",
-            new JsonObject { ["text"] = "发现不等于授权", ["targetDeviceId"] = "phone-b" });
-        Assert.True(sent["accepted"]!.GetValue<bool>(), sent.ToJsonString());
+        // Discovery is not pairing and cannot silently enable private delivery.
+        var sent = await module.ExecuteCommandAsync(new CommandRequest("private-unpaired", "file-transfer.assistant.send",
+            new JsonObject { ["text"] = "发现不等于授权", ["targetDeviceId"] = "phone-b" }), CancellationToken.None);
+        Assert.False(sent.Success);
+        Assert.Contains("配对", sent.Output);
 
         // The page's explicit choice is what restores self; the local device id also means self.
         var self = await CallAsync(module, "file-transfer.assistant.preferences.update",

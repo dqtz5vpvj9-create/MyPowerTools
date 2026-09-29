@@ -130,7 +130,7 @@ public sealed class ConversationInteractionTests : IDisposable
     {
         var view = Open(390, out var window);
 
-        var setup = Descendants(view).OfType<Button>().First(candidate => AutomationName(candidate) == "连接与接收设置");
+        var setup = Descendants(view).OfType<Button>().First(candidate => AutomationName(candidate) == "会话详情");
         var setupIcon = Assert.IsType<MobileIcon>(setup.Content);
         Assert.True(setupIcon.IsEffectivelyVisible, "the settings icon must be on screen");
         // A PathIcon fallback leaves Data null and paints a filled block; a resolved stroke outline
@@ -159,8 +159,7 @@ public sealed class ConversationInteractionTests : IDisposable
                 $"at {width} the draft field must stay usable, was {input.Bounds.Width:0}");
             var send = Button(view, "发送");
             Assert.True(send.IsEffectivelyVisible, $"at {width} the send action must be visible");
-            var device = Button(view, "发给 文件传输助手 ▾");
-            Assert.True(device.IsEffectivelyVisible, $"at {width} the device action must be visible");
+            Assert.DoesNotContain(Descendants(view).OfType<Button>(), b => b.IsEffectivelyVisible && AutomationName(b) == "选择发送目标");
             // The icons must not be pushed off by that field.
             foreach (var name in new[] { "添加附件" })
             {
@@ -179,8 +178,8 @@ public sealed class ConversationInteractionTests : IDisposable
         window.KeyTextInput("草稿");
         window.UpdateLayout();
 
-        // The device picker opens from the composer itself, not from the settings sheet.
-        Click(window, Button(view, "发给 文件传输助手 ▾"));
+        // The conversation chooser overlays the existing draft without changing it.
+        view.Conversation.OpenDevicePicker();
         window.UpdateLayout();
 
         Assert.True(view.Conversation.IsSheetOpen);
@@ -211,13 +210,13 @@ public sealed class ConversationInteractionTests : IDisposable
         _module.AssistantDevices.Add(Device("old-3", "书房台式机", available: false));
         var view = Open(390, out var window);
 
-        Click(window, Button(view, "发给 文件传输助手 ▾"));
+        view.Conversation.OpenDevicePicker();
         window.UpdateLayout();
         TestPump.Drain();
         window.UpdateLayout();
 
-        var tiles = Descendants(view).OfType<Button>()
-            .Where(candidate => candidate.IsEffectivelyVisible && AutomationName(candidate).StartsWith("选择 ", StringComparison.Ordinal))
+        var tiles = Descendants(Sheet(view)).OfType<Button>()
+            .Where(candidate => candidate.IsEffectivelyVisible && AutomationName(candidate).StartsWith("打开会话 ", StringComparison.Ordinal) && AutomationName(candidate) != "打开会话 文件传输助手")
             .ToArray();
         Assert.Equal(3, tiles.Length);
         foreach (var tile in tiles)
@@ -226,34 +225,34 @@ public sealed class ConversationInteractionTests : IDisposable
             Assert.True(tile.IsEffectivelyVisible, "every device tile must be reachable without scrolling");
         }
         Assert.Equal(3, tiles.Select(tile => tile.Bounds.Y).Distinct().Count());
-        Assert.Contains("可发送", TextOf(view));
+        Assert.Contains("文字、照片和文件", TextOf(view));
         Assert.DoesNotContain("当前不可用", TextOf(view));
     }
 
     [AvaloniaFact]
-    public void Tapping_a_device_tile_sends_the_pending_attachment_to_it()
+    public void Selecting_a_conversation_then_sending_uses_its_fixed_recipient()
     {
         var file = Path.Combine(_root, "报告.pdf");
         File.WriteAllText(file, "pdf");
         _module.AssistantDevices.Add(Device("pc-1", "工作电脑", available: true));
         var view = Open(390, out var window);
-        view.Conversation.AddAttachment(file);
         window.UpdateLayout();
 
-        Click(window, Button(view, "发给 文件传输助手 ▾"));
+        view.Conversation.OpenDevicePicker();
         window.UpdateLayout();
         TestPump.Drain();
         window.UpdateLayout();
 
-        var tile = Descendants(view).OfType<Button>().First(candidate => AutomationName(candidate) == "选择 工作电脑");
+        var tile = Descendants(Sheet(view)).OfType<Button>().First(candidate => AutomationName(candidate) == "打开会话 工作电脑");
         Click(window, tile);
         window.UpdateLayout();
 
         Assert.Equal(0, _module.CountCalls("assistant.send"));
+        view.Conversation.AddAttachment(file);
         Click(window, Button(view, "发送"));
         Assert.Equal(1, _module.CountCalls("assistant.send"));
         Assert.Equal("pc-1", _module.LastArgs("assistant.send")["targetDeviceId"]!.GetValue<string>());
-        // The chosen device is the send, so the picker closes by itself.
+        // Choosing the conversation closes the picker; only the send button transmits.
         Assert.False(view.Conversation.IsSheetOpen);
     }
 
@@ -263,14 +262,14 @@ public sealed class ConversationInteractionTests : IDisposable
         _module.AssistantDevices.Add(Device("pc-1", "工作电脑", available: true));
         var view = Open(390, out var window);
 
-        Click(window, Button(view, "发给 文件传输助手 ▾"));
+        view.Conversation.OpenDevicePicker();
         TestPump.Drain();
         Assert.True(_module.CountCalls("assistant.devices") >= 1, "opening the picker must look for devices");
 
         // A second open asks again rather than reusing a stale list.
         Click(window, Descendants(view).OfType<Button>().First(candidate => candidate.IsEffectivelyVisible && AutomationName(candidate) == "关闭"));
         window.UpdateLayout();
-        Click(window, Button(view, "发给 文件传输助手 ▾"));
+        view.Conversation.OpenDevicePicker();
         TestPump.Drain();
         Assert.True(_module.CountCalls("assistant.devices") >= 2, "reopening the picker must look again");
 
@@ -294,6 +293,8 @@ public sealed class ConversationInteractionTests : IDisposable
         window.UpdateLayout();
 
         Assert.True(handled);
+        Assert.Equal("分享到会话", view.Conversation.SheetTitle);
+        ConversationTestNavigation.ChooseShare(window, view);
         Assert.Contains("已有的草稿", input.Text);
         Assert.Contains("分享过来的一段话", input.Text);
         // Activation prepares content only; it never sends on the user's behalf.
@@ -332,6 +333,7 @@ public sealed class ConversationInteractionTests : IDisposable
         Assert.Equal("会议纪要", sent["text"]?.GetValue<string>());
         Assert.Equal("pc-1", sent["targetDeviceId"]?.GetValue<string>());
         // The draft is still waiting in the composer, untouched by the forward.
+        ConversationTestNavigation.Open(window, view, "文件传输助手");
         Assert.Contains("不该被转发的草稿", input.Text);
         // The item id must never appear as a path: the contract wants real file paths.
         if (sent["paths"] is JsonArray paths)
@@ -437,11 +439,12 @@ public sealed class ConversationInteractionTests : IDisposable
         for (var pass = 0; pass < 4; pass++) { Dispatcher.UIThread.RunJobs(); window.UpdateLayout(); }
         TestPump.Drain();
         window.UpdateLayout();
+        ConversationTestNavigation.Open(window, view);
         return view;
     }
 
     private static TextBox Composer(TransferView view) =>
-        Descendants(view).OfType<TextBox>().First(box => box.IsEffectivelyVisible);
+        Descendants(view).OfType<TextBox>().First(box => Avalonia.Automation.AutomationProperties.GetName(box) == "消息内容");
 
     /// <summary>A button on a conversation entry, scoped to the thread panel itself.</summary>
     private static Button ThreadButton(TransferView view, string content)
@@ -457,7 +460,7 @@ public sealed class ConversationInteractionTests : IDisposable
     /// <summary>One device tile in the open picker, chosen by the device's own name.</summary>
     private static Button DeviceTile(TransferView view, string deviceName) =>
         Descendants(Sheet(view)).OfType<Button>()
-            .First(button => AutomationName(button) == "选择 " + deviceName);
+            .First(button => AutomationName(button) == "打开会话 " + deviceName);
 
     private static Button Button(TransferView view, string content) =>
         Descendants(view).OfType<Button>()

@@ -14,7 +14,7 @@ namespace FileTransfer.Tests;
 /// "unknown" until its receiver really answers, removing a device removes its secret, pairing
 /// cannot be escalated to remote control, and a relay upload is never recorded as received.
 /// </summary>
-public sealed class FileTransferPeerTests : IAsyncDisposable
+public sealed class FileTransferPeerTests : IAsyncLifetime
 {
     private const string PeerKey = "module-peer-key-0123456789abcdef";
     private readonly string _root = Path.Combine(
@@ -27,7 +27,9 @@ public sealed class FileTransferPeerTests : IAsyncDisposable
 
     public FileTransferPeerTests() => Directory.CreateDirectory(_root);
 
-    public async ValueTask DisposeAsync()
+    public Task InitializeAsync() => Task.CompletedTask;
+
+    public async Task DisposeAsync()
     {
         foreach (var receiver in _receivers) await receiver.DisposeAsync();
         foreach (var server in _servers) await server.DisposeAsync();

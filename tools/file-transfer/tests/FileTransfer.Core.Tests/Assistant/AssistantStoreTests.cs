@@ -50,6 +50,40 @@ public sealed class AssistantStoreTests : IDisposable
     };
 
     [Fact]
+    public async Task ConversationOriginsSurviveRestartAndAmbiguousHistoryIsNotGuessed()
+    {
+        var store = NewStore();
+        var shared = Assert.Single(await store.EnqueueAsync(Me, AssistantDraft.ForText("shared"), CancellationToken.None));
+        var direct = Assert.Single(await store.EnqueueAsync(Me, AssistantDraft.ForText("private", "phone-1"), CancellationToken.None));
+        Assert.Equal("shared:conv-1", AssistantConversations.Key(shared, Me.DeviceId));
+        Assert.Equal("device:phone-1", AssistantConversations.Key(direct, Me.DeviceId));
+        var sharedIncoming = await store.AdoptAsync(Me, Item("phone-1", AssistantItemState.Available, null) with
+        { ConversationId = "original-conversation", Provenance = AssistantConversations.DirectShared }, CancellationToken.None);
+        var privateIncoming = await store.AdoptAsync(Me, Item("phone-1", AssistantItemState.Available, null) with
+        { TargetDeviceId = Me.DeviceId, Provenance = AssistantConversations.PairedInbox }, CancellationToken.None);
+        var legacy = Item("phone-1", AssistantItemState.Available, null) with { TargetDeviceId = Me.DeviceId };
+        await store.MutateAsync(state => state.Add(legacy), CancellationToken.None);
+        var after = await NewStore().ConfigureAsync(Me with { ConversationId = "new-conversation" }, CancellationToken.None);
+        Assert.Equal("shared:conv-1", AssistantConversations.Key(after.Find(shared.Id)!, Me.DeviceId));
+        Assert.Equal("shared:original-conversation", AssistantConversations.Key(after.Find(sharedIncoming.Id)!, Me.DeviceId));
+        Assert.Equal("device:phone-1", AssistantConversations.Key(after.Find(privateIncoming.Id)!, Me.DeviceId));
+        Assert.Equal("history", AssistantConversations.Key(after.Find(legacy.Id)!, Me.DeviceId));
+        Assert.Equal(5, after.Items.Count);
+    }
+
+    [Fact]
+    public async Task LegacySingleDraftMigratesUsingItsOriginalConversationBeforeJoiningAnother()
+    {
+        var store = NewStore();
+        await store.ConfigureAsync(Me, CancellationToken.None);
+        var state = new AssistantState { Identity = Me, Preferences = new AssistantPreferences { DraftText = "keep" } };
+        await store.SaveAsync(state, CancellationToken.None);
+        var restored = await NewStore().ConfigureAsync(Me with { ConversationId = "changed" }, CancellationToken.None);
+        Assert.Equal("keep", restored.Drafts["shared:conv-1"].DraftText);
+        Assert.False(restored.Drafts.ContainsKey("shared:changed"));
+    }
+
+    [Fact]
     public async Task EnqueueIsDurableBeforeItReturnsAndSurvivesRestart()
     {
         var source = SourceFile("报表 final.xlsx", "payload-1");
