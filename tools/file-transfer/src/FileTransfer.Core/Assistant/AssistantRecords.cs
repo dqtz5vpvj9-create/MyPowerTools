@@ -56,6 +56,10 @@ public sealed record AssistantItem
     public string? SourceRelay { get; init; }
     /// <summary>Durable deposit attempts, including requests whose response was lost.</summary>
     public List<AssistantDepositRoute> DepositRoutes { get; set; } = [];
+    /// <summary>Shared payload placement is independent of recipient receipts and survives sender restart.</summary>
+    public SharedPublishResult? SharedStorage { get; set; }
+    public DateTimeOffset? SharedRequestCheckedAt { get; set; }
+    public long? SharedRequestRevision { get; set; }
 
     public AssistantItemState State { get; set; } = AssistantItemState.Queued;
     public long BytesDone { get; set; }
@@ -86,6 +90,9 @@ public sealed record AssistantItem
         ReceiptAt = backup.ReceiptAt;
         ReceiptCheckedAt = backup.ReceiptCheckedAt;
         DepositRoutes = [.. backup.DepositRoutes];
+        SharedStorage = backup.SharedStorage;
+        SharedRequestCheckedAt = backup.SharedRequestCheckedAt;
+        SharedRequestRevision = backup.SharedRequestRevision;
     }
 
     /// <summary>Cancel is refused once another device confirmed it saved the content.</summary>

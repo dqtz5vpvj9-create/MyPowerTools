@@ -60,6 +60,9 @@ public sealed class AssistantSync
     /// The host may throttle progress; final states must be reported immediately.</summary>
     public Action<bool>? Changed { get; set; }
 
+    /// <summary>Present only for the built-in shared relay; custom OpenList keeps its original transport.</summary>
+    public SharedLocatorTransfer? SharedTransport { get; init; }
+
     private async Task MutateItemAsync(string itemId, Action<AssistantState> change, CancellationToken token)
     {
         var visibleChange = false;
@@ -120,6 +123,7 @@ public sealed class AssistantSync
         var read = 0;
         var checkedReceipts = 0;
         var relayUnhealthy = false;
+        var sharedRequestsRemaining = false;
 
         // Every authoritative transition below goes through a store transaction: the snapshot is never edited
         // outside the gate, so a write failure restores the last committed generation and a concurrent command
@@ -149,6 +153,57 @@ public sealed class AssistantSync
         // The order is a bounded fair rotation: never-confirmed entries first, then the least recently checked.
         string? pullError = null;
         var verified = new List<AssistantMemberProof>();
+        if (!relayUnhealthy && SharedTransport is { } shared)
+        {
+            // A prior receipt never retires a payload: later or public-only members can still ask for it.
+            var candidates = state.Outgoing(identity.DeviceId)
+                .Where(item => AssistantConversations.IsShared(item, identity.ConversationId)
+                    && item.SharedStorage is { LocatorPublished: true, PublicStored: false }
+                    && item.State is AssistantItemState.Stored or AssistantItemState.Delivered)
+                .ToArray();
+            long? revision = null;
+            try { if (candidates.Length > 0) revision = await shared.CurrentRevisionAsync(token); }
+            catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
+            catch (Exception ex) when (IsRelayFailure(ex) || ex is PublicRelayAuthException)
+            { relayUnhealthy = true; pullError = "读取附件副本请求失败：" + ex.Message; }
+            var uncheckedItems = revision is null ? [] : candidates.Where(item => item.SharedRequestRevision != revision)
+                .OrderBy(item => item.SharedRequestCheckedAt ?? DateTimeOffset.MinValue)
+                .ThenBy(item => item.CreatedAt).ToArray();
+            sharedRequestsRemaining = uncheckedItems.Length > _limits.Publish;
+            foreach (var item in uncheckedItems.Take(_limits.Publish))
+            {
+                using var scope = ItemScope(item.Id, token);
+                await _store.MutateAsync(changed =>
+                {
+                    if (changed.Find(item.Id) is { } live) live.SharedRequestCheckedAt = DateTimeOffset.UtcNow;
+                }, token);
+                try
+                {
+                    var copied = await shared.ServeRequestsAsync(item.ToManifest(), identity.DeviceId,
+                        _store.GetPayloadPath(item), scope.Token);
+                    // A completed copy writes public metadata and advances the revision. Finish the
+                    // resulting bounded scan before reporting that this worker can sleep.
+                    if (copied) sharedRequestsRemaining = true;
+                    await _store.MutateAsync(changed =>
+                    {
+                        var live = changed.Find(item.Id);
+                        if (live is null) return;
+                        live.SharedRequestRevision = revision;
+                        if (copied && live.SharedStorage is { } storage)
+                            live.SharedStorage = storage with { PublicStored = true };
+                    }, token);
+                }
+                catch (OperationCanceledException) when (token.IsCancellationRequested) { throw; }
+                catch (OperationCanceledException) when (scope.IsCancellationRequested) { }
+                catch (Exception ex) when (IsRelayFailure(ex) || ex is PublicRelayAuthException)
+                {
+                    // Keep the successful original send and the durable remote request intact.
+                    relayUnhealthy = true;
+                    pullError = "附件副本请求暂未完成：" + ex.Message;
+                    break;
+                }
+            }
+        }
         if (!relayUnhealthy)
         {
             var now = DateTimeOffset.UtcNow;
@@ -332,7 +387,7 @@ public sealed class AssistantSync
                 .Any(item => item.State == AssistantItemState.Queued && (PublishFilter?.Invoke(item) ?? true))
             || state.Incoming(identity.DeviceId).Where(item => AssistantConversations.IsShared(item, identity.ConversationId)).Any(item => item.Kind != AssistantItemKind.Text
                 && IsAddressedToMe(item, identity.DeviceId) && item.State == AssistantItemState.Stored);
-        var hasMore = !relayUnhealthy && progressed && (page.HasMore || pending);
+        var hasMore = !relayUnhealthy && (sharedRequestsRemaining || progressed && (page.HasMore || pending));
         var message = $"发布 {published} 条，失败 {failed} 条，接收 {received} 条，下载 {downloaded} 个，回执 {written} 份。";
         if (pullError is not null) message += $" 拉取失败：{pullError}";
         return new(published, failed, received, downloaded, written, read, hasMore, message,
@@ -385,8 +440,7 @@ public sealed class AssistantSync
             Exception? failure = null;
             try
             {
-                saved = await _client.DownloadAssistantAsync(identity.ConversationId, item.ToManifest(),
-                    _store.GetInboxDirectory(item), (done, _) => ReportProgress(itemId, done), token);
+                saved = await DownloadPayloadAsync(identity, item, token);
             }
             catch (OperationCanceledException) when (token.IsCancellationRequested)
             {
@@ -446,8 +500,13 @@ public sealed class AssistantSync
 
         try
         {
-            await _client.PublishAssistantAsync(identity.ConversationId, item.ToManifest(), payload,
-                (done, _) => ReportProgress(item.Id, done), token);
+            SharedPublishResult? placement = null;
+            if (SharedTransport is { } shared)
+                placement = await shared.PublishAsync(item.ToManifest(), payload, token,
+                    (done, _) => ReportProgress(item.Id, done));
+            else
+                await _client.PublishAssistantAsync(identity.ConversationId, item.ToManifest(), payload,
+                    (done, _) => ReportProgress(item.Id, done), token);
             var stored = false;
             await MutateItemAsync(item.Id, changed =>
             {
@@ -458,6 +517,7 @@ public sealed class AssistantSync
                 live.State = AssistantItemState.Stored;
                 live.BytesDone = live.Size;
                 live.Error = null;
+                live.SharedStorage = placement;
                 stored = true;
             }, token);
             return stored ? null : new OperationCanceledException("条目已取消。");
@@ -502,8 +562,7 @@ public sealed class AssistantSync
 
         try
         {
-            var saved = await _client.DownloadAssistantAsync(identity.ConversationId, item.ToManifest(),
-                _store.GetInboxDirectory(item), (done, _) => ReportProgress(item.Id, done), token);
+            var saved = await DownloadPayloadAsync(identity, item, token);
             var received = false;
             await MutateItemAsync(item.Id, changed =>
             {
@@ -527,6 +586,20 @@ public sealed class AssistantSync
             await FailAsync(item.Id, ex.Message, token);
             return ex;
         }
+    }
+
+    private async Task<string> DownloadPayloadAsync(AssistantIdentity identity, AssistantItem item, CancellationToken token)
+    {
+        if (SharedTransport is { } shared && await shared.LocateAsync(item.Id, token) is { } locator)
+        {
+            SharedLocatorRules.SameMessage(item.ToManifest(), locator.Message);
+            var received = await shared.FetchAsync(locator, identity.DeviceId, _store.GetInboxDirectory(item), item.LocalPath,
+                token, (done, _) => ReportProgress(item.Id, done));
+            if (received.WaitingForPublicCopy) throw new IOException(received.Error);
+            return received.Path!;
+        }
+        return await _client.DownloadAssistantAsync(identity.ConversationId, item.ToManifest(),
+            _store.GetInboxDirectory(item), (done, _) => ReportProgress(item.Id, done), token);
     }
 
     /// <summary>Marks an in-flight entry failed without ever overwriting a concurrent cancel or arrival.</summary>

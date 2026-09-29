@@ -502,12 +502,14 @@ public sealed partial class FileTransferModule
         try
         {
             using var _ = cloud;
+            using var shared = SharedTransport(store, identity);
             // A message for a device outside this conversation is not written into this namespace: the
             // direct channel is its real path, and the item reports honestly when that is unreachable.
             var sync = new AssistantSync(store, cloud)
             {
                 ItemCancellation = ItemToken,
                 Changed = NotifyAssistantTransferChanged,
+                SharedTransport = shared,
                 PublishFilter = item => item.TargetDeviceId is null && AssistantConversations.IsShared(item, identity.ConversationId)
             };
             var result = await sync.SyncAsync(identity, token);
@@ -1162,7 +1164,10 @@ public sealed partial class FileTransferModule
         {
             using var cloud = await AssistantRelayAsync(token)
                 ?? throw new InvalidOperationException(_relayAuthError.Length > 0 ? _relayAuthError : "文件助手连接尚未就绪，请稍后重试。");
-            await new AssistantSync(_assistantStore!, cloud) { ItemCancellation = ItemToken, Changed = NotifyAssistantTransferChanged }.EnsureLocalAsync(Identity(), itemId, token);
+            var identity = Identity();
+            using var shared = SharedTransport(_assistantStore!, identity);
+            await new AssistantSync(_assistantStore!, cloud) { ItemCancellation = ItemToken, Changed = NotifyAssistantTransferChanged,
+                SharedTransport = shared }.EnsureLocalAsync(identity, itemId, token);
         }
         finally { _relayGate.Release(); }
         NoteRelayReachable();
@@ -1418,6 +1423,11 @@ public sealed partial class FileTransferModule
 
     /// <summary>True when the user configured their own relay; the public relay is only the default.</summary>
     private bool CustomRelayConfigured => Setting("webDavUrl").Length > 0 && Setting("username").Length > 0;
+
+    private SharedLocatorTransfer? SharedTransport(AssistantStore store, AssistantIdentity identity) => CustomRelayConfigured ? null
+        : new(new SharedLocatorClient(identity.ConversationId, _conversationKey, SharedRelayRoute.Public),
+            new SharedLocatorClient(identity.ConversationId, _conversationKey, SharedRelayRoute.Tail),
+            Path.Combine(store.Directory, "shared-copy"));
 
     /// <summary>
     /// The relay client this conversation uses right now: the user's own OpenList when it is configured,
