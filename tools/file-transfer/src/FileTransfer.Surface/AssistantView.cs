@@ -160,6 +160,12 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
             // wrapping and the Android keyboard changing the viewport.
             if (e.ExtentDelta.Y != 0 || e.ViewportDelta.Y != 0)
             {
+                if (_threadScroll.Extent.Height <= _threadScroll.Viewport.Height + 1 ||
+                    _threadScroll.Offset.Y >= _threadScroll.Extent.Height - _threadScroll.Viewport.Height - 1)
+                {
+                    _followThreadEnd = true;
+                    _newMessages.IsVisible = false;
+                }
                 if (_followThreadEnd) _threadScroll.ScrollToEnd();
             }
             else if (e.OffsetDelta.Y != 0)
@@ -276,6 +282,11 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
         Grid.SetColumn(_setupButton, 2);
         row.Children.Add(_setupButton);
         _chatBack = MobileUi.TextButton("‹");
+        _chatBack.Width = 44;
+        _chatBack.Height = 44;
+        _chatBack.FontSize = 28;
+        _chatBack.Padding = new Thickness(0);
+        _chatBack.HorizontalContentAlignment = HorizontalAlignment.Center;
         AutomationProperties.SetName(_chatBack, "返回会话列表");
         _chatBack.Click += (_, _) => ReturnToConversationList();
         row.Children.Add(_chatBack);

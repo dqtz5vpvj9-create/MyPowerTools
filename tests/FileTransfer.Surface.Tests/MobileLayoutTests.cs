@@ -102,7 +102,10 @@ public sealed class MobileLayoutTests : IDisposable
         Assert.Contains("DevicePicker", names);
         Assert.Contains("PairCodeBox", names);
         Assert.Contains("CloudCodeBox", names);
-        Assert.Contains("一键安装并启用 OpenList", TextOf(view));
+        var cloud = Descendants(view).OfType<Expander>().Single(e => Equals(e.Header, "网盘中转设置"));
+        cloud.IsExpanded = true;
+        Dispatcher.UIThread.RunJobs(); window.UpdateLayout();
+        Assert.Contains(Descendants(view).OfType<Button>(), b => b.IsEffectivelyVisible && Equals(b.Content, "启用本机网盘服务"));
     }
 
     [AvaloniaFact]

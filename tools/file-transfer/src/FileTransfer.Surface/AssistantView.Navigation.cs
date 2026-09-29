@@ -183,6 +183,7 @@ internal sealed partial class AssistantView
     {
         await SwitchConversationAsync(entry.Key, entry.DeviceId, entry.Name);
         _chatOpen = true;
+        _newMessages.IsVisible = false;
         _lastItemCount = -1;
         _lastRenderedCount = -1;
         _messageRows.Clear(); _thread.Children.Clear();

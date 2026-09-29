@@ -58,6 +58,14 @@ internal sealed partial class TransferMobileView : UserControl, IMptAvaloniaSurf
     private readonly TextBox _cloudDirectory = MobileUi.FieldBox("WebDAV 地址，例如 https://…/dav/网盘名/互传文件夹");
     private readonly TextBox _cloudUser = MobileUi.FieldBox("账号（可留空）");
     private readonly TextBox _cloudPassword = MobileUi.FieldBox("密码（留空保留已保存密码）");
+    private readonly TextBlock _managedState = MobileUi.Caption("");
+    private Button _managedStart = null!;
+    private Button _managedStop = null!;
+    private Button _managedAdmin = null!;
+    private Button _managedPassword = null!;
+    private bool _managedBusy;
+    private string _managedFailure = "";
+    private string _managedAdminUrl = "";
     private readonly TextBlock _cloudState = MobileUi.Caption("");
     private readonly TextBlock _receiveState = MobileUi.Caption("");
     private readonly Button _receiveToggle;
@@ -96,7 +104,7 @@ internal sealed partial class TransferMobileView : UserControl, IMptAvaloniaSurf
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto
         };
-        _sheetHost = MobileUi.With(new Border { Child = MobileUi.Stack(10, BuildSheetHeader(), _sheetScroll) }, MobileUi.Classes.Sheet);
+        _sheetHost = MobileUi.With(new Border { VerticalAlignment = VerticalAlignment.Bottom, Child = MobileUi.Stack(10, BuildSheetHeader(), _sheetScroll) }, MobileUi.Classes.Sheet);
         _sheetScrim = new Border
         {
             IsVisible = false,
@@ -118,6 +126,7 @@ internal sealed partial class TransferMobileView : UserControl, IMptAvaloniaSurf
         };
         Grid.SetRow(body, 1);
         layout.Children.Add(body);
+        Grid.SetRowSpan(_sheetScrim, 2);
         layout.Children.Add(_sheetScrim);
 
         MobileUi.With(this, MobileUi.Classes.Root);
@@ -445,6 +454,7 @@ internal sealed partial class TransferMobileView : UserControl, IMptAvaloniaSurf
 
         RenderStep();
         SyncReceive();
+        SyncManagedOpenList();
     }
 
     private static void SetActive(Button button, bool active) => button.Classes.Set("active", active);
@@ -508,8 +518,27 @@ internal sealed partial class TransferMobileView : UserControl, IMptAvaloniaSurf
         check.Click += async (_, _) => await RunAsync(() => _core.CheckRelayAsync());
         var export = MobileUi.QuietButton("复制本机网盘连接码");
         export.Click += async (_, _) => await RunAsync(ExportCloudAsync);
+        _managedStart = MobileUi.PrimaryButton("启用本机网盘服务");
+        _managedStart.Click += async (_, _) => await RunAsync(() => SetManagedOpenListAsync(true));
+        _managedStop = MobileUi.QuietButton("停止本机网盘服务");
+        _managedStop.Click += async (_, _) => await RunAsync(() => SetManagedOpenListAsync(false));
+        _managedAdmin = MobileUi.SecondaryButton("打开网盘管理");
+        _managedAdmin.Click += async (_, _) => await RunAsync(OpenManagedAdminAsync);
+        _managedPassword = MobileUi.QuietButton("复制管理员密码");
+        _managedPassword.Click += async (_, _) => await RunAsync(async () =>
+        {
+            var response = await _core.CallAsync("openlist.start");
+            if (TransferCore.Str(response, "password") is { Length: > 0 } password)
+            {
+                await CopyTextAsync(password);
+                _managedState.Text = "管理员密码已复制，用户名 admin。";
+            }
+        });
         return MobileUi.Stack(10,
-            MobileUi.Note("手机不运行 OpenList。先在电脑上连接网盘，再把网盘连接码发到手机导入。"),
+            MobileUi.Note("连接网盘：MPT 已内嵌 OpenList，无需另装。启用本机服务后，在管理页授权你的网盘。"),
+            _managedState, _managedStart, _managedAdmin, _managedPassword, _managedStop,
+            MobileUi.Note("已有网盘连接会保留；启用本机服务不会替换当前配置。"),
+            MobileUi.Divider(),
             _cloudState,
             _cloudCode,
             _cloudPreview,
@@ -522,6 +551,49 @@ internal sealed partial class TransferMobileView : UserControl, IMptAvaloniaSurf
             _cloudPassword,
             test,
             check);
+    }
+
+    private void SyncManagedOpenList()
+    {
+        var running = _core.Snapshot.OpenListRunning;
+        _managedState.Text = _managedFailure.Length > 0 ? _managedFailure : running ? "本机网盘服务正在运行" : "本机网盘服务未启动";
+        _managedStart.IsVisible = !running;
+        _managedStart.IsEnabled = !_managedBusy;
+        _managedStop.IsVisible = running;
+        _managedStop.IsEnabled = !_managedBusy;
+        _managedAdmin.IsVisible = running;
+        _managedPassword.IsVisible = running;
+    }
+
+    private async Task SetManagedOpenListAsync(bool start)
+    {
+        if (_managedBusy) return;
+        _managedBusy = true;
+        _managedFailure = "";
+        SyncManagedOpenList();
+        _managedState.Text = start ? "正在启动本机网盘服务…" : "正在停止…";
+        try
+        {
+            var response = await _core.CallAsync(start ? "openlist.start" : "openlist.stop");
+            if (start) _managedAdminUrl = TransferCore.Str(response, "adminUrl") ?? "";
+            await _core.RefreshAsync();
+        }
+        catch
+        {
+            _managedFailure = start ? "本机网盘服务启动失败，请重试。" : "本机网盘服务未能停止，请重试。";
+            _managedState.Text = _managedFailure;
+            throw;
+        }
+        finally { _managedBusy = false; _managedStart.IsEnabled = true; _managedStop.IsEnabled = true; }
+    }
+
+    private async Task OpenManagedAdminAsync()
+    {
+        if (_managedAdminUrl.Length == 0)
+            _managedAdminUrl = TransferCore.Str(await _core.CallAsync("inspect"), "adminUrl") ?? "";
+        var launcher = TopLevel.GetTopLevel(this)?.Launcher;
+        if (launcher is null || !Uri.TryCreate(_managedAdminUrl, UriKind.Absolute, out var uri) || !await launcher.LaunchUriAsync(uri))
+            _managedState.Text = "暂时无法打开管理页，请确认本机服务已启动。";
     }
 
     private StackPanel BuildReceiveSheet() => MobileUi.Stack(10,
@@ -602,6 +674,7 @@ internal sealed partial class TransferMobileView : UserControl, IMptAvaloniaSurf
 
     private void SyncRelaySheet()
     {
+        SyncManagedOpenList();
         var state = _core.Snapshot;
         var reachability = state.RelayReachable switch
         {

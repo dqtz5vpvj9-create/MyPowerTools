@@ -530,7 +530,7 @@ public sealed partial class TransferView : UserControl, IMptAvaloniaSurfaceActiv
 
     private async Task OpenAdminAsync()
     {
-        if (!_core.Snapshot.OpenListRunning) { SetStatus("OpenList 还没有运行：请先点『一键安装并启用 OpenList』。"); return; }
+        if (!_core.Snapshot.OpenListRunning) { SetStatus("OpenList 还没有运行：请先点『启用本机网盘服务』。"); return; }
         if (_adminUrl.Length == 0) { SetStatus("还没有拿到网盘管理地址，请重新启用一次 OpenList。"); return; }
         await OpenUrlAsync(_adminUrl);
     }
@@ -566,7 +566,7 @@ public sealed partial class TransferView : UserControl, IMptAvaloniaSurfaceActiv
         var uri = Uri.TryCreate(directory, UriKind.Absolute, out var parsed) ? parsed : null;
         if (uri is not null && !_openListRunning && !OperatingSystem.IsAndroid() && IsLocalAuthority(uri) &&
             uri.AbsolutePath.StartsWith("/dav/", StringComparison.Ordinal) && uri.AbsolutePath.TrimEnd('/') != "/dav")
-            throw new InvalidOperationException("本机 OpenList 未运行，请先点『一键安装并启用 OpenList』。");
+            throw new InvalidOperationException("本机 OpenList 未运行，请先点『启用本机网盘服务』。");
         if (uri is not null && IsLocal(uri) && !IsManualAccount())
         {
             // Idempotent: creates the relay account once, then re-scopes it whenever the mount changes.
@@ -695,7 +695,11 @@ public sealed partial class TransferView : UserControl, IMptAvaloniaSurfaceActiv
     {
         // The conversation is this tool's main screen, so it gets the activation first: a system share
         // becomes a pending attachment in the composer, not an entry in the classic send list.
-        if (await _assistant.ActivateAsync(request, cancellationToken)) return true;
+        if (await _assistant.ActivateAsync(request, cancellationToken))
+        {
+            ShowAdvanced(false);
+            return true;
+        }
 
         var value = (request.ActivationUri ?? "").Trim();
         if (Uri.TryCreate(value, UriKind.Absolute, out var uri) && uri.IsFile)

@@ -162,6 +162,8 @@ internal sealed partial class AssistantView
         {
             if (key != ActiveConversationKey) return;
             _threadScroll.Offset = new Vector(0, offset);
+            _followThreadEnd = _threadScroll.Offset.Y >= _threadScroll.Extent.Height - _threadScroll.Viewport.Height - 1;
+            if (_followThreadEnd) _newMessages.IsVisible = false;
         }, DispatcherPriority.Loaded);
     }
 

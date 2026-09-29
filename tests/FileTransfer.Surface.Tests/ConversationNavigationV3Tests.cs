@@ -28,6 +28,11 @@ public sealed class ConversationNavigationV3Tests
         Assert.DoesNotContain(Text(view.Conversation.ThreadPanel), t => t == "公屏独有内容");
         Assert.DoesNotContain(view.GetLogicalDescendants().OfType<Button>(), b => b.IsEffectivelyVisible && AutomationProperties.GetName(b) == "选择发送目标");
         Assert.Equal("laptop", view.Conversation.SelectedTargetDeviceId);
+        if (width < 640)
+        {
+            var back = Named(view, "返回会话列表");
+            Assert.True(back.Bounds.Width >= 44 && back.Bounds.Height >= 44);
+        }
         Save(host.Window, "private-" + width);
         if (width < 640) { Assert.True(view.Conversation.TryHandleBack()); host.Settle(); }
         Click(host.Window, Named(view, "打开会话 文件传输助手"));
@@ -46,8 +51,10 @@ public sealed class ConversationNavigationV3Tests
         var module = Data();
         var view = new TransferView(module.Context("/mnt/cache/data-cache"));
         using var host = new Host(view, 390);
-        await view.Conversation.ActivateAsync(new ToolActivationRequest("file-transfer", "", "mypowertools://file-assistant?text=分享测试"));
+        view.ShowAdvanced(true); host.Settle();
+        await view.ActivateAsync(new ToolActivationRequest("file-transfer", "", "mypowertools://file-assistant?text=分享测试"));
         host.Settle();
+        Assert.True(view.IsConversationVisible);
         Assert.Equal("", Input(view).Text ?? "");
         Assert.Contains(Text(view), t => t == "分享到会话");
         Click(host.Window, Named(view.Conversation.SheetHost, "打开会话 LIS-IMAC"));
@@ -159,6 +166,56 @@ public sealed class ConversationNavigationV3Tests
         Assert.Equal(0, module.CountCalls("assistant.send"));
         Assert.Equal(0, module.CountCalls("pair.import"));
         Assert.Null(view.Conversation.SelectedTargetDeviceId);
+    }
+
+    [AvaloniaFact]
+    public void Restoring_a_short_conversation_does_not_show_a_new_message_cue()
+    {
+        var module = Data();
+        for (var restart = 0; restart < 2; restart++)
+        {
+            var view = new TransferView(module.Context("/mnt/cache/data-cache"));
+            using var host = new Host(view, 390);
+            Click(host.Window, Named(view, "打开会话 文件传输助手"));
+            host.Settle();
+            Assert.DoesNotContain(view.GetLogicalDescendants().OfType<Button>(),
+                b => b.IsEffectivelyVisible && (b.Content as string)?.Contains("新消息") == true);
+        }
+    }
+
+    [AvaloniaFact]
+    public void Mobile_managed_cloud_start_and_stop_use_runtime_commands_without_reconfiguring_cloud()
+    {
+        var module = Data();
+        module.BeforeAnswer = name =>
+        {
+            if (name == "openlist.start") module.OpenListRunning = true;
+            if (name == "openlist.stop") module.OpenListRunning = false;
+            return null;
+        };
+        var view = new TransferView(module.Context("/mnt/cache/data-cache"));
+        using var host = new Host(view, 390);
+        view.ShowAdvanced(true); host.Settle();
+        var choose = view.GetLogicalDescendants().OfType<Button>().First(b => b.IsEffectivelyVisible && Equals(b.Content, "选择文件"));
+        var originalPosition = choose.TranslatePoint(default, host.Window);
+        Click(host.Window, Named(view, "连接与接收设置"));
+        Button Label(string label) => view.GetLogicalDescendants().OfType<Button>().First(b =>
+            b.IsEffectivelyVisible && (Equals(b.Content, label) || Text(b).Contains(label)));
+        Click(host.Window, Label("网盘中转设置"));
+        Assert.Equal(originalPosition, choose.TranslatePoint(default, host.Window));
+        Save(host.Window, "cloud-settings-390");
+        Click(host.Window, Label("启用本机网盘服务"));
+        Assert.Equal(1, module.CountCalls("openlist.start"));
+        Assert.Contains("本机网盘服务正在运行", Text(view));
+        Assert.True(Label("打开网盘管理").IsEnabled);
+        Click(host.Window, Label("停止本机网盘服务"));
+        Assert.Equal(1, module.CountCalls("openlist.stop"));
+        Assert.Contains("本机网盘服务未启动", Text(view));
+        Assert.Equal(0, module.CountCalls("configure"));
+        module.FailCommands.Add("openlist.start");
+        Click(host.Window, Label("启用本机网盘服务"));
+        Assert.Contains("本机网盘服务启动失败，请重试。", Text(view));
+        Assert.True(Label("启用本机网盘服务").IsEnabled);
     }
 
     private static FakeTransferModule Data()

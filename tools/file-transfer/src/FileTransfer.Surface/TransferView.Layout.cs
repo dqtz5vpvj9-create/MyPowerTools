@@ -60,10 +60,10 @@ public sealed partial class TransferView
         _send = Button("发送", SendAsync);
         _cancel = Button("取消传输", CancelAsync);
         _retryLast = Button("重试上次", RetryLastAsync);
-        _openListStart = Button("一键安装并启用 OpenList", StartOpenListAsync);
+        _openListStart = Button("启用本机网盘服务", StartOpenListAsync);
         _openListAdmin = Button("打开网盘管理", OpenAdminAsync);
         _openListPassword = Button("复制管理员密码", CopyAdminPasswordAsync);
-        _openListStop = Button("停止 OpenList", StopOpenListAsync);
+        _openListStop = Button("停止本机网盘服务", StopOpenListAsync);
         _cloudSave = Button("保存并测试", SaveCloudAsync);
     }
 
@@ -184,17 +184,11 @@ public sealed partial class TransferView
     private Expander CloudSection()
     {
         var panel = new StackPanel { Spacing = 10 };
-        if (OperatingSystem.IsAndroid())
-        {
-            panel.Children.Add(Text("手机不运行 OpenList 服务。请先在电脑上打开文件互传，点『一键安装并启用 OpenList』并在网盘管理里绑定网盘，再点『复制本机网盘连接码』发到手机，粘贴到下面导入，即可用网盘中转收发文件。", 13));
-            panel.Children.Add(Text("也可以直接填写电脑的 WebDAV 地址和账号（高级）。", 13));
-        }
-        else
-        {
-            panel.Children.Add(Text("首次使用：点『一键安装并启用 OpenList』，MPT 会下载并启动官方 OpenList，只监听本机 Tailscale 地址，管理员密码会自动复制。", 13));
-            panel.Children.Add(Row(_openListStart, _openListAdmin, _openListPassword, _openListStop));
-            panel.Children.Add(Text("接着在网盘管理里添加网盘，并在网盘内建一个互传文件夹；回到这里把挂载目录填成 /dav/网盘名/互传文件夹（只填『网盘名/互传文件夹』也会自动补全），点『保存并测试』。MPT 会自动建立只允许该目录读写和建目录的专用账号，不必手填账号。", 13));
-        }
+        panel.Children.Add(Text(OperatingSystem.IsAndroid()
+            ? "OpenList 已集成在 MPT 中，无需另装。启用后只在本机提供网盘管理，绑定网盘后再选择互传目录。"
+            : "启用本机 OpenList 后，在管理页绑定网盘，再选择互传目录。", 13));
+        panel.Children.Add(Row(_openListStart, _openListAdmin, _openListPassword, _openListStop));
+        panel.Children.Add(Text("已有网盘配置会保留。仅在你保存新的互传目录时更新连接。", 13));
         panel.Children.Add(Field("互传目录（挂载目录）", _webDav));
         panel.Children.Add(Row(Button("粘贴", () => PasteIntoAsync(_webDav)), Button("打开网盘管理", OpenAdminAsync)));
         panel.Children.Add(Field("OpenList 用户名（留空自动创建）", _username));
