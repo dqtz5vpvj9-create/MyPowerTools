@@ -102,3 +102,9 @@ Normal 单变量对照成功，尚未加入分享 await：18:36:33.305 scheduled
 ## 共享会话发送状态停在 0%（用户反馈，2026-09-29）
 
 用户提供双端截图：Windows 已显示收到图片，Android 同一图片仍显示“文件传输助手 · 发送中 0%”。这与此前指定设备收件箱状态通知不同。源码检查确认后台共享会话 RunRelayPassAsync 完成持久化后没有发送 assistant.changed；直连合并回执也遗漏通知，ReportProgress 只更新内存未通知 Surface。显式 sync 的收尾事件不能覆盖后台发送。当前修复要求在实际状态提交、新回执和受限频率的进度变化时主动通知；无变化轮次保持静默，不能增加界面轮询掩盖缺口。尚待回归和双端图片发送验证。
+
+修复提交8420f59已推送；87/87相关回归通过（/mnt/cache/data-cache/mpt-shared-event-suite.log），含阻塞后续回执查询时先收到上传终态、失败、直连回执、新收件与下载完成、进度限频和无变化轮次静默。0.2.4/code6通用APK构建95秒，0错误。
+
+旧版实际UI已复现同一问题：AVD user10通过界面加入Windows共享会话，系统选择器发送1,665,204字节PNG；条目c39061f4b6774486a69db2bd622a7156已在手机持久化为stored，并取得LIS-IMAC完整字节回执，手机页面却保持“发送中0%”。Windows落盘available，旧界面也未显示该图片。主agent亲看old-settled.png和old-windows.png；证据暂存/mnt/cache/data-cache/mpt-shared-status-0929/。正在新版双端复验，尚未发布。
+
+新版实际双端UI通过：0.2.4/code6覆盖安装，Windows官方Tools Dev于02:23:54 UTC更新（InputMonitor仍69120字节，时间戳不变）。在两个已打开的助手页面，用同一张PNG发送新条目，之后不切页、不点同步、不追加消息；手机最新条目自动显示“已同步”，Windows自动新增图片并显示“已接收”。主agent亲看/mnt/cache/data-cache/mpt-shared-status-0929/new-settled.png、new-windows-received.png（02:26:28 UTC）。测试范围为Android16专用AVD与Windows实际UI，没有将后台inspect代替界面验收。
