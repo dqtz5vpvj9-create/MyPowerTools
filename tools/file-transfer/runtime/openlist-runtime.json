@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "comment": [
+    "Pinned OpenList release the embedded Android runtime is taken from.",
+    "Desktop hosts keep downloading the same pinned release at first use; Android never downloads.",
+    "The Android payload is validated structurally (Android/Bionic ELF, expected ABI, loader, page",
+    "alignment), not with an extra checksum scheme: the trust boundary stays the pinned version plus",
+    "the official HTTPS release origin, the same one the desktop download path already uses."
+  ],
+  "version": "v4.2.6",
+  "releaseDownloadBase": "https://github.com/OpenListTeam/OpenList/releases/download",
+  "runtimeVariable": "MPT_OPENLIST_RUNTIME",
+  "android": {
+    "libraryFileName": "libopenlist.so",
+    "sourceNote": "Built by the official build.sh BuildReleaseAndroid: GOOS=android, NDK r26b *-linux-android24-clang, CGO_ENABLED=1, llvm-strip.",
+    "abis": [
+      {
+        "runtimeIdentifier": "android-arm64",
+        "androidAbi": "arm64-v8a",
+        "asset": "openlist-android-arm64.tar.gz",
+        "archiveEntry": "openlist",
+        "expectedElfMachine": "aarch64",
+        "ndkTriple": "aarch64-linux-android24"
+      },
+      {
+        "runtimeIdentifier": "android-x64",
+        "androidAbi": "x86_64",
+        "asset": "openlist-android-amd64.tar.gz",
+        "archiveEntry": "openlist",
+        "expectedElfMachine": "x86-64",
+        "ndkTriple": "x86_64-linux-android24"
+      }
+    ]
+  }
+}

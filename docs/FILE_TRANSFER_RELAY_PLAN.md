@@ -72,3 +72,11 @@ python3 tools/file-transfer/relay/deploy/smoke.py --base http://100.64.0.1:18765
 本次相关测试 44/44：部署边界 4、真实进程生命周期 5、inbox 权限/持久/并发 35。日志：`artifacts/.tmp-android-verify/public-relay-server/relay-tests-20260929T035435Z.log`。
 
 域名代理限流补验：nginx覆盖X-Real-IP/X-Forwarded-For，服务仅信任本机100.64.0.1，相关API及配置测试21/21通过（与上面44项有4项重叠）。最终Windows协议五项再次通过，证据 `/mnt/cache/data-cache/mpt-tail-relay-windows-smoke.txt`；原始测试日志 `artifacts/.tmp-android-verify/public-relay-server/relay-tests-20260929T040029Z.log`。
+
+## Mihomo 配置对客户端的影响
+
+用户提供的是 Mihomo `type: tailscale` 出站，而不是普通 SOCKS 出站；认证密钥不记录在本文。该出站创建自己的 tsnet 节点。它有 Tailnet 身份，不代表 Android 应用能通过系统网卡枚举得到该地址，也不代表应用监听端口自动映射进该节点。
+
+已知分流规则为 `DOMAIN-SUFFIX,tail.lixinrui000.cn,HEADSCALE`，且此域后缀不使用 Fake-IP。因此内置中转使用上述域名；不能根据这条域名规则推断直接访问 `100.x` 地址也会匹配 HEADSCALE。Mihomo 在首次匹配流量时初始化此出站，单次冷启动超时只能记录为本次不可达，不能持久标记整个设备不支持 Tailnet。
+
+来源：[Mihomo Tailscale 配置](https://wiki.metacubex.one/config/proxies/tailscale/)、[Mihomo tsnet 出站实现](https://github.com/MetaCubeX/mihomo/blob/Meta/adapter/outbound/tailscale.go)。具体软件版本和入站转发配置仍应以设备实际状态为准。

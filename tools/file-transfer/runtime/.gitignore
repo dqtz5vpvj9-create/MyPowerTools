@@ -1,0 +1,4 @@
+# Staged runtime payloads and downloads are produced by package-openlist-android-runtime.ps1.
+# They are large (~145 MB per ABI) and fully reproducible from the pinned official release, so they
+# must never enter the repository.
+stage/

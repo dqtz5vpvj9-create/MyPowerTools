@@ -63,7 +63,7 @@ public sealed class PublicRelayTests : IAsyncLifetime
 
     /// <summary>Starts a device with no listen address and no relay settings: the public default only.</summary>
     private async Task<FileTransferModule> StartAsync(string name, string deviceId, string? conversationId = null,
-        string? conversationKey = null, string listenAddress = "")
+        string? conversationKey = null, string listenAddress = "", bool customWithoutPassword = false)
     {
         var root = DeviceRoot(name);
         var secrets = new InMemorySecretStore();
@@ -76,6 +76,11 @@ public sealed class PublicRelayTests : IAsyncLifetime
             ["receiveDirectory"] = Path.Combine(root, "inbox"),
             ["peers"] = new JsonArray()
         };
+        if (customWithoutPassword)
+        {
+            preferences["webDavUrl"] = "http://127.0.0.1:9/dav/";
+            preferences["username"] = "private-storage-user";
+        }
         await File.WriteAllTextAsync(Path.Combine(root, "preferences.json"), preferences.ToJsonString());
         var context = new ModuleContext("test", "1.0", "file-transfer", "file-transfer", root, root, root, "linux",
             ["secret.store"], new Dictionary<string, object> { ["secret.store"] = secrets });
@@ -368,6 +373,25 @@ public sealed class PublicRelayTests : IAsyncLifetime
         started.Stop();
         _modules.Remove(module);
         Assert.True(started.Elapsed < TimeSpan.FromSeconds(10), $"Dispose 耗时 {started.Elapsed}");
+    }
+
+    [Fact]
+    public async Task MissingCustomPasswordDoesNotPublishSharedContentToBuiltInRelays()
+    {
+        var relay = Relay();
+        var module = await StartAsync("custom", "phone-private", customWithoutPassword: true);
+        var file = Path.Combine(DeviceRoot("custom"), "private.txt");
+        await File.WriteAllTextAsync(file, "private storage content");
+        await CallAsync(module, "file-transfer.assistant.send", new JsonObject
+        {
+            ["text"] = "private storage message",
+            ["paths"] = new JsonArray(file)
+        });
+        // Explicit synchronization exercises the shared relay selection with a missing secret.
+        // The command can report the configuration error; it must never select the public default.
+        await TryAsync(module, "file-transfer.assistant.sync");
+        await relay.WaitUntilIdleAsync(TimeSpan.FromSeconds(10));
+        Assert.Equal(0, relay.Requests);
     }
 
     // ---- compatibility of the classic commands ------------------------------------------------

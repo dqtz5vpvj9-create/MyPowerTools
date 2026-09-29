@@ -1,0 +1,17 @@
+OpenList v4.2.6
+Copyright: The OpenList Projects Contributors
+License: GNU Affero General Public License v3.0; see LICENSE.txt.
+
+This application distributes the official, unmodified Android OpenList executable
+as libopenlist.so and runs it as a separate local process when enabled.
+
+Project and corresponding source:
+https://github.com/OpenListTeam/OpenList/tree/v4.2.6
+https://github.com/OpenListTeam/OpenList/archive/refs/tags/v4.2.6.tar.gz
+
+Official binaries and build instructions:
+https://github.com/OpenListTeam/OpenList/releases/tag/v4.2.6
+https://github.com/OpenListTeam/OpenList/blob/v4.2.6/build.sh
+
+Bundled OpenList web interface source:
+https://github.com/OpenListTeam/OpenList-Frontend

@@ -17,6 +17,7 @@
     <AndroidUseAssemblyStore>false</AndroidUseAssemblyStore>
     <EmbedAssembliesIntoApk>true</EmbedAssembliesIntoApk>
     <AndroidPackageFormats>apk</AndroidPackageFormats>
+    <OpenListRuntimeDirectory>$(MSBuildThisFileDirectory)../../tools/file-transfer/runtime/stage</OpenListRuntimeDirectory>
     <!--
       Tool modules restore MyPowerTools.* from the local NuGet feed while this app builds the same
       assemblies from source, which puts two files with one relative path into the publish list
@@ -142,4 +143,14 @@
       <Link>modules/mobile-tool-control/%(RecursiveDir)%(Filename)%(Extension)</Link>
     </AndroidAsset>
   </ItemGroup>
+  <!-- Android installs the executable in its executable native-library directory. It starts only
+       when cloud storage is enabled, under the file-transfer module's existing lifecycle. -->
+  <ItemGroup>
+    <AndroidNativeLibrary Include="$(OpenListRuntimeDirectory)/lib/arm64-v8a/libopenlist.so" Abi="arm64-v8a" />
+    <AndroidNativeLibrary Include="$(OpenListRuntimeDirectory)/lib/x86_64/libopenlist.so" Abi="x86_64" />
+  </ItemGroup>
+  <Target Name="StageEmbeddedOpenList" BeforeTargets="PrepareForBuild"
+          Condition="'$(DesignTimeBuild)' != 'true' and (!Exists('$(OpenListRuntimeDirectory)/lib/arm64-v8a/libopenlist.so') or !Exists('$(OpenListRuntimeDirectory)/lib/x86_64/libopenlist.so'))">
+    <Exec Command="pwsh -NoLogo -NoProfile -NonInteractive -File &quot;$(MSBuildThisFileDirectory)../../tools/file-transfer/runtime/package-openlist-android-runtime.ps1&quot; -Abi all" />
+  </Target>
 </Project>
