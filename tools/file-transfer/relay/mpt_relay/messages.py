@@ -11,7 +11,7 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 from pathlib import Path
-from typing import Callable, List, Mapping, Optional, Tuple
+from typing import Callable, Iterator, List, Mapping, Optional, Tuple
 
 JSON_CONTENT_TYPE = "application/json; charset=utf-8"
 TEXT_CONTENT_TYPE = "text/plain; charset=utf-8"
@@ -34,6 +34,33 @@ class BodyReader:
 
     def consumed(self) -> bool:
         raise NotImplementedError
+
+
+class BodyStream:
+    """A bounded chunk source for a streaming response body.
+
+    ``length`` is the exact number of bytes :meth:`chunks` will yield; the transport announces it
+    in ``Content-Length`` before the first chunk, so a stream must know its size up front. The
+    shared payload proxy does: the locator record carries the payload size.
+
+    :meth:`close` is called by the transport exactly once — after a completed body, after the
+    client disconnected mid-body, or when the stream failed — and is where an upstream socket is
+    released. Implementations must therefore make ``close`` idempotent.
+    """
+
+    #: Total bytes the stream will yield.
+    length: int = 0
+
+    @property
+    def failed(self) -> bool:
+        """True when the source ended before delivering the announced length."""
+        return False
+
+    def chunks(self) -> Iterator[bytes]:
+        raise NotImplementedError
+
+    def close(self) -> None:
+        return None
 
 
 @dataclass
@@ -65,6 +92,10 @@ class Response:
     head_only: bool = False
     #: True when the connection must not be reused (an unconsumed request body is pending).
     close: bool = False
+    #: Streaming body source, used instead of ``body``/``file_path``; closed by the transport.
+    stream: Optional[BodyStream] = None
+    #: Explicit ``Content-Length`` for a response without a local body (a proxied HEAD).
+    content_length: Optional[int] = None
 
     def with_headers(self, *headers: Tuple[str, str]) -> "Response":
         return Response(
@@ -75,6 +106,8 @@ class Response:
             file_path=self.file_path,
             head_only=self.head_only,
             close=self.close,
+            stream=self.stream,
+            content_length=self.content_length,
         )
 
 

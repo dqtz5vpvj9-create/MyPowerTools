@@ -11,6 +11,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import urllib.parse
 from dataclasses import asdict, dataclass, fields
 from pathlib import Path
 from typing import Dict, Mapping, Optional, Sequence, Tuple
@@ -19,6 +20,16 @@ ENV_PREFIX = "MPT_RELAY_"
 
 MIB = 1 << 20
 GIB = 1 << 30
+
+#: The one fixed Tailnet relay the shared payload proxy may contact. It is the same address the
+#: client itself uses (``InboxRelays.TailAddress`` in ``FileTransfer.Core``), so neither a
+#: request header nor a locator record can ever pick an arbitrary upstream host.
+TRUSTED_TAIL_ORIGIN = "http://mpt-relay.tail.lixinrui000.cn"
+TRUSTED_TAIL_HOST = "mpt-relay.tail.lixinrui000.cn"
+#: Loopback origins are the trusted local connector (``deploy/connector`` forwards
+#: ``127.0.0.1:18766`` to the fixed Tail virtualhost) or the test origin. The upstream ``Host``
+#: header is always ``TRUSTED_TAIL_HOST``, so nginx still selects the fixed virtualhost.
+LOOPBACK_ORIGIN_HOSTS = ("127.0.0.1", "::1", "localhost")
 
 
 def _defaults() -> Dict[str, object]:
@@ -55,6 +66,12 @@ def _defaults() -> Dict[str, object]:
         # First-up production posture: only the explicit POST registers a namespace. The
         # WebDAV-only compatibility path can be re-enabled with MPT_RELAY_DAV_AUTO_REGISTER=1.
         "dav_auto_register": False,
+        # --- shared payload proxy ------------------------------------------------------
+        # Off by default. Enabled explicitly on the *public* relay only; the Tail relay must
+        # keep it off, which is what makes the fixed upstream path non-recursive.
+        "tail_payload_proxy": False,
+        "tail_payload_origin": TRUSTED_TAIL_ORIGIN,
+        "tail_payload_timeout_seconds": 30,
         # --- diagnostics ---------------------------------------------------------------
         "log_level": "info",
         "mask_log_ids": True,
@@ -100,6 +117,9 @@ class Config:
     trust_proxy_headers: bool = True
     trusted_proxies: Tuple[str, ...] = ("127.0.0.1", "::1")
     dav_auto_register: bool = False
+    tail_payload_proxy: bool = False
+    tail_payload_origin: str = TRUSTED_TAIL_ORIGIN
+    tail_payload_timeout_seconds: int = 30
     log_level: str = "info"
     mask_log_ids: bool = True
 
@@ -122,6 +142,18 @@ class Config:
     @property
     def data_path(self) -> Path:
         return Path(self.data_dir)
+
+    def tail_origin(self) -> Tuple[str, str, int]:
+        """``(scheme, host, port)`` of the fixed upstream, validated at load time.
+
+        The value is never taken from a request or a locator record; this method only
+        normalizes the operator's configured fixed origin (default port applied).
+        """
+        parts = urllib.parse.urlsplit(self.tail_payload_origin)
+        scheme = (parts.scheme or "").lower()
+        default_port = 443 if scheme == "https" else 80
+        port = parts.port if parts.port is not None else default_port
+        return scheme, (parts.hostname or "").lower(), int(port)
 
     def to_json(self) -> str:
         payload = asdict(self)
@@ -278,5 +310,33 @@ def _validate(config: Config) -> None:
         raise ConfigError("body_budget_seconds 必须 ≥ 1（请求体读取的墙钟预算）。")
     if config.max_tracked_addresses < 16:
         raise ConfigError("max_tracked_addresses 必须 ≥ 16。")
+    if not (1 <= config.tail_payload_timeout_seconds <= 600):
+        raise ConfigError("tail_payload_timeout_seconds 必须在 1..600 之间。")
+    # The origin is validated even while the feature is off: it is a new key, so strictness
+    # cannot break an existing deployment file, and a typo must never become reachable later.
+    validate_tail_origin(config.tail_payload_origin)
     if config.log_level not in ("debug", "info", "warning", "error"):
         raise ConfigError("log_level 取值非法。")
+
+
+def validate_tail_origin(origin: str) -> Tuple[str, str, int]:
+    """Accepts only the fixed trusted Tail domain or a loopback connector/test origin."""
+    try:
+        parts = urllib.parse.urlsplit(origin)
+        hostname = parts.hostname
+        port = parts.port
+    except ValueError as error:
+        raise ConfigError(f"tail_payload_origin 不是合法 URL：{origin!r}。") from error
+    scheme = (parts.scheme or "").lower()
+    if scheme not in ("http", "https") or not hostname:
+        raise ConfigError(f"tail_payload_origin 必须是 http(s) 绝对地址：{origin!r}。")
+    if parts.username or parts.password or parts.query or parts.fragment or parts.path not in ("", "/"):
+        raise ConfigError("tail_payload_origin 只能包含 scheme、host 和可选端口。")
+    host = hostname.lower()
+    if host != TRUSTED_TAIL_HOST and host not in LOOPBACK_ORIGIN_HOSTS:
+        raise ConfigError(
+            "tail_payload_origin 只能是固定的 Tailnet 中转域名 "
+            f"{TRUSTED_TAIL_HOST}，或受信的 loopback connector/测试地址。"
+        )
+    default_port = 443 if scheme == "https" else 80
+    return scheme, host, int(port if port is not None else default_port)

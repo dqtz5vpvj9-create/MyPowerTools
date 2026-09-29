@@ -418,8 +418,14 @@ class RelayHandler(BaseHTTPRequestHandler):
     def _write_response(self, response: Response) -> None:
         body = response.body or b""
         file_path = response.file_path
-        length = len(body)
-        if file_path is not None:
+        stream = response.stream
+        if response.content_length is not None:
+            length = int(response.content_length)
+        elif stream is not None:
+            length = int(stream.length)
+        else:
+            length = len(body)
+        if file_path is not None and stream is None and response.content_length is None:
             try:
                 length = os.stat(file_path).st_size
             except OSError:
@@ -440,7 +446,18 @@ class RelayHandler(BaseHTTPRequestHandler):
             self.end_headers()
             if self.command == "HEAD" or response.head_only:
                 return
-            if file_path is not None:
+            if stream is not None:
+                # Bounded chunks straight from the source: nothing is buffered whole and nothing
+                # is copied to disk, so a shared payload can stream at any size.
+                for chunk in stream.chunks():
+                    if chunk:
+                        self.wfile.write(chunk)
+                if stream.failed:
+                    # The announced length was not delivered. Close so the peer sees the
+                    # truncation immediately instead of keeping the connection (and a desynced
+                    # keep-alive) open; a truncated body is never reported as success.
+                    self.close_connection = True
+            elif file_path is not None:
                 with open(file_path, "rb") as source:
                     while True:
                         chunk = source.read(STREAM_CHUNK)
@@ -454,6 +471,12 @@ class RelayHandler(BaseHTTPRequestHandler):
             # left to answer, and any upload temp file was already removed by the handler that
             # owned it, so the conversation tree stays exactly as it was.
             self.close_connection = True
+        finally:
+            # The transport owns a streaming body: this runs after a completed response, after a
+            # client disconnect (the write above raised) and on truncation, which is what closes
+            # the upstream socket instead of leaking it until a timeout.
+            if stream is not None:
+                stream.close()
 
     do_GET = _dispatch
     do_HEAD = _dispatch

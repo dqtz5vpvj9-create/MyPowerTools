@@ -19,14 +19,16 @@ The wire behaviour is pinned by ``FileTransfer.Core.OpenListClient`` and
 from __future__ import annotations
 
 import errno
+import logging
 import os
 import urllib.parse
 from dataclasses import dataclass
 from email.utils import formatdate
 from pathlib import Path
-from typing import Iterable, List, Sequence, Tuple
+from typing import Iterable, List, Optional, Sequence, Tuple
 from xml.sax.saxutils import escape
 
+from . import shared_payload
 from .config import Config
 from .fsutil import fsync_directory as _fsync_directory
 from .fsutil import fsync_file as _fsync_file
@@ -112,7 +114,13 @@ def resolve(store: Store, conversation_id: str, segments: Sequence[str]) -> Path
     return normalized
 
 
-def handle(store: Store, config: Config, conversation_id: str, request: Request) -> Response:
+def handle(
+    store: Store,
+    config: Config,
+    conversation_id: str,
+    request: Request,
+    log: Optional[logging.Logger] = None,
+) -> Response:
     """Dispatches one WebDAV method for an already authenticated conversation."""
     target = parse_dav_target(config, request.url_path)
     path = resolve(store, conversation_id, target.segments)
@@ -120,7 +128,9 @@ def handle(store: Store, config: Config, conversation_id: str, request: Request)
     if method == "OPTIONS":
         return _options(path)
     if method in ("GET", "HEAD"):
-        return _get(path, head_only=(method == "HEAD"))
+        return _get_or_shared_proxy(
+            store, config, conversation_id, target, path, request, log, head_only=(method == "HEAD")
+        )
     if method == "PUT":
         return _put(store, config, conversation_id, target, path, request)
     if method == "MKCOL":
@@ -132,6 +142,34 @@ def handle(store: Store, config: Config, conversation_id: str, request: Request)
     if method in ("PROPPATCH", "LOCK", "UNLOCK", "MOVE", "COPY", "POST", "PATCH"):
         raise DavError(405, f"不支持的 WebDAV 方法：{method}。")
     raise DavError(405, f"不支持的方法：{method}。")
+
+
+def _get_or_shared_proxy(
+    store: Store,
+    config: Config,
+    conversation_id: str,
+    target: DavTarget,
+    path: Path,
+    request: Request,
+    log: Optional[logging.Logger],
+    head_only: bool,
+) -> Response:
+    """A committed local payload always wins; a missing one may be proxied from the Tail relay.
+
+    Only a plain 404 falls through to the proxy. A collection (405), an internal name or any
+    other rejection keeps its existing answer, so the proxy cannot widen the DAV surface.
+    """
+    try:
+        return _get(path, head_only=head_only)
+    except DavError as error:
+        if error.status != 404:
+            raise
+    proxied = shared_payload.proxy(
+        store, config, conversation_id, target.segments, target.trailing_slash, request, log
+    )
+    if proxied is not None:
+        return proxied
+    raise DavError(404, "资源不存在。")
 
 
 # -- methods ---------------------------------------------------------------------------

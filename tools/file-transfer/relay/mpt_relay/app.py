@@ -104,7 +104,7 @@ class RelayApp:
             if isinstance(auth, Response):
                 return auth
             try:
-                return dav.handle(self.store, self.config, auth.conversation_id, request)
+                return dav.handle(self.store, self.config, auth.conversation_id, request, self.log)
             except dav.DavError as error:
                 return text_response(error.status, error.message + "\n")
             except TooLarge as error:
@@ -120,16 +120,19 @@ class RelayApp:
     # -- API -------------------------------------------------------------------------
 
     def _health(self, request: Request) -> Response:
-        return json_response(
-            200,
-            {
-                "ok": True,
-                "service": "mpt-relay",
-                "version": __version__,
-                "uptimeSeconds": int(time.time() - self._started_at),
-                "longPollSeconds": self.config.longpoll_max_seconds,
-            },
-        )
+        payload = {
+            "ok": True,
+            "service": "mpt-relay",
+            "version": __version__,
+            "uptimeSeconds": int(time.time() - self._started_at),
+            "longPollSeconds": self.config.longpoll_max_seconds,
+        }
+        if self.config.tail_payload_proxy:
+            # Advertised only by a relay that actually serves the shared payload proxy; absent
+            # everywhere else, including the Tail relay. This is the exact shape the client reads
+            # (``SharedLocatorClient.SupportsPayloadLocatorAsync``).
+            payload["capabilities"] = {"sharedPayloadLocator": 1}
+        return json_response(200, payload)
 
     def _register(self, request: Request) -> Response:
         # The body must be empty. A declared body is refused without reading it; an undeclared

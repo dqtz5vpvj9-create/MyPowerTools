@@ -1,0 +1,22 @@
+[Unit]
+Description=MPT isolated userspace Tailnet connector
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+User=mpt-tail-connector
+Group=mpt-tail-connector
+StateDirectory=mpt-tail-connector
+StateDirectoryMode=0700
+RuntimeDirectory=mpt-tail-connector
+RuntimeDirectoryMode=0700
+ExecStart=/usr/sbin/tailscaled --tun=userspace-networking --state=/var/lib/mpt-tail-connector/tailscaled.state --socket=/run/mpt-tail-connector/tailscaled.sock --port=0
+Restart=on-failure
+RestartSec=3
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+
+[Install]
+WantedBy=multi-user.target
