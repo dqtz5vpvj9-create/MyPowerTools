@@ -108,3 +108,5 @@ Normal 单变量对照成功，尚未加入分享 await：18:36:33.305 scheduled
 旧版实际UI已复现同一问题：AVD user10通过界面加入Windows共享会话，系统选择器发送1,665,204字节PNG；条目c39061f4b6774486a69db2bd622a7156已在手机持久化为stored，并取得LIS-IMAC完整字节回执，手机页面却保持“发送中0%”。Windows落盘available，旧界面也未显示该图片。主agent亲看old-settled.png和old-windows.png；证据暂存/mnt/cache/data-cache/mpt-shared-status-0929/。正在新版双端复验，尚未发布。
 
 新版实际双端UI通过：0.2.4/code6覆盖安装，Windows官方Tools Dev于02:23:54 UTC更新（InputMonitor仍69120字节，时间戳不变）。在两个已打开的助手页面，用同一张PNG发送新条目，之后不切页、不点同步、不追加消息；手机最新条目自动显示“已同步”，Windows自动新增图片并显示“已接收”。主agent亲看/mnt/cache/data-cache/mpt-shared-status-0929/new-settled.png、new-windows-received.png（02:26:28 UTC）。测试范围为Android16专用AVD与Windows实际UI，没有将后台inspect代替界面验收。
+
+0.2.4预览已发布：https://github.com/dqtz5vpvj9-create/MyPowerTools/releases/tag/android-v0.2.4-preview.1 ，指向8420f59，非latest。公开APK链接重新下载成功，140673934字节，arm64/x64均存在。agently-mail向weather2020@qq.com提交修复通知，返回queued=true。双端对照共旧版1次、新版1次；新版item为496ae311633e4ffaa25f5b6b49ff96db，两端持久记录一致。Android测试user10已停止并恢复owner0，私密连接码与QR中间产物已清理。
