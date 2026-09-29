@@ -98,3 +98,7 @@ Normal 单变量对照成功，尚未加入分享 await：18:36:33.305 scheduled
 ## 0.2.3 开发预览发布
 
 提交6a50682已推送；0.2.3/code5通用APK构建91秒、0错误、3个既有警告，包含arm64与x64。实际覆盖安装与冷启动后文字、两附件、默认目标保留，主agent亲看v023-upgrade-restored.png；UPGRADE-0.2.3.md记录版本及过程。GitHub预览版 https://github.com/dqtz5vpvj9-create/MyPowerTools/releases/tag/android-v0.2.3-preview.1 已发布，非latest；公开链接重新下载成功，140669838字节，两ABI可读。已通过agently-mail向weather2020@qq.com提交发布通知，服务返回queued=true（不等同收件确认）。完整工具迁移、真实手机、macOS及所有布局矩阵仍未完成；发布说明已明确范围。
+
+## 共享会话发送状态停在 0%（用户反馈，2026-09-29）
+
+用户提供双端截图：Windows 已显示收到图片，Android 同一图片仍显示“文件传输助手 · 发送中 0%”。这与此前指定设备收件箱状态通知不同。源码检查确认后台共享会话 RunRelayPassAsync 完成持久化后没有发送 assistant.changed；直连合并回执也遗漏通知，ReportProgress 只更新内存未通知 Surface。显式 sync 的收尾事件不能覆盖后台发送。当前修复要求在实际状态提交、新回执和受限频率的进度变化时主动通知；无变化轮次保持静默，不能增加界面轮询掩盖缺口。尚待回归和双端图片发送验证。

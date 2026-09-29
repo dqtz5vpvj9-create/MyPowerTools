@@ -64,6 +64,54 @@ public sealed class AssistantRelayTests : IAsyncDisposable
 
     private static AssistantIdentity Identity(string name, string conversation = Conversation) => new(name, name, conversation);
 
+    [Fact]
+    public async Task VisibleTransitionsNotifyAfterCommitButUnchangedReceiptRoundsStaySilent()
+    {
+        var server = StartServer();
+        var sender = NewDevice("event-sender", server.Url);
+        var receiver = NewDevice("event-receiver", server.Url);
+        var source = SourceFile("event-image.png", new string('x', 128 * 1024));
+        var item = Assert.Single(await sender.Store.EnqueueAsync(sender.Identity,
+            AssistantDraft.ForPaths([source]), CancellationToken.None));
+        var sent = new List<AssistantItem>();
+        var arrived = new List<AssistantItem>();
+        var progress = 0;
+        var senderState = await sender.Store.LoadAsync(CancellationToken.None);
+        var receiverState = await receiver.Store.ConfigureAsync(receiver.Identity, CancellationToken.None);
+        sender.Sync.Changed = isProgress =>
+        {
+            // A callback may immediately inspect, so a callback under the store lock would deadlock.
+            Assert.True(sender.Store.LoadAsync(CancellationToken.None).IsCompletedSuccessfully);
+            var row = senderState.Find(item.Id)!;
+            if (isProgress) { Assert.True(row.BytesDone > 0); progress++; }
+            else sent.Add(row.Copy());
+        };
+        receiver.Sync.Changed = isProgress =>
+        {
+            if (!isProgress)
+            {
+                Assert.True(receiver.Store.LoadAsync(CancellationToken.None).IsCompletedSuccessfully);
+                arrived.Add(receiverState.Find(item.Id)!.Copy());
+            }
+        };
+        await sender.Sync.SyncAsync(sender.Identity, CancellationToken.None);
+        Assert.Contains(sent, row => row.State == AssistantItemState.Sending);
+        Assert.Contains(sent, row => row.State == AssistantItemState.Stored && row.BytesDone == row.Size);
+        Assert.True(progress > 0);
+        await receiver.Sync.SyncAsync(receiver.Identity, CancellationToken.None);
+        Assert.Contains(arrived, row => row.State == AssistantItemState.Stored);
+        Assert.Contains(arrived, row => row.State == AssistantItemState.Downloading);
+        Assert.Contains(arrived, row => row.State == AssistantItemState.Available && File.Exists(row.LocalPath));
+        await sender.Sync.SyncAsync(sender.Identity, CancellationToken.None);
+        Assert.Contains(sent, row => row.Receipts.Count == 1);
+        sent.Clear();
+        arrived.Clear();
+        await sender.Sync.SyncAsync(sender.Identity, CancellationToken.None);
+        await receiver.Sync.SyncAsync(receiver.Identity, CancellationToken.None);
+        Assert.Empty(sent); // ReceiptCheckedAt and the same receipt do not refresh the UI repeatedly.
+        Assert.Empty(arrived);
+    }
+
     private string SourceFile(string name, string content, string folder = "source")
     {
         var path = Path.Combine(_root, folder, name);

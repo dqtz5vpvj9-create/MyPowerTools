@@ -507,6 +507,7 @@ public sealed partial class FileTransferModule
             var sync = new AssistantSync(store, cloud)
             {
                 ItemCancellation = ItemToken,
+                Changed = NotifyAssistantTransferChanged,
                 PublishFilter = item => item.TargetDeviceId is not { Length: > 0 } target || IsConversationMember(target)
             };
             var result = await sync.SyncAsync(identity, token);
@@ -641,13 +642,16 @@ public sealed partial class FileTransferModule
                 if (reply.Pending) pending++;
                 if (!reply.Ok || !string.Equals(reply.State, AssistantWire.DeliveredState, StringComparison.Ordinal)) continue;
                 delivered++;
-                await store.MutateAsync(current =>
+                var receiptAdded = false;
+                await store.MutateIfChangedAsync(current =>
                 {
                     var row = current.Find(item.Id);
-                    if (row is null) return;
+                    if (row is null || row.Receipts.Any(receipt => receipt.DeviceId == device.DeviceId)) return false;
                     MergeReceipt(current, row, device);
                     if (row.TargetDeviceId is not null) row.State = AssistantItemState.Delivered;
+                    return receiptAdded = true;
                 }, token);
+                if (receiptAdded) EmitAssistantChanged("direct.receipt");
             }
         }
         // Paired devices are reached by the independent deposit scheduler, never from here: a direct
@@ -708,7 +712,7 @@ public sealed partial class FileTransferModule
             var connect = targeted ? TimeSpan.FromSeconds(15) : TimeSpan.FromSeconds(3);
             // Progress goes through the store, so the shared snapshot is never written from this thread.
             return await AssistantWire.SendItemAsync(device.Address, device.Port, frame, payload,
-                (done, _) => _assistantStore?.ReportProgress(item.Id, done), budget, itemCancellation.Token, connect);
+                (done, _) => ReportAssistantTransferProgress(item.Id, done), budget, itemCancellation.Token, connect);
         }
         catch (OperationCanceledException) when (itemCancellation.IsCancellationRequested && !token.IsCancellationRequested)
         {
@@ -1089,7 +1093,7 @@ public sealed partial class FileTransferModule
         {
             using var cloud = await AssistantRelayAsync(token)
                 ?? throw new InvalidOperationException(_relayAuthError.Length > 0 ? _relayAuthError : "文件助手连接尚未就绪，请稍后重试。");
-            await new AssistantSync(_assistantStore!, cloud) { ItemCancellation = ItemToken }.EnsureLocalAsync(Identity(), itemId, token);
+            await new AssistantSync(_assistantStore!, cloud) { ItemCancellation = ItemToken, Changed = NotifyAssistantTransferChanged }.EnsureLocalAsync(Identity(), itemId, token);
         }
         finally { _relayGate.Release(); }
         NoteRelayReachable();
@@ -1466,6 +1470,24 @@ public sealed partial class FileTransferModule
         // conversation on a bounded interval. Everything else waits for an explicit signal.
         if (enabled) json["syncSeconds"] = OfflineReceiveSyncSeconds;
         return json;
+    }
+
+    private void ReportAssistantTransferProgress(string itemId, long done)
+    {
+        if (_assistantStore?.ReportProgress(itemId, done) == true) NotifyAssistantTransferChanged(true);
+    }
+
+    private long _lastTransferProgressEvent;
+
+    private void NotifyAssistantTransferChanged(bool progress)
+    {
+        if (progress)
+        {
+            var now = Environment.TickCount64;
+            var previous = Interlocked.Read(ref _lastTransferProgressEvent);
+            if (now - previous < 250 || Interlocked.CompareExchange(ref _lastTransferProgressEvent, now, previous) != previous) return;
+        }
+        EmitAssistantChanged(progress ? "transfer.progress" : "transfer.changed");
     }
 
     private void EmitAssistantChanged(string reason)

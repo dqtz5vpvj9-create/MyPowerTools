@@ -56,6 +56,32 @@ public sealed class AssistantSync
     /// </summary>
     public Func<AssistantItem, bool>? PublishFilter { get; set; }
 
+    /// <summary>Visible committed transitions (false), or changed in-memory transfer progress (true).
+    /// The host may throttle progress; final states must be reported immediately.</summary>
+    public Action<bool>? Changed { get; set; }
+
+    private async Task MutateItemAsync(string itemId, Action<AssistantState> change, CancellationToken token)
+    {
+        var visibleChange = false;
+        await _store.MutateAsync(state =>
+        {
+            var before = state.Find(itemId)?.Copy();
+            change(state);
+            var after = state.Find(itemId);
+            visibleChange = before is not null && after is not null &&
+                (before.State != after.State || before.BytesDone != after.BytesDone || before.Error != after.Error
+                 || before.LocalPath != after.LocalPath || !before.Receipts.SequenceEqual(after.Receipts));
+        }, token);
+        // Notify after the transaction releases its gate and successfully persists; inspectors read
+        // the committed store, never a potentially stale transport-owned snapshot.
+        if (visibleChange) Changed?.Invoke(false);
+    }
+
+    private void ReportProgress(string itemId, long done)
+    {
+        if (_store.ReportProgress(itemId, done)) Changed?.Invoke(true);
+    }
+
     private CancellationTokenSource ItemScope(string itemId, CancellationToken token) =>
         ItemCancellation is { } hook
             ? CancellationTokenSource.CreateLinkedTokenSource(token, hook(itemId))
@@ -148,7 +174,7 @@ public sealed class AssistantSync
                         verified.Add(new AssistantMemberProof(receipt.DeviceId, receipt.DeviceName));
                 }
                 var itemId = item.Id;
-                await _store.MutateAsync(changed =>
+                await MutateItemAsync(itemId, changed =>
                 {
                     var live = changed.Find(itemId);
                     if (live is null || live.State == AssistantItemState.Cancelled) return;
@@ -200,6 +226,7 @@ public sealed class AssistantSync
                         changed.RememberAll(invalid);
                         foreach (var item in discovered) changed.Add(item);
                     }, token);
+                    if (discovered.Length > 0) Changed?.Invoke(false);
                     received += discovered.Length;
                 }
             }
@@ -211,6 +238,7 @@ public sealed class AssistantSync
                 && IsAddressedToMe(item, identity.DeviceId)).Select(item => item.Id).ToArray();
         if (texts.Length > 0)
         {
+            var textChanged = false;
             await _store.MutateAsync(changed =>
             {
                 foreach (var itemId in texts)
@@ -219,8 +247,10 @@ public sealed class AssistantSync
                     if (live is null || live.State != AssistantItemState.Stored) continue;
                     live.State = AssistantItemState.Available;
                     live.Error = null;
+                    textChanged = true;
                 }
             }, token);
+            if (textChanged) Changed?.Invoke(false);
         }
 
         if (!relayUnhealthy)
@@ -265,7 +295,7 @@ public sealed class AssistantSync
                 {
                     await _client.WriteAssistantReceiptAsync(identity.ConversationId, receipt, token);
                     var itemId = item.Id;
-                    await _store.MutateAsync(changed =>
+                    await MutateItemAsync(itemId, changed =>
                     {
                         var live = changed.Find(itemId);
                         if (live is null || live.State != AssistantItemState.Available) return;
@@ -280,7 +310,7 @@ public sealed class AssistantSync
                     // The entry itself is available; only the acknowledgement has to be retried next round.
                     var itemId = item.Id;
                     var reason = ex.Message;
-                    await _store.MutateAsync(changed =>
+                    await MutateItemAsync(itemId, changed =>
                     {
                         var live = changed.Find(itemId);
                         if (live is null || live.State != AssistantItemState.Available || live.ReceiptAt is not null) return;
@@ -326,7 +356,7 @@ public sealed class AssistantSync
             if (AssistantContent.HasLocalContent(item)) return AssistantContent.OpenTarget(item);
             if (item.Kind == AssistantItemKind.Text)
             {
-                await _store.MutateAsync(changed =>
+                await MutateItemAsync(itemId, changed =>
                 {
                     var live = changed.Find(itemId);
                     if (live is null || live.State == AssistantItemState.Cancelled) return;
@@ -339,7 +369,7 @@ public sealed class AssistantSync
                 throw new IOException("本机待发副本不存在，无法打开，请重新发送。");
 
             var claimed = false;
-            await _store.MutateAsync(changed =>
+            await MutateItemAsync(itemId, changed =>
             {
                 var live = changed.Find(itemId);
                 if (live is null || live.State == AssistantItemState.Cancelled) return;
@@ -354,7 +384,7 @@ public sealed class AssistantSync
             try
             {
                 saved = await _client.DownloadAssistantAsync(identity.ConversationId, item.ToManifest(),
-                    _store.GetInboxDirectory(item), (done, _) => _store.ReportProgress(itemId, done), token);
+                    _store.GetInboxDirectory(item), (done, _) => ReportProgress(itemId, done), token);
             }
             catch (OperationCanceledException) when (token.IsCancellationRequested)
             {
@@ -369,7 +399,7 @@ public sealed class AssistantSync
             if (saved is not null)
             {
                 var path = saved;
-                await _store.MutateAsync(changed =>
+                await MutateItemAsync(itemId, changed =>
                 {
                     var live = changed.Find(itemId);
                     // A cancel, or content that a direct receive delivered meanwhile, always wins over this download.
@@ -401,7 +431,7 @@ public sealed class AssistantSync
         // Claim the entry inside a store transaction: a cancel that lands between the selection and the claim
         // wins, so a cancelled entry is never re-published by this round.
         var claimed = false;
-        await _store.MutateAsync(changed =>
+        await MutateItemAsync(item.Id, changed =>
         {
             var live = changed.Find(item.Id);
             if (live is null || live.State is not (AssistantItemState.Queued or AssistantItemState.Failed)) return;
@@ -415,9 +445,9 @@ public sealed class AssistantSync
         try
         {
             await _client.PublishAssistantAsync(identity.ConversationId, item.ToManifest(), payload,
-                (done, _) => _store.ReportProgress(item.Id, done), token);
+                (done, _) => ReportProgress(item.Id, done), token);
             var stored = false;
-            await _store.MutateAsync(changed =>
+            await MutateItemAsync(item.Id, changed =>
             {
                 var live = changed.Find(item.Id);
                 // Cancelled or moved on while the upload was in flight: nothing already stored can be recalled,
@@ -446,7 +476,7 @@ public sealed class AssistantSync
     {
         if (item.LocalPath is { Length: > 0 } local && File.Exists(local))
         {
-            await _store.MutateAsync(changed =>
+            await MutateItemAsync(item.Id, changed =>
             {
                 var live = changed.Find(item.Id);
                 if (live is null || live.State == AssistantItemState.Cancelled) return;
@@ -458,7 +488,7 @@ public sealed class AssistantSync
         if (item.State == AssistantItemState.Cancelled) return new OperationCanceledException("条目已取消。");
 
         var claimed = false;
-        await _store.MutateAsync(changed =>
+        await MutateItemAsync(item.Id, changed =>
         {
             var live = changed.Find(item.Id);
             if (live is null || live.State is not (AssistantItemState.Stored or AssistantItemState.Failed)) return;
@@ -471,9 +501,9 @@ public sealed class AssistantSync
         try
         {
             var saved = await _client.DownloadAssistantAsync(identity.ConversationId, item.ToManifest(),
-                _store.GetInboxDirectory(item), (done, _) => _store.ReportProgress(item.Id, done), token);
+                _store.GetInboxDirectory(item), (done, _) => ReportProgress(item.Id, done), token);
             var received = false;
-            await _store.MutateAsync(changed =>
+            await MutateItemAsync(item.Id, changed =>
             {
                 var live = changed.Find(item.Id);
                 if (live is null || live.State != AssistantItemState.Downloading) return;
@@ -499,7 +529,7 @@ public sealed class AssistantSync
 
     /// <summary>Marks an in-flight entry failed without ever overwriting a concurrent cancel or arrival.</summary>
     private Task FailAsync(string itemId, string message, CancellationToken token) =>
-        _store.MutateAsync(changed =>
+        MutateItemAsync(itemId, changed =>
         {
             var live = changed.Find(itemId);
             if (live is null || live.State is AssistantItemState.Cancelled or AssistantItemState.Delivered
@@ -519,7 +549,7 @@ public sealed class AssistantSync
     {
         try
         {
-            await _store.MutateAsync(changed =>
+            await MutateItemAsync(itemId, changed =>
             {
                 var live = changed.Find(itemId);
                 if (live is null) return;

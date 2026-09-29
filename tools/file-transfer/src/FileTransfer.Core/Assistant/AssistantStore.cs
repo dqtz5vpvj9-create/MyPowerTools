@@ -248,14 +248,16 @@ public sealed class AssistantStore
     /// Records transfer progress for one entry. Public so the module's direct transport reports progress
     /// through the store instead of writing the shared snapshot from its own thread.
     /// </summary>
-    public void ReportProgress(string itemId, long bytesDone)
+    public bool ReportProgress(string itemId, long bytesDone)
     {
-        if (!_gate.Wait(TimeSpan.FromMilliseconds(50))) return;
+        if (!_gate.Wait(TimeSpan.FromMilliseconds(50))) return false;
         try
         {
             var item = _cache?.Find(itemId);
-            if (item is not null && item.State is AssistantItemState.Sending or AssistantItemState.Downloading)
-                item.BytesDone = bytesDone;
+            if (item is null || item.State is not (AssistantItemState.Sending or AssistantItemState.Downloading)
+                || item.BytesDone == bytesDone) return false;
+            item.BytesDone = bytesDone;
+            return true;
         }
         finally { _gate.Release(); }
     }

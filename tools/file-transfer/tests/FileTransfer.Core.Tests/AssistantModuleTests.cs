@@ -93,6 +93,55 @@ public sealed class AssistantModuleTests : IAsyncDisposable
 
     private static JsonArray Items(JsonObject inspect) => inspect["items"]!.AsArray();
 
+    private static async Task<JsonObject> ObserveChangedItemAsync(FileTransferModule module, string reason,
+        Func<JsonObject, bool> ready, CancellationToken token, List<MptModuleEvent>? observations = null)
+    {
+        await foreach (var change in module.SubscribeEventsAsync(new EventCursor(0), token))
+        {
+            observations?.Add(change);
+            if (change.Type != "file-transfer.assistant.changed" || change.Payload["reason"]?.GetValue<string>() != reason) continue;
+            // Like the Surface, inspect only after a notification. Polling inspect would conceal a
+            // missing event, which was the original last-image-stays-at-zero regression.
+            var inspect = await CallAsync(module, "file-transfer.assistant.inspect");
+            if (Items(inspect).OfType<JsonObject>().FirstOrDefault(ready) is { } item) return item;
+        }
+        throw new InvalidOperationException("Event stream ended before the visible transition.");
+    }
+
+    [Theory]
+    [InlineData(false, "stored")]
+    [InlineData(true, "failed")]
+    public async Task SharedImagePublishesItsCommittedStateBeforeTheRestOfTheRelayPass(bool reject, string expected)
+    {
+        var relay = new FakeWebDav(reject ? RelayMode.Unavailable : RelayMode.Normal) { BlockReceiptReads = !reject };
+        _relays.Add(relay);
+        var sender = await StartAsync("event-image", "event-image", "127.0.0.91", $"http://127.0.0.1:{relay.Port}/dav");
+        var path = Path.Combine(_root, "last-image.png");
+        await File.WriteAllBytesAsync(path, new byte[4 * 1024 * 1024]);
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        var observations = new List<MptModuleEvent>();
+        var observed = ObserveChangedItemAsync(sender, "transfer.changed",
+            item => item["name"]?.GetValue<string>() == "last-image.png" && item["state"]?.GetValue<string>() == expected, timeout.Token, observations);
+        try
+        {
+            var sent = await CallAsync(sender, "file-transfer.assistant.send", new JsonObject { ["paths"] = new JsonArray(path) });
+            var item = await observed;
+            Assert.Equal(sent["itemIds"]![0]!.GetValue<string>(), item["id"]!.GetValue<string>());
+            if (reject) Assert.NotNull(item["error"]);
+            else
+            {
+                Assert.Equal(item["size"]!.GetValue<long>(), item["bytesDone"]!.GetValue<long>());
+                Assert.False(relay.Released); // a blocked receipt/list stage cannot hide upload completion
+                var progress = observations.Where(e => e.Payload["reason"]?.GetValue<string>() == "transfer.progress").ToArray();
+                Assert.NotEmpty(progress);
+                for (var i = 1; i < progress.Length; i++)
+                    Assert.True(progress[i].Time - progress[i - 1].Time >= TimeSpan.FromMilliseconds(200),
+                        "A chunk burst must not become a refresh burst; progress is limited to approximately four events per second.");
+            }
+        }
+        finally { relay.Release(); timeout.Cancel(); }
+    }
+
     /// <summary>The queue worker runs on its own, so a test waits for the state it expects to settle.</summary>
     private static async Task<JsonObject> WaitForItemAsync(FileTransferModule module, string itemId, Func<JsonObject, bool> ready,
         string? detail = null)
@@ -416,6 +465,10 @@ public sealed class AssistantModuleTests : IAsyncDisposable
         var helloId = hello["itemIds"]!.AsArray()[0]!.GetValue<string>();
         await WaitForItemAsync(owner, helloId, item => item["state"]!.GetValue<string>() == "available");
 
+        using var eventTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        var receiptEvent = ObserveChangedItemAsync(owner, "direct.receipt",
+            item => item["text"]?.GetValue<string>() == "直传不等中转" && item["receipts"]!.AsArray().Count > 0,
+            eventTimeout.Token);
         var sent = await CallAsync(owner, "file-transfer.assistant.send", new JsonObject { ["text"] = "直传不等中转" });
         var itemId = sent["itemIds"]!.AsArray()[0]!.GetValue<string>();
         // The durable relay copy is stuck inside the barrier, yet the reachable own device receives now.
@@ -423,6 +476,8 @@ public sealed class AssistantModuleTests : IAsyncDisposable
         Assert.Equal("直传不等中转", received["text"]!.GetValue<string>());
         Assert.True(relay.RequestsSeen > 0, "relay leg was never attempted");
         Assert.False(relay.Released, "the barrier must still be closed when the direct delivery lands");
+        var notified = await receiptEvent;
+        Assert.Equal(itemId, notified["id"]!.GetValue<string>());
         relay.Release();
     }
 
@@ -663,6 +718,7 @@ public sealed class AssistantModuleTests : IAsyncDisposable
         public int Port => ((IPEndPoint)_listener.LocalEndpoint).Port;
         public int RequestsSeen => Volatile.Read(ref _requests);
         public bool Released => _release.Task.IsCompleted;
+        public bool BlockReceiptReads { get; init; }
 
         public FakeWebDav(RelayMode mode = RelayMode.Normal, TimeSpan? blockTimeout = null)
         {
@@ -717,7 +773,7 @@ public sealed class AssistantModuleTests : IAsyncDisposable
                         read += count;
                     }
                     Interlocked.Increment(ref _requests);
-                    if (_mode == RelayMode.Block)
+                    if (_mode == RelayMode.Block || (BlockReceiptReads && method == "PROPFIND" && path.TrimEnd('/').EndsWith("/receipts", StringComparison.Ordinal)))
                     {
                         try { await _release.Task.WaitAsync(_blockTimeout, _lifetime.Token); }
                         catch (Exception ex) when (ex is OperationCanceledException or TimeoutException) { return; }
