@@ -9,6 +9,8 @@ public sealed class LinuxPlatformPack : IPlatformPack
     public PlatformId Platform => CurrentPlatform;
     public PlatformTrayHost TrayHost => PlatformTrayHost.Runner;
 
+    private static readonly LinuxSecretStore SecretStore = new();
+
     public ICapabilityRegistry Capabilities { get; } = new CapabilityRegistry(
     [
         new("tray", "user", false, "AppIndicator", "Provider compiles but desktop integration depends on distribution packages."),
@@ -25,14 +27,14 @@ public sealed class LinuxPlatformPack : IPlatformPack
         new("display.profile", "user", false, "Wayland/X11/DDC", "Provider compiles but native implementation is pending."),
         new("network.portForwarding", "elevated", false, "nftables/iptables", "Provider compiles but native implementation is pending."),
         new("ipc.local", "user", true, "Unix domain socket", "UDS IPC available."),
-        new("secret.store", "sensitive", false, "Secret Service", "Provider compiles but native implementation is pending."),
+        new("secret.store", "sensitive", SecretStore.IsAvailable, "Secret Service (libsecret)", "Requires secret-tool, session D-Bus and an unlocked Secret Service keyring."),
         new("process.inspect", "user", true, "procfs", "Basic process inspection can be implemented from procfs."),
         new("adb.devices", "user", false, "adb CLI", "Provider compiles but adb discovery is pending.")
     ]);
 
     public IDisplayService Display { get; } = new UnsupportedDisplayService("Wayland/X11/DDC", "Linux display provider compiles; compositor and DDC implementation is pending.");
     public ITrayService Tray { get; } = new UnsupportedTrayService("AppIndicator", "Distribution-specific AppIndicator integration is pending.");
-    public ISecretStore Secrets { get; } = new UnsupportedSecretStore("Secret Service", "Linux Secret Service provider compiles; native implementation is pending.");
+    public ISecretStore Secrets { get; } = SecretStore;
     public INotificationService Notifications { get; } = new UnsupportedNotificationService("freedesktop notifications", "Linux notification provider compiles; native implementation is pending.");
     public IClipboardImageService ClipboardImages { get; } = new UnsupportedClipboardImageService("Wayland/X11 clipboard", "Linux clipboard image integration is pending.");
     public IKeyboardShortcutService KeyboardShortcuts { get; } = new UnsupportedKeyboardShortcutService("X11/Wayland", "Linux keyboard shortcut provider compiles; compositor-specific implementation is pending.");
