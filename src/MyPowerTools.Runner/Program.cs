@@ -100,7 +100,16 @@ var endpoint = string.IsNullOrWhiteSpace(endpointAddress)
     : new IpcEndpoint(
         OperatingSystem.IsWindows() ? IpcTransport.NamedPipe : IpcTransport.UnixDomainSocket,
         endpointAddress);
-var builder = WebApplication.CreateBuilder(args);
+// The framework's appsettings watcher is independent of the tool catalog watcher.
+// Keep its root within the installed Runner and honor --no-watch for both.
+var hostArguments = args.Contains("--no-watch", StringComparer.OrdinalIgnoreCase)
+    ? new[] { "hostBuilder:reloadConfigOnChange=false" }.Concat(args).ToArray()
+    : args;
+var builder = WebApplication.CreateBuilder(new WebApplicationOptions
+{
+    Args = hostArguments,
+    ContentRootPath = AppContext.BaseDirectory
+});
 daemonConsole.ConfigureHostLogging(builder.Logging);
 builder.WebHost.SuppressStatusMessages(true);
 builder.Services.AddSingleton(new HostControlAuthOptions(hostControlToken));

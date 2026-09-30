@@ -65,7 +65,7 @@ public sealed class TransferCli
             var cli = new TransferCli(injected);
             var (data, code) = await cli.Execute(command, options);
             await output.WriteLineAsync(new JsonObject { ["ok"] = code == 0, ["command"] = command, ["data"] = data,
-                ["error"] = code == 0 ? null : new JsonObject { ["code"] = code == 3 ? "receipt_timeout" : "delivery_failed", ["message"] = code == 3 ? "Receiver receipts are still pending; queued items remain durable." : "An item failed, was cancelled, or could not be found." } }.ToJsonString());
+                ["error"] = code == 0 ? null : new JsonObject { ["code"] = code == 3 ? "receipt_timeout" : command == "cancel" ? "cancellation_refused" : "delivery_failed", ["message"] = code == 3 ? "Receiver receipts are still pending; queued items remain durable." : command == "cancel" ? "The item could not be cancelled. It may already have been saved by a receiver, or may not exist." : "An item failed, was cancelled, or could not be found." } }.ToJsonString());
             return code;
         }
         catch (Exception ex)
@@ -75,7 +75,8 @@ public sealed class TransferCli
                 ? "The secret-file operation failed. Check the file and Runner diagnostics." : ex.Message;
             await diagnostics.WriteLineAsync(message);
             await output.WriteLineAsync(new JsonObject { ["ok"] = false, ["command"] = command,
-                ["error"] = new JsonObject { ["code"] = ex is ArgumentException ? "invalid_arguments" : "command_failed", ["message"] = message } }.ToJsonString());
+                ["data"] = ex is AcceptedSendWaitException accepted ? accepted.SendResult : null,
+                ["error"] = new JsonObject { ["code"] = ex is AcceptedSendWaitException ? "receipt_wait_failed" : ex is ArgumentException ? "invalid_arguments" : "command_failed", ["message"] = message } }.ToJsonString());
             return ex is ArgumentException ? 2 : 1;
         }
         finally { client?.Dispose(); }
@@ -123,16 +124,25 @@ public sealed class TransferCli
                 var sent = (await Call("assistant.send", sendArgs)).AsObject();
                 if (!o.Flag("--wait")) return (sent, 0);
                 var ids = sent["itemIds"]!.AsArray().Select(i => i!.GetValue<string>()).ToArray();
-                var waited = await Wait(ids, receiver, waitTimeout);
-                sent["delivery"] = waited.Item1;
-                return (sent, waited.Item2);
+                try
+                {
+                    var waited = await Wait(ids, receiver, waitTimeout);
+                    sent["delivery"] = waited.Item1;
+                    return (sent, waited.Item2);
+                }
+                catch (Exception ex)
+                {
+                    throw new AcceptedSendWaitException(sent, ex);
+                }
             case "receipts":
             case "wait":
                 var itemIds = o.Many("--item");
                 if (itemIds.Length == 0) throw new ArgumentException("Provide at least one --item ITEM_ID.");
                 var receiptFrom = o.One("--from") is { } device ? await ResolveDevice(device) : null;
                 return command == "wait" ? await Wait(itemIds, receiptFrom, o.Timeout()) : Evaluate(await Call("assistant.inspect"), itemIds, receiptFrom, false);
-            case "cancel": return (await Call("assistant.cancel", new() { ["itemId"] = o.Required("--item") }), 0);
+            case "cancel":
+                var cancellation = await Call("assistant.cancel", new() { ["itemId"] = o.Required("--item") });
+                return (cancellation, cancellation["cancelled"]?.GetValue<bool>() == true ? 0 : 1);
             case "pair":
                 var pair = await Call("pair.import", new() { ["code"] = (await File.ReadAllTextAsync(o.Required("--code-file"))).Trim() });
                 return (pair, 0);
@@ -239,6 +249,12 @@ public sealed class TransferCli
         }
     }
 
+    private sealed class AcceptedSendWaitException(JsonObject sendResult, Exception cause)
+        : Exception("The send was accepted, but receipt waiting failed. Query the returned item IDs instead of sending again. " + cause.Message, cause)
+    {
+        public JsonObject SendResult { get; } = sendResult;
+    }
+
     private sealed class HostInvoker(HostControlClient client) : ITransferCommandInvoker
     {
         public async Task<JsonNode> InvokeAsync(string command, JsonObject args, CancellationToken token)
@@ -267,8 +283,8 @@ public sealed class TransferCli
         public double Timeout()
         {
             var raw = One("--timeout") ?? "120";
-            if (!double.TryParse(raw, NumberStyles.Float, CultureInfo.InvariantCulture, out var number) || !double.IsFinite(number) || number <= 0)
-                throw new ArgumentException("--timeout must be a positive number of seconds.");
+            if (!double.TryParse(raw, NumberStyles.Float, CultureInfo.InvariantCulture, out var number) || !double.IsFinite(number) || number <= 0 || number > (uint.MaxValue - 1) / 1000d)
+                throw new ArgumentException("--timeout must be a positive number of seconds no greater than 4294967.294.");
             return number;
         }
         public static Options Parse(string[] args)

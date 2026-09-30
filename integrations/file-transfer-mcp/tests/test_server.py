@@ -27,6 +27,9 @@ args=sys.argv[1:]
 if "--probe-sleep" in args:
  Path(__file__).with_suffix(".pid").write_text(str(os.getpid()))
  time.sleep(60)
+if "waitfailed" in args:
+ print(json.dumps({"ok":False,"error":{"code":"receipt_wait_failed"},"data":{"accepted":True,"itemIds":["durable-accepted-item"]}}))
+ sys.exit(1)
 if "timedout" in args:
  print("secret-provider-diagnostic",file=sys.stderr)
  print(json.dumps({"ok":False,"error":{"code":"timeout"},"data":{"items":[{"itemId":"pending","confirmed":False}],"timedOut":True}}))
@@ -71,6 +74,14 @@ print(json.dumps({"ok":True,"command":args[1],"data":{"arguments":args}}))
             await self.cli.call("wait", "--item", "timedout")
         self.assertIn("pending", str(error.exception))
         self.assertNotIn("secret-provider-diagnostic", str(error.exception))
+
+    async def test_failed_receipt_wait_keeps_accepted_send_ids_for_recovery(self):
+        with self.assertRaises(ToolError) as error:
+            await self.cli.call("send", "--text", "waitfailed")
+        result = json.loads(str(error.exception))
+        self.assertEqual(result["error"]["code"], "receipt_wait_failed")
+        self.assertTrue(result["data"]["accepted"])
+        self.assertEqual(result["data"]["itemIds"], ["durable-accepted-item"])
 
     async def test_client_cancellation_terminates_only_cli_child(self):
         task = asyncio.create_task(self.cli.call("status", "--probe-sleep"))

@@ -49,7 +49,21 @@ if systemctl --user is-active --quiet mpt-transfer.service; then
   systemctl --user stop mpt-transfer.service
 fi
 cp -a "$stage_directory/Runner/." "$install_root/Runner/"
-cp -a "$stage_directory/CLI/." "$install_root/CLI/"
+# Receipt waits may still be running while the service is updated. Replacing each
+# file preserves their mapped assembly inode instead of overwriting its bytes.
+python3 - "$stage_directory/CLI" "$install_root/CLI" <<'PYCLI'
+import os, shutil, sys
+from pathlib import Path
+source, destination = map(Path, sys.argv[1:])
+for entry in source.rglob('*'):
+    target = destination / entry.relative_to(source)
+    if entry.is_dir():
+        target.mkdir(parents=True, exist_ok=True)
+    else:
+        staged = target.with_name(target.name + '.update')
+        shutil.copy2(entry, staged)
+        os.replace(staged, target)
+PYCLI
 cp -a "$repo_root/tools/file-transfer/artifacts/package/." "$install_root/modules/file-transfer/"
 cp -a "$repo_root/schemas/." "$install_root/schemas/"
 
@@ -71,7 +85,7 @@ arguments=[dotnet,root+'/Runner/MyPowerTools.Runner.dll','--modules',root+'/modu
            '--default-enabled-module','file-transfer','--no-watch','--no-tray','--no-hotkeys']
 command=' '.join(json.dumps(x,ensure_ascii=False).replace('%','%%') for x in arguments)
 Path(unit).write_text('[Unit]\nDescription=MyPowerTools file transfer\n\n'
- '[Service]\nType=simple\nExecStart='+command+'\nRestart=on-failure\nRestartSec=5\n\n'
+ '[Service]\nType=simple\nWorkingDirectory='+(root+'/Runner').replace('%','%%')+'\nExecStart='+command+'\nRestart=on-failure\nRestartSec=5\n\n'
  '[Install]\nWantedBy=default.target\n')
 PY
 systemctl --user daemon-reload
