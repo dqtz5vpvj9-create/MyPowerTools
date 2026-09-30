@@ -169,6 +169,65 @@ public sealed partial class FileTransferModule
     private static TimeSpan Bump(TimeSpan backoff) =>
         TimeSpan.FromTicks(Math.Min(backoff.Ticks * 2, TimeSpan.FromMinutes(2).Ticks));
 
+    // A saved private item no longer appears in the pending-inbox listing. Reopening a deleted
+    // local copy must retrieve that same owned item explicitly, without entering the shared namespace.
+    private async Task RestoreInboxAttachmentAsync(AssistantItem item, CancellationToken token)
+    {
+        using var scope = ItemScope(item.Id, token);
+        token = scope.Token;
+        var store = _assistantStore ?? throw new InvalidOperationException("会话存储尚未就绪。");
+        var identity = await EnsureInboxAsync(token);
+        await _inboxItemGate.WaitAsync(token);
+        try
+        {
+            var current = (await store.LoadAsync(token)).Find(item.Id);
+            if (current is not null && AssistantContent.HasLocalContent(current)) return;
+            await store.MutateAsync(state =>
+            {
+                var row = state.Find(item.Id)!;
+                row.State = AssistantItemState.Downloading;
+                row.BytesDone = 0;
+                row.Error = null;
+            }, token);
+            EmitAssistantChanged("inbox.downloading");
+            var descriptor = new PublicInboxItem
+            {
+                ItemId = item.Id,
+                Kind = item.Kind == AssistantItemKind.Image ? PublicInboxItemKind.Image : PublicInboxItemKind.File,
+                Name = item.Name, Size = item.Size, CreatedAt = item.CreatedAt,
+                SenderDeviceId = item.SenderDeviceId, SenderName = item.SenderName, TargetDeviceId = item.TargetDeviceId
+            };
+            foreach (var route in InboxRoutes.OrderByDescending(route => route.Id == item.SourceRelay))
+            {
+                using var client = PublicInboxClient.Owner(identity, PublicInboxRetryPolicy.None, route.Address);
+                await store.MutateAsync(state =>
+                {
+                    var row = state.Find(item.Id)!;
+                    row.TransportRoute = route.Id == InboxRelays.Tail ? "tail-relay" : "public-relay";
+                }, token);
+                EmitAssistantChanged("inbox.downloading");
+                if (await ReceiveInboxItemAsync(client, descriptor, route.Id, token)) return;
+            }
+            throw new IOException("文件暂时无法重新下载，请确认中转服务可用且文件仍在保留期内后重试。");
+        }
+        catch (Exception ex)
+        {
+            await store.MutateAsync(state =>
+            {
+                var row = state.Find(item.Id);
+                if (row is null || AssistantContent.HasLocalContent(row) || row.State == AssistantItemState.Cancelled) return;
+                row.State = ex is OperationCanceledException ? AssistantItemState.Stored : AssistantItemState.Failed;
+                row.Error = ex is OperationCanceledException ? null : MptLogRedactor.Redact(ex.Message);
+            }, CancellationToken.None);
+            throw;
+        }
+        finally
+        {
+            _inboxItemGate.Release();
+            EmitAssistantChanged("inbox.open");
+        }
+    }
+
     /// <summary>
     /// One deposited item: reuse an already saved copy, otherwise download once, adopt it into the durable
     /// store, and only then write the receipt the sender reads. The item is deliberately never deleted,

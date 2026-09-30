@@ -394,6 +394,66 @@ public sealed class ReviewFixTests : IDisposable
             button.IsEffectivelyVisible && Avalonia.Automation.AutomationProperties.GetName(button)?.StartsWith("打开 ") == true);
     }
 
+    [AvaloniaFact]
+    public void Opening_a_received_file_with_a_stale_path_resolves_it_again_before_launching()
+    {
+        var deleted = Path.Combine(_root, "已删除的文件.txt");
+        var restored = Touch("重新下载的文件.txt");
+        _module.AssistantItems.Add(new System.Text.Json.Nodes.JsonObject
+        {
+            ["id"] = "deleted-received", ["kind"] = "file", ["name"] = "已删除的文件.txt",
+            ["state"] = "available", ["senderDeviceId"] = "ubuntu", ["senderName"] = "Ubuntu", ["localPath"] = deleted
+        });
+        var context = _module.Context(_root);
+        string? openedPath = null;
+        string? resolvedId = null;
+        var view = new TransferView(context with
+        {
+            ExecuteCommandAsync = (command, args, token) =>
+            {
+                if (!command.EndsWith("assistant.open", StringComparison.Ordinal)) return context.ExecuteCommandAsync(command, args, token);
+                resolvedId = args?["itemId"]?.GetValue<string>();
+                return Task.FromResult(new global::MyPowerTools.Abstractions.CommandExecutionResult(command, command, "completed", true,
+                    new System.Text.Json.Nodes.JsonObject { ["path"] = restored }.ToJsonString()));
+            },
+            OpenFileAsync = (path, _) => { openedPath = path; return Task.FromResult(true); }
+        });
+        var window = new Window { Width = 390, Height = 820, Content = view };
+        _windows.Add(window);
+        window.Show();
+        ConversationTestNavigation.Open(window, view);
+        var open = view.GetLogicalDescendants().OfType<Button>().Single(button =>
+            Avalonia.Automation.AutomationProperties.GetName(button) == "打开 已删除的文件.txt");
+        ConversationTestNavigation.Click(window, open);
+        Assert.Equal("deleted-received", resolvedId);
+        Assert.Equal(restored, openedPath);
+    }
+
+    [AvaloniaTheory]
+    [InlineData(390)]
+    [InlineData(1200)]
+    public void Deleting_a_received_copy_after_rendering_offers_download_again(int width)
+    {
+        var path = Touch("接收后删除.txt");
+        _module.AssistantItems.Add(new System.Text.Json.Nodes.JsonObject
+        {
+            ["id"] = "redownload", ["kind"] = "file", ["name"] = "接收后删除.txt",
+            ["state"] = "available", ["senderDeviceId"] = "ubuntu", ["senderName"] = "Ubuntu", ["localPath"] = path
+        });
+        var view = Open(width, out var window);
+        File.Delete(path);
+        var menu = view.GetLogicalDescendants().OfType<Button>().Single(button =>
+            Avalonia.Automation.AutomationProperties.GetName(button) == "消息操作 接收后删除.txt");
+        ConversationTestNavigation.Click(window, menu);
+        var retry = view.Conversation.SheetHost.GetLogicalDescendants().OfType<Button>()
+            .Single(button => Equals(button.Content, "重新下载"));
+        Assert.True(retry.IsEnabled);
+        ConversationTestNavigation.Click(window, retry);
+        Assert.Equal("redownload", _module.LastArgs("assistant.retry")["itemId"]!.GetValue<string>());
+        Assert.Equal(1, _module.CountCalls("assistant.retry"));
+        Assert.Single(_module.AssistantItems);
+    }
+
     private string Touch(string name)
     {
         var path = Path.Combine(_root, name);

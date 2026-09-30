@@ -110,6 +110,7 @@ public sealed partial class FileTransferModule
     }
     private async Task CloudPayloadLoopAsync()
     {
+        var retries = new Dictionary<string, (DateTimeOffset NextAttempt, DateTimeOffset ExpiresAt)>(StringComparer.Ordinal);
         while (!_lifetime.IsCancellationRequested)
         {
             try
@@ -126,22 +127,40 @@ public sealed partial class FileTransferModule
                     continue;
                 }
                 using var relay = new CloudRelayClient(conversation, conversationKey);
+                var now = DateTimeOffset.UtcNow;
+                foreach (var expired in retries.Where(row => row.Value.ExpiresAt <= now).Select(row => row.Key).ToArray())
+                    retries.Remove(expired);
+                var waitBeforePollingAgain = false;
                 foreach (var request in await relay.RequestsAsync(Setting("deviceId"), _lifetime.Token))
                 {
                     var mapping = active.SingleOrDefault(m => m.Offer.Matches(request, conversation, DateTimeOffset.UtcNow));
-                    if (mapping is null || !_cloudAccounts.Accounts.Any(a => a.Id == mapping.AccountId && a.Status == "ready")) continue;
+                    if (mapping is null || !_cloudAccounts.Accounts.Any(a => a.Id == mapping.AccountId && a.Status == "ready"))
+                    { waitBeforePollingAgain = true; continue; }
+                    if (retries.TryGetValue(request.RequestId, out var retry) && retry.NextAttempt > DateTimeOffset.UtcNow)
+                    { waitBeforePollingAgain = true; continue; }
                     var item = (await _assistantStore!.LoadAsync(_lifetime.Token)).Find(mapping.Offer.Message.Id);
-                    if (item?.State == AssistantItemState.Cancelled) continue;
+                    if (item?.State == AssistantItemState.Cancelled) { waitBeforePollingAgain = true; continue; }
                     try
                     {
                         using var api = await CloudAdminAsync(_lifetime.Token);
                         using var response = await api.OpenReadAsync(mapping.MountPath, mapping.ObjectPath, _lifetime.Token);
-                        if (response.Content.Headers.ContentLength is { } size && size != mapping.Offer.Message.Size) continue;
+                        if (response.Content.Headers.ContentLength is { } size && size != mapping.Offer.Message.Size)
+                            throw new IOException("网盘文件长度与助手条目记录不符。");
                         using var content = await response.Content.ReadAsStreamAsync(_lifetime.Token);
                         await relay.FulfilAsync(request, content, _lifetime.Token);
+                        retries.Remove(request.RequestId);
                     }
-                    catch (Exception ex) when (ex is IOException or HttpRequestException or InvalidOperationException) { /* receiver retry creates a new one-use request */ }
+                    catch (Exception ex) when (ex is IOException or HttpRequestException or InvalidOperationException)
+                    {
+                        retries[request.RequestId] = (DateTimeOffset.UtcNow.AddSeconds(2), request.ExpiresAt);
+                        waitBeforePollingAgain = true;
+                    }
                 }
+                // Polling does not claim a request. An unreadable source keeps returning the same
+                // request immediately, so skipping it alone would spin. Bound that poll to once a
+                // second while still admitting new requests, and retry a recovered source in-place.
+                if (waitBeforePollingAgain)
+                    await _cloudPayloadSignal.WaitAsync(TimeSpan.FromSeconds(1), _lifetime.Token);
             }
             catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { return; }
             catch (Exception)

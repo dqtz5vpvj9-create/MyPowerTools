@@ -247,7 +247,9 @@ internal sealed class FakeTransferModule
                 var itemId = args?["itemId"]?.GetValue<string>() ?? "";
                 var item = AssistantItems.FirstOrDefault(entry => entry["id"]?.GetValue<string>() == itemId);
                 if (item is not null)
-                    item["state"] = command == "retry" ? "sending" : "cancelled";
+                    item["state"] = name == "retry"
+                        ? item["senderDeviceId"]?.GetValue<string>() is { Length: > 0 } sender && sender != AssistantIdentityId ? "stored" : "queued"
+                        : "cancelled";
                 return """{"ok":true}""";
             }
             case "open":

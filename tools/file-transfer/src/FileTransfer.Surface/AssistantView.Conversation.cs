@@ -50,7 +50,7 @@ internal sealed partial class AssistantView
 
     private void RenderTargets(AssistantSnapshot state)
     {
-        if (_sheetTitle.Text != "发给谁") return;
+        if (_sheetTitle.Text is not ("发给谁" or "分享到会话")) return;
         RenderConversationChoices();
     }
 
@@ -210,8 +210,11 @@ internal sealed partial class AssistantView
         if (item.IsText) Add("复制文字", async () => { await CopyTextAsync(item.Text ?? ""); CloseSheet(); });
         Add("转发", () => { _pendingForward = item; ShowDeviceSheet(); return Task.CompletedTask; });
         if (item.IsFile) Add("保存副本", () => SaveCopyAsync(item));
-        if (item.CanRetry) Add("重试", async () => { CloseSheet(); await _core.RetryAsync(item.Id); });
-        if (item.CanCancel) Add("取消发送", async () => { CloseSheet(); await _core.CancelAsync(item.Id); });
+        // Check only when the menu is opened; a deleted received copy can be fetched again.
+        var missingReceivedFile = item.IsIncoming && item.IsFile && item.State == AssistantItemState.Available && !File.Exists(item.LocalPath);
+        if (item.CanRetry || missingReceivedFile)
+            Add(missingReceivedFile ? "重新下载" : item.IsIncoming ? "重试接收" : "重试", async () => { CloseSheet(); await _core.RetryAsync(item.Id); });
+        if (item.CanCancel) Add(item.IsIncoming ? "取消接收" : "取消发送", async () => { CloseSheet(); await _core.CancelAsync(item.Id); });
         Add("查看详情", () =>
         {
             _sheetTitle.Text = "消息详情";
@@ -237,7 +240,15 @@ internal sealed partial class AssistantView
     {
         var opened = await _core.OpenAsync(item.Id);
         if (!opened.HasPath) return;
-        var target = await TopLevel.GetTopLevel(this)!.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions { Title = "保存副本", SuggestedFileName = item.Name });
+        var fileName = item.Name ?? Path.GetFileName(opened.Path!);
+        var extension = Path.GetExtension(fileName);
+        var target = await TopLevel.GetTopLevel(this)!.StorageProvider.SaveFilePickerAsync(new FilePickerSaveOptions
+        {
+            Title = "保存副本",
+            SuggestedFileName = fileName,
+            FileTypeChoices = extension.Length == 0 ? null :
+                [new FilePickerFileType(extension.TrimStart('.').ToUpperInvariant() + " 文件") { Patterns = ["*" + extension] }]
+        });
         if (target is null) return;
         await using var source = File.OpenRead(opened.Path!);
         await using var destination = await target.OpenWriteAsync();

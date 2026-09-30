@@ -414,6 +414,8 @@ public sealed class AssistantSync
     {
         AssistantValidation.Identity(identity);
         AssistantValidation.ItemId(itemId);
+        using var itemScope = ItemScope(itemId, token);
+        token = itemScope.Token;
         await _store.SyncGate.WaitAsync(token);
         try
         {
@@ -470,16 +472,19 @@ public sealed class AssistantSync
                 {
                     var live = changed.Find(itemId);
                     // A cancel, or content that a direct receive delivered meanwhile, always wins over this download.
-                    if (live is null || live.State == AssistantItemState.Cancelled) return;
+                    if (live is null || live.State != AssistantItemState.Downloading) return;
                     live.LocalPath = path;
                     live.State = AssistantItemState.Available;
                     live.BytesDone = live.Size;
                     live.Error = null;
                 }, token);
+                var retained = state.Find(itemId)?.LocalPath;
+                if (path != retained && File.Exists(path)) File.Delete(path);
             }
-            else if (failure is not null)
+            else if (failure is not null && !AssistantContent.HasLocalContent(state.Find(itemId) ?? item))
             {
                 await FailAsync(itemId, failure.Message, token);
+                System.Runtime.ExceptionServices.ExceptionDispatchInfo.Capture(failure).Throw();
             }
             return AssistantContent.OpenTarget(state.Find(itemId) ?? item);
         }

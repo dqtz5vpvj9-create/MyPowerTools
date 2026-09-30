@@ -2,6 +2,7 @@ using Android.Runtime;
 using Avalonia;
 using Avalonia.Android;
 using Avalonia.Media;
+using Avalonia.Media.Fonts;
 using MyPowerTools.Shell.Avalonia;
 using MyPowerTools.Android.Files;
 using A = global::Android;
@@ -12,6 +13,16 @@ namespace MyPowerTools.Android;
 public sealed class MptAndroidApplication(nint handle, JniHandleOwnership ownership)
     : AvaloniaAndroidApplication<App>(handle, ownership)
 {
+    private static readonly Uri EmojiCollectionKey = new("fonts:AndroidEmoji");
+    private static readonly string? EmojiFontPath = new[]
+    {
+        "/system/fonts/NotoColorEmoji.ttf",
+        "/system/fonts/NotoColorEmojiLegacy.ttf"
+    }.FirstOrDefault(File.Exists);
+    private static readonly FontFamily EmojiFamily = EmojiFontPath is null
+        ? new FontFamily("sans-serif")
+        : new FontFamily(EmojiCollectionKey + "#Noto Color Emoji");
+
     /// <summary>
     /// The shared theme names Windows font families (<c>Microsoft YaHei UI</c>, <c>Segoe UI</c>, …)
     /// and every platform host is responsible for translating them to its own fonts: macOS does it in
@@ -28,13 +39,16 @@ public sealed class MptAndroidApplication(nint handle, JniHandleOwnership owners
     internal static FontManagerOptions CreateFontManagerOptions() => new()
     {
         DefaultFamilyName = "sans-serif",
+        // Android registers emoji as an unnamed fallback family. Load its existing system font
+        // explicitly so Skia can resolve supplementary characters even after another fallback miss.
+        FontFallbacks = EmojiFontPath is null ? null : [new FontFallback { FontFamily = EmojiFamily }],
         FontFamilyMappings = new Dictionary<string, FontFamily>(StringComparer.OrdinalIgnoreCase)
         {
             ["Microsoft YaHei UI"] = new FontFamily("sans-serif"),
             ["Microsoft YaHei"] = new FontFamily("sans-serif"),
             ["Segoe UI Variable"] = new FontFamily("sans-serif"),
             ["Segoe UI"] = new FontFamily("sans-serif"),
-            ["Segoe UI Emoji"] = new FontFamily("sans-serif"),
+            ["Segoe UI Emoji"] = EmojiFamily,
             ["Segoe UI Symbol"] = new FontFamily("sans-serif"),
             ["PingFang SC"] = new FontFamily("sans-serif"),
             ["Cascadia Mono"] = new FontFamily("monospace"),
@@ -48,7 +62,11 @@ public sealed class MptAndroidApplication(nint handle, JniHandleOwnership owners
     protected override AppBuilder CustomizeAppBuilder(AppBuilder builder)
     {
         App.SingleViewFactory = MainActivity.CreateMainView;
-        return base.CustomizeAppBuilder(builder.With(CreateFontManagerOptions()));
+        return base.CustomizeAppBuilder(builder.With(CreateFontManagerOptions()).ConfigureFonts(manager =>
+        {
+            if (EmojiFontPath is not null)
+                manager.AddFontCollection(new EmbeddedFontCollection(EmojiCollectionKey, new Uri(EmojiFontPath)));
+        }));
     }
 
     public override void OnCreate()

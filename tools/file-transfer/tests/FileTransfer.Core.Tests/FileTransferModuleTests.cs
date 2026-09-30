@@ -63,10 +63,10 @@ public sealed class FileTransferModuleTests : IAsyncLifetime
     [Fact]
     public async Task ReceiveStartTakesOneLeaseAndStopReleasesIt()
     {
-        // A loopback address keeps the test off the local tailnet; the module still enforces the key length.
+        // Dedicated loopback address: other module tests bind the same fixed protocol port concurrently.
         await File.WriteAllTextAsync(Path.Combine(_root, "preferences.json"), new JsonObject
         {
-            ["deviceId"] = "pc-test", ["listenAddress"] = "127.0.0.1", ["receiveDirectory"] = Path.Combine(_root, "inbox")
+            ["deviceId"] = "pc-test", ["listenAddress"] = "127.0.0.92", ["receiveDirectory"] = Path.Combine(_root, "inbox")
         }.ToJsonString());
         var module = await StartAsync();
         Read(await module.ExecuteCommandAsync(new CommandRequest("1", "file-transfer.receive.start", new JsonObject()), CancellationToken.None));

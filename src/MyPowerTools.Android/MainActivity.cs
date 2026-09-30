@@ -119,6 +119,8 @@ public sealed class MainActivity : AvaloniaMainActivity
             // a start that resolves no Han face is the one that would draw boxes.
             var hanMatched = manager.TryMatchCharacter(
                 '正', FontStyle.Normal, FontWeight.Normal, FontStretch.Normal, null, null, out var han);
+            var emojiMatched = manager.TryMatchCharacter(
+                0x1F680, FontStyle.Normal, FontWeight.Normal, FontStretch.Normal, null, null, out var emoji);
 
             var probe = new TextBlock { Text = "正在加载工具与设备", FontSize = 14 };
             probe.Measure(Size.Infinity);
@@ -126,6 +128,7 @@ public sealed class MainActivity : AvaloniaMainActivity
             AndroidStartupLog.Info("fonts",
                 $"warm-up resolved=[{string.Join(',', resolved)}] missing=[{string.Join(',', missing)}] " +
                 $"hanMatched={hanMatched} han={(hanMatched ? han.FontFamily.Name : "(none)")} " +
+                $"emojiMatched={emojiMatched} emoji={(emojiMatched ? emoji.FontFamily.Name : "(none)")} " +
                 $"probeWidth={probe.DesiredSize.Width:F1} default={manager.DefaultFontFamily.Name}");
         }
         catch (Exception ex)
@@ -184,6 +187,26 @@ public sealed class MainActivity : AvaloniaMainActivity
     }
 
     private AndroidImeHost? _imeHost;
+
+    public override void StartActivityForResult(A.Content.Intent? intent, int requestCode)
+    {
+        // Avalonia 12 sets CREATE_DOCUMENT's type to */* even for one selected file type.
+        // DocumentsUI needs the concrete type to keep the extension after its duplicate suffix.
+        var document = intent?.Action == A.Content.Intent.ActionChooser
+            ? intent.GetParcelableExtra(A.Content.Intent.ExtraIntent) as A.Content.Intent
+            : intent;
+        if (document?.Action == A.Content.Intent.ActionCreateDocument && document.Type == "*/*")
+        {
+            var choices = document.GetStringArrayExtra(A.Content.Intent.ExtraMimeTypes);
+            var mime = choices is { Length: 1 } && !choices[0].Contains('*')
+                ? choices[0]
+                : SharedFileMime.Infer(document.GetStringExtra(A.Content.Intent.ExtraTitle),
+                    extension => A.Webkit.MimeTypeMap.Singleton?.GetMimeTypeFromExtension(extension)).MimeType;
+            document.SetType(mime);
+            if (!ReferenceEquals(document, intent)) intent!.PutExtra(A.Content.Intent.ExtraIntent, document);
+        }
+        base.StartActivityForResult(intent, requestCode);
+    }
     private ImeInsetsObserver? _imeInsetsObserver;
 
     private void InstallImeInsetsObserver()

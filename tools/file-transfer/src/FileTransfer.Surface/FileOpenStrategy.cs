@@ -41,7 +41,7 @@ internal static class FileOpenStrategy
         CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(path)) return new(FileOpenOutcome.Failed, "没有可打开的文件。");
-        if (!File.Exists(path)) return new(FileOpenOutcome.Failed, "文件已不在设备上：" + path);
+        if (!File.Exists(path)) return new(FileOpenOutcome.Failed, "本地文件已不在设备上，请重新下载后打开。");
 
         if (platformOpen is not null)
         {
@@ -49,7 +49,7 @@ internal static class FileOpenStrategy
             {
                 return await platformOpen(path, cancellationToken)
                     ? new(FileOpenOutcome.Opened, "已用系统应用打开。")
-                    : new(FileOpenOutcome.Failed, "系统没有能打开这个文件的应用，文件在 " + path);
+                    : new(FileOpenOutcome.Failed, "系统没有能打开这个文件的应用，请安装相应的查看器或保存副本。");
             }
             catch (OperationCanceledException)
             {
@@ -62,12 +62,12 @@ internal static class FileOpenStrategy
         }
 
         var launcher = desktopHost?.Launcher;
-        if (launcher is null) return new(FileOpenOutcome.Unavailable, "当前环境没有可用的文件打开方式，文件在 " + path);
+        if (launcher is null) return new(FileOpenOutcome.Unavailable, "当前环境没有可用的文件打开方式，请保存副本后用其他应用打开。");
         try
         {
             return await launcher.LaunchFileInfoAsync(new FileInfo(path))
                 ? new(FileOpenOutcome.Opened, "已用系统应用打开。")
-                : new(FileOpenOutcome.Failed, "系统没有能打开这个文件的应用，文件在 " + path);
+                : new(FileOpenOutcome.Failed, "系统没有能打开这个文件的应用，请安装相应的查看器或保存副本。");
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or ArgumentException or NotSupportedException or InvalidOperationException)
         {

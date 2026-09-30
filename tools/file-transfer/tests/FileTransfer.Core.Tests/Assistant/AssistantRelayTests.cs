@@ -498,6 +498,51 @@ public sealed class AssistantRelayTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task MidBodyDisconnectLeavesNoOpenablePartialAndRestartRetriesTheSameMessage()
+    {
+        var server = StartServer();
+        var sender = NewDevice("cut-sender", server.Url);
+        var receiver = NewDevice("cut-receiver", server.Url);
+        var content = new string('x', 128 * 1024);
+        var item = Assert.Single(await sender.Store.EnqueueAsync(sender.Identity,
+            AssistantDraft.ForPaths([SourceFile("cut.bin", content)]), default));
+        await sender.Sync.SyncAsync(sender.Identity, default);
+        using var progressSeen = new ManualResetEventSlim(false);
+        receiver.Sync.Changed = progress => { if (progress) progressSeen.Set(); };
+        server.Intercept = (context, request) =>
+        {
+            if (request.Method != "GET" || !request.Path.EndsWith("/payload", StringComparison.Ordinal)) return false;
+            context.Response.StatusCode = 200;
+            context.Response.ContentLength64 = content.Length;
+            var prefix = Encoding.UTF8.GetBytes(content[..65536]);
+            context.Response.OutputStream.Write(prefix, 0, 1024);
+            context.Response.OutputStream.Flush();
+            Thread.Sleep(300); // Cross the existing 250ms progress reporting interval.
+            context.Response.OutputStream.Write(prefix, 1024, prefix.Length - 1024);
+            context.Response.OutputStream.Flush();
+            progressSeen.Wait(TimeSpan.FromSeconds(5));
+            context.Response.Abort(); // Sender/relay stream vanishes after real payload bytes reached the receiver.
+            return true;
+        };
+        await receiver.Sync.SyncAsync(receiver.Identity, default);
+        var failed = (await receiver.StateAsync(default)).Find(item.Id)!;
+        Assert.Equal(AssistantItemState.Failed, failed.State);
+        Assert.InRange(failed.BytesDone, 1, item.Size - 1);
+        Assert.False(AssistantContent.HasLocalContent(failed));
+        Assert.Null(failed.LocalPath);
+        Assert.Empty(Directory.GetFiles(receiver.Store.GetInboxDirectory(failed)));
+        Assert.Empty(await receiver.Client.ListAssistantReceiptsAsync(Conversation, item.Id, default));
+        server.Intercept = null;
+        var restarted = NewDevice("cut-receiver", server.Url);
+        var recovered = await restarted.Sync.SyncAsync(restarted.Identity, default);
+        Assert.Equal(1, recovered.Downloaded);
+        var saved = (await restarted.StateAsync(default)).Find(item.Id)!;
+        Assert.Equal(AssistantItemState.Available, saved.State);
+        Assert.Equal(content, await File.ReadAllTextAsync(saved.LocalPath!));
+        Assert.Single(await restarted.Client.ListAssistantReceiptsAsync(Conversation, item.Id, default));
+    }
+
+    [Fact]
     public async Task InterruptedDownloadWritesNoReceiptAndNeverReportsDelivery()
     {
         var server = StartServer();
@@ -929,6 +974,99 @@ public sealed class AssistantRelayTests : IAsyncDisposable
         var payloadGets = server.Count("GET", "/payload");
         await new AssistantSync(store, client).SyncAsync(identity, CancellationToken.None);
         Assert.Equal(payloadGets, server.Count("GET", "/payload"));   // a cancelled entry is never downloaded later
+    }
+
+    [Fact]
+    public async Task ManualOpenReportsHttpFailureAndCanRetryWithoutAnOpenablePartialFile()
+    {
+        var server = StartServer();
+        var identity = Identity("open-failure-receiver");
+        var store = new AssistantStore(Path.Combine(_root, "devices", "open-http-failure"));
+        var id = SeedIncomingAttachment(server, store, identity, "expected-complete-body");
+        server.Intercept = (context, request) =>
+        {
+            if (request.Method == "GET" && request.Path.EndsWith("/payload", StringComparison.Ordinal))
+            { AssistantWebDavServer.Write(context, 503); return true; }
+            return false;
+        };
+        var sync = new AssistantSync(store, Connect(server.Url));
+        await Assert.ThrowsAnyAsync<IOException>(() => sync.EnsureLocalAsync(identity, id, default));
+        var failed = (await store.LoadAsync(default)).Find(id)!;
+        Assert.Equal(AssistantItemState.Failed, failed.State);
+        Assert.False(AssistantContent.HasLocalContent(failed));
+        Assert.Null(failed.ReceiptAt);
+        server.Intercept = null;
+        var opened = await sync.EnsureLocalAsync(identity, id, default);
+        Assert.False(opened.NeedsDownload);
+        Assert.Equal("expected-complete-body", await File.ReadAllTextAsync(opened.Path!));
+    }
+
+    [Fact]
+    public async Task ManualOpenCancelsItsActualHttpDownloadUsingTheItemScope()
+    {
+        var server = StartServer();
+        var identity = Identity("open-cancel-receiver");
+        var store = new AssistantStore(Path.Combine(_root, "devices", "open-item-cancel"));
+        var id = SeedIncomingAttachment(server, store, identity, "blocked-body");
+        using var entered = new ManualResetEventSlim(false);
+        using var release = new ManualResetEventSlim(false);
+        server.Intercept = (_, request) =>
+        {
+            if (request.Method == "GET" && request.Path.EndsWith("/payload", StringComparison.Ordinal))
+            { entered.Set(); release.Wait(TimeSpan.FromSeconds(10)); }
+            return false;
+        };
+        using var itemScope = new CancellationTokenSource();
+        using var lifetime = new CancellationTokenSource(TimeSpan.FromSeconds(15));
+        var sync = new AssistantSync(store, Connect(server.Url)) { ItemCancellation = _ => itemScope.Token };
+        var pending = sync.EnsureLocalAsync(identity, id, lifetime.Token);
+        try
+        {
+            Assert.True(entered.Wait(TimeSpan.FromSeconds(5)));
+            await store.MutateAsync(state => Assert.True(state.TryCancel(id)), default);
+            itemScope.Cancel();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => pending.WaitAsync(TimeSpan.FromSeconds(2)));
+            var item = (await store.LoadAsync(default)).Find(id)!;
+            Assert.Equal(AssistantItemState.Cancelled, item.State);
+            Assert.Null(item.LocalPath);
+            Assert.False(AssistantContent.HasLocalContent(item));
+        }
+        finally
+        {
+            lifetime.Cancel(); release.Set();
+            try { await pending; } catch (OperationCanceledException) { }
+        }
+    }
+
+    [Fact]
+    public async Task ACompletedManualRelayDownloadDoesNotReplaceADirectCopyThatWonFirst()
+    {
+        var server = StartServer();
+        var identity = Identity("open-race-receiver");
+        var store = new AssistantStore(Path.Combine(_root, "devices", "open-complete-race"));
+        const string content = "same-payload";
+        var id = SeedIncomingAttachment(server, store, identity, content);
+        using var entered = new ManualResetEventSlim(false);
+        using var release = new ManualResetEventSlim(false);
+        server.Intercept = (_, request) =>
+        {
+            if (request.Method == "GET" && request.Path.EndsWith("/payload", StringComparison.Ordinal))
+            { entered.Set(); release.Wait(TimeSpan.FromSeconds(10)); }
+            return false;
+        };
+        var pending = new AssistantSync(store, Connect(server.Url)).EnsureLocalAsync(identity, id, default);
+        Assert.True(entered.Wait(TimeSpan.FromSeconds(5)));
+        var directPath = SourceFile("winning-direct.bin", content);
+        await store.AdoptAsync(identity, new AssistantItem
+        {
+            Id = id, Kind = AssistantItemKind.File, Name = "slow.bin", Size = Encoding.UTF8.GetByteCount(content),
+            CreatedAt = DateTimeOffset.UtcNow, SenderDeviceId = "phone-1", SenderName = "phone-1",
+            TargetDeviceId = identity.DeviceId, LocalPath = directPath, TransportRoute = "direct"
+        }, default);
+        release.Set();
+        var result = await pending;
+        Assert.Equal(directPath, result.Path);
+        Assert.Equal(directPath, (await store.LoadAsync(default)).Find(id)!.LocalPath);
     }
 
     [Fact]

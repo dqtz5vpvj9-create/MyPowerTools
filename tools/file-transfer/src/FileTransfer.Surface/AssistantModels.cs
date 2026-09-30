@@ -52,6 +52,7 @@ internal sealed record AssistantItem(
 {
     public string ConversationKey { get; init; } = "";
     public string? TransportRoute { get; init; }
+    public bool IsIncoming { get; init; }
 
     // A route describes this payload's actual transfer, not the current device configuration.
     // Older modules and future route codes keep the existing status without guessing a provider.
@@ -93,7 +94,15 @@ internal sealed record AssistantItem(
 
     // The module currently supplies an error string, not a typed failure code. Match known module
     // messages explicitly; never display arbitrary server detail, local paths or exception stacks.
-    public string ErrorExplanation => Error switch
+    public string ErrorExplanation => IsIncoming ? Error switch
+    {
+        null or "" => "",
+        "操作过于频繁（HTTP 429），请稍后重试。" => "接收请求过于频繁，请稍后重试接收。",
+        "中转服务暂时不可用（HTTP 503），请稍后重试。" => "中转服务暂时不可用，请稍后重试接收。",
+        _ => "接收未完成，可以重试接收或取消此条接收。若再次失败，请在连接诊断中检查服务配置。"
+    } : SendErrorExplanation;
+
+    private string SendErrorExplanation => Error switch
     {
         null or "" => "",
         "配对码里的投递密钥与服务器不一致，请让收件设备重新出示配对码。"
@@ -135,13 +144,15 @@ internal sealed record AssistantItem(
     /// </summary>
     public string StateText => State switch
     {
-        AssistantItemState.Queued => "等待发送",
-        AssistantItemState.Sending => Size > 0 ? $"发送中 {Progress:F0}%" : "发送中",
-        AssistantItemState.Stored => TargetDeviceId is { Length: > 0 } ? "已暂存，等待接收" : "已同步",
+        AssistantItemState.Queued => IsIncoming ? "等待接收" : "等待发送",
+        AssistantItemState.Sending => IsIncoming
+            ? Size > 0 ? $"接收中 {Progress:F0}%" : "接收中"
+            : Size > 0 ? $"发送中 {Progress:F0}%" : "发送中",
+        AssistantItemState.Stored => IsIncoming ? "等待接收" : TargetDeviceId is { Length: > 0 } ? "已暂存，等待接收" : "已同步",
         AssistantItemState.Delivered => "已送达",
         AssistantItemState.Downloading => Size > 0 ? $"接收中 {Progress:F0}%" : "接收中",
         AssistantItemState.Available => IsText || CanOpen ? "已接收" : "待下载",
-        AssistantItemState.Failed => "发送失败，可重试",
+        AssistantItemState.Failed => IsIncoming ? "接收失败，可重试" : "发送失败，可重试",
         AssistantItemState.Cancelled => "已取消",
         _ => ""
     };

@@ -146,6 +146,19 @@ public sealed class AssistantStoreTests : IDisposable
     }
 
     [Fact]
+    public void CommittingDuplicateNamesPlacesTheCounterBeforeTheExtension()
+    {
+        var directory = Path.Combine(_root, "saved");
+        Directory.CreateDirectory(directory);
+        var first = TransferFiles.Commit(SourceFile("first.part", "first"), directory, "报告.pdf");
+        var second = TransferFiles.Commit(SourceFile("second.part", "second"), directory, "报告.pdf");
+        Assert.Equal("报告.pdf", Path.GetFileName(first));
+        Assert.Equal("报告 (1).pdf", Path.GetFileName(second));
+        Assert.Equal("first", File.ReadAllText(first));
+        Assert.Equal("second", File.ReadAllText(second));
+    }
+
+    [Fact]
     public async Task RestartReturnsInFlightEntriesToRetryableStates()
     {
         var store = NewStore();

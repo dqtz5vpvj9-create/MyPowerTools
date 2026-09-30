@@ -964,6 +964,7 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
         // belongs to the next message and must survive this send.
         // A forward and a composer send are different operations. Forwarding never carries the draft,
         // and sending never carries a forwarded entry.
+        var originConversation = ActiveConversationKey;
         var pending = _pendingForward;
         var text = pending is null ? (_input.Text ?? "").Trim() : "";
         var paths = pending is null ? _attachments.ToArray() : [];
@@ -985,11 +986,7 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
             var accepted = await _core.SendAsync(text, paths, targetDeviceId);
             if (accepted.Count == 0) return;
 
-            // Only the exact content that was sent is cleared; a draft typed while waiting stays.
-            if ((_input.Text ?? "").Trim() == text) _input.Text = "";
-            foreach (var path in paths) _attachments.Remove(path);
-            DraftChanged();
-            await SaveDraftAsync();
+            await ClearSentDraftAsync(originConversation, text, paths);
             _core.PublishOnUi(_core.Snapshot with { Status = SendStatus(targetDeviceId) });
         }
         finally
@@ -1154,19 +1151,16 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
 
     private async Task OpenItemAsync(AssistantItem item)
     {
-        if (item.NeedsDownload)
+        // The module owns downloaded payloads and can recover a received copy deleted outside MPT.
+        // A path retained in the current snapshot is not proof that the file still exists.
+        var opened = await _core.OpenAsync(item.Id);
+        if (opened.HasText) { ShowTextSheet(item.DisplayName, opened.Text!); return; }
+        if (!opened.HasPath)
         {
-            var opened = await _core.OpenAsync(item.Id);
-            if (opened.HasText) { ShowTextSheet(item.DisplayName, opened.Text!); return; }
-            if (!opened.HasPath)
-            {
-                _core.PublishOnUi(_core.Snapshot with { Status = "模块没有返回可打开的文件，请稍后重试。" });
-                return;
-            }
-            await LaunchAsync(opened.Path!);
+            _core.PublishOnUi(_core.Snapshot with { Status = "文件暂时无法打开，请稍后重试。" });
             return;
         }
-        if (item.LocalPath is { Length: > 0 } path) await LaunchAsync(path);
+        await LaunchAsync(opened.Path!);
     }
 
     private void ShowTextSheet(string title, string text)
@@ -1331,6 +1325,9 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
     /// </summary>
     public async ValueTask<bool> ActivateAsync(ToolActivationRequest request, CancellationToken cancellationToken = default)
     {
+        // A share may arrive before the page's initial inspect finishes. Its choices must use the
+        // real shared namespace, never capture the temporary "shared" key from an empty snapshot.
+        if (_core.Snapshot.Identity.Id.Length == 0) await _core.RefreshAsync();
         await EnsureDraftLoadedAsync();
         var value = (request.ActivationUri ?? "").Trim();
         if (value.StartsWith("mpt://pair/", StringComparison.Ordinal))

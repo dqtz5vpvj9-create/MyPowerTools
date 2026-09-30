@@ -1,8 +1,5 @@
-using System.Net;
-using System.Net.Sockets;
 using System.Text;
 using System.Text.Json;
-using FileTransfer.Core;
 using FileTransfer.Core.Assistant;
 using FileTransfer.Core.Cloud;
 
@@ -17,33 +14,27 @@ public sealed class CloudRouteTests
     [InlineData(200, true, "cloud")]
     public async Task ObservationUsesValidatedOfferAndUnknownDoesNotInventPublic(int status, bool valid, string? expected)
     {
-        var probe = new TcpListener(IPAddress.Loopback, 0); probe.Start();
-        var port = ((IPEndPoint)probe.LocalEndpoint).Port; probe.Stop();
-        using var listener = new HttpListener(); listener.Prefixes.Add($"http://127.0.0.1:{port}/"); listener.Start();
+        var directory = Path.Combine(Environment.GetEnvironmentVariable("MPT_TEST_TEMP") ?? Path.GetTempPath(), "mpt-cloud-route-" + Guid.NewGuid().ToString("N"));
+        var server = new AssistantWebDavServer(directory);
         var message = new AssistantManifest { Id = Guid.NewGuid().ToString("N"), Kind = AssistantItemKind.File, Name = "a.bin", Size = 1, CreatedAt = DateTimeOffset.UtcNow, SenderDeviceId = "sender", SenderName = "sender" };
-        var server = Task.Run(async () =>
+        server.Intercept = (context, request) =>
         {
-            var context = await listener.GetContextAsync();
-            context.Response.StatusCode = status;
-            var bytes = Encoding.UTF8.GetBytes(valid ? JsonSerializer.Serialize(CloudAttachmentOffer.Create("route-test", message), AssistantJson.Options) : "invalid-json");
+            context.Response.StatusCode = request.Method == "PROPFIND" ? 404 : status;
+            var bytes = request.Method == "PROPFIND" ? [] : Encoding.UTF8.GetBytes(valid
+                ? JsonSerializer.Serialize(CloudAttachmentOffer.Create("route-test", message), AssistantJson.Options) : "invalid-json");
             context.Response.ContentLength64 = bytes.Length;
-            await context.Response.OutputStream.WriteAsync(bytes); context.Response.Close();
-            if (valid)
-            {
-                context = await listener.GetContextAsync();
-                Assert.Equal("PROPFIND", context.Request.HttpMethod);
-                context.Response.StatusCode = 404; context.Response.Close();
-            }
-        });
-
+            context.Response.OutputStream.Write(bytes);
+            context.Response.Close();
+            return true;
+        };
         try
         {
-            using var client = new CloudRelayClient("route-test", new string('a', 64), new Uri($"http://127.0.0.1:{port}"));
+            using var client = new CloudRelayClient("route-test", new string('a', 64), new Uri(server.Url));
             Assert.Equal(expected, await client.ReadPayloadRouteAsync(message, default));
-            await server;
+            if (valid) Assert.Equal(1, server.Count("PROPFIND", "/payload"));
             using var cancelled = new CancellationTokenSource(); cancelled.Cancel();
             await Assert.ThrowsAnyAsync<OperationCanceledException>(() => client.ReadPayloadRouteAsync(message, cancelled.Token));
         }
-        finally { listener.Stop(); }
+        finally { await server.DisposeAsync(); Directory.Delete(directory, true); }
     }
 }

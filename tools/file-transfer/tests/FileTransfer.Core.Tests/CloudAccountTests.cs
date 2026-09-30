@@ -85,8 +85,12 @@ public sealed class CloudAccountTests
             await File.WriteAllTextAsync(pendingPath, "pending cloud attachment");
             var sent = await Call("assistant.send", new() { ["paths"] = new JsonArray(pendingPath) });
             Assert.True(sent["accepted"]!.GetValue<bool>());
+            var acceptedId = Assert.Single(sent["itemIds"]!.AsArray())!.GetValue<string>();
             var inspect = await Call("assistant.inspect");
-            Assert.Contains(inspect["items"]!.AsArray(), item => item!["name"]?.GetValue<string>() == "pending.txt" && item["state"]?.GetValue<string>() == "queued");
+            var pending = Assert.Single(inspect["items"]!.AsArray());
+            Assert.Equal(acceptedId, pending!["id"]!.GetValue<string>());
+            Assert.Equal("pending.txt", pending["name"]!.GetValue<string>());
+            Assert.Equal("queued", pending["state"]!.GetValue<string>());
             var settings = (await Call("inspect"))["settings"]!;
             Assert.Equal("http://127.0.0.1:1/dav/", settings["webDavUrl"]!.GetValue<string>());
             Assert.Equal("existing-user", settings["username"]!.GetValue<string>());

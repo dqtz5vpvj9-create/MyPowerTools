@@ -359,7 +359,7 @@ internal sealed class AssistantCore : IDisposable
                 Str(identity, "name") ?? "",
                 Flag(identity, "linked")) { ConversationKey = Str(identity, "conversationKey") ?? "" },
             Members = ReadDevices(answer["members"] as JsonArray),
-            Items = ReadItems(answer["items"] as JsonArray),
+            Items = ReadItems(answer["items"] as JsonArray, Str(identity, "id") ?? ""),
             PendingRequests = ReadRequests(answer["pendingRequests"] as JsonArray),
             Relay = ReadRelayState(Str(relay, "state")),
             RelayMessage = Str(relay, "message") ?? "",
@@ -372,7 +372,7 @@ internal sealed class AssistantCore : IDisposable
         Publish(next);
     }
 
-    private static IReadOnlyList<AssistantItem> ReadItems(JsonArray? array)
+    private static IReadOnlyList<AssistantItem> ReadItems(JsonArray? array, string localDeviceId)
     {
         if (array is null) return [];
         var items = new List<AssistantItem>();
@@ -398,7 +398,8 @@ internal sealed class AssistantCore : IDisposable
                 ReadReceipts(item["receipts"] as JsonArray))
             {
                 ConversationKey = Str(item, "conversationKey") ?? "",
-                TransportRoute = Str(item, "transportRoute")
+                TransportRoute = Str(item, "transportRoute"),
+                IsIncoming = Str(item, "senderDeviceId") is { Length: > 0 } sender && sender != localDeviceId
             });
         }
         // The composer and ScrollToEnd are below the thread: append new messages at the bottom.

@@ -103,6 +103,7 @@ internal sealed partial class AssistantView
             await SaveDraftAsync();
             _restoringDraft = true;
             ActiveConversationKey = key;
+            _core.PublishOnUi(_core.Snapshot with { Status = "" });
             var saved = _conversationDrafts.GetValueOrDefault(key) ?? DraftValues("", [], targetDeviceId);
             RestoreDraft(saved, false);
             _targetDeviceId = targetDeviceId;
@@ -187,6 +188,38 @@ internal sealed partial class AssistantView
         { _draftSaveTimer!.Stop(); _ = SaveDraftAsync(); });
         _draftSaveTimer.Stop();
         _draftSaveTimer.Start();
+    }
+
+    private async Task ClearSentDraftAsync(string originKey, string text, IReadOnlyList<string> paths)
+    {
+        // A send may finish after the user has opened another conversation. Consume only the
+        // captured draft, preserving anything subsequently written to either conversation.
+        if (originKey == ActiveConversationKey)
+        {
+            if ((_input.Text ?? "").Trim() == text) _input.Text = "";
+            foreach (var path in paths) _attachments.Remove(path);
+            DraftChanged();
+            await SaveDraftAsync();
+            return;
+        }
+
+        var draft = _conversationDrafts[originKey].DeepClone().AsObject();
+        if ((draft["draftText"]?.GetValue<string>() ?? "").Trim() == text) draft["draftText"] = "";
+        draft["attachmentPaths"] = new JsonArray((draft["attachmentPaths"] as JsonArray ?? [])
+            .Select(node => node?.GetValue<string>()).OfType<string>()
+            .Where(path => !paths.Contains(path, StringComparer.Ordinal))
+            .Select(path => (JsonNode?)JsonValue.Create(path)).ToArray());
+        _conversationDrafts[originKey] = draft;
+        RefreshConversationNavigation();
+        if (!_conversationPreferences) return;
+        _pendingDrafts[originKey] = draft.DeepClone().AsObject();
+        _draftRevision++;
+        await SaveDraftAsync();
+        // preferences.update also selects the saved conversation. Restore the user's current
+        // selection after updating the inactive draft so reopening stays on the same conversation.
+        _pendingDrafts[ActiveConversationKey] = CurrentDraft();
+        _draftRevision++;
+        await SaveDraftAsync();
     }
 
     private Task SaveDraftAsync()

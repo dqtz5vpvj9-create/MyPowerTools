@@ -13,6 +13,42 @@ namespace FileTransfer.Surface.Tests;
 public sealed class ConversationDraftTests
 {
     [AvaloniaFact]
+    public async Task A_share_during_initial_inspect_uses_the_real_shared_key_and_keeps_the_composer_visible()
+    {
+        const string key = "shared:self-share-qa";
+        var module = new FakeTransferModule { AssistantLinked = true };
+        module.DraftPreferences["conversationKey"] = key;
+        module.DraftPreferences["drafts"] = new JsonObject { [key] = new JsonObject() };
+        var releaseInspect = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var context = module.Context(Path.GetTempPath());
+        var view = new TransferView(context with
+        {
+            ExecuteCommandAsync = async (command, args, token) =>
+            {
+                var session = command.EndsWith("assistant.inspect", StringComparison.Ordinal) || command.EndsWith("assistant.sync", StringComparison.Ordinal);
+                if (session) await releaseInspect.Task;
+                var result = await context.ExecuteCommandAsync(command, args, token);
+                if (!session) return result;
+                var json = JsonNode.Parse(result.Output)!.AsObject();
+                json["identity"]!["conversationKey"] = key;
+                return result with { Output = json.ToJsonString() };
+            }
+        });
+        using var host = new Host(view);
+        var activation = view.ActivateAsync(new ToolActivationRequest("file-transfer", "", "mypowertools://file-assistant?text=shared%20during%20startup")).AsTask();
+        await SettleAsync();
+        releaseInspect.TrySetResult();
+        await activation;
+        await SettleAsync();
+        ChooseSharedConversation(view);
+        await SettleAsync();
+        Assert.True(Composer(view).IsEffectivelyVisible);
+        Assert.Equal("shared during startup", Composer(view).Text);
+        Assert.Equal(key, module.LastArgs("assistant.preferences.update")["conversationKey"]!.GetValue<string>());
+        Assert.Equal(0, module.CountCalls("assistant.send"));
+    }
+
+    [AvaloniaFact]
     public async Task Shared_files_are_saved_after_choosing_a_conversation_without_sending()
     {
         var module = new FakeTransferModule();
@@ -266,6 +302,71 @@ public sealed class ConversationDraftTests
         OpenConversation(reopened, "文件传输助手");
         Assert.Equal("共享草稿", Composer(reopened).Text);
         Assert.Equal(0, module.CountCalls("assistant.send"));
+    }
+
+    [AvaloniaTheory]
+    [InlineData("共享已发送")]
+    [InlineData("私聊还未发送")]
+    public async Task Send_completion_clears_only_the_origin_conversation_after_switching(string privateText)
+    {
+        var path = Path.Combine(Path.GetTempPath(), "mpt-draft-switch-" + Guid.NewGuid().ToString("N") + ".txt");
+        await File.WriteAllTextAsync(path, "同一个文件分别发给两个会话");
+        try
+        {
+            var module = new FakeTransferModule();
+            module.DraftPreferences["conversationKey"] = "shared";
+            module.DraftPreferences["drafts"] = new JsonObject();
+            module.AddPeer("laptop", "笔记本");
+            var ready = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+            module.BeforeAnswer = command => command == "assistant.send" ? ready.Task : null;
+            var view = new TransferView(module.Context(Path.GetTempPath()));
+            using var host = new Host(view);
+            OpenConversation(view, "文件传输助手");
+            Composer(view).Text = "共享已发送";
+            view.Conversation.AddAttachment(path);
+            var sending = view.Conversation.SendFromComposerAsync();
+            Assert.False(sending.IsCompleted);
+
+            view.Conversation.TryHandleBack();
+            OpenConversation(view, "笔记本");
+            Composer(view).Text = privateText;
+            view.Conversation.AddAttachment(path);
+            ready.SetResult();
+            await sending;
+            await SettleAsync();
+
+            Assert.Equal(privateText, Composer(view).Text);
+            Assert.Equal(1, view.Conversation.AttachmentCount);
+            Assert.Equal("device:laptop", module.DraftPreferences["conversationKey"]!.GetValue<string>());
+            view.Conversation.TryHandleBack();
+            OpenConversation(view, "文件传输助手");
+            Assert.Equal("", Composer(view).Text ?? "");
+            Assert.Equal(0, view.Conversation.AttachmentCount);
+            Assert.Null(module.LastArgs("assistant.send")["targetDeviceId"]);
+        }
+        finally { File.Delete(path); }
+    }
+
+    [AvaloniaFact]
+    public void Switching_conversations_clears_the_previous_conversations_action_error()
+    {
+        var module = new FakeTransferModule();
+        module.DraftPreferences["conversationKey"] = "shared";
+        module.DraftPreferences["drafts"] = new JsonObject();
+        module.AddPeer("laptop", "笔记本");
+        var view = new TransferView(module.Context(Path.GetTempPath()));
+        using var host = new Host(view);
+        OpenConversation(view, "文件传输助手");
+        const string error = "文件已不在设备上：/private/shared/report.pdf";
+        view.Assistant.PublishOnUi(view.Assistant.Snapshot with { Status = error });
+        Dispatcher.UIThread.RunJobs();
+        Assert.Contains(view.GetLogicalDescendants().OfType<TextBlock>(), text => text.IsEffectivelyVisible && text.Text == error);
+
+        view.Conversation.TryHandleBack();
+        OpenConversation(view, "笔记本");
+
+        Assert.Empty(view.Assistant.Snapshot.Status);
+        Assert.DoesNotContain(view.GetLogicalDescendants().OfType<TextBlock>(), text => text.IsEffectivelyVisible && text.Text == error);
     }
 
     private static void OpenConversation(TransferView view, string name)

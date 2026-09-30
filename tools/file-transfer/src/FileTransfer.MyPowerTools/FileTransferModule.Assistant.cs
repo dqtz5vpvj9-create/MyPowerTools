@@ -1099,19 +1099,28 @@ public sealed partial class FileTransferModule
         var itemId = RequiredItemId(args);
         var store = _assistantStore ?? throw new InvalidOperationException("会话存储尚未就绪。");
         var retried = false;
+        var retryState = AssistantItemState.Queued;
         // The user's decision is applied at once and re-applied after a running pass, so a five minute
         // upload never delays it and the pass cannot write its own outcome over it.
         var state = await store.MutateAsync(current =>
         {
             var item = current.Find(itemId);
-            if (item is null || item.State != AssistantItemState.Failed) return;
-            item.State = AssistantItemState.Queued;
+            if (item is null || (item.State != AssistantItemState.Failed &&
+                !(item.State == AssistantItemState.Available && item.Kind != AssistantItemKind.Text && !AssistantContent.HasLocalContent(item)))) return;
+            retryState = item.SenderDeviceId == Setting("deviceId") ? AssistantItemState.Queued : AssistantItemState.Stored;
+            item.State = retryState;
             item.Error = null;
             retried = true;
         }, token);
         if (retried)
         {
-            lock (_stateLock) _userIntents[itemId] = AssistantItemState.Queued;
+            var retryItem = state.Find(itemId)!;
+            if (retryItem.SenderDeviceId != Setting("deviceId") && retryItem.Provenance == AssistantConversations.PairedInbox)
+            {
+                await RestoreInboxAttachmentAsync(retryItem, token);
+                return new { itemId, retried, state = StateText((await store.LoadAsync(token)).Find(itemId)?.State) };
+            }
+            lock (_stateLock) _userIntents[itemId] = retryState;
             EmitAssistantChanged("retry");
             SignalAssistant();
         }
@@ -1152,9 +1161,16 @@ public sealed partial class FileTransferModule
             {
                 var item = state.Find(itemId);
                 if (item is null) continue;
-                if (intent == AssistantItemState.Cancelled && !item.CanCancel) continue;
-                if (item.State != intent) item.State = intent;
-                if (intent == AssistantItemState.Queued) item.Error = null;
+                if (intent == AssistantItemState.Cancelled)
+                {
+                    if (item.CanCancel) item.State = intent;
+                }
+                else if (item.State == AssistantItemState.Failed)
+                {
+                    // A completed upload/download wins over an older retry intent.
+                    item.State = intent;
+                    item.Error = null;
+                }
             }
         }, token);
         lock (_stateLock)
@@ -1171,6 +1187,12 @@ public sealed partial class FileTransferModule
         var target = AssistantContent.OpenTarget(item);
         if (!target.NeedsDownload) return new { itemId, path = target.Path, text = target.Text, needsDownload = false };
         if (item.Kind == AssistantItemKind.Text) throw new InvalidOperationException("这条消息没有可打开的内容。");
+        if (item.Provenance == AssistantConversations.PairedInbox && item.SenderDeviceId != Setting("deviceId"))
+        {
+            await RestoreInboxAttachmentAsync(item, token);
+            var restored = AssistantContent.OpenTarget((await AssistantStateAsync(token)).Find(itemId)!);
+            return new { itemId, path = restored.Path, text = restored.Text, needsDownload = restored.NeedsDownload };
+        }
         await _relayGate.WaitAsync(token);
         try
         {
@@ -1179,10 +1201,18 @@ public sealed partial class FileTransferModule
             var identity = Identity();
             using var shared = SharedTransport(_assistantStore!, identity);
             await new AssistantSync(_assistantStore!, cloud) { ItemCancellation = ItemToken, Changed = NotifyAssistantTransferChanged,
-                SharedTransport = shared }.EnsureLocalAsync(identity, itemId, token);
+                SharedTransport = shared,
+                DefaultTransportRoute = CustomRelayConfigured ? "webdav" : "public-relay",
+                IncomingTransportRoute = CustomRelayConfigured ? null : async (message, cancel) =>
+                {
+                    using var relay = new FileTransfer.Core.Cloud.CloudRelayClient(identity.ConversationId, _conversationKey);
+                    return await relay.ReadPayloadRouteAsync(message, cancel);
+                }
+            }.EnsureLocalAsync(identity, itemId, token);
         }
         finally { _relayGate.Release(); }
         NoteRelayReachable();
+        SignalAssistant(); // A manual save must schedule its real receipt even when the relay revision did not change.
         EmitAssistantChanged("open");
         var opened = AssistantContent.OpenTarget((await AssistantStateAsync(token)).Find(itemId)!);
         return new { itemId, path = opened.Path, text = opened.Text, needsDownload = opened.NeedsDownload };
@@ -1687,13 +1717,14 @@ public sealed partial class FileTransferModule
     private async Task PublishCopyAsync(AssistantStore store, AssistantItem item, CancellationToken token)
     {
         if (_downloads is null) return;
-        var source = store.GetPayloadPath(item) ?? item.LocalPath;
+        var source = item.LocalPath is { Length: > 0 } local && File.Exists(local)
+            ? local : store.GetPayloadPath(item);
         if (source is not { Length: > 0 } || !File.Exists(source)) return;
-        var directory = Path.Combine(_data, "publish");
+        var directory = Path.Combine(_data, "publish", Guid.NewGuid().ToString("N"));
         try
         {
             Directory.CreateDirectory(directory);
-            var copy = Path.Combine(directory, Guid.NewGuid().ToString("N") + Path.GetExtension(source));
+            var copy = Path.Combine(directory, TransferFiles.FileName(item.Name ?? Path.GetFileName(source)));
             File.Copy(source, copy, true);
             await PublishAsync(copy, token);
         }
@@ -1701,6 +1732,14 @@ public sealed partial class FileTransferModule
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or NotSupportedException)
         {
             // The message is already durable and openable; a downloads copy is a convenience only.
+        }
+        finally
+        {
+            // The platform consumes the copy only after publication. Non-recursive deletion removes
+            // its now-empty staging directory, but leaves failed queued copies intact for retry.
+            try { Directory.Delete(directory, recursive: false); }
+            catch (IOException) { }
+            catch (UnauthorizedAccessException) { }
         }
     }
 }

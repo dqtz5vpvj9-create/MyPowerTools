@@ -3,6 +3,7 @@ using System.Net.Sockets;
 using System.Text;
 using System.Text.Json.Nodes;
 using FileTransfer.Core;
+using FileTransfer.Core.Assistant;
 using FileTransfer.MyPowerTools;
 using MyPowerTools.Abstractions;
 using MyPowerTools.Platform.Abstractions;
@@ -57,7 +58,7 @@ public sealed class AssistantModuleTests : IAsyncLifetime
     }
 
     private async Task<FileTransferModule> StartAsync(string name, string deviceId, string address, string relayUrl = "",
-        JsonArray? peers = null, bool withPassword = true)
+        JsonArray? peers = null, bool withPassword = true, IDownloadsService? downloads = null)
     {
         var root = DeviceRoot(name);
         var secrets = new InMemorySecretStore();
@@ -75,8 +76,10 @@ public sealed class AssistantModuleTests : IAsyncLifetime
             preferences["username"] = "mpt-relay";
         }
         await File.WriteAllTextAsync(Path.Combine(root, "preferences.json"), preferences.ToJsonString());
+        var capabilities = new Dictionary<string, object> { ["secret.store"] = secrets };
+        if (downloads is not null) capabilities["files.downloads"] = downloads;
         var context = new ModuleContext("test", "1.0", "file-transfer", "file-transfer", root, root, root, "linux",
-            ["secret.store"], new Dictionary<string, object> { ["secret.store"] = secrets });
+            ["secret.store", "files.downloads"], capabilities);
         var module = new FileTransferModule();
         _modules.Add(module);
         Assert.True((await module.InitializeAsync(context, CancellationToken.None)).Ok);
@@ -163,6 +166,51 @@ public sealed class AssistantModuleTests : IAsyncLifetime
 
     private static JsonObject ItemById(JsonObject inspect, string itemId) =>
         Items(inspect).First(item => item!["id"]!.GetValue<string>() == itemId)!.AsObject();
+
+    [Theory]
+    [InlineData("retry")]
+    [InlineData("open")]
+    public async Task RetryOrOpenOfFailedIncomingAttachmentAutomaticallyDownloadsAndAcknowledgesIt(string action)
+    {
+        await using var relay = new AssistantWebDavServer(Path.Combine(_root, "incoming-retry-relay"));
+        var sender = await StartAsync("retry-sender", "retry-sender", "127.0.0.94", relay.Url);
+        var receiver = await StartAsync("retry-receiver", "retry-receiver", "127.0.0.95", relay.Url);
+        var link = await CallAsync(sender, "file-transfer.assistant.link.export");
+        await CallAsync(receiver, "file-transfer.assistant.link.import", new() { ["code"] = link["code"]!.GetValue<string>() });
+        await CallAsync(receiver, "file-transfer.receive.stop"); // No direct accelerator can bypass the injected HTTP failure.
+        relay.Intercept = (context, request) =>
+        {
+            if (request.Method == "GET" && request.Path.EndsWith("/payload", StringComparison.Ordinal))
+            { AssistantWebDavServer.Write(context, 503); return true; }
+            return false;
+        };
+        var payload = Path.Combine(_root, "incoming-retry.bin");
+        await File.WriteAllTextAsync(payload, "recover exactly this original attachment");
+        var sent = await CallAsync(sender, "file-transfer.assistant.send", new() { ["paths"] = new JsonArray(payload) });
+        var id = sent["itemIds"]![0]!.GetValue<string>();
+        await WaitForItemAsync(sender, id, item => item["state"]!.GetValue<string>() == "stored");
+        await CallAsync(receiver, "file-transfer.assistant.sync");
+        await WaitForItemAsync(receiver, id, item => item["state"]!.GetValue<string>() == "failed");
+        relay.Intercept = null;
+        var retry = await CallAsync(receiver, "file-transfer.assistant." + action, new() { ["itemId"] = id });
+        if (action == "retry") Assert.True(retry["retried"]!.GetValue<bool>());
+        var received = await WaitForItemAsync(receiver, id, item => item["state"]!.GetValue<string>() == "available");
+        Assert.Equal(await File.ReadAllTextAsync(payload), await File.ReadAllTextAsync(received["localPath"]!.GetValue<string>()));
+        using var client = new OpenListClient(relay.Url, AssistantWebDavServer.UserName, AssistantWebDavServer.Password);
+        var state = JsonNode.Parse(await File.ReadAllTextAsync(Path.Combine(DeviceRoot("retry-receiver"), "assistant", "assistant.json")))!;
+        var conversation = state["identity"]!["conversationId"]!.GetValue<string>();
+        using var receiptDeadline = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        while ((await client.ListAssistantReceiptsAsync(conversation, id, receiptDeadline.Token)).Count == 0)
+            await Task.Delay(25, receiptDeadline.Token);
+        Assert.Single(await client.ListAssistantReceiptsAsync(conversation, id, default));
+        File.Delete(received["localPath"]!.GetValue<string>());
+        var restoredResult = await CallAsync(receiver, "file-transfer.assistant." + action, new() { ["itemId"] = id });
+        if (action == "retry") Assert.True(restoredResult["retried"]!.GetValue<bool>());
+        var restored = await WaitForItemAsync(receiver, id, row => row["state"]!.GetValue<string>() == "available" &&
+            File.Exists(row["localPath"]?.GetValue<string>()));
+        Assert.Equal(await File.ReadAllTextAsync(payload), await File.ReadAllTextAsync(restored["localPath"]!.GetValue<string>()));
+        Assert.Single(Items(await CallAsync(receiver, "file-transfer.assistant.inspect")), row => row!["id"]!.GetValue<string>() == id);
+    }
 
     [Fact]
     public async Task ASendIsDurableBeforeItIsAcceptedAndSurvivesARestartWithoutARelay()
@@ -253,6 +301,56 @@ public sealed class AssistantModuleTests : IAsyncLifetime
             onSecond.ToJsonString());
         // A self send has no single target, so the relay copy stays "synced" and the receipt is display data.
         Assert.Equal("stored", confirmed["state"]!.GetValue<string>());
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task DownloadsPublisherReceivesTheOriginalNameAndKeepsFailedCopies(bool failPublication)
+    {
+        var publisher = new RecordingDownloads(failPublication);
+        var sender = await StartAsync("publish-sender", "publish-sender", "127.0.0.96",
+            peers: new JsonArray(new JsonObject { ["deviceId"] = "publish-receiver", ["name"] = "Receiver", ["address"] = "127.0.0.97" }));
+        var receiver = await StartAsync("publish-receiver", "publish-receiver", "127.0.0.97", downloads: publisher);
+        var source = Path.Combine(_root, "测试 report.pdf");
+        const string contents = "original attachment contents";
+        await File.WriteAllTextAsync(source, contents);
+        var sent = await CallAsync(sender, "file-transfer.assistant.send",
+            new() { ["paths"] = new JsonArray(source), ["targetDeviceId"] = "publish-receiver" });
+        var id = sent["itemIds"]![0]!.GetValue<string>();
+        await WaitUntilAsync(async () => (await CallAsync(receiver, "file-transfer.assistant.inspect"))["pendingRequests"]!.AsArray().Count == 1);
+        var pending = (await CallAsync(receiver, "file-transfer.assistant.inspect"))["pendingRequests"]![0]!;
+        await CallAsync(receiver, "file-transfer.assistant.receive.respond",
+            new() { ["requestId"] = pending["requestId"]!.GetValue<string>(), ["accept"] = true });
+        await WaitForItemAsync(sender, id, row => row["state"]!.GetValue<string>() == "delivered");
+        var received = await WaitForItemAsync(receiver, id, row => row["state"]!.GetValue<string>() == "available");
+        var published = await publisher.Published.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        Assert.Equal("测试 report.pdf", Path.GetFileName(published.Path));
+        Assert.Equal(contents, published.Contents);
+        Assert.NotEqual(received["localPath"]!.GetValue<string>(), published.Path);
+        Assert.Equal(contents, await File.ReadAllTextAsync(received["localPath"]!.GetValue<string>()));
+        if (failPublication)
+        {
+            Assert.Equal(contents, await File.ReadAllTextAsync(published.Path));
+            Assert.True(Directory.Exists(Path.GetDirectoryName(published.Path)));
+        }
+        else
+        {
+            await WaitUntilAsync(() => Task.FromResult(!Directory.Exists(Path.GetDirectoryName(published.Path))));
+            Assert.False(File.Exists(published.Path));
+        }
+    }
+
+    private sealed class RecordingDownloads(bool fail) : IDownloadsService
+    {
+        public TaskCompletionSource<(string Path, string Contents)> Published { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public async Task PublishAsync(string path, CancellationToken cancellationToken)
+        {
+            var contents = await File.ReadAllTextAsync(path, cancellationToken);
+            Published.TrySetResult((path, contents));
+            if (fail) throw new IOException("Injected downloads publication failure");
+            File.Delete(path); // Android consumes only the throwaway copy after MediaStore publication.
+        }
     }
 
     [Fact]

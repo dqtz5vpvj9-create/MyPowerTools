@@ -193,6 +193,66 @@ public sealed class PublicInboxPairingTests : IAsyncLifetime
         Assert.NotNull(route.StoredAt);
     }
 
+    [Theory]
+    [InlineData("open")]
+    [InlineData("retry")]
+    public async Task DeletedAcknowledgedPrivateFileIsDownloadedAgainWithoutAnotherMessage(string action)
+    {
+        var (tail, publicRelay) = DualRelays();
+        var sender = await StartAsync("sender", "laptop-a");
+        var receiver = await StartAsync("receiver", "phone-b");
+        await PairAsync(sender, receiver, tail, publicRelay);
+        var path = Path.Combine(_root, "report.pdf");
+        await File.WriteAllTextAsync(path, "the original private attachment");
+        var sent = await CallAsync(sender, "file-transfer.assistant.send",
+            new() { ["paths"] = new JsonArray(path), ["targetDeviceId"] = "phone-b" });
+        var id = sent["itemIds"]![0]!.GetValue<string>();
+        var original = await WaitForItemAsync(receiver, id, row => row["state"]!.GetValue<string>() == "available");
+        await WaitForItemAsync(sender, id, row => row["state"]!.GetValue<string>() == "delivered");
+        File.Delete(original["localPath"]!.GetValue<string>());
+        var opened = await CallAsync(receiver, "file-transfer.assistant." + action, new() { ["itemId"] = id });
+        if (action == "retry") Assert.True(opened["retried"]!.GetValue<bool>());
+        var restored = await WaitForItemAsync(receiver, id, row => row["state"]!.GetValue<string>() == "available" &&
+            File.Exists(row["localPath"]?.GetValue<string>()));
+        Assert.Equal(await File.ReadAllTextAsync(path), await File.ReadAllTextAsync(restored["localPath"]!.GetValue<string>()));
+        Assert.Single(Items(await CallAsync(receiver, "file-transfer.assistant.inspect")), row => row!["id"]!.GetValue<string>() == id);
+        Assert.Equal("tail", restored["sourceRelay"]!.GetValue<string>());
+        Assert.Equal(0, publicRelay.Deposits);
+    }
+
+    [Theory]
+    [InlineData("open")]
+    [InlineData("retry")]
+    public async Task CancellingAPrivateRedownloadAbortsTheBlockedHttpRequest(string action)
+    {
+        var (tail, publicRelay) = DualRelays();
+        var sender = await StartAsync("sender", "laptop-a");
+        var receiver = await StartAsync("receiver", "phone-b");
+        await PairAsync(sender, receiver, tail, publicRelay);
+        var path = Path.Combine(_root, "cancel-report.pdf");
+        await File.WriteAllTextAsync(path, "private download cancellation");
+        var sent = await CallAsync(sender, "file-transfer.assistant.send",
+            new() { ["paths"] = new JsonArray(path), ["targetDeviceId"] = "phone-b" });
+        var id = sent["itemIds"]![0]!.GetValue<string>();
+        var original = await WaitForItemAsync(receiver, id, row => row["state"]!.GetValue<string>() == "available");
+        await WaitForItemAsync(sender, id, row => row["state"]!.GetValue<string>() == "delivered");
+        File.Delete(original["localPath"]!.GetValue<string>());
+        var receiptsBefore = tail.ReceiptWrites;
+        tail.BlockPayloadReads = true;
+        var pending = receiver.ExecuteCommandAsync(new CommandRequest(Guid.NewGuid().ToString("N"),
+            "file-transfer.assistant." + action, new() { ["itemId"] = id }), CancellationToken.None);
+        await tail.BlockedPayload.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        var cancelled = await CallAsync(receiver, "file-transfer.assistant.cancel", new() { ["itemId"] = id });
+        Assert.True(cancelled["cancelled"]!.GetValue<bool>());
+        Assert.False((await pending.AsTask().WaitAsync(TimeSpan.FromSeconds(2))).Success);
+        var state = await CallAsync(receiver, "file-transfer.assistant.inspect");
+        var row = Assert.Single(Items(state), entry => entry!["id"]!.GetValue<string>() == id)!;
+        Assert.Equal("cancelled", row["state"]!.GetValue<string>());
+        Assert.False(File.Exists(row["localPath"]?.GetValue<string>()));
+        Assert.Equal(receiptsBefore, tail.ReceiptWrites);
+        Assert.Empty(Directory.EnumerateFiles(Path.Combine(_root, "receiver", "inbox-spool"), "*.part"));
+    }
+
     [Fact]
     public async Task AnUnreachableTailRouteDoesNotHideWorkingPublicReception()
     {
@@ -976,6 +1036,8 @@ public sealed class PublicInboxPairingTests : IAsyncLifetime
 
         private int _payloadReads;
         private int _receiptWrites;
+        public bool BlockPayloadReads { get; set; }
+        public TaskCompletionSource BlockedPayload { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
         public int PayloadReads => Volatile.Read(ref _payloadReads);
         public int ReceiptWrites => Volatile.Read(ref _receiptWrites);
 
@@ -1216,6 +1278,11 @@ public sealed class PublicInboxPairingTests : IAsyncLifetime
             if (method == "GET" && isItemRoute && segments.Length == 1)
             {
                 Interlocked.Increment(ref _payloadReads);
+                if (BlockPayloadReads)
+                {
+                    BlockedPayload.TrySetResult();
+                    await Task.Delay(Timeout.InfiniteTimeSpan, token);
+                }
                 if (!_owners.TryGetValue(id, out var owner) || owner != key) return Status("403 Forbidden");
                 StoredItem? stored = null;
                 lock (_gate) Items(id).TryGetValue(itemId, out stored);
