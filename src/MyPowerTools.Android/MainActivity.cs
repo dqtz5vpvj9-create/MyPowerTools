@@ -12,6 +12,7 @@ using MyPowerTools.Abstractions;
 using MyPowerTools.Android.Files;
 using MyPowerTools.Android.Input;
 using MyPowerTools.Android.Pairing;
+using MyPowerTools.Android.Rendering;
 using MyPowerTools.Platform.Abstractions;
 using MyPowerTools.Platform.Android;
 using MyPowerTools.Shell.Avalonia;
@@ -79,7 +80,11 @@ public sealed class MainActivity : AvaloniaMainActivity
         var view = new AndroidStartupView();
         _ = InitializeAsync(view);
         var host = new AndroidImeHost(view);
-        if (Current is { } activity) activity._imeHost = host;
+        if (Current is { } activity)
+        {
+            activity._imeHost = host;
+            host.AttachedToVisualTree += (_, _) => activity.AttachRenderSurface(host);
+        }
         return host;
     }
 
@@ -174,6 +179,7 @@ public sealed class MainActivity : AvaloniaMainActivity
     {
         Current = this;
         base.OnCreate(savedInstanceState);
+        if (_imeHost is { } host) AttachRenderSurface(host);
         ApplySystemBars();
         InstallImeInsetsObserver();
         // The LAN discovery module runs in this process and takes a multicast lease only while a
@@ -187,6 +193,13 @@ public sealed class MainActivity : AvaloniaMainActivity
     }
 
     private AndroidImeHost? _imeHost;
+    private AndroidEglSurfaceLifecycle? _renderSurfaceLifecycle;
+
+    private void AttachRenderSurface(AndroidImeHost host)
+    {
+        if (_renderSurfaceLifecycle is null && TopLevel.GetTopLevel(host) is not null)
+            _renderSurfaceLifecycle = AndroidEglSurfaceLifecycle.Attach(host);
+    }
 
     public override void StartActivityForResult(A.Content.Intent? intent, int requestCode)
     {
@@ -485,6 +498,8 @@ public sealed class MainActivity : AvaloniaMainActivity
         // of handing activations a control that no longer has a parent.
         _touchLifecycle.Cancel(FindAvaloniaView(Window?.DecorView), "destroy");
         _touchLifecycle.Dispose();
+        _renderSurfaceLifecycle?.Dispose();
+        _renderSurfaceLifecycle = null;
         _imeHost = null;
         if (_imeInsetsObserver is { } observer)
         {

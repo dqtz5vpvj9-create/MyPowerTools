@@ -6,6 +6,7 @@
     <Nullable>enable</Nullable>
     <IsPackable>false</IsPackable>
     <IsTestProject>true</IsTestProject>
+    <AvaloniaAccessUnstablePrivateApis>true</AvaloniaAccessUnstablePrivateApis>
   </PropertyGroup>
 
   <ItemGroup>
@@ -28,6 +29,7 @@
     <Compile Include="../../Input/AndroidDispatcherClock.cs" Link="Input/AndroidDispatcherClock.cs" />
     <Compile Include="../../AndroidStartupView.cs" Link="AndroidStartupView.cs" />
     <Compile Include="../../Input/AndroidImeHost.cs" Link="Input/AndroidImeHost.cs" />
+    <Compile Include="../../Rendering/SurfaceLifetimeGlPlatformSurface.cs" Link="Rendering/SurfaceLifetimeGlPlatformSurface.cs" />
     <Compile Include="../../../MyPowerTools.AvaloniaSdk/CloudAuthorization.cs" Link="CloudAuthorization/CloudCallbackRules.cs" />
   </ItemGroup>
 

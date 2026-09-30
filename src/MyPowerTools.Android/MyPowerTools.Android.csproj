@@ -8,6 +8,8 @@
     <ApplicationVersion>11</ApplicationVersion>
     <ApplicationDisplayVersion>0.2.9</ApplicationDisplayVersion>
     <ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable>
+    <!-- The SurfaceHolder/EGL lifetime bridge targets the pinned Avalonia 12.0.5 renderer API. -->
+    <AvaloniaAccessUnstablePrivateApis>true</AvaloniaAccessUnstablePrivateApis>
     <RuntimeIdentifiers>android-arm64;android-x64</RuntimeIdentifiers>
     <!-- CoreCLR preserves the host collectible-module lifecycle; this APK is a development preview. -->
     <UseMonoRuntime>false</UseMonoRuntime>
