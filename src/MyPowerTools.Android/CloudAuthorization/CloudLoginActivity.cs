@@ -33,6 +33,8 @@ public sealed class CloudLoginActivity : A.App.Activity
         _browser = new A.Webkit.WebView(this);
         _browser.Settings.JavaScriptEnabled = true;
         _browser.Settings.DomStorageEnabled = true;
+        _browser.Settings.UseWideViewPort = true;
+        _browser.Settings.LoadWithOverviewMode = true;
         _browser.Settings.AllowFileAccess = false;
         _browser.Settings.AllowContentAccess = false;
         _browser.Settings.MixedContentMode = A.Webkit.MixedContentHandling.NeverAllow;
@@ -40,6 +42,9 @@ public sealed class CloudLoginActivity : A.App.Activity
         layout.AddView(_browser, new A.Widget.LinearLayout.LayoutParams(-1, 0, 1));
         if (_request.ProviderId == "quark")
         {
+            // Quark's mobile website only offers an app download. Its desktop web client
+            // provides the account login we embed, fitted to the phone by overview mode.
+            _browser.Settings.UserAgentString = "Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/131.0.0.0 Safari/537.36";
             var connect = new A.Widget.Button(this) { Text = "已登录，连接此账号" };
             connect.Click += (_, _) => ConnectQuark();
             layout.AddView(connect);
@@ -68,7 +73,15 @@ public sealed class CloudLoginActivity : A.App.Activity
                 cookies.SetCookie("https://api.oplist.org", "server_use=true; Secure; Path=/");
                 cookies.SetCookie("https://api.oplist.org", "driver_txt=baiduyun_go; Secure; Path=/");
                 _status!.Text = "请确认百度授权页面显示的应用及权限。授权由 OpenList 提供。";
-                _browser.LoadUrl(uri.AbsoluteUri);
+                // Use Baidu's phone authorization page, retaining OpenList's callback and scopes.
+                var authorization = A.Net.Uri.Parse(uri.AbsoluteUri)!;
+                var mobile = authorization.BuildUpon()!.ClearQuery()!;
+                foreach (var name in authorization.QueryParameterNames!)
+                    if (name != "display")
+                        foreach (var value in authorization.GetQueryParameters(name)!)
+                            mobile.AppendQueryParameter(name, value);
+                mobile.AppendQueryParameter("display", "mobile");
+                _browser.LoadUrl(mobile.Build()!.ToString()!);
             });
         }
         catch
@@ -129,8 +142,8 @@ public sealed class CloudLoginActivity : A.App.Activity
         }
         _browser?.Destroy();
         _browser = null;
-        if (_request is { } request && !request.Result.Task.IsCompleted) CloudLogin.Complete(request, null);
         base.OnDestroy();
+        if (_request is { } request) CloudLogin.Closed(request);
     }
 
     private sealed class LoginBrowser(CloudLoginActivity owner) : A.Webkit.WebViewClient

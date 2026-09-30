@@ -14,6 +14,8 @@ internal static class CloudLogin
         internal TaskCompletionSource<MptCloudAuthorizationResult?> Result { get; } =
             new(TaskCreationOptions.RunContinuationsAsynchronously);
         internal CloudLoginActivity? Activity { get; set; }
+        internal bool Closing { get; set; }
+        internal MptCloudAuthorizationResult? PendingResult { get; set; }
     }
 
     public static async Task<MptCloudAuthorizationResult?> AuthorizeAsync(string providerId, CancellationToken cancellationToken)
@@ -45,8 +47,20 @@ internal static class CloudLogin
 
     internal static void Complete(LoginRequest request, MptCloudAuthorizationResult? result)
     {
+        if (request.Closing || request.Result.Task.IsCompleted) return;
+        request.Closing = true;
+        request.PendingResult = result;
         if (ReferenceEquals(_current, request)) _current = null;
-        request.Result.TrySetResult(result);
-        request.Activity?.Finish();
+        if (request.Activity is { } activity) activity.Finish();
+        else request.Result.TrySetResult(result);
+    }
+
+    internal static void Closed(LoginRequest request)
+    {
+        if (ReferenceEquals(_current, request)) _current = null;
+        request.Activity = null;
+        // The native login window must finish before the Surface rebuilds its sheet. Updating it
+        // while Android has hidden the Avalonia view can leave the return sheet measured at zero.
+        request.Result.TrySetResult(request.PendingResult);
     }
 }

@@ -73,6 +73,7 @@ public sealed class MainActivity : AvaloniaMainActivity
 
     internal static Avalonia.Controls.Control CreateMainView()
     {
+        Input.AndroidDispatcherClock.Align();
         ArmShellReady();
         WarmFontStack();
         var view = new AndroidStartupView();
