@@ -15,6 +15,31 @@ namespace MyPowerTools.Tests;
 
 public sealed partial class RuntimeAcceptanceTests
 {
+    [Theory]
+    [InlineData("android", "arm64")]
+    [InlineData("windows", "x64")]
+    public async Task Runtime_module_event_pump_does_not_retry_unavailable_transports(string platform, string architecture)
+    {
+        await using var runtime = new MptHostRuntime(
+            new PackageReader(), new PlatformId(platform, architecture),
+            RuntimePaths.Create(Path.Combine(Path.GetTempPath(), "mpt-event-pump-idle", Guid.NewGuid().ToString("N"))),
+            []);
+        runtime.Load(Path.Combine(Root, "modules", "screenease"));
+        var module = Assert.Single(runtime.ListModules(includeDisabled: false));
+        if (platform == "android") Assert.Null(module.Entrypoint);
+        else Assert.NotNull(module.Entrypoint);
+        runtime.StartModuleEventPump();
+        var started = Assert.Single(runtime.HostEventsSince(0).Where(evt => evt.Type == "module.eventPump.started"));
+        Assert.Equal(0, started.Payload["moduleCount"]!.GetValue<int>());
+        // Enabling an unavailable catalog entry must also leave no retry worker behind.
+        await runtime.SetModuleEnabledAsync("screenease", false);
+        await runtime.SetModuleEnabledAsync("screenease", true);
+        await runtime.StopModuleEventPumpAsync();
+        runtime.StartModuleEventPump();
+        Assert.Equal(0, runtime.HostEventsSince(started.Seq)
+            .Single(evt => evt.Type == "module.eventPump.started").Payload["moduleCount"]!.GetValue<int>());
+    }
+
     [Fact]
     public async Task Runtime_lifecycle_disable_unloads_inproc_and_enable_restores_commands()
     {

@@ -623,7 +623,7 @@ public sealed partial class MptHostRuntime : IAsyncDisposable
 
         var evt = _eventBus.Publish("runner", "module.eventPump.started", new JsonObject
         {
-            ["moduleCount"] = EnabledModules().Count
+            ["moduleCount"] = _moduleEventPumpTasks.Count
         });
         _logRouter.Append("runner", "runner", "info", "Module event pump started.", eventSeq: evt.Seq);
     }
@@ -1350,7 +1350,11 @@ public sealed partial class MptHostRuntime : IAsyncDisposable
     private void StartModuleEventStream(string moduleId)
     {
         var pump = _moduleEventPumpCancellation;
-        if (pump is null || pump.IsCancellationRequested)
+        var module = _packageRegistry.FindModule(moduleId);
+        // The transport map is fixed for this runtime. A catalog entry without a compatible
+        // entrypoint cannot acquire one by retrying; enable/catalog refresh starts eligible streams.
+        if (pump is null || pump.IsCancellationRequested || module is null ||
+            !TryGetTransportRuntime(module, out _))
         {
             return;
         }
@@ -1401,8 +1405,7 @@ public sealed partial class MptHostRuntime : IAsyncDisposable
 
             if (!TryGetTransportRuntime(module, out var runtime))
             {
-                await DelayEventPumpRetryAsync(moduleId, pumpToken);
-                continue;
+                return;
             }
 
             var moduleCancellation = CancellationTokenSource.CreateLinkedTokenSource(pumpToken);

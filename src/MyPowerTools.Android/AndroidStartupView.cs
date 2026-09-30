@@ -134,6 +134,8 @@ internal sealed class AndroidStartupView : UserControl
         AttachedToVisualTree += (_, _) => ApplyPalette();
         DetachedFromVisualTree += (_, _) =>
         {
+            _timer.Stop();
+            _progress.IsIndeterminate = false;
             AndroidHost.Progress -= Report;
             if (global::Avalonia.Application.Current is { } current)
             {
@@ -207,6 +209,9 @@ internal sealed class AndroidStartupView : UserControl
     internal void ShowShell(Control shell)
     {
         _timer.Stop();
+        // Removing the launch content alone leaves its two Fluent progress animations subscribed
+        // to the global clock. End the animation while its template is still attached.
+        _progress.IsIndeterminate = false;
         AndroidHost.Progress -= Report;
         if (global::Avalonia.Application.Current is { } application)
         {
