@@ -24,7 +24,7 @@ public sealed class SharedLocatorTransfer : IDisposable
 
     /// <summary>Negotiates the actual public service before publishing any proxy-dependent V1 manifest.</summary>
     public async Task<SharedPublishResult> PublishAsync(AssistantManifest message, string? payloadPath,
-        CancellationToken token, Action<long, long>? progress = null)
+        CancellationToken token, Action<long, long>? progress = null, Func<string, Task>? routeChanged = null)
     {
         message = SharedLocatorRules.Message(message);
         await _public.RegisterAsync(token);
@@ -43,17 +43,20 @@ public sealed class SharedLocatorTransfer : IDisposable
         if (!await _public.SupportsPayloadLocatorAsync(token))
         {
             // Older public relays cannot resolve missing payloads. Keep their original complete V1 path.
+            if (routeChanged is not null) await routeChanged("public-relay");
             await _public.PublishPublicCopyAsync(message, payloadPath!, token, progress);
             return new(false, false, true);
         }
         try
         {
             await _tail.RegisterAsync(token);
+            if (routeChanged is not null) await routeChanged("tail-relay");
             await _tail.PublishContentAsync(message, payloadPath, token, progress);
         }
         catch (Exception ex) when (IsUnavailable(ex, token))
         {
             // A transiently unreachable Tail relay must not prevent a public-only sender from sending.
+            if (routeChanged is not null) await routeChanged("public-relay");
             await _public.PublishPublicCopyAsync(message, payloadPath!, token, progress);
             return new(false, false, true);
         }
@@ -87,7 +90,7 @@ public sealed class SharedLocatorTransfer : IDisposable
 
     /// <summary>Downloads or records an unmet request; the existing host sync transaction owns adoption and acknowledgement.</summary>
     public async Task<SharedReceiveResult> FetchAsync(SharedLocator locator, string deviceId,
-        string directory, string? existingPath, CancellationToken token, Action<long, long>? progress = null)
+        string directory, string? existingPath, CancellationToken token, Action<long, long>? progress = null, Func<string, Task>? routeChanged = null)
     {
         locator = SharedLocatorRules.Locator(locator);
         AssistantValidation.DeviceId(deviceId);
@@ -114,7 +117,7 @@ public sealed class SharedLocatorTransfer : IDisposable
             {
                 // A valid record with conflicting immutable content is never merged or overwritten.
                 SharedLocatorRules.SameMessage(message, tailMessage);
-                try { path = await _tail.DownloadContentAsync(message, directory, token, progress); }
+                try { if (routeChanged is not null) await routeChanged("tail-relay"); path = await _tail.DownloadContentAsync(message, directory, token, progress); }
                 catch (Exception ex) when (CanTryPublic(ex, token)) { tailError = ex; }
             }
             if (path is null)
@@ -122,6 +125,7 @@ public sealed class SharedLocatorTransfer : IDisposable
                 try
                 {
                     if (publicMessage is null) throw new IOException("共享条目尚未在公网提交。");
+                    if (routeChanged is not null) await routeChanged("public-relay");
                     path = await _public.DownloadContentAsync(message, directory, token, progress);
                 }
                 catch (Exception ex) when (IsUnavailable(ex, token) || !token.IsCancellationRequested && ex is InvalidDataException)
@@ -136,7 +140,7 @@ public sealed class SharedLocatorTransfer : IDisposable
     /// this decision. Remote requests survive sender restarts; repeated calls reuse the immutable id.
     /// </summary>
     public async Task<bool> ServeRequestsAsync(AssistantManifest message, string senderDeviceId, string? localPayload,
-        CancellationToken token)
+        CancellationToken token, Func<string, Task>? routeChanged = null)
     {
         message = SharedLocatorRules.Message(message);
         if (message.SenderDeviceId != AssistantValidation.DeviceId(senderDeviceId))
@@ -168,6 +172,7 @@ public sealed class SharedLocatorTransfer : IDisposable
                     directory = Path.Combine(_copyDirectory, message.Id, Guid.NewGuid().ToString("N"));
                     downloaded = payload = await _tail.DownloadContentAsync(message, directory, token);
                 }
+                if (routeChanged is not null) await routeChanged("public-relay");
                 await _public.PublishPublicCopyAsync(message, payload, token);
                 return true;
             }

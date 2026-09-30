@@ -50,6 +50,22 @@ public sealed class AssistantStoreTests : IDisposable
     };
 
     [Fact]
+    public async Task TransportRouteIsLocalDurableAndUnknownLegacyStaysUnknown()
+    {
+        var store = NewStore();
+        var item = Item("phone", AssistantItemState.Available) with { TransportRoute = "cloud-quark", LocalPath = SourceFile("route.bin", "x") };
+        await store.AdoptAsync(Me, item, CancellationToken.None);
+        var legacy = Item("older-phone", AssistantItemState.Available) with { LocalPath = SourceFile("legacy.bin", "x") };
+        await store.AdoptAsync(Me, legacy, CancellationToken.None);
+        var restored = await NewStore().LoadAsync(CancellationToken.None);
+        Assert.Equal("cloud-quark", restored.Find(item.Id)!.TransportRoute);
+        Assert.Null(restored.Find(legacy.Id)!.TransportRoute);
+        Assert.DoesNotContain("transportRoute", JsonSerializer.Serialize(item.ToManifest(), AssistantJson.Options));
+        var snapshot = item.Copy(); item.TransportRoute = "public-relay"; item.RestoreFrom(snapshot);
+        Assert.Equal("cloud-quark", item.TransportRoute);
+    }
+
+    [Fact]
     public async Task ConversationOriginsSurviveRestartAndAmbiguousHistoryIsNotGuessed()
     {
         var store = NewStore();

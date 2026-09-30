@@ -107,6 +107,58 @@ public sealed class ConversationLiveRefreshTests
         finally { window.Close(); }
     }
 
+    [AvaloniaTheory]
+    [InlineData(320, false)]
+    [InlineData(1200, false)]
+    [InlineData(320, true)]
+    [InlineData(1200, true)]
+    public void Actual_route_updates_the_small_status_row_and_remains_after_completion(int width, bool outgoing)
+    {
+        var module = new FakeTransferModule();
+        var item = new JsonObject
+        {
+            ["id"] = "route-live", ["kind"] = "file", ["name"] = "设计文档.pdf", ["size"] = 100,
+            ["senderDeviceId"] = outgoing ? "mpt-phone" : "ubuntu",
+            ["senderName"] = outgoing ? "我的手机" : "Ubuntu",
+            ["state"] = outgoing ? "sending" : "downloading", ["bytesDone"] = 45,
+            ["createdAt"] = DateTimeOffset.UtcNow.ToString("O"), ["receipts"] = new JsonArray()
+        };
+        module.AssistantItems.Add(item);
+        var view = new TransferView(module.Context(Path.GetTempPath()));
+        var window = new Window { Width = width, Height = 820, Content = view };
+        var prefix = outgoing ? "" : "Ubuntu · ";
+        var progress = outgoing ? "发送中 45%" : "接收中 45%";
+        void AssertStatus(string expected)
+        {
+            var caption = Assert.Single(view.Conversation.ThreadPanel.GetLogicalDescendants().OfType<TextBlock>(),
+                text => text.Text == expected);
+            var position = caption.TranslatePoint(default, window);
+            Assert.NotNull(position);
+            Assert.InRange(position.Value.X, 0, width - caption.Bounds.Width + 1);
+        }
+        try
+        {
+            window.Show();
+            Settle(window);
+            ConversationTestNavigation.Open(window, view);
+            AssertStatus(prefix + progress);
+
+            // Route-only updates must invalidate the existing row, even when its percentage is unchanged.
+            item["transportRoute"] = "cloud-quark";
+            module.EmitAssistantChanged();
+            Settle(window);
+            AssertStatus(prefix + "夸克网盘 · " + progress);
+
+            item["state"] = outgoing ? "delivered" : "available";
+            item["bytesDone"] = 100;
+            item["localPath"] = "/received/design.pdf";
+            module.EmitAssistantChanged();
+            Settle(window);
+            AssertStatus(prefix + "夸克网盘 · " + (outgoing ? "已送达" : "已接收"));
+        }
+        finally { window.Close(); }
+    }
+
     private static FakeTransferModule WithHistory()
     {
         var module = new FakeTransferModule();

@@ -250,7 +250,9 @@ public sealed class TransferCli
         public async IAsyncEnumerable<bool> EventsAsync([System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken token)
         {
             await foreach (var evt in client.SubscribeHostEventsAsync(0, token))
-                if (evt.SourceId == "file-transfer") yield return true;
+                // Command lifecycle events include our own inspect call; consuming them would
+                // create an inspect/event feedback loop while the receiver is idle.
+                if (evt.SourceId == "file-transfer" && evt.Type == "file-transfer.assistant.changed") yield return true;
         }
     }
 

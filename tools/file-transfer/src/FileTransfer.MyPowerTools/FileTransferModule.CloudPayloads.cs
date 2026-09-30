@@ -72,6 +72,7 @@ public sealed partial class FileTransferModule
                 account = _cloudAccounts.Accounts.FirstOrDefault(a => a.Id == mapping.AccountId && a.Status == "ready")
                     ?? throw new InvalidOperationException("此待发附件所属网盘已暂停，请恢复该账号后重试。");
             }
+            await SetAssistantTransportRouteAsync(message.Id, account.ProviderId == "quark" ? "cloud-quark" : account.ProviderId == "baidu" ? "cloud-baidu" : "cloud", token);
             await store.SaveAsync(mapping, token); // ownership is durable before creating a remote object
             using var api = await CloudAdminAsync(token);
             if (!mapping.Uploaded)

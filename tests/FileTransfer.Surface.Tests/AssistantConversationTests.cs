@@ -191,6 +191,52 @@ public sealed class AssistantConversationTests : IDisposable
         Assert.Equal("工作电脑", item.ReceiptText);
     }
 
+    [AvaloniaTheory]
+    [InlineData("cloud-quark", "夸克网盘")]
+    [InlineData("cloud-baidu", "百度网盘")]
+    [InlineData("cloud", "网盘中转")]
+    [InlineData("direct", "设备直传")]
+    [InlineData("tail-relay", "Tailscale 中转")]
+    [InlineData("public-relay", "公网中转")]
+    [InlineData("webdav", "WebDAV 中转")]
+    [InlineData(null, "")]
+    [InlineData("future-route", "")]
+    public async Task File_route_comes_from_the_item_and_does_not_change_delivery_semantics(string? route, string label)
+    {
+        // A configured Quark-looking URL must never fill in a missing/unknown item route.
+        _module.WebDavUrl = "https://openlist.example.test/dav/quark";
+        _module.AssistantRelayState = "available";
+        var json = new JsonObject
+        {
+            ["id"] = "route-item", ["kind"] = "file", ["name"] = "报告.pdf", ["size"] = 100,
+            ["state"] = "stored", ["bytesDone"] = 100, ["targetDeviceId"] = "another-device"
+        };
+        if (route is not null) json["transportRoute"] = route;
+        _module.AssistantItems.Add(json);
+        await TestPump.RunAsync(() => _core.RefreshAsync());
+
+        var item = Assert.Single(_core.Snapshot.Items);
+        Assert.Equal(route, item.TransportRoute);
+        Assert.Equal(label, item.TransportRouteLabel);
+        Assert.Equal("已暂存，等待接收", item.StateText);
+        Assert.Equal(label.Length > 0 ? label + " · 已暂存，等待接收" : "已暂存，等待接收", item.TransferStateText);
+        Assert.Empty(item.ReceiptText);
+    }
+
+    [AvaloniaFact]
+    public async Task Text_entry_does_not_claim_a_file_payload_route()
+    {
+        _module.AssistantItems.Add(new JsonObject
+        {
+            ["id"] = "text-route", ["kind"] = "text", ["text"] = "会议纪要",
+            ["state"] = "available", ["transportRoute"] = "cloud-quark"
+        });
+        await TestPump.RunAsync(() => _core.RefreshAsync());
+        var item = Assert.Single(_core.Snapshot.Items);
+        Assert.Equal("", item.TransportRouteLabel);
+        Assert.Equal("已接收", item.TransferStateText);
+    }
+
     [AvaloniaFact]
     public async Task A_stored_entry_without_a_receipt_is_not_called_delivered()
     {

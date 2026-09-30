@@ -187,7 +187,7 @@ internal sealed partial class AssistantView
         content.Children.Add(more);
         var bubble = new Border { Child = content, Padding = new Thickness(10, 5), CornerRadius = new CornerRadius(14) };
         bubble.Bind(Border.BackgroundProperty, new DynamicResourceExtension(mine ? "MptMobileAccentSoftBrush" : "MptMobileCardBrush"));
-        var status = item.State == AssistantItemState.Queued && mine && item.TargetDeviceId is null ? "已保存到本机" : item.StateText;
+        var status = item.State == AssistantItemState.Queued && mine && item.TargetDeviceId is null ? "已保存到本机" : item.TransferStateText;
         var meta = MobileUi.Caption(mine ? status : item.SenderName + " · " + status);
         meta.FontSize = 12;
         meta.Margin = new Thickness(4, 2, 4, 0);
@@ -216,7 +216,7 @@ internal sealed partial class AssistantView
         {
             _sheetTitle.Text = "消息详情";
             _sheetScroll.Content = MobileUi.Stack(8, MobileUi.Body(item.DisplayName), MobileUi.Caption(item.CreatedAt?.ToLocalTime().ToString("g") ?? ""),
-                MobileUi.Caption(item.StateText), MobileUi.Caption(item.ReceiptText.Length > 0 ? "已保存到 " + item.ReceiptText : "尚无其他设备接收回执"),
+                MobileUi.Caption(item.TransferStateText), MobileUi.Caption(item.ReceiptText.Length > 0 ? "已保存到 " + item.ReceiptText : "尚无其他设备接收回执"),
                 MobileUi.Caption(item.ErrorExplanation));
             return Task.CompletedTask;
         });

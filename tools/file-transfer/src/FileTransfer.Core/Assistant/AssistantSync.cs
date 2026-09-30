@@ -66,6 +66,13 @@ public sealed class AssistantSync
     /// <summary>Optional cloud-origin publisher. True means metadata was committed; false keeps the normal route.</summary>
     public Func<AssistantManifest, string?, CancellationToken, Task<bool>>? CloudPublisher { get; init; }
 
+    public string? DefaultTransportRoute { get; init; }
+    public Func<AssistantManifest, CancellationToken, Task<string?>>? IncomingTransportRoute { get; init; }
+
+    private Task SetRouteAsync(AssistantItem item, string? route, CancellationToken token) =>
+        item.Kind == AssistantItemKind.Text ? Task.CompletedTask :
+        MutateItemAsync(item.Id, state => { if (state.Find(item.Id) is { } live) live.TransportRoute = route; }, token);
+
     private async Task MutateItemAsync(string itemId, Action<AssistantState> change, CancellationToken token)
     {
         var visibleChange = false;
@@ -75,7 +82,7 @@ public sealed class AssistantSync
             change(state);
             var after = state.Find(itemId);
             visibleChange = before is not null && after is not null &&
-                (before.State != after.State || before.BytesDone != after.BytesDone || before.Error != after.Error
+                (before.State != after.State || before.BytesDone != after.BytesDone || before.TransportRoute != after.TransportRoute || before.Error != after.Error
                  || before.LocalPath != after.LocalPath || !before.Receipts.SequenceEqual(after.Receipts));
         }, token);
         // Notify after the transaction releases its gate and successfully persists; inspectors read
@@ -184,7 +191,7 @@ public sealed class AssistantSync
                 try
                 {
                     var copied = await shared.ServeRequestsAsync(item.ToManifest(), identity.DeviceId,
-                        _store.GetPayloadPath(item), scope.Token);
+                        _store.GetPayloadPath(item), scope.Token, route => SetRouteAsync(item, route, scope.Token));
                     // A completed copy writes public metadata and advances the revision. Finish the
                     // resulting bounded scan before reporting that this worker can sleep.
                     if (copied) sharedRequestsRemaining = true;
@@ -508,10 +515,13 @@ public sealed class AssistantSync
             if (CloudPublisher is { } cloud && await cloud(item.ToManifest(), payload, token)) { }
             else if (SharedTransport is { } shared)
                 placement = await shared.PublishAsync(item.ToManifest(), payload, token,
-                    (done, _) => ReportProgress(item.Id, done));
+                    (done, _) => ReportProgress(item.Id, done), route => SetRouteAsync(item, route, token));
             else
+            {
+                await SetRouteAsync(item, DefaultTransportRoute, token);
                 await _client.PublishAssistantAsync(identity.ConversationId, item.ToManifest(), payload,
                     (done, _) => ReportProgress(item.Id, done), token);
+            }
             var stored = false;
             await MutateItemAsync(item.Id, changed =>
             {
@@ -599,10 +609,12 @@ public sealed class AssistantSync
         {
             SharedLocatorRules.SameMessage(item.ToManifest(), locator.Message);
             var received = await shared.FetchAsync(locator, identity.DeviceId, _store.GetInboxDirectory(item), item.LocalPath,
-                token, (done, _) => ReportProgress(item.Id, done));
+                token, (done, _) => ReportProgress(item.Id, done), route => SetRouteAsync(item, route, token));
             if (received.WaitingForPublicCopy) throw new IOException(received.Error);
             return received.Path!;
         }
+        var route = IncomingTransportRoute is null ? DefaultTransportRoute : await IncomingTransportRoute(item.ToManifest(), token);
+        await SetRouteAsync(item, route, token);
         return await _client.DownloadAssistantAsync(identity.ConversationId, item.ToManifest(),
             _store.GetInboxDirectory(item), (done, _) => ReportProgress(item.Id, done), token);
     }

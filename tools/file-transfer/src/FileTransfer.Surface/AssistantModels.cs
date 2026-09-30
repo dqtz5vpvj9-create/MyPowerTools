@@ -51,6 +51,24 @@ internal sealed record AssistantItem(
     IReadOnlyList<AssistantReceipt> Receipts)
 {
     public string ConversationKey { get; init; } = "";
+    public string? TransportRoute { get; init; }
+
+    // A route describes this payload's actual transfer, not the current device configuration.
+    // Older modules and future route codes keep the existing status without guessing a provider.
+    public string TransportRouteLabel => IsFile ? TransportRoute switch
+    {
+        "cloud-quark" => "夸克网盘",
+        "cloud-baidu" => "百度网盘",
+        "cloud" => "网盘中转",
+        "direct" => "设备直传",
+        "tail-relay" => "Tailscale 中转",
+        "public-relay" => "公网中转",
+        "webdav" => "WebDAV 中转",
+        _ => ""
+    } : "";
+
+    public string TransferStateText => TransportRouteLabel is { Length: > 0 } route
+        ? route + " · " + StateText : StateText;
 
     public bool IsText => Kind == AssistantItemKind.Text;
 

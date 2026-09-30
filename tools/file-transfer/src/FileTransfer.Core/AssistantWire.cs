@@ -72,7 +72,7 @@ public static class AssistantWire
     /// short connect window and keeps the longer budget for the transfer itself.
     /// </param>
     public static async Task<ItemReply> SendItemAsync(string address, int port, Frame frame, string? payloadPath,
-        Action<long, long>? progress, TimeSpan budget, CancellationToken token, TimeSpan? connectBudget = null)
+        Action<long, long>? progress, TimeSpan budget, CancellationToken token, TimeSpan? connectBudget = null, Func<Task>? payloadSelected = null)
     {
         var ip = IPAddress.Parse(address);
         DirectTransfer.RequirePrivateAddress(ip);
@@ -99,6 +99,7 @@ public static class AssistantWire
         // A duplicate id is already answered, and a refused admission has nothing to stream.
         if (!admitted.Ok || admitted.Pending) return admitted;
         if (string.Equals(admitted.State, DeliveredState, StringComparison.Ordinal)) return admitted;
+        if (frame.ItemKind != TextItem && payloadSelected is not null) await payloadSelected();
         if (frame.Size == 0 || payloadPath is null)
         {
             // Text and zero-byte files have no payload: the receiver still confirms the save.

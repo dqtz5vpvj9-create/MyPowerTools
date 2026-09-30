@@ -64,6 +64,32 @@ public sealed class SharedLocatorTests(ITestOutputHelper output) : IAsyncLifetim
             commit ?? ((path, token) => File.WriteAllTextAsync(Path.Combine(_root, device, "saved.json"), JsonSerializer.Serialize(new { id = locator.Message.Id, path }), token)), CancellationToken.None);
 
     [Fact]
+    public async Task PayloadRouteIsChosenBeforeProgressAndChangesOnActualFallback()
+    {
+        var sender = Device("route-sender");
+        var (message, payload) = await AttachmentAsync();
+        var routes = new List<string>();
+        await sender.Transfer.PublishAsync(message, payload, CancellationToken.None,
+            (_, _) => Assert.Equal("tail-relay", routes.Last()),
+            route => { routes.Add(route); return Task.CompletedTask; });
+        Assert.Equal(new[] { "tail-relay" }, routes);
+        var locator = (await sender.Public.ReadLocatorAsync(message.Id, CancellationToken.None))!;
+        var receiver = Device("route-receiver", noTail: true);
+        routes.Clear();
+        var received = await receiver.Transfer.FetchAsync(locator, "route-receiver", Path.Combine(_root, "route-inbox"), null, CancellationToken.None,
+            (_, _) => Assert.Equal("public-relay", routes.Last()),
+            route => { routes.Add(route); return Task.CompletedTask; });
+        Assert.False(received.WaitingForPublicCopy);
+        Assert.Equal(new[] { "public-relay" }, routes);
+        var (fallbackMessage, fallbackPayload) = await AttachmentAsync();
+        _tail.Fail("payload", true);
+        routes.Clear();
+        await sender.Transfer.PublishAsync(fallbackMessage, fallbackPayload, CancellationToken.None, routeChanged:
+            route => { routes.Add(route); return Task.CompletedTask; });
+        Assert.Equal(new[] { "tail-relay", "public-relay" }, routes);
+    }
+
+    [Fact]
     public async Task FirstReceiptDoesNotPreventPublicOnlyAndLateMembersFromReceivingAfterRestarts()
     {
         var sender = Device("sender");

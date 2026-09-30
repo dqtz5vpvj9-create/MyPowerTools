@@ -511,6 +511,12 @@ public sealed partial class FileTransferModule
                 ItemCancellation = ItemToken,
                 Changed = NotifyAssistantTransferChanged,
                 SharedTransport = shared,
+                DefaultTransportRoute = CustomRelayConfigured ? "webdav" : "public-relay",
+                IncomingTransportRoute = CustomRelayConfigured ? null : async (message, cancel) =>
+                {
+                    using var relay = new FileTransfer.Core.Cloud.CloudRelayClient(identity.ConversationId, _conversationKey);
+                    return await relay.ReadPayloadRouteAsync(message, cancel);
+                },
                 CloudPublisher = (message, payload, cancel) => PublishCloudAttachmentAsync(identity, message, payload, cancel),
                 PublishFilter = item => (!CloudOnly || item.Kind == AssistantItemKind.Text || DefaultCloudAccount is not null) && item.TargetDeviceId is null && AssistantConversations.IsShared(item, identity.ConversationId)
             };
@@ -719,7 +725,8 @@ public sealed partial class FileTransferModule
             var connect = targeted ? TimeSpan.FromSeconds(15) : TimeSpan.FromSeconds(3);
             // Progress goes through the store, so the shared snapshot is never written from this thread.
             return await AssistantWire.SendItemAsync(device.Address, device.Port, frame, payload,
-                (done, _) => ReportAssistantTransferProgress(item.Id, done), budget, itemCancellation.Token, connect);
+                (done, _) => ReportAssistantTransferProgress(item.Id, done), budget, itemCancellation.Token, connect,
+                () => SetAssistantTransportRouteAsync(item.Id, "direct", itemCancellation.Token));
         }
         catch (OperationCanceledException) when (itemCancellation.IsCancellationRequested && !token.IsCancellationRequested)
         {
@@ -1562,6 +1569,18 @@ public sealed partial class FileTransferModule
         return json;
     }
 
+    private async Task SetAssistantTransportRouteAsync(string itemId, string route, CancellationToken token)
+    {
+        if (_assistantStore is null) return;
+        var changed = false;
+        await _assistantStore.MutateAsync(state =>
+        {
+            if (state.Find(itemId) is { Kind: not AssistantItemKind.Text } item && item.TransportRoute != route)
+            { item.TransportRoute = route; changed = true; }
+        }, token);
+        if (changed) NotifyAssistantTransferChanged(false);
+    }
+
     private void ReportAssistantTransferProgress(string itemId, long done)
     {
         if (_assistantStore?.ReportProgress(itemId, done) == true) NotifyAssistantTransferChanged(true);
@@ -1645,6 +1664,7 @@ public sealed partial class FileTransferModule
                 : received.TargetDeviceId is null && received.ConversationId.Length > 0 ? AssistantConversations.DirectShared
                 : null,
             State = AssistantItemState.Available,
+            TransportRoute = received.ItemKind == AssistantWire.TextItem ? null : "direct",
             BytesDone = received.Size
         };
         if (item.Kind != AssistantItemKind.Text)

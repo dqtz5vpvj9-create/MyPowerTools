@@ -302,6 +302,7 @@ public sealed partial class FileTransferModule
         TargetDeviceId = Setting("deviceId"),
         Provenance = item.SenderDeviceId is { Length: > 0 } ? AssistantConversations.PairedInbox : null,
         SourceRelay = sourceRelay,
+        TransportRoute = item.Kind == PublicInboxItemKind.Text ? null : sourceRelay == InboxRelays.Tail ? "tail-relay" : "public-relay",
         State = AssistantItemState.Available,
         LocalPath = path,
         BytesDone = bytes
@@ -438,6 +439,7 @@ public sealed partial class FileTransferModule
                             break;
                         }
                         await RememberDepositRouteAsync(store, item.Id, route.Id, stored: false, token);
+                        await SetAssistantTransportRouteAsync(item.Id, route.Id == InboxRelays.Tail ? "tail-relay" : "public-relay", scope.Token);
                         if (item.Receipts.Count > 0 || item.State is AssistantItemState.Delivered or AssistantItemState.Cancelled) break;
                         var payload = store.GetPayloadPath(item);
                         _ = item.Kind == AssistantItemKind.Text

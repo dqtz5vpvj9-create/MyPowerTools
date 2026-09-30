@@ -395,7 +395,11 @@ internal sealed class AssistantCore : IDisposable
                 Number(item, "bytesDone"),
                 Str(item, "localPath"),
                 Str(item, "error"),
-                ReadReceipts(item["receipts"] as JsonArray)) { ConversationKey = Str(item, "conversationKey") ?? "" });
+                ReadReceipts(item["receipts"] as JsonArray))
+            {
+                ConversationKey = Str(item, "conversationKey") ?? "",
+                TransportRoute = Str(item, "transportRoute")
+            });
         }
         // The composer and ScrollToEnd are below the thread: append new messages at the bottom.
         // The module returns newest first for its bounded history query, so reverse chronology here.

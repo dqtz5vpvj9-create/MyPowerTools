@@ -275,6 +275,12 @@ public sealed class AssistantSync
 `EnsureLocalAsync` 供 `assistant.open`：本地已有内容直接返回；文本返回 `Text`；附件缺失时先下载
 （用户删掉本地文件后再次打开会重新下载），失败返回 `NeedsDownload=true` 并把条目置 `failed`。
 
+### 本机实际传输链路
+
+`assistant.inspect` 的文件条目包含可选本机字段 `transportRoute`：`cloud-quark`、`cloud-baidu`、`cloud`、`direct`、`tail-relay`、`public-relay` 或 `webdav`。该字段在实际选择附件传输路径后记录，回退时随实际路径更新，完成后保留；不写入远端 manifest，也不从设备属性或当前设置推断。旧条目和无法确认的路径不显示标签。
+
+界面的小字状态行使用“发送设备 · 链路 · 接收中 42%”。网盘接收端目前只能确认网盘领取通道，因此显示“网盘中转”；发送端能确认实际账号时可显示“夸克网盘”或“百度网盘”。读取链路信息的失败不会阻止附件下载。
+
 ## 5. 状态机（M4 必须照此显示）
 
 | 状态 | 含义 | 谁进入 |

@@ -11,12 +11,34 @@ public sealed class CloudRelayClient : IDisposable
 {
     private readonly HttpClient _http;
     private readonly string _conversation;
-    public CloudRelayClient(string conversation, string key)
+    public CloudRelayClient(string conversation, string key) : this(conversation, key, PublicRelayClient.BaseAddress) { }
+    internal CloudRelayClient(string conversation, string key, Uri endpoint)
     {
         _conversation = AssistantValidation.ConversationId(conversation);
         if (key.Length != 64 || !key.All(Uri.IsHexDigit)) throw new ArgumentException("会话凭据无效。");
-        _http = new(new SocketsHttpHandler { AllowAutoRedirect = false }) { BaseAddress = PublicRelayClient.BaseAddress, Timeout = TimeSpan.FromMinutes(10) };
+        _http = new(new SocketsHttpHandler { AllowAutoRedirect = false }) { BaseAddress = endpoint, Timeout = TimeSpan.FromMinutes(10) };
         _http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", Convert.ToBase64String(Encoding.UTF8.GetBytes(conversation + ":" + key)));
+    }
+    public async Task<string?> ReadPayloadRouteAsync(AssistantManifest message, CancellationToken token)
+    {
+        using var budget = CancellationTokenSource.CreateLinkedTokenSource(token);
+        budget.CancelAfter(TimeSpan.FromSeconds(2));
+        try
+        {
+            using var response = await _http.GetAsync($"/mpt/relay/dav/cloud-locator/{_conversation}/{AssistantValidation.ItemId(message.Id)}/manifest.json", budget.Token);
+            if (response.StatusCode == HttpStatusCode.NotFound) return "public-relay";
+            if (!response.IsSuccessStatusCode) return null;
+            var offer = await response.Content.ReadFromJsonAsync<CloudAttachmentOffer>(AssistantJson.Options, budget.Token);
+            if (offer is null || offer.ConversationId != _conversation || offer.Route != "mpt-cloud-stream-v1") return null;
+            SharedLocatorRules.SameMessage(message, offer.Message);
+            // PROPFIND inspects physical storage, unlike GET/HEAD's virtual cloud stream.
+            using var physical = new HttpRequestMessage(new HttpMethod("PROPFIND"), $"/mpt/relay/dav/assistant/{_conversation}/{message.Id}/payload");
+            physical.Headers.Add("Depth", "0");
+            using var stored = await _http.SendAsync(physical, budget.Token);
+            return stored.StatusCode == HttpStatusCode.NotFound ? "cloud" : stored.IsSuccessStatusCode ? "public-relay" : null;
+        }
+        catch (OperationCanceledException) when (!token.IsCancellationRequested) { return null; }
+        catch (Exception ex) when (ex is HttpRequestException or JsonException or InvalidDataException or ArgumentException) { return null; }
     }
     public async Task<bool> AvailableAsync(CancellationToken token)
     {

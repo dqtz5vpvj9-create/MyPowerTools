@@ -209,8 +209,11 @@ public sealed class AssistantWireTests : IDisposable
         var frame = new AssistantWire.Frame(AssistantWire.Version, AssistantWire.ItemKind, ConversationKey, "photo.png",
             bytes.Length, "phone-other", "c1b2c3d4e5f60718293a4b5c6d7e8f92", "conv-1", AssistantWire.ImageItem, null,
             "Other Phone", null);
+        var payloadSelected = false;
         var reply = await AssistantWire.SendItemAsync("127.0.0.1", receiver.Port, frame, payload,
-            null, TimeSpan.FromSeconds(15), timeout.Token);
+            (_, _) => Assert.True(payloadSelected), TimeSpan.FromSeconds(15), timeout.Token,
+            payloadSelected: () => { payloadSelected = true; return Task.CompletedTask; });
+        Assert.True(payloadSelected);
 
         Assert.True(reply.Ok, reply.Message);
         Assert.Equal(AssistantWire.DeliveredState, reply.State);

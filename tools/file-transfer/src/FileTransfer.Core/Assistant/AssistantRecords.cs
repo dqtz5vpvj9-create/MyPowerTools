@@ -62,6 +62,8 @@ public sealed record AssistantItem
     public long? SharedRequestRevision { get; set; }
 
     public AssistantItemState State { get; set; } = AssistantItemState.Queued;
+    /// <summary>Local observed payload route; absent for legacy/unknown items. Never included in the wire manifest.</summary>
+    public string? TransportRoute { get; set; }
     public long BytesDone { get; set; }
     public string? LocalPath { get; set; }
     public string? Error { get; set; }
@@ -83,6 +85,7 @@ public sealed record AssistantItem
     {
         State = backup.State;
         BytesDone = backup.BytesDone;
+        TransportRoute = backup.TransportRoute;
         LocalPath = backup.LocalPath;
         Error = backup.Error;
         Receipts = [.. backup.Receipts];

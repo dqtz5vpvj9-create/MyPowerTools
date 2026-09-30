@@ -149,6 +149,7 @@ public sealed class AssistantStore
                 await CommitAsync(state, () =>
                 {
                     existing.LocalPath = item.LocalPath;
+                    existing.TransportRoute = item.TransportRoute;
                     existing.State = AssistantItemState.Available;
                     existing.BytesDone = existing.Size;
                     existing.Error = null;
@@ -166,6 +167,7 @@ public sealed class AssistantStore
                 ConversationId = item.ConversationId,
                 Provenance = item.Provenance,
                 SourceRelay = item.SourceRelay,
+                TransportRoute = item.TransportRoute,
                 State = AssistantItemState.Available,
                 BytesDone = manifest.Size
             };
