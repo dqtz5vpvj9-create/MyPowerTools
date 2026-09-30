@@ -69,6 +69,8 @@ public sealed record MptAvaloniaSurfaceContext(
     /// Surfaces may use TopLevel.Launcher when a desktop host leaves this capability null.
     /// </summary>
     public Func<string, CancellationToken, Task<bool>>? OpenFileAsync { get; init; }
+    /// <summary>Opens a provider login owned by the host. Credentials are handed only to the account module.</summary>
+    public Func<string, CancellationToken, Task<MptCloudAuthorizationResult?>>? AuthorizeCloudAccountAsync { get; init; }
 }
 
 public enum MptWebSurfaceState

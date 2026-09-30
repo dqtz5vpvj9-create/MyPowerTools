@@ -199,6 +199,7 @@ public sealed partial class ShellWorkspaceController
             },
             ScanConnectionCodeAsync = _scanConnectionCodeAsync,
             OpenFileAsync = _openNativeFileAsync,
+            AuthorizeCloudAccountAsync = _authorizeCloudAccountAsync ?? (OperatingSystem.IsWindows() ? DesktopCloudLogin.AuthorizeAsync : null),
             WebSurfaces = _webSurfaceService
        };
        try

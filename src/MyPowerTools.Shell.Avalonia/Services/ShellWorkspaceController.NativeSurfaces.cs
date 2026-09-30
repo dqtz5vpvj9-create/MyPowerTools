@@ -4,6 +4,7 @@ public sealed partial class ShellWorkspaceController
 {
     private Func<CancellationToken, Task<string?>>? _scanConnectionCodeAsync;
     private Func<string, CancellationToken, Task<bool>>? _openNativeFileAsync;
+    private Func<string, CancellationToken, Task<MyPowerTools.AvaloniaSdk.MptCloudAuthorizationResult?>>? _authorizeCloudAccountAsync;
 
     /// <summary>
     /// Connects native services before the host opens a tool surface. The Android entry point owns
@@ -11,9 +12,11 @@ public sealed partial class ShellWorkspaceController
     /// </summary>
     public void SetNativeSurfaceServices(
         Func<CancellationToken, Task<string?>>? scanConnectionCodeAsync,
-        Func<string, CancellationToken, Task<bool>>? openFileAsync)
+        Func<string, CancellationToken, Task<bool>>? openFileAsync,
+        Func<string, CancellationToken, Task<MyPowerTools.AvaloniaSdk.MptCloudAuthorizationResult?>>? authorizeCloudAccountAsync = null)
     {
         _scanConnectionCodeAsync = scanConnectionCodeAsync;
         _openNativeFileAsync = openFileAsync;
+        _authorizeCloudAccountAsync = authorizeCloudAccountAsync;
     }
 }

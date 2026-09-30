@@ -84,6 +84,7 @@ public sealed partial class FileTransferModule
         await EnsureConversationAsync(token);
         await LoadOwnDevicesAsync(token);
         _assistant = await _assistantStore.ConfigureAsync(Identity(), token);
+        StartCloudPayloadWorker();
         StartAssistantWorker();
         // Enabled module means receiving: the public relay carries it with no Tailscale and no settings.
         StartRelayReceive();
@@ -510,7 +511,8 @@ public sealed partial class FileTransferModule
                 ItemCancellation = ItemToken,
                 Changed = NotifyAssistantTransferChanged,
                 SharedTransport = shared,
-                PublishFilter = item => item.TargetDeviceId is null && AssistantConversations.IsShared(item, identity.ConversationId)
+                CloudPublisher = (message, payload, cancel) => PublishCloudAttachmentAsync(identity, message, payload, cancel),
+                PublishFilter = item => (!CloudOnly || item.Kind == AssistantItemKind.Text || DefaultCloudAccount is not null) && item.TargetDeviceId is null && AssistantConversations.IsShared(item, identity.ConversationId)
             };
             var result = await sync.SyncAsync(identity, token);
             if (result.RetryAfter is not null)
@@ -621,6 +623,7 @@ public sealed partial class FileTransferModule
             && item.State is AssistantItemState.Queued or AssistantItemState.Sending or AssistantItemState.Stored or AssistantItemState.Failed)
             .OrderBy(item => item.CreatedAt).ToArray())
         {
+            if (CloudOnly && item.Kind != AssistantItemKind.Text) continue;
             if (attempted >= DirectDeliveryLimit) return new DirectOutcome(delivered, pending, true);
             var targets = item.TargetDeviceId is { Length: > 0 } target
                 ? peers.Concat(own).Where(device => string.Equals(device.DeviceId, target, StringComparison.Ordinal)).DistinctBy(device => device.DeviceId).ToArray()
@@ -1069,6 +1072,8 @@ public sealed partial class FileTransferModule
         // so a partial send can never leave the user with a duplicate half after a retry.
         var created = await store.EnqueueAsync(Identity(),
             AssistantDraft.ForContent(text, paths.Count > 0 ? paths : null, deviceTarget), token);
+        if (CloudOnly)
+            await store.MutateAsync(current => { foreach (var queued in created) if (current.Find(queued.Id) is { Kind: not AssistantItemKind.Text } item) item.Error = FileTransfer.Core.Cloud.CloudAccountRules.PendingReason; }, token);
         if (created.Count > 0)
         {
             EmitAssistantChanged("send");

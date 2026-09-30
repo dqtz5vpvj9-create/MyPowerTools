@@ -56,6 +56,9 @@ public sealed partial class TransferView
 
     private void CreateButtons()
     {
+        // The wide form's actions are cheap controls and every one of them is a state projection
+        // target, so they exist from the start: the form's own tree is what stays lazy.
+        if (_send is not null) return;
         _receive = Button("开启接收", ToggleReceiveAsync);
         _send = Button("发送", SendAsync);
         _cancel = Button("取消传输", CancelAsync);

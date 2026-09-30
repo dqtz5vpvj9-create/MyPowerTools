@@ -40,3 +40,9 @@ dotnet test tools/file-transfer/tests/FileTransfer.Surface.Tests/FileTransfer.Su
 - 真实 Tailscale 直传、真实 OpenList 服务与国内网盘驱动登录。
 - Android `OperatingSystem.IsAndroid()` 分支（桌面 OpenList 按钮隐藏、系统下载目录提示）。
 - 文件选择器/文件夹选择器、剪贴板、拖放的平台实现。
+
+## 网盘账号页面
+
+`CloudAccountsTests` 用脚本化模块驱动实际控件，覆盖原生登录结果只转交一次、返回时取消并丢弃迟到凭据、不可用提供方说明、真实命令参数、暂停/断开、目录 ID 选择、敏感错误不进入页面，以及 320/390/768 宽的布局。准备事件用独立状态读取更新页面，不等待后台账号写锁。会话入口测试确认返回后保留原输入框和草稿，并解除账号事件订阅。
+
+只运行这组测试可加 `--filter FullyQualifiedName~CloudAccountsTests`。设置 `MPT_CLOUD_SHOTS` 可保存 Avalonia headless 控件截图；它们使用脚本化账号状态，不能代替真实平台登录或网盘传输验收。未知容量显示未知，安全清理未实现时不发删除命令，账号就绪也不等于文件领取通道已经就绪。

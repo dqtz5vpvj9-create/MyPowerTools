@@ -18,6 +18,8 @@
 | `GET` | `/mpt/relay/v1/changes[?since=N]` | Basic | 长轮询，最长 25 秒，返回 `{"revision":N}` |
 | `POST` | `/mpt/relay/v1/inboxes` | Basic owner | 设备配对收件箱注册（见第 6 节） |
 | 任意 | `/mpt/relay/v1/inboxes/items…` | Basic owner/deposit | 投递、接收、回执（见第 6 节） |
+| `GET` | `/mpt/relay/v1/cloud/requests?deviceId=D&wait=25` | Basic shared | 可选网盘领取事件，见 [CLOUD_STREAM.md](CLOUD_STREAM.md) |
+| `PUT` | `/mpt/relay/v1/cloud/requests/R/body` | Basic shared + file capability | 可选反向供流，精确长度、一次 claim、不落文件正文盘 |
 | 任意 | `/mpt/relay/dav/…` | Basic | WebDAV：`OPTIONS/GET/HEAD/PUT/DELETE/PROPFIND/MKCOL` |
 
 认证一律 `Authorization: Basic base64(conversationId:conversationKey)`：

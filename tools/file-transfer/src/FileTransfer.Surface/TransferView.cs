@@ -24,8 +24,13 @@ public sealed partial class TransferView : UserControl, IMptAvaloniaSurfaceActiv
     private readonly TransferCore _core;
     private readonly AssistantCore _assistantCore;
     private readonly AssistantView _assistant;
-    private readonly TransferMobileView _mobile;
-    private readonly ScrollViewer _desktopScroller;
+    // The wide form and the phone step flow are only reachable through the advanced page. Building
+    // them while the conversation opens costs the first frame of the tool a second and a third
+    // complete control tree plus their first-time style/template work on the UI thread — which is
+    // exactly the work an Android cold open cannot afford before it paints. They are created on the
+    // first switch that really shows them, and the conversation stays the eager default screen.
+    private TransferMobileView? _mobile;
+    private ScrollViewer? _desktopScroller;
     private bool _mobileShown;
     private bool _activated;
     private bool _advancedShown;
@@ -46,9 +51,9 @@ public sealed partial class TransferView : UserControl, IMptAvaloniaSurfaceActiv
         _context = context;
         _core = new TransferCore(context);
         _assistantCore = new AssistantCore(context);
-        BuildDesktopUi();
-        _desktopScroller = new ScrollViewer { Content = _desktopContent, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
-        _mobile = new TransferMobileView(context, _core);
+        // Only the wide form's own tree is deferred; its buttons are state projection targets and are
+        // created here, so a conversation-only open still reports receive/cloud/send state correctly.
+        CreateButtons();
         // The conversation is the tool's default screen on every platform. The classic form stays
         // reachable from it as an advanced page rather than greeting the user with a settings table.
         _assistant = new AssistantView(context, _assistantCore, _core);
@@ -79,22 +84,52 @@ public sealed partial class TransferView : UserControl, IMptAvaloniaSurfaceActiv
         ApplyPresentation(Bounds.Width > 0 ? Bounds.Width : _lastWidth);
     }
 
-    /// <summary>The phone presentation. It is only attached below phone width.</summary>
-    internal TransferMobileView Mobile => _mobile;
+    /// <summary>The phone presentation, built on first use. Exposed for headless behaviour tests.</summary>
+    internal TransferMobileView Mobile => EnsureMobile();
+
+    /// <summary>True once the phone step flow exists. A cold open that never asks for it must not build it.</summary>
+    internal bool IsMobilePresentationBuilt => _mobile is not null;
+
+    /// <summary>True once the wide form exists. A phone never builds it unless it asks for the advanced page.</summary>
+    internal bool IsDesktopPresentationBuilt => _desktopScroller is not null;
 
     /// <summary>True while the phone layout owns the surface. Used by tests to assert the breakpoint.</summary>
     public bool IsMobileLayout => _mobileShown;
 
+    /// <summary>
+    /// Builds the phone step flow the first time a presentation really shows it. The current viewport
+    /// and the attach state are applied here, so a lazy build is indistinguishable from an eager one.
+    /// </summary>
+    private TransferMobileView EnsureMobile()
+    {
+        if (_mobile is { } existing) return existing;
+        var mobile = new TransferMobileView(_context, _core);
+        _mobile = mobile;
+        if (_lastWidth > 0) mobile.ApplyViewport(_lastWidth);
+        if (_activated) mobile.Attach();
+        return mobile;
+    }
+
+    /// <summary>Builds the wide form the first time a presentation really shows it.</summary>
+    private ScrollViewer EnsureDesktopScroller(double width)
+    {
+        if (_desktopScroller is { } existing) return existing;
+        BuildDesktopUi();
+        ApplyDesktopDensity(width);
+        _desktopScroller = new ScrollViewer { Content = _desktopContent, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled };
+        return _desktopScroller;
+    }
+
     private void Attach()
     {
-        if (_activated) { _mobile.Attach(); _assistant.Attach(); return; }
+        if (_activated) { _mobile?.Attach(); _assistant.Attach(); return; }
         _activated = true;
         _core.Changed += SyncFromCore;
         _core.Attach();
         // The conversation reads both cores: the assistant contract for the session, and the legacy
         // commands for receive settings and the advanced form it links to.
         _assistantCore.Attach();
-        _mobile.Attach();
+        _mobile?.Attach();
         _assistant.Attach();
         _ = GuardAsync(async () =>
         {
@@ -111,10 +146,9 @@ public sealed partial class TransferView : UserControl, IMptAvaloniaSurfaceActiv
         if (!_activated) return;
         _activated = false;
         _core.Changed -= SyncFromCore;
-        _desktopContent = _desktopScroller.Content as StackPanel;
         _core.Detach();
         _assistantCore.Detach();
-        _mobile.Detach();
+        _mobile?.Detach();
         _assistant.Detach();
     }
 
@@ -132,7 +166,7 @@ public sealed partial class TransferView : UserControl, IMptAvaloniaSurfaceActiv
     {
         var mobile = width > 0 && width < NarrowWidth;
         ApplyDesktopDensity(width);
-        _mobile.ApplyViewport(width);
+        _mobile?.ApplyViewport(width);
         _assistant.ApplyViewport(width);
         if (!_advancedShown)
         {
@@ -143,8 +177,16 @@ public sealed partial class TransferView : UserControl, IMptAvaloniaSurfaceActiv
             return;
         }
         _mobileShown = mobile;
-        Content = mobile ? _mobile : _desktopScroller;
-        if (mobile) _mobile.Sync();
+        if (mobile)
+        {
+            // The phone step flow is what an advanced page shows on a phone; it is built here, on the
+            // first switch that really displays it, not while the conversation is opening.
+            var stepView = EnsureMobile();
+            Content = stepView;
+            stepView.Sync();
+            return;
+        }
+        Content = EnsureDesktopScroller(width);
     }
 
     // ---- commands ---------------------------------------------------------------------------
@@ -678,16 +720,14 @@ public sealed partial class TransferView : UserControl, IMptAvaloniaSurfaceActiv
             ShowAdvanced(false);
             return true;
         }
-        return _mobileShown && _mobile.TryHandleBack();
+        return _mobileShown && _mobile is { } stepView && stepView.TryHandleBack();
     }
 
     /// <summary>True while a sheet owns the page, so the host can restore focus after closing it.</summary>
-    public bool IsSheetOpen => _assistant.IsSheetOpen
-        || (_mobileShown && _mobile.IsSheetOpen)
-        || (_advancedShown && _mobile.IsSheetOpen);
+    public bool IsSheetOpen => _assistant.IsSheetOpen || _mobile?.IsSheetOpen == true;
 
     /// <summary>True while the phone page has a sheet open. Exposed for host focus and test assertions.</summary>
-    public bool IsMobileSheetOpen => _mobile.IsSheetOpen;
+    public bool IsMobileSheetOpen => _mobile?.IsSheetOpen == true;
 
     // ---- activation --------------------------------------------------------------------------
 
@@ -713,7 +753,7 @@ public sealed partial class TransferView : UserControl, IMptAvaloniaSurfaceActiv
         if (value.StartsWith("mpt://pair/", StringComparison.Ordinal))
         {
             ShowAdvanced(true);
-            if (_mobileShown) return await _mobile.ActivateAsync(request, cancellationToken);
+            if (_mobileShown) return await EnsureMobile().ActivateAsync(request, cancellationToken);
             _pair.Text = value;
             _pairExpander.IsExpanded = true;
             SetStatus("已收到设备连接码：确认无误后点『添加设备』。");
@@ -722,13 +762,15 @@ public sealed partial class TransferView : UserControl, IMptAvaloniaSurfaceActiv
         if (value.StartsWith("mpt://cloud/", StringComparison.Ordinal))
         {
             ShowAdvanced(true);
-            if (_mobileShown) return await _mobile.ActivateAsync(request, cancellationToken);
+            if (_mobileShown) return await EnsureMobile().ActivateAsync(request, cancellationToken);
             _cloudCode.Text = value;
             _cloudExpander.IsExpanded = true;
             SetStatus("已收到网盘连接码：确认无误后点『导入连接码』。");
             return true;
         }
-        return await _mobile.ActivateAsync(request, cancellationToken);
+        // The step flow owns the clipboard/image activations; it is built here only if this
+        // activation really needs it, never while the conversation is opening.
+        return await EnsureMobile().ActivateAsync(request, cancellationToken);
     }
 
     // ---- clipboard and links ------------------------------------------------------------------

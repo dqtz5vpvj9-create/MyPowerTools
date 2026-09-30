@@ -63,6 +63,9 @@ public sealed class AssistantSync
     /// <summary>Present only for the built-in shared relay; custom OpenList keeps its original transport.</summary>
     public SharedLocatorTransfer? SharedTransport { get; init; }
 
+    /// <summary>Optional cloud-origin publisher. True means metadata was committed; false keeps the normal route.</summary>
+    public Func<AssistantManifest, string?, CancellationToken, Task<bool>>? CloudPublisher { get; init; }
+
     private async Task MutateItemAsync(string itemId, Action<AssistantState> change, CancellationToken token)
     {
         var visibleChange = false;
@@ -157,7 +160,7 @@ public sealed class AssistantSync
         {
             // A prior receipt never retires a payload: later or public-only members can still ask for it.
             var candidates = state.Outgoing(identity.DeviceId)
-                .Where(item => AssistantConversations.IsShared(item, identity.ConversationId)
+                .Where(item => (PublishFilter?.Invoke(item) ?? true) && AssistantConversations.IsShared(item, identity.ConversationId)
                     && item.SharedStorage is { LocatorPublished: true, PublicStored: false }
                     && item.State is AssistantItemState.Stored or AssistantItemState.Delivered)
                 .ToArray();
@@ -172,6 +175,7 @@ public sealed class AssistantSync
             sharedRequestsRemaining = uncheckedItems.Length > _limits.Publish;
             foreach (var item in uncheckedItems.Take(_limits.Publish))
             {
+                if (!(PublishFilter?.Invoke(item) ?? true)) continue;
                 using var scope = ItemScope(item.Id, token);
                 await _store.MutateAsync(changed =>
                 {
@@ -501,7 +505,8 @@ public sealed class AssistantSync
         try
         {
             SharedPublishResult? placement = null;
-            if (SharedTransport is { } shared)
+            if (CloudPublisher is { } cloud && await cloud(item.ToManifest(), payload, token)) { }
+            else if (SharedTransport is { } shared)
                 placement = await shared.PublishAsync(item.ToManifest(), payload, token,
                     (done, _) => ReportProgress(item.Id, done));
             else

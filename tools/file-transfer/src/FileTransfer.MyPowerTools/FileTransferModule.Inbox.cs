@@ -374,12 +374,14 @@ public sealed partial class FileTransferModule
         var candidates = state.Outgoing(identity.DeviceId)
             .Where(item => item.TargetDeviceId is { Length: > 0 } && item.Receipts.Count == 0
                 && AssistantConversations.IsPrivate(item)
+                && (!CloudOnly || item.Kind == AssistantItemKind.Text)
                 && (item.State == AssistantItemState.Queued || NeedsPublicFallback(item)))
             .OrderBy(item => item.Attempts).ThenBy(item => item.CreatedAt).ToArray();
         var pending = candidates.Length > 8 ? 1 : 0;
         foreach (var item in candidates.Take(8))
         {
             token.ThrowIfCancellationRequested();
+            if (CloudOnly && item.Kind != AssistantItemKind.Text) continue;
             var target = item.TargetDeviceId!;
             try
             {

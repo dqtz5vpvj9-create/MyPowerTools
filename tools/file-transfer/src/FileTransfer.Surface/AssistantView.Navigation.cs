@@ -16,6 +16,7 @@ internal sealed partial class AssistantView
     private Button? _chatBack;
     private bool _chatOpen;
     private bool _contactsOpen;
+    private string _navigationRowsFingerprint = "";
     private readonly StackPanel _conversationList = new() { Spacing = 3, Margin = new Thickness(9, 0) };
     private readonly TextBlock _directoryTitle = new() { Text = "会话", FontSize = 24, FontWeight = FontWeight.SemiBold };
     private readonly TextBox _conversationSearch = MobileUi.FieldBox("搜索会话");
@@ -137,24 +138,54 @@ internal sealed partial class AssistantView
         if (_chatBack is not null) _chatBack.IsVisible = phone;
     }
 
+    /// <summary>
+    /// Rebuilds the directory rows only when something they display really changed. A sync, an event or
+    /// a draft save that leaves the list identical must not replace its controls: rebuilding them
+    /// invalidates the layout of the page that is on screen, which is pure work for no visible change.
+    /// </summary>
     private void RefreshConversationNavigation()
     {
         if (_directory is null) return;
-        _conversationList.Children.Clear();
         var query = (_conversationSearch.Text ?? "").Trim();
         if (_contactsOpen)
         {
-            foreach (var peer in RememberedDevices().Where(p => p.Name.Contains(query, StringComparison.OrdinalIgnoreCase)))
+            var peers = RememberedDevices().Where(p => p.Name.Contains(query, StringComparison.OrdinalIgnoreCase)).ToArray();
+            var contactsFingerprint = DirectoryFingerprint(query, peers.Select(peer =>
+                $"{peer.DeviceId}\u0003{peer.Name}\u0003{peer.Platform}\u0003{peer.Address}\u0003{peer.Paired}\u0003{peer.Available}\u0003{peer.CanPrivateMessage}"));
+            if (contactsFingerprint == _navigationRowsFingerprint) return;
+            _navigationRowsFingerprint = contactsFingerprint;
+            _conversationList.Children.Clear();
+            foreach (var peer in peers)
                 _conversationList.Children.Add(DirectoryRow(peer.Name, "已添加 · 文件互传", "", false, 0,
                     peer.Platform == "android" ? "MptMobileIconPhone" : "MptMobileIconDesktop", () => { ShowContactCard(peer); return Task.CompletedTask; }));
-            if (_conversationList.Children.Count == 0) _conversationList.Children.Add(MobileUi.Note("添加一次，以后从通讯录找到设备。"));
+            if (peers.Length == 0) _conversationList.Children.Add(MobileUi.Note("添加一次，以后从通讯录找到设备。"));
             return;
         }
+
+        // One pass over the conversations: the same rows feed the fingerprint and the rebuilt list.
+        var entries = new List<ConversationEntry>();
+        var lines = new List<string>();
         foreach (var entry in ConversationEntries().Where(e => e.Name.Contains(query, StringComparison.OrdinalIgnoreCase) || e.Preview.Contains(query, StringComparison.OrdinalIgnoreCase)))
+        {
+            entries.Add(entry);
+            var selected = entry.Key == ActiveConversationKey && (_chatOpen || _viewport >= PhoneWidth);
+            lines.Add($"{entry.Key}\u0003{entry.Name}\u0003{entry.Preview}\u0003{entry.UpdatedAt?.ToLocalTime().ToString("HH:mm") ?? ""}\u0003{entry.Unread}\u0003{(selected ? '1' : '0')}");
+        }
+
+        var fingerprint = DirectoryFingerprint(query, lines);
+        if (fingerprint == _navigationRowsFingerprint) return;
+        _navigationRowsFingerprint = fingerprint;
+        _conversationList.Children.Clear();
+        foreach (var entry in entries)
             _conversationList.Children.Add(DirectoryRow(entry.Name, entry.Preview, entry.UpdatedAt?.ToLocalTime().ToString("HH:mm") ?? "",
                 entry.Key == ActiveConversationKey && (_chatOpen || _viewport >= PhoneWidth), entry.Unread,
                 entry.DeviceId is null ? "MptMobileIconDevices" : "MptMobileIconDesktop", () => OpenConversationAsync(entry)));
     }
+
+    /// <summary>What the directory rows display. Anything left out here would leave a stale row behind.</summary>
+    private string DirectoryFingerprint(string query, IEnumerable<string> rows) =>
+        (_contactsOpen ? "contacts" : "list") + (_chatOpen ? "/open" : "/closed") +
+        (_viewport >= PhoneWidth ? "/wide" : "/narrow") + "\u0001" + query + "\u0002" + string.Join("\u0004", rows);
 
     private static Button DirectoryRow(string name, string preview, string time, bool selected, int unread, string icon, Func<Task> action)
     {

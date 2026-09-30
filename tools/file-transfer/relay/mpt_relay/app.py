@@ -29,6 +29,7 @@ from .limits import FailureWindow, RateLimiter
 from .logutil import mask_identity, mask_path
 from .messages import Request, Response, empty, json_response, text_response
 from .inbox import ITEM_ID_PATTERN, InboxApi, InboxError
+from .cloud_stream import CloudError, CloudStreams, error_response as cloud_error
 from .store import CredentialMismatch, DepositKeyConflict, QuotaExceeded, Store, TooLarge
 
 UNAUTHORIZED_HEADERS = (("WWW-Authenticate", f'Basic realm="{REALM}", charset="UTF-8"'),)
@@ -59,6 +60,7 @@ class RelayApp:
         self._not_ready_per_ip = RateLimiter(config.not_ready_per_ip_per_minute, 60, max_keys=config.max_tracked_addresses)
         self._auth_slots = threading.BoundedSemaphore(config.max_concurrent_auth)
         self.inbox = InboxApi(config, store, self.log)
+        self.cloud = CloudStreams(config, store)
         self._started_at = time.time()
 
     # -- routing ---------------------------------------------------------------------
@@ -99,12 +101,30 @@ class RelayApp:
         if rest == "/v1/inboxes/items" or rest.startswith("/v1/inboxes/items/"):
             return self._inbox_route(request, rest)
 
+        if rest == "/v1/cloud/requests" or rest.startswith("/v1/cloud/requests/"):
+            if not self.config.cloud_payload_stream:
+                return text_response(404, "not found\n")
+            auth = self._authenticate(request, allow_register=False)
+            if isinstance(auth, Response):
+                return auth
+            try:
+                if rest == "/v1/cloud/requests" and request.method == "GET":
+                    return self.cloud.poll(auth.conversation_id, request)
+                match = re.fullmatch(r"/v1/cloud/requests/([0-9a-f]{32})/body", rest)
+                if match and request.method == "PUT":
+                    return self.cloud.supply(auth.conversation_id, match[1], request)
+                return self._method_not_allowed("GET, PUT")
+            except CloudError as error:
+                return cloud_error(error.status, error.code)
+
         if rest == "/dav" or rest.startswith("/dav/"):
             auth = self._authenticate(request, allow_register=self.config.dav_auto_register)
             if isinstance(auth, Response):
                 return auth
             try:
-                return dav.handle(self.store, self.config, auth.conversation_id, request, self.log)
+                return dav.handle(self.store, self.config, auth.conversation_id, request, self.log, cloud=self.cloud)
+            except CloudError as error:
+                return cloud_error(error.status, error.code)
             except dav.DavError as error:
                 return text_response(error.status, error.message + "\n")
             except TooLarge as error:
@@ -127,11 +147,16 @@ class RelayApp:
             "uptimeSeconds": int(time.time() - self._started_at),
             "longPollSeconds": self.config.longpoll_max_seconds,
         }
+        capabilities = {}
         if self.config.tail_payload_proxy:
             # Advertised only by a relay that actually serves the shared payload proxy; absent
             # everywhere else, including the Tail relay. This is the exact shape the client reads
             # (``SharedLocatorClient.SupportsPayloadLocatorAsync``).
-            payload["capabilities"] = {"sharedPayloadLocator": 1}
+            capabilities["sharedPayloadLocator"] = 1
+        if self.config.cloud_payload_stream:
+            capabilities["cloudPayloadStream"] = 1
+        if capabilities:
+            payload["capabilities"] = capabilities
         return json_response(200, payload)
 
     def _register(self, request: Request) -> Response:

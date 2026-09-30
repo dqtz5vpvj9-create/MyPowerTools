@@ -126,6 +126,25 @@ class HttpBody(BodyReader):
         self._finished = True
         return written
 
+    def chunks(self, deadline=None):
+        if deadline is not None:
+            self._deadline = min(self._deadline, deadline) if self._deadline is not None else deadline
+        try:
+            while True:
+                piece = self._read_piece(UPLOAD_CHUNK)
+                if piece is None:
+                    break
+                yield piece
+        finally:
+            self._restore_timeout()
+
+    def abort(self) -> None:
+        if self._connection is not None:
+            try:
+                self._connection.shutdown(socket.SHUT_RD)
+            except OSError:
+                pass
+
     def discard(self) -> None:
         if self._finished:
             return
@@ -375,6 +394,8 @@ class RelayHandler(BaseHTTPRequestHandler):
                 remote_ip=self._client_ip,
                 body=body,
                 peer_closed=self._peer_closed,
+                wait_for_signal=self._wait_for_signal,
+                abort_response=self._abort_response,
             )
             response = self.server.app.handle(request)
         except BodyError as error:
@@ -405,6 +426,23 @@ class RelayHandler(BaseHTTPRequestHandler):
         except OSError:
             return True
 
+    def _wait_for_signal(self, signal_reader, timeout: float) -> str:
+        try:
+            readable, _, _ = select.select([self.connection, signal_reader], [], [], max(0, timeout))
+            if self.connection in readable:
+                # A cloud long poll/GET has no unread input. Pipelined input ends this wait too,
+                # rather than spinning on a readable socket or reading another request's bytes.
+                return "peer_closed"
+            return "notified" if signal_reader in readable else "timeout"
+        except (OSError, ValueError):
+            return "peer_closed"
+
+    def _abort_response(self) -> None:
+        try:
+            self.connection.shutdown(socket.SHUT_RDWR)
+        except OSError:
+            pass
+
     def _access_log(self, status: int, started: float) -> None:
         self.server.log.info(
             "%s %s %s %s %.3fs",
@@ -434,6 +472,8 @@ class RelayHandler(BaseHTTPRequestHandler):
                 body = response.body
                 length = len(body)
         try:
+            if stream is not None and stream.deadline is not None:
+                self._arm_stream_write(stream.deadline)
             self.send_response(response.status)
             if response.content_type:
                 self.send_header("Content-Type", response.content_type)
@@ -451,6 +491,8 @@ class RelayHandler(BaseHTTPRequestHandler):
                 # is copied to disk, so a shared payload can stream at any size.
                 for chunk in stream.chunks():
                     if chunk:
+                        if stream.deadline is not None:
+                            self._arm_stream_write(stream.deadline)
                         self.wfile.write(chunk)
                 if stream.failed:
                     # The announced length was not delivered. Close so the peer sees the
@@ -477,6 +519,12 @@ class RelayHandler(BaseHTTPRequestHandler):
             # the upstream socket instead of leaking it until a timeout.
             if stream is not None:
                 stream.close()
+
+    def _arm_stream_write(self, deadline: float) -> None:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            raise TimeoutError()
+        self.connection.settimeout(min(float(self.server.config.socket_timeout_seconds), remaining))
 
     do_GET = _dispatch
     do_HEAD = _dispatch
@@ -556,6 +604,7 @@ class RelayServer(ThreadingHTTPServer):
                 self.log.exception("maintenance pass failed")
 
     def stop(self) -> None:
+        self.app.cloud.close()
         try:
             self.shutdown()
         except Exception:  # noqa: BLE001 - already stopped

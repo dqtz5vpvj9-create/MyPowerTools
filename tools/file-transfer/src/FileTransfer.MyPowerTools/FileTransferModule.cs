@@ -69,6 +69,8 @@ public sealed partial class FileTransferModule : IMptModule
         Directory.CreateDirectory(_data);
         _openList = new OpenListRuntime(Path.Combine(_data, "openlist"));
         _secrets = context.GetCapability<ISecretStore>("secret.store");
+        _cloudAccountStore = new FileTransfer.Core.Cloud.CloudAccountStore(Path.Combine(_data, "cloud-accounts.json"));
+        _cloudAccounts = await _cloudAccountStore.LoadAsync(token);
         if (context.TryGetCapability<IBackgroundActivityService>("background.activity", out var background)) _background = background;
         if (context.TryGetCapability<IDownloadsService>("files.downloads", out var downloads)) _downloads = downloads;
         if (OperatingSystem.IsAndroid()) _settings["receiveDirectory"] = Path.Combine(_data, "incoming");
@@ -194,9 +196,11 @@ public sealed partial class FileTransferModule : IMptModule
 
     private static readonly string[] Commands = ["inspect", "configure", "pairing", "pair.preview", "pair.import", "peers.remove", "peer.check", "receive.start", "receive.stop", "send.direct", "send.cloud", "cloud.list", "cloud.download", "cloud.check", "cloud.export", "cloud.import", "cancel", "openlist.start", "openlist.connect", "openlist.stop",
         "assistant.inspect", "assistant.send", "assistant.sync", "assistant.retry", "assistant.cancel", "assistant.open", "assistant.devices", "assistant.receive.respond", "assistant.link.export", "assistant.link.preview", "assistant.link.import",
-        "assistant.preferences.inspect", "assistant.preferences.update"];
+        "assistant.preferences.inspect", "assistant.preferences.update",
+        "cloud.accounts.inspect", "cloud.accounts.authorize.begin", "cloud.accounts.authorize.status", "cloud.accounts.authorize.cancel", "cloud.accounts.authorize.complete",
+        "cloud.accounts.default", "cloud.accounts.pause", "cloud.accounts.disconnect", "cloud.accounts.folders", "cloud.accounts.directory", "cloud.accounts.preferences"];
     public ValueTask<IReadOnlyList<MptCommandDescriptor>> ListCommandsAsync(CancellationToken token) => ValueTask.FromResult<IReadOnlyList<MptCommandDescriptor>>(
-        Commands.Select(c => new MptCommandDescriptor($"{Id}.{c}", Id, c, "文件互传", "action", TimeoutMs: c == "openlist.start" ? 1200000 : 60000,
+        Commands.Select(c => new MptCommandDescriptor($"{Id}.{c}", Id, c, "文件互传", "action", TimeoutMs: c is "openlist.start" or "cloud.accounts.authorize.complete" ? 1200000 : 60000,
             SupportsCancellation: true)).ToArray());
 
     public async ValueTask<CommandExecutionResult> ExecuteCommandAsync(CommandRequest request, CancellationToken token)
@@ -323,6 +327,7 @@ public sealed partial class FileTransferModule : IMptModule
                 case "file-transfer.send.direct":
                 case "file-transfer.send.cloud":
                 case "file-transfer.cloud.download":
+                    if (CloudOnly && request.CommandId == "file-transfer.send.direct") throw new InvalidOperationException(FileTransfer.Core.Cloud.CloudAccountRules.PendingReason);
                     await BeginTransferAsync(request, token); result = new { started = true }; break;
                 case "file-transfer.cancel":
                     _transfer?.Cancel(); result = new { cancelled = true }; break;
@@ -441,6 +446,8 @@ public sealed partial class FileTransferModule : IMptModule
                     finally { _operations.Release(); }
                     NoteRelayReachable();
                     result = new { connected = true }; break;
+                case var command when command.StartsWith("file-transfer.cloud.accounts.", StringComparison.Ordinal):
+                    result = await CloudAccountCommandAsync(command["file-transfer.cloud.accounts.".Length..], request.Args, token); break;
                 default: throw new ArgumentException("未知的文件互传操作。");
             }
             return new(request.InvocationId, request.CommandId, "succeeded", true, JsonSerializer.Serialize(result, DirectTransfer.Json));
@@ -1141,6 +1148,10 @@ public sealed partial class FileTransferModule : IMptModule
     public async ValueTask DisposeAsync(CancellationToken token)
     {
         await _lifetime.CancelAsync();
+        if (_cloudPayloadWorker is { } cloudWorker)
+        {
+            try { await cloudWorker; } catch (OperationCanceledException) { }
+        }
         // Both assistant transports can still be using the runtime and secret store. Drain them
         // before disposing those services or releasing their per-item cancellation sources.
         if (_assistantWorker is { } assistantWorker)

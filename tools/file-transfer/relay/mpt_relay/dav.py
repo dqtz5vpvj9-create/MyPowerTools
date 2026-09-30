@@ -102,7 +102,7 @@ def parse_dav_target(config: Config, url_path: str) -> DavTarget:
 
 def resolve(store: Store, conversation_id: str, segments: Sequence[str]) -> Path:
     """Maps segments onto the conversation's private root, enforcing the assistant rule."""
-    if len(segments) >= 2 and segments[0] == "assistant" and segments[1] != conversation_id:
+    if len(segments) >= 2 and segments[0] in ("assistant", "cloud-locator") and segments[1] != conversation_id:
         # The assistant layout is per conversation; another conversation's tree is not a
         # namespace this credential may address, not even for a 404 probe.
         raise DavError(403, "assistant 命名空间只能访问本会话。")
@@ -120,6 +120,7 @@ def handle(
     conversation_id: str,
     request: Request,
     log: Optional[logging.Logger] = None,
+    cloud=None,
 ) -> Response:
     """Dispatches one WebDAV method for an already authenticated conversation."""
     target = parse_dav_target(config, request.url_path)
@@ -129,9 +130,11 @@ def handle(
         return _options(path)
     if method in ("GET", "HEAD"):
         return _get_or_shared_proxy(
-            store, config, conversation_id, target, path, request, log, head_only=(method == "HEAD")
+            store, config, conversation_id, target, path, request, log, head_only=(method == "HEAD"), cloud=cloud
         )
     if method == "PUT":
+        if cloud is not None:
+            cloud.validate_put(conversation_id, target.segments, request)
         return _put(store, config, conversation_id, target, path, request)
     if method == "MKCOL":
         return _mkcol(store, conversation_id, path, target, request)
@@ -153,6 +156,7 @@ def _get_or_shared_proxy(
     request: Request,
     log: Optional[logging.Logger],
     head_only: bool,
+    cloud=None,
 ) -> Response:
     """A committed local payload always wins; a missing one may be proxied from the Tail relay.
 
@@ -164,6 +168,10 @@ def _get_or_shared_proxy(
     except DavError as error:
         if error.status != 404:
             raise
+    if cloud is not None:
+        streamed = cloud.payload(conversation_id, target.segments, target.trailing_slash, request)
+        if streamed is not None:
+            return streamed
     proxied = shared_payload.proxy(
         store, config, conversation_id, target.segments, target.trailing_slash, request, log
     )

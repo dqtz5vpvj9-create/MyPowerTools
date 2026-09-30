@@ -35,6 +35,14 @@ class BodyReader:
     def consumed(self) -> bool:
         raise NotImplementedError
 
+    def chunks(self, deadline: Optional[float] = None) -> Iterator[bytes]:
+        """Bounded body pieces without a disk staging file."""
+        raise NotImplementedError
+
+    def abort(self) -> None:
+        """Interrupt an in-flight read when its downstream receiver is gone."""
+        return None
+
 
 class BodyStream:
     """A bounded chunk source for a streaming response body.
@@ -50,6 +58,8 @@ class BodyStream:
 
     #: Total bytes the stream will yield.
     length: int = 0
+    #: Optional absolute monotonic deadline, including blocked downstream socket writes.
+    deadline: Optional[float] = None
 
     @property
     def failed(self) -> bool:
@@ -73,6 +83,10 @@ class Request:
     body: BodyReader
     #: Returns True when the peer closed the connection (used to end a long poll early).
     peer_closed: Callable[[], bool] = lambda: False
+    #: Wait on a notification socket and this request's peer; no periodic disconnect polling.
+    wait_for_signal: Optional[Callable[[object, float], str]] = None
+    #: Interrupt a response write already committed to a streaming consumer.
+    abort_response: Callable[[], None] = lambda: None
 
     def header(self, name: str) -> Optional[str]:
         return self.headers.get(name.lower())

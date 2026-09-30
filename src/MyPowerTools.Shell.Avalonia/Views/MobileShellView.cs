@@ -302,10 +302,11 @@ public sealed class MobileShellView : UserControl, IAsyncDisposable, IMobileNavi
     /// </summary>
     public void SetNativeSurfaceServices(
         Func<CancellationToken, Task<string?>>? scanConnectionCodeAsync,
-        Func<string, CancellationToken, Task<bool>>? openFileAsync)
+        Func<string, CancellationToken, Task<bool>>? openFileAsync,
+        Func<string, CancellationToken, Task<MyPowerTools.AvaloniaSdk.MptCloudAuthorizationResult?>>? authorizeCloudAccountAsync = null)
     {
         _scanConnectionCodeAsync = scanConnectionCodeAsync;
-        _workspace.SetNativeSurfaceServices(scanConnectionCodeAsync, openFileAsync);
+        _workspace.SetNativeSurfaceServices(scanConnectionCodeAsync, openFileAsync, authorizeCloudAccountAsync);
     }
 
     public async Task ActivateAsync(ToolActivationRequest request)

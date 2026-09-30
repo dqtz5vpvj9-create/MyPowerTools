@@ -72,6 +72,12 @@ def _defaults() -> Dict[str, object]:
         "tail_payload_proxy": False,
         "tail_payload_origin": TRUSTED_TAIL_ORIGIN,
         "tail_payload_timeout_seconds": 30,
+        # Reverse cloud streams use memory only. Keep connection slots for producers and polls.
+        "cloud_payload_stream": False,
+        "cloud_max_requests": 16,
+        "cloud_requests_per_conversation": 4,
+        "cloud_wait_seconds": 30,
+        "cloud_stream_seconds": 900,
         # --- diagnostics ---------------------------------------------------------------
         "log_level": "info",
         "mask_log_ids": True,
@@ -120,6 +126,11 @@ class Config:
     tail_payload_proxy: bool = False
     tail_payload_origin: str = TRUSTED_TAIL_ORIGIN
     tail_payload_timeout_seconds: int = 30
+    cloud_payload_stream: bool = False
+    cloud_max_requests: int = 16
+    cloud_requests_per_conversation: int = 4
+    cloud_wait_seconds: int = 30
+    cloud_stream_seconds: int = 900
     log_level: str = "info"
     mask_log_ids: bool = True
 
@@ -312,6 +323,10 @@ def _validate(config: Config) -> None:
         raise ConfigError("max_tracked_addresses 必须 ≥ 16。")
     if not (1 <= config.tail_payload_timeout_seconds <= 600):
         raise ConfigError("tail_payload_timeout_seconds 必须在 1..600 之间。")
+    if not (1 <= config.cloud_max_requests <= 256 and 1 <= config.cloud_requests_per_conversation <= config.cloud_max_requests):
+        raise ConfigError("cloud 请求上限必须满足 1 <= 每会话 <= 全局 <= 256。")
+    if not (1 <= config.cloud_wait_seconds <= 120 and 1 <= config.cloud_stream_seconds <= 3600):
+        raise ConfigError("cloud 等待必须在 1..120 秒，流式传输在 1..3600 秒之间。")
     # The origin is validated even while the feature is off: it is a new key, so strictness
     # cannot break an existing deployment file, and a typo must never become reachable later.
     validate_tail_origin(config.tail_payload_origin)

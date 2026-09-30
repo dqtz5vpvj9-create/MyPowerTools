@@ -147,7 +147,7 @@ public sealed class MainActivity : AvaloniaMainActivity
                 // Native surface capabilities are connected before any activation can reach a tool
                 // surface: the camera scanner and the platform file opener are Android-owned, and a
                 // surface that loads without them simply cannot scan or open a local file.
-                shell.SetNativeSurfaceServices(ScanConnectionCodeAsync, OpenLocalFileAsync);
+                shell.SetNativeSurfaceServices(ScanConnectionCodeAsync, OpenLocalFileAsync, CloudAuthorization.CloudLogin.AuthorizeAsync);
                 _shell = shell;
                 view.ShowShell(shell);
                 ready.TrySetResult(shell);

@@ -12,6 +12,8 @@
   以及第 6 节的设备配对收件箱 `inboxId`/`ownerKey`/`depositKey` 投递协议）。
 - **客户端**：`src/FileTransfer.Core/PublicRelayClient.cs`（M4 维护，本目录不改动客户端、Surface、
   Module 或全局文档）。
+- **可选网盘流**：[docs/CLOUD_STREAM.md](docs/CLOUD_STREAM.md)。发送端在线时，从其网盘流式供给
+  共享会话接收者；中转不保存文件正文。默认关闭，不改变原有离线队列。
 
 ## 目录
 
@@ -22,6 +24,7 @@ mpt_relay/            服务源码（无第三方依赖）
   auth.py             Basic 解析与 conversationId/key 字段规则
   dav.py              WebDAV：MKCOL/PROPFIND/PUT/GET/HEAD/DELETE/OPTIONS，原子 PUT、路径校验
   inbox.py            设备配对收件箱：owner/deposit 双凭据、投递、待处理列表、真实回执
+  cloud_stream.py     共享网盘文件的反向流：限文件能力、一次 claim、背压和连接清理
   fsutil.py           原子写（临时文件 + fsync + rename）等共享文件系统助手
   app.py              路由：health、注册、长轮询、DAV 认证与 namespace 隔离
   httpd.py            HTTP/1.1 传输：流式请求体、chunked、长轮询断线检测、连接上限
@@ -51,7 +54,7 @@ docs/PROTOCOL.md      固定协议（给 M4、GPT UI、主代理）
 ```bash
 cd tools/file-transfer/relay
 python3 -m mpt_relay --print-config                 # 查看生效配置
-python3 -m mpt_relay --data-dir /tmp/mpt-relay-demo # 默认 127.0.0.1:18765
+python3 -m mpt_relay --data-dir /mnt/cache/data-cache/mpt-relay-demo # 默认 127.0.0.1:18765
 curl -fsS http://127.0.0.1:18765/mpt/relay/health
 ```
 

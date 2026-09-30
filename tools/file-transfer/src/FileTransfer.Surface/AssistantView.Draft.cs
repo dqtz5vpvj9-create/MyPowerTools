@@ -148,8 +148,11 @@ internal sealed partial class AssistantView
 
     private void ConversationScrollChanged()
     {
+        // A scroll position is not shown in the conversation list, and rebuilding its rows from a
+        // ScrollChanged notification would invalidate the layout pass that raised it -- and the rows
+        // are the thread's siblings in the same page. The draft is still captured and persisted.
         CaptureConversationScroll();
-        DraftChanged();
+        DraftChanged(refreshNavigation: false);
     }
 
     private void RestoreConversationScroll()
@@ -167,7 +170,7 @@ internal sealed partial class AssistantView
         }, DispatcherPriority.Loaded);
     }
 
-    private void DraftChanged()
+    private void DraftChanged(bool refreshNavigation = true)
     {
         if (_restoringDraft) return;
         var current = CurrentDraft();
@@ -179,7 +182,7 @@ internal sealed partial class AssistantView
         if (_draftSave is not { IsCompleted: false } && JsonNode.DeepEquals(current, _persistedDrafts.GetValueOrDefault(ActiveConversationKey)))
             _pendingDrafts.Remove(ActiveConversationKey);
         else _pendingDrafts[ActiveConversationKey] = current;
-        RefreshConversationNavigation();
+        if (refreshNavigation) RefreshConversationNavigation();
         _draftSaveTimer ??= new DispatcherTimer(TimeSpan.FromMilliseconds(250), DispatcherPriority.Normal, (_, _) =>
         { _draftSaveTimer!.Stop(); _ = SaveDraftAsync(); });
         _draftSaveTimer.Stop();

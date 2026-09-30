@@ -60,6 +60,7 @@
     <PackageReference Include="Xamarin.AndroidX.AppCompat" Version="1.7.1.3" />
     <ProjectReference Include="../MyPowerTools.Shell.Avalonia/MyPowerTools.Shell.Avalonia.csproj" AdditionalProperties="OutputType=Library" />
     <ProjectReference Include="../MyPowerTools.Platform.Android/MyPowerTools.Platform.Android.csproj" />
+    <ProjectReference Include="../MyPowerTools.AvaloniaSdk/MyPowerTools.AvaloniaSdk.csproj" />
     <ProjectReference Include="../MyPowerTools.HostControl.Server/MyPowerTools.HostControl.Server.csproj" />
     <ProjectReference Include="../MyPowerTools.ModuleHost.InProcDotNet/MyPowerTools.ModuleHost.InProcDotNet.csproj" />
     <!-- Bundled Android tool modules: the build must produce each module before it is embedded. -->

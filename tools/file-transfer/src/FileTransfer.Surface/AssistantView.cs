@@ -91,6 +91,15 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
     private AssistantItem? _pendingForward;
     private int _lastItemCount = -1;
     private bool _followThreadEnd = true;
+    // Set by a scroll notification, performed once after layout: hiding the cue resizes the composer
+    // row, which is the viewport the notification came from.
+    private bool _hideNewMessagesCue;
+    private bool _followQueued;
+    // The offset the follow decision was made from. The queued job runs one dispatcher turn later, so
+    // it must be able to tell "content grew under a following view" (the offset did not move) from
+    // "the view moved while this job was pending" (the offset did move) without asking the extent,
+    // which grows on its own.
+    private double _followQueueOffset;
 
     public AssistantView(MptAvaloniaSurfaceContext context, AssistantCore core, TransferCore legacy)
     {
@@ -158,22 +167,26 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
             // Extent and viewport settle during layout, after a snapshot rebuilt the rows.
             // Keep following the latest entry through those size changes, including receipt text
             // wrapping and the Android keyboard changing the viewport.
+            //
+            // A ScrollChanged notification is raised from inside the ScrollViewer's own arrange pass.
+            // Anything written here that is a layout input of this viewport -- the offset itself and
+            // the composer row that the "new messages" cue lives in -- would invalidate the pass that
+            // produced the notification. The decision is therefore recorded here and performed once,
+            // after layout, by QueueFollowThreadEnd.
             if (e.ExtentDelta.Y != 0 || e.ViewportDelta.Y != 0)
             {
-                if (_threadScroll.Extent.Height <= _threadScroll.Viewport.Height + 1 ||
-                    _threadScroll.Offset.Y >= _threadScroll.Extent.Height - _threadScroll.Viewport.Height - 1)
+                if (AtThreadEnd())
                 {
                     _followThreadEnd = true;
-                    _newMessages.IsVisible = false;
+                    _hideNewMessagesCue = true;
                 }
-                if (_followThreadEnd) _threadScroll.ScrollToEnd();
+                if (_followThreadEnd) QueueFollowThreadEnd();
             }
             else if (e.OffsetDelta.Y != 0)
             {
                 ConversationScrollChanged();
                 // A person scrolling into history owns that position until another message arrives.
-                _followThreadEnd = _threadScroll.Offset.Y >=
-                    _threadScroll.Extent.Height - _threadScroll.Viewport.Height - 1;
+                _followThreadEnd = AtThreadEnd();
             }
         };
 
@@ -393,6 +406,8 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
     private StackPanel BuildSetupSheet()
     {
         var choices = new StackPanel { Spacing = 2 };
+        choices.Children.Add(MobileUi.ListRow("MptMobileIconCloud", "我的网盘", "登录网盘，让这台设备按需使用它中转",
+            () => { OpenCloudAccounts(); return Task.CompletedTask; }));
         choices.Children.Add(MobileUi.ListRow("MptMobileIconDevices", "连接我的设备", "用连接码把另一台设备加入这个会话",
             () => { ShowSheet(_linkSheet); SyncLinkSheet(); return Task.CompletedTask; }));
         choices.Children.Add(MobileUi.ListRow("MptMobileIconReceive", "接收文件", "允许另一台设备直接发文件到这台设备",
@@ -518,6 +533,9 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
     /// <summary>The conversation thread panel, so a test can act on an entry's own actions.</summary>
     internal StackPanel ThreadPanel => _thread;
 
+    /// <summary>The thread's scroll viewer, so a test can assert the follow/restore position it owns.</summary>
+    internal ScrollViewer ThreadScroll => _threadScroll;
+
     /// <summary>The sheet host, so a test can act on the management rows inside it.</summary>
     internal Border SheetHost => _sheetHost;
 
@@ -585,6 +603,7 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
     internal void CloseSheet()
     {
         if (!_sheetOpen) return;
+        CloseCloudAccounts();
         _sheetOpen = false;
         _pendingForward = null;
         _sheetScrim.IsVisible = false;
@@ -617,6 +636,7 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
     public bool TryHandleBack()
     {
         if (!IsEffectivelyVisible || TopLevel.GetTopLevel(this) is null) return false;
+        if (_sheetOpen && _cloudAccounts?.TryHandleBack() == true) return true;
         if (_sheetOpen) { DismissSheet(); return true; }
         if (_chatOpen && _viewport < PhoneWidth) { ReturnToConversationList(); return true; }
         return false;
@@ -694,6 +714,7 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
     internal void Detach()
     {
         if (!_attached) return;
+        CloseCloudAccounts();
         _attached = false;
         _draftSaveTimer?.Stop();
         _ = SaveDraftAsync();
@@ -722,6 +743,46 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
         _previewedPairCode = null;
         if (_sheetTitle.Text == "我的文件互传码") _sheetScroll.Content = null;
         if (_qrValue is not null) _qrValue.Value = null;
+    }
+
+    /// <summary>True when the thread has nothing left below the current offset.</summary>
+    private bool AtThreadEnd() =>
+        _threadScroll.Extent.Height <= _threadScroll.Viewport.Height + 1 ||
+        _threadScroll.Offset.Y >= _threadScroll.Extent.Height - _threadScroll.Viewport.Height - 1;
+
+    /// <summary>
+    /// Performs the follow-the-newest work outside the layout pass that asked for it. Both writes --
+    /// hiding the "new messages" cue (it lives in the composer row, so it changes this viewport) and
+    /// moving the offset -- are layout inputs of the ScrollViewer, and a ScrollChanged notification is
+    /// raised from inside its arrange. One posted job per layout pass keeps that from re-entering.
+    /// </summary>
+    private void QueueFollowThreadEnd()
+    {
+        if (_followQueued) return;
+        _followQueued = true;
+        _followQueueOffset = _threadScroll.Offset.Y;
+        Dispatcher.UIThread.Post(
+            () =>
+            {
+                _followQueued = false;
+                if (!_attached || !_followThreadEnd) return;
+                // Only a moved offset means the view itself moved while this job was pending, and only
+                // then does the reader's own position win. Content that grew (an appended entry, receipt
+                // wrapping, a finished image decode) or a viewport that changed (the keyboard) moves the
+                // end, not the reader, and must keep following exactly as it did when this ran inline.
+                if (_threadScroll.Offset.Y != _followQueueOffset && !AtThreadEnd()) return;
+                if (_hideNewMessagesCue)
+                {
+                    _hideNewMessagesCue = false;
+                    _newMessages.IsVisible = false;
+                }
+                // Write the finite end instead of ScrollToEnd's open-ended target, and only when the
+                // view is really not there: a follow that is already at the end must not touch the
+                // ScrollViewer's offset at all.
+                var end = Math.Max(0, _threadScroll.Extent.Height - _threadScroll.Viewport.Height);
+                if (Math.Abs(_threadScroll.Offset.Y - end) > 0.5) _threadScroll.Offset = new Vector(0, end);
+            },
+            DispatcherPriority.Loaded);
     }
 
     /// <summary>

@@ -14,7 +14,7 @@ from __future__ import annotations
 import re
 from typing import Optional
 
-_ASSISTANT_ID = re.compile(r"(assistant/)([^/]+)")
+_ASSISTANT_ID = re.compile(r"((?:assistant|assistant-locator|cloud-locator)/)([^/]+)")
 
 
 def mask_id(value: str) -> str:
