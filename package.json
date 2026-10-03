@@ -1,0 +1,8 @@
+{
+  "name": "mypowertools-workflow-tests",
+  "private": true,
+  "type": "module",
+  "scripts": { "test:file-transfer": "e2e run tests/e2e/file-transfer.e2e.ts" },
+  "engines": { "node": ">=22.12.0" },
+  "devDependencies": { "e2e": "0.16.0" }
+}

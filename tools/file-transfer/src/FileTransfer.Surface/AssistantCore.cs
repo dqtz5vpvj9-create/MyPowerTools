@@ -103,9 +103,15 @@ internal sealed class AssistantCore : IDisposable
             var message = response.Error?.Message;
             throw new InvalidOperationException(string.IsNullOrWhiteSpace(message) ? response.Output : message);
         }
-        if (string.IsNullOrWhiteSpace(response.Output)) return new JsonObject();
-        try { return JsonNode.Parse(response.Output) ?? new JsonObject(); }
-        catch (JsonException) { return new JsonObject(); }
+        try
+        {
+            if (!string.IsNullOrWhiteSpace(response.Output) && JsonNode.Parse(response.Output) is JsonObject answer)
+                return answer;
+        }
+        catch (JsonException) { }
+        // Invalid output must never masquerade as an empty successful response:
+        // inspect would otherwise erase the visible session and its identity.
+        throw new InvalidOperationException("文件助手返回了无效响应，请重试。");
     }
 
     public Task<JsonNode> InspectPreferencesAsync() => CallAsync("preferences.inspect");
@@ -350,6 +356,8 @@ internal sealed class AssistantCore : IDisposable
 
     private void ApplyInspect(JsonNode answer)
     {
+        if (answer["identity"] is not JsonObject || answer["items"] is not JsonArray)
+            throw new InvalidOperationException("文件助手返回了无效响应，请重试。");
         var identity = answer["identity"] as JsonObject;
         var relay = answer["relay"] as JsonObject;
         var next = _snapshot with

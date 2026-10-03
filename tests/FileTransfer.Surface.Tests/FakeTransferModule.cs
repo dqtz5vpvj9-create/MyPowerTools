@@ -105,6 +105,7 @@ internal sealed class FakeTransferModule
 
     /// <summary>Lets a test hold one command open, so a slow module can be exercised.</summary>
     public Func<string, Task?>? BeforeAnswer { get; set; }
+    public Dictionary<string, string> RawResponses { get; } = [];
 
     public MptAvaloniaSurfaceContext Context(
         string dataDirectory,
@@ -149,6 +150,8 @@ internal sealed class FakeTransferModule
     {
         var name = command.StartsWith("file-transfer.", StringComparison.Ordinal) ? command["file-transfer.".Length..] : command;
         _calls.Add((name, args?.DeepClone().AsObject()));
+        if (RawResponses.TryGetValue(name, out var rawResponse))
+            return Task.FromResult(new CommandExecutionResult(command, command, "completed", true, rawResponse));
         if (BeforeAnswer?.Invoke(name) is { } gate)
             return AwaitGateAsync(gate, command, args);
         if (MissingCommands.Contains(name))

@@ -104,7 +104,7 @@ public sealed class StagedOutboxTests : IDisposable
     public async Task An_old_orphan_staged_copy_is_swept_without_touching_a_pending_one()
     {
         var orphan = Stage("旧文件.bin");
-        File.SetLastWriteTimeUtc(Path.GetDirectoryName(orphan)!, DateTime.UtcNow.AddDays(-2));
+        Directory.SetLastWriteTimeUtc(Path.GetDirectoryName(orphan)!, DateTime.UtcNow.AddDays(-2));
         var pending = Stage("待发送.bin");
         _core.AddStage(pending);
 

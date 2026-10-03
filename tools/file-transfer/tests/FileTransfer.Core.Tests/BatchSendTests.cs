@@ -59,8 +59,10 @@ public sealed class BatchSendTests : IDisposable
     [Fact]
     public void PathsAcceptsAnArrayOrASinglePathAndRejectsUnusableInput()
     {
-        Assert.Equal(new[] { "/a/one.txt", "/a/two.txt" }, BatchSend.Paths(new JsonObject { ["paths"] = new JsonArray("/a/one.txt", "/a/two.txt") }));
-        Assert.Equal(new[] { "/a/one.txt" }, BatchSend.Paths(new JsonObject { ["path"] = "/a/one.txt" }));
+        var one = Path.Combine(_root, "one.txt");
+        var two = Path.Combine(_root, "two.txt");
+        Assert.Equal(new[] { one, two }, BatchSend.Paths(new JsonObject { ["paths"] = new JsonArray(one, two) }));
+        Assert.Equal(new[] { one }, BatchSend.Paths(new JsonObject { ["path"] = one }));
         Assert.Empty(BatchSend.Paths(new JsonObject { ["paths"] = new JsonArray("", " ") }));
         Assert.Empty(BatchSend.Paths(new JsonObject()));
         var relative = Assert.Throws<ArgumentException>(() => BatchSend.Paths(new JsonObject { ["paths"] = new JsonArray("one.txt") }));

@@ -1,5 +1,23 @@
 # 文件互传
 
+## Windows 开发版与 e2e 回归
+
+使用 `ci/both-installers` 的匹配宿主：当前工具需要该分支的 Platform 0.3.0、会话、二维码与移动界面 SDK。首次准备本地 SDK 时执行 `dotnet pack src/MyPowerTools.Platform.Abstractions -o artifacts/sdk/nuget`。先从仓库运行 `scripts/Start-MyPowerTools-Dev.ps1` 更新宿主，再运行 `scripts/Start-MyPowerTools-Dev.ps1 -Scope Tools -ToolId file-transfer` 更新工具，两步都会从完整安装目录启动开发版。
+
+使用 tester-army/e2e 运行 Windows 传输回归：
+
+```powershell
+npm ci
+dotnet build tools/file-transfer/tests/FileTransfer.Core.Tests/FileTransfer.Core.Tests.csproj -c Debug
+dotnet build tests/FileTransfer.Surface.Tests/FileTransfer.Surface.Tests.csproj -c Debug
+dotnet build src/MyPowerTools.Cli/MyPowerTools.Cli.csproj -c Debug
+npx e2e run tests/e2e/file-transfer.e2e.ts
+```
+
+七组用例覆盖真实 TCP 直传、真实 Python 中转、无 Tailscale 的双模块自动收件与回执、共享附件回退与重启、会话队列与失败重试、Avalonia 真实控件交互及草稿，以及已安装开发版的程序集与 Runner 命令。报告写入 `.e2e/file-transfer`。测试使用短临时路径和隐藏子进程，既保留 Windows 的真实刷盘行为，也避免测试路径超过旧版 Python 的长度限制。浏览器和手机引擎没有 Windows Avalonia 桌面驱动，因此 e2e 通过原生测试宿主和生产模块执行这些流程；本轮没有进行手机真机或真实网盘账号登录验收。
+
+2026-10-04 修复：Windows 中转上传刷盘使用可写句柄；无效或不完整的模块响应会显示错误并保留现有会话。现有会话界面测试位于 `tests/FileTransfer.Surface.Tests`；工具目录中的旧 Surface 用例仍针对先前的经典页面入口。
+
 文件互传是 MPT 模块，使用现有命令、事件、平台密钥存储和 Avalonia Surface。Windows、macOS 与 Android 共用传输协议和页面；Android 接收完成后通过平台接口把文件发布到系统下载目录。
 
 ## 使用

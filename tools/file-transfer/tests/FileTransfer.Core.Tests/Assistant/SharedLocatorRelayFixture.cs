@@ -48,7 +48,7 @@ internal sealed class SharedLocatorRelayFixture(string directory) : IAsyncDispos
         var repository = new DirectoryInfo(AppContext.BaseDirectory);
         while (repository is not null && !File.Exists(Path.Combine(repository.FullName, "tools/file-transfer/relay/mpt_relay/service.py"))) repository = repository.Parent;
         if (repository is null) throw new InvalidOperationException("找不到真实 relay 源码。");
-        var info = new ProcessStartInfo("python3") { RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false };
+        var info = new ProcessStartInfo("python3") { RedirectStandardOutput = true, RedirectStandardError = true, UseShellExecute = false, CreateNoWindow = true };
         info.ArgumentList.Add(script);
         info.ArgumentList.Add(Path.Combine(repository.FullName, "tools/file-transfer/relay"));
         info.ArgumentList.Add(directory);
