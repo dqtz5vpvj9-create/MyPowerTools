@@ -10,4 +10,7 @@
     <ProjectReference Include="..\NssmManager.Contracts\NssmManager.Contracts.csproj" />
     <Compile Include="..\NssmManager.Runtime\NssmElevatedClient.cs" Link="Broker\NssmElevatedClient.cs" />
   </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="NssmManager.Tests" />
+  </ItemGroup>
 </Project>

@@ -10,6 +10,97 @@ namespace MyPowerTools.Tests;
 
 public sealed class RemoteNotificationHttpPollerTests
 {
+    [Theory]
+    [InlineData("{\"notifications\":[]}", "idle")]
+    [InlineData("{\"notifications\":[{\"message\":\"   \"}]}", "idle")]
+    [InlineData("null", "error")]
+    [InlineData("not-json", "error")]
+    public async Task RemoteNotificationWorkflow_handles_empty_and_invalid_server_responses(string body, string state)
+    {
+        using var fixture = OpenSshKeyFixture.Create();
+        var handler = new RecordingHandler(_ => new HttpResponseMessage(HttpStatusCode.OK)
+        {
+            Content = new StringContent(body, Encoding.UTF8, "application/json")
+        });
+        using var client = new HttpClient(handler);
+        var poller = new RemoteNotificationHttpPoller(client, fixture.Path, "https://notifications.example.test", "e2e-isolated");
+
+        var result = await poller.PullAsync("");
+
+        Assert.Equal(state, result.State);
+        Assert.Empty(result.Notifications);
+        Assert.Single(handler.Requests);
+        if (state == "error") Assert.False(string.IsNullOrWhiteSpace(result.Error));
+    }
+
+    [Fact]
+    public async Task RemoteNotificationWorkflow_recovers_from_transport_failure_and_preserves_metadata()
+    {
+        using var fixture = OpenSshKeyFixture.Create();
+        var attempts = 0;
+        var handler = new RecordingHandler(_ =>
+        {
+            if (++attempts < 3) throw new HttpRequestException("transport interrupted sig=private-handshake");
+            return new HttpResponseMessage(HttpStatusCode.OK)
+            {
+                Content = new StringContent("""
+                    {"notifications":[{"message_id":"fallback","message":"[build] ready",
+                    "session_id":"session-1","session_name":"Build","source_client":"codex",
+                    "source_event_id":"event-1","source_message_id":"source-1","content_kind":"assistant_final"}]}
+                    """, Encoding.UTF8, "application/json")
+            };
+        });
+        using var client = new HttpClient(handler);
+        var poller = new RemoteNotificationHttpPoller(client, fixture.Path, "https://notifications.example.test", "e2e-isolated");
+
+        var result = await poller.PullAsync("2026-10-03T00:00:00Z", CancellationToken.None, 2500);
+
+        Assert.Equal("ok", result.State);
+        Assert.Equal(3, attempts);
+        var record = Assert.Single(result.Notifications);
+        Assert.Equal("fallback", record.Id);
+        Assert.Equal("e2e-isolated", record.Channel);
+        Assert.Equal("info", record.Icon);
+        Assert.Equal("session-1", record.SessionId);
+        Assert.Equal("Build", record.SessionName);
+        Assert.Equal("codex", record.SourceClient);
+        Assert.Equal("event-1", record.SourceEventId);
+        Assert.Equal("source-1", record.SourceMessageId);
+        Assert.Equal("assistant_final", record.ContentKind);
+        Assert.All(handler.Requests, request => Assert.Equal("2000", ParseQuery(request.RequestUri!)["limit"]));
+    }
+
+    [Fact]
+    public async Task RemoteNotificationWorkflow_exhausted_transport_retries_redact_the_signature()
+    {
+        using var fixture = OpenSshKeyFixture.Create();
+        var handler = new RecordingHandler(_ => throw new HttpRequestException("transport interrupted sig=private-handshake"));
+        using var client = new HttpClient(handler);
+        var poller = new RemoteNotificationHttpPoller(client, fixture.Path, "https://notifications.example.test", "e2e-isolated");
+
+        var result = await poller.PullAsync("");
+
+        Assert.Equal("error", result.State);
+        Assert.Equal(3, handler.Requests.Count);
+        Assert.Contains("sig=<redacted>", result.Error);
+        Assert.DoesNotContain("private-handshake", result.Error);
+    }
+
+    [Fact]
+    public async Task RemoteNotificationWorkflow_cancellation_stops_before_any_request()
+    {
+        using var fixture = OpenSshKeyFixture.Create();
+        var handler = new RecordingHandler(_ => throw new InvalidOperationException("No request should occur"));
+        using var client = new HttpClient(handler);
+        using var cancellation = new CancellationTokenSource();
+        cancellation.Cancel();
+        var poller = new RemoteNotificationHttpPoller(client, fixture.Path, "https://notifications.example.test", "e2e-isolated");
+
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => poller.PullAsync("", cancellation.Token));
+
+        Assert.Empty(handler.Requests);
+    }
+
     [Fact]
     public void Dotnet_signer_preserves_the_original_ed25519_hello_protocol()
     {
@@ -55,7 +146,8 @@ public sealed class RemoteNotificationHttpPollerTests
         var poller = new RemoteNotificationHttpPoller(
             httpClient,
             fixture.Path,
-            "https://notifications.example.test:8888");
+            "https://notifications.example.test:8888",
+            "default");
 
         var result = await poller.PullAsync("2026-07-10T23:59:00Z");
 
@@ -93,13 +185,15 @@ public sealed class RemoteNotificationHttpPollerTests
         var poller = new RemoteNotificationHttpPoller(
             httpClient,
             fixture.Path,
-            "https://notifications.example.test:8888");
+            "https://notifications.example.test:8888",
+            "default");
 
         var unauthorized = await poller.PullAsync("");
         var missingKey = await new RemoteNotificationHttpPoller(
                 httpClient,
                 fixture.Path + ".missing",
-                "https://notifications.example.test:8888")
+                "https://notifications.example.test:8888",
+                "default")
             .PullAsync("");
 
         Assert.Equal("auth", unauthorized.State);

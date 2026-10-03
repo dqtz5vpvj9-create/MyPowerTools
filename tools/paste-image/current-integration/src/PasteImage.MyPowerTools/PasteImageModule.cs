@@ -77,7 +77,9 @@ public sealed partial class PasteImageModule : IMptModule
                 "Upload the current clipboard image over OpenSSH and copy its remote path",
                 "action",
                 Category: "Clipboard",
-                TimeoutMs: 60000,
+                // Descriptors may remain cached when settings change. Reserve
+                // the supported maximum; the transfer enforces its configured timeout.
+                TimeoutMs: 310000,
                 Constraints: [MptOperationConstraints.RunsExternalProcesses],
                 SupportsCancellation: true),
             new MptCommandDescriptor(
@@ -813,7 +815,9 @@ public sealed partial class PasteImageModule : IMptModule
             new MptRuntimeError(code, message, retryable));
     }
 
-    [GeneratedRegex("^(?:[A-Za-z0-9._-]+@)?[A-Za-z0-9._-]+$", RegexOptions.CultureInvariant)]
+    // OpenSSH interprets a destination beginning with '-' as an option, even
+    // when passed as a separate ArgumentList item.
+    [GeneratedRegex("^(?!-)(?:[A-Za-z0-9._-]+@)?[A-Za-z0-9._-]+$", RegexOptions.CultureInvariant)]
     private static partial Regex HostPattern();
 
     [GeneratedRegex("^/[A-Za-z0-9._/-]*$", RegexOptions.CultureInvariant)]

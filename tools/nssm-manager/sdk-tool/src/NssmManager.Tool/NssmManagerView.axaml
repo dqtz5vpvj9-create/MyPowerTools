@@ -1,31 +1,410 @@
-<UserControl xmlns="https://github.com/avaloniaui" xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml" xmlns:vm="using:NssmManager.Tool" xmlns:contracts="using:NssmManager.Contracts" x:Class="NssmManager.Tool.NssmManagerView" x:DataType="vm:NssmManagerViewModel">
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:NssmManager.Tool"
+             xmlns:contracts="using:NssmManager.Contracts"
+             x:Class="NssmManager.Tool.NssmManagerView"
+             x:DataType="vm:NssmManagerViewModel">
   <UserControl.Styles>
-    <Style Selector="Border.card"><Setter Property="Background" Value="{DynamicResource MptBrushCardBackground}"/><Setter Property="BorderBrush" Value="{DynamicResource MptBrushBorder}"/><Setter Property="BorderThickness" Value="1"/><Setter Property="CornerRadius" Value="10"/><Setter Property="Padding" Value="14"/></Style>
-    <Style Selector="TextBlock.h"><Setter Property="FontSize" Value="16"/><Setter Property="FontWeight" Value="SemiBold"/></Style>
-    <Style Selector="TextBlock.hint"><Setter Property="Foreground" Value="{DynamicResource MptBrushTextSecondary}"/><Setter Property="TextWrapping" Value="Wrap"/></Style>
-    <Style Selector="TextBox"><Setter Property="MinWidth" Value="260"/></Style>
+    <Style Selector="Border.card">
+      <Setter Property="Background" Value="{DynamicResource MptBrushCardBackground}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource MptBrushBorder}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="12" />
+      <Setter Property="Padding" Value="16" />
+    </Style>
+    <Style Selector="Border.inset">
+      <Setter Property="Background" Value="{DynamicResource MptBrushSurfaceMuted}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource MptBrushBorder}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="8" />
+      <Setter Property="Padding" Value="12" />
+    </Style>
+    <Style Selector="Border.admin-note">
+      <Setter Property="Background" Value="{DynamicResource MptBrushSurfaceMuted}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource MptBrushAccent}" />
+      <Setter Property="BorderThickness" Value="3,0,0,0" />
+      <Setter Property="CornerRadius" Value="6" />
+      <Setter Property="Padding" Value="12,9" />
+    </Style>
+    <Style Selector="TextBlock.title">
+      <Setter Property="FontSize" Value="25" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="TextBlock.section-title">
+      <Setter Property="FontSize" Value="17" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+    <Style Selector="TextBlock.label">
+      <Setter Property="FontWeight" Value="SemiBold" />
+      <Setter Property="Margin" Value="0,5,0,0" />
+    </Style>
+    <Style Selector="TextBlock.secondary">
+      <Setter Property="Foreground" Value="{DynamicResource MptBrushTextSecondary}" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+    <Style Selector="Button.action">
+      <Setter Property="Padding" Value="13,8" />
+      <Setter Property="Margin" Value="0,0,7,0" />
+    </Style>
+    <Style Selector="Button.danger">
+      <Setter Property="Foreground" Value="{DynamicResource MptBrushDanger}" />
+      <Setter Property="Padding" Value="13,8" />
+    </Style>
+    <Style Selector="ListBox.service-list">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="BorderThickness" Value="0" />
+    </Style>
+    <Style Selector="ListBox.service-list ListBoxItem">
+      <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+      <Setter Property="Padding" Value="5" />
+      <Setter Property="Margin" Value="0,0,0,3" />
+    </Style>
+    <Style Selector="TextBox, ComboBox, NumericUpDown">
+      <Setter Property="HorizontalAlignment" Value="Stretch" />
+    </Style>
   </UserControl.Styles>
-  <Grid RowDefinitions="Auto,Auto,*" Background="{DynamicResource MptBrushAppBackground}">
-    <Border Margin="24,18,24,10" Classes="card">
-      <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
-        <StackPanel Spacing="4"><TextBlock Text="NSSM 服务管理器" FontSize="25" FontWeight="SemiBold"/><TextBlock Text="C# 兼容实现：管理 Windows 服务包装、进程监管、I/O、轮转和 Hooks。" Classes="hint"/><TextBlock Text="{Binding Status}" Classes="hint" FontSize="12"/></StackPanel>
-        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center"><Button Content="新建" Command="{Binding NewCommand}"/><Button Content="刷新" Command="{Binding RefreshCommand}"/><Button Content="启动" Command="{Binding StartCommand}" IsEnabled="{Binding IsExisting}"/><Button Content="停止" Command="{Binding StopCommand}" IsEnabled="{Binding IsExisting}"/><Button Content="重启" Command="{Binding RestartCommand}" IsEnabled="{Binding IsExisting}"/><Button Content="轮转" Command="{Binding RotateCommand}" IsEnabled="{Binding IsExisting}"/><Button Content="删除" Command="{Binding DeleteCommand}" IsEnabled="{Binding IsExisting}"/><Button Content="预览更改" Command="{Binding PreviewCommand}" IsEnabled="{Binding CanEdit}"/><Button Content="保存" Classes="accent" Command="{Binding SaveCommand}" IsEnabled="{Binding CanEdit}"/></StackPanel>
+
+  <Grid RowDefinitions="Auto,3,*" Background="{DynamicResource MptBrushAppBackground}">
+    <Border Margin="24,18,24,11"
+            Background="{DynamicResource MptBrushSurfaceMuted}"
+            BorderBrush="{DynamicResource MptBrushBorderStrong}"
+            BorderThickness="1"
+            CornerRadius="12"
+            Padding="20,16">
+      <Grid ColumnDefinitions="*,Auto" ColumnSpacing="20">
+        <StackPanel Spacing="5">
+          <TextBlock Text="NSSM 服务管理器" Classes="title" />
+          <TextBlock Text="安装、监管和维护 Windows 服务；兼容 NSSM 2.24-101 的配置与行为。" Classes="secondary" />
+          <TextBlock Text="{Binding Status}" FontSize="12" Classes="secondary" />
+        </StackPanel>
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8" VerticalAlignment="Center">
+          <Button Content="新建服务" Command="{Binding NewCommand}" Padding="15,9" />
+          <Button Content="刷新" Command="{Binding RefreshCommand}" Padding="15,9" />
+        </StackPanel>
       </Grid>
     </Border>
-    <ProgressBar Grid.Row="1" Height="3" Margin="24,0" IsIndeterminate="True" IsVisible="{Binding Busy}"/>
-    <Grid Grid.Row="2" ColumnDefinitions="280,*" Margin="24,10,24,24" ColumnSpacing="12">
-      <Border Classes="card"><Grid RowDefinitions="Auto,*"><TextBlock Text="兼容服务" Classes="h" Margin="0,0,0,8"/><ListBox Grid.Row="1" ItemsSource="{Binding Services}" SelectedItem="{Binding SelectedService}"><ListBox.ItemTemplate><DataTemplate x:DataType="contracts:NssmServiceSnapshot"><StackPanel Margin="4" Spacing="2"><TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold"/><TextBlock Text="{Binding Name}" Classes="hint" FontSize="12"/><TextBlock Text="{Binding State}" Classes="hint" FontSize="12"/></StackPanel></DataTemplate></ListBox.ItemTemplate></ListBox></Grid></Border>
-      <Border Grid.Column="1" Classes="card">
-        <TabControl IsEnabled="{Binding CanEdit}" SelectedIndex="{Binding SelectedTabIndex}">
-          <TabItem Header="应用"><ScrollViewer><StackPanel Margin="8" Spacing="9"><TextBlock Text="应用" Classes="h"/><TextBlock Text="程序"/><Grid ColumnDefinitions="*,Auto" ColumnSpacing="8"><TextBox Text="{Binding Application}"/><Button Grid.Column="1" Content="浏览…" Click="BrowseApplication_Click"/></Grid><TextBlock Text="参数"/><TextBox Text="{Binding Parameters}" AcceptsReturn="True" MinHeight="70"/><TextBlock Text="工作目录"/><Grid ColumnDefinitions="*,Auto" ColumnSpacing="8"><TextBox Text="{Binding Directory}"/><Button Grid.Column="1" Content="浏览…" Click="BrowseDirectory_Click"/></Grid><TextBlock Text="替换环境块（每行 KEY=VALUE）"/><TextBox Text="{Binding EnvironmentReplaceText}" AcceptsReturn="True" MinHeight="80"/><TextBlock Text="追加环境变量（每行 KEY=VALUE）"/><TextBox Text="{Binding EnvironmentText}" AcceptsReturn="True" MinHeight="80"/><Grid ColumnDefinitions="*,*" ColumnSpacing="10"><StackPanel><TextBlock Text="优先级"/><TextBox Text="{Binding Priority}"/></StackPanel><StackPanel Grid.Column="1"><TextBlock Text="CPU 亲和性"/><Grid ColumnDefinitions="Auto,*" ColumnSpacing="6"><CheckBox Content="All" IsChecked="{Binding !AffinityEnabled}" Click="AffinityAll_Click"/><TextBox Grid.Column="1" Text="{Binding Affinity}" IsEnabled="{Binding AffinityEnabled}"/></Grid></StackPanel></Grid></StackPanel></ScrollViewer></TabItem>
-          <TabItem Header="详细信息"><ScrollViewer><StackPanel Margin="8" Spacing="9"><TextBlock Text="服务名"/><TextBox Text="{Binding Name}" IsReadOnly="{Binding IsExisting}"/><TextBlock Text="显示名"/><TextBox Text="{Binding DisplayName}"/><TextBlock Text="描述"/><TextBox Text="{Binding Description}" AcceptsReturn="True"/><TextBlock Text="启动类型"/><ComboBox ItemsSource="{Binding StartupTypes}" SelectedItem="{Binding StartupType}"/><CheckBox Content="交互式服务（仅 LocalSystem）" IsChecked="{Binding Interactive}" IsEnabled="{Binding InteractiveLogonEnabled}"/><TextBlock Text="依赖服务（每行一个）"/><TextBox Text="{Binding DependenciesText}" AcceptsReturn="True"/><TextBlock Text="依赖组（每行一个）"/><TextBox Text="{Binding DependencyGroupsText}" AcceptsReturn="True"/><TextBlock Text="SCM Environment（每行 KEY=VALUE）"/><TextBox Text="{Binding ServiceEnvironmentText}" AcceptsReturn="True"/><TextBlock Text="服务账户"/><TextBox Text="{Binding Account}"/><TextBlock Text="账户密码（仅经当前用户管道及 CryptProtectMemory 传给 Elevated Broker）"/><TextBox Text="{Binding Password}" PasswordChar="●" IsEnabled="{Binding CredentialsEnabled}"/></StackPanel></ScrollViewer></TabItem>
-          <TabItem Header="I/O"><ScrollViewer><StackPanel Margin="8" Spacing="9"><TextBlock Text="标准输入文件"/><Grid ColumnDefinitions="*,Auto" ColumnSpacing="8"><TextBox Text="{Binding Stdin}"/><Button Grid.Column="1" Content="浏览…" Click="BrowseStdin_Click"/></Grid><Grid ColumnDefinitions="*,*,*" ColumnSpacing="8"><StackPanel><TextBlock Text="stdin share"/><NumericUpDown Value="{Binding StdinShare}" Maximum="7"/></StackPanel><StackPanel Grid.Column="1"><TextBlock Text="disposition"/><NumericUpDown Value="{Binding StdinDisposition}" Minimum="1" Maximum="5"/></StackPanel><StackPanel Grid.Column="2"><TextBlock Text="flags"/><NumericUpDown Value="{Binding StdinFlags}" Maximum="4294967295"/></StackPanel></Grid><TextBlock Text="标准输出文件"/><Grid ColumnDefinitions="*,Auto" ColumnSpacing="8"><TextBox Text="{Binding Stdout}"/><Button Grid.Column="1" Content="浏览…" Click="BrowseStdout_Click"/></Grid><Grid ColumnDefinitions="*,*,*" ColumnSpacing="8"><StackPanel><TextBlock Text="stdout share"/><NumericUpDown Value="{Binding StdoutShare}" Maximum="7"/></StackPanel><StackPanel Grid.Column="1"><TextBlock Text="disposition"/><NumericUpDown Value="{Binding StdoutDisposition}" Minimum="1" Maximum="5"/></StackPanel><StackPanel Grid.Column="2"><TextBlock Text="flags"/><NumericUpDown Value="{Binding StdoutFlags}" Maximum="4294967295"/></StackPanel></Grid><CheckBox Content="stdout copy-and-truncate" IsChecked="{Binding StdoutCopyAndTruncate}"/><TextBlock Text="标准错误文件"/><Grid ColumnDefinitions="*,Auto" ColumnSpacing="8"><TextBox Text="{Binding Stderr}"/><Button Grid.Column="1" Content="浏览…" Click="BrowseStderr_Click"/></Grid><Grid ColumnDefinitions="*,*,*" ColumnSpacing="8"><StackPanel><TextBlock Text="stderr share"/><NumericUpDown Value="{Binding StderrShare}" Maximum="7"/></StackPanel><StackPanel Grid.Column="1"><TextBlock Text="disposition"/><NumericUpDown Value="{Binding StderrDisposition}" Minimum="1" Maximum="5"/></StackPanel><StackPanel Grid.Column="2"><TextBlock Text="flags"/><NumericUpDown Value="{Binding StderrFlags}" Maximum="4294967295"/></StackPanel></Grid><CheckBox Content="stderr copy-and-truncate" IsChecked="{Binding StderrCopyAndTruncate}"/><CheckBox Content="不创建控制台" IsChecked="{Binding NoConsole}"/></StackPanel></ScrollViewer></TabItem>
-          <TabItem Header="轮转"><StackPanel Margin="8" Spacing="9"><CheckBox Content="服务启动前轮转" IsChecked="{Binding RotateFiles}"/><CheckBox Content="运行期间在线轮转" IsChecked="{Binding RotateOnline}" IsEnabled="{Binding RotationOptionsEnabled}"/><CheckBox Content="为每行添加时间戳" IsChecked="{Binding TimestampLog}"/><TextBlock Text="最小文件大小（字节，64 位）"/><NumericUpDown Value="{Binding RotateBytes}" Maximum="18446744073709551615" IsEnabled="{Binding RotationOptionsEnabled}"/><TextBlock Text="最小文件年龄（秒）"/><NumericUpDown Value="{Binding RotateSeconds}" Maximum="4294967295" IsEnabled="{Binding RotationOptionsEnabled}"/><TextBlock Text="轮转延迟（毫秒）"/><NumericUpDown Value="{Binding RotateDelay}" Maximum="4294967295"/></StackPanel></TabItem>
-          <TabItem Header="退出与停止"><ScrollViewer><StackPanel Margin="8" Spacing="9"><TextBlock Text="默认退出动作"/><ComboBox ItemsSource="{Binding ExitActions}" SelectedItem="{Binding ExitAction}"/><TextBlock Text="按退出码规则（每行 CODE=ACTION）"/><TextBox Text="{Binding ExitRulesText}" AcceptsReturn="True" MinHeight="110"/><TextBlock Text="重启延迟（毫秒）"/><NumericUpDown Value="{Binding RestartDelay}" Maximum="4294967295"/><TextBlock Text="启动节流（毫秒）"/><NumericUpDown Value="{Binding Throttle}" Maximum="4294967295"/><TextBlock Text="停止阶段跳过位掩码"/><NumericUpDown Value="{Binding StopMethodSkip}" Maximum="15"/><Grid ColumnDefinitions="*,*,*" ColumnSpacing="8"><StackPanel><TextBlock Text="Console 超时"/><NumericUpDown Value="{Binding StopConsole}" Maximum="4294967295" IsEnabled="{Binding ConsoleTimeoutEnabled}"/></StackPanel><StackPanel Grid.Column="1"><TextBlock Text="Window 超时"/><NumericUpDown Value="{Binding StopWindow}" Maximum="4294967295" IsEnabled="{Binding WindowTimeoutEnabled}"/></StackPanel><StackPanel Grid.Column="2"><TextBlock Text="Threads 超时"/><NumericUpDown Value="{Binding StopThreads}" Maximum="4294967295" IsEnabled="{Binding ThreadsTimeoutEnabled}"/></StackPanel></Grid><CheckBox Content="停止时终止整个进程树" IsChecked="{Binding KillTree}"/></StackPanel></ScrollViewer></TabItem>
-          <TabItem Header="Hooks"><StackPanel Margin="8" Spacing="9"><TextBlock Text="Hooks" Classes="h"/><Grid ColumnDefinitions="*,*" ColumnSpacing="8"><ComboBox ItemsSource="{Binding HookEvents}" SelectedItem="{Binding SelectedHookEvent}"/><ComboBox Grid.Column="1" ItemsSource="{Binding AvailableHookActions}" SelectedItem="{Binding SelectedHookAction}"/></Grid><TextBlock Text="当前 Hook 命令"/><Grid ColumnDefinitions="*,Auto" ColumnSpacing="8"><TextBox Text="{Binding SelectedHookCommand}" LostFocus="HookCommand_LostFocus"/><Button Grid.Column="1" Content="浏览…" Click="BrowseHook_Click"/></Grid><TextBlock Text="每行 EVENT/ACTION=COMMAND，例如 Start/Pre=C:\scripts\prepare.cmd" Classes="hint"/><CheckBox Content="Hook 共享应用输出句柄" IsChecked="{Binding RedirectHookOutput}"/><TextBox Text="{Binding HooksText}" AcceptsReturn="True" MinHeight="190"/></StackPanel></TabItem>
-          <TabItem Header="兼容性"><StackPanel Margin="8" Spacing="12"><TextBlock Text="宿主兼容状态" Classes="h"/><TextBlock Text="{Binding Compatibility}" Classes="hint"/><StackPanel Orientation="Horizontal" Spacing="8"><Button Content="迁移到 C# nssm-manager.exe" Command="{Binding MigrateCommand}"/><Button Content="恢复迁移前宿主" Command="{Binding RollbackCommand}"/></StackPanel><TextBlock Text="迁移会先停止服务并保存 SCM 配置、ImagePath、完整 Parameters 树及服务状态；失败时执行验证回滚。" Classes="hint"/><TextBlock Text="草稿与影响范围" Classes="h" Margin="0,10,0,0"/><TextBox Text="{Binding Impact}" IsReadOnly="True" AcceptsReturn="True" MinHeight="150" TextWrapping="Wrap"/><CheckBox Content="我已核对以上变更，并确认执行" IsChecked="{Binding ImpactConfirmed}"/></StackPanel></TabItem>
-        </TabControl>
+
+    <ProgressBar Grid.Row="1" IsIndeterminate="True" IsVisible="{Binding Busy}" Height="3" Margin="24,0" />
+
+    <Grid Grid.Row="2" ColumnDefinitions="310,*" Margin="24,11,24,24" ColumnSpacing="12">
+      <Border Classes="card">
+        <Grid RowDefinitions="Auto,Auto,*,Auto" RowSpacing="10">
+          <Grid ColumnDefinitions="*,Auto">
+            <TextBlock Text="服务" Classes="section-title" />
+            <TextBlock Grid.Column="1" Text="{Binding ServiceCountText}" Classes="secondary" VerticalAlignment="Center" FontSize="12" />
+          </Grid>
+          <TextBox Grid.Row="1" Text="{Binding ServiceSearchText}" PlaceholderText="搜索名称、显示名或应用路径" />
+          <ListBox Grid.Row="2"
+                   Classes="service-list"
+                   ItemsSource="{Binding FilteredServices}"
+                   SelectedItem="{Binding SelectedService}">
+            <ListBox.ItemTemplate>
+              <DataTemplate x:DataType="contracts:NssmServiceSnapshot">
+                <Border Classes="inset" Padding="11,9">
+                  <Grid RowDefinitions="Auto,Auto,Auto" ColumnDefinitions="*,Auto" RowSpacing="3">
+                    <TextBlock Text="{Binding DisplayName}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+                    <TextBlock Grid.Column="1" Text="{Binding State}" Foreground="{DynamicResource MptBrushAccent}" FontWeight="SemiBold" FontSize="12" />
+                    <TextBlock Grid.Row="1" Grid.ColumnSpan="2" Text="{Binding Name}" Classes="secondary" FontSize="12" TextTrimming="CharacterEllipsis" />
+                    <TextBlock Grid.Row="2" Grid.ColumnSpan="2" Text="{Binding Application}" Classes="secondary" FontSize="11" TextTrimming="CharacterEllipsis" />
+                  </Grid>
+                </Border>
+              </DataTemplate>
+            </ListBox.ItemTemplate>
+          </ListBox>
+          <Border Grid.Row="3" Classes="admin-note">
+            <StackPanel Spacing="3">
+              <TextBlock Text="按操作申请管理员权限" FontWeight="SemiBold" />
+              <TextBlock Text="安装、应用、删除、迁移和服务控制都会申请管理员权限；删除、迁移、回滚以及账户 / 应用路径 / 启动类型等高风险变更需要先确认影响范围。" Classes="secondary" FontSize="12" />
+            </StackPanel>
+          </Border>
+        </Grid>
       </Border>
+
+      <Grid Grid.Column="1" RowDefinitions="Auto,*" RowSpacing="12">
+        <Border Classes="card">
+          <Grid RowDefinitions="Auto,Auto,Auto" RowSpacing="11">
+            <Grid ColumnDefinitions="*,Auto" ColumnSpacing="16">
+              <StackPanel Spacing="3">
+                <TextBlock Text="{Binding EditorTitle}" Classes="section-title" />
+                <TextBlock Text="{Binding EditorSubtitle}" Classes="secondary" />
+              </StackPanel>
+              <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                <Border Classes="inset" Padding="10,6">
+                  <StackPanel Orientation="Horizontal" Spacing="5">
+                    <TextBlock Text="状态" Classes="secondary" FontSize="12" />
+                    <TextBlock Text="{Binding ServiceStateText}" FontWeight="SemiBold" />
+                  </StackPanel>
+                </Border>
+                <Border Classes="inset" Padding="10,6">
+                  <TextBlock Text="{Binding ServiceRuntimeText}" Classes="secondary" />
+                </Border>
+              </StackPanel>
+            </Grid>
+            <Grid Grid.Row="1" ColumnDefinitions="Auto,*" ColumnSpacing="8">
+              <TextBlock Text="宿主" Classes="secondary" />
+              <TextBlock Grid.Column="1" Text="{Binding HostText}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
+            </Grid>
+            <ScrollViewer Grid.Row="2" HorizontalScrollBarVisibility="Auto" VerticalScrollBarVisibility="Disabled">
+              <StackPanel Orientation="Horizontal">
+                <Button Content="启动" Classes="action" Command="{Binding StartCommand}" IsEnabled="{Binding CanStart}" ToolTip.Tip="点击后立即请求 Windows 管理员权限并启动服务。" />
+                <Button Content="停止" Classes="action" Command="{Binding StopCommand}" IsEnabled="{Binding CanStop}" ToolTip.Tip="点击后立即请求 Windows 管理员权限并停止服务。" />
+                <Button Content="暂停" Classes="action" Command="{Binding PauseCommand}" IsEnabled="{Binding CanPause}" ToolTip.Tip="点击后立即请求 Windows 管理员权限并暂停服务。" />
+                <Button Content="继续" Classes="action" Command="{Binding ContinueCommand}" IsEnabled="{Binding CanContinue}" ToolTip.Tip="点击后立即请求 Windows 管理员权限并继续服务。" />
+                <Button Content="重启" Classes="action" Command="{Binding RestartCommand}" IsEnabled="{Binding CanRestart}" ToolTip.Tip="点击后立即请求 Windows 管理员权限并重启服务。" />
+                <Button Content="轮转日志" Classes="action" Command="{Binding RotateCommand}" IsEnabled="{Binding CanRotate}" ToolTip.Tip="点击后立即请求 Windows 管理员权限并发送 NSSM control 128。" />
+              </StackPanel>
+            </ScrollViewer>
+          </Grid>
+        </Border>
+
+        <Border Grid.Row="1" Classes="card" IsEnabled="{Binding CanEdit}">
+          <Grid RowDefinitions="*,Auto" RowSpacing="10">
+            <TabControl SelectedIndex="{Binding SelectedTabIndex}">
+              <TabItem Header="应用">
+                <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+                  <StackPanel Margin="8" Spacing="9">
+                    <TextBlock Text="要运行的程序" Classes="section-title" />
+                    <TextBlock Text="程序" Classes="label" />
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                      <TextBox Text="{Binding Application}" PlaceholderText="C:\path\application.exe" />
+                      <Button Grid.Column="1" Content="浏览…" Click="BrowseApplication_Click" />
+                    </Grid>
+                    <TextBlock Text="参数" Classes="label" />
+                    <TextBox Text="{Binding Parameters}" AcceptsReturn="True" MinHeight="72" />
+                    <TextBlock Text="工作目录" Classes="label" />
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                      <TextBox Text="{Binding Directory}" />
+                      <Button Grid.Column="1" Content="浏览…" Click="BrowseDirectory_Click" />
+                    </Grid>
+                    <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
+                      <StackPanel Spacing="6">
+                        <TextBlock Text="优先级" Classes="label" />
+                        <TextBox Text="{Binding Priority}" />
+                      </StackPanel>
+                      <StackPanel Grid.Column="1" Spacing="6">
+                        <TextBlock Text="CPU 亲和性" Classes="label" />
+                        <Grid ColumnDefinitions="Auto,*" ColumnSpacing="7">
+                          <CheckBox Content="全部 CPU" IsChecked="{Binding !AffinityEnabled}" Click="AffinityAll_Click" VerticalAlignment="Center" />
+                          <TextBox Grid.Column="1" Text="{Binding Affinity}" IsEnabled="{Binding AffinityEnabled}" />
+                        </Grid>
+                      </StackPanel>
+                    </Grid>
+                    <Expander Header="环境变量" IsExpanded="False">
+                      <StackPanel Spacing="7" Margin="0,8,0,0">
+                        <TextBlock Text="替换环境块（每行 KEY=VALUE）" Classes="label" />
+                        <TextBox Text="{Binding EnvironmentReplaceText}" AcceptsReturn="True" MinHeight="90" />
+                        <TextBlock Text="追加环境变量（每行 KEY=VALUE）" Classes="label" />
+                        <TextBox Text="{Binding EnvironmentText}" AcceptsReturn="True" MinHeight="90" />
+                      </StackPanel>
+                    </Expander>
+                  </StackPanel>
+                </ScrollViewer>
+              </TabItem>
+
+              <TabItem Header="服务">
+                <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+                  <StackPanel Margin="8" Spacing="9">
+                    <TextBlock Text="Windows 服务信息" Classes="section-title" />
+                    <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
+                      <StackPanel Spacing="6">
+                        <TextBlock Text="服务名" Classes="label" />
+                        <TextBox Text="{Binding Name}" IsReadOnly="{Binding IsExisting}" />
+                      </StackPanel>
+                      <StackPanel Grid.Column="1" Spacing="6">
+                        <TextBlock Text="启动类型" Classes="label" />
+                        <ComboBox ItemsSource="{Binding StartupTypes}" SelectedItem="{Binding StartupType}" />
+                      </StackPanel>
+                    </Grid>
+                    <TextBlock Text="显示名" Classes="label" />
+                    <TextBox Text="{Binding DisplayName}" />
+                    <TextBlock Text="描述" Classes="label" />
+                    <TextBox Text="{Binding Description}" AcceptsReturn="True" MinHeight="70" />
+                    <Border Classes="inset">
+                      <StackPanel Spacing="8">
+                        <TextBlock Text="登录账户" FontWeight="SemiBold" />
+                        <TextBox Text="{Binding Account}" PlaceholderText="LocalSystem 或 DOMAIN\User" />
+                        <TextBlock Text="账户密码通过当前用户匿名管道和 CryptProtectMemory 直达 Elevated Broker。" Classes="secondary" FontSize="12" />
+                        <TextBox Text="{Binding Password}" PasswordChar="●" IsEnabled="{Binding CredentialsEnabled}" PlaceholderText="留空表示保持现有密码" />
+                        <CheckBox Content="交互式服务（仅 LocalSystem）" IsChecked="{Binding Interactive}" IsEnabled="{Binding InteractiveLogonEnabled}" />
+                      </StackPanel>
+                    </Border>
+                    <Expander Header="依赖项与 SCM 环境" IsExpanded="False">
+                      <StackPanel Spacing="7" Margin="0,8,0,0">
+                        <TextBlock Text="依赖服务（每行一个）" Classes="label" />
+                        <TextBox Text="{Binding DependenciesText}" AcceptsReturn="True" MinHeight="70" />
+                        <TextBlock Text="依赖组（每行一个）" Classes="label" />
+                        <TextBox Text="{Binding DependencyGroupsText}" AcceptsReturn="True" MinHeight="70" />
+                        <TextBlock Text="SCM Environment（每行 KEY=VALUE）" Classes="label" />
+                        <TextBox Text="{Binding ServiceEnvironmentText}" AcceptsReturn="True" MinHeight="80" />
+                      </StackPanel>
+                    </Expander>
+                  </StackPanel>
+                </ScrollViewer>
+              </TabItem>
+
+              <TabItem Header="I/O 与日志">
+                <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+                  <StackPanel Margin="8" Spacing="9">
+                    <TextBlock Text="标准流" Classes="section-title" />
+                    <TextBlock Text="标准输入文件" Classes="label" />
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                      <TextBox Text="{Binding Stdin}" />
+                      <Button Grid.Column="1" Content="浏览…" Click="BrowseStdin_Click" />
+                    </Grid>
+                    <TextBlock Text="标准输出文件" Classes="label" />
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                      <TextBox Text="{Binding Stdout}" />
+                      <Button Grid.Column="1" Content="浏览…" Click="BrowseStdout_Click" />
+                    </Grid>
+                    <CheckBox Content="stdout 使用 copy-and-truncate" IsChecked="{Binding StdoutCopyAndTruncate}" />
+                    <TextBlock Text="标准错误文件" Classes="label" />
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                      <TextBox Text="{Binding Stderr}" />
+                      <Button Grid.Column="1" Content="浏览…" Click="BrowseStderr_Click" />
+                    </Grid>
+                    <CheckBox Content="stderr 使用 copy-and-truncate" IsChecked="{Binding StderrCopyAndTruncate}" />
+                    <CheckBox Content="以无控制台模式启动目标应用" IsChecked="{Binding NoConsole}" />
+                    <Expander Header="高级文件打开参数" IsExpanded="False">
+                      <StackPanel Margin="0,8,0,0" Spacing="8">
+                        <TextBlock Text="这些数值与 NSSM 注册表参数一一对应，修改前请确认 Win32 文件标志。" Classes="secondary" />
+                        <Grid ColumnDefinitions="Auto,*,*,*" ColumnSpacing="8" RowDefinitions="Auto,Auto,Auto" RowSpacing="7">
+                          <TextBlock Grid.Column="1" Text="Share mode" Classes="secondary" />
+                          <TextBlock Grid.Column="2" Text="Disposition" Classes="secondary" />
+                          <TextBlock Grid.Column="3" Text="Flags" Classes="secondary" />
+                          <TextBlock Grid.Row="1" Text="stdin" VerticalAlignment="Center" />
+                          <NumericUpDown Grid.Row="1" Grid.Column="1" Value="{Binding StdinShare}" Maximum="7" />
+                          <NumericUpDown Grid.Row="1" Grid.Column="2" Value="{Binding StdinDisposition}" Minimum="1" Maximum="5" />
+                          <NumericUpDown Grid.Row="1" Grid.Column="3" Value="{Binding StdinFlags}" Maximum="4294967295" />
+                          <TextBlock Grid.Row="2" Text="stdout" VerticalAlignment="Center" />
+                          <NumericUpDown Grid.Row="2" Grid.Column="1" Value="{Binding StdoutShare}" Maximum="7" />
+                          <NumericUpDown Grid.Row="2" Grid.Column="2" Value="{Binding StdoutDisposition}" Minimum="1" Maximum="5" />
+                          <NumericUpDown Grid.Row="2" Grid.Column="3" Value="{Binding StdoutFlags}" Maximum="4294967295" />
+                        </Grid>
+                        <Grid ColumnDefinitions="Auto,*,*,*" ColumnSpacing="8">
+                          <TextBlock Text="stderr" VerticalAlignment="Center" />
+                          <NumericUpDown Grid.Column="1" Value="{Binding StderrShare}" Maximum="7" />
+                          <NumericUpDown Grid.Column="2" Value="{Binding StderrDisposition}" Minimum="1" Maximum="5" />
+                          <NumericUpDown Grid.Column="3" Value="{Binding StderrFlags}" Maximum="4294967295" />
+                        </Grid>
+                      </StackPanel>
+                    </Expander>
+                  </StackPanel>
+                </ScrollViewer>
+              </TabItem>
+
+              <TabItem Header="轮转">
+                <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+                  <StackPanel Margin="8" Spacing="10">
+                    <TextBlock Text="日志轮转" Classes="section-title" />
+                    <CheckBox Content="服务启动前轮转" IsChecked="{Binding RotateFiles}" />
+                    <CheckBox Content="运行期间在线轮转" IsChecked="{Binding RotateOnline}" IsEnabled="{Binding RotationOptionsEnabled}" />
+                    <CheckBox Content="为每行添加时间戳" IsChecked="{Binding TimestampLog}" />
+                    <Grid ColumnDefinitions="*,*,*" ColumnSpacing="12">
+                      <StackPanel Spacing="6"><TextBlock Text="最小大小（字节）" Classes="label" /><NumericUpDown Value="{Binding RotateBytes}" Maximum="18446744073709551615" IsEnabled="{Binding RotationOptionsEnabled}" /></StackPanel>
+                      <StackPanel Grid.Column="1" Spacing="6"><TextBlock Text="最小年龄（秒）" Classes="label" /><NumericUpDown Value="{Binding RotateSeconds}" Maximum="4294967295" IsEnabled="{Binding RotationOptionsEnabled}" /></StackPanel>
+                      <StackPanel Grid.Column="2" Spacing="6"><TextBlock Text="轮转延迟（毫秒）" Classes="label" /><NumericUpDown Value="{Binding RotateDelay}" Maximum="4294967295" /></StackPanel>
+                    </Grid>
+                    <Border Classes="admin-note"><TextBlock Text="上方“轮转日志”按钮会在点击时立即请求管理员权限，并发送 NSSM control 128。" Classes="secondary" /></Border>
+                  </StackPanel>
+                </ScrollViewer>
+              </TabItem>
+
+              <TabItem Header="退出与停止">
+                <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+                  <StackPanel Margin="8" Spacing="9">
+                    <TextBlock Text="退出行为" Classes="section-title" />
+                    <TextBlock Text="默认退出动作" Classes="label" />
+                    <ComboBox ItemsSource="{Binding ExitActions}" SelectedItem="{Binding ExitAction}" />
+                    <TextBlock Text="按退出码规则（每行 CODE=ACTION）" Classes="label" />
+                    <TextBox Text="{Binding ExitRulesText}" AcceptsReturn="True" MinHeight="100" />
+                    <Grid ColumnDefinitions="*,*" ColumnSpacing="12">
+                      <StackPanel Spacing="6"><TextBlock Text="重启延迟（毫秒）" Classes="label" /><NumericUpDown Value="{Binding RestartDelay}" Maximum="4294967295" /></StackPanel>
+                      <StackPanel Grid.Column="1" Spacing="6"><TextBlock Text="启动节流（毫秒）" Classes="label" /><NumericUpDown Value="{Binding Throttle}" Maximum="4294967295" /></StackPanel>
+                    </Grid>
+                    <TextBlock Text="停止阶段" Classes="section-title" Margin="0,10,0,0" />
+                    <TextBlock Text="跳过位掩码" Classes="label" />
+                    <NumericUpDown Value="{Binding StopMethodSkip}" Maximum="15" />
+                    <Grid ColumnDefinitions="*,*,*" ColumnSpacing="10">
+                      <StackPanel Spacing="6"><TextBlock Text="Console 超时" Classes="label" /><NumericUpDown Value="{Binding StopConsole}" Maximum="4294967295" IsEnabled="{Binding ConsoleTimeoutEnabled}" /></StackPanel>
+                      <StackPanel Grid.Column="1" Spacing="6"><TextBlock Text="Window 超时" Classes="label" /><NumericUpDown Value="{Binding StopWindow}" Maximum="4294967295" IsEnabled="{Binding WindowTimeoutEnabled}" /></StackPanel>
+                      <StackPanel Grid.Column="2" Spacing="6"><TextBlock Text="Threads 超时" Classes="label" /><NumericUpDown Value="{Binding StopThreads}" Maximum="4294967295" IsEnabled="{Binding ThreadsTimeoutEnabled}" /></StackPanel>
+                    </Grid>
+                    <CheckBox Content="停止时终止整个进程树" IsChecked="{Binding KillTree}" />
+                  </StackPanel>
+                </ScrollViewer>
+              </TabItem>
+
+              <TabItem Header="Hooks">
+                <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+                  <StackPanel Margin="8" Spacing="9">
+                    <TextBlock Text="生命周期 Hooks" Classes="section-title" />
+                    <Grid ColumnDefinitions="*,*" ColumnSpacing="10">
+                      <StackPanel Spacing="6"><TextBlock Text="事件" Classes="label" /><ComboBox ItemsSource="{Binding HookEvents}" SelectedItem="{Binding SelectedHookEvent}" /></StackPanel>
+                      <StackPanel Grid.Column="1" Spacing="6"><TextBlock Text="动作" Classes="label" /><ComboBox ItemsSource="{Binding AvailableHookActions}" SelectedItem="{Binding SelectedHookAction}" /></StackPanel>
+                    </Grid>
+                    <TextBlock Text="当前 Hook 命令" Classes="label" />
+                    <Grid ColumnDefinitions="*,Auto" ColumnSpacing="8">
+                      <TextBox Text="{Binding SelectedHookCommand}" LostFocus="HookCommand_LostFocus" />
+                      <Button Grid.Column="1" Content="浏览…" Click="BrowseHook_Click" />
+                    </Grid>
+                    <CheckBox Content="Hook 共享应用输出句柄" IsChecked="{Binding RedirectHookOutput}" />
+                    <Expander Header="全部 Hook 原始映射" IsExpanded="False">
+                      <StackPanel Spacing="6" Margin="0,8,0,0">
+                        <TextBlock Text="每行 EVENT/ACTION=COMMAND，例如 Start/Pre=C:\scripts\prepare.cmd" Classes="secondary" />
+                        <TextBox Text="{Binding HooksText}" AcceptsReturn="True" MinHeight="170" />
+                      </StackPanel>
+                    </Expander>
+                  </StackPanel>
+                </ScrollViewer>
+              </TabItem>
+
+              <TabItem Header="兼容性">
+                <ScrollViewer HorizontalScrollBarVisibility="Disabled">
+                  <StackPanel Margin="8" Spacing="12">
+                    <TextBlock Text="NSSM 兼容状态" Classes="section-title" />
+                    <Border Classes="inset"><TextBlock Text="{Binding Compatibility}" Classes="secondary" /></Border>
+                    <StackPanel Orientation="Horizontal" Spacing="8">
+                      <Button Content="迁移到 C# 宿主" Command="{Binding MigrateCommand}" IsEnabled="{Binding CanMigrate}" Padding="14,9" ToolTip.Tip="首次点击只展示迁移影响范围；勾选确认后才会请求管理员权限并保存回滚快照。" />
+                      <Button Content="恢复迁移快照" Command="{Binding RollbackCommand}" IsEnabled="{Binding CanRollback}" Padding="14,9" ToolTip.Tip="首次点击只展示回滚影响范围；勾选确认后才会请求管理员权限并恢复宿主、配置与服务状态。" />
+                    </StackPanel>
+                    <TextBlock Text="迁移会保存 SCM 配置、ImagePath、完整 Parameters 树和服务状态；执行失败时自动回滚。" Classes="secondary" />
+                    <Grid ColumnDefinitions="*,Auto" Margin="0,8,0,0">
+                      <TextBlock Text="变更预览" Classes="section-title" />
+                      <Button Grid.Column="1" Content="刷新预览" Command="{Binding PreviewCommand}" ToolTip.Tip="重新生成影响范围并重置确认状态；确认前不会提交任何更改。" />
+                    </Grid>
+                    <TextBox Text="{Binding Impact}" IsReadOnly="True" AcceptsReturn="True" MinHeight="150" TextWrapping="Wrap" />
+                    <TextBlock Text="「刷新预览」会重新生成影响范围并清空既有确认；删除、迁移、回滚以及账户 / 应用路径 / 启动类型 / 密码等高风险变更只有在勾选确认后才会提交，只读操作与刷新不需要确认。" Classes="secondary" />
+                  </StackPanel>
+                </ScrollViewer>
+              </TabItem>
+            </TabControl>
+
+            <Border Grid.Row="1" BorderBrush="{DynamicResource MptBrushDivider}" BorderThickness="0,1,0,0" Padding="0,12,0,0">
+              <Grid RowDefinitions="Auto,Auto" RowSpacing="10">
+                <Border Grid.Row="0" Classes="admin-note" IsVisible="{Binding HasPendingConfirmation}">
+                  <StackPanel Spacing="7">
+                    <TextBlock Text="{Binding ConfirmationTitle}" FontWeight="SemiBold" />
+                    <TextBox Text="{Binding Impact}" IsReadOnly="True" AcceptsReturn="True" MinHeight="110" MaxHeight="170" TextWrapping="Wrap" />
+                    <TextBlock Text="{Binding ConfirmationHint}" Classes="secondary" FontSize="12" />
+                    <CheckBox Content="我已阅读并确认上述影响范围" IsChecked="{Binding ImpactConfirmed}" />
+                    <Button Content="{Binding ConfirmationActionText}" Classes="danger" Command="{Binding ConfirmPendingCommand}" IsEnabled="{Binding CanConfirmPending}" HorizontalAlignment="Left" Padding="16,9" />
+                  </StackPanel>
+                </Border>
+                <Grid Grid.Row="1" ColumnDefinitions="*,Auto" ColumnSpacing="12">
+                  <StackPanel Spacing="2" VerticalAlignment="Center">
+                    <TextBlock Text="{Binding Activity}" FontWeight="SemiBold" />
+                    <TextBlock Text="需要权限的动作在确认后点击会立即打开 Windows UAC；只读操作与刷新不需要确认。" Classes="secondary" FontSize="12" />
+                  </StackPanel>
+                  <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="8">
+                    <Button Content="删除服务" Classes="danger" Command="{Binding DeleteCommand}" IsEnabled="{Binding CanDelete}" ToolTip.Tip="首次点击只展示删除影响范围；勾选确认后点击才会申请 Windows 管理员权限并删除服务。" />
+                    <Button Content="{Binding SaveButtonText}" Classes="accent" Command="{Binding SaveCommand}" IsEnabled="{Binding CanEdit}" Padding="16,9" ToolTip.Tip="普通配置变更直接提交；账户 / 应用路径 / 启动类型 / 密码等高风险变更需要先确认影响范围。" />
+                  </StackPanel>
+                </Grid>
+              </Grid>
+            </Border>
+          </Grid>
+        </Border>
+      </Grid>
     </Grid>
   </Grid>
 </UserControl>

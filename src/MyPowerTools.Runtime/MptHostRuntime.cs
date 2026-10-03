@@ -267,7 +267,7 @@ public sealed partial class MptHostRuntime : IAsyncDisposable
                     commands.Add(NormalizeDynamicCommand(module, command));
                 }
             }
-            catch (OperationCanceledException)
+            catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
                 throw;
             }
@@ -1597,7 +1597,7 @@ public sealed partial class MptHostRuntime : IAsyncDisposable
         {
             return await runtime.GetStatusAsync(module, CreateModuleContext(module), cancellationToken);
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             throw;
         }

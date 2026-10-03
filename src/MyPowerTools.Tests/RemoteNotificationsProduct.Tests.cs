@@ -423,7 +423,8 @@ public sealed class RemoteNotificationsProductTests
         var viewModel = new RemoteNotificationsViewModel(
             new RemoteNotificationsSnapshot([existing], ["alpha"], null, false),
             new FakeStore(),
-            new FakePoller(new RemoteNotificationPullResult("ok", [incoming], "")));
+            new FakePoller(new RemoteNotificationPullResult("ok", [incoming], "")),
+            new FakeToastPublisher());
         var visibleMessages = viewModel.VisibleMessages;
 
         await viewModel.PollAsync();

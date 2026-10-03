@@ -94,7 +94,7 @@ public sealed class InputMonitorProductTests
     }
 
     [Fact]
-    public void Fatigue_skip_raises_the_threshold_and_rest_done_resets()
+    public void Fatigue_reminds_once_per_full_interval_and_skip_starts_another()
     {
         var settings = new MonitorSettings { RemindIntervalMinutes = 1 };
         var engine = new FatigueEngine(settings);
@@ -103,22 +103,195 @@ public sealed class InputMonitorProductTests
         engine.NotifyActivity(FatigueActivitySource.Keyboard);
 
         var now = DateTimeOffset.Now;
-        for (var tick = 0; tick < 60; tick++)
+        for (var tick = 0; tick < 59; tick++)
         {
             engine.Tick(now);
         }
 
-        Assert.True(engine.Value >= 100);
-        Assert.True(reminded >= 1);
+        Assert.True(engine.Value < 100);
+        Assert.Equal(0, reminded);
+
+        engine.Tick(now);
+        Assert.Equal(100, engine.Value, 3);
+        Assert.Equal(1, reminded);
+        Assert.Equal(100, engine.Percentage);
+
+        for (var tick = 0; tick < 30; tick++)
+        {
+            engine.Tick(now);
+        }
+
+        Assert.Equal(1, reminded);
+        Assert.Equal(100, engine.Percentage);
 
         engine.Skip();
-        Assert.Equal(100, engine.Value, 3);
-        Assert.Equal(120, engine.Threshold);
+        Assert.Equal(0, engine.Value, 3);
+        Assert.Equal(100, engine.Threshold);
+        Assert.Equal(0, engine.Percentage);
+        Assert.False(engine.IsResting);
+
+        for (var tick = 0; tick < 59; tick++)
+        {
+            engine.Tick(now);
+        }
+
+        Assert.Equal(1, reminded);
+        engine.Tick(now);
+        Assert.Equal(2, reminded);
 
         engine.RestDone();
         Assert.Equal(0, engine.Value);
         Assert.Equal(100, engine.Threshold);
         Assert.False(engine.IsResting);
+    }
+
+    [Fact]
+    public void Fatigue_pause_caps_at_the_threshold()
+    {
+        var settings = new MonitorSettings
+        {
+            RemindIntervalMinutes = 1,
+            FatigueIsPaused = true,
+            FatigueValue = 40
+        };
+        var engine = new FatigueEngine(settings);
+        var reminded = 0;
+        engine.OnShouldRemind = () => reminded++;
+        engine.NotifyActivity(FatigueActivitySource.Keyboard);
+
+        var now = DateTimeOffset.Now;
+        for (var tick = 0; tick < 120; tick++)
+        {
+            engine.Tick(now);
+        }
+
+        Assert.Equal(0, reminded);
+        Assert.Equal(100, engine.Value, 3);
+        Assert.Equal(100, engine.Percentage);
+        Assert.Equal(100, settings.FatigueValue, 3);
+    }
+
+    [Fact]
+    public void Fatigue_runaway_persisted_value_resets_to_zero()
+    {
+        var settings = new MonitorSettings
+        {
+            FatigueValue = 158904,
+            FatigueThreshold = 120,
+            FatigueIsPaused = true
+        };
+
+        var engine = new FatigueEngine(settings);
+
+        Assert.True(engine.SanitizedPersistedValue);
+        Assert.Equal(0, engine.Value);
+        Assert.Equal(100, engine.Threshold);
+        Assert.Equal(0, engine.Percentage);
+        Assert.Equal(0, settings.FatigueValue);
+        Assert.Equal(100, settings.FatigueThreshold);
+        Assert.True(engine.IsPaused);
+    }
+
+    [Fact]
+    public void Manual_rest_skip_restores_progress_unless_already_due()
+    {
+        var settings = new MonitorSettings { RemindIntervalMinutes = 1, FatigueValue = 40 };
+        var engine = new FatigueEngine(settings);
+        engine.ManualRest();
+        engine.BeginResting();
+        engine.Skip();
+
+        Assert.Equal(40, engine.Value, 3);
+        Assert.Equal(100, engine.Threshold);
+        Assert.False(engine.IsResting);
+
+        var dueSettings = new MonitorSettings { FatigueValue = 100, FatigueThreshold = 100 };
+        var due = new FatigueEngine(dueSettings);
+        due.ManualRest();
+        due.BeginResting();
+        due.Skip();
+
+        Assert.Equal(0, due.Value);
+        Assert.Equal(100, due.Threshold);
+        Assert.False(due.IsResting);
+    }
+
+    [Fact]
+    public void Foreground_app_identity_prefers_description_and_falls_back_past_unknown()
+    {
+        var chrome = ForegroundAppIdentity.Resolve(
+            @"C:\Program Files\Google\Chrome\Application\chrome.exe",
+            "Google Chrome",
+            "chrome",
+            "Inbox - Gmail");
+        Assert.Equal("chrome.exe", chrome.BundleId);
+        Assert.Equal("Google Chrome", chrome.AppName);
+        Assert.False(ForegroundAppIdentity.IsUnresolved(chrome.BundleId));
+
+        var processOnly = ForegroundAppIdentity.Resolve(null, null, "devenv", "Program.cs");
+        Assert.Equal("devenv", processOnly.BundleId);
+        Assert.Equal("devenv", processOnly.AppName);
+
+        var titleOnly = ForegroundAppIdentity.Resolve(null, null, null, "设置");
+        Assert.Equal("unknown", titleOnly.BundleId);
+        Assert.Equal("设置", titleOnly.AppName);
+
+        var unknown = ForegroundAppIdentity.Resolve(null, "  ", null, null);
+        Assert.Equal("unknown", unknown.BundleId);
+        Assert.Equal("Unknown", unknown.AppName);
+        Assert.True(ForegroundAppIdentity.IsUnresolved(unknown.BundleId));
+    }
+
+    [Fact]
+    public void Unresolved_foreground_probe_must_leave_previous_resolved_session()
+    {
+        Assert.True(ForegroundAppIdentity.MustLeaveResolvedSession("chrome.exe", "unknown"));
+        Assert.True(ForegroundAppIdentity.MustLeaveResolvedSession("chrome.exe", null));
+        Assert.True(ForegroundAppIdentity.MustLeaveResolvedSession("chrome.exe", "  "));
+        Assert.False(ForegroundAppIdentity.MustLeaveResolvedSession("chrome.exe", "devenv.exe"));
+        Assert.False(ForegroundAppIdentity.MustLeaveResolvedSession("unknown", "unknown"));
+        Assert.False(ForegroundAppIdentity.MustLeaveResolvedSession("unknown", "chrome.exe"));
+        Assert.False(ForegroundAppIdentity.MustLeaveResolvedSession(null, "unknown"));
+    }
+
+    [Fact]
+    public void Host_skip_rest_dismisses_overlay_without_double_skip()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "mpt-input-monitor-skip", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var overlay = new RecordingOverlay();
+        using var host = new InputMonitorHost(directory, overlay: overlay);
+        host.Fatigue.BeginResting();
+        overlay.Show(30, host.Fatigue.Skip, host.Fatigue.RestDone);
+
+        Assert.True(overlay.IsShowing);
+        Assert.True(host.Fatigue.IsResting);
+
+        host.SkipRest();
+
+        Assert.False(overlay.IsShowing);
+        Assert.Equal(1, overlay.DismissCount);
+        Assert.False(host.Fatigue.IsResting);
+        Assert.Equal(0, host.Fatigue.Value);
+        // Dismiss closes the overlay only; it must not invoke the Show(skip) callback again.
+        Assert.Equal(0, overlay.SkipCallbackCount);
+    }
+
+    [Fact]
+    public void Host_stop_dismisses_overlay()
+    {
+        var directory = Path.Combine(Path.GetTempPath(), "mpt-input-monitor-stop", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(directory);
+        var overlay = new RecordingOverlay();
+        using var host = new InputMonitorHost(directory, overlay: overlay);
+        host.Start();
+        overlay.Show(300, host.Fatigue.Skip, host.Fatigue.RestDone);
+        Assert.True(overlay.IsShowing);
+
+        host.Stop();
+
+        Assert.False(overlay.IsShowing);
+        Assert.Equal(1, overlay.DismissCount);
     }
 
     [Fact]
@@ -443,5 +616,35 @@ public sealed class InputMonitorProductTests
         public void UpdateTrackSampleDistance(double pixels) { }
         public void Dispose() => Stop();
         public void Push(InputEventRecord record) => EventReceived?.Invoke(record);
+    }
+
+    private sealed class RecordingOverlay : IRestOverlay
+    {
+        private Action? _skip;
+
+        public bool IsShowing { get; private set; }
+        public int DismissCount { get; private set; }
+        public int SkipCallbackCount { get; private set; }
+
+        public void Show(int totalSeconds, Action skip, Action finished)
+        {
+            _skip = () =>
+            {
+                SkipCallbackCount++;
+                skip();
+            };
+            IsShowing = true;
+        }
+
+        public void Dismiss()
+        {
+            if (!IsShowing && DismissCount > 0)
+            {
+                return;
+            }
+
+            IsShowing = false;
+            DismissCount++;
+        }
     }
 }

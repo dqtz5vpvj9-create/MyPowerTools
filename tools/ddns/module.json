@@ -1,0 +1,10 @@
+{
+  "schemaVersion": "1.0",
+  "id": "ddns",
+  "packageId": "ddns",
+  "displayName": "DDNS (Tencent DNSPod)",
+  "version": "0.1.0",
+  "moduleSdk": "1.0",
+  "entrypoints": [],
+  "capabilities": ["status", "settings", "logs"]
+}

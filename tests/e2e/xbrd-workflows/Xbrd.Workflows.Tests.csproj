@@ -1,0 +1,20 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsTestProject>true</IsTestProject>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
+    <PackageReference Include="xunit" Version="2.5.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="2.5.3" />
+    <Using Include="Xunit" />
+    <Compile Include="../../../tools/xbrd/current-integration/src/Xbrd.Surface/Services/XbrdPublisherClient.cs" Link="Production/XbrdPublisherClient.cs" />
+    <Compile Include="../../../tools/xbrd/current-integration/src/Xbrd.Surface/Services/XbrdSourceModels.cs" Link="Production/XbrdSourceModels.cs" />
+    <Compile Include="../../../tools/xbrd/current-integration/src/Xbrd.Surface/Services/XbrdPanelModels.cs" Link="Production/XbrdPanelModels.cs" />
+    <Compile Include="../../../tools/xbrd/current-integration/src/Xbrd.Surface/Services/XbrdControlModels.cs" Link="Production/XbrdControlModels.cs" />
+    <Compile Include="../../../tools/xbrd/current-integration/src/Xbrd.Surface/Services/XbrdUnitControlClient.cs" Link="Production/XbrdUnitControlClient.cs" />
+  </ItemGroup>
+</Project>

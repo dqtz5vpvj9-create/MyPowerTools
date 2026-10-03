@@ -186,6 +186,26 @@ public sealed class CleanupCoordinator
             cancellationToken);
     }
 
+    /// <summary>Validate user confirmation before requesting elevation; execution validates again under its lock.</summary>
+    public CleanupPlan ValidatePendingPlan(
+        string planId,
+        CleanupAction expectedAction,
+        string confirmationToken,
+        bool allowDisconnect,
+        bool allowServiceRestart)
+    {
+        using var stateLock = AcquireStateLock();
+        var plan = ReadPendingPlanCore() ??
+            throw new InvalidOperationException("没有待执行的清理计划，请先生成计划。");
+        ValidateExpectedPlan(plan, planId, expectedAction);
+        ValidatePlanShape(plan);
+        var requiresAdministrator = ServiceDefinitions.ContainsKey(plan.Action);
+        var mayDisconnect = ServiceDefinitions.TryGetValue(plan.Action, out var service) && service.MayDisconnect;
+        ValidatePlan(plan, confirmationToken, allowDisconnect, allowServiceRestart,
+            requiresAdministrator, mayDisconnect, checkAdministrator: false);
+        return plan;
+    }
+
     public Task<CleanupExecutionResult> ApplyPendingPlanAsync(
         string planId,
         CleanupAction expectedAction,
@@ -955,7 +975,8 @@ public sealed class CleanupCoordinator
         bool allowDisconnect,
         bool allowServiceRestart,
         bool requiresAdministrator,
-        bool mayDisconnectSession)
+        bool mayDisconnectSession,
+        bool checkAdministrator = true)
     {
         if (DateTimeOffset.UtcNow > plan.ExpiresAtUtc)
         {
@@ -986,7 +1007,7 @@ public sealed class CleanupCoordinator
             throw new InvalidOperationException("该计划会断开远程桌面；请显式传入 --allow-disconnect。");
         }
 
-        if (requiresAdministrator && !IsAdministrator())
+        if (checkAdministrator && requiresAdministrator && !IsAdministrator())
         {
             throw new UnauthorizedAccessException("该计划需要管理员权限。");
         }

@@ -173,13 +173,18 @@ internal static class Program
 
         while (DateTimeOffset.UtcNow < deadline)
         {
-            using var attemptTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            using var attemptTimeout = new CancellationTokenSource(
+                TimeSpan.FromMilliseconds(Math.Clamp((deadline - DateTimeOffset.UtcNow).TotalMilliseconds, 1, 30_000)));
+            var stage = "ping";
             try
             {
                 using var client = HostControlClient.ForEndpoint(endpoint);
                 var ping = await client.PingAsync(attemptTimeout.Token);
+                stage = "dashboard";
                 var dashboard = await client.GetDashboardSnapshotAsync(attemptTimeout.Token);
+                stage = "modules";
                 var modules = await client.ListModulesAsync(attemptTimeout.Token);
+                stage = "commands";
                 var commands = await client.ListCommandsAsync(cancellationToken: attemptTimeout.Token);
 
                 Console.WriteLine($"Shell HostControl smoke connected: runner={ping.State} version={ping.RunnerVersion}");
@@ -194,7 +199,7 @@ internal static class Program
             }
             catch (Exception ex)
             {
-                lastError = ex;
+                lastError = new InvalidOperationException($"{stage}: {ex.Message}", ex);
                 await Task.Delay(500);
             }
         }

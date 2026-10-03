@@ -1,5 +1,7 @@
 using System.Text.Json;
+using System.Text.Json.Nodes;
 using NssmManager.Contracts;
+using NssmManager.Runtime;
 
 namespace NssmManager.Tests;
 
@@ -31,5 +33,22 @@ public sealed class RuntimeContractTests
     {
         Assert.All(NssmSettings.All.Where(item => item.Name is "DisplayName" or "ObjectName" or "Start" or "Type"), item => Assert.True(item.Native));
         Assert.False(NssmSettings.Find("Application").Native);
+    }
+
+    [Fact]
+    public void Elevated_result_payload_is_detached_from_broker_envelope()
+    {
+        var brokerEnvelope = new JsonObject
+        {
+            ["payload"] = new JsonObject { ["serviceName"] = "svc", ["state"] = "running" }
+        };
+
+        var payload = NssmElevatedClient.DetachResultPayload(brokerEnvelope);
+        var runtimeEnvelope = new JsonObject { ["payload"] = payload };
+
+        Assert.Equal("svc", runtimeEnvelope["payload"]?["serviceName"]?.GetValue<string>());
+        Assert.Same(brokerEnvelope, brokerEnvelope["payload"]?.Parent);
+        Assert.Same(runtimeEnvelope, payload.Parent);
+        Assert.NotSame(brokerEnvelope["payload"], payload);
     }
 }
