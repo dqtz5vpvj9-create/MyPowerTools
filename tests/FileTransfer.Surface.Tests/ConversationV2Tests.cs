@@ -249,6 +249,8 @@ public sealed class ConversationV2Tests
         host.Settle();
         Assert.Contains("Tailscale", view.Assistant.Snapshot.DiscoveryMessage);
         Assert.Equal("发送未完成，请重新添加这台设备。", view.Assistant.Snapshot.Status);
+        Assert.Contains(view.GetLogicalDescendants().OfType<TextBlock>(),
+            t => t.IsEffectivelyVisible && t.Text == "发送未完成，请重新添加这台设备。");
         var target = view.Conversation.SheetHost.GetLogicalDescendants().OfType<Button>()
             .Single(b => AutomationProperties.GetName(b) == "打开会话 LIS-IMAC");
         Assert.True(target.IsEnabled);
@@ -256,8 +258,9 @@ public sealed class ConversationV2Tests
         Assert.Equal("laptop", view.Conversation.SelectedTargetDeviceId);
         Assert.DoesNotContain(view.GetLogicalDescendants().OfType<TextBlock>(),
             t => t.IsEffectivelyVisible && (t.Text?.Contains("Tailscale") == true || t.Text?.Contains("Tailnet") == true));
-        Assert.Contains(view.GetLogicalDescendants().OfType<TextBlock>(),
-            t => t.IsEffectivelyVisible && t.Text == "发送未完成，请重新添加这台设备。");
+        // Choosing another conversation clears the previous conversation's
+        // action feedback; discovery itself must leave it intact above.
+        Assert.Equal("", view.Assistant.Snapshot.Status);
     }
 
     private static FakeTransferModule History(bool files)

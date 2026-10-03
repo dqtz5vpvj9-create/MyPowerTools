@@ -22,7 +22,9 @@ def temp_name() -> str:
 def fsync_file(path: Path) -> None:
     if not FSYNC_WRITES:
         return
-    descriptor = os.open(path, os.O_RDONLY)
+    # Windows FlushFileBuffers requires a writable handle. The upload is owned
+    # by this service; opening it read/write preserves its contents on every OS.
+    descriptor = os.open(path, os.O_RDWR)
     try:
         os.fsync(descriptor)
     finally:

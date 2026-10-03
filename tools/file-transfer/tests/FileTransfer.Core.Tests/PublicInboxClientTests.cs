@@ -736,7 +736,8 @@ public sealed class PublicInboxClientTests : IAsyncLifetime
                 WorkingDirectory = _serverDirectory,
                 RedirectStandardOutput = true,
                 RedirectStandardError = true,
-                UseShellExecute = false
+                UseShellExecute = false,
+                CreateNoWindow = true
             };
             info.ArgumentList.Add(launcher);
             info.ArgumentList.Add(Path.Combine(RepositoryRoot, "tools", "file-transfer", "relay"));

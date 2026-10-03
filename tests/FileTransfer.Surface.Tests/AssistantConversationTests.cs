@@ -45,6 +45,25 @@ public sealed class AssistantConversationTests : IDisposable
         Assert.Equal("queued", _module.AssistantItems[0]["state"]!.GetValue<string>());
     }
 
+    [AvaloniaTheory]
+    [InlineData("")]
+    [InlineData("{\"credential\":\"private-value\"")]
+    [InlineData("null")]
+    [InlineData("[]")]
+    [InlineData("{}")]
+    public async Task Invalid_inspect_responses_keep_the_visible_conversation_and_report_failure(string response)
+    {
+        await TestPump.RunAsync(() => _core.SendAsync("保留已发送的消息"));
+        var original = Assert.Single(_core.Snapshot.Items);
+        _module.RawResponses["assistant.inspect"] = response;
+
+        await TestPump.RunAsync(() => _core.RefreshAsync());
+
+        Assert.Equal(original.Id, Assert.Single(_core.Snapshot.Items).Id);
+        Assert.Contains("无效响应", _core.Snapshot.Status);
+        Assert.DoesNotContain("private-value", _core.Snapshot.Status);
+    }
+
     [AvaloniaFact]
     public async Task A_refused_send_is_reported_and_shows_no_entry()
     {
