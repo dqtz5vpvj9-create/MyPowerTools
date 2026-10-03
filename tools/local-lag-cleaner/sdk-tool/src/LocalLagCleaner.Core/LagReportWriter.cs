@@ -115,6 +115,15 @@ public static class LagReportWriter
             }
             builder.AppendLine($"处理方法：{finding.Recommendation}");
             builder.AppendLine();
+            var remedy = RemediationCatalog.Create(snapshot, finding);
+            builder.AppendLine($"处置状态：{remedy.Status}；入口：{remedy.ActionLabel}");
+            builder.AppendLine($"处理对象：{remedy.Target}");
+            builder.AppendLine();
+            builder.AppendLine(remedy.Steps);
+            builder.AppendLine();
+            builder.AppendLine($"完成标准：{remedy.Verification}");
+            builder.AppendLine($"恢复与影响：{remedy.Recovery}");
+            builder.AppendLine();
         }
 
         if (snapshot.ProcessBreakdown.Count > 0)

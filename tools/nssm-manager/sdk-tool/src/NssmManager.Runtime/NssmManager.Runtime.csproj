@@ -10,4 +10,7 @@
     <ProjectReference Include="..\NssmManager.Compatibility\NssmManager.Compatibility.csproj" />
     <ProjectReference Include="..\NssmManager.Windows\NssmManager.Windows.csproj" />
   </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="NssmManager.Tests" />
+  </ItemGroup>
 </Project>

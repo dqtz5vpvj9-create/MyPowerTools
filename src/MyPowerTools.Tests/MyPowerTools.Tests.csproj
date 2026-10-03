@@ -19,6 +19,8 @@
 
   <ItemGroup>
     <Using Include="Xunit" />
+    <ProjectReference Include="..\..\tools\paste-image\current-integration\src\PasteImage.MyPowerTools\PasteImage.MyPowerTools.csproj" />
+    <ProjectReference Include="..\..\tools\paste-image\current-integration\src\PasteImage.Surface\PasteImage.Surface.csproj" />
     <None Update="xunit.runner.json" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
 
@@ -59,6 +61,7 @@
          digest binding is covered by NssmBrokerSecurity.Tests.cs. -->
     <ProjectReference Include="..\..\tools\nssm-manager\sdk-tool\src\NssmManager.Runtime\NssmManager.Runtime.csproj" />
     <ProjectReference Include="..\..\tools\screenease\current-integration\src\ScreenEase.MyPowerTools\ScreenEase.MyPowerTools.csproj" />
+    <ProjectReference Include="..\..\tools\screenshot\current-integration\src\Screenshot.MyPowerTools\Screenshot.MyPowerTools.csproj" />
     <ProjectReference Include="..\..\tools\smartbird-thermostat\current-integration\src\SmartBirdThermostat.MyPowerTools\SmartBirdThermostat.MyPowerTools.csproj" />
     <ProjectReference Include="..\..\tools\input-monitor\current-integration\src\InputMonitor.Core\InputMonitor.Core.csproj" />
     <!-- Surface assemblies provide the tool ViewModel/View/Service types that tests reference -->

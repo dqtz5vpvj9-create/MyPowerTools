@@ -13,9 +13,10 @@ $config = Get-Content -Raw -LiteralPath $ConfigPath | ConvertFrom-Json
 $intervalMinutes = [Math]::Max(1, [int]$config.checkIntervalMinutes)
 $pwsh = (Get-Command pwsh -ErrorAction Stop).Source
 $script = Join-Path $PSScriptRoot 'ddns.ps1'
+$resolvedConfigPath = [IO.Path]::GetFullPath($ConfigPath)
 
 $action = New-ScheduledTaskAction -Execute $pwsh -Argument (
-    "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$script`" -Command update")
+    "-NoProfile -WindowStyle Hidden -ExecutionPolicy Bypass -File `"$script`" -Command update -ConfigPath `"$resolvedConfigPath`"")
 $trigger = New-ScheduledTaskTrigger -Once -At (Get-Date).AddMinutes(1) -RepetitionInterval (New-TimeSpan -Minutes $intervalMinutes)
 $settings = New-ScheduledTaskSettingsSet -StartWhenAvailable -ExecutionTimeLimit (New-TimeSpan -Minutes 5) -MultipleInstances IgnoreNew
 

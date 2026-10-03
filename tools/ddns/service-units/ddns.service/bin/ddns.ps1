@@ -143,6 +143,12 @@ function Invoke-Update {
     $recordName = if ([string]::IsNullOrWhiteSpace($subDomain)) { $domain } else { "$subDomain.$domain" }
 
     $wanIp = Get-WanIp -Config $Config
+    $parsedIp = $null
+    if ($wanIp -notmatch '^\d{1,3}(\.\d{1,3}){3}$' -or
+        -not [Net.IPAddress]::TryParse($wanIp, [ref]$parsedIp) -or
+        $parsedIp.AddressFamily -ne [Net.Sockets.AddressFamily]::InterNetwork) {
+        throw "Invalid IPv4 address: $wanIp"
+    }
     $records = @((Invoke-DnspodApi -Action 'Record.List' -Params @{
         domain = $domain
         sub_domain = $subDomain

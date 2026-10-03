@@ -181,7 +181,7 @@ internal static class Program
         Exception? lastError = null;
         while (DateTimeOffset.UtcNow < deadline)
         {
-            using var attemptTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+            using var attemptTimeout = new CancellationTokenSource(TimeSpan.FromMilliseconds(Math.Clamp((deadline - DateTimeOffset.UtcNow).TotalMilliseconds, 1, 5000)));
             var attempt = HostControlClient.ForEndpoint(endpoint);
             try
             {
@@ -210,13 +210,16 @@ internal static class Program
         // time is quarantined by the in-proc host, which would turn a slow machine into a
         // degraded Runner instead of a slow smoke.
         var remaining = deadline - DateTimeOffset.UtcNow;
-        var verificationBudget = remaining > TimeSpan.FromSeconds(5) ? remaining : TimeSpan.FromSeconds(5);
+        var verificationBudget = remaining > TimeSpan.Zero ? remaining : TimeSpan.FromMilliseconds(1);
         using var verificationTimeout = new CancellationTokenSource(verificationBudget);
         var exitCode = 0;
+        var stage = "dashboard";
         try
         {
             var dashboard = await client.GetDashboardSnapshotAsync(verificationBudget, verificationTimeout.Token);
+            stage = "modules";
             var modules = await client.ListModulesAsync(verificationTimeout.Token);
+            stage = "commands";
             var commands = await client.ListCommandsAsync(cancellationToken: verificationTimeout.Token);
 
             Console.WriteLine($"Shell HostControl smoke connected: runner={ping.State} version={ping.RunnerVersion}");
@@ -224,7 +227,7 @@ internal static class Program
         }
         catch (Exception ex)
         {
-            Console.Error.WriteLine($"Shell HostControl smoke failed: {ex.Message}");
+            Console.Error.WriteLine($"Shell HostControl smoke failed during {stage}: {ex.Message}");
             exitCode = 1;
         }
 

@@ -344,14 +344,14 @@ public sealed class ImeManagerViewModel : MptObservableViewModel, IDisposable
         return Task.CompletedTask;
     }
 
-    private Task DiscardAsync()
+    private async Task DiscardAsync()
     {
         _suppressHotkeyMutation = true;
         WinSpaceMapsToShift = _savedWinSpaceMapsToShift;
         _suppressHotkeyMutation = false;
         RebuildItemsFromPlan(_savedPlan);
+        await SaveManagedTipsAsync();
         StatusText = "已放弃未应用的更改。";
-        return Task.CompletedTask;
     }
 
     private async Task ApplyAsync()
@@ -463,6 +463,16 @@ public sealed class ImeManagerViewModel : MptObservableViewModel, IDisposable
         Items.Clear();
         _defaultTipString = plan.DefaultTipString;
         var enabled = plan.EnabledTipStrings.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        // Managed scope also contains disabled entries. Keep their positions while
+        // restoring the enabled slots to the order returned by the runtime.
+        var enabledOrder = new Queue<string>(plan.EnabledTipStrings);
+        for (var index = 0; index < _managedTipStrings.Count; index++)
+        {
+            if (enabled.Contains(_managedTipStrings[index]))
+            {
+                _managedTipStrings[index] = enabledOrder.Dequeue();
+            }
+        }
         foreach (var tip in _managedTipStrings)
         {
             var row = ToRow(

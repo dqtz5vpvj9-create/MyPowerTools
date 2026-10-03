@@ -1,0 +1,47 @@
+name: MPT workflow e2e
+
+on:
+  pull_request:
+  push:
+    branches: [main, 'codex/**']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  workflows:
+    runs-on: windows-latest
+    timeout-minutes: 35
+    env:
+      E2E_TELEMETRY_DISABLED: '1'
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+          token: ${{ secrets.MPT_SUBMODULE_PAT || github.token }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: global.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: npm ci --ignore-scripts
+      - name: Build workflow prerequisites
+        run: npm run test:e2e:prepare
+      - name: Run workflow regressions
+        run: npx e2e run
+      - name: Upload execution evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: mpt-e2e-results
+          path: .e2e/
+          include-hidden-files: true
+          retention-days: 14
+          if-no-files-found: error

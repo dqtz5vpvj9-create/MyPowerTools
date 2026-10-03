@@ -17,6 +17,20 @@ internal static class LocalLagCleanerRuntime
     private static readonly HashSet<string> Commands =
     [
         "local-lag-cleaner.health",
+        "local-lag-cleaner.care.all",
+        "local-lag-cleaner.care.memory",
+        "local-lag-cleaner.care.kernel",
+        "local-lag-cleaner.care.background",
+        "local-lag-cleaner.care.storage",
+        "local-lag-cleaner.care.restore",
+        "local-lag-cleaner.care.last",
+        "local-lag-cleaner.open.resource-monitor",
+        "local-lag-cleaner.open.task-manager",
+        "local-lag-cleaner.open.storage",
+        "local-lag-cleaner.open.startup",
+        "local-lag-cleaner.open.update",
+        "local-lag-cleaner.open.devices",
+        "local-lag-cleaner.open.reliability",
         "local-lag-cleaner.scan.quick",
         "local-lag-cleaner.scan.deep",
         "local-lag-cleaner.scan.file-handles-elevated",
@@ -362,6 +376,15 @@ internal static class LocalLagCleanerRuntime
 
         return commandId switch
         {
+            "local-lag-cleaner.care.last" => File.Exists(Path.Combine(dataDirectory, "latest-care.json"))
+                ? JsonNode.Parse(await File.ReadAllTextAsync(Path.Combine(dataDirectory, "latest-care.json")).ConfigureAwait(false))
+                : new JsonObject(),
+            "local-lag-cleaner.care.restore" => new JsonObject { ["items"] = JsonSerializer.SerializeToNode(new AutomaticCareCoordinator(dataDirectory).Restore(), LagCleanerJson.Compact) },
+            var id when id.StartsWith("local-lag-cleaner.care.", StringComparison.Ordinal) =>
+                JsonSerializer.SerializeToNode(await new AutomaticCareCoordinator(dataDirectory)
+                    .RunAsync(id["local-lag-cleaner.care.".Length..]).ConfigureAwait(false), LagCleanerJson.Compact),
+            var id when id.StartsWith("local-lag-cleaner.open.", StringComparison.Ordinal) =>
+                DiagnosticToolLauncher.Open(id),
             "local-lag-cleaner.health" => new JsonObject
             {
                 ["toolId"] = ToolId,
@@ -649,8 +672,8 @@ internal static class LocalLagCleanerRuntime
         var token = ReadRequiredArgumentString(arguments, "confirmationToken", 8);
         var allowDisconnect = ReadOptionalBoolean(arguments, "allowDisconnect");
         var allowServiceRestart = ReadOptionalBoolean(arguments, "allowServiceRestart");
-        var plan = cleanup.TryReadPendingPlan() ??
-                   throw new InvalidOperationException("没有待执行的清理计划，请先生成计划。");
+        var plan = cleanup.ValidatePendingPlan(
+            planId, expectedAction, token, allowDisconnect, allowServiceRestart);
         if (plan.RequiresAdministrator)
         {
             var elevatedResult = await ElevatedCleanupClient.RunAsync(

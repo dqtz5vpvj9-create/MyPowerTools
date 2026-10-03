@@ -15,6 +15,9 @@ $repoRoot = if ([string]::IsNullOrWhiteSpace($MyPowerToolsRepoRoot)) {
     [System.IO.Path]::GetFullPath($MyPowerToolsRepoRoot)
 }
 $sdkToolRoot = Join-Path $toolRoot 'sdk-tool'
+# The SDK manifest and loose-tool discovery use Release paths. Build those exact
+# binaries even when the surrounding development Shell/CLI configuration is Debug.
+$sdkConfiguration = 'Release'
 $sdkToolProject = Join-Path $sdkToolRoot 'src\LocalLagCleaner.Tool\LocalLagCleaner.Tool.csproj'
 $runtimeProject = Join-Path $sdkToolRoot 'src\LocalLagCleaner.Runtime\LocalLagCleaner.Runtime.csproj'
 $standaloneProject = Join-Path $toolRoot 'original-source\src\LocalLagCleaner.Cli\LocalLagCleaner.Cli.csproj'
@@ -36,7 +39,7 @@ $sdkToolArguments = @(
     'build'
     $sdkToolProject
     '--configuration'
-    $Configuration
+    $sdkConfiguration
     '--nologo'
 )
 & $dotnetCommand.Source @sdkToolArguments
@@ -49,7 +52,7 @@ $runtimeArguments = @(
     'build'
     $runtimeProject
     '--configuration'
-    $Configuration
+    $sdkConfiguration
     '--nologo'
 )
 & $dotnetCommand.Source @runtimeArguments
@@ -116,8 +119,8 @@ if ($packExitCode -ne 0) {
 }
 
 $expectedStandalone = Join-Path $artifactCli 'local-lag-cleaner.exe'
-$expectedSdkTool = Join-Path $sdkToolRoot "src\LocalLagCleaner.Tool\bin\$Configuration\net10.0\LocalLagCleaner.Tool.dll"
-$expectedRuntime = Join-Path $sdkToolRoot "src\LocalLagCleaner.Runtime\bin\$Configuration\net10.0\LocalLagCleaner.Runtime.exe"
+$expectedSdkTool = Join-Path $sdkToolRoot "src\LocalLagCleaner.Tool\bin\$sdkConfiguration\net10.0\LocalLagCleaner.Tool.dll"
+$expectedRuntime = Join-Path $sdkToolRoot "src\LocalLagCleaner.Runtime\bin\$sdkConfiguration\net10.0\LocalLagCleaner.Runtime.exe"
 foreach ($expectedPath in @($expectedStandalone, $expectedSdkTool, $expectedRuntime, $artifactPackage)) {
     if (-not (Test-Path -LiteralPath $expectedPath -PathType Leaf)) {
         throw "Expected build output '$expectedPath' is missing."

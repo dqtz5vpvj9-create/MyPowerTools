@@ -35,8 +35,10 @@ public sealed class PasteImageViewModel : ToolSurfacePageViewModel, IDisposable
     private IBrush _messageBackground = AccentSoft;
     private Bitmap? _preview;
     private string _previewMeta = "";
+    private string _previewPlaceholder = "上传一张图片后，这里会显示最近预览。";
     private bool _isBusy;
     private int _disposed;
+    private int _previewRequest;
 
     public PasteImageViewModel(MptAvaloniaSurfaceContext context)
         : base("Paste Image", "上传剪贴板图片并将远端路径写回剪贴板", ToolSurfaceState.Loading)
@@ -59,6 +61,7 @@ public sealed class PasteImageViewModel : ToolSurfacePageViewModel, IDisposable
     public IBrush MessageBackground { get => _messageBackground; private set => SetProperty(ref _messageBackground, value); }
     public Bitmap? Preview { get => _preview; private set => SetProperty(ref _preview, value); }
     public string PreviewMeta { get => _previewMeta; private set => SetProperty(ref _previewMeta, value); }
+    public string PreviewPlaceholder { get => _previewPlaceholder; private set => SetProperty(ref _previewPlaceholder, value); }
     public ObservableCollection<UploadHistoryRow> History { get; } = [];
 
     /// <summary>Set by the view once it is attached; writes text to the system clipboard.</summary>
@@ -145,7 +148,7 @@ public sealed class PasteImageViewModel : ToolSurfacePageViewModel, IDisposable
             var rows = document.RootElement.GetProperty("items")
                 .EnumerateArray()
                 .Take(5)
-                .Select(item => UploadHistoryRow.FromJson(item).WithCopySupport(CopyPathToClipboardAsync))
+                .Select(item => UploadHistoryRow.FromJson(item).WithActions(ShowHistoryPreviewAsync, CopyPathToClipboardAsync))
                 .ToArray();
             var preview = rows.Length == 0 ? null : await LoadBitmapAsync(rows[0].LocalPreviewPath, cancellationToken).ConfigureAwait(false);
             await RunOnUiAsync(() => ReplaceHistory(rows, preview)).ConfigureAwait(false);
@@ -166,7 +169,7 @@ public sealed class PasteImageViewModel : ToolSurfacePageViewModel, IDisposable
         SetMessage("↑", "正在读取剪贴板并上传…", Accent, AccentSoft);
         try
         {
-            var response = await ExecuteAsync("paste-image.upload", TimeSpan.FromSeconds(65), _lifetime.Token).ConfigureAwait(false);
+            var response = await ExecuteAsync("paste-image.upload", TimeSpan.FromSeconds(310), _lifetime.Token).ConfigureAwait(false);
             await RunOnUiAsync(() =>
             {
                 if (response.Success)
@@ -213,7 +216,7 @@ public sealed class PasteImageViewModel : ToolSurfacePageViewModel, IDisposable
         {
             if (string.Equals(surfaceEvent.Type, "upload.alert", StringComparison.OrdinalIgnoreCase))
             {
-                var row = UploadHistoryRow.FromEvent(surfaceEvent.Payload).WithCopySupport(CopyPathToClipboardAsync);
+                var row = UploadHistoryRow.FromEvent(surfaceEvent.Payload).WithActions(ShowHistoryPreviewAsync, CopyPathToClipboardAsync);
                 var previewDecodeStartedUtc = DateTimeOffset.UtcNow;
                 var preview = await LoadBitmapAsync(row.LocalPreviewPath, _lifetime.Token).ConfigureAwait(false);
                 var previewDecodedUtc = DateTimeOffset.UtcNow;
@@ -276,15 +279,70 @@ public sealed class PasteImageViewModel : ToolSurfacePageViewModel, IDisposable
         RaiseHistoryState();
     }
 
+    private async Task ShowHistoryPreviewAsync(UploadHistoryRow row)
+    {
+        var request = Interlocked.Increment(ref _previewRequest);
+        Bitmap? preview = null;
+        try
+        {
+            preview = await LoadBitmapAsync(row.LocalPreviewPath, _lifetime.Token).ConfigureAwait(false);
+        }
+        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
+        {
+            return;
+        }
+        catch (Exception exception)
+        {
+            _context.Log(new MptSurfaceLogEntry("error", $"读取 Paste Image 历史预览失败：{exception.Message}", DateTimeOffset.Now));
+        }
+
+        if (request != Volatile.Read(ref _previewRequest) || Volatile.Read(ref _disposed) != 0)
+        {
+            preview?.Dispose();
+            return;
+        }
+
+        await RunOnUiAsync(() =>
+        {
+            if (request != Volatile.Read(ref _previewRequest) || Volatile.Read(ref _disposed) != 0)
+            {
+                preview?.Dispose();
+                return;
+            }
+
+            SetPreview(preview, row);
+        }).ConfigureAwait(false);
+    }
+
     private void SetPreview(Bitmap? preview, UploadHistoryRow? row)
     {
+        Interlocked.Increment(ref _previewRequest);
         var previous = Preview;
         Preview = preview;
         PreviewMeta = row is null ? "" : $"{row.Width} × {row.Height}  ·  {FormatBytes(row.SizeBytes)}\n{row.RemotePath}";
+        PreviewPlaceholder = preview is null && row is not null
+            ? "这张图片的本地预览已经不在，无法显示。"
+            : "上传一张图片后，这里会显示最近预览。";
+        ApplySelection(row);
         OnPropertyChanged(nameof(HasPreview));
         OnPropertyChanged(nameof(IsPreviewEmpty));
         if (!ReferenceEquals(previous, preview)) previous?.Dispose();
     }
+
+    private void ApplySelection(UploadHistoryRow? selected)
+    {
+        for (var index = 0; index < History.Count; index++)
+        {
+            var row = History[index];
+            var isSelected = selected is not null && SameUpload(row, selected);
+            if (row.IsSelected == isSelected) continue;
+            History[index] = row with { IsSelected = isSelected };
+        }
+    }
+
+    private static bool SameUpload(UploadHistoryRow left, UploadHistoryRow right) =>
+        string.Equals(left.RemotePath, right.RemotePath, StringComparison.Ordinal)
+        && left.UploadedAt == right.UploadedAt;
 
     private void RaiseHistoryState()
     {
@@ -306,8 +364,18 @@ public sealed class PasteImageViewModel : ToolSurfacePageViewModel, IDisposable
         return await Task.Run(() =>
         {
             cancellationToken.ThrowIfCancellationRequested();
-            using var stream = File.Open(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-            return new Bitmap(stream);
+            try
+            {
+                using var stream = File.Open(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                return new Bitmap(stream);
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException)
+            {
+                // Previews are optional: a removed, locked or corrupt cache image
+                // must not hide upload history or discard a successful upload event.
+                System.Diagnostics.Trace.WriteLine($"Paste Image preview unavailable: {exception.Message}");
+                return null;
+            }
         }, cancellationToken).ConfigureAwait(false);
     }
 
@@ -442,14 +510,27 @@ public sealed record UploadHistoryRow(
 {
     public string UploadedAtText => UploadedAt.ToLocalTime().ToString("MM-dd HH:mm:ss");
 
+    public bool IsSelected { get; init; }
+
+    public ICommand SelectCommand { get; init; } = new MptAsyncRelayCommand(
+        () => Task.CompletedTask, operationName: "SelectHistoryPreview");
+
     public ICommand CopyCommand { get; init; } = new MptAsyncRelayCommand(
         () => Task.CompletedTask, operationName: "CopyHistoryPath");
 
-    public UploadHistoryRow WithCopySupport(Func<string, Task> copyAction)
+    public UploadHistoryRow WithActions(Func<UploadHistoryRow, Task> selectAction, Func<string, Task> copyAction)
     {
+        var row = this;
         var path = RemotePath;
         return this with
         {
+            SelectCommand = new MptAsyncRelayCommand(
+                () =>
+                {
+                    _ = selectAction(row);
+                    return Task.CompletedTask;
+                },
+                operationName: "SelectHistoryPreview"),
             CopyCommand = new MptAsyncRelayCommand(
                 () => copyAction(path),
                 operationName: "CopyHistoryPath")

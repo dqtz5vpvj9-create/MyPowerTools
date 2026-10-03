@@ -197,21 +197,34 @@ function Start-ProductProcess {
         [Parameter(Mandatory = $true)][string]$FilePath,
         [Parameter(Mandatory = $true)][string]$WorkingDirectory,
         [string[]]$ArgumentList = @(),
-        [switch]$CreateNoWindow,
-        [switch]$Detached
+        [switch]$Detached,
+        [switch]$Visible,
+        [switch]$CaptureOutput
     )
 
     $startInfo = [Diagnostics.ProcessStartInfo]::new()
     $startInfo.FileName = $FilePath
     $startInfo.WorkingDirectory = $WorkingDirectory
     $startInfo.UseShellExecute = $Detached.IsPresent
+    if ($CaptureOutput) {
+        if ($Detached) { throw 'Captured process output requires UseShellExecute=false.' }
+        $startInfo.RedirectStandardOutput = $true
+        $startInfo.RedirectStandardError = $true
+    }
     if ($Detached) {
-        if ($CreateNoWindow) {
-            $startInfo.WindowStyle = [Diagnostics.ProcessWindowStyle]::Hidden
+        # Detaching needs ShellExecute, which would give a console program a fresh console
+        # window on the user's desktop. Hide it unless the caller explicitly asked for a
+        # visible window, which is only true for the WinExe product entrypoints.
+        $startInfo.WindowStyle = if ($Visible) {
+            [Diagnostics.ProcessWindowStyle]::Normal
+        }
+        else {
+            [Diagnostics.ProcessWindowStyle]::Hidden
         }
     }
     else {
-        $startInfo.CreateNoWindow = $CreateNoWindow.IsPresent
+        # Without ShellExecute the child inherits this console, so it can never create one.
+        $startInfo.CreateNoWindow = $true
     }
     foreach ($argument in $ArgumentList) {
         $startInfo.ArgumentList.Add($argument)
@@ -330,7 +343,6 @@ function Request-ShellShutdown {
                 FilePath = $clientPath
                 WorkingDirectory = Split-Path -Parent $clientPath
                 ArgumentList = @('--shutdown-shell')
-                CreateNoWindow = $true
             }
             $client = Start-ProductProcess @clientParameters
             [void]$client.WaitForExit(5000)
@@ -362,7 +374,6 @@ function Request-RunnerShutdown {
                     '--quit-runner',
                     '--modules', $installedModulesRoot,
                     '--data-root', $dataRootFull)
-                CreateNoWindow = $true
             }
             $probe = Start-ProductProcess @probeParameters
             [void]$probe.WaitForExit(10000)
@@ -413,7 +424,6 @@ function Request-ServiceManagerShutdown {
                 FilePath = $cli
                 WorkingDirectory = $canonicalInstallRoot
                 ArgumentList = @('service', 'shutdown')
-                CreateNoWindow = $true
             }
             $shutdown = Start-ProductProcess @shutdownParameters
             [void]$shutdown.WaitForExit(15000)
@@ -480,10 +490,24 @@ function Get-ToolPackageRuntimeExecutables {
 function Get-ProcessesInDirectory {
     param([Parameter(Mandatory = $true)][string]$Directory)
 
-    return @(Get-CimInstance Win32_Process | Where-Object {
-        -not [string]::IsNullOrWhiteSpace($_.ExecutablePath) -and
-        (Test-IsInsidePath -Parent $Directory -Child $_.ExecutablePath)
-    })
+    $directoryPrefix = [IO.Path]::GetFullPath($Directory).TrimEnd('\', '/') + [IO.Path]::DirectorySeparatorChar
+    $processes = @(Get-CimInstance Win32_Process)
+    $selected = [Collections.Generic.HashSet[int]]::new()
+    foreach ($process in $processes) {
+        $inside = -not [string]::IsNullOrWhiteSpace($process.ExecutablePath) -and
+            (Test-IsInsidePath -Parent $Directory -Child $process.ExecutablePath)
+        $scriptHost = $process.Name -in @('cmd.exe', 'pwsh.exe', 'powershell.exe', 'dotnet.exe', 'wscript.exe', 'cscript.exe', 'python.exe', 'pythonw.exe')
+        $hostsPayload = $scriptHost -and -not [string]::IsNullOrWhiteSpace($process.CommandLine) -and
+            $process.CommandLine.Replace('/', '\').IndexOf($directoryPrefix, [StringComparison]::OrdinalIgnoreCase) -ge 0
+        if ($inside -or $hostsPayload) { [void]$selected.Add([int]$process.ProcessId) }
+    }
+    do {
+        $added = $false
+        foreach ($process in $processes) {
+            if ($selected.Contains([int]$process.ParentProcessId) -and $selected.Add([int]$process.ProcessId)) { $added = $true }
+        }
+    } while ($added)
+    return @($processes | Where-Object { $selected.Contains([int]$_.ProcessId) })
 }
 
 function Stop-ToolPackageRuntimes {
@@ -679,7 +703,7 @@ function Find-ToolServiceUnits {
         Get-ChildItem -LiteralPath $toolSourceRoot -Recurse -File -Filter 'unit-manifest.json' -ErrorAction SilentlyContinue)) {
         $project = Get-ChildItem -LiteralPath $manifestFile.Directory.FullName -File -Filter '*.csproj' |
             Select-Object -First 1
-        if ($null -eq $project) {
+        if ($null -eq $project -and -not (Test-Path -LiteralPath (Join-Path $manifestFile.Directory.FullName 'bin') -PathType Container)) {
             continue
         }
         $manifest = Get-Content -LiteralPath $manifestFile.FullName -Raw | ConvertFrom-Json
@@ -689,7 +713,7 @@ function Find-ToolServiceUnits {
         }
         $units.Add([pscustomobject]@{
             UnitId = $unitId
-            Project = $project.FullName
+            Project = if ($null -eq $project) { $null } else { $project.FullName }
             Manifest = $manifestFile.FullName
         })
     }
@@ -703,6 +727,11 @@ function Publish-ToolServiceUnit {
     )
 
     $unitRoot = Join-Path $publishRoot "service-units\$($Unit.UnitId)"
+    if ($null -eq $Unit.Project) {
+        $sourceRoot = Split-Path -Parent $Unit.Manifest
+        Copy-DirectoryContents -Source $sourceRoot -Destination $unitRoot
+        return $unitRoot
+    }
     $unitBin = Join-Path $unitRoot 'bin'
     if (Test-Path -LiteralPath $unitRoot -PathType Container) {
         Remove-Item -LiteralPath $unitRoot -Recurse -Force
@@ -782,20 +811,27 @@ function Start-InstalledRuntime {
             '-InstallRoot', $canonicalInstallRoot,
             '-DataRoot', $dataRootFull,
             '-StartRunner')
-        CreateNoWindow = $true
-        Detached = $true
+        CaptureOutput = $true
     }
     Write-Phase 'Starting the complete installed runtime'
     $runtimeProcess = Start-ProductProcess @runtimeStartParameters
+    $runtimeOutput = $runtimeProcess.StandardOutput.ReadToEndAsync()
+    $runtimeError = $runtimeProcess.StandardError.ReadToEndAsync()
     [void]$runtimeProcess.WaitForExit(120000)
     if (-not $runtimeProcess.HasExited) {
         $runtimeProcess.Kill($true)
         throw 'Installed runtime startup timed out after 120 seconds.'
     }
     $runtimeExitCode = $runtimeProcess.ExitCode
+    # Resident children can inherit the pipes after the launcher exits. Never
+    # wait for their EOF to declare the launch complete.
+    [void][Threading.Tasks.Task]::WhenAny($runtimeOutput, [Threading.Tasks.Task]::Delay(250)).GetAwaiter().GetResult()
+    [void][Threading.Tasks.Task]::WhenAny($runtimeError, [Threading.Tasks.Task]::Delay(250)).GetAwaiter().GetResult()
+    $runtimeOutputText = if ($runtimeOutput.IsCompletedSuccessfully) { $runtimeOutput.GetAwaiter().GetResult() } else { '' }
+    $runtimeErrorText = if ($runtimeError.IsCompletedSuccessfully) { $runtimeError.GetAwaiter().GetResult() } else { '' }
     $runtimeProcess.Dispose()
     if ($runtimeExitCode -ne 0) {
-        throw "Installed runtime startup failed with exit code $runtimeExitCode."
+        throw "Installed runtime startup failed with exit code $runtimeExitCode.`n$runtimeOutputText`n$runtimeErrorText"
     }
 
     if ($OpenShell) {
@@ -804,6 +840,8 @@ function Start-InstalledRuntime {
             WorkingDirectory = $canonicalInstallRoot
             ArgumentList = @('--data-root', $dataRootFull)
             Detached = $true
+            # The WinExe product launcher is the one launch the developer must see.
+            Visible = $true
         }
         [void](Start-ProductProcess @appParameters)
     }
@@ -892,6 +930,7 @@ function Restore-OverlayTransaction {
     try {
         Request-ShellShutdown
         Request-RunnerShutdown
+        Request-ServiceManagerShutdown
         Stop-ToolPackageRuntimes -Components $AppliedComponents
         if ($AppliedComponents.Count -gt 0) {
             foreach ($component in @($AppliedComponents)[($AppliedComponents.Count - 1)..0]) {
@@ -900,7 +939,14 @@ function Restore-OverlayTransaction {
                 }
                 if ($component.HadOriginal -and (Test-Path -LiteralPath $component.Backup)) {
                     New-Item -ItemType Directory -Path (Split-Path -Parent $component.Target) -Force | Out-Null
-                    Move-Item -LiteralPath $component.Backup -Destination $component.Target
+                    if (Test-Path -LiteralPath $component.Target -PathType Container) {
+                        # A directory move can fail after moving some children. Merge
+                        # them back instead of nesting the backup under the target.
+                        Copy-DirectoryContents -Source $component.Backup -Destination $component.Target
+                    }
+                    else {
+                        Move-Item -LiteralPath $component.Backup -Destination $component.Target
+                    }
                 }
             }
         }
@@ -1153,6 +1199,24 @@ try {
             continue
         }
         Add-ToolSurfaceToPackage -RequestedToolId $requestedToolId -PackageRoot $descriptor.Source
+        if ($requestedToolId -eq 'smartbird-thermostat') {
+            $runtimeRelativePath = 'Runtimes\SmartBird'
+            $installedRuntimeRoot = Resolve-InstalledRelativePath -RelativePath $runtimeRelativePath
+            $runtimeScriptRelativePath = 'test_tools\smartbird_thermostat_service.py'
+            if (-not (Test-Path -LiteralPath (Join-Path $installedRuntimeRoot $runtimeScriptRelativePath) -PathType Leaf)) {
+                throw 'The complete SmartBird runtime installation is required. Run scripts/install-windows.ps1 before the development overlay.'
+            }
+            $runtimeSource = Join-Path $publishRoot 'tool-runtimes\SmartBird'
+            Copy-DirectoryContents -Source $installedRuntimeRoot -Destination $runtimeSource
+            Copy-Item -LiteralPath (Join-Path $repositoryRoot "tools\smartbird-thermostat\original-source\$runtimeScriptRelativePath") -Destination (Join-Path $runtimeSource $runtimeScriptRelativePath) -Force
+            $stagedComponents.Add([pscustomobject]@{
+                Kind = 'tool-runtime'
+                RelativePath = $runtimeRelativePath
+                Source = $runtimeSource
+                PackageId = ''
+                RuntimeExecutables = @()
+            })
+        }
         $stagedComponents.Add([pscustomobject]@{
             Kind = 'tool-package'
             RelativePath = "modules\$($descriptor.PackageId)"
@@ -1205,7 +1269,7 @@ try {
     }
     Stop-ToolPackageRuntimes -Components $stagedComponents
     foreach ($component in $stagedComponents) {
-        if ($component.Kind -ne 'service-unit') {
+        if ($component.Kind -notin @('service-unit', 'tool-runtime')) {
             continue
         }
         $unitDirectory = Resolve-InstalledRelativePath -RelativePath $component.RelativePath

@@ -42,7 +42,7 @@ internal static class RuntimeProgram
     {
         var registry = new NssmRegistryStore();
         var services = new WindowsServiceManager(registry);
-        if (command is "nssm-manager.install" or "nssm-manager.apply" or "nssm-manager.remove" or "nssm-manager.control" or "nssm-manager.migrate" or "nssm-manager.rollback")
+        if (NssmElevatedClient.RequiresElevation(command))
         {
             var serviceName = command is "nssm-manager.install" or "nssm-manager.apply"
                 ? ReadConfiguration(arguments).Name
@@ -79,6 +79,16 @@ internal static class RuntimeProgram
         using var identity = System.Security.Principal.WindowsIdentity.GetCurrent();
         return new System.Security.Principal.WindowsPrincipal(identity).IsInRole(System.Security.Principal.WindowsBuiltInRole.Administrator);
     }
-    private static string ErrorCode(Exception exception) => exception is UnauthorizedAccessException ? "permission.required" : exception is ArgumentException or InvalidDataException ? "validation.failed" : exception is System.ComponentModel.Win32Exception native ? $"win32.{native.NativeErrorCode}" : "runtime.failed";
-    private static void Write(string id, string state, JsonNode? payload, JsonObject? error) => Console.WriteLine(new JsonObject { ["jsonrpc"] = "2.0", ["id"] = id, ["result"] = new JsonObject { ["state"] = state, ["payload"] = payload, ["error"] = error } }.ToJsonString(Json));
+    private static string ErrorCode(Exception exception) => exception is OperationCanceledException ? "permission.cancelled" : exception is UnauthorizedAccessException ? "permission.required" : exception is ArgumentException or InvalidDataException ? "validation.failed" : exception is System.ComponentModel.Win32Exception native ? $"win32.{native.NativeErrorCode}" : "runtime.failed";
+    private static void Write(string id, string state, JsonNode? payload, JsonObject? error) => Console.WriteLine(new JsonObject
+    {
+        ["jsonrpc"] = "2.0",
+        ["id"] = id,
+        ["result"] = new JsonObject
+        {
+            ["state"] = state,
+            ["payload"] = payload?.DeepClone(),
+            ["error"] = error?.DeepClone()
+        }
+    }.ToJsonString(Json));
 }

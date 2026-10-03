@@ -1,0 +1,22 @@
+{
+  "runner": "tester-army/e2e 0.16.0",
+  "runId": "01a102e6-05d3-7100-a25f-fdb9004a5e64",
+  "platform": "Windows x64",
+  "testFiles": 18,
+  "passedFiles": 17,
+  "skippedFiles": 1,
+  "tests": 82,
+  "passed": 81,
+  "failed": 0,
+  "skipped": 1,
+  "durationSeconds": 341.21,
+  "builds": ["local SDK", "Release CLI", "MyPowerTools.Tests", "NssmManager.Tests", "PersonalUx.Tests", "Xbrd.Workflows.Tests"],
+  "moduleHealthIsolationCases": 5,
+  "architectureQuickGate": "passed",
+  "developmentStartup": "Core and updated tools passed installed Shell-to-Runner checks",
+  "sqliteNativeMatchesBundle": "SQLitePCLRaw.lib.e_sqlite3 2.1.13",
+  "smartBirdRuntimeMatchesSource": true,
+  "skippedReason": "tools/file-transfer is absent from the formal tool tree",
+  "limits": ["native desktop clicks", "UAC", "global input hooks", "physical devices", "real remote accounts"],
+  "sourceNote": "Independent checkout with current main merged; freshly generated local SDK feed; third-party NuGet cache reused and Microsoft dotnet-public mirror used for network restore."
+}
