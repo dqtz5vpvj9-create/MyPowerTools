@@ -818,6 +818,7 @@ public sealed class InProcDotNetModuleHost : IModuleTransportRuntime, IModuleTra
     private async Task DisposeCoreAsync()
     {
         InProcModuleSession[] sessions;
+        HashSet<InProcModuleSession> quarantinedSessions;
         try
         {
             await _moduleLock.WaitAsync();
@@ -827,6 +828,7 @@ public sealed class InProcDotNetModuleHost : IModuleTransportRuntime, IModuleTra
                     .Concat(_quarantinedModules.Values)
                     .Distinct()
                     .ToArray();
+                quarantinedSessions = _quarantinedModules.Values.ToHashSet();
                 _loadedModules.Clear();
                 _quarantinedModules.Clear();
                 _faultStates.Clear();
@@ -846,35 +848,10 @@ public sealed class InProcDotNetModuleHost : IModuleTransportRuntime, IModuleTra
                 boundary.Cancel();
             }
 
-            foreach (var session in sessions)
-            {
-                var tracker = _invocationTrackers.GetOrAdd(session.ModuleId, static _ => new InProcInvocationTracker());
-                InProcUnloadResult result;
-                if (await tracker.WaitForDrainAsync(TimeSpan.FromSeconds(2), CancellationToken.None))
-                {
-                    result = await session.DisposeAndUnloadAsync(CancellationToken.None);
-                }
-                else
-                {
-                    result = new InProcUnloadResult(
-                        session.ModuleId,
-                        session.PoolKey,
-                        false,
-                        "pending-runner-restart",
-                        $"InProc module '{session.ModuleId}' still had {tracker.ActiveCount} active callback(s) during host shutdown; in-process disposal was skipped.",
-                        session.LoadContextName);
-                }
-
-                await _moduleLock.WaitAsync();
-                try
-                {
-                    RecordUnloadResult(result);
-                }
-                finally
-                {
-                    _moduleLock.Release();
-                }
-            }
+            // Sessions are independent, so shut them down concurrently: host disposal then
+            // costs the slowest module's bounded cleanup instead of the sum over all modules.
+            await Task.WhenAll(sessions.Select(session =>
+                ShutdownSessionAsync(session, quarantinedSessions.Contains(session))));
 
             // Late completions can still execute bookkeeping after a timed-out
             // callback. Keep synchronization primitives alive until the host is
@@ -886,6 +863,53 @@ public sealed class InProcDotNetModuleHost : IModuleTransportRuntime, IModuleTra
         finally
         {
             Volatile.Write(ref _disposeState, 2);
+        }
+    }
+
+    private static readonly TimeSpan ShutdownDrainTimeout = TimeSpan.FromSeconds(2);
+
+    private async Task ShutdownSessionAsync(InProcModuleSession session, bool quarantined)
+    {
+        var tracker = _invocationTrackers.GetOrAdd(session.ModuleId, static _ => new InProcInvocationTracker());
+        InProcUnloadResult result;
+        if (quarantined && tracker.ActiveCount > 0)
+        {
+            // A quarantined module's callback already outlived its cancellation boundary once
+            // (that is why it was quarantined). The module cancellation above cannot stop it
+            // either, so waiting for it only delays process exit. Abandon it: invocations run
+            // on thread-pool (background) threads and cannot keep the process alive, and the
+            // collectible load context goes away with the process.
+            result = new InProcUnloadResult(
+                session.ModuleId,
+                session.PoolKey,
+                false,
+                "abandoned-at-shutdown",
+                $"InProc module '{session.ModuleId}' was quarantined with {tracker.ActiveCount} escaped callback(s) still running; host shutdown abandoned them without waiting.",
+                session.LoadContextName);
+        }
+        else if (await tracker.WaitForDrainAsync(ShutdownDrainTimeout, CancellationToken.None))
+        {
+            result = await session.DisposeAndUnloadAsync(CancellationToken.None);
+        }
+        else
+        {
+            result = new InProcUnloadResult(
+                session.ModuleId,
+                session.PoolKey,
+                false,
+                "pending-runner-restart",
+                $"InProc module '{session.ModuleId}' still had {tracker.ActiveCount} active callback(s) during host shutdown; in-process disposal was skipped.",
+                session.LoadContextName);
+        }
+
+        await _moduleLock.WaitAsync();
+        try
+        {
+            RecordUnloadResult(result);
+        }
+        finally
+        {
+            _moduleLock.Release();
         }
     }
 

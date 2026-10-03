@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    "MyPowerTools Installer.app": the double-clickable macOS online installer/updater for
+    users who never open Terminal. All install logic lives in MacNativeInstaller
+    (src/MyPowerTools.Packaging); this project is only the small Avalonia window around it.
+    scripts/publish-macos-installer.ps1 publishes it self-contained and single-file into a
+    standalone .app, and scripts/publish-macos.ps1 embeds the same bundle under
+    MyPowerTools.app/Contents/Resources/Installer for the in-app updater.
+    Build output follows src/Directory.Build.props: artifacts/build/bin/MyPowerTools.Installer.Mac/<config>.
+  -->
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>MyPowerTools.Installer.Mac</RootNamespace>
+    <!-- Must match CFBundleExecutable in packaging/macos/Installer.Info.plist. -->
+    <AssemblyName>MyPowerToolsInstaller</AssemblyName>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia.Desktop" Version="12.0.5" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.0.5" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="..\MyPowerTools.Packaging\MyPowerTools.Packaging.csproj" />
+  </ItemGroup>
+
+</Project>

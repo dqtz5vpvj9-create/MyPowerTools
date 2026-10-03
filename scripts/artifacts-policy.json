@@ -432,6 +432,13 @@
       "retention": { "mode": "count", "keep": 1 }
     },
     {
+      "path": "publish/macos-installer-*",
+      "class": "output",
+      "producer": "scripts/publish-macos-installer.ps1 (also via scripts/publish-macos.ps1)",
+      "purpose": "MyPowerTools Installer.app bundle and its MyPowerTools-Installer-macos-<arch>.zip release asset, one directory per architecture.",
+      "retention": { "mode": "count", "keep": 2 }
+    },
+    {
       "path": "publish/*",
       "class": "output",
       "producer": "scripts/publish-macos.ps1",

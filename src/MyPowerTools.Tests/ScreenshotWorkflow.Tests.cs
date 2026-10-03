@@ -78,6 +78,7 @@ public sealed class ScreenshotWorkflowTests
 
     private sealed class EnvironmentStub : IScreenshotEnvironment
     {
+        public void UseKeyboardShortcuts(MyPowerTools.Platform.Abstractions.IKeyboardShortcutService? service) { }
         public string First { get; } = Path.Combine(Path.GetTempPath(), "mpt-e2e-screenshot-old", "snowshot.exe");
         public string Second { get; } = Path.Combine(Path.GetTempPath(), "mpt-e2e-screenshot-new", "snow_shot.exe");
         public ScreenshotPlatform Platform => ScreenshotPlatform.Windows;

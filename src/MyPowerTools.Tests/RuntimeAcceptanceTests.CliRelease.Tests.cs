@@ -405,6 +405,158 @@ public sealed partial class RuntimeAcceptanceTests
     }
 
     [Fact]
+    public void Web_setup_never_leaves_a_half_installed_product_and_explains_failures()
+    {
+        var installer = File.ReadAllText(Path.Combine(Root, "installer", "MyPowerTools.Web.iss"));
+        var fullInstaller = File.ReadAllText(Path.Combine(Root, "installer", "MyPowerTools.iss"));
+        var serviceConfigurator = File.ReadAllText(Path.Combine(Root, "scripts", "configure-user-services.ps1"));
+
+        // One installer at a time, shared with the full installer (same AppId and directory).
+        Assert.Contains("SetupMutex=MyPowerToolsSetupMutex,Global\\MyPowerToolsSetupMutex", installer);
+        Assert.Contains("SetupMutex=MyPowerToolsSetupMutex,Global\\MyPowerToolsSetupMutex", fullInstaller);
+        Assert.Contains("MinVersion=10.0.17763", installer);
+
+        // Transaction: the old directory is moved aside in one rename, restored on any failure,
+        // cancel or crash (journal), and deleted only after the new files are verified.
+        Assert.Contains("procedure BeginInstallTransaction", installer);
+        Assert.Contains("TryRename(TransactionAppDir, TransactionBackup, 3)", installer);
+        Assert.Contains(".install-pending", installer);
+        Assert.Contains("procedure RestoreFromJournal", installer);
+        Assert.Contains("RecoverInterruptedInstall(AppDir)", installer);
+        Assert.Contains("RollbackInstallTransaction;", installer);
+        Assert.Contains("procedure CommitInstallTransaction", installer);
+        Assert.Contains("AfterInstall: VerifyCoreLayout", installer);
+        Assert.Contains("AfterInstall: VerifyDotNetLayout", installer);
+        Assert.True(
+            installer.IndexOf("AbandonInstall;", installer.IndexOf("CurStep = ssPostInstall", StringComparison.Ordinal), StringComparison.Ordinal) <
+            installer.IndexOf("CommitInstallTransaction;", installer.IndexOf("CurStep = ssPostInstall", StringComparison.Ordinal), StringComparison.Ordinal),
+            "A failed layout verification must abandon the install before the transaction commits.");
+        Assert.Contains("CurStepChanged(CurStep: TSetupStep)", installer);
+        Assert.Contains("BeginInstallTransaction;", installer);
+        Assert.Contains("procedure HandleElevatedSurvivors", installer);
+        Assert.Contains("ShellExec('runas'", installer);
+        // Runtimes that are not re-downloaded are carried over instead of being lost.
+        Assert.Contains("CarryFromBackup('Runtime\\dotnet'", installer);
+        Assert.Contains("CarryFromBackup('Runtimes\\Doubao', not WantsDoubao)", installer);
+        Assert.Contains("CarryUninstallerFiles", installer);
+
+        // Downloads: automatic retries with backoff, resume of finished files, mirrors,
+        // human-readable reasons, disk space check.
+        Assert.Contains("AutomaticDownloadAttempts = 3", installer);
+        Assert.Contains("Reusing signature-verified download from this session", installer);
+        Assert.Contains("PreserveDownloadedAssets", installer);
+        Assert.Contains("{param:MIRROR|}", installer);
+        Assert.Contains("function FriendlyDownloadError", installer);
+        Assert.Contains("GetSpaceOnDisk64", installer);
+        Assert.Contains("function IsAsciiText", installer);
+
+        // Upgrade / repair / downgrade awareness and a log the user can find.
+        Assert.Contains("function InitializeSetup", installer);
+        Assert.Contains("/ALLOWDOWNGRADE", installer);
+        Assert.Contains("MB_DEFBUTTON2, IDNO", installer);
+        Assert.Contains("WizardSelectComponents('smartbird')", installer);
+        Assert.Contains("MyPowerTools\\logs\\installer", installer);
+        Assert.Contains("procedure SaveInstallerLog", installer);
+        Assert.Contains("function GetCustomSetupExitCode", installer);
+        Assert.Contains("跳过并完成安装", installer);
+        Assert.Contains("QuiesceWorkerTimeoutMs", installer);
+
+        // Runtime detection that works on Windows on ARM and on the 32-bit registry view.
+        Assert.Contains("HKLM32", installer);
+        Assert.Contains("{pf64}\\dotnet\\x64", installer);
+        Assert.Contains("Microsoft.NETCore.App.deps.json", installer);
+
+        // Non-ASCII user profiles: files consumed as UTF-8 are written as UTF-8.
+        Assert.Contains("SaveStringsToUTF8FileWithoutBOM", installer);
+        Assert.DoesNotContain("SaveStringToFile(", installer);
+        Assert.DoesNotContain("SaveStringsToFile(", installer);
+        Assert.Contains("SaveStringsToUTF8FileWithoutBOM", fullInstaller);
+        Assert.DoesNotContain("SaveStringToFile(", fullInstaller);
+
+        // Every PowerShell the installers run must bypass the default Restricted policy.
+        foreach (var text in new[] { installer, fullInstaller })
+        {
+            Assert.All(
+                text.Split('\n').Where(line => line.Contains("powershell.exe\"; Parameters:", StringComparison.Ordinal)),
+                line => Assert.Contains("-ExecutionPolicy Bypass", line, StringComparison.Ordinal));
+        }
+
+        // Windows PowerShell 5.1 (.NET Framework) has no Process.Kill(bool).
+        Assert.Contains("catch { try { $process.Kill() } catch {} }", serviceConfigurator);
+    }
+
+    [Fact]
+    public void Web_setup_installs_even_when_files_in_the_install_directory_are_in_use()
+    {
+        // Regression: 0.3.25 renamed the whole install directory and gave up with
+        // "安装目录正在被占用" whenever anything held a handle under it (an Explorer window,
+        // a console's working directory, antivirus, an elevated MyPowerTools process).
+        var installer = File.ReadAllText(Path.Combine(Root, "installer", "MyPowerTools.Web.iss"));
+        var fullInstaller = File.ReadAllText(Path.Combine(Root, "installer", "MyPowerTools.iss"));
+        var worker = File.ReadAllText(Path.Combine(Root, "scripts", "web-installer-worker.ps1"));
+
+        // The dead-end dialog is gone.
+        Assert.DoesNotContain("MyPowerTools 的安装目录正在被占用", installer);
+        Assert.DoesNotContain("安装目录被占用，安装已取消", installer);
+
+        // Whole-directory rename first, then entry by entry (a busy folder stays, its contents
+        // move; running .exe/.dll images can be renamed), then a staged payload.
+        var begin = installer.IndexOf("procedure BeginInstallTransaction", StringComparison.Ordinal);
+        Assert.True(begin > 0);
+        var beginBody = installer[begin..installer.IndexOf("function PayloadDir", begin, StringComparison.Ordinal)];
+        Assert.Contains("TryRename(TransactionAppDir, TransactionBackup, 3)", beginBody);
+        Assert.Contains("MergeTree(TransactionAppDir, TransactionBackup, '', Stuck)", beginBody);
+        Assert.Contains("StopProcessesUnderRoot(TransactionAppDir)", beginBody);
+        Assert.Contains("UsePendingPayload := True", beginBody);
+        Assert.DoesNotContain("FailBeforeInstall('安装目录", beginBody);
+        Assert.Contains("function MergeTree(const Source, Target, Relative: String; const Stuck: TStringList): Integer;", installer);
+
+        // The last-resort dialog always lets the user continue, and closing it continues too.
+        Assert.Contains("继续安装（重启电脑后完成更新）", installer);
+        Assert.Contains("['重试', '继续安装（重启电脑后完成更新）'], 0, IDCANCEL", installer);
+
+        // Files that stay busy: payload extracted beside the install, merged in, remainder
+        // finished at the next sign-in by a per-user RunOnce task (no admin needed).
+        Assert.Contains("DestDir: \"{code:PayloadDir}\"; Flags: external extractarchive", installer);
+        Assert.DoesNotContain("DestDir: \"{app}\"; Flags: external extractarchive", installer);
+        Assert.Contains("procedure MergePendingPayload", installer);
+        Assert.Contains("procedure RegisterFinishAfterRestart", installer);
+        Assert.Contains("MyPowerToolsFinishUpdate", installer);
+        Assert.Contains("robocopy.exe", installer);
+        // The app must start right away: no restart prompt (it would hide the launch option);
+        // the finish page explains that the rest completes at the next sign-in.
+        Assert.DoesNotContain("function NeedRestart", installer);
+        Assert.Contains("(CurPageID = wpFinished) and PendingAfterRestart", installer);
+        Assert.Contains("stuck=", installer);
+        Assert.Contains("pending=", installer);
+        Assert.True(
+            installer.IndexOf("MergePendingPayload;", StringComparison.Ordinal) <
+            installer.IndexOf("CommitInstallTransaction;", installer.IndexOf("MergePendingPayload;", StringComparison.Ordinal) - 1, StringComparison.Ordinal),
+            "The staged payload must be merged before the transaction commits.");
+
+        // Processes are found by path (incl. elevated ones via QueryFullProcessImageName), tasks
+        // running from the install directory are stopped, and a single UAC prompt is offered
+        // only when an elevated MyPowerTools process actually survived.
+        Assert.Contains("QueryFullProcessImageName", worker);
+        Assert.Contains("function Get-ProcessesUnderRoot", worker);
+        Assert.Contains("function Stop-ScheduledTasksUnderRoot", worker);
+        Assert.Contains("$ResultPath.elevated", worker);
+        Assert.DoesNotContain("throw \"以下 MyPowerTools 进程无法关闭", worker);
+        Assert.Contains("WorkerResultPath + '.elevated'", installer);
+        Assert.Contains("SELECT ProcessId, ExecutablePath FROM Win32_Process", installer);
+        Assert.Contains("StopProcessesUnderRootWithPowerShell", installer);
+
+        // Uninstall never fails on busy files: leftovers are removed at the next sign-in.
+        Assert.Contains("procedure ScheduleLeftoverCleanup", installer);
+        Assert.Contains("MyPowerToolsCleanup", installer);
+        Assert.Contains("usPostUninstall", installer);
+        Assert.Contains("MyPowerToolsCleanup", fullInstaller);
+        Assert.Contains("usPostUninstall", fullInstaller);
+        Assert.Contains("StopProcessesUnderRoot(ExpandConstant('{app}'))", fullInstaller);
+        Assert.Contains("CurStep = ssInstall", fullInstaller);
+    }
+
+    [Fact]
     public void Ota_apply_writes_reopen_plan_for_detected_programs()
     {
         var cli = File.ReadAllText(Path.Combine(Root, "src", "MyPowerTools.Cli", "Program.cs"));

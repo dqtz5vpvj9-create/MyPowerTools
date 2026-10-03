@@ -381,7 +381,7 @@ public sealed class ScreenshotProductTests
 
         Assert.Empty(manifest["hotkeys"]!.AsArray());
         Assert.Equal(
-            ["screenshot.capture", "screenshot.open", "screenshot.status"],
+            ["screenshot.capture", "screenshot.install", "screenshot.open", "screenshot.status"],
             commands["commands"]!.AsArray()
                 .Select(command => command!["id"]!.GetValue<string>())
                 .OrderBy(id => id, StringComparer.Ordinal)
@@ -440,6 +440,7 @@ public sealed class ScreenshotProductTests
 
     private sealed class FakeScreenshotEnvironment : IScreenshotEnvironment
     {
+        public void UseKeyboardShortcuts(MyPowerTools.Platform.Abstractions.IKeyboardShortcutService? service) { }
         private int _nextProcessId = 10;
         private readonly Dictionary<int, string> _processNames = [];
         private readonly Dictionary<int, string?> _processImagePaths = [];

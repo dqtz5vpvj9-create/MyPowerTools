@@ -103,6 +103,12 @@ var endpoint = string.IsNullOrWhiteSpace(endpointAddress)
 var builder = WebApplication.CreateBuilder(args);
 daemonConsole.ConfigureHostLogging(builder.Logging);
 builder.WebHost.SuppressStatusMessages(true);
+// Kestrel's graceful stop waits for in-flight HostControl requests until this timeout
+// (30 s by default), after which it aborts them. A request that is waiting on a slow or
+// quarantined module (a dashboard refresh probing an unreachable service, a command
+// stream) must not hold QuitRunner/tray Exit for that long; module work is cancelled
+// and disposed by the runtime teardown after RunAsync returns.
+builder.Services.Configure<HostOptions>(options => options.ShutdownTimeout = TimeSpan.FromSeconds(5));
 builder.Services.AddSingleton(new HostControlAuthOptions(hostControlToken));
 builder.Services.AddGrpc(options => options.Interceptors.Add<HostControlAuthServerInterceptor>());
 builder.Services.AddSingleton(runtime);
