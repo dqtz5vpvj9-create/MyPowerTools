@@ -67,7 +67,7 @@ test('Installed development tool matches the build and answers through the runni
   expect(await hash(join(installed, 'modules/file-transfer/ui/surface/FileTransfer.Surface.dll')))
     .toBe(await hash('tools/file-transfer/artifacts/package/ui/surface/FileTransfer.Surface.dll'));
   expect(await hash(join(installed, 'Shell/MyPowerTools.AvaloniaSdk.dll')))
-    .toBe(await hash('artifacts/build/bin/MyPowerTools.AvaloniaSdk/debug/MyPowerTools.AvaloniaSdk.dll'));
+    .toBe(await hash('artifacts/build/bin/MyPowerTools.Shell.Avalonia/debug/MyPowerTools.AvaloniaSdk.dll'));
   const { stdout } = await execute('dotnet', ['artifacts/build/bin/MyPowerTools.Cli/debug/MyPowerTools.Cli.dll',
     'transfer', 'status', '--data-root', join(process.env.LOCALAPPDATA, 'MyPowerTools')],
     { windowsHide: true, timeout: 30_000 });
