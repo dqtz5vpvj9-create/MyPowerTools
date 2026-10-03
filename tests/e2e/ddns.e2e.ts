@@ -1,13 +1,13 @@
 import { test, expect } from 'e2e';
 import { execFile } from 'node:child_process';
 import { promisify } from 'node:util';
-import { mkdtemp, rm } from 'node:fs/promises';
+import { mkdtemp, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 
 const execute = promisify(execFile);
 async function scenario(name: string) {
-  const root = await mkdtemp(join(tmpdir(), 'mpt-ddns-e2e-'));
+  const root = await realpath(await mkdtemp(join(tmpdir(), 'mpt-ddns-e2e-')));
   try {
     const { stdout } = await execute('pwsh.exe', ['-NoLogo', '-NoProfile', '-NonInteractive', '-File',
       resolve('tests/e2e/helpers/ddns.ps1'), '-Scenario', name, '-DataRoot', root], { windowsHide: true, timeout: 30_000 });

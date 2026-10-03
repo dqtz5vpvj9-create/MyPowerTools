@@ -1525,7 +1525,7 @@ public sealed partial class MptHostRuntime : IAsyncDisposable
         {
             await runtime.ApplySettingsAsync(module, context, snapshot, cancellationToken);
         }
-        catch (OperationCanceledException)
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
         {
             throw;
         }

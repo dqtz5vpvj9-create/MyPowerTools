@@ -42,5 +42,6 @@ jobs:
         with:
           name: mpt-e2e-results
           path: .e2e/
+          include-hidden-files: true
           retention-days: 14
           if-no-files-found: error

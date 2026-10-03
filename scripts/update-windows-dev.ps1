@@ -498,7 +498,7 @@ function Get-ProcessesInDirectory {
             (Test-IsInsidePath -Parent $Directory -Child $process.ExecutablePath)
         $scriptHost = $process.Name -in @('cmd.exe', 'pwsh.exe', 'powershell.exe', 'dotnet.exe', 'wscript.exe', 'cscript.exe', 'python.exe', 'pythonw.exe')
         $hostsPayload = $scriptHost -and -not [string]::IsNullOrWhiteSpace($process.CommandLine) -and
-            $process.CommandLine.IndexOf($directoryPrefix, [StringComparison]::OrdinalIgnoreCase) -ge 0
+            $process.CommandLine.Replace('/', '\').IndexOf($directoryPrefix, [StringComparison]::OrdinalIgnoreCase) -ge 0
         if ($inside -or $hostsPayload) { [void]$selected.Add([int]$process.ProcessId) }
     }
     do {

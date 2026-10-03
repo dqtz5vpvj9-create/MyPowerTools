@@ -1,6 +1,6 @@
 import { test, expect } from 'e2e';
 import { spawn } from 'node:child_process';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, realpath, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
 import { repositoryRoot } from './helpers/process.ts';
@@ -27,7 +27,7 @@ async function invoke(root: string, command: string, args: Record<string, unknow
 }
 
 async function isolated(body: (root: string) => Promise<void>) {
-  const root = await mkdtemp(join(tmpdir(), 'mpt-lag-e2e-'));
+  const root = await realpath(await mkdtemp(join(tmpdir(), 'mpt-lag-e2e-')));
   try { await body(root); }
   finally { await rm(root, { recursive: true, force: true }); }
 }

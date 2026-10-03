@@ -2,7 +2,7 @@ import { test, expect } from 'e2e';
 import { runDotnetTests } from './helpers/dotnet.ts';
 
 test('Shell dashboard and command catalog survive module budget cancellation', async () => {
-  await runDotnetTests('FullyQualifiedName~ModuleHealthIsolationTests', { minimumTests: 3 });
+  await runDotnetTests('FullyQualifiedName~ModuleHealthIsolationTests', { minimumTests: 5 });
 });
 
 test('Shell navigation, resident lifecycle and reconnect behavior', async () => {
