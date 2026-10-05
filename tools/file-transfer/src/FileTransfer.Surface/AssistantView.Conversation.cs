@@ -187,7 +187,7 @@ internal sealed partial class AssistantView
         content.Children.Add(more);
         var bubble = new Border { Child = content, Padding = new Thickness(10, 5), CornerRadius = new CornerRadius(14) };
         bubble.Bind(Border.BackgroundProperty, new DynamicResourceExtension(mine ? "MptMobileAccentSoftBrush" : "MptMobileCardBrush"));
-        var status = item.State == AssistantItemState.Queued && mine && item.TargetDeviceId is null ? "已保存到本机" : item.TransferStateText;
+        var status = item.TransferStateText;
         var meta = MobileUi.Caption(mine ? status : item.SenderName + " · " + status);
         meta.FontSize = 12;
         meta.Margin = new Thickness(4, 2, 4, 0);

@@ -75,6 +75,50 @@ public sealed class ConversationLiveRefreshTests
         finally { window.Close(); }
     }
 
+    [AvaloniaTheory]
+    [InlineData(390)]
+    [InlineData(1200)]
+    public void Shared_send_shows_queue_then_sent_then_real_receipts(int width)
+    {
+        var module = new FakeTransferModule();
+        var item = new JsonObject
+        {
+            ["id"] = "forwarded-file", ["kind"] = "file", ["name"] = "转发文档.pdf",
+            ["size"] = 1024, ["senderDeviceId"] = "mpt-phone", ["state"] = "queued",
+            ["createdAt"] = DateTimeOffset.UtcNow.ToString("O"), ["receipts"] = new JsonArray()
+        };
+        module.AssistantItems.Add(item);
+        var view = new TransferView(module.Context(Path.GetTempPath()));
+        var window = new Window { Width = width, Height = 820, Content = view };
+        void Expect(string status)
+        {
+            module.EmitAssistantChanged();
+            Settle(window);
+            var captions = view.Conversation.ThreadPanel.GetLogicalDescendants().OfType<TextBlock>();
+            Assert.Contains(captions, text => text.Text == status);
+            Assert.DoesNotContain(captions, text => text.Text == "已保存到本机");
+        }
+        try
+        {
+            window.Show();
+            Settle(window);
+            ConversationTestNavigation.Open(window, view);
+            Expect("等待发送");
+            item["state"] = "sending";
+            item["bytesDone"] = 512;
+            Expect("发送中 50%");
+            item["state"] = "stored";
+            item["transportRoute"] = "cloud-quark";
+            Expect("夸克网盘 · 已发送，等待接收");
+            item["receipts"] = new JsonArray(new JsonObject { ["deviceId"] = "mpt-phone" });
+            Expect("夸克网盘 · 已发送，等待接收");
+            item["receipts"] = new JsonArray(new JsonObject { ["deviceId"] = "pc-1" },
+                new JsonObject { ["deviceId"] = "pc-1" });
+            Expect("夸克网盘 · 已送达 1 台设备");
+        }
+        finally { window.Close(); }
+    }
+
     [AvaloniaFact]
     public void Receipt_wrapping_and_keyboard_resize_keep_the_latest_row_visible()
     {

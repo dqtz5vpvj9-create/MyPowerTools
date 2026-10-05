@@ -188,7 +188,7 @@ public sealed class AssistantConversationTests : IDisposable
         Assert.True(_core.Snapshot.CanSync);
         Assert.Equal(AssistantItemState.Stored, Assert.Single(_core.Snapshot.Items).State);
         // "Stored" is the relay saving it, never a claim that a device received it.
-        Assert.Equal("已同步", Assert.Single(_core.Snapshot.Items).StateText);
+        Assert.Equal("已发送，等待接收", Assert.Single(_core.Snapshot.Items).StateText);
     }
 
     [AvaloniaFact]
@@ -206,7 +206,7 @@ public sealed class AssistantConversationTests : IDisposable
         await TestPump.RunAsync(() => _core.RefreshAsync());
 
         var item = Assert.Single(_core.Snapshot.Items);
-        Assert.Equal("已送达", item.StateText);
+        Assert.Equal("已送达 1 台设备", item.StateText);
         Assert.Equal("工作电脑", item.ReceiptText);
     }
 
@@ -237,8 +237,8 @@ public sealed class AssistantConversationTests : IDisposable
         var item = Assert.Single(_core.Snapshot.Items);
         Assert.Equal(route, item.TransportRoute);
         Assert.Equal(label, item.TransportRouteLabel);
-        Assert.Equal("已暂存，等待接收", item.StateText);
-        Assert.Equal(label.Length > 0 ? label + " · 已暂存，等待接收" : "已暂存，等待接收", item.TransferStateText);
+        Assert.Equal("已发送，等待接收", item.StateText);
+        Assert.Equal(label.Length > 0 ? label + " · 已发送，等待接收" : "已发送，等待接收", item.TransferStateText);
         Assert.Empty(item.ReceiptText);
     }
 
@@ -268,7 +268,7 @@ public sealed class AssistantConversationTests : IDisposable
         await TestPump.RunAsync(() => _core.RefreshAsync());
 
         var item = Assert.Single(_core.Snapshot.Items);
-        Assert.Equal("已同步", item.StateText);
+        Assert.Equal("已发送，等待接收", item.StateText);
         Assert.Equal("", item.ReceiptText);
     }
 

@@ -139,7 +139,7 @@ internal sealed record AssistantItem(
     public double Progress => Size > 0 ? Math.Clamp(BytesDone * 100d / Size, 0, 100) : 0;
 
     /// <summary>
-    /// The state wording. Relay-stored is "已同步到中转" and never "已送达": only a device receipt
+    /// The state wording. Relay-stored alone is "已发送，等待接收": only a device receipt
     /// proves delivery, and this method is the single place that decides the wording.
     /// </summary>
     public string StateText => State switch
@@ -148,14 +148,23 @@ internal sealed record AssistantItem(
         AssistantItemState.Sending => IsIncoming
             ? Size > 0 ? $"接收中 {Progress:F0}%" : "接收中"
             : Size > 0 ? $"发送中 {Progress:F0}%" : "发送中",
-        AssistantItemState.Stored => IsIncoming ? "等待接收" : TargetDeviceId is { Length: > 0 } ? "已暂存，等待接收" : "已同步",
-        AssistantItemState.Delivered => "已送达",
+        AssistantItemState.Stored => IsIncoming ? "等待接收" : ConfirmedRecipientCount > 0 ? DeliveredText : "已发送，等待接收",
+        AssistantItemState.Delivered => IsIncoming ? "已接收" : DeliveredText,
         AssistantItemState.Downloading => Size > 0 ? $"接收中 {Progress:F0}%" : "接收中",
         AssistantItemState.Available => IsText || CanOpen ? "已接收" : "待下载",
         AssistantItemState.Failed => IsIncoming ? "接收失败，可重试" : "发送失败，可重试",
         AssistantItemState.Cancelled => "已取消",
         _ => ""
     };
+
+    private int ConfirmedRecipientCount => Receipts
+        .Where(receipt => !string.IsNullOrWhiteSpace(receipt.DeviceId)
+            && receipt.DeviceId != SenderDeviceId
+            && (string.IsNullOrEmpty(TargetDeviceId) || receipt.DeviceId == TargetDeviceId))
+        .Select(receipt => receipt.DeviceId).Distinct(StringComparer.Ordinal).Count();
+
+    private string DeliveredText => string.IsNullOrEmpty(TargetDeviceId) && ConfirmedRecipientCount > 0
+        ? $"已送达 {ConfirmedRecipientCount} 台设备" : "已送达";
 
     /// <summary>Which devices reported saving this entry. Empty means nothing confirmed it yet.</summary>
     public string ReceiptText => Receipts.Count == 0
