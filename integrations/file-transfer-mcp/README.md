@@ -2,6 +2,19 @@
 
 Linux 使用已安装的 MyPowerTools Runner 持续接收、上传并保存待发队列。CLI 和 MCP 通过带认证的 HostControl 连接这个 Runner，沿用文件助手的身份、配对和回执。
 
+## Windows 部署
+
+复用当前用户已运行的开发版 Runner、设备身份和文件助手数据。无需启动第二个 Runner。
+在仓库根目录使用隐藏 PowerShell 执行：
+
+```powershell
+pwsh.exe -NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -File scripts/install-windows-transfer-mcp.ps1 -RegisterCodex
+```
+
+需要 .NET 10 SDK、支持 fastmcp 的 Python，以及可用的 Codex CLI。安装脚本构建 Windows CLI，在 `%LOCALAPPDATA%\Programs\MyPowerTools\TransferMcp` 创建独立 Python 环境，并生成 `mcp.json`，可供其他支持 stdio MCP 的 Agent 客户端导入。使用 `-CliDirectory` 可以指定预先发布的 Windows CLI 目录，该目录必须持久保留。
+
+`-RegisterCodex` 注册名为 `mpt-file-transfer` 的服务器；已启动的 Agent 会话需重新加载 MCP 或新建会话。服务器使用 `pythonw.exe`，CLI 子进程设置 `CREATE_NO_WINDOW`。不会因每次工具调用而闪出控制台。Runner 必须由正常的开发版运行流程启动；模块被隔离时会返回真实错误，不另建空白设备身份。
+
 ## 安装 Linux 服务
 
 需要 .NET 10 SDK、PowerShell、Python 3、`libsecret-tools`，以及当前用户可用且已解锁的 Secret Service 密钥环。无桌面会话时也需要配置用户 D-Bus 和密钥环；凭据不会降级到明文文件。安装脚本使用 `/mnt/cache/data-cache` 暂存构建文件，该目录需可写。
@@ -129,3 +142,9 @@ python3 -m venv "$HOME/.local/share/MyPowerTools/transfer-mcp-venv"
 主要工具为 `mpt_status`、`mpt_devices`、`mpt_conversations`、`mpt_send_files`、`mpt_send_shared`、`mpt_receipts`、`mpt_wait_receipts` 和 `mpt_cancel`。私聊调用 `mpt_send_files(device, files, text)`；公屏调用 `mpt_send_shared(files, text, receipt_from, via)`，默认等待回执，公屏必须提供 `receipt_from`。两类发送默认等待 600 秒，可调整 `timeout_seconds`。
 
 `mpt_pair_device` 和 `mpt_join_shared` 接收私密邀请文件路径。网盘管理使用 `mpt_cloud_accounts`、`mpt_cloud_authorize`、`mpt_cloud_complete` 和 `mpt_cloud_select`；后者会持久修改默认账号与策略。MCP 超时作为工具错误返回完整 CLI JSON，保留待发 ID，后续可继续查询回执；终止 MCP 调用只停止当前 CLI 客户端，已接受消息仍由 Runner 处理。
+
+### Windows 部署验收（2026-10-05）
+
+LIS-IMAC 已安装 Windows CLI 和独立 MCP 环境，并注册至该用户 Codex。实际通过配置中的 `pythonw.exe` 建立 stdio MCP 连接，发现全部 14 个工具；MCP 回归测试 7/7 通过，包括 Windows 隐藏 CLI 子进程。
+
+传输业务验收尚未通过：部署前现有 Runner 的 `file-transfer` 已被软隔离熔断，错误为模块清理发生空引用异常且要求重启 Runner。`mpt_devices` 经 MCP 返回这一真实错误。当前用户桌面会话处于断开状态，交互式恢复任务返回 `0x800710E0`，未能恢复；临时任务已删除。Shell 和 Runner 原进程保持运行，未替换插件或打开桌面窗口。需要在可用的用户会话中恢复开发版 Runner 后重新验证发送和接收回执，不能把工具发现成功视为文件传输验收。

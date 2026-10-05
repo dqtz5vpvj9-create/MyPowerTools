@@ -3,6 +3,7 @@
 import asyncio
 import json
 import os
+import subprocess
 from typing import Literal
 
 from fastmcp import FastMCP
@@ -23,6 +24,7 @@ class TransferCli:
             process = await asyncio.create_subprocess_exec(
                 *self.command, "transfer", *arguments, *self.options,
                 stdout=asyncio.subprocess.PIPE, stderr=asyncio.subprocess.PIPE,
+                **({"creationflags": subprocess.CREATE_NO_WINDOW} if os.name == "nt" else {}),
             )
         except FileNotFoundError as error:
             raise ToolError("MPT CLI 未安装。请配置 MPT_COMMAND_JSON 或将 mpt 加入 PATH。") from error
@@ -55,7 +57,7 @@ def create_server(cli: TransferCli) -> FastMCP:
 
     @mcp.tool(annotations=read)
     async def mpt_status() -> dict:
-        """查看 Linux MPT 传输服务及文件助手状态。不会启动第二个传输实例。"""
+        """查看本机 MPT 传输服务及文件助手状态。不会启动第二个传输实例。"""
         return await cli.call("status")
 
     @mcp.tool(annotations=read)

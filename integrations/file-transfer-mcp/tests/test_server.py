@@ -6,6 +6,7 @@ from pathlib import Path
 import sys
 import tempfile
 import unittest
+from unittest.mock import AsyncMock, patch
 
 from fastmcp import Client
 from fastmcp.exceptions import ToolError
@@ -40,6 +41,16 @@ print(json.dumps({"ok":True,"command":args[1],"data":{"arguments":args}}))
 
     def tearDown(self):
         self.directory.cleanup()
+
+    async def test_windows_cli_does_not_create_console_window(self):
+        child = AsyncMock()
+        child.returncode = 0
+        child.communicate.return_value = (b'{"ok":true}', b'')
+        with patch.object(module.os, "name", "nt"), \
+             patch.object(module.subprocess, "CREATE_NO_WINDOW", 0x08000000, create=True), \
+             patch.object(module.asyncio, "create_subprocess_exec", return_value=child) as spawn:
+            await self.cli.call("devices")
+        self.assertEqual(spawn.call_args.kwargs["creationflags"], 0x08000000)
 
     async def test_mcp_tools_preserve_paths_and_wait_for_receiver(self):
         server = module.create_server(self.cli)
