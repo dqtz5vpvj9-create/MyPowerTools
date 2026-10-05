@@ -64,7 +64,7 @@ public sealed class CloudRelayClient : IDisposable
             await SendAsync(HttpMethod.Put, PublicRelayClient.DavPath + $"assistant/{_conversation}/{offer.Message.Id}/cloud-share.json",
                 JsonContent.Create(share, options: AssistantJson.Options), token);
         }
-        await SendAsync(HttpMethod.Put, PublicRelayClient.DavPath + $"cloud-locator/{_conversation}/{offer.Message.Id}/manifest.json", JsonContent.Create(offer, options: AssistantJson.Options), token);
+        await SendAsync(HttpMethod.Put, PublicRelayClient.DavPath + $"cloud-locator/{_conversation}/{offer.Message.Id}/manifest.json", JsonContent.Create(offer, options: AssistantJson.Options), token, allowCloudSizeLimit: share is not null);
         await SendAsync(HttpMethod.Put, PublicRelayClient.DavPath + $"assistant/{_conversation}/{offer.Message.Id}/manifest.json", JsonContent.Create(offer.Message, options: AssistantJson.Options), token);
     }
 
@@ -110,13 +110,20 @@ public sealed class CloudRelayClient : IDisposable
         using var response = await _http.SendAsync(message, token);
         if (!response.IsSuccessStatusCode) throw new IOException("接收方尚未完成附件领取，请稍后重试。");
     }
-    private async Task SendAsync(HttpMethod method, string path, HttpContent? content, CancellationToken token, bool allowExisting = false)
+    private async Task SendAsync(HttpMethod method, string path, HttpContent? content, CancellationToken token, bool allowExisting = false, bool allowCloudSizeLimit = false)
     {
-        using var budget = CancellationTokenSource.CreateLinkedTokenSource(token);
-        budget.CancelAfter(TimeSpan.FromSeconds(30));
         using var request = new HttpRequestMessage(method, path) { Content = content };
-        using var response = await _http.SendAsync(request, budget.Token);
-        if (!response.IsSuccessStatusCode && !(allowExisting && response.StatusCode == HttpStatusCode.MethodNotAllowed)) throw new IOException("网盘附件消息发布失败，请稍后重试。");
+        using var response = await _http.SendAsync(request, token);
+        // A provider share downloads directly from the provider. The legacy streaming
+        // relay's payload limit still applies to that relay, not to this share.
+        if (allowCloudSizeLimit && response.StatusCode == HttpStatusCode.RequestEntityTooLarge)
+        {
+            await response.Content.LoadIntoBufferAsync(4096, token);
+            using var error = JsonDocument.Parse(await response.Content.ReadAsStringAsync(token));
+            if (error.RootElement.TryGetProperty("error", out var code) && code.GetString() == "invalid_cloud_size") return;
+        }
+        if (!response.IsSuccessStatusCode && !(allowExisting && response.StatusCode == HttpStatusCode.MethodNotAllowed))
+            throw new IOException($"网盘附件消息发布失败（HTTP {(int)response.StatusCode}），待发记录已保留。");
     }
     private sealed class PayloadContent(Stream source, long size) : HttpContent
     {

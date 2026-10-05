@@ -45,6 +45,40 @@ public sealed class CloudShareLocatorTests
     }
 
     [Theory]
+    [InlineData(true, "invalid_cloud_size", true)]
+    [InlineData(false, "invalid_cloud_size", false)]
+    [InlineData(true, "cloud_locator_too_large", false)]
+    public async Task Provider_share_outlives_legacy_stream_size_limit_only(bool withShare, string error, bool succeeds)
+    {
+        var root = Path.Combine(Environment.GetEnvironmentVariable("MPT_TEST_TEMP") ?? Path.GetTempPath(), "mpt-share-limit-" + Guid.NewGuid().ToString("N"));
+        await using var server = new AssistantWebDavServer(root);
+        var visible = false;
+        server.Intercept = (context, request) =>
+        {
+            context.Request.InputStream.CopyTo(Stream.Null);
+            if (request.Method == "PUT" && request.Path.Contains("/cloud-locator/"))
+                AssistantWebDavServer.Write(context, 413, JsonSerializer.SerializeToUtf8Bytes(new { error }));
+            else
+            {
+                if (request.Method == "PUT" && request.Path.EndsWith("/manifest.json")) visible = true;
+                AssistantWebDavServer.Write(context, 200);
+            }
+            return true;
+        };
+        try
+        {
+            var message = Message with { Size = 1165946739 };
+            var offer = CloudAttachmentOffer.Create("share-test", message);
+            var share = withShare ? new CloudShareLocator(1, "share-test", message, offer.ExpiresAt, new("share", "file")) : null;
+            using var sender = new CloudRelayClient("share-test", new string('a', 64), new Uri(server.Url));
+            if (succeeds) await sender.PublishAsync(offer, default, share);
+            else await Assert.ThrowsAsync<IOException>(() => sender.PublishAsync(offer, default, share));
+            Assert.Equal(succeeds, visible);
+        }
+        finally { await server.DisposeAsync(); Directory.Delete(root, true); }
+    }
+
+    [Theory]
     [InlineData(404, true)]
     [InlineData(503, false)]
     public async Task OnlyMissingShareFallsBackToLegacyTransport(int status, bool missing)

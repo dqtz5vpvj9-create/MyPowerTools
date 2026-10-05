@@ -53,15 +53,13 @@ public sealed partial class FileTransferModule
             if (CloudOnly) throw new InvalidOperationException("待发附件已保留。请连接可用网盘；现有自定义中转不会被新网盘替换。");
             return false;
         }
+        var uploaded = false;
+        var stage = "准备网盘";
         try
         {
             using var relay = new CloudRelayClient(conversation, conversationKey);
-            _cloudTransportAvailable = await relay.AvailableAsync(token);
-            if (!_cloudTransportAvailable)
-            {
-                if (CloudOnly) throw new InvalidOperationException("待发附件已保留，网盘单文件领取服务暂不可用。");
-                return false;
-            }
+            // Upload and share publication are durable work. A short health probe of
+            // the optional legacy stream must not gate or cancel a provider upload.
             var store = _cloudPayloads!;
             var existing = (await store.ReadAsync(token)).SingleOrDefault(m => m.Offer.ConversationId == conversation && m.Offer.Message.Id == message.Id);
             var mapping = existing ?? new CloudPayloadMapping(CloudAttachmentOffer.Create(conversation, message), account.Id,
@@ -74,6 +72,8 @@ public sealed partial class FileTransferModule
             }
             await SetAssistantTransportRouteAsync(message.Id, account.ProviderId == "quark" ? "cloud-quark" : account.ProviderId == "baidu" ? "cloud-baidu" : "cloud", token);
             await store.SaveAsync(mapping, token); // ownership is durable before creating a remote object
+            uploaded = mapping.Uploaded;
+            stage = "上传文件";
             using var api = await CloudAdminAsync(token);
             if (!mapping.Uploaded)
             {
@@ -92,11 +92,13 @@ public sealed partial class FileTransferModule
                     if (payload is null) throw new IOException("待发附件副本不存在。");
                     await api.UploadAsync(mapping.MountPath, mapping.ObjectPath, File.OpenRead(payload), message.Size, token);
                 }
+                uploaded = true;
                 mapping = mapping with { Uploaded = true };
                 await store.SaveAsync(mapping, token);
             }
             if (!_cloudAccounts.Accounts.Any(a => a.Id == mapping.AccountId && a.Status == "ready"))
                 throw new InvalidOperationException("网盘已暂停，待发附件已保留。");
+            stage = "创建分享";
             if (account.ProviderId == "quark" && mapping.Share is null)
             {
                 var cookie = await SecretAsync("cloud-account-" + account.Id, token)
@@ -109,10 +111,21 @@ public sealed partial class FileTransferModule
             }
             var locator = mapping.Share is null ? null : new CloudShareLocator(1, conversation,
                 mapping.Offer.Message, mapping.Offer.ExpiresAt, mapping.Share);
+            stage = "发布消息";
             await relay.PublishAsync(mapping.Offer, token, locator);
+            _cloudTransportAvailable = true;
             WakeCloudPayloads();
             EmitCloudAccountsChanged("payload");
             return true;
+        }
+        catch (OperationCanceledException ex) when (!token.IsCancellationRequested)
+        {
+            throw new IOException(uploaded ? $"文件已上传；{stage}连接中断，原消息等待重试。"
+                : $"{stage}连接中断，待发文件已保留。", ex);
+        }
+        catch (Exception ex) when (uploaded && ex is IOException or HttpRequestException)
+        {
+            throw new IOException($"文件已上传；{stage}未完成，原消息等待重试。", ex);
         }
         catch (Exception ex) when (!CloudOnly && ex is IOException or HttpRequestException or InvalidOperationException)
         {

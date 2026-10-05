@@ -8,6 +8,31 @@ namespace FileTransfer.Tests;
 public sealed class QuarkShareClientTests
 {
     [Fact]
+    public async Task Share_task_keeps_waiting_until_provider_finishes_after_twenty_polls()
+    {
+        var polls = 0;
+        var creates = 0;
+        using var handler = new ReplyHandler(request =>
+        {
+            var result = request.RequestUri!.AbsolutePath.Split('/')[^1] switch
+            {
+                "sort" => Json(new { list = new[] { new { fid = "file", file_name = "large.bin" } } }),
+                "share" => Json(new { task_id = "task-" + ++creates }),
+                "task" => Json(new { status = ++polls > 20 ? 2 : 1, share_id = "share" }),
+                "password" => Json(new { pwd_id = "public-share" }),
+                _ => throw new InvalidOperationException()
+            };
+            return Task.FromResult(result);
+        });
+        using var client = new QuarkShareClient(handler);
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(40));
+        var result = await client.CreateAsync("test-cookie", "/large.bin", DateTimeOffset.UtcNow.AddDays(6), stop.Token);
+        Assert.Equal("public-share", result.ShareId);
+        Assert.Equal(21, polls);
+        Assert.Equal(1, creates);
+    }
+
+    [Fact]
     public async Task Receiver_refreshes_the_share_capability_without_any_owner_credential()
     {
         var tokenCalls = 0;

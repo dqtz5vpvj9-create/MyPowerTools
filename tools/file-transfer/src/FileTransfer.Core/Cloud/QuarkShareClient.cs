@@ -19,10 +19,10 @@ public sealed class QuarkShareClient : IDisposable
     internal QuarkShareClient(HttpMessageHandler handler) : this(handler, handler) { }
     private QuarkShareClient(HttpMessageHandler ownerHandler, HttpMessageHandler anonymousHandler)
     {
-        _http = new(ownerHandler) { Timeout = TimeSpan.FromMinutes(2) };
+        _http = new(ownerHandler) { Timeout = Timeout.InfiniteTimeSpan };
         // The provider issues anonymous visitor cookies for its CDN. This jar must never
         // see owner requests or owner Set-Cookie responses, even if this instance is reused.
-        _anonymousHttp = new(anonymousHandler) { Timeout = TimeSpan.FromMinutes(2) };
+        _anonymousHttp = new(anonymousHandler) { Timeout = Timeout.InfiniteTimeSpan };
         foreach (var client in new[] { _http, _anonymousHttp })
         {
             client.DefaultRequestHeaders.Referrer = new Uri("https://pan.quark.cn/");
@@ -58,7 +58,7 @@ public sealed class QuarkShareClient : IDisposable
             new { fid_list = new[] { parent }, title = parts[^1], url_type = 1, expired_type = 3 }, cookie, token);
         var task = created.GetProperty("task_id").GetString()!;
         string? ownerShareId = null;
-        for (var attempt = 0; attempt < 20; attempt++)
+        for (var attempt = 0; ; attempt++)
         {
             var result = await ApiAsync(OwnerOrigin, "task", HttpMethod.Get, null, cookie, token,
                 "&task_id=" + Uri.EscapeDataString(task) + "&retry_index=" + attempt);
@@ -66,7 +66,6 @@ public sealed class QuarkShareClient : IDisposable
             if (result.GetProperty("status").GetInt32() == 3) throw new IOException("夸克网盘创建附件分享失败，请重试。");
             await Task.Delay(TimeSpan.FromSeconds(1), token);
         }
-        if (ownerShareId is null) throw new IOException("夸克网盘仍在创建附件分享，请重试。");
         var share = await ApiAsync(OwnerOrigin, "share/password", HttpMethod.Post, new { share_id = ownerShareId }, cookie, token);
         return new(share.GetProperty("pwd_id").GetString()!, parent,
             share.TryGetProperty("passcode", out var passcode) ? passcode.GetString() : null);
