@@ -148,6 +148,17 @@ class ProductionDefaultsTests(unittest.TestCase):
         self.assertGreaterEqual(config.body_budget_seconds, 60)
         self.assertGreaterEqual(config.max_tracked_addresses, 256)
 
+    def test_default_creation_has_no_shared_exit_hourly_quota(self) -> None:
+        with RelayHarness() as relay:
+            for index in range(8):
+                self.assertEqual(201, relay.conversations(
+                    (f"self-{index:08x}", key_for(f"shared-exit-{index}"))).status)
+
+    def test_global_creation_limit_is_explicit_opt_in(self) -> None:
+        with RelayHarness(register_global_per_hour=1) as relay:
+            self.assertEqual(201, relay.conversations(("self-aaaa1111", key_for("a"))).status)
+            self.assertEqual(429, relay.conversations(("self-bbbb2222", key_for("b"))).status)
+
     def test_rate_limit_blocks_creation_not_existing_sessions(self) -> None:
         with RelayHarness(register_per_ip_per_hour=2) as relay:
             self.assertEqual(201, relay.conversations(("self-aaaa1111", key_for("a"))).status)

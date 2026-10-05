@@ -53,8 +53,8 @@ def _defaults() -> Dict[str, object]:
         "max_path_depth": 8,
         "empty_namespace_ttl_days": 0,
         # --- abuse control -------------------------------------------------------------
-        "register_per_ip_per_hour": 5,
-        "register_global_per_hour": 100,
+        "register_per_ip_per_hour": 0,
+        "register_global_per_hour": 0,
         "auth_failures_per_ip": 60,
         "not_ready_per_ip_per_minute": 120,
         "auth_failure_window_seconds": 300,
@@ -112,8 +112,8 @@ class Config:
     max_entries_per_conversation: int = 20000
     max_path_depth: int = 8
     empty_namespace_ttl_days: int = 0
-    register_per_ip_per_hour: int = 5
-    register_global_per_hour: int = 100
+    register_per_ip_per_hour: int = 0
+    register_global_per_hour: int = 0
     auth_failures_per_ip: int = 60
     not_ready_per_ip_per_minute: int = 120
     auth_failure_window_seconds: int = 300
@@ -307,6 +307,8 @@ def _validate(config: Config) -> None:
         raise ConfigError("kdf_iterations 太小，至少 10000。")
     if config.max_inboxes < 0:
         raise ConfigError("max_inboxes 不能为负数。")
+    if config.register_per_ip_per_hour < 0 or config.register_global_per_hour < 0:
+        raise ConfigError("注册频率配置不能为负数（0 = 不限制创建频率）。")
     if config.not_ready_per_ip_per_minute < 1:
         raise ConfigError("not_ready_per_ip_per_minute 必须 ≥ 1。")
     if config.auth_failures_per_ip < 0:

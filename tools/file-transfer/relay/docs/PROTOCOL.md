@@ -110,7 +110,7 @@ PUT 是原子的：写同目录隐藏临时文件 → `fsync` → `os.replace` �
 | 会话用量 + 本次 > `per_conversation_bytes`（默认 1 GiB） | **507** |
 | 全服用量 + 本次 > `global_bytes`（默认 8 GiB） | **507** |
 | 会话条目数 > `max_entries_per_conversation` | **507** |
-| 注册过频 / 认证失败过多 / namespace 数达上限 | **429** + `Retry-After` |
+| 显式配置注册限频后超限 / 认证失败过多 / namespace 数达上限 | **429** + `Retry-After` |
 | 认证并发闸门已满 | 503 + `Retry-After: 2` |
 
 - 声明了 `Content-Length` 的超限请求在**读取请求体之前**就失败，不浪费带宽。
@@ -167,7 +167,7 @@ Content-Type: application/json
 | 400 | `invalid_deposit_key` / `keys_must_differ`（两个 key 必须不同）/ `invalid_body` |
 | 401 | owner 密钥不一致；**用 depositKey 冒充 owner 也在这里被拒**；标识已被会话占用 |
 | 409 | `deposit_key_locked`：owner 正确但 depositKey 不同（旧配对码继续有效，不接受新 key） |
-| 429 | 建账限速（按 IP + 全服）或 `max_inboxes` 上限 |
+| 429 | 显式开启的建账限速（默认关闭）或 `max_inboxes` 上限 |
 
 ### 6.3 投递（发送端，只需配对码）
 

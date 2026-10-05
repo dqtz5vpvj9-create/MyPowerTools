@@ -136,6 +136,7 @@ python3 tools/file-transfer/relay/tests/run.py QuotaTests            # 只跑某
 
 - 凭据只存 PBKDF2-HMAC-SHA256 摘要（每会话随机 salt，默认 120k 次迭代），**从不存明文 key**；
   日志从不记录 `Authorization`、请求体；路径里的会话 id 默认脱敏（`self…3c4d`）。
+- 会话和配对收件箱默认不按 IP 或全服施加每小时创建次数限制，以免共享代理/NAT 出口阻碍设备接入。`REGISTER_PER_IP_PER_HOUR`、`REGISTER_GLOBAL_PER_HOUR` 为可选运维配置，0 表示关闭；认证失败保护和存储容量上限独立生效。
 - 认证失败按 IP 计数（默认 60 次/5 分钟）→ 429；PBKDF2 并发有闸门（默认 8），防止公网
   密码预言机烧 CPU；服务同时限制连接数（64）与请求体。
 - 建 namespace 按 IP（5/小时）与全服（100/小时）限速，并有 `max_conversations` 上限。

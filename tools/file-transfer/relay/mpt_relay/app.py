@@ -52,8 +52,8 @@ class RelayApp:
         self.log = logger or logging.getLogger("mpt_relay")
         self._register_per_ip = RateLimiter(
             config.register_per_ip_per_hour, 3600, max_keys=config.max_tracked_addresses
-        )
-        self._register_global = RateLimiter(config.register_global_per_hour, 3600, max_keys=16)
+        ) if config.register_per_ip_per_hour > 0 else None
+        self._register_global = RateLimiter(config.register_global_per_hour, 3600, max_keys=16) if config.register_global_per_hour > 0 else None
         self._auth_failures = FailureWindow(
             config.auth_failures_per_ip, config.auth_failure_window_seconds, max_keys=config.max_tracked_addresses
         )
@@ -277,12 +277,11 @@ class RelayApp:
                 return self._unauthorized(request, "收件箱 owner 密钥不一致。", punish=True)
             return self._inbox_registration_response(request, inbox_id, False, created, revision)
 
-        allowed, retry = self._register_per_ip.allow(request.remote_ip)
-        if not allowed:
-            return self._too_many(retry, "注册过于频繁。")
-        allowed, retry = self._register_global.allow("*")
-        if not allowed:
-            return self._too_many(retry, "注册过于频繁。")
+        for limiter, key in ((self._register_per_ip, request.remote_ip), (self._register_global, "*")):
+            if limiter is not None:
+                allowed, retry = limiter.allow(key)
+                if not allowed:
+                    return self._too_many(retry, "注册过于频繁。")
         if deposit_key == owner_key:
             # A fresh inbox needs two independent keys, so the pair code never doubles as owner.
             return json_response(400, {"error": "keys_must_differ", "detail": "depositKey 不能与 ownerKey 相同。"})
@@ -458,12 +457,11 @@ class RelayApp:
             return self._unauthorized(request, "该标识已用于收件箱。", punish=False, punish_reason=None)
         if self.store.conversation_count() >= self.config.max_conversations:
             return self._too_many(3600.0, "服务会话数达到上限。")
-        allowed, retry = self._register_per_ip.allow(request.remote_ip)
-        if not allowed:
-            return self._too_many(retry, "注册过于频繁。")
-        allowed, retry = self._register_global.allow("*")
-        if not allowed:
-            return self._too_many(retry, "注册过于频繁。")
+        for limiter, key in ((self._register_per_ip, request.remote_ip), (self._register_global, "*")):
+            if limiter is not None:
+                allowed, retry = limiter.allow(key)
+                if not allowed:
+                    return self._too_many(retry, "注册过于频繁。")
         try:
             created, _revision = self.store.register(conversation_id, conversation_key)
         except CredentialMismatch:
