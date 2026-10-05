@@ -2,6 +2,18 @@
 
 Linux 使用已安装的 MyPowerTools Runner 持续接收、上传并保存待发队列。CLI 和 MCP 通过带认证的 HostControl 连接这个 Runner，沿用文件助手的身份、配对和回执。
 
+## Agent 使用 skill
+
+配套 skill 为 [`mpt-file-transfer`](skills/mpt-file-transfer/SKILL.md)，支持自动发现，也可显式使用 `$mpt-file-transfer`。它说明公屏/私聊选择、主机文件路径、网盘策略及发送后的回执验证；等待超时后继续查询原消息，避免重复发送。
+
+Windows MCP 安装及 Linux `--with-mcp` 安装会同步注册到当前用户 Codex 和 Claude 的 skills 目录。已有 MCP 的机器只补装 skill，无须重启 Runner：
+
+```bash
+python3 integrations/file-transfer-mcp/install_skill.py
+```
+
+安装器遵循 `CODEX_HOME` / `CLAUDE_CONFIG_DIR`，也可传 `--codex-home` / `--claude-home` 指定客户端配置目录。新会话可自动发现；旧会话可刷新技能，或直接读取安装后的 `SKILL.md`。这个操作安装使用说明，不替代 MCP 本身的注册。
+
 ## Windows 部署
 
 复用当前用户已运行的开发版 Runner、设备身份和文件助手数据。无需启动第二个 Runner。

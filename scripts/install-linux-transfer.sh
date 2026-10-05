@@ -115,6 +115,7 @@ printf '\nInstalled CLI: %s/mpt\nRunner service: mpt-transfer.service\n' "$bin_d
 printf 'Start: systemctl --user start mpt-transfer.service\nStatus: %s/mpt transfer status --json\n' "$bin_directory"
 
 if "$with_mcp"; then
+  python3 "$repo_root/integrations/file-transfer-mcp/install_skill.py"
   mkdir -p "$install_root/mcp"
   cp "$repo_root/integrations/file-transfer-mcp/server.py" "$install_root/mcp/server.py"
   cp "$repo_root/integrations/file-transfer-mcp/requirements.txt" "$install_root/mcp/requirements.txt"

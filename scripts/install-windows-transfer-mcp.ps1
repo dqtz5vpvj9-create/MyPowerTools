@@ -27,6 +27,8 @@ try {
     }
     & "$venv\Scripts\python.exe" -m pip install --disable-pip-version-check -r "$InstallRoot\requirements.txt"
     if ($LASTEXITCODE -ne 0) { throw 'MCP dependency installation failed.' }
+    & "$venv\Scripts\python.exe" (Join-Path $repoRoot 'integrations\file-transfer-mcp\install_skill.py')
+    if ($LASTEXITCODE -ne 0) { throw 'Agent skill installation failed.' }
     # pythonw prevents a console window; the MCP client supplies stdio pipes.
     $entry = [ordered]@{
         command = "$venv\Scripts\pythonw.exe"
