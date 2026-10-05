@@ -1,5 +1,7 @@
 # Android 真机 e2e 验证记录
 
+本页保留首轮结果；后续手机发送、草稿、后台恢复及画面检查见 [追加验证](E2E_FOLLOWUP_20261005.md)。
+
 框架：[tester-army/e2e](https://github.com/tester-army/e2e)。固定版本：e2e 0.16.0、@e2e-dev/mobile 0.9.2、agent-device 0.21.20。
 
 ## 设备与版本

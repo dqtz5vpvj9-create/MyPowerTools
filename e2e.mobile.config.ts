@@ -12,7 +12,7 @@ const connectedPhone: DeviceProvider = {
 
 export default {
   tests: 'tests/e2e/mobile-*.e2e.ts',
-  targets: [{ name: 'pixel-4a', engine: mobile({ platform: 'android', device: connectedPhone }),
+  targets: [{ name: process.env.MPT_E2E_TARGET ?? 'pixel-4a', engine: mobile({ platform: 'android', device: connectedPhone }),
     app: { bundleId: process.env.MPT_E2E_PACKAGE ?? 'com.mypowertools.android' } }],
   workers: 1,
   timeout: 120_000,

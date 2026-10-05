@@ -65,5 +65,14 @@ export class Peer {
     if (!result.ok) throw new Error('Production peer command failed: ' + name);
     return result.data;
   }
-  async stop() { this.process?.stdin.end(); }
+  async stop() {
+    const peer = this.process;
+    if (!peer || peer.exitCode !== null) return;
+    // Offline-reception tests need proof that the sender actually exited.
+    await new Promise<void>((resolve, reject) => {
+      peer.once('close', () => resolve());
+      peer.once('error', reject);
+      peer.stdin.end();
+    });
+  }
 }
