@@ -64,3 +64,7 @@ Core 最终全量 389 项：386 通过、0 失败、3 项原有外部 fixture �
 最终源码及 APK 在 08111 的重跑 **4/4 通过**，147.10 秒，报告 `.e2e/mobile-power-restored` / `power-restored.log`。后台约 5.27 秒、锁屏约 6.36 秒完成接收；普通强制 Doze 内已收到；Doze+DROP 时未提前收到，恢复网络后约 7.41 秒完成，屏幕保持不交互。四项都验证完整内容、唯一消息、准确进度和发送端真实回执。测试发送端保留 54 条 QA 历史，未清库规避回执轮询。
 
 最终设备恢复检查 `device-restoration.json`：08191/08111 均 ACTIVE，无 mpt-e2e iptables 规则，无电池 UPDATES STOPPED；深度 Doze 分别恢复为原有 1/0。两台都安装当前开发 APK。最后 Android 打包日志 `manual-apk.log`，内嵌 Core 与插件均逐字节等于最终 staging，源测试日志 `core-receipt-manual-final-netns.log`。正式 GitHub Release 与 Windows 开发版部署未执行。
+
+最后在 08111 最终 APK 上测量开启接收的后台 CPU：Home 后预热 20 秒，再连续采样 120.06 秒；前后均确认 RuntimeService isForeground=true，单核平均 **0.267%**（PID 12996，/proc stat，CLK_TCK=100），没有运行测试发送端。证据 `cpu-active-final.json`。这不是关闭服务后的零占用，也不等同于长期能耗或所有设备的保证。一次 08191 样本因接收服务未启动被判无效，未计入结果；该机重新进入应用并确认服务运行后保留正常状态。
+
+源码提交 `da21fc4` 已推送到 GitHub 的 `ci/both-installers`。这份补充记录只增加最终 CPU 证据，不变更已验收的代码及 APK。
