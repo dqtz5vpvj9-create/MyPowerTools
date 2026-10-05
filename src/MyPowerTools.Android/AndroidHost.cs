@@ -132,6 +132,7 @@ internal static class AndroidHost
                     ["notification.desktop"] = platform.Notifications,
                     ["clipboard.image"] = platform.ClipboardImages,
                     ["background.activity"] = platform.Background,
+                    ["network.recovery"] = AndroidTransferRecovery.Events,
                     ["files.downloads"] = platform.Downloads
                 });
             _runtime = runtime;

@@ -715,6 +715,53 @@ public sealed class AssistantRelayTests : IAsyncDisposable
     }
 
     [Fact]
+    public async Task OneRelayRevisionDrainsAllSecondDeviceReceiptsThenSleeps()
+    {
+        var server = StartServer();
+        var sender = NewDevice("desktop-1", server.Url);
+        var limits = new AssistantSyncLimits(Publish: 25, Receipts: 12);
+        for (var index = 0; index < 25; index++)
+            await sender.Store.EnqueueAsync(sender.Identity, AssistantDraft.ForText($"history {index}"), default);
+        await new AssistantSync(sender.Store, sender.Client, limits).SyncAsync(sender.Identity, default);
+        var items = await sender.ItemsAsync(default);
+        // Existing acknowledgements from A must not hide B's later arrival. Use a future
+        // watermark to cover a clock adjustment: completion stamps must use the sweep marker.
+        var watermark = DateTimeOffset.UtcNow.AddDays(1);
+        await sender.Store.MutateAsync(state =>
+        {
+            foreach (var item in state.Items)
+            {
+                item.Receipts = [new() { ItemId = item.Id, DeviceId = "phone-a", DeviceName = "Phone A", SavedAt = DateTimeOffset.UtcNow }];
+                item.ReceiptCheckedAt = watermark.AddTicks(-1);
+            }
+        }, default);
+        foreach (var item in items)
+            foreach (var phone in new[] { "phone-a", "phone-b" })
+                await sender.Client.WriteAssistantReceiptAsync(Conversation,
+                    new() { ItemId = item.Id, DeviceId = phone, DeviceName = phone, SavedAt = DateTimeOffset.UtcNow }, default);
+
+        var perRound = new List<int>();
+        AssistantSyncResult result;
+        do
+        {
+            Assert.True(perRound.Count < 4, "One revision must finish its bounded sweep instead of polling forever.");
+            result = await new AssistantSync(sender.Store, sender.Client, limits) { ReceiptScanSince = watermark }
+                .SyncAsync(sender.Identity, default);
+            perRound.Add(result.ReceiptsChecked);
+        } while (result.HasMore);
+        Assert.Equal(new[] { 12, 12, 1 }, perRound);
+        Assert.All(await sender.ItemsAsync(default), item =>
+        {
+            Assert.Contains(item.Receipts, receipt => receipt.DeviceId == "phone-b");
+            Assert.Equal(watermark, item.ReceiptCheckedAt);
+        });
+        var quiet = await new AssistantSync(sender.Store, sender.Client, limits) { ReceiptScanSince = watermark }
+            .SyncAsync(sender.Identity, default);
+        Assert.Equal(0, quiet.ReceiptsChecked);
+        Assert.False(quiet.HasMore);
+    }
+
+    [Fact]
     public async Task ReceiptChecksRotateFairlySoEveryConfirmedEntryEventuallyGetsItsReceipt()
     {
         var server = StartServer();

@@ -97,7 +97,19 @@ public sealed partial class FileTransferModule
             }
             if (!_cloudAccounts.Accounts.Any(a => a.Id == mapping.AccountId && a.Status == "ready"))
                 throw new InvalidOperationException("网盘已暂停，待发附件已保留。");
-            await relay.PublishAsync(mapping.Offer, token);
+            if (account.ProviderId == "quark" && mapping.Share is null)
+            {
+                var cookie = await SecretAsync("cloud-account-" + account.Id, token)
+                    ?? throw new InvalidOperationException("夸克登录已失效，请重新登录。");
+                using var shares = new QuarkShareClient();
+                var relativePath = mapping.ObjectPath[mapping.MountPath.Length..];
+                var share = await shares.CreateAsync(cookie, relativePath, mapping.Offer.ExpiresAt, token);
+                mapping = mapping with { Share = share };
+                await store.SaveAsync(mapping, token);
+            }
+            var locator = mapping.Share is null ? null : new CloudShareLocator(1, conversation,
+                mapping.Offer.Message, mapping.Offer.ExpiresAt, mapping.Share);
+            await relay.PublishAsync(mapping.Offer, token, locator);
             WakeCloudPayloads();
             EmitCloudAccountsChanged("payload");
             return true;
@@ -107,6 +119,29 @@ public sealed partial class FileTransferModule
             // Auto explicitly permits the existing app relay. The mapping remains for cleanup/retry ownership.
             return false;
         }
+    }
+
+    private async Task<string?> DownloadCloudShareAsync(AssistantManifest message, string directory,
+        Action<long, long> progress, CancellationToken token)
+    {
+        using var relay = new CloudRelayClient(_conversationId, _conversationKey);
+        var share = await relay.ReadShareAsync(message, token);
+        if (share is null) return null;
+        await SetAssistantTransportRouteAsync(message.Id, "cloud-quark", token);
+        using var provider = new QuarkShareClient();
+        using var response = await provider.OpenReadAsync(share.Share, token);
+        if (response.Content.Headers.ContentLength is { } length && length != message.Size)
+            throw new IOException("网盘分享文件长度与消息不符。");
+        Directory.CreateDirectory(directory);
+        var temporary = TransferFiles.PartialPath(directory);
+        try
+        {
+            await using (var input = await response.Content.ReadAsStreamAsync(token))
+            await using (var output = new FileStream(temporary, FileMode.CreateNew, FileAccess.Write, FileShare.None, 131072, true))
+                await TransferFiles.CopyAsync(input, output, message.Size, progress, token);
+            return TransferFiles.Commit(temporary, directory, message.Name!);
+        }
+        finally { if (File.Exists(temporary)) File.Delete(temporary); }
     }
     private async Task CloudPayloadLoopAsync()
     {

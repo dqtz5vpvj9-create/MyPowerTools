@@ -82,18 +82,36 @@ public static class TransferFiles
         return removed;
     }
 
-    public static async Task CopyAsync(Stream source, Stream destination, long size,
-        Action<long, long>? progress, CancellationToken token)
+    public static Task CopyAsync(Stream source, Stream destination, long size,
+        Action<long, long>? progress, CancellationToken token) =>
+        CopyWithIdleTimeoutAsync(source, destination, size, progress, TimeSpan.FromSeconds(60), token);
+
+    internal static async Task CopyWithIdleTimeoutAsync(Stream source, Stream destination, long size,
+        Action<long, long>? progress, TimeSpan idleTimeout, CancellationToken token)
     {
         if (size < 0) throw new ArgumentException("文件长度不可为负数。");
+        using var idle = CancellationTokenSource.CreateLinkedTokenSource(token);
         var buffer = new byte[128 * 1024];
         long done = 0;
         var lastUpdate = Environment.TickCount64;
         while (done < size)
         {
-            var read = await source.ReadAsync(buffer.AsMemory(0, (int)Math.Min(buffer.Length, size - done)), token);
+            int read;
+            try
+            {
+                // Bound inactivity, not file size or total duration. A half-open socket
+                // after Doze must yield to the durable retry queue instead of hanging forever.
+                idle.CancelAfter(idleTimeout);
+                read = await source.ReadAsync(buffer.AsMemory(0, (int)Math.Min(buffer.Length, size - done)), idle.Token);
+                idle.CancelAfter(idleTimeout);
+                if (read > 0) await destination.WriteAsync(buffer.AsMemory(0, read), idle.Token);
+                idle.CancelAfter(Timeout.InfiniteTimeSpan);
+            }
+            catch (OperationCanceledException) when (!token.IsCancellationRequested)
+            {
+                throw new IOException("传输长时间没有进展，请检查网络连接。");
+            }
             if (read == 0) throw new EndOfStreamException("传输中断，文件尚未接收完整。");
-            await destination.WriteAsync(buffer.AsMemory(0, read), token);
             done += read;
             if (Environment.TickCount64 - lastUpdate >= 250)
             {

@@ -1,3 +1,4 @@
+using System.Net;
 using System.Net.Http.Headers;
 using System.Net.Http.Json;
 using System.Text;
@@ -10,11 +11,17 @@ public sealed class OpenListCloudAccountClient : IDisposable
 {
     private readonly HttpClient _http;
     private readonly string _password;
-    public OpenListCloudAccountClient(Uri origin, string password)
+    private readonly TimeSpan _controlTimeout;
+    public OpenListCloudAccountClient(Uri origin, string password) : this(origin, password, TimeSpan.FromMinutes(2)) { }
+    internal OpenListCloudAccountClient(Uri origin, string password, TimeSpan controlTimeout)
     {
         if (!origin.IsLoopback) throw new ArgumentException("账号管理只允许本机嵌入服务。");
         _password = password;
-        _http = new(new SocketsHttpHandler { AllowAutoRedirect = false, UseProxy = false }) { BaseAddress = origin, Timeout = TimeSpan.FromMinutes(2) };
+        _controlTimeout = controlTimeout;
+        // An upload can remain healthy for much longer than an administration request.
+        // The transfer owner's cancellation token controls the payload lifetime.
+        _http = new(new SocketsHttpHandler { AllowAutoRedirect = false, UseProxy = false, ConnectTimeout = TimeSpan.FromSeconds(30) })
+            { BaseAddress = origin, Timeout = Timeout.InfiniteTimeSpan };
     }
     public async Task LoginAsync(CancellationToken token)
     {
@@ -75,7 +82,7 @@ public sealed class OpenListCloudAccountClient : IDisposable
     public async Task UploadAsync(string mount, string path, Stream content, long length, CancellationToken token)
     {
         ValidatePath(mount, path);
-        using var request = new HttpRequestMessage(HttpMethod.Put, "/api/fs/put") { Content = new StreamContent(content) };
+        using var request = new HttpRequestMessage(HttpMethod.Put, "/api/fs/put") { Content = new UploadContent(content, length) };
         request.Content.Headers.ContentLength = length;
         request.Headers.Add("File-Path", Uri.EscapeDataString(path));
         request.Headers.Add("As-Task", "false");
@@ -93,7 +100,9 @@ public sealed class OpenListCloudAccountClient : IDisposable
         // This mount is configured for local proxy. Never forward the administrator token to a provider/CDN.
         if (raw.GetLeftPart(UriPartial.Authority) != _http.BaseAddress!.GetLeftPart(UriPartial.Authority) || !raw.AbsolutePath.StartsWith("/p/", StringComparison.Ordinal))
             throw new IOException("网盘没有返回本机代理读取入口，请重试。");
-        var response = await _http.GetAsync(raw, HttpCompletionOption.ResponseHeadersRead, token);
+        using var budget = CancellationTokenSource.CreateLinkedTokenSource(token);
+        budget.CancelAfter(_controlTimeout);
+        var response = await _http.GetAsync(raw, HttpCompletionOption.ResponseHeadersRead, budget.Token);
         if (!response.IsSuccessStatusCode) { var status = (int)response.StatusCode; response.Dispose(); throw new IOException($"网盘读取失败（HTTP {status}）。"); }
         return response;
     }
@@ -104,6 +113,9 @@ public sealed class OpenListCloudAccountClient : IDisposable
     }
     private async Task<JsonElement> ApiAsync(string path, object? body, CancellationToken token)
     {
+        using var budget = CancellationTokenSource.CreateLinkedTokenSource(token);
+        budget.CancelAfter(_controlTimeout);
+        token = budget.Token;
         using var response = body is null ? await _http.PostAsync(path, null, token) : await _http.PostAsJsonAsync(path, body, token);
         if (!response.IsSuccessStatusCode) throw new IOException("本机网盘服务请求失败，请重试。");
         using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync(token));
@@ -123,5 +135,15 @@ public sealed class OpenListCloudAccountClient : IDisposable
         return json.RootElement.TryGetProperty("data", out var data) ? data.Clone() : default;
     }
     public void Dispose() => _http.Dispose();
+
+    private sealed class UploadContent(Stream input, long size) : HttpContent
+    {
+        protected override bool TryComputeLength(out long length) { length = size; return true; }
+        protected override Task SerializeToStreamAsync(Stream stream, TransportContext? context) =>
+            SerializeToStreamAsync(stream, context, CancellationToken.None);
+        protected override Task SerializeToStreamAsync(Stream stream, TransportContext? context, CancellationToken token) =>
+            TransferFiles.CopyAsync(input, stream, size, null, token);
+        protected override void Dispose(bool disposing) { if (disposing) input.Dispose(); base.Dispose(disposing); }
+    }
 }
 public sealed record CloudFolder(string Id, string Name, string? ParentId);

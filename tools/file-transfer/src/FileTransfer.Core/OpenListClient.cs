@@ -18,6 +18,7 @@ public sealed partial class OpenListClient : IDisposable
     private readonly HttpClient _http;
     private readonly Uri _root;
     private readonly AuthenticationHeaderValue _authorization;
+    internal TimeSpan ResponseHeadersTimeout { get; init; } = TimeSpan.FromSeconds(30);
 
     public OpenListClient(string webDavDirectory, string username, string password)
     {
@@ -48,13 +49,25 @@ public sealed partial class OpenListClient : IDisposable
         using var request = new HttpRequestMessage(method, uri) { Content = content };
         request.Headers.Authorization = _authorization;
         if (depth is not null) request.Headers.Add("Depth", depth);
-        return await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, token);
+        using var headers = CancellationTokenSource.CreateLinkedTokenSource(token);
+        // Payload uploads use their progress timeout. All metadata and GET requests must
+        // also stop waiting when a server never starts its response body.
+        if (content is not UploadContent) headers.CancelAfter(ResponseHeadersTimeout);
+        try { return await _http.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, headers.Token); }
+        catch (OperationCanceledException) when (!token.IsCancellationRequested)
+        { throw new IOException("服务器尚未响应此请求，稍后自动重试。"); }
     }
 
     private static void Check(HttpResponseMessage response)
     {
         if (!response.IsSuccessStatusCode)
-            throw new IOException($"OpenList 返回 HTTP {(int)response.StatusCode}。请检查地址、网盘挂载和账号权限。");
+        {
+            var message = $"OpenList 返回 HTTP {(int)response.StatusCode}。请检查地址、网盘挂载和账号权限。";
+            if (response.StatusCode is HttpStatusCode.Unauthorized or HttpStatusCode.Forbidden
+                or HttpStatusCode.TooManyRequests || (int)response.StatusCode >= 500)
+                throw new RelayUnavailableException(message, response.StatusCode);
+            throw new IOException(message);
+        }
     }
 
     public async Task CheckAsync(CancellationToken token)
@@ -155,7 +168,11 @@ public sealed partial class OpenListClient : IDisposable
                 if (next.Scheme != "https" && !SameAuthority(next, _root)) throw new IOException("网盘下载重定向必须使用 HTTPS。");
                 if (current != initial) current.Dispose();
                 // A fresh request deliberately has no Authorization header.
-                current = await _http.GetAsync(next, HttpCompletionOption.ResponseHeadersRead, token);
+                using var headers = CancellationTokenSource.CreateLinkedTokenSource(token);
+                headers.CancelAfter(ResponseHeadersTimeout);
+                try { current = await _http.GetAsync(next, HttpCompletionOption.ResponseHeadersRead, headers.Token); }
+                catch (OperationCanceledException) when (!token.IsCancellationRequested)
+                { throw new IOException("下载服务器尚未响应，稍后自动重试。"); }
             }
             return current == initial ? null : current;
         }
@@ -184,4 +201,9 @@ public sealed partial class OpenListClient : IDisposable
         protected override Task SerializeToStreamAsync(Stream stream, TransportContext? context, CancellationToken token) =>
             TransferFiles.CopyAsync(input, stream, size, progress, token);
     }
+}
+
+internal sealed class RelayUnavailableException(string message, HttpStatusCode statusCode) : IOException(message)
+{
+    public HttpStatusCode StatusCode { get; } = statusCode;
 }

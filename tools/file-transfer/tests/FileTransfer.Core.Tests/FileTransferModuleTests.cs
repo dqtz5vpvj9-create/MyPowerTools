@@ -11,6 +11,7 @@ public sealed class FileTransferModuleTests : IAsyncLifetime
     private readonly string _root = Path.Combine(Environment.GetEnvironmentVariable("MPT_TEST_TEMP") ?? Path.GetTempPath(), "mpt-module-test-" + Guid.NewGuid().ToString("N"));
     private readonly InMemorySecretStore _secrets = new();
     private readonly RecordingBackground _background = new();
+    private readonly RecordingNetwork _network = new();
     private FileTransferModule? _module;
 
     public FileTransferModuleTests() => Directory.CreateDirectory(_root);
@@ -27,7 +28,8 @@ public sealed class FileTransferModuleTests : IAsyncLifetime
     {
         var context = new ModuleContext("test", "1.0", "file-transfer", "file-transfer", _root, _root, _root, "linux",
             ["secret.store", "background.activity"],
-            new Dictionary<string, object> { ["secret.store"] = _secrets, ["background.activity"] = _background });
+            new Dictionary<string, object> { ["secret.store"] = _secrets, ["background.activity"] = _background,
+                ["network.recovery"] = _network });
         _module = new FileTransferModule();
         var initialized = await _module.InitializeAsync(context, CancellationToken.None);
         Assert.True(initialized.Ok);
@@ -79,6 +81,45 @@ public sealed class FileTransferModuleTests : IAsyncLifetime
         Read(await module.ExecuteCommandAsync(new CommandRequest("4", "file-transfer.receive.stop", new JsonObject()), CancellationToken.None));
         Assert.Equal(1, _background.Disposes);
         Assert.False(Read(await module.ExecuteCommandAsync(new CommandRequest("5", "file-transfer.inspect", new JsonObject()), CancellationToken.None))["receiving"]!.GetValue<bool>());
+    }
+
+    [Fact]
+    public async Task RelayReceptionKeepsBackgroundLeaseWhenDirectListenerCannotStart()
+    {
+        await File.WriteAllTextAsync(Path.Combine(_root, "preferences.json"), new JsonObject
+        {
+            ["deviceId"] = "relay-only", ["listenAddress"] = "100.127.255.254",
+            ["receiveDirectory"] = Path.Combine(_root, "inbox")
+        }.ToJsonString());
+        var module = await StartAsync();
+        var state = Read(await module.ExecuteCommandAsync(new("inspect", "file-transfer.inspect", new()), CancellationToken.None));
+        Assert.True(state["receiving"]!.GetValue<bool>());
+        Assert.False(state["tailnetListener"]!.GetValue<bool>());
+        Assert.Equal(1, _background.Begins);
+        Assert.Equal(0, _background.Disposes);
+        Read(await module.ExecuteCommandAsync(new("stop", "file-transfer.receive.stop", new()), CancellationToken.None));
+        Assert.Equal(1, _background.Disposes);
+        Read(await module.ExecuteCommandAsync(new("start", "file-transfer.receive.start", new()), CancellationToken.None));
+        Assert.Equal(2, _background.Begins);
+        await module.DisposeAsync(CancellationToken.None);
+        _module = null;
+        Assert.Equal(2, _background.Disposes);
+    }
+
+    [Fact]
+    public async Task NetworkRecoveryCannotUndoUserStopOrRetainADisposedModule()
+    {
+        var module = await StartAsync();
+        Assert.NotNull(_network.Observer);
+        Read(await module.ExecuteCommandAsync(new("stop", "file-transfer.receive.stop", new()), CancellationToken.None));
+        var begins = _background.Begins;
+        _network.Observer!.OnNext(true);
+        var state = Read(await module.ExecuteCommandAsync(new("inspect", "file-transfer.inspect", new()), CancellationToken.None));
+        Assert.False(state["receiving"]!.GetValue<bool>());
+        Assert.Equal(begins, _background.Begins);
+        await module.DisposeAsync(CancellationToken.None);
+        _module = null;
+        Assert.Null(_network.Observer);
     }
 
     [Fact]
@@ -135,6 +176,20 @@ public sealed class FileTransferModuleTests : IAsyncLifetime
         // The server may renumber users; the saved exact username is still explicit proof.
         Assert.Equal(users[1], OpenListSetup.MatchSavedAccount(users, new OpenListSetup.RelayAccount(4, "mpt-second-device")));
         Assert.Null(OpenListSetup.MatchSavedAccount(users, new OpenListSetup.RelayAccount(3, "mpt-deleted-device")));
+    }
+
+    private sealed class RecordingNetwork : IObservable<bool>
+    {
+        public IObserver<bool>? Observer { get; private set; }
+        public IDisposable Subscribe(IObserver<bool> observer)
+        {
+            Observer = observer;
+            return new Subscription(this);
+        }
+        private sealed class Subscription(RecordingNetwork owner) : IDisposable
+        {
+            public void Dispose() => owner.Observer = null;
+        }
     }
 
     private sealed class RecordingBackground : IBackgroundActivityService

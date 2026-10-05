@@ -50,6 +50,68 @@ public sealed class AssistantStoreTests : IDisposable
     };
 
     [Fact]
+    public async Task InspectSnapshotWaitsForTheWholeTransitionAndSurvivesLaterRetries()
+    {
+        var store = NewStore();
+        var item = Assert.Single(await store.EnqueueAsync(Me, AssistantDraft.ForText("snapshot"), default));
+        using var release = new ManualResetEventSlim();
+        var transitionStarted = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var mutation = Task.Run(() => store.MutateAsync(state =>
+        {
+            var live = state.Find(item.Id)!;
+            live.State = AssistantItemState.Failed;
+            transitionStarted.SetResult();
+            if (!release.Wait(TimeSpan.FromSeconds(10))) throw new TimeoutException("Test did not release the transition.");
+            live.Error = "connection lost";
+        }, default));
+        Task<AssistantState> read;
+        try
+        {
+            await transitionStarted.Task.WaitAsync(TimeSpan.FromSeconds(10));
+            read = store.SnapshotAsync(default);
+            Assert.False(read.IsCompleted); // failed + null is not a committed transition
+        }
+        finally { release.Set(); }
+        await mutation;
+        var captured = await read;
+        await store.MutateAsync(state =>
+        {
+            var live = state.Find(item.Id)!;
+            live.State = AssistantItemState.Sending;
+            live.Error = null;
+        }, default);
+        Assert.Equal(AssistantItemState.Failed, captured.Find(item.Id)!.State);
+        Assert.Equal("connection lost", captured.Find(item.Id)!.Error);
+        Assert.Equal(AssistantItemState.Sending, (await store.SnapshotAsync(default)).Find(item.Id)!.State);
+    }
+
+    [Fact]
+    public async Task InspectSnapshotDetachesReceiptListsAndComposerDrafts()
+    {
+        var store = NewStore();
+        var item = Assert.Single(await store.EnqueueAsync(Me, AssistantDraft.ForText("snapshot"), default));
+        await store.MutateAsync(state =>
+        {
+            state.Preferences = new() { DraftText = "draft", AttachmentPaths = ["first.txt"] };
+            state.Drafts["conversation"] = state.Preferences.Copy();
+        }, default);
+        var captured = await store.SnapshotAsync(default);
+        await store.MutateAsync(state =>
+        {
+            state.Find(item.Id)!.Receipts.Add(new() { ItemId = item.Id, DeviceId = "phone" });
+            state.Find(item.Id)!.DepositRoutes.Add(new("public", DateTimeOffset.UtcNow));
+            state.Preferences!.AttachmentPaths.Add("second.txt");
+            state.Drafts["conversation"].DraftText = "edited";
+            state.Drafts["conversation"].AttachmentPaths.Clear();
+        }, default);
+        Assert.Empty(captured.Find(item.Id)!.Receipts);
+        Assert.Empty(captured.Find(item.Id)!.DepositRoutes);
+        Assert.Equal(["first.txt"], captured.Preferences!.AttachmentPaths);
+        Assert.Equal("draft", captured.Drafts["conversation"].DraftText);
+        Assert.Equal(["first.txt"], captured.Drafts["conversation"].AttachmentPaths);
+    }
+
+    [Fact]
     public async Task TransportRouteIsLocalDurableAndUnknownLegacyStaysUnknown()
     {
         var store = NewStore();

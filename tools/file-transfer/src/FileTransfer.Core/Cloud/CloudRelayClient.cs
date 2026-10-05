@@ -16,7 +16,8 @@ public sealed class CloudRelayClient : IDisposable
     {
         _conversation = AssistantValidation.ConversationId(conversation);
         if (key.Length != 64 || !key.All(Uri.IsHexDigit)) throw new ArgumentException("会话凭据无效。");
-        _http = new(new SocketsHttpHandler { AllowAutoRedirect = false }) { BaseAddress = endpoint, Timeout = TimeSpan.FromMinutes(10) };
+        _http = new(new SocketsHttpHandler { AllowAutoRedirect = false, ConnectTimeout = TimeSpan.FromSeconds(30) })
+            { BaseAddress = endpoint, Timeout = Timeout.InfiniteTimeSpan };
         _http.DefaultRequestHeaders.Authorization = new AuthenticationHeaderValue("Basic", Convert.ToBase64String(Encoding.UTF8.GetBytes(conversation + ":" + key)));
     }
     public async Task<string?> ReadPayloadRouteAsync(AssistantManifest message, CancellationToken token)
@@ -48,7 +49,7 @@ public sealed class CloudRelayClient : IDisposable
         using var json = JsonDocument.Parse(await response.Content.ReadAsStringAsync(budget.Token));
         return json.RootElement.TryGetProperty("capabilities", out var caps) && caps.TryGetProperty("cloudPayloadStream", out var enabled) && enabled.TryGetInt32(out var value) && value == 1;
     }
-    public async Task PublishAsync(CloudAttachmentOffer offer, CancellationToken token)
+    public async Task PublishAsync(CloudAttachmentOffer offer, CancellationToken token, CloudShareLocator? share = null)
     {
         if (offer.ConversationId != _conversation || offer.Message.TargetDeviceId is not null || offer.Message.Kind == AssistantItemKind.Text) throw new ArgumentException("网盘附件会话不符。");
         await SendAsync(HttpMethod.Post, PublicRelayClient.ConversationsPath, null, token);
@@ -57,8 +58,31 @@ public sealed class CloudRelayClient : IDisposable
             foreach (var suffix in new[] { root + "/", root + "/" + _conversation + "/", root + "/" + _conversation + "/" + offer.Message.Id + "/" })
                 await SendAsync(new HttpMethod("MKCOL"), PublicRelayClient.DavPath + suffix, null, token, allowExisting: true);
         }
+        if (share is not null)
+        {
+            share.Validate(_conversation, offer.Message);
+            await SendAsync(HttpMethod.Put, PublicRelayClient.DavPath + $"assistant/{_conversation}/{offer.Message.Id}/cloud-share.json",
+                JsonContent.Create(share, options: AssistantJson.Options), token);
+        }
         await SendAsync(HttpMethod.Put, PublicRelayClient.DavPath + $"cloud-locator/{_conversation}/{offer.Message.Id}/manifest.json", JsonContent.Create(offer, options: AssistantJson.Options), token);
         await SendAsync(HttpMethod.Put, PublicRelayClient.DavPath + $"assistant/{_conversation}/{offer.Message.Id}/manifest.json", JsonContent.Create(offer.Message, options: AssistantJson.Options), token);
+    }
+
+    public async Task<CloudShareLocator?> ReadShareAsync(AssistantManifest message, CancellationToken token)
+    {
+        using var budget = CancellationTokenSource.CreateLinkedTokenSource(token);
+        budget.CancelAfter(TimeSpan.FromSeconds(15));
+        using var response = await _http.GetAsync(PublicRelayClient.DavPath +
+            $"assistant/{_conversation}/{AssistantValidation.ItemId(message.Id)}/cloud-share.json",
+            HttpCompletionOption.ResponseHeadersRead, budget.Token);
+        if (response.StatusCode == HttpStatusCode.NotFound) return null;
+        if (!response.IsSuccessStatusCode) throw new IOException("暂时无法读取网盘分享，稍后自动重试。");
+        // Conversation members can publish DAV objects. Bound this metadata read before parsing.
+        await response.Content.LoadIntoBufferAsync(16 * 1024, budget.Token);
+        var share = await response.Content.ReadFromJsonAsync<CloudShareLocator>(AssistantJson.Options, budget.Token)
+            ?? throw new InvalidDataException("网盘分享信息不完整。");
+        share.Validate(_conversation, message);
+        return share;
     }
     public async Task<CloudPayloadRequest[]> RequestsAsync(string deviceId, CancellationToken token)
     {
@@ -80,7 +104,7 @@ public sealed class CloudRelayClient : IDisposable
     {
         // Request id is an opaque server-issued path segment, never a destination URL.
         if (request.RequestId.Length is < 1 or > 128 || !request.RequestId.All(c => char.IsAsciiLetterOrDigit(c) || c is '-' or '_')) throw new IOException("附件领取请求无效。");
-        using var message = new HttpRequestMessage(HttpMethod.Put, "/mpt/relay/v1/cloud/requests/" + request.RequestId + "/body") { Content = new StreamContent(content) };
+        using var message = new HttpRequestMessage(HttpMethod.Put, "/mpt/relay/v1/cloud/requests/" + request.RequestId + "/body") { Content = new PayloadContent(content, request.Size) };
         message.Headers.Add("X-MPT-Cloud-Capability", request.Capability);
         message.Content.Headers.ContentLength = request.Size;
         using var response = await _http.SendAsync(message, token);
@@ -88,9 +112,19 @@ public sealed class CloudRelayClient : IDisposable
     }
     private async Task SendAsync(HttpMethod method, string path, HttpContent? content, CancellationToken token, bool allowExisting = false)
     {
+        using var budget = CancellationTokenSource.CreateLinkedTokenSource(token);
+        budget.CancelAfter(TimeSpan.FromSeconds(30));
         using var request = new HttpRequestMessage(method, path) { Content = content };
-        using var response = await _http.SendAsync(request, token);
+        using var response = await _http.SendAsync(request, budget.Token);
         if (!response.IsSuccessStatusCode && !(allowExisting && response.StatusCode == HttpStatusCode.MethodNotAllowed)) throw new IOException("网盘附件消息发布失败，请稍后重试。");
+    }
+    private sealed class PayloadContent(Stream source, long size) : HttpContent
+    {
+        protected override bool TryComputeLength(out long length) { length = size; return true; }
+        protected override Task SerializeToStreamAsync(Stream output, TransportContext? context) =>
+            TransferFiles.CopyAsync(source, output, size, null, CancellationToken.None);
+        protected override Task SerializeToStreamAsync(Stream output, TransportContext? context, CancellationToken token) =>
+            TransferFiles.CopyAsync(source, output, size, null, token);
     }
     public void Dispose() => _http.Dispose();
 }

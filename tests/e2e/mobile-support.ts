@@ -2,6 +2,7 @@ import { execFile, spawn, type ChildProcessWithoutNullStreams } from 'node:child
 import { promisify } from 'node:util';
 import { createInterface } from 'node:readline';
 import { mkdtemp } from 'node:fs/promises';
+import { createWriteStream } from 'node:fs';
 import { expect } from 'e2e';
 import type { Locator, Screen } from 'e2e/engine';
 
@@ -54,8 +55,9 @@ export class Peer {
     this.process = spawn(process.env.MPT_DOTNET ?? '/home/chris/.dotnet/dotnet',
       ['tests/e2e/MobilePeer/bin/Debug/net10.0/MobilePeer.dll', this.root], { windowsHide: true });
     this.lines = createInterface({ input: this.process.stdout })[Symbol.asyncIterator]();
-    // Module diagnostics stay private; report only whether the peer exited.
-    this.process.stderr.resume();
+    // Preserve diagnostics privately so crashes can be investigated without putting
+    // provider responses or connection credentials into the public test report.
+    this.process.stderr.pipe(createWriteStream(this.root + '/peer.private.log', { mode: 0o600 }));
   }
   async call(name: string, args = {}) {
     this.process!.stdin.write(JSON.stringify({ name, args }) + '\n');
@@ -67,7 +69,7 @@ export class Peer {
   }
   async stop() {
     const peer = this.process;
-    if (!peer || peer.exitCode !== null) return;
+    if (!peer || peer.exitCode !== null || peer.signalCode !== null) return;
     // Offline-reception tests need proof that the sender actually exited.
     await new Promise<void>((resolve, reject) => {
       peer.once('close', () => resolve());

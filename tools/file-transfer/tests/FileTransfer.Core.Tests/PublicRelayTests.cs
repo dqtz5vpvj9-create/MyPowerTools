@@ -3,6 +3,7 @@ using System.Net.Sockets;
 using System.Text;
 using System.Text.Json.Nodes;
 using FileTransfer.Core;
+using FileTransfer.Core.Assistant;
 using FileTransfer.MyPowerTools;
 using MyPowerTools.Abstractions;
 using MyPowerTools.Platform.Abstractions;
@@ -137,6 +138,39 @@ public sealed class PublicRelayTests : IAsyncLifetime
     }
 
     // ---- the default path without Tailscale or settings --------------------------------------
+
+    [Fact]
+    public async Task ManualSyncStartsAndFinishesAReceiptSweepWithoutARevisionEvent()
+    {
+        var relay = Relay();
+        const string conversation = "manual-receipt-sweep";
+        var key = new string('a', 64);
+        var sender = await StartAsync("manual-sender", "manual-sender", conversation, key);
+        await CallAsync(sender, "file-transfer.receive.stop"); // no revision notifications
+        var ids = new List<string>();
+        for (var i = 0; i < 25; i++)
+        {
+            var sent = await CallAsync(sender, "file-transfer.assistant.send", new JsonObject { ["text"] = $"manual {i}" });
+            ids.Add(sent["itemIds"]![0]!.GetValue<string>());
+        }
+        foreach (var id in ids) await WaitForItemAsync(sender, id, item => item["state"]!.GetValue<string>() == "stored");
+        await CallAsync(sender, "file-transfer.assistant.sync");
+        foreach (var id in ids) await WaitForItemAsync(sender, id, item => item["receiptCheckedAt"] is not null);
+        await relay.WaitUntilIdleAsync(TimeSpan.FromSeconds(10));
+
+        using var publicClient = new PublicRelayClient(conversation, key);
+        using var dav = publicClient.CreateDavClient();
+        foreach (var id in ids)
+            await dav.WriteAssistantReceiptAsync(conversation, new()
+            { ItemId = id, DeviceId = "phone-b", DeviceName = "Phone B", SavedAt = DateTimeOffset.UtcNow }, default);
+
+        var refreshed = await CallAsync(sender, "file-transfer.assistant.sync");
+        Assert.True(refreshed["sync"]!["hasMore"]!.GetValue<bool>());
+        // Only one user refresh: the worker must finish the remaining batches itself.
+        foreach (var id in ids) await WaitForItemAsync(sender, id, item =>
+            item["receipts"]!.AsArray().Any(receipt => receipt!["deviceId"]!.GetValue<string>() == "phone-b"));
+        Assert.False((await CallAsync(sender, "file-transfer.assistant.inspect"))["receiving"]!.GetValue<bool>());
+    }
 
     [Fact]
     public async Task WithoutTailscaleOrSettingsTextAndFilesTravelBothWays()

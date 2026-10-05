@@ -41,9 +41,13 @@ public sealed partial class FileTransferModule
     private DateTimeOffset? _assistantRelayCheckedAt;
     private string _assistantRelayMessage = "";
     private bool _receivingEnabled = true;
+    private IDisposable? _receivingActivity;
+    private IDisposable? _networkRecoverySubscription;
+    private CancellationTokenSource? _relayRecoveryCts;
     private CancellationTokenSource? _receiveCts;
     private Task? _relayReceiveLoop;
     private long _relayRevision = -1;
+    private long _relayReceiptScanTicks;
     private readonly SemaphoreSlim _directGate = new(1, 1);
     private readonly SemaphoreSlim _relayGate = new(1, 1);
     private Task? _relayPass;
@@ -81,6 +85,8 @@ public sealed partial class FileTransferModule
     {
         _assistantStore = new AssistantStore(Path.Combine(_data, "assistant"));
         _assistant = await _assistantStore.LoadAsync(token);
+        // Preserve monotonic sweep markers even after a restart or a wall-clock correction.
+        _relayReceiptScanTicks = _assistant.Items.Select(item => item.ReceiptCheckedAt?.UtcTicks ?? 0).DefaultIfEmpty().Max();
         await EnsureConversationAsync(token);
         await LoadOwnDevicesAsync(token);
         _assistant = await _assistantStore.ConfigureAsync(Identity(), token);
@@ -279,6 +285,7 @@ public sealed partial class FileTransferModule
                 if (revision != _relayRevision)
                 {
                     _relayRevision = revision;
+                    AdvanceReceiptScan();
                     // New conversation data: run one sync pass (durable relay + direct accelerator).
                     SignalAssistant();
                 }
@@ -338,6 +345,27 @@ public sealed partial class FileTransferModule
         catch (SemaphoreFullException) { }
     }
 
+    private void RecoverNetwork()
+    {
+        if (_lifetime.IsCancellationRequested || !_receivingEnabled) return;
+        // Sockets established before Doze or a network switch can remain half-open.
+        // End that pass and let the durable queue retry, without waiting for TCP timeouts.
+        foreach (var pending in new[] { _receiveCts, _inboxCts, _relayRecoveryCts })
+        {
+            try { pending?.Cancel(); } catch (ObjectDisposedException) { }
+        }
+        SignalAssistant();
+        WakeInbox();
+        WakeCloudPayloads();
+    }
+
+    private sealed class NetworkRecoveryObserver(Action recover) : IObserver<bool>
+    {
+        public void OnNext(bool available) { if (available) recover(); }
+        public void OnCompleted() { }
+        public void OnError(Exception error) { }
+    }
+
     private void StartAssistantWorker()
     {
         if (_assistantWorker is not null) return;
@@ -388,9 +416,11 @@ public sealed partial class FileTransferModule
     /// <summary>The explicit command: both legs, direct first, then the durable relay pass.</summary>
     private async Task<JsonObject> RunAssistantSyncAsync(AssistantIdentity? identity, CancellationToken token)
     {
+        AdvanceReceiptScan();
         identity ??= Identity();
         var direct = await RunDirectLegAsync(identity, token);
         var (relay, relayError) = await RunRelayLegAsync(identity, token);
+        if (relay.HasMore) KickRelayLeg();
         var answer = await AssistantInspectJsonAsync(token);
         answer["sync"] = new JsonObject
         {
@@ -407,6 +437,16 @@ public sealed partial class FileTransferModule
         };
         EmitAssistantChanged("sync");
         return answer;
+    }
+
+    private void AdvanceReceiptScan()
+    {
+        long previous, next;
+        do
+        {
+            previous = Interlocked.Read(ref _relayReceiptScanTicks);
+            next = Math.Max(DateTimeOffset.UtcNow.UtcTicks, previous + 1);
+        } while (Interlocked.CompareExchange(ref _relayReceiptScanTicks, next, previous) != previous);
     }
 
     /// <summary>
@@ -461,7 +501,12 @@ public sealed partial class FileTransferModule
             try
             {
                 await _relaySignal.WaitAsync(wait, _lifetime.Token);
-                var (result, error) = await RunRelayLegAsync(Identity(), _lifetime.Token);
+                using var recovery = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
+                _relayRecoveryCts = recovery;
+                (AssistantSyncResult result, string error) outcome;
+                try { outcome = await RunRelayLegAsync(Identity(), recovery.Token); }
+                finally { Interlocked.CompareExchange(ref _relayRecoveryCts, null, recovery); }
+                var (result, error) = outcome;
                 if ((result.RetryAfter is not null || error.Length > 0) && _relayAuthError.Length == 0)
                 {
                     wait = CustomRelayConfigured ? result.RetryAfter ?? backoff : backoff;
@@ -474,6 +519,13 @@ public sealed partial class FileTransferModule
                 }
             }
             catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { return; }
+            catch (OperationCanceledException)
+            {
+                // A native recovery event replaced a stale connection. This is a retry,
+                // not a failed transfer; cancellation has already restored durable work.
+                wait = TimeSpan.Zero;
+                backoff = TimeSpan.FromSeconds(2);
+            }
             catch (Exception ex)
             {
                 NoteRelayHealth(false, MptLogRedactor.Redact(ex.Message));
@@ -508,6 +560,8 @@ public sealed partial class FileTransferModule
             // direct channel is its real path, and the item reports honestly when that is unreachable.
             var sync = new AssistantSync(store, cloud)
             {
+                ReceiptScanSince = !CustomRelayConfigured && Interlocked.Read(ref _relayReceiptScanTicks) is var scanTicks && scanTicks > 0
+                    ? new DateTimeOffset(scanTicks, TimeSpan.Zero) : null,
                 ItemCancellation = ItemToken,
                 Changed = NotifyAssistantTransferChanged,
                 SharedTransport = shared,
@@ -518,6 +572,7 @@ public sealed partial class FileTransferModule
                     return await relay.ReadPayloadRouteAsync(message, cancel);
                 },
                 CloudPublisher = (message, payload, cancel) => PublishCloudAttachmentAsync(identity, message, payload, cancel),
+                CloudDownloader = CustomRelayConfigured ? null : DownloadCloudShareAsync,
                 PublishFilter = item => (!CloudOnly || item.Kind == AssistantItemKind.Text || DefaultCloudAccount is not null) && item.TargetDeviceId is null && AssistantConversations.IsShared(item, identity.ConversationId)
             };
             var result = await sync.SyncAsync(identity, token);
@@ -793,7 +848,8 @@ public sealed partial class FileTransferModule
     /// <summary>The frozen inspect shape. <c>receiving</c> is a bool; the detail lives next to it.</summary>
     private async Task<JsonObject> AssistantInspectJsonAsync(CancellationToken token)
     {
-        var state = await AssistantStateAsync(token);
+        var state = await (_assistantStore ?? throw new InvalidOperationException("会话存储尚未就绪。"))
+            .SnapshotAsync(token);
         var items = new JsonArray();
         foreach (var item in state.Items.OrderByDescending(item => item.CreatedAt).Take(200))
         {

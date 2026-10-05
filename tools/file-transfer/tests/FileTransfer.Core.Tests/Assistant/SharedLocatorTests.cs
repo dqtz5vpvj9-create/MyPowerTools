@@ -401,13 +401,13 @@ public sealed class SharedLocatorTests(ITestOutputHelper output) : IAsyncLifetim
         await sender.Transfer.PublishAsync(message, payload, CancellationToken.None);
         await _tail.StopAsync();
         using var oldClient = new OpenListClient(new Uri(_public.Address, PublicRelayClient.DavPath).ToString(), Conversation, Key);
-        await Assert.ThrowsAsync<IOException>(() => oldClient.DownloadAssistantAsync(Conversation, message,
+        await Assert.ThrowsAnyAsync<IOException>(() => oldClient.DownloadAssistantAsync(Conversation, message,
             Path.Combine(_root, "old-failed"), null, CancellationToken.None));
         var request = Assert.Single((await sender.Public.ListRequestsAsync(message.Id, CancellationToken.None)).Items);
         Assert.Equal("relay-public", request.DeviceId);
         Assert.Equal("tail-unreachable", request.Reason);
         var revision = await sender.Public.ChangesAsync(null, CancellationToken.None);
-        await Assert.ThrowsAsync<IOException>(() => oldClient.DownloadAssistantAsync(Conversation, message,
+        await Assert.ThrowsAnyAsync<IOException>(() => oldClient.DownloadAssistantAsync(Conversation, message,
             Path.Combine(_root, "old-failed"), null, CancellationToken.None));
         Assert.Equal(revision, await sender.Public.ChangesAsync(null, CancellationToken.None));
         Assert.Empty(await sender.Public.ListReceiptsAsync(message.Id, CancellationToken.None));

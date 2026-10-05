@@ -187,6 +187,7 @@ public sealed class MainActivity : AvaloniaMainActivity
         // is the single wiring point; nothing is acquired at startup, and the module never references
         // this assembly.
         MobileWifiMulticast.Current ??= AndroidWifiMulticast.TryCreate();
+        AndroidTransferRecovery.Install();
         OnBackPressedDispatcher.AddCallback(this, new BackCallback(this));
         AndroidBackgroundActivityService.NotificationPermissionRequest = RequestNotificationPermissionAsync;
         if (Intent is { } intent) _ = HandleIntentAsync(intent);

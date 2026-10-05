@@ -75,4 +75,91 @@ public sealed class OpenListCloudAccountClientTests
     [Fact]
     public void AdminApiRefusesNonlocalOrigin() =>
         Assert.Throws<ArgumentException>(() => new OpenListCloudAccountClient(new Uri("https://example.com"), "secret"));
+
+    [Fact]
+    public async Task Healthy_upload_is_not_limited_by_the_administration_timeout()
+    {
+        var root = Path.Combine(Environment.GetEnvironmentVariable("MPT_TEST_TEMP") ?? Path.GetTempPath(), "mpt-upload-budget-" + Guid.NewGuid().ToString("N"));
+        await using var server = new AssistantWebDavServer(root);
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        Task reply = Task.CompletedTask;
+        server.Intercept = (context, request) =>
+        {
+            if (request.Path != "/api/fs/put") return false;
+            context.Request.InputStream.CopyTo(Stream.Null);
+            entered.TrySetResult();
+            reply = Task.Run(async () =>
+            {
+                await release.Task;
+                AssistantWebDavServer.Write(context, 200, Encoding.UTF8.GetBytes("{\"code\":200}"));
+            });
+            return true;
+        };
+        using var api = new OpenListCloudAccountClient(new Uri(server.Url), "test-password", TimeSpan.FromMilliseconds(50));
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var upload = api.UploadAsync("/mount", "/mount/large.bin", new MemoryStream(new byte[1024]), 1024, stop.Token);
+        try
+        {
+            await entered.Task.WaitAsync(stop.Token);
+            await Task.Delay(150, stop.Token); // Provider upload is still progressing after the local request body was read.
+            Assert.False(upload.IsCompleted);
+        }
+        finally { release.TrySetResult(); await reply; Directory.Delete(root, true); }
+        await upload;
+    }
+
+    [Fact]
+    public async Task Upload_waiting_on_the_provider_can_still_be_cancelled()
+    {
+        var root = Path.Combine(Environment.GetEnvironmentVariable("MPT_TEST_TEMP") ?? Path.GetTempPath(), "mpt-upload-cancel-" + Guid.NewGuid().ToString("N"));
+        await using var server = new AssistantWebDavServer(root);
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        var release = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        Task reply = Task.CompletedTask;
+        server.Intercept = (context, request) =>
+        {
+            if (request.Path != "/api/fs/put") return false;
+            context.Request.InputStream.CopyTo(Stream.Null);
+            entered.TrySetResult();
+            reply = Task.Run(async () => { await release.Task; context.Response.Close(); });
+            return true;
+        };
+        using var api = new OpenListCloudAccountClient(new Uri(server.Url), "test-password");
+        using var stop = new CancellationTokenSource(TimeSpan.FromSeconds(5));
+        var upload = api.UploadAsync("/mount", "/mount/large.bin", new MemoryStream(new byte[1]), 1, stop.Token);
+        try
+        {
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            stop.Cancel();
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => upload);
+        }
+        finally { release.TrySetResult(); await reply; Directory.Delete(root, true); }
+    }
+
+    [Fact]
+    public async Task Administration_timeout_also_covers_a_stalled_response_body()
+    {
+        var root = Path.Combine(Environment.GetEnvironmentVariable("MPT_TEST_TEMP") ?? Path.GetTempPath(), "mpt-admin-budget-" + Guid.NewGuid().ToString("N"));
+        await using var server = new AssistantWebDavServer(root);
+        var entered = new TaskCompletionSource(TaskCreationOptions.RunContinuationsAsynchronously);
+        server.Intercept = (context, request) =>
+        {
+            if (request.Path != "/api/auth/login") return false;
+            context.Request.InputStream.CopyTo(Stream.Null);
+            context.Response.ContentLength64 = 2;
+            context.Response.OutputStream.WriteByte((byte)'{');
+            context.Response.OutputStream.Flush();
+            entered.TrySetResult();
+            return true;
+        };
+        using var api = new OpenListCloudAccountClient(new Uri(server.Url), "test-password", TimeSpan.FromMilliseconds(200));
+        try
+        {
+            var login = api.LoginAsync(default);
+            await entered.Task.WaitAsync(TimeSpan.FromSeconds(5));
+            await Assert.ThrowsAnyAsync<OperationCanceledException>(() => login.WaitAsync(TimeSpan.FromSeconds(5)));
+        }
+        finally { Directory.Delete(root, true); }
+    }
 }

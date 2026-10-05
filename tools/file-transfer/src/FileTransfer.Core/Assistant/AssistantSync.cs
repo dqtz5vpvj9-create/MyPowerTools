@@ -67,7 +67,11 @@ public sealed class AssistantSync
     public Func<AssistantManifest, string?, CancellationToken, Task<bool>>? CloudPublisher { get; init; }
 
     public string? DefaultTransportRoute { get; init; }
+    /// <summary>A fixed watermark for the receipt sweep triggered by one relay change event.</summary>
+    public DateTimeOffset? ReceiptScanSince { get; init; }
     public Func<AssistantManifest, CancellationToken, Task<string?>>? IncomingTransportRoute { get; init; }
+    /// <summary>Returns null when no provider share exists; otherwise downloads without the sender.</summary>
+    public Func<AssistantManifest, string, Action<long, long>, CancellationToken, Task<string?>>? CloudDownloader { get; init; }
 
     private Task SetRouteAsync(AssistantItem item, string? route, CancellationToken token) =>
         item.Kind == AssistantItemKind.Text ? Task.CompletedTask :
@@ -220,11 +224,12 @@ public sealed class AssistantSync
             var now = DateTimeOffset.UtcNow;
             var checks = state.Outgoing(identity.DeviceId).Where(item => AssistantConversations.IsShared(item, identity.ConversationId))
                 .Where(item => NeedsReceiptCheck(item, now))
+                .Where(item => ReceiptScanSince is null || item.ReceiptCheckedAt is null || item.ReceiptCheckedAt < ReceiptScanSince)
                 .OrderBy(item => item.TargetDeviceId is not null ? 0 : item.Receipts.Count == 0 ? 1 : 2)
                 .ThenBy(item => item.ReceiptCheckedAt ?? DateTimeOffset.MinValue)
                 .ThenBy(item => item.CreatedAt)
-                .Take(_limits.Receipts).ToArray();
-            foreach (var item in checks)
+                .ToArray();
+            foreach (var item in checks.Take(_limits.Receipts))
             {
                 token.ThrowIfCancellationRequested();
                 IReadOnlyList<AssistantReceipt> receipts;
@@ -244,7 +249,9 @@ public sealed class AssistantSync
                 {
                     var live = changed.Find(itemId);
                     if (live is null || live.State == AssistantItemState.Cancelled) return;
-                    live.ReceiptCheckedAt = DateTimeOffset.UtcNow;
+                    // Stamp the sweep that issued this request, not its completion time: a new
+                    // revision may arrive during the read and must still revisit this entry.
+                    live.ReceiptCheckedAt = ReceiptScanSince ?? DateTimeOffset.UtcNow;
                     if (receipts.Count == 0) return;
                     MergeReceipts(live, receipts);
                     if (live.TargetDeviceId is not null && receipts.Any(receipt => receipt.DeviceId == live.TargetDeviceId))
@@ -335,7 +342,15 @@ public sealed class AssistantSync
                 if (scope.IsCancellationRequested && !token.IsCancellationRequested) continue;
                 if (error is null) { downloaded++; continue; }
                 failed++;
-                if (IsRelayFailure(error)) { relayUnhealthy = true; break; }
+                // A missing/expired individual payload must not block other attachments
+                // or the receipts for files already saved. Only shared service/network
+                // failures stop the download pass and trigger the relay retry delay.
+                // A virtual payload can return 503 while its sender is offline, even
+                // though discovery and receipt endpoints remain healthy.
+                if (error is HttpRequestException or TaskCanceledException or PublicRelayAuthException
+                    or RelayUnavailableException { StatusCode: System.Net.HttpStatusCode.Unauthorized
+                        or System.Net.HttpStatusCode.Forbidden or System.Net.HttpStatusCode.TooManyRequests })
+                { relayUnhealthy = true; break; }
             }
         }
 
@@ -398,7 +413,11 @@ public sealed class AssistantSync
                 .Any(item => item.State == AssistantItemState.Queued && (PublishFilter?.Invoke(item) ?? true))
             || state.Incoming(identity.DeviceId).Where(item => AssistantConversations.IsShared(item, identity.ConversationId)).Any(item => item.Kind != AssistantItemKind.Text
                 && IsAddressedToMe(item, identity.DeviceId) && item.State == AssistantItemState.Stored);
-        var hasMore = !relayUnhealthy && (sharedRequestsRemaining || progressed && (page.HasMore || pending));
+        var receiptChecksRemaining = ReceiptScanSince is { } since && state.Outgoing(identity.DeviceId)
+            .Where(item => AssistantConversations.IsShared(item, identity.ConversationId))
+            .Any(item => NeedsReceiptCheck(item, DateTimeOffset.UtcNow)
+                && (item.ReceiptCheckedAt is null || item.ReceiptCheckedAt < since));
+        var hasMore = !relayUnhealthy && (sharedRequestsRemaining || receiptChecksRemaining || progressed && (page.HasMore || pending));
         var message = $"发布 {published} 条，失败 {failed} 条，接收 {received} 条，下载 {downloaded} 个，回执 {written} 份。";
         if (pullError is not null) message += $" 拉取失败：{pullError}";
         return new(published, failed, received, downloaded, written, read, hasMore, message,
@@ -610,6 +629,16 @@ public sealed class AssistantSync
 
     private async Task<string> DownloadPayloadAsync(AssistantIdentity identity, AssistantItem item, CancellationToken token)
     {
+        if (CloudDownloader is { } cloudDownload)
+        {
+            var path = await cloudDownload(item.ToManifest(), _store.GetInboxDirectory(item),
+                (done, _) => ReportProgress(item.Id, done), token);
+            if (path is not null)
+            {
+                await SetRouteAsync(item, "cloud-quark", token);
+                return path;
+            }
+        }
         if (SharedTransport is { } shared && await shared.LocateAsync(item.Id, token) is { } locator)
         {
             SharedLocatorRules.SameMessage(item.ToManifest(), locator.Message);

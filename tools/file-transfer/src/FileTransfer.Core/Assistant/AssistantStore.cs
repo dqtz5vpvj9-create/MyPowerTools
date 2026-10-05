@@ -51,6 +51,17 @@ public sealed class AssistantStore
         finally { _gate.Release(); }
     }
 
+    /// <summary>
+    /// Captures a committed, detached view for UI serialization. Reading the live item outside this
+    /// gate can mix a failed state with the cleared error of a retry that starts during serialization.
+    /// </summary>
+    public async Task<AssistantState> SnapshotAsync(CancellationToken token)
+    {
+        await _gate.WaitAsync(token);
+        try { return (await LoadCoreAsync(token)).Copy(); }
+        finally { _gate.Release(); }
+    }
+
     public async Task<AssistantState> ConfigureAsync(AssistantIdentity identity, CancellationToken token)
     {
         AssistantValidation.Identity(identity);

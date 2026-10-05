@@ -96,6 +96,8 @@ public sealed partial class FileTransferModule : IMptModule
         SweepOutbox();
         await RetryPublishesAsync(token);
         await InitializeAssistantAsync(token);
+        if (context.TryGetCapability<IObservable<bool>>("network.recovery", out var networkRecovery))
+            _networkRecoverySubscription = networkRecovery.Subscribe(new NetworkRecoveryObserver(RecoverNetwork));
         // The receiver belongs to the tool being enabled: it starts with the module and waits on the
         // socket, and only an explicit stop or disabling the tool ends it.
         // No tailnet address yet is a normal first-run state, not a failed initialization.
@@ -723,6 +725,10 @@ public sealed partial class FileTransferModule : IMptModule
         WakeInbox();
         try
         {
+            // Relay-only devices need the same background lifetime as direct receivers.
+            // Keep this lease even when no local address exists or the listener fails.
+            if (_receivingActivity is null && _background is not null)
+                _receivingActivity = await _background.BeginAsync(Id, "文件助手正在接收", true, token);
             await StartReceiveAsync(token);
             // Discoverability follows the listener: enabled together, stopped together.
             await StartBeaconAsync(token);
@@ -751,7 +757,7 @@ public sealed partial class FileTransferModule : IMptModule
             _receiveNote = "";
             return;
         }
-        var activity = _background is null ? null : await _background.BeginAsync(Id, "文件互传正在等待来件", true, token);
+        IDisposable? activity = null; // Receiving owns the lease, independently of this socket.
         Func<string, CancellationToken, Task>? publish = _downloads is null ? null : PublishAsync;
         ReceiveSession session;
         try
@@ -786,6 +792,7 @@ public sealed partial class FileTransferModule : IMptModule
         var session = Interlocked.Exchange(ref _session, null);
         if (session is not null) await CloseAsync(session);
         await StopBeaconAsync();
+        Interlocked.Exchange(ref _receivingActivity, null)?.Dispose();
     }
 
     private async Task CloseAsync(ReceiveSession session)
@@ -1147,6 +1154,7 @@ public sealed partial class FileTransferModule : IMptModule
 
     public async ValueTask DisposeAsync(CancellationToken token)
     {
+        Interlocked.Exchange(ref _networkRecoverySubscription, null)?.Dispose();
         await _lifetime.CancelAsync();
         if (_cloudPayloadWorker is { } cloudWorker)
         {
@@ -1174,6 +1182,7 @@ public sealed partial class FileTransferModule : IMptModule
         var session = Interlocked.Exchange(ref _session, null);
         if (session is not null) await CloseAsync(session);
         await StopBeaconAsync();
+        Interlocked.Exchange(ref _receivingActivity, null)?.Dispose();
         // The long poll links this module's lifetime, so disposing must end it; the bounded wait proves
         // there is no hang instead of leaving a detached request behind.
         if (_relayReceiveLoop is { } loop)
