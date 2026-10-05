@@ -17,6 +17,7 @@ try {
     }
     $cli = Join-Path $CliDirectory 'MyPowerTools.Cli.exe'
     if (-not (Test-Path -LiteralPath $cli)) { throw "CLI missing: $cli" }
+    & (Join-Path $PSScriptRoot 'register-windows-runner-service.ps1') -CliPath $cli -DataRoot $DataRoot
     Copy-Item -LiteralPath (Join-Path $repoRoot 'integrations\file-transfer-mcp\server.py') -Destination $InstallRoot -Force
     Copy-Item -LiteralPath (Join-Path $repoRoot 'integrations\file-transfer-mcp\requirements.txt') -Destination $InstallRoot -Force
     $venv = Join-Path $InstallRoot 'venv'
@@ -37,5 +38,7 @@ try {
         & codex mcp add mpt-file-transfer --env "MPT_COMMAND_JSON=$($entry.env.MPT_COMMAND_JSON)" --env "MPT_DATA_ROOT=$DataRoot" -- $entry.command @($entry.args)
         if ($LASTEXITCODE -ne 0) { throw 'Codex MCP registration failed.' }
     }
+    & $cli transfer devices --data-root $DataRoot --json
+    if ($LASTEXITCODE -ne 0) { throw 'MCP is installed, but the Runner file-transfer module is not ready. Repair the development runtime before accepting this deployment.' }
     Write-Output "MCP configuration: $InstallRoot\mcp.json"
 } catch { Write-Error $_; exit 1 }

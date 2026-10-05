@@ -11,7 +11,7 @@ Linux 使用已安装的 MyPowerTools Runner 持续接收、上传并保存待�
 pwsh.exe -NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -File scripts/install-windows-transfer-mcp.ps1 -RegisterCodex
 ```
 
-需要 .NET 10 SDK、支持 fastmcp 的 Python，以及可用的 Codex CLI。安装脚本构建 Windows CLI，在 `%LOCALAPPDATA%\Programs\MyPowerTools\TransferMcp` 创建独立 Python 环境，并生成 `mcp.json`，可供其他支持 stdio MCP 的 Agent 客户端导入。使用 `-CliDirectory` 可以指定预先发布的 Windows CLI 目录，该目录必须持久保留。
+需要 .NET 10 SDK、支持 fastmcp 的 Python、已运行的 MPT ServiceManager，以及可用的 Codex CLI。安装时会将现有 Runner 注册为 `mpt-runner.service`，由 ServiceManager 接管和恢复；不要求桌面连接。安装脚本构建 Windows CLI，在 `%LOCALAPPDATA%\Programs\MyPowerTools\TransferMcp` 创建独立 Python 环境，并生成 `mcp.json`，可供其他支持 stdio MCP 的 Agent 客户端导入。使用 `-CliDirectory` 可以指定预先发布的 Windows CLI 目录，该目录必须持久保留。
 
 `-RegisterCodex` 注册名为 `mpt-file-transfer` 的服务器；已启动的 Agent 会话需重新加载 MCP 或新建会话。服务器使用 `pythonw.exe`，CLI 子进程设置 `CREATE_NO_WINDOW`。不会因每次工具调用而闪出控制台。Runner 必须由正常的开发版运行流程启动；模块被隔离时会返回真实错误，不另建空白设备身份。
 
@@ -147,4 +147,19 @@ python3 -m venv "$HOME/.local/share/MyPowerTools/transfer-mcp-venv"
 
 LIS-IMAC 已安装 Windows CLI 和独立 MCP 环境，并注册至该用户 Codex。实际通过配置中的 `pythonw.exe` 建立 stdio MCP 连接，发现全部 14 个工具；MCP 回归测试 7/7 通过，包括 Windows 隐藏 CLI 子进程。
 
-传输业务验收尚未通过：部署前现有 Runner 的 `file-transfer` 已被软隔离熔断，错误为模块清理发生空引用异常且要求重启 Runner。`mpt_devices` 经 MCP 返回这一真实错误。当前用户桌面会话处于断开状态，交互式恢复任务返回 `0x800710E0`，未能恢复；临时任务已删除。Shell 和 Runner 原进程保持运行，未替换插件或打开桌面窗口。需要在可用的用户会话中恢复开发版 Runner 后重新验证发送和接收回执，不能把工具发现成功视为文件传输验收。
+后续恢复已完成：旧 Runner 的平台接口为 0.2.0，缺少插件要求的 `IBackgroundActivityService`；初始化未执行时的清理又访问了未创建的 OpenList 对象。已同步更新 Runner 和插件，修复未初始化实例的清理，并在 Tools 开发更新中依据依赖版本阻止新插件覆盖旧宿主。
+
+现有 ServiceManager 已接管 `mpt-runner.service`。桌面保持断开，Windows MCP 向 Linux 公屏发送文字和 106 字节文件，两项均收到 `pc-fd7f85a2` 的真实保存回执，文件与源文件逐字节一致。主动终止 Runner 后，ServiceManager 自动重启，设备查询恢复；Shell PID 保持不变。Session 0 调用 `start-user-runtime.ps1 -StartRunner` 通过 ServiceManager 返回现有实例，未启动重复进程。
+
+这使用 MPT 现有的用户级 ServiceManager，不是新增 LocalSystem 服务；本次验证了桌面断开和 Runner 崩溃恢复，未验证整机重启或用户注销后的自动启动。文件传输目前仍是 Runner 内的插件，独立于 Shell，但尚未拆分为独立的文件传输 worker。
+
+Windows 后台运维命令（可从 SSH / Session 0 执行，不用重连桌面）：
+
+```powershell
+& "$env:LOCALAPPDATA\Programs\MyPowerTools\Cli\MyPowerTools.Cli.exe" service status mpt-runner.service
+& "$env:LOCALAPPDATA\Programs\MyPowerTools\Cli\MyPowerTools.Cli.exe" service restart mpt-runner.service
+```
+
+`start-user-runtime.ps1 -StartRunner` 在 Session 0 通过现有 ServiceManager 启动已注册服务；`-StartShell` 仍要求交互会话。开发更新会先显式停止受托管的 Runner，避免更换组件时被崩溃恢复逻辑抢先拉起。
+
+本次补充验收：清理回归修复前稳定触发空引用，修复后通过；隔离网络中的核心测试 387 通过、3 个外部夹具跳过。普通主机网络首次测试有 2 个测试服务器端口占用失败，隔离网络重跑全部通过。Linux→Windows 反向测试未通过：旧 Linux 实例的夸克文件上传停留在 sending、回执等待超时；同步 Linux 模块并重启后，发现系统 Secret Service 默认密钥环锁定，凭据读取阻塞，Linux 服务尚未恢复业务就绪。未更改凭据、密钥环密码或网盘策略，未改用明文存储。Windows→Linux 成功是在 Linux 重启前完成，不能据此宣称当前双向全部可用。

@@ -1205,7 +1205,9 @@ public sealed partial class FileTransferModule : IMptModule
         lock (_stateLock) watches = _watches.ToArray();
         try { await Task.WhenAll(watches); } catch (Exception) { }
         try { await _save; } catch (Exception) { }
-        await _openList.DisposeAsync();
+        // A host can unload the constructed instance before InitializeAsync runs
+        // (for example when a shared platform contract cannot be loaded).
+        if (_openList is not null) await _openList.DisposeAsync();
         _events.Writer.TryComplete();
         _transfer?.Dispose();
         _lifetime.Dispose();

@@ -462,6 +462,25 @@ function Request-ShellShutdown {
 }
 
 function Request-RunnerShutdown {
+    # A supervised Runner must be explicitly stopped before swapping binaries;
+    # otherwise ServiceManager treats a direct process shutdown as a crash.
+    $runnerUnit = Join-Path $dataRootFull 'ServiceManager\units\mpt-runner.service.json'
+    if (Test-Path -LiteralPath $runnerUnit) {
+        $cli = Join-Path $canonicalInstallRoot 'Cli\MyPowerTools.Cli.exe'
+        $stopInfo = [Diagnostics.ProcessStartInfo]::new()
+        $stopInfo.FileName = $cli
+        $stopInfo.UseShellExecute = $false
+        $stopInfo.CreateNoWindow = $true
+        $stopInfo.Environment['MPT_DATA_ROOT'] = $dataRootFull
+        foreach ($argument in @('service', 'stop', 'mpt-runner.service')) {
+            $stopInfo.ArgumentList.Add($argument)
+        }
+        $stop = [Diagnostics.Process]::Start($stopInfo)
+        try {
+            if (-not $stop.WaitForExit(30000)) { throw 'Supervised Runner stop timed out.' }
+            if ($stop.ExitCode -ne 0) { throw 'ServiceManager failed to stop the supervised Runner.' }
+        } finally { $stop.Dispose() }
+    }
     $runnerRecords = @(Get-ProductProcessRecords -Name @('MyPowerTools.Runner') |
         Where-Object Managed)
     if ($runnerRecords.Count -eq 0) {
@@ -1493,6 +1512,25 @@ try {
             }
         }
         $stagedComponents = $dedupedComponents
+    }
+
+    if ($Scope -eq 'Tools') {
+        # InProc modules share the Runner's platform contract. A successful tool
+        # build does not prove an older installed host provides its interfaces.
+        $platformContract = Join-Path $canonicalInstallRoot 'Runner\MyPowerTools.Platform.Abstractions.dll'
+        $installedContractVersion = [Reflection.AssemblyName]::GetAssemblyName($platformContract).Version
+        foreach ($component in $stagedComponents | Where-Object { $_.Kind -eq 'tool-package' }) {
+            foreach ($depsFile in Get-ChildItem -LiteralPath $component.Source -Filter '*.deps.json' -File) {
+                $deps = Get-Content -LiteralPath $depsFile.FullName -Raw | ConvertFrom-Json
+                foreach ($library in $deps.libraries.PSObject.Properties.Name) {
+                    if ($library -match '^MyPowerTools\.Platform\.Abstractions/(\d+\.\d+\.\d+)') {
+                        if ([version]$Matches[1] -gt $installedContractVersion) {
+                            throw "Tool requires platform contract $($Matches[1]), but installed Runner has $installedContractVersion. Run the Core development update before deploying this tool. No installed files have been replaced."
+                        }
+                    }
+                }
+            }
+        }
     }
 
     if (Test-Path -LiteralPath $transactionRoot) {
