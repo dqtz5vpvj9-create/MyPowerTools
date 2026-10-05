@@ -9,7 +9,7 @@ public sealed class LinuxPlatformPack : IPlatformPack
     public PlatformId Platform => CurrentPlatform;
     public PlatformTrayHost TrayHost => PlatformTrayHost.Runner;
 
-    private static readonly LinuxSecretStore SecretStore = new();
+    private static readonly LinuxServiceSecretStore SecretStore = new();
 
     public ICapabilityRegistry Capabilities { get; } = new CapabilityRegistry(
     [
@@ -27,7 +27,7 @@ public sealed class LinuxPlatformPack : IPlatformPack
         new("display.profile", "user", false, "Wayland/X11/DDC", "Provider compiles but native implementation is pending."),
         new("network.portForwarding", "elevated", false, "nftables/iptables", "Provider compiles but native implementation is pending."),
         new("ipc.local", "user", true, "Unix domain socket", "UDS IPC available."),
-        new("secret.store", "sensitive", SecretStore.IsAvailable, "Secret Service (libsecret)", "Requires secret-tool, session D-Bus and an unlocked Secret Service keyring."),
+        new("secret.store", "sensitive", true, "Service credential vault", "AES-GCM encrypted credentials in owner-only storage; no desktop unlock required."),
         new("process.inspect", "user", true, "procfs", "Basic process inspection can be implemented from procfs."),
         new("adb.devices", "user", false, "adb CLI", "Provider compiles but adb discovery is pending.")
     ]);

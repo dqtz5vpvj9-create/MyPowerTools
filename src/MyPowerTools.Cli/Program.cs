@@ -25,6 +25,7 @@ if (command is "--help" or "-h")
 return command switch
 {
     "transfer" => TransferCli.Run(args.Skip(1).ToArray()),
+    "secrets" => ServiceSecretCli.RunAsync(args.Skip(1).ToArray()).GetAwaiter().GetResult(),
     "create" => Create(args.Skip(1).ToArray(), root),
     "validate" => Validate(args.Skip(1).ToArray(), root),
     "inspect" => Inspect(args.Skip(1).ToArray(), root),

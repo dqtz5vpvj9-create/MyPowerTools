@@ -17,7 +17,7 @@ pwsh.exe -NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -File scripts/in
 
 ## 安装 Linux 服务
 
-需要 .NET 10 SDK、PowerShell、Python 3、`libsecret-tools`，以及当前用户可用且已解锁的 Secret Service 密钥环。无桌面会话时也需要配置用户 D-Bus 和密钥环；凭据不会降级到明文文件。安装脚本使用 `/mnt/cache/data-cache` 暂存构建文件，该目录需可写。
+需要 .NET 10 SDK、PowerShell 和 Python 3。运行时凭据使用服务自己的加密存储，不依赖桌面登录、Secret Service 或交互解锁。安装脚本使用 `/mnt/cache/data-cache` 暂存构建文件，该目录需可写。
 
 在仓库根目录执行：
 
@@ -85,7 +85,7 @@ mpt transfer send --conversation shared --file /path/to/large-file.zip \
   --via quark --receipt-from DEVICE_ID --wait --timeout 1800 --json
 ```
 
-授权入口返回操作 ID；只有提供方已接入登录入口时才返回网页地址。当前 Linux CLI 不提供扫码或浏览器 Cookie 提取，需要已有有效授权凭据。完成授权后，凭据保存在系统密钥环；凭据文件仍由用户管理。百度使用 `--provider baidu` 和 `--kind refreshToken`。
+授权入口返回操作 ID；只有提供方已接入登录入口时才返回网页地址。当前 Linux CLI 不提供扫码或浏览器 Cookie 提取，需要已有有效授权凭据。完成授权后，Linux 凭据保存在服务加密存储；凭据文件仍由用户管理。百度使用 `--provider baidu` 和 `--kind refreshToken`。
 
 `--via quark` 要求默认账号为就绪的夸克账号，且策略为 `cloud-only`。首个附件入队后，后台才确认领取能力；`transferAvailable:false` 可能表示尚未确认，不阻止首次入队。后台无法发送时保留待发状态或报告错误，必须查看指定接收方的实际回执。网盘领取时发送设备需要在线。
 
@@ -162,4 +162,12 @@ Windows 后台运维命令（可从 SSH / Session 0 执行，不用重连桌面�
 
 `start-user-runtime.ps1 -StartRunner` 在 Session 0 通过现有 ServiceManager 启动已注册服务；`-StartShell` 仍要求交互会话。开发更新会先显式停止受托管的 Runner，避免更换组件时被崩溃恢复逻辑抢先拉起。
 
-本次补充验收：清理回归修复前稳定触发空引用，修复后通过；隔离网络中的核心测试 387 通过、3 个外部夹具跳过。普通主机网络首次测试有 2 个测试服务器端口占用失败，隔离网络重跑全部通过。Linux→Windows 反向测试未通过：旧 Linux 实例的夸克文件上传停留在 sending、回执等待超时；同步 Linux 模块并重启后，发现系统 Secret Service 默认密钥环锁定，凭据读取阻塞，Linux 服务尚未恢复业务就绪。未更改凭据、密钥环密码或网盘策略，未改用明文存储。Windows→Linux 成功是在 Linux 重启前完成，不能据此宣称当前双向全部可用。
+本次补充验收：清理回归修复前稳定触发空引用，修复后通过；隔离网络中的核心测试 387 通过、3 个外部夹具跳过。普通主机网络首次测试有 2 个测试服务器端口占用失败，隔离网络重跑全部通过。
+
+Linux 旧版重启后因桌面 Secret Service 锁定而阻塞。新版改用服务凭据存储；在桌面密钥环仍锁定的条件下，重启后 6.61 秒设备查询成功。之前积压的 Linux→Windows 文字和 106 字节文件均收到 LIS-IMAC 和手机的保存回执。恢复保留设备身份、历史和原公屏，通过现有设备导出的授权恢复公屏密钥，从本机托管 OpenList 恢复网盘授权；旧锁定密钥环未解密、未删除。本机接收令牌重新生成，OpenList 本机管理员密码已轮换。
+
+### Linux 服务凭据与旧版迁移
+
+默认目录为 `~/.local/share/MyPowerTools/secrets`，可通过 `MPT_SECRET_VAULT_ROOT` 指定。目录权限为 0700，密钥及密文文件为 0600，内容使用 AES-GCM 加密。密钥保存在同一用户的私有目录中，因此保护边界是系统用户权限；这不是硬件密钥或额外密码保护。备份和恢复时必须同时保留 `master.key` 和密文文件，缺失密钥时服务不会覆盖已有密文。
+
+旧版迁移使用 `scripts/migrate-linux-secrets.py`，只读取既有 MPT 条目并通过标准输入导入，既不打印凭据，也不删除原条目。迁移需要 Python 的 PyGObject/Gio 和可读取的旧密钥环；锁定时会停止升级并保留旧服务，不弹出解锁窗口或悄悄生成新身份。已有授权也可以通过 `mpt secrets import --stdin` 导入 JSON 数组（`moduleId`、`name`、`value`），不同值不会覆盖已有凭据。正常运行和后续重启不再调用桌面密钥环。
