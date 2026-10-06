@@ -1,0 +1,10 @@
+src/*/bin/Debug/*
+src/*/obj/*
+src/*/*.cs
+src/*/*.csproj
+src/*/*.axaml
+src/*/bin/Release/*/*.pdb
+src/AudioRelay.Core/bin/Release/*/*
+tests/*
+NuGet.config
+*.mptpkg

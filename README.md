@@ -47,6 +47,7 @@ pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\Start-MyPowerTools-Dev
 - **Doubao Agent**：统一查看豆包电脑操作服务的运行状态、配置和日志。
 - **Paste Image**：读取剪贴板图片并上传到远程设备，上传完成后自动复制远程路径，并向前台窗口发送可配置的粘贴快捷键（默认 `Ctrl+Shift+V`）。
 - **SmartBird Thermostat**：查看和控制 SmartBird 温控设备，浏览状态、事件、配置和日志。
+- **AudioRelay**：检测并启动已安装的 AudioRelay 桌面端，快速进入电脑声音传手机或手机麦克风传电脑的配置流程。
 - **统一工具入口**：在一个列表中搜索、收藏和打开工具，快速查看每个工具的可用状态。
 - **后台常驻**：通过系统托盘保持服务运行，需要时快速打开主界面。
 - **状态与提醒**：集中展示工具健康状态、运行日志和通知，出现问题时给出清晰提示。

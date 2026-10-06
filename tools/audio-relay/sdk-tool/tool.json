@@ -1,0 +1,120 @@
+{
+  "schemaVersion": "1.0",
+  "version": "0.1.0",
+  "toolId": "audio-relay",
+  "ownerModuleId": "audio-relay",
+  "title": "AudioRelay",
+  "description": "检测并启动 AudioRelay 桌面端，快速进入电脑音频转手机或手机麦克风转电脑的官方配置流程。",
+  "icon": "route.devices",
+  "category": "Devices",
+  "type": "dotnet-surface",
+  "availability": "available",
+  "primaryRouteId": "overview",
+  "routes": [
+    {
+      "routeId": "overview",
+      "surfaceId": "audio-relay.overview",
+      "title": "AudioRelay",
+      "icon": "route.devices",
+      "surface": {
+        "kind": "dotnet",
+        "assembly": "src/AudioRelay.Tool/bin/Release/net10.0/AudioRelay.Tool.dll",
+        "type": "AudioRelay.Tool.AudioRelaySurfaceFactory"
+      }
+    }
+  ],
+  "homeCard": {
+    "summary": "统一查看 AudioRelay 桌面端状态并启动应用，按官方步骤连接手机播放或麦克风。",
+    "primaryActionLabel": "打开 AudioRelay",
+    "order": 8
+  },
+  "runtime": {
+    "transport": "stdio-jsonrpc",
+    "command": "src/AudioRelay.Runtime/bin/Release/net10.0/AudioRelay.Runtime.exe",
+    "args": [],
+    "timeoutMs": 30000
+  },
+  "settings": {
+    "schema": "settings.schema.json",
+    "values": "settings.json",
+    "secrets": []
+  },
+  "commands": [
+    {
+      "id": "audio-relay.health",
+      "title": "检查 AudioRelay Runtime",
+      "description": "验证隔离 Runtime 可启动并读取桌面端状态。"
+    },
+    {
+      "id": "audio-relay.snapshot",
+      "title": "刷新 AudioRelay 状态",
+      "description": "读取安装路径、版本和进程状态。",
+      "kind": "action",
+      "requiresElevation": false,
+      "dangerLevel": "low",
+      "execution": { "type": "module.execute" },
+      "constraints": [],
+      "supportsProgress": false,
+      "supportsCancellation": true
+    },
+    {
+      "id": "audio-relay.launch",
+      "title": "启动 AudioRelay",
+      "description": "启动本机已经安装的 AudioRelay 桌面端。",
+      "kind": "action",
+      "requiresElevation": false,
+      "dangerLevel": "low",
+      "execution": { "type": "module.execute", "runsExternalProcesses": true },
+      "constraints": ["runsExternalProcesses"],
+      "supportsProgress": false,
+      "supportsCancellation": false
+    },
+    {
+      "id": "audio-relay.open-downloads",
+      "title": "打开 AudioRelay 下载页",
+      "description": "使用默认浏览器打开 AudioRelay 官方下载页。",
+      "kind": "action",
+      "requiresElevation": false,
+      "dangerLevel": "low",
+      "execution": { "type": "module.execute", "runsExternalProcesses": true },
+      "constraints": ["runsExternalProcesses"],
+      "supportsProgress": false,
+      "supportsCancellation": false
+    },
+    {
+      "id": "audio-relay.open-send-audio-guide",
+      "title": "打开电脑音频发送向导",
+      "description": "打开 AudioRelay 官方的 Windows 到手机配置说明。",
+      "kind": "action",
+      "requiresElevation": false,
+      "dangerLevel": "low",
+      "execution": { "type": "module.execute", "runsExternalProcesses": true },
+      "constraints": ["runsExternalProcesses"],
+      "supportsProgress": false,
+      "supportsCancellation": false
+    },
+    {
+      "id": "audio-relay.open-microphone-guide",
+      "title": "打开手机麦克风向导",
+      "description": "打开 AudioRelay 官方的手机麦克风到 Windows 配置说明。",
+      "kind": "action",
+      "requiresElevation": false,
+      "dangerLevel": "low",
+      "execution": { "type": "module.execute", "runsExternalProcesses": true },
+      "constraints": ["runsExternalProcesses"],
+      "supportsProgress": false,
+      "supportsCancellation": false
+    }
+  ],
+  "permissions": [
+    {
+      "id": "launch-installed-audio-relay",
+      "level": "user",
+      "capability": "process.launch",
+      "reason": "读取 AudioRelay 的安装和运行状态，并仅在用户点击后启动桌面端或官方网页。"
+    }
+  ],
+  "dataRoots": [],
+  "dataRetention": "preserve",
+  "development": { "loose": true, "autoRefresh": true }
+}

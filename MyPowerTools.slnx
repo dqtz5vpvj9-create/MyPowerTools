@@ -40,6 +40,9 @@
     <Project Path="src/MyPowerTools.WebSurface.Avalonia/MyPowerTools.WebSurface.Avalonia.csproj" />
   </Folder>
   <Folder Name="/tools/">
+    <Project Path="tools/audio-relay/sdk-tool/src/AudioRelay.Core/AudioRelay.Core.csproj" />
+    <Project Path="tools/audio-relay/sdk-tool/src/AudioRelay.Runtime/AudioRelay.Runtime.csproj" />
+    <Project Path="tools/audio-relay/sdk-tool/src/AudioRelay.Tool/AudioRelay.Tool.csproj" />
     <Project Path="tools/file-transfer/src/FileTransfer.Core/FileTransfer.Core.csproj" />
     <Project Path="tools/file-transfer/src/FileTransfer.MyPowerTools/FileTransfer.MyPowerTools.csproj" />
     <Project Path="tools/file-transfer/src/FileTransfer.Surface/FileTransfer.Surface.csproj" />

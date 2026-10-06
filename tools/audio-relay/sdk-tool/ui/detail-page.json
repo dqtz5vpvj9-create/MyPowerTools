@@ -1,0 +1,9 @@
+{
+  "schemaVersion": "1.0",
+  "surfaceId": "audio-relay.detail",
+  "moduleId": "audio-relay",
+  "kind": "detail-page",
+  "layout": { "mode": "component" },
+  "uses": ["MptModuleHeader", "MptErrorView", "MptLoadingView"],
+  "states": ["loading", "ready", "empty", "degraded", "error", "permission-required", "disabled"]
+}

@@ -283,6 +283,16 @@ $toolRegistry = @(
         ServiceUnits     = @()
     },
     [pscustomobject]@{
+        Id               = 'audio-relay'
+        Version          = '0.1.0'
+        BuildScript      = 'tools\audio-relay\build.ps1'
+        SurfaceProject   = ''
+        SurfaceAssembly  = ''
+        SurfaceTarget    = ''
+        RuntimeStagePath = 'tools\audio-relay\artifacts\package'
+        ServiceUnits     = @()
+    },
+    [pscustomobject]@{
         Id               = 'local-lag-cleaner'
         Version          = '0.3.0'
         BuildScript      = 'tools\local-lag-cleaner\build.ps1'

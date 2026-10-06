@@ -502,6 +502,7 @@ Get-ChildItem -LiteralPath $PublishRoot -Recurse -Filter '*.pdb' -File |
     }
 
 $packageByTool = @{
+    'audio-relay' = 'audio-relay'
     'remote-tool-gateway' = 'remote-tool-gateway'
     'file-transfer' = 'file-transfer'
     'adb-forwarder' = 'adb-forwarder'

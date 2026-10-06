@@ -117,6 +117,7 @@ $payloadRoot = Join-Path $CandidateRoot 'payload'
 # tool that silently dropped out of the build pass its own check.
 $expectedTools = @(
     'adb-forwarder',
+    'audio-relay',
     'doubao-computer-use',
     'file-transfer',
     'ime-manager',
@@ -245,9 +246,9 @@ try {
     $runnerResult = Invoke-Captured -FilePath (Join-Path $payloadRoot 'Runner\MyPowerTools.Runner.exe') -ArgumentList @(
         '--once', '--modules', (Join-Path $payloadRoot 'modules'), '--data-root', $localDataRoot
     ) -OutputPath $runnerLog
-    $discovered = @('adb-forwarder', 'android-tools.notifications', 'doubao-agent', 'file-transfer', 'ime-manager', 'local-lag-cleaner', 'nssm-manager', 'paste-image', 'remote-tool-gateway', 'screenease', 'smartbird-thermostat') |
+    $discovered = @('adb-forwarder', 'android-tools.notifications', 'audio-relay', 'doubao-agent', 'file-transfer', 'ime-manager', 'local-lag-cleaner', 'nssm-manager', 'paste-image', 'remote-tool-gateway', 'screenease', 'smartbird-thermostat') |
         Where-Object { $runnerResult.Output -match [regex]::Escape($_) }
-    Add-Record 'A5.7-local-runner-discovery' ($runnerResult.ExitCode -eq 0 -and $discovered.Count -eq 11) "exit=$($runnerResult.ExitCode); discovered=$($discovered -join ',')" $runnerLog
+    Add-Record 'A5.7-local-runner-discovery' ($runnerResult.ExitCode -eq 0 -and $discovered.Count -eq 12) "exit=$($runnerResult.ExitCode); discovered=$($discovered -join ',')" $runnerLog
 }
 finally {
     if (Test-Path -LiteralPath $localDataRoot) { Remove-Item -LiteralPath $localDataRoot -Recurse -Force -ErrorAction SilentlyContinue }
