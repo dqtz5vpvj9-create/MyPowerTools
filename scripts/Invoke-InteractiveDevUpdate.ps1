@@ -29,6 +29,9 @@ New-Item -ItemType Directory -Path $runRoot -Force | Out-Null
 $RequestPath = Join-Path $runRoot 'request.xml'
 $logPath = Join-Path $runRoot 'update.log'
 $resultPath = Join-Path $runRoot 'exit-code.txt'
+foreach ($key in @('NoRestore', 'NoOpenShell', 'SkipArtifactsCheck')) {
+    if ($UpdateParameters.ContainsKey($key)) { $UpdateParameters[$key] = [bool]$UpdateParameters[$key] }
+}
 @{ Parameters = $UpdateParameters; Log = $logPath; Result = $resultPath } |
     Export-Clixml -LiteralPath $RequestPath
 $scheduler = New-Object -ComObject Schedule.Service
