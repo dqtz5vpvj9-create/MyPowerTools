@@ -6,6 +6,43 @@ namespace MyPowerTools.Tests;
 
 public class TransferCliTests
 {
+    [Fact]
+    public async Task DisconnectReleasesReceiptSubscriptionWithoutCancellingTransfer()
+    {
+        var invoker = new DisconnectFake();
+        using var disconnect = new CancellationTokenSource();
+        var wait = TransferCli.RunAsync(["wait", "--item", "item-1", "--timeout", "600"],
+            new StringWriter(), new StringWriter(), invoker, disconnect.Token);
+        await invoker.Subscribed.Task.WaitAsync(TimeSpan.FromSeconds(5));
+        disconnect.Cancel();
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(() => wait.WaitAsync(TimeSpan.FromSeconds(5)));
+        Assert.True(invoker.Disposed);
+        Assert.DoesNotContain("file-transfer.assistant.cancel", invoker.Commands);
+    }
+
+    private sealed class DisconnectFake : ITransferCommandInvoker
+    {
+        public TaskCompletionSource Subscribed { get; } = new(TaskCreationOptions.RunContinuationsAsynchronously);
+        public bool Disposed { get; private set; }
+        public List<string> Commands { get; } = [];
+        public Task<JsonNode> InvokeAsync(string command, JsonObject args, CancellationToken token)
+        {
+            Commands.Add(command);
+            token.ThrowIfCancellationRequested();
+            return Task.FromResult(Snapshot("queued"));
+        }
+        public async IAsyncEnumerable<bool> EventsAsync([EnumeratorCancellation] CancellationToken token)
+        {
+            try
+            {
+                Subscribed.SetResult();
+                await Task.Delay(Timeout.InfiniteTimeSpan, token);
+                yield return true;
+            }
+            finally { Disposed = true; }
+        }
+    }
+
     private static JsonNode Snapshot(string state, string receiptDevice = "") => JsonNode.Parse("""
         {"items":[{"id":"item-1","state":"STATE","targetDeviceId":"pixel","receipts":RECEIPTS}]}
         """.Replace("STATE", state).Replace("RECEIPTS", receiptDevice.Length == 0 ? "[]" : $$"""[{"itemId":"item-1","deviceId":"{{receiptDevice}}","savedAt":"2026-09-30T00:00:00Z"}]"""))!;

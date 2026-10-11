@@ -1,4 +1,4 @@
-"""Agent interface to the installed MPT Runner through its transfer CLI."""
+"""Legacy stdio compatibility. New installations use the shared TransferMcp HTTP service."""
 
 import asyncio
 import json

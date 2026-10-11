@@ -5,7 +5,7 @@ description: 使用 MyPowerTools 文件传输助手 MCP 收发文件、向手机
 
 # MPT 文件传输助手
 
-复用当前主机已安装的 MCP 和后台 Runner。文件助手是共享会话（公屏），设备私聊是另一种投递范围；两者使用同一后台传输服务。网络链路由后台选择，发送不以用户手动连接 Tailscale 为前提。
+复用当前主机已安装的共享 HTTP MCP 和后台 Runner。多个聊天共用一个接入服务，不要为每个聊天启动 Python MCP 或新建 Runner。文件助手是共享会话（公屏），设备私聊是另一种投递范围；两者使用同一后台传输服务。网络链路由后台选择，发送不以用户手动连接 Tailscale 为前提。
 
 ## 找到工具与目标
 
@@ -41,9 +41,9 @@ mpt_send_files({"device":"DEVICE_ID","files":["/absolute/path/report.pdf"],"wait
 mpt_wait_receipts({"item_ids":["ITEM_ID"],"receiver":"DEVICE_ID","timeout_seconds":60})
 ```
 
-公屏等待必须指定接收设备；`receiver` / 发送时的 `receipt_from` 只过滤回执，不改变公屏可见范围。若用户只要求投到公屏、未指定接收者，可先报告已入队，再用 `mpt_receipts({"item_ids":["ITEM_ID"]})` 查看已有回执，无须为此阻塞发送。
+公屏等待必须指定接收设备；`receiver` / 发送时的 `receipt_from` 只过滤回执，不改变公屏可见范围。若用户只要求投到公屏、未指定接收者，可先报告已入队，再用 `mpt_status({})` 查看该消息已有的回执，无须为此阻塞发送。
 
-等待超时或 MCP 调用中断后，后台仍会继续工作。用原 ID 查询 `mpt_receipts` 或继续 `mpt_wait_receipts`；不要重新发送同一文件。工具错误中的 CLI JSON 可能仍含 `data.itemIds` 或 `data.items[].itemId`。如果根本没有拿到 ID，先在 `mpt_status` 的近期条目核对目标、文件和时间，确认是否已入队，再决定是否重发。
+等待超时或 MCP 调用中断后，后台仍会继续工作。用原 ID 查询 `mpt_receipts` 或继续 `mpt_wait_receipts`；不要重新发送同一文件。工具错误中的结果 JSON 可能仍含 `data.itemIds` 或 `data.items[].itemId`。如果根本没有拿到 ID，先在 `mpt_status` 的近期条目核对目标、文件和时间，确认是否已入队，再决定是否重发。
 
 报告与证据对应：
 
@@ -84,6 +84,8 @@ Linux 已安装包装命令通常为 `~/.local/bin/mpt`：
 ~/.local/bin/mpt transfer wait --item ITEM_ID --from DEVICE_ID --timeout 60 --json
 ```
 
-Windows 从 `%LOCALAPPDATA%\Programs\MyPowerTools\TransferMcp\mcp.json` 读取本机配置，按 `env.MPT_COMMAND_JSON` 中的参数数组调用 CLI，并沿用 `MPT_DATA_ROOT`。PowerShell 脚本使用 `pwsh.exe -NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -File ...`，保持控制台隐藏。
+Windows HTTP 配置位于 `%LOCALAPPDATA%\Programs\MyPowerTools\TransferMcp\mcp.json`，包含认证 headers，不要打印或转发其内容。服务由现有 ServiceManager 管理，名称为 `mpt-transfer-mcp.service`；Linux 对应 `systemctl --user status mpt-transfer-mcp.service`。优先刷新当前客户端的 MCP 配置以连接共享端点。
+
+需要 CLI 备用入口时，Windows 使用 `%LOCALAPPDATA%\Programs\MyPowerTools\Cli\MyPowerTools.Cli.exe transfer ... --data-root %LOCALAPPDATA%\MyPowerTools --json`；不要再从 HTTP 配置寻找 `env.MPT_COMMAND_JSON`。PowerShell 脚本使用 `pwsh.exe -NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -File ...`，保持控制台隐藏。
 
 使用已有数据根目录和后台服务，不另起空白 Runner、不重新生成身份、不要求重连 Windows 桌面。服务不可用时先报告实际错误并检查已有服务状态；安装或修复按当前任务授权执行。新增 skill/MCP 后，已经打开的会话可能需要刷新工具或新建会话；可让旧会话直接读取本 SKILL.md 并使用 CLI。

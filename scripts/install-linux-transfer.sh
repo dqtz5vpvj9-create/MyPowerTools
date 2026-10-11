@@ -17,7 +17,7 @@ while (($#)); do
     --start) start_service=true; shift ;;
     --with-mcp) with_mcp=true; shift ;;
     --help)
-      printf 'Install MPT Linux transfer CLI + Runner.\nUsage: %s [--prefix PATH] [--data-root PATH] [--bin-dir PATH] [--configuration Release|Debug] [--start] [--with-mcp]\nRequires .NET 10 SDK and PowerShell. Credentials use the private service vault; no desktop unlock is needed.\n--with-mcp also requires Python venv/pip and installs the Agent MCP in a dedicated virtual environment.\n' "$0"
+      printf 'Install MPT Linux transfer CLI + Runner.\nUsage: %s [--prefix PATH] [--data-root PATH] [--bin-dir PATH] [--configuration Release|Debug] [--start] [--with-mcp]\nRequires .NET 10 SDK and PowerShell. Credentials use the private service vault; no desktop unlock is needed.\n--with-mcp installs one shared HTTP MCP service; Python is used only for installation.\n' "$0"
       exit 0 ;;
     *) printf 'Unknown option: %s\n' "$1" >&2; exit 2 ;;
   esac
@@ -115,19 +115,5 @@ printf '\nInstalled CLI: %s/mpt\nRunner service: mpt-transfer.service\n' "$bin_d
 printf 'Start: systemctl --user start mpt-transfer.service\nStatus: %s/mpt transfer status --json\n' "$bin_directory"
 
 if "$with_mcp"; then
-  python3 "$repo_root/integrations/file-transfer-mcp/install_skill.py"
-  mkdir -p "$install_root/mcp"
-  cp "$repo_root/integrations/file-transfer-mcp/server.py" "$install_root/mcp/server.py"
-  cp "$repo_root/integrations/file-transfer-mcp/requirements.txt" "$install_root/mcp/requirements.txt"
-  python3 -m venv "$install_root/mcp/venv"
-  "$install_root/mcp/venv/bin/python" -m pip install -r "$install_root/mcp/requirements.txt"
-  python3 - "$install_root" "$bin_directory/mpt" <<'PYMCP'
-import json, shlex, sys
-root, wrapper = sys.argv[1:]
-command = ["codex", "mcp", "add", "mypowertools-file-transfer", "--env",
-           "MPT_COMMAND_JSON=" + json.dumps([wrapper], ensure_ascii=False), "--",
-           root + "/mcp/venv/bin/python", root + "/mcp/server.py"]
-print("\nRegister the installed Agent MCP with Codex:")
-print(shlex.join(command))
-PYMCP
+  MPT_DOTNET="$dotnet_command" "$repo_root/scripts/install-linux-transfer-mcp.sh" --prefix "$install_root/mcp" --data-root "$data_root"
 fi

@@ -1,6 +1,8 @@
 # 文件传输 CLI 与 Agent MCP
 
-Linux 使用已安装的 MyPowerTools Runner 持续接收、上传并保存待发队列。CLI 和 MCP 通过带认证的 HostControl 连接这个 Runner，沿用文件助手的身份、配对和回执。
+各主机使用已安装的 MyPowerTools Runner 持续接收、上传并保存待发队列。CLI 和 MCP 通过带认证的 HostControl 连接这个 Runner，沿用文件助手的身份、配对和回执。
+
+最新共享服务改造和资源测量见 [生命周期验收记录](LIFECYCLE_ACCEPTANCE.md)。
 
 ## Agent 使用 skill
 
@@ -23,9 +25,9 @@ python3 integrations/file-transfer-mcp/install_skill.py
 pwsh.exe -NoLogo -NoProfile -NonInteractive -WindowStyle Hidden -File scripts/install-windows-transfer-mcp.ps1 -RegisterCodex
 ```
 
-需要 .NET 10 SDK、支持 fastmcp 的 Python、已运行的 MPT ServiceManager，以及可用的 Codex CLI。安装时会将现有 Runner 注册为 `mpt-runner.service`，由 ServiceManager 接管和恢复；不要求桌面连接。安装脚本构建 Windows CLI，在 `%LOCALAPPDATA%\Programs\MyPowerTools\TransferMcp` 创建独立 Python 环境，并生成 `mcp.json`，可供其他支持 stdio MCP 的 Agent 客户端导入。使用 `-CliDirectory` 可以指定预先发布的 Windows CLI 目录，该目录必须持久保留。
+需要 .NET 10 SDK、Python 3.11+（仅安装时使用）、完整 MPT 安装及正在运行的 ServiceManager。脚本复用安装版 CLI 注册服务，构建自带运行时的共享 MCP，注册 `mpt-transfer-mcp.service`。日常请求直接通过认证 IPC 调用 Runner，不启动 CLI 或 Python，不依赖桌面连接。已有发布目录可用 `-ServerDirectory` 传入；`-CliDirectory` 指定现有 CLI。
 
-`-RegisterCodex` 注册名为 `mpt-file-transfer` 的服务器；已启动的 Agent 会话需重新加载 MCP 或新建会话。服务器使用 `pythonw.exe`，CLI 子进程设置 `CREATE_NO_WINDOW`。不会因每次工具调用而闪出控制台。Runner 必须由正常的开发版运行流程启动；模块被隔离时会返回真实错误，不另建空白设备身份。
+默认端点 `http://127.0.0.1:17843/mcp`，仅监听本机，要求独立 bearer 凭据。安装器限制目录 ACL，生成私密 `mcp.json`；不要将其中的 headers 发到聊天或提交 Git。`-RegisterCodex` 保留其他服务配置，将已有 MPT 注册迁移为 HTTP。运行中的客户端需要 MCP 热重载；不要为了切换 MCP 重启桌面或清空聊天。旧 stdio 进程由原客户端在释放连接时退出，正在执行的调用可延后切换。
 
 ## 安装 Linux 服务
 
@@ -125,35 +127,22 @@ mpt transfer cancel --item ITEM_ID --json
 
 ## 接入 Agent MCP
 
-安装脚本的 `--with-mcp` 会创建安装目录内的独立 Python 环境、复制 MCP 服务并打印 Codex 注册命令。也可以在仓库根目录手动创建独立 Python 环境：
+多个聊天复用一个无会话状态的 Streamable HTTP 服务。使用官方 C# SDK 的 stateless 模式：不维护聊天注册表，连接断开会取消当前查询和回执订阅；Runner 中已接受的发送继续执行。每次请求直接复用 CLI 的业务实现及 HostControl 客户端，不执行外部 CLI。
+
+Linux 可以仅安装/更新接入层，不重启 Runner：
 
 ```bash
-python3 -m venv "$HOME/.local/share/MyPowerTools/transfer-mcp-venv"
-"$HOME/.local/share/MyPowerTools/transfer-mcp-venv/bin/pip" install \
-  -r integrations/file-transfer-mcp/requirements.txt
+scripts/install-linux-transfer-mcp.sh --register-codex
+systemctl --user status mpt-transfer-mcp.service
 ```
 
-在支持 stdio MCP 的客户端配置下列服务器，将示例中的用户目录和仓库目录替换为实际绝对路径：
+完整 Linux 安装的 `--with-mcp` 也安装该共享服务，并生成 HTTP 配置；加上单独安装器的 `--register-codex` 可迁移已有注册。Windows 的私密配置位于 `%LOCALAPPDATA%\Programs\MyPowerTools\TransferMcp\mcp.json`，Linux 默认位于 `~/.local/share/MyPowerTools/TransferMcp/mcp.json`。完整安装指定目录时，以安装器输出为准。其他客户端导入该文件的 HTTP 配置，不能继续使用 `command: pythonw.exe`。
 
-```json
-{
-  "mcpServers": {
-    "mpt-transfer": {
-      "command": "/home/your-user/.local/share/MyPowerTools/transfer-mcp-venv/bin/python",
-      "args": ["/path/to/MyPowerTools/integrations/file-transfer-mcp/server.py"],
-      "env": {
-        "MPT_COMMAND_JSON": "[\"/home/your-user/.local/bin/mpt\"]"
-      }
-    }
-  }
-}
-```
-
-使用安装脚本生成的 `mpt` 包装命令时无需另配数据目录。使用其他 CLI 启动命令时，`MPT_COMMAND_JSON` 是命令参数的 JSON 数组，例如 `["dotnet","/installed/CLI/MyPowerTools.Cli.dll"]`，并设置对应的 `MPT_DATA_ROOT` 与 `MPT_ENDPOINT_ADDRESS`。
+旧 `server.py` 只供仍未迁移的 stdio 客户端兼容，不是默认安装入口。不要给每个聊天重新安装或启动一份服务。HTTP 认证缺失返回 401，浏览器 Origin 或非本机 Host 返回 403，凭据不同于 Runner IPC token。
 
 主要工具为 `mpt_status`、`mpt_devices`、`mpt_conversations`、`mpt_send_files`、`mpt_send_shared`、`mpt_receipts`、`mpt_wait_receipts` 和 `mpt_cancel`。私聊调用 `mpt_send_files(device, files, text)`；公屏调用 `mpt_send_shared(files, text, receipt_from, via)`，默认等待回执，公屏必须提供 `receipt_from`。两类发送默认等待 600 秒，可调整 `timeout_seconds`。
 
-`mpt_pair_device` 和 `mpt_join_shared` 接收私密邀请文件路径。网盘管理使用 `mpt_cloud_accounts`、`mpt_cloud_authorize`、`mpt_cloud_complete` 和 `mpt_cloud_select`；后者会持久修改默认账号与策略。MCP 超时作为工具错误返回完整 CLI JSON，保留待发 ID，后续可继续查询回执；终止 MCP 调用只停止当前 CLI 客户端，已接受消息仍由 Runner 处理。
+`mpt_pair_device` 和 `mpt_join_shared` 接收私密邀请文件路径。网盘管理使用 `mpt_cloud_accounts`、`mpt_cloud_authorize`、`mpt_cloud_complete` 和 `mpt_cloud_select`；后者会持久修改默认账号与策略。MCP 超时作为工具错误返回完整 CLI JSON，保留待发 ID，后续可继续查询回执；终止 MCP 调用只释放当前 IPC 客户端，已接受消息仍由 Runner 处理。
 
 ### Windows 部署验收（2026-10-05）
 

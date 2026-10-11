@@ -15,16 +15,18 @@ public interface ITransferCommandInvoker
 public sealed class TransferCli
 {
     private readonly ITransferCommandInvoker invoker;
-    public TransferCli(ITransferCommandInvoker invoker) => this.invoker = invoker;
+    private readonly CancellationToken cancellationToken;
+    public TransferCli(ITransferCommandInvoker invoker, CancellationToken cancellationToken = default)
+    { this.invoker = invoker; this.cancellationToken = cancellationToken; }
     private Task<JsonNode> Call(string name, JsonObject? args = null, CancellationToken token = default) =>
-        invoker.InvokeAsync("file-transfer." + name, args ?? new(), token);
+        invoker.InvokeAsync("file-transfer." + name, args ?? new(), token == default ? cancellationToken : token);
 
     public static int Run(string[] args)
     {
         return RunAsync(args, Console.Out, Console.Error).GetAwaiter().GetResult();
     }
 
-    public static async Task<int> RunAsync(string[] args, TextWriter output, TextWriter diagnostics, ITransferCommandInvoker? injected = null)
+    public static async Task<int> RunAsync(string[] args, TextWriter output, TextWriter diagnostics, ITransferCommandInvoker? injected = null, CancellationToken cancellationToken = default)
     {
         var command = args.FirstOrDefault() ?? "help";
         if (command is "-h" or "--help") command = "help";
@@ -62,12 +64,13 @@ public sealed class TransferCli
                 injected = new HostInvoker(client);
             }
             if (command != "cloud" && options.Positional.Count != 0) throw new ArgumentException("Unexpected positional argument: " + options.Positional[0]);
-            var cli = new TransferCli(injected);
+            var cli = new TransferCli(injected, cancellationToken);
             var (data, code) = await cli.Execute(command, options);
             await output.WriteLineAsync(new JsonObject { ["ok"] = code == 0, ["command"] = command, ["data"] = data,
                 ["error"] = code == 0 ? null : new JsonObject { ["code"] = code == 3 ? "receipt_timeout" : command == "cancel" ? "cancellation_refused" : "delivery_failed", ["message"] = code == 3 ? "Receiver receipts are still pending; queued items remain durable." : command == "cancel" ? "The item could not be cancelled. It may already have been saved by a receiver, or may not exist." : "An item failed, was cancelled, or could not be found." } }.ToJsonString());
             return code;
         }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested) { throw; }
         catch (Exception ex)
         {
             // Credential-bearing operations deliberately suppress backend exception text.
@@ -221,7 +224,8 @@ public sealed class TransferCli
 
     private async Task<(JsonNode, int)> Wait(string[] ids, string? receiver, double timeout)
     {
-        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(timeout));
+        using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+        deadline.CancelAfter(TimeSpan.FromSeconds(timeout));
         // Start subscription before inspecting; replay from sequence zero closes the subscribe/read race.
         await using var events = invoker.EventsAsync(deadline.Token).GetAsyncEnumerator(deadline.Token);
         var next = events.MoveNextAsync().AsTask();
@@ -239,6 +243,7 @@ public sealed class TransferCli
         }
         catch (Exception ex) when (deadline.IsCancellationRequested && ex is OperationCanceledException or Grpc.Core.RpcException)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             if (last is null) throw new TimeoutException("Receipt inspection timed out; queued items remain durable.");
             return Evaluate(last, ids, receiver, true);
         }
@@ -255,7 +260,7 @@ public sealed class TransferCli
         public JsonObject SendResult { get; } = sendResult;
     }
 
-    private sealed class HostInvoker(HostControlClient client) : ITransferCommandInvoker
+    public sealed class HostInvoker(HostControlClient client) : ITransferCommandInvoker
     {
         public async Task<JsonNode> InvokeAsync(string command, JsonObject args, CancellationToken token)
         {
