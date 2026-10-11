@@ -1,9 +1,9 @@
+param([string]$UpdateScriptPath = (Join-Path $PSScriptRoot '../scripts/update-windows-dev.ps1'))
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 $tokens = $null
 $parseErrors = $null
-$scriptPath = Join-Path $PSScriptRoot '../scripts/update-windows-dev.ps1'
-$ast = [Management.Automation.Language.Parser]::ParseFile($scriptPath, [ref]$tokens, [ref]$parseErrors)
+$ast = [Management.Automation.Language.Parser]::ParseFile($UpdateScriptPath, [ref]$tokens, [ref]$parseErrors)
 if ($parseErrors.Count -gt 0) { throw 'Dev update script contains parse errors.' }
 foreach ($name in @('Get-ProductProcessRecords', 'Assert-NoUnmanagedConflict', 'Request-ShellShutdown', 'Stop-ManagedProcesses')) {
     $definition = $ast.Find({ param($node) $node -is [Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq $name }, $true)

@@ -232,8 +232,12 @@ function Get-ProductProcessRecords {
     param([Parameter(Mandatory = $true)][string[]]$Name)
 
     $records = [Collections.Generic.List[object]]::new()
+    $currentSessionId = (Get-Process -Id $PID).SessionId
     foreach ($processName in $Name) {
         foreach ($process in Get-Process -Name $processName -ErrorAction SilentlyContinue) {
+            # Per-user updates control the current desktop, leaving other logon
+            # sessions alone. Session 0 cannot host a supported user runtime.
+            if ($process.SessionId -ne $currentSessionId) { continue }
             $executablePath = $null
             try {
                 $executablePath = $process.MainModule.FileName
@@ -245,12 +249,8 @@ function Get-ProductProcessRecords {
                 $managed = @($managedProcessRoots | Where-Object {
                     Test-IsInsidePath -Parent $_ -Child $executablePath
                 }).Count -gt 0
-    $currentSessionId = (Get-Process -Id $PID).SessionId
             }
             if (-not $managed -and
-            # Per-user updates control the current desktop, leaving other logon
-            # sessions alone. Session 0 cannot host a supported user runtime.
-            if ($process.SessionId -ne $currentSessionId) { continue }
                 [string]::IsNullOrWhiteSpace($executablePath) -and
                 $processName -eq 'MyPowerTools.InputRemapHost' -and
                 (Test-Path -LiteralPath $protectedInputRemapExecutable -PathType Leaf)) {
@@ -274,6 +274,17 @@ function Assert-NoUnmanagedConflict {
     param([Parameter(Mandatory = $true)][string[]]$Name)
 
     $conflicts = @(Get-ProductProcessRecords -Name $Name | Where-Object { -not $_.Managed })
+    # A denied path query does not establish that the process is foreign. Ask
+    # the canonical installed clients to close their authenticated IPC peers,
+    # then inspect again. Never force-kill a process whose path is unknown.
+    $uninspectable = @($conflicts | Where-Object { [string]::IsNullOrWhiteSpace($_.Path) })
+    if (@($uninspectable | Where-Object Name -eq 'MyPowerTools.Shell.Avalonia').Count -gt 0) {
+        Request-ShellShutdown
+    }
+    if (@($uninspectable | Where-Object Name -eq 'MyPowerTools.Runner').Count -gt 0) {
+        Request-RunnerShutdown
+    }
+    $conflicts = @(Get-ProductProcessRecords -Name $Name | Where-Object { -not $_.Managed })
     if ($conflicts.Count -eq 0) {
         return
     }
@@ -286,17 +297,6 @@ function Assert-NoUnmanagedConflict {
 }
 
 function Wait-ForProcessExit {
-    $conflicts = @(Get-ProductProcessRecords -Name $Name | Where-Object { -not $_.Managed })
-    # A denied path query does not establish that the process is foreign. Ask
-    # the canonical installed clients to close their authenticated IPC peers,
-    # then inspect again. Never force-kill a process whose path is unknown.
-    $uninspectable = @($conflicts | Where-Object { [string]::IsNullOrWhiteSpace($_.Path) })
-    if (@($uninspectable | Where-Object Name -eq 'MyPowerTools.Shell.Avalonia').Count -gt 0) {
-        Request-ShellShutdown
-    }
-    if (@($uninspectable | Where-Object Name -eq 'MyPowerTools.Runner').Count -gt 0) {
-        Request-RunnerShutdown
-    }
     param(
         [Parameter(Mandatory = $true)][object[]]$Record,
         [ValidateRange(1, 30)][int]$Seconds = 5
