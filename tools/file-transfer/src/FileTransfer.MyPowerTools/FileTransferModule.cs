@@ -202,7 +202,7 @@ public sealed partial class FileTransferModule : IMptModule
         "cloud.accounts.inspect", "cloud.accounts.authorize.begin", "cloud.accounts.authorize.status", "cloud.accounts.authorize.cancel", "cloud.accounts.authorize.complete",
         "cloud.accounts.default", "cloud.accounts.pause", "cloud.accounts.disconnect", "cloud.accounts.folders", "cloud.accounts.directory", "cloud.accounts.preferences"];
     public ValueTask<IReadOnlyList<MptCommandDescriptor>> ListCommandsAsync(CancellationToken token) => ValueTask.FromResult<IReadOnlyList<MptCommandDescriptor>>(
-        Commands.Select(c => new MptCommandDescriptor($"{Id}.{c}", Id, c, "文件互传", "action", TimeoutMs: c is "openlist.start" or "cloud.accounts.authorize.complete" ? 1200000 : 60000,
+        Commands.Select(c => new MptCommandDescriptor($"{Id}.{c}", Id, c, "文件互传", "action", TimeoutMs: c == "assistant.open" ? Timeout.Infinite : c is "openlist.start" or "cloud.accounts.authorize.complete" ? 1200000 : 60000,
             SupportsCancellation: true)).ToArray());
 
     public async ValueTask<CommandExecutionResult> ExecuteCommandAsync(CommandRequest request, CancellationToken token)

@@ -76,7 +76,7 @@ internal static class RuntimeOperationPolicy
             constraints.Add(Sdk.MptOperationConstraints.RequiresElevatedWrites);
         }
 
-        if (command.TimeoutMs >= 60000)
+        if (command.TimeoutMs == Timeout.Infinite || command.TimeoutMs >= 60000)
         {
             constraints.Add(Sdk.MptOperationConstraints.RequiresLongRunningLoop);
         }

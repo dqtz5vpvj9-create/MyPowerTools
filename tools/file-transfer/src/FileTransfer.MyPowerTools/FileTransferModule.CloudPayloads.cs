@@ -42,7 +42,7 @@ public sealed partial class FileTransferModule
     }
     private async Task<bool> PublishCloudAttachmentAsync(AssistantIdentity identity, AssistantManifest message, string? payload, CancellationToken token)
     {
-        if (message.Kind == AssistantItemKind.Text) return false;
+        if (message.Kind == AssistantItemKind.Text || _cloudAccounts.Preferences.Mode == "publicRelay") return false;
         if (message.TargetDeviceId is not null) throw new InvalidOperationException("私聊附件不能进入共享网盘领取通道。");
         if (identity.ConversationId != _conversationId) throw new InvalidOperationException("共享会话已切换，原待发附件已保留。");
         var conversation = identity.ConversationId;

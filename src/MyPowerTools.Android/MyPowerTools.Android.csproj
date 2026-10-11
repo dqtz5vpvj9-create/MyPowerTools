@@ -5,8 +5,8 @@
     <OutputType>Exe</OutputType>
     <ApplicationId>com.mypowertools.android</ApplicationId>
     <ApplicationTitle>MyPowerTools</ApplicationTitle>
-    <ApplicationVersion>18</ApplicationVersion>
-    <ApplicationDisplayVersion>0.2.16</ApplicationDisplayVersion>
+    <ApplicationVersion>19</ApplicationVersion>
+    <ApplicationDisplayVersion>0.2.17</ApplicationDisplayVersion>
     <ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable>
     <!-- The SurfaceHolder/EGL lifetime bridge targets the pinned Avalonia 12.0.5 renderer API. -->
     <AvaloniaAccessUnstablePrivateApis>true</AvaloniaAccessUnstablePrivateApis>
@@ -87,6 +87,7 @@
     <ProjectReference Include="../MyPowerTools.Platform.Android/MyPowerTools.Platform.Android.csproj" />
     <ProjectReference Include="../MyPowerTools.AvaloniaSdk/MyPowerTools.AvaloniaSdk.csproj" />
     <ProjectReference Include="../MyPowerTools.HostControl.Server/MyPowerTools.HostControl.Server.csproj" />
+    <ProjectReference Include="../MyPowerTools.HostControl.Client/MyPowerTools.HostControl.Client.csproj" />
     <ProjectReference Include="../MyPowerTools.ModuleHost.InProcDotNet/MyPowerTools.ModuleHost.InProcDotNet.csproj" />
     <!-- Bundled Android tool modules: the build must produce each module before it is embedded. -->
     <ProjectReference Include="../../tools/file-transfer/src/FileTransfer.MyPowerTools/FileTransfer.MyPowerTools.csproj" />

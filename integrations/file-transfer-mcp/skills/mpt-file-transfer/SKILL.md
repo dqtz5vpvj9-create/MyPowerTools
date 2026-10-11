@@ -66,7 +66,7 @@ mpt_wait_receipts({"item_ids":["ITEM_ID"],"receiver":"DEVICE_ID","timeout_second
 mpt_send_shared({"files":["/absolute/path/large.apk"],"via":"quark","wait_for_receipt":false})
 ```
 
-需要更改时，`mpt_cloud_select({"account_id":"ACCOUNT_ID","mode":"cloud-only"})` 会持久修改默认账号与后续传输策略；按用户指定的网盘要求执行，并说明这项持久影响。`via:auto` 遵循当前策略，不等于强制直连。
+需要更改时，`mpt_cloud_select({"account_id":"ACCOUNT_ID","mode":"cloud-only"})` 会持久修改默认账号与后续传输策略；按用户指定的网盘要求执行，并说明这项持久影响。`via:auto` 遵循当前策略，不等于强制直连。用户要求默认公网时，使用 `mpt transfer cloud preferences --mode public-relay --json`，该策略保留网盘账号并跳过后续网盘上传；`auto` 仍可能选择网盘。
 
 当前 MCP 的显式 `via` 仅支持 `auto`、`quark`，不要编造 `via:baidu`。私聊接口未提供夸克中转；保持用户选择的可见范围。`transferAvailable:false` 可能只是尚未确认领取能力，不能把已就绪账号当作未登录而要求再次授权；首次入队后检查实际状态和回执。当前网盘领取链路仍可能需要发送端在线，不能承诺发完关机后一定可取。
 

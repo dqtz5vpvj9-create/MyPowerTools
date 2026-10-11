@@ -157,6 +157,26 @@ public class TransferCliTests
         Assert.DoesNotContain("assistant.link.import", string.Join(",", invoker.Commands));
     }
 
+    [Fact]
+    public async Task PublicRelayPreferenceBypassesCloudWithoutRemovingAccount()
+    {
+        var invoker = new Fake(Snapshot("queued"));
+        var code = await TransferCli.RunAsync(["cloud", "preferences", "--mode", "public-relay", "--json"], new StringWriter(), new StringWriter(), invoker);
+        Assert.Equal(0, code);
+        Assert.Equal("file-transfer.cloud.accounts.preferences", Assert.Single(invoker.Commands));
+        Assert.Equal("publicRelay", invoker.LastArgs!["mode"]!.GetValue<string>());
+        Assert.False(invoker.LastArgs.ContainsKey("accountId"));
+    }
+
+    [Fact]
+    public async Task PublicReceiptsDoNotRequirePrivatePairing()
+    {
+        var output = new StringWriter();
+        var code = await TransferCli.RunAsync(["receipts", "--item", "item-1", "--from", "public-phone", "--json"], output, new StringWriter(), new Fake(Snapshot("stored", "public-phone")));
+        Assert.Equal(0, code);
+        Assert.True(JsonNode.Parse(output.ToString())!["data"]!["confirmed"]!.GetValue<bool>());
+    }
+
     [Theory]
     [InlineData("pair", "file-transfer.pair.import")]
     [InlineData("join", "file-transfer.assistant.link.import")]

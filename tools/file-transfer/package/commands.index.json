@@ -253,6 +253,7 @@
     },
     {
       "id": "file-transfer.assistant.open",
+      "timeoutMs": -1,
       "title": "assistant.open",
       "subtitle": "文件互传",
       "kind": "action",

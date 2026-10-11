@@ -275,12 +275,20 @@ public sealed class InProcDotNetModuleHost : IModuleTransportRuntime, IModuleTra
 
     public async ValueTask<CommandExecutionResult> ExecuteCommandAsync(RuntimeModuleRecord module, ModuleContext context, CommandRequest request, CancellationToken cancellationToken)
     {
+        // Command descriptors own transfer duration. Keep the callback watchdog for setup and
+        // ordinary commands, but do not impose it on an explicitly unbounded command.
+        var unbounded = await ExecuteWithBudgetAsync(module, "commands.list", cancellationToken, async token =>
+        {
+            var loaded = await LoadCachedAsync(module.Module, context, token);
+            var commands = await loaded.ListCommandsAsync(token);
+            return commands.Any(command => command.Id == request.CommandId && command.TimeoutMs == Timeout.Infinite);
+        }, recordSuccess: false);
         return await ExecuteWithBudgetAsync(module, "command.execute", cancellationToken, async token =>
         {
             var loaded = await LoadCachedAsync(module.Module, context, token);
             token.ThrowIfCancellationRequested();
             return await loaded.ExecuteCommandAsync(request, token);
-        });
+        }, unbounded);
     }
 
     public async IAsyncEnumerable<CommandProgressEvent> ExecuteCommandStreamAsync(
@@ -1247,12 +1255,14 @@ public sealed class InProcDotNetModuleHost : IModuleTransportRuntime, IModuleTra
         RuntimeModuleRecord module,
         string operation,
         CancellationToken cancellationToken,
-        Func<CancellationToken, ValueTask<T>> action)
+        Func<CancellationToken, ValueTask<T>> action,
+        bool unbounded = false,
+        bool recordSuccess = true)
     {
         var moduleId = module.Module.Manifest.Id;
         var invocationSequence = Interlocked.Increment(ref _invocationSequence);
         await EnsureModuleCallAllowedAsync(moduleId, operation, cancellationToken);
-        var maxCallMs = module.Entrypoint?.InProcMaxCallMs;
+        var maxCallMs = unbounded ? null : module.Entrypoint?.InProcMaxCallMs;
         using var timeout = new CancellationTokenSource();
         if (maxCallMs is > 0)
         {
@@ -1271,7 +1281,7 @@ public sealed class InProcDotNetModuleHost : IModuleTransportRuntime, IModuleTra
         try
         {
             var result = await execution.WaitAsync(effectiveToken);
-            await RecordModuleSuccessAsync(moduleId, operation, invocationSequence);
+            if (recordSuccess) await RecordModuleSuccessAsync(moduleId, operation, invocationSequence);
             return result;
         }
         catch (OperationCanceledException ex) when (cancellationToken.IsCancellationRequested)

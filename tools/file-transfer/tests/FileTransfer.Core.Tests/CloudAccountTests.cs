@@ -36,6 +36,8 @@ public sealed class CloudAccountTests
         var paused = CloudAccountRules.Pause(state, "a", true);
         Assert.Throws<ArgumentException>(() => CloudAccountRules.SetDefault(paused, "a"));
         Assert.Equal("blocked", CloudAccountRules.Pause(paused, "a", false).Accounts[0].Status);
+        Assert.Equal("publicRelay", CloudAccountRules.SetMode(new(DefaultAccountId: "quark"), "publicRelay").Mode);
+        Assert.Equal("quark", CloudAccountRules.SetMode(new(DefaultAccountId: "quark"), "publicRelay").DefaultAccountId);
         Assert.Throws<ArgumentException>(() => CloudAccountRules.SetMode(new(), "public"));
     }
     [Fact]
@@ -65,6 +67,10 @@ public sealed class CloudAccountTests
         {
             await File.WriteAllTextAsync(Path.Combine(root, "preferences.json"), new JsonObject { ["deviceId"] = "cloud-test", ["listenAddress"] = "127.0.0.1", ["webDavUrl"] = "http://127.0.0.1:1/dav/", ["username"] = "existing-user" }.ToJsonString());
             var secrets = new InMemorySecretStore();
+            // This test exercises an existing private cloud-only conversation, not public enrollment.
+            await secrets.SaveAsync("file-transfer", "conversation-id", "cloud-account-private-test", default);
+            await secrets.SaveAsync("file-transfer", "conversation-key", new string('a', 64), default);
+            await secrets.SaveAsync("file-transfer", "conversation-linked", "imported", default);
             var context = new ModuleContext("test", "1", "file-transfer", "file-transfer", root, root, root, "linux", ["secret.store"], new Dictionary<string, object> { ["secret.store"] = secrets });
             Assert.True((await module.InitializeAsync(context, default)).Ok);
             async Task<JsonObject> Call(string suffix, JsonObject? args = null)

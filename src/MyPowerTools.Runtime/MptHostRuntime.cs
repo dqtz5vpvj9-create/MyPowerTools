@@ -1054,7 +1054,8 @@ public sealed partial class MptHostRuntime : IAsyncDisposable
     private async Task<Sdk.CommandExecutionResult> ExecuteCommandCoreAsync(Sdk.MptCommandDescriptor command, Sdk.CommandRequest request, CancellationToken cancellationToken)
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeout.CancelAfter(TimeSpan.FromMilliseconds(Math.Max(1000, command.TimeoutMs)));
+        if (command.TimeoutMs != Timeout.Infinite)
+            timeout.CancelAfter(TimeSpan.FromMilliseconds(Math.Max(1000, command.TimeoutMs)));
 
         var executionType = command.Execution?["type"]?.GetValue<string>() ?? command.Kind;
         return executionType switch
@@ -1710,7 +1711,7 @@ public sealed partial class MptHostRuntime : IAsyncDisposable
             command.Icon,
             command.DangerLevel,
             command.Category,
-            command.TimeoutMs <= 0 ? 30000 : command.TimeoutMs,
+            command.TimeoutMs == Timeout.Infinite ? Timeout.Infinite : command.TimeoutMs <= 0 ? 30000 : command.TimeoutMs,
             execution,
             parameters,
             constraints,

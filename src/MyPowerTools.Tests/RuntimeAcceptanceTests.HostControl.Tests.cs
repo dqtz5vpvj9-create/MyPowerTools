@@ -427,7 +427,34 @@ public sealed partial class RuntimeAcceptanceTests
         Assert.Equal(1, slowTransport.StatusCalls);
     }
 
-    private sealed class SlowStatusTransportRuntime(TimeSpan statusDelay) : IModuleTransportRuntime
+    [Theory]
+    [InlineData(-1, true)]
+    [InlineData(1000, false)]
+    public async Task Infinite_command_deadline_preserves_explicit_cancellation(int timeoutMs, bool expectedSuccess)
+    {
+        var root = Path.Combine(OperatingSystem.IsWindows() ? Path.GetTempPath() : "/mnt/cache/data-cache", "mpt-command-deadline-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            WriteInProcDotNetModulePackage(root, "sample.slow-status", "sample-slow-status", "Slow command", typeof(SampleDotNetModule).FullName!);
+            var manifestPath = Path.Combine(root, "module.json");
+            var manifest = JsonNode.Parse(await File.ReadAllTextAsync(manifestPath))!.AsObject();
+            manifest["runtimePolicy"] = JsonNode.Parse(await File.ReadAllTextAsync(Path.Combine(Root, "tools", "file-transfer", "package", "module.json")))!["runtimePolicy"]!.DeepClone();
+            await File.WriteAllTextAsync(manifestPath, manifest.ToJsonString());
+            var transport = new SlowStatusTransportRuntime(TimeSpan.Zero, timeoutMs);
+            await using var runtime = new MptHostRuntime(new PackageReader(), PlatformId.Current(), RuntimePaths.Create(Path.Combine(root, "data")), [transport]);
+            runtime.Load(root);
+            await runtime.RefreshDynamicCommandsAsync(CancellationToken.None);
+            var completed = await runtime.ExecuteCommandAsync(new CommandRequest("deadline", "sample.slow-status.download", new()), CancellationToken.None);
+            Assert.True(completed.Success == expectedSuccess, completed.Error?.Message ?? completed.Output);
+            using var cancel = new CancellationTokenSource(100);
+            var cancelled = await runtime.ExecuteCommandAsync(new CommandRequest("explicit-cancel", "sample.slow-status.download", new()), cancel.Token);
+            Assert.False(cancelled.Success);
+        }
+        finally { Directory.Delete(root, true); }
+    }
+
+    private sealed class SlowStatusTransportRuntime(TimeSpan statusDelay, int? commandTimeout = null) : IModuleTransportRuntime
     {
         private int _statusCalls;
 
@@ -455,12 +482,13 @@ public sealed partial class RuntimeAcceptanceTests
 
         public ValueTask<IReadOnlyList<MptCommandDescriptor>> ListCommandsAsync(RuntimeModuleRecord module, ModuleContext context, CancellationToken cancellationToken)
         {
-            return ValueTask.FromResult<IReadOnlyList<MptCommandDescriptor>>([]);
+            return ValueTask.FromResult<IReadOnlyList<MptCommandDescriptor>>(commandTimeout is { } deadline ? [new("sample.slow-status.download", "sample.slow-status", "Download", "", "action", TimeoutMs: deadline, SupportsCancellation: true)] : []);
         }
 
-        public ValueTask<CommandExecutionResult> ExecuteCommandAsync(RuntimeModuleRecord module, ModuleContext context, CommandRequest request, CancellationToken cancellationToken)
+        public async ValueTask<CommandExecutionResult> ExecuteCommandAsync(RuntimeModuleRecord module, ModuleContext context, CommandRequest request, CancellationToken cancellationToken)
         {
-            return ValueTask.FromResult(new CommandExecutionResult(request.InvocationId, request.CommandId, "succeeded", true, "slow status transport"));
+            if (commandTimeout is not null) await Task.Delay(1500, cancellationToken);
+            return new CommandExecutionResult(request.InvocationId, request.CommandId, "succeeded", true, "slow status transport");
         }
     }
 }

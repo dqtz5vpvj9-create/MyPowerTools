@@ -96,7 +96,7 @@ public sealed class TransferTools(TransferAccess access)
         return await access.Call(["public", "join"], cancellationToken);
     }
     [McpServerTool(Name = "mpt_cloud_select", ReadOnly = false, Destructive = false)]
-    [Description("明确设置本机文件助手的默认网盘和持久中转策略，影响后续发送。\ncloud-only 不允许附件退回公网上传；auto 允许自动选择后端。")]
+    [Description("明确设置本机文件助手的默认网盘和持久中转策略，影响后续发送。\ncloud-only 不允许附件退回公网上传；auto 允许自动选择后端；public-relay 跳过网盘，使用应用中转。")]
     public async Task<CallToolResult> mpt_cloud_select(string account_id, CloudMode mode = CloudMode.CloudOnly, CancellationToken cancellationToken = default)
     {
         var selected = await access.Call(["cloud", "default", "--account", account_id], cancellationToken);
@@ -120,7 +120,7 @@ public sealed class TransferTools(TransferAccess access)
 [JsonConverter(typeof(StrictEnumConverter<RelayRoute>))]
 public enum RelayRoute { [JsonStringEnumMemberName("auto")] Auto, [JsonStringEnumMemberName("quark")] Quark }
 [JsonConverter(typeof(StrictEnumConverter<CloudMode>))]
-public enum CloudMode { [JsonStringEnumMemberName("auto")] Auto, [JsonStringEnumMemberName("cloud-only")] CloudOnly }
+public enum CloudMode { [JsonStringEnumMemberName("auto")] Auto, [JsonStringEnumMemberName("cloud-only")] CloudOnly, [JsonStringEnumMemberName("public-relay")] PublicRelay }
 [JsonConverter(typeof(StrictEnumConverter<CloudProvider>))]
 public enum CloudProvider { [JsonStringEnumMemberName("quark")] Quark, [JsonStringEnumMemberName("baidu")] Baidu }
 [JsonConverter(typeof(StrictEnumConverter<CredentialKind>))]

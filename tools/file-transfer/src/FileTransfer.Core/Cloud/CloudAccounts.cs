@@ -35,7 +35,7 @@ public static class CloudAccountRules
 {
     public const string PendingReason = "已保留待发内容。仅经网盘需要完成网盘授权和指定文件领取能力；可恢复网盘，或在我的网盘中改为自动。";
     public static CloudPreferences SetMode(CloudPreferences prior, string mode) =>
-        mode is "auto" or "cloudOnly" ? prior with { Mode = mode } : throw new ArgumentException("传输方式必须是 auto 或 cloudOnly。");
+        mode is "auto" or "cloudOnly" or "publicRelay" ? prior with { Mode = mode } : throw new ArgumentException("传输方式必须是 auto、cloudOnly 或 publicRelay。");
     public static CloudAccountState SetDefault(CloudAccountState state, string id)
     {
         if (!state.Accounts.Any(a => a.Id == id && a.Status == "ready")) throw new ArgumentException("请选择当前可用且未暂停的网盘。");

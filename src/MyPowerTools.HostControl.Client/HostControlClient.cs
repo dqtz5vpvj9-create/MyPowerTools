@@ -178,12 +178,13 @@ public sealed class HostControlClient : IDisposable
 
     public async Task<HostProto.CommandExecutionResponse> ExecuteCommandAsync(string invocationId, string commandId, JsonObject args, CancellationToken cancellationToken = default)
     {
+        // The Runner owns each command's deadline. A second client cap cancels valid long transfers.
         return await _client.ExecuteCommandAsync(new HostProto.ExecuteCommandRequest
         {
             CommandId = commandId,
             InvocationId = invocationId,
             Args = JsonStructMapper.ToStruct(args)
-        }, deadline: DefaultDeadline(30), cancellationToken: cancellationToken);
+        }, cancellationToken: cancellationToken);
     }
 
     public async IAsyncEnumerable<HostProto.CommandExecutionEvent> ExecuteCommandStreamAsync(string invocationId, string commandId, JsonObject args, [EnumeratorCancellation] CancellationToken cancellationToken = default)

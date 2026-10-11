@@ -48,7 +48,7 @@ public sealed class TransferCli
                         ["join"] = "join --code-file PATH (private shared conversation invitation)",
                         ["public"] = "public status|join|leave|private (server-authorized public room; no invitation needed)",
                         ["invite"] = "invite --output PATH (writes a private shared invitation file; PATH must not exist)",
-                        ["cloud"] = "cloud accounts | authorize --provider quark|baidu | complete --operation ID --credential-file PATH --kind cookie|refreshToken | default --account ID | preferences --mode auto|cloud-only",
+                        ["cloud"] = "cloud accounts | authorize --provider quark|baidu | complete --operation ID --credential-file PATH --kind cookie|refreshToken | default --account ID | preferences --mode auto|cloud-only|public-relay",
                         ["common"] = "--json --endpoint-address ADDRESS --data-root ROOT; environment defaults: MPT_ENDPOINT_ADDRESS, MPT_DATA_ROOT"
                     }
                 }.ToJsonString());
@@ -112,7 +112,7 @@ public sealed class TransferCli
                 if (string.IsNullOrEmpty(text) && paths.Length == 0) throw new ArgumentException("Provide --text or at least one --file.");
                 foreach (var path in paths) if (!File.Exists(path)) throw new ArgumentException("File does not exist: " + path);
                 var target = to is null ? null : await ResolveDevice(to);
-                var receiver = target ?? (o.One("--receipt-from") is { } from ? await ResolveDevice(from) : null);
+                var receiver = target ?? (o.One("--receipt-from") is { } from ? await ResolveDevice(from, receiptFilter: true) : null);
                 if (via == "quark")
                 {
                     var cloud = await Call("cloud.accounts.inspect");
@@ -142,7 +142,7 @@ public sealed class TransferCli
             case "wait":
                 var itemIds = o.Many("--item");
                 if (itemIds.Length == 0) throw new ArgumentException("Provide at least one --item ITEM_ID.");
-                var receiptFrom = o.One("--from") is { } device ? await ResolveDevice(device) : null;
+                var receiptFrom = o.One("--from") is { } device ? await ResolveDevice(device, receiptFilter: true) : null;
                 return command == "wait" ? await Wait(itemIds, receiptFrom, o.Timeout()) : Evaluate(await Call("assistant.inspect"), itemIds, receiptFrom, false);
             case "cancel":
                 var cancellation = await Call("assistant.cancel", new() { ["itemId"] = o.Required("--item") });
@@ -186,8 +186,8 @@ public sealed class TransferCli
             case "default": return (await Call("cloud.accounts.default", new() { ["accountId"] = o.Required("--account") }), 0);
             case "preferences":
                 var mode = o.Required("--mode");
-                if (mode is not ("auto" or "cloud-only")) throw new ArgumentException("--mode must be auto or cloud-only.");
-                return (await Call("cloud.accounts.preferences", new() { ["mode"] = mode == "cloud-only" ? "cloudOnly" : "auto" }), 0);
+                if (mode is not ("auto" or "cloud-only" or "public-relay")) throw new ArgumentException("--mode must be auto, cloud-only or public-relay.");
+                return (await Call("cloud.accounts.preferences", new() { ["mode"] = mode == "cloud-only" ? "cloudOnly" : mode == "public-relay" ? "publicRelay" : "auto" }), 0);
             case "authorize":
                 var provider = o.Required("--provider");
                 if (provider is not ("quark" or "baidu")) throw new ArgumentException("--provider must be quark or baidu.");
@@ -201,11 +201,13 @@ public sealed class TransferCli
         }
     }
 
-    private async Task<string> ResolveDevice(string value)
+    private async Task<string> ResolveDevice(string value, bool receiptFilter = false)
     {
         var devices = (await Call("assistant.devices"))["devices"]!.AsArray();
         if (devices.Any(d => d?["deviceId"]?.GetValue<string>() == value)) return value;
         var matches = devices.Where(d => d?["name"]?.GetValue<string>() == value).ToArray();
+        // Public-room receipts do not require private pairing or a contact-list entry.
+        if (receiptFilter && matches.Length == 0) return value;
         if (matches.Length != 1) throw new ArgumentException(matches.Length == 0 ? "Unknown device: " + value : "Ambiguous device name; use a device ID: " + value);
         return matches[0]!["deviceId"]!.GetValue<string>();
     }

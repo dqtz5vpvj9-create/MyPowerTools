@@ -337,6 +337,26 @@ public sealed partial class RuntimeAcceptanceTests
     }
 
     [Fact]
+    public async Task Inproc_unbounded_transfer_outlives_callback_budget_and_honors_cancellation()
+    {
+        var packageRoot = Path.Combine("/mnt/cache/data-cache", "mpt-unbounded-" + Guid.NewGuid().ToString("N"));
+        if (OperatingSystem.IsWindows()) packageRoot = Path.Combine(Path.GetTempPath(), "mpt-unbounded-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(packageRoot);
+        WriteInProcDotNetModulePackage(packageRoot, "sample.dotnet.fault-injection", "sample-dotnet-fault-injection", "Transfer fixture", typeof(FaultInjectionDotNetModule).FullName!);
+        await SetInProcMaxCallAsync(packageRoot, 1000);
+        await using var host = new InProcDotNetModuleHost();
+        await using var runtime = CreateInProcFixtureRuntime(host, "unbounded-runtime");
+        runtime.Load(packageRoot);
+        var module = Assert.Single(runtime.Modules);
+        var context = CreateModuleContext("sample-dotnet-fault-injection", "sample.dotnet.fault-injection", "unbounded-context", ["status", "commands"]);
+        var result = await host.ExecuteCommandAsync(module, context, new CommandRequest("transfer", "sample.dotnet.fault.unbounded", new JsonObject()), CancellationToken.None);
+        Assert.True(result.Success, result.Error?.Message);
+        using var cancellation = new CancellationTokenSource(100);
+        await Assert.ThrowsAnyAsync<OperationCanceledException>(async () =>
+            await host.ExecuteCommandAsync(module, context, new CommandRequest("cancel", "sample.dotnet.fault.unbounded", new JsonObject()), cancellation.Token));
+    }
+
+    [Fact]
     public async Task Inproc_slow_success_started_before_a_fault_cannot_erase_the_newer_fault()
     {
         var packageRoot = Path.Combine(Path.GetTempPath(), "mpt-inproc-fault-order", Guid.NewGuid().ToString("N"));

@@ -155,9 +155,9 @@ def create_server(cli: TransferCli) -> FastMCP:
         return await cli.call("public", "join")
 
     @mcp.tool(annotations=send)
-    async def mpt_cloud_select(account_id: str, mode: Literal["auto", "cloud-only"] = "cloud-only") -> dict:
+    async def mpt_cloud_select(account_id: str, mode: Literal["auto", "cloud-only", "public-relay"] = "cloud-only") -> dict:
         """明确设置 Linux 文件助手的默认网盘和持久中转策略，影响后续发送。
-        cloud-only 不允许附件退回公网上传；auto 允许自动选择后端。
+        cloud-only 不允许附件退回公网上传；auto 允许自动选择后端；public-relay 跳过网盘，使用应用中转。
         """
         await cli.call("cloud", "default", "--account", account_id)
         return await cli.call("cloud", "preferences", "--mode", mode)
