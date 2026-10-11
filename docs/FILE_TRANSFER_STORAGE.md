@@ -29,3 +29,5 @@ Android APK 使用只读 FileProvider URI 和系统安装器，声明 `REQUEST_I
 - 截图及设备状态证据保存在临时验收目录 `/mnt/cache/data-cache`，前缀 `mpt-storage-`，按环境规则七天后清理。
 
 自动化验证：Android 文件打开 100 例通过；阈值、清理、HTTP/TCP 和私聊回归组通过；手机与桌面宽度的空间管理交互用例均通过。全量 Core 中两个 CloudWorker 用例因已有 OpenList 占用固定端口失败，不计作通过。
+
+Windows Dev 更新需同时匹配公共运行组件。验收时发现旧安装布局缺少新版 `IBackgroundActivityService`，随后补齐 Core；SSH 会话直接启动还暴露了 Credential Manager 上下文不匹配。开发更新复用上游 `543d014` 的隐藏交互会话派发器，传入 `-NoOpenShell`，不弹出桌面窗口。Windows 验收布局同时保留该上游分支的 Runtime 内存优化，未改动其他工具的源代码。
