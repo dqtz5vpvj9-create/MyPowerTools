@@ -210,6 +210,12 @@ internal static class AndroidHost
 
         Directory.CreateDirectory(packageRoot);
         await CopyAssetsAsync("modules", packageRoot).ConfigureAwait(false);
+        // The APK carries the identical pinned crypto dependency once. Restore a local copy for
+        // each module before loading: collectible module contexts and desktop packaging stay intact.
+        File.Copy(
+            Path.Combine(packageRoot, "remote-notifications-android", "BouncyCastle.Cryptography.dll"),
+            Path.Combine(packageRoot, "remote-commands-android", "BouncyCastle.Cryptography.dll"),
+            overwrite: true);
         PruneUnbundledModules(packageRoot);
         File.WriteAllText(stampPath, stamp);
         AndroidStartupLog.Info("catalog",

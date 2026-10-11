@@ -48,7 +48,7 @@
         "apiLevel": 24,
         "downloadUrl": "https://dl.google.com/android/repository/android-ndk-r27-linux.zip"
       },
-      "profile": "mobile-quark-baidu-v1",
+      "profile": "mobile-quark-baidu-v2",
       "drivers": [
         "quark_uc",
         "baidu_netdisk",
@@ -57,7 +57,9 @@
       ],
       "disabledFeatures": [
         "offline-download",
-        "torrent"
+        "torrent",
+        "bleve-full-text-search",
+        "meilisearch"
       ]
     },
     "abis": [

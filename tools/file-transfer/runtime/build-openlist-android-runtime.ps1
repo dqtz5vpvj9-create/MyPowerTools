@@ -303,17 +303,19 @@ Write-Host "    profile: $($build.profile) ($($build.drivers -join ', '))" -Fore
 
 
 # Apply the pinned mobile feature patch, keeping upstream auth/storage/streaming code unchanged.
-$patch = Join-Path $PSScriptRoot 'patches/mobile-runtime.patch'
 $git = (Get-Command git -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source
 # Keep git apply independent from a surrounding MPT checkout (Windows cache fallback).
 $patchEnvironment = @{ GIT_CEILING_DIRECTORIES = (Split-Path -Parent $sourceTree) }
-$check = Invoke-OpenListProcess -Environment $patchEnvironment -Executable $git -WorkingDirectory $sourceTree -Arguments @('apply', '--check', $patch)
-if ($check.ExitCode -eq 0) {
-    $apply = Invoke-OpenListProcess -Environment $patchEnvironment -Executable $git -WorkingDirectory $sourceTree -Arguments @('apply', $patch)
-    if ($apply.ExitCode -ne 0) { throw "Mobile OpenList patch failed: $($apply.StandardError)" }
-} else {
-    $already = Invoke-OpenListProcess -Environment $patchEnvironment -Executable $git -WorkingDirectory $sourceTree -Arguments @('apply', '--reverse', '--check', $patch)
-    if ($already.ExitCode -ne 0) { throw "Mobile OpenList patch does not match the pinned source: $($check.StandardError)" }
+foreach ($patchName in @('mobile-runtime.patch', 'mobile-search.patch')) {
+    $patch = Join-Path $PSScriptRoot "patches/$patchName"
+    $check = Invoke-OpenListProcess -Environment $patchEnvironment -Executable $git -WorkingDirectory $sourceTree -Arguments @('apply', '--check', $patch)
+    if ($check.ExitCode -eq 0) {
+        $apply = Invoke-OpenListProcess -Environment $patchEnvironment -Executable $git -WorkingDirectory $sourceTree -Arguments @('apply', $patch)
+        if ($apply.ExitCode -ne 0) { throw "Mobile OpenList patch failed: $($apply.StandardError)" }
+    } else {
+        $already = Invoke-OpenListProcess -Environment $patchEnvironment -Executable $git -WorkingDirectory $sourceTree -Arguments @('apply', '--reverse', '--check', $patch)
+        if ($already.ExitCode -ne 0) { throw "Mobile OpenList patch does not match the pinned source: $($check.StandardError)" }
+    }
 }
 
 $conf = 'github.com/OpenListTeam/OpenList/v4/internal/conf'

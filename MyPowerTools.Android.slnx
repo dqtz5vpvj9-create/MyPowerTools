@@ -1,6 +1,7 @@
 <Solution>
   <Folder Name="/src/">
     <Project Path="src/MyPowerTools.Android/MyPowerTools.Android.csproj" />
+    <Project Path="src/MyPowerTools.Shell.Mobile/MyPowerTools.Shell.Mobile.csproj" />
     <Project Path="src/MyPowerTools.Platform.Android/MyPowerTools.Platform.Android.csproj" />
     <!-- Phone surfaces of Android tool modules (net10.0, loaded by the in-proc module host). -->
     <Project Path="src/MyPowerTools.MobileNotifications/MyPowerTools.MobileNotifications.csproj" />

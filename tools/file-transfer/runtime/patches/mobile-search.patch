@@ -1,0 +1,18 @@
+diff --git a/internal/search/import.go b/internal/search/import.go
+--- a/internal/search/import.go
++++ b/internal/search/import.go
+@@ -1,8 +1,6 @@
+-package search
+-
+-import (
+-	_ "github.com/OpenListTeam/OpenList/v4/internal/search/bleve"
+-	_ "github.com/OpenListTeam/OpenList/v4/internal/search/db"
+-	_ "github.com/OpenListTeam/OpenList/v4/internal/search/db_non_full_text"
+-	_ "github.com/OpenListTeam/OpenList/v4/internal/search/meilisearch"
+-)
++package search
++
++import (
++	_ "github.com/OpenListTeam/OpenList/v4/internal/search/db"
++	_ "github.com/OpenListTeam/OpenList/v4/internal/search/db_non_full_text"
++)

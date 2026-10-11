@@ -5,8 +5,8 @@
     <OutputType>Exe</OutputType>
     <ApplicationId>com.mypowertools.android</ApplicationId>
     <ApplicationTitle>MyPowerTools</ApplicationTitle>
-    <ApplicationVersion>17</ApplicationVersion>
-    <ApplicationDisplayVersion>0.2.15</ApplicationDisplayVersion>
+    <ApplicationVersion>18</ApplicationVersion>
+    <ApplicationDisplayVersion>0.2.16</ApplicationDisplayVersion>
     <ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable>
     <!-- The SurfaceHolder/EGL lifetime bridge targets the pinned Avalonia 12.0.5 renderer API. -->
     <AvaloniaAccessUnstablePrivateApis>true</AvaloniaAccessUnstablePrivateApis>
@@ -21,7 +21,7 @@
     <UseMonoRuntime>false</UseMonoRuntime>
     <!-- Compile methods on first use instead of spending idle phone CPU promoting JIT tiers. -->
     <TieredCompilation>false</TieredCompilation>
-    <!-- The desktop assembly supplies App/views; Android owns process startup. -->
+    <!-- Shared Shell sources build without desktop rendering backends; Android owns startup. -->
     <ValidateExecutableReferencesMatchSelfContained>false</ValidateExecutableReferencesMatchSelfContained>
     <PublishTrimmed>false</PublishTrimmed>
     <AndroidUseAssemblyStore>false</AndroidUseAssemblyStore>
@@ -43,7 +43,15 @@
     <DebugSymbols>false</DebugSymbols>
     <AndroidIncludeDebugSymbols>false</AndroidIncludeDebugSymbols>
     <PublishReadyToRun>false</PublishReadyToRun>
+    <!-- Trim SDK libraries only; dynamic modules and their reflection-based contracts are roots. -->
+    <UseDefaultPublishRuntimeIdentifier>false</UseDefaultPublishRuntimeIdentifier>
+    <PublishTrimmed>true</PublishTrimmed>
+    <TrimMode>partial</TrimMode>
+    <JsonSerializerIsReflectionEnabledByDefault>true</JsonSerializerIsReflectionEnabledByDefault>
   </PropertyGroup>
+  <ItemGroup Condition="'$(Configuration)' == 'Release'">
+    <TrimmerRootAssembly Include="FileTransfer.Core;FileTransfer.MyPowerTools;FileTransfer.Surface;RemoteNotifications.Android;RemoteCommands.Android;MobileToolControl.Android;MyPowerTools.MobileNotifications;MyPowerTools.MobileRemoteCommands;MyPowerTools.MobileToolControl;BouncyCastle.Cryptography;Renci.SshNet" RootMode="All" />
+  </ItemGroup>
   <ItemGroup>
     <!--
       The phone-side unit tests live under this project's directory (tests/MyPowerTools.Android.Tests)
@@ -75,7 +83,7 @@
     -->
     <PackageReference Include="Xamarin.AndroidX.Core" Version="1.17.0.2" />
     <PackageReference Include="Xamarin.AndroidX.AppCompat" Version="1.7.1.3" />
-    <ProjectReference Include="../MyPowerTools.Shell.Avalonia/MyPowerTools.Shell.Avalonia.csproj" AdditionalProperties="OutputType=Library" />
+    <ProjectReference Include="../MyPowerTools.Shell.Mobile/MyPowerTools.Shell.Mobile.csproj" />
     <ProjectReference Include="../MyPowerTools.Platform.Android/MyPowerTools.Platform.Android.csproj" />
     <ProjectReference Include="../MyPowerTools.AvaloniaSdk/MyPowerTools.AvaloniaSdk.csproj" />
     <ProjectReference Include="../MyPowerTools.HostControl.Server/MyPowerTools.HostControl.Server.csproj" />
@@ -129,7 +137,7 @@
       <Link>modules/file-transfer/%(RecursiveDir)%(Filename)%(Extension)</Link>
     </AndroidAsset>
     <!--
-      Remote Notifications (Android): adapter, its BouncyCastle dependency, descriptors and the
+      Remote Notifications (Android): adapter, the shared packaged BouncyCastle dependency, descriptors and the
       phone surface at ui/surface/MyPowerTools.MobileNotifications.dll. This package's descriptors are not mirrored into modules/, so module.json, commands.index.json and
       ui/*.json must come from the package itself. Only the two host contract assemblies are
       excluded, by exact name.
@@ -141,13 +149,14 @@
     <!--
       Remote Commands (Android): adapter, its managed SSH closure, descriptors and the phone surface
       at ui/surface/MyPowerTools.MobileRemoteCommands.dll. This module is Android-only, so the whole
-      exact staged package is the single metadata source - module.json, commands.index.json and
+      staged package supplies metadata - module.json, commands.index.json and
       ui/*.json included - and modules/remote-commands-android is excluded from the whitelist above
       so a desktop catalog mirror can never duplicate it. Only symbols, deps.json (the in-proc host
-      resolves from the package directory) and host contract assemblies are left out, by exact name.
+      resolves from the package directory), host contracts and the duplicate BouncyCastle are excluded.
+      AndroidHost restores that pinned dependency from the notifications package before module load.
     -->
     <AndroidAsset Include="../../tools/remote-commands/android-integration/artifacts/package/remote-commands-android/**/*"
-                  Exclude="../../tools/remote-commands/android-integration/artifacts/package/remote-commands-android/**/*.pdb;../../tools/remote-commands/android-integration/artifacts/package/remote-commands-android/**/*.deps.json;../../tools/remote-commands/android-integration/artifacts/package/remote-commands-android/MyPowerTools.Abstractions.dll;../../tools/remote-commands/android-integration/artifacts/package/remote-commands-android/MyPowerTools.Platform.Abstractions.dll;../../tools/remote-commands/android-integration/artifacts/package/remote-commands-android/MyPowerTools.AvaloniaSdk.dll;../../tools/remote-commands/android-integration/artifacts/package/remote-commands-android/Avalonia*.dll;../../tools/remote-commands/android-integration/artifacts/package/remote-commands-android/**/state/**;../../tools/remote-commands/android-integration/artifacts/package/remote-commands-android/**/*.local.json">
+                  Exclude="../../tools/remote-commands/android-integration/artifacts/package/remote-commands-android/BouncyCastle.Cryptography.dll;../../tools/remote-commands/android-integration/artifacts/package/remote-commands-android/**/*.pdb;../../tools/remote-commands/android-integration/artifacts/package/remote-commands-android/**/*.deps.json;../../tools/remote-commands/android-integration/artifacts/package/remote-commands-android/MyPowerTools.Abstractions.dll;../../tools/remote-commands/android-integration/artifacts/package/remote-commands-android/MyPowerTools.Platform.Abstractions.dll;../../tools/remote-commands/android-integration/artifacts/package/remote-commands-android/MyPowerTools.AvaloniaSdk.dll;../../tools/remote-commands/android-integration/artifacts/package/remote-commands-android/Avalonia*.dll;../../tools/remote-commands/android-integration/artifacts/package/remote-commands-android/**/state/**;../../tools/remote-commands/android-integration/artifacts/package/remote-commands-android/**/*.local.json">
       <Link>modules/remote-commands-android/%(RecursiveDir)%(Filename)%(Extension)</Link>
     </AndroidAsset>
     <!--
@@ -168,7 +177,7 @@
     <AndroidNativeLibrary Include="$(OpenListRuntimeDirectory)/lib/x86_64/libopenlist.so" Abi="x86_64" Condition="'$(_MptX64)' == 'True'" />
   </ItemGroup>
   <Target Name="StageEmbeddedOpenList" BeforeTargets="PrepareForBuild"
-          Condition="'$(DesignTimeBuild)' != 'true' and (('$(_MptArm64)' == 'True' and (!Exists('$(OpenListRuntimeDirectory)/lib/arm64-v8a/libopenlist.so') or !Exists('$(OpenListRuntimeDirectory)/lib/arm64-v8a/mobile-quark-baidu-v1.stamp'))) or ('$(_MptX64)' == 'True' and (!Exists('$(OpenListRuntimeDirectory)/lib/x86_64/libopenlist.so') or !Exists('$(OpenListRuntimeDirectory)/lib/x86_64/mobile-quark-baidu-v1.stamp'))))">
+          Condition="'$(DesignTimeBuild)' != 'true' and (('$(_MptArm64)' == 'True' and (!Exists('$(OpenListRuntimeDirectory)/lib/arm64-v8a/libopenlist.so') or !Exists('$(OpenListRuntimeDirectory)/lib/arm64-v8a/mobile-quark-baidu-v2.stamp'))) or ('$(_MptX64)' == 'True' and (!Exists('$(OpenListRuntimeDirectory)/lib/x86_64/libopenlist.so') or !Exists('$(OpenListRuntimeDirectory)/lib/x86_64/mobile-quark-baidu-v2.stamp'))))">
     <Exec Command="pwsh -NoLogo -NoProfile -NonInteractive -File &quot;$(MSBuildThisFileDirectory)../../tools/file-transfer/runtime/package-openlist-android-runtime.ps1&quot; -Abi $(_MptOpenListAbi)" />
   </Target>
 </Project>
