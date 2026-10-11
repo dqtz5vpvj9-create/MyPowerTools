@@ -26,7 +26,7 @@ public sealed partial class MptHostRuntime : IAsyncDisposable
     private readonly EventBus _eventBus = new();
     private readonly LogRouter _logRouter;
     private readonly NotificationCenter _notificationCenter = new();
-    private readonly CommandHistory _commandHistory = new();
+    private readonly CommandHistory _commandHistory;
     private readonly HealthMonitor _healthMonitor = new();
     private readonly ModuleSupervisor _moduleSupervisor = new();
     private readonly PackageTrustVerifier _packageTrust = new();
@@ -36,7 +36,7 @@ public sealed partial class MptHostRuntime : IAsyncDisposable
     private string _packageRoot = "";
     private IReadOnlyList<string> _developmentToolRoots = [];
     private IReadOnlyList<Sdk.MptCommandDescriptor> _dynamicCommands = [];
-    private readonly InvocationExecutionCache _executions = new();
+    private readonly InvocationExecutionCache _executions;
     private readonly ConcurrentDictionary<string, CancellationTokenSource> _executionCancellations = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, CommandRuntimeCancellationTarget> _executionRuntimeTargets = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, byte> _cancelledInvocations = new(StringComparer.OrdinalIgnoreCase);
@@ -60,6 +60,9 @@ public sealed partial class MptHostRuntime : IAsyncDisposable
     {
         paths ??= RuntimePaths.Create(Path.Combine(Path.GetTempPath(), "MyPowerTools", "runtime-tests"));
         _paths = paths;
+        var commandOutputRoot = Path.Combine(paths.State, "command-outputs");
+        _commandHistory = new CommandHistory(Path.Combine(commandOutputRoot, "history"));
+        _executions = new InvocationExecutionCache(outputDirectory: Path.Combine(commandOutputRoot, "results"));
         _platform = platform;
         _packageRegistry = new PackageRegistry(packageReader, platform);
         _toolRegistry = new ToolRegistry(packageReader);
@@ -98,6 +101,8 @@ public sealed partial class MptHostRuntime : IAsyncDisposable
                     break;
             }
         }
+        _commandHistory.Dispose();
+        _executions.Dispose();
     }
 
     public void Load(string packageRoot, IEnumerable<string>? developmentToolRoots = null)
@@ -329,7 +334,7 @@ public sealed partial class MptHostRuntime : IAsyncDisposable
         var enabledModules = modules.Where(module => module.Status.State != "disabled").ToArray();
         var disabledModules = modules.Length - enabledModules.Length;
         var commandCount = _commandIndex.Search("").Count;
-        var recentCommands = _commandHistory.List().Take(10).ToArray();
+        var recentCommands = _commandHistory.List(includeFullOutput: false, limit: 10).ToArray();
         var transportKinds = modules
             .Select(module => module.Entrypoint?.Kind ?? "none")
             .Concat(_transportRuntimes.Keys)
@@ -379,7 +384,7 @@ public sealed partial class MptHostRuntime : IAsyncDisposable
                 commandCount,
                 _dynamicCommands.Count,
                 _notificationCenter.List().Count,
-                _commandHistory.List().Count),
+                _commandHistory.Count),
             transportKinds,
             processDiagnostics,
             processPolicyHistory,
