@@ -19,7 +19,7 @@
   "runtimeVariable": "MPT_OPENLIST_RUNTIME",
   "android": {
     "libraryFileName": "libopenlist.so",
-    "sourceNote": "Built from the pinned OpenList v4.2.6 source tag with the official build.sh settings (GOOS=android, NDK *-linux-android24-clang, CGO_ENABLED=1, llvm-strip) plus -tags=jsoniter,sqlite_cgo_compat and -Wl,-z,max-page-size=16384.",
+    "sourceNote": "Pinned v4.2.6 with the MPT mobile driver/offline-download patch, official lite frontend, sqlite_cgo_compat and 16 KB page alignment.",
     "build": {
       "sourceUrl": "https://github.com/OpenListTeam/OpenList/archive/refs/tags/v4.2.6.tar.gz",
       "sourceArchiveRoot": "OpenList-4.2.6",
@@ -39,15 +39,26 @@
       "frontend": {
         "downloadBase": "https://github.com/OpenListTeam/OpenList-Frontend/releases/download",
         "tag": "v4.2.6",
-        "asset": "openlist-frontend-dist-v4.2.6.tar.gz",
-        "note": "The same frontend release build.sh FetchWebRelease embedded for the official v4.2.6 build (newest non-lite dist on 2026-09-01); pinned here so the source build keeps the admin web UI."
+        "asset": "openlist-frontend-dist-lite-v4.2.6.tar.gz",
+        "note": "Pinned official lite frontend: retain administration without bundling the full preview/editor asset set."
       },
       "ndk": {
         "release": "r27",
         "revision": "27.0.12077973",
         "apiLevel": 24,
         "downloadUrl": "https://dl.google.com/android/repository/android-ndk-r27-linux.zip"
-      }
+      },
+      "profile": "mobile-quark-baidu-v1",
+      "drivers": [
+        "quark_uc",
+        "baidu_netdisk",
+        "local",
+        "webdav"
+      ],
+      "disabledFeatures": [
+        "offline-download",
+        "torrent"
+      ]
     },
     "abis": [
       {

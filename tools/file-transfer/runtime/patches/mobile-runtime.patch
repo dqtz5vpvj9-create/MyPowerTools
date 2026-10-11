@@ -1,0 +1,1420 @@
+--- a/server/handles/offline_download.go
++++ b/server/handles/offline_download.go
+@@ -1,583 +1,22 @@
++// Android MPT profile: file transfer uses storage APIs, not offline download/torrent tasks.
+ package handles
+ 
+ import (
+-	"strings"
+-
+-	_115 "github.com/OpenListTeam/OpenList/v4/drivers/115"
+-	_115_open "github.com/OpenListTeam/OpenList/v4/drivers/115_open"
+-	_123 "github.com/OpenListTeam/OpenList/v4/drivers/123"
+-	_123_open "github.com/OpenListTeam/OpenList/v4/drivers/123_open"
+-	"github.com/OpenListTeam/OpenList/v4/drivers/guangyapan"
+-	"github.com/OpenListTeam/OpenList/v4/drivers/pikpak"
+-	"github.com/OpenListTeam/OpenList/v4/drivers/thunder"
+-	"github.com/OpenListTeam/OpenList/v4/drivers/thunder_browser"
+-	"github.com/OpenListTeam/OpenList/v4/drivers/thunderx"
+-	"github.com/OpenListTeam/OpenList/v4/internal/conf"
+-	"github.com/OpenListTeam/OpenList/v4/internal/errs"
+-	"github.com/OpenListTeam/OpenList/v4/internal/model"
+-	"github.com/OpenListTeam/OpenList/v4/internal/offline_download/tool"
+-	"github.com/OpenListTeam/OpenList/v4/internal/op"
+-	"github.com/OpenListTeam/OpenList/v4/internal/task"
+-	"github.com/OpenListTeam/OpenList/v4/server/common"
+-	"github.com/gin-gonic/gin"
+-	"github.com/pkg/errors"
++"github.com/OpenListTeam/OpenList/v4/server/common"
++"github.com/gin-gonic/gin"
+ )
+ 
+-type SetAria2Req struct {
+-	Uri    string `json:"uri" form:"uri"`
+-	Secret string `json:"secret" form:"secret"`
+-}
+-
+-func SetAria2(c *gin.Context) {
+-	var req SetAria2Req
+-	if err := c.ShouldBind(&req); err != nil {
+-		common.ErrorResp(c, err, 400)
+-		return
+-	}
+-	items := []model.SettingItem{
+-		{Key: conf.Aria2Uri, Value: req.Uri, Type: conf.TypeString, Group: model.OFFLINE_DOWNLOAD, Flag: model.PRIVATE},
+-		{Key: conf.Aria2Secret, Value: req.Secret, Type: conf.TypeString, Group: model.OFFLINE_DOWNLOAD, Flag: model.PRIVATE},
+-	}
+-	if err := op.SaveSettingItems(items); err != nil {
+-		common.ErrorResp(c, err, 500)
+-		return
+-	}
+-	_tool, err := tool.Tools.Get("aria2")
+-	if err != nil {
+-		common.ErrorResp(c, err, 500)
+-		return
+-	}
+-	version, err := _tool.Init()
+-	if err != nil {
+-		common.ErrorResp(c, err, 500)
+-		return
+-	}
+-	common.SuccessResp(c, version)
+-}
+-
+-type SetQbittorrentReq struct {
+-	Url      string `json:"url" form:"url"`
+-	Seedtime string `json:"seedtime" form:"seedtime"`
+-}
+-
+-func SetQbittorrent(c *gin.Context) {
+-	var req SetQbittorrentReq
+-	if err := c.ShouldBind(&req); err != nil {
+-		common.ErrorResp(c, err, 400)
+-		return
+-	}
+-	items := []model.SettingItem{
+-		{Key: conf.QbittorrentUrl, Value: req.Url, Type: conf.TypeString, Group: model.OFFLINE_DOWNLOAD, Flag: model.PRIVATE},
+-		{Key: conf.QbittorrentSeedtime, Value: req.Seedtime, Type: conf.TypeNumber, Group: model.OFFLINE_DOWNLOAD, Flag: model.PRIVATE},
+-	}
+-	if err := op.SaveSettingItems(items); err != nil {
+-		common.ErrorResp(c, err, 500)
+-		return
+-	}
+-	_tool, err := tool.Tools.Get("qBittorrent")
+-	if err != nil {
+-		common.ErrorResp(c, err, 500)
+-		return
+-	}
+-	if _, err := _tool.Init(); err != nil {
+-		common.ErrorResp(c, err, 500)
+-		return
+-	}
+-	common.SuccessResp(c, "ok")
+-}
+-
+-type SetTransmissionReq struct {
+-	Uri      string `json:"uri" form:"uri"`
+-	Seedtime string `json:"seedtime" form:"seedtime"`
+-}
+-
+-func SetTransmission(c *gin.Context) {
+-	var req SetTransmissionReq
+-	if err := c.ShouldBind(&req); err != nil {
+-		common.ErrorResp(c, err, 400)
+-		return
+-	}
+-	items := []model.SettingItem{
+-		{Key: conf.TransmissionUri, Value: req.Uri, Type: conf.TypeString, Group: model.OFFLINE_DOWNLOAD, Flag: model.PRIVATE},
+-		{Key: conf.TransmissionSeedtime, Value: req.Seedtime, Type: conf.TypeNumber, Group: model.OFFLINE_DOWNLOAD, Flag: model.PRIVATE},
+-	}
+-	if err := op.SaveSettingItems(items); err != nil {
+-		common.ErrorResp(c, err, 500)
+-		return
+-	}
+-	_tool, err := tool.Tools.Get("Transmission")
+-	if err != nil {
+-		common.ErrorResp(c, err, 500)
+-		return
+-	}
+-	if _, err := _tool.Init(); err != nil {
+-		common.ErrorResp(c, err, 500)
+-		return
+-	}
+-	common.SuccessResp(c, "ok")
+-}
+-
+-type Set115Req struct {
+-	TempDir string `json:"temp_dir" form:"temp_dir"`
+-}
+-
+-func Set115(c *gin.Context) {
+-	var req Set115Req
+-	if err := c.ShouldBind(&req); err != nil {
+-		common.ErrorResp(c, err, 400)
+-		return
+-	}
+-	if req.TempDir != "" {
+-		storage, _, err := op.GetStorageAndActualPath(req.TempDir)
+-		if err != nil {
+-			common.ErrorStrResp(c, "storage does not exists", 400)
+-			return
+-		}
+-		if storage.Config().CheckStatus && storage.GetStorage().Status != op.WORK {
+-			common.ErrorStrResp(c, "storage not init: "+storage.GetStorage().Status, 400)
+-			return
+-		}
+-		if _, ok := storage.(*_115.Pan115); !ok {
+-			common.ErrorStrResp(c, "unsupported storage driver for offline download, only 115 Cloud is supported", 400)
+-			return
+-		}
+-	}
+-	items := []model.SettingItem{
+-		{Key: conf.Pan115TempDir, Value: req.TempDir, Type: conf.TypeString, Group: model.OFFLINE_DOWNLOAD, Flag: model.PRIVATE},
+-	}
+-	if err := op.SaveSettingItems(items); err != nil {
+-		common.ErrorResp(c, err, 500)
+-		return
+-	}
+-	_tool, err := tool.Tools.Get("115 Cloud")
+-	if err != nil {
+-		common.ErrorResp(c, err, 500)
+-		return
+-	}
+-	if _, err := _tool.Init(); err != nil {
+-		common.ErrorResp(c, err, 500)
+-		return
+-	}
+-	common.SuccessResp(c, "ok")
+-}
+-
+-type Set115OpenReq struct {
+-	TempDir string `json:"temp_dir" form:"temp_dir"`
+-}
+-
+-func Set115Open(c *gin.Context) {
+-	var req Set115OpenReq
+-	if err := c.ShouldBind(&req); err != nil {
+-		common.ErrorResp(c, err, 400)
+-		return
+-	}
+-	if req.TempDir != "" {
+-		storage, _, err := op.GetStorageAndActualPath(req.TempDir)
+-		if err != nil {
+-			common.ErrorStrResp(c, "storage does not exists", 400)
+-			return
+-		}
+-		if storage.Config().CheckStatus && storage.GetStorage().Status != op.WORK {
+-			common.ErrorStrResp(c, "storage not init: "+storage.GetStorage().Status, 400)
+-			return
+-		}
+-		if _, ok := storage.(*_115_open.Open115); !ok {
+-			common.ErrorStrResp(c, "unsupported storage driver for offline download, only 115 Open is supported", 400)
+-			return
+-		}
+-	}
+-	items := []model.SettingItem{
+-		{Key: conf.Pan115OpenTempDir, Value: req.TempDir, Type: conf.TypeString, Group: model.OFFLINE_DOWNLOAD, Flag: model.PRIVATE},
+-	}
+-	if err := op.SaveSettingItems(items); err != nil {
+-		common.ErrorResp(c, err, 500)
+-		return
+-	}
+-	_tool, err := tool.Tools.Get("115 Open")
+-	if err != nil {
+-		common.ErrorResp(c, err, 500)
+-		return
+-	}
+-	if _, err := _tool.Init(); err != nil {
+-		common.ErrorResp(c, err, 500)
+-		return
+-	}
+-	common.SuccessResp(c, "ok")
+-}
+-
+-type Set123PanReq struct {
+-	TempDir string `json:"temp_dir" form:"temp_dir"`
+-}
+-
+-func Set123Pan(c *gin.Context) {
+-	var req Set123PanReq
+-	if err := c.ShouldBind(&req); err != nil {
+-		common.ErrorResp(c, err, 400)
+-		return
+-	}
+-	if req.TempDir != "" {
+-		storage, _, err := op.GetStorageAndActualPath(req.TempDir)
+-		if err != nil {
+-			common.ErrorStrResp(c, "storage does not exists", 400)
+-			return
+-		}
+-		if storage.Config().CheckStatus && storage.GetStorage().Status != op.WORK {
+-			common.ErrorStrResp(c, "storage not init: "+storage.GetStorage().Status, 400)
+-			return
+-		}
+-		if _, ok := storage.(*_123.Pan123); !ok {
+-			common.ErrorStrResp(c, "unsupported storage driver for offline download, only 123Pan is supported", 400)
+-			return
+-		}
+-	}
+-	items := []model.SettingItem{
+-		{Key: conf.Pan123TempDir, Value: req.TempDir, Type: conf.TypeString, Group: model.OFFLINE_DOWNLOAD, Flag: model.PRIVATE},
+-	}
+-	if err := op.SaveSettingItems(items); err != nil {
+-		common.ErrorResp(c, err, 500)
+-		return
+-	}
+-	_tool, err := tool.Tools.Get("123Pan")
+-	if err != nil {
+-		common.ErrorResp(c, err, 500)
+-		return
+-	}
+-	if _, err := _tool.Init(); err != nil {
+-		common.ErrorResp(c, err, 500)
+-		return
+-	}
+-	common.SuccessResp(c, "ok")
+-}
+-
+-type Set123OpenReq struct {
+-	TempDir     string `json:"temp_dir" form:"temp_dir"`
+-	CallbackUrl string `json:"callback_url" form:"callback_url"`
+-}
+-
+-func Set123Open(c *gin.Context) {
+-	var req Set123OpenReq
+-	if err := c.ShouldBind(&req); err != nil {
+-		common.ErrorResp(c, err, 400)
+-		return
+-	}
+-	if req.TempDir != "" {
+-		storage, _, err := op.GetStorageAndActualPath(req.TempDir)
+-		if err != nil {
+-			common.ErrorStrResp(c, "storage does not exists", 400)
+-			return
+-		}
+-		if storage.Config().CheckStatus && storage.GetStorage().Status != op.WORK {
+-			common.ErrorStrResp(c, "storage not init: "+storage.GetStorage().Status, 400)
+-			return
+-		}
+-		if _, ok := storage.(*_123_open.Open123); !ok {
+-			common.ErrorStrResp(c, "unsupported storage driver for offline download, only 123 Open is supported", 400)
+-			return
+-		}
+-	}
+-	items := []model.SettingItem{
+-		{Key: conf.Pan123OpenTempDir, Value: req.TempDir, Type: conf.TypeString, Group: model.OFFLINE_DOWNLOAD, Flag: model.PRIVATE},
+-		{Key: conf.Pan123OpenOfflineDownloadCallbackUrl, Value: req.CallbackUrl, Type: conf.TypeString, Group: model.OFFLINE_DOWNLOAD, Flag: model.PRIVATE},
+-	}
+-	if err := op.SaveSettingItems(items); err != nil {
+-		common.ErrorResp(c, err, 500)
+-		return
+-	}
+-	_tool, err := tool.Tools.Get("123 Open")
+-	if err != nil {
+-		common.ErrorResp(c, err, 500)
+-		return
+-	}
+-	if _, err := _tool.Init(); err != nil {
+-		common.ErrorResp(c, err, 500)
+-		return
+-	}
+-	common.SuccessResp(c, "ok")
+-}
+-
+-type SetPikPakReq struct {
+-	TempDir string `json:"temp_dir" form:"temp_dir"`
+-}
+-
+-func SetPikPak(c *gin.Context) {
+-	var req SetPikPakReq
+-	if err := c.ShouldBind(&req); err != nil {
+-		common.ErrorResp(c, err, 400)
+-		return
+-	}
+-	if req.TempDir != "" {
+-		storage, _, err := op.GetStorageAndActualPath(req.TempDir)
+-		if err != nil {
+-			common.ErrorStrResp(c, "storage does not exists", 400)
+-			return
+-		}
+-		if storage.Config().CheckStatus && storage.GetStorage().Status != op.WORK {
+-			common.ErrorStrResp(c, "storage not init: "+storage.GetStorage().Status, 400)
+-			return
+-		}
+-		if _, ok := storage.(*pikpak.PikPak); !ok {
+-			common.ErrorStrResp(c, "unsupported storage driver for offline download, only PikPak is supported", 400)
+-			return
+-		}
+-	}
+-	items := []model.SettingItem{
+-		{Key: conf.PikPakTempDir, Value: req.TempDir, Type: conf.TypeString, Group: model.OFFLINE_DOWNLOAD, Flag: model.PRIVATE},
+-	}
+-	if err := op.SaveSettingItems(items); err != nil {
+-		common.ErrorResp(c, err, 500)
+-		return
+-	}
+-	_tool, err := tool.Tools.Get("PikPak")
+-	if err != nil {
+-		common.ErrorResp(c, err, 500)
+-		return
+-	}
+-	if _, err := _tool.Init(); err != nil {
+-		common.ErrorResp(c, err, 500)
+-		return
+-	}
+-	common.SuccessResp(c, "ok")
+-}
+-
+-type SetThunderReq struct {
+-	TempDir string `json:"temp_dir" form:"temp_dir"`
+-}
+-
+-func SetThunder(c *gin.Context) {
+-	var req SetThunderReq
+-	if err := c.ShouldBind(&req); err != nil {
+-		common.ErrorResp(c, err, 400)
+-		return
+-	}
+-	if req.TempDir != "" {
+-		storage, _, err := op.GetStorageAndActualPath(req.TempDir)
+-		if err != nil {
+-			common.ErrorStrResp(c, "storage does not exists", 400)
+-			return
+-		}
+-		if storage.Config().CheckStatus && storage.GetStorage().Status != op.WORK {
+-			common.ErrorStrResp(c, "storage not init: "+storage.GetStorage().Status, 400)
+-			return
+-		}
+-		if _, ok := storage.(*thunder.Thunder); !ok {
+-			common.ErrorStrResp(c, "unsupported storage driver for offline download, only Thunder is supported", 400)
+-			return
+-		}
+-	}
+-	items := []model.SettingItem{
+-		{Key: conf.ThunderTempDir, Value: req.TempDir, Type: conf.TypeString, Group: model.OFFLINE_DOWNLOAD, Flag: model.PRIVATE},
+-	}
+-	if err := op.SaveSettingItems(items); err != nil {
+-		common.ErrorResp(c, err, 500)
+-		return
+-	}
+-	_tool, err := tool.Tools.Get("Thunder")
+-	if err != nil {
+-		common.ErrorResp(c, err, 500)
+-		return
+-	}
+-	if _, err := _tool.Init(); err != nil {
+-		common.ErrorResp(c, err, 500)
+-		return
+-	}
+-	common.SuccessResp(c, "ok")
+-}
+-
+-type SetThunderXReq struct {
+-	TempDir string `json:"temp_dir" form:"temp_dir"`
+-}
+-
+-func SetThunderX(c *gin.Context) {
+-	var req SetThunderXReq
+-	if err := c.ShouldBind(&req); err != nil {
+-		common.ErrorResp(c, err, 400)
+-		return
+-	}
+-	if req.TempDir != "" {
+-		storage, _, err := op.GetStorageAndActualPath(req.TempDir)
+-		if err != nil {
+-			common.ErrorStrResp(c, "storage does not exists", 400)
+-			return
+-		}
+-		if storage.Config().CheckStatus && storage.GetStorage().Status != op.WORK {
+-			common.ErrorStrResp(c, "storage not init: "+storage.GetStorage().Status, 400)
+-			return
+-		}
+-		if _, ok := storage.(*thunderx.ThunderX); !ok {
+-			common.ErrorStrResp(c, "unsupported storage driver for offline download, only ThunderX is supported", 400)
+-			return
+-		}
+-	}
+-	items := []model.SettingItem{
+-		{Key: conf.ThunderXTempDir, Value: req.TempDir, Type: conf.TypeString, Group: model.OFFLINE_DOWNLOAD, Flag: model.PRIVATE},
+-	}
+-	if err := op.SaveSettingItems(items); err != nil {
+-		common.ErrorResp(c, err, 500)
+-		return
+-	}
+-	_tool, err := tool.Tools.Get("ThunderX")
+-	if err != nil {
+-		common.ErrorResp(c, err, 500)
+-		return
+-	}
+-	if _, err := _tool.Init(); err != nil {
+-		common.ErrorResp(c, err, 500)
+-		return
+-	}
+-	common.SuccessResp(c, "ok")
+-}
+-
+-type SetThunderBrowserReq struct {
+-	TempDir string `json:"temp_dir" form:"temp_dir"`
+-}
+-
+-func SetThunderBrowser(c *gin.Context) {
+-	var req SetThunderBrowserReq
+-	if err := c.ShouldBind(&req); err != nil {
+-		common.ErrorResp(c, err, 400)
+-		return
+-	}
+-	if req.TempDir != "" {
+-		storage, _, err := op.GetStorageAndActualPath(req.TempDir)
+-		if err != nil {
+-			common.ErrorStrResp(c, "storage does not exists", 400)
+-			return
+-		}
+-		if storage.Config().CheckStatus && storage.GetStorage().Status != op.WORK {
+-			common.ErrorStrResp(c, "storage not init: "+storage.GetStorage().Status, 400)
+-			return
+-		}
+-		switch storage.(type) {
+-		case *thunder_browser.ThunderBrowser, *thunder_browser.ThunderBrowserExpert:
+-		default:
+-			common.ErrorStrResp(c, "unsupported storage driver for offline download, only ThunderBrowser is supported", 400)
+-			return
+-		}
+-	}
+-	items := []model.SettingItem{
+-		{Key: conf.ThunderBrowserTempDir, Value: req.TempDir, Type: conf.TypeString, Group: model.OFFLINE_DOWNLOAD, Flag: model.PRIVATE},
+-	}
+-	if err := op.SaveSettingItems(items); err != nil {
+-		common.ErrorResp(c, err, 500)
+-		return
+-	}
+-	_tool, err := tool.Tools.Get("ThunderBrowser")
+-	if err != nil {
+-		common.ErrorResp(c, err, 500)
+-		return
+-	}
+-	if _, err := _tool.Init(); err != nil {
+-		common.ErrorResp(c, err, 500)
+-		return
+-	}
+-	common.SuccessResp(c, "ok")
+-}
+-
+-type SetGuangYaPanReq struct {
+-	TempDir string `json:"temp_dir" form:"temp_dir"`
+-}
+-
+-func SetGuangYaPan(c *gin.Context) {
+-	var req SetGuangYaPanReq
+-	if err := c.ShouldBind(&req); err != nil {
+-		common.ErrorResp(c, err, 400)
+-		return
+-	}
+-	if req.TempDir != "" {
+-		storage, _, err := op.GetStorageAndActualPath(req.TempDir)
+-		if err != nil {
+-			common.ErrorStrResp(c, "storage does not exists", 400)
+-			return
+-		}
+-		if storage.Config().CheckStatus && storage.GetStorage().Status != op.WORK {
+-			common.ErrorStrResp(c, "storage not init: "+storage.GetStorage().Status, 400)
+-			return
+-		}
+-		if _, ok := storage.(*guangyapan.GuangYaPan); !ok {
+-			common.ErrorStrResp(c, "unsupported storage driver for offline download, only GuangYaPan is supported", 400)
+-			return
+-		}
+-	}
+-	items := []model.SettingItem{
+-		{Key: conf.GuangYaPanTempDir, Value: req.TempDir, Type: conf.TypeString, Group: model.OFFLINE_DOWNLOAD, Flag: model.PRIVATE},
+-	}
+-	if err := op.SaveSettingItems(items); err != nil {
+-		common.ErrorResp(c, err, 500)
+-		return
+-	}
+-	_tool, err := tool.Tools.Get("GuangYaPan")
+-	if err != nil {
+-		common.ErrorResp(c, err, 500)
+-		return
+-	}
+-	if _, err := _tool.Init(); err != nil {
+-		common.ErrorResp(c, err, 500)
+-		return
+-	}
+-	common.SuccessResp(c, "ok")
+-}
+-
+-func OfflineDownloadTools(c *gin.Context) {
+-	tools := tool.Tools.NamesForPath(c.Query("path"))
+-	common.SuccessResp(c, tools)
+-}
+-
+-type AddOfflineDownloadReq struct {
+-	Urls         []string `json:"urls"`
+-	Path         string   `json:"path"`
+-	Tool         string   `json:"tool"`
+-	DeletePolicy string   `json:"delete_policy"`
+-}
+-
+-func AddOfflineDownload(c *gin.Context) {
+-	user := c.Request.Context().Value(conf.UserKey).(*model.User)
+-	if !user.CanAddOfflineDownloadTasks() {
+-		common.ErrorStrResp(c, "permission denied", 403)
+-		return
+-	}
+-
+-	var req AddOfflineDownloadReq
+-	if err := c.ShouldBind(&req); err != nil {
+-		common.ErrorResp(c, err, 400)
+-		return
+-	}
+-	reqPath, err := user.JoinPath(req.Path)
+-	if err != nil {
+-		common.ErrorResp(c, err, 403)
+-		return
+-	}
+-	meta, err := op.GetNearestMeta(reqPath)
+-	if err != nil && !errors.Is(errors.Cause(err), errs.MetaNotFound) {
+-		common.ErrorResp(c, err, 500, true)
+-		return
+-	}
+-	if !common.CanWrite(user, meta, reqPath) {
+-		common.ErrorResp(c, errs.PermissionDenied, 403)
+-		return
+-	}
+-	var tasks []task.TaskExtensionInfo
+-	for _, url := range req.Urls {
+-		// Filter out empty lines and whitespace-only strings
+-		trimmedUrl := strings.TrimSpace(url)
+-		if trimmedUrl == "" {
+-			continue
+-		}
+-
+-		t, err := tool.AddURL(c, &tool.AddURLArgs{
+-			URL:          trimmedUrl,
+-			DstDirPath:   reqPath,
+-			Tool:         req.Tool,
+-			DeletePolicy: tool.DeletePolicy(req.DeletePolicy),
+-		})
+-		if err != nil {
+-			common.ErrorResp(c, err, 500)
+-			return
+-		}
+-		if t != nil {
+-			tasks = append(tasks, t)
+-		}
+-	}
+-	common.SuccessResp(c, gin.H{
+-		"tasks": getTaskInfos(tasks),
+-	})
+-}
++func SetAria2(c *gin.Context) { common.ErrorStrResp(c, "Not included in the MyPowerTools mobile runtime", 501) }
++func SetQbittorrent(c *gin.Context) { common.ErrorStrResp(c, "Not included in the MyPowerTools mobile runtime", 501) }
++func SetTransmission(c *gin.Context) { common.ErrorStrResp(c, "Not included in the MyPowerTools mobile runtime", 501) }
++func Set115(c *gin.Context) { common.ErrorStrResp(c, "Not included in the MyPowerTools mobile runtime", 501) }
++func Set115Open(c *gin.Context) { common.ErrorStrResp(c, "Not included in the MyPowerTools mobile runtime", 501) }
++func Set123Pan(c *gin.Context) { common.ErrorStrResp(c, "Not included in the MyPowerTools mobile runtime", 501) }
++func Set123Open(c *gin.Context) { common.ErrorStrResp(c, "Not included in the MyPowerTools mobile runtime", 501) }
++func SetPikPak(c *gin.Context) { common.ErrorStrResp(c, "Not included in the MyPowerTools mobile runtime", 501) }
++func SetThunder(c *gin.Context) { common.ErrorStrResp(c, "Not included in the MyPowerTools mobile runtime", 501) }
++func SetThunderX(c *gin.Context) { common.ErrorStrResp(c, "Not included in the MyPowerTools mobile runtime", 501) }
++func SetThunderBrowser(c *gin.Context) { common.ErrorStrResp(c, "Not included in the MyPowerTools mobile runtime", 501) }
++func SetGuangYaPan(c *gin.Context) { common.ErrorStrResp(c, "Not included in the MyPowerTools mobile runtime", 501) }
++func OfflineDownloadTools(c *gin.Context) { common.SuccessResp(c, []string{}) }
++func AddOfflineDownload(c *gin.Context) { common.ErrorStrResp(c, "Not included in the MyPowerTools mobile runtime", 501) }
+--- a/server/handles/torrent.go
++++ b/server/handles/torrent.go
+@@ -1,433 +1,12 @@
++// Android MPT profile: file transfer uses storage APIs, not offline download/torrent tasks.
+ package handles
+ 
+ import (
+-	"encoding/base64"
+-	"fmt"
+-	"io"
+-	"strings"
+-
+-	_189pc "github.com/OpenListTeam/OpenList/v4/drivers/189pc"
+-	"github.com/OpenListTeam/OpenList/v4/internal/conf"
+-	"github.com/OpenListTeam/OpenList/v4/internal/errs"
+-	"github.com/OpenListTeam/OpenList/v4/internal/model"
+-	"github.com/OpenListTeam/OpenList/v4/internal/op"
+-	"github.com/OpenListTeam/OpenList/v4/pkg/http_range"
+-	"github.com/OpenListTeam/OpenList/v4/pkg/torrent"
+-	"github.com/OpenListTeam/OpenList/v4/server/common"
+-	"github.com/gin-gonic/gin"
+-	"github.com/pkg/errors"
++"github.com/OpenListTeam/OpenList/v4/server/common"
++"github.com/gin-gonic/gin"
+ )
+ 
+-// maxTorrentBase64Len is the max allowed Base64-encoded torrent size (~10MB decoded)
+-const maxTorrentBase64Len = 14 * 1024 * 1024
+-
+-// maxTorrentGenFileSize is the max file size allowed for synchronous torrent generation (1GB)
+-const maxTorrentGenFileSize = 1 * 1024 * 1024 * 1024
+-
+-// validateParsedTorrent checks that basic torrent invariants hold.
+-func validateParsedTorrent(t *torrent.Torrent) error {
+-	if len(t.Info.Pieces)%20 != 0 {
+-		return fmt.Errorf("torrent pieces 数据无效：长度必须为 20 的整数倍")
+-	}
+-	return nil
+-}
+-
+-// ParseTorrentReq 解析 torrent 文件请求
+-type ParseTorrentReq struct {
+-	// TorrentData Base64 编码的 torrent 文件内容
+-	TorrentData string `json:"torrent_data" binding:"required"`
+-}
+-
+-// ParseTorrentResp 解析 torrent 文件响应
+-type ParseTorrentResp struct {
+-	// Name 种子名称
+-	Name string `json:"name"`
+-	// TotalSize 总大小
+-	TotalSize int64 `json:"total_size"`
+-	// PieceLength 分片大小
+-	PieceLength int64 `json:"piece_length"`
+-	// PieceCount 分片数量
+-	PieceCount int `json:"piece_count"`
+-	// InfoHash info_hash（十六进制）
+-	InfoHash string `json:"info_hash"`
+-	// Files 文件列表（多文件模式）
+-	Files []TorrentFileInfo `json:"files"`
+-	// HasCAS 是否包含 CAS 扩展信息
+-	HasCAS bool `json:"has_cas"`
+-	// CAS CAS 扩展信息
+-	CAS *CASInfoResp `json:"cas,omitempty"`
+-}
+-
+-// TorrentFileInfo torrent 中的文件信息
+-type TorrentFileInfo struct {
+-	Path string `json:"path"`
+-	Size int64  `json:"size"`
+-}
+-
+-// CASInfoResp CAS 信息响应
+-type CASInfoResp struct {
+-	FileMD5   string `json:"file_md5"`
+-	SliceMD5  string `json:"slice_md5"`
+-	SliceSize int64  `json:"slice_size"`
+-	Cloud     string `json:"cloud"`
+-}
+-
+-// ParseTorrent 解析 torrent 文件，返回文件列表等信息
+-func ParseTorrent(c *gin.Context) {
+-	var req ParseTorrentReq
+-	if err := c.ShouldBind(&req); err != nil {
+-		common.ErrorResp(c, err, 400)
+-		return
+-	}
+-
+-	// 限制 Base64 输入大小（最大 ~10MB decoded）
+-	if len(req.TorrentData) > maxTorrentBase64Len {
+-		common.ErrorResp(c, fmt.Errorf("torrent 数据过大（最大 10MB）"), 400)
+-		return
+-	}
+-
+-	// Base64 解码
+-	torrentData, err := base64.StdEncoding.DecodeString(req.TorrentData)
+-	if err != nil {
+-		common.ErrorResp(c, fmt.Errorf("无效的 Base64 编码: %w", err), 400)
+-		return
+-	}
+-
+-	// 解析 torrent
+-	t, err := torrent.Decode(torrentData)
+-	if err != nil {
+-		common.ErrorResp(c, fmt.Errorf("解析 torrent 失败: %w", err), 400)
+-		return
+-	}
+-	if err := validateParsedTorrent(t); err != nil {
+-		common.ErrorResp(c, err, 400)
+-		return
+-	}
+-
+-	resp := ParseTorrentResp{
+-		Name:        t.Info.Name,
+-		TotalSize:   t.GetTotalSize(),
+-		PieceLength: t.Info.PieceLength,
+-		PieceCount:  len(t.Info.Pieces) / 20,
+-		InfoHash:    t.GetInfoHashHex(),
+-		HasCAS:      t.HasCASInfo(),
+-	}
+-
+-	// 文件列表
+-	if len(t.Info.Files) > 0 {
+-		resp.Files = make([]TorrentFileInfo, 0, len(t.Info.Files))
+-		for _, f := range t.Info.Files {
+-			resp.Files = append(resp.Files, TorrentFileInfo{
+-				Path: strings.Join(f.Path, "/"),
+-				Size: f.Length,
+-			})
+-		}
+-	} else {
+-		// 单文件模式
+-		resp.Files = []TorrentFileInfo{
+-			{Path: t.Info.Name, Size: t.Info.Length},
+-		}
+-	}
+-
+-	// CAS 信息
+-	if t.HasCASInfo() {
+-		resp.CAS = &CASInfoResp{
+-			FileMD5:   t.CAS.FileMD5,
+-			SliceMD5:  t.CAS.SliceMD5,
+-			SliceSize: t.CAS.SliceSize,
+-			Cloud:     t.CAS.Cloud,
+-		}
+-	}
+-
+-	common.SuccessResp(c, resp)
+-}
+-
+-// TorrentRapidUploadReq 从 torrent 秒传请求
+-type TorrentRapidUploadReq struct {
+-	// TorrentData Base64 编码的 torrent 文件内容
+-	TorrentData string `json:"torrent_data" binding:"required"`
+-	// Path 目标路径
+-	Path string `json:"path" binding:"required"`
+-}
+-
+-// TorrentRapidUpload 从 torrent 文件中提取 CAS 信息尝试秒传到天翼云
+-func TorrentRapidUpload(c *gin.Context) {
+-	user := c.Request.Context().Value(conf.UserKey).(*model.User)
+-
+-	var req TorrentRapidUploadReq
+-	if err := c.ShouldBind(&req); err != nil {
+-		common.ErrorResp(c, err, 400)
+-		return
+-	}
+-
+-	reqPath, err := user.JoinPath(req.Path)
+-	if err != nil {
+-		common.ErrorResp(c, err, 403)
+-		return
+-	}
+-
+-	// 检查权限
+-	meta, err := op.GetNearestMeta(reqPath)
+-	if err != nil && !errors.Is(errors.Cause(err), errs.MetaNotFound) {
+-		common.ErrorResp(c, err, 500, true)
+-		return
+-	}
+-	if !common.CanWrite(user, meta, reqPath) {
+-		common.ErrorResp(c, errs.PermissionDenied, 403)
+-		return
+-	}
+-
+-	// Base64 解码
+-	torrentData, err := base64.StdEncoding.DecodeString(req.TorrentData)
+-	if err != nil {
+-		common.ErrorResp(c, fmt.Errorf("无效的 Base64 编码: %w", err), 400)
+-		return
+-	}
+-
+-	// 解析 torrent
+-	t, err := torrent.Decode(torrentData)
+-	if err != nil {
+-		common.ErrorResp(c, fmt.Errorf("解析 torrent 失败: %w", err), 400)
+-		return
+-	}
+-
+-	if !t.HasCASInfo() {
+-		common.ErrorResp(c, fmt.Errorf("torrent 不包含 CAS 扩展信息，无法秒传"), 400)
+-		return
+-	}
+-
+-	// 获取目标存储
+-	storage, dstDirActualPath, err := op.GetStorageAndActualPath(reqPath)
+-	if err != nil {
+-		common.ErrorResp(c, err, 500)
+-		return
+-	}
+-
+-	// 获取目标目录对象
+-	dstDir, err := op.Get(c.Request.Context(), storage, dstDirActualPath)
+-	if err != nil {
+-		common.ErrorResp(c, fmt.Errorf("获取目标目录失败: %w", err), 500)
+-		return
+-	}
+-	if !dstDir.IsDir() {
+-		common.ErrorResp(c, errs.NotFolder, 400)
+-		return
+-	}
+-
+-	// 检查是否是天翼云 PC 驱动
+-	cloud189PC, ok := storage.(*_189pc.Cloud189PC)
+-	if !ok {
+-		common.ErrorResp(c, fmt.Errorf("目标存储不是天翼云PC驱动，不支持 CAS 秒传"), 400)
+-		return
+-	}
+-
+-	// 尝试秒传
+-	obj, err := cloud189PC.RapidUploadFromTorrent(c.Request.Context(), dstDir, torrentData, true)
+-	if err != nil {
+-		common.ErrorResp(c, fmt.Errorf("秒传失败: %w", err), 400)
+-		return
+-	}
+-
+-	common.SuccessResp(c, gin.H{
+-		"message":   "秒传成功",
+-		"file_name": obj.GetName(),
+-		"file_size": obj.GetSize(),
+-	})
+-}
+-
+-// UploadTorrentAndParse 通过文件上传方式解析 torrent
+-func UploadTorrentAndParse(c *gin.Context) {
+-	file, err := c.FormFile("torrent")
+-	if err != nil {
+-		common.ErrorResp(c, fmt.Errorf("获取上传文件失败: %w", err), 400)
+-		return
+-	}
+-
+-	// 限制文件大小（最大 10MB）
+-	if file.Size > 10*1024*1024 {
+-		common.ErrorResp(c, fmt.Errorf("torrent 文件过大（最大 10MB）"), 400)
+-		return
+-	}
+-
+-	f, err := file.Open()
+-	if err != nil {
+-		common.ErrorResp(c, fmt.Errorf("打开文件失败: %w", err), 500)
+-		return
+-	}
+-	defer f.Close()
+-
+-	torrentData, err := io.ReadAll(f)
+-	if err != nil {
+-		common.ErrorResp(c, fmt.Errorf("读取文件失败: %w", err), 500)
+-		return
+-	}
+-
+-	// 解析 torrent
+-	t, err := torrent.Decode(torrentData)
+-	if err != nil {
+-		common.ErrorResp(c, fmt.Errorf("解析 torrent 失败: %w", err), 400)
+-		return
+-	}
+-	if err := validateParsedTorrent(t); err != nil {
+-		common.ErrorResp(c, err, 400)
+-		return
+-	}
+-
+-	resp := ParseTorrentResp{
+-		Name:        t.Info.Name,
+-		TotalSize:   t.GetTotalSize(),
+-		PieceLength: t.Info.PieceLength,
+-		PieceCount:  len(t.Info.Pieces) / 20,
+-		InfoHash:    t.GetInfoHashHex(),
+-		HasCAS:      t.HasCASInfo(),
+-	}
+-
+-	// 文件列表
+-	if len(t.Info.Files) > 0 {
+-		resp.Files = make([]TorrentFileInfo, 0, len(t.Info.Files))
+-		for _, f := range t.Info.Files {
+-			resp.Files = append(resp.Files, TorrentFileInfo{
+-				Path: strings.Join(f.Path, "/"),
+-				Size: f.Length,
+-			})
+-		}
+-	} else {
+-		resp.Files = []TorrentFileInfo{
+-			{Path: t.Info.Name, Size: t.Info.Length},
+-		}
+-	}
+-
+-	// CAS 信息
+-	if t.HasCASInfo() {
+-		resp.CAS = &CASInfoResp{
+-			FileMD5:   t.CAS.FileMD5,
+-			SliceMD5:  t.CAS.SliceMD5,
+-			SliceSize: t.CAS.SliceSize,
+-			Cloud:     t.CAS.Cloud,
+-		}
+-	}
+-
+-	// 同时返回 Base64 编码的 torrent 数据，方便后续使用
+-	common.SuccessResp(c, gin.H{
+-		"info":         resp,
+-		"torrent_data": base64.StdEncoding.EncodeToString(torrentData),
+-	})
+-}
+-
+-// GenerateTorrentReq 为指定路径的文件生成 torrent 请求
+-type GenerateTorrentReq struct {
+-	// Path 文件在 OpenList 中的路径
+-	Path string `json:"path" binding:"required"`
+-	// WithCAS 是否注入 CAS 扩展信息（仅天翼云需要）
+-	WithCAS bool `json:"with_cas"`
+-}
+-
+-// GenerateTorrentForPath 为指定路径的文件生成 torrent
+-// 这是一个通用接口，适用于所有驱动
+-// 会获取文件内容计算哈希，然后生成 torrent
+-func GenerateTorrentForPath(c *gin.Context) {
+-	user := c.Request.Context().Value(conf.UserKey).(*model.User)
+-
+-	var req GenerateTorrentReq
+-	if err := c.ShouldBind(&req); err != nil {
+-		common.ErrorResp(c, err, 400)
+-		return
+-	}
+-
+-	reqPath, err := user.JoinPath(req.Path)
+-	if err != nil {
+-		common.ErrorResp(c, err, 403)
+-		return
+-	}
+-
+-	// 检查读取权限
+-	meta, err := op.GetNearestMeta(reqPath)
+-	if err != nil && !errors.Is(errors.Cause(err), errs.MetaNotFound) {
+-		common.ErrorResp(c, err, 500, true)
+-		return
+-	}
+-	if !common.CanRead(user, meta, reqPath) {
+-		common.ErrorResp(c, errs.PermissionDenied, 403)
+-		return
+-	}
+-
+-	// 获取存储和文件信息
+-	storage, actualPath, err := op.GetStorageAndActualPath(reqPath)
+-	if err != nil {
+-		common.ErrorResp(c, err, 500)
+-		return
+-	}
+-
+-	// with_cas 仅支持天翼云PC驱动
+-	if req.WithCAS {
+-		if _, is189pc := storage.(*_189pc.Cloud189PC); !is189pc {
+-			common.ErrorResp(c, fmt.Errorf("CAS 秒传扩展仅支持天翼云PC驱动"), 400)
+-			return
+-		}
+-	}
+-
+-	// 获取文件对象
+-	obj, err := op.Get(c.Request.Context(), storage, actualPath)
+-	if err != nil {
+-		common.ErrorResp(c, fmt.Errorf("获取文件失败: %w", err), 500)
+-		return
+-	}
+-	if obj.IsDir() {
+-		common.ErrorResp(c, fmt.Errorf("不支持为目录生成 torrent"), 400)
+-		return
+-	}
+-
+-	// 限制可生成 torrent 的文件大小
+-	if obj.GetSize() > maxTorrentGenFileSize {
+-		common.ErrorResp(c, fmt.Errorf("文件过大，无法生成 torrent（最大 1GB）"), 400)
+-		return
+-	}
+-
+-	// 获取文件下载链接
+-	link, _, err := op.Link(c.Request.Context(), storage, actualPath, model.LinkArgs{})
+-	if err != nil {
+-		common.ErrorResp(c, fmt.Errorf("获取文件链接失败: %w", err), 500)
+-		return
+-	}
+-	defer link.Close()
+-
+-	// 通过 RangeReader 获取文件内容并计算哈希生成 torrent
+-	if link.RangeReader == nil {
+-		common.ErrorResp(c, fmt.Errorf("该存储不支持流式读取，无法生成 torrent（请先下载文件到本地）"), 400)
+-		return
+-	}
+-
+-	// 读取整个文件
+-	rc, err := link.RangeReader.RangeRead(c.Request.Context(), http_range.Range{Length: obj.GetSize()})
+-	if err != nil {
+-		common.ErrorResp(c, fmt.Errorf("读取文件失败: %w", err), 500)
+-		return
+-	}
+-	defer rc.Close()
+-
+-	var torrentData []byte
+-	if req.WithCAS {
+-		torrentData, err = torrent.GenerateFromReaderWithCAS(rc, obj.GetName(), obj.GetSize(), torrent.DefaultPieceSize)
+-	} else {
+-		torrentData, err = torrent.GenerateFromReader(rc, obj.GetName(), obj.GetSize(), torrent.DefaultPieceSize)
+-	}
+-	if err != nil {
+-		common.ErrorResp(c, fmt.Errorf("生成 torrent 失败: %w", err), 500)
+-		return
+-	}
+-
+-	// 解析生成的 torrent 获取 info_hash
+-	t, _ := torrent.Decode(torrentData)
+-	var infoHash string
+-	if t != nil {
+-		infoHash = t.GetInfoHashHex()
+-	}
+-
+-	common.SuccessResp(c, gin.H{
+-		"torrent_data": base64.StdEncoding.EncodeToString(torrentData),
+-		"info_hash":    infoHash,
+-		"file_name":    obj.GetName() + ".torrent",
+-		"size":         len(torrentData),
+-		"with_cas":     req.WithCAS,
+-	})
+-}
++func ParseTorrent(c *gin.Context) { common.ErrorStrResp(c, "Not included in the MyPowerTools mobile runtime", 501) }
++func TorrentRapidUpload(c *gin.Context) { common.ErrorStrResp(c, "Not included in the MyPowerTools mobile runtime", 501) }
++func UploadTorrentAndParse(c *gin.Context) { common.ErrorStrResp(c, "Not included in the MyPowerTools mobile runtime", 501) }
++func GenerateTorrentForPath(c *gin.Context) { common.ErrorStrResp(c, "Not included in the MyPowerTools mobile runtime", 501) }
+--- a/internal/offline_download/tool/add.go
++++ b/internal/offline_download/tool/add.go
+@@ -1,35 +1,11 @@
++// Android MPT does not use OpenList offline download tasks.
+ package tool
+-
+ import (
+-	"context"
+-	"fmt"
+-	"net/url"
+-	stdpath "path"
+-	"path/filepath"
+-	"strings"
+-
+-	_115 "github.com/OpenListTeam/OpenList/v4/drivers/115"
+-	_115_open "github.com/OpenListTeam/OpenList/v4/drivers/115_open"
+-	_123 "github.com/OpenListTeam/OpenList/v4/drivers/123"
+-	_123_open "github.com/OpenListTeam/OpenList/v4/drivers/123_open"
+-	"github.com/OpenListTeam/OpenList/v4/drivers/guangyapan"
+-	"github.com/OpenListTeam/OpenList/v4/drivers/pikpak"
+-	"github.com/OpenListTeam/OpenList/v4/drivers/thunder"
+-	"github.com/OpenListTeam/OpenList/v4/drivers/thunder_browser"
+-	"github.com/OpenListTeam/OpenList/v4/drivers/thunderx"
+-	"github.com/OpenListTeam/OpenList/v4/internal/conf"
+-	"github.com/OpenListTeam/OpenList/v4/internal/driver"
+-	"github.com/OpenListTeam/OpenList/v4/internal/errs"
+-	"github.com/OpenListTeam/OpenList/v4/internal/fs"
+-	"github.com/OpenListTeam/OpenList/v4/internal/model"
+-	"github.com/OpenListTeam/OpenList/v4/internal/op"
+-	"github.com/OpenListTeam/OpenList/v4/internal/setting"
+-	"github.com/OpenListTeam/OpenList/v4/internal/task"
+-	"github.com/OpenListTeam/OpenList/v4/server/common"
+-	"github.com/google/uuid"
+-	"github.com/pkg/errors"
++"context"
++"github.com/OpenListTeam/OpenList/v4/internal/driver"
++"fmt"
++"github.com/OpenListTeam/OpenList/v4/internal/task"
+ )
+-
+ type DeletePolicy string
+ 
+ const (
+@@ -48,244 +24,7 @@
+ }
+ 
+ func AddURL(ctx context.Context, args *AddURLArgs) (task.TaskExtensionInfo, error) {
+-	// check storage
+-	storage, dstDirActualPath, err := op.GetStorageAndActualPath(args.DstDirPath)
+-	if err != nil {
+-		return nil, errors.WithMessage(err, "failed get storage")
+-	}
+-	// check is it could upload
+-	if storage.Config().NoUpload {
+-		return nil, errors.WithStack(errs.UploadNotSupported)
+-	}
+-	// check path is valid
+-	obj, err := op.Get(ctx, storage, dstDirActualPath)
+-	if err != nil {
+-		if !errs.IsObjectNotFound(err) {
+-			return nil, errors.WithMessage(err, "failed get object")
+-		}
+-	} else {
+-		if !obj.IsDir() {
+-			// can't add to a file
+-			return nil, errors.WithStack(errs.NotFolder)
+-		}
+-	}
+-	// try putting url
+-	if args.Tool == "SimpleHttp" && !isEd2kURL(args.URL) {
+-		if isSimpleHttpSchemeUnsupported(args.URL) {
+-			return nil, fmt.Errorf("SimpleHttp tool does not support this URL scheme, please use aria2 or other tools for magnet/ed2k links")
+-		}
+-		err = tryPutUrl(ctx, args.DstDirPath, args.URL)
+-		if err == nil || !errors.Is(err, errs.NotImplement) {
+-			return nil, err
+-		}
+-		// Fallback to creating a download task when storage lacks native PutURL support.
+-	}
+-
+-	// ed2k 链接自动路由：如果当前工具不支持 ed2k，自动尝试使用迅雷系工具
+-	if isEd2kURL(args.URL) {
+-		if !isEd2kCapableTool(args.Tool) {
+-			if storageTool := ed2kToolForStorage(storage); storageTool != "" {
+-				// Prefer the matching native tool when the destination storage supports ed2k.
+-				args.Tool = storageTool
+-			} else {
+-				// Otherwise, try to find an available Thunder-family tool.
+-				fallbackTool, fallbackName := findEd2kCapableTool()
+-				if fallbackTool != nil {
+-					args.Tool = fallbackName
+-				} else {
+-					return nil, fmt.Errorf("ed2k protocol is not supported by %s. Please configure and use Thunder/ThunderX/ThunderBrowser for ed2k links", args.Tool)
+-				}
+-			}
+-		}
+-	}
+-
+-	// get tool
+-	tool, err := Tools.Get(args.Tool)
+-	if err != nil {
+-		return nil, errors.Wrapf(err, "failed get offline download tool")
+-	}
+-	// check tool is ready
+-	if !tool.IsReady() {
+-		// try to init tool
+-		if _, err := tool.Init(); err != nil {
+-			return nil, errors.Wrapf(err, "failed init offline download tool %s", args.Tool)
+-		}
+-	}
+-
+-	uid := uuid.NewString()
+-	tempDir := filepath.Join(conf.Conf.TempDir, args.Tool, uid)
+-	deletePolicy := args.DeletePolicy
+-
+-	// 如果当前 storage 是对应网盘，则直接下载到目标路径，无需转存
+-	switch args.Tool {
+-	case "115 Cloud":
+-		if _, ok := storage.(*_115.Pan115); ok {
+-			tempDir = args.DstDirPath
+-		} else {
+-			tempDir = filepath.Join(setting.GetStr(conf.Pan115TempDir), uid)
+-		}
+-	case "115 Open":
+-		if _, ok := storage.(*_115_open.Open115); ok {
+-			tempDir = args.DstDirPath
+-		} else {
+-			tempDir = filepath.Join(setting.GetStr(conf.Pan115OpenTempDir), uid)
+-		}
+-	case "123 Open":
+-		if _, ok := storage.(*_123_open.Open123); ok && dstDirActualPath != "/" {
+-			// directly offline downloading to the root path is not allowed via 123 open platform
+-			tempDir = args.DstDirPath
+-		} else {
+-			tempDir = filepath.Join(setting.GetStr(conf.Pan123OpenTempDir), uid)
+-		}
+-	case "123Pan":
+-		if _, ok := storage.(*_123.Pan123); ok {
+-			tempDir = args.DstDirPath
+-		} else {
+-			tempDir = filepath.Join(setting.GetStr(conf.Pan123TempDir), uid)
+-		}
+-	case "PikPak":
+-		if _, ok := storage.(*pikpak.PikPak); ok {
+-			tempDir = args.DstDirPath
+-		} else {
+-			tempDir = filepath.Join(setting.GetStr(conf.PikPakTempDir), uid)
+-		}
+-	case "Thunder":
+-		if _, ok := storage.(*thunder.Thunder); ok {
+-			tempDir = args.DstDirPath
+-		} else {
+-			tempDir = filepath.Join(setting.GetStr(conf.ThunderTempDir), uid)
+-		}
+-	case "ThunderBrowser":
+-		switch storage.(type) {
+-		case *thunder_browser.ThunderBrowser, *thunder_browser.ThunderBrowserExpert:
+-			tempDir = args.DstDirPath
+-		default:
+-			tempDir = filepath.Join(setting.GetStr(conf.ThunderBrowserTempDir), uid)
+-		}
+-	case "ThunderX":
+-		if _, ok := storage.(*thunderx.ThunderX); ok {
+-			tempDir = args.DstDirPath
+-		} else {
+-			tempDir = filepath.Join(setting.GetStr(conf.ThunderXTempDir), uid)
+-		}
+-	case "GuangYaPan":
+-		if _, ok := storage.(*guangyapan.GuangYaPan); ok {
+-			tempDir = args.DstDirPath
+-		} else {
+-			tempBase := setting.GetStr(conf.GuangYaPanTempDir)
+-			if tempBase == "" {
+-				return nil, errors.New("GuangYaPan temp dir is not set")
+-			}
+-			tempDir = filepath.Join(tempBase, uid)
+-		}
+-	}
+-
+-	taskCreator, _ := ctx.Value(conf.UserKey).(*model.User) // taskCreator is nil when convert failed
+-	t := &DownloadTask{
+-		TaskExtension: task.TaskExtension{
+-			Creator: taskCreator,
+-			ApiUrl:  common.GetApiUrl(ctx),
+-		},
+-		Url:          args.URL,
+-		DstDirPath:   args.DstDirPath,
+-		TempDir:      tempDir,
+-		DeletePolicy: deletePolicy,
+-		Toolname:     args.Tool,
+-		tool:         tool,
+-	}
+-	DownloadTaskManager.Add(t)
+-	return t, nil
++return nil, fmt.Errorf("offline download is not included in the MyPowerTools mobile runtime")
+ }
+ 
+-func tryPutUrl(ctx context.Context, path, urlStr string) error {
+-	var dstName string
+-	u, err := url.Parse(urlStr)
+-	if err == nil {
+-		dstName = stdpath.Base(u.Path)
+-	} else {
+-		dstName = "UnnamedURL"
+-	}
+-	return fs.PutURL(ctx, path, dstName, urlStr)
+-}
+-
+-func isSimpleHttpSchemeUnsupported(urlStr string) bool {
+-	u, err := url.Parse(strings.TrimSpace(urlStr))
+-	if err != nil || u.Scheme == "" {
+-		return false
+-	}
+-	scheme := strings.ToLower(u.Scheme)
+-	return scheme != "http" && scheme != "https"
+-}
+-
+-// isEd2kURL 检测 URL 是否为 ed2k 协议
+-func isEd2kURL(urlStr string) bool {
+-	return strings.HasPrefix(strings.ToLower(urlStr), "ed2k://")
+-}
+-
+-func ed2kToolForStorage(storage driver.Driver) string {
+-	switch toolNameForStorage(storage) {
+-	case "115 Cloud", "115 Open":
+-		return toolNameForStorage(storage)
+-	default:
+-		return ""
+-	}
+-}
+-
+-func toolNameForStorage(storage driver.Driver) string {
+-	switch storage.(type) {
+-	case *_115.Pan115:
+-		return "115 Cloud"
+-	case *_115_open.Open115:
+-		return "115 Open"
+-	case *_123.Pan123:
+-		return "123Pan"
+-	case *_123_open.Open123:
+-		return "123 Open"
+-	case *guangyapan.GuangYaPan:
+-		return "GuangYaPan"
+-	case *pikpak.PikPak:
+-		return "PikPak"
+-	case *thunder.Thunder:
+-		return "Thunder"
+-	case *thunderx.ThunderX:
+-		return "ThunderX"
+-	case *thunder_browser.ThunderBrowser, *thunder_browser.ThunderBrowserExpert:
+-		return "ThunderBrowser"
+-	default:
+-		return ""
+-	}
+-}
+-
+-// ed2kCapableTools 支持 ed2k 协议的工具列表
+-var ed2kCapableTools = []string{"115 Cloud", "115 Open", "Thunder", "ThunderX", "ThunderBrowser"}
+-
+-// ed2kFallbackTools 是当前可用于自动接管 ed2k 任务的工具列表。
+-var ed2kFallbackTools = []string{"Thunder", "ThunderX", "ThunderBrowser"}
+-
+-// isEd2kCapableTool 检查工具是否支持 ed2k 协议
+-func isEd2kCapableTool(toolName string) bool {
+-	for _, t := range ed2kCapableTools {
+-		if t == toolName {
+-			return true
+-		}
+-	}
+-	return false
+-}
+-
+-// findEd2kCapableTool 查找一个可用的支持 ed2k 的工具
+-func findEd2kCapableTool() (Tool, string) {
+-	for _, name := range ed2kFallbackTools {
+-		t, err := Tools.Get(name)
+-		if err != nil {
+-			continue
+-		}
+-		if t.IsReady() {
+-			return t, name
+-		}
+-		// 尝试初始化
+-		if _, err := t.Init(); err == nil && t.IsReady() {
+-			return t, name
+-		}
+-	}
+-	return nil, ""
+-}
++func toolNameForStorage(storage driver.Driver) string { return "" }
+--- a/internal/offline_download/all.go
++++ b/internal/offline_download/all.go
+@@ -1,17 +1,2 @@
++// No offline download engines in the MPT mobile runtime.
+ package offline_download
+-
+-import (
+-	_ "github.com/OpenListTeam/OpenList/v4/internal/offline_download/115"
+-	_ "github.com/OpenListTeam/OpenList/v4/internal/offline_download/115_open"
+-	_ "github.com/OpenListTeam/OpenList/v4/internal/offline_download/123"
+-	_ "github.com/OpenListTeam/OpenList/v4/internal/offline_download/123_open"
+-	_ "github.com/OpenListTeam/OpenList/v4/internal/offline_download/aria2"
+-	_ "github.com/OpenListTeam/OpenList/v4/internal/offline_download/guangyapan"
+-	_ "github.com/OpenListTeam/OpenList/v4/internal/offline_download/http"
+-	_ "github.com/OpenListTeam/OpenList/v4/internal/offline_download/pikpak"
+-	_ "github.com/OpenListTeam/OpenList/v4/internal/offline_download/qbit"
+-	_ "github.com/OpenListTeam/OpenList/v4/internal/offline_download/thunder"
+-	_ "github.com/OpenListTeam/OpenList/v4/internal/offline_download/thunder_browser"
+-	_ "github.com/OpenListTeam/OpenList/v4/internal/offline_download/thunderx"
+-	_ "github.com/OpenListTeam/OpenList/v4/internal/offline_download/transmission"
+-)
+--- a/internal/offline_download/tool/transfer.go
++++ b/internal/offline_download/tool/transfer.go
+@@ -9,7 +9,6 @@
+ 	"path/filepath"
+ 	"time"
+ 
+-	_189pc "github.com/OpenListTeam/OpenList/v4/drivers/189pc"
+ 	"github.com/OpenListTeam/OpenList/v4/internal/conf"
+ 	"github.com/OpenListTeam/OpenList/v4/internal/fs"
+ 	"github.com/OpenListTeam/OpenList/v4/internal/model"
+@@ -18,7 +17,6 @@
+ 	"github.com/OpenListTeam/OpenList/v4/internal/task"
+ 	"github.com/OpenListTeam/OpenList/v4/internal/task_group"
+ 	"github.com/OpenListTeam/OpenList/v4/pkg/http_range"
+-	"github.com/OpenListTeam/OpenList/v4/pkg/torrent"
+ 	"github.com/OpenListTeam/OpenList/v4/pkg/utils"
+ 	"github.com/OpenListTeam/OpenList/v4/server/common"
+ 	"github.com/OpenListTeam/tache"
+@@ -373,42 +371,5 @@
+ // 通过计算文件的 MD5 来尝试秒传（使用旧版接口）
+ // 返回上传成功的对象和错误，如果不支持秒传则返回 nil, error
+ func tryRapidUpload189(t *TransferTask, file *os.File, fileSize int64) (model.Obj, error) {
+-	// 检查目标存储是否是天翼云 PC 驱动
+-	cloud189PC, ok := t.DstStorage.(*_189pc.Cloud189PC)
+-	if !ok {
+-		return nil, fmt.Errorf("not 189pc storage")
+-	}
+-
+-	// 计算整文件 MD5（旧接口只需要 fileMD5）
+-	fileMD5, _, err := _189pc.ComputeSliceMD5sFromReader(file, torrent.DefaultPieceSize)
+-	if err != nil {
+-		return nil, fmt.Errorf("计算 MD5 失败: %w", err)
+-	}
+-
+-	// 获取目标目录
+-	dstDir, err := op.Get(t.Ctx(), t.DstStorage, t.DstActualPath)
+-	if err != nil {
+-		return nil, fmt.Errorf("获取目标目录失败: %w", err)
+-	}
+-
+-	// 构造文件名
+-	fileName := filepath.Base(t.SrcActualPath)
+-
+-	// 尝试秒传（使用旧接口）
+-	uploadInfo, err := cloud189PC.OldUploadCreate(t.Ctx(), dstDir.GetID(), fileMD5, fileName, fmt.Sprint(fileSize), false)
+-	if err != nil {
+-		return nil, fmt.Errorf("创建上传任务失败: %w", err)
+-	}
+-
+-	if uploadInfo.FileDataExists != 1 {
+-		return nil, fmt.Errorf("秒传失败：云端不存在该文件")
+-	}
+-
+-	// 秒传成功，提交
+-	obj, err := cloud189PC.OldUploadCommit(t.Ctx(), uploadInfo.FileCommitUrl, uploadInfo.UploadFileId, false, true)
+-	if err != nil {
+-		return nil, fmt.Errorf("提交上传失败: %w", err)
+-	}
+-
+-	return obj, nil
+-}
++return nil, fmt.Errorf("189pc is not included in the MyPowerTools mobile runtime")
++}

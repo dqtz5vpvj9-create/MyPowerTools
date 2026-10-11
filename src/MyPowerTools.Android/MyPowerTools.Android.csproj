@@ -5,8 +5,8 @@
     <OutputType>Exe</OutputType>
     <ApplicationId>com.mypowertools.android</ApplicationId>
     <ApplicationTitle>MyPowerTools</ApplicationTitle>
-    <ApplicationVersion>16</ApplicationVersion>
-    <ApplicationDisplayVersion>0.2.14</ApplicationDisplayVersion>
+    <ApplicationVersion>17</ApplicationVersion>
+    <ApplicationDisplayVersion>0.2.15</ApplicationDisplayVersion>
     <ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable>
     <!-- The SurfaceHolder/EGL lifetime bridge targets the pinned Avalonia 12.0.5 renderer API. -->
     <AvaloniaAccessUnstablePrivateApis>true</AvaloniaAccessUnstablePrivateApis>
@@ -168,7 +168,7 @@
     <AndroidNativeLibrary Include="$(OpenListRuntimeDirectory)/lib/x86_64/libopenlist.so" Abi="x86_64" Condition="'$(_MptX64)' == 'True'" />
   </ItemGroup>
   <Target Name="StageEmbeddedOpenList" BeforeTargets="PrepareForBuild"
-          Condition="'$(DesignTimeBuild)' != 'true' and (('$(_MptArm64)' == 'True' and !Exists('$(OpenListRuntimeDirectory)/lib/arm64-v8a/libopenlist.so')) or ('$(_MptX64)' == 'True' and !Exists('$(OpenListRuntimeDirectory)/lib/x86_64/libopenlist.so')))">
+          Condition="'$(DesignTimeBuild)' != 'true' and (('$(_MptArm64)' == 'True' and (!Exists('$(OpenListRuntimeDirectory)/lib/arm64-v8a/libopenlist.so') or !Exists('$(OpenListRuntimeDirectory)/lib/arm64-v8a/mobile-quark-baidu-v1.stamp'))) or ('$(_MptX64)' == 'True' and (!Exists('$(OpenListRuntimeDirectory)/lib/x86_64/libopenlist.so') or !Exists('$(OpenListRuntimeDirectory)/lib/x86_64/mobile-quark-baidu-v1.stamp'))))">
     <Exec Command="pwsh -NoLogo -NoProfile -NonInteractive -File &quot;$(MSBuildThisFileDirectory)../../tools/file-transfer/runtime/package-openlist-android-runtime.ps1&quot; -Abi $(_MptOpenListAbi)" />
   </Target>
 </Project>
