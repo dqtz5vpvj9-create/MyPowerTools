@@ -2,8 +2,9 @@ using Sdk = MyPowerTools.Abstractions;
 
 namespace MyPowerTools.Runtime;
 
-public sealed class InvocationExecutionCache
+public sealed class InvocationExecutionCache : IDisposable
 {
+    public const int LargeOutputThreshold = 4 * 1024;
     public const int DefaultMaxCount = 1000;
     public static readonly TimeSpan DefaultCompletedTtl = TimeSpan.FromMinutes(30);
 
@@ -12,8 +13,10 @@ public sealed class InvocationExecutionCache
     private readonly int _maxCount;
     private readonly TimeSpan _completedTtl;
     private readonly Func<DateTimeOffset> _utcNow;
+    private readonly string _outputDirectory;
+    private bool _disposed;
 
-    public InvocationExecutionCache(int maxCount = DefaultMaxCount, TimeSpan? completedTtl = null, Func<DateTimeOffset>? utcNow = null)
+    public InvocationExecutionCache(int maxCount = DefaultMaxCount, TimeSpan? completedTtl = null, Func<DateTimeOffset>? utcNow = null, string? outputDirectory = null)
     {
         if (maxCount <= 0)
         {
@@ -24,6 +27,7 @@ public sealed class InvocationExecutionCache
         _completedTtl = completedTtl ?? DefaultCompletedTtl;
         _utcNow = utcNow ?? (() => DateTimeOffset.UtcNow);
         _entries = new Dictionary<string, InvocationExecutionEntry>(StringComparer.OrdinalIgnoreCase);
+        _outputDirectory = CommandOutputFile.SessionDirectory(outputDirectory ?? Path.Combine(Path.GetTempPath(), "MyPowerTools", "invocation-results"));
     }
 
     public int Count
@@ -48,14 +52,15 @@ public sealed class InvocationExecutionCache
         Task<Sdk.CommandExecutionResult> waiter;
         lock (_gate)
         {
+            ObjectDisposedException.ThrowIf(_disposed, this);
             if (_entries.TryGetValue(invocationId, out entry!))
             {
-                return entry.Task;
+                return entry.GetTask();
             }
 
             entry = new InvocationExecutionEntry(_utcNow());
             _entries[invocationId] = entry;
-            waiter = entry.Task;
+            waiter = entry.GetTask();
         }
 
         StartExecution(invocationId, entry, factory);
@@ -153,6 +158,7 @@ public sealed class InvocationExecutionCache
                      .Select(pair => pair.Key)
                      .ToList())
         {
+            CommandOutputFile.Delete(_entries[stale].OutputPath);
             _entries.Remove(stale);
         }
 
@@ -169,7 +175,18 @@ public sealed class InvocationExecutionCache
                      .Select(pair => pair.Key)
                      .ToList())
         {
+            CommandOutputFile.Delete(_entries[overflow].OutputPath);
             _entries.Remove(overflow);
+        }
+    }
+
+    public void Dispose()
+    {
+        lock (_gate)
+        {
+            _disposed = true;
+            _entries.Clear();
+            CommandOutputFile.DeleteDirectory(_outputDirectory);
         }
     }
 
@@ -180,24 +197,54 @@ public sealed class InvocationExecutionCache
             CreatedAt = createdAt;
             CompletedAt = DateTimeOffset.MaxValue;
             Completion = new TaskCompletionSource<Sdk.CommandExecutionResult>(TaskCreationOptions.RunContinuationsAsynchronously);
-            Task = Completion.Task;
+            _task = Completion.Task;
         }
 
         public DateTimeOffset CreatedAt { get; }
         public DateTimeOffset CompletedAt { get; private set; }
         public bool IsCompleted { get; private set; }
         public TaskCompletionSource<Sdk.CommandExecutionResult>? Completion { get; private set; }
-        public Task<Sdk.CommandExecutionResult> Task { get; }
+        private Task<Sdk.CommandExecutionResult>? _task;
+        private WeakReference<Task<Sdk.CommandExecutionResult>>? _weakTask;
+        private Sdk.CommandExecutionResult? _resultMetadata;
+        public string? OutputPath { get; private set; }
+
+        public Task<Sdk.CommandExecutionResult> GetTask()
+        {
+            if (_task is not null) return _task;
+            if (_weakTask!.TryGetTarget(out var task)) return task;
+            var metadata = _resultMetadata!;
+            task = System.Threading.Tasks.Task.FromResult(new Sdk.CommandExecutionResult(
+                metadata.InvocationId, metadata.CommandId, metadata.State, metadata.Success,
+                CommandOutputFile.Read(OutputPath!), metadata.Error));
+            _weakTask.SetTarget(task);
+            return task;
+        }
+
+        public void Offload(Sdk.CommandExecutionResult result, string directory)
+        {
+            if (result.Output.Length <= LargeOutputThreshold) return;
+            try
+            {
+                OutputPath = CommandOutputFile.Write(directory, result.Output);
+                _resultMetadata = new Sdk.CommandExecutionResult(result.InvocationId, result.CommandId,
+                    result.State, result.Success, "", result.Error);
+                _weakTask = new WeakReference<Task<Sdk.CommandExecutionResult>>(_task!);
+                _task = null;
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
+            {
+                // Keep the original result and dedup semantics if storage is unavailable.
+            }
+        }
 
         public void MarkCompleted(DateTimeOffset completedAt)
         {
             CompletedAt = completedAt;
             IsCompleted = true;
-            // Task stays Completion.Task: every waiter (including callers that
-            // arrived before completion) observes the same Task instance, and
-            // Publish completes the completion source with the detached result.
-            // Swapping Task here made concurrent callers receive different Task
-            // instances for the same invocation, breaking dedup identity.
+            // Offload keeps a weak reference to Completion.Task so every live
+            // waiter still observes the same task. Once all callers release it,
+            // a retry rehydrates the complete result from the compressed file.
         }
 
         public TaskCompletionSource<Sdk.CommandExecutionResult>? DetachCompletion()
@@ -313,6 +360,7 @@ public sealed class InvocationExecutionCache
                     if (ReferenceEquals(_owner._entries.GetValueOrDefault(_invocationId), _entry))
                     {
                         _entry.MarkCompleted(_owner._utcNow());
+                        _entry.Offload(_result, _owner._outputDirectory);
                         _owner.CleanupCore(_owner._utcNow());
                     }
 
