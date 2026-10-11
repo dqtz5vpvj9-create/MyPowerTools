@@ -303,7 +303,8 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
         AutomationProperties.SetName(_chatBack, "返回会话列表");
         _chatBack.Click += (_, _) => ReturnToConversationList();
         row.Children.Add(_chatBack);
-        return row;
+        _headerState.HorizontalAlignment = HorizontalAlignment.Center;
+        return MobileUi.Stack(0, row, _headerState);
     }
 
     private Control BuildComposer()
@@ -341,8 +342,8 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
 
     private StackPanel BuildEmptyState()
     {
-        var connect = MobileUi.QuietButton("连接我的设备");
-        connect.Click += (_, _) => ShowSetupSheet();
+        var connect = MobileUi.PrimaryButton("加入文件传输助手");
+        connect.Click += async (_, _) => await RunAsync(async () => await ChangePublicRoomAsync("join"));
         _emptyConnect = connect;
         return MobileUi.Stack(10,
             _emptyTitle,
@@ -360,6 +361,17 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
     /// </summary>
     private void SyncEmptyState(AssistantSnapshot state)
     {
+        var access = state.Identity.PublicRoomState;
+        if (access.StartsWith("public"))
+        {
+            _emptyTitle.Text = access == "public" ? "文件传输助手" : access == "public-left" ? "已退出公屏" : "加入文件传输助手";
+            _emptyNote.Text = state.Identity.AuthorizationError.Length > 0 ? state.Identity.AuthorizationError
+                : access == "public" ? "同一服务的所有已授权用户可见。发送文字或文件，开始交流。"
+                : access == "public-left" ? "点按下方按钮，可在这台手机上重新申请加入。" : "正在向服务器申请公屏授权，无需连接码。";
+            _emptyConnect.Content = "重新申请加入";
+            _emptyConnect.IsVisible = access != "public" || state.Identity.AuthorizationError.Length > 0;
+            return;
+        }
         if (state.Identity.Linked)
         {
             _emptyTitle.Text = "会话已在关联设备间同步。";
@@ -367,9 +379,9 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
             _emptyConnect.IsVisible = false;
             return;
         }
-        _emptyTitle.Text = "内容保存在这台设备";
+        _emptyTitle.Text = "加入文件传输助手";
         _emptyTitle.FontSize = 12;
-        _emptyNote.Text = "尚未关联其他设备，内容暂时只在本机可见。";
+        _emptyNote.Text = "公屏由同一服务的所有已授权用户共享。点按下方按钮申请加入，原私人记录仍保留。";
         _emptyNote.FontSize = 12;
         _emptyConnect.IsVisible = true;
     }
@@ -406,11 +418,12 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
     private StackPanel BuildSetupSheet()
     {
         var choices = new StackPanel { Spacing = 2 };
+        choices.Children.Add(MobileUi.ListRow("MptMobileIconDevices", "公屏与授权", "加入文件传输助手、查看授权状态", () => { ShowPublicRoomSheet(); return Task.CompletedTask; }));
         choices.Children.Add(MobileUi.ListRow("MptMobileIconReceive", "空间管理", "清理已接收的文件，保留聊天记录", () => RunAsync(ShowStorageAsync)));
         choices.Children.Add(MobileUi.ListRow("MptMobileIconCloud", "我的网盘", "登录网盘，让这台设备按需使用它中转",
             () => { OpenCloudAccounts(); return Task.CompletedTask; }));
-        choices.Children.Add(MobileUi.ListRow("MptMobileIconDevices", "连接我的设备", "用连接码把另一台设备加入这个会话",
-            () => { ShowSheet(_linkSheet); SyncLinkSheet(); return Task.CompletedTask; }));
+        choices.Children.Add(MobileUi.ListRow("MptMobileIconDevices", "私人共享会话", "私人会话使用连接码；公屏无需连接码",
+            () => { if (_core.Snapshot.Identity.PublicRoomState.StartsWith("public")) ShowPublicRoomSheet(); else { ShowSheet(_linkSheet); SyncLinkSheet(); } return Task.CompletedTask; }));
         choices.Children.Add(MobileUi.ListRow("MptMobileIconReceive", "接收文件", "允许另一台设备直接发文件到这台设备",
             () => { ShowSheet(_receiveSheet); SyncReceive(); return Task.CompletedTask; }));
         choices.Children.Add(MobileUi.ListRow("MptMobileIconSend", "设备私聊", "打开与一台设备的独立会话",
@@ -806,7 +819,9 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
         }
 
         _headerTitle.Text = ActiveConversationKey == "history" ? "历史记录" : _targetName;
-        _headerState.Text = state.Identity.Linked
+        _headerState.Text = _targetDeviceId is null && state.Identity.PublicRoomState.StartsWith("public")
+            ? (state.Identity.AuthorizationError.Length > 0 ? "公屏 · 需要授权，点右上角重试" : state.Identity.PublicRoomState == "public" ? "公屏 · 本服务所有已授权用户可见" : state.Identity.PublicRoomState == "public-left" ? "公屏 · 已退出" : "公屏 · 等待授权")
+            : state.Identity.Linked
             ? $"{state.Identity.DisplayName} · 已连接"
             : state.Identity.Name is { Length: > 0 } name ? name : "只在本机保存";
         _status.Text = FriendlyStatus(state.Status);
@@ -846,7 +861,7 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
     /// </summary>
     private void SyncComposer()
     {
-        _send.IsEnabled = !_core.IsUnsupported && _targetUsable && HasComposerContent && !_sendDisabled && !_preparingAttachments;
+        _send.IsEnabled = (_targetDeviceId is not null || _core.Snapshot.Identity.PublicRoomState is "public" or "private") && !_core.IsUnsupported && _targetUsable && HasComposerContent && !_sendDisabled && !_preparingAttachments;
         _send.Content = "发送";
         _attachFiles.IsEnabled = !_core.IsUnsupported && !_sendDisabled && !_preparingAttachments;
         _attachImages.IsEnabled = !_core.IsUnsupported && !_sendDisabled;

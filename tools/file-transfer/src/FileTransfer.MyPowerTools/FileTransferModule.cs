@@ -197,7 +197,7 @@ public sealed partial class FileTransferModule : IMptModule
     }
 
     private static readonly string[] Commands = ["inspect", "configure", "pairing", "pair.preview", "pair.import", "peers.remove", "peer.check", "receive.start", "receive.stop", "send.direct", "send.cloud", "cloud.list", "cloud.download", "cloud.check", "cloud.export", "cloud.import", "cancel", "openlist.start", "openlist.connect", "openlist.stop",
-        "assistant.storage.inspect", "assistant.storage.clean", "assistant.inspect", "assistant.send", "assistant.sync", "assistant.retry", "assistant.cancel", "assistant.open", "assistant.devices", "assistant.receive.respond", "assistant.link.export", "assistant.link.preview", "assistant.link.import",
+        "assistant.public.join", "assistant.public.leave", "assistant.public.private", "assistant.storage.inspect", "assistant.storage.clean", "assistant.inspect", "assistant.send", "assistant.sync", "assistant.retry", "assistant.cancel", "assistant.open", "assistant.devices", "assistant.receive.respond", "assistant.link.export", "assistant.link.preview", "assistant.link.import",
         "assistant.preferences.inspect", "assistant.preferences.update",
         "cloud.accounts.inspect", "cloud.accounts.authorize.begin", "cloud.accounts.authorize.status", "cloud.accounts.authorize.cancel", "cloud.accounts.authorize.complete",
         "cloud.accounts.default", "cloud.accounts.pause", "cloud.accounts.disconnect", "cloud.accounts.folders", "cloud.accounts.directory", "cloud.accounts.preferences"];
@@ -285,6 +285,12 @@ public sealed partial class FileTransferModule : IMptModule
                     result = await AssistantPreferencesInspectAsync(token); break;
                 case "file-transfer.assistant.preferences.update":
                     result = await AssistantPreferencesUpdateAsync(request.Args, token); break;
+                case "file-transfer.assistant.public.join":
+                    result = await PublicRoomActionAsync("join", token); break;
+                case "file-transfer.assistant.public.leave":
+                    result = await PublicRoomActionAsync("leave", token); break;
+                case "file-transfer.assistant.public.private":
+                    result = await PublicRoomActionAsync("private", token); break;
                 case "file-transfer.assistant.send":
                     result = await AssistantSendAsync(request.Args, token); break;
                 case "file-transfer.assistant.sync":

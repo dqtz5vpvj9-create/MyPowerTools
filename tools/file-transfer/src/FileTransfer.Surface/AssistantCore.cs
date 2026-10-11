@@ -117,6 +117,12 @@ internal sealed class AssistantCore : IDisposable
     public Task<JsonNode> InspectPreferencesAsync() => CallAsync("preferences.inspect");
     public Task<JsonNode> SavePreferencesAsync(JsonObject values) => CallAsync("preferences.update", values);
 
+    public async Task PublicRoomAsync(string action)
+    {
+        try { await CallAsync("public." + action); }
+        finally { await RefreshAsync(); }
+    }
+
     /// <summary>Reads the cached session. It must not make the module go online.</summary>
     public async Task RefreshAsync()
     {
@@ -373,7 +379,10 @@ internal sealed class AssistantCore : IDisposable
             Identity = new AssistantIdentity(
                 Str(identity, "id") ?? "",
                 Str(identity, "name") ?? "",
-                Flag(identity, "linked")) { ConversationKey = Str(identity, "conversationKey") ?? "" },
+                Flag(identity, "linked")) { ConversationKey = Str(identity, "conversationKey") ?? "",
+                    PublicRoomState = Str(identity, "publicRoomState") ?? "private",
+                    AuthorizationError = Str(identity, "authorizationError") ?? "",
+                    HasPrivateConversation = Flag(identity, "hasPrivateConversation") },
             Members = ReadDevices(answer["members"] as JsonArray),
             Items = ReadItems(answer["items"] as JsonArray, Str(identity, "id") ?? ""),
             PendingRequests = ReadRequests(answer["pendingRequests"] as JsonArray),

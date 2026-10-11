@@ -36,6 +36,14 @@ from .fsutil import TEMP_PREFIX
 INTERNAL_PREFIXES = (TEMP_PREFIX,)
 
 SCHEMA = """
+CREATE TABLE IF NOT EXISTS public_room (
+    singleton INTEGER PRIMARY KEY CHECK(singleton = 1), conversation_id TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS public_grants (
+    grant_id TEXT PRIMARY KEY, device_id TEXT NOT NULL, token_digest BLOB NOT NULL UNIQUE,
+    revoked INTEGER NOT NULL DEFAULT 0, created_at REAL NOT NULL
+);
+
 CREATE TABLE IF NOT EXISTS conversations (
     conversation_id TEXT PRIMARY KEY,
     salt            BLOB    NOT NULL,
@@ -145,6 +153,38 @@ class Store:
         self._verify_cache_limit = 512
 
         self._reconcile()
+
+    def public_room_id(self) -> Optional[str]:
+        with self._db_lock:
+            row = self._db.execute("SELECT conversation_id FROM public_room WHERE singleton=1").fetchone()
+            return str(row[0]) if row else None
+
+    def authorize_public_device(self, device_id: str) -> dict:
+        # The service issues a distinct revocable credential, never the namespace owner key.
+        with self._db_lock:
+            room = self.public_room_id()
+            if room is None:
+                room = "public-" + os.urandom(12).hex()
+                self.register(room, os.urandom(32).hex())
+                self._db.execute("INSERT INTO public_room VALUES (1, ?)", (room,))
+            token = os.urandom(32).hex()
+            grant = os.urandom(16).hex()
+            self._db.execute("INSERT INTO public_grants VALUES (?, ?, ?, 0, ?)",
+                             (grant, device_id, hashlib.sha256(token.encode()).digest(), time.time()))
+            self._db.commit()
+            return {"conversationId": room, "token": token, "grantId": grant,
+                    "name": "文件传输助手", "visibility": "service-public"}
+
+    def verify_public_grant(self, token: str) -> bool:
+        with self._db_lock:
+            row = self._db.execute("SELECT revoked FROM public_grants WHERE token_digest=?",
+                                   (hashlib.sha256(token.encode()).digest(),)).fetchone()
+            return row is not None and row[0] == 0
+
+    def revoke_public_grant(self, grant_id: str) -> None:
+        with self._db_lock:
+            self._db.execute("UPDATE public_grants SET revoked=1 WHERE grant_id=?", (grant_id,))
+            self._db.commit()
 
     # -- lifecycle -------------------------------------------------------------------
 

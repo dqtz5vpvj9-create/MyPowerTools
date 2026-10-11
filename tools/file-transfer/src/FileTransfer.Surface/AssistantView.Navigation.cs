@@ -40,7 +40,7 @@ internal sealed partial class AssistantView
             var latest = messages.LastOrDefault();
             var draft = key == ActiveConversationKey ? _input.Text ?? "" : ConversationDraftText(key);
             var preview = draft.Length > 0 ? "[草稿] " + draft.Replace('\n', ' ') : latest is null
-                ? (id is null ? "已加入设备的共享会话" : "文字、照片和文件")
+                ? (id is null ? (_core.Snapshot.Identity.PublicRoomState == "public" ? "本服务所有已授权用户可见" : _core.Snapshot.Identity.PublicRoomState.StartsWith("public") ? "正在加入公屏 · 无需连接码" : "私人共享会话 · 可在设置中加入公屏") : "文字、照片和文件")
                 : latest.IsText ? latest.Text ?? "" : "[文件] " + latest.DisplayName;
             var readAt = ConversationReadAt(key);
             var unread = messages.Count(i => i.SenderDeviceId != _core.Snapshot.Identity.Id && i.CreatedAt is { } at && (readAt is null || at > readAt));
@@ -255,6 +255,7 @@ internal sealed partial class AssistantView
             if (peer is not null) ShowContactCard(peer);
             return;
         }
+        if (_core.Snapshot.Identity.PublicRoomState.StartsWith("public")) { ShowPublicRoomSheet(); return; }
         _sheetTitle.Text = "共享会话成员";
         var body = MobileUi.Stack(10, MobileUi.Note("只有明确加入的设备可见此会话。普通配对不会加入。"));
         body.Children.Add(MobileUi.Caption(_core.Snapshot.Identity.DisplayName + " · 本机"));

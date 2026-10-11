@@ -182,6 +182,9 @@ internal sealed record AssistantReceipt(string DeviceId, string DeviceName, Date
 /// <summary>This device's identity inside the shared conversation.</summary>
 internal sealed record AssistantIdentity(string Id, string Name, bool Linked)
 {
+    public string PublicRoomState { get; init; } = "private";
+    public string AuthorizationError { get; init; } = "";
+    public bool HasPrivateConversation { get; init; }
     public string ConversationKey { get; init; } = "";
     public string DisplayName => Name is { Length: > 0 } name ? name : "本机";
 }

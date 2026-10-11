@@ -16,6 +16,32 @@ public sealed class ConversationNavigationV3Tests
     [AvaloniaTheory]
     [InlineData(390)]
     [InlineData(1000)]
+    public void PublicAuthorizationCanBeRequestedOnThisDeviceWithoutConnectionCode(int width)
+    {
+        var module = new FakeTransferModule();
+        module.RawResponses["assistant.inspect"] = """{"identity":{"id":"fresh-phone","name":"Phone","linked":false,"publicRoomState":"public-denied","authorizationError":"服务器暂未开放公屏授权"},"items":[],"members":[]}""";
+        module.RawResponses["assistant.sync"] = module.RawResponses["assistant.inspect"];
+        module.RawResponses["assistant.public.join"] = """{"joined":true}""";
+        var view = new TransferView(module.Context("/mnt/cache/data-cache"));
+        using var host = new Host(view, width);
+        view.Conversation.OpenSetup(); host.Settle();
+        Button Label(string label) => view.GetLogicalDescendants().OfType<Button>().First(b =>
+            b.IsEffectivelyVisible && (Equals(b.Content, label) || Text(b).Contains(label)));
+        Click(host.Window, Label("公屏与授权"));
+        Assert.Contains("服务器暂未开放公屏授权", Text(view));
+        Assert.Contains("服务 · proxy.lixinrui000.cn", Text(view));
+        module.RawResponses["assistant.inspect"] = """{"identity":{"id":"fresh-phone","name":"Phone","linked":true,"publicRoomState":"public","conversationKey":"shared:public-room"},"items":[{"id":"public-message","conversationKey":"shared:public-room","kind":"text","text":"加入后的公屏消息","senderDeviceId":"peer","state":"available","receipts":[]}],"members":[]}""";
+        module.RawResponses["assistant.sync"] = module.RawResponses["assistant.inspect"];
+        Click(host.Window, Label("申请加入公屏"));
+        Assert.Contains("加入后的公屏消息", Text(view.Conversation.ThreadPanel));
+        Assert.Equal(1, module.CountCalls("assistant.public.join"));
+        Assert.Equal(0, module.CountCalls("assistant.link.import"));
+        Assert.Equal(0, module.CountCalls("assistant.link.export"));
+    }
+
+    [AvaloniaTheory]
+    [InlineData(390)]
+    [InlineData(1000)]
     public void StorageListsSelectsAndConfirmsOnlyChosenDownloads(int width)
     {
         var module = Data();

@@ -76,7 +76,7 @@ public sealed partial class FileTransferModule
 
     private bool Linked
     {
-        get { lock (_stateLock) return _linked == "imported" || _ownDevices.Count > 0; }
+        get { lock (_stateLock) return PublicRoom || _linked == "imported" || (!PublicPending && _linked != "public-left" && _ownDevices.Count > 0); }
     }
 
     private string LinkState => Linked ? "linked" : _linked.Length > 0 ? "waiting" : "none";
@@ -109,6 +109,8 @@ public sealed partial class FileTransferModule
         _conversationKey = await SecretAsync("conversation-key", token) ?? "";
         _linked = await SecretAsync("conversation-linked", token) ?? "";
         if (_conversationId.Length > 0 && _conversationKey.Length == 64) return;
+        _linked = "public-pending";
+        await _secrets.SaveAsync(Id, "conversation-linked", _linked, token);
         _conversationId = "self-" + Guid.NewGuid().ToString("N")[..8];
         _conversationKey = Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant();
         await _secrets.SaveAsync(Id, "conversation-id", _conversationId, token);
@@ -154,7 +156,7 @@ public sealed partial class FileTransferModule
     /// </summary>
     private async Task ConfirmOwnDeviceAsync(string deviceId, string name, string address, CancellationToken token)
     {
-        if (deviceId.Length == 0 || deviceId == Setting("deviceId")) return;
+        if (PublicRoom || PublicPending || deviceId.Length == 0 || deviceId == Setting("deviceId")) return;
         lock (_stateLock)
         {
             var existing = _ownDevices.GetValueOrDefault(deviceId);
@@ -175,7 +177,7 @@ public sealed partial class FileTransferModule
 
     private OwnDevice[] OwnDevices()
     {
-        lock (_stateLock) return _ownDevices.Values.ToArray();
+        lock (_stateLock) return PublicRoom || PublicPending || _linked == "public-left" ? [] : _ownDevices.Values.ToArray();
     }
 
     /// <summary>
@@ -298,7 +300,7 @@ public sealed partial class FileTransferModule
             }
             catch (OperationCanceledException) when (_lifetime.IsCancellationRequested) { return; }
             catch (OperationCanceledException) { /* receive.stop cancelled this poll */ }
-            catch (PublicRelayAuthException) { await WaitForReceiveEventAsync(TimeSpan.FromMinutes(1)); }
+            catch (PublicRelayAuthException ex) { _relayAuthError = ex.Message; EmitAssistantChanged("public.authorization-required"); await WaitForReceiveEventAsync(TimeSpan.FromMinutes(1)); }
             catch (Exception)
             {
                 await WaitForReceiveEventAsync(backoff);
@@ -473,6 +475,7 @@ public sealed partial class FileTransferModule
         await _relayGate.WaitAsync(token);
         try
         {
+            await EnsurePublicAuthorizationAsync(token);
             identity = Identity(); // a queued pass may have waited while another device joined
             var store = _assistantStore ?? throw new InvalidOperationException("会话存储尚未就绪。");
             var outcome = await RunRelayPassAsync(store, identity, token);
@@ -876,6 +879,9 @@ public sealed partial class FileTransferModule
                 ["name"] = DeviceName(),
                 ["linked"] = Linked,
                 ["linkState"] = LinkState,
+                ["hasPrivateConversation"] = !string.IsNullOrEmpty(await SecretAsync("private-conversation-id", token)),
+                ["publicRoomState"] = _linked.StartsWith("public") ? _linked : "private",
+                ["authorizationError"] = _publicRoomError.Length > 0 ? _publicRoomError : _relayAuthError,
                 ["ownDevices"] = OwnDevices().Length,
                 ["conversationId"] = _conversationId,
                 ["conversationKey"] = AssistantConversations.Shared(_conversationId)
@@ -1101,6 +1107,8 @@ public sealed partial class FileTransferModule
     private async Task<object> AssistantSendAsync(JsonObject args, CancellationToken token)
     {
         var target = SettingsJson.ReadString(args, "targetDeviceId") ?? "";
+        if (target.Length == 0 && (PublicPending || _linked == "public-left"))
+            throw new InvalidOperationException("请先完成公屏授权，再发送消息。");
         if (args["conversationKey"] is { } keyNode)
         {
             var key = AssistantConversations.ValidateKey(ReadOptionalString(keyNode, "conversationKey") ?? "");
@@ -1404,6 +1412,7 @@ public sealed partial class FileTransferModule
     private async Task<object> AssistantLinkExportAsync(CancellationToken token)
     {
         await EnsureConversationAsync(token);
+        if (_linked.StartsWith("public")) throw new InvalidOperationException("公屏请在每台设备上直接申请授权，无需分享连接码。");
         var address = Setting("listenAddress");
         if (address.Length == 0) address = TransferFiles.LocalAddresses().FirstOrDefault() ?? "";
         // One scan has to be enough: the code carries the relay configuration too, so the other device
@@ -1544,9 +1553,9 @@ public sealed partial class FileTransferModule
         OperatingSystem.IsMacOS() ? "macos" : OperatingSystem.IsLinux() ? "linux" : "";
 
     /// <summary>True when the user configured their own relay; the public relay is only the default.</summary>
-    private bool CustomRelayConfigured => Setting("webDavUrl").Length > 0 && Setting("username").Length > 0;
+    private bool CustomRelayConfigured => !_linked.StartsWith("public") && Setting("webDavUrl").Length > 0 && Setting("username").Length > 0;
 
-    private SharedLocatorTransfer? SharedTransport(AssistantStore store, AssistantIdentity identity) => CustomRelayConfigured ? null
+    private SharedLocatorTransfer? SharedTransport(AssistantStore store, AssistantIdentity identity) => CustomRelayConfigured || PublicRoom ? null
         : new(new SharedLocatorClient(identity.ConversationId, _conversationKey, SharedRelayRoute.Public),
             new SharedLocatorClient(identity.ConversationId, _conversationKey, SharedRelayRoute.Tail),
             Path.Combine(store.Directory, "shared-copy"));
@@ -1571,6 +1580,8 @@ public sealed partial class FileTransferModule
     /// <summary>Registers (once per conversation identity) and returns the public relay client.</summary>
     private async Task<PublicRelayClient?> PublicRelayAsync(CancellationToken token)
     {
+        await EnsurePublicAuthorizationAsync(token);
+        if (PublicPending || _linked == "public-left") return null;
         await _publicRelayInitGate.WaitAsync(token);
         try
         {
@@ -1719,7 +1730,7 @@ public sealed partial class FileTransferModule
     private async Task<bool> IsTrustedTokenAsync(string token, string? deviceId, string? address, string? name, CancellationToken token2)
     {
         if (token.Length == 0) return false;
-        if (token == _conversationKey)
+        if (!_linked.StartsWith("public") && token == _conversationKey)
         {
             // Only a device that holds the conversation key can authenticate this way, and the endpoint
             // it connected from is the address a later direct send has to use.

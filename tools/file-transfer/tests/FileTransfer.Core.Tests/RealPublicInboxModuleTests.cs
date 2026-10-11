@@ -61,7 +61,7 @@ public sealed class RealPublicInboxModuleTests : IAsyncLifetime
         return _relay;
     }
 
-    private async Task<FileTransferModule> StartAsync(string name, string deviceId)
+    private async Task<FileTransferModule> StartAsync(string name, string deviceId, bool publicRoom = false)
     {
         var root = Path.Combine(_root, name);
         Directory.CreateDirectory(root);
@@ -73,8 +73,14 @@ public sealed class RealPublicInboxModuleTests : IAsyncLifetime
             ["peers"] = new JsonArray()
         };
         await File.WriteAllTextAsync(Path.Combine(root, "preferences.json"), preferences.ToJsonString());
+        var secrets = new InMemorySecretStore();
+        if (!publicRoom)
+        {
+            await secrets.SaveAsync("file-transfer", "conversation-id", "private-" + deviceId, CancellationToken.None);
+            await secrets.SaveAsync("file-transfer", "conversation-key", new string('a', 64), CancellationToken.None);
+        }
         var context = new ModuleContext("test", "1.0", "file-transfer", "file-transfer", root, root, root, "linux",
-            ["secret.store"], new Dictionary<string, object> { ["secret.store"] = new InMemorySecretStore() });
+            ["secret.store"], new Dictionary<string, object> { ["secret.store"] = secrets });
         var module = new FileTransferModule();
         _modules.Add(module);
         Assert.True((await module.InitializeAsync(context, CancellationToken.None)).Ok);
@@ -103,6 +109,58 @@ public sealed class RealPublicInboxModuleTests : IAsyncLifetime
             await Task.Delay(200);
         }
         throw new InvalidOperationException("条目状态没有稳定：" + (last?.ToJsonString() ?? "(条目尚未出现)"));
+    }
+
+    [Fact]
+    public async Task FreshDevicesAuthorizeAndExchangePublicMessagesWithoutPairing()
+    {
+        await RelayAsync();
+        var first = await StartAsync("public-a", "public-a", publicRoom: true);
+        var second = await StartAsync("public-b", "public-b", publicRoom: true);
+        async Task<JsonObject> Authorized(FileTransferModule module)
+        {
+            for (var i = 0; i < 100; i++)
+            {
+                var snapshot = await CallAsync(module, "file-transfer.assistant.inspect");
+                if (snapshot["identity"]!["publicRoomState"]!.GetValue<string>() == "public") return snapshot;
+                await Task.Delay(100);
+            }
+            throw new Exception("Automatic server authorization did not finish");
+        }
+        var a = await Authorized(first); var b = await Authorized(second);
+        Assert.Equal(a["identity"]!["conversationId"]!.GetValue<string>(), b["identity"]!["conversationId"]!.GetValue<string>());
+        var sent = await CallAsync(first, "file-transfer.assistant.send", new() { ["text"] = "public-without-code" });
+        var id = sent["itemIds"]![0]!.GetValue<string>();
+        var received = await WaitForItemAsync(second, id, item => item["state"]!.GetValue<string>() == "available");
+        Assert.Equal("public-without-code", received["text"]!.GetValue<string>());
+        Assert.Empty((await CallAsync(second, "file-transfer.assistant.inspect"))["members"]!.AsArray());
+        await CallAsync(second, "file-transfer.assistant.public.leave");
+        Assert.Equal("public-left", (await CallAsync(second, "file-transfer.assistant.inspect"))["identity"]!["publicRoomState"]!.GetValue<string>());
+        await CallAsync(second, "file-transfer.assistant.public.join");
+        await Authorized(second);
+    }
+
+    [Fact]
+    public async Task JoiningPublicRoomPreservesPrivateHistoryWithoutPublishingIt()
+    {
+        await RelayAsync();
+        var original = await StartAsync("private-owner", "private-owner");
+        var before = await CallAsync(original, "file-transfer.assistant.inspect");
+        var privateId = before["identity"]!["conversationId"]!.GetValue<string>();
+        var privateSent = await CallAsync(original, "file-transfer.assistant.send", new() { ["text"] = "private-history" });
+        var privateItem = privateSent["itemIds"]![0]!.GetValue<string>();
+        await CallAsync(original, "file-transfer.assistant.public.join");
+        var joined = await CallAsync(original, "file-transfer.assistant.inspect");
+        Assert.True(joined["identity"]!["hasPrivateConversation"]!.GetValue<bool>());
+        Assert.NotEqual(privateId, joined["identity"]!["conversationId"]!.GetValue<string>());
+        var receiver = await StartAsync("public-reader", "public-reader", publicRoom: true);
+        var publicSent = await CallAsync(original, "file-transfer.assistant.send", new() { ["text"] = "public-only" });
+        await WaitForItemAsync(receiver, publicSent["itemIds"]![0]!.GetValue<string>(), item => item["state"]!.GetValue<string>() == "available");
+        Assert.DoesNotContain(Items(await CallAsync(receiver, "file-transfer.assistant.inspect")), item => item!["id"]!.GetValue<string>() == privateItem);
+        await CallAsync(original, "file-transfer.assistant.public.private");
+        var restored = await CallAsync(original, "file-transfer.assistant.inspect");
+        Assert.Equal(privateId, restored["identity"]!["conversationId"]!.GetValue<string>());
+        Assert.Contains(Items(restored), item => item!["id"]!.GetValue<string>() == privateItem);
     }
 
     [Fact]

@@ -15,6 +15,7 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 import threading
 import time
@@ -82,6 +83,21 @@ class RelayApp:
             if request.method != "GET" and request.method != "HEAD":
                 return self._method_not_allowed("GET, HEAD")
             return self._health(request)
+
+        if rest == "/v1/public-room/authorizations":
+            if request.method != "POST":
+                return self._method_not_allowed("POST")
+            # Open enrollment is a server policy, not a credential embedded in the App.
+            if os.environ.get("MPT_RELAY_PUBLIC_ENROLLMENT", "open") != "open":
+                return json_response(403, {"error": "enrollment_closed", "detail": "服务器暂未开放公屏授权，请稍后重试。"})
+            try:
+                body = json.loads(request.body.read_all(2048))
+                device = body.get("deviceId", "")
+                if not isinstance(device, str) or not re.fullmatch(r"[A-Za-z0-9_-]{1,64}", device):
+                    raise ValueError()
+            except (ValueError, AttributeError, TypeError):
+                return json_response(400, {"error": "invalid_device"})
+            return json_response(201, self.store.authorize_public_device(device), ("Cache-Control", "no-store"))
 
         if rest == "/v1/conversations":
             if request.method != "POST":
@@ -433,7 +449,9 @@ class RelayApp:
         if not acquired:
             return json_response(503, {"error": "busy"}, ("Retry-After", "2"))
         try:
-            known = self.store.verify(credentials.conversation_id, credentials.conversation_key)
+            known = (self.store.verify_public_grant(credentials.conversation_key)
+                     if credentials.conversation_id == self.store.public_room_id()
+                     else self.store.verify(credentials.conversation_id, credentials.conversation_key))
         finally:
             self._auth_slots.release()
 

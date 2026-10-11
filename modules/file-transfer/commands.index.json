@@ -330,6 +330,36 @@
       "execution": {
         "type": "module.execute"
       }
+    },
+    {
+      "id": "file-transfer.assistant.public.join",
+      "title": "assistant.public.join",
+      "subtitle": "公屏与授权",
+      "kind": "action",
+      "category": "Files",
+      "execution": {
+        "type": "module.execute"
+      }
+    },
+    {
+      "id": "file-transfer.assistant.public.leave",
+      "title": "assistant.public.leave",
+      "subtitle": "公屏与授权",
+      "kind": "action",
+      "category": "Files",
+      "execution": {
+        "type": "module.execute"
+      }
+    },
+    {
+      "id": "file-transfer.assistant.public.private",
+      "title": "assistant.public.private",
+      "subtitle": "公屏与授权",
+      "kind": "action",
+      "category": "Files",
+      "execution": {
+        "type": "module.execute"
+      }
     }
   ]
 }
