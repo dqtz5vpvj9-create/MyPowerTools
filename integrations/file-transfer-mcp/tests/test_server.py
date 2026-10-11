@@ -68,6 +68,8 @@ print(json.dumps({"ok":True,"command":args[1],"data":{"arguments":args}}))
             self.assertTrue(tools["mpt_devices"].annotations.readOnlyHint)
             self.assertFalse(tools["mpt_send_files"].annotations.idempotentHint)
             self.assertIn("全部共享成员可见", tools["mpt_send_shared"].description)
+            joined = await client.call_tool("mpt_join_public", {})
+            self.assertEqual(["transfer", "public", "join", "--json"], joined.data["data"]["arguments"][:4])
 
     async def test_quark_remains_explicit_shared_send_and_receiver_filter(self):
         async with Client(module.create_server(self.cli)) as client:

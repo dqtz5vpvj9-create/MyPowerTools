@@ -5,15 +5,16 @@ description: 使用 MyPowerTools 文件传输助手 MCP 收发文件、向手机
 
 # MPT 文件传输助手
 
-复用当前主机已安装的共享 HTTP MCP 和后台 Runner。多个聊天共用一个接入服务，不要为每个聊天启动 Python MCP 或新建 Runner。文件助手是共享会话（公屏），设备私聊是另一种投递范围；两者使用同一后台传输服务。网络链路由后台选择，发送不以用户手动连接 Tailscale 为前提。
+复用当前主机已安装的共享 HTTP MCP 和后台 Runner。多个聊天共用一个接入服务，不要为每个聊天启动 Python MCP 或新建 Runner。服务器公屏、私人共享会话和设备私聊是三种不同的投递范围；它们使用同一后台传输服务。网络链路由后台选择，发送不以用户手动连接 Tailscale 为前提。
 
 ## 找到工具与目标
 
 查找工具名后缀 `mpt_devices`、`mpt_send_shared`、`mpt_send_files`。不同客户端可能显示 `mcp__mpt_file_transfer__…`、`mypowertools-file-transfer` 等前缀；使用当前客户端提供的实际名称。未加载时用工具搜索发现；仍无 MCP 时按下方 CLI 入口继续。
 
-先调用 `mpt_devices({})`，必要时用 `mpt_conversations({})` 区分当前公屏和私聊，用 `mpt_status({})` 检查消息。文件的绝对路径必须存在于 **MCP 进程所在主机**；远程 MCP 不能直接读取 Agent 本地路径。
+先调用 `mpt_devices({})`，用 `mpt_conversations({})` 检查当前共享会话身份，用 `mpt_status({})` 检查消息。文件的绝对路径必须存在于 **MCP 进程所在主机**；远程 MCP 不能直接读取 Agent 本地路径。
 
-- “发到文件传输助手”：用公屏，全部共享成员可见。无须先给每个成员做私聊配对。
+- “发到文件传输助手”：用服务器公屏。先确认 `mpt_conversations` 的 `data.shared.publicRoomState` 为 `public`；否则调用 `mpt_join_public({})` 向服务器申请授权，再核对返回的 `data.identity.publicRoomState`。无需邀请文件、连接码或逐一配对。加入只切换后续发送目标，保留私人历史，不转发旧消息。
+- 私人共享会话即使已连接中转，也不是服务器公屏。`mpt_send_shared` 使用当前共享会话，发送前必须核对身份；不能只看服务器域名或“已连接”。
 - “只发给某设备”：用该设备的稳定 `deviceId` 私聊，检查 `canPrivateMessage`；需要配对时使用已有私密连接码文件，或让用户完成配对。不要把私聊改成公屏。
 - “传到我手机”但有多台手机且当前上下文不能确定：先澄清目标。设备显示名称可能重复，也不要把测试 Pixel 当作用户日用手机。
 
@@ -69,7 +70,7 @@ mpt_send_shared({"files":["/absolute/path/large.apk"],"via":"quark","wait_for_re
 
 当前 MCP 的显式 `via` 仅支持 `auto`、`quark`，不要编造 `via:baidu`。私聊接口未提供夸克中转；保持用户选择的可见范围。`transferAvailable:false` 可能只是尚未确认领取能力，不能把已就绪账号当作未登录而要求再次授权；首次入队后检查实际状态和回执。当前网盘领取链路仍可能需要发送端在线，不能承诺发完关机后一定可取。
 
-只有账号确实需要授权时才用 `mpt_cloud_authorize` / `mpt_cloud_complete`。当前 CLI 授权可能需要已有凭据文件，而非可用二维码；以工具结果为准。配对用 `mpt_pair_device({"invitation_file":"绝对路径"})`，加入公屏用 `mpt_join_shared`；两者不要混淆。凭据和邀请只传私密文件路径，不把内容复制到工具参数或答复。
+只有账号确实需要授权时才用 `mpt_cloud_authorize` / `mpt_cloud_complete`。当前 CLI 授权可能需要已有凭据文件，而非可用二维码；以工具结果为准。配对用 `mpt_pair_device({"invitation_file":"绝对路径"})`，加入私人共享会话用 `mpt_join_shared`，加入服务器公屏用 `mpt_join_public`。凭据入口各不相同。凭据和邀请只传私密文件路径，不把内容复制到工具参数或答复。
 
 ## 接收与 MCP 不可见时的入口
 
@@ -80,6 +81,8 @@ Linux 已安装包装命令通常为 `~/.local/bin/mpt`：
 ```bash
 ~/.local/bin/mpt transfer help
 ~/.local/bin/mpt transfer devices --json
+~/.local/bin/mpt transfer public join --json
+~/.local/bin/mpt transfer conversations --json
 ~/.local/bin/mpt transfer send --conversation shared --file /absolute/path/app.apk --json
 ~/.local/bin/mpt transfer wait --item ITEM_ID --from DEVICE_ID --timeout 60 --json
 ```

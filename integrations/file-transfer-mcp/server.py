@@ -91,7 +91,7 @@ def create_server(cli: TransferCli) -> FastMCP:
     async def mpt_send_shared(files: list[str], text: str = "", receipt_from: str = "",
                               via: Literal["auto", "quark"] = "auto",
                               wait_for_receipt: bool = True, timeout_seconds: int = 600) -> dict:
-        """向文件助手公屏发送内容，全部共享成员可见；不是指定设备的私聊。
+        """向当前共享会话发送内容，全部共享成员可见。先检查 mpt_conversations 的 shared.publicRoomState；public 才是服务器公屏。加入服务器公屏用 mpt_join_public。
 
         大文件可选 via=quark，要求 Linux 端已连接夸克、设为默认并开启 cloud-only。
         receipt_from 指定要等待回执的设备，不改变公屏可见范围。超时不删除待发项。
@@ -146,8 +146,13 @@ def create_server(cli: TransferCli) -> FastMCP:
 
     @mcp.tool(annotations=send)
     async def mpt_join_shared(invitation_file: str) -> dict:
-        """从私密文件助手会话邀请文件加入公屏。不同于设备私聊配对。"""
+        """从私密邀请文件加入私人共享会话。服务器公屏用 mpt_join_public，无需邀请文件。"""
         return await cli.call("join", "--code-file", invitation_file)
+
+    @mcp.tool(annotations=send)
+    async def mpt_join_public() -> dict:
+        """向当前服务器申请授权并加入服务公屏，无需连接码。切换后续共享发送目标，保留私人历史，不转发历史内容。返回 identity.publicRoomState 应为 public。"""
+        return await cli.call("public", "join")
 
     @mcp.tool(annotations=send)
     async def mpt_cloud_select(account_id: str, mode: Literal["auto", "cloud-only"] = "cloud-only") -> dict:

@@ -144,6 +144,20 @@ public class TransferCliTests
     }
 
     [Theory]
+    [InlineData("join")]
+    [InlineData("leave")]
+    [InlineData("private")]
+    public async Task PublicRoomActionsUseServerAuthorizationWithoutInvitation(string action)
+    {
+        var invoker = new Fake(Snapshot("queued"));
+        var output = new StringWriter();
+        var code = await TransferCli.RunAsync(["public", action, "--json"], output, new StringWriter(), invoker);
+        Assert.Equal(0, code);
+        Assert.Equal(new[] { "file-transfer.assistant.public." + action, "file-transfer.assistant.inspect" }, invoker.Commands);
+        Assert.DoesNotContain("assistant.link.import", string.Join(",", invoker.Commands));
+    }
+
+    [Theory]
     [InlineData("pair", "file-transfer.pair.import")]
     [InlineData("join", "file-transfer.assistant.link.import")]
     public async Task SecretInvitationRoutesWithoutPrintingCode(string operation, string expectedCommand)

@@ -140,9 +140,11 @@ systemctl --user status mpt-transfer-mcp.service
 
 旧 `server.py` 只供仍未迁移的 stdio 客户端兼容，不是默认安装入口。不要给每个聊天重新安装或启动一份服务。HTTP 认证缺失返回 401，浏览器 Origin 或非本机 Host 返回 403，凭据不同于 Runner IPC token。
 
-主要工具为 `mpt_status`、`mpt_devices`、`mpt_conversations`、`mpt_send_files`、`mpt_send_shared`、`mpt_receipts`、`mpt_wait_receipts` 和 `mpt_cancel`。私聊调用 `mpt_send_files(device, files, text)`；公屏调用 `mpt_send_shared(files, text, receipt_from, via)`，默认等待回执，公屏必须提供 `receipt_from`。两类发送默认等待 600 秒，可调整 `timeout_seconds`。
+主要工具为 `mpt_status`、`mpt_devices`、`mpt_conversations`、`mpt_send_files`、`mpt_send_shared`、`mpt_receipts`、`mpt_wait_receipts` 和 `mpt_cancel`。私聊调用 `mpt_send_files(device, files, text)`；当前共享会话调用 `mpt_send_shared(files, text, receipt_from, via)`，默认等待回执，公屏必须提供 `receipt_from`。两类发送默认等待 600 秒，可调整 `timeout_seconds`。
 
-`mpt_pair_device` 和 `mpt_join_shared` 接收私密邀请文件路径。网盘管理使用 `mpt_cloud_accounts`、`mpt_cloud_authorize`、`mpt_cloud_complete` 和 `mpt_cloud_select`；后者会持久修改默认账号与策略。MCP 超时作为工具错误返回完整 CLI JSON，保留待发 ID，后续可继续查询回执；终止 MCP 调用只释放当前 IPC 客户端，已接受消息仍由 Runner 处理。
+发送到服务器公屏前，检查 `mpt_conversations` 返回 `shared.publicRoomState:public`。否则使用 `mpt_join_public`（CLI：`mpt transfer public join`）在本机取得服务器授权，无需邀请文件。加入保留原私人历史，后续共享发送使用公屏；`public private` 可返回原私人会话。
+
+`mpt_pair_device` 和 `mpt_join_shared` 接收私密邀请文件路径，分别用于设备私聊配对和私人共享会话，不是服务公屏授权。网盘管理使用 `mpt_cloud_accounts`、`mpt_cloud_authorize`、`mpt_cloud_complete` 和 `mpt_cloud_select`；后者会持久修改默认账号与策略。MCP 超时作为工具错误返回完整 CLI JSON，保留待发 ID，后续可继续查询回执；终止 MCP 调用只释放当前 IPC 客户端，已接受消息仍由 Runner 处理。
 
 ### Windows 部署验收（2026-10-05）
 

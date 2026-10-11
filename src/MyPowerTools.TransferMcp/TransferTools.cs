@@ -37,7 +37,7 @@ public sealed class TransferTools(TransferAccess access)
         return await access.Call(args.ToArray(), cancellationToken);
     }
     [McpServerTool(Name = "mpt_send_shared", ReadOnly = false, Destructive = false)]
-    [Description("向文件助手公屏发送内容，全部共享成员可见；不是指定设备的私聊。\n\n大文件可选 via=quark，要求本机已连接夸克、设为默认并开启 cloud-only。\nreceipt_from 指定要等待回执的设备，不改变公屏可见范围。超时不删除待发项。")]
+    [Description("向当前共享会话发送内容，全部共享成员可见。先用 mpt_conversations 确认 shared.publicRoomState：public 才是服务器公屏；其他状态可能是私人共享会话。加入服务器公屏用 mpt_join_public。\n\n大文件可选 via=quark，要求本机已连接夸克、设为默认并开启 cloud-only。\nreceipt_from 指定要等待回执的设备，不改变公屏可见范围。超时不删除待发项。")]
     public async Task<CallToolResult> mpt_send_shared(string[] files, string text = "", string receipt_from = "", RelayRoute via = RelayRoute.Auto, bool wait_for_receipt = true, int timeout_seconds = 600, CancellationToken cancellationToken = default)
     {
         List<string> args = ["send", "--conversation", "shared", "--via", Wire(via)];
@@ -84,10 +84,16 @@ public sealed class TransferTools(TransferAccess access)
         return await access.Call(["pair", "--code-file", invitation_file], cancellationToken);
     }
     [McpServerTool(Name = "mpt_join_shared", ReadOnly = false, Destructive = false)]
-    [Description("从私密文件助手会话邀请文件加入公屏。不同于设备私聊配对。")]
+    [Description("从私密邀请文件加入私人共享会话。服务器公屏使用 mpt_join_public，无需邀请文件。")]
     public async Task<CallToolResult> mpt_join_shared(string invitation_file, CancellationToken cancellationToken = default)
     {
         return await access.Call(["join", "--code-file", invitation_file], cancellationToken);
+    }
+    [McpServerTool(Name = "mpt_join_public", ReadOnly = false, Destructive = false)]
+    [Description("向当前服务器申请授权并加入本服务所有已授权用户共享的公屏，无需连接码或另一台设备。切换本机后续共享发送目标，保留原私人会话历史，不转发历史内容。返回 identity.publicRoomState 应为 public。")]
+    public async Task<CallToolResult> mpt_join_public(CancellationToken cancellationToken = default)
+    {
+        return await access.Call(["public", "join"], cancellationToken);
     }
     [McpServerTool(Name = "mpt_cloud_select", ReadOnly = false, Destructive = false)]
     [Description("明确设置本机文件助手的默认网盘和持久中转策略，影响后续发送。\ncloud-only 不允许附件退回公网上传；auto 允许自动选择后端。")]

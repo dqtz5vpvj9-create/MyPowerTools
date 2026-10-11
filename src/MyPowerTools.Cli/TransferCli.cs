@@ -41,11 +41,12 @@ public sealed class TransferCli
                     ["ok"] = true, ["command"] = "help", ["data"] = new JsonObject
                     {
                         ["usage"] = "mpt transfer COMMAND [OPTIONS]",
-                        ["commands"] = new JsonArray("status", "devices", "conversations", "send", "receipts", "wait", "cancel", "pair", "join", "invite", "cloud"),
+                        ["commands"] = new JsonArray("status", "devices", "conversations", "send", "receipts", "wait", "cancel", "pair", "join", "invite", "public", "cloud"),
                         ["send"] = "send (--to DEVICE_ID | --conversation shared) [--text TEXT] [--file PATH ...] [--via auto|quark] [--wait --receipt-from DEVICE_ID --timeout SECONDS]",
                         ["receipts"] = "receipts|wait --item ITEM_ID ... [--from DEVICE_ID] [--timeout SECONDS]",
                         ["pair"] = "pair --code-file PATH (device pairing invitation)",
-                        ["join"] = "join --code-file PATH (shared conversation invitation)",
+                        ["join"] = "join --code-file PATH (private shared conversation invitation)",
+                        ["public"] = "public status|join|leave|private (server-authorized public room; no invitation needed)",
                         ["invite"] = "invite --output PATH (writes a private shared invitation file; PATH must not exist)",
                         ["cloud"] = "cloud accounts | authorize --provider quark|baidu | complete --operation ID --credential-file PATH --kind cookie|refreshToken | default --account ID | preferences --mode auto|cloud-only",
                         ["common"] = "--json --endpoint-address ADDRESS --data-root ROOT; environment defaults: MPT_ENDPOINT_ADDRESS, MPT_DATA_ROOT"
@@ -63,7 +64,7 @@ public sealed class TransferCli
                 client = HostControlClient.ForEndpoint(endpoint, auth);
                 injected = new HostInvoker(client);
             }
-            if (command != "cloud" && options.Positional.Count != 0) throw new ArgumentException("Unexpected positional argument: " + options.Positional[0]);
+            if (command is not ("cloud" or "public") && options.Positional.Count != 0) throw new ArgumentException("Unexpected positional argument: " + options.Positional[0]);
             var cli = new TransferCli(injected, cancellationToken);
             var (data, code) = await cli.Execute(command, options);
             await output.WriteLineAsync(new JsonObject { ["ok"] = code == 0, ["command"] = command, ["data"] = data,
@@ -165,8 +166,15 @@ public sealed class TransferCli
                 return (invitationResult, 0);
             case "join":
                 return (await Call("assistant.link.import", new() { ["code"] = (await File.ReadAllTextAsync(o.Required("--code-file"))).Trim() }), 0);
+            case "public":
+                var action = o.Positional.SingleOrDefault() ?? "status";
+                if (action == "status") return (await Call("assistant.inspect"), 0);
+                if (action is not ("join" or "leave" or "private"))
+                    throw new ArgumentException("public status|join|leave|private");
+                var changed = await Call("assistant.public." + action);
+                return (new JsonObject { ["result"] = changed, ["identity"] = (await Call("assistant.inspect"))["identity"]?.DeepClone() }, 0);
             case "cloud": return await Cloud(o);
-            default: throw new ArgumentException("Commands: status, devices, conversations, send, receipts, wait, cancel, pair, join, invite, cloud accounts|authorize|complete|default|preferences. All output is JSON; use --json for explicit machine mode.");
+            default: throw new ArgumentException("Commands: status, devices, conversations, send, receipts, wait, cancel, pair, join, invite, public status|join|leave|private, cloud accounts|authorize|complete|default|preferences. All output is JSON; use --json for explicit machine mode.");
         }
     }
 
