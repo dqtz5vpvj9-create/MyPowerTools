@@ -148,7 +148,7 @@ internal sealed record AssistantItem(
         AssistantItemState.Sending => IsIncoming
             ? Size > 0 ? $"接收中 {Progress:F0}%" : "接收中"
             : Size > 0 ? $"发送中 {Progress:F0}%" : "发送中",
-        AssistantItemState.Stored => IsIncoming ? "等待接收" : ConfirmedRecipientCount > 0 ? DeliveredText : "已发送，等待接收",
+        AssistantItemState.Stored => IsIncoming ? (NeedsDownload ? "待下载 · 点按接收" : "等待接收") : ConfirmedRecipientCount > 0 ? DeliveredText : "已发送，等待接收",
         AssistantItemState.Delivered => IsIncoming ? "已接收" : DeliveredText,
         AssistantItemState.Downloading => Size > 0 ? $"接收中 {Progress:F0}%" : "接收中",
         AssistantItemState.Available => IsText || CanOpen ? "已接收" : "待下载",

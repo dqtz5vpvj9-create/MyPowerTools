@@ -97,7 +97,9 @@ public static class AndroidFileLauncher
 
         foreach (var mimeType in plan.MimeAttempts)
         {
-            var intent = new A.Content.Intent(A.Content.Intent.ActionView);
+            var isPackage = mimeType == "application/vnd.android.package-archive";
+            // The package installer owns the unknown-sources consent and installation confirmation.
+            var intent = new A.Content.Intent(isPackage ? A.Content.Intent.ActionInstallPackage : A.Content.Intent.ActionView);
             intent.SetDataAndType(uri, mimeType);
 
             // Read-only and per launch: the flag grants exactly this URI to whatever the system

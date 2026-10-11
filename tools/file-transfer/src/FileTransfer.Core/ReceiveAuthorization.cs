@@ -136,6 +136,15 @@ public sealed class ReceiveAuthorization(TimeSpan? requestLifetime = null, TimeS
         }
     }
 
+    public void ForgetItemApproval(string itemId)
+    {
+        lock (_gate)
+        {
+            foreach (var key in _decisions.Keys.Where(key => key.EndsWith("|" + itemId, StringComparison.Ordinal)).ToArray())
+                _decisions.Remove(key);
+        }
+    }
+
     public void Forget(string deviceId)
     {
         lock (_gate)

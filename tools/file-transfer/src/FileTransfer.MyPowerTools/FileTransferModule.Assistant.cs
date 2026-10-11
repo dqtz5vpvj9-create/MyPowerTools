@@ -1154,6 +1154,14 @@ public sealed partial class FileTransferModule
     {
         var itemId = RequiredItemId(args);
         var store = _assistantStore ?? throw new InvalidOperationException("会话存储尚未就绪。");
+        var candidate = (await store.SnapshotAsync(token)).Find(itemId);
+        if (candidate is not null && candidate.SenderDeviceId != Setting("deviceId")
+            && candidate.Kind != AssistantItemKind.Text && candidate.State != AssistantItemState.Cancelled
+            && !AssistantContent.HasLocalContent(candidate))
+        {
+            await AssistantOpenAsync(args, token);
+            return new { itemId, retried = true, state = StateText((await store.LoadAsync(token)).Find(itemId)?.State) };
+        }
         var retried = false;
         var retryState = AssistantItemState.Queued;
         // The user's decision is applied at once and re-applied after a running pass, so a five minute
@@ -1235,6 +1243,21 @@ public sealed partial class FileTransferModule
         }
     }
 
+    private async Task<object> AssistantStorageCleanAsync(JsonObject args, CancellationToken token)
+    {
+        var ids = (args["itemIds"] as JsonArray)?.Select(id => id!.GetValue<string>()).ToArray()
+            ?? throw new ArgumentException("请选择要清理的文件。");
+        await _inboxItemGate.WaitAsync(token);
+        try
+        {
+            var result = await _assistantStore!.CleanStorageAsync(ids, token);
+            foreach (var id in result.Removed) _receiveAuthorization.ForgetItemApproval(id);
+            EmitAssistantChanged("storage.cleaned");
+            return result;
+        }
+        finally { _inboxItemGate.Release(); }
+    }
+
     private async Task<object> AssistantOpenAsync(JsonObject args, CancellationToken token)
     {
         var itemId = RequiredItemId(args);
@@ -1243,7 +1266,8 @@ public sealed partial class FileTransferModule
         var target = AssistantContent.OpenTarget(item);
         if (!target.NeedsDownload) return new { itemId, path = target.Path, text = target.Text, needsDownload = false };
         if (item.Kind == AssistantItemKind.Text) throw new InvalidOperationException("这条消息没有可打开的内容。");
-        if (item.Provenance == AssistantConversations.PairedInbox && item.SenderDeviceId != Setting("deviceId"))
+        if ((item.Provenance == AssistantConversations.PairedInbox || item.TargetDeviceId == Setting("deviceId"))
+            && item.SenderDeviceId != Setting("deviceId"))
         {
             await RestoreInboxAttachmentAsync(item, token);
             var restored = AssistantContent.OpenTarget((await AssistantStateAsync(token)).Find(itemId)!);

@@ -37,7 +37,7 @@ public sealed record SharedFileViewPlan
     public static SharedFileViewPlan Create(string? fileName, Func<string, string?>? systemLookup = null)
     {
         var inferred = SharedFileMime.Infer(fileName, systemLookup);
-        var fallback = string.Equals(inferred.MimeType, SharedFileMime.WildcardMimeType, StringComparison.Ordinal)
+        var fallback = inferred.MimeType == "application/vnd.android.package-archive" || string.Equals(inferred.MimeType, SharedFileMime.WildcardMimeType, StringComparison.Ordinal)
             ? inferred.MimeType
             : SharedFileMime.WildcardMimeType;
         return new SharedFileViewPlan(inferred.MimeType, fallback, inferred.Source);

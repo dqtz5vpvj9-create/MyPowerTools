@@ -310,6 +310,26 @@
       "execution": {
         "type": "module.execute"
       }
+    },
+    {
+      "id": "file-transfer.assistant.storage.inspect",
+      "title": "查看下载空间",
+      "subtitle": "文件互传",
+      "kind": "action",
+      "category": "Files",
+      "execution": {
+        "type": "module.execute"
+      }
+    },
+    {
+      "id": "file-transfer.assistant.storage.clean",
+      "title": "清理下载副本",
+      "subtitle": "文件互传",
+      "kind": "action",
+      "category": "Files",
+      "execution": {
+        "type": "module.execute"
+      }
     }
   ]
 }

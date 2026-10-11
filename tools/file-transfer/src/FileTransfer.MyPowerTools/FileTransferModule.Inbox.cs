@@ -206,7 +206,7 @@ public sealed partial class FileTransferModule
                     row.TransportRoute = route.Id == InboxRelays.Tail ? "tail-relay" : "public-relay";
                 }, token);
                 EmitAssistantChanged("inbox.downloading");
-                if (await ReceiveInboxItemAsync(client, descriptor, route.Id, token)) return;
+                if (await ReceiveInboxItemAsync(client, descriptor, route.Id, token, manual: true)) return;
             }
             throw new IOException("文件暂时无法重新下载，请确认中转服务可用且文件仍在保留期内后重试。");
         }
@@ -234,7 +234,7 @@ public sealed partial class FileTransferModule
     /// because deleting it would also remove the receipt the sender still has to confirm.
     /// Returns false when this item needs a backoff before the next attempt.
     /// </summary>
-    private async Task<bool> ReceiveInboxItemAsync(PublicInboxClient client, PublicInboxItem item, string sourceRelay, CancellationToken token)
+    private async Task<bool> ReceiveInboxItemAsync(PublicInboxClient client, PublicInboxItem item, string sourceRelay, CancellationToken token, bool manual = false)
     {
         var store = _assistantStore ?? throw new InvalidOperationException("会话存储尚未就绪。");
         var spool = Path.Combine(_data, "inbox-spool");
@@ -248,6 +248,20 @@ public sealed partial class FileTransferModule
         }
         var cached = await store.LoadAsync(token);
         var existing = cached.Find(item.ItemId);
+        if (!manual && item.Kind != PublicInboxItemKind.Text
+            && (item.Size > AssistantItem.AutomaticDownloadLimit || existing?.ManualDownloadOnly == true)
+            && (existing is null || !AssistantContent.HasLocalContent(existing)))
+        {
+            if (existing is null)
+            {
+                var pending = AdoptedItem(item, null, item.Size, null, sourceRelay);
+                pending.State = AssistantItemState.Stored;
+                pending.BytesDone = 0;
+                await store.MutateAsync(state => { if (state.Find(item.ItemId) is null) state.Add(pending); }, token);
+                EmitAssistantChanged("inbox.pending");
+            }
+            return true; // Metadata is visible; no payload request and no receipt until explicitly downloaded.
+        }
         long bytes = existing?.BytesDone ?? item.Size;
         try
         {

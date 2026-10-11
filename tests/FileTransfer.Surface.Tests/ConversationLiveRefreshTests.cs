@@ -247,7 +247,7 @@ public sealed class ConversationLiveRefreshTests
             Assert.Equal("incoming-failed", module.LastArgs("assistant.retry")["itemId"]!.GetValue<string>());
             Assert.Single(module.AssistantItems);
             Assert.Contains(view.Conversation.ThreadPanel.GetLogicalDescendants().OfType<TextBlock>(),
-                text => text.Text == "Ubuntu · 夸克网盘 · 等待接收");
+                text => text.Text == "Ubuntu · 夸克网盘 · 待下载 · 点按接收");
             item["state"] = "queued";
             module.EmitAssistantChanged();
             Settle(window);

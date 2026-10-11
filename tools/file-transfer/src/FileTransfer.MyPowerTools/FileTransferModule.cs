@@ -197,7 +197,7 @@ public sealed partial class FileTransferModule : IMptModule
     }
 
     private static readonly string[] Commands = ["inspect", "configure", "pairing", "pair.preview", "pair.import", "peers.remove", "peer.check", "receive.start", "receive.stop", "send.direct", "send.cloud", "cloud.list", "cloud.download", "cloud.check", "cloud.export", "cloud.import", "cancel", "openlist.start", "openlist.connect", "openlist.stop",
-        "assistant.inspect", "assistant.send", "assistant.sync", "assistant.retry", "assistant.cancel", "assistant.open", "assistant.devices", "assistant.receive.respond", "assistant.link.export", "assistant.link.preview", "assistant.link.import",
+        "assistant.storage.inspect", "assistant.storage.clean", "assistant.inspect", "assistant.send", "assistant.sync", "assistant.retry", "assistant.cancel", "assistant.open", "assistant.devices", "assistant.receive.respond", "assistant.link.export", "assistant.link.preview", "assistant.link.import",
         "assistant.preferences.inspect", "assistant.preferences.update",
         "cloud.accounts.inspect", "cloud.accounts.authorize.begin", "cloud.accounts.authorize.status", "cloud.accounts.authorize.cancel", "cloud.accounts.authorize.complete",
         "cloud.accounts.default", "cloud.accounts.pause", "cloud.accounts.disconnect", "cloud.accounts.folders", "cloud.accounts.directory", "cloud.accounts.preferences"];
@@ -275,6 +275,10 @@ public sealed partial class FileTransferModule : IMptModule
                     }
                     finally { _operations.Release(); }
                     result = new { paired = paired.Name, deviceId = paired.DeviceId, address = paired.Address }; break;
+                case "file-transfer.assistant.storage.inspect":
+                    result = new { files = await _assistantStore!.InspectStorageAsync(token) }; break;
+                case "file-transfer.assistant.storage.clean":
+                    result = await AssistantStorageCleanAsync(request.Args, token); break;
                 case "file-transfer.assistant.inspect":
                     result = await AssistantInspectAsync(token); break;
                 case "file-transfer.assistant.preferences.inspect":
@@ -771,7 +775,8 @@ public sealed partial class FileTransferModule : IMptModule
                     Changed(name, done, total, state, message, "receive", PeerLabel(peer), state == "received" ? "local" : ""),
                 deviceId: Setting("deviceId"), deviceName: DeviceName(), platform: PlatformName(),
                 authorization: _receiveAuthorization, isTrusted: IsTrustedTokenAsync,
-                isDuplicate: IsKnownItemAsync, onItem: OnReceivedItemAsync), activity);
+                isDuplicate: IsKnownItemAsync, onItem: OnReceivedItemAsync,
+                requiresDownloadConsent: async (id, ct) => (await _assistantStore!.SnapshotAsync(ct)).Find(id)?.ManualDownloadOnly == true), activity);
         }
         catch { activity?.Dispose(); throw; }
         _session = session;

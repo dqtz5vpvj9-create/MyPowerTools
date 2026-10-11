@@ -363,6 +363,35 @@ public sealed class PublicInboxPairingTests : IAsyncLifetime
     // ---- the real path: a paired device receives a file and a text over the public relay ----------
 
     [Fact]
+    public async Task LargeInboxAttachmentWaitsForManualDownloadAndCleanupKeepsHistory()
+    {
+        var relay = Relay();
+        var sender = await StartAsync("laptop", "laptop-a");
+        var receiver = await StartAsync("phone", "phone-b");
+        var pairing = await CallAsync(receiver, "file-transfer.pairing");
+        await CallAsync(sender, "file-transfer.pair.import", new JsonObject { ["code"] = pairing["code"]!.GetValue<string>() });
+        var file = Path.Combine(_root, "manual.bin");
+        using (var output = File.Create(file)) output.SetLength(AssistantItem.AutomaticDownloadLimit + 1);
+        var sent = await CallAsync(sender, "file-transfer.assistant.send",
+            new JsonObject { ["paths"] = new JsonArray(file), ["targetDeviceId"] = "phone-b" });
+        var id = sent["itemIds"]!.AsArray()[0]!.GetValue<string>();
+        var pending = await WaitForItemAsync(receiver, id, item => item["state"]!.GetValue<string>() == "stored");
+        Assert.Null(pending["localPath"]);
+        Assert.Equal(0, relay.PayloadReads);
+        Assert.Equal(0, relay.ReceiptWrites);
+        var opened = await CallAsync(receiver, "file-transfer.assistant.open", new JsonObject { ["itemId"] = id });
+        Assert.True(File.Exists(opened["path"]!.GetValue<string>()));
+        await WaitForItemAsync(sender, id, item => item["state"]!.GetValue<string>() == "delivered");
+        var cleaned = await CallAsync(receiver, "file-transfer.assistant.storage.clean", new JsonObject { ["itemIds"] = new JsonArray(id) });
+        Assert.Empty(cleaned["errors"]!.AsArray());
+        Assert.Equal(AssistantItem.AutomaticDownloadLimit + 1, cleaned["freedBytes"]!.GetValue<long>());
+        var retained = await WaitForItemAsync(receiver, id, item => item["manualDownloadOnly"]?.GetValue<bool>() == true);
+        Assert.Null(retained["localPath"]);
+        var restored = await CallAsync(receiver, "file-transfer.assistant.open", new JsonObject { ["itemId"] = id });
+        Assert.True(File.Exists(restored["path"]!.GetValue<string>()));
+    }
+
+    [Fact]
     public async Task APairedDeviceReceivesAFileAndTextThroughItsDepositInbox()
     {
         var relay = Relay();

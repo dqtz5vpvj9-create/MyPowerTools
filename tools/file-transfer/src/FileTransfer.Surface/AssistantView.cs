@@ -406,6 +406,7 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
     private StackPanel BuildSetupSheet()
     {
         var choices = new StackPanel { Spacing = 2 };
+        choices.Children.Add(MobileUi.ListRow("MptMobileIconReceive", "空间管理", "清理已接收的文件，保留聊天记录", () => RunAsync(ShowStorageAsync)));
         choices.Children.Add(MobileUi.ListRow("MptMobileIconCloud", "我的网盘", "登录网盘，让这台设备按需使用它中转",
             () => { OpenCloudAccounts(); return Task.CompletedTask; }));
         choices.Children.Add(MobileUi.ListRow("MptMobileIconDevices", "连接我的设备", "用连接码把另一台设备加入这个会话",
@@ -477,7 +478,7 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
         var pairCode = MobileUi.SecondaryButton("显示我的文件互传码");
         pairCode.Click += async (_, _) => await RunAsync(ShowMyPairCodeAsync);
         return MobileUi.Stack(10,
-            MobileUi.Note("开启后自动接收发给这台设备的内容。"),
+            MobileUi.Note("开启后自动接收消息和不超过 15 MB 的附件；更大的文件需点按下载。"),
             MobileUi.Note("离线时文件会等待你回来；重新打开 MPT 后继续接收。"),
             pairCode,
             _receiveState,
@@ -921,8 +922,8 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
         // This is the user's receiving preference, independent of any individual network listener.
         _receiveState.Text = receiving
             ? OperatingSystem.IsAndroid()
-                ? "已开启自动接收，收到的文件可直接打开。"
-                : "已开启自动接收，收到的文件会保存在本机。"
+                ? "已开启接收。大于 15 MB 的附件会等待你确认下载。"
+                : "已开启接收。大于 15 MB 的附件会等待你确认下载。"
             : "已暂停自动接收。";
     }
 

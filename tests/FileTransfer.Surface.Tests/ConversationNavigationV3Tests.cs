@@ -14,6 +14,30 @@ namespace FileTransfer.Surface.Tests;
 public sealed class ConversationNavigationV3Tests
 {
     [AvaloniaTheory]
+    [InlineData(390)]
+    [InlineData(1000)]
+    public void StorageListsSelectsAndConfirmsOnlyChosenDownloads(int width)
+    {
+        var module = Data();
+        module.RawResponses["assistant.storage.inspect"] = """{"files":[{"itemId":"owned-download","name":"验收.pdf","bytes":1048576}]}""";
+        module.RawResponses["assistant.storage.clean"] = """{"freedBytes":1048576,"removed":["owned-download"],"errors":[]}""";
+        var view = new TransferView(module.Context("/mnt/cache/data-cache"));
+        using var host = new Host(view, width);
+        view.Conversation.OpenSetup(); host.Settle();
+        Button Label(string label) => view.GetLogicalDescendants().OfType<Button>().First(b =>
+            b.IsEffectivelyVisible && (Equals(b.Content, label) || Text(b).Contains(label)));
+        Click(host.Window, Label("空间管理"));
+        Assert.Equal("空间管理", view.Conversation.SheetTitle);
+        Assert.Contains("已下载 1 个文件 · 1 MB", Text(view));
+        Click(host.Window, view.Conversation.SheetHost.GetLogicalDescendants().OfType<CheckBox>().Single());
+        Click(host.Window, Label("清理 1 个文件 · 1 MB"));
+        Assert.Equal(0, module.CountCalls("assistant.storage.clean"));
+        Click(host.Window, Label("确认清理本机副本"));
+        Assert.Equal("owned-download", module.LastArgs("assistant.storage.clean")["itemIds"]![0]!.GetValue<string>());
+        Assert.Contains("已释放 1 MB", Text(view));
+    }
+
+    [AvaloniaTheory]
     [InlineData(320)]
     [InlineData(390)]
     [InlineData(1000)]

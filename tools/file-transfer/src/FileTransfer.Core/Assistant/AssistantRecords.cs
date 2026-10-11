@@ -66,6 +66,10 @@ public sealed record AssistantItem
     public string? TransportRoute { get; set; }
     public long BytesDone { get; set; }
     public string? LocalPath { get; set; }
+    public bool ManualDownloadOnly { get; set; }
+    public const long AutomaticDownloadLimit = 15 * 1024 * 1024;
+    [JsonIgnore]
+    public bool AllowsAutomaticDownload => !ManualDownloadOnly && Size <= AutomaticDownloadLimit;
     public string? Error { get; set; }
     public List<AssistantReceipt> Receipts { get; set; } = [];
     public int Attempts { get; set; }
@@ -87,6 +91,7 @@ public sealed record AssistantItem
         BytesDone = backup.BytesDone;
         TransportRoute = backup.TransportRoute;
         LocalPath = backup.LocalPath;
+        ManualDownloadOnly = backup.ManualDownloadOnly;
         Error = backup.Error;
         Receipts = [.. backup.Receipts];
         Attempts = backup.Attempts;

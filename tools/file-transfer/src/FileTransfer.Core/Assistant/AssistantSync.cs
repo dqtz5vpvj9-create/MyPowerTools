@@ -329,7 +329,8 @@ public sealed class AssistantSync
         if (!relayUnhealthy)
         {
             var downloads = state.Incoming(identity.DeviceId).Where(item => AssistantConversations.IsShared(item, identity.ConversationId))
-                .Where(item => item.Kind != AssistantItemKind.Text && IsAddressedToMe(item, identity.DeviceId)
+                .Where(item => item.Kind != AssistantItemKind.Text && item.AllowsAutomaticDownload
+                    && IsAddressedToMe(item, identity.DeviceId)
                     && item.State is AssistantItemState.Stored or AssistantItemState.Failed)
                 .OrderBy(item => item.Attempts).ThenBy(item => item.CreatedAt).ThenBy(item => item.Id, StringComparer.Ordinal)
                 .Take(_limits.Download).ToArray();
@@ -412,7 +413,8 @@ public sealed class AssistantSync
         var pending = state.Outgoing(identity.DeviceId).Where(item => AssistantConversations.IsShared(item, identity.ConversationId))
                 .Any(item => item.State == AssistantItemState.Queued && (PublishFilter?.Invoke(item) ?? true))
             || state.Incoming(identity.DeviceId).Where(item => AssistantConversations.IsShared(item, identity.ConversationId)).Any(item => item.Kind != AssistantItemKind.Text
-                && IsAddressedToMe(item, identity.DeviceId) && item.State == AssistantItemState.Stored);
+                && item.AllowsAutomaticDownload
+                    && IsAddressedToMe(item, identity.DeviceId) && item.State == AssistantItemState.Stored);
         var receiptChecksRemaining = ReceiptScanSince is { } since && state.Outgoing(identity.DeviceId)
             .Where(item => AssistantConversations.IsShared(item, identity.ConversationId))
             .Any(item => NeedsReceiptCheck(item, DateTimeOffset.UtcNow)

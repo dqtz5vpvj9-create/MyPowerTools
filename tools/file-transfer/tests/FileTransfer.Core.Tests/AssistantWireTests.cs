@@ -45,6 +45,31 @@ public sealed class AssistantWireTests : IDisposable
             AssistantWire.TextItem, text, "Sender Phone", null);
 
     [Fact]
+    public async Task TrustedLargeFileDoesNotReadPayloadUntilReceiverConfirms()
+    {
+        var auth = new ReceiveAuthorization();
+        var receiver = new DirectReceiver("127.0.0.1", 0, Key, Path.Combine(_root, "large-inbox"), 32L * 1024 * 1024,
+            (_, _, _, _) => { }, authorization: auth);
+        _receivers.Add(receiver);
+        var path = Path.Combine(_root, "large.bin");
+        const long size = 15L * 1024 * 1024 + 1;
+        using (var file = File.Create(path)) file.SetLength(size);
+        var frame = new AssistantWire.Frame(AssistantWire.Version, AssistantWire.ItemKind, Key, "large.bin",
+            size, "phone-other", Guid.NewGuid().ToString("N"), "conv-1", AssistantWire.FileItem, null, "Phone", null);
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(20));
+        var reading = false;
+        var sending = AssistantWire.SendItemAsync("127.0.0.1", receiver.Port, frame, path, null, TimeSpan.FromSeconds(15), timeout.Token,
+            payloadSelected: () => { reading = true; return Task.CompletedTask; });
+        while (auth.Pending().Count == 0) await Task.Delay(10, timeout.Token);
+        Assert.False(reading);
+        Assert.Empty(Directory.GetFiles(Path.Combine(_root, "large-inbox")));
+        auth.Respond(auth.Pending()[0].RequestId, true, false, out _);
+        Assert.True((await sending).Ok);
+        Assert.True(reading);
+        Assert.Equal(size, new FileInfo(Assert.Single(Directory.GetFiles(Path.Combine(_root, "large-inbox")))).Length);
+    }
+
+    [Fact]
     public async Task TheIdentityHelloAnswersWithoutACredential()
     {
         var receiver = Receiver();

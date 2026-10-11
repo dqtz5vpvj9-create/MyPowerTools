@@ -60,6 +60,25 @@ if ($sessionId -eq 0) {
         if (-not (Test-Path -LiteralPath $unit)) {
             throw 'Register the background Runner with scripts/register-windows-runner-service.ps1 first.'
         }
+        # Dev overlay stops ServiceManager as well as Runner. Session 0 must restore
+        # that execution plane before asking it to start the Runner unit.
+        $managerExe = Join-Path $installRootFull 'ServiceManager\MyPowerTools.ServiceManager.exe'
+        $manager = Get-Process -Name 'MyPowerTools.ServiceManager' -ErrorAction SilentlyContinue |
+            Where-Object { $_.Path -eq $managerExe } | Select-Object -First 1
+        if ($null -eq $manager) {
+            $managerStart = New-Object Diagnostics.ProcessStartInfo
+            $managerStart.FileName = $managerExe
+            $managerStart.WorkingDirectory = Split-Path -Parent $managerExe
+            $managerStart.UseShellExecute = $false
+            $managerStart.CreateNoWindow = $true
+            $managerStart.Arguments = '--data-root ' + (ConvertTo-WindowsCommandLineArgument -Value $dataRootFull)
+            $managerProcess = [Diagnostics.Process]::Start($managerStart)
+            if ($null -eq $managerProcess) { throw 'ServiceManager failed to start.' }
+            $managerProcess.Dispose()
+        }
+        $managerPipe = if ($env:MPT_SERVICEMANAGER_ENDPOINT) { $env:MPT_SERVICEMANAGER_ENDPOINT } else { 'mypewertools.servicemanager.v1' }
+        $readyPipe = [IO.Pipes.NamedPipeClientStream]::new('.', $managerPipe, [IO.Pipes.PipeDirection]::InOut)
+        try { $readyPipe.Connect(10000) } finally { $readyPipe.Dispose() }
         $previousDataRoot = $env:MPT_DATA_ROOT
         try {
             $env:MPT_DATA_ROOT = $dataRootFull

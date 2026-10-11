@@ -64,6 +64,45 @@ public sealed class AssistantRelayTests : IAsyncDisposable
 
     private static AssistantIdentity Identity(string name, string conversation = Conversation) => new(name, name, conversation);
 
+    [Theory]
+    [InlineData(15 * 1024 * 1024 - 1, true)]
+    [InlineData(15 * 1024 * 1024, true)]
+    [InlineData(15 * 1024 * 1024 + 1, false)]
+    public async Task DownloadThresholdAndCleanupSurviveRestart(long size, bool automatic)
+    {
+        var server = StartServer();
+        var sender = NewDevice("sender", server.Url);
+        var receiver = NewDevice("receiver", server.Url);
+        var path = Path.Combine(_root, "threshold.bin");
+        using (var file = File.Create(path)) file.SetLength(size);
+        var sent = Assert.Single(await sender.Store.EnqueueAsync(sender.Identity, AssistantDraft.ForPaths([path]), default));
+        await sender.Sync.SyncAsync(sender.Identity, default);
+        var result = await receiver.Sync.SyncAsync(receiver.Identity, default);
+        Assert.Equal(automatic ? 1 : 0, result.Downloaded);
+        var received = (await receiver.StateAsync(default)).Find(sent.Id)!;
+        Assert.Equal(automatic, AssistantContent.HasLocalContent(received));
+        if (!automatic)
+        {
+            Assert.Null(received.ReceiptAt);
+            await receiver.Sync.EnsureLocalAsync(receiver.Identity, sent.Id, default);
+        }
+        await receiver.Sync.SyncAsync(receiver.Identity, default);
+        Assert.NotNull((await receiver.StateAsync(default)).Find(sent.Id)!.ReceiptAt);
+        var inventory = await receiver.Store.InspectStorageAsync(default);
+        Assert.Equal(size, Assert.Single(inventory).Bytes);
+        var cleaned = await receiver.Store.CleanStorageAsync([sent.Id], default);
+        Assert.Empty(cleaned.Errors);
+        Assert.Equal(size, cleaned.FreedBytes);
+        Assert.False(AssistantContent.HasLocalContent((await receiver.StateAsync(default)).Find(sent.Id)!));
+        var restarted = new AssistantStore(receiver.Store.Directory);
+        var sync = new AssistantSync(restarted, receiver.Client);
+        Assert.Equal(0, (await sync.SyncAsync(receiver.Identity, default)).Downloaded);
+        Assert.True((await restarted.LoadAsync(default)).Find(sent.Id)!.ManualDownloadOnly);
+        await sync.EnsureLocalAsync(receiver.Identity, sent.Id, default);
+        Assert.Equal(size, new FileInfo((await restarted.LoadAsync(default)).Find(sent.Id)!.LocalPath!).Length);
+        Assert.True(File.Exists(sent.LocalPath));
+    }
+
     [Fact]
     public async Task VisibleTransitionsNotifyAfterCommitButUnchangedReceiptRoundsStaySilent()
     {

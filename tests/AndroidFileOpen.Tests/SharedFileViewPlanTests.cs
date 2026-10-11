@@ -4,6 +4,12 @@ namespace AndroidFileOpen.Tests;
 
 public sealed class SharedFileViewPlanTests
 {
+    [Fact]
+    public void ApkNeverFallsBackToAnUnrelatedViewer()
+    {
+        Assert.Equal(new[] { "application/vnd.android.package-archive" }, SharedFileViewPlan.Create("安装包.APK").MimeAttempts);
+    }
+
     [Theory]
     [InlineData("report.pdf", "application/pdf")]
     [InlineData("报告 v1.pdf", "application/pdf")]

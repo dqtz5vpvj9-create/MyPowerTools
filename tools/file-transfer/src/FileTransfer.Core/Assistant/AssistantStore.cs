@@ -9,7 +9,7 @@ namespace FileTransfer.Core.Assistant;
 /// and a network outage; nothing is trimmed to the legacy 50-record transfer history cap, and no file
 /// outside this store's own directory is ever touched or deleted.
 /// </summary>
-public sealed class AssistantStore
+public sealed partial class AssistantStore
 {
     /// <summary>Bookkeeping bound only. Trimming an id may cost one extra manifest GET, never a payload download.</summary>
     public const int MaxKnownRemoteIds = 2000;

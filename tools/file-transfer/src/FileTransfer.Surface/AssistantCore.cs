@@ -232,6 +232,14 @@ internal sealed class AssistantCore : IDisposable
         return result;
     }
 
+    public Task<JsonNode> InspectStorageAsync() => CallAsync("storage.inspect", new JsonObject());
+    public async Task<JsonNode> CleanStorageAsync(IEnumerable<string> ids)
+    {
+        var answer = await CallAsync("storage.clean", new JsonObject { ["itemIds"] = new JsonArray(ids.Select(id => (JsonNode?)JsonValue.Create(id)).ToArray()) });
+        await RefreshAsync();
+        return answer;
+    }
+
     // ---- devices ----------------------------------------------------------------------------
 
     /// <summary>

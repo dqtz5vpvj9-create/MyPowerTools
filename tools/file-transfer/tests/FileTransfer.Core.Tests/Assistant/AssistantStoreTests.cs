@@ -50,6 +50,34 @@ public sealed class AssistantStoreTests : IDisposable
     };
 
     [Fact]
+    public async Task CleanupPreservesOutgoingActiveExternalFilesAndReceipts()
+    {
+        var store = NewStore();
+        await store.ConfigureAsync(Me, default);
+        var outgoing = Assert.Single(await store.EnqueueAsync(Me, AssistantDraft.ForPaths([SourceFile("out.txt", "out")]), default));
+        var externalPath = SourceFile("external.txt", "external");
+        var external = Item("phone", AssistantItemState.Available) with { LocalPath = externalPath };
+        var active = Item("phone", AssistantItemState.Downloading);
+        var incoming = Item("phone", AssistantItemState.Available);
+        Directory.CreateDirectory(store.GetInboxDirectory(incoming));
+        incoming.LocalPath = store.GetInboxPath(incoming);
+        await File.WriteAllTextAsync(incoming.LocalPath, "downloaded");
+        incoming.ReceiptAt = DateTimeOffset.UtcNow;
+        await store.MutateAsync(state => { state.Add(external); state.Add(active); state.Add(incoming); }, default);
+        var inventory = await store.InspectStorageAsync(default);
+        Assert.Equal(incoming.Id, Assert.Single(inventory).ItemId);
+        var result = await store.CleanStorageAsync([outgoing.Id, active.Id, external.Id, incoming.Id], default);
+        Assert.Equal(3, result.Errors.Count);
+        Assert.Equal(incoming.Id, Assert.Single(result.Removed));
+        Assert.True(File.Exists(externalPath));
+        Assert.True(File.Exists(outgoing.LocalPath));
+        var restored = (await NewStore().LoadAsync(default)).Find(incoming.Id)!;
+        Assert.NotNull(restored.ReceiptAt);
+        Assert.True(restored.ManualDownloadOnly);
+        Assert.False(restored.AllowsAutomaticDownload);
+    }
+
+    [Fact]
     public async Task InspectSnapshotWaitsForTheWholeTransitionAndSurvivesLaterRetries()
     {
         var store = NewStore();

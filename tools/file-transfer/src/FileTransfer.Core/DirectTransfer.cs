@@ -168,6 +168,7 @@ public sealed class DirectReceiver : IAsyncDisposable
     private readonly string _platform;
     private readonly ReceiveAuthorization? _authorization;
     private readonly Func<string, string?, string?, string?, CancellationToken, Task<bool>>? _isTrusted;
+    private readonly Func<string, CancellationToken, Task<bool>>? _requiresDownloadConsent;
     private readonly Func<string, CancellationToken, Task<bool>>? _isDuplicate;
     private readonly Func<ReceivedItem, CancellationToken, Task>? _onItem;
     private readonly SemaphoreSlim _transfers = new(1, 1);
@@ -192,7 +193,8 @@ public sealed class DirectReceiver : IAsyncDisposable
         Action<string, long, long, string, string, string>? changedDetailed = null, bool sweepPartials = true,
         TcpListener? listener = null, string deviceId = "", string deviceName = "", string platform = "",
         ReceiveAuthorization? authorization = null, Func<string, string?, string?, string?, CancellationToken, Task<bool>>? isTrusted = null,
-        Func<string, CancellationToken, Task<bool>>? isDuplicate = null, Func<ReceivedItem, CancellationToken, Task>? onItem = null)
+        Func<string, CancellationToken, Task<bool>>? isDuplicate = null, Func<ReceivedItem, CancellationToken, Task>? onItem = null,
+        Func<string, CancellationToken, Task<bool>>? requiresDownloadConsent = null)
     {
         var ip = IPAddress.Parse(address);
         DirectTransfer.RequirePrivateAddress(ip);
@@ -207,6 +209,7 @@ public sealed class DirectReceiver : IAsyncDisposable
         _platform = platform;
         _authorization = authorization;
         _isTrusted = isTrusted;
+        _requiresDownloadConsent = requiresDownloadConsent;
         _isDuplicate = isDuplicate;
         _onItem = onItem;
         _maximumBytes = maximumBytes;
@@ -303,6 +306,15 @@ public sealed class DirectReceiver : IAsyncDisposable
             sender = offer.DeviceId ?? "";
             name = TransferFiles.FileName(offer.Name is { Length: > 0 } legacyName ? legacyName : "来件");
             if (offer.Size < 0 || offer.Size > _maximumBytes) throw new InvalidDataException("文件超过接收大小限制。");
+            if (offer.Size > Assistant.AssistantItem.AutomaticDownloadLimit)
+            {
+                if (_authorization is null) throw new InvalidDataException("大于 15 MB 的文件需要接收方手动确认，请使用文件助手发送。");
+                var endpoint = (client.Client.RemoteEndPoint as IPEndPoint)?.Address.ToString() ?? "";
+                var request = _authorization.Request(sender, endpoint, sender, [name], endpoint, itemIds: [Guid.NewGuid().ToString("N")]);
+                _changed("大文件接收请求", 0, offer.Size, "pending");
+                if (!await _authorization.WaitAsync(request.RequestId, token))
+                    throw new InvalidDataException("接收方尚未确认下载大文件。");
+            }
             // Only one payload is written at a time, so a partial file can never outlive its transfer
             // and collide with the next one. A first contact waits for its answer outside this lock.
             await _transfers.WaitAsync(token);
@@ -419,7 +431,9 @@ public sealed class DirectReceiver : IAsyncDisposable
             var advertised = ValidAddress(frame.Address) ? frame.Address! : endpoint;
             var trusted = Crypto(_token, frame.Token)
                 || (_isTrusted is not null && await _isTrusted(frame.Token ?? "", deviceId, advertised, frame.SenderName, token));
-            if (!trusted && !(_authorization?.IsApproved(deviceId, endpoint, itemId) ?? false))
+            if ((!trusted || (itemKind != AssistantWire.TextItem && (frame.Size > Assistant.AssistantItem.AutomaticDownloadLimit
+                    || (_requiresDownloadConsent is not null && await _requiresDownloadConsent(itemId, token)))))
+                && !(_authorization?.IsApproved(deviceId, endpoint, itemId) ?? false))
             {
                 if (_authorization is null) throw new InvalidDataException("这台设备尚未加入你的会话。");
                 if (_authorization.Decision(deviceId, endpoint, itemId) == false)
