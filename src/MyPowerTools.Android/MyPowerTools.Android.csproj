@@ -5,12 +5,18 @@
     <OutputType>Exe</OutputType>
     <ApplicationId>com.mypowertools.android</ApplicationId>
     <ApplicationTitle>MyPowerTools</ApplicationTitle>
-    <ApplicationVersion>15</ApplicationVersion>
-    <ApplicationDisplayVersion>0.2.13</ApplicationDisplayVersion>
+    <ApplicationVersion>16</ApplicationVersion>
+    <ApplicationDisplayVersion>0.2.14</ApplicationDisplayVersion>
     <ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable>
     <!-- The SurfaceHolder/EGL lifetime bridge targets the pinned Avalonia 12.0.5 renderer API. -->
     <AvaloniaAccessUnstablePrivateApis>true</AvaloniaAccessUnstablePrivateApis>
-    <RuntimeIdentifiers>android-arm64;android-x64</RuntimeIdentifiers>
+    <!-- Physical phones get one ABI. Emulator builds opt in with -p:RuntimeIdentifiers=android-x64. -->
+    <RuntimeIdentifiers Condition="'$(RuntimeIdentifiers)' == '' and '$(RuntimeIdentifier)' == ''">android-arm64</RuntimeIdentifiers>
+    <_MptArm64>$([System.String]::Copy('$(RuntimeIdentifiers);$(RuntimeIdentifier)').Contains('android-arm64'))</_MptArm64>
+    <_MptX64>$([System.String]::Copy('$(RuntimeIdentifiers);$(RuntimeIdentifier)').Contains('android-x64'))</_MptX64>
+    <_MptOpenListAbi Condition="'$(_MptArm64)' == 'True'">arm64</_MptOpenListAbi>
+    <_MptOpenListAbi Condition="'$(_MptX64)' == 'True'">x64</_MptOpenListAbi>
+    <_MptOpenListAbi Condition="'$(_MptArm64)' == 'True' and '$(_MptX64)' == 'True'">all</_MptOpenListAbi>
     <!-- CoreCLR preserves the host collectible-module lifecycle; this APK is a development preview. -->
     <UseMonoRuntime>false</UseMonoRuntime>
     <!-- Compile methods on first use instead of spending idle phone CPU promoting JIT tiers. -->
@@ -31,6 +37,13 @@
       resolves the winner.
     -->
     <ErrorOnDuplicatePublishOutputFiles>false</ErrorOnDuplicatePublishOutputFiles>  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)' == 'Release'">
+    <!-- Keep the existing CoreCLR/plugin lifecycle; omit shipping symbols and composite R2R. -->
+    <DebugType>none</DebugType>
+    <DebugSymbols>false</DebugSymbols>
+    <AndroidIncludeDebugSymbols>false</AndroidIncludeDebugSymbols>
+    <PublishReadyToRun>false</PublishReadyToRun>
+  </PropertyGroup>
   <ItemGroup>
     <!--
       The phone-side unit tests live under this project's directory (tests/MyPowerTools.Android.Tests)
@@ -151,11 +164,11 @@
   <!-- Android installs the executable in its executable native-library directory. It starts only
        when cloud storage is enabled, under the file-transfer module's existing lifecycle. -->
   <ItemGroup>
-    <AndroidNativeLibrary Include="$(OpenListRuntimeDirectory)/lib/arm64-v8a/libopenlist.so" Abi="arm64-v8a" />
-    <AndroidNativeLibrary Include="$(OpenListRuntimeDirectory)/lib/x86_64/libopenlist.so" Abi="x86_64" />
+    <AndroidNativeLibrary Include="$(OpenListRuntimeDirectory)/lib/arm64-v8a/libopenlist.so" Abi="arm64-v8a" Condition="'$(_MptArm64)' == 'True'" />
+    <AndroidNativeLibrary Include="$(OpenListRuntimeDirectory)/lib/x86_64/libopenlist.so" Abi="x86_64" Condition="'$(_MptX64)' == 'True'" />
   </ItemGroup>
   <Target Name="StageEmbeddedOpenList" BeforeTargets="PrepareForBuild"
-          Condition="'$(DesignTimeBuild)' != 'true' and (!Exists('$(OpenListRuntimeDirectory)/lib/arm64-v8a/libopenlist.so') or !Exists('$(OpenListRuntimeDirectory)/lib/x86_64/libopenlist.so'))">
-    <Exec Command="pwsh -NoLogo -NoProfile -NonInteractive -File &quot;$(MSBuildThisFileDirectory)../../tools/file-transfer/runtime/package-openlist-android-runtime.ps1&quot; -Abi all" />
+          Condition="'$(DesignTimeBuild)' != 'true' and (('$(_MptArm64)' == 'True' and !Exists('$(OpenListRuntimeDirectory)/lib/arm64-v8a/libopenlist.so')) or ('$(_MptX64)' == 'True' and !Exists('$(OpenListRuntimeDirectory)/lib/x86_64/libopenlist.so')))">
+    <Exec Command="pwsh -NoLogo -NoProfile -NonInteractive -File &quot;$(MSBuildThisFileDirectory)../../tools/file-transfer/runtime/package-openlist-android-runtime.ps1&quot; -Abi $(_MptOpenListAbi)" />
   </Target>
 </Project>

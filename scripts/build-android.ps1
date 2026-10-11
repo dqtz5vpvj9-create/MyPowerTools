@@ -20,8 +20,7 @@ What it does, in order:
   3. Stages every Android tool-module package in $moduleStages by delegating to that
      tool's build.ps1: File Transfer, Remote Notifications and Remote Commands.
      The Android app embeds these staged packages as assets.
-  4. Builds MyPowerTools.Android.slnx. The default build is universal
-     (android-arm64 + android-x64) and uses the experimental CoreCLR Android
+  4. Builds MyPowerTools.Android.slnx. The default phone build targets android-arm64 and uses the experimental CoreCLR Android
      runtime, which keeps the existing in-proc module host lifecycle.
 
 Requirements: the SDK pinned by global.json, the Android workload
@@ -36,8 +35,8 @@ key. It is not a store-signed production artifact.
 pwsh scripts/build-android.ps1 -AndroidSdkDirectory /android/sdk -JavaSdkDirectory /usr/lib/jvm/java-17-openjdk-amd64
 
 .EXAMPLE
-# Smaller single-ABI developer build.
-pwsh scripts/build-android.ps1 -RuntimeIdentifier android-arm64
+# Phone delivery build (ARM64; debug signing key unless configured otherwise).
+pwsh scripts/build-android.ps1 -Configuration Release -RuntimeIdentifier android-arm64
 #>
 [CmdletBinding()]
 param(
@@ -317,7 +316,7 @@ try {
     }
 
     $apk = Get-Item -LiteralPath $apkPath
-    $runtimeLabel = if ($RuntimeIdentifier) { $RuntimeIdentifier } else { 'android-arm64;android-x64 (universal CoreCLR preview)' }
+    $runtimeLabel = if ($RuntimeIdentifier) { $RuntimeIdentifier } else { 'android-arm64 (CoreCLR preview)' }
     Write-Host ''
     Write-Host "Android development preview: $($apk.FullName)"
     Write-Host ("  configuration : {0}" -f $Configuration)
