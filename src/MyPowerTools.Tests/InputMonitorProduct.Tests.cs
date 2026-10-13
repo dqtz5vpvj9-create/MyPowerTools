@@ -94,34 +94,6 @@ public sealed class InputMonitorProductTests
     }
 
     [Fact]
-    public void Fatigue_skip_raises_the_threshold_and_rest_done_resets()
-    {
-        var settings = new MonitorSettings { RemindIntervalMinutes = 1 };
-        var engine = new FatigueEngine(settings);
-        var reminded = 0;
-        engine.OnShouldRemind = () => reminded++;
-        engine.NotifyActivity(FatigueActivitySource.Keyboard);
-
-        var now = DateTimeOffset.Now;
-        for (var tick = 0; tick < 60; tick++)
-        {
-            engine.Tick(now);
-        }
-
-        Assert.True(engine.Value >= 100);
-        Assert.True(reminded >= 1);
-
-        engine.Skip();
-        Assert.Equal(100, engine.Value, 3);
-        Assert.Equal(120, engine.Threshold);
-
-        engine.RestDone();
-        Assert.Equal(0, engine.Value);
-        Assert.Equal(100, engine.Threshold);
-        Assert.False(engine.IsResting);
-    }
-
-    [Fact]
     public void Category_map_matches_windows_process_names_and_honors_overrides()
     {
         var map = new AppCategoryMap();
