@@ -22,6 +22,18 @@ internal static class Program
             return RunHostControlSmokeAsync(args, startupOptions).GetAwaiter().GetResult();
         }
 
+        if (OperatingSystem.IsWindows())
+        {
+            try
+            {
+                MyPowerTools.Platform.Windows.WindowsNotificationShortcut.RegisterInstalledShortcut();
+            }
+            catch (Exception exception)
+            {
+                ShellCommandFaultLog.Write("Register notification shortcut", exception, "startup");
+            }
+        }
+
         var toolActivation = ToolActivationProtocol.Parse(args);
         var prewarmShell = args.Contains("--prewarm", StringComparer.OrdinalIgnoreCase);
         var shutdownShell = args.Contains("--shutdown-shell", StringComparer.OrdinalIgnoreCase);
