@@ -43,6 +43,10 @@ $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 Set-StrictMode -Version Latest
 
+if ((Get-Process -Id $PID).SessionId -eq 0) {
+    throw 'Direct Dev updates are blocked in Windows Session 0. Use scripts/Start-MyPowerTools-Dev.ps1 to dispatch to the desktop.'
+}
+
 $scriptStart = [DateTimeOffset]::UtcNow
 
 function Write-Phase {
@@ -228,8 +232,12 @@ function Get-ProductProcessRecords {
     param([Parameter(Mandatory = $true)][string[]]$Name)
 
     $records = [Collections.Generic.List[object]]::new()
+    $currentSessionId = (Get-Process -Id $PID).SessionId
     foreach ($processName in $Name) {
         foreach ($process in Get-Process -Name $processName -ErrorAction SilentlyContinue) {
+            # Per-user updates control the current desktop, leaving other logon
+            # sessions alone. Session 0 cannot host a supported user runtime.
+            if ($process.SessionId -ne $currentSessionId) { continue }
             $executablePath = $null
             try {
                 $executablePath = $process.MainModule.FileName
@@ -266,6 +274,17 @@ function Assert-NoUnmanagedConflict {
     param([Parameter(Mandatory = $true)][string[]]$Name)
 
     $conflicts = @(Get-ProductProcessRecords -Name $Name | Where-Object { -not $_.Managed })
+    # A denied path query does not establish that the process is foreign. Ask
+    # the canonical installed clients to close their authenticated IPC peers,
+    # then inspect again. Never force-kill a process whose path is unknown.
+    $uninspectable = @($conflicts | Where-Object { [string]::IsNullOrWhiteSpace($_.Path) })
+    if (@($uninspectable | Where-Object Name -eq 'MyPowerTools.Shell.Avalonia').Count -gt 0) {
+        Request-ShellShutdown
+    }
+    if (@($uninspectable | Where-Object Name -eq 'MyPowerTools.Runner').Count -gt 0) {
+        Request-RunnerShutdown
+    }
+    $conflicts = @(Get-ProductProcessRecords -Name $Name | Where-Object { -not $_.Managed })
     if ($conflicts.Count -eq 0) {
         return
     }
@@ -274,7 +293,7 @@ function Assert-NoUnmanagedConflict {
         $displayPath = if ([string]::IsNullOrWhiteSpace($_.Path)) { '<path unavailable>' } else { $_.Path }
         "$($_.Name) pid=$($_.Id) path=$displayPath"
     })
-    throw "A process outside the repository and canonical install roots owns a shared runtime name: $($descriptions -join '; ')"
+    throw "A runtime process could not be verified or stopped. Known foreign paths and unavailable paths block the update: $($descriptions -join '; ')"
 }
 
 function Wait-ForProcessExit {
@@ -307,7 +326,7 @@ function Stop-ManagedProcesses {
 
 function Request-ShellShutdown {
     $shellRecords = @(Get-ProductProcessRecords -Name @('MyPowerTools.Shell.Avalonia') |
-        Where-Object Managed)
+        Where-Object { $_.Managed -or [string]::IsNullOrWhiteSpace($_.Path) })
     if ($shellRecords.Count -eq 0) {
         Stop-ManagedProcesses -Name @('MyPowerTools.WebToolHost')
         return
@@ -346,7 +365,7 @@ function Request-ShellShutdown {
 
 function Request-RunnerShutdown {
     $runnerRecords = @(Get-ProductProcessRecords -Name @('MyPowerTools.Runner') |
-        Where-Object Managed)
+        Where-Object { $_.Managed -or [string]::IsNullOrWhiteSpace($_.Path) })
     if ($runnerRecords.Count -eq 0) {
         return
     }
