@@ -129,8 +129,8 @@ separate calls do not constitute one atomic multi-call snapshot.
 
 ## Verification and scope
 
-`tests/History.Memory.Regression` links the production implementations and real
-Abstractions project. It covers byte/entry caps, growth on completion, duplicate IDs,
+`src/MyPowerTools.Tests/HistoryCount.Tests.cs` tests the production Runtime and
+Abstractions assemblies. It covers byte/entry caps, growth on completion, duplicate IDs,
 read-first/all-unread eviction, read-state reversal, huge Unicode, redaction,
 identity rejection/collection, snapshots, filters, concurrency, API signatures,
 allocation-free `Count`, and fixed-budget plateau. Runtime acceptance tests also
@@ -145,3 +145,30 @@ Explicit collections occur only in the probe to compare retained live objects.
 These synthetic tests establish the retention behavior, not the cause or exact
 savings of any user's observed application-wide memory symptom. No devices,
 native services, user accounts, external endpoints or models are involved.
+
+Log-tail correctness is owned by `RuntimeAcceptanceTests.PlatformBrokerPackage.Tests.cs`
+in the same existing test project. It covers physical CR/LF selection, seeded byte
+and Unicode input, UTF-8/16/32 BOMs, short reads, block boundaries, a 2 MiB line,
+append/truncation/rotation, and public JSON filtering and exception outcomes.
+Nonpositive limits retain the zero-byte-read invariant. UTF-16/32 still use a
+sequential scan; long lines and append-before-EOF do not imply a fixed I/O bound
+or an atomic live-file snapshot. The reference scan owns its file handle even
+when a nonpositive limit never enumerates lines.
+
+For an already-built test project, run only these owners with:
+
+```sh
+dotnet test src/MyPowerTools.Tests/MyPowerTools.Tests.csproj --no-build \
+  --filter 'FullyQualifiedName~HistoryCountTests|FullyQualifiedName~RuntimeAcceptanceTests.Log_tail_|FullyQualifiedName~Notification_center_updates_read_state_idempotently'
+```
+
+The retired standalone harnesses and measurement tools are recoverable exactly
+from commit `f2aadb3ff3e414af6c4cebfa0cd47d275a69e3bb`:
+[history harness](https://github.com/dqtz5vpvj9-create/MyPowerTools/tree/f2aadb3ff3e414af6c4cebfa0cd47d275a69e3bb/tests/History.Memory.Regression)
+and [log-tail harness](https://github.com/dqtz5vpvj9-create/MyPowerTools/tree/f2aadb3ff3e414af6c4cebfa0cd47d275a69e3bb/tests/LogTail.Memory.Regression).
+The retained audit evidence includes `phase2/history-ring` before/after/sustained
+JSONL and process samples, `phase2/logtail/io-results.json`, and both original
+`source-sha256.json` manifests. The retirement evidence additionally records a
+SHA-256 manifest of every harness file at that recovery commit. These historical
+measurements are not rerun by the canonical tests; the bounded plateau and
+zero-read checks remain regular regression tests.
