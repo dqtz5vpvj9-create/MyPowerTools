@@ -46,7 +46,7 @@ public sealed class SettingsStore
         {
             if (!_settings.TryGetValue(patch.ModuleId, out var current))
             {
-                current = new Sdk.SettingsSnapshotDocument(patch.ModuleId, 1, new JsonObject(), DateTimeOffset.UtcNow);
+                current = Load(patch.ModuleId) ?? new Sdk.SettingsSnapshotDocument(patch.ModuleId, 1, new JsonObject(), DateTimeOffset.UtcNow);
                 _settings[patch.ModuleId] = current;
             }
 
@@ -67,9 +67,11 @@ public sealed class SettingsStore
                 Values = values,
                 UpdatedAt = DateTimeOffset.UtcNow
             };
-            _settings[patch.ModuleId] = next;
             SaveBackup(current);
             Save(next);
+            // Publish only after persistence succeeds, so callers can retry the
+            // same revision after an I/O failure without losing their changes.
+            _settings[patch.ModuleId] = next;
             return next;
         }
     }
@@ -95,8 +97,8 @@ public sealed class SettingsStore
             foreach (var persisted in snapshots)
             {
                 var snapshot = FromPersisted(persisted);
-                _settings[snapshot.ModuleId] = snapshot;
                 Save(snapshot);
+                _settings[snapshot.ModuleId] = snapshot;
             }
         }
     }

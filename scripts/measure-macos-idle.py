@@ -2,6 +2,7 @@
 """Measure the installed macOS process group; nonzero exit means CPU acceptance failed."""
 import argparse
 import json
+import math
 from pathlib import Path
 import platform
 import plistlib
@@ -48,6 +49,9 @@ def main():
     args = parser.parse_args()
     if platform.system() != 'Darwin':
         parser.error('Run this gate on the actual macOS device.')
+    if not all(math.isfinite(value) for value in
+               (args.duration, args.interval, args.budget, args.warmup)):
+        parser.error('Duration, interval, budget and warm-up must be finite numbers.')
     if min(args.duration, args.interval, args.budget) <= 0 or args.warmup < 0:
         parser.error('Duration, interval and budget must be positive; warm-up cannot be negative.')
     app = args.app.resolve()
@@ -82,12 +86,16 @@ def main():
                               cpu_percent=round(cpu / (now - previous_time) * 100, 3)))
         previous, previous_time = after, now
     elapsed = previous_time - started
-    processes = [dict(pid=pid, name=row['name'], rss_kib=row['rss_kib'],
-                      cpu_percent=round(max(0, row['cpu_seconds'] - before[pid]['cpu_seconds']) / elapsed * 100, 3))
-                 for pid, row in after.items() if pid in before]
-    total = sum(row['cpu_percent'] for row in processes)
-    if total > args.budget:
-        issues.add(f'Combined CPU {total:.3f}% exceeds the {args.budget:g}% single-core budget.')
+    cpu_percent = {pid: max(0, row['cpu_seconds'] - before[pid]['cpu_seconds']) / elapsed * 100
+                   for pid, row in after.items() if pid in before}
+    processes = [dict(pid=pid, name=after[pid]['name'], rss_kib=after[pid]['rss_kib'],
+                      cpu_percent=round(percent, 3)) for pid, percent in cpu_percent.items()]
+    # Rounding each host before aggregation can hide an over-budget result.
+    # Keep the decision at full precision; tolerate only floating-point noise
+    # at the exact limit, not the three-decimal display rounding.
+    total = math.fsum(cpu_percent.values())
+    if total > args.budget and not math.isclose(total, args.budget, rel_tol=1e-12):
+        issues.add(f'Combined CPU {total:.9g}% exceeds the {args.budget:g}% single-core budget.')
     diagnostic = args.duration < 120 or args.warmup < 60 or args.budget > 1
     if diagnostic:
         issues.add('Diagnostic settings do not satisfy the default release observation requirements.')

@@ -102,7 +102,7 @@ flowchart TD
   B --> K[TransportSelector]
   K --> L[InProcDotNetHost]
   K --> M[GrpcIpcModuleHost]
-  K --> N[HttpModuleHost]
+  B --> N[HTTP health and command handlers]
   K --> O[StdioCompatModuleHost]
   G --> P[Dashboard]
   G --> Q[Command Palette]
@@ -190,7 +190,7 @@ Runner 调对应 module host
 | `TransportSelector` | 根据平台、权限、优先级选择 entrypoint |
 | `InProcDotNetHost` | 加载可信 .NET module，直接调用接口 |
 | `GrpcIpcModuleHost` | 管理 sidecar 生命周期，建立 gRPC Native IPC |
-| `HttpModuleHost` | 包装已有 HTTP/WebSocket 服务 |
+| `HealthMonitor` / `MptHostRuntime` | 通过 HTTP entrypoint 执行健康检查与 `http.request` 命令 |
 | `StdioCompatModuleHost` | 只用于兼容脚本和轻量 fallback |
 | `PackageRuntimePool` | 一个 package 共享一个 runtime，多个 module 复用连接 |
 | `ModuleSupervisor` | 监控崩溃、重启、超时、降级 |

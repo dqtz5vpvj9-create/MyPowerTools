@@ -20,10 +20,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <!-- UI now references Primitives for tokens/controls. Packaging/Protocol remain for MptTheme. -->
     <ProjectReference Include="..\MyPowerTools.UI.Primitives\MyPowerTools.UI.Primitives.csproj" />
-    <ProjectReference Include="..\MyPowerTools.Packaging\MyPowerTools.Packaging.csproj" />
-    <ProjectReference Include="..\MyPowerTools.Protocol\MyPowerTools.Protocol.csproj" />
   </ItemGroup>
 
 </Project>

@@ -44,11 +44,18 @@ $ProgressPreference = 'SilentlyContinue'
 Set-StrictMode -Version Latest
 
 $scriptStart = [DateTimeOffset]::UtcNow
+$script:runWatch = [Diagnostics.Stopwatch]::StartNew()
+$script:phaseEvents = [Collections.Generic.List[object]]::new()
+$script:nativeTimings = [Collections.Generic.List[object]]::new()
 
 function Write-Phase {
     param([Parameter(Mandatory = $true)][string]$Message)
 
     $elapsedSeconds = [int]([DateTimeOffset]::UtcNow - $scriptStart).TotalSeconds
+    $script:phaseEvents.Add([pscustomobject]@{
+        name = $Message
+        startMilliseconds = [math]::Round($script:runWatch.Elapsed.TotalMilliseconds, 3)
+    })
     Write-Host ("==> [{0}] {1} (+{2}s)" -f (Get-Date -Format 'HH:mm:ss'), $Message, $elapsedSeconds) -ForegroundColor Cyan
 }
 
@@ -183,13 +190,48 @@ function Invoke-Native {
 
     $phaseWatch = [Diagnostics.Stopwatch]::StartNew()
     Write-Phase $Activity
-    & $FilePath @ArgumentList
-    $nativeExitCode = $LASTEXITCODE
-    $phaseWatch.Stop()
-    if ($nativeExitCode -ne 0) {
-        throw "$Activity failed with exit code $nativeExitCode."
+    $nativeExitCode = $null
+    $succeeded = $false
+    try {
+        & $FilePath @ArgumentList
+        $nativeExitCode = $LASTEXITCODE
+        if ($nativeExitCode -ne 0) {
+            throw "$Activity failed with exit code $nativeExitCode."
+        }
+        $succeeded = $true
     }
-    Write-Host ("    {0} completed in {1}s" -f $Activity, [int]$phaseWatch.Elapsed.TotalSeconds) -ForegroundColor DarkGray
+    finally {
+        $phaseWatch.Stop()
+        $script:nativeTimings.Add([pscustomobject]@{
+            activity = $Activity
+            executable = [IO.Path]::GetFileName($FilePath)
+            milliseconds = [math]::Round($phaseWatch.Elapsed.TotalMilliseconds, 3)
+            exitCode = $nativeExitCode
+            succeeded = $succeeded
+        })
+    }
+    Write-Host ("    {0} completed in {1:N3}s" -f $Activity, $phaseWatch.Elapsed.TotalSeconds) -ForegroundColor DarkGray
+}
+
+function Test-ScriptParameter {
+    param(
+        [Parameter(Mandatory = $true)][string]$ScriptPath,
+        [Parameter(Mandatory = $true)][string]$ParameterName
+    )
+
+    # Parse declarations without executing a tool script or dynamic parameters.
+    $tokens = $null
+    $parseErrors = $null
+    $ast = [Management.Automation.Language.Parser]::ParseFile(
+        $ScriptPath, [ref]$tokens, [ref]$parseErrors)
+    if ($parseErrors.Count -gt 0) {
+        throw "Cannot inspect tool build parameters: $ScriptPath ($($parseErrors[0].Message))"
+    }
+    if ($null -eq $ast.ParamBlock) { return $false }
+    foreach ($parameter in $ast.ParamBlock.Parameters) {
+        if ($parameter.Name.VariablePath.UserPath -eq $ParameterName) { return $true }
+    }
+    return $false
 }
 
 function Start-ProductProcess {
@@ -982,6 +1024,7 @@ if ($DryRun) {
     return
 }
 
+Write-Phase 'Validating the installed layout and taking the preservation inventory'
 foreach ($requiredPath in @(
     $canonicalInstallRoot,
     $installedModulesRoot,
@@ -1142,9 +1185,17 @@ try {
                 '-NoProfile',
                 '-NonInteractive',
                 '-File', $toolBuildScript,
-                '-MyPowerToolsRepoRoot', $repositoryRoot,
-                '-Configuration', $Configuration)
+                '-MyPowerToolsRepoRoot', $repositoryRoot)
             Activity = "Building tool $requestedToolId"
+        }
+        if (Test-ScriptParameter -ScriptPath $toolBuildScript -ParameterName 'Configuration') {
+            $toolBuildParameters.ArgumentList += @('-Configuration', $Configuration)
+        }
+        elseif ($Configuration -ne 'Release') {
+            Write-Warning "Tool $requestedToolId does not accept -Configuration. Using its script-defined configuration (legacy builders use Release), not requested $Configuration."
+        }
+        if ($NoRestore -and (Test-ScriptParameter -ScriptPath $toolBuildScript -ParameterName 'NoRestore')) {
+            $toolBuildParameters.ArgumentList += '-NoRestore'
         }
         Invoke-Native @toolBuildParameters
         $descriptor = Get-ToolPackageDescriptor -RequestedToolId $requestedToolId
@@ -1191,6 +1242,7 @@ try {
         if (-not (Test-IsInsidePath -Parent $payloadRoot -Child $payloadDestination)) {
             throw "Payload path escaped the transaction root: $($component.RelativePath)"
         }
+        Write-Phase "Staging $($component.RelativePath) for the transactional swap"
         Copy-DirectoryContents -Source $component.Source -Destination $payloadDestination
     }
 
@@ -1216,6 +1268,7 @@ try {
     }
     $transactionStarted = $true
 
+    Write-Phase 'Applying the staged component directories'
     foreach ($component in $stagedComponents) {
         $target = Resolve-InstalledRelativePath -RelativePath $component.RelativePath
         $backup = [IO.Path]::GetFullPath((Join-Path $backupRoot $component.RelativePath))
@@ -1310,6 +1363,7 @@ try {
         $shellRecord = Wait-ForInstalledProcess @shellProcessParameters
     }
 
+    Write-Phase 'Validating preserved layout and loaded catalog'
     $inventoryAfter = Get-InstalledLayoutInventory
     $overlaidServiceUnits = @($stagedComponents | Where-Object Kind -eq 'service-unit')
     if ($inventoryAfter.RuntimeFileCount -ne $inventoryBefore.RuntimeFileCount) {
@@ -1366,6 +1420,7 @@ catch {
     throw $updateError
 }
 finally {
+    Write-Phase 'Cleaning up development staging'
     if ($updateSucceeded -or $rollbackSucceeded -or -not $transactionStarted) {
         try {
             Remove-VerifiedDirectory -Path $transactionRoot -AllowedParent $installationParent
@@ -1379,5 +1434,40 @@ finally {
     }
     catch {
         Write-Warning "Development artifact cleanup failed: $($_.Exception.Message)"
+    }
+    try {
+        $script:runWatch.Stop()
+        $phases = for ($index = 0; $index -lt $script:phaseEvents.Count; $index++) {
+            $entry = $script:phaseEvents[$index]
+            $end = if ($index + 1 -lt $script:phaseEvents.Count) {
+                $script:phaseEvents[$index + 1].startMilliseconds
+            } else {
+                $script:runWatch.Elapsed.TotalMilliseconds
+            }
+            [ordered]@{
+                name = $entry.name
+                startMilliseconds = $entry.startMilliseconds
+                milliseconds = [math]::Round($end - $entry.startMilliseconds, 3)
+            }
+        }
+        $timingPath = Join-Path $devArtifactsParent 'last-timings.json'
+        New-Item -ItemType Directory -Path $devArtifactsParent -Force | Out-Null
+        [ordered]@{
+            schemaVersion = 1
+            generatedAt = [DateTimeOffset]::UtcNow.ToString('O')
+            scope = $Scope
+            configuration = $Configuration
+            noRestore = $NoRestore.IsPresent
+            succeeded = $updateSucceeded
+            rollbackSucceeded = $rollbackSucceeded
+            totalMilliseconds = [math]::Round($script:runWatch.Elapsed.TotalMilliseconds, 3)
+            phases = @($phases)
+            nativeCommands = $script:nativeTimings.ToArray()
+        } | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $timingPath -Encoding utf8
+        Write-Host "Development timings: $timingPath" -ForegroundColor DarkGray
+    }
+    catch {
+        # Performance evidence must never hide the actual build/install result.
+        Write-Warning "Development timings could not be written: $($_.Exception.Message)"
     }
 }

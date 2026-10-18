@@ -20,6 +20,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Compile Include="../PersonalUx.Tests/TestApp.cs" Link="TestApp.cs" />
     <ProjectReference Include="..\..\tools\remote-notifications\current-integration\src\RemoteNotifications.Surface\RemoteNotifications.Surface.csproj" />
   </ItemGroup>
 

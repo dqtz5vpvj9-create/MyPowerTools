@@ -12,7 +12,7 @@ $ErrorActionPreference = 'Stop'
 $RepoRoot = [System.IO.Path]::GetFullPath($RepoRoot)
 $ArtifactsRoot = [System.IO.Path]::GetFullPath($ArtifactsRoot)
 if ([string]::IsNullOrWhiteSpace($Version)) {
-    $versionScript = Join-Path (Split-Path -Parent $PSScriptRoot) 'get-product-version.ps1'
+    $versionScript = Join-Path $PSScriptRoot 'get-product-version.ps1'
     $versionParams = @{
         RepoRoot = $RepoRoot
     }

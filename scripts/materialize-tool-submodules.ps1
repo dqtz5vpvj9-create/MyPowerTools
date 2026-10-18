@@ -1,10 +1,10 @@
 <#
 .SYNOPSIS
-Materializes eight local tool repositories from artifacts/source-bundle and optionally attaches them as submodules.
+Materializes local tool repositories from artifacts/source-bundle and optionally attaches them as submodules.
 
 .DESCRIPTION
 The script creates one independent local Git repository per tool under a sibling
-MyPowerTools.ToolRepos directory. Each repository commits original-source,
+MyPowerTools.ToolRepos directory. Each repository commits any declared original-source,
 current-integration, source-map.json, and a generated README.md. It then adds the repositories to
 MyPowerTools/tools/<tool-id> through absolute file:// submodule URLs.
 
@@ -21,7 +21,7 @@ a tool repository, replace its URL in the superproject and synchronize it:
     git add .gitmodules
 
 .PARAMETER SkipSubmoduleAdd
-Creates or refreshes the eight local repositories without changing the
+Creates or refreshes the local repositories without changing the
 superproject working tree, index, tools directory, or .gitmodules.
 
 .PARAMETER ForceRefresh
@@ -80,9 +80,11 @@ $toolIds = @(
 )
 
 $generatedReadmeMarker = '<!-- mypowertools-materialized-source -->'
-$gitCommand = Get-Command 'git.exe' -CommandType Application -ErrorAction SilentlyContinue
+$gitCommand = Get-Command 'git.exe' -CommandType Application -ErrorAction SilentlyContinue |
+    Select-Object -First 1
 if ($null -eq $gitCommand) {
-    $gitCommand = Get-Command 'git' -CommandType Application -ErrorAction Stop
+    $gitCommand = Get-Command 'git' -CommandType Application -ErrorAction Stop |
+        Select-Object -First 1
 }
 $gitExecutable = $gitCommand.Source
 
@@ -280,11 +282,11 @@ function New-MaterializedReadmeContent {
 # MyPowerTools tool source: {{TOOL_ID}}
 
 This local development repository was materialized from
-`artifacts/source-bundle/tools/{{TOOL_ID}}`.
+`artifacts/source-bundle/{{TOOLS_PATH}}/{{TOOL_ID}}`.
 
 Committed snapshot content:
 
-- `original-source/`: captured original tool source;
+- `original-source/`: captured original tool source, when declared by source-map.json;
 - `current-integration/`: current MyPowerTools module, product UI, service, and related test source;
 - `source-map.json`: source commit, dirty-state, and snapshot mapping;
 - `README.md`: local materialization and remote migration instructions.
@@ -310,7 +312,9 @@ The materialization script preserves a URL that has already been changed to a
 remote location and does not contact that remote.
 '@
 
-    return $template.Replace('{{TOOL_ID}}', $ToolId).Replace('{{LOCAL_FILE_URL}}', $LocalFileUrl)
+    return $template.Replace('{{TOOL_ID}}', $ToolId).
+        Replace('{{TOOLS_PATH}}', $bundleToolsRelativePath).
+        Replace('{{LOCAL_FILE_URL}}', $LocalFileUrl)
 }
 
 function Get-SubmoduleIndexMode {
@@ -419,7 +423,17 @@ if (-not (Test-Path -LiteralPath $bundleManifestPath -PathType Leaf)) {
 }
 
 $bundleManifest = Get-Content -Raw -LiteralPath $bundleManifestPath | ConvertFrom-Json
-$manifestToolIds = @($bundleManifest.tools.id)
+if ($bundleManifest.schemaVersion -eq 2) {
+    # create-source-bundle.ps1 materializes the complete checkout under
+    # superproject/ and records each tool as toolId in the v2 manifest.
+    $manifestToolIds = @($bundleManifest.tools.toolId)
+    $bundleToolsRelativePath = 'superproject/tools'
+} else {
+    # Keep the original snapshot layout readable for existing local bundles.
+    $manifestToolIds = @($bundleManifest.tools.id)
+    $bundleToolsRelativePath = 'tools'
+}
+$bundleToolsRoot = Join-Path $SourceBundleRoot $bundleToolsRelativePath
 $missingManifestTools = @($toolIds | Where-Object { $manifestToolIds -notcontains $_ })
 if ($missingManifestTools.Count -gt 0) {
     throw "Source bundle is missing tools: $($missingManifestTools -join ', ')"
@@ -428,11 +442,10 @@ if ($missingManifestTools.Count -gt 0) {
 # Complete every source and destination preflight before creating or modifying a repository.
 $plans = [System.Collections.Generic.List[object]]::new()
 foreach ($toolId in $toolIds) {
-    $bundleToolRoot = [System.IO.Path]::GetFullPath((Join-Path (Join-Path $SourceBundleRoot 'tools') $toolId))
+    $bundleToolRoot = [System.IO.Path]::GetFullPath((Join-Path $bundleToolsRoot $toolId))
     $bundleOriginalSource = Join-Path $bundleToolRoot 'original-source'
     $bundleCurrentIntegration = Join-Path $bundleToolRoot 'current-integration'
     $bundleSourceMap = Join-Path $bundleToolRoot 'source-map.json'
-    Assert-DirectoryExists -LiteralPath $bundleOriginalSource -Label "$toolId original-source"
     Assert-DirectoryExists -LiteralPath $bundleCurrentIntegration -Label "$toolId current-integration"
     if (-not (Test-Path -LiteralPath $bundleSourceMap -PathType Leaf)) {
         throw "$toolId source-map.json was not found: $bundleSourceMap"
@@ -443,6 +456,14 @@ foreach ($toolId in $toolIds) {
         $toolId,
         [System.StringComparison]::OrdinalIgnoreCase)) {
         throw "$toolId source-map.json declares a different toolId: $($sourceMap.toolId)"
+    }
+    # Native modules and external-process adapters explicitly declare no upstream
+    # snapshot. An absent field in legacy maps still requires original-source.
+    $originalSnapshotProperty = $sourceMap.PSObject.Properties['originalSnapshotPath']
+    $requiresOriginalSource = -not ($null -ne $originalSnapshotProperty -and
+        $null -eq $originalSnapshotProperty.Value)
+    if ($requiresOriginalSource) {
+        Assert-DirectoryExists -LiteralPath $bundleOriginalSource -Label "$toolId original-source"
     }
 
     $repositoryPath = [System.IO.Path]::GetFullPath((Join-Path $ToolReposRoot $toolId))
@@ -474,7 +495,8 @@ foreach ($toolId in $toolIds) {
                     throw "$toolId repository has a detached HEAD. Check out a local branch before materialization: $repositoryPath"
                 }
             }
-            $materialized = (Test-Path -LiteralPath (Join-Path $repositoryPath 'original-source') -PathType Container) -and
+            $materialized = (-not $requiresOriginalSource -or
+                (Test-Path -LiteralPath (Join-Path $repositoryPath 'original-source') -PathType Container)) -and
                 (Test-Path -LiteralPath (Join-Path $repositoryPath 'current-integration') -PathType Container) -and
                 (Test-Path -LiteralPath (Join-Path $repositoryPath 'source-map.json') -PathType Leaf)
             $activeToolRepository = Test-Path -LiteralPath (Join-Path $repositoryPath 'tool-release.json') -PathType Leaf
@@ -513,6 +535,7 @@ foreach ($toolId in $toolIds) {
     $plans.Add([pscustomobject]@{
         ToolId = $toolId
         BundleOriginalSource = $bundleOriginalSource
+        RequiresOriginalSource = $requiresOriginalSource
         BundleCurrentIntegration = $bundleCurrentIntegration
         BundleSourceMap = $bundleSourceMap
         RepositoryPath = $repositoryPath
@@ -550,12 +573,17 @@ try {
         $shouldRefresh = -not $plan.ActiveToolRepository -and
             (-not $plan.RepositoryHasHead -or -not $plan.Materialized -or $ForceRefresh)
         if ($shouldRefresh) {
+            $trackedOriginalPaths = Get-GitOutputText -ArgumentList @(
+                '-C', $plan.RepositoryPath, 'ls-files', '--', 'original-source'
+            )
             $originalDestination = [System.IO.Path]::GetFullPath((Join-Path $plan.RepositoryPath 'original-source'))
             Assert-PathInsideRoot -Root $plan.RepositoryPath -Candidate $originalDestination
             if (Test-Path -LiteralPath $originalDestination) {
                 Remove-Item -LiteralPath $originalDestination -Recurse -Force
             }
-            Copy-DirectoryContents -Source $plan.BundleOriginalSource -Destination $originalDestination
+            if ($plan.RequiresOriginalSource) {
+                Copy-DirectoryContents -Source $plan.BundleOriginalSource -Destination $originalDestination
+            }
             $integrationDestination = [System.IO.Path]::GetFullPath((Join-Path $plan.RepositoryPath 'current-integration'))
             Assert-PathInsideRoot -Root $plan.RepositoryPath -Candidate $integrationDestination
             if (Test-Path -LiteralPath $integrationDestination) {
@@ -575,9 +603,13 @@ try {
                 Set-Content -LiteralPath $readmePath -Value $readmeContent -Encoding UTF8
             }
 
-            Invoke-Git -ArgumentList @(
-                '-C', $plan.RepositoryPath, 'add', '--', 'original-source', 'current-integration', 'source-map.json', 'README.md'
-            )
+            $stagePaths = @('current-integration', 'source-map.json', 'README.md')
+            if ($plan.RequiresOriginalSource -or -not [string]::IsNullOrWhiteSpace($trackedOriginalPaths)) {
+                # Include prior tracked snapshots so a declared-null refresh also
+                # stages their removal, without passing a nonexistent pathspec.
+                $stagePaths += 'original-source'
+            }
+            Invoke-Git -ArgumentList (@('-C', $plan.RepositoryPath, 'add', '--all', '--') + $stagePaths)
             $stagedResult = Invoke-Git -ArgumentList @(
                 '-C', $plan.RepositoryPath, 'diff', '--cached', '--quiet'
             ) -ExpectedExitCodes @(0, 1) -CaptureOutput
@@ -612,9 +644,9 @@ try {
             '-C', $plan.RepositoryPath, 'ls-tree', '-r', '--name-only', 'HEAD', '--', 'current-integration'
         )
         if ($sourceMapCommitCheck.ExitCode -ne 0 -or
-            [string]::IsNullOrWhiteSpace($committedOriginalPaths) -or
+            ($plan.RequiresOriginalSource -and [string]::IsNullOrWhiteSpace($committedOriginalPaths)) -or
             [string]::IsNullOrWhiteSpace($committedIntegrationPaths)) {
-            throw "$($plan.ToolId) HEAD does not commit source-map.json plus both source snapshots."
+            throw "$($plan.ToolId) HEAD does not commit source-map.json plus every declared source snapshot."
         }
     }
 
@@ -683,6 +715,6 @@ foreach ($plan in $plans) {
 if ($SkipSubmoduleAdd) {
     Write-Host 'Submodule attachment was skipped; the superproject index and .gitmodules were not changed.'
 } else {
-    Write-Host "Local submodules are under $SuperprojectToolsRoot. Review and commit .gitmodules plus the eight gitlinks."
+    Write-Host "Local submodules are under $SuperprojectToolsRoot. Review and commit .gitmodules plus the gitlinks."
     Write-Host 'Replace each file:// URL with its remote URL after publishing the corresponding repository.'
 }

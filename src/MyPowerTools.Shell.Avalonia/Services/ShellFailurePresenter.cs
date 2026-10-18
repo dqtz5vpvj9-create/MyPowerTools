@@ -27,26 +27,32 @@ internal static class ShellFailurePresenter
 
     public static ShellUserFacingFailure Present(
         Exception exception,
-        ShellFailureSource source = ShellFailureSource.Runner)
+        ShellFailureSource source = ShellFailureSource.Runner,
+        PlatformId? platform = null)
     {
         ArgumentNullException.ThrowIfNull(exception);
 
         var exceptions = ExpandExceptionChain(exception);
         var rpc = exceptions.OfType<RpcException>().FirstOrDefault();
-        var service = DescribeService(source);
+        var service = DescribeService(source, platform ?? PlatformId.Current());
 
         if (rpc is not null &&
             rpc.StatusCode is StatusCode.Internal or StatusCode.Unknown or StatusCode.Unavailable &&
             ContainsAccessDenied(exceptions, rpc))
         {
+            var isNamedPipe = service.Transport == IpcTransport.NamedPipe;
+            var operatingSystem = isNamedPipe ? "Windows" : "The operating system";
+            var recovery = isNamedPipe
+                ? $"Common trigger during parallel development: the active {service.ProcessName} was started by a session using another Windows account or elevation level. Close that process or run every MPT session with the same Windows permissions, then select Try again."
+                : $"Common trigger during parallel development: the active {service.ProcessName} was started by another user, or its socket or parent directory denies this user access. Run the Shell and {service.ProcessName} as the same user and check the socket and directory permissions, then select Try again.";
             var paragraphs = new List<string>
             {
-                $"Windows blocked this Shell from opening the shared {service.DisplayName} connection.",
+                $"{operatingSystem} blocked this Shell from opening the shared {service.DisplayName} connection.",
                 $"Connection: {service.TransportLabel} {service.Endpoint}{Environment.NewLine}Result: Access denied",
-                $"Common trigger during parallel development: the active {service.ProcessName} was started by a session using another Windows account or elevation level. Close that process or run every MPT session with the same Windows permissions, then select Try again."
+                recovery
             };
 
-            if (service.Transport == IpcTransport.NamedPipe)
+            if (isNamedPipe)
             {
                 paragraphs.Add("localhost:80 is gRPC's placeholder address for this named-pipe connection; MPT did not contact TCP port 80.");
             }
@@ -54,7 +60,7 @@ internal static class ShellFailurePresenter
             return new ShellUserFacingFailure(
                 $"{service.CodePrefix}-access-denied",
                 JoinParagraphs(paragraphs),
-                $"Windows denied this Shell access to the {service.DisplayName} connection.");
+                $"{operatingSystem} denied this Shell access to the {service.DisplayName} connection.");
         }
 
         if (rpc?.StatusCode == StatusCode.Unauthenticated)
@@ -228,11 +234,11 @@ internal static class ShellFailurePresenter
             paragraphs.Where(paragraph => !string.IsNullOrWhiteSpace(paragraph)));
     }
 
-    private static ShellServiceDescription DescribeService(ShellFailureSource source)
+    private static ShellServiceDescription DescribeService(ShellFailureSource source, PlatformId platform)
     {
         var endpoint = source == ShellFailureSource.ServiceManager
-            ? IpcEndpoint.ServiceManagerDefault(PlatformId.Current())
-            : IpcEndpoint.RunnerDefault(PlatformId.Current());
+            ? IpcEndpoint.ServiceManagerDefault(platform)
+            : IpcEndpoint.RunnerDefault(platform);
         var transportLabel = endpoint.Transport switch
         {
             IpcTransport.NamedPipe => "Windows named pipe",

@@ -26,6 +26,10 @@
 .PARAMETER PortableOnly
   Skip the Inno Setup installer and source bundle; produce only the portable layout + ZIP.
 
+.PARAMETER LayoutOnly
+  Prepare and validate the Full installation directory and its embedded manifest only.
+  Used by source installs that do not consume ZIP, OTA, or release assets.
+
 .EXAMPLE
   pwsh scripts/publish-windows.ps1
 .EXAMPLE
@@ -34,6 +38,7 @@
 [CmdletBinding()]
 param(
     [switch]$PortableOnly,
+    [switch]$LayoutOnly,
     [ValidateSet('Full', 'Web', 'All')]
     [string]$Distribution = 'Full',
     [string]$Version = '',
@@ -47,6 +52,10 @@ param(
 )
 
 $ErrorActionPreference = 'Stop'
+
+if ($LayoutOnly -and ($PortableOnly -or $Distribution -ne 'Full')) {
+    throw 'LayoutOnly requires the Full distribution and cannot be combined with PortableOnly.'
+}
 
 $RepoRoot = Split-Path -Parent $PSScriptRoot
 $Artifacts = Join-Path $RepoRoot 'artifacts\release'
@@ -414,6 +423,8 @@ if (Test-Path -LiteralPath $ddnsUnitSource -PathType Container) {
         throw "Duplicate Service Unit id in release payload: ddns.service"
     }
     Copy-Item -LiteralPath $ddnsUnitSource -Destination $ddnsUnitDestination -Recurse -Force
+    Copy-Item -LiteralPath (Join-Path $RepoRoot 'tools\ddns\ddns.ps1') `
+        -Destination (Join-Path $ddnsUnitDestination 'bin\ddns.ps1') -Force
 }
 $LauncherPublishRoot = Join-Path $PublishRoot 'App'
 Invoke-Native -FilePath 'dotnet' -ArgumentList @('publish', 'src\MyPowerTools.App\MyPowerTools.App.csproj', '-c', 'Release', '-r', 'win-x64', '--self-contained', 'false', '-p:PublishAot=false', '-p:PublishSingleFile=true', '-p:OptimizationPreference=Speed', '-p:DebugType=None', '-p:DebugSymbols=false', '-o', $LauncherPublishRoot)
@@ -584,7 +595,7 @@ Invoke-Native -FilePath (Join-Path $PublishRoot 'Cli\MyPowerTools.Cli.exe') -Arg
     '--schemas',
     (Join-Path $PublishRoot 'schemas'))
 
-if (Test-Path -LiteralPath $ZipPath) {
+if (-not $LayoutOnly -and (Test-Path -LiteralPath $ZipPath)) {
     Remove-Item -LiteralPath $ZipPath -Force
 }
 
@@ -601,6 +612,11 @@ $embeddedManifestName = if ($isWebDistribution) {
 }
 Copy-Item -LiteralPath $ManifestAssetPath -Destination (
     Join-Path $PublishRoot $embeddedManifestName) -Force
+
+if ($LayoutOnly) {
+    Write-Host "Validated installation layout ready at $PublishRoot"
+    return
+}
 
 [void](& (Join-Path $PSScriptRoot 'compress-release-zip.ps1') -Root $PublishRoot -OutputPath $ZipPath)
 Write-Sha256File -Path $ZipPath

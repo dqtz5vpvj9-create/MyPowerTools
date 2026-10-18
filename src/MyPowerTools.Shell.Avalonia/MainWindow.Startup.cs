@@ -256,7 +256,8 @@ public sealed partial class MainWindow
                     AppContext.BaseDirectory,
                     _webSurfaceOcclusion,
                     HandleForwardedWebToolShortcutAsync),
-                RequireControl<Grid>(_chrome, "WebSurfaceHost"));
+                RequireControl<Grid>(_chrome, "WebSurfaceHost"),
+                startupOptions: _startupOptions);
             ShellStartupDiagnostics.Mark("workspace-created");
             var startupToolId = _startupActivation?.ToolActivation?.ToolId;
             if (!string.IsNullOrWhiteSpace(startupToolId))

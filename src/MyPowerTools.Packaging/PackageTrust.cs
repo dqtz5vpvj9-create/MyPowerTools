@@ -96,11 +96,11 @@ public sealed class PackageTrustVerifier
         var definition = _reader.ReadPackageDirectory(packageDirectory);
         var hashPath = ResolveHashManifestPath(definition);
         _ = ResolvePackagePath(definition.Directory, hashPath);
-        var hashFullPath = _integrity.WriteHashManifest(definition.Directory, hashPath);
         var signaturePath = string.IsNullOrWhiteSpace(relativePath)
             ? ResolveSignatureManifestPath(definition)
             : Normalize(relativePath);
         var signatureFullPath = ResolvePackagePath(definition.Directory, signaturePath);
+        var hashFullPath = _integrity.WriteHashManifest(definition.Directory, hashPath, [signaturePath]);
 
         Directory.CreateDirectory(Path.GetDirectoryName(signatureFullPath)!);
         var document = new PackageSignatureDocument
@@ -229,18 +229,7 @@ public sealed class PackageTrustVerifier
 
     private static string ResolvePackagePath(string packageDirectory, string relativePath)
     {
-        var packageRoot = Path.GetFullPath(packageDirectory);
-        var fullPath = Path.GetFullPath(Path.Combine(packageRoot, relativePath));
-        var packageRootWithSeparator = packageRoot.EndsWith(Path.DirectorySeparatorChar)
-            ? packageRoot
-            : packageRoot + Path.DirectorySeparatorChar;
-        if (!fullPath.StartsWith(packageRootWithSeparator, StringComparison.OrdinalIgnoreCase) &&
-            !string.Equals(fullPath, packageRoot, StringComparison.OrdinalIgnoreCase))
-        {
-            throw new InvalidOperationException("Package trust path escapes package directory.");
-        }
-
-        return fullPath;
+        return PackagePath.Resolve(packageDirectory, relativePath);
     }
 
     private static string Normalize(string path) => path.Replace('\\', '/');

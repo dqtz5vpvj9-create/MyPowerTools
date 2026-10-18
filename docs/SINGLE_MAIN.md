@@ -21,7 +21,6 @@ The signed personal-use application is `artifacts/publish/macos-arm64/MyPowerToo
 Run builds and .NET tests sequentially: they share intermediate directories and differing debug-symbol settings.
 
 ```sh
-dotnet test tests/ShortcutCenter.Tests/ShortcutCenter.Tests.csproj -c Release -p:BuildWindowsWebToolHost=false
 dotnet test tests/PersonalUx.Tests/PersonalUx.Tests.csproj -c Release -p:BuildWindowsWebToolHost=false
 node --test tests/ShortcutCenter.Tests/web-shortcuts.test.cjs
 pwsh -NoProfile -File scripts/verify-macos-install-safety.ps1

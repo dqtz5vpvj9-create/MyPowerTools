@@ -57,44 +57,6 @@ public sealed class DoubaoAgentProductTests
     }
 
     [Fact]
-    public void Doubao_navigation_mounts_cached_state_without_awaiting_business_probes()
-    {
-        var factory = File.ReadAllText(Path.Combine(
-            Root,
-            "tools",
-            "doubao-computer-use",
-            "current-integration",
-            "src",
-            "DoubaoAgent.Surface",
-            "DoubaoAgentSurfaceFactory.cs"));
-        var service = File.ReadAllText(Path.Combine(
-            Root,
-            "tools",
-            "doubao-computer-use",
-            "current-integration",
-            "src",
-            "DoubaoAgent.Surface",
-            "Services",
-            "DoubaoAgentToolService.cs"));
-        var operations = File.ReadAllText(Path.Combine(
-            Root,
-            "tools",
-            "doubao-computer-use",
-            "current-integration",
-            "src",
-            "DoubaoAgent.Surface",
-            "ViewModels",
-            "DoubaoAgentViewModel.Operations.cs"));
-
-        Assert.Contains("var snapshot = tools.CurrentSnapshot", factory, StringComparison.Ordinal);
-        Assert.Contains("new DoubaoAgentViewModel(snapshot, tools", factory, StringComparison.Ordinal);
-        Assert.DoesNotContain("await tools.RefreshAsync", factory, StringComparison.Ordinal);
-        Assert.Contains("GetCachedSnapshotAsync", service, StringComparison.Ordinal);
-        Assert.Contains("public void Activate()", operations, StringComparison.Ordinal);
-        Assert.Contains("await _service.RefreshAsync(cancellationToken)", operations, StringComparison.Ordinal);
-    }
-
-    [Fact]
     public async Task Local_runtime_snapshot_uses_the_real_three_service_contract()
     {
         using var runtime = new TemporaryDoubaoRuntime();
@@ -577,7 +539,7 @@ public sealed class DoubaoAgentProductTests
             "doubao-computer-use",
             "current-integration",
             "src",
-            "MyPowerTools.Shell.Avalonia",
+            "DoubaoAgent.Surface",
             "Services",
             "DoubaoSecureRuntimeController.cs"));
         var service = File.ReadAllText(Path.Combine(
@@ -586,7 +548,7 @@ public sealed class DoubaoAgentProductTests
             "doubao-computer-use",
             "current-integration",
             "src",
-            "MyPowerTools.Shell.Avalonia",
+            "DoubaoAgent.Surface",
             "Services",
             "DoubaoAgentToolService.cs"));
 
@@ -779,17 +741,8 @@ public sealed class DoubaoAgentProductTests
     }
 
     [Fact]
-    public void Dedicated_view_keeps_every_original_panel_and_a_single_real_route()
+    public void Product_manifest_exposes_a_single_services_route()
     {
-        var view = File.ReadAllText(Path.Combine(
-            Root,
-            "tools",
-            "doubao-computer-use",
-            "current-integration",
-            "src",
-            "MyPowerTools.Shell.Avalonia",
-            "Views",
-            "DoubaoAgentView.axaml"));
         var tool = JsonNode.Parse(File.ReadAllText(Path.Combine(
             Root,
             "modules",
@@ -798,17 +751,6 @@ public sealed class DoubaoAgentProductTests
             "tool.json")))!.AsObject();
         var routes = tool["routes"]!.AsArray();
 
-        Assert.Contains("运行任务", view);
-        Assert.Contains("本地服务", view);
-        Assert.Contains("截图预览", view);
-        Assert.Contains("运行记录", view);
-        Assert.Contains("记录详情", view);
-        Assert.Contains("原始数据", view);
-        Assert.Contains("运行时诊断", view);
-        Assert.Contains("屏幕标记调试", view);
-        Assert.Contains("进程、端口与日志", view);
-        Assert.Contains("OverlaySelfTestCommand", view);
-        Assert.Contains("MaxWidth=\"1480\"", view);
         Assert.Single(routes);
         Assert.Equal("services", routes[0]!["routeId"]!.GetValue<string>());
     }

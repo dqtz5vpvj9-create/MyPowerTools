@@ -5,7 +5,25 @@ on:
     paths:
       - scripts/install-macos*.ps1
       - scripts/verify-macos-install-safety.ps1
+      - scripts/measure-macos-idle.py
+      - scripts/release-metadata.ps1
+      - scripts/get-product-version.ps1
+      - scripts/create-source-bundle.ps1
+      - scripts/materialize-tool-submodules.ps1
+      - scripts/update-windows-dev.ps1
+      - scripts/install-windows.ps1
+      - scripts/publish-windows.ps1
+      - scripts/publish-macos*.ps1
+      - scripts/prepare-focused-test-sdk.ps1
+      - scripts/focused-test-sdk.proj
+      - scripts/test-dev.ps1
+      - scripts/tests/*.py
+      - tools/ddns/*.ps1
+      - tools/ddns/tests/*.ps1
       - .github/workflows/macos-install-safety.yml
+      - .github/workflows/ci.yml
+      - .github/workflows/macos-ota-release.yml
+      - .github/actions/checkout-submodules/action.yml
   workflow_dispatch:
 
 permissions:
@@ -32,6 +50,11 @@ jobs:
       - name: Run rollback and native fixture regressions
         shell: pwsh
         run: ./scripts/verify-macos-install-safety.ps1 -ReportPath (Join-Path $env:RUNNER_TEMP 'macos-install-safety.json')
+      - name: Run portable script regressions
+        run: python3 -m unittest discover -s scripts/tests -p 'test_*.py' -v
+      - name: Run isolated DDNS regressions
+        shell: pwsh
+        run: ./tools/ddns/tests/ddns-tests.ps1
       - name: Upload test evidence
         if: always()
         uses: actions/upload-artifact@v4

@@ -43,6 +43,21 @@ pwsh -File install-ddns-task.ps1
 任务名 `MyPowerTools DDNS`，按配置中的 `checkIntervalMinutes` 周期执行
 `update`。也可用 `watch` 常驻进程由 ServiceManager 托管。
 
+## Service Unit 源码与打包
+
+`ddns.ps1` 是唯一实现。Windows 发布脚本将它复制到发布目录的
+`service-units/ddns.service/bin/ddns.ps1`，Service Unit 模板不再保留另一份实现。
+直接从源码运行 `service-units/ddns.service/bin/ddns-runner.cmd` 时，会回退到本目录的
+`ddns.ps1`。独立复制 Service Unit 时，先组装完整目录：
+
+```powershell
+$destination = 'C:\Temp\ddns.service'
+Copy-Item .\service-units\ddns.service $destination -Recurse
+Copy-Item .\ddns.ps1 (Join-Path $destination 'bin\ddns.ps1')
+```
+
+这些复制命令只准备文件，不会安装或启动服务。
+
 ## 安全说明
 
 `ddns-config.json` 内含 DNSPod API Token（等同账号密码）。不要提交到仓库；

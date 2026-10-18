@@ -242,6 +242,7 @@ $baseParameters = @{
     OutputRoot = $OutputRoot
     CodeSignIdentity = $CodeSignIdentity
     SkipCodeSign = $true
+    SkipArchive = $true
 }
 if ($SkipNativeBuild) {
     $baseParameters.SkipNativeBuild = $true

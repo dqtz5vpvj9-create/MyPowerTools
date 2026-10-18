@@ -1,4 +1,5 @@
 using Grpc.Core;
+using MyPowerTools.Platform.Abstractions;
 using MyPowerTools.Shell.Avalonia;
 using MyPowerTools.Shell.Avalonia.Services;
 
@@ -17,7 +18,7 @@ public sealed class ShellFailurePresenterTests
             "Error starting gRPC call. HttpRequestException: Access to the path is denied. (localhost:80)",
             debugException));
 
-        var failure = ShellFailurePresenter.Present(exception);
+        var failure = ShellFailurePresenter.Present(exception, platform: new PlatformId("windows", "x64"));
 
         Assert.Equal("runner-access-denied", failure.Code);
         Assert.Contains("Windows named pipe", failure.Message, StringComparison.Ordinal);
@@ -30,6 +31,40 @@ public sealed class ShellFailurePresenterTests
         Assert.DoesNotContain("DebugException", failure.Message, StringComparison.Ordinal);
         Assert.DoesNotContain("HttpRequestException", failure.Message, StringComparison.Ordinal);
         Assert.DoesNotContain("UnauthorizedAccessException", failure.Message, StringComparison.Ordinal);
+        Assert.Contains("Windows denied this Shell access", failure.StatusMessage, StringComparison.Ordinal);
+    }
+
+    [Theory]
+    [InlineData("linux", false, "mypowertools.runner.hostcontrol.sock")]
+    [InlineData("macos", false, "mypowertools.runner.hostcontrol.sock")]
+    [InlineData("linux", true, "mypewertools.servicemanager.v1.sock")]
+    [InlineData("macos", true, "mypewertools.servicemanager.v1.sock")]
+    public void Unix_socket_access_denied_explains_socket_permissions_without_windows_advice(
+        string operatingSystem,
+        bool serviceManager,
+        string socketName)
+    {
+        var source = serviceManager ? ShellFailureSource.ServiceManager : ShellFailureSource.Runner;
+        var exception = new RpcException(new Status(
+            StatusCode.Internal,
+            "Permission denied.",
+            new UnauthorizedAccessException("internal transport detail")));
+
+        var failure = ShellFailurePresenter.Present(exception, source, new PlatformId(operatingSystem, "x64"));
+
+        Assert.Equal(source == ShellFailureSource.Runner ? "runner-access-denied" : "service-manager-access-denied", failure.Code);
+        Assert.Contains("Unix domain socket", failure.Message, StringComparison.Ordinal);
+        Assert.Contains(socketName, failure.Message, StringComparison.Ordinal);
+        Assert.Contains("Result: Access denied", failure.Message, StringComparison.Ordinal);
+        Assert.Contains("same user", failure.Message, StringComparison.Ordinal);
+        Assert.Contains("socket and directory permissions", failure.Message, StringComparison.Ordinal);
+        Assert.Contains("The operating system denied this Shell access", failure.StatusMessage, StringComparison.Ordinal);
+        Assert.DoesNotContain("Windows", failure.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("Windows", failure.StatusMessage, StringComparison.Ordinal);
+        Assert.DoesNotContain("elevation", failure.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("localhost:80", failure.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("TCP port 80", failure.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("internal transport detail", failure.Message, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -77,10 +112,11 @@ public sealed class ShellFailurePresenterTests
         var debugException = new UnauthorizedAccessException("Access is denied.");
         var exception = new RpcException(new Status(StatusCode.Internal, "Access is denied.", debugException));
 
-        var failure = ShellFailurePresenter.Present(exception, ShellFailureSource.ServiceManager);
+        var failure = ShellFailurePresenter.Present(exception, ShellFailureSource.ServiceManager, new PlatformId("windows", "x64"));
 
         Assert.Equal("service-manager-access-denied", failure.Code);
         Assert.Contains("MPT Service Manager", failure.Message, StringComparison.Ordinal);
+        Assert.Contains("Windows named pipe", failure.Message, StringComparison.Ordinal);
         Assert.Contains("mypewertools.servicemanager.v1", failure.Message, StringComparison.Ordinal);
         Assert.DoesNotContain("mypowertools.runner.hostcontrol", failure.Message, StringComparison.Ordinal);
     }
@@ -113,7 +149,8 @@ public sealed class ShellFailurePresenterTests
         var snapshot = await monitor.CheckOnceAsync(notify: false);
 
         Assert.False(snapshot.Online);
-        Assert.Contains("Windows denied this Shell access", snapshot.Message, StringComparison.Ordinal);
+        var expectedOperatingSystem = OperatingSystem.IsWindows() ? "Windows" : "The operating system";
+        Assert.Contains($"{expectedOperatingSystem} denied this Shell access", snapshot.Message, StringComparison.Ordinal);
         Assert.DoesNotContain("StatusCode", snapshot.Message, StringComparison.Ordinal);
         Assert.DoesNotContain("DebugException", snapshot.Message, StringComparison.Ordinal);
         Assert.DoesNotContain("UnauthorizedAccessException", snapshot.Message, StringComparison.Ordinal);

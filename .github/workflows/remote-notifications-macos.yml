@@ -29,6 +29,7 @@ on:
       - "native/macos/**"
       - "scripts/verify-remote-notifications-macos-production.ps1"
       - "tests/RemoteNotifications.Mac.Ui.Tests/**"
+      - "tests/PersonalUx.Tests/TestApp.cs"
       - ".github/workflows/remote-notifications-macos.yml"
   workflow_dispatch:
 

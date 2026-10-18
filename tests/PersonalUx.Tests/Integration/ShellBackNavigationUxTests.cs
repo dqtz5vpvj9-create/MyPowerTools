@@ -1,5 +1,6 @@
 using Avalonia.Input;
-using MyPowerTools.Shell.Avalonia;
+using MyPowerTools.Runtime;
+using MyPowerTools.Shell.Avalonia.Services;
 using MyPowerTools.Shell.Avalonia.Navigation;
 
 namespace MyPowerTools.Tests;
@@ -9,12 +10,12 @@ public sealed class ShellBackNavigationUxTests
     [Fact]
     public void Alt_left_resolves_to_back_navigation()
     {
-        Assert.True(ShellKeyboardShortcut.TryParseGesture("Alt+Left", out var key, out var modifiers));
+        Assert.True(ShortcutKeyAdapter.TryParse("Alt+Left", out var key, out var modifiers));
         Assert.Equal(Key.Left, key);
         Assert.Equal(KeyModifiers.Alt, modifiers);
-        Assert.Equal(
-            ShellKeyboardAction.NavigateBack,
-            ShellKeyboardShortcut.Resolve(key, modifiers).Action);
+        var snapshot = new ShortcutCatalogSnapshot(new(0, []), ShortcutCatalog.ShellCommands, [], "windows");
+        Assert.Equal("shell.navigation.back",
+            ShortcutCatalog.Resolve(snapshot, ShortcutKeyAdapter.Format(key, modifiers)!, "", "", false, false)?.Definition.Id);
     }
 
     [Fact]

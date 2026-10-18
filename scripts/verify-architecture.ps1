@@ -6,13 +6,18 @@
   Quick   = A1 dependency boundaries + A2 dynamic discovery/data autonomy.
   Process = A3 independent ServiceManager lifecycle + A4 fault isolation.
   Release = A5 installer candidate validation, optionally on a remote Windows host.
+
+.PARAMETER NoBuild
+  Reuse a successful Release architecture-gate build from an earlier tier in the
+  same checkout. Standalone Quick and Process invocations build by default.
 #>
 [CmdletBinding()]
 param(
     [ValidateSet('Quick', 'Process', 'Release')]
     [string]$Tier = 'Process',
     [string]$CandidateRoot = '',
-    [string]$RemoteHost = ''
+    [string]$RemoteHost = '',
+    [switch]$NoBuild
 )
 
 $ErrorActionPreference = 'Stop'
@@ -28,14 +33,16 @@ function Invoke-Native {
     if ($LASTEXITCODE -ne 0) { throw "$Activity failed with exit code $LASTEXITCODE." }
 }
 
+if ($Tier -ne 'Release' -and -not $NoBuild) {
+    Invoke-Native 'dotnet' @('build', $gateProject, '-c', 'Release', '--nologo', '-v', 'minimal') 'Build architecture gate'
+}
+
 switch ($Tier) {
     'Quick' {
-        Invoke-Native 'dotnet' @('build', $gateProject, '-c', 'Release', '--nologo', '-v', 'minimal') 'Build architecture gate'
         Invoke-Native 'dotnet' @('run', '--no-build', '-c', 'Release', '--project', $gateProject, '--', '--mode', 'a1') 'A1 dependency boundary gate'
         Invoke-Native 'dotnet' @('run', '--no-build', '-c', 'Release', '--project', $gateProject, '--', '--mode', 'a2') 'A2 dynamic discovery gate'
     }
     'Process' {
-        Invoke-Native 'dotnet' @('build', $gateProject, '-c', 'Release', '--nologo', '-v', 'minimal') 'Build architecture gate'
         Invoke-Native 'dotnet' @('run', '--no-build', '-c', 'Release', '--project', $gateProject, '--', '--mode', 'a3') 'A3 independent lifecycle gate'
         Invoke-Native 'dotnet' @('run', '--no-build', '-c', 'Release', '--project', $gateProject, '--', '--mode', 'a4') 'A4 fault isolation gate'
     }

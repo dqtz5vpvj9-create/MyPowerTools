@@ -235,6 +235,25 @@ public sealed class HostControlClient : IDisposable
         }, deadline: DefaultDeadline(), cancellationToken: cancellationToken);
     }
 
+    public async Task<HostProto.ListNotificationsResponse> QueryNotificationsAsync(
+        int limit = 50,
+        string moduleId = "",
+        HostProto.NotificationReadFilter readFilter = HostProto.NotificationReadFilter.All,
+        DateTimeOffset? since = null,
+        DateTimeOffset? until = null,
+        string level = "",
+        CancellationToken cancellationToken = default)
+    {
+        var request = new HostProto.ListNotificationsRequest
+        {
+            ModuleId = moduleId, Limit = (uint)Math.Clamp(limit, 1, 200),
+            ReadFilter = readFilter, Level = level
+        };
+        if (since is { } lower) request.Since = Google.Protobuf.WellKnownTypes.Timestamp.FromDateTimeOffset(lower);
+        if (until is { } upper) request.Until = Google.Protobuf.WellKnownTypes.Timestamp.FromDateTimeOffset(upper);
+        return await _client.ListNotificationsAsync(request, deadline: DefaultDeadline(), cancellationToken: cancellationToken);
+    }
+
     public async Task<HostProto.SetNotificationReadStateResponse> SetNotificationReadStateAsync(
         string notificationId,
         bool isRead,

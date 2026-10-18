@@ -18,11 +18,10 @@
     <ProjectReference Include="..\MyPowerTools.Protocol\MyPowerTools.Protocol.csproj" />
     <ProjectReference Include="..\MyPowerTools.Packaging\MyPowerTools.Packaging.csproj" />
     <ProjectReference Include="..\MyPowerTools.Runtime\MyPowerTools.Runtime.csproj" />
-    <ProjectReference Include="..\MyPowerTools.HostControl\MyPowerTools.HostControl.csproj" />
+    <ProjectReference Include="..\MyPowerTools.HostControl.Server\MyPowerTools.HostControl.Server.csproj" />
     <ProjectReference Include="..\MyPowerTools.Ipc.Shared\MyPowerTools.Ipc.Shared.csproj" />
     <ProjectReference Include="..\MyPowerTools.ModuleHost.InProcDotNet\MyPowerTools.ModuleHost.InProcDotNet.csproj" />
     <ProjectReference Include="..\MyPowerTools.ModuleHost.GrpcIpc\MyPowerTools.ModuleHost.GrpcIpc.csproj" />
-    <ProjectReference Include="..\MyPowerTools.ModuleHost.Http\MyPowerTools.ModuleHost.Http.csproj" />
     <ProjectReference Include="..\MyPowerTools.ModuleHost.StdioCompat\MyPowerTools.ModuleHost.StdioCompat.csproj" />
     <ProjectReference Include="..\MyPowerTools.Broker\MyPowerTools.Broker.csproj" />
     <ProjectReference Include="..\MyPowerTools.Platform\MyPowerTools.Platform.csproj" />

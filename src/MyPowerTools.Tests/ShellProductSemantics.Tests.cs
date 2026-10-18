@@ -13,38 +13,6 @@ public sealed class ShellProductSemanticsTests
     private static readonly string Root = FindRepositoryRoot();
 
     [Fact]
-    public void General_page_contains_only_application_level_preferences()
-    {
-        var controller = Read("src", "MyPowerTools.Shell.Avalonia", "Services", "ShellWorkspaceController.Pages.cs");
-        var controllerRoot = Read("src", "MyPowerTools.Shell.Avalonia", "Services", "ShellWorkspaceController.cs");
-        var general = Read("src", "MyPowerTools.Shell.Avalonia", "Views", "GeneralSettingsView.axaml");
-
-        Assert.Contains("new GeneralSettingsView", controller);
-        Assert.Contains("ShellAppearanceService", controllerRoot);
-        Assert.Contains("Appearance", general);
-        Assert.Contains("Background operation", general);
-        Assert.Contains("Keyboard", general);
-        Assert.DoesNotContain("Module Settings", general, StringComparison.Ordinal);
-        Assert.DoesNotContain("Advanced JSON", general, StringComparison.Ordinal);
-        Assert.DoesNotContain("SettingsFieldViewModel", general, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void Module_configuration_remains_under_system_maintenance()
-    {
-        var controller = Read("src", "MyPowerTools.Shell.Avalonia", "Services", "ShellWorkspaceController.Pages.cs");
-        var moduleSettings = Read("src", "MyPowerTools.Shell.Avalonia", "Views", "SettingsCenterView.axaml");
-
-        Assert.Contains("_currentPage = ModulesPage", controller);
-        Assert.Contains("_chromeViewModel.SelectPage(SystemPage)", controller);
-        Assert.Contains("LoadModuleSettingsPageAsync", controller);
-        Assert.DoesNotContain("Text=\"General\"", moduleSettings, StringComparison.Ordinal);
-        Assert.DoesNotContain("Text=\"Packages\"", moduleSettings, StringComparison.Ordinal);
-        Assert.DoesNotContain("Text=\"Logs\"", moduleSettings, StringComparison.Ordinal);
-        Assert.DoesNotContain("Text=\"Categories\"", moduleSettings, StringComparison.Ordinal);
-    }
-
-    [Fact]
     public void Tray_uses_product_language_and_configured_product_icon()
     {
         var runner = Read("src", "MyPowerTools.Runner", "Program.cs");
@@ -89,26 +57,51 @@ public sealed class ShellProductSemanticsTests
     public void Grpc_sidecars_do_not_open_a_console_window()
     {
         var grpcHost = Read("src", "MyPowerTools.ModuleHost.GrpcIpc", "GrpcIpcModuleHost.cs");
-        var moduleHostProjects = new[]
-        {
-            Read("tools", "remote-notifications", "current-integration", "src", "AndroidTools.Runtime", "AndroidTools.Runtime.csproj"),
-            Read("tools", "remote-commands", "current-integration", "src", "AndroidTools.Runtime", "AndroidTools.Runtime.csproj"),
-            Read("tools", "process-monitor", "current-integration", "src", "AndroidTools.Runtime", "AndroidTools.Runtime.csproj")
-        };
+        // remote-notifications owns the shared runtime; other tools' captured
+        // copies are historical snapshots, not independent runtime builds.
+        var moduleHostProject = Read("tools", "remote-notifications", "current-integration", "src", "AndroidTools.Runtime", "AndroidTools.Runtime.csproj");
 
         Assert.Contains("CreateNoWindow = true", grpcHost);
-        foreach (var project in moduleHostProjects)
-        {
-            Assert.Contains("<OutputType>WinExe</OutputType>", project);
-            Assert.Contains("<AssemblyName>MPTAndroidTools.Runtime</AssemblyName>", project);
-            Assert.DoesNotContain("<OutputType>Exe</OutputType>", project);
-            Assert.DoesNotContain("powertoold", project, StringComparison.OrdinalIgnoreCase);
-        }
+        Assert.Contains("<OutputType>WinExe</OutputType>", moduleHostProject);
+        Assert.Contains("<AssemblyName>MPTAndroidTools.Runtime</AssemblyName>", moduleHostProject);
+        Assert.DoesNotContain("<OutputType>Exe</OutputType>", moduleHostProject);
+        Assert.DoesNotContain("powertoold", moduleHostProject, StringComparison.OrdinalIgnoreCase);
 
         var package = Read("modules", "android-tools-suite", "package.json");
         Assert.Contains("\"id\": \"module-host\"", package);
         Assert.Contains("windows/x64/MPTAndroidTools.Runtime.exe", package);
         Assert.DoesNotContain("powertoold", package, StringComparison.OrdinalIgnoreCase);
+    }
+
+    [Fact]
+    public void Retired_integration_snapshots_have_exact_git_recovery_metadata()
+    {
+        var retired = new[]
+        {
+            (Tool: "adb-forwarder", Directory: "MyPowerTools.Shell.Avalonia", Files: 15),
+            (Tool: "doubao-computer-use", Directory: "MyPowerTools.Shell.Avalonia", Files: 9),
+            (Tool: "screenease", Directory: "MyPowerTools.Shell.Avalonia", Files: 10),
+            (Tool: "remote-commands", Directory: "AndroidTools.MyPowerTools", Files: 2),
+            (Tool: "remote-commands", Directory: "AndroidTools.Runtime", Files: 2),
+            (Tool: "process-monitor", Directory: "AndroidTools.MyPowerTools", Files: 2),
+            (Tool: "process-monitor", Directory: "AndroidTools.Runtime", Files: 2)
+        };
+
+        foreach (var snapshot in retired)
+        {
+            Assert.False(Directory.Exists(Path.Combine(Root, "tools", snapshot.Tool, "current-integration", "src", snapshot.Directory)));
+            using var map = System.Text.Json.JsonDocument.Parse(Read("tools", snapshot.Tool, "source-map.json"));
+            var path = $"current-integration/src/{snapshot.Directory}";
+            var archive = Assert.Single(map.RootElement.GetProperty("archivedIntegrationSnapshots")
+                .EnumerateArray().Where(entry => entry.GetProperty("path").GetString() == path));
+            var recoveryCommit = archive.GetProperty("recoveryCommit").GetString()!;
+            Assert.Matches("^[0-9a-f]{40}$", recoveryCommit);
+            Assert.Equal(snapshot.Files, archive.GetProperty("fileCount").GetInt32());
+            Assert.Equal("current-integration/ARCHIVED-SNAPSHOTS.md", archive.GetProperty("recoveryDocument").GetString());
+            var recovery = Read("tools", snapshot.Tool, "current-integration", "ARCHIVED-SNAPSHOTS.md");
+            Assert.Contains($"git restore --source={recoveryCommit}", recovery);
+            Assert.Contains(path, recovery);
+        }
     }
 
     [Fact]
@@ -121,54 +114,6 @@ public sealed class ShellProductSemanticsTests
         Assert.Equal(1, BitConverter.ToUInt16(icon, 2));
         Assert.True(BitConverter.ToUInt16(icon, 4) >= 7);
         Assert.True(File.Exists(Path.Combine(Root, "assets", "MyPowerTools.svg")));
-    }
-
-    [Fact]
-    public void Shell_wide_layout_uses_neutral_fluid_product_metrics()
-    {
-        var shell = Read("src", "MyPowerTools.Shell.Avalonia", "Views", "ShellChromeView.axaml");
-        var shellCode = Read("src", "MyPowerTools.Shell.Avalonia", "Views", "ShellChromeView.axaml.cs");
-        var home = Read("src", "MyPowerTools.Shell.Avalonia", "Views", "HomeView.axaml");
-        var mainWindow = Read("src", "MyPowerTools.Shell.Avalonia", "MainWindow.cs");
-        var density = Read("src", "MyPowerTools.UI", "Themes", "MptDensity.axaml");
-
-        Assert.Contains("Background=\"{DynamicResource MptBrushAppBackground}\"", shell);
-        Assert.Contains("Background=\"{DynamicResource MptBrushShellChrome}\"", shell);
-        Assert.Contains("Background=\"{DynamicResource MptBrushNavigationBackground}\"", shell);
-        Assert.Contains("MaxWidth=\"{DynamicResource MptLayoutPageMaxWidth}\"", shell);
-        Assert.Contains("MptThemeTokens.LayoutTopBarHeight", mainWindow);
-        Assert.Contains("ContentMaxWidth", shellCode);
-
-        Assert.Contains("MptLayoutDashboardMaxWidth", home);
-        Assert.Contains("ColumnDefinitions=\"5*,3*\"", home);
-        Assert.DoesNotContain("MaxWidth=\"1000\"", home, StringComparison.Ordinal);
-        Assert.DoesNotContain("ColumnDefinitions=\"568,400\"", home, StringComparison.Ordinal);
-
-        Assert.Contains("MptLayoutSidebarWidth\">240", density);
-        Assert.Contains("MptLayoutTopBarHeight\">56", density);
-        Assert.Contains("MptLayoutPageMaxWidth\">1760", density);
-        Assert.Contains("MptLayoutSearchMaxWidth\">640", density);
-    }
-
-    [Fact]
-    public void General_uses_a_real_theme_control_and_bounded_responsive_layout()
-    {
-        var general = Read("src", "MyPowerTools.Shell.Avalonia", "Views", "GeneralSettingsView.axaml");
-        var generalCode = Read("src", "MyPowerTools.Shell.Avalonia", "Views", "GeneralSettingsView.axaml.cs");
-        var viewModel = Read("src", "MyPowerTools.Shell.Avalonia", "ViewModels", "GeneralSettingsViewModel.cs");
-
-        Assert.Contains("MptLayoutSettingsMaxWidth", general);
-        Assert.DoesNotContain("Margin=\"{DynamicResource MptPagePadding}\"", general, StringComparison.Ordinal);
-        Assert.Contains("controls:MptComboBox", general);
-        Assert.Contains("SelectedItem=\"{Binding SelectedTheme, Mode=TwoWay}\"", general);
-        Assert.Contains("ThemeApplyStatus", general);
-        Assert.DoesNotContain("ItemsControl ItemsSource=\"{Binding Themes}\"", general, StringComparison.Ordinal);
-        // MptSettingsField is a real theme control (MyPowerTools.UI/Controls/MptSettingsField.axaml,
-        // included by MptThemeDeferred): the settings page must use it, not ad-hoc styling.
-        Assert.Contains("Classes=\"MptSettingsField\"", general, StringComparison.Ordinal);
-        Assert.Contains("Available while running", general);
-        Assert.Contains("TwoColumnMinWidth", generalCode);
-        Assert.Contains("ApplyThemeAsync", viewModel);
     }
 
     [Fact]

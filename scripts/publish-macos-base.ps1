@@ -7,7 +7,8 @@ param(
     [string]$OutputRoot = '',
     [string]$CodeSignIdentity = '-',
     [switch]$SkipNativeBuild,
-    [switch]$SkipCodeSign
+    [switch]$SkipCodeSign,
+    [switch]$SkipArchive
 )
 
 $ErrorActionPreference = 'Stop'
@@ -650,6 +651,13 @@ if (-not $SkipCodeSign) {
             '--verify', '--strict', (Get-HelperBundleRoot -Helper $helper)
         ) -Activity "codesign verification $($helper.Bundle)"
     }
+}
+
+if ($SkipArchive) {
+    # The OTA wrapper changes this bundle and archives the final signed result.
+    # Standalone base publishing still emits its legacy ZIP by default.
+    Write-Host $appBundle
+    return
 }
 
 $releaseRoot = Join-Path $artifactsRoot 'release'

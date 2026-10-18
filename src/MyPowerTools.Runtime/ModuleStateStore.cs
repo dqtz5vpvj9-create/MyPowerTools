@@ -87,8 +87,8 @@ public sealed class ModuleStateStore
                 DateTimeOffset.UtcNow,
                 current.DefaultMode,
                 enabledModules.OrderBy(id => id, StringComparer.OrdinalIgnoreCase).ToArray());
-            _snapshot = next;
             Save(next);
+            _snapshot = next;
             return next;
         }
     }
@@ -102,7 +102,7 @@ public sealed class ModuleStateStore
 
         if (!File.Exists(_path))
         {
-            _snapshot = _initialEnabledModules is null
+            var initial = _initialEnabledModules is null
                 ? new ModuleStateSnapshot(1, [], DateTimeOffset.UtcNow)
                 : new ModuleStateSnapshot(
                     1,
@@ -112,9 +112,10 @@ public sealed class ModuleStateStore
                     _initialEnabledModules);
             if (_initialEnabledModules is not null)
             {
-                Save(_snapshot);
+                Save(initial);
             }
-            return _snapshot;
+            _snapshot = initial;
+            return initial;
         }
 
         var snapshot = JsonSerializer.Deserialize<ModuleStateSnapshot>(File.ReadAllText(_path), JsonOptions);

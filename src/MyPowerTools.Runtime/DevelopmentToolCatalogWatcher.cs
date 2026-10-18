@@ -127,11 +127,10 @@ public sealed class DevelopmentToolCatalogWatcher : IAsyncDisposable
 
     private async Task RefreshGuardedAsync(CancellationToken cancellationToken)
     {
-        if (!await _refreshGate.WaitAsync(0, cancellationToken))
-        {
-            // A refresh is already running; this change is picked up by the next event.
-            return;
-        }
+        // The final change may arrive while an older refresh is still finishing.
+        // Wait for it instead of relying on another filesystem event to retry.
+        // Debounce cancellation still removes superseded waiters.
+        await _refreshGate.WaitAsync(cancellationToken);
 
         try
         {

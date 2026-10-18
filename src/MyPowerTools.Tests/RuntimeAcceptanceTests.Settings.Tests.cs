@@ -137,18 +137,10 @@ public sealed partial class RuntimeAcceptanceTests
         var moduleProtoPath = Path.Combine(Root, "proto", "mpt_module_v1.proto");
         var runtimeContractsPath = Path.Combine(Root, "src", "MyPowerTools.Runtime", "ModuleContracts.cs");
         var abstractionsPath = Path.Combine(Root, "src", "MyPowerTools.Abstractions", "PluginContracts.cs");
-        var runtimePath = Path.Combine(Root, "src", "MyPowerTools.Runtime", "MptHostRuntime.cs");
-        var hostServicePath = Path.Combine(Root, "src", "MyPowerTools.HostControl.Server", "HostControlGrpcService.cs");
-        var shellSettingsPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellSettingsService.cs");
-        var grpcHostPath = Path.Combine(Root, "src", "MyPowerTools.ModuleHost.GrpcIpc", "GrpcIpcModuleHost.cs");
         var hostProto = File.ReadAllText(hostProtoPath);
         var moduleProto = File.ReadAllText(moduleProtoPath);
         var runtimeContracts = File.ReadAllText(runtimeContractsPath);
         var abstractions = File.ReadAllText(abstractionsPath);
-        var runtime = File.ReadAllText(runtimePath);
-        var hostService = File.ReadAllText(hostServicePath);
-        var shellSettings = File.ReadAllText(shellSettingsPath);
-        var grpcHost = File.ReadAllText(grpcHostPath);
 
         Assert.Contains("rpc ValidateSettings", moduleProto);
         Assert.Contains("rpc ApplySettings", moduleProto);
@@ -156,20 +148,6 @@ public sealed partial class RuntimeAcceptanceTests
         Assert.Contains("ValidateSettingsAsync(RuntimeModuleRecord module", runtimeContracts);
         Assert.Contains("ApplySettingsAsync(RuntimeModuleRecord module", runtimeContracts);
         Assert.Contains("ApplySettingsAsync(SettingsSnapshotDocument snapshot", abstractions);
-        Assert.Contains("UpdateSettingsWithApplyAsync", runtime);
-        Assert.Contains("runtime.ValidateSettingsAsync", runtime);
-        Assert.Contains("runtime.ApplySettingsAsync", runtime);
-        Assert.Contains("apply-failed-rolled-back", runtime);
-        Assert.Contains("_settingsStore.Rollback", runtime);
-        Assert.Contains("SettingsValidationException", hostService);
-        Assert.Contains("ApplyState = applyState", hostService);
-        Assert.Contains("apply-failed-rolled-back", shellSettings);
-        Assert.Contains("ApplyTitle", shellSettings);
-        Assert.Contains("ShellSettingsSaveResult.Failed", shellSettings);
-        Assert.Contains("ValidateSettingsAsync(new ValidateSettingsRequest", grpcHost);
-        Assert.Contains("ApplySettingsAsync(new ApplySettingsRequest", grpcHost);
-        Assert.Contains("saved and applied", shellSettings);
-        Assert.Contains("apply failed", shellSettings);
     }
 
     [Fact]

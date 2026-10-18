@@ -285,6 +285,28 @@ message RuntimeDiagnostics {
   repeated RuntimeProcessDiagnostics processes = 16;
   repeated RuntimeProcessPolicyHistoryEntry process_policy_history = 17;
   repeated RuntimeHotkeyDiagnostics hotkeys = 18;
+  HistoryBufferStats command_history_buffer = 19;
+  HistoryBufferStats notification_history_buffer = 20;
+}
+
+// Per-process rolling history statistics. Byte charges estimate retained managed
+// strings/metadata; they are not a total process RSS limit. Counters are cumulative.
+message HistoryBufferStats {
+  uint32 retained_count = 1;
+  uint64 retained_bytes = 2;
+  uint32 max_entries = 3;
+  uint64 max_bytes = 4;
+  uint32 max_record_bytes = 5;
+  uint64 added_count = 6;
+  uint64 evicted_count = 7;
+  uint64 truncated_count = 8;
+  uint64 truncated_bytes = 9;
+  uint64 rejected_count = 10;
+  uint32 unread_count = 11;
+  uint64 evicted_unread_count = 12;
+  google.protobuf.Timestamp last_evicted_record_time = 13;
+  google.protobuf.Timestamp last_evicted_unread_record_time = 14;
+  uint64 unretained_completion_count = 15;
 }
 
 message RuntimePathDiagnostics {
@@ -422,6 +444,9 @@ message RuntimeCommandHistoryEntry {
   google.protobuf.Timestamp started_at = 4;
   string state = 5;
   string summary = 6;
+  bool is_truncated = 7;
+  uint64 original_bytes = 8; // charged managed size after redaction, before truncation
+  uint64 retained_bytes = 9;
 }
 
 message SetModuleEnabledRequest {
@@ -564,12 +589,16 @@ message ListNotificationsRequest {
   string module_id = 1;
   uint32 limit = 2;
   NotificationReadFilter read_filter = 3;
+  google.protobuf.Timestamp since = 4; // inclusive
+  google.protobuf.Timestamp until = 5; // exclusive
+  string level = 6; // optional, case-insensitive exact level
 }
 
 message ListNotificationsResponse {
   repeated NotificationItem notifications = 1;
   uint32 total_count = 2;
   uint32 unread_count = 3;
+  HistoryBufferStats history_buffer = 4;
 }
 
 enum NotificationReadFilter {
@@ -586,6 +615,9 @@ message NotificationItem {
   string title = 5;
   string body = 6;
   bool is_read = 7;
+  bool is_truncated = 8;
+  uint64 original_bytes = 9; // charged managed size after redaction, before truncation
+  uint64 retained_bytes = 10;
 }
 
 message SetNotificationReadStateRequest {

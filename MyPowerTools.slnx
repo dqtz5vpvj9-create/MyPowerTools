@@ -14,7 +14,6 @@
     <Project Path="src/MyPowerTools.InputRemapHost/MyPowerTools.InputRemapHost.csproj" />
     <Project Path="src/MyPowerTools.Installer.Mac/MyPowerTools.Installer.Mac.csproj" />
     <Project Path="src/MyPowerTools.ModuleHost.GrpcIpc/MyPowerTools.ModuleHost.GrpcIpc.csproj" />
-    <Project Path="src/MyPowerTools.ModuleHost.Http/MyPowerTools.ModuleHost.Http.csproj" />
     <Project Path="src/MyPowerTools.ModuleHost.InProcDotNet/MyPowerTools.ModuleHost.InProcDotNet.csproj" />
     <Project Path="src/MyPowerTools.ModuleHost.StdioCompat/MyPowerTools.ModuleHost.StdioCompat.csproj" />
     <Project Path="src/MyPowerTools.Packaging/MyPowerTools.Packaging.csproj" />
@@ -59,11 +58,15 @@
     <Project Path="tools/input-monitor/current-integration/src/InputMonitor.Core/InputMonitor.Core.csproj" />
     <Project Path="tools/input-monitor/current-integration/src/InputMonitor.MyPowerTools/InputMonitor.MyPowerTools.csproj" />
     <Project Path="tools/input-monitor/current-integration/src/InputMonitor.Surface/InputMonitor.Surface.csproj" />
+    <Project Path="tools/input-monitor/tests/InputMonitor.Core.Tests/InputMonitor.Core.Tests.csproj" />
     <Project Path="tools/doubao-computer-use/current-integration/src/DoubaoAgent.MyPowerTools/DoubaoAgent.MyPowerTools.csproj" />
     <Project Path="tools/doubao-computer-use/current-integration/src/DoubaoAgent.Surface/DoubaoAgent.Surface.csproj" />
     <Project Path="tools/remote-notifications/current-integration/src/AndroidTools.MyPowerTools/AndroidTools.MyPowerTools.csproj" />
     <Project Path="tools/remote-notifications/current-integration/src/AndroidTools.Runtime/AndroidTools.Runtime.csproj" />
     <Project Path="tools/remote-notifications/current-integration/src/RemoteNotifications.Surface/RemoteNotifications.Surface.csproj" />
+    <Project Path="tools/screenshot/tests/Screenshot.Lifecycle.Regression/Screenshot.Lifecycle.Regression.csproj" />
+    <Project Path="tools/adb-forwarder/tests/AdbForwarder.Runtime.Regression/AdbForwarder.Runtime.Regression.csproj" />
+    <Project Path="tools/xbrd/tests/Xbrd.Runtime.Regression/Xbrd.Runtime.Regression.csproj" />
     <Project Path="tools/remote-notifications/current-integration/tests/RemoteNotifications.Configuration.Tests/RemoteNotifications.Configuration.Tests.csproj" />
     <Project Path="tools/screenease/current-integration/src/ScreenEase.MyPowerTools/ScreenEase.MyPowerTools.csproj" />
     <Project Path="tools/screenease/current-integration/src/ScreenEase.Service/ScreenEase.Service.csproj" />
@@ -72,6 +75,8 @@
     <Project Path="tools/smartbird-thermostat/current-integration/src/SmartBirdThermostat.MyPowerTools/SmartBirdThermostat.MyPowerTools.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/LogTail.Memory.Regression/LogTail.Memory.Regression.csproj" />
+    <Project Path="tests/History.Memory.Regression/History.Memory.Regression.csproj" />
     <Project Path="tests/architecture-gate/ArchitectureGate.csproj" />
     <Project Path="tests/fixtures/test-service-unit/TestServiceUnit.csproj" />
   </Folder>

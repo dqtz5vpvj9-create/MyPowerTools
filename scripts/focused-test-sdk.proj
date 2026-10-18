@@ -1,0 +1,41 @@
+<Project DefaultTargets="Pack">
+  <!-- One build manager shares dependency results across the package set. Keep
+       real NuGet packages: focused Surface tests also exercise the SDK boundary. -->
+  <PropertyGroup>
+    <Configuration Condition="'$(Configuration)' == ''">Release</Configuration>
+  </PropertyGroup>
+  <ItemGroup>
+    <SdkProject Include="$(MSBuildThisFileDirectory)../src/MyPowerTools.Platform.Abstractions/MyPowerTools.Platform.Abstractions.csproj" />
+    <SdkProject Include="$(MSBuildThisFileDirectory)../src/MyPowerTools.Abstractions/MyPowerTools.Abstractions.csproj" />
+    <SdkProject Include="$(MSBuildThisFileDirectory)../src/MyPowerTools.Protocol/MyPowerTools.Protocol.csproj" />
+    <SdkProject Include="$(MSBuildThisFileDirectory)../src/MyPowerTools.Ipc.Shared/MyPowerTools.Ipc.Shared.csproj" />
+    <SdkProject Include="$(MSBuildThisFileDirectory)../src/MyPowerTools.Packaging/MyPowerTools.Packaging.csproj" />
+    <SdkProject Include="$(MSBuildThisFileDirectory)../src/MyPowerTools.Platform.Windows/MyPowerTools.Platform.Windows.csproj" />
+    <SdkProject Include="$(MSBuildThisFileDirectory)../src/MyPowerTools.Broker/MyPowerTools.Broker.csproj" />
+    <SdkProject Include="$(MSBuildThisFileDirectory)../src/MyPowerTools.UI.Primitives/MyPowerTools.UI.Primitives.csproj" />
+    <SdkProject Include="$(MSBuildThisFileDirectory)../src/MyPowerTools.UI/MyPowerTools.UI.csproj" />
+    <SdkProject Include="$(MSBuildThisFileDirectory)../src/MyPowerTools.HostControl.Contracts/MyPowerTools.HostControl.Contracts.csproj" />
+    <SdkProject Include="$(MSBuildThisFileDirectory)../src/MyPowerTools.HostControl.Client/MyPowerTools.HostControl.Client.csproj" />
+    <SdkProject Include="$(MSBuildThisFileDirectory)../src/MyPowerTools.ServiceManager.Client/MyPowerTools.ServiceManager.Client.csproj" />
+    <SdkProject Include="$(MSBuildThisFileDirectory)../src/MyPowerTools.AvaloniaSdk/MyPowerTools.AvaloniaSdk.csproj" />
+  </ItemGroup>
+  <Target Name="Restore">
+    <MSBuild Projects="@(SdkProject)" Targets="Restore" BuildInParallel="true" />
+  </Target>
+  <Target Name="Pack">
+    <Error Condition="'$(FocusedSdkOutputList)' == ''" Text="FocusedSdkOutputList is required." />
+    <MSBuild Projects="@(SdkProject)" Targets="Pack;_GetOutputItemsFromPack" BuildInParallel="true">
+      <Output TaskParameter="TargetOutputs" ItemName="_SdkPackOutputs" />
+    </MSBuild>
+    <ItemGroup>
+      <_SdkPackages Include="@(_SdkPackOutputs)" Condition="'%(_SdkPackOutputs.Extension)' == '.nupkg'" />
+    </ItemGroup>
+    <RemoveDuplicates Inputs="@(_SdkPackages)">
+      <Output TaskParameter="Filtered" ItemName="_UniqueSdkPackages" />
+    </RemoveDuplicates>
+    <Error Condition="'@(_UniqueSdkPackages->Count())' != '@(SdkProject->Count())'"
+           Text="SDK packing did not return exactly one package per project." />
+    <Error Condition="!Exists('%(_UniqueSdkPackages.Identity)')" Text="SDK package is missing: %(_UniqueSdkPackages.Identity)" />
+    <WriteLinesToFile File="$(FocusedSdkOutputList)" Lines="@(_UniqueSdkPackages)" Overwrite="true" Encoding="UTF-8" />
+  </Target>
+</Project>

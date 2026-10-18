@@ -61,50 +61,6 @@ public sealed class AdbForwarderProductTests
     }
 
     [Fact]
-    public void Shell_wires_adb_forwarder_to_a_dedicated_product_view()
-    {
-        var surfaceFactory = File.ReadAllText(Path.Combine(
-            Root,
-            "tools", "adb-forwarder", "current-integration", "src",
-            "AdbForwarder.Surface", "AdbForwarderSurfaceFactory.cs"));
-        var view = File.ReadAllText(Path.Combine(
-            Root,
-            "tools", "adb-forwarder", "current-integration", "src",
-            "AdbForwarder.Surface", "Views",
-            "AdbForwarderView.axaml"));
-
-        Assert.Contains("IMptAvaloniaSurfaceFactory", surfaceFactory);
-        Assert.Contains("new AdbForwarderView", surfaceFactory);
-        Assert.Contains("AdbForwarderServiceClient", surfaceFactory);
-        Assert.Contains("有线转发设备", view);
-        Assert.Contains("Wi-Fi ADB 设备", view);
-        Assert.Contains("ADB SERIAL", view);
-        Assert.Contains("USB SERIAL", view);
-        Assert.Contains("最后在线", view);
-        Assert.Contains("最后操作", view);
-        Assert.Contains("返回设备状态", view);
-        Assert.DoesNotContain("Text=\"2. 转发进度\"", view, StringComparison.Ordinal);
-        Assert.DoesNotContain("Text=\"Configured USB device\"", view, StringComparison.Ordinal);
-        Assert.Contains("MaxWidth=\"1480\"", view);
-        Assert.DoesNotContain("Content=\"All tools\"", view, StringComparison.Ordinal);
-        Assert.DoesNotContain("NetworkBroker", view, StringComparison.Ordinal);
-        Assert.DoesNotContain("Interface in development", view, StringComparison.Ordinal);
-        Assert.DoesNotContain("Text=\"{Binding ConnectPort", view, StringComparison.Ordinal);
-        Assert.DoesNotContain("Text=\"{Binding ConnectAddress", view, StringComparison.Ordinal);
-        Assert.DoesNotContain("Content=\"记录\"", view, StringComparison.Ordinal);
-        Assert.DoesNotContain("Content=\"端口规则\"", view, StringComparison.Ordinal);
-        Assert.DoesNotContain("Content=\"已连接设备\"", view, StringComparison.Ordinal);
-
-        var screenshotWriter = File.ReadAllText(Path.Combine(
-            Root,
-            "src",
-            "Mpt.Cli.VisualTesting",
-            "ShellRealScreenshotWriter.cs"));
-        Assert.Contains("WriteSnapshotSetFromHostControlAsync", screenshotWriter);
-        Assert.Contains("ShellHostControlSnapshotData.LoadAsync", screenshotWriter);
-    }
-
-    [Fact]
     public void Manifest_and_shell_route_describe_the_execution_path_that_is_shipped()
     {
         var integrationRoot = Path.Combine(Root, "tools", "adb-forwarder", "current-integration");

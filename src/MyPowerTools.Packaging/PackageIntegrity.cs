@@ -7,10 +7,42 @@ public sealed class PackageIntegrity
 {
     private static readonly JsonSerializerOptions JsonOptions = new() { WriteIndented = true };
 
-    public PackageHashManifest CreateHashManifest(string packageDirectory)
+    public PackageHashManifest CreateHashManifest(string packageDirectory) =>
+        CreateHashManifest(packageDirectory, []);
+
+    private static PackageHashManifest CreateHashManifest(string packageDirectory, IEnumerable<string> excludedPaths)
     {
+        var excluded = excludedPaths.ToHashSet(OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal);
+        var excludedIgnoringCase = excluded.ToHashSet(StringComparer.OrdinalIgnoreCase);
+        if (excluded.Count != excludedIgnoringCase.Count)
+        {
+            throw new InvalidOperationException(
+                "Integrity metadata output paths differ only by case. Use distinct canonical metadata paths.");
+        }
+
         var files = Directory.EnumerateFiles(packageDirectory, "*", SearchOption.AllDirectories)
             .Where(path => !IsIntegrityMetadata(path))
+            .Where(path =>
+            {
+                var fullPath = Path.GetFullPath(path);
+                if (excluded.Contains(fullPath))
+                {
+                    return false;
+                }
+
+                // Non-Windows volumes may be case-sensitive or case-insensitive.
+                // Reject ambiguous custom metadata casing before writing anything:
+                // ignoring it could silently omit a distinct payload on Linux, while
+                // hashing it could include the output manifest itself on macOS.
+                if (excludedIgnoringCase.Contains(fullPath))
+                {
+                    throw new InvalidOperationException(
+                        $"Integrity metadata path casing conflicts with '{Normalize(Path.GetRelativePath(packageDirectory, fullPath))}'. " +
+                        "Use the exact canonical metadata casing and remove case-only path collisions.");
+                }
+
+                return true;
+            })
             .OrderBy(path => Path.GetRelativePath(packageDirectory, path), StringComparer.OrdinalIgnoreCase)
             .Select(path => new PackageHashEntry(
                 Normalize(Path.GetRelativePath(packageDirectory, path)),
@@ -20,10 +52,14 @@ public sealed class PackageIntegrity
         return new PackageHashManifest("sha256", files);
     }
 
-    public string WriteHashManifest(string packageDirectory, string? relativePath = null)
+    public string WriteHashManifest(string packageDirectory, string? relativePath = null) =>
+        WriteHashManifest(packageDirectory, relativePath, []);
+
+    internal string WriteHashManifest(string packageDirectory, string? relativePath, IEnumerable<string> metadataPaths)
     {
-        var manifest = CreateHashManifest(packageDirectory);
-        var path = Path.Combine(packageDirectory, relativePath ?? Path.Combine("shared", "package.hashes.json"));
+        var path = PackagePath.Resolve(packageDirectory, relativePath ?? Path.Combine("shared", "package.hashes.json"));
+        var excluded = metadataPaths.Select(metadata => PackagePath.Resolve(packageDirectory, metadata)).Append(path);
+        var manifest = CreateHashManifest(packageDirectory, excluded);
         Directory.CreateDirectory(Path.GetDirectoryName(path)!);
         File.WriteAllText(path, JsonSerializer.Serialize(manifest, JsonOptions));
         return path;
@@ -31,32 +67,60 @@ public sealed class PackageIntegrity
 
     public IReadOnlyList<ValidationIssue> VerifyHashManifest(string packageDirectory, string relativePath)
     {
-        var path = Path.Combine(packageDirectory, relativePath);
-        if (!File.Exists(path))
+        string path;
+        PackageHashManifest? manifest;
+        try
         {
-            return [new ValidationIssue(path, "error", "Hash manifest is missing.")];
+            path = PackagePath.Resolve(packageDirectory, relativePath);
+            if (!File.Exists(path))
+            {
+                return [new ValidationIssue(path, "error", "Hash manifest is missing.")];
+            }
+
+            manifest = JsonSerializer.Deserialize<PackageHashManifest>(File.ReadAllText(path), JsonOptions);
+        }
+        catch (Exception exception) when (exception is JsonException or IOException or UnauthorizedAccessException or ArgumentException or InvalidOperationException)
+        {
+            return [new ValidationIssue(relativePath, "error", $"Hash manifest could not be read: {exception.Message}")];
         }
 
-        var manifest = JsonSerializer.Deserialize<PackageHashManifest>(File.ReadAllText(path), JsonOptions);
-        if (manifest is null)
+        if (manifest?.Files is null)
         {
-            return [new ValidationIssue(path, "error", "Hash manifest could not be parsed.")];
+            return [new ValidationIssue(path, "error", "Hash manifest must contain a files array.")];
         }
 
         var issues = new List<ValidationIssue>();
+        if (!string.Equals(manifest.Algorithm, "sha256", StringComparison.OrdinalIgnoreCase))
+        {
+            issues.Add(new ValidationIssue(path, "error", "Hash manifest algorithm must be sha256."));
+        }
+
         foreach (var entry in manifest.Files)
         {
-            var filePath = Path.Combine(packageDirectory, entry.Path);
-            if (!File.Exists(filePath))
+            if (entry is null || string.IsNullOrWhiteSpace(entry.Path))
             {
-                issues.Add(new ValidationIssue(filePath, "error", "Hashed file is missing."));
+                issues.Add(new ValidationIssue(path, "error", "Hash manifest entry must contain a relative file path inside the package directory."));
                 continue;
             }
 
-            var actual = ComputeSha256(filePath);
-            if (!string.Equals(actual, entry.Sha256, StringComparison.OrdinalIgnoreCase))
+            try
             {
-                issues.Add(new ValidationIssue(filePath, "error", "sha256 mismatch."));
+                var filePath = PackagePath.Resolve(packageDirectory, entry.Path);
+                if (!File.Exists(filePath))
+                {
+                    issues.Add(new ValidationIssue(filePath, "error", "Hashed file is missing."));
+                    continue;
+                }
+
+                var actual = ComputeSha256(filePath);
+                if (!string.Equals(actual, entry.Sha256, StringComparison.OrdinalIgnoreCase))
+                {
+                    issues.Add(new ValidationIssue(filePath, "error", "sha256 mismatch."));
+                }
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException or InvalidOperationException)
+            {
+                issues.Add(new ValidationIssue(entry.Path, "error", exception.Message));
             }
         }
 

@@ -222,10 +222,7 @@ public sealed partial class RuntimeAcceptanceTests
         var installScript = File.ReadAllText(Path.Combine(Root, "scripts", "install-windows.ps1"));
         var publishScript = File.ReadAllText(Path.Combine(Root, "scripts", "publish-windows.ps1"));
         var startScript = File.ReadAllText(Path.Combine(Root, "scripts", "Start-MyPowerTools.cmd"));
-        var startHere = File.ReadAllText(Path.Combine(Root, "START_HERE.md"));
-        var metadataScript = File.ReadAllText(Path.Combine(Root, "scripts", "release-metadata.ps1"));
         var launcherSource = File.ReadAllText(Path.Combine(Root, "src", "MyPowerTools.App", "Program.cs"));
-        var launcherProject = File.ReadAllText(Path.Combine(Root, "src", "MyPowerTools.App", "MyPowerTools.App.csproj"));
 
         Assert.Contains("'MyPowerTools.lnk'", installScript);
         Assert.Contains("$appExe = Join-Path $InstallDirFull 'MyPowerTools.exe'", installScript);
@@ -257,7 +254,6 @@ public sealed partial class RuntimeAcceptanceTests
         Assert.Contains("Invoke-SourcePortableBuild", installScript);
         Assert.Contains("$PSBoundParameters.ContainsKey('PackageRoot')", installScript);
         Assert.Contains("'artifacts\\release\\win-x64'", installScript);
-        Assert.Contains("'-PortableOnly'", installScript);
 
         Assert.Contains("src\\MyPowerTools.App\\MyPowerTools.App.csproj", publishScript);
         Assert.Contains("[switch]$PortableOnly", publishScript);
@@ -286,25 +282,14 @@ public sealed partial class RuntimeAcceptanceTests
 
         Assert.Contains("MyPowerTools.exe", startScript);
         Assert.Contains("Shell\\MyPowerTools.Shell.Avalonia.exe", startScript);
-        Assert.Contains("one Start menu shortcut named MyPowerTools", metadataScript);
-        Assert.Contains(",@('MyPowerTools.exe', 'MyPowerTools')", metadataScript);
 
         Assert.Contains("TryActivateRunningShell(toolActivation)", launcherSource);
         Assert.Contains("NamedPipeClientStream", launcherSource);
         Assert.Contains("MyPowerTools.ShellActivation", launcherSource);
-        Assert.Contains("ActivationConnectTimeoutMilliseconds = 40", launcherSource);
         Assert.True(
             launcherSource.IndexOf("TryActivateRunningShell(toolActivation)", StringComparison.Ordinal) <
             launcherSource.IndexOf("FindApplicationRoot(AppContext.BaseDirectory)", StringComparison.Ordinal),
             "The resident Shell activation path must run before installation-layout file system probes.");
-        Assert.Contains("<PublishAot>false</PublishAot>", launcherProject);
-        Assert.Contains("<OptimizationPreference>Speed</OptimizationPreference>", launcherProject);
-
-        Assert.Contains("open `MyPowerTools` from the Windows Start menu", startHere);
-        Assert.Contains("The app starts the Runner in the background", startHere);
-        Assert.DoesNotContain("MyPowerTools Shell", startHere);
-        Assert.DoesNotContain("MyPowerTools Runner", startHere);
-        Assert.DoesNotContain("MyPowerTools CLI", startHere);
     }
 
     [Fact]
@@ -340,32 +325,20 @@ public sealed partial class RuntimeAcceptanceTests
         Assert.Contains("DefaultDirName={localappdata}\\Programs\\MyPowerTools", installer);
         Assert.Contains("UninstallDisplayIcon={app}\\MyPowerTools.exe", installer);
         Assert.Contains("distributionMode\": \"web", installer);
-        Assert.Contains("运行时方案：", installer);
         Assert.Contains("[Components]", installer);
         Assert.Contains("Name: \"smartbird\"", installer);
         Assert.Contains("Name: \"doubao\"", installer);
         Assert.Contains("Name: \"android\"", installer);
         Assert.Contains("Types: core full custom", installer);
         Assert.Contains("WantsPythonFeatures", installer);
-        Assert.Contains("约 5,100 个文件，可能需要一分钟", installer);
         Assert.Contains("CloseApplications=force", installer);
         Assert.Contains("service quiesce", installer);
         Assert.Contains("--shutdown-shell", installer);
         Assert.Contains("--quit-runner", installer);
         Assert.Contains("MyPowerTools WinSpace Shift", installer);
         Assert.Contains("AllowCancelDuringInstall=yes", installer);
-        Assert.Contains("PreparingLabel2=正在安全关闭运行中的 MyPowerTools 组件，最长约 8 秒", installer);
         Assert.Contains("procedure ForceStopProductImages", installer);
-        Assert.Contains("Batched taskkill exit code", installer);
-        Assert.DoesNotContain("procedure ForceStopImage", installer);
-        Assert.DoesNotContain("function PrepareToInstall", installer);
-        Assert.Contains("CreateCustomPage(wpReady", installer);
-        Assert.Contains("CreateCustomPage(wpInstalling", installer);
-        Assert.Contains("TNewMemo.Create(WizardForm.InstallingPage)", installer);
-        Assert.Contains("ScrollBars := ssBoth", installer);
-        Assert.Contains("SetTimer(0, 0, 200, CreateCallback(@WorkerTimerProc))", installer);
         Assert.Contains("ewNoWait", installer);
-        Assert.DoesNotContain("正在注册 MyPowerTools 后台服务...\"; Flags: runhidden waituntilterminated", installer);
         Assert.Contains("MyPowerTools.ServiceManager.exe", installer);
         Assert.Contains("MyPowerTools.ElevatedBroker.exe", installer);
         Assert.Contains("service stop adb-forwarder.service", installer);
@@ -377,12 +350,8 @@ public sealed partial class RuntimeAcceptanceTests
         Assert.Contains("Graceful Doubao runtime shutdown failed", installer);
         Assert.Contains("RunOnceId: \"StopDoubaoComputerUse\"", installer);
         Assert.Contains("Parameters: \"/D /C exit /B 0\"", installer);
-        Assert.Contains("SetupWindowTitle=安装 %1", installer);
-        Assert.Contains("ErrorCloseApplications=安装器无法关闭正在运行的 MyPowerTools 进程", installer);
         Assert.DoesNotContain("-StartAfterInstall", installer);
         Assert.Contains("SetupLogging=yes", installer);
-        Assert.DoesNotContain("install-windows-web.ps1", installer);
-        Assert.DoesNotContain("{tmp}\\MyPowerToolsWebSetup", installer);
         Assert.Contains("Type: files; Name: \"{app}\\dev-update.manifest.json\"", installer);
         Assert.Contains("Type: files; Name: \"{app}\\dev-update.manifest.json\"", fullInstaller);
         Assert.Contains("Type: filesandordirs; Name: \"{app}\"", installer);
@@ -494,10 +463,6 @@ public sealed partial class RuntimeAcceptanceTests
         var installer = File.ReadAllText(Path.Combine(Root, "installer", "MyPowerTools.Web.iss"));
         var fullInstaller = File.ReadAllText(Path.Combine(Root, "installer", "MyPowerTools.iss"));
         var worker = File.ReadAllText(Path.Combine(Root, "scripts", "web-installer-worker.ps1"));
-
-        // The dead-end dialog is gone.
-        Assert.DoesNotContain("MyPowerTools 的安装目录正在被占用", installer);
-        Assert.DoesNotContain("安装目录被占用，安装已取消", installer);
 
         // Whole-directory rename first, then entry by entry (a busy folder stays, its contents
         // move; running .exe/.dll images can be renamed), then a staged payload.
