@@ -161,14 +161,6 @@ jobs:
         shell: pwsh
         run: dotnet run --project tools/xbrd/tests/Xbrd.Runtime.Regression/Xbrd.Runtime.Regression.csproj --no-build
 
-      - name: Bounded log tail regressions
-        shell: pwsh
-        run: dotnet run --project tests/LogTail.Memory.Regression/LogTail.Memory.Regression.csproj --no-build
-
-      - name: Bounded runtime history regressions
-        shell: pwsh
-        run: dotnet run --project tests/History.Memory.Regression/History.Memory.Regression.csproj --no-build
-
       - name: Release lingering module hosts
         shell: pwsh
         # The suite above loads modules/ and leaves gRPC module hosts and service

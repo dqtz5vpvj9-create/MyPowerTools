@@ -74,9 +74,9 @@ class DevTestSelectionTests(unittest.TestCase):
         self.assertTrue(all("--list-tests" in c and "--no-build" in c for c in discovery))
         cache_property = "-p:RestorePackagesPath=" + str(ROOT / "artifacts/sdk/global-packages")
         self.assertTrue(all(cache_property in c for c in discovery))
-        self.assertEqual(5, len([c for c in commands if c[0] == "run"]))
+        self.assertEqual(3, len([c for c in commands if c[0] == "run"]))
         self.assertTrue(all("--list" in c for c in commands if c[0] == "run"))
-        self.assertIn("TOTAL SELECTED CASES: 62", result.stdout)
+        self.assertIn("TOTAL SELECTED CASES: 40", result.stdout)
         self.assertFalse(any(c[0] == "build" for c in commands))
 
     def test_runtime_console_selectors_list_without_execution(self):

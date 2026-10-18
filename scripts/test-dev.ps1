@@ -50,8 +50,6 @@ if ($Area -in @('Full', 'Packaging')) {
     Add-TestTarget 'tests/RemoteNotifications.Mac.Ui.Tests/RemoteNotifications.Mac.Ui.Tests.csproj'
     Add-TestTarget 'tools/ime-manager/sdk-tool/tests/ImeManager.Tests/ImeManager.Tests.csproj'
     Add-TestTarget 'tools/screenshot/tests/Screenshot.Lifecycle.Regression/Screenshot.Lifecycle.Regression.csproj' -Console
-    Add-TestTarget 'tests/LogTail.Memory.Regression/LogTail.Memory.Regression.csproj' -Console
-    Add-TestTarget 'tests/History.Memory.Regression/History.Memory.Regression.csproj' -Console
     Add-TestTarget 'tools/adb-forwarder/tests/AdbForwarder.Runtime.Regression/AdbForwarder.Runtime.Regression.csproj' -Console
     Add-TestTarget 'tools/xbrd/tests/Xbrd.Runtime.Regression/Xbrd.Runtime.Regression.csproj' -Console
     $needsSdk = $true

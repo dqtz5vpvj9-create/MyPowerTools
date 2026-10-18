@@ -75,8 +75,6 @@
     <Project Path="tools/smartbird-thermostat/current-integration/src/SmartBirdThermostat.MyPowerTools/SmartBirdThermostat.MyPowerTools.csproj" />
   </Folder>
   <Folder Name="/tests/">
-    <Project Path="tests/LogTail.Memory.Regression/LogTail.Memory.Regression.csproj" />
-    <Project Path="tests/History.Memory.Regression/History.Memory.Regression.csproj" />
     <Project Path="tests/architecture-gate/ArchitectureGate.csproj" />
     <Project Path="tests/fixtures/test-service-unit/TestServiceUnit.csproj" />
   </Folder>

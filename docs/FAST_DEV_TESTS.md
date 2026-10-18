@@ -34,7 +34,7 @@ Full runs:
 
 - `dotnet test MyPowerTools.slnx`, with no root-test filter
 - `tests/PersonalUx.Tests`, `tests/RemoteNotifications.Mac.Ui.Tests`, and `tools/ime-manager/sdk-tool/tests/ImeManager.Tests`
-- Screenshot lifecycle and LogTail memory console regression runners, which `dotnet test` does not execute
+- Screenshot lifecycle, ADB runtime, and XBRD runtime console regression runners, which `dotnet test` does not execute
 
 Each consolidated fixture has one owner: InputMonitor.Core.Tests owns the 12 product cases, and PersonalUx.Tests owns the 38 cases formerly compiled from eight root fixture files. The root project no longer compiles those same files. Full retains every distinct test behavior while eliminating 50 duplicate executions. PersonalUx retains its existing xUnit v3/headless configuration; the duplicate xUnit v2 root compilation is removed. The Navigation selector follows the canonical PersonalUx owner.
 
@@ -70,4 +70,4 @@ The standard `Start-MyPowerTools-Dev.ps1` overlay already invokes zero tests. In
 
 ADB maintenance/process safety and XBRD runtime contracts have explicit console regression targets. They are included in the solution build, CI execution, and the selector Full target; `dotnet test` alone does not run their assertions. Use `-Area Tools -ToolId adb-forwarder -Feature Runtime` or `-Area Tools -ToolId xbrd -Feature Runtime`. `-Plan` lists cases without executing test bodies. These use synthetic transports/processes and do not contact real device, quota or publisher endpoints.
 
-The Full selector also executes `tests/History.Memory.Regression`, covering the bounded command/notification feed contracts. It is a console regression runner with safe `--list` discovery, not a `dotnet test` project. The process-memory stress mode is a separate opt-in measurement described in that project's README.
+Bounded command/notification history and log-tail regressions now run in the existing `src/MyPowerTools.Tests` project through solution `dotnet test`. `HistoryCountTests` owns the history contracts; `RuntimeAcceptanceTests.Log_tail_*` owns tail decoding, live-file boundaries, and public JSON outcomes. The two source-linked console projects, benchmark runners, and samplers are retired. Their exact recovery commit and retained measurement evidence are documented in [Runtime history retention](RUNTIME_HISTORY_RETENTION.md#verification-and-scope). This changes test ownership and discovery grouping, not the preserved behavior boundaries; no focused-build speedup is claimed.

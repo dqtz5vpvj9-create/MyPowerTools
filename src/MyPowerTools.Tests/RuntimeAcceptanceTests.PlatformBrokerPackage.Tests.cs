@@ -613,4 +613,239 @@ public sealed partial class RuntimeAcceptanceTests
         Assert.Contains(records, record => record.InvocationId == "invocation-0");
         Assert.Contains(records, record => record.InvocationId == "invocation-39");
     }
+
+    private static readonly int[] TailLimits = [int.MinValue, -1, 0, 1, 2, 3, 5, 10, 200, int.MaxValue];
+    private static readonly Encoding[] TailEncodings = [new UTF8Encoding(false), new UTF8Encoding(true),
+        new UnicodeEncoding(false, true), new UnicodeEncoding(true, true),
+        new UTF32Encoding(false, true), new UTF32Encoding(true, true)];
+
+    [Fact]
+    public void Log_tail_preserves_exhaustive_physical_line_layouts()
+    {
+        // Empty files, consecutive/final delimiters, and every adjacent CR/LF combination.
+        for (var size = 0; size <= 7; size++)
+        for (var value = 0; value < (int)Math.Pow(3, size); value++)
+        {
+            var bytes = new byte[size];
+            var remaining = value;
+            for (var i = 0; i < size; i++, remaining /= 3)
+                bytes[i] = new byte[] { (byte)'a', (byte)'\r', (byte)'\n' }[remaining % 3];
+            CompareTailLines(bytes);
+        }
+    }
+
+    [Fact]
+    public void Log_tail_preserves_seeded_arbitrary_bytes_and_unicode()
+    {
+        var random = new Random(0x5eed);
+        for (var test = 0; test < 1200; test++)
+        {
+            var bytes = new byte[random.Next(0, 1000)];
+            random.NextBytes(bytes);
+            for (var i = 0; i < bytes.Length; i++)
+                if (random.Next(9) == 0) bytes[i] = random.Next(2) == 0 ? (byte)'\r' : (byte)'\n';
+            CompareTailLines(bytes);
+        }
+        var fragments = new[] { "行", "🙂", "é", "\uFEFF", "\u0085", "\u2028", "", " ", "null", "{}", "\r", "\n", "\r\n" };
+        for (var test = 0; test < 250; test++)
+        {
+            var text = string.Concat(Enumerable.Range(0, random.Next(1, 100)).Select(_ => fragments[random.Next(fragments.Length)]));
+            CompareTailLines(Encoding.UTF8.GetBytes(text));
+        }
+    }
+
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public void Log_tail_preserves_boms_and_one_byte_reads(bool shortReads)
+    {
+        foreach (var encoding in TailEncodings)
+        foreach (var text in new[] { "", "\r\n", "前🙂\r\n\uFEFFnext\n\nlast", "a\rb\n末尾\r\n", "null\n \n{}\r" })
+            CompareTailLines(encoding.GetPreamble().Concat(encoding.GetBytes(text)).ToArray(), shortReads);
+        foreach (var prefix in new byte[][] { [0xef], [0xef, 0xbb], [0xff, 0xfe], [0xfe, 0xff], [0, 0, 0xfe], [0xff, 0xfe, 0] })
+            CompareTailLines(prefix, shortReads);
+    }
+
+    [Fact]
+    public void Log_tail_preserves_block_edge_crlf_and_multibyte_text()
+    {
+        for (var delta = -5; delta <= 5; delta++)
+        foreach (var separator in new[] { "\r", "\n", "\r\n", "\n\r", "\r\r\n" })
+            CompareTailLines(Encoding.UTF8.GetBytes("old\n" + new string('x', 8192 + delta) + "🙂" + separator + "行\r\nlast🙂\n"));
+        // CRLF exactly across the backwards scanner's block boundary.
+        CompareTailLines(Encoding.UTF8.GetBytes("old\r\n" + new string('x', 8191)));
+        CompareTailLines(Encoding.UTF8.GetBytes("old\r\n" + new string('x', 8190) + "\n"));
+    }
+
+    [Fact]
+    public void Log_tail_does_not_truncate_a_large_unbroken_line() =>
+        CompareTailLines(Encoding.UTF8.GetBytes("old\n" + new string('x', 2 * 1024 * 1024) + "🙂"));
+
+    [Theory]
+    [InlineData("old\none\ntwo\n", "three\nfour\n")]
+    [InlineData("old\none\ntwo", "\nthree")]
+    [InlineData("old\none\rtwo\r", "\nthree\r\n")]
+    public void Log_tail_includes_append_before_eof(string initial, string addition)
+    {
+        using var memory = new MemoryStream();
+        memory.Write(Encoding.UTF8.GetBytes(initial));
+        memory.Position = 0;
+        using var stream = new ObservedStream(memory);
+        stream.BeforeRead = readNumber =>
+        {
+            if (readNumber != 3) return;
+            var position = memory.Position;
+            memory.Position = memory.Length;
+            memory.Write(Encoding.UTF8.GetBytes(addition));
+            memory.Position = position;
+        };
+        var actual = LogRouter.ReadTailLines(stream, 2);
+        using var reference = new MemoryStream(Encoding.UTF8.GetBytes(initial + addition));
+        Assert.Equal(FullScan(reference, 2), actual);
+    }
+
+    [Theory]
+    [InlineData(2, false)]
+    [InlineData(3, false)]
+    [InlineData(2, true)]
+    [InlineData(3, true)]
+    public void Log_tail_handles_truncation_during_scan_and_after_seek(int truncateAtRead, bool realFile)
+    {
+        var directory = Directory.CreateTempSubdirectory("mpt-log-tail-").FullName;
+        try
+        {
+            var path = Path.Combine(directory, "truncate.jsonl");
+            File.WriteAllText(path, "history\nold\nlast\n");
+            using Stream source = realFile
+                ? new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete, bufferSize: 1)
+                : new MemoryStream();
+            if (!realFile)
+            {
+                source.Write(Encoding.UTF8.GetBytes("history\nold\nlast\n"));
+                source.Position = 0;
+            }
+            using var stream = new ObservedStream(source);
+            stream.BeforeRead = readNumber =>
+            {
+                if (readNumber != truncateAtRead) return;
+                if (realFile) File.WriteAllText(path, "new\n");
+                else
+                {
+                    var position = source.Position;
+                    source.SetLength(0);
+                    source.Position = 0;
+                    source.Write(Encoding.UTF8.GetBytes("new\n"));
+                    source.Position = position;
+                }
+            };
+            Assert.Equal(new[] { "new" }, LogRouter.ReadTailLines(stream, 1));
+        }
+        finally { Directory.Delete(directory, true); }
+    }
+
+    [Fact]
+    public void Log_tail_keeps_one_handle_across_rotation()
+    {
+        var directory = Directory.CreateTempSubdirectory("mpt-log-tail-").FullName;
+        try
+        {
+            var path = Path.Combine(directory, "rotation.jsonl");
+            File.WriteAllText(path, "old\none\ntwo\n");
+            using var stream = new ObservedStream(new FileStream(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite | FileShare.Delete));
+            stream.BeforeRead = readNumber =>
+            {
+                if (readNumber != 2) return;
+                File.Move(path, path + ".rotated");
+                File.WriteAllText(path, "replacement\n");
+            };
+            Assert.Equal(new[] { "one", "two" }, LogRouter.ReadTailLines(stream, 2));
+        }
+        finally { Directory.Delete(directory, true); }
+    }
+
+    [Fact]
+    public void Log_tail_preserves_json_filtering_selected_errors_and_missing_files()
+    {
+        var directory = Directory.CreateTempSubdirectory("mpt-log-tail-").FullName;
+        try
+        {
+            var router = new LogRouter(directory);
+            Assert.Empty(router.Tail("missing"));
+            var path = Path.Combine(directory, "fixture.jsonl");
+            var record = new LogRecord(DateTimeOffset.UnixEpoch, "pkg", "fixture", "", 1, "", "info", "行🙂");
+            var json = JsonSerializer.Serialize(record);
+            var ordered = string.Join('\n', Enumerable.Range(0, 8).Select(i => JsonSerializer.Serialize(record with { EventSeq = (ulong)i })));
+            foreach (var encoding in TailEncodings)
+            foreach (var body in new[] { $"bad JSON\n{json}\n", $"{json}\r\n \r\nnull\r\n", $"{json}\n\uFEFF{json}", $"{{\n{json}\n\n", $"{json}\rnull", ordered })
+            {
+                File.WriteAllBytes(path, encoding.GetPreamble().Concat(encoding.GetBytes(body)).ToArray());
+                foreach (var limit in TailLimits)
+                {
+                    LogRecord[]? expected = null;
+                    // Own the reference handle even when a nonpositive limit never enumerates lines.
+                    var expectedException = Record.Exception(() =>
+                    {
+                        using var reference = File.OpenRead(path);
+                        expected = FullScan(reference, limit).Where(line => !string.IsNullOrWhiteSpace(line))
+                            .Select(line => JsonSerializer.Deserialize<LogRecord>(line)).Where(row => row is not null).Cast<LogRecord>().ToArray();
+                    });
+                    LogRecord[]? actual = null;
+                    var actualException = Record.Exception(() => actual = router.Tail("fixture", limit).ToArray());
+                    Assert.Equal(expectedException?.GetType(), actualException?.GetType());
+                    if (expectedException is null) Assert.Equal(expected, actual);
+                }
+            }
+        }
+        finally { Directory.Delete(directory, true); }
+    }
+
+    private static void CompareTailLines(byte[] bytes, bool shortReads = false)
+    {
+        foreach (var limit in TailLimits)
+        {
+            using var reference = new ObservedStream(new MemoryStream(bytes), shortReads ? 1 : int.MaxValue);
+            using var stream = new ObservedStream(new MemoryStream(bytes), shortReads ? 1 : int.MaxValue);
+            Assert.Equal(FullScan(reference, limit), LogRouter.ReadTailLines(stream, limit));
+            if (limit <= 0) Assert.Equal(0, stream.BytesRead);
+        }
+    }
+
+    private static string[] FullScan(Stream stream, int limit)
+    {
+        using var reader = new StreamReader(stream, Encoding.UTF8, detectEncodingFromByteOrderMarks: true, leaveOpen: true);
+        return Lines().TakeLast(limit).ToArray();
+        IEnumerable<string> Lines()
+        {
+            while (reader.ReadLine() is { } line) yield return line;
+        }
+    }
+
+    private sealed class ObservedStream(Stream inner, int maxRead = int.MaxValue) : Stream
+    {
+        internal long BytesRead { get; private set; }
+        private int _readCalls;
+        internal Action<int>? BeforeRead { get; set; }
+        public override int Read(Span<byte> buffer)
+        {
+            BeforeRead?.Invoke(++_readCalls);
+            var count = inner.Read(buffer[..Math.Min(buffer.Length, maxRead)]);
+            BytesRead += count;
+            return count;
+        }
+        public override int Read(byte[] buffer, int offset, int count) => Read(buffer.AsSpan(offset, count));
+        public override bool CanRead => inner.CanRead;
+        public override bool CanSeek => inner.CanSeek;
+        public override bool CanWrite => false;
+        public override long Length => inner.Length;
+        public override long Position { get => inner.Position; set => inner.Position = value; }
+        public override void Flush() => inner.Flush();
+        public override long Seek(long offset, SeekOrigin origin) => inner.Seek(offset, origin);
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        protected override void Dispose(bool disposing)
+        {
+            if (disposing) inner.Dispose();
+            base.Dispose(disposing);
+        }
+    }
 }
