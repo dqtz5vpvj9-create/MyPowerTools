@@ -240,7 +240,9 @@ public sealed class RuntimePackagingAuditTests : IDisposable
     [InlineData("../PACKAGE/outside.txt")]
     public void Hash_manifest_rejects_entries_outside_its_package(string entryPath)
     {
-        var package = CreatePackage("package");
+        // PACKAGE aliases package on Windows, so use a distinct root there to
+        // keep every entry outside. Non-Windows retains case-sensitive confinement coverage.
+        var package = CreatePackage(OperatingSystem.IsWindows() ? "package-root" : "package");
         File.WriteAllText(Path.Combine(_root, "outside.txt"), "outside");
         Directory.CreateDirectory(Path.Combine(_root, "PACKAGE"));
         File.WriteAllText(Path.Combine(_root, "PACKAGE", "outside.txt"), "outside");
