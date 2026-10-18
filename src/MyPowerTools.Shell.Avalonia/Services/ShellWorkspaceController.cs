@@ -41,7 +41,7 @@ public sealed partial class ShellWorkspaceController : IAsyncDisposable
     private readonly Lazy<ShellHostActionService> _hostActionsFactory = new(static () => new());
     private readonly Lazy<ShellPageDataService> _pageDataFactory = new(static () => new());
     private readonly Lazy<ShellToolEventService> _toolEventsFactory = new(static () => new());
-    private readonly Lazy<ShellRunnerEventService> _runnerEventsFactory = new(static () => new());
+    private readonly Lazy<ShellRunnerEventService> _runnerEventsFactory;
     private readonly Lazy<ServiceUnitEventStreamMonitor> _unitEventsFactory =
         new(static () => new ServiceUnitEventStreamMonitor(new ServiceManagerUnitEventSource()));
     private readonly Lazy<ServiceManagerAdminClient> _serviceManagerAdminFactory =
@@ -104,7 +104,8 @@ public sealed partial class ShellWorkspaceController : IAsyncDisposable
         ContentControl permissionPanel,
         ContentControl auditPanel,
         Func<IMptWebSurfaceService?>? webSurfaceServiceFactory = null,
-        Panel? webSurfaceHost = null)
+        Panel? webSurfaceHost = null,
+        ShellStartupOptions? startupOptions = null)
     {
         _chromeViewModel = chromeViewModel;
         _searchBox = searchBox;
@@ -115,6 +116,8 @@ public sealed partial class ShellWorkspaceController : IAsyncDisposable
         _webSurfaceHost = webSurfaceHost;
         _webSurfaceServiceFactory = new Lazy<IMptWebSurfaceService?>(
             () => webSurfaceServiceFactory?.Invoke());
+        _runnerEventsFactory = new Lazy<ShellRunnerEventService>(
+            () => new ShellRunnerEventService(startupOptions ?? ShellStartupOptions.Default));
 
         _faultSink = new ShellCommandFaultSink(_workspaceIdentity.ControllerId);
         _searchTextChangedHandler = OnSearchTextChanged;
@@ -319,26 +322,6 @@ public sealed partial class ShellWorkspaceController : IAsyncDisposable
             DiagnosticsPage => ShellRoute.RuntimeHealth,
             _ => ShellRoute.System
         };
-    }
-
-    private async Task ApplyKeyboardShortcutAsync(ShellKeyboardShortcutResult shortcut)
-    {
-        switch (shortcut.Action)
-        {
-            case ShellKeyboardAction.FocusCommandPalette:
-                await FocusCommandPaletteAsync();
-                break;
-            case ShellKeyboardAction.ClearCommandPalette:
-                await CloseCommandPaletteAsync();
-                break;
-            case ShellKeyboardAction.Refresh:
-                await RefreshAsync();
-                SetStatus($"{_currentPage} refreshed.");
-                break;
-            case ShellKeyboardAction.Navigate when shortcut.TargetPage is not null:
-                await ShowPageAsync(shortcut.TargetPage);
-                break;
-        }
     }
 
     private async Task ApplyHostEventAsync(HostProto.HostEvent evt)

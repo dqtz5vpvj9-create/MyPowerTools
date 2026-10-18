@@ -111,6 +111,3 @@ public sealed class ServiceUnitViewModel : ObservableViewModel
     public bool CanStop => IsActive || string.Equals(State, "degraded", StringComparison.OrdinalIgnoreCase);
     public bool CanRestart => CanStop;
 }
-
-/// <summary>One tailed log line shown in the unit detail / logs flyout.</summary>
-public sealed record ServiceUnitLogViewModel(string Time, string Level, string Message);

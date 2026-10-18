@@ -83,7 +83,9 @@ function Get-WanIp {
             Where-Object { $_.Status -eq 'Up' -and $_.Description -like "*$adapterDescription*" })
     }
     foreach ($adapter in $adapters) {
-        $interfaceIndex = if ($null -ne $adapter.Index) { $adapter.Index } else { $adapter.ifIndex }
+        # CIM's Index identifies the Win32 device, not the TCP/IP interface.
+        # Get-NetAdapter exposes the same interface identifier as ifIndex.
+        $interfaceIndex = if ($null -ne $adapter.InterfaceIndex) { $adapter.InterfaceIndex } else { $adapter.ifIndex }
         $address = Get-NetIPAddress -InterfaceIndex $interfaceIndex -AddressFamily IPv4 -ErrorAction SilentlyContinue |
             Where-Object { $_.IPAddress -notlike '169.254.*' -and $_.IPAddress -ne '127.0.0.1' -and $_.PrefixOrigin -ne 'WellKnown' } |
             Select-Object -First 1

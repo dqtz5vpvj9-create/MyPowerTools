@@ -175,7 +175,7 @@ Local builds copy module assemblies into `modules/`. When assemblies change, run
 
 | Area | Evidence |
 |---|---|
-| Shell keyboard navigation | Added `ShellKeyboardShortcut` and MainWindow handling for `Ctrl+K`/`Ctrl+F` command palette focus, `Escape` clear/focus return, `F5`/`Ctrl+R` refresh, and `Ctrl+1..7` primary page navigation. `Shell_keyboard_shortcuts_resolve_navigation_and_command_palette_actions` verifies the mapping. |
+| Shell keyboard navigation | Native/web gestures use `ShortcutKeyAdapter` and the configurable `ShortcutCatalog`; `ShellWorkspaceController` dispatches application/tool actions. Windows defaults include `Ctrl+K`/`Ctrl+Shift+P` for the command palette, `Ctrl+Shift+K` for shortcuts, `F5`/`Ctrl+R` for refresh, and `Ctrl+1/2/3/5/6` for navigation; `Ctrl+F` remains available to tools. The controller closes an open palette on Escape; Runner owns system-wide `Ctrl+Alt+Space`. Existing shortcut tests now exercise these live paths. |
 | HostControl settings schema | Added HostControl `GetSettingsSchema`, Runtime transport schema retrieval, and InProc/gRPC/stdio implementations so Shell Settings stays Runner IPC-backed. `HostControl_get_settings_schema_exposes_runtime_schema` verifies Doubao runtime schema exposure. |
 | Schema-rendered Settings page | Shell Settings now renders schema fields as toggles, enum selectors, text fields, and JSON editors for object/array settings, then writes structured settings patches through HostControl revision checks. |
 | Token-governed colors | Added `MptTheme` and replaced Shell/control hardcoded color references with centralized theme tokens. `Shell_ui_colors_are_centralized_in_theme_tokens` prevents direct color literals in MainWindow and MPT controls. |

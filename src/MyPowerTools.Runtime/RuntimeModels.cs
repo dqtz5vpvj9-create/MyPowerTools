@@ -135,7 +135,11 @@ public sealed record RuntimeDiagnosticsSnapshot(
     IReadOnlyList<RuntimeProcessPolicyHistoryEntry> ProcessPolicyHistory,
     IReadOnlyList<RuntimeModuleDiagnostics> Modules,
     IReadOnlyList<RuntimeHotkeyDiagnostic> Hotkeys,
-    IReadOnlyList<CommandHistoryRecord> RecentCommands);
+    IReadOnlyList<CommandHistoryRecord> RecentCommands)
+{
+    public HistoryBufferStats? CommandHistoryBuffer { get; init; }
+    public HistoryBufferStats? NotificationHistoryBuffer { get; init; }
+}
 
 public sealed record RuntimePathDiagnostics(
     string Root,

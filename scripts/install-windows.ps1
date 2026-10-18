@@ -138,7 +138,7 @@ function Invoke-SourcePortableBuild {
         '-NonInteractive'
         '-File'
         $publishScript
-        '-PortableOnly'
+        '-LayoutOnly'
         '-AllowUnsigned'
         '-Channel'
         'local'

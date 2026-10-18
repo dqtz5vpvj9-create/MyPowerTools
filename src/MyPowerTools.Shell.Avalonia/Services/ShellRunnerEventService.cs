@@ -14,15 +14,23 @@ public sealed class ShellRunnerEventService : IAsyncDisposable
     private int _disposed;
 
     public ShellRunnerEventService()
+        : this(ShellStartupOptions.Default)
+    {
+    }
+
+    public ShellRunnerEventService(ShellStartupOptions startupOptions)
         : this(
             new HostControlConnectionMonitor(new HostControlRunnerConnectionProbe()),
-            new HostControlEventStreamMonitor(new HostControlClientEventSource()))
+            new HostControlEventStreamMonitor(new HostControlClientEventSource()),
+            startupOptions)
     {
     }
 
     internal ShellRunnerEventService(
         HostControlConnectionMonitor connectionMonitor,
-        HostControlEventStreamMonitor eventStream)
+        HostControlEventStreamMonitor eventStream,
+        ShellStartupOptions? startupOptions = null,
+        Func<ShellStartupOptions, Task>? restartRunner = null)
     {
         _connectionMonitor = connectionMonitor;
         _eventStream = eventStream;
@@ -30,8 +38,13 @@ public sealed class ShellRunnerEventService : IAsyncDisposable
         _eventReceivedHandler = OnEventReceived;
         _streamFaultedHandler = OnStreamFaulted;
         _connectionMonitor.StateChanged += _connectionStateChangedHandler;
-        _connectionMonitor.RestartRunner = () =>
-            ShellRunnerBootstrapper.EnsureStartedAsync(ShellStartupOptions.Default);
+        var effectiveOptions = startupOptions ?? ShellStartupOptions.Default;
+        restartRunner ??= options => ShellRunnerBootstrapper.EnsureStartedAsync(options);
+        // Reconnection must honor the same bootstrap policy and module/data roots as
+        // initial startup, including an explicit --no-runner-bootstrap request.
+        _connectionMonitor.RestartRunner = effectiveOptions.RunnerBootstrap
+            ? () => restartRunner(effectiveOptions)
+            : null;
         _eventStream.EventReceived += _eventReceivedHandler;
         _eventStream.StreamFaulted += _streamFaultedHandler;
     }

@@ -34,7 +34,9 @@ public static class ToolDiscoveryConfiguration
                 var root = document.RootElement;
                 var directories = root.ValueKind == JsonValueKind.Array
                     ? root
-                    : root.TryGetProperty("directories", out var configured) ? configured : default;
+                    : root.ValueKind == JsonValueKind.Object && root.TryGetProperty("directories", out var configured)
+                        ? configured
+                        : default;
                 if (directories.ValueKind == JsonValueKind.Array)
                 {
                     foreach (var item in directories.EnumerateArray())

@@ -8,12 +8,17 @@ namespace MyPowerTools.Shell.Avalonia.ViewModels;
 
 public sealed class NotificationsViewModel : ShellPageViewModel
 {
-    public NotificationsViewModel(IReadOnlyList<NotificationItemViewModel> notifications)
+    public NotificationsViewModel(IReadOnlyList<NotificationItemViewModel> notifications) : this(notifications, "") { }
+
+    public NotificationsViewModel(IReadOnlyList<NotificationItemViewModel> notifications, string historyNotice)
         : base("Notifications", $"{notifications.Count} notifications", notifications.Count == 0 ? "empty" : "ready")
     {
         Notifications = notifications;
+        HistoryNotice = historyNotice;
     }
 
+    public string HistoryNotice { get; }
+    public bool HasHistoryNotice => !string.IsNullOrEmpty(HistoryNotice);
     public IReadOnlyList<NotificationItemViewModel> Notifications { get; }
     public bool IsEmpty => Notifications.Count == 0;
 }
@@ -42,6 +47,8 @@ public sealed class DiagnosticsViewModel : ShellPageViewModel
         BrokerAudit = brokerAudit;
     }
 
+    public string CommandHistoryNotice { get; init; } = "";
+    public string NotificationHistoryNotice { get; init; } = "";
     public IReadOnlyList<MetricViewModel> Metrics { get; }
     public IReadOnlyList<MetricViewModel> Paths { get; }
     public IReadOnlyList<RuntimeTransportViewModel> Transports { get; }

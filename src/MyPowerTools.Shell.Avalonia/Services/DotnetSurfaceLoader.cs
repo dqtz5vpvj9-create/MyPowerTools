@@ -157,7 +157,6 @@ internal sealed class DotnetSurfaceLoader
     internal sealed class LoadedSurface : IDisposable
     {
         private readonly SurfaceLoadContext _loadContext;
-        private readonly WeakReference _weakRef;
         private readonly Action<LoadedSurface> _release;
         private int _unloaded;
 
@@ -172,7 +171,6 @@ internal sealed class DotnetSurfaceLoader
             RouteId = routeId;
             Control = control;
             _loadContext = loadContext;
-            _weakRef = new WeakReference(loadContext);
             _release = release;
         }
 

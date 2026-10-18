@@ -8,8 +8,6 @@ namespace MyPowerTools.Tests;
 
 public sealed class ScreenEaseProductTests
 {
-    private static readonly string Root = FindRepositoryRoot();
-
     [Fact]
     public void View_model_matches_the_original_mode_and_adjustment_workflow()
     {
@@ -663,109 +661,6 @@ public sealed class ScreenEaseProductTests
         Assert.Equal("Pending registration", hotkey.StateLabel);
     }
 
-    [Fact]
-    public void Dynamic_screenease_surface_preserves_the_original_single_workspace()
-    {
-        var controller = File.ReadAllText(Path.Combine(
-            Root,
-            "src",
-            "MyPowerTools.Shell.Avalonia",
-            "Services",
-            "ShellWorkspaceController.Tools.cs"));
-        var surfaceFactory = File.ReadAllText(Path.Combine(
-            Root,
-            "tools", "screenease", "current-integration", "src",
-            "ScreenEase.Surface", "ScreenEaseSurfaceFactory.cs"));
-        var view = File.ReadAllText(Path.Combine(
-            Root,
-            "tools", "screenease", "current-integration", "src",
-            "ScreenEase.Surface", "Views", "ScreenEaseView.axaml"));
-
-        Assert.Contains("LoadExternalSdkToolAsync", controller);
-        Assert.DoesNotContain("LoadScreenEaseToolAsync", controller);
-        Assert.DoesNotContain("new ScreenEaseView", controller);
-        Assert.Contains("new ScreenEaseToolService(context.ServiceUnits)", surfaceFactory);
-        Assert.Contains("new ScreenEaseView", surfaceFactory);
-        Assert.Contains("护眼调节", view);
-        Assert.Contains("休息提醒", view);
-        Assert.Contains("UseNightValues", view);
-        Assert.Contains("UseSchedule", view);
-        Assert.Contains("SaveScheduleCommand", view);
-        Assert.Contains("高级护眼设置", view);
-        Assert.Contains("IsExpanded=\"False\"", view);
-        Assert.Contains("SaveAdvancedCommand", view);
-        Assert.Contains("SaveOverlayCommand", view);
-        Assert.Contains("ImportLegacyCommand", view);
-        Assert.Contains("OpenHotkeySettingsCommand", view);
-        Assert.Contains("ItemsSource=\"{Binding Hotkeys}\"", view);
-        Assert.Contains("ApplyCurrentLabel", view);
-        Assert.Contains("ScreenEaseModeButton", view);
-        Assert.Contains("MaxWidth=\"1500\"", view);
-        Assert.Contains("MptBrushAppBackground", view);
-        Assert.DoesNotContain("Text=\"{Binding NativeWriter.Message}\"", view, StringComparison.Ordinal);
-        Assert.DoesNotContain("Text=\"{Binding NativeWriter.State}\"", view, StringComparison.Ordinal);
-        Assert.DoesNotContain("ScreenEaseCanvas", view, StringComparison.Ordinal);
-        Assert.DoesNotContain("Display profiles", view, StringComparison.Ordinal);
-        Assert.DoesNotContain("Troubleshooting", view, StringComparison.Ordinal);
-
-        var screenshotWriter = File.ReadAllText(Path.Combine(
-            Root,
-            "src",
-            "Mpt.Cli.VisualTesting",
-            "ShellRealScreenshotWriter.cs"));
-        Assert.Contains("WriteSnapshotSetFromHostControlAsync", screenshotWriter);
-        Assert.Contains("runner-hostcontrol", screenshotWriter);
-    }
-
-    [Fact]
-    public void ScreenEase_implementation_tracks_the_original_source_state_contract()
-    {
-        var module = File.ReadAllText(Path.Combine(
-            Root,
-            "tools", "screenease", "current-integration", "src",
-            "ScreenEase.MyPowerTools", "ScreenEaseModule.cs"));
-        var proxy = File.ReadAllText(Path.Combine(
-            Root,
-            "tools", "screenease", "current-integration", "src",
-            "ScreenEase.MyPowerTools", "ScreenEaseServiceProxyModule.cs"));
-        var viewModel = File.ReadAllText(Path.Combine(
-            Root,
-            "tools", "screenease", "current-integration", "src",
-            "ScreenEase.Surface", "ViewModels", "ScreenEaseViewModels.cs"));
-
-        foreach (var required in new[]
-                 {
-                     "UseNightValues", "UseSchedule", "Sunrise", "Sunset",
-                     "PausedRemainingSeconds", "PausedFrom", "CompletedWorkSessions",
-                     "screenease.reminder.start", "screenease.reminder.pause",
-                     "screenease.reminder.resume", "screenease.reminder.reset"
-                 })
-        {
-            Assert.Contains(required, module + proxy + viewModel, StringComparison.Ordinal);
-        }
-
-        Assert.Contains("ServiceUnitClientFactory", proxy, StringComparison.Ordinal);
-        Assert.DoesNotContain("ScreenEaseModule(context)", proxy, StringComparison.Ordinal);
-
-        var originalRoot = Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile),
-            "Documents", "Codex", "2026-07-01", "careueyes-ida-pro-core-service", "outputs", "ScreenEase");
-        if (!Directory.Exists(originalRoot))
-        {
-            return;
-        }
-
-        var originalModels = File.ReadAllText(Path.Combine(originalRoot, "src", "ScreenEase.Core", "Models.cs"));
-        var originalTimer = File.ReadAllText(Path.Combine(originalRoot, "src", "ScreenEase.Core", "RestTimerEngine.cs"));
-        var originalController = File.ReadAllText(Path.Combine(originalRoot, "src", "ScreenEase.Core", "EyeCareController.cs"));
-        Assert.Contains("UseNightValues", originalModels);
-        Assert.Contains("UseSchedule", originalModels);
-        Assert.Contains("PausedRemaining", originalModels);
-        Assert.Contains("RestTimerEngine.Pause", originalController);
-        Assert.Contains("StartBreak", originalTimer);
-        Assert.Contains("IsNight", originalController);
-    }
-
     private static ScreenEaseSnapshot Snapshot(
         IReadOnlyList<ScreenEaseProfile> profiles,
         string activeProfileId,
@@ -803,21 +698,5 @@ public sealed class ScreenEaseProductTests
 
             await Task.Delay(10);
         }
-    }
-
-    private static string FindRepositoryRoot()
-    {
-        var current = new DirectoryInfo(AppContext.BaseDirectory);
-        while (current is not null)
-        {
-            if (File.Exists(Path.Combine(current.FullName, "MyPowerTools.slnx")))
-            {
-                return current.FullName;
-            }
-
-            current = current.Parent;
-        }
-
-        throw new DirectoryNotFoundException("Repository root was not found.");
     }
 }

@@ -13,10 +13,13 @@
     <PackageReference Include="xunit.v3" Version="3.2.2" />
     <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5"><PrivateAssets>all</PrivateAssets></PackageReference>
     <Using Include="Xunit" />
+    <!-- Share one headless host while keeping each shortcut fixture in its original namespace. -->
+    <Compile Include="../ShortcutCenter.Tests/*.cs" Link="ShortcutCenter/%(Filename)%(Extension)" />
+    <Compile Include="../../src/MyPowerTools.WebToolHost/WebToolHostProtocol.cs" Link="WebToolHostProtocol.cs" />
+    <None Include="../../src/MyPowerTools.WebSurface.Shared/ShortcutForwarding.inc" Link="ShortcutForwarding.inc" CopyToOutputDirectory="PreserveNewest" />
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/MyPowerTools.Shell.Avalonia/MyPowerTools.Shell.Avalonia.csproj" />
-    <Compile Include="../../src/MyPowerTools.Tests/PersonalUx*.Tests.cs" Link="Shell/%(Filename)%(Extension)" />
     <ProjectReference Include="../../tools/remote-commands/current-integration/src/RemoteCommands.Surface/RemoteCommands.Surface.csproj" />
     <Compile Include="../../tools/remote-commands/tests/PersonalUx*.cs" Link="remote-commands/%(Filename)%(Extension)" />
     <ProjectReference Include="../../tools/input-monitor/current-integration/src/InputMonitor.Surface/InputMonitor.Surface.csproj" />
@@ -34,11 +37,7 @@
   </ItemGroup>
   <ItemGroup>
     <ProjectReference Include="../../src/MyPowerTools.ServiceManager.Server/MyPowerTools.ServiceManager.Server.csproj" />
-    <Compile Include="../../src/MyPowerTools.Tests/RemoteCommandsProduct.Tests.cs" Link="Integration/RemoteCommandsProduct.Tests.cs" />
-    <Compile Include="../../src/MyPowerTools.Tests/ServiceUnitCatalog.Tests.cs" Link="Integration/ServiceUnitCatalog.Tests.cs" />
-    <Compile Include="../../src/MyPowerTools.Tests/ShellBackNavigationUxTests.cs" Link="Integration/ShellBackNavigationUxTests.cs" />
-    <Compile Include="../../src/MyPowerTools.Tests/ShellKeyboardShortcutUxTests.cs" Link="Integration/ShellKeyboardShortcutUxTests.cs" />
-    <Compile Include="../../src/MyPowerTools.Tests/MacOtaCompletion.Tests.cs" Link="Integration/MacOtaCompletion.Tests.cs" />
+    <ProjectReference Include="../../src/MyPowerTools.Runner/MyPowerTools.Runner.csproj" />
   </ItemGroup>
   <ItemGroup>
     <Compile Include="../../tools/remote-commands/current-integration/src/MyPowerTools.Tests/RemoteCommandHistoryMatcherTests.cs" Link="Integration/RemoteCommandHistoryMatcherTests.cs" />

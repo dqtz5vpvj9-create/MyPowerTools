@@ -339,11 +339,28 @@ public sealed class SmartBirdThermostatProductTests
     [InlineData("Escape")]
     [InlineData("Ctrl+1")]
     [InlineData("Ctrl+6")]
-    public void Web_host_global_shortcuts_use_the_shell_resolver(string gesture)
+    public void Web_host_shortcut_gestures_use_the_current_shell_adapter_and_owners(string gesture)
     {
-        Assert.True(ShellKeyboardShortcut.TryParseGesture(gesture, out var key, out var modifiers));
+        Assert.True(ShortcutKeyAdapter.TryParse(gesture, out var key, out var modifiers));
         Assert.NotEqual(Key.None, key);
-        Assert.NotEqual(ShellKeyboardAction.None, ShellKeyboardShortcut.Resolve(key, modifiers).Action);
+        Assert.Equal(gesture, ShortcutKeyAdapter.Format(key, modifiers));
+        var snapshot = new ShortcutCatalogSnapshot(new(0, []), ShortcutCatalog.ShellCommands, [], "windows");
+        var applicationShortcut = ShortcutCatalog.Resolve(snapshot, gesture, "", "", false, false);
+        if (gesture == "Escape")
+        {
+            Assert.Null(applicationShortcut);
+        }
+        else if (gesture == "Ctrl+Alt+Space")
+        {
+            Assert.Null(applicationShortcut);
+            var backgroundShortcut = Assert.Single(ShortcutCatalog.Effective(snapshot), item => item.Gesture == gesture);
+            Assert.Equal("system", backgroundShortcut.Definition.Scope);
+            Assert.Equal("shell.command-palette.open", backgroundShortcut.Definition.CommandId);
+        }
+        else
+        {
+            Assert.NotNull(applicationShortcut);
+        }
     }
 
     [Fact]

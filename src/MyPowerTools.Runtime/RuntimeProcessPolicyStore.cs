@@ -102,8 +102,8 @@ public sealed class RuntimeProcessPolicyStore
                     .ToArray(),
                 history,
                 now);
-            _snapshot = next;
             Save(next);
+            _snapshot = next;
             return next;
         }
     }
@@ -146,8 +146,8 @@ public sealed class RuntimeProcessPolicyStore
                 policies,
                 history.Take(MaxHistoryEntries).ToArray(),
                 now);
-            _snapshot = next;
             Save(next);
+            _snapshot = next;
             return expired;
         }
     }

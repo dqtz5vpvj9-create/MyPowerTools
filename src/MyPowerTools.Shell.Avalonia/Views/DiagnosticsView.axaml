@@ -36,6 +36,9 @@
       </ItemsControl.ItemTemplate>
     </ItemsControl>
 
+    <TextBlock Classes="MptPageSubtitle" Text="{Binding CommandHistoryNotice}" TextWrapping="Wrap" />
+    <TextBlock Classes="MptPageSubtitle" Text="{Binding NotificationHistoryNotice}" TextWrapping="Wrap" />
+
     <Border Classes="MptTabStrip">
       <StackPanel Orientation="Horizontal" Spacing="{DynamicResource MptSpacingXs}">
         <TextBlock Classes="MptTabItemSelected" Text="Runtime" />

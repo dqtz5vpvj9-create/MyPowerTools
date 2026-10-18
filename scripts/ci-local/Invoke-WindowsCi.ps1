@@ -266,7 +266,8 @@ if ($Suite -eq 'Quick') {
 }
 
 Invoke-Step 'Architecture Gate (Process)' {
-    pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\verify-architecture.ps1 -Tier Process
+    # Quick already built this checkout's Release architecture gate successfully.
+    pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\verify-architecture.ps1 -Tier Process -NoBuild
 }
 
 if ($Suite -eq 'Handoff' -or $Suite -eq 'Both') {

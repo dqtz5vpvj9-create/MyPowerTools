@@ -51,7 +51,7 @@ public static partial class ShellPageViewModelFactory
 
     public static NotificationsViewModel FromNotifications(HostProto.ListNotificationsResponse response)
     {
-        return new NotificationsViewModel(ToNotificationItems(response));
+        return new NotificationsViewModel(ToNotificationItems(response), HistoryBufferNotice(response.HistoryBuffer));
     }
 
     public static IReadOnlyList<NotificationItemViewModel> ToNotificationItems(HostProto.ListNotificationsResponse response)
@@ -62,8 +62,22 @@ public static partial class ShellPageViewModelFactory
             notification.ModuleId,
             notification.Level,
             notification.Title,
-            notification.Body,
+            notification.IsTruncated ? notification.Body + "\n[History text truncated to the buffer limit.]" : notification.Body,
             notification.IsRead)).ToArray();
+    }
+
+    private static string HistoryBudget(HostProto.HistoryBufferStats? stats) => stats is null
+        ? "Not reported by this host"
+        : $"{stats.RetainedBytes:N0} / {stats.MaxBytes:N0} charged bytes; {stats.RetainedCount} / {stats.MaxEntries} records (not process RSS)";
+
+    public static string HistoryBufferNotice(HostProto.HistoryBufferStats? stats)
+    {
+        if (stats is null || (stats.EvictedCount == 0 && stats.TruncatedCount == 0 && stats.RejectedCount == 0))
+            return "";
+        return $"Rolling history (since this process started): {stats.EvictedCount} old records removed " +
+            $"({stats.EvictedUnreadCount} were unread; they were not marked read), " +
+            $"{stats.TruncatedCount} oversized writes truncated, {stats.RejectedCount} records could not fit. " +
+            "These counts cover all modules. Only retained history is shown; removed text is not recoverable here.";
     }
 
     public static DiagnosticsViewModel FromDiagnostics(
@@ -162,7 +176,7 @@ public static partial class ShellPageViewModelFactory
         var recentCommands = diagnostics.RecentCommands.Select(command => new RuntimeCommandHistoryItemViewModel(
             $"{command.State} - {command.CommandId}",
             $"{command.ModuleId} - {command.StartedAt.ToDateTimeOffset():yyyy-MM-dd HH:mm:ss}",
-            command.Summary)).ToArray();
+            command.IsTruncated ? command.Summary + "\n[History text truncated to the buffer limit.]" : command.Summary)).ToArray();
 
         var brokerAudit = (audit?.Entries ?? []).Select(entry => new BrokerAuditEntryViewModel(
             $"{entry.Result} - {entry.ActionId}",
@@ -179,6 +193,10 @@ public static partial class ShellPageViewModelFactory
             processPolicyHistory,
             modules,
             recentCommands,
-            brokerAudit);
+            brokerAudit)
+        {
+            CommandHistoryNotice = "Command history: " + HistoryBudget(diagnostics.CommandHistoryBuffer) + ". " + HistoryBufferNotice(diagnostics.CommandHistoryBuffer),
+            NotificationHistoryNotice = "Notification history: " + HistoryBudget(diagnostics.NotificationHistoryBuffer) + ". " + HistoryBufferNotice(diagnostics.NotificationHistoryBuffer)
+        };
     }
 }

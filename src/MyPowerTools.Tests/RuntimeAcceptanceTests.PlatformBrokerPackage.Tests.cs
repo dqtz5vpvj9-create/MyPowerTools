@@ -538,57 +538,6 @@ public sealed partial class RuntimeAcceptanceTests
     }
 
     [Fact]
-    public void Runner_wires_windows_global_hotkey_to_command_palette_startup()
-    {
-        var runnerPath = Path.Combine(Root, "src", "MyPowerTools.Runner", "Program.cs");
-        var hotkeySynchronizerPath = Path.Combine(Root, "src", "MyPowerTools.Runner", "RunnerHotkeySynchronizer.cs");
-        var appPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "App.cs");
-        var mainWindowPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "MainWindow.cs");
-        var startupPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "MainWindow.Startup.cs");
-        var workspacePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellWorkspaceController.cs");
-        var startupOptionsPath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "ShellStartupOptions.cs");
-        var runner = File.ReadAllText(runnerPath);
-        var hotkeySynchronizer = File.ReadAllText(hotkeySynchronizerPath);
-        var app = File.ReadAllText(appPath);
-        var mainWindow = string.Concat(File.ReadAllText(mainWindowPath), File.ReadAllText(startupPath));
-        var workspace = ReadShellWorkspaceControllerText();
-        var startupOptions = File.ReadAllText(startupOptionsPath);
-
-        Assert.Contains("StartHotkeysAsync", runner);
-        Assert.DoesNotContain("new HotkeyRegistration(\"command-palette\",", runner);
-        var catalog = File.ReadAllText(Path.Combine(Root, "src", "MyPowerTools.Runtime", "ShortcutConfiguration.cs"));
-        Assert.Contains("\"runner.command-palette\"", catalog);
-        Assert.Contains("\"Ctrl+Alt+Space\"", catalog);
-        Assert.Contains("RunnerHotkeySynchronizer", runner);
-        Assert.Contains("_runtime.ListManagedHotkeyBindings()", hotkeySynchronizer);
-        Assert.Contains("SyncModuleHotkeysAsync", runner);
-        Assert.Contains("WatchRuntimeHotkeyBindingsAsync", runner);
-        Assert.Contains("_hotkeys.UnregisterAsync", hotkeySynchronizer);
-        Assert.Contains("RequiresHotkeySync(evt.Type)", runner);
-        Assert.Contains("new(nativeId, binding.Gesture, binding.Scope, binding.Reason)", hotkeySynchronizer);
-        Assert.Contains("runtime.ExecuteCommandAsync", runner);
-        Assert.Contains("CreateCommandRequest", runner);
-        Assert.Contains("new Sdk.CommandRequest", hotkeySynchronizer);
-        Assert.Contains("--command-palette", runner);
-        Assert.Contains("hotkeys.Pressed", runner);
-        Assert.Contains("ShellStartupOptions.FromArgs", app);
-        Assert.Contains("--command-palette", startupOptions);
-        Assert.Contains("--data-root", startupOptions);
-        Assert.Contains("--modules", startupOptions);
-        Assert.Contains("--no-runner-bootstrap", startupOptions);
-        var shellProgram = File.ReadAllText(Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Program.cs"));
-        Assert.Contains("var opensHome = toolActivation is null && !startupOptions.FocusCommandPalette", shellProgram);
-        Assert.Contains("? ShellHomeSnapshotCache.TryReadAsync", shellProgram);
-        Assert.Contains("App.CachedHomeSnapshotTask = cachedHomeSnapshotTask", shellProgram);
-        Assert.Contains("ShellRunnerBootstrapper.EnsureStartedAsync", shellProgram);
-        Assert.Contains("loadHomeTools: opensHome", shellProgram);
-        Assert.DoesNotContain("ShellRunnerBootstrapper.EnsureStartedAsync(startupOptions).GetAwaiter().GetResult()", shellProgram, StringComparison.Ordinal);
-        Assert.Contains("ExecutableName(\"MyPowerTools.Runner\")", File.ReadAllText(Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "ShellRunnerBootstrapper.cs")));
-        Assert.Contains("FocusCommandPaletteAsync", mainWindow);
-        Assert.Contains("public async Task FocusCommandPaletteAsync()", workspace);
-    }
-
-    [Fact]
     public async Task Privileged_broker_implements_platform_privilege_contract()
     {
         var auditPath = Path.Combine(Path.GetTempPath(), "mpt-privilege-contract", Guid.NewGuid().ToString("N"), "audit.jsonl");

@@ -20,6 +20,7 @@ $toolIds = @(
     'smartbird-thermostat',
     'doubao-computer-use',
     'input-monitor',
+    'screenshot',
     'xbrd'
 )
 
@@ -148,6 +149,15 @@ function Test-ExcludedFile {
 
     if ($ExcludedTopLevel -contains $segments[0]) {
         return $true
+    }
+
+    # This tracked command file is a source entrypoint in a package-layout bin
+    # directory, not a generated build output. Keep the exception exact so DLLs,
+    # stale script copies, and other bin contents remain excluded.
+    if ($normalized.Equals(
+        'tools/ddns/service-units/ddns.service/bin/ddns-runner.cmd',
+        [System.StringComparison]::OrdinalIgnoreCase)) {
+        return $false
     }
 
     foreach ($segment in $segments) {

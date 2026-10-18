@@ -42,7 +42,12 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
         with:
-          submodules: recursive
+          submodules: false
+          token: ${{ secrets.MPT_SUBMODULE_PAT }}
+
+      - name: Checkout build submodules
+        uses: ./.github/actions/checkout-submodules
+        with:
           token: ${{ secrets.MPT_SUBMODULE_PAT }}
 
       - name: Setup .NET SDK

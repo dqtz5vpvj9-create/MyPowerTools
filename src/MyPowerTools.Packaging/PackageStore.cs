@@ -123,15 +123,19 @@ public sealed class PackageStore
 
     private string ResolvePackageTarget(string packageId)
     {
-        var target = Path.GetFullPath(Path.Combine(StoreRoot, packageId));
-        var storeRoot = StoreRoot.EndsWith(Path.DirectorySeparatorChar)
-            ? StoreRoot
-            : StoreRoot + Path.DirectorySeparatorChar;
-        if (!target.StartsWith(storeRoot, StringComparison.OrdinalIgnoreCase) &&
-            !string.Equals(target, StoreRoot, StringComparison.OrdinalIgnoreCase))
+        // Lifecycle APIs accept an identifier, never a path. In particular, a
+        // root alias would let Uninstall move the entire store to .rollback.
+        if (string.IsNullOrWhiteSpace(packageId) ||
+            packageId is "." or ".." ||
+            packageId.IndexOfAny(['/', '\\', ':']) >= 0 ||
+            packageId != packageId.Trim().TrimEnd('.') ||
+            packageId.IndexOfAny(Path.GetInvalidFileNameChars()) >= 0)
         {
-            throw new InvalidOperationException("Package target escapes store root.");
+            throw new InvalidOperationException("Package id must be a non-empty directory name, not a path.");
         }
+
+        var target = PackagePath.Resolve(StoreRoot, packageId);
+        _ = PackagePath.Resolve(StoreRoot, packageId + ".rollback");
 
         return target;
     }

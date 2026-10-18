@@ -72,9 +72,8 @@ MyPowerTools
 | `MyPowerTools.Protocol` | Protobuf 生成类型、错误模型、协议 helpers |
 | `MyPowerTools.ModuleHost.InProcDotNet` | 加载可信 .NET module |
 | `MyPowerTools.ModuleHost.GrpcIpc` | 管理 gRPC Native IPC sidecar |
-| `MyPowerTools.ModuleHost.Http` | 包装已有 HTTP/WebSocket 服务 |
 | `MyPowerTools.ModuleHost.StdioCompat` | JSON-RPC stdio fallback |
-| `MyPowerTools.Runtime` | registry、supervisor、event bus、settings store |
+| `MyPowerTools.Runtime` | registry、supervisor、event bus、settings store，以及 HTTP entrypoint 的健康检查和命令执行 |
 | `MyPowerTools.Broker` | 权限、secret、service、network、自启动 |
 | `MyPowerTools.Platform.*` | 平台能力实现 |
 | `MyPowerTools.UI` | design tokens、统一控件、布局、图标、视觉回归工具 |

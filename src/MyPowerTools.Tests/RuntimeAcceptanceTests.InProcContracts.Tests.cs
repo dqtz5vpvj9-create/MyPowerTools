@@ -928,58 +928,6 @@ public sealed partial class RuntimeAcceptanceTests
     }
 
     [Fact]
-    public void Production_module_projects_reference_abstractions_not_runtime()
-    {
-        var projectFiles = new[]
-        {
-            "tools/adb-forwarder/current-integration/src/AdbForwarder.MyPowerTools/AdbForwarder.MyPowerTools.csproj",
-            "tools/remote-notifications/current-integration/src/AndroidTools.MyPowerTools/AndroidTools.MyPowerTools.csproj",
-            "tools/doubao-computer-use/current-integration/src/DoubaoAgent.MyPowerTools/DoubaoAgent.MyPowerTools.csproj",
-            "tools/screenease/current-integration/src/ScreenEase.MyPowerTools/ScreenEase.MyPowerTools.csproj",
-            "tools/smartbird-thermostat/current-integration/src/SmartBirdThermostat.MyPowerTools/SmartBirdThermostat.MyPowerTools.csproj"
-        };
-
-        foreach (var projectFile in projectFiles)
-        {
-            var content = File.ReadAllText(Path.Combine(Root, projectFile));
-            // The abstractions contract may come from a project reference or from the
-            // MyPowerTools.ToolSdk package (the current module packaging strategy).
-            Assert.True(
-                content.Contains("MyPowerTools.Abstractions.csproj", StringComparison.Ordinal) ||
-                content.Contains("\"MyPowerTools.ToolSdk\"", StringComparison.Ordinal),
-                $"{projectFile} must reference the abstractions contract (project reference or MyPowerTools.ToolSdk package).");
-            Assert.DoesNotContain("MyPowerTools.Runtime.csproj", content);
-            Assert.DoesNotContain("\"MyPowerTools.Runtime\"", content);
-        }
-    }
-
-    [Fact]
-    public void Production_modules_and_templates_import_abstractions_sdk_namespace()
-    {
-        var sourceRoots = new[]
-        {
-            "tools/adb-forwarder/current-integration/src/AdbForwarder.MyPowerTools",
-            "tools/remote-notifications/current-integration/src/AndroidTools.MyPowerTools",
-            "tools/doubao-computer-use/current-integration/src/DoubaoAgent.MyPowerTools",
-            "tools/screenease/current-integration/src/ScreenEase.MyPowerTools",
-            "tools/smartbird-thermostat/current-integration/src/SmartBirdThermostat.MyPowerTools",
-            "src/MyPowerTools.SampleModules.DotNet",
-            "templates/dotnet-inproc-module"
-        };
-
-        foreach (var sourceRoot in sourceRoots)
-        {
-            var files = Directory.EnumerateFiles(Path.Combine(Root, sourceRoot), "*.cs", SearchOption.AllDirectories)
-                .Where(path => !path.Contains($"{Path.DirectorySeparatorChar}bin{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase))
-                .Where(path => !path.Contains($"{Path.DirectorySeparatorChar}obj{Path.DirectorySeparatorChar}", StringComparison.OrdinalIgnoreCase))
-                .ToArray();
-            var source = string.Join(Environment.NewLine, files.Select(File.ReadAllText));
-            Assert.Contains("using MyPowerTools.Abstractions;", source);
-            Assert.DoesNotContain("using MyPowerTools.Runtime;", source);
-        }
-    }
-
-    [Fact]
     public void ScreenEase_module_uses_capability_provider_not_concrete_platform_packs()
     {
         var project = File.ReadAllText(Path.Combine(Root, "tools/screenease/current-integration/src/ScreenEase.MyPowerTools/ScreenEase.MyPowerTools.csproj"));
@@ -1001,46 +949,6 @@ public sealed partial class RuntimeAcceptanceTests
 
         Assert.Contains("TryGetCapability<IDisplayService>", source);
         Assert.Contains("\"display.profile\"", source);
-    }
-
-    [Fact]
-    public void Runtime_shell_and_host_do_not_reference_concrete_module_projects()
-    {
-        var hostProjectFiles = new[]
-        {
-            "src/MyPowerTools.Runtime/MyPowerTools.Runtime.csproj",
-            "src/MyPowerTools.HostControl/MyPowerTools.HostControl.csproj",
-            "src/MyPowerTools.Shell.Avalonia/MyPowerTools.Shell.Avalonia.csproj"
-        };
-        var concreteModuleTokens = new[]
-        {
-            "AdbForwarder.MyPowerTools",
-            "AndroidTools.MyPowerTools",
-            "DoubaoAgent.MyPowerTools",
-            "ScreenEase.MyPowerTools",
-            "SmartBirdThermostat.MyPowerTools"
-        };
-
-        foreach (var projectFile in hostProjectFiles)
-        {
-            var content = File.ReadAllText(Path.Combine(Root, projectFile));
-            foreach (var token in concreteModuleTokens)
-            {
-                Assert.DoesNotContain(token, content);
-            }
-        }
-
-        foreach (var sourceRoot in new[] { "src/MyPowerTools.Runtime", "src/MyPowerTools.HostControl", "src/MyPowerTools.Shell.Avalonia" })
-        {
-            foreach (var sourceFile in Directory.EnumerateFiles(Path.Combine(Root, sourceRoot), "*.cs", SearchOption.AllDirectories))
-            {
-                var content = File.ReadAllText(sourceFile);
-                foreach (var token in concreteModuleTokens)
-                {
-                    Assert.DoesNotContain(token, content);
-                }
-            }
-        }
     }
 
     [Fact]

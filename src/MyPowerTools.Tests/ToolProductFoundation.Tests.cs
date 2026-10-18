@@ -5,7 +5,6 @@ using MyPowerTools.Runtime;
 using MyPowerTools.Shell.Avalonia.Navigation;
 using MyPowerTools.Shell.Avalonia.Services;
 using MyPowerTools.Shell.Avalonia.ViewModels;
-using System.Reflection;
 using System.Text.RegularExpressions;
 using HostProto = MyPowerTools.Protocol.HostControl.V1;
 
@@ -42,12 +41,6 @@ public sealed class ToolProductFoundationTests
     [Fact]
     public void Dotnet_surface_uses_its_own_header_and_restores_host_header_for_load_failure()
     {
-        var view = File.ReadAllText(Path.Combine(
-            RepositoryRoot,
-            "src",
-            "MyPowerTools.Shell.Avalonia",
-            "Views",
-            "ExternalSdkToolView.axaml"));
         var viewModel = CreateExternalSdkToolViewModel("dotnet-surface", withCommands: true);
         var changedProperties = new List<string?>();
         viewModel.PropertyChanged += (_, eventArgs) => changedProperties.Add(eventArgs.PropertyName);
@@ -63,9 +56,6 @@ public sealed class ToolProductFoundationTests
         Assert.True(viewModel.IsHostHeaderVisible);
         Assert.False(viewModel.IsHostCommandBarVisible);
         Assert.Contains(nameof(ExternalSdkToolViewModel.IsHostHeaderVisible), changedProperties);
-        Assert.Contains("<Grid RowDefinitions=\"Auto,Auto,*\">", view, StringComparison.Ordinal);
-        Assert.Contains("IsVisible=\"{Binding IsInlineHeaderVisible}\"", view, StringComparison.Ordinal);
-        Assert.Contains("IsVisible=\"{Binding IsHostCommandBarVisible}\"", view, StringComparison.Ordinal);
     }
 
     [Theory]
@@ -286,16 +276,6 @@ public sealed class ToolProductFoundationTests
         Assert.Equal("Coming soon", smartBirdCard.PrimaryActionLabel);
         Assert.False(smartBirdCard.CanOpen);
         Assert.False(smartBirdCard.OpenCommand.CanExecute(null));
-    }
-
-    [Fact]
-    public void Shell_has_no_compiled_delivered_tool_registry()
-    {
-        var field = typeof(ShellWorkspaceController).GetField(
-            "DeliveredToolIds",
-            BindingFlags.NonPublic | BindingFlags.Static);
-
-        Assert.Null(field);
     }
 
     [Theory]

@@ -378,8 +378,8 @@ public sealed partial class MptHostRuntime : IAsyncDisposable
                 modules.Count(module => module.Status.State == "error"),
                 commandCount,
                 _dynamicCommands.Count,
-                _notificationCenter.List().Count,
-                _commandHistory.List().Count),
+                _notificationCenter.Count,
+                _commandHistory.Count),
             transportKinds,
             processDiagnostics,
             processPolicyHistory,
@@ -413,7 +413,11 @@ public sealed partial class MptHostRuntime : IAsyncDisposable
                 })
                 .ToArray(),
             ListHotkeyDiagnostics(),
-            recentCommands);
+            recentCommands)
+        {
+            CommandHistoryBuffer = _commandHistory.GetStats(),
+            NotificationHistoryBuffer = _notificationCenter.GetStats()
+        };
     }
 
     private string DescribeTransportActiveState(RuntimeModuleRecord module, IReadOnlyList<RuntimeProcessDiagnostics> processes)
@@ -2137,6 +2141,8 @@ public sealed partial class MptHostRuntime : IAsyncDisposable
 
     public IReadOnlyList<NotificationRecord> ListNotifications() => _notificationCenter.List();
 
+    public HistoryBufferStats GetNotificationHistoryStats() => _notificationCenter.GetStats();
+
     public NotificationReadStateUpdate? SetNotificationReadState(string notificationId, bool isRead)
     {
         var result = _notificationCenter.SetReadState(notificationId, isRead);
@@ -2176,7 +2182,9 @@ public sealed partial class MptHostRuntime : IAsyncDisposable
         {
             ["notificationId"] = notification.Id,
             ["level"] = level,
-            ["title"] = title
+            ["title"] = notification.Title,
+            ["historyRetained"] = notification.IsRetained,
+            ["historyTruncated"] = notification.IsTruncated
         });
         var module = _packageRegistry.FindModule(moduleId);
         _logRouter.Append(module?.Module.Manifest.PackageId ?? moduleId, moduleId, "info", $"Notification '{title}' created.", eventSeq: evt.Seq);

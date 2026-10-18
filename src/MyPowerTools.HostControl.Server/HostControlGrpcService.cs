@@ -333,8 +333,24 @@ public sealed class HostControlGrpcService : HostProto.HostControl.HostControlBa
     public override Task<HostProto.ListNotificationsResponse> ListNotifications(HostProto.ListNotificationsRequest request, ServerCallContext context)
     {
         var limit = request.Limit == 0 ? 50 : Math.Min(request.Limit, 200);
+        DateTimeOffset? since;
+        DateTimeOffset? until;
+        try
+        {
+            since = request.Since?.ToDateTimeOffset();
+            until = request.Until?.ToDateTimeOffset();
+        }
+        catch (Exception failure) when (failure is ArgumentException or InvalidOperationException)
+        {
+            throw new RpcException(new Status(StatusCode.InvalidArgument, "Invalid notification time range."));
+        }
+        if (since is not null && until is not null && since >= until)
+            throw new RpcException(new Status(StatusCode.InvalidArgument, "since must precede until."));
         var moduleNotifications = _runtime.ListNotifications()
             .Where(item => string.IsNullOrWhiteSpace(request.ModuleId) || string.Equals(item.ModuleId, request.ModuleId, StringComparison.OrdinalIgnoreCase))
+            .Where(item => since is null || item.Time >= since)
+            .Where(item => until is null || item.Time < until)
+            .Where(item => string.IsNullOrWhiteSpace(request.Level) || string.Equals(item.Level, request.Level, StringComparison.OrdinalIgnoreCase))
             .ToArray();
         var filteredNotifications = request.ReadFilter switch
         {
@@ -345,6 +361,7 @@ public sealed class HostControlGrpcService : HostProto.HostControl.HostControlBa
         var response = new HostProto.ListNotificationsResponse();
         response.TotalCount = (uint)moduleNotifications.Length;
         response.UnreadCount = (uint)moduleNotifications.Count(item => !item.IsRead);
+        response.HistoryBuffer = ToProtoHistoryBuffer(_runtime.GetNotificationHistoryStats());
         response.Notifications.AddRange(filteredNotifications
             .Take((int)limit)
             .Select(ToProtoNotification));
@@ -486,7 +503,10 @@ public sealed class HostControlGrpcService : HostProto.HostControl.HostControlBa
             Level = notification.Level,
             Title = notification.Title,
             Body = notification.Body,
-            IsRead = notification.IsRead
+            IsRead = notification.IsRead,
+            IsTruncated = notification.IsTruncated,
+            OriginalBytes = (ulong)notification.OriginalBytes,
+            RetainedBytes = (ulong)notification.RetainedBytes
         };
     }
 
@@ -773,6 +793,23 @@ public sealed class HostControlGrpcService : HostProto.HostControl.HostControlBa
         return response;
     }
 
+    private static HostProto.HistoryBufferStats ToProtoHistoryBuffer(HistoryBufferStats stats)
+    {
+        var result = new HostProto.HistoryBufferStats
+        {
+            RetainedCount = (uint)stats.Count, RetainedBytes = (ulong)stats.RetainedBytes,
+            MaxEntries = (uint)stats.MaxEntries, MaxBytes = (ulong)stats.MaxBytes,
+            MaxRecordBytes = (uint)stats.MaxRecordBytes, AddedCount = (ulong)stats.AddedCount,
+            EvictedCount = (ulong)stats.EvictedCount, TruncatedCount = (ulong)stats.TruncatedCount,
+            TruncatedBytes = (ulong)stats.TruncatedBytes, RejectedCount = (ulong)stats.RejectedCount,
+            UnreadCount = (uint)stats.UnreadCount, EvictedUnreadCount = (ulong)stats.EvictedUnreadCount,
+            UnretainedCompletionCount = (ulong)stats.UnretainedCompletionCount
+        };
+        if (stats.LastEvictedAt is { } last) result.LastEvictedRecordTime = Timestamp.FromDateTimeOffset(last);
+        if (stats.LastEvictedUnreadAt is { } unread) result.LastEvictedUnreadRecordTime = Timestamp.FromDateTimeOffset(unread);
+        return result;
+    }
+
     private static HostProto.RuntimeDiagnostics ToProtoRuntimeDiagnostics(RuntimeDiagnosticsSnapshot diagnostics)
     {
         var response = new HostProto.RuntimeDiagnostics
@@ -811,6 +848,11 @@ public sealed class HostControlGrpcService : HostProto.HostControl.HostControlBa
                 CommandHistoryCount = (uint)diagnostics.Counts.CommandHistoryCount
             }
         };
+
+        if (diagnostics.CommandHistoryBuffer is { } commands)
+            response.CommandHistoryBuffer = ToProtoHistoryBuffer(commands);
+        if (diagnostics.NotificationHistoryBuffer is { } notifications)
+            response.NotificationHistoryBuffer = ToProtoHistoryBuffer(notifications);
 
         response.Transports.AddRange(diagnostics.Transports.Select(transport => new HostProto.RuntimeTransportDiagnostics
         {
@@ -914,7 +956,10 @@ public sealed class HostControlGrpcService : HostProto.HostControl.HostControlBa
             ModuleId = command.ModuleId,
             StartedAt = Timestamp.FromDateTimeOffset(command.StartedAt),
             State = command.State,
-            Summary = command.Summary
+            Summary = command.Summary,
+            IsTruncated = command.IsTruncated,
+            OriginalBytes = (ulong)command.OriginalBytes,
+            RetainedBytes = (ulong)command.RetainedBytes
         }));
 
         return response;

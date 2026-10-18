@@ -32,6 +32,11 @@
     </Border>
 
     <TextBlock Classes="MptPageSubtitle"
+               Text="{Binding HistoryNotice}"
+               TextWrapping="Wrap"
+               IsVisible="{Binding HasHistoryNotice}" />
+
+    <TextBlock Classes="MptPageSubtitle"
                Text="No notifications."
                IsVisible="{Binding IsEmpty}" />
 

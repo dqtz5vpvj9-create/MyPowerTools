@@ -5,9 +5,10 @@ description: >-
   actions/checkout with `submodules: recursive` clones all twelve submodules one
   after another. external/haidian alone took ~110 of the ~135 seconds that
   step cost on every Windows and macOS job, and nothing in the build, the tests,
-  the packaging scripts or the CI steps reads it. The release jobs still use
-  `submodules: recursive` (they build the source bundle), so what gets released
-  is unchanged.
+  the packaging scripts or the CI steps reads it. The source bundle materializes
+  its explicit tool list and skips external gitlinks, so release jobs use the
+  same selection without changing the released sources. The timings above are
+  historical observations, not a current-run benchmark.
 
   Submodules are discovered from .gitmodules, so a newly added tool submodule is
   picked up without editing this file. Pair it with actions/checkout using
