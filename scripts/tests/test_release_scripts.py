@@ -26,7 +26,8 @@ class ReleaseScriptTests(unittest.TestCase):
     def setUp(self):
         self.temporary = tempfile.TemporaryDirectory(prefix='mpt-release-regression-')
         self.addCleanup(self.temporary.cleanup)
-        self.root = Path(self.temporary.name)
+        # Git reports physical paths (for example, /private/var on macOS).
+        self.root = Path(self.temporary.name).resolve()
         self.repo = self.root / 'repository'
         self.repo.mkdir()
         self.env = dict(os.environ, GIT_AUTHOR_NAME='Release Regression',
