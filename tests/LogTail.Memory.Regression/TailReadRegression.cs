@@ -168,7 +168,13 @@ internal static class TailReadRegression
             {
                 LogRecord[]? expected = null;
                 Type? expectedException = null;
-                try { expected = Parse(File.ReadLines(path).TakeLast(limit)); }
+                try
+                {
+                    // File.ReadLines opens eagerly; TakeLast(nonpositive) never consumes
+                    // or disposes it. Own the reference handle even for an empty result.
+                    using var reference = File.OpenRead(path);
+                    expected = Parse(FullScan(reference, limit));
+                }
                 catch (Exception error) { expectedException = error.GetType(); }
                 LogRecord[]? actual = null;
                 Type? actualException = null;

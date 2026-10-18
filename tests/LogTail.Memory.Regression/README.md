@@ -22,7 +22,8 @@ real-file truncation; and rotation while retaining the opened handle.
 The short-read oracle uses the same short-read stream shape and `Encoding.UTF8`
 as the optimized reader's start-of-file fallback. This compares against standard
 StreamReader behavior, without claiming additional decoding guarantees beyond it.
-The public JSON-outcome cases also compare directly against `File.ReadLines`.
+The public JSON-outcome cases use that same sequential reference with an explicitly
+scoped file handle, including when a nonpositive limit returns no lines.
 
 ## Alternating-process benchmark
 
