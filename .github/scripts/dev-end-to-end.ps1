@@ -191,6 +191,7 @@ function Start-Captured([string]$File, [string[]]$Arguments, [string]$Directory,
     # Windows Start-Process redirects directly to files. Resident descendants may
     # retain these handles without making this harness wait for pipe EOF.
     $commandLine = ($Arguments | ForEach-Object { ConvertTo-WindowsArgument $_ }) -join ' '
+    Write-Host "Launching $LogPrefix with executable [$File] in working directory [$Directory]."
     $process = Start-Process -FilePath $File -ArgumentList $commandLine -WorkingDirectory $Directory `
         -RedirectStandardOutput "$LogPrefix.stdout.log" -RedirectStandardError "$LogPrefix.stderr.log" `
         -WindowStyle Hidden -PassThru
@@ -355,7 +356,8 @@ function Install-CandidateScreenEase([string]$SetupReport) {
     $previousTrace = $env:MPT_DEV_TIMING_TRACE; $previousTracePath = $env:MPT_DEV_TIMING_TRACE_PATH
     try {
         $env:MPT_DEV_TIMING_TRACE = '1'; $env:MPT_DEV_TIMING_TRACE_PATH = Join-Path $repair 'timing'
-        $git = (Get-Command git -CommandType Application).Source
+        $git = (Get-Command git -CommandType Application -ErrorAction Stop | Select-Object -First 1).Source
+        if (-not (Test-Path -LiteralPath $git -PathType Leaf)) { throw "Resolved Git executable is missing: $git" }
         $commands = @(
             @{ name = 'source'; file = $git; arguments = @('-C', $source, 'submodule', 'update', '--init', '--depth', '1', '--', 'tools/screenease') },
             @{ name = 'sdk'; file = $pwsh; arguments = @('-NoLogo', '-NoProfile', '-NonInteractive', '-File', (Join-Path $source 'scripts\prepare-focused-test-sdk.ps1'), '-Configuration', 'Debug') },
