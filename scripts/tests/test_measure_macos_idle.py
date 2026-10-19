@@ -74,11 +74,13 @@ class CpuGateTests(unittest.TestCase):
         self.assertEqual('1.2.3', report['app_version'])
         self.assertEqual(24, len(report['intervals']))
 
-    def test_combined_cpu_above_budget_fails(self):
-        code, report = self.run_gate(after=processes((0.6, 0.6, 0.6)))
-        self.assertEqual(1, code)
-        self.assertFalse(report['cpu_gate_passed'])
-        self.assertAlmostEqual(1.5, report['total_cpu_percent'])
+    def test_combined_cpu_budget_boundary(self):
+        for cpu, expected, percent in ((0.4, 0, 1.0), (0.6, 1, 1.5)):
+            with self.subTest(cpu=cpu):
+                code, report = self.run_gate(after=processes((cpu,) * 3))
+                self.assertEqual(expected, code)
+                self.assertEqual(expected == 0, report['cpu_gate_passed'])
+                self.assertEqual(percent, report['total_cpu_percent'])
 
     def test_gate_compares_unrounded_combined_cpu(self):
         # ps supplies hundredths of a CPU second; monotonic time is fractional.
@@ -88,12 +90,6 @@ class CpuGateTests(unittest.TestCase):
         self.assertEqual(1, code)
         self.assertFalse(report['cpu_gate_passed'])
         self.assertTrue(any('exceeds' in issue for issue in report['issues']))
-
-    def test_exact_cpu_budget_passes(self):
-        code, report = self.run_gate(after=processes((0.4, 0.4, 0.4)))
-        self.assertEqual(0, code)
-        self.assertTrue(report['cpu_gate_passed'])
-        self.assertEqual(1.0, report['total_cpu_percent'])
 
     def test_missing_core_host_fails(self):
         before = processes()
@@ -107,21 +103,16 @@ class CpuGateTests(unittest.TestCase):
         self.assertEqual(1, code)
         self.assertIn('Missing required hosts: Enabled.Service', report['issues'])
 
-    def test_autostart_service_must_be_running(self):
-        (self.units / 'enabled.json').write_text(json.dumps({
-            'exec': '/Applications/MyPowerTools.app/Contents/MacOS/Enabled.Service',
-            'autostart': True,
-        }))
-        code, report = self.run_gate()
-        self.assertEqual(1, code)
-        self.assertIn('Missing required hosts: Enabled.Service', report['issues'])
-
-    def test_optional_service_need_not_be_running(self):
-        (self.units / 'optional.json').write_text(json.dumps({
-            'exec': '/Applications/MyPowerTools.app/Contents/MacOS/Optional.Service',
-            'autostart': False,
-        }))
-        self.assertEqual(0, self.run_gate()[0])
+    def test_only_autostart_services_must_be_running(self):
+        for autostart in (True, False):
+            with self.subTest(autostart=autostart):
+                (self.units / 'service.json').write_text(json.dumps({
+                    'exec': '/Applications/MyPowerTools.app/Contents/MacOS/Fixture.Service',
+                    'autostart': autostart,
+                }))
+                code, report = self.run_gate()
+                self.assertEqual(int(autostart), code)
+                self.assertEqual(autostart, 'Missing required hosts: Fixture.Service' in report['issues'])
 
     def test_process_churn_fails(self):
         after = processes()
@@ -136,11 +127,12 @@ class CpuGateTests(unittest.TestCase):
         self.assertEqual(1, code)
         self.assertTrue(any('Diagnostic' in issue for issue in report['issues']))
 
-    def test_nonfinite_arguments_are_rejected_before_measurement(self):
+    def test_invalid_numeric_arguments_are_rejected_before_measurement(self):
         # A NaN budget used to accept arbitrarily high CPU because all its
         # comparisons are false. Other nonfinite arguments can hang or crash.
         for option in ('--duration', '--interval', '--budget', '--warmup'):
-            for value in ('nan', 'inf', '-inf'):
+            values = ('nan', 'inf', '-inf') + (() if option == '--warmup' else ('0', '-1'))
+            for value in values:
                 with self.subTest(option=option, value=value):
                     argv = [str(SCRIPT), '--app', str(self.app),
                             '--output', str(self.output), f'{option}={value}']
@@ -151,19 +143,11 @@ class CpuGateTests(unittest.TestCase):
                             contextlib.redirect_stdout(io.StringIO()):
                         # Fail fast in the regression test if validation lets an
                         # invalid value reach measurement; do not wait or loop.
-                        sleep.side_effect = AssertionError('measurement began for nonfinite input')
+                        sleep.side_effect = AssertionError('measurement began for invalid input')
                         with self.assertRaises(SystemExit) as raised:
                             gate.main()
                         self.assertEqual(2, raised.exception.code)
                         sleep.assert_not_called()
-
-    def test_nonpositive_duration_interval_budget_are_rejected(self):
-        for option in ('--duration', '--interval', '--budget'):
-            for value in ('0', '-1'):
-                with self.subTest(option=option, value=value):
-                    with self.assertRaises(SystemExit) as raised:
-                        self.run_gate((f'{option}={value}',))
-                    self.assertEqual(2, raised.exception.code)
 
 
 class SnapshotTests(unittest.TestCase):

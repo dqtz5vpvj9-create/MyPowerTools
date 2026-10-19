@@ -58,6 +58,7 @@ class DevTestSelectionTests(unittest.TestCase):
                                 FAKE_DOTNET_LOG=str(self.log), FAKE_CONSOLE_DLL=str(self.dll))
 
     def invoke(self, *arguments, **environment):
+        self.log.unlink(missing_ok=True)
         result = subprocess.run([PWSH, "-NoLogo", "-NoProfile", "-NonInteractive", "-File",
                                  str(ROOT / "scripts/test-dev.ps1"), *arguments],
                                 cwd=ROOT, env=dict(self.environment, **environment),
@@ -79,21 +80,22 @@ class DevTestSelectionTests(unittest.TestCase):
         self.assertIn("TOTAL SELECTED CASES: 40", result.stdout)
         self.assertFalse(any(c[0] == "build" for c in commands))
 
-    def test_runtime_console_selectors_list_without_execution(self):
-        for tool, project in (("adb-forwarder", "AdbForwarder.Runtime.Regression"),
-                              ("xbrd", "Xbrd.Runtime.Regression")):
+    def test_console_selectors_list_without_execution(self):
+        for tool, feature, project, count in (
+            ("adb-forwarder", "Runtime", "AdbForwarder.Runtime.Regression", 11),
+            ("xbrd", "Runtime", "Xbrd.Runtime.Regression", 11),
+            ("screenshot", "Lifecycle", "Screenshot.Lifecycle.Regression", 10),
+        ):
             with self.subTest(tool=tool):
-                if self.log.exists():
-                    self.log.unlink()
                 result, commands = self.invoke("-Area", "Tools", "-ToolId", tool,
-                                               "-Feature", "Runtime", "-Plan")
+                                               "-Feature", feature, "-Plan")
                 self.assertEqual(0, result.returncode, result.stdout)
                 self.assertEqual(["msbuild", "run"], [c[0] for c in commands])
                 self.assertIn(project, commands[0][1])
                 cache_property = "-p:RestorePackagesPath=" + str(ROOT / "artifacts/sdk/global-packages")
                 self.assertEqual(tool == "xbrd", cache_property in commands[0])
                 self.assertIn("--list", commands[1])
-                self.assertIn("TOTAL SELECTED CASES: 11", result.stdout)
+                self.assertIn(f"TOTAL SELECTED CASES: {count}", result.stdout)
 
     def test_core_default_builds_then_lists_then_runs_only_the_focused_project(self):
         result, commands = self.invoke("-Area", "Tools", "-ToolId", "input-monitor", "-Feature", "Core",
@@ -106,12 +108,6 @@ class DevTestSelectionTests(unittest.TestCase):
         self.assertIn("--no-build", commands[2])
         self.assertIn("--no-restore", commands[2])
         self.assertFalse(any(arg.startswith("-p:RestorePackagesPath=") for c in commands for arg in c))
-
-    def test_deferred_execution_project_is_not_an_available_selection(self):
-        result, commands = self.invoke("-Area", "Tools", "-ToolId", "remote-commands", "-Feature", "Execution", "-Plan")
-        self.assertNotEqual(0, result.returncode, result.stdout)
-        self.assertEqual([], commands)
-        self.assertIn("Unsupported tool/feature pair", result.stdout)
 
     def test_empty_discovery_is_a_failure_and_executes_nothing(self):
         result, commands = self.invoke("-Area", "Shell", "-Feature", "Failure", "-NoBuild", FAKE_EMPTY="1")
@@ -135,10 +131,13 @@ class DevTestSelectionTests(unittest.TestCase):
         self.assertNotIn("Completed 2 selected cases", result.stdout)
 
     def test_unknown_tool_feature_is_rejected_before_dotnet(self):
-        result, commands = self.invoke("-Area", "Tools", "-ToolId", "input-monitor", "-Feature", "Surface", "-Plan")
-        self.assertNotEqual(0, result.returncode)
-        self.assertIn("Unsupported tool/feature pair", result.stdout)
-        self.assertEqual([], commands)
+        for tool, feature in (("input-monitor", "Surface"), ("remote-commands", "Execution")):
+            with self.subTest(tool=tool, feature=feature):
+                result, commands = self.invoke("-Area", "Tools", "-ToolId", tool,
+                                               "-Feature", feature, "-Plan")
+                self.assertNotEqual(0, result.returncode, result.stdout)
+                self.assertIn("Unsupported tool/feature pair", result.stdout)
+                self.assertEqual([], commands)
 
     def test_shell_filters_route_to_canonical_fixture_owners(self):
         for feature, project, classes in (
@@ -146,44 +145,31 @@ class DevTestSelectionTests(unittest.TestCase):
              ("ShellFailurePresenterTests", "HostConnectionRecoveryTests")),
             ("Navigation", "tests/PersonalUx.Tests/PersonalUx.Tests.csproj",
              ("PersonalUxFavoritesTests", "PersonalUxSearchTests", "ShellBackNavigationUxTests")),
+            ("Shortcuts", "tests/PersonalUx.Tests/PersonalUx.Tests.csproj", ()),
         ):
             with self.subTest(feature=feature):
-                if self.log.exists():
-                    self.log.unlink()
                 result, commands = self.invoke("-Area", "Shell", "-Feature", feature, "-List")
                 self.assertEqual(0, result.returncode, result.stdout)
+                self.assertEqual(1, len(commands))
                 self.assertEqual(project, commands[0][1])
-                selected = commands[0][commands[0].index("--filter") + 1]
-                for name in classes:
-                    self.assertIn("MyPowerTools.Tests." + name + ".", selected)
+                if classes:
+                    selected = commands[0][commands[0].index("--filter") + 1]
+                    for name in classes:
+                        self.assertIn("MyPowerTools.Tests." + name + ".", selected)
+                else:
+                    self.assertNotIn("--filter", commands[0])
                 self.assertIn("-p:RestorePackagesPath=" + str(ROOT / "artifacts/sdk/global-packages"), commands[0])
 
-    def test_shortcuts_keeps_the_existing_companion_ux_suite(self):
-        result, commands = self.invoke("-Area", "Shell", "-Feature", "Shortcuts", "-Plan")
-        self.assertEqual(0, result.returncode, result.stdout)
-        self.assertEqual(1, len(commands))
-        self.assertIn("PersonalUx.Tests.csproj", commands[0][1])
-
-    def test_console_plan_lists_all_cases_without_running_cases(self):
-        result, commands = self.invoke("-Area", "Tools", "-ToolId", "screenshot", "-Feature", "Lifecycle", "-Plan")
-        self.assertEqual(0, result.returncode, result.stdout)
-        self.assertEqual(["msbuild", "run"], [c[0] for c in commands])
-        self.assertIn("--list", commands[1])
-        self.assertIn("TOTAL SELECTED CASES: 10", result.stdout)
-
-    def test_pre_list_console_binary_is_rejected_before_launch(self):
+    def test_unlistable_console_artifacts_are_rejected_before_launch(self):
         self.dll.write_bytes(b"old inert runner without listing protocol")
-        result, commands = self.invoke("-Area", "Tools", "-ToolId", "screenshot", "-Feature", "Lifecycle", "-Plan")
-        self.assertNotEqual(0, result.returncode)
-        self.assertIn("lacks safe --list support", result.stdout)
-        self.assertEqual(["msbuild"], [c[0] for c in commands])
-
-    def test_missing_console_artifact_is_rejected_before_launch(self):
-        self.dll.unlink()
-        result, commands = self.invoke("-Area", "Tools", "-ToolId", "screenshot", "-Feature", "Lifecycle", "-Plan")
-        self.assertNotEqual(0, result.returncode)
-        self.assertIn("Built console artifact missing", result.stdout)
-        self.assertEqual(["msbuild"], [c[0] for c in commands])
+        for missing, error in ((False, "lacks safe --list support"), (True, "Built console artifact missing")):
+            with self.subTest(missing=missing):
+                if missing:
+                    self.dll.unlink()
+                result, commands = self.invoke("-Area", "Tools", "-ToolId", "screenshot", "-Feature", "Lifecycle", "-Plan")
+                self.assertNotEqual(0, result.returncode)
+                self.assertIn(error, result.stdout)
+                self.assertEqual(["msbuild"], [c[0] for c in commands])
 
     def test_packaging_selects_full_rather_than_a_small_smoke_subset(self):
         result, commands = self.invoke("-Area", "Packaging", "-Plan")

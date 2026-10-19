@@ -7,12 +7,10 @@ using System.Windows.Input;
 using Avalonia;
 using Avalonia.Controls;
 using Avalonia.Headless;
-using Avalonia.Input;
 using Avalonia.Media;
 using Avalonia.Skia;
 using Avalonia.Styling;
 using Avalonia.Threading;
-using Avalonia.VisualTree;
 using Google.Protobuf.WellKnownTypes;
 using MyPowerTools.HostControl;
 using MyPowerTools.Shell.Avalonia.Services;
@@ -70,7 +68,7 @@ public static class ShellRealScreenshotWriter
             theme,
             size,
             density,
-            CreateProductFoundationScreens(normalizedScenario),
+            CreateProductFoundationScreens(),
             "product-fixture",
             surface,
             new ScreenshotManifestStats(ModuleCount: 7, CommandCount: 0, RunnerConnected: false),
@@ -207,7 +205,7 @@ public static class ShellRealScreenshotWriter
             var fileName = $"real-{screen.Id}{scenarioSuffix}.{Sanitize(theme)}.{Sanitize(density)}.{Sanitize(size)}.png";
             var path = Path.Combine(outputDirectory, fileName);
             ApplyTheme(theme);
-            var rendered = Render(screen.CreateView, path, width, height, normalizedScenario);
+            var rendered = Render(screen.CreateView, path, width, height);
             var sha256 = Convert.ToHexString(SHA256.HashData(File.ReadAllBytes(path))).ToLowerInvariant();
             var interactionSteps = new JsonArray();
             foreach (var step in rendered.InteractionSteps)
@@ -346,13 +344,12 @@ public static class ShellRealScreenshotWriter
         Func<Control> createView,
         string path,
         int width,
-        int height,
-        string interactionScenario)
+        int height)
     {
         if (!Dispatcher.UIThread.CheckAccess())
         {
             RenderedFrame? result = null;
-            Dispatcher.UIThread.Invoke(() => result = Render(createView, path, width, height, interactionScenario));
+            Dispatcher.UIThread.Invoke(() => result = Render(createView, path, width, height));
             return result ?? throw new InvalidOperationException("Avalonia Headless render did not return a frame.");
         }
 
@@ -372,27 +369,16 @@ public static class ShellRealScreenshotWriter
 
             window.Show();
             AvaloniaHeadlessPlatform.ForceRenderTimerTick(4);
-            var interaction = ApplyInteractionScenario(window, view, interactionScenario);
-            if (ReferenceEquals(interaction.CaptureTarget, window))
-            {
-                window = RecreateHeadlessWindow(window, view, width, height);
-                interaction = new InteractionResult(
-                    window,
-                    interaction.Steps.Concat(["recreated-window:full-frame"]).ToArray());
-            }
-            else
-            {
-                AvaloniaHeadlessPlatform.ForceRenderTimerTick(4);
-            }
+            window = RecreateHeadlessWindow(window, view, width, height);
 
-            using var bitmap = interaction.CaptureTarget.GetLastRenderedFrame() ?? interaction.CaptureTarget.CaptureRenderedFrame()
+            using var bitmap = window.GetLastRenderedFrame() ?? window.CaptureRenderedFrame()
                 ?? throw new InvalidOperationException("Avalonia Headless did not produce a rendered frame.");
             using var stream = File.Create(path);
             bitmap.Save(stream);
             return new RenderedFrame(
                 bitmap.PixelSize.Width,
                 bitmap.PixelSize.Height,
-                interaction.Steps);
+                ["recreated-window:full-frame"]);
         }
         finally
         {
@@ -448,29 +434,6 @@ public static class ShellRealScreenshotWriter
         };
     }
 
-    private static InteractionResult ApplyInteractionScenario(
-        Window window,
-        Control view,
-        string interactionScenario)
-    {
-        // Tool-specific interaction scenarios (Remote Notifications scroll/filter/detail/activation)
-        // were owned by the tool surface assemblies and are no longer exercised from the Shell.
-        return new InteractionResult(window, []);
-    }
-
-    private static void Click(Window window, Point point)
-    {
-        window.MouseDown(point, MouseButton.Left, RawInputModifiers.None);
-        window.MouseUp(point, MouseButton.Left, RawInputModifiers.None);
-    }
-
-    private static Point CenterInWindow(Control control, Window window)
-    {
-        var center = new Point(control.Bounds.Width / 2, control.Bounds.Height / 2);
-        return control.TranslatePoint(center, window)
-            ?? throw new InvalidOperationException($"Could not translate {control.GetType().Name} coordinates into the headless window.");
-    }
-
     private static IReadOnlyList<RealScreen> CreateSampleScreens()
     {
         return
@@ -486,7 +449,7 @@ public static class ShellRealScreenshotWriter
         ];
     }
 
-    private static IReadOnlyList<RealScreen> CreateProductFoundationScreens(string interactionScenario)
+    private static IReadOnlyList<RealScreen> CreateProductFoundationScreens()
     {
         return
         [
@@ -1134,8 +1097,6 @@ public static class ShellRealScreenshotWriter
     private sealed record ScreenshotManifestStats(int ModuleCount, int CommandCount, bool RunnerConnected);
 
     private sealed record RenderedFrame(int Width, int Height, IReadOnlyList<string> InteractionSteps);
-
-    private sealed record InteractionResult(Window CaptureTarget, IReadOnlyList<string> Steps);
 
     private sealed record RealScreen(string Id, string Page, string SurfaceId, string Title, Func<Control> CreateView);
 }
