@@ -316,12 +316,12 @@ function Save-ServiceEvidence([string]$Destination) {
         if ($owned.Count -ne 1) { throw 'No unique owned ScreenEase service process.' }
         $deadline = [Threading.CancellationTokenSource]::new(10000)
         $pipe = [IO.Pipes.NamedPipeClientStream]::new('.', 'screenease.core', [IO.Pipes.PipeDirection]::InOut, [IO.Pipes.PipeOptions]::Asynchronous)
-        $pipe.ConnectAsync($deadline.Token).GetAwaiter().GetResult()
+        [void]$pipe.ConnectAsync($deadline.Token).GetAwaiter().GetResult()
         $payload = [Text.Encoding]::UTF8.GetBytes('{"command":"moduleStatus"}')
         $header = [BitConverter]::GetBytes([int32]$payload.Length)
-        $pipe.WriteAsync($header, 0, 4, $deadline.Token).GetAwaiter().GetResult()
-        $pipe.WriteAsync($payload, 0, $payload.Length, $deadline.Token).GetAwaiter().GetResult()
-        $pipe.FlushAsync($deadline.Token).GetAwaiter().GetResult()
+        [void]$pipe.WriteAsync($header, 0, 4, $deadline.Token).GetAwaiter().GetResult()
+        [void]$pipe.WriteAsync($payload, 0, $payload.Length, $deadline.Token).GetAwaiter().GetResult()
+        [void]$pipe.FlushAsync($deadline.Token).GetAwaiter().GetResult()
         $header = [byte[]]::new(4)
         Read-ProbeBytes $pipe $header $deadline.Token
         $length = [BitConverter]::ToInt32($header, 0)
