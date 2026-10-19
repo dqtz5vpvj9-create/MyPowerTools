@@ -292,8 +292,10 @@ function Invoke-ToolBuild {
         }
         Start-Sleep -Milliseconds $Tool.Delay
         if ($Tool.Id -eq $FailId) { throw "fixture failure $FailId" }
+        $nativeCommand = "Write-Output 'native fixture log'; [Console]::Error.WriteLine('MC: Compiling fixture.messages.mc')"
+        if ($FailId -eq "native:$($Tool.Id)") { $nativeCommand += '; exit 7' }
         Invoke-Native -FilePath (Join-Path $PSHOME $(if ($IsWindows) {'pwsh.exe'} else {'pwsh'})) `
-            -ArgumentList @('-NoProfile', '-Command', "Write-Output 'native fixture log'")
+            -ArgumentList @('-NoProfile', '-Command', $nativeCommand)
         [pscustomobject]@{ToolId=$Tool.Id}
     } finally { $Probe.Enqueue([pscustomobject]@{Kind='end'; Id=$Tool.Id}) }
 }
@@ -330,19 +332,23 @@ $states = @(Invoke-ToolBuildPhase -Tools $futureTools -MaxWorkers 2 -Context @{P
 $events = $probe.ToArray()
 if (($states.ToolId -join ',') -ne ($futureTools.Id -join ',') -or
     ($events.Kind -join ',') -ne 'start,end,start,end,start,end') { throw 'Unknown tool must force serial fallback.' }
+foreach ($failure in @('remote-notifications', 'native:remote-notifications')) {
 $probe = [Collections.Concurrent.ConcurrentQueue[object]]::new()
 $gate = [Threading.CountdownEvent]::new(2)
 $tools[0].WaitForPeer = $tools[1].WaitForPeer = $true
+$selected = if ($failure -like 'native:*') { @($tools[0], $tools[1]) } else { $tools }
+$expected = if ($failure -like 'native:*') { '*failed with exit code 7*' } else { '*fixture failure remote-notifications*' }
 $states = @(); $failed = $false; $phaseB = $false
 try {
-    $states = @(Invoke-ToolBuildPhase -Tools $tools -MaxWorkers 2 -Context @{Probe=$probe; Gate=$gate; FailId='remote-notifications'})
+    $states = @(Invoke-ToolBuildPhase -Tools $selected -MaxWorkers 2 -Context @{Probe=$probe; Gate=$gate; FailId=$failure})
     $phaseB = $true
-} catch { $failed = $_.Exception.Message -like '*fixture failure remote-notifications*' }
+} catch { $failed = $_.Exception.Message -like $expected }
 $gate.Dispose()
 $events = $probe.ToArray()
 if (-not $failed -or $phaseB -or $states.Count -or @(Get-Job).Count -or
     @($events | Where-Object Kind -eq start).Count -ne 2 -or @($events | Where-Object Kind -eq end).Count -ne 2) {
     throw 'Failure must drain started workers, remove jobs, and prevent states/Phase B/pending builds.'
+}
 }
 """)
 

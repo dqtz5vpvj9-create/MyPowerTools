@@ -560,8 +560,14 @@ function Invoke-ToolBuildPhase {
             Wait-Job -Job @($active | ForEach-Object { $_.Job }) -Any | Out-Null
             foreach ($worker in @($active.ToArray())) {
                 if ($worker.Job.State -notin @('Completed', 'Failed', 'Stopped')) { continue }
-                $result = @(Receive-Job -Job $worker.Job -ErrorAction Stop 6>$null)
-                if ($worker.Job.State -ne 'Completed' -or $result.Count -ne 1 -or
+                # Native tools can write informational stderr even on exit 0.
+                # Replay diagnostics without promoting them to terminating errors;
+                # Invoke-Native checks exit codes, which fail the worker itself.
+                $result = @(Receive-Job -Job $worker.Job -ErrorAction Continue 6>$null)
+                if ($worker.Job.State -ne 'Completed') {
+                    throw "[$($worker.ToolId)] build worker $($worker.Job.State): $($worker.Job.JobStateInfo.Reason)"
+                }
+                if ($result.Count -ne 1 -or
                     $result[0].ToolId -ne $worker.ToolId) {
                     throw "[$($worker.ToolId)] build worker did not return exactly one completed state."
                 }
