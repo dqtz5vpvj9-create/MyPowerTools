@@ -106,12 +106,16 @@ public sealed class NamedPipePolicyTests
 
                 byte[] payload = [(byte)index];
                 var received = new byte[1];
-                await client.WriteAsync(payload, deadline.Token);
-                await accepted.ReadExactlyAsync(received, deadline.Token);
+                // With zero-sized Windows pipe buffers, a write can wait for its reader.
+                await Task.WhenAll(
+                    client.WriteAsync(payload, deadline.Token).AsTask(),
+                    accepted.ReadExactlyAsync(received, deadline.Token).AsTask());
                 Assert.Equal(payload, received);
-                await accepted.WriteAsync(received, deadline.Token);
-                await client.ReadExactlyAsync(received, deadline.Token);
-                Assert.Equal(payload, received);
+                var echoed = new byte[1];
+                await Task.WhenAll(
+                    accepted.WriteAsync(received, deadline.Token).AsTask(),
+                    client.ReadExactlyAsync(echoed, deadline.Token).AsTask());
+                Assert.Equal(payload, echoed);
             }
         }
         finally
