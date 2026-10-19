@@ -5,7 +5,6 @@ PowerShell 7 is not on PATH. Actual MSBuild invalidation/timing is tested separa
 """
 import os
 from pathlib import Path
-import re
 import shutil
 import subprocess
 import tempfile
@@ -21,8 +20,11 @@ PWSH = os.environ.get('MPT_TEST_PWSH', 'pwsh')
 class FocusedSdkPreparationTests(unittest.TestCase):
     def test_batch_preserves_the_full_sdk_project_set(self):
         build_sdk = (REPO / 'scripts/build-sdk.ps1').read_text()
-        project_list = build_sdk.split('$projects = @(', 1)[1].split('\n)', 1)[0]
-        expected = {path.replace('\\', '/') for path in re.findall("'([^']+)'", project_list)}
+        self.assertIn("(Join-Path $PSScriptRoot 'focused-test-sdk.proj')", build_sdk)
+        expected = {f'src/MyPowerTools.{name}/MyPowerTools.{name}.csproj' for name in (
+            'Platform.Abstractions Abstractions Protocol Ipc.Shared Packaging Platform.Windows '
+            'Broker UI.Primitives UI HostControl.Contracts HostControl.Client '
+            'ServiceManager.Client AvaloniaSdk').split()}
         batch = ET.parse(REPO / 'scripts/focused-test-sdk.proj')
         actual = {item.attrib['Include'].replace('$(MSBuildThisFileDirectory)../', '')
                   for item in batch.findall('.//SdkProject')}

@@ -27,25 +27,17 @@ if (Test-Path -LiteralPath $localPackageCache -PathType Container) {
         Remove-Item -Recurse -Force
 }
 
-$projects = @(
-    'src\MyPowerTools.Platform.Abstractions\MyPowerTools.Platform.Abstractions.csproj',
-    'src\MyPowerTools.Abstractions\MyPowerTools.Abstractions.csproj',
-    'src\MyPowerTools.Protocol\MyPowerTools.Protocol.csproj',
-    'src\MyPowerTools.Ipc.Shared\MyPowerTools.Ipc.Shared.csproj',
-    'src\MyPowerTools.Packaging\MyPowerTools.Packaging.csproj',
-    'src\MyPowerTools.Platform.Windows\MyPowerTools.Platform.Windows.csproj',
-    'src\MyPowerTools.Broker\MyPowerTools.Broker.csproj',
-    'src\MyPowerTools.UI.Primitives\MyPowerTools.UI.Primitives.csproj',
-    'src\MyPowerTools.UI\MyPowerTools.UI.csproj',
-    'src\MyPowerTools.HostControl.Contracts\MyPowerTools.HostControl.Contracts.csproj',
-    'src\MyPowerTools.HostControl.Client\MyPowerTools.HostControl.Client.csproj',
-    'src\MyPowerTools.ServiceManager.Client\MyPowerTools.ServiceManager.Client.csproj',
-    'src\MyPowerTools.AvaloniaSdk\MyPowerTools.AvaloniaSdk.csproj'
-)
-foreach ($project in $projects) {
-    $arguments = @('pack', (Join-Path $repo $project), '--configuration', $Configuration, '--output', $nuget, '--maxcpucount')
-    & dotnet @arguments
-    if ($LASTEXITCODE -ne 0) { throw "dotnet pack failed: $project" }
+# Use the same strict SDK package graph as focused tests so shared dependencies
+# are evaluated by one build manager instead of a separate process per package.
+$outputList = [IO.Path]::GetTempFileName()
+try {
+    & dotnet msbuild (Join-Path $PSScriptRoot 'focused-test-sdk.proj') -restore -target:Pack -maxCpuCount `
+        "-property:Configuration=$Configuration" "-property:PackageOutputPath=$nuget" `
+        "-property:FocusedSdkOutputList=$outputList"
+    if ($LASTEXITCODE -ne 0) { throw 'SDK package build failed.' }
+}
+finally {
+    Remove-Item -LiteralPath $outputList -Force -ErrorAction SilentlyContinue
 }
 
 # src/Directory.Build.props routes src/ projects through the artifacts output layout,

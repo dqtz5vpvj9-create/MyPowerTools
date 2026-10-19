@@ -444,15 +444,6 @@ foreach ($tool in $toolRegistry) {
             '--nologo',
             "-p:MyPowerToolsRepoRoot=$repoRoot"
         ) -Activity "dotnet restore --force-evaluate $toolSurfaceProj"
-        Invoke-Native -FilePath $dotnet -ArgumentList @(
-            'build', $surfaceProjFull,
-            '--configuration', $Configuration,
-            '--no-restore',
-            '--maxcpucount',
-            '--nologo',
-            "-p:MyPowerToolsRepoRoot=$repoRoot"
-        ) -Activity "dotnet build $toolSurfaceProj"
-
         # Pack to a per-tool staging folder so we can collect just the nupkg.
         $surfacePackOut = [System.IO.Path]::GetFullPath((Join-Path $repoRoot "tools\$currentToolId\artifacts\surface"))
         if (Test-Path -LiteralPath $surfacePackOut) {
@@ -463,7 +454,8 @@ foreach ($tool in $toolRegistry) {
             'pack', $surfaceProjFull,
             '--configuration', $Configuration,
             '--nologo',
-            '--no-build',
+            '--no-restore',
+            '--maxcpucount',
             '-o', $surfacePackOut,
             "-p:MyPowerToolsRepoRoot=$repoRoot"
         ) -Activity "dotnet pack $toolSurfaceProj"
