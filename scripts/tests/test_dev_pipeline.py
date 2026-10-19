@@ -278,6 +278,64 @@ foreach ($NoRestore in @($true, $false)) {{
 }}
 """)
 
+    def test_remote_commands_reuses_only_fresh_release_surface_package(self):
+        self.run_ps(self.load_functions('scripts/build-all-tools.ps1', 'Invoke-ToolBuild', 'Copy-SurfaceOutput') + """
+function Invoke-Native {
+    param($FilePath, $ArgumentList, $Activity)
+    $step = if ($FilePath -eq 'pwsh.exe') {'runtime'} else {$ArgumentList[0]}
+    $calls.Add($step)
+    if ($step -eq 'restore') {
+        if ($ArgumentList -notcontains '--force-evaluate' -or
+            $ArgumentList -notcontains "-p:MyPowerToolsRepoRoot=$fixtureRoot") { throw 'SDK refresh contract changed.' }
+        return
+    }
+    if ($step -eq 'runtime' -and $mode -eq 'child-failure') { throw 'fixture child failed' }
+    # Model the pinned child contract: it clears old packages before packing.
+    if (Test-Path $pack) { Remove-Item $pack -Recurse -Force }
+    New-Item -ItemType Directory $pack -Force | Out-Null
+    if ($mode -ne 'missing-pack') { Set-Content (Join-Path $pack 'fresh.nupkg') $step }
+    $buildConfiguration = if ($step -eq 'runtime') {'Release'} else {$Configuration}
+    $build = Join-Path $fixtureRoot "surface/bin/$buildConfiguration/net10.0"
+    New-Item -ItemType Directory $build -Force | Out-Null
+    Set-Content (Join-Path $build 'Fixture.Surface.dll') $step
+}
+$fixtureRoot = Join-Path $PWD 'surface-reuse'
+New-Item -ItemType Directory (Join-Path $fixtureRoot 'surface'), (Join-Path $fixtureRoot 'runtime') -Force | Out-Null
+Set-Content (Join-Path $fixtureRoot 'build.ps1') '# fixture'
+Set-Content (Join-Path $fixtureRoot 'surface/Fixture.csproj') '<Project />'
+foreach ($case in @(@('remote-commands','Release','ok'), @('remote-commands','Debug','ok'),
+                    @('paste-image','Release','ok'), @('remote-commands','Release','child-failure'),
+                    @('remote-commands','Release','missing-pack'))) {
+    $id, $configuration, $mode = $case
+    $tool = [pscustomobject]@{Id=$id; Version='0.2.0'; BuildScript='build.ps1';
+        SurfaceProject='surface/Fixture.csproj'; RuntimeStagePath='runtime';
+        SurfaceTarget='ui/surface'; SurfaceAssembly='Fixture.Surface.dll'}
+    $pack = Join-Path $fixtureRoot "tools/$id/artifacts/surface"
+    New-Item -ItemType Directory $pack -Force | Out-Null
+    Set-Content (Join-Path $pack 'stale.nupkg') 'stale'
+    $calls = [Collections.Generic.List[string]]::new()
+    $state = $null; $failure = ''
+    try {
+        $state = Invoke-ToolBuild -Tool $tool -repoRoot $fixtureRoot -Configuration $configuration `
+            -Version '' -dotnet 'dotnet-fixture' -cliExe '' -prebuiltCliTools @()
+    } catch { $failure = $_.Exception.Message }
+    if ($mode -ne 'ok') {
+        $expected = if ($mode -eq 'child-failure') {'*fixture child failed*'} else {'*produced no .nupkg*'}
+        if ($state -or $failure -notlike $expected) { throw 'Failed/empty child pack must never reuse stale packages.' }
+        continue
+    }
+    if ($failure) { throw $failure }
+    $reuse = $id -eq 'remote-commands' -and $configuration -eq 'Release'
+    $expectedCalls = if ($reuse) {'restore,runtime'} else {'runtime,restore,pack'}
+    $expectedContent = if ($reuse) {'runtime'} else {'pack'}
+    if (($calls -join ',') -ne $expectedCalls -or $state.SurfaceOutputs.Count -ne 1 -or
+        (Get-Content $state.SurfaceOutputs[0]) -ne $expectedContent -or
+        (Get-Content (Join-Path $fixtureRoot 'runtime/ui/surface/Fixture.Surface.dll')) -ne $expectedContent) {
+        throw 'Restore order, fresh package collection, or DLL staging changed.'
+    }
+}
+""")
+
     def test_tool_workers_bound_overlap_order_states_and_drain_failures(self):
         self.run_ps(self.load_functions('scripts/build-all-tools.ps1',
                                        'Invoke-ToolBuildPhase', 'Invoke-Native', 'Copy-SurfaceOutput') + """

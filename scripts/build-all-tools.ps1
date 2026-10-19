@@ -441,6 +441,18 @@ function Invoke-ToolBuild {
     if ($currentToolId -in $prebuiltCliTools) {
         $runtimeBuildArguments += @('-PrebuiltCliPath', $cliExe)
     }
+    $surfaceProjFull = [System.IO.Path]::GetFullPath((Join-Path $repoRoot $toolSurfaceProj))
+    $reuseRuntimeSurfacePack = $currentToolId -eq 'remote-commands' -and $Configuration -eq 'Release'
+    if ($reuseRuntimeSurfacePack) {
+        # Remote Commands builds and freshly packs this same Release Surface in
+        # its runtime script. Refresh SDK references before that build, not after.
+        Invoke-Native -FilePath $dotnet -ArgumentList @(
+            'restore', $surfaceProjFull,
+            '--force-evaluate',
+            '--nologo',
+            "-p:MyPowerToolsRepoRoot=$repoRoot"
+        ) -Activity "dotnet restore --force-evaluate $toolSurfaceProj"
+    }
     Invoke-Native -FilePath 'pwsh.exe' -ArgumentList $runtimeBuildArguments -Activity "pwsh $toolBuildScript"
 
     $runtimeStageFull = [System.IO.Path]::GetFullPath((Join-Path $repoRoot $toolRuntimeStage))
@@ -449,34 +461,35 @@ function Invoke-ToolBuild {
     }
 
     # ---- Surface build + pack --------------------------------------------
-    $surfaceProjFull = [System.IO.Path]::GetFullPath((Join-Path $repoRoot $toolSurfaceProj))
     $surfaceOutputs  = @()
     if (Test-Path -LiteralPath $surfaceProjFull -PathType Leaf) {
         Write-Host "==> [$currentToolId] Surface build + pack" -ForegroundColor Cyan
-        # Local SDK packages deliberately keep a stable development version. Force
-        # NuGet to re-evaluate their dependency graph after each SDK rebuild so a
-        # changed package cannot be hidden by a stale project.assets.json file.
-        Invoke-Native -FilePath $dotnet -ArgumentList @(
-            'restore', $surfaceProjFull,
-            '--force-evaluate',
-            '--nologo',
-            "-p:MyPowerToolsRepoRoot=$repoRoot"
-        ) -Activity "dotnet restore --force-evaluate $toolSurfaceProj"
-        # Pack to a per-tool staging folder so we can collect just the nupkg.
         $surfacePackOut = [System.IO.Path]::GetFullPath((Join-Path $repoRoot "tools\$currentToolId\artifacts\surface"))
-        if (Test-Path -LiteralPath $surfacePackOut) {
-            Remove-Item -LiteralPath $surfacePackOut -Recurse -Force
+        if (-not $reuseRuntimeSurfacePack) {
+            # Local SDK packages deliberately keep a stable development version. Force
+            # NuGet to re-evaluate their dependency graph after each SDK rebuild so a
+            # changed package cannot be hidden by a stale project.assets.json file.
+            Invoke-Native -FilePath $dotnet -ArgumentList @(
+                'restore', $surfaceProjFull,
+                '--force-evaluate',
+                '--nologo',
+                "-p:MyPowerToolsRepoRoot=$repoRoot"
+            ) -Activity "dotnet restore --force-evaluate $toolSurfaceProj"
+            # Pack to a per-tool staging folder so we can collect just the nupkg.
+            if (Test-Path -LiteralPath $surfacePackOut) {
+                Remove-Item -LiteralPath $surfacePackOut -Recurse -Force
+            }
+            New-Item -ItemType Directory -Path $surfacePackOut -Force | Out-Null
+            Invoke-Native -FilePath $dotnet -ArgumentList @(
+                'pack', $surfaceProjFull,
+                '--configuration', $Configuration,
+                '--nologo',
+                '--no-restore',
+                '--maxcpucount',
+                '-o', $surfacePackOut,
+                "-p:MyPowerToolsRepoRoot=$repoRoot"
+            ) -Activity "dotnet pack $toolSurfaceProj"
         }
-        New-Item -ItemType Directory -Path $surfacePackOut -Force | Out-Null
-        Invoke-Native -FilePath $dotnet -ArgumentList @(
-            'pack', $surfaceProjFull,
-            '--configuration', $Configuration,
-            '--nologo',
-            '--no-restore',
-            '--maxcpucount',
-            '-o', $surfacePackOut,
-            "-p:MyPowerToolsRepoRoot=$repoRoot"
-        ) -Activity "dotnet pack $toolSurfaceProj"
 
         $surfaceOutputs = @(Get-ChildItem -LiteralPath $surfacePackOut -Filter '*.nupkg' |
             ForEach-Object { $_.FullName })
