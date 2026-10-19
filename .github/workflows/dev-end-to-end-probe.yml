@@ -10,12 +10,12 @@ permissions:
   contents: read
 concurrency:
   group: dev-end-to-end-${{ github.event.pull_request.number }}
-  cancel-in-progress: false
+  cancel-in-progress: true
 jobs:
   session-preflight:
     if: github.event.pull_request.number == 42 && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: windows-2022
-    timeout-minutes: 90
+    timeout-minutes: 40
     env:
       DOTNET_CLI_TELEMETRY_OPTOUT: '1'
       DOTNET_NOLOGO: 'true'
@@ -97,6 +97,7 @@ jobs:
         with:
           global-json-file: source/global.json
       - name: Run full official Dev loop and visible Home comparison
+        timeout-minutes: 35
         shell: pwsh
         run: |
           & ./control/.github/scripts/dev-end-to-end.ps1 -SourceRoot (Join-Path $env:GITHUB_WORKSPACE 'source')

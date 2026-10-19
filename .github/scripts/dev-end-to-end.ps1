@@ -5,6 +5,7 @@ $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 $PSNativeCommandUseErrorActionPreference = $false
 Set-StrictMode -Version Latest
+$script:stepDeadline = [DateTime]::UtcNow.AddMinutes(32)
 $source = [IO.Path]::GetFullPath($SourceRoot)
 $work = Join-Path $env:RUNNER_TEMP 'mpt-dev-e2e'
 $report = Join-Path $env:RUNNER_TEMP 'dev-e2e-report'
@@ -80,29 +81,55 @@ function Stop-OwnInstallation {
     }
     if (@(Get-InstalledProcesses).Count) { throw 'An isolated installed process survived cleanup.' }
 }
-function Start-Captured([string]$File, [string[]]$Arguments, [string]$Directory) {
-    $info = [Diagnostics.ProcessStartInfo]::new()
-    $info.FileName = $File; $info.WorkingDirectory = $Directory
-    $info.UseShellExecute = $false; $info.CreateNoWindow = $true
-    $info.RedirectStandardOutput = $true; $info.RedirectStandardError = $true
-    foreach ($argument in $Arguments) { $info.ArgumentList.Add($argument) }
-    $process = [Diagnostics.Process]::Start($info)
-    [pscustomobject]@{ process = $process; stdout = $process.StandardOutput.ReadToEndAsync(); stderr = $process.StandardError.ReadToEndAsync() }
+function ConvertTo-WindowsArgument([AllowEmptyString()][string]$Value) {
+    if ($Value.Length -gt 0 -and $Value -notmatch '[\s"]') { return $Value }
+    $builder = [Text.StringBuilder]::new('"')
+    $backslashes = 0
+    foreach ($character in $Value.ToCharArray()) {
+        if ($character -eq '\') { $backslashes++; continue }
+        if ($character -eq '"') {
+            [void]$builder.Append(('\' * (($backslashes * 2) + 1)))
+            [void]$builder.Append('"'); $backslashes = 0; continue
+        }
+        if ($backslashes -gt 0) { [void]$builder.Append(('\' * $backslashes)); $backslashes = 0 }
+        [void]$builder.Append($character)
+    }
+    if ($backslashes -gt 0) { [void]$builder.Append(('\' * ($backslashes * 2))) }
+    [void]$builder.Append('"')
+    return $builder.ToString()
 }
-function Complete-Captured($Job, [string]$LogPrefix, [int]$TimeoutSeconds = 1800) {
+function Start-Captured([string]$File, [string[]]$Arguments, [string]$Directory, [string]$LogPrefix) {
+    # Windows Start-Process redirects directly to files. Resident descendants may
+    # retain these handles without making this harness wait for pipe EOF.
+    $commandLine = ($Arguments | ForEach-Object { ConvertTo-WindowsArgument $_ }) -join ' '
+    $process = Start-Process -FilePath $File -ArgumentList $commandLine -WorkingDirectory $Directory `
+        -RedirectStandardOutput "$LogPrefix.stdout.log" -RedirectStandardError "$LogPrefix.stderr.log" `
+        -WindowStyle Hidden -PassThru
+    Write-Host "Started $LogPrefix (PID $($process.Id)); output is written directly to log files."
+    [pscustomobject]@{ process = $process; exitObservedTicks = $null; actualExitUtc = $null }
+}
+function Complete-Captured($Job, [string]$LogPrefix, [int]$TimeoutSeconds = 900) {
     $deadline = [DateTime]::UtcNow.AddSeconds($TimeoutSeconds)
+    if ($deadline -gt $script:stepDeadline) { $deadline = $script:stepDeadline }
+    $nextProgress = [DateTime]::UtcNow.AddSeconds(30)
     while (-not $Job.process.WaitForExit(1000)) {
         if ([DateTime]::UtcNow -ge $deadline) {
             try { $Job.process.Kill($true) } catch {}
+            [void]$Job.process.WaitForExit(5000)
             throw "Timed out: $LogPrefix"
         }
+        if ([DateTime]::UtcNow -ge $nextProgress) {
+            Write-Host "Still waiting for process exit: $LogPrefix (PID $($Job.process.Id))."
+            $nextProgress = [DateTime]::UtcNow.AddSeconds(30)
+        }
     }
-    $stdout = $Job.stdout.GetAwaiter().GetResult()
-    $stderr = $Job.stderr.GetAwaiter().GetResult()
-    $stdout | Set-Content -LiteralPath "$LogPrefix.stdout.log" -Encoding utf8
-    $stderr | Set-Content -LiteralPath "$LogPrefix.stderr.log" -Encoding utf8
+    # Capture exit before any diagnostics, log reads, or readiness waiting.
+    $Job.exitObservedTicks = [Diagnostics.Stopwatch]::GetTimestamp()
+    $Job.actualExitUtc = $Job.process.ExitTime.ToUniversalTime().ToString('O')
+    Save-Json ([ordered]@{ processId = $Job.process.Id; exitCode = $Job.process.ExitCode; actualExitUtc = $Job.actualExitUtc; exitObservedTicks = $Job.exitObservedTicks }) "$LogPrefix.exit.json"
+    Write-Host "Exited $LogPrefix with code $($Job.process.ExitCode)."
     if ($Job.process.ExitCode -ne 0) {
-        Write-Host $stdout; Write-Host $stderr
+        Get-Content -LiteralPath "$LogPrefix.stdout.log", "$LogPrefix.stderr.log" -Tail 40 -ErrorAction Continue | Out-Host
         throw "Process failed ($($Job.process.ExitCode)): $LogPrefix"
     }
 }
@@ -153,15 +180,15 @@ function Invoke-DevSample([string]$Arm, [string]$Commit, [int]$Iteration) {
         '-OutputPath', (Join-Path $sample 'visible-home.json'), '-ScreenshotPath', (Join-Path $sample 'visible-home.png'),
         '-StartedAfterUtc', $startedAt.ToString('O'))
     if ($oldShellIds.Count) { $watcherArguments += @('-RejectedProcessIds', ($oldShellIds -join ',')) }
-    $watcher = Start-Captured $windowsPowerShell $watcherArguments $source
+    $watcher = Start-Captured $windowsPowerShell $watcherArguments $source (Join-Path $sample 'readiness')
     $dev = $null
     try {
         $arguments = @('-NoLogo', '-NoProfile', '-NonInteractive', '-File', (Join-Path $source 'scripts\Start-MyPowerTools-Dev.ps1'))
         Write-Host "Starting ${label}: default official Core/Debug Dev loop, including restart and visible Home."
         $startTicks = [Diagnostics.Stopwatch]::GetTimestamp()
-        $dev = Start-Captured $pwsh $arguments $source
+        $dev = Start-Captured $pwsh $arguments $source (Join-Path $sample 'official-dev')
         Complete-Captured $dev (Join-Path $sample 'official-dev')
-        $scriptEndTicks = [Diagnostics.Stopwatch]::GetTimestamp()
+        $scriptEndTicks = [long]$dev.exitObservedTicks
         Complete-Captured $watcher (Join-Path $sample 'readiness') 120
         $ready = Get-Content -LiteralPath (Join-Path $sample 'visible-home.json') -Raw | ConvertFrom-Json
         if ($ready.status -ne 'ready') { throw 'Visible Home readiness was not established.' }
@@ -180,7 +207,7 @@ function Invoke-DevSample([string]$Arm, [string]$Commit, [int]$Iteration) {
         $row = [ordered]@{
             arm = $Arm; commit = $Commit; iteration = $Iteration
             scenario = $(if ($Iteration -eq 0) { 'initial-core-rebuild/setup-state; not cold dependencies' } else { 'warm-no-edit' })
-            startedAt = $startedAt.ToString('O'); scriptMilliseconds = ($scriptEndTicks - $startTicks) * $scale
+            startedAt = $startedAt.ToString('O'); actualScriptExitUtc = $dev.actualExitUtc; scriptMilliseconds = ($scriptEndTicks - $startTicks) * $scale
             visibleReadyMilliseconds = ([long]$ready.observedTimestampTicks - $startTicks) * $scale
             endToEndMilliseconds = ([Math]::Max($scriptEndTicks, [long]$ready.observedTimestampTicks) - $startTicks) * $scale
             nativeMilliseconds = $timings.totalMilliseconds; oldProcesses = $oldProcesses; newProcesses = $newProcesses
@@ -201,14 +228,14 @@ function Invoke-DevSample([string]$Arm, [string]$Commit, [int]$Iteration) {
 
 try {
     Assert-CleanRunner
-    $release = Invoke-RestMethod 'https://api.github.com/repos/dqtz5vpvj9-create/MyPowerTools/releases/tags/v0.3.26'
+    $release = Invoke-RestMethod 'https://api.github.com/repos/dqtz5vpvj9-create/MyPowerTools/releases/tags/v0.3.26' -TimeoutSec 60
     if ($release.tag_name -ne 'v0.3.26' -or $release.draft) { throw 'Unexpected release metadata.' }
     $downloads = Join-Path $work 'download'
     New-Item -ItemType Directory -Force $downloads | Out-Null
     foreach ($name in @('MyPowerTools-win-x64.zip', 'MyPowerTools-win-x64.zip.sha256')) {
         $asset = @($release.assets | Where-Object name -eq $name)
         if ($asset.Count -ne 1 -or $asset[0].browser_download_url -notlike 'https://github.com/dqtz5vpvj9-create/MyPowerTools/releases/download/v0.3.26/*') { throw "Unverified release asset: $name" }
-        Invoke-WebRequest -Uri $asset[0].browser_download_url -OutFile (Join-Path $downloads $name)
+        Invoke-WebRequest -Uri $asset[0].browser_download_url -OutFile (Join-Path $downloads $name) -TimeoutSec 300
     }
     $zip = Join-Path $downloads 'MyPowerTools-win-x64.zip'
     $checksum = Get-Content -LiteralPath "$zip.sha256" -Raw
@@ -237,11 +264,12 @@ try {
         $setupWatch = [Diagnostics.Stopwatch]::StartNew()
         $installerArguments = @('-NoLogo', '-NoProfile', '-NonInteractive', '-File', (Join-Path $package 'install-windows.ps1'), '-PackageRoot', $package,
             '-NoStartMenuShortcut', '-NoDesktopShortcut', '-NoAutostart', '-NoStartRunner', '-NoOpenApp')
-        $installer = Start-Captured $pwsh $installerArguments $package
-        Complete-Captured $installer (Join-Path $setupReport 'official-install') 900
+        $installer = Start-Captured $pwsh $installerArguments $package (Join-Path $setupReport 'official-install')
+        Complete-Captured $installer (Join-Path $setupReport 'official-install') 600
         $setupWatch.Stop()
         Save-Json ([ordered]@{ milliseconds = $setupWatch.Elapsed.TotalMilliseconds; command = @($pwsh) + $installerArguments; note = 'Official setup outside Dev timings; ServiceManager configuration still runs.' }) (Join-Path $setupReport 'installer.json')
-        foreach ($iteration in 0..2) { Invoke-DevSample $arm.Key $arm.Value $iteration }
+        # First establish one complete initial Dev loop per arm. Warm repeats are deferred.
+        Invoke-DevSample $arm.Key $arm.Value 0
         if (@(& git -C $source status --porcelain --untracked-files=no).Count) { throw 'Official source tree was unexpectedly modified.' }
     }
 } catch {
