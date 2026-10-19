@@ -1,4 +1,15 @@
 <Project>
+  <!-- Dev publishes share one global root, not a different global PublishDir
+       per component, so MSBuild can reuse their common project references. -->
+  <PropertyGroup Condition="'$(DevPublishRoot)' != ''">
+    <_DevPublishDirectory Condition="'$(MSBuildProjectName)' == 'MyPowerTools.Shell.Avalonia'">Shell</_DevPublishDirectory>
+    <_DevPublishDirectory Condition="'$(MSBuildProjectName)' == 'MyPowerTools.Runner'">Runner</_DevPublishDirectory>
+    <_DevPublishDirectory Condition="'$(MSBuildProjectName)' == 'MyPowerTools.ElevatedBroker'">Broker</_DevPublishDirectory>
+    <_DevPublishDirectory Condition="'$(MSBuildProjectName)' == 'MyPowerTools.InputRemapHost'">InputRemap</_DevPublishDirectory>
+    <_DevPublishDirectory Condition="'$(MSBuildProjectName)' == 'MyPowerTools.ServiceManager'">ServiceManager</_DevPublishDirectory>
+    <PublishDir Condition="'$(_DevPublishDirectory)' != ''">$([MSBuild]::NormalizeDirectory('$(DevPublishRoot)', '$(_DevPublishDirectory)'))</PublishDir>
+  </PropertyGroup>
+
   <PropertyGroup Condition="'$(IsPackable)' == 'true' and '$(PackageReadmeFile)' == ''">
     <PackageReadmeFile>README.md</PackageReadmeFile>
     <MptUseCommonPackageReadme>true</MptUseCommonPackageReadme>
