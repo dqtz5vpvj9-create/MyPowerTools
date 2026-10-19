@@ -329,14 +329,29 @@ function Invoke-DevSample([string]$Arm, [string]$Commit, [int]$Iteration) {
 
 try {
     Assert-CleanRunner
-    $release = Invoke-RestMethod 'https://api.github.com/repos/dqtz5vpvj9-create/MyPowerTools/releases/tags/v0.3.26' -TimeoutSec 60
-    if ($release.tag_name -ne 'v0.3.26' -or $release.draft) { throw 'Unexpected release metadata.' }
+    # Previously verified public release URLs; no API metadata request or credentials.
+    $releaseUrl = 'https://github.com/dqtz5vpvj9-create/MyPowerTools/releases/tag/v0.3.26'
+    $assetUrls = [ordered]@{
+        'MyPowerTools-win-x64.zip' = 'https://github.com/dqtz5vpvj9-create/MyPowerTools/releases/download/v0.3.26/MyPowerTools-win-x64.zip'
+        'MyPowerTools-win-x64.zip.sha256' = 'https://github.com/dqtz5vpvj9-create/MyPowerTools/releases/download/v0.3.26/MyPowerTools-win-x64.zip.sha256'
+    }
     $downloads = Join-Path $work 'download'
     New-Item -ItemType Directory -Force $downloads | Out-Null
-    foreach ($name in @('MyPowerTools-win-x64.zip', 'MyPowerTools-win-x64.zip.sha256')) {
-        $asset = @($release.assets | Where-Object name -eq $name)
-        if ($asset.Count -ne 1 -or $asset[0].browser_download_url -notlike 'https://github.com/dqtz5vpvj9-create/MyPowerTools/releases/download/v0.3.26/*') { throw "Unverified release asset: $name" }
-        Invoke-WebRequest -Uri $asset[0].browser_download_url -OutFile (Join-Path $downloads $name) -TimeoutSec 300
+    $assetDownloads = [Collections.Generic.List[object]]::new()
+    foreach ($asset in $assetUrls.GetEnumerator()) {
+        $destination = Join-Path $downloads $asset.Key
+        $downloadStarted = [DateTime]::UtcNow
+        $downloadWatch = [Diagnostics.Stopwatch]::StartNew()
+        Invoke-WebRequest -Uri $asset.Value -OutFile $destination -TimeoutSec 300
+        $downloadWatch.Stop()
+        $downloadCompleted = [DateTime]::UtcNow
+        $assetDownloads.Add([ordered]@{
+            name = $asset.Key; url = $asset.Value; sizeBytes = (Get-Item -LiteralPath $destination).Length
+            sha256 = (Get-FileHash -LiteralPath $destination -Algorithm SHA256).Hash.ToLowerInvariant()
+            downloadStartedUtc = $downloadStarted.ToString('O'); downloadCompletedUtc = $downloadCompleted.ToString('O')
+            downloadMilliseconds = $downloadWatch.Elapsed.TotalMilliseconds
+        })
+        Save-Json $assetDownloads.ToArray() (Join-Path $report 'release-downloads.json')
     }
     $zip = Join-Path $downloads 'MyPowerTools-win-x64.zip'
     $checksum = Get-Content -LiteralPath "$zip.sha256" -Raw
@@ -344,7 +359,7 @@ try {
     $expectedHash = $Matches[0].ToLowerInvariant()
     $actualHash = (Get-FileHash -LiteralPath $zip -Algorithm SHA256).Hash.ToLowerInvariant()
     if ($actualHash -ne $expectedHash) { throw 'Full release ZIP checksum mismatch.' }
-    Save-Json ([ordered]@{ tag = $release.tag_name; releaseUrl = $release.html_url; publishedAt = $release.published_at; sha256 = $actualHash; assets = @($release.assets | Where-Object name -in @('MyPowerTools-win-x64.zip', 'MyPowerTools-win-x64.zip.sha256') | Select-Object name, id, size, browser_download_url); baseline = $baselineCommit; candidate = $CandidateCommit; sourcePath = $source; installPath = $install; dataPath = $data; dependencyCaches = 'shared NuGet/HTTP and OS caches; same source/install paths; build outputs reset before each arm, then retained from that arm warm-up for its measured no-edit sample'; sampling = 'baseline warm-up, baseline measured, candidate warm-up, candidate measured; warm-ups recorded but excluded from the comparison; one measured sample per arm is directional evidence, not a variance estimate'; timingTrace = 'MPT_DEV_TIMING_TRACE=1; per-sample dedicated timing prefix; official Dev stdout/stderr also captured'; readiness = 'max(official script success, new visible responsive populated Home + live trace); external integrations may be offline' }) (Join-Path $report 'conditions.json')
+    Save-Json ([ordered]@{ tag = 'v0.3.26'; releaseUrl = $releaseUrl; sha256 = $actualHash; assets = $assetDownloads.ToArray(); baseline = $baselineCommit; candidate = $CandidateCommit; sourcePath = $source; installPath = $install; dataPath = $data; dependencyCaches = 'shared NuGet/HTTP and OS caches; same source/install paths; build outputs reset before each arm, then retained from that arm warm-up for its measured no-edit sample'; sampling = 'baseline warm-up, baseline measured, candidate warm-up, candidate measured; warm-ups recorded but excluded from the comparison; one measured sample per arm is directional evidence, not a variance estimate'; timingTrace = 'MPT_DEV_TIMING_TRACE=1; per-sample dedicated timing prefix; official Dev stdout/stderr also captured'; readiness = 'max(official script success, new visible responsive populated Home + live trace); external integrations may be offline' }) (Join-Path $report 'conditions.json')
     Copy-Item -LiteralPath "$zip.sha256" -Destination (Join-Path $report 'official-zip.sha256')
     $package = Join-Path $work 'package'
     Expand-Archive -LiteralPath $zip -DestinationPath $package
