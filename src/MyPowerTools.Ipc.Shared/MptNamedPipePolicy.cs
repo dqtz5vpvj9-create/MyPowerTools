@@ -60,6 +60,42 @@ public static class MptNamedPipePolicy
         PipeOptions options = PipeOptions.Asynchronous,
         int inBufferSize = 0,
         int outBufferSize = 0)
+        => CreateServerCore(pipeName, direction, maxInstances, transmissionMode, options,
+            inBufferSize, outBufferSize, initializeLowIntegrityLabel: true);
+
+    /// <summary>
+    /// Creates another instance while an existing instance of the same pipe remains open.
+    /// On Windows the additional instance inherits the first instance's Low integrity label;
+    /// requesting TakeOwnership again would also request FirstPipeInstance and fail.
+    /// Keep an existing instance open until this method returns.
+    /// </summary>
+    public static NamedPipeServerStream CreateAdditionalServer(
+        string pipeName,
+        PipeDirection direction = PipeDirection.InOut,
+        int maxInstances = NamedPipeServerStream.MaxAllowedServerInstances,
+        PipeTransmissionMode transmissionMode = PipeTransmissionMode.Byte,
+        PipeOptions options = PipeOptions.Asynchronous,
+        int inBufferSize = 0,
+        int outBufferSize = 0)
+    {
+        if ((options & PipeOptions.FirstPipeInstance) != 0)
+            throw new ArgumentException("An additional pipe instance cannot be the first instance.", nameof(options));
+        if (maxInstances == 1)
+            throw new ArgumentOutOfRangeException(nameof(maxInstances), "Additional pipe instances require a limit greater than one.");
+
+        return CreateServerCore(pipeName, direction, maxInstances, transmissionMode, options,
+            inBufferSize, outBufferSize, initializeLowIntegrityLabel: false);
+    }
+
+    private static NamedPipeServerStream CreateServerCore(
+        string pipeName,
+        PipeDirection direction,
+        int maxInstances,
+        PipeTransmissionMode transmissionMode,
+        PipeOptions options,
+        int inBufferSize,
+        int outBufferSize,
+        bool initializeLowIntegrityLabel)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(pipeName);
 
@@ -84,7 +120,7 @@ public static class MptNamedPipePolicy
             normalizedOptions,
             inBufferSize,
             outBufferSize,
-            initializeLowIntegrityLabel: true);
+            initializeLowIntegrityLabel);
     }
 
     private static NamedPipeServerStream CreateWindowsServer(

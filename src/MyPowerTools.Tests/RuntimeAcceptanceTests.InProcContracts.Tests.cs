@@ -488,13 +488,6 @@ public sealed partial class RuntimeAcceptanceTests
             "sample.dotnet.event-fault",
             $"event-fault-context-{cursorSequence}",
             ["status", "events"]);
-        // The host event relay consumes the module stream with its own cursor; the
-        // fixture selects its blocking phase via a control file.
-        Directory.CreateDirectory(context.DataDirectory);
-        await File.WriteAllTextAsync(
-            Path.Combine(context.DataDirectory, "blocking-mode.txt"),
-            operation.Contains("current", StringComparison.OrdinalIgnoreCase) ? "current" : "open");
-        await host.GetStatusAsync(module, context, CancellationToken.None);
         var enumerator = host.SubscribeEventsAsync(
             module,
             context,
@@ -503,6 +496,17 @@ public sealed partial class RuntimeAcceptanceTests
 
         try
         {
+            // The host event relay consumes the module stream with its own cursor; the
+            // fixture selects its blocking phase via a control file.
+            Directory.CreateDirectory(context.DataDirectory);
+            await File.WriteAllTextAsync(
+                Path.Combine(context.DataDirectory, "blocking-mode.txt"),
+                operation.Contains("current", StringComparison.OrdinalIgnoreCase) ? "current" : "open");
+            // Loading is fixture setup, not a status callback under test. Keep the
+            // 1000ms budget on the event callbacks whose faults are asserted below.
+            using var loadTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+            _ = await host.LoadAsync(module.Module, context, loadTimeout.Token)
+                .AsTask().WaitAsync(loadTimeout.Token);
             var moveNext = enumerator.MoveNextAsync().AsTask();
             await WaitForFixtureFileAsync(context.DataDirectory, startedFile, TimeSpan.FromSeconds(3));
             var failure = await Assert.ThrowsAnyAsync<Exception>(async () =>
