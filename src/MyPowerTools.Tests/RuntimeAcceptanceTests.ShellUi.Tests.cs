@@ -3,6 +3,7 @@ using Avalonia.Input;
 using MyPowerTools.Packaging;
 using MyPowerTools.Platform.Windows;
 using MyPowerTools.Runtime;
+using MyPowerTools.Shell.Avalonia;
 using MyPowerTools.Shell.Avalonia.Services;
 using MyPowerTools.Shell.Avalonia.ViewModels;
 using MyPowerTools.UI;
