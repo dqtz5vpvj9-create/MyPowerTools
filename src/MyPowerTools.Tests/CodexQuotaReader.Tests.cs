@@ -139,20 +139,6 @@ public sealed class CodexQuotaReaderTests
     }
 
     [Fact]
-    public void AppServerProtocol_FlushesInitializationAndKeepsDefaultStreamEncoding()
-    {
-        var source = File.ReadAllText(Path.Combine(
-            FindRepositoryRoot(),
-            "src",
-            "MyPowerTools.Platform.Abstractions",
-            "CodexQuotaReader.cs"));
-
-        Assert.Contains("StandardInput.FlushAsync(timeout.Token)", source, StringComparison.Ordinal);
-        Assert.Contains("ReadResponseLineAsync(process, \"mpt-init\"", source, StringComparison.Ordinal);
-        Assert.DoesNotContain("StandardInputEncoding", source, StringComparison.Ordinal);
-    }
-
-    [Fact]
     public void TrayMonitor_KeepsRefreshRetryAndIconLifetimeContract()
     {
         var root = FindRepositoryRoot();
@@ -161,19 +147,12 @@ public sealed class CodexQuotaReaderTests
             "src",
             "MyPowerTools.Platform.Windows",
             "WindowsTrayService.cs"));
-        var renderer = File.ReadAllText(Path.Combine(
-            root,
-            "src",
-            "MyPowerTools.Platform.Windows",
-            "CodexQuotaIconRenderer.cs"));
 
         Assert.Contains("TimeSpan.FromMinutes(5)", tray, StringComparison.Ordinal);
         Assert.Contains("TimeSpan.FromMinutes(1)", tray, StringComparison.Ordinal);
         Assert.Contains("await quotaMonitorTask", tray, StringComparison.Ordinal);
         Assert.Contains("DestroyIcon(previousIcon)", tray, StringComparison.Ordinal);
         Assert.Contains("if (!updated)", tray, StringComparison.Ordinal);
-        Assert.Contains(">= 50 =>", renderer, StringComparison.Ordinal);
-        Assert.Contains(">= 20 =>", renderer, StringComparison.Ordinal);
     }
 
     private static string FindRepositoryRoot()

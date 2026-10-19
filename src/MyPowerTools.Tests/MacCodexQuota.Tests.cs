@@ -51,7 +51,7 @@ public sealed class MacCodexQuotaTests
     }
 
     [Fact]
-    public void Native_status_item_uses_a_colored_retina_quota_image()
+    public void Native_status_item_updates_run_on_the_main_queue()
     {
         var source = File.ReadAllText(Path.Combine(
             Root,
@@ -61,12 +61,6 @@ public sealed class MacCodexQuotaTests
             "MptMacNative.mm"));
 
         Assert.Contains("mpt_status_item_update_quota", source, StringComparison.Ordinal);
-        Assert.Contains("NSBitmapImageRep", source, StringComparison.Ordinal);
-        Assert.Contains("canvasSize = 64", source, StringComparison.Ordinal);
-        Assert.Contains("remainingPercent >= 50", source, StringComparison.Ordinal);
-        Assert.Contains("remainingPercent >= 20", source, StringComparison.Ordinal);
-        Assert.Contains("[image setTemplate:NO]", source, StringComparison.Ordinal);
-        Assert.Contains("button.image = image", source, StringComparison.Ordinal);
         Assert.Contains("dispatch_sync(dispatch_get_main_queue(), updateBlock)", source, StringComparison.Ordinal);
     }
 

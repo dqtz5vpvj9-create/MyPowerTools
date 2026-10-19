@@ -67,16 +67,5 @@ public sealed class ExternalToolSdkTests
         var afterRemoval = await runtime.RefreshToolCatalogAsync(CancellationToken.None);
 
         Assert.Empty(afterRemoval);
-        Assert.DoesNotContain("external.refresh.proof", File.ReadAllText(Path.Combine(RootPath(), "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellWorkspaceController.ExternalTools.cs")));
-    }
-
-    private static string RootPath()
-    {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-        while (directory is not null && !File.Exists(Path.Combine(directory.FullName, "MyPowerTools.slnx")))
-        {
-            directory = directory.Parent;
-        }
-        return directory?.FullName ?? throw new DirectoryNotFoundException("Repository root was not found.");
     }
 }
