@@ -8,7 +8,7 @@ installation, then replaces the corresponding installed directories transactiona
 Runner, and ServiceManager continue to execute from the complete installed layout, so modules,
 schemas, runtimes, service units, the launcher, and ElevatedBroker remain available.
 
-Core publishes Shell/WebToolHost, Runner, ElevatedBroker, and ServiceManager. Shell publishes
+Core publishes Shell/WebToolHost, Runner, ElevatedBroker, InputRemapHost, and ServiceManager. Shell publishes
 Shell/WebToolHost only. Tools runs the selected canonical tool build scripts and overlays package directories
 produced under each tool's artifacts/package directory. SDK tools without an installed package
 are rebuilt in place.
@@ -80,6 +80,7 @@ $runnerProject = Join-Path $repositoryRoot 'src\MyPowerTools.Runner\MyPowerTools
 $elevatedBrokerProject = Join-Path $repositoryRoot 'src\MyPowerTools.ElevatedBroker\MyPowerTools.ElevatedBroker.csproj'
 $inputRemapProject = Join-Path $repositoryRoot 'src\MyPowerTools.InputRemapHost\MyPowerTools.InputRemapHost.csproj'
 $serviceManagerProject = Join-Path $repositoryRoot 'src\MyPowerTools.ServiceManager\MyPowerTools.ServiceManager.csproj'
+$devPublishProject = Join-Path $repositoryRoot 'scripts\windows-dev-publish.proj'
 $devArtifactsParent = Join-Path $repositoryRoot 'artifacts\dev-update'
 $managedProcessRoots = @(
     $repositoryRoot,
@@ -573,20 +574,17 @@ function Stop-ToolPackageRuntimes {
     }
 }
 
-function Publish-ManagedComponent {
-    param(
-        [Parameter(Mandatory = $true)][string]$Project,
-        [Parameter(Mandatory = $true)][string]$Output,
-        [Parameter(Mandatory = $true)][string]$Label
-    )
-
+function Publish-ManagedComponents {
+    # Keep dotnet publish's restore and _IsPublishing semantics, including the
+    # inferred RID for single-file hosts. Only the staging root is global.
     $publishArguments = @(
         'publish',
-        $Project,
+        $devPublishProject,
         '--configuration', $Configuration,
-        '--output', $Output,
         '--nologo',
         '--no-self-contained',
+        "-p:DevPublishRoot=$publishRoot",
+        "-p:DevPublishScope=$Scope",
         '-p:PublishReadyToRun=false',
         '-p:PublishAot=false')
     if ($NoRestore) {
@@ -595,7 +593,7 @@ function Publish-ManagedComponent {
     $publishParameters = @{
         FilePath = $dotnetCommand.Source
         ArgumentList = $publishArguments
-        Activity = "Publishing $Label development overlay ($Configuration)"
+        Activity = "Publishing $Scope development overlay ($Configuration)"
     }
     Invoke-Native @publishParameters
 }
@@ -1039,7 +1037,8 @@ foreach ($requiredPath in @(
     $runnerProject,
     $elevatedBrokerProject,
     $inputRemapProject,
-    $serviceManagerProject)) {
+    $serviceManagerProject,
+    $devPublishProject)) {
     if (-not (Test-Path -LiteralPath $requiredPath)) {
         throw "Required development update path is missing: $requiredPath"
     }
@@ -1069,13 +1068,8 @@ try {
     New-Item -ItemType Directory -Path $publishRoot, $toolPackageRoot -Force | Out-Null
 
     if ($Scope -in @('Core', 'Shell')) {
+        Publish-ManagedComponents
         $shellPublish = Join-Path $publishRoot 'Shell'
-        $shellPublishParameters = @{
-            Project = $shellProject
-            Output = $shellPublish
-            Label = 'Shell and WebToolHost'
-        }
-        Publish-ManagedComponent @shellPublishParameters
         foreach ($requiredOutput in @(
             (Join-Path $shellPublish 'MyPowerTools.Shell.Avalonia.exe'),
             (Join-Path $shellPublish 'WebToolHost\MyPowerTools.WebToolHost.exe'))) {
@@ -1100,12 +1094,6 @@ try {
 
     if ($Scope -eq 'Core') {
         $runnerPublish = Join-Path $publishRoot 'Runner'
-        $runnerPublishParameters = @{
-            Project = $runnerProject
-            Output = $runnerPublish
-            Label = 'Runner'
-        }
-        Publish-ManagedComponent @runnerPublishParameters
         $publishedRunner = Join-Path $runnerPublish 'MyPowerTools.Runner.exe'
         if (-not (Test-Path -LiteralPath $publishedRunner -PathType Leaf)) {
             throw "Runner development publish output is missing: $publishedRunner"
@@ -1119,12 +1107,6 @@ try {
         })
 
         $brokerPublish = Join-Path $publishRoot 'Broker'
-        $brokerPublishParameters = @{
-            Project = $elevatedBrokerProject
-            Output = $brokerPublish
-            Label = 'ElevatedBroker'
-        }
-        Publish-ManagedComponent @brokerPublishParameters
         $publishedBroker = Join-Path $brokerPublish 'MyPowerTools.ElevatedBroker.exe'
         if (-not (Test-Path -LiteralPath $publishedBroker -PathType Leaf)) {
             throw "ElevatedBroker development publish output is missing: $publishedBroker"
@@ -1138,12 +1120,6 @@ try {
         })
 
         $inputRemapPublish = Join-Path $publishRoot 'InputRemap'
-        $inputRemapPublishParameters = @{
-            Project = $inputRemapProject
-            Output = $inputRemapPublish
-            Label = 'InputRemapHost'
-        }
-        Publish-ManagedComponent @inputRemapPublishParameters
         $publishedInputRemap = Join-Path $inputRemapPublish 'MyPowerTools.InputRemapHost.exe'
         if (-not (Test-Path -LiteralPath $publishedInputRemap -PathType Leaf)) {
             throw "Input remap host development publish output is missing: $publishedInputRemap"
@@ -1157,12 +1133,6 @@ try {
         })
 
         $serviceManagerPublish = Join-Path $publishRoot 'ServiceManager'
-        $serviceManagerPublishParameters = @{
-            Project = $serviceManagerProject
-            Output = $serviceManagerPublish
-            Label = 'ServiceManager'
-        }
-        Publish-ManagedComponent @serviceManagerPublishParameters
         $publishedServiceManager = Join-Path $serviceManagerPublish 'MyPowerTools.ServiceManager.exe'
         if (-not (Test-Path -LiteralPath $publishedServiceManager -PathType Leaf)) {
             throw "ServiceManager development publish output is missing: $publishedServiceManager"

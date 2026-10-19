@@ -1,0 +1,27 @@
+<Project DefaultTargets="Publish">
+  <!-- One publish session can reuse shared dependencies. Keep the destination
+       root global and derive each PublishDir locally in Directory.Build.targets;
+       a per-project global PublishDir would split the dependency graph again. -->
+  <PropertyGroup>
+    <DevPublishScope Condition="'$(DevPublishScope)' == ''">Core</DevPublishScope>
+    <BuildInParallel Condition="'$(BuildInParallel)' == ''">true</BuildInParallel>
+  </PropertyGroup>
+  <ItemGroup>
+    <DevPublishProject Include="$(MSBuildThisFileDirectory)../src/MyPowerTools.Shell.Avalonia/MyPowerTools.Shell.Avalonia.csproj" />
+    <DevPublishProject Include="$(MSBuildThisFileDirectory)../src/MyPowerTools.Runner/MyPowerTools.Runner.csproj" Condition="'$(DevPublishScope)' == 'Core'" />
+    <DevPublishProject Include="$(MSBuildThisFileDirectory)../src/MyPowerTools.ElevatedBroker/MyPowerTools.ElevatedBroker.csproj" Condition="'$(DevPublishScope)' == 'Core'" />
+    <DevPublishProject Include="$(MSBuildThisFileDirectory)../src/MyPowerTools.InputRemapHost/MyPowerTools.InputRemapHost.csproj" Condition="'$(DevPublishScope)' == 'Core'" />
+    <DevPublishProject Include="$(MSBuildThisFileDirectory)../src/MyPowerTools.ServiceManager/MyPowerTools.ServiceManager.csproj" Condition="'$(DevPublishScope)' == 'Core'" />
+  </ItemGroup>
+  <Target Name="ValidateDevPublish">
+    <Error Condition="'$(DevPublishRoot)' == ''" Text="DevPublishRoot is required." />
+    <Error Condition="'$(DevPublishScope)' != 'Core' and '$(DevPublishScope)' != 'Shell'" Text="DevPublishScope must be Core or Shell." />
+  </Target>
+  <Target Name="Restore" DependsOnTargets="ValidateDevPublish">
+    <!-- Each Restore owns a NuGet graph walk; avoid concurrent writes to shared obj files. -->
+    <MSBuild Projects="@(DevPublishProject)" Targets="Restore" BuildInParallel="false" />
+  </Target>
+  <Target Name="Publish" DependsOnTargets="ValidateDevPublish">
+    <MSBuild Projects="@(DevPublishProject)" Targets="Publish" BuildInParallel="$(BuildInParallel)" />
+  </Target>
+</Project>
