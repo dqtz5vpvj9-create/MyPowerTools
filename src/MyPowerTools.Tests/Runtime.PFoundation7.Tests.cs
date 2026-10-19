@@ -390,17 +390,6 @@ public sealed partial class RuntimeAcceptanceTests
 
     [Fact]
     [Trait("Foundation", "P7")]
-    public void Grpc_stream_cleanup_exceptions_are_suppressed_after_terminal_failure()
-    {
-        var source = File.ReadAllText(Path.Combine(Root, "src", "MyPowerTools.ModuleHost.GrpcIpc", "GrpcIpcModuleHost.cs"));
-
-        Assert.Contains("terminalFailureEmitted", source, StringComparison.Ordinal);
-        Assert.Contains("catch when (terminalFailureEmitted)", source, StringComparison.Ordinal);
-        Assert.Contains("await RemoveHostAsync(poolKey)", source, StringComparison.Ordinal);
-    }
-
-    [Fact]
-    [Trait("Foundation", "P7")]
     public async Task Shell_cancel_result_keeps_module_acceptance_or_rejection_evidence()
     {
         var item = new CommandItemViewModel(

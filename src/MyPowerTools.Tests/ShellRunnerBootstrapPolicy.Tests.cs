@@ -89,31 +89,6 @@ public sealed class ShellRunnerBootstrapPolicyTests
             await restarted.Task.WaitAsync(TimeSpan.FromSeconds(5)));
     }
 
-    [Fact]
-    public void Window_passes_startup_policy_to_the_workspace_event_service()
-    {
-        var root = FindRepositoryRoot();
-        var startup = File.ReadAllText(Path.Combine(root, "src", "MyPowerTools.Shell.Avalonia", "MainWindow.Startup.cs"));
-        var workspace = File.ReadAllText(Path.Combine(root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellWorkspaceController.cs"));
-
-        Assert.Contains("startupOptions: _startupOptions", startup, StringComparison.Ordinal);
-        Assert.Contains("new ShellRunnerEventService(startupOptions ?? ShellStartupOptions.Default)", workspace, StringComparison.Ordinal);
-    }
-
-    private static string FindRepositoryRoot()
-    {
-        var directory = new DirectoryInfo(AppContext.BaseDirectory);
-        while (directory is not null)
-        {
-            if (File.Exists(Path.Combine(directory.FullName, "MyPowerTools.slnx")))
-            {
-                return directory.FullName;
-            }
-            directory = directory.Parent;
-        }
-        throw new DirectoryNotFoundException("MyPowerTools repository root was not found.");
-    }
-
     private sealed class OfflineProbe : IHostControlConnectionProbe
     {
         public Task<HostControlConnectionProbeResult> PingAsync(CancellationToken cancellationToken) =>

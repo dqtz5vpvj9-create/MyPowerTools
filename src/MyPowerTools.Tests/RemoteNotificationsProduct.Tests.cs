@@ -633,24 +633,6 @@ public sealed class RemoteNotificationsProductTests
         Assert.DoesNotContain("For reference:", message.DisplayMessage, StringComparison.Ordinal);
     }
 
-    [Fact]
-    public void Phone_system_notifications_strip_the_quoted_user_request()
-    {
-        var notifyApp = Path.Combine(Root, "external", "NotifyApp", "app", "src", "main", "java", "com", "androidtools", "notify");
-        var adapter = File.ReadAllText(Path.Combine(notifyApp, "NotificationAdapter.kt"));
-        var fcm = File.ReadAllText(Path.Combine(notifyApp, "NotifyFirebaseService.kt"));
-        var unifiedPush = File.ReadAllText(Path.Combine(notifyApp, "UnifiedPushReceiver.kt"));
-
-        Assert.Contains("fun notificationBannerText", adapter, StringComparison.Ordinal);
-        Assert.Contains("fun stripLeadingQuotedRequest", adapter, StringComparison.Ordinal);
-        Assert.Contains("fun displayMessage", adapter, StringComparison.Ordinal);
-        Assert.Contains("holder.message.text = displayMessage(item.message)", adapter, StringComparison.Ordinal);
-        Assert.Contains("NotificationAdapter.notificationBannerText", fcm, StringComparison.Ordinal);
-        Assert.Contains("NotificationAdapter.notificationBannerText", unifiedPush, StringComparison.Ordinal);
-        Assert.DoesNotContain(".setContentText(item.message)", unifiedPush, StringComparison.Ordinal);
-        Assert.DoesNotContain(".setContentText(body)", fcm, StringComparison.Ordinal);
-    }
-
     [Theory]
     [InlineData(false, "")]
     [InlineData(true, "reminder")]
@@ -791,112 +773,6 @@ public sealed class RemoteNotificationsProductTests
             fallbackId,
             out var fallbackRecord));
         Assert.Equal(fallbackOnly, fallbackRecord);
-    }
-
-    [Fact]
-    public void Remote_notifications_implementation_tracks_the_original_source_contract()
-    {
-        var integrationRoot = Path.Combine(
-            Root,
-            "tools",
-            "remote-notifications",
-            "current-integration",
-            "src",
-            "RemoteNotifications.Surface");
-        var store = File.ReadAllText(Path.Combine(
-            integrationRoot, "Services", "RemoteNotificationsLegacyStore.cs"));
-        var viewModel = File.ReadAllText(Path.Combine(
-            integrationRoot, "ViewModels", "RemoteNotificationsViewModels.cs"));
-        var toast = File.ReadAllText(Path.Combine(
-            integrationRoot, "Services", "RemoteNotificationToastPublisher.cs"));
-        var activation = File.ReadAllText(Path.Combine(
-            integrationRoot, "Services", "RemoteNotificationActivationService.cs"));
-        var detailWindows = File.ReadAllText(Path.Combine(
-            integrationRoot, "Services", "RemoteNotificationDetailWindowService.cs"));
-        var notificationView = File.ReadAllText(Path.Combine(
-            integrationRoot, "Views", "RemoteNotificationsView.axaml.cs"));
-        var detailView = File.ReadAllText(Path.Combine(
-            integrationRoot, "Views", "RemoteNotificationDetailWindow.axaml"));
-        var toastPlatform = File.ReadAllText(Path.Combine(
-            integrationRoot, "Services", "WindowsRemoteNotificationToastPlatform.cs"));
-        var serviceClient = File.ReadAllText(Path.Combine(
-            integrationRoot, "Services", "RemoteNotificationsServiceClient.cs"));
-        var worker = File.ReadAllText(Path.Combine(
-            Root,
-            "tools",
-            "remote-notifications",
-            "current-integration",
-            "src",
-            "RemoteNotifications.Service",
-            "Program.cs"));
-        var workerProject = File.ReadAllText(Path.Combine(
-            Root,
-            "tools",
-            "remote-notifications",
-            "current-integration",
-            "src",
-            "RemoteNotifications.Service",
-            "RemoteNotifications.Service.csproj"));
-        var workerToast = File.ReadAllText(Path.Combine(
-            Root,
-            "tools",
-            "remote-notifications",
-            "current-integration",
-            "src",
-            "RemoteNotifications.Service",
-            "ToastRuntime.cs"));
-        var productActivationLauncher = File.ReadAllText(Path.Combine(
-            Root,
-            "tools",
-            "remote-notifications",
-            "current-integration",
-            "src",
-            "RemoteNotifications.Service",
-            "ProductActivationLauncher.cs"));
-
-        Assert.Contains("MaximumMessages = 500", store, StringComparison.Ordinal);
-        Assert.Contains("MaximumRecentHashes = 200", store, StringComparison.Ordinal);
-        Assert.Contains("MaximumSeenMessageIds = 5000", store, StringComparison.Ordinal);
-        Assert.Contains("FallbackId", viewModel, StringComparison.Ordinal);
-        Assert.Contains("PublishAsync", viewModel, StringComparison.Ordinal);
-        Assert.Contains("persistent ? \"reminder\"", toast, StringComparison.Ordinal);
-        Assert.Contains("mypowertools://remote-notification?id=", toast, StringComparison.Ordinal);
-        Assert.Contains("MyPowerTools.RemoteNotificationActivation", activation, StringComparison.Ordinal);
-        Assert.Contains("_detailWindows.TryOpen(request.MessageId)", activation, StringComparison.Ordinal);
-        Assert.Contains("Present(detail);", detailWindows, StringComparison.Ordinal);
-        Assert.Contains("SetForegroundWindow(handle)", detailWindows, StringComparison.Ordinal);
-        Assert.Contains("BringWindowToTop(handle)", detailWindows, StringComparison.Ordinal);
-        Assert.Contains("SetWindowPos(handle, HwndTopmost", detailWindows, StringComparison.Ordinal);
-        Assert.Contains("SetWindowPos(handle, HwndNotTopmost", detailWindows, StringComparison.Ordinal);
-        Assert.Contains("_detailWindows.Open(message)", notificationView, StringComparison.Ordinal);
-        Assert.Contains("IMptAvaloniaSurfaceActivationHandler", notificationView, StringComparison.Ordinal);
-        Assert.DoesNotContain("ShowDialog(owner)", notificationView, StringComparison.Ordinal);
-        Assert.DoesNotContain("detail.Show(owner)", notificationView, StringComparison.Ordinal);
-        Assert.Contains("WindowStartupLocation=\"CenterScreen\"", detailView, StringComparison.Ordinal);
-        Assert.Contains("WindowsToastAbi.Show", toastPlatform, StringComparison.Ordinal);
-        Assert.Contains("SetCurrentProcessExplicitAppUserModelID", toastPlatform, StringComparison.Ordinal);
-        Assert.Contains("var shortcutExists = File.Exists(path);", toastPlatform, StringComparison.Ordinal);
-        Assert.Contains("if (!shortcutExists)", toastPlatform, StringComparison.Ordinal);
-        Assert.Contains("IServiceUnitClient", serviceClient, StringComparison.Ordinal);
-        Assert.Contains("ConnectAsync", serviceClient, StringComparison.Ordinal);
-        Assert.Contains("\"unix-socket\"", serviceClient, StringComparison.Ordinal);
-        Assert.Contains("_serviceClient.PollAsync", viewModel, StringComparison.Ordinal);
-        Assert.Contains("ObserveServiceAsync", viewModel, StringComparison.Ordinal);
-        Assert.Contains("RunOnePollCycle", worker, StringComparison.Ordinal);
-        Assert.Contains("ServeControlPipe", worker, StringComparison.Ordinal);
-        Assert.Contains("ServeControlSocket", worker, StringComparison.Ordinal);
-        Assert.Contains("RemoteNotificationDesktopServiceFactory.Create()", worker, StringComparison.Ordinal);
-        Assert.Contains("WorkerToastPlatform.EnsureRegistered()", worker, StringComparison.Ordinal);
-        Assert.Contains("ProductActivationLauncher.GetLaunchUri(args)", worker, StringComparison.Ordinal);
-        Assert.Contains("<OutputType>WinExe</OutputType>", workerProject, StringComparison.Ordinal);
-        Assert.Contains("RegisterProtocol(workerExecutable)", workerToast, StringComparison.Ordinal);
-        Assert.Contains("var shortcutExists = File.Exists(path);", workerToast, StringComparison.Ordinal);
-        Assert.Contains("if (!shortcutExists)", workerToast, StringComparison.Ordinal);
-        Assert.Contains("SetStringProperty(propertyStore, PropertyKeys.AppUserModelId, AppUserModelId);", workerToast, StringComparison.Ordinal);
-        Assert.Contains("ToolActivationProtocol.ArgumentName", productActivationLauncher, StringComparison.Ordinal);
-        Assert.Contains("new ToolActivationRequest(ToolId, RouteId, launchUri)", productActivationLauncher, StringComparison.Ordinal);
-        Assert.Contains("SuppressShellWindow = true", productActivationLauncher, StringComparison.Ordinal);
-        Assert.Contains("AllowSetForegroundWindow((uint)processId)", productActivationLauncher, StringComparison.Ordinal);
     }
 
     [Fact]

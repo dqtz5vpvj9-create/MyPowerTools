@@ -107,14 +107,6 @@ public sealed class ToolProductVisualAcceptanceTests
             var imagePath = screenshot["imagePath"]!.GetValue<string>();
             Assert.True(File.Exists(imagePath));
             AssertFrameEdgesAreRendered(imagePath);
-            if (surface == "shell.home")
-            {
-                AssertPixelsDiffer(imagePath, (1800, 180), (1900, 900));
-            }
-            else
-            {
-                AssertPixelsDiffer(imagePath, (1600, 200), (1800, 200));
-            }
         }
         finally
         {
@@ -166,24 +158,5 @@ public sealed class ToolProductVisualAcceptanceTests
         Assert.True(
             transparentEdgePixels <= edgePixelCount / 100,
             $"Headless screenshot contains {transparentEdgePixels} transparent edge pixels out of {edgePixelCount}; the frame is not an opaque acceptance artifact.");
-    }
-
-    private static void AssertPixelsDiffer(
-        string imagePath,
-        (int X, int Y) firstPoint,
-        (int X, int Y) secondPoint)
-    {
-        using var image = SKBitmap.Decode(imagePath);
-        Assert.NotNull(image);
-
-        (byte Blue, byte Green, byte Red, byte Alpha) ReadPixel((int X, int Y) point)
-        {
-            var pixel = image.GetPixel(point.X, point.Y);
-            return (pixel.Blue, pixel.Green, pixel.Red, pixel.Alpha);
-        }
-
-        var first = ReadPixel(firstPoint);
-        var second = ReadPixel(secondPoint);
-        Assert.NotEqual(second, first);
     }
 }

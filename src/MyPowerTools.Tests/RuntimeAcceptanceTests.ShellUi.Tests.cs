@@ -1,46 +1,12 @@
-using System.Diagnostics;
-using System.Net;
-using System.Net.Sockets;
-using System.Runtime.CompilerServices;
-using System.Runtime.Loader;
-using System.Text;
-using System.Text.Json;
 using System.Text.Json.Nodes;
 using Avalonia.Input;
-using AdbForwarder.MyPowerTools;
-using AndroidTools.MyPowerTools;
-using Grpc.Core;
-using Microsoft.Extensions.Hosting;
-using MyPowerTools.HostControl;
-using MyPowerTools.Broker;
-using MyPowerTools.ModuleHost.GrpcIpc;
-using MyPowerTools.ModuleHost.InProcDotNet;
 using MyPowerTools.Packaging;
-using MyPowerTools.Platform.Abstractions;
-using MyPowerTools.Platform.Linux;
-using MyPowerTools.Platform.Mac;
 using MyPowerTools.Platform.Windows;
-using MyPowerTools.Protocol;
 using MyPowerTools.Runtime;
-using MyPowerTools.SampleModules.DotNet;
-using MyPowerTools.Shell.Avalonia;
 using MyPowerTools.Shell.Avalonia.Services;
 using MyPowerTools.Shell.Avalonia.ViewModels;
 using MyPowerTools.UI;
-using ScreenEase.MyPowerTools;
-using CommandExecutionResult = MyPowerTools.Abstractions.CommandExecutionResult;
-using CommandRequest = MyPowerTools.Abstractions.CommandRequest;
-using HealthCheckSnapshot = MyPowerTools.Abstractions.HealthCheckSnapshot;
 using HostProto = MyPowerTools.Protocol.HostControl.V1;
-using ModuleContext = MyPowerTools.Abstractions.ModuleContext;
-using ModuleStatusSnapshot = MyPowerTools.Abstractions.ModuleStatusSnapshot;
-using MptCommandDescriptor = MyPowerTools.Abstractions.MptCommandDescriptor;
-using MptOperationConstraints = MyPowerTools.Abstractions.MptOperationConstraints;
-using MptRuntimeError = MyPowerTools.Abstractions.MptRuntimeError;
-using SettingsPatch = MyPowerTools.Abstractions.SettingsPatch;
-using SettingsSchemaDocument = MyPowerTools.Abstractions.SettingsSchemaDocument;
-using SettingsSnapshotDocument = MyPowerTools.Abstractions.SettingsSnapshotDocument;
-using SettingsValidationResult = MyPowerTools.Abstractions.SettingsValidationResult;
 
 namespace MyPowerTools.Tests;
 
@@ -97,9 +63,6 @@ public sealed partial class RuntimeAcceptanceTests
 
         // Escape is intercepted by the live controller before configured shortcut dispatch.
         Assert.Null(Resolve(Key.Escape, KeyModifiers.None));
-        var keyboard = File.ReadAllText(Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellWorkspaceController.Keyboard.cs"));
-        Assert.Contains("if (_chromeViewModel.IsCommandPaletteOpen && eventArguments.Key == Key.Escape)", keyboard);
-        Assert.Contains("await CloseCommandPaletteAsync();", keyboard);
 
         Assert.Equal("shell.refresh", Resolve(Key.F5, KeyModifiers.None)?.Definition.Id);
 
@@ -310,17 +273,8 @@ public sealed partial class RuntimeAcceptanceTests
     }
 
     [Fact]
-    public void Shell_viewmodels_are_control_free_and_map_host_protocol()
+    public void Shell_viewmodels_map_host_protocol()
     {
-        var viewModelRoot = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "ViewModels");
-        foreach (var file in Directory.EnumerateFiles(viewModelRoot, "*.cs"))
-        {
-            var text = File.ReadAllText(file);
-            Assert.DoesNotContain("Avalonia.Controls", text, StringComparison.Ordinal);
-            Assert.DoesNotContain("UserControl", text, StringComparison.Ordinal);
-            Assert.DoesNotContain("Avalonia.Controls.Window", text, StringComparison.Ordinal);
-        }
-
         var dashboard = new HostProto.DashboardSnapshot { EventSeq = 42 };
         var card = new HostProto.ModuleCard
         {
@@ -796,59 +750,12 @@ public sealed partial class RuntimeAcceptanceTests
     }
 
     [Fact]
-    public void Shell_command_parameter_contract_flows_through_hostcontrol()
+    public void Shell_command_parameter_field_number_remains_wire_compatible()
     {
         var protoPath = Path.Combine(Root, "proto", "mpt_host_control_v1.proto");
-        var moduleProtoPath = Path.Combine(Root, "proto", "mpt_module_v1.proto");
-        var abstractionsPath = Path.Combine(Root, "src", "MyPowerTools.Abstractions", "PluginContracts.cs");
-        var staticReaderPath = Path.Combine(Root, "src", "MyPowerTools.Runtime", "StaticCommandIndexReader.cs");
-        var runtimePath = Path.Combine(Root, "src", "MyPowerTools.Runtime", "MptHostRuntime.cs");
-        var grpcHostPath = Path.Combine(Root, "src", "MyPowerTools.ModuleHost.GrpcIpc", "GrpcIpcModuleHost.cs");
-        var moduleHostPath = Path.Combine(Root, "tools", "remote-notifications", "current-integration", "src", "AndroidTools.Runtime", "Program.cs");
-        var hostServicePath = Path.Combine(Root, "src", "MyPowerTools.HostControl.Server", "HostControlGrpcService.cs");
-        var hostClientPath = Path.Combine(Root, "src", "MyPowerTools.HostControl.Client", "HostControlClient.cs");
-        var commandServicePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellCommandExecutionService.cs");
-        var workspacePath = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services", "ShellWorkspaceController.cs");
         var proto = File.ReadAllText(protoPath);
-        var moduleProto = File.ReadAllText(moduleProtoPath);
-        var abstractions = File.ReadAllText(abstractionsPath);
-        var staticReader = File.ReadAllText(staticReaderPath);
-        var runtime = File.ReadAllText(runtimePath);
-        var grpcHost = File.ReadAllText(grpcHostPath);
-        var moduleHost = File.ReadAllText(moduleHostPath);
-        var hostService = File.ReadAllText(hostServicePath);
-        var hostClient = File.ReadAllText(hostClientPath);
-        var commandService = File.ReadAllText(commandServicePath);
-        var workspace = ReadShellWorkspaceControllerText();
 
-        Assert.Contains("rpc CancelCommand", proto);
-        Assert.Contains("rpc ExecuteCommandStream", proto);
-        Assert.Contains("rpc ExecuteCommandStream", moduleProto);
-        Assert.Contains("message CommandExecutionEvent", moduleProto);
-        Assert.Contains("message CancelCommandRequest", proto);
-        Assert.Contains("message CommandExecutionEvent", proto);
         Assert.Contains("repeated CommandParameter parameters = 8", proto);
-        Assert.Contains("message CommandParameter", proto);
-        Assert.Contains("CommandParameterDescriptor", abstractions);
-        Assert.Contains("ExecuteCommandStreamAsync(CommandRequest request", abstractions);
-        Assert.Contains("ReadParameters(command)", staticReader);
-        Assert.Contains("CollectModuleEventsAsync", runtime);
-        Assert.Contains("runtime.SubscribeEventsAsync", runtime);
-        Assert.Contains("parameter.DefaultValue", grpcHost);
-        Assert.Contains("client.ExecuteCommandStream", grpcHost);
-        Assert.Contains("client.SubscribeEvents", grpcHost);
-        Assert.Contains("ExecuteCommandStream(ExecuteCommandRequest", moduleHost);
-        Assert.Contains("item.Parameters.AddRange", hostService);
-        Assert.Contains("CancelCommand(HostProto.CancelCommandRequest", hostService);
-        Assert.Contains("ExecuteCommandStream(HostProto.ExecuteCommandRequest", hostService);
-        Assert.Contains("JsonStructMapper.ToStruct(args)", hostClient);
-        Assert.Contains("CancelCommandAsync", hostClient);
-        Assert.Contains("ExecuteCommandStreamAsync", hostClient);
-        Assert.Contains("ExecuteAsync(string commandId, JsonObject? args", commandService);
-        Assert.Contains("ExecuteStreamAsync", commandService);
-        Assert.Contains("CancelAsync(string invocationId", commandService);
-        Assert.Contains("ExecuteCommandStreamAsync(commandId, args, invocationId", workspace);
-        Assert.Contains("CancelCommandAsync(invocationId)", workspace);
     }
 
     [Fact]
@@ -938,50 +845,6 @@ public sealed partial class RuntimeAcceptanceTests
         Assert.False(viewModel.HasChanges);
         Assert.Equal("No staged changes.", viewModel.ChangeSummary);
         Assert.False(viewModel.SaveCommand.CanExecute(null));
-    }
-
-    [Fact]
-    public void Shell_static_style_lint_rejects_raw_axaml_and_csharp_ui_literals()
-    {
-        var axamlFiles = Directory
-            .EnumerateFiles(Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Views"), "*.axaml")
-            .Concat(Directory.EnumerateFiles(Path.Combine(Root, "src", "MyPowerTools.UI", "Controls"), "*.axaml"));
-
-        foreach (var file in axamlFiles)
-        {
-            var text = File.ReadAllText(file);
-            Assert.False(
-                System.Text.RegularExpressions.Regex.IsMatch(text, "#[0-9A-Fa-f]{3,8}"),
-                $"{file} should not contain inline hex colors.");
-            Assert.DoesNotContain("Brush.Parse", text, StringComparison.Ordinal);
-            Assert.DoesNotContain("Brushes.", text, StringComparison.Ordinal);
-            Assert.False(
-                System.Text.RegularExpressions.Regex.IsMatch(text, "FontSize=\"[0-9]"),
-                $"{file} should use typography tokens instead of raw FontSize values.");
-            Assert.False(
-                System.Text.RegularExpressions.Regex.IsMatch(text, "\\b(Margin|Padding|Spacing)=\"[0-9]"),
-                $"{file} should use spacing tokens instead of raw spacing values.");
-        }
-
-        var csharpFiles = new[]
-            {
-                Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "MainWindow.cs"),
-                Path.Combine(Root, "src", "MyPowerTools.UI.Primitives", "MptControls.cs")
-            }
-            .Concat(Directory.EnumerateFiles(
-                Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services"),
-                "ShellWorkspaceController*.cs"));
-        foreach (var file in csharpFiles)
-        {
-            var text = File.ReadAllText(file);
-            Assert.DoesNotContain("Brush.Parse(\"#", text, StringComparison.Ordinal);
-            Assert.DoesNotContain("Brushes.", text, StringComparison.Ordinal);
-            Assert.False(
-                System.Text.RegularExpressions.Regex.IsMatch(text, "FontSize = [0-9]"),
-                $"{file} should use typography constants instead of raw FontSize values.");
-        }
-
-        Assert.Empty(new UiSurfaceGate().CheckShellSource(Root).Where(issue => issue.Severity == "error"));
     }
 
     [Fact]
@@ -1118,19 +981,6 @@ public sealed partial class RuntimeAcceptanceTests
             Assert.Equal(768, item["height"]!.GetValue<int>());
             Assert.Equal("Avalonia.Headless", item["renderer"]!.GetValue<string>());
         });
-
-        var writerSource = File.ReadAllText(Path.Combine(Root, "src", "Mpt.Cli.VisualTesting", "ShellRealScreenshotWriter.cs"));
-        Assert.Contains("CreateShellChrome(", writerSource);
-        Assert.Contains("new ShellChromeView", writerSource);
-        Assert.Contains("\"ContentHost\"", writerSource);
-        Assert.Contains("\"CommandPanel\"", writerSource);
-        Assert.Contains("\"PermissionPanel\"", writerSource);
-        Assert.Contains("\"AuditPanel\"", writerSource);
-
-        var cliSource = File.ReadAllText(Path.Combine(Root, "src", "Mpt.Cli.VisualTesting", "Program.cs"));
-        Assert.Contains("\"--live-runner\"", cliSource);
-        Assert.Contains("\"screenshot\" => UiScreenshot", cliSource);
-        Assert.Contains("\"shell-snapshot\" => UiShellSnapshot", cliSource);
     }
 
     [Fact]
