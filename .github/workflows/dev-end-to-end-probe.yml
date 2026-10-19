@@ -1,0 +1,119 @@
+# TEMPORARY runtime validation evidence on a same-repository draft PR. Do not merge this workflow.
+name: Dev runtime end-to-end comparison (temporary)
+on:
+  pull_request:
+    paths:
+      - '.github/workflows/dev-end-to-end-probe.yml'
+      - '.github/scripts/dev-end-to-end.ps1'
+      - '.github/scripts/dev-e2e-*.ps1'
+permissions:
+  contents: read
+concurrency:
+  group: dev-end-to-end-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+jobs:
+  session-preflight:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: windows-2022
+    timeout-minutes: 40
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+      DOTNET_NOLOGO: 'true'
+      AVALONIA_TELEMETRY_OPTOUT: '1'
+      NUGET_XMLDOC_MODE: skip
+      # Replace only after the implementation and temporary instrumentation commit is fixed.
+      E2E_CANDIDATE_COMMIT: 129bf1f5c2199314a5d6d2b17c9d36aed5170f77
+    steps:
+      - name: Require a resolved immutable candidate before any validation
+        shell: pwsh
+        run: |
+          if ($env:E2E_CANDIDATE_COMMIT -notmatch '^[0-9a-f]{40}$') {
+            throw 'Candidate commit is unresolved; do not publish or run this temporary harness yet.'
+          }
+      - name: Inspect desktop capability without changing runner configuration
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $process = Get-Process -Id $PID
+          $blockers = [System.Collections.Generic.List[string]]::new()
+          $report = [ordered]@{
+            status = 'BLOCKED'; identity = [Security.Principal.WindowsIdentity]::GetCurrent().Name
+            sessionId = $process.SessionId; userInteractive = [Environment]::UserInteractive
+            processId = $PID; processName = $process.ProcessName; sessionName = $env:SESSIONNAME
+            desktopName = $null; desktopError = $null; screenBounds = $null; blockers = @()
+          }
+          if ($process.SessionId -eq 0) { $blockers.Add('Session 0: official Dev startup cannot run here.') }
+          if (-not [Environment]::UserInteractive) { $blockers.Add('Process environment is not interactive.') }
+          try {
+            Add-Type -TypeDefinition @'
+          using System;
+          using System.Runtime.InteropServices;
+          using System.Text;
+          public static class DesktopProbe {
+            [DllImport("user32.dll", SetLastError=true)] public static extern IntPtr OpenInputDesktop(uint flags, bool inherit, uint access);
+            [DllImport("user32.dll", SetLastError=true, CharSet=CharSet.Unicode)] public static extern bool GetUserObjectInformation(IntPtr handle, int index, StringBuilder info, uint length, out uint needed);
+            [DllImport("user32.dll")] public static extern bool CloseDesktop(IntPtr handle);
+            [DllImport("user32.dll")] public static extern int GetSystemMetrics(int index);
+          }
+          '@
+            $desktop = [DesktopProbe]::OpenInputDesktop(0, $false, 1) # DESKTOP_READOBJECTS only.
+            if ($desktop -eq [IntPtr]::Zero) {
+              $report.desktopError = [Runtime.InteropServices.Marshal]::GetLastWin32Error()
+              $blockers.Add('Input desktop is unavailable for read-only inspection.')
+            } else {
+              try {
+                [uint32]$needed = 0
+                [void][DesktopProbe]::GetUserObjectInformation($desktop, 2, $null, 0, [ref]$needed)
+                $name = [Text.StringBuilder]::new([int]($needed / 2))
+                if (-not [DesktopProbe]::GetUserObjectInformation($desktop, 2, $name, $needed, [ref]$needed)) { throw 'Cannot read input desktop name.' }
+                $report.desktopName = $name.ToString()
+                $report.screenBounds = [ordered]@{ x = [DesktopProbe]::GetSystemMetrics(76); y = [DesktopProbe]::GetSystemMetrics(77); width = [DesktopProbe]::GetSystemMetrics(78); height = [DesktopProbe]::GetSystemMetrics(79) }
+                if ($report.screenBounds.width -le 0 -or $report.screenBounds.height -le 0) { $blockers.Add('No usable virtual screen bounds.') }
+              } finally { [void][DesktopProbe]::CloseDesktop($desktop) }
+            }
+          } catch { $blockers.Add($_.Exception.Message) }
+          $report.blockers = $blockers.ToArray()
+          if ($blockers.Count -eq 0) { $report.status = 'CAPABLE' }
+          $json = $report | ConvertTo-Json -Depth 5
+          $json | Set-Content -LiteralPath (Join-Path $env:RUNNER_TEMP 'dev-session-preflight.json') -Encoding utf8
+          Write-Output $json
+          if ($blockers.Count -gt 0) { throw 'BLOCKED: runner cannot satisfy official Dev desktop startup prerequisites.' }
+      - name: Upload read-only preflight evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dev-session-preflight
+          path: ${{ runner.temp }}/dev-session-preflight.json
+          if-no-files-found: error
+          retention-days: 3
+      - name: Checkout temporary comparison harness
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: control
+          persist-credentials: false
+          submodules: false
+      - name: Checkout immutable candidate source and commit history
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ env.E2E_CANDIDATE_COMMIT }}
+          path: source
+          fetch-depth: 0
+          persist-credentials: false
+          submodules: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: source/global.json
+      - name: Warm each arm then measure the unchanged official Dev loop and visible Dashboard
+        timeout-minutes: 35
+        shell: pwsh
+        run: |
+          & ./control/.github/scripts/dev-end-to-end.ps1 -SourceRoot (Join-Path $env:GITHUB_WORKSPACE 'source') -CandidateCommit $env:E2E_CANDIDATE_COMMIT
+      - name: Upload full end-to-end evidence including failures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dev-end-to-end-evidence
+          path: ${{ runner.temp }}/dev-e2e-report
+          if-no-files-found: warn
+          retention-days: 3
