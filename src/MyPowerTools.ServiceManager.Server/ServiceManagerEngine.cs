@@ -1,4 +1,5 @@
 using System.Collections.Concurrent;
+using System.Diagnostics;
 using MyPowerTools.Abstractions;
 
 namespace MyPowerTools.ServiceManager.Server;
@@ -11,6 +12,26 @@ namespace MyPowerTools.ServiceManager.Server;
 /// </summary>
 public sealed class ServiceManagerEngine : IAsyncDisposable
 {
+    // TEMPORARY E2E diagnostics; remove before merging the measured optimization.
+    private static readonly bool DevTimingTraceEnabled = Environment.GetEnvironmentVariable("MPT_DEV_TIMING_TRACE") == "1";
+
+    private static void WriteDevTiming(string phase, string unitId, Stopwatch? stopwatch)
+    {
+        if (stopwatch is null) return;
+        stopwatch.Stop();
+        var line = $"MPT_DEV_TIMING phase={phase} unitId={unitId} elapsedMs={stopwatch.ElapsedMilliseconds}";
+        try
+        {
+            Console.Error.WriteLine(line);
+            var prefix = Environment.GetEnvironmentVariable("MPT_DEV_TIMING_TRACE_PATH");
+            if (!string.IsNullOrWhiteSpace(prefix)) File.AppendAllText(prefix + ".service-manager.log", line + Environment.NewLine);
+        }
+        catch (Exception)
+        {
+            // Diagnostic output must not change reconciliation behavior.
+        }
+    }
+
     private readonly ServiceUnitCatalog _catalog;
     private readonly UnitEventBus _events;
     private readonly UnitStateStore _stateStore;
@@ -46,6 +67,7 @@ public sealed class ServiceManagerEngine : IAsyncDisposable
     /// </summary>
     public async Task ReconcileAsync(CancellationToken cancellationToken = default)
     {
+        var timing = DevTimingTraceEnabled ? Stopwatch.StartNew() : null;
         await _reloadGate.WaitAsync(cancellationToken);
         try
         {
@@ -54,6 +76,7 @@ public sealed class ServiceManagerEngine : IAsyncDisposable
         finally
         {
             _reloadGate.Release();
+            WriteDevTiming("reconcile", "all", timing);
         }
     }
 
@@ -98,14 +121,30 @@ public sealed class ServiceManagerEngine : IAsyncDisposable
         foreach (var supervisor in activation)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (await supervisor.TryReadoptAsync(cancellationToken))
+            var timing = DevTimingTraceEnabled ? Stopwatch.StartNew() : null;
+            try
             {
-                continue;
+                if (await supervisor.TryReadoptAsync(cancellationToken))
+                {
+                    continue;
+                }
+            }
+            finally
+            {
+                WriteDevTiming("unit-readopt", supervisor.UnitId, timing);
             }
 
             if (supervisor.Manifest.Autostart)
             {
-                await supervisor.StartAsync(cancellationToken);
+                timing?.Restart();
+                try
+                {
+                    await supervisor.StartAsync(cancellationToken);
+                }
+                finally
+                {
+                    WriteDevTiming("unit-start", supervisor.UnitId, timing);
+                }
             }
         }
 
