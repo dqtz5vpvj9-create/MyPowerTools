@@ -101,17 +101,27 @@ function dotnet {
                               env=self.env, cwd=self.root, text=True, stdout=subprocess.PIPE,
                               stderr=subprocess.STDOUT, timeout=30)
 
-    def test_unchanged_package_keeps_restored_cache(self):
-        package = self.package()
-        cached = self.cached(package)
+    def test_only_changed_or_missing_package_archives_invalidate_the_exact_version(self):
+        unchanged = self.package()
+        retained = self.cached(unchanged)
+        changed = self.cached(self.package(version='0.2.1'), b'older same-version package')
+        unproduced = self.cache / 'mypowertools.toolsdk/0.1.9/keep'
+        unproduced.parent.mkdir(parents=True)
+        unproduced.write_text('keep')
+        missing = self.package(package_id='MyPowerTools.Runtime')
+        incomplete = self.cached(missing)
+        (incomplete / missing.name.lower()).unlink()
         result = self.run_helper()
         self.assertEqual(0, result.returncode, result.stdout)
-        self.assertTrue((cached / 'retained-sentinel').exists())
-        self.assertEqual(package.read_bytes(), (self.feed / package.name).read_bytes())
-        self.assertIn('invalidated 0', result.stdout)
+        self.assertTrue((retained / 'retained-sentinel').exists())
+        self.assertTrue(unproduced.exists())
+        self.assertEqual(unchanged.read_bytes(), (self.feed / unchanged.name).read_bytes())
+        self.assertFalse(changed.exists())
+        self.assertFalse(incomplete.exists())
+        self.assertIn('invalidated 2', result.stdout)
 
     def test_external_cache_overrides_fail_before_pack_or_publication(self):
-        package = self.package()
+        self.package()
         for override in ('NUGET_PACKAGES', 'RestorePackagesPath'):
             with self.subTest(override=override):
                 external = self.root / 'external-cache' / override
@@ -135,28 +145,9 @@ function dotnet {
         result = self.run_helper()
         self.assertEqual(0, result.returncode, result.stdout)
         self.assertTrue((cached / 'retained-sentinel').exists())
+        self.assertIn('invalidated 0', result.stdout)
         self.assertEqual(f'-property:RestorePackagesPath={self.cache}',
                          (self.root / 'restore-paths.txt').read_text().strip())
-
-    def test_only_changed_exact_package_version_is_invalidated(self):
-        package = self.package(version='0.2.1')
-        changed = self.cached(package, b'older same-version package')
-        untouched = self.cache / 'mypowertools.toolsdk/0.2.0'
-        untouched.mkdir(parents=True)
-        (untouched / 'keep').write_text('keep')
-        result = self.run_helper()
-        self.assertEqual(0, result.returncode, result.stdout)
-        self.assertFalse(changed.exists())
-        self.assertTrue((untouched / 'keep').exists())
-        self.assertIn('invalidated 1', result.stdout)
-
-    def test_missing_cached_archive_is_invalidated(self):
-        package = self.package()
-        cached = self.cached(package)
-        (cached / package.name.lower()).unlink()
-        result = self.run_helper()
-        self.assertEqual(0, result.returncode, result.stdout)
-        self.assertFalse(cached.exists())
 
     def test_failed_pack_does_not_clear_cache_or_publish(self):
         cached = self.cached(self.package())

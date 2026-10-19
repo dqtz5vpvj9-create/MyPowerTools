@@ -177,33 +177,19 @@ $Architecture = 'arm64'
         self.assertIn('Copy-Item -LiteralPath $zipPath -Destination $legacyZipPath -Force', wrapper)
         self.assertIn("'--verify'", wrapper)
 
-    def test_no_restore_forwarding_requires_a_declared_child_parameter(self):
-        source = self.source('scripts/update-windows-dev.ps1')
-        start = source.index("        if ($NoRestore -and (Test-ScriptParameter")
-        end = source.index('        Invoke-Native @toolBuildParameters', start)
-        forwarding = source[start:end]
-        declared = self.root / 'supported.ps1'
-        declared.write_text("param([switch]$NoRestore)\nthrow 'The child script must never execute while being inspected.'\n")
-        missing = self.root / 'unsupported.ps1'
-        missing.write_text("param([string]$Configuration)\nthrow 'must not execute'\n")
-        no_params = self.root / 'no-parameters.ps1'
-        no_params.write_text("throw 'must not execute'\n")
-        empty_params = self.root / 'empty-parameters.ps1'
-        empty_params.write_text("param()\nthrow 'must not execute'\n")
-        invalid = self.root / 'invalid.ps1'
-        invalid.write_text('param(')
+    def test_child_parameter_inspection_never_executes_the_script(self):
         self.run_ps(self.load_functions('scripts/update-windows-dev.ps1', 'Test-ScriptParameter') + f"""
-foreach ($path in @({quote(declared)}, {quote(missing)}, {quote(no_params)}, {quote(empty_params)})) {{
-    foreach ($NoRestore in @($true, $false)) {{
-        $toolBuildScript = $path
-        $toolBuildParameters = @{{ArgumentList=@('-Configuration', 'Debug')}}
-{forwarding}
-        $expected = $NoRestore -and $path -eq {quote(declared)}
-        if (($toolBuildParameters.ArgumentList -contains '-NoRestore') -ne $expected) {{ throw 'Incorrect NoRestore forwarding.' }}
+$path = Join-Path {quote(self.root)} 'declarations.ps1'
+foreach ($header in @('param([switch]$NoRestore)', 'param([string]$Configuration)', '', 'param()')) {{
+    Set-Content -LiteralPath $path -Value ($header + "`nthrow 'Inspection must never execute the child.'")
+    $expected = $header -eq 'param([switch]$NoRestore)'
+    if ((Test-ScriptParameter -ScriptPath $path -ParameterName NoRestore) -ne $expected) {{
+        throw "Incorrect parameter inspection: $header"
     }}
 }}
+Set-Content -LiteralPath $path -Value 'param('
 $threw = $false
-try {{ Test-ScriptParameter -ScriptPath {quote(invalid)} -ParameterName NoRestore }}
+try {{ Test-ScriptParameter -ScriptPath $path -ParameterName NoRestore }}
 catch {{ $threw = $true }}
 if (-not $threw) {{ throw 'Malformed child declarations must fail inspection.' }}
 """)
@@ -282,11 +268,13 @@ $requestedToolId = 'modern-fixture'
 $toolBuildScript = Join-Path {quote(self.root)} 'modern.ps1'
 Set-Content -LiteralPath $toolBuildScript -Value 'param($MyPowerToolsRepoRoot, $Configuration, [switch]$NoRestore)'
 $Configuration = 'Debug'
+foreach ($NoRestore in @($true, $false)) {{
 {arguments}
-$index = [array]::IndexOf($toolBuildParameters.ArgumentList, '-Configuration')
-if ($index -lt 0 -or $toolBuildParameters.ArgumentList[$index + 1] -ne 'Debug' -or
-    $toolBuildParameters.ArgumentList -notcontains '-NoRestore') {{
-    throw 'Supported Configuration and NoRestore parameters were not preserved.'
+    $index = [array]::IndexOf($toolBuildParameters.ArgumentList, '-Configuration')
+    if ($index -lt 0 -or $toolBuildParameters.ArgumentList[$index + 1] -ne 'Debug' -or
+        ($toolBuildParameters.ArgumentList -contains '-NoRestore') -ne $NoRestore) {{
+        throw 'Supported Configuration and NoRestore parameters were not preserved.'
+    }}
 }}
 """)
 

@@ -30,6 +30,7 @@ class ReleaseScriptTests(unittest.TestCase):
         self.root = Path(self.temporary.name).resolve()
         self.repo = self.root / 'repository'
         self.repo.mkdir()
+        self.destination = self.root / 'materialized-tools'
         self.env = dict(os.environ, GIT_AUTHOR_NAME='Release Regression',
                         GIT_AUTHOR_EMAIL='release-regression@local.invalid',
                         GIT_COMMITTER_NAME='Release Regression',
@@ -49,6 +50,11 @@ class ReleaseScriptTests(unittest.TestCase):
 
     def assert_success(self, result):
         self.assertEqual(0, result.returncode, result.stdout)
+
+    def materialize(self, bundle, *arguments):
+        return self.run_script('materialize-tool-submodules.ps1', '-RepoRoot', self.repo,
+                               '-SourceBundleRoot', bundle, '-ToolReposRoot', self.destination,
+                               '-SkipSubmoduleAdd', *arguments)
 
     def write_tool(self, root, tool_id, legacy=False):
         has_original = legacy or tool_id not in NATIVE_TOOLS
@@ -153,16 +159,9 @@ class ReleaseScriptTests(unittest.TestCase):
             self.assertTrue((bundle / 'superproject/tools' / tool_id / 'source-map.json').is_file())
         # Check the actual producer/consumer contract, not just independent
         # hand-written fixtures of their manifest formats.
-        destination = self.root / 'bundled-tool-repositories'
-        result = self.run_script('materialize-tool-submodules.ps1', '-RepoRoot', self.repo,
-                                 '-SourceBundleRoot', bundle, '-ToolReposRoot', destination,
-                                 '-SkipSubmoduleAdd')
-        self.assert_success(result)
-        self.assertEqual('screenshot current-integration', self.git(
-            destination / 'screenshot', 'show', 'HEAD:current-integration/source.txt'))
+        self.check_materialization(bundle, 2)
         for tool_id in NATIVE_TOOLS:
             self.assertFalse((bundle / 'superproject/tools' / tool_id / 'original-source').exists())
-            self.assertFalse((destination / tool_id / 'original-source').exists())
 
     def make_source_bundle(self, schema_version):
         bundle = self.root / 'bundle'
@@ -175,74 +174,49 @@ class ReleaseScriptTests(unittest.TestCase):
         }))
         return bundle
 
-    def check_materialization(self, schema_version):
-        self.initialize_repository()
-        bundle = self.make_source_bundle(schema_version)
-        destination = self.root / 'materialized-tools'
+    def check_materialization(self, bundle, schema_version):
         before = self.git(self.repo, 'status', '--porcelain')
-        result = self.run_script('materialize-tool-submodules.ps1', '-RepoRoot', self.repo,
-                                 '-SourceBundleRoot', bundle, '-ToolReposRoot', destination,
-                                 '-SkipSubmoduleAdd')
-        self.assert_success(result)
+        modules = self.repo / '.gitmodules'
+        modules_before = modules.read_bytes() if modules.exists() else None
+        self.assert_success(self.materialize(bundle))
         self.assertEqual(before, self.git(self.repo, 'status', '--porcelain'))
-        self.assertFalse((self.repo / '.gitmodules').exists())
+        self.assertEqual(modules_before, modules.read_bytes() if modules.exists() else None)
         for tool_id in TOOL_IDS:
-            source = self.git(destination / tool_id, 'show', 'HEAD:current-integration/source.txt')
+            target = self.destination / tool_id
+            source = self.git(target, 'show', 'HEAD:current-integration/source.txt')
             self.assertEqual(f'{tool_id} current-integration', source)
             if schema_version == 1 or tool_id not in NATIVE_TOOLS:
-                original = self.git(destination / tool_id, 'show', 'HEAD:original-source/source.txt')
+                original = self.git(target, 'show', 'HEAD:original-source/source.txt')
                 self.assertEqual(f'{tool_id} original-source', original)
             else:
-                self.assertFalse((destination / tool_id / 'original-source').exists())
-            self.assertEqual('', self.git(destination / tool_id, 'status', '--porcelain'))
+                self.assertFalse((target / 'original-source').exists())
+            self.assertEqual('', self.git(target, 'status', '--porcelain'))
         # A no-op rerun must recognize native tools as already materialized.
-        self.assert_success(self.run_script(
-            'materialize-tool-submodules.ps1', '-RepoRoot', self.repo,
-            '-SourceBundleRoot', bundle, '-ToolReposRoot', destination, '-SkipSubmoduleAdd'))
-
-    def test_materializer_reads_current_schema_two(self):
-        self.check_materialization(2)
+        self.assert_success(self.materialize(bundle))
 
     def test_materializer_retains_legacy_schema_one(self):
-        self.check_materialization(1)
+        self.initialize_repository()
+        self.check_materialization(self.make_source_bundle(1), 1)
+
+    def check_missing_source(self, schema_version, tool_id, directory):
+        self.initialize_repository()
+        bundle = self.make_source_bundle(schema_version)
+        tools = bundle / ('superproject/tools' if schema_version == 2 else 'tools')
+        shutil.rmtree(tools / tool_id / directory)
+        result = self.materialize(bundle)
+        self.assertNotEqual(0, result.returncode)
+        self.assertIn(f'{tool_id} {directory}', result.stdout)
+        self.assertFalse(self.destination.exists())
+        self.assertEqual('', self.git(self.repo, 'status', '--porcelain'))
 
     def test_incomplete_source_bundle_does_not_create_destinations(self):
-        self.initialize_repository()
-        bundle = self.make_source_bundle(2)
-        shutil.rmtree(bundle / 'superproject/tools/input-monitor/original-source')
-        destination = self.root / 'materialized-tools'
-        result = self.run_script('materialize-tool-submodules.ps1', '-RepoRoot', self.repo,
-                                 '-SourceBundleRoot', bundle, '-ToolReposRoot', destination,
-                                 '-SkipSubmoduleAdd')
-        self.assertNotEqual(0, result.returncode)
-        self.assertFalse(destination.exists())
-        self.assertEqual('', self.git(self.repo, 'status', '--porcelain'))
+        self.check_missing_source(2, 'input-monitor', 'original-source')
 
     def test_legacy_map_without_snapshot_field_still_requires_original_source(self):
-        self.initialize_repository()
-        bundle = self.make_source_bundle(1)
-        shutil.rmtree(bundle / 'tools/input-monitor/original-source')
-        destination = self.root / 'materialized-tools'
-        result = self.run_script('materialize-tool-submodules.ps1', '-RepoRoot', self.repo,
-                                 '-SourceBundleRoot', bundle, '-ToolReposRoot', destination,
-                                 '-SkipSubmoduleAdd')
-        self.assertNotEqual(0, result.returncode)
-        self.assertIn('input-monitor original-source', result.stdout)
-        self.assertFalse(destination.exists())
-        self.assertEqual('', self.git(self.repo, 'status', '--porcelain'))
+        self.check_missing_source(1, 'input-monitor', 'original-source')
 
     def test_native_tool_still_requires_current_integration(self):
-        self.initialize_repository()
-        bundle = self.make_source_bundle(2)
-        shutil.rmtree(bundle / 'superproject/tools/screenshot/current-integration')
-        destination = self.root / 'materialized-tools'
-        result = self.run_script('materialize-tool-submodules.ps1', '-RepoRoot', self.repo,
-                                 '-SourceBundleRoot', bundle, '-ToolReposRoot', destination,
-                                 '-SkipSubmoduleAdd')
-        self.assertNotEqual(0, result.returncode)
-        self.assertIn('screenshot current-integration', result.stdout)
-        self.assertFalse(destination.exists())
-        self.assertEqual('', self.git(self.repo, 'status', '--porcelain'))
+        self.check_missing_source(2, 'screenshot', 'current-integration')
 
     def test_refresh_can_remove_an_explicitly_retired_original_snapshot(self):
         self.initialize_repository()
@@ -253,17 +227,14 @@ class ReleaseScriptTests(unittest.TestCase):
         (original / 'source.txt').write_text('old snapshot\n')
         mapping = source / 'source-map.json'
         mapping.write_text(json.dumps({'toolId': 'screenshot', 'originalSnapshotPath': 'original-source'}))
-        destination = self.root / 'materialized-tools'
-        arguments = ('-RepoRoot', self.repo, '-SourceBundleRoot', bundle,
-                     '-ToolReposRoot', destination, '-SkipSubmoduleAdd')
-        self.assert_success(self.run_script('materialize-tool-submodules.ps1', *arguments))
+        self.assert_success(self.materialize(bundle))
+        target = self.destination / 'screenshot'
         self.assertEqual('old snapshot', self.git(
-            destination / 'screenshot', 'show', 'HEAD:original-source/source.txt'))
+            target, 'show', 'HEAD:original-source/source.txt'))
 
         shutil.rmtree(original)
         mapping.write_text(json.dumps({'toolId': 'screenshot', 'originalSnapshotPath': None}))
-        self.assert_success(self.run_script('materialize-tool-submodules.ps1', *arguments, '-ForceRefresh'))
-        target = destination / 'screenshot'
+        self.assert_success(self.materialize(bundle, '-ForceRefresh'))
         self.assertFalse((target / 'original-source').exists())
         self.assertEqual('', self.git(target, 'ls-tree', '-r', '--name-only', 'HEAD', '--', 'original-source'))
         self.assertEqual('', self.git(target, 'status', '--porcelain'))
