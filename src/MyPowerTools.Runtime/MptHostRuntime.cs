@@ -1,5 +1,4 @@
 using System.Collections.Concurrent;
-using System.Diagnostics;
 using System.Net.Http.Json;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
@@ -14,26 +13,6 @@ namespace MyPowerTools.Runtime;
 
 public sealed partial class MptHostRuntime : IAsyncDisposable
 {
-    // TEMPORARY E2E diagnostics; remove before merging the measured optimization.
-    private static readonly bool DevTimingTraceEnabled = Environment.GetEnvironmentVariable("MPT_DEV_TIMING_TRACE") == "1";
-
-    private static void WriteDevTiming(string phase, string moduleId, Stopwatch? stopwatch)
-    {
-        if (stopwatch is null) return;
-        stopwatch.Stop();
-        var line = $"MPT_DEV_TIMING phase={phase} moduleId={moduleId} elapsedMs={stopwatch.ElapsedMilliseconds}";
-        try
-        {
-            Console.Error.WriteLine(line);
-            var prefix = Environment.GetEnvironmentVariable("MPT_DEV_TIMING_TRACE_PATH");
-            if (!string.IsNullOrWhiteSpace(prefix)) File.AppendAllText(prefix + ".runtime.log", line + Environment.NewLine);
-        }
-        catch (Exception)
-        {
-            // Diagnostic output must not change startup or health behavior.
-        }
-    }
-
     private readonly PackageRegistry _packageRegistry;
     private readonly ToolRegistry _toolRegistry;
     private readonly CommandIndex _commandIndex = new();
@@ -249,23 +228,15 @@ public sealed partial class MptHostRuntime : IAsyncDisposable
         ExpireProcessPolicies();
         foreach (var module in EnabledModules().ToArray())
         {
-            var timing = DevTimingTraceEnabled ? Stopwatch.StartNew() : null;
-            try
+            if (TryGetTransportRuntime(module, out var runtime))
             {
-                if (TryGetTransportRuntime(module, out var runtime))
-                {
-                    var context = CreateModuleContext(module);
-                    await ApplyPersistedSettingsIfPresentAsync(module, runtime, context, cancellationToken);
-                }
+                var context = CreateModuleContext(module);
+                await ApplyPersistedSettingsIfPresentAsync(module, runtime, context, cancellationToken);
+            }
 
-                var status = await CheckTransportHealthAsync(module, cancellationToken)
-                    ?? await _healthMonitor.CheckAsync(module, cancellationToken);
-                RecordModuleStatus(module, status);
-            }
-            finally
-            {
-                WriteDevTiming("refresh-health", module.Module.Manifest.Id, timing);
-            }
+            var status = await CheckTransportHealthAsync(module, cancellationToken)
+                ?? await _healthMonitor.CheckAsync(module, cancellationToken);
+            RecordModuleStatus(module, status);
         }
     }
 
@@ -280,7 +251,6 @@ public sealed partial class MptHostRuntime : IAsyncDisposable
                 continue;
             }
 
-            var timing = DevTimingTraceEnabled ? Stopwatch.StartNew() : null;
             var context = CreateModuleContext(module);
             try
             {
@@ -306,10 +276,6 @@ public sealed partial class MptHostRuntime : IAsyncDisposable
                 var message = LogRouter.Redact(ex.Message);
                 RecordModuleStatus(module, Degraded(module, message));
                 _logRouter.Append(module.Module.Manifest.PackageId, module.Module.Manifest.Id, "error", message);
-            }
-            finally
-            {
-                WriteDevTiming("refresh-dynamic-commands", module.Module.Manifest.Id, timing);
             }
         }
 

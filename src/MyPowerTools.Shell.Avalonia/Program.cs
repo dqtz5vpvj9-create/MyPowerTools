@@ -1,6 +1,5 @@
 using Avalonia;
 using Avalonia.Media;
-using System.Diagnostics;
 using System.Runtime.InteropServices;
 using MyPowerTools.Abstractions;
 using MyPowerTools.HostControl;
@@ -12,26 +11,6 @@ namespace MyPowerTools.Shell.Avalonia;
 
 internal static class Program
 {
-    // TEMPORARY E2E diagnostics; remove before merging the measured optimization.
-    private static readonly bool DevTimingTraceEnabled = Environment.GetEnvironmentVariable("MPT_DEV_TIMING_TRACE") == "1";
-
-    private static void WriteDevTiming(string phase, Stopwatch? stopwatch)
-    {
-        if (stopwatch is null) return;
-        stopwatch.Stop();
-        var line = $"MPT_DEV_TIMING phase={phase} elapsedMs={stopwatch.ElapsedMilliseconds}";
-        try
-        {
-            Console.Error.WriteLine(line);
-            var prefix = Environment.GetEnvironmentVariable("MPT_DEV_TIMING_TRACE_PATH");
-            if (!string.IsNullOrWhiteSpace(prefix)) File.AppendAllText(prefix + ".shell.log", line + Environment.NewLine);
-        }
-        catch (Exception)
-        {
-            // Diagnostic output must not change smoke behavior.
-        }
-    }
-
     [STAThread]
     public static int Main(string[] args)
     {
@@ -200,7 +179,6 @@ internal static class Program
         HostControlClient? client = null;
         HostProto.PingResponse? ping = null;
         Exception? lastError = null;
-        var timing = DevTimingTraceEnabled ? Stopwatch.StartNew() : null;
         while (DateTimeOffset.UtcNow < deadline)
         {
             using var attemptTimeout = new CancellationTokenSource(TimeSpan.FromSeconds(5));
@@ -219,7 +197,6 @@ internal static class Program
             }
         }
 
-        WriteDevTiming("smoke-ping-wait", timing);
         using var connectedClient = client;
         if (client is null || ping is null)
         {
@@ -236,21 +213,11 @@ internal static class Program
         var verificationBudget = remaining > TimeSpan.FromSeconds(5) ? remaining : TimeSpan.FromSeconds(5);
         using var verificationTimeout = new CancellationTokenSource(verificationBudget);
         var exitCode = 0;
-        var timingPhase = "smoke-dashboard";
-        timing?.Restart();
         try
         {
             var dashboard = await client.GetDashboardSnapshotAsync(verificationBudget, verificationTimeout.Token);
-            WriteDevTiming(timingPhase, timing);
-            timingPhase = "smoke-list-modules";
-            timing?.Restart();
             var modules = await client.ListModulesAsync(verificationTimeout.Token);
-            WriteDevTiming(timingPhase, timing);
-            timingPhase = "smoke-list-commands";
-            timing?.Restart();
             var commands = await client.ListCommandsAsync(cancellationToken: verificationTimeout.Token);
-            WriteDevTiming(timingPhase, timing);
-            timing = null;
 
             Console.WriteLine($"Shell HostControl smoke connected: runner={ping.State} version={ping.RunnerVersion}");
             Console.WriteLine($"Shell HostControl smoke modules={modules.Modules.Count} dashboardCards={dashboard.Cards.Count} commands={commands.Commands.Count}");
@@ -259,10 +226,6 @@ internal static class Program
         {
             Console.Error.WriteLine($"Shell HostControl smoke failed: {ex.Message}");
             exitCode = 1;
-        }
-        finally
-        {
-            WriteDevTiming(timingPhase, timing);
         }
 
         if (quitRunner)
