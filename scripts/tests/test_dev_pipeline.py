@@ -278,6 +278,74 @@ foreach ($NoRestore in @($true, $false)) {{
 }}
 """)
 
+    def test_tool_workers_bound_overlap_order_states_and_drain_failures(self):
+        self.run_ps(self.load_functions('scripts/build-all-tools.ps1',
+                                       'Invoke-ToolBuildPhase', 'Invoke-Native', 'Copy-SurfaceOutput') + """
+function Invoke-ToolBuild {
+    param($Tool, $Probe, $Gate, $FailId)
+    $Probe.Enqueue([pscustomobject]@{Kind='start'; Id=$Tool.Id})
+    try {
+        Write-Host "fixture $($Tool.Id)"
+        if ($Tool.WaitForPeer) {
+            [void]$Gate.Signal()
+            if (-not $Gate.Wait(10000)) { throw 'Workers did not overlap.' }
+        }
+        Start-Sleep -Milliseconds $Tool.Delay
+        if ($Tool.Id -eq $FailId) { throw "fixture failure $FailId" }
+        Invoke-Native -FilePath (Join-Path $PSHOME $(if ($IsWindows) {'pwsh.exe'} else {'pwsh'})) `
+            -ArgumentList @('-NoProfile', '-Command', "Write-Output 'native fixture log'")
+        [pscustomobject]@{ToolId=$Tool.Id}
+    } finally { $Probe.Enqueue([pscustomobject]@{Kind='end'; Id=$Tool.Id}) }
+}
+$ids = @('adb-forwarder', 'remote-notifications', 'remote-commands', 'paste-image', 'local-lag-cleaner', 'nssm-manager')
+$tools = @($ids | ForEach-Object {
+    [pscustomobject]@{Id=$_; Delay=$(if ($_ -eq 'adb-forwarder') {200} else {10}); WaitForPeer=$false}
+})
+foreach ($limit in @(2, 1)) {
+    $probe = [Collections.Concurrent.ConcurrentQueue[object]]::new()
+    $gate = [Threading.CountdownEvent]::new(2)
+    $tools[0].WaitForPeer = $tools[1].WaitForPeer = ($limit -eq 2)
+    $states = @(Invoke-ToolBuildPhase -Tools $tools -MaxWorkers $limit -Context @{Probe=$probe; Gate=$gate; FailId=''})
+    $gate.Dispose()
+    if (($states.ToolId -join ',') -ne ($ids -join ',')) { throw 'State order/stdout isolation changed.' }
+    $running = 0; $maximum = 0; $serialRunning = 0; $serialOrder = @()
+    $conflicts = @('remote-notifications', 'remote-commands', 'local-lag-cleaner', 'nssm-manager')
+    foreach ($event in $probe.ToArray()) {
+        $change = if ($event.Kind -eq 'start') {1} else {-1}
+        $running += $change; $maximum = [Math]::Max($maximum, $running)
+        if ($event.Id -in $conflicts) {
+            $serialRunning += $change
+            if ($serialRunning -gt 1) { throw 'Conflicting writers overlapped.' }
+            if ($change -eq 1) { $serialOrder += $event.Id }
+        }
+    }
+    if ($maximum -ne $limit -or $running -ne 0 -or ($serialOrder -join ',') -ne ($conflicts -join ',')) {
+        throw 'Concurrency bound, draining, or conflict order changed.'
+    }
+}
+# An unaudited tool might share either lane: the entire selection must serialize.
+$probe = [Collections.Concurrent.ConcurrentQueue[object]]::new()
+$futureTools = @($tools[0], [pscustomobject]@{Id='future-tool'; Delay=10; WaitForPeer=$false}, $tools[1])
+$states = @(Invoke-ToolBuildPhase -Tools $futureTools -MaxWorkers 2 -Context @{Probe=$probe; Gate=$null; FailId=''})
+$events = $probe.ToArray()
+if (($states.ToolId -join ',') -ne ($futureTools.Id -join ',') -or
+    ($events.Kind -join ',') -ne 'start,end,start,end,start,end') { throw 'Unknown tool must force serial fallback.' }
+$probe = [Collections.Concurrent.ConcurrentQueue[object]]::new()
+$gate = [Threading.CountdownEvent]::new(2)
+$tools[0].WaitForPeer = $tools[1].WaitForPeer = $true
+$states = @(); $failed = $false; $phaseB = $false
+try {
+    $states = @(Invoke-ToolBuildPhase -Tools $tools -MaxWorkers 2 -Context @{Probe=$probe; Gate=$gate; FailId='remote-notifications'})
+    $phaseB = $true
+} catch { $failed = $_.Exception.Message -like '*fixture failure remote-notifications*' }
+$gate.Dispose()
+$events = $probe.ToArray()
+if (-not $failed -or $phaseB -or $states.Count -or @(Get-Job).Count -or
+    @($events | Where-Object Kind -eq start).Count -ne 2 -or @($events | Where-Object Kind -eq end).Count -ne 2) {
+    throw 'Failure must drain started workers, remove jobs, and prevent states/Phase B/pending builds.'
+}
+""")
+
     def test_release_jobs_use_selective_pinned_checkout(self):
         for path, job in (('.github/workflows/ci.yml', 'release'),
                           ('.github/workflows/ci.yml', 'macos-release'),
