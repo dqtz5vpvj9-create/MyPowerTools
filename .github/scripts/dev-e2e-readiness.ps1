@@ -24,12 +24,11 @@ function Add-Diagnostic([string]$Message) {
 function Save-Result {
     $result.diagnostics = @($diagnostics.ToArray())
     $result.snapshotUtc = [DateTime]::UtcNow.ToString('o')
-    $fullPath = [IO.Path]::GetFullPath($OutputPath); $temporaryPath = $fullPath + '.tmp'
+    $fullPath = [IO.Path]::GetFullPath($OutputPath)
     $parent = Split-Path -Parent $fullPath
     [void][IO.Directory]::CreateDirectory($parent)
-    [IO.File]::WriteAllText($temporaryPath, ($result | ConvertTo-Json -Depth 10), [Text.Encoding]::UTF8)
-    if ([IO.File]::Exists($fullPath)) { [IO.File]::Replace($temporaryPath, $fullPath, $null) }
-    else { [IO.File]::Move($temporaryPath, $fullPath) }
+    # One writer; the harness reads the result only after this process exits.
+    [IO.File]::WriteAllText($fullPath, ($result | ConvertTo-Json -Depth 10), [Text.Encoding]::UTF8)
 }
 try {
     $started = [DateTimeOffset]::Parse($StartedAfterUtc, [Globalization.CultureInfo]::InvariantCulture).UtcDateTime
@@ -121,7 +120,8 @@ public static class DevHomeProbeNative {
                     }
                     $result.uiaInventory = @($inventory.ToArray())
                     $result.visibleTexts = @($names.ToArray())
-                    if (-not @($names | Where-Object { $_ -match '\bHome\b' }).Count) { throw 'Visible Home text missing.' }
+                    # HomeView.axaml binds Title; HomeViewModel supplies "Dashboard".
+                    if (-not @($names | Where-Object { $_ -eq 'Dashboard' }).Count) { throw 'Visible Dashboard title missing.' }
                     if (-not @($names | Where-Object { $_ -like '*Open your toolkit*' }).Count) { throw 'Visible Open your toolkit text missing.' }
                     if (-not @($names | Where-Object { $_ -match '^[1-9][0-9]* tools registered$|^1 tool is ready to open$' }).Count) {
                         throw 'Visible positive registered tool count missing.'
