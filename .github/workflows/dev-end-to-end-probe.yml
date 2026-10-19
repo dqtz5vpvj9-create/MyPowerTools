@@ -22,7 +22,7 @@ jobs:
       AVALONIA_TELEMETRY_OPTOUT: '1'
       NUGET_XMLDOC_MODE: skip
       # Replace only after the implementation and temporary instrumentation commit is fixed.
-      E2E_CANDIDATE_COMMIT: c6398342a262bf827e41a4af0b9ebe745cf656de
+      E2E_CANDIDATE_COMMIT: a2df91a114b06ddc617ecb742f90616be3f952a4
     steps:
       - name: Require a resolved immutable candidate before any validation
         shell: pwsh
