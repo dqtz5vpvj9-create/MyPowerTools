@@ -1,14 +1,26 @@
-name: Dev desktop session preflight
+# TEMPORARY evidence on draft PR #42 only. Do not merge this workflow.
+name: Dev desktop end-to-end comparison (temporary)
 on:
   pull_request:
-    paths: ['.github/workflows/dev-end-to-end-probe.yml']
+    paths:
+      - '.github/workflows/dev-end-to-end-probe.yml'
+      - '.github/scripts/dev-end-to-end.ps1'
+      - '.github/scripts/dev-e2e-*.ps1'
 permissions:
   contents: read
+concurrency:
+  group: dev-end-to-end-${{ github.event.pull_request.number }}
+  cancel-in-progress: false
 jobs:
   session-preflight:
-    if: github.event.pull_request.head.repo.full_name == github.repository
+    if: github.event.pull_request.number == 42 && github.event.pull_request.head.repo.full_name == github.repository
     runs-on: windows-2022
-    timeout-minutes: 5
+    timeout-minutes: 90
+    env:
+      DOTNET_CLI_TELEMETRY_OPTOUT: '1'
+      DOTNET_NOLOGO: 'true'
+      AVALONIA_TELEMETRY_OPTOUT: '1'
+      NUGET_XMLDOC_MODE: skip
     steps:
       - name: Inspect desktop capability without changing runner configuration
         shell: pwsh
@@ -65,4 +77,34 @@ jobs:
           name: dev-session-preflight
           path: ${{ runner.temp }}/dev-session-preflight.json
           if-no-files-found: error
+          retention-days: 3
+      - name: Checkout temporary comparison harness
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.head.sha }}
+          path: control
+          persist-credentials: false
+          submodules: false
+      - name: Checkout immutable candidate source and commit history
+        uses: actions/checkout@v4
+        with:
+          ref: 5bcd10011e83a53ab6761b1e142917264f8a8f74
+          path: source
+          fetch-depth: 0
+          persist-credentials: false
+          submodules: false
+      - uses: actions/setup-dotnet@v4
+        with:
+          global-json-file: source/global.json
+      - name: Run full official Dev loop and visible Home comparison
+        shell: pwsh
+        run: |
+          & ./control/.github/scripts/dev-end-to-end.ps1 -SourceRoot (Join-Path $env:GITHUB_WORKSPACE 'source')
+      - name: Upload full end-to-end evidence including failures
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dev-end-to-end-evidence
+          path: ${{ runner.temp }}/dev-e2e-report
+          if-no-files-found: warn
           retention-days: 3
