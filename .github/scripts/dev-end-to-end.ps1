@@ -26,6 +26,12 @@ New-Item -ItemType Directory -Force $work, $report | Out-Null
 function Save-Json($Value, [string]$Path) {
     $Value | ConvertTo-Json -Depth 14 | Set-Content -LiteralPath $Path -Encoding utf8
 }
+function Get-OptionalRegistryValue([string]$Path, [string]$Name) {
+    if (-not (Test-Path -LiteralPath $Path -ErrorAction Stop)) { return $null }
+    $key = Get-Item -LiteralPath $Path -ErrorAction Stop
+    try { return $key.GetValue($Name, $null) }
+    finally { $key.Close() }
+}
 function Is-Inside([string]$Path, [string]$Root) {
     return [IO.Path]::GetFullPath($Path).StartsWith(
         [IO.Path]::GetFullPath($Root).TrimEnd('\') + '\', [StringComparison]::OrdinalIgnoreCase)
@@ -58,8 +64,8 @@ function Stop-OwnInstallation {
     }
     $runKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
     foreach ($name in @('MyPowerTools', 'MyPowerTools.ServiceManager')) {
-        $value = Get-ItemPropertyValue -LiteralPath $runKey -Name $name -ErrorAction SilentlyContinue
-        if ($value) {
+        $value = Get-OptionalRegistryValue $runKey $name
+        if ($null -ne $value) {
             if ([string]$value -notlike "*$install*") { throw "Refusing to remove unrelated Run value: $name" }
             Remove-ItemProperty -LiteralPath $runKey -Name $name
             $cleanup.Add("Removed this isolated installation's Run value: $name")
@@ -108,7 +114,7 @@ function Assert-CleanRunner {
     if (Test-Path 'HKCU:\Software\Classes\mypowertools') { throw 'BLOCKED: pre-existing product protocol.' }
     $runKey = 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run'
     foreach ($name in @('MyPowerTools', 'MyPowerTools.ServiceManager')) {
-        if (Get-ItemPropertyValue -LiteralPath $runKey -Name $name -ErrorAction SilentlyContinue) { throw "BLOCKED: pre-existing Run value $name." }
+        if ($null -ne (Get-OptionalRegistryValue $runKey $name)) { throw "BLOCKED: pre-existing Run value $name." }
     }
     $protected = Join-Path ([Environment]::GetFolderPath('ProgramFiles')) 'MyPowerTools\InputRemap\MyPowerTools.InputRemapHost.exe'
     if (Test-Path -LiteralPath $protected) { throw 'BLOCKED: protected InputRemap host already exists.' }
