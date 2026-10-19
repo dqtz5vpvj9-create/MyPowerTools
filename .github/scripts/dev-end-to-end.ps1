@@ -15,6 +15,7 @@ $install = Join-Path $local 'Programs\MyPowerTools'
 $data = Join-Path $local 'MyPowerTools'
 $rows = [Collections.Generic.List[object]]::new()
 $cleanup = [Collections.Generic.List[string]]::new()
+$script:cleanupAttempt = 0
 $pwsh = (Get-Command pwsh.exe -CommandType Application).Source
 $windowsPowerShell = Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
 $originalEnvironment = @{}
@@ -51,6 +52,45 @@ function Get-InstalledProcesses {
     })
 }
 function Stop-OwnInstallation {
+    if (Test-Path -LiteralPath $install -PathType Container) {
+        if (-not (Is-Inside $install $work) -or -not (Is-Inside $data $work) -or
+            $install -ne (Join-Path $env:LOCALAPPDATA 'Programs\MyPowerTools') -or
+            $data -ne (Join-Path $env:LOCALAPPDATA 'MyPowerTools') -or $env:MPT_DATA_ROOT -ne $data) {
+            throw 'Refusing service cleanup outside the isolated canonical installation.'
+        }
+        # The official uninstaller also removes shared registrations. Check ownership first.
+        $existingTask = Get-ScheduledTask -TaskName 'MyPowerTools OTA Check' -ErrorAction SilentlyContinue
+        if ($existingTask -and @($existingTask.Actions | Where-Object { $_.WorkingDirectory -eq $install }).Count -eq 0) {
+            throw 'Refusing service cleanup with an unrelated OTA task.'
+        }
+        foreach ($name in @('MyPowerTools', 'MyPowerTools.ServiceManager')) {
+            $value = Get-OptionalRegistryValue 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run' $name
+            if ($null -ne $value -and [string]$value -notlike "*$install*") {
+                throw "Refusing service cleanup with unrelated Run value: $name"
+            }
+        }
+        $protocol = 'HKCU:\Software\Classes\mypowertools'
+        if (Test-Path -LiteralPath $protocol) {
+            $command = (Get-Item -LiteralPath "$protocol\shell\open\command").GetValue('')
+            if ([string]$command -notlike "*$install*") { throw 'Refusing service cleanup with unrelated protocol registration.' }
+        }
+        $configurationScript = Join-Path $install 'configure-user-services.ps1'
+        if (-not (Test-Path -LiteralPath $configurationScript -PathType Leaf)) { throw 'Installed official service cleanup script is missing.' }
+        $cli = Join-Path $install 'Cli\MyPowerTools.Cli.exe'
+        if (-not (Test-Path -LiteralPath $cli -PathType Leaf)) { throw 'Installed official service CLI is missing.' }
+        $script:cleanupAttempt++
+        $logPrefix = Join-Path $report "cleanup-services-$script:cleanupAttempt"
+        # Quiesce and stop managed children before their ServiceManager parent. The
+        # executable-path fallback below cannot identify system pwsh-hosted services.
+        # Give the supported CLI its own bound; Uninstall's inner CLI limit is only 5 s.
+        $quiesce = Start-Captured $cli @('service', 'quiesce') $install "$logPrefix-quiesce"
+        Complete-Captured $quiesce "$logPrefix-quiesce" 90
+        $arguments = @('-NoLogo', '-NoProfile', '-NonInteractive', '-File', $configurationScript,
+            '-Mode', 'Uninstall', '-InstallRoot', $install, '-DataRoot', $data)
+        $uninstall = Start-Captured $pwsh $arguments $install $logPrefix
+        Complete-Captured $uninstall $logPrefix 90
+        $cleanup.Add('Completed official service quiesce and scoped Uninstall before stopping remaining installed processes.')
+    }
     foreach ($process in @(Get-InstalledProcesses)) {
         Stop-Process -Id $process.id -Force -ErrorAction SilentlyContinue
         Wait-Process -Id $process.id -Timeout 10 -ErrorAction SilentlyContinue
@@ -80,6 +120,15 @@ function Stop-OwnInstallation {
         $cleanup.Add('Removed this isolated installation''s protocol registration.')
     }
     if (@(Get-InstalledProcesses).Count) { throw 'An isolated installed process survived cleanup.' }
+    $ownedCommandRoot = $install.TrimEnd('\') + '\'
+    $hostedSurvivors = @(Get-CimInstance Win32_Process -ErrorAction Stop | Where-Object {
+        $_.ProcessId -ne $PID -and $_.CommandLine -and
+        $_.CommandLine.IndexOf($ownedCommandRoot, [StringComparison]::OrdinalIgnoreCase) -ge 0
+    } | Select-Object ProcessId, Name)
+    if ($hostedSurvivors.Count) {
+        Save-Json $hostedSurvivors (Join-Path $report 'cleanup-hosted-survivors.json')
+        throw 'An isolated command-line-hosted process survived official service cleanup; refusing arm reset.'
+    }
 }
 function ConvertTo-WindowsArgument([AllowEmptyString()][string]$Value) {
     if ($Value.Length -gt 0 -and $Value -notmatch '[\s"]') { return $Value }
