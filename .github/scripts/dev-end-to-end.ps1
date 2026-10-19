@@ -16,6 +16,9 @@ $data = Join-Path $local 'MyPowerTools'
 $rows = [Collections.Generic.List[object]]::new()
 $cleanup = [Collections.Generic.List[string]]::new()
 $script:cleanupAttempt = 0
+$script:activeArm = ''
+$script:knownFolderPaths = @{}
+$script:knownFolderMoves = [Collections.Generic.List[object]]::new()
 $pwsh = (Get-Command pwsh.exe -CommandType Application).Source
 $windowsPowerShell = Join-Path $env:WINDIR 'System32\WindowsPowerShell\v1.0\powershell.exe'
 $originalEnvironment = @{}
@@ -50,6 +53,34 @@ function Get-InstalledProcesses {
             [pscustomobject]@{ id = $_.Id; name = $_.ProcessName; path = $path; sessionId = $_.SessionId }
         }
     })
+}
+function Move-OwnKnownFolderState([ValidateSet('baseline', 'candidate')][string]$Arm) {
+    # Only paths proved absent before any product startup are eligible. Backups
+    # remain outside the uploaded report because generated state can contain tokens.
+    $backup = Join-Path $work "known-folder-backup\$Arm"
+    if (-not (Is-Inside $backup $work) -or (Is-Inside $backup $report)) { throw 'Unsafe KnownFolder backup path.' }
+    foreach ($name in $script:knownFolderPaths.Keys) {
+        $path = $script:knownFolderPaths[$name]
+        if (-not (Test-Path -LiteralPath $path)) { continue }
+        $directory = Get-Item -LiteralPath $path -Force
+        if (-not $directory.PSIsContainer -or ($directory.Attributes -band [IO.FileAttributes]::ReparsePoint)) {
+            throw "Unexpected KnownFolder state type: $name"
+        }
+        $entries = @(Get-ChildItem -LiteralPath $path -Force -Recurse)
+        if (@($entries | Where-Object { $_.Attributes -band [IO.FileAttributes]::ReparsePoint }).Count) {
+            throw "Refusing to relocate linked KnownFolder state: $name"
+        }
+        $destination = Join-Path $backup $name
+        if (Test-Path -LiteralPath $destination) { throw "KnownFolder backup already exists: $Arm/$name" }
+        New-Item -ItemType Directory -Force $backup | Out-Null
+        Move-Item -LiteralPath $path -Destination $destination -ErrorAction Stop
+        if ((Test-Path -LiteralPath $path) -or -not (Test-Path -LiteralPath $destination -PathType Container)) {
+            throw "KnownFolder relocation did not complete: $name"
+        }
+        $script:knownFolderMoves.Add([ordered]@{ arm = $Arm; name = $name; entries = $entries.Count; initialAbsenceVerified = $true; contentsPublished = $false })
+        Save-Json $script:knownFolderMoves.ToArray() (Join-Path $report 'known-folder-moves.json')
+        $cleanup.Add("Preserved run-created KnownFolder state in private $Arm backup: $name")
+    }
 }
 function Stop-OwnInstallation {
     if (Test-Path -LiteralPath $install -PathType Container) {
@@ -129,6 +160,10 @@ function Stop-OwnInstallation {
         Save-Json $hostedSurvivors (Join-Path $report 'cleanup-hosted-survivors.json')
         throw 'An isolated command-line-hosted process survived official service cleanup; refusing arm reset.'
     }
+    if ($script:activeArm) {
+        Move-OwnKnownFolderState $script:activeArm
+        $script:activeArm = ''
+    }
 }
 function ConvertTo-WindowsArgument([AllowEmptyString()][string]$Value) {
     if ($Value.Length -gt 0 -and $Value -notmatch '[\s"]') { return $Value }
@@ -198,6 +233,15 @@ function Assert-CleanRunner {
     $nextOta = [DateTime]::Today.AddHours(3)
     if ($nextOta -le [DateTime]::Now) { $nextOta = $nextOta.AddDays(1) }
     if (($nextOta - [DateTime]::Now).TotalMinutes -lt 120) { throw 'BLOCKED: scheduled 03:00 OTA window is too close for this run.' }
+    $knownLocal = [Environment]::GetFolderPath([Environment+SpecialFolder]::LocalApplicationData)
+    if ($knownLocal -and [IO.Path]::GetFullPath($knownLocal) -ne [IO.Path]::GetFullPath($local)) {
+        foreach ($name in @('MyPowerTools', 'AdbForwarder')) {
+            $path = Join-Path $knownLocal $name
+            if (Test-Path -LiteralPath $path) { throw "BLOCKED: pre-existing KnownFolder state: $name" }
+            $script:knownFolderPaths[$name] = $path
+        }
+    }
+    Save-Json ([ordered]@{ initiallyAbsent = @($script:knownFolderPaths.Keys | Sort-Object); checkedAt = [DateTime]::UtcNow.ToString('O') }) (Join-Path $report 'known-folder-preflight.json')
 }
 function Reset-BuildOutputs {
     & dotnet build-server shutdown | Out-Host
@@ -310,6 +354,7 @@ try {
         $setupReport = Join-Path $report ($arm.Key + '-setup')
         New-Item -ItemType Directory -Force $setupReport | Out-Null
         Initialize-E2ESafety -PackageRoot $package -DataRoot $data -ReportRoot $setupReport
+        $script:activeArm = $arm.Key
         $setupWatch = [Diagnostics.Stopwatch]::StartNew()
         $installerArguments = @('-NoLogo', '-NoProfile', '-NonInteractive', '-File', (Join-Path $package 'install-windows.ps1'), '-PackageRoot', $package,
             '-NoStartMenuShortcut', '-NoDesktopShortcut', '-NoAutostart', '-NoStartRunner', '-NoOpenApp')
