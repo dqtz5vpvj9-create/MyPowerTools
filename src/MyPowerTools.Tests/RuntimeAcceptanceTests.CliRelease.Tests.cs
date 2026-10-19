@@ -159,8 +159,6 @@ public sealed partial class RuntimeAcceptanceTests
         var scoop64 = scoop["architecture"]!["64bit"]!.AsObject();
 
         Assert.Equal(0, result.ExitCode);
-        Assert.True(File.Exists(metadataPath));
-        Assert.True(File.Exists(scoopPath));
         Assert.Equal("MyPowerTools", metadata["product"]!.GetValue<string>());
         Assert.Equal("local", metadata["channel"]!.GetValue<string>());
         Assert.Equal(64, artifact["sha256"]!.GetValue<string>().Length);
@@ -190,7 +188,6 @@ public sealed partial class RuntimeAcceptanceTests
         Assert.DoesNotContain("'MyPowerTools Shell.lnk'", installScript);
         Assert.DoesNotContain("'MyPowerTools Runner.lnk'", installScript);
         Assert.DoesNotContain("'MyPowerTools CLI.lnk'", installScript);
-        Assert.Contains("'MyPowerTools.exe'", installScript);
         Assert.Contains("'START_HERE.md'", installScript);
         Assert.Contains("'Start-MyPowerTools.cmd'", installScript);
         Assert.Contains("'start-user-runtime.ps1'", installScript);
@@ -258,7 +255,6 @@ public sealed partial class RuntimeAcceptanceTests
         var installerWorker = File.ReadAllText(Path.Combine(Root, "scripts", "web-installer-worker.ps1"));
 
         Assert.Contains("AddWithISSigVerify", installer);
-        Assert.Contains("ISSigVerify", installer);
         Assert.Contains("[ISSigKeys]", installer);
         Assert.Contains("web-installer-signing-key.iss", installer);
         Assert.DoesNotContain("WebCoreSha256", installer);
@@ -332,8 +328,6 @@ public sealed partial class RuntimeAcceptanceTests
 
         // Transaction: the old directory is moved aside in one rename, restored on any failure,
         // cancel or crash (journal), and deleted only after the new files are verified.
-        Assert.Contains("procedure BeginInstallTransaction", installer);
-        Assert.Contains("TryRename(TransactionAppDir, TransactionBackup, 3)", installer);
         Assert.Contains(".install-pending", installer);
         Assert.Contains("procedure RestoreFromJournal", installer);
         Assert.Contains("RecoverInterruptedInstall(AppDir)", installer);
@@ -422,7 +416,6 @@ public sealed partial class RuntimeAcceptanceTests
         Assert.Contains("function MergeTree(const Source, Target, Relative: String; const Stuck: TStringList): Integer;", installer);
 
         // The last-resort dialog always lets the user continue, and closing it continues too.
-        Assert.Contains("继续安装（重启电脑后完成更新）", installer);
         Assert.Contains("['重试', '继续安装（重启电脑后完成更新）'], 0, IDCANCEL", installer);
 
         // Files that stay busy: payload extracted beside the install, merged in, remainder

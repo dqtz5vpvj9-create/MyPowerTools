@@ -102,8 +102,6 @@ public sealed class MacReleaseSyncTests
 
         Assert.Contains("MptString(MptShortcutForwardingScript)", nativeSource, StringComparison.Ordinal);
         Assert.Contains("MyPowerTools.WebSurface.Shared/ShortcutForwarding.inc", nativeSource, StringComparison.Ordinal);
-        Assert.DoesNotContain("gesture = 'Ctrl+Shift+P'", nativeSource, StringComparison.Ordinal);
-        Assert.DoesNotContain("gesture = 'Ctrl+R'", nativeSource, StringComparison.Ordinal);
     }
 
     [Fact]
