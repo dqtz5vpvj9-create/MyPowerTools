@@ -131,6 +131,12 @@ try {
 
     $ping = Send-Request @{ command = 'ping' }
     Add-Record 'readiness-ping' ($ping.ok -eq $true -and $ping.data.pong -eq $true) "pipe=$pipeName"
+    for ($iteration = 0; $iteration -lt 6; $iteration++) {
+        foreach ($command in @('ping', 'moduleStatus', 'getSettings')) {
+            $response = Send-Request @{ command = $command }
+            Add-Record "repeated-$command-$iteration" ($response.ok -eq $true -and $null -ne $response.data) 'Fresh pipe connection received a real service response'
+        }
+    }
     $status = Send-Request @{ command = 'execute'; invocationId = "status-$runId"; commandId = 'screenease.status.summary'; args = @{} }
     Add-Record 'real-module-status' ($status.ok -eq $true -and $status.data.success -eq $true -and $status.data.output -match 'profiles') 'ScreenEaseModule answered through service pipe'
 

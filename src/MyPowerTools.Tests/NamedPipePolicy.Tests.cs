@@ -76,6 +76,59 @@ public sealed class NamedPipePolicyTests
         Assert.Equal(MptNamedPipePolicy.LowIntegrityLabelSddl, ReadIntegrityLabel(second.SafePipeHandle));
     }
 
+    [Fact]
+    public async Task Raw_pipe_replacement_accepts_repeated_clients_and_inherits_low_integrity_label()
+    {
+        if (!OperatingSystem.IsWindows())
+        {
+            return;
+        }
+
+        using var deadline = new CancellationTokenSource(TimeSpan.FromSeconds(10));
+        var pipeName = $"mpt-raw-policy-test-{Guid.NewGuid():N}";
+        var listener = MptNamedPipePolicy.CreateServer(pipeName);
+        try
+        {
+            for (var index = 0; index < 8; index++)
+            {
+                await using var client = new NamedPipeClientStream(
+                    ".", pipeName, PipeDirection.InOut, MptNamedPipePolicy.ClientOptions);
+                await using var accepted = listener;
+                await Task.WhenAll(
+                    accepted.WaitForConnectionAsync(deadline.Token),
+                    client.ConnectAsync(deadline.Token));
+
+                // Match ScreenEase: keep the accepted instance alive while replacing
+                // the listener, including after the original first instance is gone.
+                listener = MptNamedPipePolicy.CreateAdditionalServer(pipeName);
+                Assert.Equal(MptNamedPipePolicy.LowIntegrityLabelSddl, ReadIntegrityLabel(accepted.SafePipeHandle));
+                Assert.Equal(MptNamedPipePolicy.LowIntegrityLabelSddl, ReadIntegrityLabel(listener.SafePipeHandle));
+
+                byte[] payload = [(byte)index];
+                var received = new byte[1];
+                await client.WriteAsync(payload, deadline.Token);
+                await accepted.ReadExactlyAsync(received, deadline.Token);
+                Assert.Equal(payload, received);
+                await accepted.WriteAsync(received, deadline.Token);
+                await client.ReadExactlyAsync(received, deadline.Token);
+                Assert.Equal(payload, received);
+            }
+        }
+        finally
+        {
+            await listener.DisposeAsync();
+        }
+    }
+
+    [Fact]
+    public void Additional_pipe_instance_rejects_first_instance_options()
+    {
+        Assert.Throws<ArgumentException>(() => MptNamedPipePolicy.CreateAdditionalServer(
+            "unused", options: PipeOptions.Asynchronous | PipeOptions.FirstPipeInstance));
+        Assert.Throws<ArgumentOutOfRangeException>(() => MptNamedPipePolicy.CreateAdditionalServer(
+            "unused", maxInstances: 1));
+    }
+
     [SupportedOSPlatform("windows")]
     private static void AssertWorldDescriptor(PipeSecurity security)
     {

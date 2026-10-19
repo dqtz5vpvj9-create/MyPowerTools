@@ -108,14 +108,6 @@ internal static class UnitProcessDiscovery
     {
         try
         {
-            var extension = Path.GetExtension(manifest.Exec);
-            var isBatch = string.Equals(extension, ".cmd", StringComparison.OrdinalIgnoreCase) ||
-                          string.Equals(extension, ".bat", StringComparison.OrdinalIgnoreCase);
-            if (!isBatch && !DirectImageMatches(process, manifest.Exec))
-            {
-                return false;
-            }
-
             var commandLine = QueryProcessCommandLine(process);
             if (string.IsNullOrWhiteSpace(commandLine))
             {
@@ -128,12 +120,15 @@ internal static class UnitProcessDiscovery
                 return false;
             }
 
-            if (isBatch)
+            var extension = Path.GetExtension(manifest.Exec);
+            if (string.Equals(extension, ".cmd", StringComparison.OrdinalIgnoreCase) ||
+                string.Equals(extension, ".bat", StringComparison.OrdinalIgnoreCase))
             {
                 return BatchCommandMatches(process, commandLine, actual, manifest);
             }
 
-            return actual.Skip(1).SequenceEqual(manifest.Arguments, StringComparer.Ordinal);
+            return DirectImageMatches(process, manifest.Exec) &&
+                   actual.Skip(1).SequenceEqual(manifest.Arguments, StringComparer.Ordinal);
         }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or Win32Exception)
         {

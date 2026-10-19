@@ -303,10 +303,14 @@ public sealed partial class RuntimeAcceptanceTests
             [host]);
 
         runtime.Load(packageRoot);
-        await runtime.RefreshDynamicCommandsAsync(CancellationToken.None);
+        var dynamicCount = await runtime.RefreshDynamicCommandsAsync(CancellationToken.None);
+        Assert.True(
+            dynamicCount > 0,
+            $"Initial gRPC command discovery failed. Runtime logs: {string.Join(" | ", runtime.TailLogs("sample.grpc").Select(record => record.Message))}");
         var first = await runtime.ExecuteCommandAsync(
             new CommandRequest("runtime-grpc-policy-first", "sample.grpc.ping", new JsonObject()),
             CancellationToken.None);
+        Assert.True(first.Success, $"Initial gRPC ping failed: {first.Error?.Code}: {first.Error?.Message}");
         var process = Assert.Single(runtime.GetRuntimeDiagnostics().Processes);
 
         var paused = await runtime.SetRuntimeProcessRestartPolicyAsync("grpc-ipc", process.PoolKey, paused: true, "maintenance", CancellationToken.None);
