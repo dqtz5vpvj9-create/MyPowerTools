@@ -2,7 +2,9 @@
 param(
     [string] $MyPowerToolsRepoRoot,
     [ValidateSet('Debug', 'Release')]
-    [string] $Configuration = 'Release'
+    [string] $Configuration = 'Release',
+    # The caller must build this CLI for the current source and configuration.
+    [string] $PrebuiltCliPath
 )
 
 $ErrorActionPreference = 'Stop'
@@ -20,6 +22,14 @@ $runtimeProject = Join-Path $sdkToolRoot 'src\LocalLagCleaner.Runtime\LocalLagCl
 $standaloneProject = Join-Path $toolRoot 'original-source\src\LocalLagCleaner.Cli\LocalLagCleaner.Cli.csproj'
 $mptCliProject = Join-Path $repoRoot 'src\MyPowerTools.Cli\MyPowerTools.Cli.csproj'
 $mptCliExecutable = Join-Path $repoRoot "artifacts\build\bin\MyPowerTools.Cli\$($Configuration.ToLowerInvariant())\MyPowerTools.Cli.exe"
+$usePrebuiltCli = $PSBoundParameters.ContainsKey('PrebuiltCliPath')
+if ($usePrebuiltCli) {
+    if ([string]::IsNullOrWhiteSpace($PrebuiltCliPath) -or
+        -not (Test-Path -LiteralPath $PrebuiltCliPath -PathType Leaf)) {
+        throw "PrebuiltCliPath '$PrebuiltCliPath' must identify an existing MyPowerTools CLI executable."
+    }
+    $mptCliExecutable = (Resolve-Path -LiteralPath $PrebuiltCliPath -ErrorAction Stop).ProviderPath
+}
 $artifactsRoot = Join-Path $toolRoot 'artifacts'
 $artifactCli = Join-Path $artifactsRoot 'cli'
 $artifactPackage = Join-Path $artifactsRoot 'local-lag-cleaner.mptpkg'
@@ -75,17 +85,19 @@ if ($standaloneExitCode -ne 0) {
     throw "Standalone CLI publish failed with exit code $standaloneExitCode."
 }
 
-$mptCliArguments = @(
-    'build'
-    $mptCliProject
-    '--configuration'
-    $Configuration
-    '--nologo'
-)
-& $dotnetCommand.Source @mptCliArguments
-$mptCliExitCode = $LASTEXITCODE
-if ($mptCliExitCode -ne 0) {
-    throw "MyPowerTools CLI build failed with exit code $mptCliExitCode."
+if (-not $usePrebuiltCli) {
+    $mptCliArguments = @(
+        'build'
+        $mptCliProject
+        '--configuration'
+        $Configuration
+        '--nologo'
+    )
+    & $dotnetCommand.Source @mptCliArguments
+    $mptCliExitCode = $LASTEXITCODE
+    if ($mptCliExitCode -ne 0) {
+        throw "MyPowerTools CLI build failed with exit code $mptCliExitCode."
+    }
 }
 if (-not (Test-Path -LiteralPath $mptCliExecutable -PathType Leaf)) {
     throw "Expected MyPowerTools CLI '$mptCliExecutable' is missing."

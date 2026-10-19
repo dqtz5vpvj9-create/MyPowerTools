@@ -2,7 +2,9 @@
 param(
     [string] $MyPowerToolsRepoRoot,
     [ValidateSet('Debug', 'Release')]
-    [string] $Configuration = 'Release'
+    [string] $Configuration = 'Release',
+    # The caller must build this CLI for the current source and configuration.
+    [string] $PrebuiltCliPath
 )
 
 $ErrorActionPreference = 'Stop'
@@ -24,6 +26,14 @@ $publishDirectory = Join-Path $sdkToolRoot 'src\NssmManager.Executable\publish\w
 $mptCliProject = Join-Path $repoRoot 'src\MyPowerTools.Cli\MyPowerTools.Cli.csproj'
 $elevatedBrokerProject = Join-Path $repoRoot 'src\MyPowerTools.ElevatedBroker\MyPowerTools.ElevatedBroker.csproj'
 $mptCliExecutable = Join-Path $repoRoot "artifacts\build\bin\MyPowerTools.Cli\$($Configuration.ToLowerInvariant())\MyPowerTools.Cli.exe"
+$usePrebuiltCli = $PSBoundParameters.ContainsKey('PrebuiltCliPath')
+if ($usePrebuiltCli) {
+    if ([string]::IsNullOrWhiteSpace($PrebuiltCliPath) -or
+        -not (Test-Path -LiteralPath $PrebuiltCliPath -PathType Leaf)) {
+        throw "PrebuiltCliPath '$PrebuiltCliPath' must identify an existing MyPowerTools CLI executable."
+    }
+    $mptCliExecutable = (Resolve-Path -LiteralPath $PrebuiltCliPath -ErrorAction Stop).ProviderPath
+}
 $artifactsRoot = Join-Path $toolRoot 'artifacts'
 $artifactPackage = Join-Path $artifactsRoot 'nssm-manager.mptpkg'
 $artifactRuntime = Join-Path $artifactsRoot 'package'
@@ -127,10 +137,15 @@ if ($Configuration -ne 'Release') {
     }
 }
 
-$cliBuildArguments = @('build', $mptCliProject, '--configuration', $Configuration, '--nologo')
-& $dotnet @cliBuildArguments
-$cliBuildExit = $LASTEXITCODE
-if ($cliBuildExit -ne 0) { throw "MyPowerTools CLI build failed with exit code $cliBuildExit." }
+if (-not $usePrebuiltCli) {
+    $cliBuildArguments = @('build', $mptCliProject, '--configuration', $Configuration, '--nologo')
+    & $dotnet @cliBuildArguments
+    $cliBuildExit = $LASTEXITCODE
+    if ($cliBuildExit -ne 0) { throw "MyPowerTools CLI build failed with exit code $cliBuildExit." }
+}
+if (-not (Test-Path -LiteralPath $mptCliExecutable -PathType Leaf)) {
+    throw "Expected MyPowerTools CLI '$mptCliExecutable' is missing."
+}
 
 $brokerBuildArguments = @('build', $elevatedBrokerProject, '--configuration', $Configuration, '--nologo')
 & $dotnet @brokerBuildArguments

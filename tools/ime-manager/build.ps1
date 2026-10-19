@@ -2,7 +2,9 @@
 param(
     [string] $MyPowerToolsRepoRoot,
     [ValidateSet('Debug', 'Release')]
-    [string] $Configuration = 'Release'
+    [string] $Configuration = 'Release',
+    # The caller must build this CLI for the current source and configuration.
+    [string] $PrebuiltCliPath
 )
 
 $ErrorActionPreference = 'Stop'
@@ -19,6 +21,14 @@ $sdkToolProject = Join-Path $sdkToolRoot 'src\ImeManager.Tool\ImeManager.Tool.cs
 $runtimeProject = Join-Path $sdkToolRoot 'src\ImeManager.Runtime\ImeManager.Runtime.csproj'
 $mptCliProject = Join-Path $repoRoot 'src\MyPowerTools.Cli\MyPowerTools.Cli.csproj'
 $mptCliExecutable = Join-Path $repoRoot "artifacts\build\bin\MyPowerTools.Cli\$($Configuration.ToLowerInvariant())\MyPowerTools.Cli.exe"
+$usePrebuiltCli = $PSBoundParameters.ContainsKey('PrebuiltCliPath')
+if ($usePrebuiltCli) {
+    if ([string]::IsNullOrWhiteSpace($PrebuiltCliPath) -or
+        -not (Test-Path -LiteralPath $PrebuiltCliPath -PathType Leaf)) {
+        throw "PrebuiltCliPath '$PrebuiltCliPath' must identify an existing MyPowerTools CLI executable."
+    }
+    $mptCliExecutable = (Resolve-Path -LiteralPath $PrebuiltCliPath -ErrorAction Stop).ProviderPath
+}
 $artifactsRoot = Join-Path $toolRoot 'artifacts'
 $artifactPackage = Join-Path $artifactsRoot 'ime-manager.mptpkg'
 $artifactRuntime = Join-Path $artifactsRoot 'package'
@@ -56,17 +66,19 @@ if ($runtimeExitCode -ne 0) {
     throw "Isolated runtime build failed with exit code $runtimeExitCode."
 }
 
-$mptCliArguments = @(
-    'build'
-    $mptCliProject
-    '--configuration'
-    $Configuration
-    '--nologo'
-)
-& $dotnetCommand.Source @mptCliArguments
-$mptCliExitCode = $LASTEXITCODE
-if ($mptCliExitCode -ne 0) {
-    throw "MyPowerTools CLI build failed with exit code $mptCliExitCode."
+if (-not $usePrebuiltCli) {
+    $mptCliArguments = @(
+        'build'
+        $mptCliProject
+        '--configuration'
+        $Configuration
+        '--nologo'
+    )
+    & $dotnetCommand.Source @mptCliArguments
+    $mptCliExitCode = $LASTEXITCODE
+    if ($mptCliExitCode -ne 0) {
+        throw "MyPowerTools CLI build failed with exit code $mptCliExitCode."
+    }
 }
 if (-not (Test-Path -LiteralPath $mptCliExecutable -PathType Leaf)) {
     throw "Expected MyPowerTools CLI '$mptCliExecutable' is missing."

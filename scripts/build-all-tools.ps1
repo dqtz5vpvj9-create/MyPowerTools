@@ -396,6 +396,15 @@ if (-not $SkipSdk) {
     Write-Host '==> Skipping SDK bundles (-SkipSdk).' -ForegroundColor DarkGray
 }
 
+# The SDK CLI is already built above (or explicitly supplied by -SkipSdk's caller).
+# Share this immutable executable with runtime builders instead of rebuilding its
+# dependency graph for each validation/pack invocation.
+$cliExe = Join-Path $repoRoot 'artifacts\sdk\cli\MyPowerTools.Cli.exe'
+if (-not (Test-Path -LiteralPath $cliExe -PathType Leaf)) {
+    throw "SDK CLI is missing: $cliExe"
+}
+$prebuiltCliTools = @('screenshot', 'input-monitor', 'local-lag-cleaner', 'ime-manager', 'nssm-manager')
+
 # ---------------------------------------------------------------------------
 # 2 + 3) Per-tool runtime build (delegated) + Surface build/pack
 # ---------------------------------------------------------------------------
@@ -420,10 +429,14 @@ foreach ($tool in $toolRegistry) {
     if (-not (Test-Path -LiteralPath $buildScriptPath -PathType Leaf)) {
         throw "Tool build script missing: $buildScriptPath"
     }
-    Invoke-Native -FilePath 'pwsh.exe' -ArgumentList @(
+    $runtimeBuildArguments = @(
         '-NoLogo', '-NoProfile', '-NonInteractive', '-File', $buildScriptPath,
         '-MyPowerToolsRepoRoot', $repoRoot
-    ) -Activity "pwsh $toolBuildScript"
+    )
+    if ($currentToolId -in $prebuiltCliTools) {
+        $runtimeBuildArguments += @('-PrebuiltCliPath', $cliExe)
+    }
+    Invoke-Native -FilePath 'pwsh.exe' -ArgumentList $runtimeBuildArguments -Activity "pwsh $toolBuildScript"
 
     $runtimeStageFull = [System.IO.Path]::GetFullPath((Join-Path $repoRoot $toolRuntimeStage))
     if (-not (Test-Path -LiteralPath $runtimeStageFull -PathType Container)) {
@@ -553,10 +566,6 @@ foreach ($state in $toolBuildStates) {
     }
 
     # Sign the module runtime exactly as Runner consumes it.
-    $cliExe = Join-Path $repoRoot 'artifacts\sdk\cli\MyPowerTools.Cli.exe'
-    if (-not (Test-Path -LiteralPath $cliExe -PathType Leaf)) {
-        throw "SDK CLI is missing: $cliExe"
-    }
     Invoke-Native -FilePath $cliExe -ArgumentList @(
         'package', 'sign-local', $runtimeCollect
     ) -Activity "mpt package sign-local $currentToolId"
