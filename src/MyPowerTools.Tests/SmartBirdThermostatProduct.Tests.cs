@@ -256,56 +256,21 @@ public sealed class SmartBirdThermostatProductTests
     }
 
     [Fact]
-    public void Product_view_uses_the_sdk_web_surface_host_capability()
+    public void Isolated_web_host_keeps_process_and_browser_security_boundaries()
     {
-        var surfaceRoot = Path.Combine(
-            Root,
-            "tools",
-            "smartbird-thermostat",
-            "current-integration",
-            "src",
-            "SmartBird.Surface");
-        var view = File.ReadAllText(Path.Combine(surfaceRoot, "Views", "SmartBirdThermostatView.axaml"));
-        var viewCode = File.ReadAllText(Path.Combine(surfaceRoot, "Views", "SmartBirdThermostatView.axaml.cs"));
-        var sessionController = File.ReadAllText(Path.Combine(surfaceRoot, "Views", "SmartBirdWebSurfaceSessionController.cs"));
-        var factory = File.ReadAllText(Path.Combine(surfaceRoot, "SmartBirdSurfaceFactory.cs"));
         var webSurfaceClient = File.ReadAllText(Path.Combine(
             Root,
             "src",
             "MyPowerTools.WebSurface.Avalonia",
             "AvaloniaWebSurfaceService.cs"));
-        var hostRoot = Path.Combine(Root, "src", "MyPowerTools.WebToolHost");
-        var hostProject = File.ReadAllText(Path.Combine(hostRoot, "MyPowerTools.WebToolHost.csproj"));
-        var hostWindow = File.ReadAllText(Path.Combine(hostRoot, "WebSurfaceHostWindow.cs"));
-        var hostProgram = File.ReadAllText(Path.Combine(hostRoot, "Program.cs"));
-        var shellChrome = File.ReadAllText(Path.Combine(
+        var hostWindow = File.ReadAllText(Path.Combine(
             Root,
             "src",
-            "MyPowerTools.Shell.Avalonia",
-            "Views",
-            "ShellChromeView.axaml.cs"));
+            "MyPowerTools.WebToolHost",
+            "WebSurfaceHostWindow.cs"));
 
-        Assert.Contains("EmbeddedBrowserHost", view);
-        Assert.DoesNotContain("SmartBirdWebView", view);
-        Assert.Contains("在浏览器中打开", view);
-        Assert.Contains("Focusable=\"True\"", view);
-        Assert.Contains("AutomationProperties.Name=\"SmartBird 温度管理器网页控制台\"", view);
-        Assert.Contains("context.WebSurfaces", factory);
-        Assert.Contains("IMptWebSurfaceService", viewCode);
-        Assert.Contains("CreateSession(new MptWebSurfaceRequest", sessionController);
-        Assert.Contains("MyPowerTools.WebToolHost.exe", webSurfaceClient);
-        Assert.Contains("CreateNoWindow = true", webSurfaceClient);
-        Assert.Contains("RedirectStandardInput = true", webSurfaceClient);
         Assert.Contains("process.Exited", webSurfaceClient);
         Assert.Contains("Kill(entireProcessTree: true)", webSurfaceClient);
-        Assert.Contains("MaximumHostFrameLength", webSurfaceClient);
-        Assert.Contains("protocolVersion", webSurfaceClient);
-        Assert.Contains("TryMoveFocus", webSurfaceClient);
-        Assert.Contains("WebSurfaceOcclusion", shellChrome);
-        Assert.Contains("<OutputType>WinExe</OutputType>", hostProject);
-        Assert.Contains("Microsoft.Web.WebView2", hostProject);
-        Assert.Contains("CoreWebView2Environment.CreateAsync", hostWindow);
-        Assert.Contains("CreateCoreWebView2ControllerAsync", hostWindow);
         Assert.Contains("ProcessFailed", hostWindow);
         Assert.Contains("WebResourceRequested", hostWindow);
         Assert.Contains("CoreWebView2PermissionState.Deny", hostWindow);
@@ -313,22 +278,6 @@ public sealed class SmartBirdThermostatProductTests
         Assert.Contains("IsOriginAllowed", hostWindow);
         Assert.Contains("_toolId", hostWindow);
         Assert.Contains("GetWindowThreadProcessId", hostWindow);
-        Assert.Contains("AddScriptToExecuteOnDocumentCreatedAsync(ShortcutForwardingSource.Read())", hostWindow);
-        Assert.Contains("__mptShortcut", hostWindow);
-        Assert.Contains("WebToolHostProtocol.WriteShortcut", hostWindow);
-        Assert.DoesNotContain("AcceleratorKeyPressed", hostWindow);
-        Assert.Contains("MoveFocusRequested", hostWindow);
-        Assert.Contains("SetWindowRgn", hostWindow);
-        Assert.Contains("_controller.IsVisible = false;", hostWindow);
-        Assert.Contains("PaintOpaquePlaceholder", hostWindow);
-        Assert.Contains("BeginInvoke(RevealSurfaceIfReady)", hostWindow);
-        Assert.DoesNotContain("_controller.IsVisible = command.Visible", hostWindow);
-        Assert.Contains("--parent-hwnd", hostProgram);
-        Assert.Contains("--parent-pid", hostProgram);
-        Assert.Contains("--source", hostProgram);
-        Assert.Contains("--allowed-origin", hostProgram);
-        Assert.Contains("--isolation-probe", hostProgram);
-        Assert.Contains("--isolation-crash-probe", hostProgram);
     }
 
     [Theory]

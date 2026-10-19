@@ -181,6 +181,7 @@ function Build-StandaloneModule {
     Invoke-Native -FilePath 'dotnet' -ArgumentList @(
         'run', '--project', $CliProject,
         '--configuration', $Configuration,
+        '--no-build',
         '--', 'package', 'sign-local', $moduleStageRoot
     ) -Activity "sign macOS $($Definition.Id) module package"
     $copyParameters = @{

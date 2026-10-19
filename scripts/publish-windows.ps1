@@ -383,13 +383,14 @@ if ($reusableFullToolSnapshot) {
         '-SkipSdk')
 }
 
-Invoke-Native -FilePath 'dotnet' -ArgumentList @(
-    'run', '--project', 'src\MyPowerTools.Cli\MyPowerTools.Cli.csproj', '--',
-    'package', 'sign-local', $ModuleStagingRootFull)
 Invoke-Native -FilePath 'dotnet' -ArgumentList @('publish', 'src\MyPowerTools.Runner\MyPowerTools.Runner.csproj', '-c', 'Release', '-r', 'win-x64', '--self-contained', 'false', '-p:DebugType=None', '-p:DebugSymbols=false', '-o', (Join-Path $PublishRoot 'Runner'))
 $shellReadyToRun = -not $isWebDistribution
 Invoke-Native -FilePath 'dotnet' -ArgumentList @('publish', 'src\MyPowerTools.Shell.Avalonia\MyPowerTools.Shell.Avalonia.csproj', '-c', 'Release', '-r', 'win-x64', '--self-contained', 'false', "-p:PublishReadyToRun=$($shellReadyToRun.ToString().ToLowerInvariant())", "-p:PublishReadyToRunComposite=$($shellReadyToRun.ToString().ToLowerInvariant())", '-p:DebugType=None', '-p:DebugSymbols=false', '-o', (Join-Path $PublishRoot 'Shell'))
 Invoke-Native -FilePath 'dotnet' -ArgumentList @('publish', 'src\MyPowerTools.Cli\MyPowerTools.Cli.csproj', '-c', 'Release', '-r', 'win-x64', '--self-contained', 'false', '-p:DebugType=None', '-p:DebugSymbols=false', '-o', (Join-Path $PublishRoot 'Cli'))
+# Reuse the published CLI without another restore/build or an assembled private runtime.
+Invoke-Native -FilePath 'dotnet' -ArgumentList @(
+    (Join-Path $PublishRoot 'Cli\MyPowerTools.Cli.dll'),
+    'package', 'sign-local', $ModuleStagingRootFull)
 Invoke-Native -FilePath 'dotnet' -ArgumentList @('publish', 'src\MyPowerTools.ElevatedBroker\MyPowerTools.ElevatedBroker.csproj', '-c', 'Release', '-r', 'win-x64', '--self-contained', 'false', '-p:PublishAot=false', '-p:PublishSingleFile=true', '-p:DebugType=None', '-p:DebugSymbols=false', '-o', (Join-Path $PublishRoot 'Broker'))
 Invoke-Native -FilePath 'pwsh.exe' -ArgumentList @('-NoLogo', '-NoProfile', '-NonInteractive', '-File', (Join-Path $PSScriptRoot 'validate-elevated-broker.ps1'), '-BrokerDirectory', (Join-Path $PublishRoot 'Broker'))
 Invoke-Native -FilePath 'dotnet' -ArgumentList @('publish', 'src\MyPowerTools.InputRemapHost\MyPowerTools.InputRemapHost.csproj', '-c', 'Release', '-r', 'win-x64', '--self-contained', 'false', '-p:PublishAot=false', '-p:PublishSingleFile=true', '-p:DebugType=None', '-p:DebugSymbols=false', '-o', (Join-Path $PublishRoot 'InputRemap'))

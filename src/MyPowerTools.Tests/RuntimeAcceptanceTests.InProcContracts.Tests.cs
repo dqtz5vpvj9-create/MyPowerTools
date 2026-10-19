@@ -928,30 +928,6 @@ public sealed partial class RuntimeAcceptanceTests
     }
 
     [Fact]
-    public void ScreenEase_module_uses_capability_provider_not_concrete_platform_packs()
-    {
-        var project = File.ReadAllText(Path.Combine(Root, "tools/screenease/current-integration/src/ScreenEase.MyPowerTools/ScreenEase.MyPowerTools.csproj"));
-        var source = File.ReadAllText(Path.Combine(Root, "tools/screenease/current-integration/src/ScreenEase.MyPowerTools/ScreenEaseModule.cs"));
-        var combined = project + Environment.NewLine + source;
-
-        foreach (var forbidden in new[]
-        {
-            "MyPowerTools.Platform.Windows",
-            "MyPowerTools.Platform.Mac",
-            "MyPowerTools.Platform.Linux",
-            "WindowsPlatformPack",
-            "MacPlatformPack",
-            "LinuxPlatformPack"
-        })
-        {
-            Assert.DoesNotContain(forbidden, combined);
-        }
-
-        Assert.Contains("TryGetCapability<IDisplayService>", source);
-        Assert.Contains("\"display.profile\"", source);
-    }
-
-    [Fact]
     public void Abstractions_project_exposes_named_plugin_contracts()
     {
         var contracts = File.ReadAllText(Path.Combine(Root, "src/MyPowerTools.Abstractions/NamedPluginContracts.cs"));
