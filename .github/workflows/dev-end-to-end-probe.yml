@@ -1,0 +1,68 @@
+name: Dev desktop session preflight
+on:
+  pull_request:
+    paths: ['.github/workflows/dev-end-to-end-probe.yml']
+permissions:
+  contents: read
+jobs:
+  session-preflight:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: windows-2022
+    timeout-minutes: 5
+    steps:
+      - name: Inspect desktop capability without changing runner configuration
+        shell: pwsh
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $process = Get-Process -Id $PID
+          $blockers = [System.Collections.Generic.List[string]]::new()
+          $report = [ordered]@{
+            status = 'BLOCKED'; identity = [Security.Principal.WindowsIdentity]::GetCurrent().Name
+            sessionId = $process.SessionId; userInteractive = [Environment]::UserInteractive
+            processId = $PID; processName = $process.ProcessName; sessionName = $env:SESSIONNAME
+            desktopName = $null; desktopError = $null; screenBounds = $null; blockers = @()
+          }
+          if ($process.SessionId -eq 0) { $blockers.Add('Session 0: official Dev startup cannot run here.') }
+          if (-not [Environment]::UserInteractive) { $blockers.Add('Process environment is not interactive.') }
+          try {
+            Add-Type -TypeDefinition @'
+          using System;
+          using System.Runtime.InteropServices;
+          using System.Text;
+          public static class DesktopProbe {
+            [DllImport("user32.dll", SetLastError=true)] public static extern IntPtr OpenInputDesktop(uint flags, bool inherit, uint access);
+            [DllImport("user32.dll", SetLastError=true, CharSet=CharSet.Unicode)] public static extern bool GetUserObjectInformation(IntPtr handle, int index, StringBuilder info, uint length, out uint needed);
+            [DllImport("user32.dll")] public static extern bool CloseDesktop(IntPtr handle);
+            [DllImport("user32.dll")] public static extern int GetSystemMetrics(int index);
+          }
+          '@
+            $desktop = [DesktopProbe]::OpenInputDesktop(0, $false, 1) # DESKTOP_READOBJECTS only.
+            if ($desktop -eq [IntPtr]::Zero) {
+              $report.desktopError = [Runtime.InteropServices.Marshal]::GetLastWin32Error()
+              $blockers.Add('Input desktop is unavailable for read-only inspection.')
+            } else {
+              try {
+                [uint32]$needed = 0
+                [void][DesktopProbe]::GetUserObjectInformation($desktop, 2, $null, 0, [ref]$needed)
+                $name = [Text.StringBuilder]::new([int]($needed / 2))
+                if (-not [DesktopProbe]::GetUserObjectInformation($desktop, 2, $name, $needed, [ref]$needed)) { throw 'Cannot read input desktop name.' }
+                $report.desktopName = $name.ToString()
+                $report.screenBounds = [ordered]@{ x = [DesktopProbe]::GetSystemMetrics(76); y = [DesktopProbe]::GetSystemMetrics(77); width = [DesktopProbe]::GetSystemMetrics(78); height = [DesktopProbe]::GetSystemMetrics(79) }
+                if ($report.screenBounds.width -le 0 -or $report.screenBounds.height -le 0) { $blockers.Add('No usable virtual screen bounds.') }
+              } finally { [void][DesktopProbe]::CloseDesktop($desktop) }
+            }
+          } catch { $blockers.Add($_.Exception.Message) }
+          $report.blockers = $blockers.ToArray()
+          if ($blockers.Count -eq 0) { $report.status = 'CAPABLE' }
+          $json = $report | ConvertTo-Json -Depth 5
+          $json | Set-Content -LiteralPath (Join-Path $env:RUNNER_TEMP 'dev-session-preflight.json') -Encoding utf8
+          Write-Output $json
+          if ($blockers.Count -gt 0) { throw 'BLOCKED: runner cannot satisfy official Dev desktop startup prerequisites.' }
+      - name: Upload read-only preflight evidence
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: dev-session-preflight
+          path: ${{ runner.temp }}/dev-session-preflight.json
+          if-no-files-found: error
+          retention-days: 3
