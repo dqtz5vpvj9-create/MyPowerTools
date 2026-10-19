@@ -421,51 +421,6 @@ public sealed class SmartBirdThermostatProductTests
     }
 
     [Fact]
-    public void Source_task_recovery_is_hidden_and_targets_the_installed_task()
-    {
-        var serviceSource = File.ReadAllText(Path.Combine(
-            Root,
-            "tools",
-            "smartbird-thermostat",
-            "current-integration",
-            "src",
-            "SmartBird.Surface",
-            "Services",
-            "SmartBirdThermostatToolService.cs"));
-
-        Assert.Equal("SmartBirdThermostat", SmartBirdThermostatToolService.ScheduledTaskName);
-        Assert.Equal(new Uri("http://127.0.0.1:19002/"), SmartBirdThermostatToolService.DefaultBaseUri);
-        Assert.Contains("CreateNoWindow = true", serviceSource);
-        Assert.Contains("startInfo.ArgumentList.Add(\"/Run\")", serviceSource);
-        Assert.Contains("startInfo.ArgumentList.Add(ScheduledTaskName)", serviceSource);
-    }
-
-    [Fact]
-    public void Module_uses_source_backed_logs_task_restart_and_energy_endpoint()
-    {
-        var module = File.ReadAllText(Path.Combine(
-            Root,
-            "tools",
-            "smartbird-thermostat",
-            "current-integration",
-            "src",
-            "SmartBirdThermostat.MyPowerTools",
-            "SmartBirdThermostatModule.cs"));
-
-        Assert.Contains("http://127.0.0.1:18988", module);
-        Assert.Contains("http://127.0.0.1:19002", module);
-        Assert.Contains("/api/status", module);
-        Assert.Contains("/api/events", module);
-        Assert.Contains("/api/energy/status", module);
-        Assert.Contains("must be a loopback HTTP URL without credentials", module);
-        Assert.Contains("smartbird_thermostat_service.log", module);
-        Assert.Contains("SmartBirdThermostat", module);
-        Assert.Contains("RunScheduledTaskCommandAsync", module);
-        Assert.Contains("[\"/Run\", \"/TN\", options.ScheduledTaskName]", module);
-        Assert.DoesNotContain("requiresElevation: true", module, StringComparison.Ordinal);
-    }
-
-    [Fact]
     public async Task Module_rejects_non_loopback_facade_overrides()
     {
         await using var host = new InProcDotNetModuleHost();

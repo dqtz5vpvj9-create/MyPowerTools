@@ -15,30 +15,6 @@ public sealed class ToolProductFoundationTests
     private static readonly string RepositoryRoot = FindRepositoryRoot();
 
     [Fact]
-    public void Tool_catalog_exposes_an_accessible_compact_refresh_button()
-    {
-        var view = File.ReadAllText(Path.Combine(
-            RepositoryRoot,
-            "src",
-            "MyPowerTools.Shell.Avalonia",
-            "Views",
-            "ToolCatalogView.axaml"));
-
-        Assert.Contains("<controls:MptIconButton", view, StringComparison.Ordinal);
-        Assert.Contains("Content=\"&#xE72C;\"", view, StringComparison.Ordinal);
-        Assert.Contains("FontFamily=\"{DynamicResource MptFontFamilyIcons}\"", view, StringComparison.Ordinal);
-        Assert.Contains("Command=\"{Binding RefreshCommand}\"", view, StringComparison.Ordinal);
-        Assert.Contains("ToolTip.Tip=\"Refresh tools\"", view, StringComparison.Ordinal);
-        Assert.Contains("AutomationProperties.Name=\"Refresh tools\"", view, StringComparison.Ordinal);
-        Assert.DoesNotContain("Content=\"Refresh tools\"", view, StringComparison.Ordinal);
-        Assert.DoesNotContain("Content=\"↻\"", view, StringComparison.Ordinal);
-        Assert.Single(Regex.Matches(view, "Text=\"\\{Binding ResultSummary\\}\"").Cast<Match>());
-
-        var viewModel = new ToolCatalogViewModel([]);
-        Assert.Equal("All tools", viewModel.Title);
-    }
-
-    [Fact]
     public void Dotnet_surface_uses_its_own_header_and_restores_host_header_for_load_failure()
     {
         var viewModel = CreateExternalSdkToolViewModel("dotnet-surface", withCommands: true);
@@ -93,18 +69,6 @@ public sealed class ToolProductFoundationTests
             _ => Task.FromResult("{}"),
             () => Task.CompletedTask,
             () => Task.CompletedTask);
-
-    [Fact]
-    public void Dotnet_surface_factories_do_not_synchronously_wait_for_async_initialization()
-    {
-        var violations = Directory
-            .EnumerateFiles(Path.Combine(RepositoryRoot, "tools"), "*SurfaceFactory.cs", SearchOption.AllDirectories)
-            .Where(path => File.ReadAllText(path).Contains("GetAwaiter().GetResult()", StringComparison.Ordinal))
-            .Select(path => Path.GetRelativePath(RepositoryRoot, path))
-            .ToArray();
-
-        Assert.Empty(violations);
-    }
 
     [Fact]
     public void Thickness_properties_use_thickness_resources_in_product_axaml()

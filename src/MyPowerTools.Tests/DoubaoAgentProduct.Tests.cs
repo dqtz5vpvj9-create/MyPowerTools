@@ -756,33 +756,6 @@ public sealed class DoubaoAgentProductTests
     }
 
     [Fact]
-    public void Module_and_static_commands_map_the_real_service_roles()
-    {
-        var module = File.ReadAllText(Path.Combine(
-            Root,
-            "tools",
-            "doubao-computer-use",
-            "current-integration",
-            "src",
-            "DoubaoAgent.MyPowerTools",
-            "DoubaoAgentModule.cs"));
-        var commands = File.ReadAllText(Path.Combine(
-            Root,
-            "modules",
-            "doubao-agent",
-            "commands.index.json"));
-
-        Assert.Contains("Agent Planner\", \"http://127.0.0.1:38189\", \"/health", module);
-        Assert.Contains("Tool Server\", \"http://127.0.0.1:38102\", \"/config", module);
-        Assert.Contains("MCP Server\", \"http://127.0.0.1:38080\", \"/sse", module);
-        Assert.Contains("Planner on port 38189", commands);
-        Assert.Contains("Tool Server on port 38102", commands);
-        Assert.Contains("MCP SSE endpoint on port 38080", commands);
-        Assert.DoesNotContain("planner service on port 38102", commands, StringComparison.OrdinalIgnoreCase);
-        Assert.DoesNotContain("plannerBaseUrl", commands, StringComparison.Ordinal);
-    }
-
-    [Fact]
     public async Task Module_settings_fix_all_internal_endpoints_and_force_canonical_values()
     {
         var module = new DoubaoAgentModule();

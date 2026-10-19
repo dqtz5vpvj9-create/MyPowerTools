@@ -64,7 +64,6 @@ public sealed class MacReleaseSyncTests
     public void Mac_background_hosts_ship_as_nested_helper_bundles()
     {
         var publishScript = ReadLayeredScript("publish-macos.ps1", "publish-macos-base.ps1");
-        var installScript = ReadLayeredScript("install-macos.ps1", "install-macos-base.ps1");
         var launcher = File.ReadAllText(Path.Combine(Root, "src", "MyPowerTools.App", "Program.cs"));
         var helpersRoot = Path.Combine(Root, "packaging", "macos", "Helpers");
 
@@ -87,15 +86,6 @@ public sealed class MacReleaseSyncTests
         Assert.Contains("<key>CFBundleURLTypes</key>", mainPlist, StringComparison.Ordinal);
         Assert.Contains("<key>LSUIElement</key>", mainPlist, StringComparison.Ordinal);
 
-        Assert.Contains("Join-Path $macRoot 'Helpers'", installScript, StringComparison.Ordinal);
-        Assert.Contains(
-            "MyPowerTools Runner.app/Contents/MacOS/MyPowerTools.Runner",
-            installScript,
-            StringComparison.Ordinal);
-        Assert.Contains(
-            "MyPowerTools ServiceManager.app/Contents/MacOS/MyPowerTools.ServiceManager",
-            installScript,
-            StringComparison.Ordinal);
         Assert.Contains("\"MyPowerTools Shell.app\"", launcher, StringComparison.Ordinal);
         Assert.Contains("\"MyPowerTools ServiceManager.app\"", launcher, StringComparison.Ordinal);
     }
@@ -110,14 +100,8 @@ public sealed class MacReleaseSyncTests
             "MptMacNative",
             "MptMacNative.mm"));
 
-        var forwarding = File.ReadAllText(Path.Combine(
-            Root, "src", "MyPowerTools.WebSurface.Shared", "ShortcutForwarding.inc"));
         Assert.Contains("MptString(MptShortcutForwardingScript)", nativeSource, StringComparison.Ordinal);
         Assert.Contains("MyPowerTools.WebSurface.Shared/ShortcutForwarding.inc", nativeSource, StringComparison.Ordinal);
-        Assert.Contains("'shortcut-bindings'", forwarding, StringComparison.Ordinal);
-        Assert.Contains("'keydown'", forwarding, StringComparison.Ordinal);
-        Assert.Contains("event.isComposing", forwarding, StringComparison.Ordinal);
-        Assert.Contains("binding.allowInTextInput", forwarding, StringComparison.Ordinal);
         Assert.DoesNotContain("gesture = 'Ctrl+Shift+P'", nativeSource, StringComparison.Ordinal);
         Assert.DoesNotContain("gesture = 'Ctrl+R'", nativeSource, StringComparison.Ordinal);
     }

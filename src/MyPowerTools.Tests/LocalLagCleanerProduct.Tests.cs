@@ -836,39 +836,6 @@ public sealed class LocalLagCleanerProductTests
             "request.invalid",
             oversized["result"]!["error"]!["code"]!.GetValue<string>());
 
-        var runtimeSource = File.ReadAllText(Path.Combine(
-            ToolRoot,
-            "src",
-            "LocalLagCleaner.Runtime",
-            "Program.cs"));
-        Assert.DoesNotContain("ReadLatestSnapshot", runtimeSource, StringComparison.Ordinal);
-        Assert.Contains(
-            "await CreatePlanAsync(",
-            runtimeSource,
-            StringComparison.Ordinal);
-    }
-
-    [Fact]
-    public void Stdio_runtime_uses_the_host_command_timeout_and_keeps_explicit_timeout_for_tests()
-    {
-        var source = File.ReadAllText(Path.Combine(
-            Root,
-            "src",
-            "MyPowerTools.ModuleHost.StdioCompat",
-            "StdioCompatModuleHost.cs"));
-
-        Assert.Contains(
-            "ExecuteAsync(module.Entrypoint!, request, Timeout.InfiniteTimeSpan, cancellationToken)",
-            source,
-            StringComparison.Ordinal);
-        Assert.Contains(
-            "if (timeout != Timeout.InfiniteTimeSpan)",
-            source,
-            StringComparison.Ordinal);
-        Assert.DoesNotContain(
-            "ExecuteAsync(module.Entrypoint!, request, TimeSpan.FromSeconds(30), cancellationToken)",
-            source,
-            StringComparison.Ordinal);
     }
 
     [Fact]

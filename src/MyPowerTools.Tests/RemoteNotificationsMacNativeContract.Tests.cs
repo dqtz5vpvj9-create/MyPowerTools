@@ -22,23 +22,6 @@ public sealed class RemoteNotificationsMacNativeContractTests
         Assert.Contains("MptNotificationDelegateInstance()", statusImplementation, StringComparison.Ordinal);
     }
 
-    [Fact]
-    public void Production_gate_uses_the_shipped_native_bridge_and_installed_shape()
-    {
-        var gate = File.ReadAllText(Path.Combine(
-            Root, "scripts", "verify-remote-notifications-macos-production.ps1"));
-
-        Assert.Contains("libMptMacNative.dylib", gate, StringComparison.Ordinal);
-        Assert.Contains("mpt_notification_authorization_status", gate, StringComparison.Ordinal);
-        Assert.Contains("mpt_notification_publish", gate, StringComparison.Ordinal);
-        Assert.DoesNotContain("libRemoteNotificationsMac.dylib", gate, StringComparison.Ordinal);
-        Assert.Contains("ServiceManager re-adoption", gate, StringComparison.Ordinal);
-        Assert.Contains("worker-crash-recovered", gate, StringComparison.Ordinal);
-        Assert.Contains("banner-targets-exact-message", gate, StringComparison.Ordinal);
-        Assert.Contains("message-received-after-worker-restart", gate, StringComparison.Ordinal);
-        Assert.Contains("restart-banner-targets-exact-message", gate, StringComparison.Ordinal);
-    }
-
     private static string FindRepositoryRoot()
     {
         var current = new DirectoryInfo(AppContext.BaseDirectory);

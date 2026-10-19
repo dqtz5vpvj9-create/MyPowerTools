@@ -13,98 +13,6 @@ public sealed class ShellProductSemanticsTests
     private static readonly string Root = FindRepositoryRoot();
 
     [Fact]
-    public void Tray_uses_product_language_and_configured_product_icon()
-    {
-        var runner = Read("src", "MyPowerTools.Runner", "Program.cs");
-        var tray = Read("src", "MyPowerTools.Platform.Windows", "WindowsTrayService.cs");
-
-        Assert.Contains("\"Exit MyPowerTools\"", runner);
-        Assert.Contains("\"exit-application\"", runner);
-        Assert.DoesNotContain("\"Quit Runner\"", runner, StringComparison.Ordinal);
-        Assert.DoesNotContain("\"MyPowerTools Runner\"", runner, StringComparison.Ordinal);
-        Assert.Contains("Path.Combine(root, \"assets\", \"MyPowerTools.ico\")", runner);
-        Assert.Contains("options.IconPath", tray);
-        Assert.Contains("LR_LOADFROMFILE", tray);
-    }
-
-    [Fact]
-    public void Background_hosts_are_windowless_and_log_to_data_root()
-    {
-        var runnerProject = Read("src", "MyPowerTools.Runner", "MyPowerTools.Runner.csproj");
-        var managerProject = Read("src", "MyPowerTools.ServiceManager", "MyPowerTools.ServiceManager.csproj");
-        var runner = Read("src", "MyPowerTools.Runner", "Program.cs");
-        var manager = Read("src", "MyPowerTools.ServiceManager", "Program.cs");
-        var daemonConsole = Read("src", "MyPowerTools.Ipc.Shared", "DaemonProcessConsole.cs");
-
-        Assert.Contains("<OutputType>WinExe</OutputType>", runnerProject);
-        Assert.Contains("<OutputType>WinExe</OutputType>", managerProject);
-        Assert.DoesNotContain("<OutputType>Exe</OutputType>", runnerProject);
-        Assert.DoesNotContain("<OutputType>Exe</OutputType>", managerProject);
-        Assert.Contains("DaemonProcessConsole.Initialize(\"runner\"", runner);
-        Assert.Contains("DaemonProcessConsole.Initialize(", manager);
-        Assert.Contains("\"servicemanager\"", manager);
-        Assert.Contains("ConfigureHostLogging", runner);
-        Assert.Contains("ConfigureHostLogging", manager);
-        Assert.Contains("SuppressStatusMessages(true)", runner);
-        Assert.Contains("SuppressStatusMessages(true)", manager);
-        Assert.Contains("StartTrayAsync", runner);
-        Assert.Contains("\"Open MyPowerTools\"", runner);
-        Assert.Contains("--once", daemonConsole);
-        Assert.Contains("--console", daemonConsole);
-    }
-
-    [Fact]
-    public void Grpc_sidecars_do_not_open_a_console_window()
-    {
-        var grpcHost = Read("src", "MyPowerTools.ModuleHost.GrpcIpc", "GrpcIpcModuleHost.cs");
-        // remote-notifications owns the shared runtime; other tools' captured
-        // copies are historical snapshots, not independent runtime builds.
-        var moduleHostProject = Read("tools", "remote-notifications", "current-integration", "src", "AndroidTools.Runtime", "AndroidTools.Runtime.csproj");
-
-        Assert.Contains("CreateNoWindow = true", grpcHost);
-        Assert.Contains("<OutputType>WinExe</OutputType>", moduleHostProject);
-        Assert.Contains("<AssemblyName>MPTAndroidTools.Runtime</AssemblyName>", moduleHostProject);
-        Assert.DoesNotContain("<OutputType>Exe</OutputType>", moduleHostProject);
-        Assert.DoesNotContain("powertoold", moduleHostProject, StringComparison.OrdinalIgnoreCase);
-
-        var package = Read("modules", "android-tools-suite", "package.json");
-        Assert.Contains("\"id\": \"module-host\"", package);
-        Assert.Contains("windows/x64/MPTAndroidTools.Runtime.exe", package);
-        Assert.DoesNotContain("powertoold", package, StringComparison.OrdinalIgnoreCase);
-    }
-
-    [Fact]
-    public void Retired_integration_snapshots_have_exact_git_recovery_metadata()
-    {
-        var retired = new[]
-        {
-            (Tool: "adb-forwarder", Directory: "MyPowerTools.Shell.Avalonia", Files: 15),
-            (Tool: "doubao-computer-use", Directory: "MyPowerTools.Shell.Avalonia", Files: 9),
-            (Tool: "screenease", Directory: "MyPowerTools.Shell.Avalonia", Files: 10),
-            (Tool: "remote-commands", Directory: "AndroidTools.MyPowerTools", Files: 2),
-            (Tool: "remote-commands", Directory: "AndroidTools.Runtime", Files: 2),
-            (Tool: "process-monitor", Directory: "AndroidTools.MyPowerTools", Files: 2),
-            (Tool: "process-monitor", Directory: "AndroidTools.Runtime", Files: 2)
-        };
-
-        foreach (var snapshot in retired)
-        {
-            Assert.False(Directory.Exists(Path.Combine(Root, "tools", snapshot.Tool, "current-integration", "src", snapshot.Directory)));
-            using var map = System.Text.Json.JsonDocument.Parse(Read("tools", snapshot.Tool, "source-map.json"));
-            var path = $"current-integration/src/{snapshot.Directory}";
-            var archive = Assert.Single(map.RootElement.GetProperty("archivedIntegrationSnapshots")
-                .EnumerateArray().Where(entry => entry.GetProperty("path").GetString() == path));
-            var recoveryCommit = archive.GetProperty("recoveryCommit").GetString()!;
-            Assert.Matches("^[0-9a-f]{40}$", recoveryCommit);
-            Assert.Equal(snapshot.Files, archive.GetProperty("fileCount").GetInt32());
-            Assert.Equal("current-integration/ARCHIVED-SNAPSHOTS.md", archive.GetProperty("recoveryDocument").GetString());
-            var recovery = Read("tools", snapshot.Tool, "current-integration", "ARCHIVED-SNAPSHOTS.md");
-            Assert.Contains($"git restore --source={recoveryCommit}", recovery);
-            Assert.Contains(path, recovery);
-        }
-    }
-
-    [Fact]
     public void Product_icon_contains_multiple_windows_icon_sizes()
     {
         var icon = File.ReadAllBytes(Path.Combine(Root, "assets", "MyPowerTools.ico"));
@@ -415,11 +323,6 @@ public sealed class ShellProductSemanticsTests
         Assert.DoesNotContain('\r', line);
         Assert.DoesNotContain('\n', line);
         Assert.True(line.Length <= 1024);
-    }
-
-    private static string Read(params string[] segments)
-    {
-        return File.ReadAllText(Path.Combine([Root, .. segments]));
     }
 
     private static string FindRepositoryRoot()

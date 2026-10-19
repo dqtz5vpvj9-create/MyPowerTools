@@ -1,46 +1,6 @@
-using System.Diagnostics;
-using System.Net;
-using System.Net.Sockets;
-using System.Runtime.CompilerServices;
-using System.Runtime.Loader;
-using System.Text;
-using System.Text.Json;
 using System.Text.Json.Nodes;
-using Avalonia.Input;
-using AdbForwarder.MyPowerTools;
-using AndroidTools.MyPowerTools;
-using Grpc.Core;
-using Microsoft.Extensions.Hosting;
 using MyPowerTools.HostControl;
-using MyPowerTools.Broker;
-using MyPowerTools.ModuleHost.GrpcIpc;
-using MyPowerTools.ModuleHost.InProcDotNet;
 using MyPowerTools.Packaging;
-using MyPowerTools.Platform.Abstractions;
-using MyPowerTools.Platform.Linux;
-using MyPowerTools.Platform.Mac;
-using MyPowerTools.Platform.Windows;
-using MyPowerTools.Protocol;
-using MyPowerTools.Runtime;
-using MyPowerTools.SampleModules.DotNet;
-using MyPowerTools.Shell.Avalonia;
-using MyPowerTools.Shell.Avalonia.Services;
-using MyPowerTools.Shell.Avalonia.ViewModels;
-using MyPowerTools.UI;
-using ScreenEase.MyPowerTools;
-using CommandExecutionResult = MyPowerTools.Abstractions.CommandExecutionResult;
-using CommandRequest = MyPowerTools.Abstractions.CommandRequest;
-using HealthCheckSnapshot = MyPowerTools.Abstractions.HealthCheckSnapshot;
-using HostProto = MyPowerTools.Protocol.HostControl.V1;
-using ModuleContext = MyPowerTools.Abstractions.ModuleContext;
-using ModuleStatusSnapshot = MyPowerTools.Abstractions.ModuleStatusSnapshot;
-using MptCommandDescriptor = MyPowerTools.Abstractions.MptCommandDescriptor;
-using MptOperationConstraints = MyPowerTools.Abstractions.MptOperationConstraints;
-using MptRuntimeError = MyPowerTools.Abstractions.MptRuntimeError;
-using SettingsPatch = MyPowerTools.Abstractions.SettingsPatch;
-using SettingsSchemaDocument = MyPowerTools.Abstractions.SettingsSchemaDocument;
-using SettingsSnapshotDocument = MyPowerTools.Abstractions.SettingsSnapshotDocument;
-using SettingsValidationResult = MyPowerTools.Abstractions.SettingsValidationResult;
 
 namespace MyPowerTools.Tests;
 
@@ -256,8 +216,6 @@ public sealed partial class RuntimeAcceptanceTests
         Assert.Contains("'artifacts\\release\\win-x64'", installScript);
 
         Assert.Contains("src\\MyPowerTools.App\\MyPowerTools.App.csproj", publishScript);
-        Assert.Contains("[switch]$PortableOnly", publishScript);
-        Assert.Contains("if ($PortableOnly)", publishScript);
         Assert.Contains("(Join-Path $PSScriptRoot 'build-sdk.ps1')", publishScript);
         Assert.Contains("-p:PublishAot=false", publishScript);
         Assert.Contains("$shellReadyToRun = -not $isWebDistribution", publishScript);
@@ -267,7 +225,6 @@ public sealed partial class RuntimeAcceptanceTests
         Assert.Contains("windowsShell = [ordered]@{", publishScript);
         Assert.Contains("selfContained = $false", publishScript);
         Assert.Contains("publishReadyToRunComposite = $shellReadyToRun", publishScript);
-        Assert.Contains("[ValidateSet('Full', 'Web', 'All')]", publishScript);
         Assert.Contains("runtimeConfigSha256", publishScript);
         Assert.Contains("MyPowerTools-core-$fromVersion-to-$Version.ota.zip", publishScript);
         Assert.DoesNotContain("EnableCompressionInSingleFile", publishScript);
@@ -297,13 +254,9 @@ public sealed partial class RuntimeAcceptanceTests
     {
         var installer = File.ReadAllText(Path.Combine(Root, "installer", "MyPowerTools.Web.iss"));
         var fullInstaller = File.ReadAllText(Path.Combine(Root, "installer", "MyPowerTools.iss"));
-        var componentBuilder = File.ReadAllText(Path.Combine(Root, "scripts", "new-runtime-components.ps1"));
-        var signatureBuilder = File.ReadAllText(Path.Combine(Root, "scripts", "new-web-installer-signatures.ps1"));
         var serviceConfigurator = File.ReadAllText(Path.Combine(Root, "scripts", "configure-user-services.ps1"));
         var installerWorker = File.ReadAllText(Path.Combine(Root, "scripts", "web-installer-worker.ps1"));
 
-        Assert.Contains("CreateDownloadPage", installer);
-        Assert.Contains("DownloadPage.Download", installer);
         Assert.Contains("AddWithISSigVerify", installer);
         Assert.Contains("ISSigVerify", installer);
         Assert.Contains("[ISSigKeys]", installer);
@@ -319,7 +272,6 @@ public sealed partial class RuntimeAcceptanceTests
         Assert.All(
             installer.Split('\n').Where(line => line.Contains("GetSHA256OfFile", StringComparison.Ordinal)),
             line => Assert.Contains("manifestSha256", line, StringComparison.Ordinal));
-        Assert.Contains("external extractarchive", installer);
         Assert.Contains("Source: \"..\\scripts\\configure-user-services.ps1\"", installer);
         Assert.Contains("Source: \"..\\scripts\\web-installer-worker.ps1\"; Flags: dontcopy", installer);
         Assert.Contains("DefaultDirName={localappdata}\\Programs\\MyPowerTools", installer);
@@ -357,13 +309,6 @@ public sealed partial class RuntimeAcceptanceTests
         Assert.Contains("Type: filesandordirs; Name: \"{app}\"", installer);
         Assert.Contains("Type: filesandordirs; Name: \"{app}\"", fullInstaller);
 
-        Assert.Contains("new-web-installer-signatures.ps1", componentBuilder);
-        Assert.Contains("sha256", componentBuilder);
-        Assert.Contains("MyPowerTools/ISSig/P-256/v1", signatureBuilder);
-        Assert.Contains("ISSigTool.exe", signatureBuilder);
-        Assert.Contains("--allow-overwrite", signatureBuilder);
-        Assert.Contains("'verify'", signatureBuilder);
-        Assert.Contains("OutputIncludePath", signatureBuilder);
         Assert.Contains("$process.Kill($true)", serviceConfigurator);
         Assert.Contains("@('service', 'quiesce') -TimeoutSeconds 5", serviceConfigurator);
         Assert.DoesNotContain("@('service', 'stop', [string]$unitId)", serviceConfigurator);

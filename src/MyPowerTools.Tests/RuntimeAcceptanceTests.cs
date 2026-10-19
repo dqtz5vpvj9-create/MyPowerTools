@@ -1210,16 +1210,6 @@ public sealed class GeneratedModule : IMptModule
                 .Select(File.ReadAllText));
     }
 
-    private static string ReadShellWorkspaceControllerText()
-    {
-        var servicesRoot = Path.Combine(Root, "src", "MyPowerTools.Shell.Avalonia", "Services");
-        return string.Join(
-            Environment.NewLine,
-            Directory.EnumerateFiles(servicesRoot, "ShellWorkspaceController*.cs", SearchOption.TopDirectoryOnly)
-                .OrderBy(Path.GetFileName, StringComparer.OrdinalIgnoreCase)
-                .Select(File.ReadAllText));
-    }
-
     private static Dictionary<string, string?> CaptureEnvironment(IReadOnlyList<string> names)
     {
         return names.ToDictionary(name => name, Environment.GetEnvironmentVariable, StringComparer.OrdinalIgnoreCase);
