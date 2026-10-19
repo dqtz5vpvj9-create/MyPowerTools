@@ -40,6 +40,10 @@
 .PARAMETER SkipSdk
   Skip the SDK bundle build (use when artifacts/sdk is already up to date).
 
+.PARAMETER MaxToolWorkers
+  Maximum concurrent whole-tool runtime/Surface builds (1 or 2). Defaults to 2.
+  Use 1 for the original serial build order. Collection and signing remain serial.
+
 .PARAMETER ToolId
   Optional tool id. When supplied, only that tool is built. May be specified
   multiple times: -ToolId adb-forwarder -ToolId screenease.
@@ -60,7 +64,10 @@ param(
 
     [switch]$SkipSdk,
 
-    [string[]]$ToolId = @()
+    [string[]]$ToolId = @(),
+
+    [ValidateRange(1, 2)]
+    [int]$MaxToolWorkers = 2
 )
 
 $ErrorActionPreference = 'Stop'
@@ -93,7 +100,7 @@ function Invoke-Native {
         [string]$Activity
     )
     if ($Activity) { Write-Host "  > $Activity" -ForegroundColor DarkGray }
-    & $FilePath @ArgumentList
+    & $FilePath @ArgumentList | Out-Host
     $exitCode = $LASTEXITCODE
     if ($exitCode -ne 0) {
         throw "$FilePath failed with exit code $exitCode."
@@ -411,11 +418,9 @@ $prebuiltCliTools = @('screenshot', 'input-monitor', 'local-lag-cleaner', 'ime-m
 $perToolManifest = New-Object System.Collections.ArrayList
 $toolBuildStates = New-Object System.Collections.ArrayList
 
-# Phase A: run each tool's build.ps1 and stage its Surface into the shared runtime
-# package. Tools that share a RuntimeStagePath (the android-tools-suite package) all
-# write into the same directory; collection happens in Phase B after every writer has
-# finished, so the suite is collected with every tool's Surface present.
-foreach ($tool in $toolRegistry) {
+function Invoke-ToolBuild {
+    param($Tool, $repoRoot, $Configuration, $Version, $dotnet, $cliExe, $prebuiltCliTools)
+
     $currentToolId    = [string]$tool.Id
     $toolBuildScript  = $tool.BuildScript
     $toolSurfaceProj  = $tool.SurfaceProject
@@ -489,13 +494,111 @@ foreach ($tool in $toolRegistry) {
         Write-Warning "[$currentToolId] Surface project not found at $surfaceProjFull; skipping Surface pack."
     }
 
-    [void]$toolBuildStates.Add([pscustomobject]@{
+    [pscustomobject]@{
         Tool             = $tool
         ToolId           = $currentToolId
         Version          = $toolVersion
         RuntimeStageFull = $runtimeStageFull
         SurfaceOutputs   = $surfaceOutputs
-    })
+    }
+}
+
+function Invoke-ToolBuildPhase {
+    param([object[]]$Tools, [hashtable]$Context, [int]$MaxWorkers)
+
+    # Only these audited tools may use the two-worker schedule. An unknown
+    # tool could share outputs with either lane, so fall back to fully serial.
+    $independentToolIds = @('adb-forwarder', 'doubao-computer-use', 'paste-image', 'screenshot',
+        'input-monitor', 'ime-manager', 'screenease', 'smartbird-thermostat', 'xbrd')
+    $serialToolIds = @('remote-notifications', 'remote-commands', 'local-lag-cleaner', 'nssm-manager')
+    $unknownTools = @($Tools | Where-Object { $_.Id -notin $independentToolIds -and $_.Id -notin $serialToolIds })
+    if ($MaxWorkers -eq 1 -or $unknownTools.Count -gt 0) {
+        foreach ($tool in $Tools) { Invoke-ToolBuild -Tool $tool @Context }
+        return
+    }
+
+    # Android staging and Platform/LocalLag writers stay in registry order.
+    $pending = [System.Collections.Generic.List[object]]::new()
+    foreach ($tool in $Tools) { $pending.Add($tool) }
+    $active = [System.Collections.Generic.List[object]]::new()
+    $jobs = [System.Collections.Generic.List[object]]::new()
+    $states = @{}
+    # Runspaces do not inherit functions or caller variables. Pass only the
+    # helpers and immutable build context needed by one whole-tool worker.
+    $definitions = @{
+        'Invoke-Native' = ${function:Invoke-Native}.ToString()
+        'Copy-SurfaceOutput' = ${function:Copy-SurfaceOutput}.ToString()
+        'Invoke-ToolBuild' = ${function:Invoke-ToolBuild}.ToString()
+    }
+    try {
+        while ($pending.Count -gt 0 -or $active.Count -gt 0) {
+            while ($active.Count -lt $MaxWorkers -and $pending.Count -gt 0) {
+                $serialBusy = @($active | Where-Object { $_.ToolId -notin $independentToolIds }).Count -gt 0
+                $next = -1
+                for ($i = 0; $i -lt $pending.Count; $i++) {
+                    if (-not $serialBusy -or $pending[$i].Id -in $independentToolIds) {
+                        $next = $i
+                        break
+                    }
+                }
+                if ($next -lt 0) { break }
+                $tool = $pending[$next]
+                $pending.RemoveAt($next)
+                $job = Start-ThreadJob -StreamingHost $Host -ArgumentList $tool, $Context, $definitions -ScriptBlock {
+                    param($Tool, $Context, $Definitions)
+                    $ErrorActionPreference = 'Stop'
+                    Set-StrictMode -Version Latest
+                    foreach ($name in $Definitions.Keys) {
+                        Set-Item -Path "Function:$name" -Value ([scriptblock]::Create($Definitions[$name]))
+                    }
+                    Invoke-ToolBuild -Tool $Tool @Context
+                }
+                $jobs.Add($job)
+                $active.Add([pscustomobject]@{ ToolId = $tool.Id; Job = $job })
+            }
+
+            Wait-Job -Job @($active | ForEach-Object { $_.Job }) -Any | Out-Null
+            foreach ($worker in @($active.ToArray())) {
+                if ($worker.Job.State -notin @('Completed', 'Failed', 'Stopped')) { continue }
+                # Native tools can write informational stderr even on exit 0.
+                # Replay diagnostics without promoting them to terminating errors;
+                # Invoke-Native checks exit codes, which fail the worker itself.
+                $result = @(Receive-Job -Job $worker.Job -ErrorAction Continue 6>$null)
+                if ($worker.Job.State -ne 'Completed') {
+                    throw "[$($worker.ToolId)] build worker $($worker.Job.State): $($worker.Job.JobStateInfo.Reason)"
+                }
+                if ($result.Count -ne 1 -or
+                    $result[0].ToolId -ne $worker.ToolId) {
+                    throw "[$($worker.ToolId)] build worker did not return exactly one completed state."
+                }
+                $states[$worker.ToolId] = $result[0]
+                [void]$active.Remove($worker)
+            }
+        }
+    } finally {
+        # Never abandon native child builds on failure: drain all started workers
+        # before throwing, and never enter collection after a failed Phase A.
+        foreach ($job in $jobs) {
+            Wait-Job -Job $job | Out-Null
+            Receive-Job -Job $job -ErrorAction Continue 6>$null | Out-Null
+            Remove-Job -Job $job
+        }
+    }
+    foreach ($tool in $Tools) { $states[$tool.Id] }
+}
+
+# Phase A: runtime -> Surface -> staging stays sequential inside each worker.
+# Shared writers are serialized; Phase B starts only after every worker succeeds.
+$buildContext = @{
+    repoRoot = $repoRoot
+    Configuration = $Configuration
+    Version = $Version
+    dotnet = $dotnet
+    cliExe = $cliExe
+    prebuiltCliTools = $prebuiltCliTools
+}
+foreach ($state in @(Invoke-ToolBuildPhase -Tools $toolRegistry -Context $buildContext -MaxWorkers $MaxToolWorkers)) {
+    [void]$toolBuildStates.Add($state)
 }
 
 # Phase B: collect every staged runtime package + Surface nupkg into artifacts/tools/<id>/<version>.
