@@ -21,6 +21,7 @@ function Invoke-CapturedProcess {
     param([string[]] $Arguments)
     $startInfo = [Diagnostics.ProcessStartInfo]::new($ManagedExecutable)
     $startInfo.UseShellExecute = $false
+    $startInfo.CreateNoWindow = $true
     $startInfo.RedirectStandardOutput = $true
     $startInfo.RedirectStandardError = $true
     $startInfo.StandardOutputEncoding = [Text.Encoding]::UTF8

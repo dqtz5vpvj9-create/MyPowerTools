@@ -28,12 +28,33 @@ public static class NssmElevatedClient
 {
     private const int MaximumResultBytes = 1024 * 1024;
 
+    // Keep this set identical to the elevated broker's approved action list
+    // (MyPowerTools.ElevatedBroker/NssmServiceApprovalExecutor.cs). The CLI routes
+    // set/reset through registry-set/registry-reset and image changes through
+    // imagepath; leaving them out here made RequiresElevation reject the operations
+    // the broker already approves, so `nssm set`/`nssm reset` failed with exit 3.
+    private static readonly HashSet<string> PrivilegedOperations = new(StringComparer.Ordinal)
+    {
+        "nssm-manager.install",
+        "nssm-manager.apply",
+        "nssm-manager.remove",
+        "nssm-manager.control",
+        "nssm-manager.migrate",
+        "nssm-manager.registry-set",
+        "nssm-manager.registry-reset",
+        "nssm-manager.imagepath",
+        "nssm-manager.rollback"
+    };
+
+    public static bool RequiresElevation(string operation) => PrivilegedOperations.Contains(operation);
+
     public static Task<JsonNode> ExecuteAsync(string operation, JsonObject arguments, CancellationToken cancellationToken = default) =>
         ExecuteAsync(operation, arguments, null, cancellationToken);
 
     public static async Task<JsonNode> ExecuteAsync(string operation, JsonObject arguments, char[]? password, CancellationToken cancellationToken = default)
     {
         if (!OperatingSystem.IsWindows()) throw new PlatformNotSupportedException("NSSM elevated operations require Windows.");
+        if (!RequiresElevation(operation)) throw new ArgumentOutOfRangeException(nameof(operation), operation, "The operation is not an approved NSSM privileged action.");
         var safeArguments = arguments.DeepClone().AsObject();
         safeArguments.Remove("password");
         var passwordLength = password is null ? 0 : password.Length > 0 && password[^1] == '\0' ? password.Length - 1 : password.Length;
@@ -128,8 +149,11 @@ public static class NssmElevatedClient
             int? nativeError = error?["nativeErrorCode"] is JsonValue nativeValue && nativeValue.TryGetValue<int>(out var code) ? code : null;
             throw new NssmElevatedOperationException(operation, root["message"]?.GetValue<string>() ?? "Elevated Broker failed.", remoteType, nativeError);
         }
-        return root["payload"] ?? new JsonObject();
+        return DetachResultPayload(root);
     }
+
+    internal static JsonNode DetachResultPayload(JsonObject resultEnvelope) =>
+        resultEnvelope["payload"]?.DeepClone() ?? new JsonObject();
 
     private static string ResolveBrokerPath()
     {

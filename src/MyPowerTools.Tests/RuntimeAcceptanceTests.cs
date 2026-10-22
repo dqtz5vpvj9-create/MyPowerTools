@@ -1201,7 +1201,7 @@ public sealed class GeneratedModule : IMptModule
         bool redirectOutput,
         out ProcessStartInfo psi)
     {
-        psi = new ProcessStartInfo();
+        psi = new ProcessStartInfo { UseShellExecute = false, CreateNoWindow = true };
         if (dotnetArguments.Count < 4 ||
             !string.Equals(dotnetArguments[0], "run", StringComparison.Ordinal) ||
             !string.Equals(dotnetArguments[1], "--project", StringComparison.Ordinal))

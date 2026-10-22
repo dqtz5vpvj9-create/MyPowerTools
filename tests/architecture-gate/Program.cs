@@ -510,6 +510,14 @@ static int RunA1Gate()
             : string.Join("; ", kestrelPolicyViolations)));
     overall &= kestrelPolicyReady;
 
+    var consoleWindowScan = FindInteractiveConsoleWindowRisks(repoRoot);
+    var noConsoleWindows = consoleWindowScan.Violations.Length == 0;
+    records.Add(new("A1.16-no-console-window-in-build-and-test", noConsoleWindows,
+        noConsoleWindows
+            ? $"scanned {consoleWindowScan.Files} build/test files; every console launch is hidden ({consoleWindowScan.Exemptions} documented exemptions)"
+            : string.Join("; ", consoleWindowScan.Violations)));
+    overall &= noConsoleWindows;
+
     foreach (var r in records)
     {
         Console.WriteLine($"[{(r.Passed ? "PASS" : "FAIL")}] {r.Id}: {r.Detail}");
@@ -580,6 +588,221 @@ static bool IsProductionSource(string path)
         !string.Equals(segment, "fixtures", StringComparison.OrdinalIgnoreCase) &&
         !string.Equals(segment, "original-source", StringComparison.OrdinalIgnoreCase) &&
         !segment.EndsWith(".Tests", StringComparison.OrdinalIgnoreCase));
+}
+
+// Build and test runs execute inside the developer's desktop session, where a new console
+// window steals focus and interrupts whatever the user is doing. Only three things can paint
+// one: CreateProcess with CREATE_NEW_CONSOLE, AllocConsole(), and ShellExecute on a console
+// program (Start-Process without -WindowStyle Hidden/-NoNewWindow does exactly that). This
+// scan fails the gate when a build/test file can still reach one of them.
+static (int Files, int Exemptions, string[] Violations) FindInteractiveConsoleWindowRisks(string repoRoot)
+{
+    var violations = new List<string>();
+    var files = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+    var exemptions = 0;
+
+    foreach (var path in EnumerateBuildTestScripts(repoRoot))
+    {
+        files.Add(path);
+        var lines = File.ReadAllLines(path);
+        for (var index = 0; index < lines.Length; index++)
+        {
+            if (!IsScriptLaunchSite(lines[index], path)) continue;
+            var block = string.Join('\n', lines.Skip(index).Take(24));
+            if (HasConsoleWindowSuppression(block)) continue;
+            if (IsExemptConsoleLaunch(repoRoot, path, block))
+            {
+                exemptions++;
+                continue;
+            }
+            violations.Add($"{Path.GetRelativePath(repoRoot, path)}:{index + 1} (console launch without -WindowStyle Hidden/-NoNewWindow/CreateNoWindow)");
+        }
+    }
+
+    foreach (var path in EnumerateBuildTestCSharpFiles(repoRoot))
+    {
+        files.Add(path);
+        var lines = File.ReadAllLines(path);
+        for (var index = 0; index < lines.Length; index++)
+        {
+            if (!lines[index].Contains("new ProcessStartInfo", StringComparison.Ordinal)) continue;
+            var block = string.Join('\n', lines.Skip(index).Take(24));
+            var suppressed =
+                block.Contains("CreateNoWindow = true", StringComparison.Ordinal) &&
+                block.Contains("UseShellExecute = false", StringComparison.Ordinal);
+            if (suppressed) continue;
+            if (IsExemptConsoleLaunch(repoRoot, path, block))
+            {
+                exemptions++;
+                continue;
+            }
+            violations.Add($"{Path.GetRelativePath(repoRoot, path)}:{index + 1} (test process start needs UseShellExecute = false and CreateNoWindow = true)");
+        }
+    }
+
+    foreach (var path in EnumerateAllCSharpFiles(repoRoot))
+    {
+        files.Add(path);
+        if (!HasConsoleAllocation(File.ReadAllLines(path))) continue;
+        if (IsExemptConsoleAllocation(repoRoot, path))
+        {
+            exemptions++;
+            continue;
+        }
+        var content = File.ReadAllText(path);
+        if (content.Contains("IsServiceHost", StringComparison.Ordinal) ||
+            content.Contains("ShouldAllocateConsole", StringComparison.Ordinal))
+        {
+            continue;
+        }
+        violations.Add($"{Path.GetRelativePath(repoRoot, path)} (AllocConsole/CREATE_NEW_CONSOLE is not gated by IsServiceHost/ShouldAllocateConsole)");
+    }
+
+    var installerRoot = Path.Combine(repoRoot, "installer");
+    if (Directory.Exists(installerRoot))
+    {
+        foreach (var path in Directory.EnumerateFiles(installerRoot, "*.iss", SearchOption.TopDirectoryOnly))
+        {
+            files.Add(path);
+            var lines = File.ReadAllLines(path);
+            for (var index = 0; index < lines.Length; index++)
+            {
+                var line = lines[index];
+                if (!line.TrimStart().StartsWith("Filename:", StringComparison.OrdinalIgnoreCase)) continue;
+                var consoleTarget =
+                    line.Contains("powershell", StringComparison.OrdinalIgnoreCase) ||
+                    line.Contains("pwsh", StringComparison.OrdinalIgnoreCase) ||
+                    line.Contains("cmd.exe", StringComparison.OrdinalIgnoreCase);
+                if (!consoleTarget || line.Contains("runhidden", StringComparison.OrdinalIgnoreCase)) continue;
+                violations.Add($"{Path.GetRelativePath(repoRoot, path)}:{index + 1} (console program needs the runhidden flag)");
+            }
+        }
+    }
+
+    return (files.Count, exemptions, violations.OrderBy(entry => entry, StringComparer.OrdinalIgnoreCase).ToArray());
+}
+
+static bool IsScriptLaunchSite(string line, string path) =>
+    line.Contains("ProcessStartInfo]::new", StringComparison.OrdinalIgnoreCase) ||
+    line.Contains("New-Object Diagnostics.ProcessStartInfo", StringComparison.OrdinalIgnoreCase) ||
+    line.Contains("Start-Process", StringComparison.Ordinal) ||
+    (Path.GetExtension(path) is ".cmd" or ".bat" &&
+     line.TrimStart().StartsWith("start ", StringComparison.OrdinalIgnoreCase));
+
+static bool HasConsoleWindowSuppression(string block) =>
+    block.Contains("CreateNoWindow = $true", StringComparison.OrdinalIgnoreCase) ||
+    block.Contains("CreateNoWindow = true", StringComparison.OrdinalIgnoreCase) ||
+    block.Contains("-NoNewWindow", StringComparison.OrdinalIgnoreCase) ||
+    block.Contains("runhidden", StringComparison.OrdinalIgnoreCase) ||
+    (block.Contains("WindowStyle", StringComparison.Ordinal) && block.Contains("Hidden", StringComparison.Ordinal));
+
+static bool HasConsoleAllocation(string[] lines) =>
+    lines.Any(line =>
+        !line.Contains("extern", StringComparison.OrdinalIgnoreCase) &&
+        (line.Contains("AllocConsole(", StringComparison.Ordinal) ||
+         line.Contains("CreateNewConsole", StringComparison.Ordinal) ||
+         line.Contains("CREATE_NEW_CONSOLE", StringComparison.Ordinal)));
+
+static bool IsExemptConsoleLaunch(string repoRoot, string path, string block)
+{
+    var relative = Path.GetRelativePath(repoRoot, path).Replace('\\', '/');
+    return ConsoleWindowExemptions().Any(entry =>
+        !entry.AllowsConsoleAllocation &&
+        entry.Path.Equals(relative, StringComparison.OrdinalIgnoreCase) &&
+        block.Contains(entry.Marker, StringComparison.OrdinalIgnoreCase));
+}
+
+static bool IsExemptConsoleAllocation(string repoRoot, string path)
+{
+    var relative = Path.GetRelativePath(repoRoot, path).Replace('\\', '/');
+    return ConsoleWindowExemptions().Any(entry =>
+        entry.AllowsConsoleAllocation &&
+        entry.Path.Equals(relative, StringComparison.OrdinalIgnoreCase));
+}
+
+// Every entry here is a deliberate, reviewable exception: either the launched program is a
+// WinExe whose visible window IS the product UI, or the user explicitly asked for a console.
+static (string Path, string Marker, string Reason, bool AllowsConsoleAllocation)[] ConsoleWindowExemptions() =>
+[
+    ("scripts/build-installer.ps1",
+        "MyPowerTools.Shell.Avalonia.exe",
+        "the generated installer launches the WinExe Shell, whose window must stay visible",
+        false),
+    ("scripts/install-windows-web.ps1",
+        "MyPowerTools.exe",
+        "launches the WinExe product launcher after a web install",
+        false),
+    ("scripts/Start-MyPowerTools.cmd",
+        "MPT_ROOT",
+        "user-facing launcher for the WinExe product entrypoints; not a build/test step",
+        false),
+    ("src/MyPowerTools.Ipc.Shared/DaemonProcessConsole.cs",
+        "AllocConsole",
+        "attaches a console only when the user passes --console; build/test never passes it",
+        true)
+];
+
+static IEnumerable<string> EnumerateBuildTestScripts(string repoRoot)
+{
+    var extensions = new[] { "*.ps1", "*.psm1", "*.cmd", "*.bat", "*.py" };
+    foreach (var rootName in new[] { "scripts", "tools", "tests" })
+    {
+        var root = Path.Combine(repoRoot, rootName);
+        if (!Directory.Exists(root)) continue;
+        foreach (var extension in extensions)
+        {
+            foreach (var path in Directory.EnumerateFiles(root, extension, SearchOption.AllDirectories))
+            {
+                if (IsExcludedBuildPath(repoRoot, path)) continue;
+                // macOS has no console windows; -WindowStyle Hidden does not exist there.
+                if (Path.GetFileName(path).Contains("macos", StringComparison.OrdinalIgnoreCase)) continue;
+                yield return path;
+            }
+        }
+    }
+}
+
+static IEnumerable<string> EnumerateBuildTestCSharpFiles(string repoRoot)
+{
+    foreach (var path in EnumerateAllCSharpFiles(repoRoot))
+    {
+        var segments = Path.GetRelativePath(repoRoot, path)
+            .Split([Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar], StringSplitOptions.RemoveEmptyEntries);
+        var isTestFile =
+            segments.Any(segment => segment.Equals("tests", StringComparison.OrdinalIgnoreCase) ||
+                                    segment.Equals("test", StringComparison.OrdinalIgnoreCase)) ||
+            Path.GetFileName(path).Contains("Tests", StringComparison.OrdinalIgnoreCase);
+        if (isTestFile) yield return path;
+    }
+}
+
+static IEnumerable<string> EnumerateAllCSharpFiles(string repoRoot)
+{
+    foreach (var rootName in new[] { "src", "tools", "tests" })
+    {
+        var root = Path.Combine(repoRoot, rootName);
+        if (!Directory.Exists(root)) continue;
+        foreach (var path in Directory.EnumerateFiles(root, "*.cs", SearchOption.AllDirectories))
+        {
+            if (IsExcludedBuildPath(repoRoot, path)) continue;
+            yield return path;
+        }
+    }
+}
+
+static bool IsExcludedBuildPath(string repoRoot, string path)
+{
+    var segments = Path.GetRelativePath(repoRoot, path)
+        .Split([Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar], StringSplitOptions.RemoveEmptyEntries);
+    return segments.Any(segment =>
+        segment.Equals("bin", StringComparison.OrdinalIgnoreCase) ||
+        segment.Equals("obj", StringComparison.OrdinalIgnoreCase) ||
+        segment.Equals("node_modules", StringComparison.OrdinalIgnoreCase) ||
+        segment.Equals("artifacts", StringComparison.OrdinalIgnoreCase) ||
+        segment.Equals("publish", StringComparison.OrdinalIgnoreCase) ||
+        segment.Equals("original-source", StringComparison.OrdinalIgnoreCase) ||
+        segment.Equals("upstream", StringComparison.OrdinalIgnoreCase) ||
+        segment.Equals("expanded", StringComparison.OrdinalIgnoreCase));
 }
 
 static bool ProjectConfiguresNamedPipePolicy(string registrationFile, string repoRoot)

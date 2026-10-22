@@ -18,6 +18,7 @@ internal sealed class ElevatedWinSpaceShiftRemapperController : IDisposable
     private readonly Timer _timer;
     private readonly object _gate = new();
     private Process? _installProcess;
+    private bool _installPending;
     private DateTimeOffset _nextInstallAttempt = DateTimeOffset.MinValue;
     private bool _taskEnabled;
     private bool _taskStarted;
@@ -90,7 +91,7 @@ internal sealed class ElevatedWinSpaceShiftRemapperController : IDisposable
             }
 
             _disabledOnStartup = false;
-            if (_installProcess is not null)
+            if (_installPending || _installProcess is not null)
             {
                 return;
             }
@@ -185,16 +186,31 @@ internal sealed class ElevatedWinSpaceShiftRemapperController : IDisposable
         };
 
         _nextInstallAttempt = now.AddSeconds(30);
-        try
+        _installPending = true;
+        // ShellExecute waits for UAC consent. Keep that wait off Runner startup and
+        // outside _gate so a pending prompt cannot block HostControl or shutdown.
+        _ = Task.Run(() =>
         {
-            _installProcess = Process.Start(startInfo);
-            Console.WriteLine("MyPowerTools requested one-time authorization for the Win+Space input task.");
-        }
-        catch (Win32Exception exception)
-        {
-            _installProcess = null;
-            Console.WriteLine($"MyPowerTools Win+Space input task was not installed: {exception.Message}");
-        }
+            Process? process = null;
+            try
+            {
+                process = Process.Start(startInfo);
+                Console.WriteLine("MyPowerTools requested one-time authorization for the Win+Space input task.");
+            }
+            catch (Win32Exception exception)
+            {
+                Console.WriteLine($"MyPowerTools Win+Space input task was not installed: {exception.Message}");
+            }
+            finally
+            {
+                lock (_gate)
+                {
+                    _installPending = false;
+                    if (_disposed) process?.Dispose();
+                    else _installProcess = process;
+                }
+            }
+        });
     }
 
     private void DisposeExitedInstallProcess()

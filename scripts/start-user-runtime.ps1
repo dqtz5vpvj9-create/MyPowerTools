@@ -130,6 +130,8 @@ if ($StartShell) {
         $shellStartInfo.FileName = $shellTarget
         $shellStartInfo.WorkingDirectory = $installRootFull
         $shellStartInfo.UseShellExecute = $false
+        # The Shell and app entrypoints are WinExe; this only guards a future console target.
+        $shellStartInfo.CreateNoWindow = $true
         if ($shellTarget.Equals($appExe, [StringComparison]::OrdinalIgnoreCase)) {
             $shellStartInfo.Arguments = (@('--data-root', $dataRootFull) |
                 ForEach-Object { ConvertTo-WindowsCommandLineArgument -Value $_ }) -join ' '

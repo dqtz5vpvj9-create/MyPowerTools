@@ -149,7 +149,19 @@ public sealed class MptAsyncRelayCommand : ICommand
 
     public event EventHandler? CanExecuteChanged;
 
-    public void NotifyCanExecuteChanged() => CanExecuteChanged?.Invoke(this, EventArgs.Empty);
+    public void NotifyCanExecuteChanged()
+    {
+        // Avalonia button IsEnabled updates must happen on the UI thread. Async
+        // command completions often resume on a thread-pool thread.
+        if (Avalonia.Threading.Dispatcher.UIThread.CheckAccess())
+        {
+            CanExecuteChanged?.Invoke(this, EventArgs.Empty);
+            return;
+        }
+
+        Avalonia.Threading.Dispatcher.UIThread.Post(
+            () => CanExecuteChanged?.Invoke(this, EventArgs.Empty));
+    }
 
     public bool CanExecute(object? parameter) => Volatile.Read(ref _isRunning) == 0 && (_canExecute?.Invoke() ?? true);
 

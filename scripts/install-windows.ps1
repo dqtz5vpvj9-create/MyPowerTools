@@ -747,6 +747,8 @@ try {
             $appStartInfo.FileName = $appExe
             $appStartInfo.WorkingDirectory = $InstallDirFull
             $appStartInfo.UseShellExecute = $false
+            # The app is a WinExe launcher, so this only guards against a future console target.
+            $appStartInfo.CreateNoWindow = $true
             $appStartInfo.ArgumentList.Add('--data-root')
             $appStartInfo.ArgumentList.Add($DataRootFull)
             [System.Diagnostics.Process]::Start($appStartInfo) | Out-Null

@@ -70,6 +70,44 @@ pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts/install-windows-dev-sh
 该目录缺少完整运行布局，可能造成工具、运行时和后台服务缺失。Dev 进程必须从
 `%LOCALAPPDATA%\Programs\MyPowerTools` 启动。
 
+## 构建与测试不得弹出命令行窗口
+
+`dotnet build`、`dotnet test`、`scripts/**`、`tools/**`、`tests/**` 里的构建和测试
+都在开发者当前的桌面会话里执行，任何新开的控制台窗口都会抢焦点、打断用户正在做的事。
+能画出这种窗口的只有三种写法，构建和测试代码都不许碰到：
+
+- `CreateProcess` 带 `CREATE_NEW_CONSOLE`（仅 SCM 的 session-0 服务宿主允许，见
+  `NssmConsole.ShouldAllocateConsole` 与 `NativeChildProcess.ConsoleCreationFlags`）。
+- 交互式宿主里调用 `AllocConsole()`（唯一例外是用户显式请求控制台的 `--console`）。
+- 对控制台程序使用 ShellExecute，也就是 PowerShell 的 `Start-Process` 不带
+  `-WindowStyle Hidden` / `-NoNewWindow`。
+
+具体要求：
+
+- PowerShell／批处理启动控制台程序时必须 `-WindowStyle Hidden` / `-NoNewWindow`，
+  或显式 `UseShellExecute = $false` 且 `CreateNoWindow = $true`；Inno `[Run]` 里启动
+  `powershell.exe` / `cmd.exe` / `pwsh` 必须带 `runhidden`。
+- .NET 测试代码启动进程必须 `UseShellExecute = false` 且 `CreateNoWindow = true`。
+- 启动 GUI（WinExe）产品入口（`MyPowerTools.exe`、Shell）时不要隐藏窗口，
+  `Start-Process` 不要加 `-WindowStyle Hidden`，否则会把产品界面一起藏起来。
+
+该规则由 Architecture Gate 的 `A1.16-no-console-window-in-build-and-test` 强制：
+scripts/tools/tests 的脚本、测试 C# 代码、控制台分配调用和 Inno `[Run]` 条目都会被
+扫描，新增未抑制的启动会让 `scripts/verify-architecture.ps1 -Tier Quick` 直接失败。
+确需豁免时在 `tests/architecture-gate/Program.cs` 的 `ConsoleWindowExemptions` 表里
+登记路径、标记和原因，不要用注释或改写语句绕过。
+
+怀疑还有窗口在弹时，用窗口监视器抓现行（记录每个新窗口的类名、所属进程、可见性、
+大小、存活时间，以及每个新进程的父进程与命令行）：
+
+```powershell
+pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts/diagnose-console-windows.ps1 -Seconds 300
+```
+
+脚本结束时打印 `visibleConsoleWindows=` 计数和每个可见控制台窗口的创建者；复现问题
+期间让它跑着即可。`hidden` 的 `ConsoleWindowClass` 与 0x0 的 `PseudoConsoleWindow`
+是无窗口控制台（`CreateNoWindow` / ConPTY），不算打扰。
+
 ## Remote Notifications 双端同步
 
 Remote Notifications 相关改动必须同时更新两端，不能只改桌面或只改手机：

@@ -28,6 +28,7 @@ function Invoke-NativeWait {
     $processInfo = [Diagnostics.ProcessStartInfo]::new()
     $processInfo.FileName = $FilePath
     $processInfo.UseShellExecute = $false
+    $processInfo.CreateNoWindow = $true
     foreach ($argument in $ArgumentList) { $processInfo.ArgumentList.Add($argument) }
     $process = [Diagnostics.Process]::Start($processInfo)
     $process.WaitForExit()

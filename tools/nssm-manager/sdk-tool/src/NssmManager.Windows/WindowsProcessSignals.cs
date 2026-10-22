@@ -4,7 +4,15 @@ namespace NssmManager.Windows;
 
 public static class WindowsProcessSignals
 {
-    public static void EnsureConsole() => NativeMethods.AllocConsole();
+    /// <summary>
+    /// Allocates the console of a service host. Only an SCM-hosted process runs on the
+    /// invisible session-0 window station, so only there can a console be allocated without
+    /// painting a window onto the user's desktop.
+    /// </summary>
+    public static void EnsureConsole()
+    {
+        if (NssmConsole.IsServiceHost()) NativeMethods.AllocConsole();
+    }
 
     public static void SendConsoleControlC(uint processId)
     {

@@ -649,8 +649,8 @@ internal static class LocalLagCleanerRuntime
         var token = ReadRequiredArgumentString(arguments, "confirmationToken", 8);
         var allowDisconnect = ReadOptionalBoolean(arguments, "allowDisconnect");
         var allowServiceRestart = ReadOptionalBoolean(arguments, "allowServiceRestart");
-        var plan = cleanup.TryReadPendingPlan() ??
-                   throw new InvalidOperationException("没有待执行的清理计划，请先生成计划。");
+        var plan = cleanup.ValidatePendingPlan(
+            planId, expectedAction, token, allowDisconnect, allowServiceRestart);
         if (plan.RequiresAdministrator)
         {
             var elevatedResult = await ElevatedCleanupClient.RunAsync(

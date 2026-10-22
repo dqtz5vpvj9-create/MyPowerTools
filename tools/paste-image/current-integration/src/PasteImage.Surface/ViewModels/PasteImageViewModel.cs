@@ -166,7 +166,7 @@ public sealed class PasteImageViewModel : ToolSurfacePageViewModel, IDisposable
         SetMessage("↑", "正在读取剪贴板并上传…", Accent, AccentSoft);
         try
         {
-            var response = await ExecuteAsync("paste-image.upload", TimeSpan.FromSeconds(65), _lifetime.Token).ConfigureAwait(false);
+            var response = await ExecuteAsync("paste-image.upload", TimeSpan.FromSeconds(310), _lifetime.Token).ConfigureAwait(false);
             await RunOnUiAsync(() =>
             {
                 if (response.Success)
@@ -306,8 +306,16 @@ public sealed class PasteImageViewModel : ToolSurfacePageViewModel, IDisposable
         return await Task.Run(() =>
         {
             cancellationToken.ThrowIfCancellationRequested();
-            using var stream = File.Open(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
-            return new Bitmap(stream);
+            try
+            {
+                using var stream = File.Open(path, FileMode.Open, FileAccess.Read, FileShare.ReadWrite);
+                return new Bitmap(stream);
+            }
+            catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or ArgumentException)
+            {
+                System.Diagnostics.Trace.WriteLine($"Paste Image preview unavailable: {exception.Message}");
+                return null;
+            }
         }, cancellationToken).ConfigureAwait(false);
     }
 

@@ -5,6 +5,7 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
+    <InternalsVisibleTo Include="NssmManager.Tests" />
     <PackageReference Include="MyPowerTools.AvaloniaSdk" Version="0.2.0" />
     <PackageReference Include="MyPowerTools.ToolSdk" Version="0.2.0" />
     <ProjectReference Include="..\NssmManager.Contracts\NssmManager.Contracts.csproj" />

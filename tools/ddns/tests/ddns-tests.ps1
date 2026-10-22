@@ -59,6 +59,21 @@ function Invoke-Test([string]$Name, [scriptblock]$Body) {
     }
 }
 
+Invoke-Test 'Invalid WAN addresses are rejected before DNS API calls' {
+    $updateAst = $ast.Find({ param($node)
+        $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'Invoke-Update'
+    }, $true)
+    . ([scriptblock]::Create($updateAst.Extent.Text))
+    function Invoke-DnspodApi { throw 'DNS API must not be called.' }
+    foreach ($invalid in @('999.1.2.3', '127.1', '::1', 'error response', '')) {
+        function Get-WanIp { $invalid }
+        $message = ''
+        try { Invoke-Update -Config ([pscustomobject]@{ mainDomain = 'example.test'; subDomain = 'home' }) -DataRoot $env:TEMP }
+        catch { $message = $_.Exception.Message }
+        Assert-Equal "Invalid IPv4 address: $invalid" $message
+    }
+}
+
 Invoke-Test 'CIM adapter uses InterfaceIndex rather than device Index' {
     . $wanIpFunction
     $OverrideIp = ''
