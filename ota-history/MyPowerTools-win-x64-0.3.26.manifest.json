@@ -3,9 +3,9 @@
   "kind": "mypowertools-ota-file-manifest",
   "product": "MyPowerTools",
   "version": "0.3.26",
-  "generatedAtUtc": "2026-10-19T21:25:49.7892923+00:00",
-  "fileCount": 9209,
-  "totalBytes": 512087956,
+  "generatedAtUtc": "2026-10-22T09:53:27.0546374+00:00",
+  "fileCount": 9283,
+  "totalBytes": 512403060,
   "files": [
     {
       "path": "assets/MyPowerTools.ico",
@@ -20,12 +20,12 @@
     {
       "path": "Broker/MyPowerTools.ElevatedBroker.exe",
       "length": 3374131,
-      "sha256": "fea459ff95d2b2cb88c5eeb689681bf4855ee875ee61f37db38f56b8659c67e1"
+      "sha256": "5781652f4fe77a0cee9d85f21f5f15760987907663f442ee6f4536f147ac3965"
     },
     {
       "path": "build-provenance.json",
       "length": 4928,
-      "sha256": "6fa8fcb45b17f40f4fc37ec4bedfcc6ff9fd05a41973af4f7eda31202f40b874"
+      "sha256": "60f83ee73e5317ee82c4cfccd73b4ed419c4896e1ec70c1a4c9b44696fd81328"
     },
     {
       "path": "Cli/Google.Protobuf.dll",
@@ -75,12 +75,12 @@
     {
       "path": "Cli/MyPowerTools.Abstractions.dll",
       "length": 160256,
-      "sha256": "04cce67c4d9b2485e4acef1d618b50987d7b8eadb0fc18199810c5ea0009d33a"
+      "sha256": "57c868cc6cf445a11e178bbadd71e3ae4e87176c9e43ccf35bcd3b777698c6d3"
     },
     {
       "path": "Cli/MyPowerTools.Broker.dll",
       "length": 141824,
-      "sha256": "d399786b7eb6d3a412b7bbf842dac1475d7f2a48d65d70e66a5bd1918c7fca5a"
+      "sha256": "e431752c562d554216301aeb43a826295ee58cda1ca9b4ceb20e846ca8bf4059"
     },
     {
       "path": "Cli/MyPowerTools.Cli.deps.json",
@@ -90,12 +90,12 @@
     {
       "path": "Cli/MyPowerTools.Cli.dll",
       "length": 116736,
-      "sha256": "3133b48b96f5bdba222232a895ba0e56ede03cfed3cf9475c40e73aba0f96be4"
+      "sha256": "03172c698ff5fc5239acbf1bfb93307f822e6ebae9fc30ca15928db1cee0c2e3"
     },
     {
       "path": "Cli/MyPowerTools.Cli.exe",
       "length": 162304,
-      "sha256": "b487eca9a43db667fd178d8e94f2adc9223465b285335482cb947e8357f3b0f8"
+      "sha256": "2e722b09eac25b4abad8ce7c26dbf85bd112e5d10124c63e2da02e2867b0c7c9"
     },
     {
       "path": "Cli/MyPowerTools.Cli.runtimeconfig.json",
@@ -105,62 +105,62 @@
     {
       "path": "Cli/MyPowerTools.HostControl.Client.dll",
       "length": 44544,
-      "sha256": "c634f2497f31db6d096b523a0191c18e9fc00d7927ba8ce673a22a84d98e160e"
+      "sha256": "78550c87315d495a235f53c78f1f6a9b8f66c82c0baf4520bb72fc9662ec0e80"
     },
     {
       "path": "Cli/MyPowerTools.HostControl.Contracts.dll",
       "length": 9728,
-      "sha256": "28ba794b41000209574dd09dbfaa74fd5395719f5f230b0a11f231d1abea8247"
+      "sha256": "90e5e97a030050ea5c34278db5efdd095d42d37c5400c535b6eb82af544819c3"
     },
     {
       "path": "Cli/MyPowerTools.Ipc.Shared.dll",
       "length": 29184,
-      "sha256": "8a184598f4a9eb7787443665c98adfb62763b18686b03f2dada8f9b8436d2521"
+      "sha256": "0f861a97891c88af3184d9c5df207d5636899ebf41f7b3f5cc7dafb64321cf6d"
     },
     {
       "path": "Cli/MyPowerTools.ModuleHost.GrpcIpc.dll",
       "length": 88064,
-      "sha256": "70d79aa2033da7d1158d1ddcbd1c6c3a2bd68cc6841096868d4c70ee8158d520"
+      "sha256": "f76214ce1e5a9252d6cf331aa370cdf9012240125bd5d5036327b08bc9d1dd3e"
     },
     {
       "path": "Cli/MyPowerTools.ModuleHost.InProcDotNet.dll",
       "length": 145920,
-      "sha256": "813823fc1d10f50f9927620f3eb2bc5dbc50dcba7ff17bb3fdbfe9371742db4b"
+      "sha256": "8c6bbe2b6d0e2752e08f8f2cab755323c6006bbbb5fdbd6515959a83cfab5833"
     },
     {
       "path": "Cli/MyPowerTools.ModuleHost.StdioCompat.dll",
       "length": 18432,
-      "sha256": "f163029fce571c707183cb48bf13e08ff5d8056390721b64d0119b7ac3164d6f"
+      "sha256": "b5b66986cdb8840ce8643adb1d2d99b37ef15777f6423b6b895b9d319311575b"
     },
     {
       "path": "Cli/MyPowerTools.Packaging.dll",
       "length": 194560,
-      "sha256": "ce90f44c955ce7f961dbe94ba28c5ba65875654456c24b9ef40bf643280938e6"
+      "sha256": "26d697312c62dfe62c00d81f26ab21cc6e128e2c7c1edd6226d354975ea334d8"
     },
     {
       "path": "Cli/MyPowerTools.Platform.Abstractions.dll",
       "length": 106496,
-      "sha256": "bd03ebf403856417f988dc5282d29d9a097df7111bc8abb592371f63fb833fac"
+      "sha256": "11fef316414be81d9d0a019aa5721127a5b67f547e42e4242955ddaaa4ea1be7"
     },
     {
       "path": "Cli/MyPowerTools.Platform.Windows.dll",
       "length": 108544,
-      "sha256": "f7cfa60bfb6b9ef3f622e3790547a07414aa51ab768498c0d1bdaa23ea731cc4"
+      "sha256": "82ccc3f345a1d515f8f8f6924afbd7fd40573b33ffe6a0ec61253631500a5ff9"
     },
     {
       "path": "Cli/MyPowerTools.Protocol.dll",
       "length": 514048,
-      "sha256": "85242d2d56ced992ec3cc9cf53082a6cb83240e790a74f0a32d5b0d6c75f52cb"
+      "sha256": "b174bc827b5b3421bed6c63f202518c535cf7b3e473f43d3a794479b1fc021f6"
     },
     {
       "path": "Cli/MyPowerTools.Runtime.dll",
       "length": 366080,
-      "sha256": "086b226c6e9d65d31e0c74de456f9c4d700d0e3701ea1161fa78b94d68784f49"
+      "sha256": "836cd9365f584f70ccec21e78d02057df759e52b6e7285b53d98b7c1effd0a3a"
     },
     {
       "path": "Cli/MyPowerTools.ServiceManager.Client.dll",
       "length": 34304,
-      "sha256": "6d702788e0f8666598a24d6cfe280988210cbe7f2891bd031ab0f418e757579f"
+      "sha256": "16a1fbe7099db0235171085ff4b27f0099a8f65da1b2b6e968730c869258cebc"
     },
     {
       "path": "Cli/schemas/tool.schema.json",
@@ -195,7 +195,7 @@
     {
       "path": "InputRemap/MyPowerTools.InputRemapHost.exe",
       "length": 2442887,
-      "sha256": "32b6f8c51e2ecdfd91eaa12dfafb8774470529d11fd6c3dbce924856f1edbf49"
+      "sha256": "7cab9c76a5171c04f069170ecd49899093d687afa3b3382cd252d370abbb67e7"
     },
     {
       "path": "install-windows.ps1",
@@ -215,7 +215,7 @@
     {
       "path": "modules/adb-forwarder/AdbForwarder.MyPowerTools.dll",
       "length": 100352,
-      "sha256": "a1626ce3c5e1b3cac3f57fe5fa2ed3649c3a5316521e485c1a1f65c5647f3c8f"
+      "sha256": "12b524e2e407221aa3ba3d82ad932962f85de67f4a57fc33165738ce8f7d0a05"
     },
     {
       "path": "modules/adb-forwarder/commands.index.json",
@@ -230,12 +230,12 @@
     {
       "path": "modules/adb-forwarder/shared/package.hashes.json",
       "length": 1744,
-      "sha256": "6cfdb26592b97f598a25f07c9b22b15e9cf0af13d6eb69ef278460db82051b77"
+      "sha256": "8ba2cc6ab0e82aba0813bf24809f57400eb9f7ab899686d39d84cadd6db23303"
     },
     {
       "path": "modules/adb-forwarder/shared/package.signature.json",
       "length": 537,
-      "sha256": "6df75316898fcbcc355509e0ed5f29c58ba3b6f24fa4caa140fbf919b8a1f33c"
+      "sha256": "e8cf1abf4d7888487dda6d1fc9b6833a4ce7bc51dc3520cb239ed37ae63a15c7"
     },
     {
       "path": "modules/adb-forwarder/ui/dashboard-card.json",
@@ -260,12 +260,12 @@
     {
       "path": "modules/adb-forwarder/ui/surface/AdbForwarder.Surface.deps.json",
       "length": 17006,
-      "sha256": "6849922ec5d7174afb9a81bdc0d0980d0e104df47e709780a1926432a46f05e3"
+      "sha256": "60dd4e479e79ac706ab6b716075a5b1025aed49cc72109d184f7848cd22ae0e8"
     },
     {
       "path": "modules/adb-forwarder/ui/surface/AdbForwarder.Surface.dll",
       "length": 482816,
-      "sha256": "db6bf8898e73f8b846dc440fc6a7e1aeb4d0d6f9f6995c0ecd1e452f230a3908"
+      "sha256": "3cb2070da1557dddf232b3e16a1049769f966b332e16aff7bd4274876a76a704"
     },
     {
       "path": "modules/adb-forwarder/ui/tool.json",
@@ -275,7 +275,7 @@
     {
       "path": "modules/android-tools-suite/AndroidTools.MyPowerTools.dll",
       "length": 222720,
-      "sha256": "56bb7a6b1268afe7fb71cf76f400b2aa08f1034388654bf472886ee169899fe8"
+      "sha256": "482b39cbf1c32787525185dc356d5a2cbe6e202f55e1b2c4f3631c018ac28d52"
     },
     {
       "path": "modules/android-tools-suite/modules/notifications/commands.index.json",
@@ -320,17 +320,17 @@
     {
       "path": "modules/android-tools-suite/modules/notifications/ui/surface/MyPowerTools.Ipc.Shared.dll",
       "length": 29184,
-      "sha256": "8a184598f4a9eb7787443665c98adfb62763b18686b03f2dada8f9b8436d2521"
+      "sha256": "0f861a97891c88af3184d9c5df207d5636899ebf41f7b3f5cc7dafb64321cf6d"
     },
     {
       "path": "modules/android-tools-suite/modules/notifications/ui/surface/RemoteNotifications.Surface.deps.json",
       "length": 18215,
-      "sha256": "29eb50714790e46881268e178f21d0fa7f6d3617829a7808a9af51b963737cfa"
+      "sha256": "c930044ffe7e69b4cf850bce58b7920f2d11d4e272ce05d2515ab89eba61ada9"
     },
     {
       "path": "modules/android-tools-suite/modules/notifications/ui/surface/RemoteNotifications.Surface.dll",
       "length": 323584,
-      "sha256": "b3377f8e4e2bec670946ac9f2af16230140d6de1a8c642667747798afd312ad3"
+      "sha256": "732b46ae085dac352c1479cb1b600df7d22c565c0d25fb42f57a4a4cd07a8ca2"
     },
     {
       "path": "modules/android-tools-suite/modules/notifications/ui/tool.json",
@@ -415,12 +415,12 @@
     {
       "path": "modules/android-tools-suite/modules/remote-commands/ui/surface/RemoteCommands.Surface.deps.json",
       "length": 7592,
-      "sha256": "722bec0ae5fb2c449671880946e8d2a9faa02314443521ab39f6578c277575b0"
+      "sha256": "228f97f53b61d5b8f51a7ae34e5369aefe7abc08a3a6d512f0228af84e222845"
     },
     {
       "path": "modules/android-tools-suite/modules/remote-commands/ui/surface/RemoteCommands.Surface.dll",
       "length": 139264,
-      "sha256": "be2813935f42554ecb8b94a6fae3fc39c9d7114aaa945be78bb48870eda76738"
+      "sha256": "faf0642b8fe375720a5ba0af91d6b00550f8f901d97e6ac8b405ebefa731b91f"
     },
     {
       "path": "modules/android-tools-suite/modules/remote-commands/ui/tool.json",
@@ -435,12 +435,12 @@
     {
       "path": "modules/android-tools-suite/shared/package.hashes.json",
       "length": 9209,
-      "sha256": "ced53f6ef5c3fda9810a078fc4271b93400acd0d1464fb92a4310f8489529bc6"
+      "sha256": "b138bb1b42b9db79387d64381d2b27ef10c85d25feaaf9c16f18fd267a77825c"
     },
     {
       "path": "modules/android-tools-suite/shared/package.signature.json",
       "length": 543,
-      "sha256": "b9d0c997a33b07c10d49648287b9b9dbaa22ae6f9983710cdb2e324f2e4bd4e6"
+      "sha256": "e950d175be37b7bb59c82742e63e7a6d53d641371f0973c3338841fab676fd8c"
     },
     {
       "path": "modules/android-tools-suite/shared/powertool/commands.yaml",
@@ -455,7 +455,7 @@
     {
       "path": "modules/android-tools-suite/windows/x64/AndroidTools.MyPowerTools.dll",
       "length": 222720,
-      "sha256": "56bb7a6b1268afe7fb71cf76f400b2aa08f1034388654bf472886ee169899fe8"
+      "sha256": "482b39cbf1c32787525185dc356d5a2cbe6e202f55e1b2c4f3631c018ac28d52"
     },
     {
       "path": "modules/android-tools-suite/windows/x64/BouncyCastle.Cryptography.dll",
@@ -500,7 +500,7 @@
     {
       "path": "modules/android-tools-suite/windows/x64/MPTAndroidTools.Runtime.deps.json",
       "length": 8827,
-      "sha256": "0b6b4c83cb2b7a5bc4ab43bc261747c2c7a4d7d90c01c7a2367fdbc59c0c0e09"
+      "sha256": "8524636b9a312f767fbf8cb94e4c5f8c6f9d504c5d2ddb62a90f8c1dcf9b9b8f"
     },
     {
       "path": "modules/android-tools-suite/windows/x64/MPTAndroidTools.Runtime.dll",
@@ -525,22 +525,22 @@
     {
       "path": "modules/android-tools-suite/windows/x64/MyPowerTools.Abstractions.dll",
       "length": 160256,
-      "sha256": "04cce67c4d9b2485e4acef1d618b50987d7b8eadb0fc18199810c5ea0009d33a"
+      "sha256": "57c868cc6cf445a11e178bbadd71e3ae4e87176c9e43ccf35bcd3b777698c6d3"
     },
     {
       "path": "modules/android-tools-suite/windows/x64/MyPowerTools.Ipc.Shared.dll",
       "length": 29184,
-      "sha256": "8a184598f4a9eb7787443665c98adfb62763b18686b03f2dada8f9b8436d2521"
+      "sha256": "0f861a97891c88af3184d9c5df207d5636899ebf41f7b3f5cc7dafb64321cf6d"
     },
     {
       "path": "modules/android-tools-suite/windows/x64/MyPowerTools.Platform.Abstractions.dll",
       "length": 106496,
-      "sha256": "bd03ebf403856417f988dc5282d29d9a097df7111bc8abb592371f63fb833fac"
+      "sha256": "11fef316414be81d9d0a019aa5721127a5b67f547e42e4242955ddaaa4ea1be7"
     },
     {
       "path": "modules/android-tools-suite/windows/x64/MyPowerTools.Protocol.dll",
       "length": 514048,
-      "sha256": "85242d2d56ced992ec3cc9cf53082a6cb83240e790a74f0a32d5b0d6c75f52cb"
+      "sha256": "b174bc827b5b3421bed6c63f202518c535cf7b3e473f43d3a794479b1fc021f6"
     },
     {
       "path": "modules/android-tools-suite/windows/x64/web.config",
@@ -555,7 +555,7 @@
     {
       "path": "modules/doubao-agent/DoubaoAgent.MyPowerTools.dll",
       "length": 44032,
-      "sha256": "bf68879a4c7819856322be59fe60a08f14fc2cee81faaa1d932827d16d37e9d0"
+      "sha256": "9803a403aa513bf57fdfa75b7e48cd285a8e9e0c66e6aef54c433f05e274a764"
     },
     {
       "path": "modules/doubao-agent/module.json",
@@ -565,12 +565,12 @@
     {
       "path": "modules/doubao-agent/shared/package.hashes.json",
       "length": 1739,
-      "sha256": "d99016bfc0dd8dd194161d19ad69d1dce71057509833d43d273b45c393a2515c"
+      "sha256": "8a058e9e20edde90a1a1e8371b4964cb1da7d5c27a34f279535f28ce49eb3370"
     },
     {
       "path": "modules/doubao-agent/shared/package.signature.json",
       "length": 536,
-      "sha256": "7215e37e861e64faf8e154d5116ec051c43f27e96af9de58bcc712d5da3ba6ba"
+      "sha256": "004587c6b6f0078895993941ad5e39c2601fcb3cdd9c2d73de2e4c9264c5087f"
     },
     {
       "path": "modules/doubao-agent/ui/dashboard-card.json",
@@ -595,12 +595,12 @@
     {
       "path": "modules/doubao-agent/ui/surface/DoubaoAgent.Surface.deps.json",
       "length": 17003,
-      "sha256": "409198bd2a356092d19037fcf7606ab396dc4a3b6fc4ce19fbef4b09430819fc"
+      "sha256": "c56e716f9cc2162898cf48ddfa1d7a4e244a34934af4cdd4ed8804a1338376b8"
     },
     {
       "path": "modules/doubao-agent/ui/surface/DoubaoAgent.Surface.dll",
       "length": 352256,
-      "sha256": "9af790e05fbf096c4109cc955c4f23e591b76e7582def2f0836ba0c944246cb6"
+      "sha256": "74e75fe6262e25a88227338d53154d7d35f0e5af1439ad01aa1f240738eaef50"
     },
     {
       "path": "modules/doubao-agent/ui/tool.json",
@@ -635,22 +635,22 @@
     {
       "path": "modules/ime-manager/shared/package.hashes.json",
       "length": 3694,
-      "sha256": "2dd51f725a131501af1cc2851539189f9912f1a76cbc91debb8eb06772be545e"
+      "sha256": "25be2f2fd34785bb4007bda56cd82065631c50f58c0c964dd9c75bf69120f742"
     },
     {
       "path": "modules/ime-manager/shared/package.signature.json",
       "length": 535,
-      "sha256": "972813810352f61316dceb604f636d124c76def264f5c85fbe246afff8b239a1"
+      "sha256": "c486827ed350c059d746cdd883a270b08058594ad8f2917d2e7f5c81a3636375"
     },
     {
       "path": "modules/ime-manager/source-manifest.json",
       "length": 2931,
-      "sha256": "944d8cf49e9093fdc53630ce892f9e786ef02de1ff61b8ec96e649c7be7c69a3"
+      "sha256": "4b7718f3f9018f55f5d2448892e417379a991d15ca19330a70cce70bb4b0228b"
     },
     {
       "path": "modules/ime-manager/src/ImeManager.Runtime/bin/Release/net10.0/ImeManager.Core.dll",
       "length": 56320,
-      "sha256": "db1564f348b0b33da62bbaffe665226eccfd18a38e1edaacdf90fcb54bab8163"
+      "sha256": "c9eebecb1f266c5fd46856c96b2c6f9c5369c76e83cb4ff0f7c99e92ac1d0fe9"
     },
     {
       "path": "modules/ime-manager/src/ImeManager.Runtime/bin/Release/net10.0/ImeManager.Runtime.deps.json",
@@ -660,12 +660,12 @@
     {
       "path": "modules/ime-manager/src/ImeManager.Runtime/bin/Release/net10.0/ImeManager.Runtime.dll",
       "length": 22528,
-      "sha256": "d13efed0e30cec0b92746aae59283c97f3fc462fa6708da74bf5970eb6203c2c"
+      "sha256": "154d9134fd256afc5616e82eb62a73ef41ff68187a61c7dfd587068b985386ae"
     },
     {
       "path": "modules/ime-manager/src/ImeManager.Runtime/bin/Release/net10.0/ImeManager.Runtime.exe",
       "length": 162816,
-      "sha256": "db587256adb97584f39e13b63bf742bb612a6726d85f557b684026b51c628888"
+      "sha256": "108e7eb34b4b1b961a36a51be4836ece8aae833b0efeab1c468f13e1954f1e11"
     },
     {
       "path": "modules/ime-manager/src/ImeManager.Runtime/bin/Release/net10.0/ImeManager.Runtime.runtimeconfig.json",
@@ -675,17 +675,17 @@
     {
       "path": "modules/ime-manager/src/ImeManager.Tool/bin/Release/net10.0/ImeManager.Core.dll",
       "length": 56320,
-      "sha256": "db1564f348b0b33da62bbaffe665226eccfd18a38e1edaacdf90fcb54bab8163"
+      "sha256": "c9eebecb1f266c5fd46856c96b2c6f9c5369c76e83cb4ff0f7c99e92ac1d0fe9"
     },
     {
       "path": "modules/ime-manager/src/ImeManager.Tool/bin/Release/net10.0/ImeManager.Tool.deps.json",
       "length": 5369,
-      "sha256": "e81c7bc2571e7f8872ba2d83b02f8ba9aef7e63712e3dd9581e5e1f5f5f9f727"
+      "sha256": "7717d1e490fc555820cb96e0e0e31fa094ca0f7ccab5308ae96ec324646759d2"
     },
     {
       "path": "modules/ime-manager/src/ImeManager.Tool/bin/Release/net10.0/ImeManager.Tool.dll",
       "length": 78336,
-      "sha256": "cb19e6e5de0c794fc5bc6f242e36d1e8d70285553e229cda898668b5c4948c8f"
+      "sha256": "a02ed7357f5f1bc063fb46b29a6a304e617802e82bc737bcbaf2fdd3f1223637"
     },
     {
       "path": "modules/ime-manager/tool.json",
@@ -725,12 +725,12 @@
     {
       "path": "modules/input-monitor/InputMonitor.MyPowerTools.deps.json",
       "length": 11800,
-      "sha256": "b44db2c4119e0a596f920a4faf7c542dcb877a47e5597a95f7aadd2769b832bc"
+      "sha256": "0ce7604c9e9a61ab166022d36f94cbf921d264ca406d68466c6c265d6e16f1aa"
     },
     {
       "path": "modules/input-monitor/InputMonitor.MyPowerTools.dll",
       "length": 53760,
-      "sha256": "08b7849315e573b39619b815fe3bef130ae664e7233a902d123e24e1749bad19"
+      "sha256": "d7231b445582b4de7d9dbaa7f6836fb71c97a280a57c6750d61e77cf56db2d6b"
     },
     {
       "path": "modules/input-monitor/Microsoft.Data.Sqlite.dll",
@@ -760,12 +760,12 @@
     {
       "path": "modules/input-monitor/shared/package.hashes.json",
       "length": 3224,
-      "sha256": "8e9070cecd3e4c59061275282a2e32afe027c77156bd81a175f7fd7a334aca18"
+      "sha256": "d1e4bdfe5037f11a25b0d3a66262d9e9fa1ebe0ff0bb87ddebaf4849554c05b4"
     },
     {
       "path": "modules/input-monitor/shared/package.signature.json",
       "length": 537,
-      "sha256": "df9c7ee5fcdd0f60082e4eefef9d62c9c7be8108d5d733182b1e403b1250df13"
+      "sha256": "1e2953df7656b3f9f81ea7ba574c537b17767319a30e97f1e51936bdb647b8a1"
     },
     {
       "path": "modules/input-monitor/SQLitePCLRaw.batteries_v2.dll",
@@ -805,12 +805,12 @@
     {
       "path": "modules/input-monitor/ui/surface/InputMonitor.Surface.deps.json",
       "length": 5056,
-      "sha256": "c6ae14c7b2198208f65e909e3d9c6f6180f13e5e3c2fb0c559bdfbb2aaa06b92"
+      "sha256": "cbc4678e736f9785024551e5174e16607a8da364afbefea18c7e0e3cf8a1ff8a"
     },
     {
       "path": "modules/input-monitor/ui/surface/InputMonitor.Surface.dll",
       "length": 162304,
-      "sha256": "12f3bcd43224deb992dbae58f642792d6608660400978d453ee6643fd7e1578b"
+      "sha256": "3a082bdcb67b306a71be70244adfa0339b562cfe8fc09ad0565119006d2b5c4e"
     },
     {
       "path": "modules/input-monitor/ui/tool.json",
@@ -845,22 +845,22 @@
     {
       "path": "modules/local-lag-cleaner/shared/package.hashes.json",
       "length": 3057,
-      "sha256": "5a6574dc5d68bf406321a40199f5d645fe97cbd612e3d79a19752e9f9069332c"
+      "sha256": "b8bfd13eacb6cc8d8ae10d3e3c62540e7c3b5a70b0b160ab2a80c54a4fc6684b"
     },
     {
       "path": "modules/local-lag-cleaner/shared/package.signature.json",
       "length": 541,
-      "sha256": "f2cca869ca4d750d8a97e637903b647bd8b9f7d892404800207c5dc3027fbb71"
+      "sha256": "ec987df318dddadaf92130b590367e851fcfcf171688fe8843d284241d294165"
     },
     {
       "path": "modules/local-lag-cleaner/source-manifest.json",
       "length": 3017,
-      "sha256": "827b92afb54dfae124f01431954666760c96c1f7a1c4c794a3dec15e2d630921"
+      "sha256": "80fdf78424017ad7d6d8d256c59010b39159cf1b2754a299adcfc711798a8cde"
     },
     {
       "path": "modules/local-lag-cleaner/src/LocalLagCleaner.Runtime/bin/Release/net10.0/LocalLagCleaner.Core.dll",
       "length": 446464,
-      "sha256": "239115b77966399d4e583ff615b8300144d8fe5c135847cef2f2bd33a0226512"
+      "sha256": "b3686e5f19a3e316e62e9d14ecd1ea0c33c710bd7c3ae8e9213b2d51d006f0e8"
     },
     {
       "path": "modules/local-lag-cleaner/src/LocalLagCleaner.Runtime/bin/Release/net10.0/LocalLagCleaner.Runtime.deps.json",
@@ -870,12 +870,12 @@
     {
       "path": "modules/local-lag-cleaner/src/LocalLagCleaner.Runtime/bin/Release/net10.0/LocalLagCleaner.Runtime.dll",
       "length": 61952,
-      "sha256": "3f0347ca51e727fd7213c071ec7d6b27e22a37847400279cb33c24940ff6771e"
+      "sha256": "3515326e98e9b24dd8a5c50afb999dd487f2836420ed538235adb0a6d9542877"
     },
     {
       "path": "modules/local-lag-cleaner/src/LocalLagCleaner.Runtime/bin/Release/net10.0/LocalLagCleaner.Runtime.exe",
       "length": 162816,
-      "sha256": "e0f7f6542df7899386729d63e2c120998f561c4f2d85d8b6bc5afc8fca1c3e3f"
+      "sha256": "83f9d86f602f94ecb71340bb86431e9a0007e262c7e852e9eba4ada1b05e5836"
     },
     {
       "path": "modules/local-lag-cleaner/src/LocalLagCleaner.Runtime/bin/Release/net10.0/LocalLagCleaner.Runtime.runtimeconfig.json",
@@ -885,17 +885,17 @@
     {
       "path": "modules/local-lag-cleaner/src/LocalLagCleaner.Tool/bin/Release/net10.0/LocalLagCleaner.Core.dll",
       "length": 446464,
-      "sha256": "239115b77966399d4e583ff615b8300144d8fe5c135847cef2f2bd33a0226512"
+      "sha256": "b3686e5f19a3e316e62e9d14ecd1ea0c33c710bd7c3ae8e9213b2d51d006f0e8"
     },
     {
       "path": "modules/local-lag-cleaner/src/LocalLagCleaner.Tool/bin/Release/net10.0/LocalLagCleaner.Tool.deps.json",
       "length": 5404,
-      "sha256": "5782debb00c7314f63b0d74c9e83f91fa4e647b792faec80e77fd945120fbcc9"
+      "sha256": "2e668478b1676c6230c9641234224043a8ae0b8cd32d9b5c86d24e891ed48d41"
     },
     {
       "path": "modules/local-lag-cleaner/src/LocalLagCleaner.Tool/bin/Release/net10.0/LocalLagCleaner.Tool.dll",
       "length": 174592,
-      "sha256": "140f2810225bb8b3fdc3270dcf747c4a741c0b8a91f607458dd692eb049b4047"
+      "sha256": "00a40c4467668442665639f7772914f4d675d1e45330c2f1420f33db08fa8da4"
     },
     {
       "path": "modules/local-lag-cleaner/tool.json",
@@ -945,32 +945,32 @@
     {
       "path": "modules/nssm-manager/shared/package.hashes.json",
       "length": 4190,
-      "sha256": "633810110814ec803d9278bc3569c6cf09500c87189fe21c8c6604acc03dd1ee"
+      "sha256": "64e76febea35cbcff524aa605f39f091666a58349c41885e921bceb0f4732df0"
     },
     {
       "path": "modules/nssm-manager/shared/package.signature.json",
       "length": 539,
-      "sha256": "033822fb6796c2e99059c9617fcf0ec7e8fb54206d5feb16ca9e84f06c7a15fe"
+      "sha256": "40ef933a3ff142d200707b9f4691eb4f5686ecf80a23df349a97a5627e184605"
     },
     {
       "path": "modules/nssm-manager/source-manifest.json",
-      "length": 3383,
-      "sha256": "a9c1e22ebf96cd1a8dc0c75551cc840026ef6ece5c04c9445761cad37156386c"
+      "length": 3384,
+      "sha256": "8c2f2a4189cc58b1f571f1add8e4b7979e55a8aa3cf54cff0576c4a9779fca38"
     },
     {
       "path": "modules/nssm-manager/src/NssmManager.Executable/publish/win-x64/nssm-manager.exe",
       "length": 4686336,
-      "sha256": "b05104f472437c76843b17a69edf5f9eaf162533ad780dec21d4bf962d47afaf"
+      "sha256": "f1c38ff0264943e033bd2bf016b42235e4f0d21853ff63007b6d3d69687ad67d"
     },
     {
       "path": "modules/nssm-manager/src/NssmManager.Runtime/bin/Release/net10.0/NssmManager.Compatibility.dll",
       "length": 55296,
-      "sha256": "d7d31e16661cb0a90f04404e7830b740942c8907adf891b1d95ecfc158631308"
+      "sha256": "ba07f31f7751e16e097beee0569d7ffbbc0cea0bf18c7107e9cd12f24ecab716"
     },
     {
       "path": "modules/nssm-manager/src/NssmManager.Runtime/bin/Release/net10.0/NssmManager.Contracts.dll",
       "length": 53248,
-      "sha256": "c92d695115f9ff2d70b420fef001540ac0a1db3d0ec8dc244a041df1a6a5b1b0"
+      "sha256": "69de91c3ea5086881f5a3a89f5b3315357bbb0f6f5efc6166037b17468004775"
     },
     {
       "path": "modules/nssm-manager/src/NssmManager.Runtime/bin/Release/net10.0/NssmManager.Runtime.deps.json",
@@ -980,12 +980,12 @@
     {
       "path": "modules/nssm-manager/src/NssmManager.Runtime/bin/Release/net10.0/NssmManager.Runtime.dll",
       "length": 30720,
-      "sha256": "241232f1b14d49c5548337d17da000d514d4c932f43e0c131c847a3e93ffb107"
+      "sha256": "5067b0036e00f8bc0f92088d7a9f47055d243afb69a9e3dc3160b64ddc3f3e50"
     },
     {
       "path": "modules/nssm-manager/src/NssmManager.Runtime/bin/Release/net10.0/NssmManager.Runtime.exe",
       "length": 162816,
-      "sha256": "911eb8f09bef07bf4637a045dee371ad68cebfe0f8c47e296309cbec03cf94fe"
+      "sha256": "a5b73ab8c6ac1a91e988c9abaf8b349a82c4b6531c096e5c359bc69af46565bd"
     },
     {
       "path": "modules/nssm-manager/src/NssmManager.Runtime/bin/Release/net10.0/NssmManager.Runtime.runtimeconfig.json",
@@ -995,22 +995,22 @@
     {
       "path": "modules/nssm-manager/src/NssmManager.Runtime/bin/Release/net10.0/NssmManager.Windows.dll",
       "length": 324608,
-      "sha256": "0cb3e3523474fde0183d73cca2d098e5c37f4a83426e54a7c8d097bf7bbbdee4"
+      "sha256": "c739aae72c8bfbfa2cd23d304f48a5837fad6dd22a64527f09b8843010bbe3da"
     },
     {
       "path": "modules/nssm-manager/src/NssmManager.Tool/bin/Release/net10.0/NssmManager.Contracts.dll",
       "length": 53248,
-      "sha256": "c92d695115f9ff2d70b420fef001540ac0a1db3d0ec8dc244a041df1a6a5b1b0"
+      "sha256": "69de91c3ea5086881f5a3a89f5b3315357bbb0f6f5efc6166037b17468004775"
     },
     {
       "path": "modules/nssm-manager/src/NssmManager.Tool/bin/Release/net10.0/NssmManager.Tool.deps.json",
       "length": 5396,
-      "sha256": "77727f99ecdaafe6d8ed8dbf718f8c7c508136323aa9867dfe85fc45fcca7216"
+      "sha256": "dbf94a519b00eb2a3a66bb23cecab7476b08fc0dd0efe8b0bae212ba59075e6b"
     },
     {
       "path": "modules/nssm-manager/src/NssmManager.Tool/bin/Release/net10.0/NssmManager.Tool.dll",
       "length": 167424,
-      "sha256": "66e3cf5eabadbdf0b2ffa86499411739bd0436aa2e0c1de22515c25c9f2f0ad3"
+      "sha256": "a074930a040e4ebb1702f8b7bf93b4b2ef55c0d7a3877645eb1a4545483bf18a"
     },
     {
       "path": "modules/nssm-manager/tool.json",
@@ -1040,17 +1040,17 @@
     {
       "path": "modules/nssm-manager/ui/surface/NssmManager.Contracts.dll",
       "length": 53248,
-      "sha256": "c92d695115f9ff2d70b420fef001540ac0a1db3d0ec8dc244a041df1a6a5b1b0"
+      "sha256": "69de91c3ea5086881f5a3a89f5b3315357bbb0f6f5efc6166037b17468004775"
     },
     {
       "path": "modules/nssm-manager/ui/surface/NssmManager.Tool.deps.json",
       "length": 5396,
-      "sha256": "77727f99ecdaafe6d8ed8dbf718f8c7c508136323aa9867dfe85fc45fcca7216"
+      "sha256": "dbf94a519b00eb2a3a66bb23cecab7476b08fc0dd0efe8b0bae212ba59075e6b"
     },
     {
       "path": "modules/nssm-manager/ui/surface/NssmManager.Tool.dll",
       "length": 167424,
-      "sha256": "66e3cf5eabadbdf0b2ffa86499411739bd0436aa2e0c1de22515c25c9f2f0ad3"
+      "sha256": "a074930a040e4ebb1702f8b7bf93b4b2ef55c0d7a3877645eb1a4545483bf18a"
     },
     {
       "path": "modules/paste-image/commands.index.json",
@@ -1065,22 +1065,22 @@
     {
       "path": "modules/paste-image/PasteImage.MyPowerTools.deps.json",
       "length": 3551,
-      "sha256": "81e7cf71ffe277cd824a42d93a3f24a25e276b91b76b0c5679a07a6bc1e1c382"
+      "sha256": "76cdc3bbacaf855b85c0fdca804c38ce5ff001cd2ebc0b20dad47600d89bc43c"
     },
     {
       "path": "modules/paste-image/PasteImage.MyPowerTools.dll",
       "length": 78848,
-      "sha256": "73cd3099713babbfcd2055a8c7f170135acaff54852e924197a4e8d1c864da58"
+      "sha256": "2a05485f79917b0d971c1712e70f31dafd30f308fe52e471e7330327dbcf979d"
     },
     {
       "path": "modules/paste-image/shared/package.hashes.json",
       "length": 2842,
-      "sha256": "de6c6430505680494562916424c103a75e3a8b59cbc66570f8f93df60e9ee52c"
+      "sha256": "cb7bc50727a53bcfc755590ef31b92e9e863315f5f2abfb89c3b4a8c9d338389"
     },
     {
       "path": "modules/paste-image/shared/package.signature.json",
       "length": 535,
-      "sha256": "bc310287811540124e6f1dff9bdbe1d6d0d61cee9ff4740a9043c91f4d4874cd"
+      "sha256": "ba80c869fba6295e3be8580d1af2497c8cd572b60e3e2f12b96d65577af09498"
     },
     {
       "path": "modules/paste-image/ui/dashboard-card.json",
@@ -1125,12 +1125,12 @@
     {
       "path": "modules/paste-image/ui/surface/PasteImage.Surface.deps.json",
       "length": 7580,
-      "sha256": "1956a1a5789d3366fb113b90e1c13a7de16592559cef41f0744e625c46881a58"
+      "sha256": "b3ada226841cbbe9a72db1003b5bbe1d4ac90bf0449439648fb0d7dd3a809628"
     },
     {
       "path": "modules/paste-image/ui/surface/PasteImage.Surface.dll",
       "length": 73728,
-      "sha256": "2da423797408c5cb38f58d206f6d10e769af850998c2a2273e01fbcf692a6e96"
+      "sha256": "04dc2e6a6011d8a786a576af1e58d58d364da960adcb8490f1b04ebfa4805bda"
     },
     {
       "path": "modules/paste-image/ui/tool.json",
@@ -1150,17 +1150,17 @@
     {
       "path": "modules/screenease/ScreenEase.MyPowerTools.dll",
       "length": 216064,
-      "sha256": "0bf97abbd84be55bc7fe55e11c000c2baa6e2500b5e2fc1de1ce3a8151e656c3"
+      "sha256": "12cc0d966eae0ac626a989c419e285a2d799ce91d0641523bcaa797873c85a98"
     },
     {
       "path": "modules/screenease/shared/package.hashes.json",
       "length": 1734,
-      "sha256": "23cdf7cd53756c071298c4abfc2642e6ea30d54191da03ffa8189d0491b75bd5"
+      "sha256": "1061edb73a20944f8769f293bf58cdad275e5fc4dc4ad47c63c90af6274ddb69"
     },
     {
       "path": "modules/screenease/shared/package.signature.json",
       "length": 534,
-      "sha256": "48e04d664afe2bea980f7666e10e8f6c091af0d58fb6a05c5cdcf3a38ad16773"
+      "sha256": "f469a265aca3c1172e53ed461141e20de7a3fc10af35013f6dc6714c489940a3"
     },
     {
       "path": "modules/screenease/ui/dashboard-card.json",
@@ -1185,12 +1185,12 @@
     {
       "path": "modules/screenease/ui/surface/ScreenEase.Surface.deps.json",
       "length": 7580,
-      "sha256": "2883bf382d0fc4764c4275f86bd516e00778b54c64765bc6ad9a7b826b73d1c1"
+      "sha256": "e7ed66f97230ea38c88a1d723221222a1078d9988e44203016a72dd58ba8a97e"
     },
     {
       "path": "modules/screenease/ui/surface/ScreenEase.Surface.dll",
       "length": 288256,
-      "sha256": "613b07ccf13a4c609ac690d3c5060da8e74e1c9db48372823bc0082c0d5e5579"
+      "sha256": "bf8f260827cc42d5a866014e0e115db0cc4a304112337d7f4aa61b91218e1c37"
     },
     {
       "path": "modules/screenease/ui/tool.json",
@@ -1210,22 +1210,22 @@
     {
       "path": "modules/screenshot/Screenshot.MyPowerTools.deps.json",
       "length": 3551,
-      "sha256": "f5972aec4feaea9eea8fa4d00790ee2a705a949bc69649ed7ed99c0a85c49ef8"
+      "sha256": "6afa7a66a6d486ebcff01ce9cb6bee2bc018bde2794904947db8dea176c9cb37"
     },
     {
       "path": "modules/screenshot/Screenshot.MyPowerTools.dll",
-      "length": 81408,
-      "sha256": "acaea7975af1361803efba4b6810feeaa3b21c740ed61f18ef1f5359c3c87513"
+      "length": 81920,
+      "sha256": "f9895dbf6debe932a26502c6913b30e44d48689b86faa5fcaba920a770a35b3c"
     },
     {
       "path": "modules/screenshot/shared/package.hashes.json",
       "length": 1885,
-      "sha256": "0b6801159aa8e70b19ee96b97ad428ab9b875b74f2d11ca1c43e9d82b500448f"
+      "sha256": "9e9af93bdc17fde612f38cd6eb511d97bb005d3f2ccd6564be3a358b4daf85d1"
     },
     {
       "path": "modules/screenshot/shared/package.signature.json",
       "length": 534,
-      "sha256": "c3188be3eca6758cb8e768c4f64d68d76bfa15f718f65e748c35203212013028"
+      "sha256": "941a33633c5c388ef427164de9bcfad6652e01ee10c6fbe3dedd225c278fac73"
     },
     {
       "path": "modules/screenshot/ui/dashboard-card.json",
@@ -1250,12 +1250,12 @@
     {
       "path": "modules/screenshot/ui/surface/Screenshot.Surface.deps.json",
       "length": 13505,
-      "sha256": "1fe6ce91975866d3e5b9ffea9ee172e3fc0d3dba22d46e26a0ae7674761264e6"
+      "sha256": "81bee9fb9e66785683a619fcc7ab7de5ddb2fc38de2f1bd03e9fc7bfc261410c"
     },
     {
       "path": "modules/screenshot/ui/surface/Screenshot.Surface.dll",
       "length": 58880,
-      "sha256": "35f751fb9ae16762c0848387e172d638c0c38cf43a37688349726e678e3da10d"
+      "sha256": "7cc713a18c9e7dea55f8f59ab31cbe30add0911e3eea0aa39adf1e25c1691b7c"
     },
     {
       "path": "modules/screenshot/ui/tool.json",
@@ -1275,17 +1275,17 @@
     {
       "path": "modules/smartbird-thermostat/shared/package.hashes.json",
       "length": 1749,
-      "sha256": "45b5d94c2b60986c03bb95dd3939d0df903b9d1469394b88a3d648f56e184058"
+      "sha256": "37be9aa40ba3b5af6e8216e465d84bfe3169fd2daeb6e1246aa954b8b07c4546"
     },
     {
       "path": "modules/smartbird-thermostat/shared/package.signature.json",
       "length": 544,
-      "sha256": "12677e59f2b5041da0766c8d5746f9b1b6431506c29173eb613199d0be056c68"
+      "sha256": "b64ee281ffb7dd10fb1436e076cdbb087a3c42ce2e174fa7b9d9865926ab17c8"
     },
     {
       "path": "modules/smartbird-thermostat/SmartBirdThermostat.MyPowerTools.dll",
       "length": 83456,
-      "sha256": "aa4fdd0db82c75b0d233e26f15b71764c3d965843c9a46cc9eea8e90ce56cf15"
+      "sha256": "c6ad1680e0cf3f0990862794b71c2f3d11c849c5e58e0de12f094f071a8b2ef8"
     },
     {
       "path": "modules/smartbird-thermostat/ui/dashboard-card.json",
@@ -1310,12 +1310,12 @@
     {
       "path": "modules/smartbird-thermostat/ui/surface/SmartBird.Surface.deps.json",
       "length": 16997,
-      "sha256": "7857127740655b6fd2fa829a23f7b5ba7f8e5c1c3e553c3c6e83d49eab7e2f98"
+      "sha256": "0fb75079c60b00b8389e25aecf470126062916e3add93270eba0c81343ca4ed5"
     },
     {
       "path": "modules/smartbird-thermostat/ui/surface/SmartBird.Surface.dll",
       "length": 196096,
-      "sha256": "ff369c0c1a8eee23afa72dc2090d90a6c19a4cf9b84c82caef0eddc653e6174a"
+      "sha256": "7155d92b00cdbb0c1b66126d36da3821164bbd07c11aa30c0932fd4716900c5b"
     },
     {
       "path": "modules/smartbird-thermostat/ui/tool.json",
@@ -1345,12 +1345,12 @@
     {
       "path": "modules/xbrd/shared/package.hashes.json",
       "length": 1695,
-      "sha256": "a79cf21cfd8cc3ea2798ec5e13a149d8eeb15be1ab49d92612ae37effd83ccc0"
+      "sha256": "f5fb53a9ffa47d5d158caf9441a97917179422e1fed019b35aac3b30e58dae45"
     },
     {
       "path": "modules/xbrd/shared/package.signature.json",
       "length": 528,
-      "sha256": "039c8deee3066c07bbe1d6477802b9b54263a349e06288a2d9ee8421c6cbc577"
+      "sha256": "04b3f5d4c5e22e7ea7aef116a3b81e7fe952ff988f6d78345c7bf9ef12fe50e3"
     },
     {
       "path": "modules/xbrd/ui/dashboard-card.json",
@@ -1375,12 +1375,12 @@
     {
       "path": "modules/xbrd/ui/surface/Xbrd.Surface.deps.json",
       "length": 13532,
-      "sha256": "fe4858df398ff09e5e38fed2cfd28c4af7129554bcf39ee1432e4c773682272f"
+      "sha256": "e6203aa9a2c8d0a5f7bf1d0e36fa3cd4227813bfdd047ccfc49a6692b12cffce"
     },
     {
       "path": "modules/xbrd/ui/surface/Xbrd.Surface.dll",
       "length": 342016,
-      "sha256": "a26fd38fa15bda8d5e054522dc515e18582f2734fd8a4d763af1426473150acb"
+      "sha256": "a8ad79303c7a93f8eb67f21b06467fd33f6d9cd4577e59961ec26eb1a588556b"
     },
     {
       "path": "modules/xbrd/ui/tool.json",
@@ -1390,7 +1390,7 @@
     {
       "path": "MyPowerTools.exe",
       "length": 477221,
-      "sha256": "fc3b908ae2220931747543cec9264bf1b2da6721a30b748f8f83f0189c28dddb"
+      "sha256": "1bef1731e9f0a304f39baa79a61149522dd146eaeb9b0bc668524af26b6e8466"
     },
     {
       "path": "new-ota-delta-package.ps1",
@@ -1480,77 +1480,77 @@
     {
       "path": "Runner/MyPowerTools.Abstractions.dll",
       "length": 160256,
-      "sha256": "04cce67c4d9b2485e4acef1d618b50987d7b8eadb0fc18199810c5ea0009d33a"
+      "sha256": "57c868cc6cf445a11e178bbadd71e3ae4e87176c9e43ccf35bcd3b777698c6d3"
     },
     {
       "path": "Runner/MyPowerTools.Broker.dll",
       "length": 141824,
-      "sha256": "d399786b7eb6d3a412b7bbf842dac1475d7f2a48d65d70e66a5bd1918c7fca5a"
+      "sha256": "e431752c562d554216301aeb43a826295ee58cda1ca9b4ceb20e846ca8bf4059"
     },
     {
       "path": "Runner/MyPowerTools.HostControl.Contracts.dll",
       "length": 9728,
-      "sha256": "28ba794b41000209574dd09dbfaa74fd5395719f5f230b0a11f231d1abea8247"
+      "sha256": "90e5e97a030050ea5c34278db5efdd095d42d37c5400c535b6eb82af544819c3"
     },
     {
       "path": "Runner/MyPowerTools.HostControl.Server.dll",
       "length": 57856,
-      "sha256": "c053886b74d8f07d9d56baa87e0895665122f7edba65b1dbd71d7bbda170fb90"
+      "sha256": "84476fcbc635ebb4dab14b0bdffd9fd045de32e3dc669cb4b1e8afcc736fbd6d"
     },
     {
       "path": "Runner/MyPowerTools.Ipc.Shared.dll",
       "length": 29184,
-      "sha256": "8a184598f4a9eb7787443665c98adfb62763b18686b03f2dada8f9b8436d2521"
+      "sha256": "0f861a97891c88af3184d9c5df207d5636899ebf41f7b3f5cc7dafb64321cf6d"
     },
     {
       "path": "Runner/MyPowerTools.ModuleHost.GrpcIpc.dll",
       "length": 88064,
-      "sha256": "70d79aa2033da7d1158d1ddcbd1c6c3a2bd68cc6841096868d4c70ee8158d520"
+      "sha256": "f76214ce1e5a9252d6cf331aa370cdf9012240125bd5d5036327b08bc9d1dd3e"
     },
     {
       "path": "Runner/MyPowerTools.ModuleHost.InProcDotNet.dll",
       "length": 145920,
-      "sha256": "813823fc1d10f50f9927620f3eb2bc5dbc50dcba7ff17bb3fdbfe9371742db4b"
+      "sha256": "8c6bbe2b6d0e2752e08f8f2cab755323c6006bbbb5fdbd6515959a83cfab5833"
     },
     {
       "path": "Runner/MyPowerTools.ModuleHost.StdioCompat.dll",
       "length": 18432,
-      "sha256": "f163029fce571c707183cb48bf13e08ff5d8056390721b64d0119b7ac3164d6f"
+      "sha256": "b5b66986cdb8840ce8643adb1d2d99b37ef15777f6423b6b895b9d319311575b"
     },
     {
       "path": "Runner/MyPowerTools.Packaging.dll",
       "length": 194560,
-      "sha256": "ce90f44c955ce7f961dbe94ba28c5ba65875654456c24b9ef40bf643280938e6"
+      "sha256": "26d697312c62dfe62c00d81f26ab21cc6e128e2c7c1edd6226d354975ea334d8"
     },
     {
       "path": "Runner/MyPowerTools.Platform.Abstractions.dll",
       "length": 106496,
-      "sha256": "bd03ebf403856417f988dc5282d29d9a097df7111bc8abb592371f63fb833fac"
+      "sha256": "11fef316414be81d9d0a019aa5721127a5b67f547e42e4242955ddaaa4ea1be7"
     },
     {
       "path": "Runner/MyPowerTools.Platform.dll",
       "length": 4608,
-      "sha256": "45d935023c2baa280238ed9be6b95089210b8c0c0f0ddc32046c5804a820960d"
+      "sha256": "021d9bfeb8b4426f11a7573170985a2ff18c027bc8f422f279d36fa4adb47c63"
     },
     {
       "path": "Runner/MyPowerTools.Platform.Linux.dll",
       "length": 18944,
-      "sha256": "fc421955e182ff5805d43746238d8ed0e5df9323e0132e3c420e4846fb36e0da"
+      "sha256": "1598673d2ea18e5bfa4e4572ee8bcf0484463a58d2329d5a3b38bb5b48da6299"
     },
     {
       "path": "Runner/MyPowerTools.Platform.Mac.dll",
       "length": 91136,
-      "sha256": "2135c801d912a91127712bbf042278032d6d5b8768a38fcc87b1675e4fa6d0a4"
+      "sha256": "e4a174613093c4bd84d14c3f105e968e52900ec354e1af74526c193b599c1a87"
     },
     {
       "path": "Runner/MyPowerTools.Platform.Windows.dll",
       "length": 108544,
-      "sha256": "f7cfa60bfb6b9ef3f622e3790547a07414aa51ab768498c0d1bdaa23ea731cc4"
+      "sha256": "82ccc3f345a1d515f8f8f6924afbd7fd40573b33ffe6a0ec61253631500a5ff9"
     },
     {
       "path": "Runner/MyPowerTools.Protocol.dll",
       "length": 514048,
-      "sha256": "85242d2d56ced992ec3cc9cf53082a6cb83240e790a74f0a32d5b0d6c75f52cb"
+      "sha256": "b174bc827b5b3421bed6c63f202518c535cf7b3e473f43d3a794479b1fc021f6"
     },
     {
       "path": "Runner/MyPowerTools.Runner.deps.json",
@@ -1560,12 +1560,12 @@
     {
       "path": "Runner/MyPowerTools.Runner.dll",
       "length": 80896,
-      "sha256": "c086ee2d18ebb9c2ecad98a77b9bd1bdd192c6faf620d99b4c5ac86d7e2ab816"
+      "sha256": "a07dff6149f23083c324041b649e27be48a835262ffaea21b618909347c86c90"
     },
     {
       "path": "Runner/MyPowerTools.Runner.exe",
       "length": 162816,
-      "sha256": "f6dbbdb2f2b6f6865448b1d3aaa5fc658863222ae696836caf6d7c37220909c1"
+      "sha256": "eb5b103fe33aacebaab42117c76ab01bf13917e2fceca9dbc8e53144ab7de6fe"
     },
     {
       "path": "Runner/MyPowerTools.Runner.runtimeconfig.json",
@@ -1580,12 +1580,12 @@
     {
       "path": "Runner/MyPowerTools.Runtime.dll",
       "length": 366080,
-      "sha256": "086b226c6e9d65d31e0c74de456f9c4d700d0e3701ea1161fa78b94d68784f49"
+      "sha256": "836cd9365f584f70ccec21e78d02057df759e52b6e7285b53d98b7c1effd0a3a"
     },
     {
       "path": "Runner/MyPowerTools.ServiceManager.Client.dll",
       "length": 34304,
-      "sha256": "6d702788e0f8666598a24d6cfe280988210cbe7f2891bd031ab0f418e757579f"
+      "sha256": "16a1fbe7099db0235171085ff4b27f0099a8f65da1b2b6e968730c869258cebc"
     },
     {
       "path": "Runner/System.Drawing.Common.dll",
@@ -5428,32 +5428,37 @@
       "sha256": "d867472acb57b81ce97f78972828e6bc5669ca4db33fd1e6f645c6183846068e"
     },
     {
-      "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic-1.15.0.dist-info/INSTALLER",
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic-2.1.0.dist-info/INSTALLER",
       "length": 2,
       "sha256": "e6184ce10e266134fdcfa401e8f1a95005bcd4f18d16b62b757323e2833fe9a9"
     },
     {
-      "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic-1.15.0.dist-info/licenses/LICENSE",
-      "length": 1056,
-      "sha256": "8bf96984ff8bcfae7e48cae76a529e8a25317ba9e02abf7fd3cc64fdf95657a6"
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic-2.1.0.dist-info/licenses/LICENSE",
+      "length": 11345,
+      "sha256": "7fc343be7ec189b803c1872267cbaf0381b12ffdb22d972b8ea7b21b262ba563"
     },
     {
-      "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic-1.15.0.dist-info/METADATA",
-      "length": 5752,
-      "sha256": "0d82cc83f7bd9ec6f747883f18d7e015a056398b2ff7b340c19630899b780248"
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic-2.1.0.dist-info/licenses/LICENSE-MIT",
+      "length": 1415,
+      "sha256": "9c2718ac0c8a3f790fdbd68a05126a3b83371c3c4ffc17de2cc453efdd46bcf5"
     },
     {
-      "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic-1.15.0.dist-info/RECORD",
-      "length": 268696,
-      "sha256": "09c9527de86ebd355be7827fadb4433d682be70b37ff435a9baf5cf9c6b1771c"
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic-2.1.0.dist-info/METADATA",
+      "length": 6015,
+      "sha256": "8ff35d94b648286f6cb6936f4606dfdd04a3a7d76bc2c75a8f29bdd720270ed0"
     },
     {
-      "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic-1.15.0.dist-info/REQUESTED",
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic-2.1.0.dist-info/RECORD",
+      "length": 276001,
+      "sha256": "2171ac77e71b2e253f2ff811f352f8e90a2d2e49374bb0ce4fb26da8e9ecaf5d"
+    },
+    {
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic-2.1.0.dist-info/REQUESTED",
       "length": 0,
       "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     {
-      "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic-1.15.0.dist-info/WHEEL",
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic-2.1.0.dist-info/WHEEL",
       "length": 87,
       "sha256": "0b615483066088b6f39d1fa4d1bff9937022ff568048e5c3b2cde5cc252c52e8"
     },
@@ -5469,8 +5474,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/_client.py",
-      "length": 50942,
-      "sha256": "097e39028e7a065da05ee0092fad74cee42f681f2d0fe31bfe6921f5db14476f"
+      "length": 51705,
+      "sha256": "4fc0d6e2d671c2271545f0cba888afd67720f6c17f6a2f12ee13e52cf7d92a74"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/_compat.py",
@@ -5480,7 +5485,7 @@
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/_constants.py",
       "length": 969,
-      "sha256": "296675734d7a260bb12d2c667686e09605bc68203f27c2013d85503f09d7ba2e"
+      "sha256": "e1d9c8069041fa17a521c886f0e3b97e2a684cc61bf8a8f37deadc8085b5e5e2"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/_data/__init__.py",
@@ -5549,8 +5554,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/_streaming.py",
-      "length": 22924,
-      "sha256": "16c9cf155a7a06e42ef19b4a370d02087e788e288d0c669df20fd527dbccf6f9"
+      "length": 16161,
+      "sha256": "5721f1d6f526a910dbae2ebef2701d3c6b9ca352d252ad919ece2ef9eacc76d1"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/_tracing.py",
@@ -5669,8 +5674,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/_version.py",
-      "length": 75,
-      "sha256": "0810ffff07d1a92927a72bc9a1eeb58729cd1e1193efb0e1afcdd0e83c5321da"
+      "length": 74,
+      "sha256": "5e1ea274dbff9a153538b0298a4283c2b77f214aa32dda6d39b11e45de969f28"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/lib/__init__.py",
@@ -5714,8 +5719,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/lib/_scoped_client.py",
-      "length": 3930,
-      "sha256": "f9f59824c0a5af6df8763fede3933d9591b043a2eaf8fc6ccb0a24c178cfcce1"
+      "length": 4163,
+      "sha256": "78a2610594e91981379686e541e0cfdaa8faaf60adc9b4d056fae2758c94a3c6"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/lib/_stainless_helpers.py",
@@ -5789,8 +5794,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/lib/aws/_client.py",
-      "length": 18887,
-      "sha256": "5d33b56143c84a0c6efbfddc72db6eefe96dfb0c6cd9bf4bb5fb919353c76977"
+      "length": 19394,
+      "sha256": "b3cf953364f08f92c0a91675cbdb2c29e6110f30e72100f10157ab0a3af7556e"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/lib/aws/_credentials.py",
@@ -5819,13 +5824,13 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/lib/bedrock/_client.py",
-      "length": 19906,
-      "sha256": "c7eed9f62a620e3eb55900519a63d7894ae63c770b1ccf77cc280a7ababa274f"
+      "length": 19982,
+      "sha256": "60178a436ea46a612d1f2fb5aea905b8693062c6a0230b4064bbfe4dc8cc2dd2"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/lib/bedrock/_mantle.py",
-      "length": 20338,
-      "sha256": "ff2f0f94d073d164cba60f73827f694d1feedd9de1a770955f97fc189351d59a"
+      "length": 21901,
+      "sha256": "483a0577f4f4a3bfb284d952a4c3f91966362f5f99e7944de30181292f7d3211"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/lib/bedrock/_stream_decoder.py",
@@ -5844,8 +5849,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/lib/credentials/_auth.py",
-      "length": 4732,
-      "sha256": "22f1520fd8c1c8972fa84694dfb4a30e2529d2d78f03a295e417ef847d61f1ab"
+      "length": 4132,
+      "sha256": "741a9acb9e536abc616ce78f13069a599aa51117653a50a1acc03dec3cbc4dda"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/lib/credentials/_cache.py",
@@ -5854,8 +5859,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/lib/credentials/_chain.py",
-      "length": 6617,
-      "sha256": "62db9a6e9eef077438ef0e430d7f2dcdb348e4985b211819767c79c6e337bcb2"
+      "length": 6533,
+      "sha256": "2de20f5e9ab65b3df469210e74babaddddbeabc842c8a75dc4e5f2055f73b07b"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/lib/credentials/_close.py",
@@ -5864,8 +5869,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/lib/credentials/_constants.py",
-      "length": 10375,
-      "sha256": "f24748cbfce141773158e7919b4dcffef4f0fe54394094dc940359def7da247a"
+      "length": 10249,
+      "sha256": "d9723f0ebffb8d2b6b37cf3f18eff6844365c8201770a755afcb4d970eb4eb91"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/lib/credentials/_providers.py",
@@ -5899,8 +5904,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/lib/environments/_worker.py",
-      "length": 43072,
-      "sha256": "cec303c27d82998f68fd5b39d28dcea8e59b0cf5cf46f0471576a27c53ef8f18"
+      "length": 43068,
+      "sha256": "119f6f4d957ee51c1f4b119820c5d5403f6e1c725be1b2fd7d2369aa61ccf516"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/lib/foundry.md",
@@ -5909,8 +5914,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/lib/foundry.py",
-      "length": 23253,
-      "sha256": "dbd0f98047c7a6ade8d848007b121087358c666c025ee57696ebf14612ce2b94"
+      "length": 23290,
+      "sha256": "1337999cbbf59b3bf5925f8c65d839210ac4eaceebb7f3f3c561684115c62413"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/lib/google_cloud/__init__.py",
@@ -5919,13 +5924,13 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/lib/google_cloud/_client.py",
-      "length": 31198,
-      "sha256": "8e73ccdf339e7e25eb0679fd2bf2e671ca41a08354fffa2f53b1487b7d41c6a2"
+      "length": 32137,
+      "sha256": "f5654911cafa9889da94b4cbdd390fec1e66fd6c8791b0725ae73845d7a36273"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/lib/google_cloud/README.md",
-      "length": 5259,
-      "sha256": "ab9b60f41a6f75c18a1f6782b1a6081b93498dd24a85ca76b3a717f4844145d6"
+      "length": 5367,
+      "sha256": "940ec2bc7e01de65f6e324d814a8dbaa3cd6b84c95085433b6c87b9f50abb13e"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/lib/middleware/__init__.py",
@@ -5989,13 +5994,13 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/lib/tools/_beta_runner.py",
-      "length": 69658,
-      "sha256": "816477fc41f8d558a043af9f861998ede56a14837d3f49c2409220ca7f303181"
+      "length": 69704,
+      "sha256": "a543a12e3faa58b9568028e369e3570fe7f0f1fb25be4d68d8708eeb38d32182"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/lib/tools/_beta_session_runner.py",
-      "length": 56160,
-      "sha256": "b875678809eb24d311f193ef9a54b9c595a4e81dc8a50ad7ed4a3ff0f5037a76"
+      "length": 56151,
+      "sha256": "52d2707bc5302457573098b1f9c99b7636e102831f2407850c5ebcf31dee26d1"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/lib/tools/_deprecations.py",
@@ -6024,8 +6029,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/lib/tools/_tool_dispatch.py",
-      "length": 12427,
-      "sha256": "5c61c6f6b1c260e65aa4b756041d047093c0573fbaff6acf6b849392d5020ba3"
+      "length": 12435,
+      "sha256": "6de983a9a5348ce9c1fe40623a3bb6397ebad91d899c5aea368a156e94df4280"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/lib/tools/_tool_params.py",
@@ -6149,13 +6154,13 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/lib/vertex/_client.py",
-      "length": 19485,
-      "sha256": "8c1886886d7600292e62ab2534b1416604aed6dd13ed3bbe4462f6f40aaa64ca"
+      "length": 19577,
+      "sha256": "60ee3ca0dc120828e183eb16c00008f1697aa80ca32a1061c416f1a9f89aff32"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/pagination.py",
-      "length": 6135,
-      "sha256": "d4ed2ee96d7f9fdd61e8ebac02ec3329b52edbd32373420c5d6c5226555a88e4"
+      "length": 7786,
+      "sha256": "c041b72befe2f020d038847f231fe3fa54d3b4f25934e17b17f2079adeb6adc8"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/py.typed",
@@ -6164,8 +6169,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/resources/__init__.py",
-      "length": 2204,
-      "sha256": "452757e08574d8a3d91d5ab19b534d81d5a5811039866393ca30e0de35692544"
+      "length": 2637,
+      "sha256": "b2f5b9c86a7ffae4487a90c99a5fb63784db5137ebbd9f69e12e8f2e117583a0"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/resources/beta/__init__.py",
@@ -6189,8 +6194,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/resources/beta/beta.py",
-      "length": 17559,
-      "sha256": "0cfac231d28b32caac60639f33ad31dd71926d971a27f6658057e711b83479aa"
+      "length": 17573,
+      "sha256": "f432b022a7a09345e0e1ed567aefb3ee2f2af43ed01d48a7fc6f980f86463b92"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/resources/beta/deployment_runs.py",
@@ -6234,18 +6239,18 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/resources/beta/memory_stores/memories.py",
-      "length": 48544,
-      "sha256": "5d24a5a2c0881544cd08d47f6512e8782dc254d584f1e776dcf75dd8cddaae47"
+      "length": 47852,
+      "sha256": "23feaa925ce22da551284ff69c88aade8ae45de4c2b610fce6f5bcd3c38e4bce"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/resources/beta/memory_stores/memory_stores.py",
-      "length": 48520,
-      "sha256": "3a87bb86c1d20b8584ee4eb981a7757c4447d8c9b93787284334fb12f716cdd6"
+      "length": 48900,
+      "sha256": "4abfe9edf65876000f8346c4d16f6fd7954021783399b06901928143f0ebb363"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/resources/beta/memory_stores/memory_versions.py",
-      "length": 30708,
-      "sha256": "d61b5d55c5efe36a445c032d359d0854e90d1ef97305c5f178c0ae08c6a7ec2d"
+      "length": 30472,
+      "sha256": "6b8b8feb24a27b0a2f45eaa33dd73ce8dafb7c597bbe949777f766d243f55058"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/resources/beta/messages/__init__.py",
@@ -6254,13 +6259,13 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/resources/beta/messages/batches.py",
-      "length": 46497,
-      "sha256": "36229022d4838cea6f715ceaef9745f5fcb19a7f860cc31ce34da1b28d78a01a"
+      "length": 46413,
+      "sha256": "778bb324af1043ef93d69312a043a1c69f232bb507e37f00539c42d4b723c863"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/resources/beta/messages/messages.py",
-      "length": 208127,
-      "sha256": "3af443eadda338e07b44bd339e5af0f0766b4aff88d4e27e4b605dfb2ef84d1c"
+      "length": 207111,
+      "sha256": "c6a1f469503b470298269a13d8830d7045825feb3b9e7df5d27947da7389ee58"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/resources/beta/models.py",
@@ -6269,8 +6274,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/resources/beta/organization/__init__.py",
-      "length": 7200,
-      "sha256": "7ad230eb7f07dd99b7fece71df157e295395ad3bbb39c64c478ffc4230eb81b0"
+      "length": 7580,
+      "sha256": "8762522cafd60ee777a2e868343008505d1d7a6ab4eb03798f136b7c56d3624c"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/resources/beta/organization/analytics/__init__.py",
@@ -6319,8 +6324,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/resources/beta/organization/analytics/cost_report.py",
-      "length": 18563,
-      "sha256": "5df037384d521f3031bf1edb69d3910cef561c011745652fb7bb3a6e025273d9"
+      "length": 18599,
+      "sha256": "86ba1b19ef1295d379b48c9f1c80d3f39794fef8fe338f38b1b9d579c322f029"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/resources/beta/organization/analytics/plugins.py",
@@ -6339,18 +6344,18 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/resources/beta/organization/analytics/usage_report.py",
-      "length": 18448,
-      "sha256": "31cb7381e30a5c7d1694aae47fd38a42ec003210b56999179a1d96f57bb61713"
+      "length": 18484,
+      "sha256": "8268e9de6595f0837673f3f386eba97d1f21a503790f75213a3481b7b057dfad"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/resources/beta/organization/analytics/user_cost_report.py",
-      "length": 22277,
-      "sha256": "63565e7e1aded584ec2f3ef827c1175b0da15eb44448760a3f6539da61410494"
+      "length": 22313,
+      "sha256": "6001492484c3596e799007bde34f2a619815173fc88de3ad9906c900c2a72081"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/resources/beta/organization/analytics/user_usage_report.py",
-      "length": 21364,
-      "sha256": "485177ff402a578779d4a3255d9da85b1fea443bdfbe20b6792f2162e483171c"
+      "length": 21400,
+      "sha256": "fc8c82db2532bd97cefaa0567fb03d24e6ecac0726e35de0d3dcd75a55bf4708"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/resources/beta/organization/analytics/users.py",
@@ -6409,13 +6414,13 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/resources/beta/organization/organization.py",
-      "length": 23262,
-      "sha256": "edc2191da0012081eae4cfe5dfbf1f44ae3e1581b461ca72673bf0d8f9ab2612"
+      "length": 24269,
+      "sha256": "1d7c2ab60016741639f02ca493fa033b7490381e1987b5535471ba79b009862e"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/resources/beta/organization/plugin_marketplaces.py",
-      "length": 49474,
-      "sha256": "ba3f516280fcfdc0a9ff1325db40e65b505dcedcf32145ba5e52a6c1e0f8c611"
+      "length": 50488,
+      "sha256": "6dfef5ef24d3dd5d75f3781f8bcecd847150b7d38209db61917ce5dd3563c763"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/resources/beta/organization/plugins/__init__.py",
@@ -6509,8 +6514,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/resources/beta/organization/spend_limits/spend_limits.py",
-      "length": 27694,
-      "sha256": "21d85fb409bca0b5f087ea8ac195460fea0b15cf50d1b4158d3753fd59307d68"
+      "length": 28974,
+      "sha256": "4de477624b63673058399dddde6fc5821282f97cf1eb650db4fe974f8d85138d"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/resources/beta/organization/telemetry_destinations/__init__.py",
@@ -6533,6 +6538,11 @@
       "sha256": "250f2ff72a81b81d10a71fd0c1aeb4ff2f117c39a3e55659cb64d5cdc048aa1c"
     },
     {
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/resources/beta/organization/webhooks.py",
+      "length": 46058,
+      "sha256": "fdb87c2783ffc68e33a5f5fd8a0b48c26ee4cd35b1e103e164b1c4eca824b45c"
+    },
+    {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/resources/beta/organization/workspaces/__init__.py",
       "length": 1667,
       "sha256": "bf4d2cdc2dc4b3e1e10db4f147f102c81a45e8a117aef4876b0cc530ee9e1e18"
@@ -6544,8 +6554,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/resources/beta/organization/workspaces/rate_limits.py",
-      "length": 10242,
-      "sha256": "79dfbc231f25bc2d8b8602f5fe556253d409a7dfb0ac7bfbd35dfc1b2c45d017"
+      "length": 16855,
+      "sha256": "460438b1af29aea1d4fe19e0ac67e394c81c84a4d2c15ad979fc53c8699d8670"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/resources/beta/organization/workspaces/service_accounts.py",
@@ -6623,9 +6633,19 @@
       "sha256": "692db20869b72b3910ff446bc9b91a76f4ecb542adb4364d188bf3f2f3171911"
     },
     {
-      "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/resources/beta/user_profiles.py",
-      "length": 47495,
-      "sha256": "0135fc8a7ba8a905cf22265de31da82536afb9831f430e503df924c4033c0815"
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/resources/beta/user_profiles/__init__.py",
+      "length": 855,
+      "sha256": "8dc546ab1b8641eec9a7fdd09247e16be908ecf6da7edd41d5a43a5b03c97f5c"
+    },
+    {
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/resources/beta/user_profiles/action_urls.py",
+      "length": 9560,
+      "sha256": "786dad4a9cd97f723b307896c5f58183bb41e9cfc0e194d8a2b4635716b749c2"
+    },
+    {
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/resources/beta/user_profiles/user_profiles.py",
+      "length": 54145,
+      "sha256": "0ebdfc8ecca178e89f607b9bcb27957260041fbb4169a15ed9d803bbe6834954"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/resources/beta/vaults/__init__.py",
@@ -6634,13 +6654,13 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/resources/beta/vaults/credentials.py",
-      "length": 53520,
-      "sha256": "5feb03e6e9942c94914e9205c35e1f0af4ad168befc4c80af76388228cd65ae4"
+      "length": 53934,
+      "sha256": "31184818d2585cdd055266d81a094ee8bc09b71f6e67f7a958a7bdb9cffe9feb"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/resources/beta/vaults/vaults.py",
-      "length": 40764,
-      "sha256": "7d3ee885212e4941141d537767d8c065aa3a3a376ac6f2d4dc14af9113b2c34e"
+      "length": 41120,
+      "sha256": "b07f8f912116648835f7d8650310c34899a0ce253cf531edaeda184f7c711c44"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/resources/beta/webhooks.py",
@@ -6659,18 +6679,18 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/resources/messages/batches.py",
-      "length": 39970,
-      "sha256": "fcd82e0413c230b2b0884ccdc111539f7c7af1d792b877862768dfa031018349"
+      "length": 39886,
+      "sha256": "f2ff2871d7c7606404a188cf9180305060c326670991534f133b97abd833cf86"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/resources/messages/messages.py",
-      "length": 150637,
-      "sha256": "05893a167c31a60458cadc2f638e7c06316ee3caba312cd72be9af01eb0a9e93"
+      "length": 149621,
+      "sha256": "7aaac5aa479b62ebe7dc23e4e7fd10f0f9c32503efd2ef9fa960170a5c737fa9"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/resources/models.py",
-      "length": 15869,
-      "sha256": "515bd5283f80a449e6f1d4014cf3941c3b2f5c5abd82352c57f7ad6b87de1028"
+      "length": 14415,
+      "sha256": "f996693e2b2b2d38636adee14d9ad43250cbfc3281ba2cd7d1ba2c6e58839bc9"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/resources/organization/__init__.py",
@@ -6769,8 +6789,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/resources/organization/workspaces/rate_limits.py",
-      "length": 10112,
-      "sha256": "c7a24dbbed682df517609274ee6665e49ebbd3561126183e3efe2f5db72afe8c"
+      "length": 16657,
+      "sha256": "e76e9793ba7cb3e11a7dc442dfacc85c94161132b1273636385cd5f51a9c2f5f"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/resources/organization/workspaces/service_accounts.py",
@@ -6798,6 +6818,21 @@
       "sha256": "f2a4d940c8510a10840f73f4df50f6d690b0291e1e21e08ef3cf8b604403bcd7"
     },
     {
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/resources/user_profiles/__init__.py",
+      "length": 855,
+      "sha256": "8dc546ab1b8641eec9a7fdd09247e16be908ecf6da7edd41d5a43a5b03c97f5c"
+    },
+    {
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/resources/user_profiles/action_urls.py",
+      "length": 8304,
+      "sha256": "6f6cac983aeaba46fe2e81b54281083ea38735813990a1288739a2438ff3bc20"
+    },
+    {
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/resources/user_profiles/user_profiles.py",
+      "length": 37305,
+      "sha256": "fa82b509249d2beb14c8f6d8715f49fc426c774e9cff7d5415a5623944f163e0"
+    },
+    {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/tools/__init__.py",
       "length": 2322,
       "sha256": "92115910ec3251a5f53998463bda15a722b0ca73c411eace30e288fe66e25c13"
@@ -6819,13 +6854,18 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/__init__.py",
-      "length": 45934,
-      "sha256": "999186175071c44a958f227e8a007eaec918936d4ed1482af852b925191cef61"
+      "length": 48791,
+      "sha256": "482d2ff7801151aa2ad5356e8716decd65aaa5a8d2d5fbe2b0d02be4d7378126"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/anthropic_beta_param.py",
-      "length": 2158,
-      "sha256": "dfe0043a1653cf777db821189f8a9e3039964a65548eb1a8da14fc1135ee9449"
+      "length": 2189,
+      "sha256": "cd91309a4a1c8c247f29749168bbe624d1c847cbb4ea46b4e728ba2c1984bc37"
+    },
+    {
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/assistant_message_param.py",
+      "length": 328,
+      "sha256": "1f2fe97c5e498113fbd33464134c0816f6a22ab11804c5916e87dcd5c0390461"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/base64_image_source_param.py",
@@ -6959,8 +6999,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/__init__.py",
-      "length": 114030,
-      "sha256": "27b8553cf9feeff222470d163e4f0703f44e69bdf8c86609b23d0d6b71e678f3"
+      "length": 114878,
+      "sha256": "ca20e72ac71b3d817d46e4238d3848f9eec6b301761bb22de4d78d7ad8d4cc02"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/agent_create_params.py",
@@ -7051,6 +7091,11 @@
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/beta_all_thinking_turns_param.py",
       "length": 230,
       "sha256": "2e1cb55380df3064ae5f260e1445ad5f55892cb56f29e79d5682d2dd0a98054a"
+    },
+    {
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/beta_assistant_message_param.py",
+      "length": 349,
+      "sha256": "f1a25102d1e5bebf9b450a59b23eb31445fe4b846e02ed82e98310962f4a1796"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/beta_base64_image_source_param.py",
@@ -7844,18 +7889,18 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/beta_cache_miss_messages_changed.py",
-      "length": 380,
-      "sha256": "95da62532f7ff5419b07d8dbd832a373e78c3964f5699a3e4856aa8c94fbd7fe"
+      "length": 770,
+      "sha256": "b347e072d9bc776e9054993a6d988cd0211c8eaf2432034be429190cd26093d9"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/beta_cache_miss_model_changed.py",
-      "length": 371,
-      "sha256": "8d3800c4031e7348ab389063c4b4d4ec1d070c626243fa0df883a0cab043cee1"
+      "length": 667,
+      "sha256": "1010fc3aa99e3fe762d6d88da97e144d499ae2b11c22b48a46bc86c0c609eca8"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/beta_cache_miss_previous_message_not_found.py",
-      "length": 229,
-      "sha256": "005c10fbc33a726b4d9b770dd9e7bbe881d1b0d07b79039a4546d6dbc24a42af"
+      "length": 611,
+      "sha256": "ad36de87f815b1fae81148ddb2ca39cfe84b2412b45c3db4dd9ac0ac12267827"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/beta_cache_miss_reason.py",
@@ -7864,18 +7909,18 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/beta_cache_miss_system_changed.py",
-      "length": 374,
-      "sha256": "b3b89bbaab6586459607f0c434c960c8845d917acb4ac68c3883caa4ff836c58"
+      "length": 660,
+      "sha256": "fd778afd53fe3e16bf63ba9c18741d41fa1c55af6758ef81fbf00512925a7f9f"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/beta_cache_miss_tools_changed.py",
-      "length": 371,
-      "sha256": "26918eb54785f75bce80a443a7a2c86af36e402b95501ebbb7ee83c6a0b1c075"
+      "length": 716,
+      "sha256": "fe9cde0bccc54805792ed4434255135ec6905e64a82d4615c3dc20c1d5d3af98"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/beta_cache_miss_unavailable.py",
-      "length": 190,
-      "sha256": "6036cb71b4e26e707d25507e8cf52010bad6a1c169892b333c5e3ac16a6c1b9c"
+      "length": 679,
+      "sha256": "7cbd7fa3e28c08559d392b3d174591128ca1d9577aa9ae83efb755bff266024b"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/beta_capability_support.py",
@@ -8568,6 +8613,11 @@
       "sha256": "21e2c06d7f22a1446d45d115a051558b40160bc62e6525f5d61d181c3649641b"
     },
     {
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/beta_deleted_user_profile.py",
+      "length": 331,
+      "sha256": "571d82a6b7a8c7ab59054e509816292f3b439dfe04f567599a026e851841d24a"
+    },
+    {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/beta_diagnostics_param.py",
       "length": 712,
       "sha256": "df5779c5c056e6e19f24654e40f51149c67637be27bb684e107d299fd7498ec1"
@@ -8729,8 +8779,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/beta_fallback_param.py",
-      "length": 1817,
-      "sha256": "16726fcc4a419ab40b412591b746428a79d5c853bc19a09c59b77906c35caccf"
+      "length": 4468,
+      "sha256": "fed9d5ad599a418d33fea7c0f3e2ea5accaad38fb4768895eff696d849d406bc"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/beta_fallback_refusal_trigger.py",
@@ -9059,8 +9109,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/beta_managed_agents_deleted_vault.py",
-      "length": 309,
-      "sha256": "e165e362507f0785f2c0fea05653ec65f0fe341533f98fb4e26af1a9dde141f3"
+      "length": 317,
+      "sha256": "9b75cbe8bdfa7cef4bdbb93e8d06bad430de5a86a45ccb0b33f62854f615c100"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/beta_managed_agents_delta_content.py",
@@ -9349,8 +9399,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/beta_managed_agents_memory_store.py",
-      "length": 1877,
-      "sha256": "61ff4cab18796541c72584a053f13df10b7646b97d8aed335e60d3df60548bda"
+      "length": 2130,
+      "sha256": "853510c94c3973d43c621bae9170b75731309d956229c23aa776792f38ea1585"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/beta_managed_agents_model_config_params.py",
@@ -9804,8 +9854,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/beta_managed_agents_vault.py",
-      "length": 777,
-      "sha256": "60f92c96d190c6ac26a9260cc86a1922706565f93c889eb9ee18f8ecd101bdd9"
+      "length": 784,
+      "sha256": "597be6034c85bc3441062cca94730f5ee4c74b355aefbe3926625a5bbfb14a6f"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/beta_managed_agents_web_fetch_tool_config_params.py",
@@ -10058,6 +10108,11 @@
       "sha256": "f69fdcc3fe654675cbeed704101608416f8a8362a179940d1c5f00d8f05146e8"
     },
     {
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/beta_message_content_param.py",
+      "length": 293,
+      "sha256": "74e8829d6cac1710ee1a1ff8cbc818e733d9fccae1ce0536d505f440bba7bc58"
+    },
+    {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/beta_message_delta_usage.py",
       "length": 3106,
       "sha256": "334176221f6f2d09286260594d2ce11212906367b9f78e97ab3dadfb44223bed"
@@ -10069,8 +10124,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/beta_message_param.py",
-      "length": 1341,
-      "sha256": "43a091f9916683319b62541fa754baf4b10be86c35ed225d231a3fda060e0762"
+      "length": 432,
+      "sha256": "9938f34853ba0306e0ec0bb69a3297892e6f678a0eae4e9f604d486654c21308"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/beta_message_tokens_count.py",
@@ -10079,8 +10134,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/beta_message.py",
-      "length": 6637,
-      "sha256": "41c341eec5b00f174f25a63865fd5a0320fb236053ae446d071cd7e0bb013bdf"
+      "length": 6674,
+      "sha256": "c0645c431e3a35799fff17d5c565b57a668acdd03a2a14b0567f4a4eeaa6bac8"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/beta_metadata_param.py",
@@ -10638,6 +10693,11 @@
       "sha256": "0aa4131fa50d18c00de98e3cee78cda32709c4bd781d781c634c89979e356375"
     },
     {
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/beta_system_message_param.py",
+      "length": 1626,
+      "sha256": "65fa1666b1aa41b8f7c66fe886d5bf282b9841a19fac48d77c3624b85360a856"
+    },
+    {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/beta_text_block_param.py",
       "length": 606,
       "sha256": "960d672ccb0c675a9a175a1986c89714a3aaf07ce450d870718e12f537137225"
@@ -11083,9 +11143,14 @@
       "sha256": "c9fba37c6c7b5cc3e63b152b146cc1971472cd01e696696cb7fbaf0d810844df"
     },
     {
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/beta_user_message_param.py",
+      "length": 334,
+      "sha256": "3e111d5e28d23e828350924c42d1c080fff43775e2607e92e2d04bf2f9ef91cb"
+    },
+    {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/beta_user_profile_enrollment_url.py",
-      "length": 589,
-      "sha256": "f709270d4ef28fb07295d04c472695c92077b995e8f511a94b27c6f10266c6c5"
+      "length": 584,
+      "sha256": "38170e7e4b6f3b4b8f4dac1989b1e3dccb65a0536031158eee9b88d314e8cc8a"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/beta_user_profile_external_user_details_params.py",
@@ -11104,8 +11169,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/beta_user_profile.py",
-      "length": 3472,
-      "sha256": "f111f78e019d1977db8bb73a3b515de42af117b08e81a13e381049b85259e8a0"
+      "length": 3736,
+      "sha256": "1419b5af4576d30e8dc3a3cec42a90fcf515f54aa2c23402884e0b8c2f61ca64"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/beta_web_fetch_block_param.py",
@@ -11404,8 +11469,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/beta_webhook_event_data.py",
-      "length": 6603,
-      "sha256": "7cd1b86ba2875eb5544a9225d83f8d90205ffc94d60ec5b17877da0974aad4fa"
+      "length": 7017,
+      "sha256": "7cd1da5fc8dde13b3f983c58e2dfc61e2a1ae5e61ef02fd0ad8cabd17582a91a"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/beta_webhook_event.py",
@@ -11511,6 +11576,16 @@
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/beta_webhook_session_updated_event_data.py",
       "length": 330,
       "sha256": "f14684d0be89e0d0ee92d67e994a1e5a1ee19583d38288be5f4aeac4830d33bd"
+    },
+    {
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/beta_webhook_user_profile_enforcement_action_opened_event_data.py",
+      "length": 492,
+      "sha256": "38f0eb5c0295657edef91f4ea215b7a1968cd12d8aa8c6484eee5b2c959d7711"
+    },
+    {
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/beta_webhook_user_profile_enforcement_action_resolved_event_data.py",
+      "length": 498,
+      "sha256": "c0f51dca6d221a1f4f7ac14255bd9ffec4efaeb3005d36214230494d0042bbfe"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/beta_webhook_vault_archived_event_data.py",
@@ -11659,18 +11734,18 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/memory_store_create_params.py",
-      "length": 1589,
-      "sha256": "3f05a4407d59a55d54e142e4eefcec14dae380ce5b409a45763bf4991be70606"
+      "length": 1938,
+      "sha256": "adc6ab05f916ffaf4cce870ad5c2a4f6a6d9ca1a61248b6389eca2b65e4681d2"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/memory_store_list_params.py",
-      "length": 1662,
-      "sha256": "db655fea214ded441b461b2ca3e7b0003a2d719e4f420f798a45f8583ba5fb1d"
+      "length": 1499,
+      "sha256": "1ad79c7877c60a077eff76ce00e5fc3a01749fde07e9077d17be114065da2b6c"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/memory_store_update_params.py",
-      "length": 1448,
-      "sha256": "17b06bca2ee734731de6b221f1477fcb411d0715a033b524ebb19b5ea14aada9"
+      "length": 1571,
+      "sha256": "bea427ff0158cfe616861d7f175c65d9034abec9d617a268083a7d0adee70ad0"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/memory_stores/__init__.py",
@@ -11689,8 +11764,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/memory_stores/beta_managed_agents_deleted_memory.py",
-      "length": 687,
-      "sha256": "301d40ab7f0bee61c67e941fbefb264afee0f565768083fba8f3652fa905f6a7"
+      "length": 892,
+      "sha256": "cfc3d93c7b3135139c4d030a2ab81ed917cb4ddec366e206be606efd6a7286d4"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/memory_stores/beta_managed_agents_memory_list_item.py",
@@ -11699,8 +11774,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/memory_stores/beta_managed_agents_memory_prefix.py",
-      "length": 817,
-      "sha256": "ad2ff13a024d0f4593ce1c15c4197da811e482d235b121da42d760d64327c8f4"
+      "length": 767,
+      "sha256": "e9858f5846212fd5604f4f88774dded34a84dd0718eb56f4b2210c9b78ae33c3"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/memory_stores/beta_managed_agents_memory_version_operation.py",
@@ -11709,8 +11784,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/memory_stores/beta_managed_agents_memory_version.py",
-      "length": 3798,
-      "sha256": "086cef5da0e0b1691cf42b2ff325e0adbcf55b4c2ed3edf4581d3d4e1de511f9"
+      "length": 4045,
+      "sha256": "ca1494c83a7ab43cd3be49fa619402bedbdc71ed8a1917388e4cd1950f85e7f0"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/memory_stores/beta_managed_agents_memory_view.py",
@@ -11719,8 +11794,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/memory_stores/beta_managed_agents_memory.py",
-      "length": 2596,
-      "sha256": "09b0ef08031d97e3db5816d11258e566270c51db19bfde0f9d101fb39e5d0d98"
+      "length": 2590,
+      "sha256": "4dc807a3e941dee252d8893886b04680476d70cd9cc8398ef864c15142497904"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/memory_stores/beta_managed_agents_precondition_param.py",
@@ -11744,8 +11819,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/memory_stores/memory_create_params.py",
-      "length": 1911,
-      "sha256": "2f16e16afe98e7b7d49945cb5a8b2a440758b88d3aab743487118cdf75210b51"
+      "length": 1803,
+      "sha256": "1e8f77fe42b2ca367ecc3912a189923b8c0647c46d5153609c3d4f7e08d53da7"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/memory_stores/memory_delete_params.py",
@@ -11754,38 +11829,38 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/memory_stores/memory_list_params.py",
-      "length": 2032,
-      "sha256": "0e782fc0a9cb9a2005f594e8a438a560730a3645bd7574ef450413e93db1ea78"
+      "length": 2072,
+      "sha256": "71427456f1b3d3b7090ebdde2409ed9212dae146531098ae9210ff026a8468a0"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/memory_stores/memory_retrieve_params.py",
-      "length": 1406,
-      "sha256": "5c052f27abe6011a7a81760819582eaad2999978fd5b4639da791ac562d9b2cd"
+      "length": 1290,
+      "sha256": "642530dba5a949b8fcf8918392e4ba9b3a6291eb68c66324aa8740e001f2a3d3"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/memory_stores/memory_update_params.py",
-      "length": 2489,
-      "sha256": "9d5821649382dada276c626f244d447b9d2f0715ede53bd8d4ddce3897345a78"
+      "length": 2302,
+      "sha256": "4d7512d7bde07e03dc9ad16ca563bd1c23d9414a00dacb783d6a8469025d07eb"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/memory_stores/memory_version_list_params.py",
-      "length": 2524,
-      "sha256": "bf6484ecd360a3f8003a33801bb95c6613557ba9f7d3924da82af6ef3a52a0a1"
+      "length": 2528,
+      "sha256": "92eb7c80287a52a9d91a2ff6fa691b08bdc015cec503bb0e2dfa6c23304c6e2b"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/memory_stores/memory_version_retrieve_params.py",
-      "length": 1421,
-      "sha256": "9587b95a891028032050604a4990e7aea2edb840ba7393cefa81f5fc8d16a315"
+      "length": 1305,
+      "sha256": "6287351ff9dc75b10ee99ca3eda3c7416e92b7769e92f489e49aa04efa9b4279"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/message_count_tokens_params.py",
-      "length": 13348,
-      "sha256": "06d26d5436808a37c46420db4db8a279146d2b462c6ac81f96676ce2cb5adb3f"
+      "length": 13227,
+      "sha256": "3d3d73e7ec4755e9f46477a5137b4ded1746c6222f12e3f114d3367bb5441df6"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/message_create_params.py",
-      "length": 16703,
-      "sha256": "af6b3c22013927517969d685842a50e7cb06052266f6d884fb12e623ef0c32c2"
+      "length": 16582,
+      "sha256": "16b6a3024c61e76e5fec40b9fcf4dba7b64fc498967bc56326424421ad97e3da"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/messages/__init__.py",
@@ -11794,8 +11869,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/messages/batch_create_params.py",
-      "length": 1918,
-      "sha256": "55b94c36e4ab12a8023415e042cb9bb08848421cd2b8ed2c7707c75b44aa1998"
+      "length": 1872,
+      "sha256": "dc5fdcf9fc42639261fdabdef4ea529b6b632c641797425c6ac770f9b2031c53"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/messages/batch_list_params.py",
@@ -11854,8 +11929,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/organization/__init__.py",
-      "length": 22107,
-      "sha256": "ac7b7de490c0ec0485e17c122dde353c1103ef73a12189d9ec5afca2d07c66f5"
+      "length": 23035,
+      "sha256": "1e8ae3972f6476b66df3f008409fba5f8210bc1cad980c29fb7fcaa34f7414a4"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/organization/analytics/__init__.py",
@@ -12219,13 +12294,13 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/organization/beta_api_key_workspace_scope.py",
-      "length": 489,
-      "sha256": "f24de56403586cc0b3712e8000d9d918be81a608cf3ea8e6e330f382215ea3e3"
+      "length": 421,
+      "sha256": "95d91b3b7b5e3dcbb8d8e83598821b0dd617d7ca3c710f119e41beaf13405885"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/organization/beta_api_key.py",
-      "length": 2561,
-      "sha256": "134c85af9d951d335b8f5bce63b96717426ec18c8b40f695b2fbda16da730e82"
+      "length": 2258,
+      "sha256": "c9352a9511235dbb8db1d0a95a71532447fda1fefdb2628cf32e90d7ab7d5121"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/organization/beta_aws_external_key_config_param.py",
@@ -12298,6 +12373,11 @@
       "sha256": "da2376e0cb41d669e80b2154658fab198866744f7dfecd15b75044b0e72fccb1"
     },
     {
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/organization/beta_deleted_organization_webhook_endpoint.py",
+      "length": 388,
+      "sha256": "360c0f28fa9544fdff5ec640719d483d7b6dd97b5ceb0d18bef30663a9a3c17a"
+    },
+    {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/organization/beta_deleted_plugin.py",
       "length": 263,
       "sha256": "915321636ee96db90aace8bf8e2eee17478c2d8412b1d8c564bf049e2a5a1cd6"
@@ -12331,6 +12411,11 @@
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/organization/beta_gcp_external_key_config.py",
       "length": 253,
       "sha256": "9c07d6c150da916a636a6d74bedbf71ed99fe8ba029bc373d128a77ed52fd13a"
+    },
+    {
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/organization/beta_new_organization_webhook_endpoint.py",
+      "length": 1548,
+      "sha256": "2b6b5cd8bd869882cab2e41b7ebba17a0e17dcc4bf97d5ba2d6d42d1add5159c"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/organization/beta_no_billing_workspace_role.py",
@@ -12379,13 +12464,28 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/organization/beta_organization_rate_limit.py",
-      "length": 2348,
-      "sha256": "ba478083d0e0a59b7bb2ba7351bb456f2ba049da67446083c6bede6963ea3f45"
+      "length": 1988,
+      "sha256": "be3c3456f8ab35079dc536d4c7e617d85a95d122825cf8f912a05ccce357ed20"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/organization/beta_organization_user.py",
       "length": 642,
       "sha256": "a3cc11bab92208dac12c60c8a3a05e8d240f268cab1360555d751b568be6e9f5"
+    },
+    {
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/organization/beta_organization_webhook_endpoint_signing_secret.py",
+      "length": 370,
+      "sha256": "ab8d63e8b217af82d041b1cc03a993a3b3bd7b20403ef2718166a4984bca40e7"
+    },
+    {
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/organization/beta_organization_webhook_endpoint_state.py",
+      "length": 183,
+      "sha256": "c15018dc8ecdd2d0197130f2b37d488736b8496383ca49e9c529296ef198b518"
+    },
+    {
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/organization/beta_organization_webhook_endpoint.py",
+      "length": 1364,
+      "sha256": "1858bdc5475674b433063ffecf2b5241abc061733503180bc63b46fe7e452083"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/organization/beta_plugin_api_actor.py",
@@ -12459,8 +12559,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/organization/beta_plugin.py",
-      "length": 3809,
-      "sha256": "99077d98cd0c2399e8d0f18680ecafd9576c787923e55d3f75d1a2e2dabc5b6b"
+      "length": 4635,
+      "sha256": "57c0069f9916f68c9d7b3893664f2f49f57918c055d5caaf8a69d22b18d0c57e"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/organization/beta_rbac_group.py",
@@ -12469,8 +12569,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/organization/beta_rbac_role.py",
-      "length": 920,
-      "sha256": "719133ec859338357ec49cc290a8bdf20f20662d1723515eb6819f960c7d615a"
+      "length": 781,
+      "sha256": "1dd2fe949bd152ce96f60a7b6ee273dfeb0c15e5f527e9542e01b36d78ce90ef"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/organization/beta_service_account_workspace_member.py",
@@ -12914,8 +13014,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/organization/plugin_marketplace_validate_repository_params.py",
-      "length": 1117,
-      "sha256": "592083d33989f01369dcef757d762681b11183d5ed4d435e517ac8d3c18b7f0c"
+      "length": 1574,
+      "sha256": "b88e54ccf860f055135631388506c228c3c8815ab8232e200cf096c8d07c0d09"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/organization/plugin_retrieve_params.py",
@@ -12949,8 +13049,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/organization/plugins/beta_plugin_version.py",
-      "length": 1839,
-      "sha256": "18056199fb8a85d944500b7d6141c527d49652a82ea16810806a470bfab50582"
+      "length": 2338,
+      "sha256": "4407a832124284d5af133969f86067e0fd8caf4618b5b55baf6c5d8e6840e75f"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/organization/plugins/installation_setting_list_params.py",
@@ -13124,8 +13224,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/organization/spend_limit_list_params.py",
-      "length": 801,
-      "sha256": "ef11b432dc4c7814e6d416391e099bac48a5a0584010fffe2ffbea941581ff52"
+      "length": 1168,
+      "sha256": "e64880c26eb85ae9a7f5c312e98dfbd20f32c9a9583363ae3777a2c9cdfb4594"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/organization/spend_limit_set_params.py",
@@ -13223,6 +13323,21 @@
       "sha256": "dcbacc1b63308fac1baaf4c14a238bbd6565415c3f8eded6366daba2bb38fc63"
     },
     {
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/organization/webhook_create_params.py",
+      "length": 821,
+      "sha256": "be891decd481c4cdf6eb819b89e9751efb74421d2580d1b85fa37fbbc7093e28"
+    },
+    {
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/organization/webhook_list_params.py",
+      "length": 1011,
+      "sha256": "ba2043e5bc228f6e7aeab7fb8b7445e9c2fa03aba8615df25a618b3fba70e572"
+    },
+    {
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/organization/webhook_update_params.py",
+      "length": 1042,
+      "sha256": "4b539a18f1493bf02c362bafb9f8812c973a6d436c592d61c29b2e4c5d4e262e"
+    },
+    {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/organization/workspace_create_params.py",
       "length": 1941,
       "sha256": "204db243d920d33b683de7d579d4d0ecacc2ad9abc203f23d9c09b9b662d9b71"
@@ -13239,13 +13354,23 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/organization/workspaces/__init__.py",
-      "length": 1286,
-      "sha256": "78263ad5671f0afaa9f0a2588c81efad46b2d0c18a37078fd196d0332cf8f1fa"
+      "length": 1620,
+      "sha256": "58ac06ea93ff16642e31285c04159a8c80ec2225460aeec1a1d4d524d4855175"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/organization/workspaces/beta_workspace_rate_limit_organization_source.py",
       "length": 348,
       "sha256": "aad019e9aa2a0503dddb8c311bf2ca62e1a220b7b58d60570cf5dc095d72cde8"
+    },
+    {
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/organization/workspaces/beta_workspace_rate_limit_type.py",
+      "length": 387,
+      "sha256": "f754bab1b1f48990dc5560e13542997d4b9d69301ee712b715b201fc80eaf387"
+    },
+    {
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/organization/workspaces/beta_workspace_rate_limit_update_value_param.py",
+      "length": 550,
+      "sha256": "1bde254a483184d8f0ff1c63ef692c697b73f4ceffe11074fb2ca7fa77348767"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/organization/workspaces/beta_workspace_rate_limit_value.py",
@@ -13259,8 +13384,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/organization/workspaces/beta_workspace_rate_limit.py",
-      "length": 2591,
-      "sha256": "1953740838e67ef28067e25d3dd7009d0e086dda111b77d7cc995a073b178ce9"
+      "length": 2153,
+      "sha256": "12442f29e9ae4ef4f7db27d9da0db9b0c61a546921f64731a5b82629a7e99664"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/organization/workspaces/member_add_params.py",
@@ -13286,6 +13411,11 @@
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/organization/workspaces/rate_limit_list_params.py",
       "length": 820,
       "sha256": "bba57a84b18169d3d254b770a58ae83c27950bc95d387e28d3b9a79d317def50"
+    },
+    {
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/organization/workspaces/rate_limit_update_params.py",
+      "length": 516,
+      "sha256": "536bf3ceedb86fdc039a207aa7a128e8e6d4c772b918fed53097acd7bf638ff9"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/organization/workspaces/service_account_add_params.py",
@@ -14154,18 +14284,38 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/user_profile_create_params.py",
-      "length": 3240,
-      "sha256": "1dde752d42a48261917ab44be43e92a8d225de7d30985bef97c3fb27394cc7ae"
+      "length": 3309,
+      "sha256": "9a3aaeea77e154aebab64ab19cb1adc36ba28be8f9741c61d768c950c4bf580a"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/user_profile_list_params.py",
-      "length": 1883,
-      "sha256": "916dc7bbd93ca3714495f6ce2cb40a32f01fdb9b6965e8f0396ccdbd7d975798"
+      "length": 1786,
+      "sha256": "a475de198c78360ba406ba7dd95e99763988416597ee58c1a6809360dfde25b3"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/user_profile_update_params.py",
-      "length": 3026,
-      "sha256": "25797aaaf2906ebd9e270954d9c3c283a2553200c99466defc594acf3234b6ab"
+      "length": 2973,
+      "sha256": "8c535b282510f48286e0c7bf422150d0ce80f775257713c45ed98227c17b3c15"
+    },
+    {
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/user_profiles/__init__.py",
+      "length": 368,
+      "sha256": "23cb4cbf4a4928fa41eb80f8a5928f7afe10d6d4fe929443d36ccd926951d405"
+    },
+    {
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/user_profiles/action_url_create_params.py",
+      "length": 956,
+      "sha256": "56c33a8a945d0d12ed3612302700bceb1d28e3d31845c9ebce9ebad53d79c638"
+    },
+    {
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/user_profiles/beta_user_profile_action_url.py",
+      "length": 583,
+      "sha256": "4fab1aac40712cd0f1a1b6455cf57795917a15ebe90cad97f3f84e76779295fd"
+    },
+    {
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/user_profiles/beta_user_profile_enroll_end_user_action_param.py",
+      "length": 344,
+      "sha256": "d3168d72d1408dee1e34212b236da9c48cd4caef0ee7e6d90df1435e4c790744"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/vault_create_params.py",
@@ -14174,8 +14324,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/vault_list_params.py",
-      "length": 1025,
-      "sha256": "4a81d6cbe0a53d552d18e3a796285145dc00fdc9272274ad34e82e28753d634f"
+      "length": 1178,
+      "sha256": "0ee12ea20efe77730db292fccccd1d4c21feef055e3fe2a07839fb07447dc983"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/vault_update_params.py",
@@ -14199,18 +14349,18 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/vaults/beta_managed_agents_credential_validation.py",
-      "length": 1393,
-      "sha256": "07d174afb81905f1bf437d74f51d159a7c457bc976f5a2e28becb7d48a654e8d"
+      "length": 1451,
+      "sha256": "47773a8885157d987432ef095f7f91646c29639270722b94706da5f4816d21aa"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/vaults/beta_managed_agents_credential.py",
-      "length": 1628,
-      "sha256": "1e6acc0926ce63c6dec856fb44981f2d118d2d02404037750db726740a3f708d"
+      "length": 1636,
+      "sha256": "a3ddaefa296e3513d4bf0881a1e65839d135169cfc55c6b03245a1020a9c4818"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/vaults/beta_managed_agents_deleted_credential.py",
-      "length": 341,
-      "sha256": "c1bd5387cc1b7ccb108a08a4f9e275ee564d06e61d14b878528d37bb448ec808"
+      "length": 350,
+      "sha256": "3abdcb2de165a59eeffcaf2461515395473878129d56c8e781129a0f27b6c3e4"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/vaults/beta_managed_agents_environment_variable_auth_response.py",
@@ -14219,13 +14369,13 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/vaults/beta_managed_agents_environment_variable_create_params.py",
-      "length": 1044,
-      "sha256": "05d63c65c74ce62be6d4e8bb8cabfa74580a1cfc14b89dcb8e410a5aaed09cca"
+      "length": 1109,
+      "sha256": "b4ffae5d1cb08558580de6558dd887febe772c4048a827277b5008832b373a55"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/vaults/beta_managed_agents_environment_variable_update_params.py",
-      "length": 950,
-      "sha256": "b3e42b3cb8e642c51cae94b629def9be3064a7a66686ab5908298550d05798fe"
+      "length": 1000,
+      "sha256": "9b7e7f1ec09df83fe001142b157a18e9f51b70eac807e2360eed3729da66f0ee"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/vaults/beta_managed_agents_injection_location_params.py",
@@ -14239,53 +14389,53 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/vaults/beta_managed_agents_injection_location_update_params.py",
-      "length": 438,
-      "sha256": "9ad3a8422fdcf3ac5d2249e43214cefb207a71a2a2b2f6085a536d990b8f1a0d"
+      "length": 762,
+      "sha256": "3546a4286a3e83118075edbebc5107051f9c799b3ee539c4f478f66be63af949"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/vaults/beta_managed_agents_limited_credential_networking_params.py",
-      "length": 729,
-      "sha256": "2cab8000e6a68ae34e9214337bda923f30e0f29471b3c7321abb1515a855d606"
+      "length": 790,
+      "sha256": "3fabc796e59bc5b87ca4a307aa8ecd5c07dbc22e8362a7413ce4ef0583a081ea"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/vaults/beta_managed_agents_limited_credential_networking_response.py",
-      "length": 581,
-      "sha256": "d8facedae9ae355644cc00355cc2bf6074fa82eb8ecab3fe518152593a3d39f8"
+      "length": 647,
+      "sha256": "7cf567c99dc7ffb7be3f5b12d6e325f1f5f0ee7d039e03422208ef0acd8b8cd5"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/vaults/beta_managed_agents_mcp_oauth_auth_response.py",
-      "length": 762,
-      "sha256": "50f817ebdd907452570a519cc7265dfee8d20aecd7ae30fe88184e51f07c2306"
+      "length": 832,
+      "sha256": "31b69c848af590613537a9420f8b9df9386a227f87d604de345031fb243c7436"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/vaults/beta_managed_agents_mcp_oauth_create_params.py",
-      "length": 881,
-      "sha256": "8895ab8976d3c6912e177f84ec6d2ca66a478a8f78a9e688fbf893f065e16a12"
+      "length": 955,
+      "sha256": "217e46de42ef16a4bf3b2a191e71e9d3a3931e69d9c07fada95df2509d49bca8"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/vaults/beta_managed_agents_mcp_oauth_refresh_params.py",
-      "length": 1296,
-      "sha256": "4a8dde6eef099b5db9c4af49e8860dd7453d2503bed222abfc3cdd38e2d309b8"
+      "length": 1494,
+      "sha256": "94f5fd3d32f043135ca3d5a45557bf45b7cc7cb23f49884669cd53ac8f43d71c"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/vaults/beta_managed_agents_mcp_oauth_refresh_response.py",
-      "length": 1296,
-      "sha256": "136c5ad316ac02b58fa46f133fa9a57960bcfeff7821ad4e9c4ecba9da9d1678"
+      "length": 1338,
+      "sha256": "03e96c0f38cd29d779d0acd5e7b7492a9b5ad8ba2fce2478a504a6fc37aeb12d"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/vaults/beta_managed_agents_mcp_oauth_refresh_update_params.py",
-      "length": 949,
-      "sha256": "863035eed9a6122c3d24e95d9eefba58fcaf21a596e00748635f8a1506a78f24"
+      "length": 1030,
+      "sha256": "6c6e40c11596d1619eec1a9351d7796eff00903c7431c83758a7cfb6d92282c2"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/vaults/beta_managed_agents_mcp_oauth_update_params.py",
-      "length": 813,
-      "sha256": "d95c38a9c308e4451a353e864ab68ad7b6e580e8f5c897bd40ccc13fdafc688b"
+      "length": 1052,
+      "sha256": "a756a0c2ef1ed87111d090d4a537aa53acef1da4e21722966521749e45725fb4"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/vaults/beta_managed_agents_mcp_probe.py",
-      "length": 584,
-      "sha256": "645d14f69e2bb7a1308040f7d9c002bbdb86ddc3fcedf5f36142da8185f60603"
+      "length": 663,
+      "sha256": "0fee7ce0c2e172f0a0fcc943ca13b265fafffed2ec216337c5e7133dad97daec"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/vaults/beta_managed_agents_refresh_http_response.py",
@@ -14304,18 +14454,18 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/vaults/beta_managed_agents_static_bearer_create_params.py",
-      "length": 510,
-      "sha256": "3d6bb102a89e2933e60ff200e72c99b7c633d5a5e09491eff3124d934307b7a2"
+      "length": 593,
+      "sha256": "ab17bdb76f1ab3729502b233c809d25c3752f96e171c5b9f0d6e704f539a6fe5"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/vaults/beta_managed_agents_static_bearer_update_params.py",
-      "length": 485,
-      "sha256": "f44ee2432c7a491185f770ccdc4da6f8d32a8cae4e3ee2aa0f21b17a65021d09"
+      "length": 505,
+      "sha256": "91fee9e535134c8ca521cdc1c64922684ea34249ad8c6302f8fb7fc3540996ac"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/vaults/beta_managed_agents_token_endpoint_auth_basic_param.py",
-      "length": 431,
-      "sha256": "56f171221388ac988e127334c2862300b7c7f304bda3d5595c3ae039e3b548be"
+      "length": 506,
+      "sha256": "1282085ece1796bf20d5ae17f4be0b41ee1248e020b8a7f985bd3e10040ab24d"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/vaults/beta_managed_agents_token_endpoint_auth_basic_response.py",
@@ -14324,8 +14474,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/vaults/beta_managed_agents_token_endpoint_auth_basic_update_param.py",
-      "length": 477,
-      "sha256": "a9e00f4480bb728cd6b32fed549bce634b0343a6dc3f8ab1f1770ba29a5815f0"
+      "length": 706,
+      "sha256": "f5174b0344c8268d4ebcda8c8bfcacb743c58d0b85c88782581ace3c9f8c176b"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/vaults/beta_managed_agents_token_endpoint_auth_none_param.py",
@@ -14339,8 +14489,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/vaults/beta_managed_agents_token_endpoint_auth_post_param.py",
-      "length": 427,
-      "sha256": "57aefac129e52c915f066d3c284b253b3293884e5b4915e808441a2a77ac8610"
+      "length": 474,
+      "sha256": "d185452441d4f5187a4db7a41d279a36a99d2427a2c11f0a32721ae635bd30e8"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/vaults/beta_managed_agents_token_endpoint_auth_post_response.py",
@@ -14349,8 +14499,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/vaults/beta_managed_agents_token_endpoint_auth_post_update_param.py",
-      "length": 473,
-      "sha256": "329bcc630ba4ed2640bc4a4074ddac337eac8e42da39693da96f897e827ff4c3"
+      "length": 702,
+      "sha256": "49f81cb90a90a719949d4e8afaeccc2cea3ad895b5dfcbc6ac7d14cd4c0bf940"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/vaults/beta_managed_agents_unrestricted_credential_networking_params.py",
@@ -14369,13 +14519,13 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/vaults/credential_list_params.py",
-      "length": 1051,
-      "sha256": "326e03fa86e6cfa565a2cebbc40cc6a26c629fc098b75a729ad5519b7b0709ba"
+      "length": 1216,
+      "sha256": "bb723333d370b7f295b8a394e31a9e75969b8852fe68c1eb302fd3e49e05d5be"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/beta/vaults/credential_update_params.py",
       "length": 1841,
-      "sha256": "06dda5651d625656e1e34a426a9f46f03353260ccffe23883bcbf595ad25b0ab"
+      "sha256": "5adf9ef464f98c5c6cdd3d453244bc50b0c9d5ef0ed2c0cd1bb39b433eba7f7b"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/browser_click_target.py",
@@ -14944,18 +15094,18 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/cache_miss_messages_changed.py",
-      "length": 371,
-      "sha256": "b9ec9347d59db85495f5869084f194f597c5eace60b1c182314e35c9b27b27b7"
+      "length": 761,
+      "sha256": "cbbfd72cd0fe3930d0e04142d9b2bb687ed018ee83a295179ad2da84b31c4248"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/cache_miss_model_changed.py",
-      "length": 362,
-      "sha256": "4c5051191ca90931cfc16b476bca52663d2ee7ea8e8e311f951db73d3e359cfe"
+      "length": 658,
+      "sha256": "890cd8f45d90ba27c8f0ee2a0d779590610d96815fb3660ed653d8a57b8c0f58"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/cache_miss_previous_message_not_found.py",
-      "length": 220,
-      "sha256": "8ea2c4cef4611b45a2a97b08e8325aedba1bae049a9d9c96d18dd167f6fb3387"
+      "length": 602,
+      "sha256": "c0a6d9217f4cb712764e08a970bed2356075bfd6d7561523ecbf5df27ea49717"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/cache_miss_reason.py",
@@ -14964,18 +15114,18 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/cache_miss_system_changed.py",
-      "length": 365,
-      "sha256": "aea46a2da8b58afb259faf346ec9364da429e39833ada0345a10b277c836a6d5"
+      "length": 651,
+      "sha256": "5dc50ceaed8158cc5a455cbaa4c418b699968ae4a3c6f89bb9d62dc97abb0587"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/cache_miss_tools_changed.py",
-      "length": 362,
-      "sha256": "2e487676708ae4a77fad617ce6b1a5edd948632d0548fee44db20b0189f5496c"
+      "length": 707,
+      "sha256": "7d2233bc04bbc3fbbb5844c683e094953c4b8685dce1c93d82c7032bba5bb310"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/cache_miss_unavailable.py",
-      "length": 181,
-      "sha256": "bda3fc7d7b4c271f569be31fc2cb890062f75abf7878e466c2a5e34b7b3a42e7"
+      "length": 670,
+      "sha256": "66e049047265383bee6a72dcb235a8f73b10e5d8b67dec83052f61e03b6c3251"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/capability_support.py",
@@ -15483,6 +15633,11 @@
       "sha256": "0b091471fb696d932f15340fcbc8694fcbd02cd049e0b01411b12f521dca19f8"
     },
     {
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/deleted_user_profile.py",
+      "length": 322,
+      "sha256": "b873e3e5ede21806c2900a03760e0a6ed2906f671d7dab1a7e0b828359579a22"
+    },
+    {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/diagnostics_param.py",
       "length": 704,
       "sha256": "a91c94e404f7989b92f174d66f233bc9d90198be319a7e134b0d3b24fe64fbad"
@@ -15578,9 +15733,14 @@
       "sha256": "205fabc8f0dcc5e0e8a65ca0ed7df4d78318a77f87dde8467bc67781321d8b16"
     },
     {
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/message_content_param.py",
+      "length": 2029,
+      "sha256": "6a228326d8dce3a131630c34a8bf93e4a1bbd4c8e96489365034302d17acf0c5"
+    },
+    {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/message_count_tokens_params.py",
-      "length": 8699,
-      "sha256": "4e496770251e915f6043af76182f949678c0ca084100c8dedb6895cb17f29df3"
+      "length": 8578,
+      "sha256": "f33e62a635ca88496249fe1ae43df3a95529f2a1a2fe2e3664fb6ffef45bd211"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/message_count_tokens_tool_param.py",
@@ -15594,8 +15754,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/message_create_params.py",
-      "length": 13292,
-      "sha256": "7f0de5e631a98e529a9713e2960b340699d1ea132ba306bf0d675aa3a11651e4"
+      "length": 13171,
+      "sha256": "cbb28d20fb642956e4d297e320f0c6550f822b2e2d8ac8e9d4ecc32329a50d3e"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/message_delta_event.py",
@@ -15609,8 +15769,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/message_param.py",
-      "length": 2334,
-      "sha256": "0b2e98db9187b43ac288596a56dcf5ae6346f72931b0845f0ffd9c5665ba74b2"
+      "length": 385,
+      "sha256": "90f35a0cffda47e1b5ceb257d8f2f432781cd7979d0ac9e00a0ff37a0f5cbe95"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/message_start_event.py",
@@ -15634,8 +15794,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/message.py",
-      "length": 4565,
-      "sha256": "cdf6b3feba97d806d76922253de41539cb36b2c87d911052d1412fd16b4f3da4"
+      "length": 4602,
+      "sha256": "92964973d73a186cae6169edcd3b8d19af9428bcc2b59c89a39829b7b406b6d9"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/messages/__init__.py",
@@ -15644,8 +15804,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/messages/batch_create_params.py",
-      "length": 1746,
-      "sha256": "fad78dccb37f46cf71d5a59927e29ba4ec257eaf776760a0e5b28fbac74cc4f3"
+      "length": 1700,
+      "sha256": "e96cff72f3d363ef91694e3752086bb63ac78c6d1b9071aa14e3429735fa9819"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/messages/batch_list_params.py",
@@ -15719,8 +15879,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/model_list_params.py",
-      "length": 1520,
-      "sha256": "c0bd267e8e696b87f338854cd9c5f56b6c5ef106d365cb060cf1cc825981900c"
+      "length": 1355,
+      "sha256": "c3dfe37cbd2c5017dacd73a4a376b55e6821eb1b923498cf1b0375a9d0913320"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/model_param.py",
@@ -15784,8 +15944,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/organization/api_key_workspace_scope.py",
-      "length": 480,
-      "sha256": "d4fb8e9f02910bb32b1c6f6628a72df27824e4d1f9c73575612593a44175fa58"
+      "length": 412,
+      "sha256": "5ca0b171af6d29bdca460dea9b388916bc49cead54bed3ecfacd613c0fbe10a2"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/organization/api_key.py",
@@ -16104,8 +16264,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/organization/organization_rate_limit.py",
-      "length": 1852,
-      "sha256": "e0c0f9139f57a2b34f1bb8c83d35cb187b8ce85da7ee6657076fe78956d226ba"
+      "length": 1888,
+      "sha256": "e7a6fe28db1446d022df42aab846e4c7b9ef7b79b0b90ae151a863faad0fb0eb"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/organization/organization_user.py",
@@ -16209,8 +16369,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/organization/workspaces/__init__.py",
-      "length": 1234,
-      "sha256": "631e07dbce360494300ee6231ae16dc84fa7a7bcdfd136feb5c7aaff84e998e3"
+      "length": 1542,
+      "sha256": "655cf96095e871010af24ce264293422f190242a3a5cc84161cb5dd9636ad51d"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/organization/workspaces/member_add_params.py",
@@ -16238,6 +16398,11 @@
       "sha256": "bba57a84b18169d3d254b770a58ae83c27950bc95d387e28d3b9a79d317def50"
     },
     {
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/organization/workspaces/rate_limit_update_params.py",
+      "length": 503,
+      "sha256": "3dd57f2d4428c87844684cc31d0e2f80788120559a66eff47cca0283007bfbca"
+    },
+    {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/organization/workspaces/service_account_add_params.py",
       "length": 449,
       "sha256": "a710196819a2368f7b0b9a9a1509cd53805b6b6add087621a06cf75e4662b13b"
@@ -16263,6 +16428,16 @@
       "sha256": "b98d84037f66e74a2e3bc8d69295ea5433201a7ee14e85bbaf5200c0e2b3b100"
     },
     {
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/organization/workspaces/workspace_rate_limit_type.py",
+      "length": 379,
+      "sha256": "6175818ec75fefdcdef2f0b0838745f91f8fb74c74f4cc1884727316a5cd31fa"
+    },
+    {
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/organization/workspaces/workspace_rate_limit_update_value_param.py",
+      "length": 529,
+      "sha256": "657e9c62dd73005820c0283f1652d811262afd2180a43263a42ed2afbf19cdc5"
+    },
+    {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/organization/workspaces/workspace_rate_limit_value.py",
       "length": 1247,
       "sha256": "8ee31032580f36cc5fce71beb40ad7457df02fa8927a652c5bd3bd577b70b49b"
@@ -16274,8 +16449,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/organization/workspaces/workspace_rate_limit.py",
-      "length": 2095,
-      "sha256": "129b63dc184c60ee890fa929284421d10a7b2f41d51d48cab9f98722cda5bd71"
+      "length": 2053,
+      "sha256": "c3b010073aa17d3080e352554bc2f9a3ab01923753766d03641b67ec34e70ac8"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/output_config_param.py",
@@ -16783,6 +16958,11 @@
       "sha256": "895e7da6cf2dccedc73dc955f94b40e34328b873ed14d173c11b79916f495d4b"
     },
     {
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/system_message_param.py",
+      "length": 361,
+      "sha256": "63db510938eb53c65ed27565281a293efd8b34053610e7a87c51c9d88c156b66"
+    },
+    {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/text_block_param.py",
       "length": 572,
       "sha256": "68936d0c6fa87c3d8cd4969c0e87d6a13d782c64bdc2189deebcb9e46a09eeda"
@@ -17066,6 +17246,151 @@
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/user_location_param.py",
       "length": 625,
       "sha256": "7128da54bac65657decc6fcf6c73d1ab8b78b0efb4d8d2b786f66ac42232947b"
+    },
+    {
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/user_message_param.py",
+      "length": 313,
+      "sha256": "21a68664eb35e8f522766a5346e3492c0b36ee85177218914878fb3c7086f7e1"
+    },
+    {
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/user_profile_access_type.py",
+      "length": 160,
+      "sha256": "fc5b2d0eb54be419b2173e8439cb236a24915c284fddf90aed77cb4d28528db2"
+    },
+    {
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/user_profile_create_params.py",
+      "length": 1966,
+      "sha256": "cab28eb47de841ce28cc59723d6d1d183ad16fefb17b640208bea5f13befd24e"
+    },
+    {
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/user_profile_cyber_program.py",
+      "length": 1938,
+      "sha256": "6fd626e94f0f14535965c979ebd767c1129ada4718d573657ab0fbd9a448512f"
+    },
+    {
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/user_profile_cyber_requirements.py",
+      "length": 847,
+      "sha256": "43472e5a54b6bad427952c7462c412685b4ddc469b1cc60698f9fe0b39cada0d"
+    },
+    {
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/user_profile_cyber_tier.py",
+      "length": 500,
+      "sha256": "f37827fbda9598f49969f305bfe43815ff6a2254321264fd0e3c5ead86f3cdb3"
+    },
+    {
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/user_profile_efs_feature.py",
+      "length": 483,
+      "sha256": "555a1e17e55d0cf6a8c65da68cddaf6891bfa5631e4a33fbb518b76ae8f1212c"
+    },
+    {
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/user_profile_efs_program.py",
+      "length": 1421,
+      "sha256": "b355eee50e56e41add76298c024e9d80e0bde404de3d6ccf075eb53f61bd2a01"
+    },
+    {
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/user_profile_enforcement_action_ban.py",
+      "length": 1176,
+      "sha256": "51771cabd48af026dd94121f35a0a0b4f7445694a36cb96c195e91a2a50f5dc0"
+    },
+    {
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/user_profile_enforcement_action_next_step.py",
+      "length": 170,
+      "sha256": "92b4780aee69d2529883b527726fd1cfffdef6491856ed25b98c8a4eea6d881c"
+    },
+    {
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/user_profile_enforcement_action_reason.py",
+      "length": 278,
+      "sha256": "cc15b6001e9ad855605f157b35e15d7e6e82982a98ae59046fdfe60cc5468f5a"
+    },
+    {
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/user_profile_enforcement_action_restriction.py",
+      "length": 1604,
+      "sha256": "880d18c7182a9c5691be8a5dfa17b0f1976f26ce85d998fdcce11f439fdadd71"
+    },
+    {
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/user_profile_enforcement_action.py",
+      "length": 508,
+      "sha256": "da2e6fb82b7089674ae432b6a673390d078fb90a4b04eeed0097f523ce387e80"
+    },
+    {
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/user_profile_enforcement_status.py",
+      "length": 195,
+      "sha256": "cdaac84449fab35595a9b59915013c547d1efd97a673740e31c473606e8f782c"
+    },
+    {
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/user_profile_external_user_account_status.py",
+      "length": 194,
+      "sha256": "5389a5610ca3078090eda6cbeeafccc366d4c946363d5b99c05a5ebd0ec22871"
+    },
+    {
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/user_profile_external_user_details_params.py",
+      "length": 2093,
+      "sha256": "4f13005215f1c0a6a31b3f6b3f472105a8b267703383949f0e0c525cf74c593a"
+    },
+    {
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/user_profile_external_user_details.py",
+      "length": 1871,
+      "sha256": "670466e2803dfb02d4fa4e86582da3e32b1b4705202df133add5032c56b7e5c4"
+    },
+    {
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/user_profile_external_user_entity_type.py",
+      "length": 208,
+      "sha256": "0d7aefba3f635657ca63e217b862dacaec309527aa283e8f5ccb43380fa8e2d1"
+    },
+    {
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/user_profile_list_order_by.py",
+      "length": 154,
+      "sha256": "3d823824750fab523a49b840d48dd68deed7c1da2478237591c3f4353ff7dce4"
+    },
+    {
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/user_profile_list_order.py",
+      "length": 143,
+      "sha256": "b3fb2ade30ad12f458934f77dafaee3738e4774df27f65432ad743ea35334879"
+    },
+    {
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/user_profile_list_params.py",
+      "length": 2018,
+      "sha256": "bc19f78a07161a51989a4ca6c444436917fe676404c4f6f7cd88f4996e78ea3d"
+    },
+    {
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/user_profile_program_status.py",
+      "length": 169,
+      "sha256": "afbd4dbe5411b27d68e74263a372ef3aa6a6d6d2c40e08811f6540a9c5c1281d"
+    },
+    {
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/user_profile_programs.py",
+      "length": 1494,
+      "sha256": "d2abc446926845da5cecee7b8641309b19b5640755622b7c552df87820c9c18f"
+    },
+    {
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/user_profile_update_params.py",
+      "length": 1719,
+      "sha256": "b4603eaee80d8e593ac5b70a23cfb05d69cd907a253bef2221f42db69fa03809"
+    },
+    {
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/user_profile.py",
+      "length": 3858,
+      "sha256": "f281f6a31945a74f488873552302abf06137923a50042fb05e13b02777c6febf"
+    },
+    {
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/user_profiles/__init__.py",
+      "length": 342,
+      "sha256": "f162308f4034478a688ff0f133a78c0b46ee7838050281a0d9a8d153a70d781c"
+    },
+    {
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/user_profiles/action_url_create_params.py",
+      "length": 753,
+      "sha256": "9c4391dcd377c342ff01fb8cd1152933a336a6e62a8306d68bf7d09c42d164f8"
+    },
+    {
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/user_profiles/user_profile_action_url.py",
+      "length": 574,
+      "sha256": "339543b1aaa4cc68e5928af90f01f0c67fc48e1b035845e4acf8e47fcd867afa"
+    },
+    {
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/user_profiles/user_profile_enroll_end_user_action_param.py",
+      "length": 336,
+      "sha256": "29ace658e31152986831e9eef5817e4b2de6e9f7a54bd1ff511d9be7724b97d3"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/anthropic/types/web_fetch_block_param.py",
@@ -17733,44 +18058,44 @@
       "sha256": "c5ccbac03e53b5391d086d5fe1759ba1c3d23b47da06393921f5497cfe92523d"
     },
     {
-      "path": "Runtimes/Doubao/.venv/Lib/site-packages/certifi-2026.10.18.dist-info/INSTALLER",
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/certifi-2026.10.19.dist-info/INSTALLER",
       "length": 2,
       "sha256": "e6184ce10e266134fdcfa401e8f1a95005bcd4f18d16b62b757323e2833fe9a9"
     },
     {
-      "path": "Runtimes/Doubao/.venv/Lib/site-packages/certifi-2026.10.18.dist-info/licenses/LICENSE",
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/certifi-2026.10.19.dist-info/licenses/LICENSE",
       "length": 989,
       "sha256": "e93716da6b9c0d5a4a1df60fe695b370f0695603d21f6f83f053e42cfc10caf7"
     },
     {
-      "path": "Runtimes/Doubao/.venv/Lib/site-packages/certifi-2026.10.18.dist-info/METADATA",
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/certifi-2026.10.19.dist-info/METADATA",
       "length": 2526,
-      "sha256": "5f23b0cfb71be0a44970eb5d3ad49ba3db52616d7a583d594697bd9ee1bf2065"
+      "sha256": "a5c0be3a42daeef0edfaf58e6ea5b7550f3e4e8eb35420f72e902df9bcf00f5c"
     },
     {
-      "path": "Runtimes/Doubao/.venv/Lib/site-packages/certifi-2026.10.18.dist-info/RECORD",
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/certifi-2026.10.19.dist-info/RECORD",
       "length": 1134,
-      "sha256": "f7dc9b20b670d23fc22fe4474ad59372aab14cb63968e5865636c5dc890163de"
+      "sha256": "f4c1c8f6821d02df60a121d954fe0b944d4af8c7bc79d7b45b38eba13adb3284"
     },
     {
-      "path": "Runtimes/Doubao/.venv/Lib/site-packages/certifi-2026.10.18.dist-info/REQUESTED",
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/certifi-2026.10.19.dist-info/REQUESTED",
       "length": 0,
       "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     {
-      "path": "Runtimes/Doubao/.venv/Lib/site-packages/certifi-2026.10.18.dist-info/top_level.txt",
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/certifi-2026.10.19.dist-info/top_level.txt",
       "length": 8,
       "sha256": "28cbb8bd409fb232eb90f6d235d81d7a44bea552730402453bffe723c345ebe5"
     },
     {
-      "path": "Runtimes/Doubao/.venv/Lib/site-packages/certifi-2026.10.18.dist-info/WHEEL",
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/certifi-2026.10.19.dist-info/WHEEL",
       "length": 91,
-      "sha256": "61532836a2b3111b7ec23519c09df7c41180c27165fb872a6d8913b566b88ad1"
+      "sha256": "6beb9d2f69b857fe989fc6feb8acd66f5d918d1c70c0ca3aa21605336e2da5a6"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/certifi/__init__.py",
       "length": 94,
-      "sha256": "b2abf32ecf8abfc3de58cea9745e37ce61452c2eeb3f5346a3f0f0c9616189ad"
+      "sha256": "f8ccfc10235998c7edd340f2f305b5f3d71aed978aea82a02af30d7877bee902"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/certifi/__main__.py",
@@ -17779,8 +18104,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/certifi/cacert.pem",
-      "length": 234072,
-      "sha256": "d87887200c9a705dccc937b9b83b5e67e47024c4a4b7f9dd15700c72e0f55453"
+      "length": 238856,
+      "sha256": "50f79f98dac192b20dbf73f35c56f0b0c557ab267ff5199d1117cc1180b70785"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/certifi/core.py",
@@ -19583,44 +19908,44 @@
       "sha256": "1378b42344106d43c55154323b2d12df12d524c29fb9f49a2f6b066ef700617b"
     },
     {
-      "path": "Runtimes/Doubao/.venv/Lib/site-packages/fastapi-0.149.0.dist-info/entry_points.txt",
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/fastapi-0.159.1.dist-info/entry_points.txt",
       "length": 61,
       "sha256": "1827fe59b219c72193e0c526acf1a3d5c387619a06b0d3c702f3644fa86719e0"
     },
     {
-      "path": "Runtimes/Doubao/.venv/Lib/site-packages/fastapi-0.149.0.dist-info/INSTALLER",
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/fastapi-0.159.1.dist-info/INSTALLER",
       "length": 2,
       "sha256": "e6184ce10e266134fdcfa401e8f1a95005bcd4f18d16b62b757323e2833fe9a9"
     },
     {
-      "path": "Runtimes/Doubao/.venv/Lib/site-packages/fastapi-0.149.0.dist-info/licenses/LICENSE",
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/fastapi-0.159.1.dist-info/licenses/LICENSE",
       "length": 1086,
       "sha256": "4ec89ffc81485b97fec584b2d4a961032eeffe834453894fd9c1274906cc744e"
     },
     {
-      "path": "Runtimes/Doubao/.venv/Lib/site-packages/fastapi-0.149.0.dist-info/METADATA",
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/fastapi-0.159.1.dist-info/METADATA",
       "length": 26953,
-      "sha256": "c424b2bc74b4e4d23b600152119e137dec3ab931a91e7d21de33737a9ea173e3"
+      "sha256": "e8b72b185dd918769137998fb0503cd6f584bbd2c457573a5b05475b77421b60"
     },
     {
-      "path": "Runtimes/Doubao/.venv/Lib/site-packages/fastapi-0.149.0.dist-info/RECORD",
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/fastapi-0.159.1.dist-info/RECORD",
       "length": 5722,
-      "sha256": "ed0075317cda122b119b81d15afcb12fa108e49ff47183e7fa4ceaeb94e1a103"
+      "sha256": "347cd5cf40faa56410f2e173c9ae61b38c901b912c9334404a89a100e283d6d4"
     },
     {
-      "path": "Runtimes/Doubao/.venv/Lib/site-packages/fastapi-0.149.0.dist-info/REQUESTED",
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/fastapi-0.159.1.dist-info/REQUESTED",
       "length": 0,
       "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     {
-      "path": "Runtimes/Doubao/.venv/Lib/site-packages/fastapi-0.149.0.dist-info/WHEEL",
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/fastapi-0.159.1.dist-info/WHEEL",
       "length": 90,
       "sha256": "22e224df06da127147d5cc7be623364750a6962448ddd14b5d36d16a482f8054"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/fastapi/__init__.py",
       "length": 1081,
-      "sha256": "8abe47b95edd47039ca063c3549b5ccd86141d4924e933155996448fbb612be7"
+      "sha256": "44adc1368b85e9593f11f3acdf8d953784d25cd0bf1da5bb121aef2f8858c0fd"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/fastapi/__main__.py",
@@ -19639,8 +19964,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/fastapi/_compat/v2.py",
-      "length": 17601,
-      "sha256": "b031b28b588a4855bd2ee27b9f807ad7ed72ad0235347452c2c15144bb8527c9"
+      "length": 17954,
+      "sha256": "376497a5d40a789f93913c529c5d60777e657226239a60c6898a6260da86ad4b"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/fastapi/.agents/skills/fastapi/references/dependencies.md",
@@ -19709,13 +20034,13 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/fastapi/dependencies/models.py",
-      "length": 8092,
-      "sha256": "dc4a46a8003677cf398ebd4435df8f8fc7b56fcd2e1983ed3226239d41dba777"
+      "length": 8152,
+      "sha256": "a43c03095e0e69ca2fd6962debe8b82d25247ea7b5d06bfa56dc42a367c4b5dd"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/fastapi/dependencies/utils.py",
-      "length": 41270,
-      "sha256": "645d21bfed4713e6d9799167b7700dcb8c271157df84afc85c7af21fb0b1a6e7"
+      "length": 59747,
+      "sha256": "509bb59074a5b09060cb607251a1329e608f20a3a7c671006ea5cecdb9d7f5af"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/fastapi/encoders.py",
@@ -19794,18 +20119,18 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/fastapi/openapi/utils.py",
-      "length": 29347,
-      "sha256": "81dcea2b8784bb1a68426c99c9525f44634b583916a894a3c7d924a72886f527"
+      "length": 29114,
+      "sha256": "1651b827d050ec10882bc64a1c58cfd0b5498310ee65871bbcac03f59d15d55b"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/fastapi/param_functions.py",
-      "length": 69596,
-      "sha256": "e1f4c2565bc40db010afb82f59890e5fc864b5d97623093e92fe05693cfb3fcc"
+      "length": 74969,
+      "sha256": "18ab2fa8e53247905565283bcbd5a71aa7e3b375da60f8275935540be574129d"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/fastapi/params.py",
-      "length": 26205,
-      "sha256": "d5f34d48ae49ecf339170f85e7ff6e3b2b00d8d802fbad666f72e5ac15a9a893"
+      "length": 28792,
+      "sha256": "45db979df1c24c0e29a84f62c720c7e040946704a9d56c7cd403a72d168bae1f"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/fastapi/py.typed",
@@ -19824,8 +20149,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/fastapi/routing.py",
-      "length": 260347,
-      "sha256": "af678a3075c35db9e0e3440389ce53acdea0f42f261f880ce506e913f39fb16f"
+      "length": 260496,
+      "sha256": "9333eeb41b247fea4039bb38c5be7f85d1f90d6828a12981c649a44182eead15"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/fastapi/security/__init__.py",
@@ -20073,32 +20398,32 @@
       "sha256": "b28c3db284f03fd4ff80401049587b19bf3ce79874e0dc2686cd967be2518193"
     },
     {
-      "path": "Runtimes/Doubao/.venv/Lib/site-packages/httpcore2-2.15.1.dist-info/INSTALLER",
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/httpcore2-2.16.0.dist-info/INSTALLER",
       "length": 2,
       "sha256": "e6184ce10e266134fdcfa401e8f1a95005bcd4f18d16b62b757323e2833fe9a9"
     },
     {
-      "path": "Runtimes/Doubao/.venv/Lib/site-packages/httpcore2-2.15.1.dist-info/licenses/LICENSE.md",
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/httpcore2-2.16.0.dist-info/licenses/LICENSE.md",
       "length": 1599,
       "sha256": "c4df125c807b0613501e943a5c92496dd11d2c16604ce396097a8dde396304d9"
     },
     {
-      "path": "Runtimes/Doubao/.venv/Lib/site-packages/httpcore2-2.15.1.dist-info/METADATA",
-      "length": 27442,
-      "sha256": "823448057a5ff0fb8648f04f95183e2fefc67b35b3c7df6a8084c978c17a24c5"
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/httpcore2-2.16.0.dist-info/METADATA",
+      "length": 27552,
+      "sha256": "c073bd68b2bd543fbc2bab3763b42ed1e70666536d32c1bf39ef2764fd50b0a4"
     },
     {
-      "path": "Runtimes/Doubao/.venv/Lib/site-packages/httpcore2-2.15.1.dist-info/RECORD",
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/httpcore2-2.16.0.dist-info/RECORD",
       "length": 3169,
-      "sha256": "ad787e29b2ad55bc3efac3d3267dd8c6621670602e590152bf37fb4d2b7f3581"
+      "sha256": "706dd723a543ee91e72708b8e2d972ee07527e758582e6b00e8182b0bbd9c67d"
     },
     {
-      "path": "Runtimes/Doubao/.venv/Lib/site-packages/httpcore2-2.15.1.dist-info/REQUESTED",
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/httpcore2-2.16.0.dist-info/REQUESTED",
       "length": 0,
       "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     {
-      "path": "Runtimes/Doubao/.venv/Lib/site-packages/httpcore2-2.15.1.dist-info/WHEEL",
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/httpcore2-2.16.0.dist-info/WHEEL",
       "length": 87,
       "sha256": "5b77e4a649bbfb07fdbc123967eeecd1e5a478cfaca6eefc23c35e6fdf037848"
     },
@@ -20263,37 +20588,37 @@
       "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     {
-      "path": "Runtimes/Doubao/.venv/Lib/site-packages/httpx2-2.15.1.dist-info/entry_points.txt",
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/httpx2-2.16.0.dist-info/entry_points.txt",
       "length": 45,
       "sha256": "dee899a2b4509500053681da0f1b8cb2691d8eddeb5139ae073f35b4b5c57506"
     },
     {
-      "path": "Runtimes/Doubao/.venv/Lib/site-packages/httpx2-2.15.1.dist-info/INSTALLER",
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/httpx2-2.16.0.dist-info/INSTALLER",
       "length": 2,
       "sha256": "e6184ce10e266134fdcfa401e8f1a95005bcd4f18d16b62b757323e2833fe9a9"
     },
     {
-      "path": "Runtimes/Doubao/.venv/Lib/site-packages/httpx2-2.15.1.dist-info/licenses/LICENSE.md",
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/httpx2-2.16.0.dist-info/licenses/LICENSE.md",
       "length": 1589,
       "sha256": "7e7d6dbaf7fe160d39fd6e84fd02c33cab96bcbea34d36998d545bceb4a19c30"
     },
     {
-      "path": "Runtimes/Doubao/.venv/Lib/site-packages/httpx2-2.15.1.dist-info/METADATA",
-      "length": 9633,
-      "sha256": "60f0e796561828482476cd15b7c3a1a38e991affe28e75ef1f20bc4e6a0d59d0"
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/httpx2-2.16.0.dist-info/METADATA",
+      "length": 10019,
+      "sha256": "192f20046200ff50911a7278c21dfbee1e1a4c6fa7943227afe9231d28defc3f"
     },
     {
-      "path": "Runtimes/Doubao/.venv/Lib/site-packages/httpx2-2.15.1.dist-info/RECORD",
-      "length": 3084,
-      "sha256": "d578eecb53fd900ac226d42c5bb6d602fd1d7c924bc4d32e00201519a12ce43c"
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/httpx2-2.16.0.dist-info/RECORD",
+      "length": 3160,
+      "sha256": "a2b507296c627937d37654bbab9dc95cd08b9106372eae2d92e17b267309d53c"
     },
     {
-      "path": "Runtimes/Doubao/.venv/Lib/site-packages/httpx2-2.15.1.dist-info/REQUESTED",
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/httpx2-2.16.0.dist-info/REQUESTED",
       "length": 0,
       "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     {
-      "path": "Runtimes/Doubao/.venv/Lib/site-packages/httpx2-2.15.1.dist-info/WHEEL",
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/httpx2-2.16.0.dist-info/WHEEL",
       "length": 87,
       "sha256": "5b77e4a649bbfb07fdbc123967eeecd1e5a478cfaca6eefc23c35e6fdf037848"
     },
@@ -20324,8 +20649,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/httpx2/_client.py",
-      "length": 75410,
-      "sha256": "fa3948aa66a9efd5edf097c6d13d927612c617328b43ceefc4bdd5e350aaa93b"
+      "length": 75349,
+      "sha256": "a4380f9842a38896430618673ccef66486a5cdbd6653987d581b869c72df9b53"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/httpx2/_config.py",
@@ -20336,6 +20661,11 @@
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/httpx2/_content.py",
       "length": 8490,
       "sha256": "b0da7d2156a2d758173bfe0fe5491af17aab4ff03c01be71920465283e31798d"
+    },
+    {
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/httpx2/_cookies.py",
+      "length": 2965,
+      "sha256": "94c8afc6c6721cce730491e29ba5953c9e5004a7805bbf691e1e630ed4e5e7fd"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/httpx2/_decoders.py",
@@ -20354,8 +20684,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/httpx2/_models.py",
-      "length": 45738,
-      "sha256": "d139d0c54a1acd65995f693d876441e55fe418ef2799f647ec6361f695b0d4d6"
+      "length": 45856,
+      "sha256": "20d9385574ee765de3188df87c924a9275267c5fddc3336ea9eac288fa3d4fa9"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/httpx2/_multipart.py",
@@ -21175,7 +21505,7 @@
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/mcp_server-0.1.0.dist-info/RECORD",
       "length": 1689,
-      "sha256": "173625e3fb1c3051368c774ab61cdba6d0dcb09b9f62ba6bc5c3aa6e218b3c0e"
+      "sha256": "e9489fa32e8dffb4b707e01705364013a1f2ea09b4d7615808fded921695d5ec"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/mcp_server-0.1.0.dist-info/REQUESTED",
@@ -21190,7 +21520,7 @@
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/mcp_server-0.1.0.dist-info/uv_cache.json",
       "length": 194,
-      "sha256": "e4d3b502054e62c654c344829b8a84f0af7e28020b46fbc05f894fa7ef84a502"
+      "sha256": "780b3cd7117b0a4f63a235b44b0edf9eaf69a55c072150403fbc389efba8bf21"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/mcp_server-0.1.0.dist-info/WHEEL",
@@ -21995,7 +22325,7 @@
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/mouseinfo-0.1.3.dist-info/RECORD",
       "length": 732,
-      "sha256": "c7cf3b7fbd53e3edf624a13027f6be27bd1ff0b3af3e48c994cda334391f9959"
+      "sha256": "909593d937143560c3f68d1e5e7ce375e4a1fdc5966114adbcdd728bf9a7d966"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/mouseinfo-0.1.3.dist-info/REQUESTED",
@@ -22015,7 +22345,7 @@
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/mouseinfo-0.1.3.dist-info/WHEEL",
       "length": 91,
-      "sha256": "6beb9d2f69b857fe989fc6feb8acd66f5d918d1c70c0ca3aa21605336e2da5a6"
+      "sha256": "98e75747d0b7c0c568bfb71263c3d8f970b3a374a6996087bc642be5cb09a1aa"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/mouseinfo/__init__.py",
@@ -22133,32 +22463,32 @@
       "sha256": "f1f0c7d788ff54c6eb721ff9f309738badd7340446bfcd2439903237bd9a1bb0"
     },
     {
-      "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai-3.35.1.dist-info/INSTALLER",
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai-3.36.1.dist-info/INSTALLER",
       "length": 2,
       "sha256": "e6184ce10e266134fdcfa401e8f1a95005bcd4f18d16b62b757323e2833fe9a9"
     },
     {
-      "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai-3.35.1.dist-info/licenses/LICENSE",
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai-3.36.1.dist-info/licenses/LICENSE",
       "length": 11336,
       "sha256": "636eb7d79da9bb6d515a4b3fd417aa26679eb3cf16396ddab4bc55fa74e616e4"
     },
     {
-      "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai-3.35.1.dist-info/METADATA",
-      "length": 44476,
-      "sha256": "3344e66fc23364164ff5bdfa8ca31cff90518ad437318eee2e0331f2a029603f"
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai-3.36.1.dist-info/METADATA",
+      "length": 44564,
+      "sha256": "a569eab4958013e76d20ae25f2106103f83875a3bffd275a02069556dcd7b8b8"
     },
     {
-      "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai-3.35.1.dist-info/RECORD",
-      "length": 213216,
-      "sha256": "c59a36843c481ffaf7b5b0b0c4e35aed7fb49033f77739c8d448138e22ee4c10"
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai-3.36.1.dist-info/RECORD",
+      "length": 213983,
+      "sha256": "11a82a6913eff1607b04dbe817b4f2adcdb1d0289dab4d07d5ccae897a680ec3"
     },
     {
-      "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai-3.35.1.dist-info/REQUESTED",
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai-3.36.1.dist-info/REQUESTED",
       "length": 0,
       "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     {
-      "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai-3.35.1.dist-info/WHEEL",
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai-3.36.1.dist-info/WHEEL",
       "length": 87,
       "sha256": "5b77e4a649bbfb07fdbc123967eeecd1e5a478cfaca6eefc23c35e6fdf037848"
     },
@@ -22169,8 +22499,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/_base_client.py",
-      "length": 82260,
-      "sha256": "7a0a173edf3fadb6b310895d5db6fa0b14264bdaa25b33dd4eb29d860a82639b"
+      "length": 84450,
+      "sha256": "b9d642ace7d6217bb4fb3c7c9fedd2ac45ae24def32daa696326f076ce179a3d"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/_client.py",
@@ -22244,8 +22574,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/_models.py",
-      "length": 37041,
-      "sha256": "41fa57193539881da8543bc0e5982950becdb2ef5fec3cd9e2226eef7a9099f4"
+      "length": 37916,
+      "sha256": "2328ae9c9c18771f477e64d4ec5ad538a008c3a0799491d513d29b5999299021"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/_module_client.py",
@@ -22405,12 +22735,12 @@
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/_version.py",
       "length": 72,
-      "sha256": "b178e563a392608ffd40aadd3c343e9add7826278b47fe1e95f9f1d1418d6739"
+      "sha256": "4e7f720211e79a933e995a9724719d366ed348807a3fc24b9a23adbaf05ff532"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/_websocket_connection.py",
-      "length": 10985,
-      "sha256": "feaa2a034843f86d22342a4f4bc21a888e6a3c60c3c9bbec0cd275dd98512ef8"
+      "length": 11967,
+      "sha256": "087b1fa4f160a6e6c3b5c3fed3ee9084c1cc85145a30b841bde2a41bee11cdbd"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/auth/__init__.py",
@@ -22513,9 +22843,14 @@
       "sha256": "e995b8f1db399c568fecde489dd93e608b4ac93097ec34d5f4cb874260727800"
     },
     {
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/lib/_uploads.py",
+      "length": 5159,
+      "sha256": "31ec2a330eed610ed44847fe2723351cef26ce9ebe518e84521c9abc9a0f87cf"
+    },
+    {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/lib/_vector_stores.py",
-      "length": 6320,
-      "sha256": "0cf2e0759500ada1e8abbcd49fc5285278fd428483cc99da2f9cb80fddf0ac1c"
+      "length": 20035,
+      "sha256": "06e826934fa67107f275274d5ec08a1b75b4281031c587ca49040120901f28ae"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/lib/_webhooks.py",
@@ -22534,8 +22869,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/lib/azure.py",
-      "length": 38583,
-      "sha256": "3ce3588a2b15cb3c15aaceb61f17f17859310a28b662f84907653fb176c6f874"
+      "length": 38347,
+      "sha256": "96ccc9508eb7c0b3e38fa720ed53af3121e4e47626ec29fbc610f66f94b32d00"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/lib/bedrock.py",
@@ -22594,8 +22929,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/lib/browser.py",
-      "length": 71823,
-      "sha256": "529b9b872b74123d2fdb88204faabb3c2c067fd33d5686f397972fb769b93040"
+      "length": 72385,
+      "sha256": "c09821bc44b51590aad005cdd66b1c1bf562c3516085833806c4c9513f421a41"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/lib/computer.py",
@@ -22644,8 +22979,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/lib/realtime_translation.py",
-      "length": 9743,
-      "sha256": "8ddf9d606e3a16fe73b2dd775410fa580b6186e348d527786b89d057073c7ce2"
+      "length": 11875,
+      "sha256": "72f8014ebc529043315ee1949d7ad870982e81c968956a78560c89ee371ebca2"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/lib/responses_tool_runner.py",
@@ -22764,13 +23099,18 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/providers/__init__.py",
-      "length": 63,
-      "sha256": "d0abe3a647a3ddd12b2e13c0b56d220abdf2ff8ba3cc07e636b32fa0ba08c2c3"
+      "length": 110,
+      "sha256": "4847f9e6be01622a00884df52dc1d1a7ac48227ff06f4d07a04b2dd5b5a89535"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/providers/bedrock.py",
       "length": 20690,
       "sha256": "0959f11aeecb5692482b7ca9eb550c4c33d1c0bcdb552e1f7ea95160a92afc16"
+    },
+    {
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/providers/vertex.py",
+      "length": 10244,
+      "sha256": "e9cf87067267e1cbd590a941cedd15c0c59cc3db0589759abb89aa3932543283"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/py.typed",
@@ -22859,8 +23199,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/resources/admin/organization/projects/api_keys.py",
-      "length": 25631,
-      "sha256": "336acfc7f5e1a1fb8b522db2fbb217d78f04c12e5c872d12291c161f3599b165"
+      "length": 25891,
+      "sha256": "6b916777096940e6ba31445cd42be1aee77b9e9201d950a58a8c93232fb715be"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/resources/admin/organization/projects/certificates.py",
@@ -22989,13 +23329,13 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/resources/audio/__init__.py",
-      "length": 6141,
-      "sha256": "6ce832d792ba2e8c7445792dcd7841b0fa2ca66daaf2e8004ad042ae9d587b2c"
+      "length": 7386,
+      "sha256": "689f7c7035a7ed8e2195dc40467562e15a842c5416cf049d79ed227f24c12785"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/resources/audio/audio.py",
-      "length": 7731,
-      "sha256": "845654e695477cf1465e35074b1e9a0537f3bc7d91ddc878815f142ddafd3f82"
+      "length": 9196,
+      "sha256": "09deae8cc14b04948ac112418fdc62773304e34c185dfe95dd31850aff55231e"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/resources/audio/speech.py",
@@ -23011,6 +23351,11 @@
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/resources/audio/translations.py",
       "length": 15789,
       "sha256": "f921e5be3dbe5f2dee40e85f02aa40850fab8cd0db401fdb0342180ac096aac0"
+    },
+    {
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/resources/audio/voice_consents.py",
+      "length": 23746,
+      "sha256": "124f3d025d056f60f79fd325ce19c640f62ae9cc86e2199c6f41d0ec3562e821"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/resources/audio/voices.py",
@@ -23184,8 +23529,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/resources/beta/realtime/realtime.py",
-      "length": 44486,
-      "sha256": "86407e699d1b99355e4463590a68c71a02f76db856b4230ee155b1a47e83d2b4"
+      "length": 44209,
+      "sha256": "f4caf553d6c98b9b7957bd35dd32bd838fcb4d04c5a1db1b90da512176c529a0"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/resources/beta/realtime/sessions.py",
@@ -23214,8 +23559,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/resources/beta/responses/responses.py",
-      "length": 266025,
-      "sha256": "13594f78fe8bb03699a87e5a1983274591fccd4a6a3dcf64cb4c3d6fd91bd623"
+      "length": 267051,
+      "sha256": "ae80caf40cb664b57b1ed64f8350676a030f5780ea78787305bc27082abbf509"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/resources/beta/threads/__init__.py",
@@ -23439,13 +23784,13 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/resources/live/forks.py",
-      "length": 56716,
-      "sha256": "31590981bf5cad98acc13f86a3c038edcc107752efc45f8359174772f5f71273"
+      "length": 57742,
+      "sha256": "307c57714148162c53bbcb82a2730375bc40d4bf94050da7e1a32a28e799866b"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/resources/live/live.py",
-      "length": 63409,
-      "sha256": "2f949e971c99cc194d542078ad4b352c381d06066c86e619066d6b7f1cdb3bed"
+      "length": 64435,
+      "sha256": "8c8ea270316358766148d66ff4bda8fa01b654450171855d1e6a0e14991ee365"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/resources/live/sessions.py",
@@ -23454,8 +23799,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/resources/live/sideband.py",
-      "length": 55999,
-      "sha256": "1e1cd2c220dd5bb7c6a2f8897061abd11aacb43ca45d6c41a1b93750fa17747e"
+      "length": 56823,
+      "sha256": "5902e85205afd348860fe5c833d5107953f73960ede6626df1369d772cd40ae6"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/resources/models.py",
@@ -23489,8 +23834,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/resources/realtime/realtime.py",
-      "length": 68487,
-      "sha256": "ba23cd420503490a1308c7bf7a594ff34c496413dbdb172ca9d25b16e920df61"
+      "length": 69279,
+      "sha256": "8f256ea61eb6d5b776916248be8e3a71a36f27b2368e5d3d17b75b305f0730f3"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/resources/realtime/translations/__init__.py",
@@ -23504,8 +23849,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/resources/realtime/translations/translations.py",
-      "length": 44559,
-      "sha256": "8b4522efa965a014989f8bd147a78d8bc45c4aaf0a42e14cee23dd2e1554f46e"
+      "length": 46185,
+      "sha256": "805923247278589582e4d4db869aa55f37a18130178d6c467f1c59b67825259c"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/resources/responses/__init__.py",
@@ -23529,8 +23874,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/resources/responses/responses.py",
-      "length": 257302,
-      "sha256": "5f7078b204b9e3c9e0fd11f8532f082cf85f96dcea26abccd084f3dbcfe6ec9a"
+      "length": 258328,
+      "sha256": "64a2b1979f597377993cafce85a0ad5feb57fd1e4f6192d0f7699c9552bf9e40"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/resources/safety/__init__.py",
@@ -23644,8 +23989,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/__init__.py",
-      "length": 9615,
-      "sha256": "5caaa29a79510a0a3e4a92f7b59d3ccb3f8f6651706f658738cb5e2a22b91481"
+      "length": 9685,
+      "sha256": "47c98e4ffd0eb3a28a9d60b78facf0bdd165d6d35b24ebb6bea5834a0165eeea"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/admin/__init__.py",
@@ -24349,8 +24694,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/admin/organization/usage_audio_speeches_response.py",
-      "length": 16232,
-      "sha256": "05e2e670a19dfb438098204920c9a3f35ee378e0af36125fd4cd3ee7429aa9e5"
+      "length": 16462,
+      "sha256": "be0b5d71e86f5b631dcb7f058910c28d963181112de32c53a9b891f6405aee3c"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/admin/organization/usage_audio_transcriptions_params.py",
@@ -24359,8 +24704,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/admin/organization/usage_audio_transcriptions_response.py",
-      "length": 16244,
-      "sha256": "3825e0f36eb5896571dc6f73e5c457d88694e17c4f9502aa84071df084fc2b54"
+      "length": 16474,
+      "sha256": "73f935a7c8a2943b4f6791f50da7152c383c69cd063fe886b51a179fe80ee196"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/admin/organization/usage_code_interpreter_sessions_params.py",
@@ -24369,8 +24714,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/admin/organization/usage_code_interpreter_sessions_response.py",
-      "length": 16252,
-      "sha256": "91e50fc917e87b8bb86c49cfac0199fd987dbad640ed0c49f716c7b7ade7df31"
+      "length": 16482,
+      "sha256": "c4d16ba26fcc203831645cad0493427983e25f35924d5ab067664ba548c2fef0"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/admin/organization/usage_completions_params.py",
@@ -24379,8 +24724,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/admin/organization/usage_completions_response.py",
-      "length": 16228,
-      "sha256": "5b1ae255aa4e43f3e016587b55fe06ffa961ba6a974a0909e3062d0553419b92"
+      "length": 16458,
+      "sha256": "b067bb58f59a51dc4cc7cdb6ff811c25a103b62c8ddbf2fa00f9070dab42b179"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/admin/organization/usage_costs_params.py",
@@ -24389,8 +24734,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/admin/organization/usage_costs_response.py",
-      "length": 16216,
-      "sha256": "5e1be2b7f3fa9db827971109ed06fa2a6b2c0997303acae0096e95e63db168f9"
+      "length": 16446,
+      "sha256": "18db984905da2334fde6b0edb2ae04f65b7d4ffe4bb58759f1123ce5bb0f16ff"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/admin/organization/usage_decisions_params.py",
@@ -24399,8 +24744,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/admin/organization/usage_decisions_response.py",
-      "length": 4374,
-      "sha256": "07bc9e3f5754e47549a938b6a03cc17c14c518d9664dc08f896c5bbeb9f95f49"
+      "length": 4561,
+      "sha256": "8b3d1984d4cebdbdaf5f6b58cf725a052d6a435cd1d1cc988ee635541854b928"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/admin/organization/usage_embeddings_params.py",
@@ -24409,8 +24754,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/admin/organization/usage_embeddings_response.py",
-      "length": 16226,
-      "sha256": "b7b378a194bf08d2a6fb3bf7b9b29efbd1e2b4e791d381274b6a068e3aac04b0"
+      "length": 16456,
+      "sha256": "8237167123c50b07038996c660575ce48b0c1455fa6d654b390b5c44899b2270"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/admin/organization/usage_file_search_calls_params.py",
@@ -24419,8 +24764,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/admin/organization/usage_file_search_calls_response.py",
-      "length": 16236,
-      "sha256": "01e442c497e9a5ff95dacf164620e576b2b621bc8479cc7d6db2d828064aa501"
+      "length": 16466,
+      "sha256": "9b274a94aa5d05a815aae5c356c5d72c338a04833e995283acfc5addc3a8ea09"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/admin/organization/usage_images_params.py",
@@ -24429,8 +24774,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/admin/organization/usage_images_response.py",
-      "length": 16218,
-      "sha256": "03c8cc3e73cb76c59dc19f632c3e2b16f62b57733b311e245ac0602c5d53d20a"
+      "length": 16448,
+      "sha256": "be86ff8f13e0420cecf2b6f500f97ec1e1831f82edf4d1292f54152d5cfdcb17"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/admin/organization/usage_moderations_params.py",
@@ -24439,8 +24784,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/admin/organization/usage_moderations_response.py",
-      "length": 16228,
-      "sha256": "db407436c0c157a2355d5e5b571097cb75f80ca43303132dce051d96f2533342"
+      "length": 16458,
+      "sha256": "e63e527408f23e6e43059c5aeb04380233eb03a28be42679e29a8a420feb7a3d"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/admin/organization/usage_vector_stores_params.py",
@@ -24449,8 +24794,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/admin/organization/usage_vector_stores_response.py",
-      "length": 16230,
-      "sha256": "41b4f619ae60b7b2991644334ca5d88380dc2e7b752eb5782a96da4525fec6af"
+      "length": 16460,
+      "sha256": "fb5a4478701a61369cf0c87c615d7b5b41b18e5394b83f469fc805565e3251e4"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/admin/organization/usage_web_search_calls_params.py",
@@ -24459,8 +24804,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/admin/organization/usage_web_search_calls_response.py",
-      "length": 16234,
-      "sha256": "4c3026676d61a1951c249ad69165019dae2184fa69c63032eef5a66132637697"
+      "length": 16464,
+      "sha256": "fe8f464c0045fddf327041b4e2e00ff50ba2e212b6142a94676ae475ae076faa"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/admin/organization/user_delete_response.py",
@@ -24524,8 +24869,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/audio/__init__.py",
-      "length": 1911,
-      "sha256": "377a78723a4719bae49b2de8b32b7592fe2f253e7b30e54b892dced92c019016"
+      "length": 2321,
+      "sha256": "e468dcb2033e714b0c5bef0275902c9d6621bed5e93e50b44bce1ef0d2eee7ad"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/audio/speech_create_params.py",
@@ -24626,6 +24971,31 @@
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/audio/translation.py",
       "length": 192,
       "sha256": "9775240614d5493f61bf22e3cf1a1248d4e49bda9cc88c8dfd6469756acb8c03"
+    },
+    {
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/audio/voice_consent_create_params.py",
+      "length": 741,
+      "sha256": "5886467fac979588d14c453f31ed04cb481b7f18376052e3f1bf9b3b10542aef"
+    },
+    {
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/audio/voice_consent_deleted.py",
+      "length": 352,
+      "sha256": "c1a7a4b041e9105c989c0fd5885642a779c2928fb483bd72f92dea6966309880"
+    },
+    {
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/audio/voice_consent_list_params.py",
+      "length": 718,
+      "sha256": "a99b16e7b7a22db9f05c97f409b0af2175bfefac7a4e22c532bac5d99dcf8f64"
+    },
+    {
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/audio/voice_consent_update_params.py",
+      "length": 350,
+      "sha256": "0f9fe84b06e53d27e6cc55835d03cfc1d2782355c771e518b145a188d5342a85"
+    },
+    {
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/audio/voice_consent.py",
+      "length": 754,
+      "sha256": "01dcd389a984a09cd1fd514b6a1bb5f9140aed5c397af89c5e02a777c1eeaf35"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/audio/voice_create_params.py",
@@ -26084,13 +26454,13 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/beta_response_input_item_param.py",
-      "length": 38137,
-      "sha256": "7bbb9e784317227a262d463a49a89c0c332dd29fa0f42f6de80b2d8a8a79ad3f"
+      "length": 38212,
+      "sha256": "48f9c9460e33bcf927ea643429f17b9b6ff7887811b9e37f68433cc0b368e56d"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/beta_response_input_item.py",
-      "length": 36587,
-      "sha256": "983b4bae43351fe29f230f57fdc8d4689517fb650624371ea31f05aff87adffc"
+      "length": 36669,
+      "sha256": "2ae060729add2cab2525c2023eb6c3c3d2c227102d6f2c147df2c2ee79a5a93d"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/beta_response_input_message_content_list_param.py",
@@ -26109,8 +26479,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/beta_response_input_param.py",
-      "length": 38243,
-      "sha256": "72f8184dea59a7964166fc435b539601d8fdbb68e34f764b27d93ef0e28f14f4"
+      "length": 38318,
+      "sha256": "dbbe5119f391595b268e03397d3825e62f8f7be5911e608dfb350fb9640f3c88"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/beta/beta_response_input_text_content_param.py",
@@ -30894,13 +31264,13 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/responses/response_input_item_param.py",
-      "length": 25690,
-      "sha256": "ecb035880fd48bcbb9070b53d38051809da70d232623dd9fb6959dee68a1817c"
+      "length": 25765,
+      "sha256": "6d82bca0fb97781662930e4b803b98ecbbe781b44b4de6563c023b31fb51003f"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/responses/response_input_item.py",
-      "length": 24818,
-      "sha256": "19a1c7e4bf2463166257d148b68edd9bec64825c30f83d64540bd93615791a76"
+      "length": 24900,
+      "sha256": "d11a8e20faa7b07c94fad1f425617ddc6928d41d67ed9cf996838f24fcebd935"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/responses/response_input_message_content_list_param.py",
@@ -30919,8 +31289,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/responses/response_input_param.py",
-      "length": 25784,
-      "sha256": "76bf6aa06f060fa1668ca0e2d2e474ea343f0054bf1ab4abdc7bc5c501dfc72d"
+      "length": 25859,
+      "sha256": "4160fb61307b6b2680bf04ea49194a3d5c0dd05ab1de4f02545f1f80f8b973ff"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/responses/response_input_text_content_param.py",
@@ -32119,8 +32489,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/websocket_connection_options.py",
-      "length": 2009,
-      "sha256": "b3dccf100f39f9dc8b9859044c69fa6668e28b71f835534f715b8413839297ff"
+      "length": 2530,
+      "sha256": "e1a549a13d72aa69968b442cc1bc6fd5b19584b6c795f218f2866a1d220c96c2"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/openai/types/websocket_reconnection.py",
@@ -33170,7 +33540,7 @@
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/pyautogui-0.9.54.dist-info/RECORD",
       "length": 1284,
-      "sha256": "2c3f0c5ef819b53053419876a7c78f7a56693c62f002da5d2980e85f16127a59"
+      "sha256": "2d9a49f4a32cafbd9c06d6f6c8b0b9a300da5b3aee6eb002fd0457ee5f34ce0f"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/pyautogui-0.9.54.dist-info/REQUESTED",
@@ -33190,7 +33560,7 @@
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/pyautogui-0.9.54.dist-info/WHEEL",
       "length": 91,
-      "sha256": "6beb9d2f69b857fe989fc6feb8acd66f5d918d1c70c0ca3aa21605336e2da5a6"
+      "sha256": "98e75747d0b7c0c568bfb71263c3d8f970b3a374a6996087bc642be5cb09a1aa"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/pyautogui/__init__.py",
@@ -33363,32 +33733,32 @@
       "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     {
-      "path": "Runtimes/Doubao/.venv/Lib/site-packages/pydantic_settings-2.16.0.dist-info/INSTALLER",
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/pydantic_settings-2.16.1.dist-info/INSTALLER",
       "length": 2,
       "sha256": "e6184ce10e266134fdcfa401e8f1a95005bcd4f18d16b62b757323e2833fe9a9"
     },
     {
-      "path": "Runtimes/Doubao/.venv/Lib/site-packages/pydantic_settings-2.16.0.dist-info/licenses/LICENSE",
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/pydantic_settings-2.16.1.dist-info/licenses/LICENSE",
       "length": 1103,
       "sha256": "eb355a753e020346d33d83bf9769135b89fc610568ac531a01c295bcee7fd998"
     },
     {
-      "path": "Runtimes/Doubao/.venv/Lib/site-packages/pydantic_settings-2.16.0.dist-info/METADATA",
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/pydantic_settings-2.16.1.dist-info/METADATA",
       "length": 3976,
-      "sha256": "470656112388bca95fd7d27b8954fda1f11dd6579563cfb9c0ea0445d1746b77"
+      "sha256": "893e79ff20ee1cfea0e778956505d65be9b0555c601a6e4ebb513f1ee707cb1c"
     },
     {
-      "path": "Runtimes/Doubao/.venv/Lib/site-packages/pydantic_settings-2.16.0.dist-info/RECORD",
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/pydantic_settings-2.16.1.dist-info/RECORD",
       "length": 2737,
-      "sha256": "f57d8ea605b83394fb5d26b710addad2294e107d901569cad8e19de8a83ef9ec"
+      "sha256": "8cd04c4a26e0f00f3aee914f5dc8777cbd9bd2790228c53152d2661fdabb92e6"
     },
     {
-      "path": "Runtimes/Doubao/.venv/Lib/site-packages/pydantic_settings-2.16.0.dist-info/REQUESTED",
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/pydantic_settings-2.16.1.dist-info/REQUESTED",
       "length": 0,
       "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
     },
     {
-      "path": "Runtimes/Doubao/.venv/Lib/site-packages/pydantic_settings-2.16.0.dist-info/WHEEL",
+      "path": "Runtimes/Doubao/.venv/Lib/site-packages/pydantic_settings-2.16.1.dist-info/WHEEL",
       "length": 87,
       "sha256": "5b77e4a649bbfb07fdbc123967eeecd1e5a478cfaca6eefc23c35e6fdf037848"
     },
@@ -33439,8 +33809,8 @@
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/pydantic_settings/sources/providers/cli.py",
-      "length": 90832,
-      "sha256": "d06a93686fa4d31565812af613d2ea2731537da0c996baf20b3a697cd9550ecc"
+      "length": 92093,
+      "sha256": "3355ec996ca275091750586cc528ec892f412d45a9b1bed8bf044ec51bf4a0a9"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/pydantic_settings/sources/providers/dotenv.py",
@@ -33505,7 +33875,7 @@
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/pydantic_settings/version.py",
       "length": 19,
-      "sha256": "8e2035d254ad8775b180d55a3b2b8d000a0e2c228826e4304295fe7f6cf43038"
+      "sha256": "8a2903fefd1f58b30f5f745db12ca973ed75ca75c65bae5d5f087f5323fa0c76"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/pydantic-2.14.1.dist-info/INSTALLER",
@@ -34085,7 +34455,7 @@
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/pygetwindow-0.0.9.dist-info/RECORD",
       "length": 851,
-      "sha256": "1ec5ca75c7e16a65b7ccce7f110efcaa23c36100b72738e9f1161a1a11162a1a"
+      "sha256": "ad4fc8a6ad05e8f7accf1342d6fdb84f76724c78af55cb6bd4fa821ef19dfc1c"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/pygetwindow-0.0.9.dist-info/REQUESTED",
@@ -34105,7 +34475,7 @@
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/pygetwindow-0.0.9.dist-info/WHEEL",
       "length": 91,
-      "sha256": "6beb9d2f69b857fe989fc6feb8acd66f5d918d1c70c0ca3aa21605336e2da5a6"
+      "sha256": "98e75747d0b7c0c568bfb71263c3d8f970b3a374a6996087bc642be5cb09a1aa"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/pygetwindow/__init__.py",
@@ -34285,7 +34655,7 @@
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/pyrect-0.2.0.dist-info/RECORD",
       "length": 831,
-      "sha256": "0732ff46222fa9bff40fdc25f365f7ee321be716f803f9bf746f2a2b360f4711"
+      "sha256": "ca8419be82361791f754aea788abb0543651bbee32e0bf51bbd03ec3491fee27"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/pyrect-0.2.0.dist-info/REQUESTED",
@@ -34305,7 +34675,7 @@
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/pyrect-0.2.0.dist-info/WHEEL",
       "length": 109,
-      "sha256": "773a89d8d4cc5b5854ab3eb8d52a13747baef73ce05a5c72f97fbf2118ef360f"
+      "sha256": "52f960d9a36510a76296cc85489b75417e667b47846c28d0cd1de765e164bf2e"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/pyrect/__init__.py",
@@ -34335,7 +34705,7 @@
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/pyscreeze-1.0.1.dist-info/RECORD",
       "length": 862,
-      "sha256": "076ec2b20694a5feb430ee1718b590261cecec38a1efe361ba758e9da95e4904"
+      "sha256": "ddd605d61ec987f8926509eb9fa428159cb5e6b45d15f7a92dc0205575e9e22e"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/pyscreeze-1.0.1.dist-info/REQUESTED",
@@ -34355,7 +34725,7 @@
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/pyscreeze-1.0.1.dist-info/WHEEL",
       "length": 91,
-      "sha256": "6beb9d2f69b857fe989fc6feb8acd66f5d918d1c70c0ca3aa21605336e2da5a6"
+      "sha256": "98e75747d0b7c0c568bfb71263c3d8f970b3a374a6996087bc642be5cb09a1aa"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/pyscreeze/__init__.py",
@@ -35150,7 +35520,7 @@
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/pytweening-1.2.0.dist-info/RECORD",
       "length": 871,
-      "sha256": "c023ac0f2bd5d834faa39dae8f64d8d142f600290d5d5dd4d5867bdcc7862ff4"
+      "sha256": "0353fd4635407a01371c35d192f15bb312f980b26a42c078850c13878ca5be72"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/pytweening-1.2.0.dist-info/REQUESTED",
@@ -35170,7 +35540,7 @@
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/pytweening-1.2.0.dist-info/WHEEL",
       "length": 91,
-      "sha256": "6beb9d2f69b857fe989fc6feb8acd66f5d918d1c70c0ca3aa21605336e2da5a6"
+      "sha256": "98e75747d0b7c0c568bfb71263c3d8f970b3a374a6996087bc642be5cb09a1aa"
     },
     {
       "path": "Runtimes/Doubao/.venv/Lib/site-packages/pytweening/__init__.py",
@@ -38920,7 +39290,7 @@
     {
       "path": "Runtimes/Doubao/.venv/pyvenv.cfg",
       "length": 150,
-      "sha256": "4df16b4eb552e2063ec900681df0ae26ee690396584d1c0b90f3279fcc25f7a4"
+      "sha256": "f6b416b464b65fb3c862c22e8f4f9eef8116e12476423ff25fdb62bcfcccadaa"
     },
     {
       "path": "Runtimes/Doubao/.venv/Scripts/activate",
@@ -39535,17 +39905,17 @@
     {
       "path": "Runtimes/Python312/Lib/site-packages/bin/clear_comtypes_cache.exe",
       "length": 108359,
-      "sha256": "883b6647fbb2349b3b8258b24c345fc0cb9e16836dce2b2b17a6bb37bf425ad8"
+      "sha256": "d85832e8dd8af057a51ad361f62fb3464c2581a486fb92141b5f34fc1fe1daa6"
     },
     {
       "path": "Runtimes/Python312/Lib/site-packages/bin/flask.exe",
       "length": 108348,
-      "sha256": "39b6334bd2db9b281ff586ba681f90f138cd2a4e8cabb30be1b3db047918a4ed"
+      "sha256": "146d8742f53f8179c81033043e6885d23733b05ea309e1553472485eff45c8a9"
     },
     {
       "path": "Runtimes/Python312/Lib/site-packages/bin/pywin32_postinstall.exe",
       "length": 108372,
-      "sha256": "3a9ae361bd4e188379ae857da95fbf8eb612f48bd84140bf7c6a173b9b8fe13f"
+      "sha256": "13746fd52c711eea1c8bcc94d1163c0e63781988f727fa0b95e573ea834f5184"
     },
     {
       "path": "Runtimes/Python312/Lib/site-packages/bin/pywin32_postinstall.py",
@@ -39555,7 +39925,7 @@
     {
       "path": "Runtimes/Python312/Lib/site-packages/bin/pywin32_testall.exe",
       "length": 108368,
-      "sha256": "70177a0016f5648183ce251e0fe3d861819f45d32272fcf762162638305735a5"
+      "sha256": "32332efad326d21a8e07a03c6c458937501ac68c555f77dbc70a432cb5433d66"
     },
     {
       "path": "Runtimes/Python312/Lib/site-packages/bin/pywin32_testall.py",
@@ -39745,7 +40115,7 @@
     {
       "path": "Runtimes/Python312/Lib/site-packages/comtypes-1.4.16.dist-info/RECORD",
       "length": 22160,
-      "sha256": "3d76c9409266118e2e2e627fdeca7251c3412c5f6d47d9b6730a6d170819320f"
+      "sha256": "ce36f36f0259888283c62b8c6787e8786e70c8503737b9ce9708356c543b7147"
     },
     {
       "path": "Runtimes/Python312/Lib/site-packages/comtypes-1.4.16.dist-info/REQUESTED",
@@ -39914,23 +40284,23 @@
     },
     {
       "path": "Runtimes/Python312/Lib/site-packages/comtypes/gen/_00020430_0000_0000_C000_000000000046_0_2_0.py",
-      "length": 20272,
-      "sha256": "12f455ae962aa9319f225897146a83944a33bad9a9ca1d00399aaec83ac6891a"
+      "length": 20279,
+      "sha256": "42c9545893932281137d8f5c35f5e1fd4998a741c82ae26c37a20db7a2ea79ad"
     },
     {
       "path": "Runtimes/Python312/Lib/site-packages/comtypes/gen/_944DE083_8FB8_45CF_BCB7_C477ACB2F897_0_1_0.py",
-      "length": 315808,
-      "sha256": "a7bf64f6ddb2a6437c3b91c2d0c484bcc875cbeddd38688a26f371b899944392"
+      "length": 315885,
+      "sha256": "bc4085988b93c218b0e14823ca913f4e4077817986482fdcc5b79a4b2582f30d"
     },
     {
       "path": "Runtimes/Python312/Lib/site-packages/comtypes/gen/stdole.py",
-      "length": 1987,
-      "sha256": "28d7d4876b8a783561967aff6ebd8c55192e2c9538557889cef64bfec525b5d4"
+      "length": 1992,
+      "sha256": "a48022d184b19bf1acb73d8e8058c91351befb8bc679534f97b52599783ee34a"
     },
     {
       "path": "Runtimes/Python312/Lib/site-packages/comtypes/gen/UIAutomationClient.py",
-      "length": 46280,
-      "sha256": "0ebf7918a077569053a6b078e9e80d84937b9e698a85a2a91dbc11ba9cec7af8"
+      "length": 46305,
+      "sha256": "2a44364484c7ae7d71e01f4879c9cbb4209805ebee9bde44c8d0249b7aa4eba6"
     },
     {
       "path": "Runtimes/Python312/Lib/site-packages/comtypes/git.py",
@@ -40560,7 +40930,7 @@
     {
       "path": "Runtimes/Python312/Lib/site-packages/flask-3.1.2.dist-info/RECORD",
       "length": 3725,
-      "sha256": "b84f69d7b3777050aa04b5d804b7a61965bdcad695c8aaaa7c5f521cc7da511a"
+      "sha256": "7e413fa88b5211aa5735c2d0ea48e936ec1e7e38649ac9249d9d74601b59d357"
     },
     {
       "path": "Runtimes/Python312/Lib/site-packages/flask-3.1.2.dist-info/REQUESTED",
@@ -41855,7 +42225,7 @@
     {
       "path": "Runtimes/Python312/Lib/site-packages/pywin32-310.dist-info/RECORD",
       "length": 81546,
-      "sha256": "dd0f6d2d371f953a65f25019173c57a422874770f7ede3e8a61a43b6bb45b707"
+      "sha256": "920944fbd458fb5d10b0cf1fb4d02a85443f0f16a3d7bd391fc130f91d48c579"
     },
     {
       "path": "Runtimes/Python312/Lib/site-packages/pywin32-310.dist-info/REQUESTED",
@@ -44895,12 +45265,12 @@
     {
       "path": "service-units/adb-forwarder.service/bin/AdbForwarder.MyPowerTools.dll",
       "length": 100352,
-      "sha256": "a1626ce3c5e1b3cac3f57fe5fa2ed3649c3a5316521e485c1a1f65c5647f3c8f"
+      "sha256": "12b524e2e407221aa3ba3d82ad932962f85de67f4a57fc33165738ce8f7d0a05"
     },
     {
       "path": "service-units/adb-forwarder.service/bin/AdbForwarder.Service.deps.json",
       "length": 5575,
-      "sha256": "57b03e7053f5137aa4b3242d7e1d37f25287dac9e88b61cc794fdcff209e5f3a"
+      "sha256": "ed312a1dcc05abd1f5723a0c89976d5e8a5a84dcef349bf0b54069f7f8793f7f"
     },
     {
       "path": "service-units/adb-forwarder.service/bin/AdbForwarder.Service.dll",
@@ -44940,22 +45310,22 @@
     {
       "path": "service-units/adb-forwarder.service/bin/MyPowerTools.Abstractions.dll",
       "length": 160256,
-      "sha256": "04cce67c4d9b2485e4acef1d618b50987d7b8eadb0fc18199810c5ea0009d33a"
+      "sha256": "57c868cc6cf445a11e178bbadd71e3ae4e87176c9e43ccf35bcd3b777698c6d3"
     },
     {
       "path": "service-units/adb-forwarder.service/bin/MyPowerTools.Ipc.Shared.dll",
       "length": 29184,
-      "sha256": "8a184598f4a9eb7787443665c98adfb62763b18686b03f2dada8f9b8436d2521"
+      "sha256": "0f861a97891c88af3184d9c5df207d5636899ebf41f7b3f5cc7dafb64321cf6d"
     },
     {
       "path": "service-units/adb-forwarder.service/bin/MyPowerTools.Platform.Abstractions.dll",
       "length": 106496,
-      "sha256": "bd03ebf403856417f988dc5282d29d9a097df7111bc8abb592371f63fb833fac"
+      "sha256": "11fef316414be81d9d0a019aa5721127a5b67f547e42e4242955ddaaa4ea1be7"
     },
     {
       "path": "service-units/adb-forwarder.service/bin/MyPowerTools.Protocol.dll",
       "length": 514048,
-      "sha256": "85242d2d56ced992ec3cc9cf53082a6cb83240e790a74f0a32d5b0d6c75f52cb"
+      "sha256": "b174bc827b5b3421bed6c63f202518c535cf7b3e473f43d3a794479b1fc021f6"
     },
     {
       "path": "service-units/adb-forwarder.service/unit-manifest.json",
@@ -45015,12 +45385,12 @@
     {
       "path": "service-units/doubao-agent.controller.service/bin/MyPowerTools.Ipc.Shared.dll",
       "length": 29184,
-      "sha256": "8a184598f4a9eb7787443665c98adfb62763b18686b03f2dada8f9b8436d2521"
+      "sha256": "0f861a97891c88af3184d9c5df207d5636899ebf41f7b3f5cc7dafb64321cf6d"
     },
     {
       "path": "service-units/doubao-agent.controller.service/bin/MyPowerTools.Platform.Abstractions.dll",
       "length": 106496,
-      "sha256": "bd03ebf403856417f988dc5282d29d9a097df7111bc8abb592371f63fb833fac"
+      "sha256": "11fef316414be81d9d0a019aa5721127a5b67f547e42e4242955ddaaa4ea1be7"
     },
     {
       "path": "service-units/doubao-agent.controller.service/unit-manifest.json",
@@ -45050,22 +45420,22 @@
     {
       "path": "service-units/remote-notifications.service/bin/MyPowerTools.Abstractions.dll",
       "length": 160256,
-      "sha256": "04cce67c4d9b2485e4acef1d618b50987d7b8eadb0fc18199810c5ea0009d33a"
+      "sha256": "57c868cc6cf445a11e178bbadd71e3ae4e87176c9e43ccf35bcd3b777698c6d3"
     },
     {
       "path": "service-units/remote-notifications.service/bin/MyPowerTools.Ipc.Shared.dll",
       "length": 29184,
-      "sha256": "8a184598f4a9eb7787443665c98adfb62763b18686b03f2dada8f9b8436d2521"
+      "sha256": "0f861a97891c88af3184d9c5df207d5636899ebf41f7b3f5cc7dafb64321cf6d"
     },
     {
       "path": "service-units/remote-notifications.service/bin/MyPowerTools.Platform.Abstractions.dll",
       "length": 106496,
-      "sha256": "bd03ebf403856417f988dc5282d29d9a097df7111bc8abb592371f63fb833fac"
+      "sha256": "11fef316414be81d9d0a019aa5721127a5b67f547e42e4242955ddaaa4ea1be7"
     },
     {
       "path": "service-units/remote-notifications.service/bin/MyPowerTools.Platform.Mac.dll",
       "length": 91136,
-      "sha256": "2135c801d912a91127712bbf042278032d6d5b8768a38fcc87b1675e4fa6d0a4"
+      "sha256": "e4a174613093c4bd84d14c3f105e968e52900ec354e1af74526c193b599c1a87"
     },
     {
       "path": "service-units/remote-notifications.service/bin/RemoteNotifications.Service.deps.json",
@@ -45115,32 +45485,32 @@
     {
       "path": "service-units/screenease.service/bin/MyPowerTools.Abstractions.dll",
       "length": 160256,
-      "sha256": "04cce67c4d9b2485e4acef1d618b50987d7b8eadb0fc18199810c5ea0009d33a"
+      "sha256": "57c868cc6cf445a11e178bbadd71e3ae4e87176c9e43ccf35bcd3b777698c6d3"
     },
     {
       "path": "service-units/screenease.service/bin/MyPowerTools.Ipc.Shared.dll",
       "length": 29184,
-      "sha256": "8a184598f4a9eb7787443665c98adfb62763b18686b03f2dada8f9b8436d2521"
+      "sha256": "0f861a97891c88af3184d9c5df207d5636899ebf41f7b3f5cc7dafb64321cf6d"
     },
     {
       "path": "service-units/screenease.service/bin/MyPowerTools.Platform.Abstractions.dll",
       "length": 106496,
-      "sha256": "bd03ebf403856417f988dc5282d29d9a097df7111bc8abb592371f63fb833fac"
+      "sha256": "11fef316414be81d9d0a019aa5721127a5b67f547e42e4242955ddaaa4ea1be7"
     },
     {
       "path": "service-units/screenease.service/bin/MyPowerTools.Protocol.dll",
       "length": 514048,
-      "sha256": "85242d2d56ced992ec3cc9cf53082a6cb83240e790a74f0a32d5b0d6c75f52cb"
+      "sha256": "b174bc827b5b3421bed6c63f202518c535cf7b3e473f43d3a794479b1fc021f6"
     },
     {
       "path": "service-units/screenease.service/bin/ScreenEase.MyPowerTools.dll",
       "length": 216064,
-      "sha256": "0bf97abbd84be55bc7fe55e11c000c2baa6e2500b5e2fc1de1ce3a8151e656c3"
+      "sha256": "12cc0d966eae0ac626a989c419e285a2d799ce91d0641523bcaa797873c85a98"
     },
     {
       "path": "service-units/screenease.service/bin/ScreenEase.Service.deps.json",
       "length": 5561,
-      "sha256": "3928d61863ce6df22d54f2719ddf1fd01415adaf0830774c875e01fe14a80c11"
+      "sha256": "fc6d394eae2f8b9df3287b4d2139303786fc2ef4f231bbd6bf8d6e3b77686ef1"
     },
     {
       "path": "service-units/screenease.service/bin/ScreenEase.Service.dll",
@@ -45165,12 +45535,12 @@
     {
       "path": "service-units/xbrd.codex-quota.service/bin/MyPowerTools.Platform.Abstractions.dll",
       "length": 106496,
-      "sha256": "bd03ebf403856417f988dc5282d29d9a097df7111bc8abb592371f63fb833fac"
+      "sha256": "11fef316414be81d9d0a019aa5721127a5b67f547e42e4242955ddaaa4ea1be7"
     },
     {
       "path": "service-units/xbrd.codex-quota.service/bin/Xbrd.CodexQuota.Service.deps.json",
       "length": 1233,
-      "sha256": "6ddd9921c2fc82e549d4ef97cb882d5e9bd0502f2571c336aaa2dd491d70bec3"
+      "sha256": "98fe1b1c56124f546e9ece4dcbf28e7f789b2592f4a8c3d4981d880a88673daa"
     },
     {
       "path": "service-units/xbrd.codex-quota.service/bin/Xbrd.CodexQuota.Service.dll",
@@ -45255,27 +45625,27 @@
     {
       "path": "ServiceManager/MyPowerTools.Abstractions.dll",
       "length": 160256,
-      "sha256": "04cce67c4d9b2485e4acef1d618b50987d7b8eadb0fc18199810c5ea0009d33a"
+      "sha256": "57c868cc6cf445a11e178bbadd71e3ae4e87176c9e43ccf35bcd3b777698c6d3"
     },
     {
       "path": "ServiceManager/MyPowerTools.Ipc.Shared.dll",
       "length": 29184,
-      "sha256": "8a184598f4a9eb7787443665c98adfb62763b18686b03f2dada8f9b8436d2521"
+      "sha256": "0f861a97891c88af3184d9c5df207d5636899ebf41f7b3f5cc7dafb64321cf6d"
     },
     {
       "path": "ServiceManager/MyPowerTools.Platform.Abstractions.dll",
       "length": 106496,
-      "sha256": "cadf18cf43807b064a5a3b05a975d47fa410c5899b97a5b01fd840a035fb9bc8"
+      "sha256": "ab48498cc874097b41532d5ec1db2e7e2a9b389c8bd755d1db9b4aa80efa2d1e"
     },
     {
       "path": "ServiceManager/MyPowerTools.Protocol.dll",
       "length": 514048,
-      "sha256": "85242d2d56ced992ec3cc9cf53082a6cb83240e790a74f0a32d5b0d6c75f52cb"
+      "sha256": "b174bc827b5b3421bed6c63f202518c535cf7b3e473f43d3a794479b1fc021f6"
     },
     {
       "path": "ServiceManager/MyPowerTools.ServiceManager.Client.dll",
       "length": 34304,
-      "sha256": "6d702788e0f8666598a24d6cfe280988210cbe7f2891bd031ab0f418e757579f"
+      "sha256": "16a1fbe7099db0235171085ff4b27f0099a8f65da1b2b6e968730c869258cebc"
     },
     {
       "path": "ServiceManager/MyPowerTools.ServiceManager.deps.json",
@@ -45285,12 +45655,12 @@
     {
       "path": "ServiceManager/MyPowerTools.ServiceManager.dll",
       "length": 15872,
-      "sha256": "a312bb87a36ab4af025e0879a5d0992be68df5741a66de662917bd9763e6d0ee"
+      "sha256": "5cf49ec53f46d8f169a54942aab403b82d58722579dae2c071bf4973d2c301fd"
     },
     {
       "path": "ServiceManager/MyPowerTools.ServiceManager.exe",
       "length": 162816,
-      "sha256": "04c6336b043f56ba5e313764b5f035ca7c2e7c48e3a75849aaa4d4ae5adb3fc6"
+      "sha256": "7a8d4adc15adef6298ed4c7b83f254a5a49cdf32a4d81c1629afb2233a6c54a6"
     },
     {
       "path": "ServiceManager/MyPowerTools.ServiceManager.runtimeconfig.json",
@@ -45300,7 +45670,7 @@
     {
       "path": "ServiceManager/MyPowerTools.ServiceManager.Server.dll",
       "length": 84992,
-      "sha256": "bd12e2241becf3d868d17370b2bc8d7f50a954654cd05c35374d8d886e3e29b6"
+      "sha256": "9a5774f5b11f4fe13d0d3aefaafa0282a12d83ea8a85ab7ed4d3d82ac39166c6"
     },
     {
       "path": "ServiceManager/MyPowerTools.ServiceManager.staticwebassets.endpoints.json",
@@ -45515,77 +45885,77 @@
     {
       "path": "Shell/MyPowerTools.Abstractions.dll",
       "length": 167936,
-      "sha256": "d636a27fffdc5aaa40a9d436dd50ce266ce44d58073080caf4f1f5d9149c663d"
+      "sha256": "e70911335e13643f9abf7587134199e30761949ae33620f9af8fb0b8c2201a7d"
     },
     {
       "path": "Shell/MyPowerTools.AvaloniaSdk.dll",
       "length": 53248,
-      "sha256": "909d86ad885254cd427eae65b3d16b495e5b65a2a7bb0cb8777d8f41dec52a1d"
+      "sha256": "1edd073d58f967eabad2b3dad2ce7f18f0e9003a9d937ebd37a6aaf60a42623f"
     },
     {
       "path": "Shell/MyPowerTools.Broker.dll",
       "length": 147456,
-      "sha256": "d355569e976fb5cf7730c4ee87fb5d4567f2327bbfbd7359d12880bb5ee564d5"
+      "sha256": "781746a53a0d0a687ea885609b3c00b367d022124321bd17dceb73b0fdebe7e2"
     },
     {
       "path": "Shell/MyPowerTools.HostControl.Client.dll",
       "length": 49152,
-      "sha256": "2391fe7934872f4cd55266a96f7a9c1c06c6ebd7664f6a0c52fd750fb91c768f"
+      "sha256": "8f7c3922e07577cfe7bbd9ff9d582d994925adf84edc6deb05a4ecd8713f84ed"
     },
     {
       "path": "Shell/MyPowerTools.HostControl.Contracts.dll",
       "length": 12288,
-      "sha256": "bfe94d1a9399d54890cd53ca148b086fa432dabc5c1e76422507880f16427bc6"
+      "sha256": "3385f339f239bc446dc80799d96c1a3d4152f5f32821ec57a9ddc00f318f8a8c"
     },
     {
       "path": "Shell/MyPowerTools.Ipc.Shared.dll",
       "length": 32768,
-      "sha256": "0640cad80a03aa0ac4a001945182348ff6593411c3ecd61db14027bb3efa90bb"
+      "sha256": "ad8b2bed64576c4cf2255de6238438fc0286b0a19a4d55694d0c15b0107ab071"
     },
     {
       "path": "Shell/MyPowerTools.Packaging.dll",
       "length": 200704,
-      "sha256": "6014c9913bbef23827f7058bdf381f2afeb9cebcf5b6773dbc038cfea724f22d"
+      "sha256": "cafe39260771a5d2bb74125bb35eafa5a3774136e4c8fb8e1748951258c49e66"
     },
     {
       "path": "Shell/MyPowerTools.Platform.Abstractions.dll",
       "length": 110592,
-      "sha256": "8a773f8e2eb53b0ce7d9477caa14b0664fe8b87b70207a0be59a77bfe285ff91"
+      "sha256": "e53b0d66502bf6242714929744cfd67ccc7e3e353aafdc02be5fb351e30c8163"
     },
     {
       "path": "Shell/MyPowerTools.Platform.dll",
       "length": 8192,
-      "sha256": "5b3f3aca5de4000913a34991cd3dca55e9ac2613e550cb9a52d998ea8470b614"
+      "sha256": "e08f558b57045bbc46511ccc6f0548a81f0f29815a3595583d6f04784453c760"
     },
     {
       "path": "Shell/MyPowerTools.Platform.Linux.dll",
       "length": 24576,
-      "sha256": "583a52945deea7336ec8aaf34e46e7b325c5823f074d35024f2fee3c40bb4559"
+      "sha256": "178fc9a4203e1f140da45b7a60a77d575be044bb2af7cc6a5d566fdc6b84d80e"
     },
     {
       "path": "Shell/MyPowerTools.Platform.Mac.dll",
       "length": 94208,
-      "sha256": "a1f1e667da7cd915ae573ab426a8bd29ec270308254f34ae3843e18132a6bcbb"
+      "sha256": "892cd52f822e31649ae80eb0ed15406eab7b836f93c799f4611dba2900aecb07"
     },
     {
       "path": "Shell/MyPowerTools.Platform.Windows.dll",
       "length": 114688,
-      "sha256": "c8953f177794818d34ca01855c1cd5e2684bf1f169c1430a7eafd92cf8da2ec7"
+      "sha256": "0c089fc56472f2d7bffcc0f37dde9134b45c235a1802d3b6895e1d566195debc"
     },
     {
       "path": "Shell/MyPowerTools.Protocol.dll",
       "length": 524288,
-      "sha256": "eb7cf32f8705c82c82e17b275304613966de2a71db9df482a4c3b205b2f1259b"
+      "sha256": "16be7a589833f58acd622ca04ca5c17624691c927eda2ec1c5c0c0919d6ffc24"
     },
     {
       "path": "Shell/MyPowerTools.Runtime.dll",
       "length": 372736,
-      "sha256": "9269e8044389058bda7f1cfbcdfe757dbe531576617a74f6476bfba41942f66c"
+      "sha256": "61c0cb0dc9942be07147748110bbdb3d0c53967415d47b62859791d21d3bc971"
     },
     {
       "path": "Shell/MyPowerTools.ServiceManager.Client.dll",
       "length": 36864,
-      "sha256": "23e0417a6b6378c8e6afd9b4d383c17d8fe5d9f54c29d4eb578afa51fb04ba15"
+      "sha256": "11950184a8126f26a3a7a8588fae48bd19225598b00f1dff9873b74153e96b05"
     },
     {
       "path": "Shell/MyPowerTools.Shell.Avalonia.deps.json",
@@ -45595,17 +45965,17 @@
     {
       "path": "Shell/MyPowerTools.Shell.Avalonia.dll",
       "length": 1372160,
-      "sha256": "7254e45e83b497bc8d7ca748159426988a4cb56c41a04bc1686a854f265c6781"
+      "sha256": "b3b06ba7d010c6430870b8910b3b7a712d9a3ada35b4106fef75f440fec40431"
     },
     {
       "path": "Shell/MyPowerTools.Shell.Avalonia.exe",
       "length": 175616,
-      "sha256": "c36a05b5a1e9bb748258ca3a3c36238a92331ad4ab39633cfb51547b7ddbbd8e"
+      "sha256": "c592fd9de1791bdaf95e29127214408e0babca54ef9a963f0a396667e43a7ea4"
     },
     {
       "path": "Shell/MyPowerTools.Shell.Avalonia.r2r.dll",
       "length": 34037760,
-      "sha256": "d5975cfab67ac1c6afb827e8a4d69341b62f184768a8d4b9c25fcf24bb01bc74"
+      "sha256": "8b218b213036bfb73fea36c137cc2404591c56b0a5c74dc179ecec371a61d3f4"
     },
     {
       "path": "Shell/MyPowerTools.Shell.Avalonia.runtimeconfig.json",
@@ -45615,17 +45985,17 @@
     {
       "path": "Shell/MyPowerTools.UI.dll",
       "length": 184320,
-      "sha256": "c27d4642c7f585b7b2436bd1c446b9f5f786798c4768c4385e011cc807ad2fb3"
+      "sha256": "aa2d705e6874b433c7f150e6618949946b04a39cad133dd4f80ef42201de6b60"
     },
     {
       "path": "Shell/MyPowerTools.UI.Primitives.dll",
       "length": 20480,
-      "sha256": "cf4685eef329e87bdb301439d4ec52b3ff88ded9ea42616052f84b60017a1dd5"
+      "sha256": "34e57f017e8e81c2b307b45945278a89ce852d7a215ca98619a6090ca39f3312"
     },
     {
       "path": "Shell/MyPowerTools.WebSurface.Avalonia.dll",
       "length": 73728,
-      "sha256": "ed667523e16c798404455c71526c600494bb151ffa06ab6e0b042dd18226750f"
+      "sha256": "f4e62a670da7577af767d09269de72c41bb88cfe6ebe08ae0cff02b73a2a0126"
     },
     {
       "path": "Shell/SkiaSharp.dll",
@@ -45680,17 +46050,17 @@
     {
       "path": "Shell/WebToolHost/MyPowerTools.WebToolHost.dll",
       "length": 57344,
-      "sha256": "4360d43da1da8971125c240898e49a882f1b1fae25ace3cc148f9a3867569980"
+      "sha256": "41bd1763be0a3e14f90dfffe7db9edf9209d4ab4a1a923b66013a358562a6c46"
     },
     {
       "path": "Shell/WebToolHost/MyPowerTools.WebToolHost.exe",
       "length": 163840,
-      "sha256": "79820e62c2e53fdc378eaa1b10b1d07cd64c1b0c7eba87fb7766a06cf1d835f8"
+      "sha256": "ef24e1bdf2f2a05653a1bf3f28d68be224e8f61734859a4371042a56a779847b"
     },
     {
       "path": "Shell/WebToolHost/MyPowerTools.WebToolHost.r2r.dll",
       "length": 540672,
-      "sha256": "0e6140d294d0949774e9ebef737cb0284baa597053f60f4b95b42240d4871241"
+      "sha256": "c527b30d6eabee2bc05fd1be20ff8ff9ad42bf20517c06d4a1e048ba5589bbea"
     },
     {
       "path": "Shell/WebToolHost/MyPowerTools.WebToolHost.runtimeconfig.json",
