@@ -21,6 +21,7 @@ public sealed class LagDiagnosticsEngine
         var timer = Stopwatch.StartNew();
         var cpuStart = WindowsNative.ReadCpuTimes();
         var processStart = CaptureProcessCounters(processTable);
+        var hardFaultStart = ProcessHardFaultProbe.Capture();
         var baselineTakenAt = timer.Elapsed;
         var interval = TimeSpan.FromMilliseconds(options.SampleIntervalMilliseconds);
         var healthSamples = Math.Max(
@@ -32,6 +33,7 @@ public sealed class LagDiagnosticsEngine
             interval,
             cancellationToken).ConfigureAwait(false);
         var cpuEnd = WindowsNative.ReadCpuTimes();
+        var hardFaultEnd = ProcessHardFaultProbe.Capture();
 
         var capturedAt = DateTimeOffset.UtcNow;
         var performance = WindowsNative.ReadPerformance();
@@ -119,6 +121,18 @@ public sealed class LagDiagnosticsEngine
             logicalProcessors,
             coverage));
         findings.AddRange(BuildSupplementalProbeFindings(health, performance));
+        var pagingSamples = health.Performance.Samples
+            .Where(sample => sample.Metrics.ContainsKey("memory.pages-input"))
+            .Select(sample => new PagingSample(
+                sample.CapturedAtUtc,
+                sample.Metrics["memory.pages-input"],
+                OptionalMetric(sample, "memory.page-reads"),
+                OptionalMetric(sample, "memory.available-bytes"),
+                OptionalMetric(sample, "memory.commit-percent"),
+                OptionalMetric(sample, "disk.transfer-latency")))
+            .ToArray();
+        if (PagingAnalyzer.Analyze(pagingSamples, performance.PhysicalTotalBytes, options) is { } pagingFinding)
+            findings.Add(pagingFinding);
         var enrichedFindings = findings
             .Select(EnrichFinding)
             .OrderByDescending(item => item.Severity)
@@ -198,6 +212,10 @@ public sealed class LagDiagnosticsEngine
             recommendations)
         {
             SignalSamples = signalSamples,
+            PagingSamples = pagingSamples,
+            HardFaultProcesses = ProcessHardFaultProbe.Compare(hardFaultStart, hardFaultEnd,
+                publicProcesses.ToDictionary(process => process.ProcessId, process => process.Name)),
+            HardFaultAttributionError = string.Join("；", new[] { hardFaultStart.Error, hardFaultEnd.Error }.Where(error => error.Length > 0)),
             Signals = signals,
             ProcessBreakdown = processBreakdown,
             TopIoProcesses = publicProcesses
@@ -540,6 +558,10 @@ public sealed class LagDiagnosticsEngine
         return health.Performance.Metrics.FirstOrDefault(
             item => string.Equals(item.MetricId, metricId, StringComparison.Ordinal));
     }
+
+    private static double? OptionalMetric(SystemHealthPdhSample sample, string id) =>
+        sample.Metrics.TryGetValue(id, out var value) && double.IsFinite(value) && value >= 0
+            ? value : null;
 
     private static bool HasCompletePublishedSignalSample(SystemHealthPdhSample sample)
     {
@@ -944,25 +966,6 @@ public sealed class LagDiagnosticsEngine
             });
         }
 
-        if (signals is not null &&
-            signals.PeakPagesInputPerSecond >= options.HardPagingWarningPagesPerSecond)
-        {
-            findings.Add(new LagFinding(
-                LagSeverity.Warning,
-                "hard-paging",
-                "硬分页活动明显",
-                $"Pages Input/sec 平均 {signals.AveragePagesInputPerSecond:n1}，峰值 {signals.PeakPagesInputPerSecond:n1}。",
-                "结合提交内存、内存前列和磁盘延迟确认换页主因，避免通过强制清空工作集制造更多缺页。",
-                false,
-                "")
-            {
-                Domain = DiagnosticDomain.Memory,
-                Confidence = FindingConfidence.High,
-                Score = 15,
-                CausalChain = "工作集页被换出 → 访问触发磁盘读入 → 前台线程等待存储 I/O"
-            });
-        }
-
         var diskQueueThreshold = Math.Max(8, drives.Count * 2);
         if (signals is not null &&
             (signals.PeakDiskLatencyMilliseconds >= options.DiskLatencyWarningMilliseconds ||
@@ -988,10 +991,11 @@ public sealed class LagDiagnosticsEngine
 
         foreach (var drive in drives.Where(item =>
                      item.IsSystemDrive &&
+                     item.FreeBytes < 30UL * 1024 * 1024 * 1024 &&
                      item.FreePercent < options.SystemDriveFreeWarningPercent))
         {
             findings.Add(new LagFinding(
-                drive.FreePercent < 5 ? LagSeverity.Critical : LagSeverity.Warning,
+                drive.FreeBytes < 5UL * 1024 * 1024 * 1024 ? LagSeverity.Critical : LagSeverity.Warning,
                 "system-drive-low-space",
                 "系统盘可用空间不足",
                 $"{drive.Name} 剩余 {FormatBytes(drive.FreeBytes)}，占 {drive.FreePercent:n1}%。",
@@ -1001,7 +1005,7 @@ public sealed class LagDiagnosticsEngine
             {
                 Domain = DiagnosticDomain.Storage,
                 Confidence = FindingConfidence.High,
-                Score = drive.FreePercent < 5 ? 18 : 10
+                Score = drive.FreeBytes < 5UL * 1024 * 1024 * 1024 ? 18 : 10
             });
         }
 
@@ -1633,9 +1637,9 @@ public sealed class LagDiagnosticsEngine
             findings.Add(new LagFinding(
                 LagSeverity.Warning,
                 "kernel-pool-warning",
-                "内核池持续偏高",
+                "内核池占用超过筛查线",
                 $"分页池 {FormatBytes(performance.KernelPagedBytes)}，非分页池 {FormatBytes(performance.KernelNonPagedBytes)}。",
-                "安排重启并观察增长速度，优先核对文件过滤、显卡、同步盘和安全软件驱动。",
+                "先对比同一次开机的池标签增长；单次总量无法确认泄漏。定位增长标签后核对关联驱动版本；重启前保存报告，重启后重建基线。",
                 false,
                 ""));
         }

@@ -1,6 +1,6 @@
 {
   "schemaVersion": "1.0",
-  "version": "0.3.0",
+  "version": "0.3.1",
   "toolId": "local-lag-cleaner",
   "ownerModuleId": "local-lag-cleaner",
   "title": "本机卡顿专清",
@@ -218,6 +218,251 @@
       ],
       "supportsProgress": false,
       "supportsCancellation": true
+    },
+    {
+      "id": "local-lag-cleaner.open.resource-monitor",
+      "title": "打开资源监视器",
+      "description": "打开对应的 Windows 诊断或设置入口，按逐项处理方案核查。",
+      "kind": "action",
+      "requiresElevation": false,
+      "dangerLevel": "low",
+      "category": "Diagnostics",
+      "timeoutMs": 15000,
+      "execution": {
+        "type": "module.execute",
+        "runsExternalProcesses": true
+      },
+      "constraints": [
+        "runsExternalProcesses"
+      ],
+      "supportsProgress": false,
+      "supportsCancellation": false
+    },
+    {
+      "id": "local-lag-cleaner.open.task-manager",
+      "title": "打开任务管理器",
+      "description": "打开对应的 Windows 诊断或设置入口，按逐项处理方案核查。",
+      "kind": "action",
+      "requiresElevation": false,
+      "dangerLevel": "low",
+      "category": "Diagnostics",
+      "timeoutMs": 15000,
+      "execution": {
+        "type": "module.execute",
+        "runsExternalProcesses": true
+      },
+      "constraints": [
+        "runsExternalProcesses"
+      ],
+      "supportsProgress": false,
+      "supportsCancellation": false
+    },
+    {
+      "id": "local-lag-cleaner.open.storage",
+      "title": "打开存储设置",
+      "description": "打开对应的 Windows 诊断或设置入口，按逐项处理方案核查。",
+      "kind": "action",
+      "requiresElevation": false,
+      "dangerLevel": "low",
+      "category": "Diagnostics",
+      "timeoutMs": 15000,
+      "execution": {
+        "type": "module.execute",
+        "runsExternalProcesses": true
+      },
+      "constraints": [
+        "runsExternalProcesses"
+      ],
+      "supportsProgress": false,
+      "supportsCancellation": false
+    },
+    {
+      "id": "local-lag-cleaner.open.startup",
+      "title": "管理启动应用",
+      "description": "打开对应的 Windows 诊断或设置入口，按逐项处理方案核查。",
+      "kind": "action",
+      "requiresElevation": false,
+      "dangerLevel": "low",
+      "category": "Diagnostics",
+      "timeoutMs": 15000,
+      "execution": {
+        "type": "module.execute",
+        "runsExternalProcesses": true
+      },
+      "constraints": [
+        "runsExternalProcesses"
+      ],
+      "supportsProgress": false,
+      "supportsCancellation": false
+    },
+    {
+      "id": "local-lag-cleaner.open.update",
+      "title": "查看 Windows 更新",
+      "description": "打开对应的 Windows 诊断或设置入口，按逐项处理方案核查。",
+      "kind": "action",
+      "requiresElevation": false,
+      "dangerLevel": "low",
+      "category": "Diagnostics",
+      "timeoutMs": 15000,
+      "execution": {
+        "type": "module.execute",
+        "runsExternalProcesses": true
+      },
+      "constraints": [
+        "runsExternalProcesses"
+      ],
+      "supportsProgress": false,
+      "supportsCancellation": false
+    },
+    {
+      "id": "local-lag-cleaner.open.devices",
+      "title": "打开设备管理器",
+      "description": "打开对应的 Windows 诊断或设置入口，按逐项处理方案核查。",
+      "kind": "action",
+      "requiresElevation": false,
+      "dangerLevel": "low",
+      "category": "Diagnostics",
+      "timeoutMs": 15000,
+      "execution": {
+        "type": "module.execute",
+        "runsExternalProcesses": true
+      },
+      "constraints": [
+        "runsExternalProcesses"
+      ],
+      "supportsProgress": false,
+      "supportsCancellation": false
+    },
+    {
+      "id": "local-lag-cleaner.open.reliability",
+      "title": "查看可靠性历史",
+      "description": "打开对应的 Windows 诊断或设置入口，按逐项处理方案核查。",
+      "kind": "action",
+      "requiresElevation": false,
+      "dangerLevel": "low",
+      "category": "Diagnostics",
+      "timeoutMs": 15000,
+      "execution": {
+        "type": "module.execute",
+        "runsExternalProcesses": true
+      },
+      "constraints": [
+        "runsExternalProcesses"
+      ],
+      "supportsProgress": false,
+      "supportsCancellation": false
+    },
+    {
+      "id": "local-lag-cleaner.care.all",
+      "title": "自动检查与处理 (all)",
+      "description": "自动连续采集、执行限定的处理操作并复测；可撤销后台调度调整。",
+      "kind": "action",
+      "requiresElevation": false,
+      "dangerLevel": "medium",
+      "category": "Automatic Care",
+      "timeoutMs": 120000,
+      "execution": {
+        "type": "module.execute"
+      },
+      "constraints": [],
+      "supportsProgress": false,
+      "supportsCancellation": false
+    },
+    {
+      "id": "local-lag-cleaner.care.memory",
+      "title": "自动检查与处理 (memory)",
+      "description": "自动连续采集、执行限定的处理操作并复测；可撤销后台调度调整。",
+      "kind": "action",
+      "requiresElevation": false,
+      "dangerLevel": "medium",
+      "category": "Automatic Care",
+      "timeoutMs": 120000,
+      "execution": {
+        "type": "module.execute"
+      },
+      "constraints": [],
+      "supportsProgress": false,
+      "supportsCancellation": false
+    },
+    {
+      "id": "local-lag-cleaner.care.kernel",
+      "title": "自动检查与处理 (kernel)",
+      "description": "自动连续采集、执行限定的处理操作并复测；可撤销后台调度调整。",
+      "kind": "action",
+      "requiresElevation": false,
+      "dangerLevel": "medium",
+      "category": "Automatic Care",
+      "timeoutMs": 120000,
+      "execution": {
+        "type": "module.execute"
+      },
+      "constraints": [],
+      "supportsProgress": false,
+      "supportsCancellation": false
+    },
+    {
+      "id": "local-lag-cleaner.care.background",
+      "title": "自动检查与处理 (background)",
+      "description": "自动连续采集、执行限定的处理操作并复测；可撤销后台调度调整。",
+      "kind": "action",
+      "requiresElevation": false,
+      "dangerLevel": "medium",
+      "category": "Automatic Care",
+      "timeoutMs": 120000,
+      "execution": {
+        "type": "module.execute"
+      },
+      "constraints": [],
+      "supportsProgress": false,
+      "supportsCancellation": false
+    },
+    {
+      "id": "local-lag-cleaner.care.storage",
+      "title": "自动检查与处理 (storage)",
+      "description": "自动连续采集、执行限定的处理操作并复测；可撤销后台调度调整。",
+      "kind": "action",
+      "requiresElevation": false,
+      "dangerLevel": "medium",
+      "category": "Automatic Care",
+      "timeoutMs": 120000,
+      "execution": {
+        "type": "module.execute"
+      },
+      "constraints": [],
+      "supportsProgress": false,
+      "supportsCancellation": false
+    },
+    {
+      "id": "local-lag-cleaner.care.restore",
+      "title": "自动检查与处理 (restore)",
+      "description": "自动连续采集、执行限定的处理操作并复测；可撤销后台调度调整。",
+      "kind": "action",
+      "requiresElevation": false,
+      "dangerLevel": "medium",
+      "category": "Automatic Care",
+      "timeoutMs": 120000,
+      "execution": {
+        "type": "module.execute"
+      },
+      "constraints": [],
+      "supportsProgress": false,
+      "supportsCancellation": false
+    },
+    {
+      "id": "local-lag-cleaner.care.last",
+      "title": "自动检查与处理 (last)",
+      "description": "自动连续采集、执行限定的处理操作并复测；可撤销后台调度调整。",
+      "kind": "action",
+      "requiresElevation": false,
+      "dangerLevel": "medium",
+      "category": "Automatic Care",
+      "timeoutMs": 120000,
+      "execution": {
+        "type": "module.execute"
+      },
+      "constraints": [],
+      "supportsProgress": false,
+      "supportsCancellation": false
     }
   ],
   "permissions": [

@@ -210,6 +210,16 @@ internal sealed class SystemHealthProbe
             1,
             [@"\Memory\Page Reads/sec"]),
         new(
+            "memory.available-bytes",
+            "bytes",
+            1,
+            [@"\Memory\Available Bytes"]),
+        new(
+            "memory.commit-percent",
+            "percent",
+            1,
+            [@"\Memory\% Committed Bytes In Use"]),
+        new(
             "disk.busy",
             "percent",
             1,

@@ -7,7 +7,7 @@ using MyPowerTools.AvaloniaSdk;
 
 namespace LocalLagCleaner.Tool;
 
-public sealed class LocalLagCleanerViewModel : MptObservableViewModel, IDisposable
+public sealed partial class LocalLagCleanerViewModel : MptObservableViewModel, IDisposable
 {
     private readonly MptAvaloniaSurfaceContext _context;
     private readonly CancellationTokenSource _lifetime = new();
@@ -269,7 +269,11 @@ public sealed class LocalLagCleanerViewModel : MptObservableViewModel, IDisposab
         private set => SetProperty(ref _reportPath, value);
     }
 
-    public Task InitializeAsync() => ScanAsync(deep: false);
+    public async Task InitializeAsync()
+    {
+        await ScanAsync(deep: false);
+        await LoadLastCareAsync();
+    }
 
     private MptAsyncRelayCommand Command(Func<Task> execute, string name)
     {
@@ -599,8 +603,11 @@ public sealed class LocalLagCleanerViewModel : MptObservableViewModel, IDisposab
         }
 
         Findings.Clear();
+        Remediations.Clear();
         foreach (var finding in snapshot.Findings)
         {
+            var remedy = CreateRemediationRow(snapshot, finding);
+            Remediations.Add(remedy);
             Findings.Add(new LagFindingRow(
                 SeverityName(finding.Severity),
                 DomainName(finding.Domain),
@@ -610,8 +617,19 @@ public sealed class LocalLagCleanerViewModel : MptObservableViewModel, IDisposab
                 finding.CausalChain,
                 finding.Recommendation,
                 RiskName(finding.RemediationRisk),
-                SeverityBrushFor(finding.Severity)));
+                SeverityBrushFor(finding.Severity))
+            {
+                SolutionStatus = remedy.Plan.Status,
+                ShowSolutionCommand = Command(() =>
+                {
+                    SelectedRemediation = remedy;
+                    SelectedTabIndex = 2;
+                    return Task.CompletedTask;
+                }, "show-solution")
+            });
         }
+        SelectedRemediation = Remediations.FirstOrDefault(row => row.Plan.FindingCode == SelectedRemediation?.Plan.FindingCode)
+                              ?? Remediations.FirstOrDefault();
 
         ProcessBreakdown.Clear();
         foreach (var group in snapshot.ProcessBreakdown.Take(20))
@@ -732,6 +750,7 @@ public sealed class LocalLagCleanerViewModel : MptObservableViewModel, IDisposab
     {
         OnPropertyChanged(nameof(CanInteract));
         OnPropertyChanged(nameof(CanApply));
+        OnPropertyChanged(nameof(CanCancelScan));
         QuickScanCommand.NotifyCanExecuteChanged();
         DeepScanCommand.NotifyCanExecuteChanged();
         CancelScanCommand.NotifyCanExecuteChanged();
@@ -743,6 +762,12 @@ public sealed class LocalLagCleanerViewModel : MptObservableViewModel, IDisposab
         PlanRemoteDesktopCommand.NotifyCanExecuteChanged();
         PlanWindowsSearchCommand.NotifyCanExecuteChanged();
         ApplyPlanCommand.NotifyCanExecuteChanged();
+        AutomaticCareCommand.NotifyCanExecuteChanged();
+        RestoreCareCommand.NotifyCanExecuteChanged();
+        foreach (var row in Remediations)
+            row.PrimaryCommand.NotifyCanExecuteChanged();
+        foreach (var row in Findings)
+            row.ShowSolutionCommand?.NotifyCanExecuteChanged();
     }
 
     private void Log(string level, string message)
@@ -838,7 +863,11 @@ public sealed record LagFindingRow(
     string CausalChain,
     string Recommendation,
     string Risk,
-    IBrush SeverityBrush);
+    IBrush SeverityBrush)
+{
+    public string SolutionStatus { get; init; } = "";
+    public MptAsyncRelayCommand? ShowSolutionCommand { get; init; }
+}
 
 public sealed record ProcessDetailRow(
     string Name,
