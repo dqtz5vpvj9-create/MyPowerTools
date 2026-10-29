@@ -2256,7 +2256,7 @@ public sealed class InProcDotNetModuleHost : IModuleTransportRuntime, IModuleTra
         string assemblyPath,
         string sourceRoot)
     {
-        var fingerprint = HashForPath(module, entrypoint, assemblyPath);
+        var fingerprint = HashForPath(module, entrypoint, sourceRoot);
         var safePackage = SanitizePathSegment(module.Manifest.PackageId);
         var safeModule = SanitizePathSegment(module.Manifest.Id);
         var shadowRoot = Path.Combine(context.CacheDirectory, "inproc-shadow", safePackage, safeModule, fingerprint);
@@ -2307,17 +2307,27 @@ public sealed class InProcDotNetModuleHost : IModuleTransportRuntime, IModuleTra
                             segment.Equals(".git", StringComparison.OrdinalIgnoreCase));
     }
 
-    private static string HashForPath(MptModuleDefinition module, MptEntrypointManifest entrypoint, string assemblyPath)
+    private static string HashForPath(MptModuleDefinition module, MptEntrypointManifest entrypoint, string sourceRoot)
     {
-        var info = new FileInfo(assemblyPath);
-        var input = string.Join(
-            "|",
-            module.Manifest.PackageId,
-            module.Manifest.Id,
-            entrypoint.Assembly,
-            info.Length,
-            info.LastWriteTimeUtc.Ticks);
-        return Convert.ToHexString(System.Security.Cryptography.SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(input)))[..16].ToLowerInvariant();
+        using var hash = System.Security.Cryptography.IncrementalHash.CreateHash(System.Security.Cryptography.HashAlgorithmName.SHA256);
+        void AddText(string value) => hash.AppendData(System.Text.Encoding.UTF8.GetBytes(value + "\0"));
+
+        AddText("package-content-v2");
+        AddText(module.Manifest.PackageId);
+        AddText(module.Manifest.Id);
+        AddText(entrypoint.Assembly ?? string.Empty);
+        var files = Directory.EnumerateFiles(sourceRoot, "*", SearchOption.AllDirectories)
+            .Select(path => (Path: path, Relative: Path.GetRelativePath(sourceRoot, path)))
+            .Where(file => !IsIgnoredSegment(file.Relative))
+            .OrderBy(file => file.Relative, StringComparer.Ordinal);
+        foreach (var file in files)
+        {
+            AddText(file.Relative);
+            using var stream = File.OpenRead(file.Path);
+            hash.AppendData(System.Security.Cryptography.SHA256.HashData(stream));
+        }
+
+        return Convert.ToHexString(hash.GetHashAndReset())[..16].ToLowerInvariant();
     }
 
     private static string SanitizePathSegment(string value)
