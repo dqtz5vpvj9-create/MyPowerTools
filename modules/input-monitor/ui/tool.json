@@ -26,5 +26,76 @@
     "primaryActionLabel": "打开 Input Monitor",
     "statusBinding": "module.status",
     "order": 55
-  }
+  },
+  "shortcuts": [
+    {
+      "id": "input-monitor.ui.refresh",
+      "title": "Refresh",
+      "context": "",
+      "allowInTextInput": false,
+      "bindings": [
+        {
+          "gesture": "F5",
+          "platform": "all"
+        }
+      ]
+    },
+    {
+      "id": "input-monitor.ui.previous-day",
+      "title": "Previous period",
+      "context": "",
+      "allowInTextInput": false,
+      "bindings": [
+        {
+          "gesture": "Alt+PageUp",
+          "platform": "all"
+        }
+      ]
+    },
+    {
+      "id": "input-monitor.ui.next-day",
+      "title": "Next period",
+      "context": "",
+      "allowInTextInput": false,
+      "bindings": [
+        {
+          "gesture": "Alt+PageDown",
+          "platform": "all"
+        }
+      ]
+    },
+    {
+      "id": "input-monitor.ui.today",
+      "title": "Today",
+      "context": "",
+      "allowInTextInput": false,
+      "bindings": [
+        {
+          "gesture": "Alt+Home",
+          "platform": "all"
+        }
+      ]
+    },
+    {
+      "id": "input-monitor.ui.rest",
+      "title": "Rest",
+      "context": "",
+      "allowInTextInput": false,
+      "bindings": []
+    },
+    {
+      "id": "input-monitor.ui.pause",
+      "title": "Pause",
+      "context": "",
+      "allowInTextInput": false,
+      "bindings": []
+    },
+    {
+      "id": "input-monitor.ui.capture-toggle",
+      "title": "Capture Toggle",
+      "context": "",
+      "allowInTextInput": false,
+      "bindings": []
+    }
+  ]
 }

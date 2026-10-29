@@ -3,27 +3,27 @@
   "Files": [
     {
       "Path": "commands.index.json",
-      "Sha256": "fbbadcf09597942fd0119f4ba084b5778afa866de6aba7de6deb3fbe10511da2"
+      "Sha256": "0625f3b271e7cb3e1f30a972e717b91135c4f863edd2a9cb6ef1e717a9974888"
     },
     {
       "Path": "InputMonitor.Core.dll",
-      "Sha256": "5d8ffff0774e4d20a9db521099ca61c90bff544be8209cc1291c027394feaee0"
+      "Sha256": "ae68b3d794d72a02ddfec33e51e999741bf3a2560e57125c3521bdb43d656e92"
     },
     {
       "Path": "InputMonitor.Core.pdb",
-      "Sha256": "d2b7f0db919bb6ecff01815590b040f3c9291e34644be5314178261192cf5a71"
+      "Sha256": "190c9e364b5c3aa5f44c68797221b075c256a4d1026916cff06bfc5b61215699"
     },
     {
       "Path": "InputMonitor.MyPowerTools.deps.json",
-      "Sha256": "b63695e2a47263118c9a925ba72e8751f0ebbc69b58ac9307d80bb26f1a4a913"
+      "Sha256": "4a389eb40c1794b7a227a67318faed26f03cee28c1947977813889546b5eb4c7"
     },
     {
       "Path": "InputMonitor.MyPowerTools.dll",
-      "Sha256": "8765cd6bb4051b2fd39e725e3e309dfaf3fd1980c0fe9fb47390c63a6805281c"
+      "Sha256": "be27b8fd08c097a43fe6504803f744ad6a8009c20a9550adcfa677662a133e81"
     },
     {
       "Path": "InputMonitor.MyPowerTools.pdb",
-      "Sha256": "789215e65a9eb7d67e3aa5684cdf2302625172fa646adef2e511a194eace3a3c"
+      "Sha256": "858abe0ae0bd1ff3b70325cd7730d21a1cfa08fb8aa838deee39fa1b4f956a7d"
     },
     {
       "Path": "Microsoft.Data.Sqlite.dll",
@@ -35,31 +35,27 @@
     },
     {
       "Path": "runtimes/win-arm64/native/e_sqlite3.dll",
-      "Sha256": "12f60e382478c7e666de26a020e532d302476c85da315c08aaedafec745f4107"
-    },
-    {
-      "Path": "runtimes/win-arm/native/e_sqlite3.dll",
-      "Sha256": "b49944bc69bc5bf7f013bf7c52ed554b66c8a7029dbe07ba7ec377af30bbb079"
+      "Sha256": "e3d17b136b58e9e3f768f97ddb406cff3595632126371ad97546be368603bff6"
     },
     {
       "Path": "runtimes/win-x64/native/e_sqlite3.dll",
-      "Sha256": "39923cfdad272169c217406a60214ffe9bd6c1b3bd396a3eff94b781bd8d3376"
+      "Sha256": "b082e8a72ad4ce908234eac970b09b7d328d16157cec34a3ebccfd9dfe2221c6"
     },
     {
       "Path": "runtimes/win-x86/native/e_sqlite3.dll",
-      "Sha256": "6e1ad918b7922918ba40df624138680a8dee76bc616bd5770d5d4c659714e975"
+      "Sha256": "329e6c6c5e7da09d0397a25073d556e9156e067dfc9279cdf4cc54da7d2566e0"
     },
     {
       "Path": "SQLitePCLRaw.batteries_v2.dll",
-      "Sha256": "0981b1e1e24ddf18e42d0f6cea7a318e735b875f987b3e306f555118726b24a7"
+      "Sha256": "29c9cf3060789066682ba5fbf81dea584563e6ab60b5d9861c73ba8b29ed1142"
     },
     {
       "Path": "SQLitePCLRaw.core.dll",
-      "Sha256": "dbcfd04e95aefa9ef0dcad4cd20009b018dd3d2943c8ccf3f40597b9ed9161b8"
+      "Sha256": "e60e22452ba79c306a59ecc01a97c29bafe69d9fa612f40253852ed450ad27e8"
     },
     {
       "Path": "SQLitePCLRaw.provider.e_sqlite3.dll",
-      "Sha256": "30dd6ae7899281f9b715ab9f8ceb1d67b6d4c8d76a21daaafc215955fcf37f0c"
+      "Sha256": "82238d46bca0ca8b2d57c3ec6fd6f0bcbd7a2dc2f7343a5377e0469112dba474"
     },
     {
       "Path": "ui/dashboard-card.json",
@@ -79,15 +75,15 @@
     },
     {
       "Path": "ui/surface/InputMonitor.Surface.deps.json",
-      "Sha256": "abb6992d8d33a79b6642fcfad0232e2c55c4105b90f7dbd7f45233db5708af2f"
+      "Sha256": "990d8d4ff5d24c356beef3baa5412be2c4e625692f356a273f88168282588fee"
     },
     {
       "Path": "ui/surface/InputMonitor.Surface.dll",
-      "Sha256": "f689fbcb4f8a40ee3edf172b926f1bb8fd3092d699be42cb25179012d87c1438"
+      "Sha256": "ef09d00e8082f6e0ea97213736c0821ec7960d707b2d91ecf3558550b9bc1f61"
     },
     {
       "Path": "ui/surface/InputMonitor.Surface.pdb",
-      "Sha256": "a9fe05a8dd7a88c097c3301f913ef1ad322efaeb556b9d161f35d356534f8150"
+      "Sha256": "18db997348fc1f25a8ea0faae8025aa314213c3ab081d621f6559f470b4df03c"
     },
     {
       "Path": "ui/surface/MyPowerTools.Abstractions.deps.json",
@@ -95,11 +91,11 @@
     },
     {
       "Path": "ui/surface/MyPowerTools.Abstractions.dll",
-      "Sha256": "ec5c559f6be062ff760a37434a4fd98a2bb4aa391ffafbcb763808cd8b1044d4"
+      "Sha256": "9ae80d2f827cbd851a0918698812dc1f3b2db727a6b8473567029c81f8ddeaa8"
     },
     {
       "Path": "ui/surface/MyPowerTools.Abstractions.pdb",
-      "Sha256": "8c14255e2bc7feee13c53c0b8adafde7e161f23cb2e28e4274b587c1f3840392"
+      "Sha256": "6adb6d23e62cf95a5a1d3fc04fff34f5d787edb10161238f2f9fde505a060df5"
     },
     {
       "Path": "ui/surface/MyPowerTools.AvaloniaSdk.deps.json",
@@ -107,15 +103,15 @@
     },
     {
       "Path": "ui/surface/MyPowerTools.AvaloniaSdk.dll",
-      "Sha256": "554ae3d2eb8f4cca85a5d4139c1ca0e21afe9f7a88091d6a1301507eeb06949a"
+      "Sha256": "88bc41e46a44fb0bfc650d75742057839cd8012cb0d7382fbb17180b83499769"
     },
     {
       "Path": "ui/surface/MyPowerTools.AvaloniaSdk.pdb",
-      "Sha256": "271889fc1338ca7362825483e455214556eb2db85570bd6b7ff76b3285608924"
+      "Sha256": "8139f94e749912c0003cbc1708b52d33ede16b99fa85d1cbc2e3836cf459e8c8"
     },
     {
       "Path": "ui/tool.json",
-      "Sha256": "e5f05e8333d2307af79c05bc1deb6d9ce814874c285f7a0d08204f9104023cee"
+      "Sha256": "9eb0b1798a6c2a2f50f738ca18b909ccc85f80da74ed725cdbdbde4b9731329e"
     }
   ]
 }
