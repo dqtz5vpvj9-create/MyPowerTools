@@ -932,6 +932,38 @@ public sealed partial class RuntimeAcceptanceTests
     }
 
     [Fact]
+    public async Task Inproc_shadow_copy_refreshes_when_only_a_dependency_changes()
+    {
+        var root = Path.Combine(Path.GetTempPath(), "mpt-inproc-shadow-dependency", Guid.NewGuid().ToString("N"));
+        var packageRoot = Path.Combine(root, "package");
+        var replacementRoot = Path.Combine(root, "replacement");
+        Directory.CreateDirectory(packageRoot);
+        Directory.CreateDirectory(replacementRoot);
+        await BuildGeneratedInProcPluginPackageAsync(packageRoot, "shadow.update", "shadow-update", "ShadowUpdatePlugin", "dependency-v1", "1.0.0.0");
+        await BuildGeneratedInProcPluginPackageAsync(replacementRoot, "shadow.update", "shadow-update", "ShadowUpdatePlugin", "dependency-v2", "1.0.0.0");
+
+        var reader = new PackageReader();
+        var context = CreateGeneratedPluginContext("shadow-update", "shadow.update");
+        await using var firstHost = new InProcDotNetModuleHost();
+        var first = await firstHost.LoadAsync(reader.ReadPackageDirectory(packageRoot).Modules.Single(), context, CancellationToken.None);
+        var before = await first.ExecuteCommandAsync(new CommandRequest("shadow-before", "shadow.update.dependency", new JsonObject()), CancellationToken.None);
+        var dependency = Path.Combine(packageRoot, "PluginSharedDependency.dll");
+        var previousTime = File.GetLastWriteTimeUtc(dependency);
+        File.Copy(Path.Combine(replacementRoot, "PluginSharedDependency.dll"), dependency, overwrite: true);
+        File.SetLastWriteTimeUtc(dependency, previousTime);
+
+        await using var secondHost = new InProcDotNetModuleHost();
+        var second = await secondHost.LoadAsync(reader.ReadPackageDirectory(packageRoot).Modules.Single(), context, CancellationToken.None);
+        var after = await second.ExecuteCommandAsync(new CommandRequest("shadow-after", "shadow.update.dependency", new JsonObject()), CancellationToken.None);
+
+        Assert.True(before.Success, before.Error?.Message);
+        Assert.True(after.Success, after.Error?.Message);
+        Assert.Contains("dependency-v1", before.Output);
+        Assert.Contains("dependency-v2", after.Output);
+        Assert.NotEqual(first.GetType().Assembly.Location, second.GetType().Assembly.Location);
+    }
+
+    [Fact]
     public void Abstractions_project_exposes_named_plugin_contracts()
     {
         var contracts = File.ReadAllText(Path.Combine(Root, "src/MyPowerTools.Abstractions/NamedPluginContracts.cs"));
