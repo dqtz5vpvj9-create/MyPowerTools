@@ -776,6 +776,22 @@ public sealed class RemoteNotificationsProductTests
     }
 
     [Fact]
+    public void Activation_resolves_persisted_messages_before_the_feed_refreshes()
+    {
+        var message = Message("new-toast", "[build] ready", DateTimeOffset.UtcNow);
+        var store = new FakeStore(new RemoteNotificationsSnapshot([message], ["build"], null, false));
+        var viewModel = new RemoteNotificationsViewModel(
+            new RemoteNotificationsSnapshot([], [], null, false), store: store);
+
+        Assert.Empty(viewModel.Messages);
+        Assert.Equal(message, viewModel.ResolveMessageForActivation(message.Id)?.Source);
+        Assert.Equal(message, viewModel.ResolveMessageForActivation(RemoteNotificationsLegacyStore.FallbackId(message))?.Source);
+        Assert.Null(viewModel.ResolveMessageForActivation("missing"));
+        Assert.Null(viewModel.ResolveMessageForActivation(""));
+        Assert.Null(viewModel.FindMessageById(message.Id));
+    }
+
+    [Fact]
     public async Task Sync_errors_use_a_compact_summary_with_expandable_technical_details_and_retry()
     {
         const string traceback = "Traceback (most recent call last):\n  File \"pull.py\", line 4\nHttpRequestException: Connection reset by peer";
