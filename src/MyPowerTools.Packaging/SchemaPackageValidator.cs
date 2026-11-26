@@ -55,28 +55,48 @@ public sealed class SchemaPackageValidator
             .ToArray();
     }
 
-    private IEnumerable<ValidationIssue> ValidateUiSurfaces(MptModuleDefinition module)
+    private IReadOnlyList<ValidationIssue> ValidateUiSurfaces(MptModuleDefinition module)
     {
+        var issues = new List<ValidationIssue>();
         foreach (var relativePath in module.Manifest.UiSurfaces)
         {
-            var surfacePath = Path.GetFullPath(Path.Combine(module.Directory, relativePath));
-            foreach (var issue in ValidateJson(surfacePath, "ui-surface.schema.json"))
+            string surfacePath;
+            try
             {
-                yield return issue;
+                surfacePath = PackagePath.Resolve(module.Directory, relativePath);
             }
+            catch (Exception ex) when (ex is InvalidOperationException or ArgumentException)
+            {
+                issues.Add(new ValidationIssue(relativePath, "error", ex.Message));
+                continue;
+            }
+
+            issues.AddRange(ValidateJson(surfacePath, "ui-surface.schema.json"));
         }
+
+        return issues;
     }
 
-    private IEnumerable<ValidationIssue> ValidateTools(MptModuleDefinition module)
+    private IReadOnlyList<ValidationIssue> ValidateTools(MptModuleDefinition module)
     {
+        var issues = new List<ValidationIssue>();
         foreach (var relativePath in module.Manifest.Tools)
         {
-            var toolPath = Path.GetFullPath(Path.Combine(module.Directory, relativePath));
-            foreach (var issue in ValidateJson(toolPath, "tool.schema.json"))
+            string toolPath;
+            try
             {
-                yield return issue;
+                toolPath = PackagePath.Resolve(module.Directory, relativePath);
             }
+            catch (Exception ex) when (ex is InvalidOperationException or ArgumentException)
+            {
+                issues.Add(new ValidationIssue(relativePath, "error", ex.Message));
+                continue;
+            }
+
+            issues.AddRange(ValidateJson(toolPath, "tool.schema.json"));
         }
+
+        return issues;
     }
 
     private IReadOnlyList<ValidationIssue> ValidateCommandIndexes(MptPackageDefinition package, MptModuleDefinition module)
@@ -138,7 +158,7 @@ public sealed class SchemaPackageValidator
             var relative = element.GetString();
             return string.IsNullOrWhiteSpace(relative)
                 ? null
-                : Path.GetFullPath(Path.Combine(package.Directory, relative));
+                : PackagePath.Resolve(package.Directory, relative);
         }
 
         var defaultPath = Path.Combine(module.Directory, "commands.index.json");
@@ -161,7 +181,7 @@ public sealed class SchemaPackageValidator
         try
         {
             var schema = GetSchema(schemaPath);
-            var document = JsonDocument.Parse(File.ReadAllText(instancePath));
+            using var document = JsonDocument.Parse(File.ReadAllText(instancePath));
 
             var result = schema.Evaluate(document.RootElement, new EvaluationOptions
             {

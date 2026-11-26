@@ -31,7 +31,16 @@ public sealed class UiSurfaceContractValidator
         {
             foreach (var surfacePath in module.Manifest.UiSurfaces)
             {
-                var fullPath = Path.GetFullPath(Path.Combine(module.Directory, surfacePath));
+                string fullPath;
+                try
+                {
+                    fullPath = PackagePath.Resolve(module.Directory, surfacePath);
+                }
+                catch (Exception ex) when (ex is InvalidOperationException or ArgumentException)
+                {
+                    issues.Add(new ValidationIssue(surfacePath, "error", ex.Message));
+                    continue;
+                }
                 if (!File.Exists(fullPath))
                 {
                     issues.Add(new ValidationIssue(fullPath, "error", "UI surface file does not exist."));

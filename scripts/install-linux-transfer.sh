@@ -32,10 +32,21 @@ if [[ ! -x "$dotnet_command" ]]; then
 fi
 command -v pwsh >/dev/null
 command -v python3 >/dev/null
-stage_directory="$(mktemp -d /mnt/cache/data-cache/mpt-linux-transfer-install.XXXXXX)"
+tmp_root="${TMPDIR:-/tmp}"
+mkdir -p "$tmp_root"
+stage_directory="$(mktemp -d "${tmp_root%/}/mpt-linux-transfer-install.XXXXXX")"
 trap 'rm -rf -- "${stage_directory:?}"' EXIT
 
-export TMPDIR=/mnt/cache/data-cache
+sdk_nuget_dir="$repo_root/artifacts/sdk/nuget"
+if ! compgen -G "$sdk_nuget_dir/MyPowerTools.*.nupkg" >/dev/null 2>&1; then
+  mkdir -p "$sdk_nuget_dir"
+  "$dotnet_command" msbuild "$repo_root/scripts/focused-test-sdk.proj" \
+    -restore -target:Pack -maxCpuCount \
+    "-property:Configuration=$configuration" \
+    "-property:PackageOutputPath=$sdk_nuget_dir" \
+    "-property:FocusedSdkOutputList=$stage_directory/sdk-outputs.txt"
+fi
+
 "$dotnet_command" publish "$repo_root/src/MyPowerTools.Runner/MyPowerTools.Runner.csproj" -c "$configuration" --self-contained false -p:NuGetAudit=false -o "$stage_directory/Runner"
 "$dotnet_command" publish "$repo_root/src/MyPowerTools.Cli/MyPowerTools.Cli.csproj" -c "$configuration" --self-contained false -p:NuGetAudit=false -o "$stage_directory/CLI"
 pwsh -NoLogo -NoProfile -NonInteractive -File "$repo_root/tools/file-transfer/build.ps1" -Configuration "$configuration" -NoMirror

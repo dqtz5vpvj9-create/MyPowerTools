@@ -358,8 +358,11 @@ public sealed class RuntimePackagingAuditTests : IDisposable
         var trust = new PackageTrustVerifier();
         trust.WriteLocalSignatureHook(package);
         trust.WriteLocalSignatureHook(package);
-        var report = trust.Verify(package, PackageTrustPolicy.StrictSigned);
-        Assert.True(report.IsTrusted, string.Join(Environment.NewLine, report.Issues.Select(issue => issue.Message)));
+        var localReport = trust.Verify(package, PackageTrustPolicy.LocalDevelopment);
+        Assert.True(localReport.IsTrusted, string.Join(Environment.NewLine, localReport.Issues.Select(issue => issue.Message)));
+        var strictReport = trust.Verify(package, PackageTrustPolicy.StrictSigned);
+        Assert.False(strictReport.IsTrusted);
+        Assert.Contains(strictReport.Issues, issue => issue.Severity == "error" && issue.Message.Contains("unsigned-local-trust", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -383,7 +386,16 @@ public sealed class RuntimePackagingAuditTests : IDisposable
         var trust = new PackageTrustVerifier();
         trust.WriteLocalSignatureHook(package);
         trust.WriteLocalSignatureHook(package);
-        Assert.True(trust.Verify(package, PackageTrustPolicy.StrictSigned).IsTrusted);
+        Assert.True(trust.Verify(package, PackageTrustPolicy.LocalDevelopment).IsTrusted);
+        Assert.False(trust.Verify(package, PackageTrustPolicy.StrictSigned).IsTrusted);
+
+        var injectedPath = Path.Combine(package, "nested", "injected.dll");
+        File.WriteAllText(injectedPath, "unlisted payload");
+        var injectedReport = trust.Verify(package, PackageTrustPolicy.LocalDevelopment);
+        Assert.False(injectedReport.IsTrusted);
+        Assert.Contains(injectedReport.Issues, issue => issue.Severity == "error" && issue.Message.Contains("Unlisted file", StringComparison.OrdinalIgnoreCase));
+        File.Delete(injectedPath);
+
         File.WriteAllText(Path.Combine(package, "nested", "payload.txt"), "tampered");
         Assert.False(trust.Verify(package).IsTrusted);
     }

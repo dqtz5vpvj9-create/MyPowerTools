@@ -191,9 +191,11 @@ internal static class MacOtaCommand
                     return false;
                 }
 
-                ditto.StandardOutput.ReadToEnd();
-                var dittoError = ditto.StandardError.ReadToEnd();
+                var standardOutputTask = ditto.StandardOutput.ReadToEndAsync();
+                var standardErrorTask = ditto.StandardError.ReadToEndAsync();
                 ditto.WaitForExit();
+                _ = standardOutputTask.GetAwaiter().GetResult();
+                var dittoError = standardErrorTask.GetAwaiter().GetResult();
                 if (ditto.ExitCode != 0)
                 {
                     WriteError($"无法准备独立更新进程（{dittoError.Trim()}），改为直接更新。");

@@ -508,7 +508,9 @@ function Request-RunnerShutdown {
     # A supervised Runner must be explicitly stopped before swapping binaries;
     # otherwise ServiceManager treats a direct process shutdown as a crash.
     $runnerUnit = Join-Path $dataRootFull 'ServiceManager\units\mpt-runner.service.json'
-    if (Test-Path -LiteralPath $runnerUnit) {
+    $serviceManagerRunning = @(Get-ProductProcessRecords -Name @('MyPowerTools.ServiceManager') |
+        Where-Object Managed).Count -gt 0
+    if ((Test-Path -LiteralPath $runnerUnit) -and $serviceManagerRunning) {
         $cli = Join-Path $canonicalInstallRoot 'Cli\MyPowerTools.Cli.exe'
         $stopInfo = [Diagnostics.ProcessStartInfo]::new()
         $stopInfo.FileName = $cli
@@ -521,7 +523,14 @@ function Request-RunnerShutdown {
         $stop = [Diagnostics.Process]::Start($stopInfo)
         try {
             if (-not $stop.WaitForExit(30000)) { throw 'Supervised Runner stop timed out.' }
-            if ($stop.ExitCode -ne 0) { throw 'ServiceManager failed to stop the supervised Runner.' }
+            if ($stop.ExitCode -ne 0) {
+                $stillRunning = @(Get-ProductProcessRecords -Name @('MyPowerTools.ServiceManager') |
+                    Where-Object Managed).Count -gt 0
+                if ($stillRunning) {
+                    throw 'ServiceManager failed to stop the supervised Runner.'
+                }
+                Write-Warning 'ServiceManager is no longer running; continuing with direct Runner shutdown check.'
+            }
         } finally { $stop.Dispose() }
     }
     $runnerRecords = @(Get-ProductProcessRecords -Name @('MyPowerTools.Runner') |
@@ -1285,7 +1294,7 @@ foreach ($requestedToolId in (Get-OrderedToolIds -RequestedToolIds (Expand-ToolI
 }
 
 $plannedRelativePaths = switch ($Scope) {
-    'Core' { @('Shell', 'Runner', 'Broker', 'ServiceManager') }
+    'Core' { @('Shell', 'Runner', 'Broker', 'InputRemap', 'ServiceManager') }
     'Shell' { @('Shell') }
     default { @($ToolId | ForEach-Object { "modules\<package from $_>" }) }
 }
@@ -1314,13 +1323,13 @@ $plan = [ordered]@{
     activeProcesses = $activeProcesses
     preservedInstalledLayout = @(
         'MyPowerTools.exe',
-        'Broker',
+        $(if ($Scope -ne 'Core') { @('Broker', 'InputRemap', 'ServiceManager') }),
         'Cli',
         'modules not selected by Scope Tools',
         'Runtimes',
         'schemas',
         'service-units not selected by Scope Tools',
-        'Tools')
+        'Tools') | Where-Object { -not [string]::IsNullOrWhiteSpace($_) }
     excludedReleaseWork = @(
         'all-tool rebuild',
         'ReadyToRun',
@@ -1529,6 +1538,23 @@ try {
             }
         }
         $stagedComponents = $dedupedComponents
+    }
+
+    # Re-sign staged tool packages after Add-ToolSurfaceToPackage copies surface DLLs so
+    # package.hashes.json and package.signature.json include the newly staged surface files.
+    $installedCli = Join-Path $canonicalInstallRoot 'Cli\MyPowerTools.Cli.exe'
+    $cliProject = Join-Path $repositoryRoot 'src\MyPowerTools.Cli\MyPowerTools.Cli.csproj'
+    foreach ($component in @($stagedComponents | Where-Object { $_.Kind -eq 'tool-package' })) {
+        if (Test-Path -LiteralPath $installedCli -PathType Leaf) {
+            Invoke-Native -FilePath $installedCli `
+                -ArgumentList @('package', 'sign-local', $component.Source) `
+                -Activity "Re-signing staged tool package $($component.PackageId)"
+        }
+        else {
+            Invoke-Native -FilePath $dotnetCommand.Source `
+                -ArgumentList @('run', '--project', $cliProject, '--', 'package', 'sign-local', $component.Source) `
+                -Activity "Re-signing staged tool package $($component.PackageId)"
+        }
     }
 
     if ($Scope -eq 'Tools') {

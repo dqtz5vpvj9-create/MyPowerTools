@@ -144,9 +144,23 @@ public sealed class ModuleContractValidator
     private IReadOnlyList<MptUiSurfaceManifest> ReadSurfaces(MptPackageDefinition package, MptModuleDefinition module, List<ValidationIssue> issues)
     {
         var surfaces = new List<MptUiSurfaceManifest>();
+        var packageRoot = Path.GetFullPath(package.Directory);
+        var packagePrefix = Path.EndsInDirectorySeparator(packageRoot)
+            ? packageRoot
+            : packageRoot + Path.DirectorySeparatorChar;
+        var pathComparison = OperatingSystem.IsWindows()
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
+
         foreach (var relativePath in module.Manifest.UiSurfaces)
         {
             var path = Path.GetFullPath(Path.Combine(module.Directory, relativePath));
+            if (!path.StartsWith(packagePrefix, pathComparison))
+            {
+                issues.Add(new ValidationIssue(path, "error", "UI surface path escapes package directory."));
+                continue;
+            }
+
             if (!File.Exists(path))
             {
                 issues.Add(new ValidationIssue(path, "error", "UI surface file does not exist."));
@@ -159,11 +173,6 @@ public sealed class ModuleContractValidator
                 if (!string.Equals(surface.ModuleId, module.Manifest.Id, StringComparison.OrdinalIgnoreCase))
                 {
                     issues.Add(new ValidationIssue(path, "error", $"UI surface moduleId '{surface.ModuleId}' does not match '{module.Manifest.Id}'."));
-                }
-
-                if (!path.StartsWith(package.Directory, StringComparison.OrdinalIgnoreCase))
-                {
-                    issues.Add(new ValidationIssue(path, "error", "UI surface path escapes package directory."));
                 }
 
                 surfaces.Add(surface);

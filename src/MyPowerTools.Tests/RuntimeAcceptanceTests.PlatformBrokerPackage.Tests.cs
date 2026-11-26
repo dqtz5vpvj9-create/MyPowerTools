@@ -259,6 +259,7 @@ public sealed partial class RuntimeAcceptanceTests
         var local = trust.Verify(packageCopy, PackageTrustPolicy.LocalDevelopment);
         var strictBefore = trust.Verify(packageCopy, PackageTrustPolicy.StrictSigned);
         var signaturePath = trust.WriteLocalSignatureHook(packageCopy);
+        var localAfter = trust.Verify(packageCopy, PackageTrustPolicy.LocalDevelopment);
         var strictAfter = trust.Verify(packageCopy, PackageTrustPolicy.StrictSigned);
 
         Assert.True(local.IsTrusted, string.Join(Environment.NewLine, local.Issues.Select(issue => issue.Message)));
@@ -266,8 +267,11 @@ public sealed partial class RuntimeAcceptanceTests
         Assert.False(strictBefore.IsTrusted);
         Assert.Contains(strictBefore.Issues, issue => issue.Severity == "error" && issue.Message.Contains("signature hook", StringComparison.OrdinalIgnoreCase));
         Assert.True(File.Exists(signaturePath));
-        Assert.True(strictAfter.IsTrusted, string.Join(Environment.NewLine, strictAfter.Issues.Select(issue => issue.Message)));
-        Assert.Equal("signature-hook", strictAfter.State);
+        Assert.True(localAfter.IsTrusted, string.Join(Environment.NewLine, localAfter.Issues.Select(issue => issue.Message)));
+        Assert.Equal("signature-hook", localAfter.State);
+        Assert.False(strictAfter.IsTrusted);
+        Assert.Equal("unsigned-local-trust", strictAfter.State);
+        Assert.Contains(strictAfter.Issues, issue => issue.Severity == "error" && issue.Message.Contains("unsigned-local-trust", StringComparison.OrdinalIgnoreCase));
     }
 
     [Fact]
@@ -316,6 +320,10 @@ public sealed partial class RuntimeAcceptanceTests
         Assert.True(rollback.Success, string.Join(Environment.NewLine, rollback.Issues.Select(issue => issue.Message)));
         Assert.True(Directory.Exists(rollback.TargetPath));
         Assert.True(File.Exists(markerPath));
+        Assert.Contains(
+            store.Repair("sample-dotnet"),
+            issue => issue.Severity == "error" && issue.Message.Contains("Unlisted file", StringComparison.OrdinalIgnoreCase));
+        File.Delete(markerPath);
         Assert.Empty(store.Repair("sample-dotnet"));
     }
 
