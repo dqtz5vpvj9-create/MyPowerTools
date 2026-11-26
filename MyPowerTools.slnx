@@ -32,6 +32,7 @@
     <Project Path="src/MyPowerTools.ServiceManager.Client/MyPowerTools.ServiceManager.Client.csproj" />
     <Project Path="src/MyPowerTools.ServiceManager.Server/MyPowerTools.ServiceManager.Server.csproj" />
     <Project Path="src/MyPowerTools.Shell.Avalonia/MyPowerTools.Shell.Avalonia.csproj" />
+    <Project Path="src/MyPowerTools.StandaloneHost/MyPowerTools.StandaloneHost.csproj" />
     <Project Path="src/MyPowerTools.TransferMcp/MyPowerTools.TransferMcp.csproj" />
     <Project Path="src/MyPowerTools.Tests/MyPowerTools.Tests.csproj" />
     <Project Path="src/MyPowerTools.UI/MyPowerTools.UI.csproj" />
@@ -88,6 +89,7 @@
   <Folder Name="/tests/">
     <Project Path="tests/AndroidFileOpen.Tests/AndroidFileOpen.Tests.csproj" />
     <Project Path="tests/FileTransfer.Surface.Tests/FileTransfer.Surface.Tests.csproj" />
+    <Project Path="src/MyPowerTools.StandaloneHost.Tests/MyPowerTools.StandaloneHost.Tests.csproj" />
     <Project Path="src/MyPowerTools.MobileNotifications/tests/MyPowerTools.MobileNotifications.Tests.csproj" />
     <Project Path="tools/remote-tool-gateway/android-integration/tests/MobileToolControl.Integration.Tests/MyPowerTools.MobileToolControl.Integration.Tests.csproj" />
     <Project Path="tests/MobileTheme.Tests/MobileTheme.Tests.csproj" />

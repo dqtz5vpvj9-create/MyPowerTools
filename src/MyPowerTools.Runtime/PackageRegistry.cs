@@ -22,8 +22,24 @@ public sealed class PackageRegistry
     public void Load(string packageRoot, IEnumerable<string>? developmentToolRoots = null)
     {
         var loaded = new List<RuntimeModuleRecord>();
-        var packages = _reader.DiscoverPackages(packageRoot)
-            .Concat(_reader.DiscoverDevelopmentTools(developmentToolRoots ?? []));
+        var devRoots = (developmentToolRoots ?? []).ToArray();
+        var installedPackages = _reader.DiscoverPackages(packageRoot);
+        var installedModuleIds = installedPackages
+            .SelectMany(pkg => pkg.Modules)
+            .Select(mod => mod.Manifest.Id)
+            .ToHashSet(StringComparer.OrdinalIgnoreCase);
+
+        var standalonePackages = StandalonePackageNormalizer.DiscoverStandalonePackages(
+            _reader,
+            devRoots,
+            installedModuleIds);
+
+        var discoveredDevTools = _reader.DiscoverDevelopmentTools(devRoots)
+            .Select(StandalonePackageNormalizer.NormalizeDevelopmentPackage);
+
+        var packages = installedPackages
+            .Concat(standalonePackages)
+            .Concat(discoveredDevTools);
 
         foreach (var package in packages)
         {
