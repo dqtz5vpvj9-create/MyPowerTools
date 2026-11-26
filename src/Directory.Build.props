@@ -22,7 +22,6 @@
          then environment variables (such as per-user DOTNET_ROOT), and finally the
          registered machine-wide .NET installation. Projects installed at a different
          depth override AppHostRelativeDotNet locally. -->
-    <AppHostDotNetSearch Condition="$([System.String]::Copy('$(RuntimeIdentifier)').StartsWith('win-'))">AppRelative;EnvironmentVariable;Global</AppHostDotNetSearch>
     <AppHostRelativeDotNet Condition="$([System.String]::Copy('$(RuntimeIdentifier)').StartsWith('win-'))">..\Runtime\dotnet</AppHostRelativeDotNet>
   </PropertyGroup>
 </Project>

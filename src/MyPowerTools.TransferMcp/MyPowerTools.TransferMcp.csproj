@@ -4,7 +4,6 @@
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <ServerGarbageCollection>false</ServerGarbageCollection>
-    <AppHostDotNetSearch Condition="'$(SelfContained)' == 'true'">AppLocal</AppHostDotNetSearch>
   </PropertyGroup>
   <ItemGroup>
     <PackageReference Include="ModelContextProtocol.AspNetCore" Version="1.4.1" />
