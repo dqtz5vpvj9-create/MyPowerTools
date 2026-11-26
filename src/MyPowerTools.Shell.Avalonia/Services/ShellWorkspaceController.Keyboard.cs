@@ -102,8 +102,13 @@ public sealed partial class ShellWorkspaceController
         finally { _runningShortcutActions.Remove(id); }
     }
 
-    private async Task RefreshShortcutCatalogAsync()
+    internal async Task RefreshShortcutCatalogAsync()
     {
+        if (IsDisposed)
+        {
+            return;
+        }
+
         try
         {
             using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(4));

@@ -25,7 +25,7 @@ public sealed class HostControlRunnerConnectionProbe : IHostControlConnectionPro
     public async Task<HostControlConnectionProbeResult> PingAsync(CancellationToken cancellationToken)
     {
         using var client = HostControlClient.ForDefaultEndpoint();
-        var ping = await client.PingAsync(cancellationToken);
+        var ping = await client.PingAsync(cancellationToken).ConfigureAwait(false);
         return new HostControlConnectionProbeResult(ping.RunnerVersion, ping.State);
     }
 }
@@ -50,7 +50,10 @@ public sealed class HostControlConnectionMonitor : IAsyncDisposable
     private Task? _loop;
     private int _consecutiveFailures;
     private bool _wasOnline;
+    private bool _hasReportedState;
     private DateTimeOffset _lastRestartAttempt;
+    private int _disposed;
+    private int _checkGateUsers = 1;
 
     public HostControlConnectionMonitor(
         IHostControlConnectionProbe probe,
@@ -61,7 +64,9 @@ public sealed class HostControlConnectionMonitor : IAsyncDisposable
         _probe = probe;
         _pollInterval = pollInterval ?? TimeSpan.FromSeconds(5);
         _attemptTimeout = attemptTimeout ?? TimeSpan.FromSeconds(2);
-        _eventDriven = eventDriven ?? (OperatingSystem.IsMacOS() || OperatingSystem.IsAndroid());
+        // Default to event-driven mode across all platforms so a healthy connection relies on
+        // the persistent host event stream instead of polling gRPC every 5 seconds.
+        _eventDriven = eventDriven ?? true;
         LastSnapshot = new HostControlConnectionSnapshot(
             false,
             "unknown",
@@ -91,13 +96,15 @@ public sealed class HostControlConnectionMonitor : IAsyncDisposable
     {
         lock (_stateGate)
         {
-            if (_loop is not null)
+            if (Volatile.Read(ref _disposed) != 0 || _loop is not null)
             {
                 return;
             }
 
             _stop = new CancellationTokenSource();
-            _loop = RunAsync(_stop.Token);
+            var stopToken = _stop.Token;
+            // Run off the UI SynchronizationContext so probe continuations never contend with Avalonia input.
+            _loop = Task.Run(() => RunAsync(stopToken), stopToken);
         }
     }
 
@@ -108,18 +115,28 @@ public sealed class HostControlConnectionMonitor : IAsyncDisposable
 
     public async Task<HostControlConnectionSnapshot> CheckOnceAsync(bool notify, CancellationToken cancellationToken = default)
     {
-        await _checkGate.WaitAsync(cancellationToken);
+        if (!TryAcquireCheckGateRef())
+        {
+            return LastSnapshot;
+        }
+
+        var acquired = false;
         try
         {
+            await _checkGate.WaitAsync(cancellationToken).ConfigureAwait(false);
+            acquired = true;
+
             using var attempt = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
             attempt.CancelAfter(_attemptTimeout);
 
             HostControlConnectionSnapshot snapshot;
+            bool shouldNotify;
             try
             {
-                var result = await _probe.PingAsync(attempt.Token);
+                var result = await _probe.PingAsync(attempt.Token).ConfigureAwait(false);
                 lock (_stateGate)
                 {
+                    var previous = LastSnapshot;
                     var recovered = !_wasOnline && _consecutiveFailures > 0;
                     _consecutiveFailures = 0;
                     _wasOnline = true;
@@ -132,6 +149,11 @@ public sealed class HostControlConnectionMonitor : IAsyncDisposable
                         recovered,
                         DateTimeOffset.UtcNow);
                     LastSnapshot = snapshot;
+                    shouldNotify = notify && HasStateChanged(previous, snapshot, _hasReportedState);
+                    if (shouldNotify)
+                    {
+                        _hasReportedState = true;
+                    }
                 }
             }
             catch (Exception ex) when (!cancellationToken.IsCancellationRequested)
@@ -139,6 +161,7 @@ public sealed class HostControlConnectionMonitor : IAsyncDisposable
                 var shouldRestart = false;
                 lock (_stateGate)
                 {
+                    var previous = LastSnapshot;
                     _consecutiveFailures++;
                     _wasOnline = false;
                     snapshot = new HostControlConnectionSnapshot(
@@ -150,6 +173,11 @@ public sealed class HostControlConnectionMonitor : IAsyncDisposable
                         false,
                         DateTimeOffset.UtcNow);
                     LastSnapshot = snapshot;
+                    shouldNotify = notify && HasStateChanged(previous, snapshot, _hasReportedState);
+                    if (shouldNotify)
+                    {
+                        _hasReportedState = true;
+                    }
 
                     if (_consecutiveFailures >= RestartThreshold && RestartRunner is not null)
                     {
@@ -169,14 +197,14 @@ public sealed class HostControlConnectionMonitor : IAsyncDisposable
                     {
                         _ = Task.Run(async () =>
                         {
-                            try { await restart(); }
+                            try { await restart().ConfigureAwait(false); }
                             catch { /* best-effort restart */ }
                         });
                     }
                 }
             }
 
-            if (notify)
+            if (shouldNotify)
             {
                 StateChanged?.Invoke(this, snapshot);
             }
@@ -185,12 +213,22 @@ public sealed class HostControlConnectionMonitor : IAsyncDisposable
         }
         finally
         {
-            _checkGate.Release();
+            if (acquired)
+            {
+                _checkGate.Release();
+            }
+
+            ReleaseCheckGateRef();
         }
     }
 
     public async ValueTask DisposeAsync()
     {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
+        {
+            return;
+        }
+
         CancellationTokenSource? stop;
         Task? loop;
         lock (_stateGate)
@@ -201,24 +239,24 @@ public sealed class HostControlConnectionMonitor : IAsyncDisposable
             _loop = null;
         }
 
-        if (stop is null)
+        if (stop is not null)
         {
-            return;
+            await stop.CancelAsync().ConfigureAwait(false);
+            if (loop is not null)
+            {
+                try
+                {
+                    await loop.ConfigureAwait(false);
+                }
+                catch (OperationCanceledException)
+                {
+                }
+            }
+
+            stop.Dispose();
         }
 
-        await stop.CancelAsync();
-        if (loop is not null)
-        {
-            try
-            {
-                await loop;
-            }
-            catch (OperationCanceledException)
-            {
-            }
-        }
-
-        stop.Dispose();
+        ReleaseCheckGateRef();
     }
 
     private async Task RunAsync(CancellationToken cancellationToken)
@@ -227,24 +265,84 @@ public sealed class HostControlConnectionMonitor : IAsyncDisposable
         {
             while (!cancellationToken.IsCancellationRequested)
             {
-                var snapshot = await CheckOnceAsync(notify: true, cancellationToken);
+                var snapshot = await CheckOnceAsync(notify: true, cancellationToken).ConfigureAwait(false);
                 using var wait = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
                 // Healthy connections have no timer; offline recovery retains a
                 // bounded retry even if no further stream fault arrives.
-                if (!snapshot.Online) wait.CancelAfter(_pollInterval);
-                try { await _checkRequests.Reader.WaitToReadAsync(wait.Token); }
-                catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested) { }
-                while (_checkRequests.Reader.TryRead(out _)) { }
+                if (!snapshot.Online)
+                {
+                    wait.CancelAfter(_pollInterval);
+                }
+
+                try
+                {
+                    await _checkRequests.Reader.WaitToReadAsync(wait.Token).ConfigureAwait(false);
+                }
+                catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
+                {
+                }
+
+                while (_checkRequests.Reader.TryRead(out _))
+                {
+                }
             }
+
             return;
         }
 
-        await CheckOnceAsync(notify: true, cancellationToken);
+        await CheckOnceAsync(notify: true, cancellationToken).ConfigureAwait(false);
         using var timer = new PeriodicTimer(_pollInterval);
-        while (await timer.WaitForNextTickAsync(cancellationToken))
+        while (await timer.WaitForNextTickAsync(cancellationToken).ConfigureAwait(false))
         {
-            await CheckOnceAsync(notify: true, cancellationToken);
+            await CheckOnceAsync(notify: true, cancellationToken).ConfigureAwait(false);
         }
+    }
+
+    private bool TryAcquireCheckGateRef()
+    {
+        while (true)
+        {
+            var current = Volatile.Read(ref _checkGateUsers);
+            if (current <= 0)
+            {
+                return false;
+            }
+
+            if (Interlocked.CompareExchange(ref _checkGateUsers, current + 1, current) == current)
+            {
+                return true;
+            }
+        }
+    }
+
+    private void ReleaseCheckGateRef()
+    {
+        if (Interlocked.Decrement(ref _checkGateUsers) == 0)
+        {
+            _checkGate.Dispose();
+        }
+    }
+
+    private static bool HasStateChanged(
+        HostControlConnectionSnapshot previous,
+        HostControlConnectionSnapshot current,
+        bool hasReportedState)
+    {
+        if (!hasReportedState)
+        {
+            return true;
+        }
+
+        if (previous.Online != current.Online ||
+            current.Recovered ||
+            !string.Equals(previous.State, current.State, StringComparison.Ordinal) ||
+            !string.Equals(previous.RunnerVersion, current.RunnerVersion, StringComparison.Ordinal))
+        {
+            return true;
+        }
+
+        return !current.Online &&
+               !string.Equals(previous.Message, current.Message, StringComparison.Ordinal);
     }
 
     private static string FriendlyMessage(Exception ex)

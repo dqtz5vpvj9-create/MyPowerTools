@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Collections.ObjectModel;
 using System.Windows.Input;
 using MyPowerTools.Shell.Avalonia.Services.Mobile;
@@ -370,9 +371,10 @@ public sealed class MobileDevicesViewModel : ObservableViewModel
 }
 
 /// <summary>设备详情 page: the real peer record plus the actions the device service really offers.</summary>
-public sealed class MobileDeviceDetailViewModel : ObservableViewModel
+public sealed class MobileDeviceDetailViewModel : ObservableViewModel, IDisposable
 {
     private readonly MobilePeerItemViewModel _peer;
+    private int _disposed;
 
     public MobileDeviceDetailViewModel(MobilePeerItemViewModel peer, IMobileNavigator navigator)
     {
@@ -383,18 +385,30 @@ public sealed class MobileDeviceDetailViewModel : ObservableViewModel
             operationName: "Open file transfer");
         CheckCommand = peer.CheckCommand;
         ShowActionsCommand = peer.ShowActionsCommand;
-        _peer.PropertyChanged += (_, args) =>
+        _peer.PropertyChanged += OnPeerPropertyChanged;
+    }
+
+    public void Dispose()
+    {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
         {
-            if (args.PropertyName is nameof(MobilePeerItemViewModel.StateLabel)
-                or nameof(MobilePeerItemViewModel.StateDetail)
-                or nameof(MobilePeerItemViewModel.IsOnline)
-                or nameof(MobilePeerItemViewModel.IsUnknown)
-                or nameof(MobilePeerItemViewModel.IsOffline)
-                or nameof(MobilePeerItemViewModel.CapabilityLabel))
-            {
-                OnPropertyChanged(args.PropertyName);
-            }
-        };
+            return;
+        }
+
+        _peer.PropertyChanged -= OnPeerPropertyChanged;
+    }
+
+    private void OnPeerPropertyChanged(object? sender, PropertyChangedEventArgs args)
+    {
+        if (args.PropertyName is nameof(MobilePeerItemViewModel.StateLabel)
+            or nameof(MobilePeerItemViewModel.StateDetail)
+            or nameof(MobilePeerItemViewModel.IsOnline)
+            or nameof(MobilePeerItemViewModel.IsUnknown)
+            or nameof(MobilePeerItemViewModel.IsOffline)
+            or nameof(MobilePeerItemViewModel.CapabilityLabel))
+        {
+            OnPropertyChanged(args.PropertyName);
+        }
     }
 
     public IMobileNavigator Navigator { get; }

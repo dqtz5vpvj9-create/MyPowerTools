@@ -6,7 +6,7 @@ namespace MyPowerTools.Shell.Avalonia.ViewModels.Mobile;
 /// Navigation state of the phone shell: four一级入口, a real back stack, the single bottom sheet and
 /// the borrowed workspace tool surface. The shell view renders whatever this model says is current.
 /// </summary>
-public sealed class MobileShellViewModel : ObservableViewModel
+public sealed class MobileShellViewModel : ObservableViewModel, IDisposable
 {
     private readonly List<(string PageKey, string? Argument)> _backStack = [];
     private string _currentPageKey = MobilePageKeys.Home;
@@ -165,14 +165,32 @@ public sealed class MobileShellViewModel : ObservableViewModel
 
     public void SetToolDetail(MobileToolDetailViewModel? detail)
     {
+        var previous = ToolDetail;
         ToolDetail = detail;
+        if (!ReferenceEquals(previous, detail))
+        {
+            previous?.Dispose();
+        }
+
         OnPropertyChanged(nameof(ToolDetail));
     }
 
     public void SetDeviceDetail(MobileDeviceDetailViewModel? detail)
     {
+        var previous = DeviceDetail;
         DeviceDetail = detail;
+        if (!ReferenceEquals(previous, detail))
+        {
+            previous?.Dispose();
+        }
+
         OnPropertyChanged(nameof(DeviceDetail));
+    }
+
+    public void Dispose()
+    {
+        SetToolDetail(null);
+        SetDeviceDetail(null);
     }
 
     public void OpenSheet(string sheetKey, string? argument)

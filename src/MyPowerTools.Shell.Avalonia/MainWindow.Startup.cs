@@ -43,7 +43,7 @@ public sealed partial class MainWindow
         {
             try
             {
-                await OpenInitialWorkspaceAsync(workspace, cachedSnapshot.Tools);
+                await OpenInitialWorkspaceAsync(workspace, cachedSnapshot.Tools, deferShortcutCatalog: true);
             }
             finally
             {
@@ -92,9 +92,10 @@ public sealed partial class MainWindow
 
     private async Task OpenInitialWorkspaceAsync(
         ShellWorkspaceController workspace,
-        IReadOnlyList<MyPowerTools.Protocol.HostControl.V1.ToolDescriptor>? startupTools)
+        IReadOnlyList<MyPowerTools.Protocol.HostControl.V1.ToolDescriptor>? startupTools,
+        bool deferShortcutCatalog = false)
     {
-        await workspace.OpenAsync(startupTools);
+        await workspace.OpenAsync(startupTools, deferShortcutCatalog);
         (Application.Current as App)?.ScheduleDeferredStyles();
     }
 
@@ -104,6 +105,7 @@ public sealed partial class MainWindow
         {
             (Application.Current as App)?.EnsureDeferredStyles();
             await WaitForRunnerAsync();
+            _ = workspace.RefreshShortcutCatalogAsync();
             var request = Interlocked.Exchange(ref _startupActivation, null);
             if (request?.ToolActivation is not null)
             {
@@ -123,6 +125,7 @@ public sealed partial class MainWindow
         {
             (Application.Current as App)?.EnsureDeferredStyles();
             await WaitForRunnerAsync();
+            _ = workspace.RefreshShortcutCatalogAsync();
             await workspace.FocusCommandPaletteAsync();
         }
         finally
@@ -159,6 +162,8 @@ public sealed partial class MainWindow
             ShellStartupDiagnostics.Mark("home-live-failed");
             return;
         }
+
+        _ = workspace.RefreshShortcutCatalogAsync();
 
         IReadOnlyList<MyPowerTools.Protocol.HostControl.V1.ToolDescriptor> liveTools;
         try

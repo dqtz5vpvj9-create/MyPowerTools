@@ -4,10 +4,9 @@ using SM = MyPowerTools.Protocol.ServiceManager.V1;
 namespace MyPowerTools.Shell.Avalonia;
 
 /// <summary>
-/// Subscribes to the ServiceManager's <c>SubscribeUnitEvents</c> stream so the unified Services
-/// page and tool Surfaces update reactively when a unit changes state — no polling, no manual
-/// refresh. Mirrors <see cref="HostControlEventStreamMonitor"/>: a self-reconnecting loop that
-/// dedupes by <c>seq</c> and advances the cursor across reconnects.
+/// Long-lived subscriber for ServiceManager unit events. Keeps <see cref="LastEventSeq"/>
+/// across transient disconnects and replays from the last seen sequence number when reconnecting.
+/// Mirrors <see cref="HostControlEventStreamMonitor"/>.
 /// </summary>
 public interface IServiceUnitEventSource
 {
@@ -21,7 +20,7 @@ public sealed class ServiceManagerUnitEventSource : IServiceUnitEventSource
         [System.Runtime.CompilerServices.EnumeratorCancellation] CancellationToken cancellationToken)
     {
         using var client = ServiceManagerAdminClient.ForDefaultEndpoint();
-        await foreach (var evt in client.SubscribeUnitEventsAsync(lastEventSeq, cancellationToken: cancellationToken))
+        await foreach (var evt in client.SubscribeUnitEventsAsync(lastEventSeq, cancellationToken: cancellationToken).ConfigureAwait(false))
         {
             yield return evt;
         }
@@ -30,6 +29,8 @@ public sealed class ServiceManagerUnitEventSource : IServiceUnitEventSource
 
 public sealed class ServiceUnitEventStreamMonitor : IAsyncDisposable
 {
+    private static readonly TimeSpan MaxReconnectDelay = TimeSpan.FromSeconds(30);
+
     private readonly IServiceUnitEventSource _source;
     private readonly TimeSpan _reconnectDelay;
     private readonly object _gate = new();
@@ -66,7 +67,9 @@ public sealed class ServiceUnitEventStreamMonitor : IAsyncDisposable
 
             LastEventSeq = lastEventSeq;
             _stop = new CancellationTokenSource();
-            _loop = RunAsync(_stop.Token);
+            var stopToken = _stop.Token;
+            // Run on the thread pool so continuations never capture the Avalonia UI SynchronizationContext.
+            _loop = Task.Run(() => RunAsync(stopToken), stopToken);
         }
     }
 
@@ -87,12 +90,12 @@ public sealed class ServiceUnitEventStreamMonitor : IAsyncDisposable
             return;
         }
 
-        await stop.CancelAsync();
+        await stop.CancelAsync().ConfigureAwait(false);
         if (loop is not null)
         {
             try
             {
-                await loop;
+                await loop.ConfigureAwait(false);
             }
             catch (OperationCanceledException)
             {
@@ -104,12 +107,16 @@ public sealed class ServiceUnitEventStreamMonitor : IAsyncDisposable
 
     private async Task RunAsync(CancellationToken cancellationToken)
     {
+        var maxDelay = _reconnectDelay > MaxReconnectDelay ? _reconnectDelay : MaxReconnectDelay;
+        var currentDelay = _reconnectDelay;
+
         while (!cancellationToken.IsCancellationRequested)
         {
             try
             {
-                await foreach (var evt in _source.SubscribeAsync(LastEventSeq, cancellationToken))
+                await foreach (var evt in _source.SubscribeAsync(LastEventSeq, cancellationToken).ConfigureAwait(false))
                 {
+                    currentDelay = _reconnectDelay;
                     if (IsFaulted)
                     {
                         IsFaulted = false;
@@ -124,6 +131,12 @@ public sealed class ServiceUnitEventStreamMonitor : IAsyncDisposable
                     LastEventSeq = evt.Seq;
                     UnitEventReceived?.Invoke(this, evt);
                 }
+
+                // Treat a clean stream EOF as a disconnect so an empty/closed stream never spins at 100% CPU.
+                if (!cancellationToken.IsCancellationRequested)
+                {
+                    throw new IOException("ServiceManager unit event stream closed.");
+                }
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
@@ -135,12 +148,17 @@ public sealed class ServiceUnitEventStreamMonitor : IAsyncDisposable
                 StreamFaulted?.Invoke(this, ex);
                 try
                 {
-                    await Task.Delay(_reconnectDelay, cancellationToken);
+                    await Task.Delay(currentDelay, cancellationToken).ConfigureAwait(false);
                 }
                 catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
                 {
                     break;
                 }
+
+                var nextTicks = currentDelay.Ticks > maxDelay.Ticks / 2
+                    ? maxDelay.Ticks
+                    : currentDelay.Ticks * 2;
+                currentDelay = TimeSpan.FromTicks(nextTicks);
             }
         }
     }
