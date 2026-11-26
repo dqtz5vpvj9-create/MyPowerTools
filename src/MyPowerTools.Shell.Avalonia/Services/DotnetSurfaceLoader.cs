@@ -20,6 +20,9 @@ namespace MyPowerTools.Shell.Avalonia.Services;
 /// </summary>
 internal sealed class DotnetSurfaceLoader
 {
+    private const string CompleteMarkerFileName = ".complete";
+    private const string StagingDirectoryPrefix = ".staging-";
+
     private static readonly string[] SharedAssemblies =
     [
         "MyPowerTools.Abstractions",
@@ -29,6 +32,9 @@ internal sealed class DotnetSurfaceLoader
         "Microsoft.Extensions.DependencyInjection.Abstractions"
     ];
 
+    private static readonly HashSet<string> SharedAssemblySet =
+        new(SharedAssemblies, StringComparer.OrdinalIgnoreCase);
+
     private readonly string _shadowRoot;
     private readonly Dictionary<string, LoadedSurface> _loaded = new(StringComparer.Ordinal);
 
@@ -36,6 +42,7 @@ internal sealed class DotnetSurfaceLoader
     {
         _shadowRoot = shadowRoot;
         Directory.CreateDirectory(_shadowRoot);
+        PruneLegacyShadowDirectories(_shadowRoot);
     }
 
     /// <summary>
@@ -43,6 +50,13 @@ internal sealed class DotnetSurfaceLoader
     /// plus a lease that can unload it.
     /// </summary>
     public LoadedSurface Load(HostProto.ToolDescriptor descriptor, HostProto.ToolRoute route, MptAvaloniaSurfaceContext context)
+        => Load(descriptor, route, context, ownedResource: null);
+
+    public LoadedSurface Load(
+        HostProto.ToolDescriptor descriptor,
+        HostProto.ToolRoute route,
+        MptAvaloniaSurfaceContext context,
+        IDisposable? ownedResource)
     {
         global::Avalonia.Threading.Dispatcher.UIThread.VerifyAccess();
 
@@ -56,32 +70,49 @@ internal sealed class DotnetSurfaceLoader
             throw new InvalidDataException("Dotnet surface type is required.");
         }
 
-        var cacheKey = BuildCacheKey(descriptor.ToolId, route.Assembly!);
-        var shadowDir = Path.Combine(_shadowRoot, cacheKey);
-        var shadowAssemblyPath = ShadowCopy(route.Assembly!, shadowDir, cacheKey);
+        var sanitizedToolId = SanitizeToolId(descriptor.ToolId);
+        var shortHash = BuildShortHash(descriptor.ToolId, route.Assembly!);
+        var cacheKey = $"{sanitizedToolId}/{shortHash}";
+        var toolShadowRoot = Path.Combine(_shadowRoot, sanitizedToolId);
+        var shadowAssemblyPath = ShadowCopy(route.Assembly!, toolShadowRoot, shortHash);
 
         var loadContext = new SurfaceLoadContext(
             shadowAssemblyPath,
             SharedAssemblies,
             Path.GetDirectoryName(route.Assembly!));
-        var assembly = loadContext.LoadFromAssemblyPath(shadowAssemblyPath);
-        var factoryType = assembly.GetType(route.Type, throwOnError: true)!;
-        if (Activator.CreateInstance(factoryType) is not IMptAvaloniaSurfaceFactory factory)
+
+        Control? control = null;
+        try
         {
-            throw new InvalidDataException($"{route.Type} does not implement IMptAvaloniaSurfaceFactory.");
+            var assembly = loadContext.LoadFromAssemblyPath(shadowAssemblyPath);
+            var factoryType = assembly.GetType(route.Type, throwOnError: true)!;
+            if (Activator.CreateInstance(factoryType) is not IMptAvaloniaSurfaceFactory factory)
+            {
+                throw new InvalidDataException($"{route.Type} does not implement IMptAvaloniaSurfaceFactory.");
+            }
+
+            control = factory.CreateSurface(context);
+        }
+        catch
+        {
+            DisposeControlSafely(control);
+            try { ownedResource?.Dispose(); } catch { }
+            try { loadContext.Unload(); } catch { }
+            throw;
         }
 
-        var control = factory.CreateSurface(context);
         if (_loaded.Remove(cacheKey, out var previous))
         {
             previous.UnloadCore();
         }
+
         var loaded = new LoadedSurface(
             descriptor.ToolId,
             route.RouteId,
             control,
             loadContext,
-            surface => Release(cacheKey, surface));
+            surface => Release(cacheKey, surface),
+            ownedResource);
         _loaded[cacheKey] = loaded;
         return loaded;
     }
@@ -89,7 +120,10 @@ internal sealed class DotnetSurfaceLoader
     /// <summary>Unloads the surface for a tool id, releasing its assembly context.</summary>
     public void Unload(string toolId)
     {
-        var keys = _loaded.Where(kv => string.Equals(kv.Value.ToolId, toolId, StringComparison.OrdinalIgnoreCase)).Select(kv => kv.Key).ToArray();
+        var keys = _loaded
+            .Where(kv => string.Equals(kv.Value.ToolId, toolId, StringComparison.OrdinalIgnoreCase))
+            .Select(kv => kv.Key)
+            .ToArray();
         foreach (var key in keys)
         {
             if (_loaded.Remove(key, out var surface))
@@ -116,44 +150,212 @@ internal sealed class DotnetSurfaceLoader
         {
             _loaded.Remove(cacheKey);
         }
+
         surface.UnloadCore();
     }
 
-    private static string BuildCacheKey(string toolId, string assemblyPath)
+    private static string SanitizeToolId(string? toolId)
+    {
+        if (string.IsNullOrWhiteSpace(toolId))
+        {
+            return "tool";
+        }
+
+        var chars = new char[toolId.Length];
+        for (var i = 0; i < toolId.Length; i++)
+        {
+            var ch = toolId[i];
+            chars[i] = char.IsLetterOrDigit(ch) || ch is '-' or '_' or '.' ? ch : '_';
+        }
+
+        var sanitized = new string(chars).Trim('.', '_', ' ');
+        return sanitized.Length > 0 ? sanitized : "tool";
+    }
+
+    private static string BuildShortHash(string toolId, string assemblyPath)
     {
         var info = new FileInfo(assemblyPath);
         var raw = $"{toolId}|{assemblyPath}|{info.Length}|{info.LastWriteTimeUtc:O}";
         var hash = SHA256.HashData(System.Text.Encoding.UTF8.GetBytes(raw));
-        return Convert.ToHexString(hash).ToLowerInvariant();
+        return Convert.ToHexString(hash.AsSpan(0, 8)).ToLowerInvariant();
     }
 
-    private static string ShadowCopy(string sourceAssembly, string targetDir, string cacheKey)
+    private static string ShadowCopy(string sourceAssembly, string toolShadowRoot, string shortHash)
     {
-        Directory.CreateDirectory(targetDir);
+        Directory.CreateDirectory(toolShadowRoot);
         var sourceDir = Path.GetDirectoryName(sourceAssembly)!;
         var assemblyName = Path.GetFileName(sourceAssembly);
+        var targetDir = Path.Combine(toolShadowRoot, shortHash);
         var target = Path.Combine(targetDir, assemblyName);
+        var completeMarker = Path.Combine(targetDir, CompleteMarkerFileName);
 
-        // If already shadow-copied with the same fingerprint, reuse it.
-        if (File.Exists(target))
+        // Reuse a previously completed shadow directory with the same fingerprint.
+        if (File.Exists(completeMarker) && File.Exists(target))
         {
+            PruneSiblingShadowDirectories(toolShadowRoot, shortHash);
             return target;
         }
 
-        // Clean stale shadow for a previous fingerprint of the same tool, then copy fresh.
-        if (Directory.Exists(targetDir))
+        var stageDir = Path.Combine(toolShadowRoot, $"{StagingDirectoryPrefix}{shortHash}-{Guid.NewGuid():N}");
+        Directory.CreateDirectory(stageDir);
+
+        try
         {
-            try { Directory.Delete(targetDir, recursive: true); } catch { }
-            Directory.CreateDirectory(targetDir);
+            foreach (var file in Directory.EnumerateFiles(sourceDir, "*", SearchOption.TopDirectoryOnly))
+            {
+                var fileName = Path.GetFileName(file);
+                if (ShouldSkipShadowFile(fileName, assemblyName))
+                {
+                    continue;
+                }
+
+                File.Copy(file, Path.Combine(stageDir, fileName), overwrite: true);
+            }
+
+            File.WriteAllText(Path.Combine(stageDir, CompleteMarkerFileName), shortHash);
+
+            if (Directory.Exists(targetDir) && !File.Exists(completeMarker))
+            {
+                TryDeleteDirectory(targetDir);
+            }
+
+            try
+            {
+                Directory.Move(stageDir, targetDir);
+            }
+            catch (IOException) when (File.Exists(completeMarker) && File.Exists(target))
+            {
+                TryDeleteDirectory(stageDir);
+            }
+        }
+        catch
+        {
+            TryDeleteDirectory(stageDir);
+            throw;
         }
 
-        foreach (var file in Directory.EnumerateFiles(sourceDir, "*", SearchOption.TopDirectoryOnly))
-        {
-            var dest = Path.Combine(targetDir, Path.GetFileName(file));
-            try { File.Copy(file, dest, overwrite: true); } catch { }
-        }
-
+        PruneSiblingShadowDirectories(toolShadowRoot, shortHash);
         return target;
+    }
+
+    private static bool ShouldSkipShadowFile(string fileName, string mainAssemblyName)
+    {
+        if (string.Equals(fileName, mainAssemblyName, StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+
+        var extension = Path.GetExtension(fileName);
+        if (string.Equals(extension, ".pdb", StringComparison.OrdinalIgnoreCase) ||
+            string.Equals(extension, ".xml", StringComparison.OrdinalIgnoreCase))
+        {
+            return true;
+        }
+
+        if (string.Equals(extension, ".dll", StringComparison.OrdinalIgnoreCase))
+        {
+            var assemblyName = Path.GetFileNameWithoutExtension(fileName);
+            if (SharedAssemblySet.Contains(assemblyName))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    private static void PruneSiblingShadowDirectories(string toolShadowRoot, string activeHash)
+    {
+        try
+        {
+            foreach (var directory in Directory.EnumerateDirectories(toolShadowRoot))
+            {
+                var name = Path.GetFileName(directory);
+                if (string.Equals(name, activeHash, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                TryDeleteDirectory(directory);
+            }
+        }
+        catch
+        {
+            // Pruning stale shadow directories is best-effort.
+        }
+    }
+
+    private static void PruneLegacyShadowDirectories(string shadowRoot)
+    {
+        try
+        {
+            foreach (var directory in Directory.EnumerateDirectories(shadowRoot))
+            {
+                var name = Path.GetFileName(directory);
+                if (IsLegacyFlatHashDirectory(name) ||
+                    name.StartsWith(StagingDirectoryPrefix, StringComparison.Ordinal))
+                {
+                    TryDeleteDirectory(directory);
+                }
+            }
+        }
+        catch
+        {
+            // Startup cleanup of legacy directories is best-effort.
+        }
+    }
+
+    private static bool IsLegacyFlatHashDirectory(string name)
+    {
+        if (name.Length != 64)
+        {
+            return false;
+        }
+
+        for (var i = 0; i < name.Length; i++)
+        {
+            if (!Uri.IsHexDigit(name[i]))
+            {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static void TryDeleteDirectory(string path)
+    {
+        try
+        {
+            if (Directory.Exists(path))
+            {
+                Directory.Delete(path, recursive: true);
+            }
+        }
+        catch
+        {
+            // Ignore locked directories (e.g., still loaded in another process or pending GC).
+        }
+    }
+
+    private static void DisposeControlSafely(Control? control)
+    {
+        if (control is null)
+        {
+            return;
+        }
+
+        var dataContext = control.DataContext;
+        control.DataContext = null;
+        if (dataContext is IDisposable disposableDataContext)
+        {
+            try { disposableDataContext.Dispose(); } catch { }
+        }
+
+        if (control is IDisposable disposableControl && !ReferenceEquals(disposableControl, dataContext))
+        {
+            try { disposableControl.Dispose(); } catch { }
+        }
     }
 
     /// <summary>A loaded surface Control plus the ability to unload its assembly context.</summary>
@@ -161,6 +363,7 @@ internal sealed class DotnetSurfaceLoader
     {
         private readonly SurfaceLoadContext _loadContext;
         private readonly Action<LoadedSurface> _release;
+        private readonly IDisposable? _ownedResource;
         private int _unloaded;
 
         public LoadedSurface(
@@ -168,13 +371,15 @@ internal sealed class DotnetSurfaceLoader
             string routeId,
             Control control,
             SurfaceLoadContext loadContext,
-            Action<LoadedSurface> release)
+            Action<LoadedSurface> release,
+            IDisposable? ownedResource = null)
         {
             ToolId = toolId;
             RouteId = routeId;
             Control = control;
             _loadContext = loadContext;
             _release = release;
+            _ownedResource = ownedResource;
         }
 
         public string ToolId { get; }
@@ -188,16 +393,8 @@ internal sealed class DotnetSurfaceLoader
                 return;
             }
 
-            var dataContext = Control.DataContext;
-            Control.DataContext = null;
-            if (dataContext is IDisposable disposableDataContext)
-            {
-                try { disposableDataContext.Dispose(); } catch { }
-            }
-            if (Control is IDisposable disposableControl && !ReferenceEquals(disposableControl, dataContext))
-            {
-                try { disposableControl.Dispose(); } catch { }
-            }
+            try { _ownedResource?.Dispose(); } catch { }
+            DisposeControlSafely(Control);
             try { _loadContext.Unload(); } catch { }
         }
 
@@ -232,7 +429,7 @@ internal sealed class DotnetSurfaceLoader
         {
             if (assemblyName.Name is not null && _sharedAssemblies.Contains(assemblyName.Name))
             {
-                return ResolveShared(assemblyName.Name);
+                return ResolveShared(assemblyName);
             }
 
             var path = _resolver?.ResolveAssemblyToPath(assemblyName) ?? Probe(assemblyName.Name);
@@ -245,23 +442,36 @@ internal sealed class DotnetSurfaceLoader
         /// check, so a not-yet-loaded shared assembly is loaded into the default context by name
         /// instead of being skipped.
         /// </summary>
-        private static Assembly? ResolveShared(string name)
+        private static Assembly? ResolveShared(AssemblyName assemblyName)
         {
+            var name = assemblyName.Name!;
             var loaded = AssemblyLoadContext.Default.Assemblies.FirstOrDefault(assembly =>
                 string.Equals(assembly.GetName().Name, name, StringComparison.OrdinalIgnoreCase));
-            if (loaded is not null)
+
+            if (loaded is null)
             {
-                return loaded;
+                try
+                {
+                    loaded = AssemblyLoadContext.Default.LoadFromAssemblyName(new AssemblyName(name));
+                }
+                catch
+                {
+                    return null;
+                }
             }
 
-            try
+            var requestedVersion = assemblyName.Version;
+            var loadedVersion = loaded.GetName().Version;
+            if (requestedVersion is not null &&
+                loadedVersion is not null &&
+                requestedVersion > loadedVersion)
             {
-                return AssemblyLoadContext.Default.LoadFromAssemblyName(new AssemblyName(name));
+                throw new InvalidOperationException(
+                    $"Dotnet surface requires {name} version {requestedVersion}, but Shell loaded version {loadedVersion}. " +
+                    "Update the Shell or rebuild the tool against the installed SDK.");
             }
-            catch
-            {
-                return null;
-            }
+
+            return loaded;
         }
 
         private string? Probe(string? assemblyName)

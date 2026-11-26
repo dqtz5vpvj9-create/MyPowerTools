@@ -213,6 +213,7 @@ internal sealed class WebSurfaceControl : Control, IDisposable
     private readonly TimeSpan _loadingTimeout;
     private readonly SemaphoreSlim _writeLock = new(1, 1);
     private readonly WebSurfaceLoadingAttemptTracker _loadingAttempts = new();
+    private Uri _currentSource;
     private Process? _hostProcess;
     private StreamWriter? _hostInput;
     private CancellationTokenSource? _hostCancellation;
@@ -221,6 +222,7 @@ internal sealed class WebSurfaceControl : Control, IDisposable
     private int _generation;
     private int _currentState = (int)MptWebSurfaceState.Loading;
     private int _disposed;
+    private int _writeLockUsers = 1;
     private bool _attached;
     private bool _active = true;
     private bool _terminalStateReported;
@@ -236,6 +238,7 @@ internal sealed class WebSurfaceControl : Control, IDisposable
         _shortcutConfiguration = shortcuts ?? new WebShortcutConfiguration();
         _shortcutConfiguration.Changed += SendShortcutBindings;
         _request = request;
+        _currentSource = request.Source;
         _hostExecutablePath = hostExecutablePath;
         _occlusionState = occlusionState;
         _forwardShortcutAsync = forwardShortcutAsync;
@@ -283,6 +286,8 @@ internal sealed class WebSurfaceControl : Control, IDisposable
         {
             return;
         }
+
+        _currentSource = source;
         if (_hostProcess is not { HasExited: false } process)
         {
             StartHost();
@@ -334,6 +339,7 @@ internal sealed class WebSurfaceControl : Control, IDisposable
         _attached = false;
         _topLevel = null;
         StopHost();
+        ReleaseWriteLockRef();
         StateChanged = null;
     }
 
@@ -478,7 +484,7 @@ internal sealed class WebSurfaceControl : Control, IDisposable
     }
 
     private ProcessStartInfo BuildStartInfo(nint parentHandle) =>
-        BuildStartInfo(_request, _hostExecutablePath, parentHandle, Environment.ProcessId);
+        BuildStartInfo(_request with { Source = _currentSource }, _hostExecutablePath, parentHandle, Environment.ProcessId);
 
     internal static ProcessStartInfo BuildStartInfo(
         MptWebSurfaceRequest request,
@@ -796,9 +802,16 @@ internal sealed class WebSurfaceControl : Control, IDisposable
         {
             return;
         }
-        await _writeLock.WaitAsync().ConfigureAwait(false);
+        if (!TryAcquireWriteLockRef())
+        {
+            return;
+        }
+
+        var acquired = false;
         try
         {
+            await _writeLock.WaitAsync().ConfigureAwait(false);
+            acquired = true;
             if (generation == _generation && ReferenceEquals(writer, _hostInput))
             {
                 await writer.WriteLineAsync(payload).ConfigureAwait(false);
@@ -816,7 +829,12 @@ internal sealed class WebSurfaceControl : Control, IDisposable
         }
         finally
         {
-            _writeLock.Release();
+            if (acquired)
+            {
+                _writeLock.Release();
+            }
+
+            ReleaseWriteLockRef();
         }
     }
 
@@ -844,18 +862,25 @@ internal sealed class WebSurfaceControl : Control, IDisposable
     {
         try
         {
-            if (!process.HasExited && writer is not null)
+            if (!process.HasExited && writer is not null && TryAcquireWriteLockRef())
             {
-                await _writeLock.WaitAsync().ConfigureAwait(false);
+                var acquired = false;
                 try
                 {
+                    await _writeLock.WaitAsync().ConfigureAwait(false);
+                    acquired = true;
                     await writer.WriteLineAsync("{\"type\":\"shutdown\"}").ConfigureAwait(false);
                     await writer.FlushAsync().ConfigureAwait(false);
                     writer.Close();
                 }
                 finally
                 {
-                    _writeLock.Release();
+                    if (acquired)
+                    {
+                        _writeLock.Release();
+                    }
+
+                    ReleaseWriteLockRef();
                 }
             }
             if (!process.HasExited)
@@ -881,6 +906,31 @@ internal sealed class WebSurfaceControl : Control, IDisposable
                 TryKill(process);
             }
             process.Dispose();
+        }
+    }
+
+    private bool TryAcquireWriteLockRef()
+    {
+        while (true)
+        {
+            var current = Volatile.Read(ref _writeLockUsers);
+            if (current <= 0)
+            {
+                return false;
+            }
+
+            if (Interlocked.CompareExchange(ref _writeLockUsers, current + 1, current) == current)
+            {
+                return true;
+            }
+        }
+    }
+
+    private void ReleaseWriteLockRef()
+    {
+        if (Interlocked.Decrement(ref _writeLockUsers) == 0)
+        {
+            _writeLock.Dispose();
         }
     }
 

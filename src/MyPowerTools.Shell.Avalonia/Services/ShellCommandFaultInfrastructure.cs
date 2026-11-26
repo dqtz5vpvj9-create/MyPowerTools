@@ -4,6 +4,7 @@ using System.Text;
 using System.Text.RegularExpressions;
 using Avalonia.Controls;
 using MyPowerTools.Abstractions;
+using MyPowerTools.HostControl;
 using MyPowerTools.Shell.Avalonia.ViewModels;
 
 namespace MyPowerTools.Shell.Avalonia.Services;
@@ -159,7 +160,7 @@ internal sealed class ShellTerminalFaultRecovery
 
 internal static class ShellCommandFaultLog
 {
-    private const int MaximumLogBytes = 64 * 1024;
+    private const int MaximumLogBytes = 256 * 1024;
     private const int MaximumLineCharacters = 1024;
     private static readonly object Gate = new();
     private static readonly Regex SensitiveHeaderPattern = new(
@@ -171,10 +172,7 @@ internal static class ShellCommandFaultLog
         try
         {
             var line = Format(operation, exception, category);
-            var root = Path.Combine(
-                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-                "MyPowerTools",
-                "logs");
+            var root = Path.Combine(HostControlAuthTokenStore.DefaultDataRoot(), "logs");
             Directory.CreateDirectory(root);
             var path = Path.Combine(root, "shell-faults.log");
             lock (Gate)
@@ -182,8 +180,10 @@ internal static class ShellCommandFaultLog
                 var additionBytes = Encoding.UTF8.GetByteCount(line + Environment.NewLine);
                 if (File.Exists(path) && new FileInfo(path).Length + additionBytes > MaximumLogBytes)
                 {
-                    File.WriteAllText(path, "", Encoding.UTF8);
+                    var backupPath = path + ".1";
+                    File.Move(path, backupPath, overwrite: true);
                 }
+
                 File.AppendAllText(path, line + Environment.NewLine, Encoding.UTF8);
             }
         }

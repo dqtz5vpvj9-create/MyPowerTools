@@ -261,7 +261,7 @@ internal sealed class MobileToolParameterField
 /// while it is visible and only for the invocation the user started, and it stops as soon as that
 /// invocation reaches a terminal state or the page is left.
 /// </summary>
-internal sealed class MobileToolControlViewModel : MptObservableViewModel
+internal sealed class MobileToolControlViewModel : MptObservableViewModel, IDisposable
 {
     private readonly MobileToolControlModuleClient _client;
     private readonly DispatcherTimer? _progressTimer;
@@ -269,6 +269,7 @@ internal sealed class MobileToolControlViewModel : MptObservableViewModel
     // Cancelled when the page is left; every status read is linked to it, so a late answer can never
     // arrive after the page is gone.
     private CancellationTokenSource? _pageLifetime;
+    private int _disposed;
     private int _statusReadInFlight;
     private bool _active;
 
@@ -319,7 +320,7 @@ internal sealed class MobileToolControlViewModel : MptObservableViewModel
         if (Dispatcher.UIThread.CheckAccess())
         {
             _progressTimer = new DispatcherTimer { Interval = MobileToolControlContract.ProgressRefreshInterval };
-            _progressTimer.Tick += async (_, _) => await PollInvocationAsync().ConfigureAwait(true);
+            _progressTimer.Tick += OnProgressTimerTick;
         }
     }
 
@@ -967,15 +968,36 @@ internal sealed class MobileToolControlViewModel : MptObservableViewModel
     /// </summary>
     public async void Activate()
     {
-        _active = true;
-        _pageLifetime?.Cancel();
-        _pageLifetime = new CancellationTokenSource();
-        await RefreshDevicesAsync(announce: false).ConfigureAwait(true);
-
-        // Coming back to the page resumes the state reads for an invocation that is still running.
-        if (Invocation is { Terminal: false })
+        if (Volatile.Read(ref _disposed) != 0)
         {
-            _progressTimer?.Start();
+            return;
+        }
+
+        _active = true;
+        var previousLifetime = _pageLifetime;
+        _pageLifetime = new CancellationTokenSource();
+        if (previousLifetime is not null)
+        {
+            try { previousLifetime.Cancel(); } catch (ObjectDisposedException) { }
+            previousLifetime.Dispose();
+        }
+
+        try
+        {
+            await RefreshDevicesAsync(announce: false).ConfigureAwait(true);
+
+            // Coming back to the page resumes the state reads for an invocation that is still running.
+            if (_active && Volatile.Read(ref _disposed) == 0 && Invocation is { Terminal: false })
+            {
+                _progressTimer?.Start();
+            }
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception ex)
+        {
+            Feedback("加载设备列表失败：" + ex.Message, "danger");
         }
     }
 
@@ -991,7 +1013,52 @@ internal sealed class MobileToolControlViewModel : MptObservableViewModel
         _progressTimer?.Stop();
         var lifetime = _pageLifetime;
         _pageLifetime = null;
-        lifetime?.Cancel();
+        if (lifetime is not null)
+        {
+            try { lifetime.Cancel(); } catch (ObjectDisposedException) { }
+            lifetime.Dispose();
+        }
+    }
+
+    public void Dispose()
+    {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
+        {
+            return;
+        }
+
+        Deactivate();
+        if (_progressTimer is not null)
+        {
+            _progressTimer.Stop();
+            _progressTimer.Tick -= OnProgressTimerTick;
+        }
+
+        var pending = _pendingWork;
+        if (pending is not null)
+        {
+            try { pending.Cancel(); } catch (ObjectDisposedException) { }
+        }
+    }
+
+    private async void OnProgressTimerTick(object? sender, EventArgs e)
+    {
+        if (!_active || Volatile.Read(ref _disposed) != 0)
+        {
+            return;
+        }
+
+        try
+        {
+            await PollInvocationAsync().ConfigureAwait(true);
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (Exception ex)
+        {
+            Feedback("刷新执行状态失败：" + ex.Message, "warning");
+        }
     }
 
     /// <summary>

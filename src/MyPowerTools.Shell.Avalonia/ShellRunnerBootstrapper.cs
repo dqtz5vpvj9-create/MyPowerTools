@@ -1,6 +1,7 @@
 using System.Diagnostics;
 using System.IO.Pipes;
 using System.Net.Sockets;
+using Grpc.Core;
 using MyPowerTools.HostControl;
 using MyPowerTools.Ipc;
 using MyPowerTools.Platform.Abstractions;
@@ -28,13 +29,14 @@ public static class ShellRunnerBootstrapper
     {
         ApplyDataRootEnvironment(options);
         var readyResult = await EnsureRunnerReadyAsync(options, cancellationToken).ConfigureAwait(false);
-        if (!loadHomeTools)
+        if (!loadHomeTools ||
+            readyResult.State is "disabled" or "missing" or "unauthenticated")
         {
             return readyResult;
         }
 
         var startupTools = await TryLoadStartupToolsAsync(
-            TimeSpan.FromMilliseconds(700),
+            TimeSpan.FromSeconds(5),
             cancellationToken);
         if (startupTools is not null)
         {
@@ -53,9 +55,21 @@ public static class ShellRunnerBootstrapper
             return new ShellRunnerBootstrapResult("disabled", "Runner bootstrap disabled.");
         }
 
-        if (await CanReachRunnerAsync(TimeSpan.FromMilliseconds(50), cancellationToken))
+        var initialProbe = await ProbeRunnerAsync(
+            connectTimeout: TimeSpan.FromMilliseconds(250),
+            pingTimeout: TimeSpan.FromSeconds(2),
+            cancellationToken).ConfigureAwait(false);
+        if (initialProbe == RunnerProbeState.Ready)
         {
             return new ShellRunnerBootstrapResult("already-running", "Runner is already available.");
+        }
+
+        if (initialProbe == RunnerProbeState.Unauthenticated)
+        {
+            // A Runner is already listening on HostControl; spawning a second process would conflict.
+            return new ShellRunnerBootstrapResult(
+                "unauthenticated",
+                "Runner is already running on HostControl, but authentication failed.");
         }
 
         var appRoot = FindApplicationRoot(AppContext.BaseDirectory);
@@ -70,15 +84,65 @@ public static class ShellRunnerBootstrapper
         while (DateTimeOffset.UtcNow < deadline)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            if (await CanReachRunnerAsync(TimeSpan.FromMilliseconds(250), cancellationToken))
+            var probe = await ProbeRunnerAsync(
+                connectTimeout: TimeSpan.FromMilliseconds(250),
+                pingTimeout: TimeSpan.FromSeconds(1),
+                cancellationToken).ConfigureAwait(false);
+            if (probe == RunnerProbeState.Ready)
             {
                 return new ShellRunnerBootstrapResult("started", "Runner started.");
             }
 
-            await Task.Delay(50, cancellationToken);
+            if (probe == RunnerProbeState.Unauthenticated)
+            {
+                return new ShellRunnerBootstrapResult(
+                    "unauthenticated",
+                    "Runner started, but HostControl authentication failed.");
+            }
+
+            await Task.Delay(50, cancellationToken).ConfigureAwait(false);
         }
 
         return new ShellRunnerBootstrapResult("starting", "Runner was started but HostControl is still warming up.");
+    }
+
+    private enum RunnerProbeState
+    {
+        Unavailable,
+        Unauthenticated,
+        Ready
+    }
+
+    private static async Task<RunnerProbeState> ProbeRunnerAsync(
+        TimeSpan connectTimeout,
+        TimeSpan pingTimeout,
+        CancellationToken cancellationToken)
+    {
+        if (!await CanReachRunnerAsync(connectTimeout, cancellationToken).ConfigureAwait(false))
+        {
+            return RunnerProbeState.Unavailable;
+        }
+
+        try
+        {
+            using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            timeout.CancelAfter(pingTimeout);
+            using var client = HostControlClient.ForDefaultEndpoint();
+            await client.PingAsync(timeout.Token).ConfigureAwait(false);
+            return RunnerProbeState.Ready;
+        }
+        catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+        {
+            throw;
+        }
+        catch (RpcException ex) when (ex.StatusCode is StatusCode.Unauthenticated or StatusCode.PermissionDenied)
+        {
+            return RunnerProbeState.Unauthenticated;
+        }
+        catch
+        {
+            return RunnerProbeState.Unavailable;
+        }
     }
 
     private static async Task<bool> CanReachRunnerAsync(

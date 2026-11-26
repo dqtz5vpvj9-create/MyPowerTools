@@ -209,20 +209,9 @@ public sealed partial class ShellWorkspaceController
         }
     }
 
-    private async Task ShowToolPageAsync(string toolId)
+    private Task ShowToolPageAsync(string toolId)
     {
-        if (IsDisposed)
-        {
-            return;
-        }
-
-        var descriptor = await TryLoadToolDescriptorAsync(toolId);
-        if (descriptor is null)
-        {
-            return;
-        }
-
-        await ShowToolPageAsync(descriptor, descriptor.PrimaryRouteId);
+        return ShowToolPageByIdAsync(toolId, routeId: null);
     }
 
     /// <summary>
@@ -231,32 +220,61 @@ public sealed partial class ShellWorkspaceController
     /// <see cref="LoadExternalSdkToolAsync"/> using the DotnetSurfaceLoader; web/native/headless
     /// tools use the same external-SDK path with their respective surface handling.
     /// </summary>
-    private async Task ShowToolPageAsync(string toolId, string routeId)
+    private Task ShowToolPageAsync(string toolId, string routeId)
+    {
+        return ShowToolPageByIdAsync(toolId, routeId);
+    }
+
+    private async Task ShowToolPageByIdAsync(string toolId, string? routeId)
     {
         if (IsDisposed)
         {
             return;
         }
 
-        var descriptor = await TryLoadToolDescriptorAsync(toolId);
-        if (descriptor is null)
+        var previousToolId = _currentToolId;
+        BeginWorkspace();
+        _currentPage = ToolsPage;
+        _currentToolId = toolId;
+        _currentToolRouteId = routeId ?? "";
+        _chromeViewModel.SelectTool(toolId);
+        _chromeViewModel.IsCommandPaletteOpen = false;
+        SetStatus($"Loading {toolId}");
+
+        if (!string.Equals(previousToolId, toolId, StringComparison.OrdinalIgnoreCase))
+        {
+            SchedulePendingPageIndicator(toolId);
+        }
+
+        var identity = _workspaceIdentity.Capture();
+        var descriptor = await TryLoadToolDescriptorAsync(toolId, identity);
+        if (descriptor is null || IsDisposed || !_workspaceIdentity.IsCurrent(identity))
         {
             return;
         }
 
-        await ShowToolPageAsync(descriptor, routeId);
+        var resolvedRouteId = string.IsNullOrWhiteSpace(routeId)
+            ? descriptor.PrimaryRouteId
+            : routeId;
+        await ShowToolPageCoreAsync(descriptor, resolvedRouteId, identity);
     }
 
-    private async Task<HostProto.ToolDescriptor?> TryLoadToolDescriptorAsync(string toolId)
+    private async Task<HostProto.ToolDescriptor?> TryLoadToolDescriptorAsync(
+        string toolId,
+        ShellCommandFaultContext? identity = null)
     {
-        var identity = _workspaceIdentity.Capture();
+        var effectiveIdentity = identity ?? _workspaceIdentity.Capture();
         try
         {
-            return await _toolProducts.LoadToolAsync(toolId);
+            var descriptor = await _toolProducts.LoadToolAsync(toolId);
+            return _workspaceIdentity.IsCurrent(effectiveIdentity) ? descriptor : null;
         }
         catch (Exception ex)
         {
-            if (IsStalePageFailure(nameof(ShowToolPageAsync), ex, identity)) return null;
+            if (IsStalePageFailure(nameof(ShowToolPageAsync), ex, effectiveIdentity))
+            {
+                return null;
+            }
 
             var failure = ReportPageFailure(nameof(ShowToolPageAsync), ex);
             SetOwnedContent(_contentHost, BuildUnavailablePage("Tool", failure.Message, retry: () => ShowToolPageAsync(toolId)));
@@ -264,24 +282,41 @@ public sealed partial class ShellWorkspaceController
         }
     }
 
-    private async Task ShowToolPageAsync(HostProto.ToolDescriptor descriptor, string routeId)
+    private Task ShowToolPageAsync(HostProto.ToolDescriptor descriptor, string routeId)
     {
         if (IsDisposed)
         {
-            return;
+            return Task.CompletedTask;
         }
 
         var toolId = descriptor.ToolId;
+        var previousToolId = _currentToolId;
         BeginWorkspace();
         _currentPage = ToolsPage;
         _currentToolId = toolId;
         _currentToolRouteId = routeId;
         _chromeViewModel.SelectTool(toolId);
-        _navigation.Navigate(ShellRoute.ForTool(toolId, routeId), addToHistory: true);
         _chromeViewModel.IsCommandPaletteOpen = false;
         SetStatus($"Loading {toolId}");
 
+        if (!string.Equals(previousToolId, toolId, StringComparison.OrdinalIgnoreCase))
+        {
+            SchedulePendingPageIndicator(toolId);
+        }
+
         var identity = _workspaceIdentity.Capture();
+        return ShowToolPageCoreAsync(descriptor, routeId, identity);
+    }
+
+    private async Task ShowToolPageCoreAsync(
+        HostProto.ToolDescriptor descriptor,
+        string routeId,
+        ShellCommandFaultContext identity)
+    {
+        var toolId = descriptor.ToolId;
+        _currentToolRouteId = routeId;
+        _navigation.Navigate(ShellRoute.ForTool(toolId, routeId), addToHistory: true);
+
         try
         {
             // All tools — first-party and external — go through the dynamic surface loader.

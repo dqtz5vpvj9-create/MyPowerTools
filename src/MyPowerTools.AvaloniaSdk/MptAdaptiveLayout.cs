@@ -4,6 +4,7 @@ using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
 using Avalonia.Layout;
 using Avalonia.Threading;
+using Avalonia.VisualTree;
 
 namespace MyPowerTools.AvaloniaSdk;
 
@@ -21,42 +22,14 @@ public sealed class MptAdaptiveLayout : AvaloniaObject
     public static readonly AttachedProperty<double> HideBelowProperty =
         AvaloniaProperty.RegisterAttached<MptAdaptiveLayout, Control, double>("HideBelow", 0);
     private static readonly ConditionalWeakTable<Control, LayoutState> States = new();
+    private static readonly ConditionalWeakTable<Control, HideState> HideStates = new();
 
     static MptAdaptiveLayout()
     {
         StackBelowProperty.Changed.AddClassHandler<Control>((control, _) =>
             States.GetValue(control, c => new LayoutState(c)).RequestUpdate());
         HideBelowProperty.Changed.AddClassHandler<Control>((control, _) =>
-        {
-            Control? parent = null;
-            var pending = false;
-            void Apply() => control.SetCurrentValue(Control.IsVisibleProperty, (parent?.Bounds.Width ?? 0) >= GetHideBelow(control));
-            void Schedule()
-            {
-                if (pending) return;
-                pending = true;
-                // Visibility is a layout input: toggling it synchronously from SizeChanged can
-                // invalidate the pass that raised the event.
-                Dispatcher.UIThread.Post(() => { pending = false; Apply(); }, DispatcherPriority.Background);
-            }
-            void UpdateVisibility(object? sender, SizeChangedEventArgs e) =>
-                control.SetCurrentValue(Control.IsVisibleProperty, e.NewSize.Width >= GetHideBelow(control));
-            control.AttachedToVisualTree += (_, _) =>
-            {
-                parent = control.Parent as Control;
-                if (parent is null) return;
-                parent.SizeChanged += UpdateVisibility;
-                if (parent.Bounds.Width > 0)
-                    control.SetCurrentValue(Control.IsVisibleProperty, parent.Bounds.Width >= GetHideBelow(control));
-                else
-                    Schedule();
-            };
-            control.DetachedFromVisualTree += (_, _) =>
-            {
-                if (parent is not null) parent.SizeChanged -= UpdateVisibility;
-                parent = null;
-            };
-        });
+            HideStates.GetValue(control, c => new HideState(c)).Refresh());
     }
 
     public static void SetStackBelow(Control control, double width) => control.SetValue(StackBelowProperty, width);
@@ -66,6 +39,100 @@ public sealed class MptAdaptiveLayout : AvaloniaObject
     public static string GetColumnLabels(Grid grid) => grid.GetValue(ColumnLabelsProperty);
     public static void SetHideBelow(Control control, double width) => control.SetValue(HideBelowProperty, width);
     public static double GetHideBelow(Control control) => control.GetValue(HideBelowProperty);
+
+    private sealed class HideState
+    {
+        private readonly Control _control;
+        private Control? _parent;
+        private bool _pending;
+
+        public HideState(Control control)
+        {
+            _control = control;
+            _control.AttachedToVisualTree += OnAttachedToVisualTree;
+            _control.DetachedFromVisualTree += OnDetachedFromVisualTree;
+
+            if (_control.IsAttachedToVisualTree())
+            {
+                AttachToParent();
+            }
+        }
+
+        public void Refresh()
+        {
+            if (_control.IsAttachedToVisualTree())
+            {
+                AttachToParent();
+                Schedule();
+            }
+        }
+
+        private void OnAttachedToVisualTree(object? sender, VisualTreeAttachmentEventArgs e)
+        {
+            AttachToParent();
+            Schedule();
+        }
+
+        private void OnDetachedFromVisualTree(object? sender, VisualTreeAttachmentEventArgs e)
+        {
+            DetachFromParent();
+        }
+
+        private void AttachToParent()
+        {
+            var nextParent = _control.Parent as Control;
+            if (ReferenceEquals(_parent, nextParent))
+            {
+                return;
+            }
+
+            DetachFromParent();
+            _parent = nextParent;
+            if (_parent is not null)
+            {
+                _parent.SizeChanged += OnParentSizeChanged;
+            }
+        }
+
+        private void DetachFromParent()
+        {
+            if (_parent is not null)
+            {
+                _parent.SizeChanged -= OnParentSizeChanged;
+                _parent = null;
+            }
+        }
+
+        private void OnParentSizeChanged(object? sender, SizeChangedEventArgs e)
+        {
+            Schedule();
+        }
+
+        private void Schedule()
+        {
+            if (_pending)
+            {
+                return;
+            }
+
+            _pending = true;
+            // Visibility is a layout input: toggling it synchronously from SizeChanged can
+            // invalidate the pass that raised the event.
+            Dispatcher.UIThread.Post(
+                () =>
+                {
+                    _pending = false;
+                    if (_parent is null || !_control.IsAttachedToVisualTree())
+                    {
+                        return;
+                    }
+
+                    var threshold = GetHideBelow(_control);
+                    _control.SetCurrentValue(Control.IsVisibleProperty, _parent.Bounds.Width >= threshold);
+                },
+                DispatcherPriority.Background);
+        }
+    }
 
     private sealed class LayoutState
     {

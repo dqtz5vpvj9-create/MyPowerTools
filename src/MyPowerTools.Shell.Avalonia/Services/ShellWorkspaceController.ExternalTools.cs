@@ -19,7 +19,10 @@ namespace MyPowerTools.Shell.Avalonia.Services;
 
 public sealed partial class ShellWorkspaceController
 {
-    private static readonly HttpClient ExternalToolHttpClient = new();
+    private static readonly HttpClient ExternalToolHttpClient = new(new SocketsHttpHandler
+    {
+        PooledConnectionLifetime = TimeSpan.FromMinutes(2)
+    });
     private static readonly Regex ExternalToolSettingToken = new(
         @"\$\{settings\.(?<name>[A-Za-z0-9_.-]+)\}",
         RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
@@ -169,6 +172,10 @@ public sealed partial class ShellWorkspaceController
 
         var dataDirectory = ResolveExternalToolDataDirectory(descriptor.ToolId);
 
+        // Track every event subscription created by this surface so unloading the surface
+        // detaches all delegates from _runnerEvents and lets the collectible ALC unload cleanly.
+        var subscriptionScope = new SurfaceSubscriptionScope();
+
         // Load into a collectible, shadow-copied AssemblyLoadContext so the surface can be unloaded
         // on refresh or removal without leaking assemblies into the default context.
         var context = new MptAvaloniaSurfaceContext(
@@ -189,7 +196,7 @@ public sealed partial class ShellWorkspaceController
             (toolId, targetRouteId, _) => ShowToolPageAsync(toolId, targetRouteId),
             new ScopedServiceUnitClient(_serviceManagerAdmin, descriptor.ToolId),
             entry => SetStatus($"[{entry.Level}] {entry.Message}"),
-            callback => SubscribeSurfaceEvents(descriptor.OwnerModuleId, callback))
+            callback => SubscribeSurfaceEvents(descriptor.OwnerModuleId, callback, subscriptionScope))
         {
             OpenShortcutSettingsAsync = owner => OpenShortcutsForToolAsync(owner),
             ExecuteCommandWithInvocationAsync = async (invocationId, commandId, args, cancellationToken) =>
@@ -217,9 +224,17 @@ public sealed partial class ShellWorkspaceController
         {
             SetStatus($"Developer source sync skipped: {devSourceEx.Message}");
         }
-       // Surface factories construct Avalonia controls and bindings, which must belong to the UI thread.
-       return await global::Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(
-           () => _dotnetSurfaceLoader.Load(descriptor, route, context));
+        // Surface factories construct Avalonia controls and bindings, which must belong to the UI thread.
+        try
+        {
+            return await global::Avalonia.Threading.Dispatcher.UIThread.InvokeAsync(
+                () => _dotnetSurfaceLoader.Load(descriptor, route, context, subscriptionScope));
+        }
+        catch
+        {
+            subscriptionScope.Dispose();
+            throw;
+        }
     }
 
     internal static CommandExecutionResult ToSurfaceCommandExecutionResult(
@@ -237,7 +252,10 @@ public sealed partial class ShellWorkspaceController
             success ? null : new MptRuntimeError("command.failed", result.Message));
     }
 
-    private IDisposable SubscribeSurfaceEvents(string sourceId, Action<MptSurfaceEvent> callback)
+    private IDisposable SubscribeSurfaceEvents(
+        string sourceId,
+        Action<MptSurfaceEvent> callback,
+        SurfaceSubscriptionScope scope)
     {
         Action<HostProto.HostEvent> bridge = evt =>
         {
@@ -255,8 +273,71 @@ public sealed partial class ShellWorkspaceController
                 evt.Time.ToDateTimeOffset(),
                 payload));
         };
+
+        CallbackDisposable? subscription = null;
+        subscription = new CallbackDisposable(() =>
+        {
+            _runnerEvents.HostEventReceived -= bridge;
+            scope.Untrack(subscription!);
+        });
+
         _runnerEvents.HostEventReceived += bridge;
-        return new CallbackDisposable(() => _runnerEvents.HostEventReceived -= bridge);
+        if (!scope.TryTrack(subscription))
+        {
+            subscription.Dispose();
+        }
+
+        return subscription;
+    }
+
+    private sealed class SurfaceSubscriptionScope : IDisposable
+    {
+        private readonly object _gate = new();
+        private readonly HashSet<IDisposable> _subscriptions = new(ReferenceEqualityComparer.Instance);
+        private bool _disposed;
+
+        public bool TryTrack(IDisposable subscription)
+        {
+            lock (_gate)
+            {
+                if (_disposed)
+                {
+                    return false;
+                }
+
+                _subscriptions.Add(subscription);
+                return true;
+            }
+        }
+
+        public void Untrack(IDisposable subscription)
+        {
+            lock (_gate)
+            {
+                _subscriptions.Remove(subscription);
+            }
+        }
+
+        public void Dispose()
+        {
+            IDisposable[] toDispose;
+            lock (_gate)
+            {
+                if (_disposed)
+                {
+                    return;
+                }
+
+                _disposed = true;
+                toDispose = [.. _subscriptions];
+                _subscriptions.Clear();
+            }
+
+            foreach (var subscription in toDispose)
+            {
+                try { subscription.Dispose(); } catch { }
+            }
+        }
     }
 
     private sealed class CallbackDisposable(Action callback) : IDisposable

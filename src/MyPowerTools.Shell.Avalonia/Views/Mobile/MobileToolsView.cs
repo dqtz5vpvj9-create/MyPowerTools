@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
@@ -39,12 +40,34 @@ internal sealed class MobileToolsView : UserControl
             var chip = MobileElements.Chip(filter.Label, filter.IsSelected, filter.SelectCommand);
             chip.Classes.Add("MptMobileFilter");
             chip.Classes.Set("active", filter.IsSelected);
-            filter.PropertyChanged += (_, args) =>
+            PropertyChangedEventHandler onFilterChanged = (_, args) =>
             {
                 if (args.PropertyName == nameof(MobileFilterViewModel.IsSelected))
                 {
                     chip.Classes.Set("selected", filter.IsSelected);
                     chip.Classes.Set("active", filter.IsSelected);
+                }
+            };
+
+            var subscribed = true;
+            filter.PropertyChanged += onFilterChanged;
+            chip.AttachedToVisualTree += (_, _) =>
+            {
+                if (!subscribed)
+                {
+                    filter.PropertyChanged += onFilterChanged;
+                    subscribed = true;
+                }
+
+                chip.Classes.Set("selected", filter.IsSelected);
+                chip.Classes.Set("active", filter.IsSelected);
+            };
+            chip.DetachedFromVisualTree += (_, _) =>
+            {
+                if (subscribed)
+                {
+                    filter.PropertyChanged -= onFilterChanged;
+                    subscribed = false;
                 }
             };
             panel.Children.Add(chip);

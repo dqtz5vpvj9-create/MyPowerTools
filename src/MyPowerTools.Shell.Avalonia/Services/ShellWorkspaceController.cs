@@ -1,6 +1,7 @@
 using Avalonia.Controls;
 using Avalonia.Input;
 using Avalonia.Threading;
+using MyPowerTools.HostControl;
 using MyPowerTools.Runtime;
 using MyPowerTools.AvaloniaSdk;
 using MyPowerTools.ServiceManager.Client;
@@ -47,7 +48,7 @@ public sealed partial class ShellWorkspaceController : IAsyncDisposable
     private readonly Lazy<ServiceManagerAdminClient> _serviceManagerAdminFactory =
         new(ServiceManagerAdminClient.ForDefaultEndpoint);
     private readonly Lazy<DotnetSurfaceLoader> _dotnetSurfaceLoaderFactory = new(static () => new(
-        Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MyPowerTools", "state", "surface-shadow")));
+        Path.Combine(HostControlAuthTokenStore.DefaultDataRoot(), "state", "surface-shadow")));
     private readonly Lazy<ShellSettingsService> _settingsServiceFactory = new(static () => new());
    private readonly Lazy<ShellAppearanceService> _appearanceFactory = new(static () => new());
     private readonly Lazy<DevSourceSyncService> _devSourceFactory = new(static () => new());
@@ -147,10 +148,16 @@ public sealed partial class ShellWorkspaceController : IAsyncDisposable
             SystemPage
         ];
 
-    public async Task OpenAsync(IReadOnlyList<HostProto.ToolDescriptor>? startupTools = null)
+    public async Task OpenAsync(
+        IReadOnlyList<HostProto.ToolDescriptor>? startupTools = null,
+        bool deferShortcutCatalog = false)
     {
         _startupToolDescriptors = startupTools;
-        _ = RefreshShortcutCatalogAsync();
+        if (!deferShortcutCatalog)
+        {
+            _ = RefreshShortcutCatalogAsync();
+        }
+
         await RefreshShellDataAsync(includeAuxiliaryData: false);
         CompleteStartup();
     }

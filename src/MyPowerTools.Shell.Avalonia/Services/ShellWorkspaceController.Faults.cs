@@ -13,6 +13,7 @@ public sealed partial class ShellWorkspaceController
     private static readonly TimeSpan ServicesReloadCoalesceWindow = TimeSpan.FromMilliseconds(250);
 
     private long _servicesReloadVersion;
+    private long _contentVersion;
 
     internal bool IsDisposed => Volatile.Read(ref _disposed) != 0;
 
@@ -63,6 +64,10 @@ public sealed partial class ShellWorkspaceController
         if (content is not null)
         {
             AttachCurrentFaultOwner(content.DataContext);
+        }
+        if (ReferenceEquals(host, _contentHost))
+        {
+            Interlocked.Increment(ref _contentVersion);
         }
         host.Content = content;
         if (!ReferenceEquals(previous?.DataContext, content?.DataContext) &&
@@ -237,6 +242,7 @@ public sealed partial class ShellWorkspaceController
     {
         PostUiEvent(async () =>
         {
+            await RefreshShortcutCatalogAsync();
             await RefreshShellDataAsync();
         }, "Refresh after Runner recovery");
     }
@@ -284,7 +290,7 @@ public sealed partial class ShellWorkspaceController
     {
         PostUiEvent(() =>
         {
-            if (_contentHost.DataContext is ServicesViewModel vm)
+            if ((_contentHost.Content as Control)?.DataContext is ServicesViewModel vm)
             {
                 vm.Disconnected = true;
             }
@@ -302,7 +308,7 @@ public sealed partial class ShellWorkspaceController
                 return LoadServicesPageAsync();
             }
 
-            if (_contentHost.DataContext is ServicesViewModel vm)
+            if ((_contentHost.Content as Control)?.DataContext is ServicesViewModel vm)
             {
                 vm.Disconnected = false;
             }

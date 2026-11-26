@@ -106,12 +106,14 @@ public sealed partial class ShellWorkspaceController
     {
         var identity = _workspaceIdentity.Capture();
         var contentAtNavigation = _contentHost.Content;
+        var contentVersionAtNavigation = Volatile.Read(ref _contentVersion);
         PostUiEvent(
             async () =>
             {
                 await Task.Delay(PendingPageIndicatorDelay);
                 if (IsDisposed ||
                     !_workspaceIdentity.IsCurrent(identity) ||
+                    Volatile.Read(ref _contentVersion) != contentVersionAtNavigation ||
                     !ReferenceEquals(_contentHost.Content, contentAtNavigation))
                 {
                     return;

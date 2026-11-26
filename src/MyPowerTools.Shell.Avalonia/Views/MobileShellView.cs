@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
@@ -44,6 +45,7 @@ public sealed class MobileShellView : UserControl, IAsyncDisposable, IMobileNavi
     private Border _tabBar = null!;
     private ContentControl _sheetHost = null!;
     private Grid _sheetLayer = null!;
+    private Border _sheetBackdrop = null!;
     private TextBlock _sheetTitle = null!;
     private TextBlock _sheetSubtitle = null!;
     private int _sheetGeneration;
@@ -58,6 +60,7 @@ public sealed class MobileShellView : UserControl, IAsyncDisposable, IMobileNavi
     private InputElement? _lastFocusedOutsideSheet;
     private Task _pageLoad = Task.CompletedTask;
     private bool _opened;
+    private int _disposed;
 
     public MobileShellView()
     {
@@ -201,11 +204,7 @@ public sealed class MobileShellView : UserControl, IAsyncDisposable, IMobileNavi
         _toast.Bind(Border.BackgroundProperty, new DynamicResourceExtension("MptMobileTextBrush"));
         _toastText.Bind(TextBlock.ForegroundProperty, new DynamicResourceExtension("MptMobileCardBrush"));
         _toastTimer = new DispatcherTimer { Interval = TimeSpan.FromMilliseconds(2600) };
-        _toastTimer.Tick += (_, _) =>
-        {
-            _toastTimer.Stop();
-            _toast.IsVisible = false;
-        };
+        _toastTimer.Tick += OnToastTimerTick;
 
         var commandOverlay = BuildCommandPalette(_chrome, search, commands);
         var permissionLayer = BuildPermissionLayer(chrome, permissions, audit);
@@ -214,43 +213,19 @@ public sealed class MobileShellView : UserControl, IAsyncDisposable, IMobileNavi
         var root = new Grid { Children = { layout, commandOverlay, permissionLayer, _sheetLayer, _toast } };
         Content = root;
 
-        _viewModel.PropertyChanged += (_, args) =>
-        {
-            switch (args.PropertyName)
-            {
-                case nameof(MobileShellViewModel.CurrentPageKey):
-                case nameof(MobileShellViewModel.CurrentArgument):
-                    RebuildPage();
-                    break;
-                case nameof(MobileShellViewModel.SheetKey):
-                    RebuildSheet();
-                    break;
-                case nameof(MobileShellViewModel.SelectedTabKey):
-                    UpdateTabSelection();
-                    break;
-                case nameof(MobileShellViewModel.IsToolSurfaceOpen):
-                    _workspaceFrame.IsVisible = _viewModel.IsToolSurfaceOpen;
-                    break;
-            }
-        };
+        _viewModel.PropertyChanged += OnViewModelPropertyChanged;
         foreach (var option in _viewModel.Settings.ThemeOptions)
         {
-            option.PropertyChanged += (_, args) =>
-            {
-                if (args.PropertyName == nameof(MobileThemeOptionViewModel.IsSelected) &&
-                    string.Equals(_viewModel.SheetKey, MobileSheetKeys.Appearance, StringComparison.Ordinal))
-                {
-                    RebuildSheet();
-                }
-            };
+            option.PropertyChanged += OnThemeOptionPropertyChanged;
         }
 
         // Focus restore for the bottom sheet: the focus manager can already report "nothing" by the time
         // a command runs (the platform clears focus when the sheet layer is prepared), so the shell also
         // remembers the last element that took focus outside the sheet.
         AddHandler(GotFocusEvent, OnAnyGotFocus, RoutingStrategies.Bubble);
-        SizeChanged += (_, e) => Resources["MptLayoutPackageCardWidth"] = Math.Max(0, e.NewSize.Width - 32);
+        SizeChanged += OnShellSizeChanged;
         AttachedToVisualTree += OnAttached;
+        DetachedFromVisualTree += OnDetached;
         RebuildPage();
         UpdateTabSelection();
     }
@@ -392,7 +367,7 @@ public sealed class MobileShellView : UserControl, IAsyncDisposable, IMobileNavi
         await ActivateAsync(new ToolActivationRequest(
             toolId,
             routeId ?? "",
-            string.IsNullOrWhiteSpace(activationUri) ? null : activationUri)).ConfigureAwait(true);
+            string.IsNullOrWhiteSpace(activationUri) ? "" : activationUri.Trim())).ConfigureAwait(true);
     }
 
     public async Task ShowToolDetailAsync(string toolId)
@@ -576,15 +551,93 @@ public sealed class MobileShellView : UserControl, IAsyncDisposable, IMobileNavi
 
     public async ValueTask DisposeAsync()
     {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
+        {
+            return;
+        }
+
         _toastTimer.Stop();
+        _toastTimer.Tick -= OnToastTimerTick;
+        _viewModel.PropertyChanged -= OnViewModelPropertyChanged;
+        foreach (var option in _viewModel.Settings.ThemeOptions)
+        {
+            option.PropertyChanged -= OnThemeOptionPropertyChanged;
+        }
+
+        RemoveHandler(GotFocusEvent, OnAnyGotFocus);
+        SizeChanged -= OnShellSizeChanged;
+        AttachedToVisualTree -= OnAttached;
+        DetachedFromVisualTree -= OnDetached;
+        if (_sheetBackdrop is not null)
+        {
+            _sheetBackdrop.PointerPressed -= OnSheetBackdropPointerPressed;
+        }
+
+        _viewModel.Dispose();
         await _workspace.DisposeAsync().ConfigureAwait(true);
+    }
+
+    private void OnToastTimerTick(object? sender, EventArgs e)
+    {
+        _toastTimer.Stop();
+        _toast.IsVisible = false;
+    }
+
+    private void OnViewModelPropertyChanged(object? sender, PropertyChangedEventArgs args)
+    {
+        switch (args.PropertyName)
+        {
+            case nameof(MobileShellViewModel.CurrentPageKey):
+            case nameof(MobileShellViewModel.CurrentArgument):
+                RebuildPage();
+                break;
+            case nameof(MobileShellViewModel.SheetKey):
+                RebuildSheet();
+                break;
+            case nameof(MobileShellViewModel.SelectedTabKey):
+            case nameof(MobileShellViewModel.IsToolSurfaceOpen):
+                UpdateTabSelection();
+                break;
+        }
+    }
+
+    private void OnThemeOptionPropertyChanged(object? sender, PropertyChangedEventArgs args)
+    {
+        if (args.PropertyName == nameof(MobileThemeOptionViewModel.IsSelected) &&
+            string.Equals(_viewModel.SheetKey, MobileSheetKeys.Appearance, StringComparison.Ordinal))
+        {
+            RebuildSheet();
+        }
+    }
+
+    private void OnShellSizeChanged(object? sender, SizeChangedEventArgs e)
+    {
+        Resources["MptLayoutPackageCardWidth"] = Math.Max(0, e.NewSize.Width - 32);
+    }
+
+    private void OnDetached(object? sender, VisualTreeAttachmentEventArgs e)
+    {
+        _toastTimer.Stop();
+        _toast.IsVisible = false;
+    }
+
+    private async void OnSheetBackdropPointerPressed(object? sender, PointerPressedEventArgs e)
+    {
+        try
+        {
+            await CloseSheetAsync().ConfigureAwait(true);
+        }
+        catch (Exception ex)
+        {
+            ShellCommandFaultLog.Write("Close mobile sheet", ex, "mobile-ui");
+        }
     }
 
     // ---- visual construction ----------------------------------------------------------------
 
     private async void OnAttached(object? sender, VisualTreeAttachmentEventArgs e)
     {
-        if (_opened)
+        if (_opened || Volatile.Read(ref _disposed) != 0)
         {
             return;
         }
@@ -592,21 +645,31 @@ public sealed class MobileShellView : UserControl, IAsyncDisposable, IMobileNavi
         _opened = true;
         try
         {
-            await _workspace.OpenForMobileShellAsync().ConfigureAwait(true);
+            try
+            {
+                await _workspace.OpenForMobileShellAsync().ConfigureAwait(true);
+            }
+            catch (Exception ex)
+            {
+                _mobileHost.Content = MobileElements.EmptyState("无法加载工作区", ex.Message, null, null);
+            }
+            finally
+            {
+                // Published after the initial open, not after construction: OpenAsync navigates and starts
+                // a new workspace generation, so an activation that arrived before it finished would be
+                // discarded and the user would land back on the phone home page.
+                _ready.TrySetResult();
+            }
+
+            if (Volatile.Read(ref _disposed) == 0)
+            {
+                await ReloadCurrentPageAsync().ConfigureAwait(true);
+            }
         }
         catch (Exception ex)
         {
-            _mobileHost.Content = MobileElements.EmptyState("无法加载工作区", ex.Message, null, null);
+            ShellCommandFaultLog.Write("Attach mobile shell", ex, "mobile-ui");
         }
-        finally
-        {
-            // Published after the initial open, not after construction: OpenAsync navigates and starts
-            // a new workspace generation, so an activation that arrived before it finished would be
-            // discarded and the user would land back on the phone home page.
-            _ready.TrySetResult();
-        }
-
-        await ReloadCurrentPageAsync().ConfigureAwait(true);
     }
 
     private void RebuildPage()
@@ -754,8 +817,9 @@ public sealed class MobileShellView : UserControl, IAsyncDisposable, IMobileNavi
         var backdrop = new Border();
         backdrop.Classes.Add("MptMobileBackdrop");
         backdrop.Bind(Border.BackgroundProperty, new DynamicResourceExtension("MptMobileBackdropBrush"));
-        backdrop.PointerPressed += async (_, _) => await CloseSheetAsync().ConfigureAwait(true);
+        backdrop.PointerPressed += OnSheetBackdropPointerPressed;
         backdrop.Bind(IsVisibleProperty, new Binding(nameof(MobileShellViewModel.IsSheetOpen)) { Source = _viewModel });
+        _sheetBackdrop = backdrop;
 
         var grabber = new Border { Height = 4, Width = 44, HorizontalAlignment = HorizontalAlignment.Center };
         grabber.Classes.Add("MptMobileGrabber");
@@ -1013,6 +1077,7 @@ public sealed class MobileShellView : UserControl, IAsyncDisposable, IMobileNavi
 
     private (string Title, string Subtitle, Control Content) BuildPermissionsSheet()
     {
+        var generation = _sheetGeneration;
         var stack = new StackPanel { Spacing = 12 };
         var list = new StackPanel { Spacing = 8 };
         list.Children.Add(MobileElements.Caption("正在读取 Broker 审计记录…"));
@@ -1027,6 +1092,11 @@ public sealed class MobileShellView : UserControl, IAsyncDisposable, IMobileNavi
             try
             {
                 var audit = await _workspace.PageData.LoadBrokerAuditAsync(20).ConfigureAwait(true);
+                if (generation != _sheetGeneration || !_viewModel.IsSheetOpen)
+                {
+                    return;
+                }
+
                 list.Children.Clear();
                 if (audit.HasError)
                 {
@@ -1047,6 +1117,11 @@ public sealed class MobileShellView : UserControl, IAsyncDisposable, IMobileNavi
             }
             catch (Exception ex)
             {
+                if (generation != _sheetGeneration || !_viewModel.IsSheetOpen)
+                {
+                    return;
+                }
+
                 list.Children.Clear();
                 list.Children.Add(MobileElements.Text(ex.Message, "MptMobileErrorText"));
             }

@@ -1,3 +1,4 @@
+using System.ComponentModel;
 using System.Collections.ObjectModel;
 using System.Windows.Input;
 using MyPowerTools.Shell.Avalonia.Services;
@@ -341,10 +342,11 @@ public sealed class MobileToolsViewModel : ObservableViewModel
 /// Tool detail page. Local tools open their real surface; computer tools state what they actually
 /// need (a paired, authorised computer) and never offer an action the phone cannot perform.
 /// </summary>
-public sealed class MobileToolDetailViewModel : ObservableViewModel
+public sealed class MobileToolDetailViewModel : ObservableViewModel, IDisposable
 {
     private readonly MobileToolItemViewModel _item;
     private MobileControlDevice? _selectedControlDevice;
+    private int _disposed;
 
     public MobileToolDetailViewModel(
         MobileToolItemViewModel item,
@@ -369,13 +371,25 @@ public sealed class MobileToolDetailViewModel : ObservableViewModel
                 MobileControlDeviceService.FallbackRouteId,
                 MobileControlDeviceService.BuildActivationUri("")),
             operationName: "Connect a computer");
-        _item.PropertyChanged += (_, args) =>
+        _item.PropertyChanged += OnItemPropertyChanged;
+    }
+
+    public void Dispose()
+    {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
         {
-            if (args.PropertyName is nameof(MobileToolItemViewModel.IsFavorite) or nameof(MobileToolItemViewModel.FavoriteActionLabel))
-            {
-                OnPropertyChanged(args.PropertyName);
-            }
-        };
+            return;
+        }
+
+        _item.PropertyChanged -= OnItemPropertyChanged;
+    }
+
+    private void OnItemPropertyChanged(object? sender, PropertyChangedEventArgs args)
+    {
+        if (args.PropertyName is nameof(MobileToolItemViewModel.IsFavorite) or nameof(MobileToolItemViewModel.FavoriteActionLabel))
+        {
+            OnPropertyChanged(args.PropertyName);
+        }
     }
 
     public IMobileNavigator Navigator { get; }
