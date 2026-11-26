@@ -9,10 +9,21 @@ using NssmManager.Runtime;
 
 namespace NssmManager.Tool;
 
-public sealed partial class NssmManagerViewModel : MptObservableViewModel
+public enum NssmBrowseTarget
+{
+    Application,
+    Directory,
+    Stdin,
+    Stdout,
+    Stderr,
+    Hook
+}
+
+public sealed partial class NssmManagerViewModel : MptObservableViewModel, IDisposable
 {
     private readonly MptAvaloniaSurfaceContext _context;
     private readonly CancellationTokenSource _lifetime = new();
+    private int _disposed;
     private NssmServiceSnapshot? _selectedService;
     private NssmServiceConfiguration? _loaded;
     private bool _busy;
@@ -98,6 +109,17 @@ public sealed partial class NssmManagerViewModel : MptObservableViewModel
 
     public Task RefreshAsync() => RefreshAsync(null);
 
+    public void Dispose()
+    {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
+        {
+            return;
+        }
+
+        _lifetime.Cancel();
+        _lifetime.Dispose();
+    }
+
     public async Task<bool> ActivateAsync(string mode, string? serviceName, CancellationToken cancellationToken)
     {
         cancellationToken.ThrowIfCancellationRequested();
@@ -126,7 +148,7 @@ public sealed partial class NssmManagerViewModel : MptObservableViewModel
 
     private async Task RefreshAsync(string? preferredServiceName)
     {
-        if (Busy) return;
+        if (Busy || Volatile.Read(ref _disposed) != 0) return;
         NssmServiceSnapshot? serviceToLoad = null;
         Busy = true;
         try
@@ -153,6 +175,7 @@ public sealed partial class NssmManagerViewModel : MptObservableViewModel
             NotifySelectedServiceState();
             Status = $"已发现 {Services.Count} 个 NSSM 兼容服务。";
         }
+        catch (OperationCanceledException) when (Volatile.Read(ref _disposed) != 0) { }
         catch (Exception exception) { Status = "读取失败：" + exception.Message; Log("error", exception.Message); }
         finally { Busy = false; }
         if (serviceToLoad is not null) await LoadAsync(serviceToLoad.Name).ConfigureAwait(true);
@@ -209,7 +232,7 @@ public sealed partial class NssmManagerViewModel : MptObservableViewModel
         var operationLabel = installing ? "安装服务" : "应用配置";
         try
         {
-            var configuration = configure(installing ? null : _loaded);
+            var configuration = ValidateAndBuildConfiguration();
             if (RequiresRiskConfirmation(installing ? null : _loaded, configuration, !string.IsNullOrEmpty(Password)) &&
                 !Approve("save", configuration))
             {
@@ -589,8 +612,55 @@ public sealed partial class NssmManagerViewModel : MptObservableViewModel
     private static string[] Lines(string value) => value.Split(['\r', '\n'], StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
     private MptAsyncRelayCommand Command(Func<Task> execute, string id) => new(execute, () => !Busy, "nssm-manager." + id);
+    private NssmServiceConfiguration ValidateAndBuildConfiguration()
+    {
+        if (string.IsNullOrWhiteSpace(Name))
+        {
+            throw new ArgumentException("服务名不能为空。", nameof(Name));
+        }
+
+        if (string.IsNullOrWhiteSpace(Application))
+        {
+            throw new ArgumentException("应用路径不能为空。", nameof(Application));
+        }
+
+        ValidateIoPathLength(nameof(Stdin), Stdin);
+        ValidateIoPathLength(nameof(Stdout), Stdout);
+        ValidateIoPathLength(nameof(Stderr), Stderr);
+
+        if (!Affinity.Equals("All", StringComparison.OrdinalIgnoreCase) && string.IsNullOrWhiteSpace(Affinity))
+        {
+            throw new ArgumentException("CPU 亲和性不能为空。", nameof(Affinity));
+        }
+
+        if (Interactive && !Account.Equals("LocalSystem", StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ArgumentException("交互式服务只能使用 LocalSystem。", nameof(Account));
+        }
+
+        if (!AreHooksValid())
+        {
+            throw new ArgumentException("Hook 事件或动作无效。", nameof(HooksText));
+        }
+
+        return Build();
+    }
+
+    private static void ValidateIoPathLength(string name, string? path)
+    {
+        if (!string.IsNullOrEmpty(path) && path.Length >= 32767)
+        {
+            throw new ArgumentException($"{name} path is too long.", name);
+        }
+    }
+
     private async Task<JsonNode?> ExecuteAsync(string commandId, JsonObject? arguments = null)
     {
+        if (Volatile.Read(ref _disposed) != 0)
+        {
+            throw new OperationCanceledException();
+        }
+
         var result = await _context.ExecuteCommandAsync(commandId, arguments, _lifetime.Token).ConfigureAwait(true);
         if (!result.Success) throw new InvalidOperationException(result.Error?.Message ?? result.Output);
         var response = JsonNode.Parse(result.Output)?.AsObject() ?? throw new InvalidDataException("Runtime response is invalid.");

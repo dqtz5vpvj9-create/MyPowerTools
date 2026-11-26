@@ -83,18 +83,15 @@ public sealed class AuditStore
         lock (_lock)
         {
             _entries.Add(entry);
-            if (_entries.Count > MaxEntries) _entries.RemoveRange(0, _entries.Count - MaxEntries);
+            if (_entries.Count > MaxEntries)
+            {
+                _entries.RemoveRange(0, _entries.Count - MaxEntries);
+            }
+
+            // Enqueue inside _lock so concurrent Record() callers form a single linear save chain
+            // and never race on audit.jsonl.tmp.
+            _save = ChainAsync(_save, _entries.ToArray());
         }
-
-        QueuePersist();
-    }
-
-    /// <summary>Best effort and strictly ordered; a failed audit write never fails a request.</summary>
-    private void QueuePersist()
-    {
-        GatewayAuditEntry[] snapshot;
-        lock (_lock) snapshot = _entries.ToArray();
-        _save = ChainAsync(_save, snapshot);
     }
 
     private async Task ChainAsync(Task previous, GatewayAuditEntry[] snapshot)

@@ -21,6 +21,7 @@ public sealed class ImeManagerViewModel : MptObservableViewModel, IDisposable
 
     private readonly MptAvaloniaSurfaceContext _context;
     private readonly CancellationTokenSource _lifetime = new();
+    private int _disposed;
     private readonly Dictionary<string, InputMethodInfo> _catalog = new(StringComparer.OrdinalIgnoreCase);
     private readonly List<string> _managedTipStrings = [];
     private InputMethodPlan _savedPlan = new([], "", SwitchHotkeys.WindowsDefault);
@@ -197,11 +198,25 @@ public sealed class ImeManagerViewModel : MptObservableViewModel, IDisposable
 
     public async Task InitializeAsync()
     {
+        if (Volatile.Read(ref _disposed) != 0)
+        {
+            return;
+        }
+
         await LoadManagedTipsAsync();
         await RefreshAsync();
     }
 
-    public void Dispose() => _lifetime.Cancel();
+    public void Dispose()
+    {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
+        {
+            return;
+        }
+
+        _lifetime.Cancel();
+        _lifetime.Dispose();
+    }
 
     private MptAsyncRelayCommand Command(Func<Task> execute, string name)
     {
@@ -210,7 +225,7 @@ public sealed class ImeManagerViewModel : MptObservableViewModel, IDisposable
 
     private async Task RefreshAsync()
     {
-        if (IsBusy)
+        if (IsBusy || Volatile.Read(ref _disposed) != 0)
         {
             return;
         }
@@ -232,6 +247,9 @@ public sealed class ImeManagerViewModel : MptObservableViewModel, IDisposable
             StatusText = $"已读取 {Items.Count} 个可管理输入法，其中 {enabledCount} 个已启用。";
             ActionMessage = "勾选表示出现在 Win+空格 / Ctrl+Shift 切换列表里；取消勾选后点应用即移除。添加不会下载任何输入法软件。";
             Log("info", $"Loaded IME snapshot; managed={Items.Count}; enabled={enabledCount}.");
+        }
+        catch (OperationCanceledException) when (Volatile.Read(ref _disposed) != 0)
+        {
         }
         catch (Exception exception)
         {
@@ -521,6 +539,11 @@ public sealed class ImeManagerViewModel : MptObservableViewModel, IDisposable
 
     private async Task LoadManagedTipsAsync()
     {
+        if (Volatile.Read(ref _disposed) != 0)
+        {
+            return;
+        }
+
         var path = Path.Combine(_context.DataDirectory, ManagedTipsFileName);
         if (!File.Exists(path))
         {
@@ -546,6 +569,9 @@ public sealed class ImeManagerViewModel : MptObservableViewModel, IDisposable
                 }
             }
         }
+        catch (Exception exception) when (exception is OperationCanceledException or ObjectDisposedException)
+        {
+        }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException or JsonException)
         {
             Log("warning", $"读取输入法管理范围失败：{exception.Message}");
@@ -554,6 +580,11 @@ public sealed class ImeManagerViewModel : MptObservableViewModel, IDisposable
 
     private async Task SaveManagedTipsAsync()
     {
+        if (Volatile.Read(ref _disposed) != 0)
+        {
+            return;
+        }
+
         try
         {
             Directory.CreateDirectory(_context.DataDirectory);
@@ -571,6 +602,9 @@ public sealed class ImeManagerViewModel : MptObservableViewModel, IDisposable
                 Encoding.UTF8,
                 _lifetime.Token);
             File.Move(temporaryPath, path, overwrite: true);
+        }
+        catch (Exception exception) when (exception is OperationCanceledException or ObjectDisposedException)
+        {
         }
         catch (Exception exception) when (exception is IOException or UnauthorizedAccessException)
         {
@@ -708,6 +742,11 @@ public sealed class ImeManagerViewModel : MptObservableViewModel, IDisposable
         string commandId,
         JsonObject? arguments = null)
     {
+        if (Volatile.Read(ref _disposed) != 0)
+        {
+            throw new OperationCanceledException();
+        }
+
         var command = await _context.ExecuteCommandAsync(
             commandId,
             arguments,

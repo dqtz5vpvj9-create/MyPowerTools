@@ -29,6 +29,7 @@ public sealed class NssmHookServiceContext
     public uint ExitCount { get; init; }
     public uint ThrottleCount { get; init; }
     public Func<string, string, IReadOnlyDictionary<string, string?>, Process?>? StartHook { get; init; }
+    internal Func<string, string, IReadOnlyDictionary<string, string?>, StartedChildProcess?>? StartNativeHook { get; init; }
     public Action<ProcessStartInfo>? ConfigureOutput { get; init; }
     public Func<Process, CancellationToken, Task>? PumpOutput { get; init; }
 }
@@ -95,6 +96,54 @@ public static class NssmHook
         if (exitCode == HookStatusAbort) return HookStatusAbort;
         if (exitCode != 0) return HookStatusFailed;
         return HookStatusSuccess;
+    }
+
+    private static async Task<int> AwaitStartedHookAsync(string name, StartedChildProcess process, uint deadlineMs, Task outputPumps, CancellationToken cancellationToken)
+    {
+        using (process)
+        {
+            var creationTime = DateTime.UtcNow.ToFileTimeUtc();
+            if (NssmProcess.get_process_creation_time(process.Handle, out var nativeCreationTime) == 0)
+            {
+                creationTime = nativeCreationTime;
+            }
+
+            using var deadline = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+            deadline.CancelAfter(checked((int)deadlineMs));
+            var result = HookStatusSuccess;
+            try
+            {
+                await process.WaitForExitAsync(deadline.Token).ConfigureAwait(false);
+                await outputPumps.WaitAsync(deadline.Token).ConfigureAwait(false);
+            }
+            catch (OperationCanceledException) when (deadline.IsCancellationRequested)
+            {
+                result = HookStatusTimeout;
+            }
+            catch
+            {
+                result = HookStatusError;
+            }
+
+            var cleanup = new NssmKillContext
+            {
+                Name = name,
+                ProcessHandle = process.Handle,
+                ProcessId = unchecked((uint)process.Id),
+                StopMethod = uint.MaxValue,
+                KillConsoleDelay = 1500,
+                KillWindowDelay = 1500,
+                KillThreadsDelay = 1500,
+                CreationTime = creationTime,
+                ExitTime = DateTime.UtcNow.ToFileTimeUtc()
+            };
+            NssmProcess.kill_process_tree(cleanup, cleanup.ProcessId);
+            if (result != HookStatusSuccess) return result;
+            var exitCode = process.ExitCode;
+            if (exitCode == HookStatusAbort) return HookStatusAbort;
+            if (exitCode != 0) return HookStatusFailed;
+            return HookStatusSuccess;
+        }
     }
 
     [NssmUpstreamFunction("src/hook.cpp", 55, "static void set_hook_runtime(TCHAR *v, FILETIME *start, FILETIME *now)", "NssmHookTests.set_hook_runtime_uses_nonnegative_milliseconds")]
@@ -235,30 +284,50 @@ public static class NssmHook
         info.ArgumentList.Add(expandedCommand);
         context.ConfigureOutput?.Invoke(info);
 
-        Process? process;
-        try
+        var invocationName = $"{context.Service.Name} ({hookEvent}/{hookAction})";
+        Task<int> task;
+        if (context.StartHook is not null)
         {
-            process = context.StartHook is null
-                ? NativeChildProcess.StartHook(expandedCommand, info.WorkingDirectory,
-                    new Dictionary<string, string?>(info.Environment, StringComparer.OrdinalIgnoreCase), null, false)
-                : context.StartHook(expandedCommand, info.WorkingDirectory,
+            Process? customProcess;
+            try
+            {
+                customProcess = context.StartHook(expandedCommand, info.WorkingDirectory,
                     new Dictionary<string, string?>(info.Environment, StringComparer.OrdinalIgnoreCase));
+            }
+            catch { return HookStatusNotRun; }
+            if (customProcess is null) return HookStatusNotRun;
+            var pumps = context.PumpOutput?.Invoke(customProcess, cancellationToken) ?? Task.CompletedTask;
+            task = await_hook(new NssmHookInvocation
+            {
+                Name = invocationName,
+                Process = customProcess,
+                Deadline = deadline,
+                OutputPumps = pumps
+            }, CancellationToken.None);
         }
-        catch { return HookStatusNotRun; }
-        if (process is null) return HookStatusNotRun;
-        var pumps = context.PumpOutput?.Invoke(process, cancellationToken) ?? Task.CompletedTask;
-        var invocation = new NssmHookInvocation
+        else
         {
-            Name = $"{context.Service.Name} ({hookEvent}/{hookAction})",
-            Process = process,
-            Deadline = deadline,
-            OutputPumps = pumps
-        };
-        var task = await_hook(invocation, CancellationToken.None);
+            StartedChildProcess? nativeProcess;
+            try
+            {
+                nativeProcess = context.StartNativeHook is null
+                    ? NativeChildProcess.StartHook(expandedCommand, info.WorkingDirectory,
+                        new Dictionary<string, string?>(info.Environment, StringComparer.OrdinalIgnoreCase), null, false)
+                    : context.StartNativeHook(expandedCommand, info.WorkingDirectory,
+                        new Dictionary<string, string?>(info.Environment, StringComparer.OrdinalIgnoreCase));
+            }
+            catch { return HookStatusNotRun; }
+            if (nativeProcess is null) return HookStatusNotRun;
+            var pumps = nativeProcess.Process is not null && context.PumpOutput is not null
+                ? context.PumpOutput(nativeProcess.Process, cancellationToken)
+                : Task.CompletedTask;
+            task = AwaitStartedHookAsync(invocationName, nativeProcess, deadline, pumps, CancellationToken.None);
+        }
+
         if (async)
         {
             await await_hook_threads(hookThreads, 0, cancellationToken).ConfigureAwait(false);
-            add_thread_handle(hookThreads, task, invocation.Name);
+            add_thread_handle(hookThreads, task, invocationName);
             return HookStatusSuccess;
         }
         return await task.ConfigureAwait(false);

@@ -155,6 +155,7 @@ public sealed class NssmSettingsTranslationTests
 
     private static void WithKey(Action<RegistryKey> action)
     {
+        if (!OperatingSystem.IsWindows()) return;
         var relative = $@"Software\MyPowerTools\NssmManagerTests\{Guid.NewGuid():N}";
         using var key = Registry.CurrentUser.CreateSubKey(relative, writable: true)!;
         try { action(key); }

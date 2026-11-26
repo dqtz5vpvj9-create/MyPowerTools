@@ -33,6 +33,7 @@ public sealed class NssmServiceTranslationTests
         Assert.Equal(-1, NssmServiceTranslation.service_control_response(2, 4));
         Assert.Equal(0, NssmServiceTranslation.service_control_response(128, 12345));
 
+        if (!OperatingSystem.IsWindows()) return;
         var status = new NssmServiceStatus();
         Assert.Equal(-1, NssmServiceTranslation.await_service_control_response(0, IntPtr.Zero, ref status, 1, 1));
         Assert.Equal(-1, NssmServiceTranslation.await_service_control_response(0, IntPtr.Zero, ref status, 1));

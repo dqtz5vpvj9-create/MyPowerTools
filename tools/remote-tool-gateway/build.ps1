@@ -55,6 +55,15 @@ foreach ($shared in @('MyPowerTools.AvaloniaSdk', 'MyPowerTools.Abstractions')) 
     }
 }
 
+# The Runner's InProcDotNetModuleHost resolves shared host contracts from its own load context;
+# strip duplicate contract assemblies from the module root as well.
+foreach ($shared in @('MyPowerTools.Platform.Abstractions', 'MyPowerTools.Abstractions')) {
+    foreach ($pattern in @("$shared.dll", "$shared.pdb", "$shared.deps.json")) {
+        $stale = Join-Path $staging $pattern
+        if (Test-Path -LiteralPath $stale) { Remove-Item -LiteralPath $stale -Force }
+    }
+}
+
 # The Shell resolves the Surface through ui/tool.json and the module host resolves the entry point
 # from module.json; fail here instead of shipping a catalog that points at a missing assembly.
 $required = @(

@@ -23,7 +23,7 @@
 
   <Target Name="StageRepositoryModule"
           AfterTargets="CopyModuleAssemblyToPackage"
-          Condition="'$(MyPowerToolsRepoRoot)' != '' and '$(StageRepositoryModule)' != 'false'">
+          Condition="'$(MyPowerToolsRepoRoot)' != '' and '$(StageRepositoryModule)' == 'true'">
     <ItemGroup>
       <RepositoryModuleFiles Include="$(ModulePackageRoot)\**\*" />
     </ItemGroup>

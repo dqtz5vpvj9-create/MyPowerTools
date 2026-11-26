@@ -10,6 +10,7 @@ public sealed class NssmHookTests
     [Fact]
     public async Task await_hook_maps_timeout_abort_and_failure_statuses()
     {
+        if (!OperatingSystem.IsWindows()) return;
         Assert.Equal(HookRuntime.HookStatusAbort, await AwaitExit("exit /b 99", 5000));
         Assert.Equal(HookRuntime.HookStatusFailed, await AwaitExit("exit /b 7", 5000));
         Assert.Equal(HookRuntime.HookStatusTimeout, await AwaitExit("ping 127.0.0.1 -n 6 >nul", 20));
@@ -61,6 +62,7 @@ public sealed class NssmHookTests
     [Fact]
     public async Task nssm_hook_sets_version_one_environment_and_status()
     {
+        if (!OperatingSystem.IsWindows()) return;
         var path = Path.Combine(Path.GetTempPath(), "nssm-hook-" + Guid.NewGuid().ToString("N") + ".txt");
         try
         {
@@ -93,7 +95,7 @@ public sealed class NssmHookTests
         info.ArgumentList.Add("/s");
         info.ArgumentList.Add("/c");
         info.ArgumentList.Add(command);
-        var process = Process.Start(info)!;
+        using var process = Process.Start(info)!;
         return await HookRuntime.await_hook(new NssmHookInvocation { Name = "test", Process = process, Deadline = deadline });
     }
 }

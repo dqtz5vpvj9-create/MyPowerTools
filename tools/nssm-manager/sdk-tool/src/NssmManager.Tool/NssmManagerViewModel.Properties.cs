@@ -6,6 +6,31 @@ namespace NssmManager.Tool;
 
 public sealed partial class NssmManagerViewModel
 {
+    private static readonly string[] SupportedHookEvents = ["Start", "Stop", "Exit", "Power", "Rotate"];
+
+    private static readonly IReadOnlyDictionary<string, string[]> SupportedHookActions =
+        new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["Start"] = ["Pre", "Post"],
+            ["Stop"] = ["Pre"],
+            ["Exit"] = ["Post"],
+            ["Power"] = ["Change", "Resume"],
+            ["Rotate"] = ["Pre", "Post"]
+        };
+
+    private bool _interactiveLogonEnabled = true;
+    private bool _credentialsEnabled;
+    private bool _affinityEnabled;
+    private bool _rotationOptionsEnabled;
+    private bool _consoleTimeoutEnabled = true;
+    private bool _windowTimeoutEnabled = true;
+    private bool _threadsTimeoutEnabled = true;
+    private int _selectedTabIndex;
+    private string _selectedHookEvent = "Start";
+    private string _selectedHookAction = "Pre";
+    private string _selectedHookCommand = string.Empty;
+    private IReadOnlyList<string> _availableHookActions = SupportedHookActions["Start"];
+
     public ObservableCollection<NssmServiceSnapshot> Services { get; }
     public IReadOnlyList<string> StartupTypes { get; } = Enum.GetNames<NssmStartupType>();
     public IReadOnlyList<string> ExitActions { get; } = Enum.GetNames<NssmExitAction>();
@@ -87,7 +112,20 @@ public sealed partial class NssmManagerViewModel
     public string Application { get => _application; set => SetProperty(ref _application, value); }
     public string Parameters { get => _parameters; set => SetProperty(ref _parameters, value); }
     public string Directory { get => _directory; set => SetProperty(ref _directory, value); }
-    public string Account { get => _account; set { if (SetProperty(ref _account, value)) { var localSystem = value.Equals("LocalSystem", StringComparison.OrdinalIgnoreCase); var virtualAccount = value.StartsWith(@"NT SERVICE\", StringComparison.OrdinalIgnoreCase); set_logon_enabled(localSystem, !localSystem && !virtualAccount); } } }
+    public string Account
+    {
+        get => _account;
+        set
+        {
+            if (SetProperty(ref _account, value))
+            {
+                var localSystem = value.Equals("LocalSystem", StringComparison.OrdinalIgnoreCase);
+                var virtualAccount = value.StartsWith(@"NT SERVICE\", StringComparison.OrdinalIgnoreCase);
+                InteractiveLogonEnabled = localSystem;
+                CredentialsEnabled = !localSystem && !virtualAccount;
+            }
+        }
+    }
     public string Password { get => _password; set => SetProperty(ref _password, value); }
     public string StartupType { get => _startupType; set => SetProperty(ref _startupType, value); }
     public bool Interactive { get => _interactive; set => SetProperty(ref _interactive, value); }
@@ -168,4 +206,184 @@ public sealed partial class NssmManagerViewModel
         "save" => "确认并提交配置",
         _ => "确认并提交"
     };
+
+    public bool InteractiveLogonEnabled { get => _interactiveLogonEnabled; private set => SetProperty(ref _interactiveLogonEnabled, value); }
+    public bool CredentialsEnabled { get => _credentialsEnabled; private set => SetProperty(ref _credentialsEnabled, value); }
+    public bool AffinityEnabled { get => _affinityEnabled; private set => SetProperty(ref _affinityEnabled, value); }
+    public bool RotationOptionsEnabled { get => _rotationOptionsEnabled; private set => SetProperty(ref _rotationOptionsEnabled, value); }
+    public bool ConsoleTimeoutEnabled { get => _consoleTimeoutEnabled; private set => SetProperty(ref _consoleTimeoutEnabled, value); }
+    public bool WindowTimeoutEnabled { get => _windowTimeoutEnabled; private set => SetProperty(ref _windowTimeoutEnabled, value); }
+    public bool ThreadsTimeoutEnabled { get => _threadsTimeoutEnabled; private set => SetProperty(ref _threadsTimeoutEnabled, value); }
+    public int SelectedTabIndex { get => _selectedTabIndex; set => SetProperty(ref _selectedTabIndex, value); }
+    public IReadOnlyList<string> HookEvents => SupportedHookEvents;
+    public IReadOnlyList<string> AvailableHookActions { get => _availableHookActions; private set => SetProperty(ref _availableHookActions, value); }
+
+    public string SelectedHookEvent
+    {
+        get => _selectedHookEvent;
+        set
+        {
+            if (SetProperty(ref _selectedHookEvent, value))
+            {
+                SelectHookTab(Array.IndexOf(SupportedHookEvents, value), 0, saveCurrentHook: false);
+            }
+        }
+    }
+
+    public string SelectedHookAction
+    {
+        get => _selectedHookAction;
+        set
+        {
+            if (SetProperty(ref _selectedHookAction, value))
+            {
+                LoadSelectedHook();
+            }
+        }
+    }
+
+    public string SelectedHookCommand
+    {
+        get => _selectedHookCommand;
+        set => SetProperty(ref _selectedHookCommand, value);
+    }
+
+    public void SetAffinityEnabled(bool enabled)
+    {
+        AffinityEnabled = enabled;
+        if (!enabled)
+        {
+            Affinity = "All";
+        }
+    }
+
+    public void SelectHookTab(int eventIndex, int actionIndex, bool saveCurrentHook)
+    {
+        if (saveCurrentHook)
+        {
+            UpdateHookEntry(_selectedHookEvent, _selectedHookAction, SelectedHookCommand);
+        }
+
+        if (eventIndex < 0 || eventIndex >= SupportedHookEvents.Length)
+        {
+            return;
+        }
+
+        _selectedHookEvent = SupportedHookEvents[eventIndex];
+        OnPropertyChanged(nameof(SelectedHookEvent));
+        AvailableHookActions = SupportedHookActions[_selectedHookEvent];
+        _selectedHookAction = AvailableHookActions[Math.Clamp(actionIndex, 0, AvailableHookActions.Count - 1)];
+        OnPropertyChanged(nameof(SelectedHookAction));
+        LoadSelectedHook();
+    }
+
+    public void ApplyBrowseSelection(NssmBrowseTarget target, string selectedPath)
+    {
+        if (string.IsNullOrWhiteSpace(selectedPath))
+        {
+            return;
+        }
+
+        switch (target)
+        {
+            case NssmBrowseTarget.Application:
+                Application = selectedPath;
+                if (string.IsNullOrWhiteSpace(Directory))
+                {
+                    Directory = Path.GetDirectoryName(selectedPath) ?? string.Empty;
+                }
+                break;
+            case NssmBrowseTarget.Directory:
+                Directory = selectedPath;
+                break;
+            case NssmBrowseTarget.Stdin:
+                Stdin = selectedPath;
+                break;
+            case NssmBrowseTarget.Stdout:
+                Stdout = selectedPath;
+                if (string.IsNullOrWhiteSpace(Stderr))
+                {
+                    Stderr = selectedPath;
+                }
+                break;
+            case NssmBrowseTarget.Stderr:
+                Stderr = selectedPath;
+                break;
+            case NssmBrowseTarget.Hook:
+                SelectedHookCommand = selectedPath;
+                var eventIndex = Array.IndexOf(SupportedHookEvents, SelectedHookEvent);
+                var actionIndex = IndexOfItem(AvailableHookActions, SelectedHookAction);
+                SelectHookTab(eventIndex, actionIndex, saveCurrentHook: true);
+                break;
+        }
+    }
+
+    private void UpdateHookEntry(string hookEvent, string hookAction, string command)
+    {
+        if (!SupportedHookActions.TryGetValue(hookEvent, out var actions) ||
+            !actions.Contains(hookAction, StringComparer.OrdinalIgnoreCase))
+        {
+            return;
+        }
+
+        var hooks = ParseHookDrafts();
+        hooks.RemoveAll(hook =>
+            hook.Event.Equals(hookEvent, StringComparison.OrdinalIgnoreCase) &&
+            hook.Action.Equals(hookAction, StringComparison.OrdinalIgnoreCase));
+        if (!string.IsNullOrEmpty(command))
+        {
+            hooks.Add(new NssmHook(hookEvent, hookAction, command));
+        }
+
+        HooksText = string.Join(Environment.NewLine, hooks.Select(hook => $"{hook.Event}/{hook.Action}={hook.Command}"));
+    }
+
+    private bool AreHooksValid()
+    {
+        try
+        {
+            var hooks = ParseHooks();
+            return hooks.All(hook =>
+                SupportedHookActions.TryGetValue(hook.Event, out var actions) &&
+                actions.Contains(hook.Action, StringComparer.OrdinalIgnoreCase));
+        }
+        catch (ArgumentException)
+        {
+            return false;
+        }
+    }
+
+    private List<NssmHook> ParseHookDrafts()
+    {
+        try
+        {
+            return ParseHooks().ToList();
+        }
+        catch (ArgumentException)
+        {
+            return [];
+        }
+    }
+
+    private void LoadSelectedHook()
+    {
+        SelectedHookCommand = ParseHookDrafts()
+            .FirstOrDefault(hook =>
+                hook.Event.Equals(SelectedHookEvent, StringComparison.OrdinalIgnoreCase) &&
+                hook.Action.Equals(SelectedHookAction, StringComparison.OrdinalIgnoreCase))
+            ?.Command ?? string.Empty;
+    }
+
+    private static int IndexOfItem<T>(IReadOnlyList<T> values, T value)
+    {
+        for (var index = 0; index < values.Count; index++)
+        {
+            if (EqualityComparer<T>.Default.Equals(values[index], value))
+            {
+                return index;
+            }
+        }
+
+        return -1;
+    }
 }

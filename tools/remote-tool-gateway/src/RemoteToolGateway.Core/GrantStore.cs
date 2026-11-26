@@ -23,7 +23,7 @@ public sealed record GatewayGrant(
 /// and is referenced by <see cref="GatewayGrant.SecretUri"/>. A token is compared by SHA-256 so
 /// the comparison is constant time and no plaintext token index is kept in memory.
 /// </summary>
-public sealed class GrantStore
+public sealed class GrantStore : IDisposable
 {
     public const int MaxGrants = 64;
     public const int MaxCommandsPerGrant = 400;
@@ -38,6 +38,7 @@ public sealed class GrantStore
     private readonly object _stateLock = new();
     private readonly Dictionary<string, DateTimeOffset> _lastTouch = new(StringComparer.Ordinal);
     private List<GatewayGrant> _grants = [];
+    private int _disposed;
 
     public GrantStore(string dataDirectory, ISecretStore secrets, string moduleId)
     {
@@ -328,6 +329,14 @@ public sealed class GrantStore
             try { value = node?.GetValue<string>(); }
             catch (Exception ex) when (ex is InvalidOperationException or FormatException) { }
             if (!string.IsNullOrWhiteSpace(value)) yield return value;
+        }
+    }
+
+    public void Dispose()
+    {
+        if (Interlocked.Exchange(ref _disposed, 1) == 0)
+        {
+            _write.Dispose();
         }
     }
 }

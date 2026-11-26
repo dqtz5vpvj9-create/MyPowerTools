@@ -58,9 +58,20 @@ public sealed class RemoteToolGatewayModule : IMptModule
         Directory.CreateDirectory(_data);
         _secrets = context.GetCapability<ISecretStore>("secret.store");
         var path = Path.Combine(_data, "preferences.json");
-        if (File.Exists(path)) _settings = JsonArgs.Merge(Defaults(), await ReadSettingsAsync(path, cancellationToken));
-        if (Setting("listenAddress").Length == 0)
-            _settings["listenAddress"] = TailnetBinding.LocalAddresses().FirstOrDefault()?.ToString() ?? "";
+        var loadedSettings = File.Exists(path)
+            ? JsonArgs.Merge(Defaults(), await ReadSettingsAsync(path, cancellationToken))
+            : Defaults();
+        if (JsonArgs.String(loadedSettings, "listenAddress").Length == 0)
+        {
+            loadedSettings["listenAddress"] = TailnetBinding.LocalAddresses().FirstOrDefault()?.ToString() ?? "";
+        }
+
+        string initialJson;
+        lock (_stateLock)
+        {
+            _settings = loadedSettings;
+            initialJson = _settings.ToJsonString();
+        }
 
         _service = new RemoteToolGatewayService(_data, _secrets, BridgeOverride ?? new HostControlClientBridge(), new RemoteToolGatewayOptions
         {
@@ -72,16 +83,19 @@ public sealed class RemoteToolGatewayModule : IMptModule
         });
         _service.Changed += OnServiceChanged;
         await _service.InitializeAsync(cancellationToken);
-        await File.WriteAllTextAsync(path, _settings.ToJsonString(), cancellationToken);
+        await WriteSettingsAtomicallyAsync(path, initialJson, cancellationToken);
 
         if (SettingBool("listenerEnabled"))
         {
             // The user enabled the listener earlier; resume it, but never fail the whole module
             // when Tailscale is not connected yet.
-            try { await StartListenerAsync(Setting("listenAddress"), SettingInt("port"), cancellationToken); }
+            try
+            {
+                await StartListenerAsync(Setting("listenAddress"), SettingInt("port"), cancellationToken);
+            }
             catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
             {
-                _lastListenerError = MptLogRedactor.Redact(ex.Message);
+                SetLastListenerError(MptLogRedactor.Redact(ex.Message));
             }
         }
 
@@ -107,22 +121,55 @@ public sealed class RemoteToolGatewayModule : IMptModule
         }
     }
 
+    private JsonObject CloneSettings()
+    {
+        lock (_stateLock)
+        {
+            return (JsonObject)_settings.DeepClone();
+        }
+    }
+
+    private string GetLastListenerError()
+    {
+        lock (_stateLock)
+        {
+            return _lastListenerError;
+        }
+    }
+
+    private void SetLastListenerError(string message)
+    {
+        lock (_stateLock)
+        {
+            _lastListenerError = message;
+        }
+    }
+
     private string Setting(string key)
     {
-        try { return _settings[key]?.GetValue<string>() ?? ""; }
-        catch (Exception ex) when (ex is InvalidOperationException or FormatException) { return ""; }
+        lock (_stateLock)
+        {
+            try { return _settings[key]?.GetValue<string>() ?? ""; }
+            catch (Exception ex) when (ex is InvalidOperationException or FormatException) { return ""; }
+        }
     }
 
     private int SettingInt(string key)
     {
-        try { return _settings[key]?.GetValue<int>() ?? 0; }
-        catch (Exception ex) when (ex is InvalidOperationException or FormatException) { return 0; }
+        lock (_stateLock)
+        {
+            try { return _settings[key]?.GetValue<int>() ?? 0; }
+            catch (Exception ex) when (ex is InvalidOperationException or FormatException) { return 0; }
+        }
     }
 
     private bool SettingBool(string key)
     {
-        try { return _settings[key]?.GetValue<bool>() ?? false; }
-        catch (Exception ex) when (ex is InvalidOperationException or FormatException) { return false; }
+        lock (_stateLock)
+        {
+            try { return _settings[key]?.GetValue<bool>() ?? false; }
+            catch (Exception ex) when (ex is InvalidOperationException or FormatException) { return false; }
+        }
     }
 
     // ---- status and commands ------------------------------------------------------------------
@@ -132,10 +179,11 @@ public sealed class RemoteToolGatewayModule : IMptModule
         var running = _service.ListenerRunning;
         var grants = _service.Grants.Grants.Count;
         var pending = _service.Invocations.PendingConfirmations().Count;
+        var lastError = GetLastListenerError();
         var text = running
             ? $"正在 {TailnetBinding.FormatEndpoint(System.Net.IPAddress.Parse(_service.ListenerAddress), _service.ListenerPort)} 等待已授权的手机；{grants} 个设备授权，{pending} 个待确认。"
-            : _lastListenerError.Length > 0
-                ? "监听未开启：" + _lastListenerError
+            : lastError.Length > 0
+                ? "监听未开启：" + lastError
                 : $"监听未开启；{grants} 个设备授权，{pending} 个待确认。";
         return ValueTask.FromResult(new ModuleStatusSnapshot(Id, "running", text, DateTimeOffset.UtcNow, [],
             (ulong)Interlocked.Read(ref _seq)));
@@ -197,8 +245,12 @@ public sealed class RemoteToolGatewayModule : IMptModule
         var includeCatalog = JsonArgs.Bool(args, "includeCatalog", true);
         var payload = await _service.DescribeAsync(SettingBool("listenerEnabled"), includeCatalog, cancellationToken);
         payload["hostReachable"] = await _service.PingHostAsync(cancellationToken);
-        payload["settings"] = _settings.DeepClone();
-        payload["listenerError"] = _lastListenerError;
+        lock (_stateLock)
+        {
+            payload["settings"] = _settings.DeepClone();
+            payload["listenerError"] = _lastListenerError;
+        }
+
         return payload;
     }
 
@@ -217,11 +269,18 @@ public sealed class RemoteToolGatewayModule : IMptModule
         try
         {
             await _service.StopListenerAsync();
-            _settings["listenerEnabled"] = false;
-            _lastListenerError = "";
+            lock (_stateLock)
+            {
+                _settings["listenerEnabled"] = false;
+                _lastListenerError = "";
+            }
+
             await PersistSettingsAsync(cancellationToken);
         }
-        finally { _operations.Release(); }
+        finally
+        {
+            _operations.Release();
+        }
 
         return new JsonObject { ["running"] = false };
     }
@@ -234,19 +293,26 @@ public sealed class RemoteToolGatewayModule : IMptModule
             var resolved = address;
             if (resolved.Length == 0) resolved = TailnetBinding.LocalAddresses().FirstOrDefault()?.ToString() ?? "";
             var endpoint = await _service.StartListenerAsync(resolved, port, cancellationToken);
-            _settings["listenAddress"] = resolved;
-            _settings["port"] = port;
-            _settings["listenerEnabled"] = true;
-            _lastListenerError = "";
+            lock (_stateLock)
+            {
+                _settings["listenAddress"] = resolved;
+                _settings["port"] = _service.ListenerPort;
+                _settings["listenerEnabled"] = true;
+                _lastListenerError = "";
+            }
+
             await PersistSettingsAsync(cancellationToken);
             return endpoint;
         }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
         {
-            _lastListenerError = MptLogRedactor.Redact(ex.Message);
+            SetLastListenerError(MptLogRedactor.Redact(ex.Message));
             throw;
         }
-        finally { _operations.Release(); }
+        finally
+        {
+            _operations.Release();
+        }
     }
 
     // ---- events -------------------------------------------------------------------------------
@@ -282,8 +348,18 @@ public sealed class RemoteToolGatewayModule : IMptModule
     public ValueTask<SettingsSchemaDocument> GetSettingsSchemaAsync(CancellationToken cancellationToken) =>
         ValueTask.FromResult(new SettingsSchemaDocument(Id, SchemaJson));
 
-    public ValueTask<SettingsSnapshotDocument> GetSettingsAsync(CancellationToken cancellationToken) =>
-        ValueTask.FromResult(new SettingsSnapshotDocument(Id, _revision, (JsonObject)_settings.DeepClone(), DateTimeOffset.UtcNow));
+    public ValueTask<SettingsSnapshotDocument> GetSettingsAsync(CancellationToken cancellationToken)
+    {
+        ulong revision;
+        JsonObject clone;
+        lock (_stateLock)
+        {
+            revision = _revision;
+            clone = (JsonObject)_settings.DeepClone();
+        }
+
+        return ValueTask.FromResult(new SettingsSnapshotDocument(Id, revision, clone, DateTimeOffset.UtcNow));
+    }
 
     public ValueTask<SettingsValidationResult> ValidateSettingsAsync(SettingsPatch patch, CancellationToken cancellationToken)
     {
@@ -291,8 +367,14 @@ public sealed class RemoteToolGatewayModule : IMptModule
         {
             var values = patch.Patch.DeepClone().AsObject();
             foreach (var key in values.Select(pair => pair.Key))
-                if (!SettingKeys.Contains(key)) throw new ArgumentException($"不支持设置项：{key}。");
-            ValidateSettings(JsonArgs.Merge(_settings, values));
+            {
+                if (!SettingKeys.Contains(key))
+                {
+                    throw new ArgumentException($"不支持设置项：{key}。");
+                }
+            }
+
+            ValidateSettings(JsonArgs.Merge(CloneSettings(), values));
             return ValueTask.FromResult(new SettingsValidationResult(true, []));
         }
         catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or FormatException)
@@ -309,32 +391,57 @@ public sealed class RemoteToolGatewayModule : IMptModule
         {
             var values = snapshot.Values.DeepClone().AsObject();
             foreach (var key in values.Select(pair => pair.Key))
-                if (!SettingKeys.Contains(key)) throw new ArgumentException($"不支持设置项：{key}。");
-            var merged = JsonArgs.Merge(_settings, values);
-            ValidateSettings(merged);
-            _settings = merged;
-
-            var enabled = SettingBool("listenerEnabled");
-            if (enabled)
             {
-                // Restarting on a changed address/port keeps the listener on the configured endpoint.
-                await _service.StopListenerAsync();
-                await _service.StartListenerAsync(Setting("listenAddress"), SettingInt("port"), cancellationToken);
-                _lastListenerError = "";
+                if (!SettingKeys.Contains(key))
+                {
+                    throw new ArgumentException($"不支持设置项：{key}。");
+                }
             }
-            else
+
+            var merged = JsonArgs.Merge(CloneSettings(), values);
+            ValidateSettings(merged);
+
+            var enabled = JsonArgs.Bool(merged, "listenerEnabled");
+            var address = JsonArgs.String(merged, "listenAddress");
+            var port = JsonArgs.Int(merged, "port", DefaultPort);
+
+            try
             {
-                await _service.StopListenerAsync();
+                if (enabled)
+                {
+                    // Restarting on a changed address/port keeps the listener on the configured endpoint.
+                    await _service.StopListenerAsync();
+                    if (address.Length == 0)
+                    {
+                        address = TailnetBinding.LocalAddresses().FirstOrDefault()?.ToString() ?? "";
+                        merged["listenAddress"] = address;
+                    }
+
+                    await _service.StartListenerAsync(address, port, cancellationToken);
+                }
+                else
+                {
+                    await _service.StopListenerAsync();
+                }
+            }
+            catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
+            {
+                SetLastListenerError(MptLogRedactor.Redact(ex.Message));
+                throw;
+            }
+
+            lock (_stateLock)
+            {
+                _settings = merged;
                 _lastListenerError = "";
             }
 
             await PersistSettingsAsync(cancellationToken);
         }
-        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
+        finally
         {
-            _lastListenerError = MptLogRedactor.Redact(ex.Message);
+            _operations.Release();
         }
-        finally { _operations.Release(); }
 
         return await GetSettingsAsync(cancellationToken);
     }
@@ -349,19 +456,58 @@ public sealed class RemoteToolGatewayModule : IMptModule
                 && System.Net.IPAddress.TryParse(address, out var candidate)
                 && System.Net.IPAddress.IsLoopback(candidate);
             if (!loopbackInTests)
+            {
                 throw new ArgumentException("监听地址必须是本机当前的 Tailscale IP（100.64.0.0/10 或 fd7a:115c:a1e0::/48）。");
+            }
         }
+
         var port = JsonArgs.Int(settings, "port", 0);
-        if (port is < 1024 or > 65535) throw new ArgumentException("监听端口应在 1024–65535 之间。");
+        if (port is < 1024 or > 65535)
+        {
+            throw new ArgumentException("监听端口应在 1024–65535 之间。");
+        }
+
         if (port == RemoteToolGatewayService.FileTransferPort)
+        {
             throw new ArgumentException($"端口 {RemoteToolGatewayService.FileTransferPort} 已被文件互传使用，请换一个端口。");
+        }
+
         _ = JsonArgs.Bool(settings, "listenerEnabled");
     }
 
     private async Task PersistSettingsAsync(CancellationToken cancellationToken)
     {
-        await File.WriteAllTextAsync(Path.Combine(_data, "preferences.json"), _settings.ToJsonString(), cancellationToken);
-        _revision++;
+        string json;
+        lock (_stateLock)
+        {
+            json = _settings.ToJsonString();
+        }
+
+        await WriteSettingsAtomicallyAsync(Path.Combine(_data, "preferences.json"), json, cancellationToken);
+        lock (_stateLock)
+        {
+            _revision++;
+        }
+    }
+
+    private static async Task WriteSettingsAtomicallyAsync(string path, string content, CancellationToken cancellationToken)
+    {
+        var directory = Path.GetDirectoryName(path)
+            ?? throw new InvalidOperationException($"Settings path '{path}' has no parent directory.");
+        Directory.CreateDirectory(directory);
+        var temporary = Path.Combine(directory, $".{Path.GetFileName(path)}.{Guid.NewGuid():N}.tmp");
+        try
+        {
+            await File.WriteAllTextAsync(temporary, content, cancellationToken);
+            File.Move(temporary, path, overwrite: true);
+        }
+        finally
+        {
+            if (File.Exists(temporary))
+            {
+                try { File.Delete(temporary); } catch (IOException) { }
+            }
+        }
     }
 
     public ValueTask<IReadOnlyList<UiSurfaceDescriptor>> ListSurfacesAsync(CancellationToken cancellationToken) =>

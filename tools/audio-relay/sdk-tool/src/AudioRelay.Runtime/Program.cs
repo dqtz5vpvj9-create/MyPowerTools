@@ -71,7 +71,7 @@ internal static class AudioRelayRuntime
                 throw new PlatformNotSupportedException("AudioRelay 桌面启动当前只支持 Windows。");
             }
             var installation = FindInstallation() ?? throw new InvalidOperationException("未找到 AudioRelay，请先从官网下载并安装桌面端。");
-            Process.Start(new ProcessStartInfo(installation.ExecutablePath) { UseShellExecute = true });
+            using var launchedProcess = Process.Start(new ProcessStartInfo(installation.ExecutablePath) { UseShellExecute = true });
             var snapshot = Snapshot();
             snapshot["launched"] = true;
             return snapshot;
@@ -84,7 +84,7 @@ internal static class AudioRelayRuntime
             "audio-relay.open-microphone-guide" => MicrophoneGuideUrl,
             _ => throw new InvalidDataException($"未知命令 '{commandId}'。")
         };
-        Process.Start(new ProcessStartInfo(uri) { UseShellExecute = true });
+        using var openedProcess = Process.Start(new ProcessStartInfo(uri) { UseShellExecute = true });
         return new JsonObject { ["openedUrl"] = uri };
     }
 
@@ -92,7 +92,7 @@ internal static class AudioRelayRuntime
     {
         var isWindows = OperatingSystem.IsWindows();
         var installation = OperatingSystem.IsWindows() ? FindInstallation() : null;
-        var running = isWindows && Process.GetProcessesByName("AudioRelay").Length > 0;
+        var running = isWindows && IsProcessRunning("AudioRelay");
         return new JsonObject
         {
             ["platform"] = isWindows ? "windows" : "unsupported",
@@ -118,31 +118,50 @@ internal static class AudioRelayRuntime
             path => FileVersionInfo.GetVersionInfo(path).ProductVersion);
     }
 
+    private static bool IsProcessRunning(string processName)
+    {
+        var processes = Process.GetProcessesByName(processName);
+        try
+        {
+            return processes.Length > 0;
+        }
+        finally
+        {
+            foreach (var process in processes)
+            {
+                process.Dispose();
+            }
+        }
+    }
+
     [SupportedOSPlatform("windows")]
     private static IEnumerable<AudioRelayProductRegistration> ReadRegistrations()
     {
         foreach (var hive in new[] { RegistryHive.CurrentUser, RegistryHive.LocalMachine })
         {
-            using var baseKey = RegistryKey.OpenBaseKey(hive, RegistryView.Registry64);
-            using var uninstall = baseKey.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Uninstall");
-            if (uninstall is null)
+            foreach (var view in new[] { RegistryView.Registry64, RegistryView.Registry32 })
             {
-                continue;
-            }
-
-            foreach (var name in uninstall.GetSubKeyNames())
-            {
-                using var product = uninstall.OpenSubKey(name);
-                var displayName = product?.GetValue("DisplayName") as string;
-                if (displayName?.Contains("AudioRelay", StringComparison.OrdinalIgnoreCase) != true)
+                using var baseKey = RegistryKey.OpenBaseKey(hive, view);
+                using var uninstall = baseKey.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Uninstall");
+                if (uninstall is null)
                 {
                     continue;
                 }
 
-                yield return new AudioRelayProductRegistration(
-                    product?.GetValue("InstallLocation") as string,
-                    product?.GetValue("DisplayIcon") as string,
-                    product?.GetValue("DisplayVersion") as string);
+                foreach (var name in uninstall.GetSubKeyNames())
+                {
+                    using var product = uninstall.OpenSubKey(name);
+                    var displayName = product?.GetValue("DisplayName") as string;
+                    if (displayName?.Contains("AudioRelay", StringComparison.OrdinalIgnoreCase) != true)
+                    {
+                        continue;
+                    }
+
+                    yield return new AudioRelayProductRegistration(
+                        product?.GetValue("InstallLocation") as string,
+                        product?.GetValue("DisplayIcon") as string,
+                        product?.GetValue("DisplayVersion") as string);
+                }
             }
         }
     }

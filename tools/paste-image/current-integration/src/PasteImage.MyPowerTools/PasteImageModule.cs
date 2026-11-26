@@ -19,6 +19,7 @@ public sealed partial class PasteImageModule : IMptModule
     private readonly SemaphoreSlim _historyGate = new(1, 1);
     private readonly SemaphoreSlim _uploadGate = new(1, 1);
     private string _dataDirectory = "";
+    private int _disposed;
     private INotificationService? _notifications;
     private IClipboardImageService? _clipboard;
     private IKeyboardShortcutService? _keyboardShortcuts;
@@ -48,13 +49,17 @@ public sealed partial class PasteImageModule : IMptModule
     {
         var sshPath = FindOpenSshExecutable();
         var clipboardAvailable = _clipboard is not null;
-        var host = ReadSetting("remoteHost", "chris");
+        var host = ReadSetting("remoteHost", "");
         var directory = ReadSetting("remoteDirectory", "/tmp");
+        var destinationValid = IsValidHost(host) && IsValidRemoteDirectory(directory);
+        var destinationMessage = string.IsNullOrEmpty(host)
+            ? "Configure remoteHost in settings before uploading."
+            : $"{host}:{directory}";
         var checks = new[]
         {
             new HealthCheckSnapshot("openssh.ssh", "OpenSSH ssh", sshPath is not null, sshPath is null ? "The system OpenSSH client was not found." : "Available."),
             new HealthCheckSnapshot("clipboard.native", "Native clipboard", clipboardAvailable, clipboardAvailable ? "Available." : "The platform clipboard image provider is unavailable."),
-            new HealthCheckSnapshot("destination.valid", "Remote destination", IsValidHost(host) && IsValidRemoteDirectory(directory), $"{host}:{directory}")
+            new HealthCheckSnapshot("destination.valid", "Remote destination", destinationValid, destinationMessage)
         };
         var ready = checks.All(check => check.Ok);
         return ValueTask.FromResult(new ModuleStatusSnapshot(
@@ -131,7 +136,7 @@ public sealed partial class PasteImageModule : IMptModule
             {
                 status.State,
                 status.Summary,
-                remoteHost = ReadSetting("remoteHost", "chris"),
+                remoteHost = ReadSetting("remoteHost", ""),
                 remoteDirectory = ReadSetting("remoteDirectory", "/tmp"),
                 uploadTimeoutSeconds = ReadTimeoutSeconds(),
                 afterUploadShortcut = ReadAfterUploadShortcut(),
@@ -243,7 +248,7 @@ public sealed partial class PasteImageModule : IMptModule
               "type": "string",
               "title": "Remote SSH host",
               "description": "An OpenSSH config alias, host name, or user@host destination.",
-              "default": "chris"
+              "default": ""
             },
             "remoteDirectory": {
               "type": "string",
@@ -309,7 +314,14 @@ public sealed partial class PasteImageModule : IMptModule
 
     public ValueTask DisposeAsync(CancellationToken cancellationToken)
     {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
+        {
+            return ValueTask.CompletedTask;
+        }
+
         _events.Writer.TryComplete();
+        _historyGate.Dispose();
+        _uploadGate.Dispose();
         return ValueTask.CompletedTask;
     }
 
@@ -319,7 +331,7 @@ public sealed partial class PasteImageModule : IMptModule
             throw new InvalidOperationException("The platform clipboard image provider is unavailable.");
         var sshPath = FindOpenSshExecutable() ??
             throw new InvalidOperationException("The system OpenSSH client was not found.");
-        var host = ReadSetting("remoteHost", "chris");
+        var host = ReadSetting("remoteHost", "");
         var configuredDirectory = ReadSetting("remoteDirectory", "/tmp");
         var remoteDirectory = configuredDirectory == "/" ? "/" : configuredDirectory.TrimEnd('/');
         if (!IsValidHost(host) || !IsValidRemoteDirectory(remoteDirectory))
@@ -665,7 +677,7 @@ public sealed partial class PasteImageModule : IMptModule
 
     private static JsonObject DefaultSettings() => new()
     {
-        ["remoteHost"] = "chris",
+        ["remoteHost"] = "",
         ["remoteDirectory"] = "/tmp",
         ["uploadTimeoutSeconds"] = 30,
         ["afterUploadShortcut"] = "Ctrl+Shift+V"
