@@ -1,0 +1,37 @@
+/* MyPowerTools Native Win32 Bootstrapper Resource Script */
+#pragma code_page(65001)
+
+#define RT_MANIFEST_ID 1
+#define RT_MANIFEST_TYPE 24
+#define IDI_MPT_APPICON 101
+
+RT_MANIFEST_ID RT_MANIFEST_TYPE "mpt_bootstrap.manifest"
+IDI_MPT_APPICON ICON "mpt_bootstrap.ico"
+
+1 VERSIONINFO
+FILEVERSION 1,0,0,0
+PRODUCTVERSION 1,0,0,0
+FILEFLAGSMASK 0x3fL
+FILEFLAGS 0x0L
+FILEOS 0x40004L
+FILETYPE 0x1L
+FILESUBTYPE 0x0L
+BEGIN
+  BLOCK "StringFileInfo"
+  BEGIN
+    BLOCK "080404b0"
+    BEGIN
+      VALUE "CompanyName", "MyPowerTools"
+      VALUE "FileDescription", "MyPowerTools Native Bootstrapper"
+      VALUE "FileVersion", "1.0.0.0"
+      VALUE "InternalName", "mpt-bootstrap.exe"
+      VALUE "OriginalFilename", "mpt-bootstrap.exe"
+      VALUE "ProductName", "MyPowerTools"
+      VALUE "ProductVersion", "1.0.0.0"
+    END
+  END
+  BLOCK "VarFileInfo"
+  BEGIN
+    VALUE "Translation", 0x0804, 1200
+  END
+END

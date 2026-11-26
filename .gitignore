@@ -8,6 +8,11 @@ obj/
 !tools/ddns/service-units/ddns.service/bin/
 !tools/ddns/service-units/ddns.service/bin/*
 
+# Prebuilt <50KB Win32 native bootstrapper binary tracked for packaging without Zig.
+!native/mpt-bootstrap/bin/
+!native/mpt-bootstrap/bin/win-x64/
+!native/mpt-bootstrap/bin/win-x64/mpt-bootstrap.exe
+
 # IDE and user-local files
 .vs/
 .idea/
