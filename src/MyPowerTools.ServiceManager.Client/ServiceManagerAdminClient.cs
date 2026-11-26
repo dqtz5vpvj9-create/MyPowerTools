@@ -33,16 +33,22 @@ public sealed class ServiceManagerAdminClient : IDisposable
         new(DataRootEnvironmentVariable, Path.Combine("state", "servicemanager.token"));
 
     private readonly GrpcChannel _channel;
+    private readonly bool _ownsChannel;
     private readonly SM.ServiceManager.ServiceManagerClient _client;
     private readonly string? _scopeToolId;
-    private readonly string? _authToken;
+    private readonly Func<string?>? _authTokenProvider;
 
-    private ServiceManagerAdminClient(GrpcChannel channel, string? authToken, string? scopeToolId = null)
+    private ServiceManagerAdminClient(
+        GrpcChannel channel,
+        Func<string?>? authTokenProvider,
+        bool ownsChannel,
+        string? scopeToolId = null)
     {
         _channel = channel;
-        _authToken = authToken;
+        _ownsChannel = ownsChannel;
+        _authTokenProvider = authTokenProvider;
         _scopeToolId = scopeToolId;
-        var invoker = IpcChannelFactory.AuthenticatedInvoker(channel, AuthHeaderName, authToken);
+        var invoker = IpcChannelFactory.AuthenticatedInvoker(channel, AuthHeaderName, authTokenProvider);
         if (!string.IsNullOrEmpty(scopeToolId))
         {
             invoker = invoker.Intercept(new CallerToolHeaderInterceptor(CallerToolHeader, scopeToolId));
@@ -63,23 +69,29 @@ public sealed class ServiceManagerAdminClient : IDisposable
     }
 
     public static ServiceManagerAdminClient ForEndpoint(IpcEndpoint endpoint)
-        => ForEndpoint(endpoint, TokenStore.TryReadToken());
+        => ForEndpoint(endpoint, () => TokenStore.TryReadToken());
+
+    public static ServiceManagerAdminClient ForEndpoint(IpcEndpoint endpoint, Func<string?> authTokenProvider)
+    {
+        ArgumentNullException.ThrowIfNull(authTokenProvider);
+        var channel = IpcChannelFactory.ForEndpoint(endpoint);
+        return new ServiceManagerAdminClient(channel, authTokenProvider, ownsChannel: true);
+    }
 
     public static ServiceManagerAdminClient ForEndpoint(IpcEndpoint endpoint, string? authToken)
     {
         var channel = IpcChannelFactory.ForEndpoint(endpoint);
-        return new ServiceManagerAdminClient(channel, authToken);
+        Func<string?>? provider = string.IsNullOrWhiteSpace(authToken) ? null : () => authToken;
+        return new ServiceManagerAdminClient(channel, provider, ownsChannel: true);
     }
 
     /// <summary>
-    /// Returns a new client sharing this client's channel and auth token but injecting the caller-tool
-    /// header so the server enforces scope. Used to build scoped <see cref="IServiceUnitClient"/>s.
-    /// The scoped client carries the same auth material (required to reach the server) but the
-    /// caller-tool header constrains visibility to the owning tool's units.
+    /// Returns a new client sharing this client's channel and auth token provider while injecting the caller-tool
+    /// header so the server enforces scope. Disposing a scoped client does not dispose the shared channel.
     /// </summary>
     public ServiceManagerAdminClient WithScope(string toolId)
     {
-        return new ServiceManagerAdminClient(_channel, _authToken, scopeToolId: toolId);
+        return new ServiceManagerAdminClient(_channel, _authTokenProvider, ownsChannel: false, scopeToolId: toolId);
     }
 
     /// <summary>Token store shared with the ServiceManager host so both sides read the same material.</summary>
@@ -156,7 +168,13 @@ public sealed class ServiceManagerAdminClient : IDisposable
         }
     }
 
-    public void Dispose() => _channel.Dispose();
+    public void Dispose()
+    {
+        if (_ownsChannel)
+        {
+            _channel.Dispose();
+        }
+    }
 }
 
 /// <summary>

@@ -45,17 +45,33 @@ public static class IpcChannelFactory
                 if (endpoint.Transport == IpcTransport.NamedPipe)
                 {
                     var stream = new NamedPipeClientStream(".", endpoint.Address, PipeDirection.InOut, MptNamedPipePolicy.ClientOptions);
-                    await stream.ConnectAsync(cancellationToken);
-                    return stream;
+                    try
+                    {
+                        await stream.ConnectAsync(cancellationToken);
+                        return stream;
+                    }
+                    catch
+                    {
+                        stream.Dispose();
+                        throw;
+                    }
                 }
 
                 if (endpoint.Transport == IpcTransport.UnixDomainSocket)
                 {
                     var socket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
-                    using var connectCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-                    connectCts.CancelAfter(TimeSpan.FromSeconds(10));
-                    await socket.ConnectAsync(new UnixDomainSocketEndPoint(endpoint.Address), connectCts.Token);
-                    return new NetworkStream(socket, ownsSocket: true);
+                    try
+                    {
+                        using var connectCts = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
+                        connectCts.CancelAfter(TimeSpan.FromSeconds(10));
+                        await socket.ConnectAsync(new UnixDomainSocketEndPoint(endpoint.Address), connectCts.Token);
+                        return new NetworkStream(socket, ownsSocket: true);
+                    }
+                    catch
+                    {
+                        socket.Dispose();
+                        throw;
+                    }
                 }
 
                 throw new NotSupportedException($"Unsupported IPC transport: {endpoint.Transport}");
@@ -83,6 +99,14 @@ public static class IpcChannelFactory
         return string.IsNullOrWhiteSpace(headerName) || string.IsNullOrWhiteSpace(authToken)
             ? baseInvoker
             : baseInvoker.Intercept(new BearerTokenAuthClientInterceptor(headerName, authToken));
+    }
+
+    public static CallInvoker AuthenticatedInvoker(GrpcChannel channel, string? headerName, Func<string?>? authTokenProvider)
+    {
+        var baseInvoker = channel.CreateCallInvoker();
+        return string.IsNullOrWhiteSpace(headerName) || authTokenProvider is null
+            ? baseInvoker
+            : baseInvoker.Intercept(new BearerTokenAuthClientInterceptor(headerName, authTokenProvider));
     }
 
     /// <summary>Windows named pipe endpoint helper.</summary>

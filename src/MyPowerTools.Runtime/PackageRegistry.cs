@@ -8,7 +8,8 @@ public sealed class PackageRegistry
 {
     private readonly PackageReader _reader;
     private readonly TransportSelector _transportSelector;
-    private readonly List<RuntimeModuleRecord> _modules = [];
+    private readonly object _writeLock = new();
+    private volatile RuntimeModuleRecord[] _modules = [];
 
     public PackageRegistry(PackageReader reader, PlatformId platform)
     {
@@ -20,33 +21,41 @@ public sealed class PackageRegistry
 
     public void Load(string packageRoot, IEnumerable<string>? developmentToolRoots = null)
     {
-        _modules.Clear();
-
+        var loaded = new List<RuntimeModuleRecord>();
         var packages = _reader.DiscoverPackages(packageRoot)
             .Concat(_reader.DiscoverDevelopmentTools(developmentToolRoots ?? []));
+
         foreach (var package in packages)
         {
             foreach (var module in package.Modules)
             {
                 try
                 {
-                    _modules.Add(BuildModuleRecord(package, module));
+                    loaded.Add(BuildModuleRecord(loaded, package, module));
                 }
                 catch (Exception exception) when (package.IsDevelopmentTool)
                 {
                     // One broken development module (e.g. duplicate id) must not abort
                     // the whole catalog; it becomes an error-state module card.
                     // Installed/signed packages keep the strict throw.
-                    _modules.Add(BuildErrorModuleRecord(
+                    loaded.Add(BuildErrorModuleRecord(
                         package, module, exception.GetBaseException().Message));
                 }
             }
         }
+
+        lock (_writeLock)
+        {
+            _modules = loaded.ToArray();
+        }
     }
 
-    private RuntimeModuleRecord BuildModuleRecord(MptPackageDefinition package, MptModuleDefinition module)
+    private RuntimeModuleRecord BuildModuleRecord(
+        IReadOnlyList<RuntimeModuleRecord> existingModules,
+        MptPackageDefinition package,
+        MptModuleDefinition module)
     {
-        if (_modules.Any(existing => string.Equals(
+        if (existingModules.Any(existing => string.Equals(
                 existing.Module.Manifest.Id,
                 module.Manifest.Id,
                 StringComparison.OrdinalIgnoreCase)))
@@ -129,10 +138,21 @@ public sealed class PackageRegistry
 
     public void UpdateStatus(string moduleId, MyPowerTools.Abstractions.ModuleStatusSnapshot status)
     {
-        var index = _modules.FindIndex(module => string.Equals(module.Module.Manifest.Id, moduleId, StringComparison.OrdinalIgnoreCase));
-        if (index >= 0)
+        lock (_writeLock)
         {
-            _modules[index] = _modules[index] with { Status = status };
+            var current = _modules;
+            var index = Array.FindIndex(
+                current,
+                module => string.Equals(module.Module.Manifest.Id, moduleId, StringComparison.OrdinalIgnoreCase));
+            if (index < 0)
+            {
+                return;
+            }
+
+            var updated = new RuntimeModuleRecord[current.Length];
+            Array.Copy(current, updated, current.Length);
+            updated[index] = current[index] with { Status = status };
+            _modules = updated;
         }
     }
 }

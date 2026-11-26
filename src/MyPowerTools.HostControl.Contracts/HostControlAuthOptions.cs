@@ -29,4 +29,6 @@ public sealed class HostControlAuthServerInterceptor : BearerTokenAuthServerInte
 public sealed class HostControlAuthClientInterceptor : BearerTokenAuthClientInterceptor
 {
     public HostControlAuthClientInterceptor(string? token) : base(HostControlAuthTokenStore.HeaderName, token) { }
+
+    public HostControlAuthClientInterceptor(Func<string?> tokenProvider) : base(HostControlAuthTokenStore.HeaderName, tokenProvider) { }
 }

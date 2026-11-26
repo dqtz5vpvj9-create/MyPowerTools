@@ -152,19 +152,30 @@ public sealed class NamedPipePolicyTests
     {
         Assert.True(security.AreAccessRulesProtected);
 
-        var worldSid = new SecurityIdentifier(WellKnownSidType.WorldSid, domainSid: null);
-        var worldFullControlRule = security
+        var rules = security
             .GetAccessRules(
                 includeExplicit: true,
                 includeInherited: false,
                 targetType: typeof(SecurityIdentifier))
             .OfType<PipeAccessRule>()
-            .SingleOrDefault(rule =>
-                rule.AccessControlType == AccessControlType.Allow &&
-                worldSid.Equals(rule.IdentityReference) &&
-                (rule.PipeAccessRights & PipeAccessRights.FullControl) == PipeAccessRights.FullControl);
+            .ToArray();
 
-        Assert.NotNull(worldFullControlRule);
+        var worldSid = new SecurityIdentifier(WellKnownSidType.WorldSid, domainSid: null);
+        var worldRule = rules.SingleOrDefault(rule =>
+            rule.AccessControlType == AccessControlType.Allow &&
+            worldSid.Equals(rule.IdentityReference));
+
+        Assert.NotNull(worldRule);
+        Assert.True((worldRule!.PipeAccessRights & PipeAccessRights.ReadWrite) == PipeAccessRights.ReadWrite);
+        Assert.False((worldRule.PipeAccessRights & PipeAccessRights.FullControl) == PipeAccessRights.FullControl);
+        Assert.False((worldRule.PipeAccessRights & PipeAccessRights.TakeOwnership) == PipeAccessRights.TakeOwnership);
+        Assert.False((worldRule.PipeAccessRights & PipeAccessRights.ChangePermissions) == PipeAccessRights.ChangePermissions);
+
+        var adminSid = new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, domainSid: null);
+        Assert.Contains(rules, rule =>
+            rule.AccessControlType == AccessControlType.Allow &&
+            adminSid.Equals(rule.IdentityReference) &&
+            (rule.PipeAccessRights & PipeAccessRights.FullControl) == PipeAccessRights.FullControl);
     }
 
     [SupportedOSPlatform("windows")]

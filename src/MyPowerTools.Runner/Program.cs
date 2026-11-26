@@ -22,7 +22,15 @@ var once = args.Contains("--once", StringComparer.OrdinalIgnoreCase);
 var platform = PlatformId.Current();
 var platformPack = PlatformPackFactory.Create();
 var initialEnabledModules = ResolveInitialEnabledModules(args, platform);
-var dataRoot = GetOption(args, "--data-root") ?? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MyPowerTools");
+var dataRoot = GetOption(args, "--data-root");
+if (string.IsNullOrWhiteSpace(dataRoot))
+{
+    var envDataRoot = Environment.GetEnvironmentVariable(HostControlAuthTokenStore.DataRootEnvironmentVariable);
+    dataRoot = string.IsNullOrWhiteSpace(envDataRoot)
+        ? Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MyPowerTools")
+        : envDataRoot;
+}
+
 var runtimePaths = RuntimePaths.Create(dataRoot);
 using var daemonConsole = DaemonProcessConsole.Initialize("runner", runtimePaths.Logs, args);
 // ServiceManager token discovery must follow the Runner's selected data root.
@@ -40,7 +48,7 @@ catch (IOException)
 {
     // Tool discovery roots are optional; startup must not fail on an unwritable data root.
 }
-var hostControlToken = HostControlAuthTokenStore.GetOrCreateToken(runtimePaths.Root);
+
 var runnerInstanceName = GetOption(args, "--instance-name") ?? "MyPowerTools.Runner";
 var endpointAddress = GetOption(args, "--endpoint-address");
 
@@ -51,12 +59,15 @@ if (!guard.OwnsInstance && !once)
     return 2;
 }
 
+var hostControlToken = HostControlAuthTokenStore.GetOrCreateToken(runtimePaths.Root);
+
+using var serviceManagerClient = ServiceManagerAdminClient.ForDefaultEndpoint();
 await using var runtime = new MptHostRuntime(
     new PackageReader(),
     platform,
     runtimePaths,
     CreateTransportRuntimes(),
-    CreateCapabilityProviders(platformPack),
+    CreateCapabilityProviders(platformPack, serviceManagerClient),
     initialEnabledModules);
 runtime.Load(modulesRoot, developmentToolRoots);
 await runtime.RefreshDynamicCommandsAsync(CancellationToken.None);
@@ -141,11 +152,15 @@ builder.WebHost.ConfigureKestrel(options =>
         File.Delete(socketPath);
     }
 
-    Directory.CreateDirectory(Path.GetDirectoryName(socketPath)!);
+    var socketDirectory = Path.GetDirectoryName(socketPath);
+    if (!string.IsNullOrEmpty(socketDirectory))
+    {
+        Directory.CreateDirectory(socketDirectory);
+    }
     options.ListenUnixSocket(socketPath, listen => listen.Protocols = HttpProtocols.Http2);
 });
 
-var app = builder.Build();
+await using var app = builder.Build();
 app.MapGrpcService<HostControlGrpcService>();
 app.MapGet("/", () => $"MyPowerTools.Runner {ProtocolConstants.HostVersion} is running.");
 
@@ -295,11 +310,13 @@ static IModuleTransportRuntime[] CreateTransportRuntimes()
     ];
 }
 
-static IReadOnlyDictionary<string, object> CreateCapabilityProviders(IPlatformPack platformPack)
+static IReadOnlyDictionary<string, object> CreateCapabilityProviders(
+    IPlatformPack platformPack,
+    ServiceManagerAdminClient serviceManagerClient)
 {
     var providers = new Dictionary<string, object>(StringComparer.OrdinalIgnoreCase)
     {
-        ["service.units"] = new ServiceUnitClientFactory(ServiceManagerAdminClient.ForDefaultEndpoint())
+        ["service.units"] = new ServiceUnitClientFactory(serviceManagerClient)
     };
 
     if (platformPack.Capabilities.Resolve("display.profile").Supported)
@@ -339,6 +356,7 @@ static async Task<TProvider?> StartDesktopProviderAsync<TProvider>(
     where TProvider : class, IAsyncDisposable
 {
     var startup = new CancellationTokenSource(timeout);
+    var ownershipTransferred = false;
     Task<TProvider?> initialization;
     try
     {
@@ -359,30 +377,48 @@ static async Task<TProvider?> StartDesktopProviderAsync<TProvider>(
     {
         Console.WriteLine($"MyPowerTools.Runner {label} startup timed out; it is unavailable.");
         await DisposeQuietlyAsync(providerFallback());
-        _ = initialization.ContinueWith(
-            async completed =>
-            {
-                startup.Dispose();
-                if (completed.Status == TaskStatus.RanToCompletion && completed.Result is { } lateProvider)
-                {
-                    await DisposeQuietlyAsync(lateProvider);
-                }
-            },
-            CancellationToken.None,
-            TaskContinuationOptions.ExecuteSynchronously,
-            TaskScheduler.Default);
+        ownershipTransferred = true;
+        _ = ObserveLateDesktopProviderAsync(initialization, startup);
         return null;
     }
     catch (Exception ex)
     {
         Console.WriteLine($"MyPowerTools.Runner {label} startup failed: {ex.Message}");
+        if (!initialization.IsCompleted)
+        {
+            ownershipTransferred = true;
+            _ = ObserveLateDesktopProviderAsync(initialization, startup);
+        }
+
         return null;
     }
     finally
     {
-        if (initialization.IsCompleted)
+        if (!ownershipTransferred)
         {
             startup.Dispose();
+        }
+    }
+
+    static async Task ObserveLateDesktopProviderAsync(
+        Task<TProvider?> pendingInitialization,
+        CancellationTokenSource startupCts)
+    {
+        try
+        {
+            var lateProvider = await pendingInitialization.ConfigureAwait(false);
+            if (lateProvider is not null)
+            {
+                await DisposeQuietlyAsync(lateProvider).ConfigureAwait(false);
+            }
+        }
+        catch
+        {
+            // Late initialization failed or was cancelled; nothing left to dispose.
+        }
+        finally
+        {
+            startupCts.Dispose();
         }
     }
 }

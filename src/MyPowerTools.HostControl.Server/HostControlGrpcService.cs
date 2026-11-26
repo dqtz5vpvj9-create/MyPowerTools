@@ -1006,6 +1006,14 @@ public sealed class HostControlGrpcService : HostProto.HostControl.HostControlBa
 
     private static string DefaultAuditPath()
     {
-        return Path.Combine(Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData), "MyPowerTools", "logs", "broker-audit.jsonl");
+        var dataRoot = Environment.GetEnvironmentVariable(HostControlAuthTokenStore.DataRootEnvironmentVariable);
+        if (string.IsNullOrWhiteSpace(dataRoot))
+        {
+            dataRoot = Path.Combine(
+                Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
+                "MyPowerTools");
+        }
+
+        return Path.Combine(dataRoot, "logs", "broker-audit.jsonl");
     }
 }

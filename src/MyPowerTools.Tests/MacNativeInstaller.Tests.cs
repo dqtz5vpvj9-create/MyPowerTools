@@ -145,7 +145,7 @@ public sealed class MacNativeInstallerLogicTests
     {
         var root = FindRepositoryRoot();
         var key = File.ReadAllText(Path.Combine(root, "ota-history", "ota-signing-public-key.txt")).Trim();
-        Assert.Equal(key, MacInstallLogic.EmbeddedPublicKeyHex);
+        Assert.Equal(MacInstallLogic.EmbeddedPublicKeyHex, key);
     }
 
     [Theory]

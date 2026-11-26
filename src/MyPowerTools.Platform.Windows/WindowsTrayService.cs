@@ -128,7 +128,7 @@ public sealed class WindowsTrayService : ITrayService, INotificationService
 
             if (_thread is { IsAlive: true })
             {
-                return Task.FromResult(new TrayStartResult(true, _state, "Windows tray is already running.")).Result;
+                return new TrayStartResult(true, _state, "Windows tray is already running.");
             }
 
             _state = "starting";
@@ -212,6 +212,8 @@ public sealed class WindowsTrayService : ITrayService, INotificationService
     private void RunMessageLoop(TrayOptions options, TaskCompletionSource<TrayStartResult> started)
     {
         ushort atom = 0;
+        var handle = IntPtr.Zero;
+        var iconAdded = false;
         try
         {
             var instance = GetModuleHandle(null);
@@ -232,7 +234,7 @@ public sealed class WindowsTrayService : ITrayService, INotificationService
                 return;
             }
 
-            var handle = CreateWindowEx(
+            handle = CreateWindowEx(
                 0,
                 _className,
                 options.AppId,
@@ -259,17 +261,15 @@ public sealed class WindowsTrayService : ITrayService, INotificationService
                 _windowHandle = handle;
             }
 
-
             var addResult = AddTrayIcon(handle, options);
             if (!addResult.Success)
             {
                 SetState(addResult.State);
                 started.TrySetResult(addResult);
-                ReleaseTrayIcon();
-                DestroyWindow(handle);
                 return;
             }
 
+            iconAdded = true;
             lock (_gate)
             {
                 var quotaCancellationToken = _cts?.Token ?? CancellationToken.None;
@@ -277,6 +277,7 @@ public sealed class WindowsTrayService : ITrayService, INotificationService
                     () => MonitorCodexQuotaAsync(handle, options.ToolTip, quotaCancellationToken),
                     CancellationToken.None);
             }
+
             SetState("running");
             started.TrySetResult(addResult);
 
@@ -285,10 +286,6 @@ public sealed class WindowsTrayService : ITrayService, INotificationService
                 TranslateMessage(ref message);
                 DispatchMessage(ref message);
             }
-
-            DeleteTrayIcon(handle);
-            ReleaseTrayIcon();
-            DestroyWindow(handle);
         }
         catch (Exception ex)
         {
@@ -297,6 +294,25 @@ public sealed class WindowsTrayService : ITrayService, INotificationService
         }
         finally
         {
+            if (iconAdded && handle != IntPtr.Zero)
+            {
+                DeleteTrayIcon(handle);
+            }
+
+            ReleaseTrayIcon();
+
+            if (handle != IntPtr.Zero)
+            {
+                DestroyWindow(handle);
+                lock (_gate)
+                {
+                    if (_windowHandle == handle)
+                    {
+                        _windowHandle = IntPtr.Zero;
+                    }
+                }
+            }
+
             if (atom != 0)
             {
                 UnregisterClass(_className, GetModuleHandle(null));
@@ -352,11 +368,20 @@ public sealed class WindowsTrayService : ITrayService, INotificationService
             icon = LoadIcon(IntPtr.Zero, new IntPtr(IDI_APPLICATION));
         }
 
+        IntPtr previousIcon;
+        bool ownedPreviousIcon;
         lock (_gate)
         {
+            previousIcon = _trayIcon;
+            ownedPreviousIcon = _ownsTrayIcon;
             _trayIcon = icon;
             _ownsTrayIcon = ownsIcon;
             _trayToolTip = Trim(options.ToolTip, 127);
+        }
+
+        if (ownedPreviousIcon && previousIcon != IntPtr.Zero && previousIcon != icon)
+        {
+            DestroyIcon(previousIcon);
         }
 
         return new NOTIFYICONDATA
@@ -415,6 +440,8 @@ public sealed class WindowsTrayService : ITrayService, INotificationService
                         delay = retryDelay;
                     }
                 }
+
+                await Task.Delay(delay, cancellationToken);
             }
             catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
             {
@@ -422,10 +449,15 @@ public sealed class WindowsTrayService : ITrayService, INotificationService
             }
             catch
             {
-                delay = retryDelay;
+                try
+                {
+                    await Task.Delay(retryDelay, cancellationToken);
+                }
+                catch (OperationCanceledException) when (cancellationToken.IsCancellationRequested)
+                {
+                    return;
+                }
             }
-
-            await Task.Delay(delay, cancellationToken);
         }
     }
 

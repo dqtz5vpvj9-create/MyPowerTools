@@ -151,7 +151,8 @@ public static class MptNamedPipePolicy
     }
 
     /// <summary>
-    /// Returns a protected DACL granting WorldSid full control.
+    /// Returns a protected DACL granting WorldSid read/write client access while restricting
+    /// FullControl to the current user and local Administrators.
     /// <see cref="CreateServer"/> applies the Low mandatory integrity label after
     /// creation because passing a label as an audit SACL requires SeSecurityPrivilege.
     /// </summary>
@@ -164,10 +165,26 @@ public static class MptNamedPipePolicy
 
         var security = new PipeSecurity();
         security.SetAccessRuleProtection(isProtected: true, preserveInheritance: false);
+
+        using var identity = WindowsIdentity.GetCurrent();
+        if (identity.User is { } currentUser)
+        {
+            security.AddAccessRule(new PipeAccessRule(
+                currentUser,
+                PipeAccessRights.FullControl,
+                AccessControlType.Allow));
+        }
+
         security.AddAccessRule(new PipeAccessRule(
-            new SecurityIdentifier(WellKnownSidType.WorldSid, domainSid: null),
+            new SecurityIdentifier(WellKnownSidType.BuiltinAdministratorsSid, domainSid: null),
             PipeAccessRights.FullControl,
             AccessControlType.Allow));
+
+        security.AddAccessRule(new PipeAccessRule(
+            new SecurityIdentifier(WellKnownSidType.WorldSid, domainSid: null),
+            PipeAccessRights.ReadWrite,
+            AccessControlType.Allow));
+
         return security;
     }
 

@@ -47,8 +47,12 @@ public sealed class InProcDotNetModuleHost : IModuleTransportRuntime, IModuleTra
     private Task? _disposeTask;
     private int _disposeState;
     private long _invocationSequence;
+    private const int CallerCancellationGraceMs = 2000;
+    private const int EventRelayCapacity = 1024;
+
     private readonly ConcurrentDictionary<string, Channel<MyPowerTools.Abstractions.MptModuleEvent>> _moduleEventRelays = new(StringComparer.OrdinalIgnoreCase);
-    private readonly ConcurrentDictionary<string, CancellationTokenSource> _relayGenerations = new(StringComparer.OrdinalIgnoreCase);
+    private readonly object _relayGenerationLock = new();
+    private readonly Dictionary<string, CancellationTokenSource> _relayGenerations = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, Exception> _relayFaults = new(StringComparer.OrdinalIgnoreCase);
     private long _relaySequence;
 
@@ -269,7 +273,9 @@ public sealed class InProcDotNetModuleHost : IModuleTransportRuntime, IModuleTra
         {
             var loaded = await LoadCachedAsync(module.Module, context, token);
             token.ThrowIfCancellationRequested();
-            return await loaded.ListCommandsAsync(token);
+            var commands = await loaded.ListCommandsAsync(token);
+            await UpdateSessionCommandCacheAsync(module.Module.Manifest.Id, commands);
+            return commands;
         });
     }
 
@@ -277,18 +283,61 @@ public sealed class InProcDotNetModuleHost : IModuleTransportRuntime, IModuleTra
     {
         // Command descriptors own transfer duration. Keep the callback watchdog for setup and
         // ordinary commands, but do not impose it on an explicitly unbounded command.
-        var unbounded = await ExecuteWithBudgetAsync(module, "commands.list", cancellationToken, async token =>
+        // Check cached command metadata on the active session before falling back to ListCommandsAsync.
+        var moduleId = module.Module.Manifest.Id;
+        var unbounded = await TryGetCachedUnboundedCommandAsync(moduleId, request.CommandId, cancellationToken);
+        if (unbounded is null)
         {
-            var loaded = await LoadCachedAsync(module.Module, context, token);
-            var commands = await loaded.ListCommandsAsync(token);
-            return commands.Any(command => command.Id == request.CommandId && command.TimeoutMs == Timeout.Infinite);
-        }, recordSuccess: false);
+            unbounded = await ExecuteWithBudgetAsync(module, "commands.list", cancellationToken, async token =>
+            {
+                var loaded = await LoadCachedAsync(module.Module, context, token);
+                var commands = await loaded.ListCommandsAsync(token);
+                await UpdateSessionCommandCacheAsync(moduleId, commands);
+                return commands.Any(command => command.Id == request.CommandId && command.TimeoutMs == Timeout.Infinite);
+            }, recordSuccess: false);
+        }
+
         return await ExecuteWithBudgetAsync(module, "command.execute", cancellationToken, async token =>
         {
             var loaded = await LoadCachedAsync(module.Module, context, token);
             token.ThrowIfCancellationRequested();
             return await loaded.ExecuteCommandAsync(request, token);
-        }, unbounded);
+        }, unbounded.Value);
+    }
+
+    private async ValueTask<bool?> TryGetCachedUnboundedCommandAsync(string moduleId, string commandId, CancellationToken cancellationToken)
+    {
+        await _moduleLock.WaitAsync(cancellationToken);
+        try
+        {
+            if (_loadedModules.TryGetValue(moduleId, out var session) &&
+                session.TryIsUnboundedCommand(commandId, out var unbounded))
+            {
+                return unbounded;
+            }
+
+            return null;
+        }
+        finally
+        {
+            _moduleLock.Release();
+        }
+    }
+
+    private async ValueTask UpdateSessionCommandCacheAsync(string moduleId, IReadOnlyList<MptCommandDescriptor> commands)
+    {
+        await _moduleLock.WaitAsync(CancellationToken.None);
+        try
+        {
+            if (_loadedModules.TryGetValue(moduleId, out var session))
+            {
+                session.CacheCommandTimeouts(commands);
+            }
+        }
+        finally
+        {
+            _moduleLock.Release();
+        }
     }
 
     public async IAsyncEnumerable<CommandProgressEvent> ExecuteCommandStreamAsync(
@@ -449,12 +498,8 @@ public sealed class InProcDotNetModuleHost : IModuleTransportRuntime, IModuleTra
         await EnsureModuleCallAllowedAsync(moduleId, "events.subscribe", cancellationToken);
         var streamTracker = _invocationTrackers.GetOrAdd(moduleId, static _ => new InProcInvocationTracker());
         using var streamLifetime = streamTracker.EnterLifetime();
-        var relay = _moduleEventRelays.GetOrAdd(
-            moduleId,
-            static _ => Channel.CreateUnbounded<MyPowerTools.Abstractions.MptModuleEvent>(
-                new UnboundedChannelOptions { SingleWriter = false }));
-        var generation = _relayGenerations.GetOrAdd(moduleId, static _ => new CancellationTokenSource());
-        using var linked = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken, generation.Token);
+        var relay = _moduleEventRelays.GetOrAdd(moduleId, static _ => CreateEventRelayChannel());
+        using var linked = CreateRelayGenerationLinkedTokenSource(moduleId, cancellationToken, out var generationToken);
         // Ensure a session is loaded and its fan-in is feeding the relay: a
         // subscription must not wait on an empty relay for a module nobody loaded.
         var loadMaxCallMs = module.Entrypoint?.InProcMaxCallMs;
@@ -485,7 +530,7 @@ public sealed class InProcDotNetModuleHost : IModuleTransportRuntime, IModuleTra
                 {
                     moved = await reader.MoveNextAsync().ConfigureAwait(false);
                 }
-                catch (OperationCanceledException) when (generation.IsCancellationRequested)
+                catch (OperationCanceledException) when (generationToken.IsCancellationRequested)
                 {
                     ThrowRecordedRelayFault(moduleId);
                     throw;
@@ -517,12 +562,54 @@ public sealed class InProcDotNetModuleHost : IModuleTransportRuntime, IModuleTra
         }
     }
 
+    private static Channel<MyPowerTools.Abstractions.MptModuleEvent> CreateEventRelayChannel()
+    {
+        return Channel.CreateBounded<MyPowerTools.Abstractions.MptModuleEvent>(
+            new BoundedChannelOptions(EventRelayCapacity)
+            {
+                FullMode = BoundedChannelFullMode.DropOldest,
+                SingleWriter = false
+            });
+    }
+
+    private CancellationTokenSource CreateRelayGenerationLinkedTokenSource(
+        string moduleId,
+        CancellationToken callerToken,
+        out CancellationToken generationToken)
+    {
+        lock (_relayGenerationLock)
+        {
+            if (!_relayGenerations.TryGetValue(moduleId, out var generation))
+            {
+                generation = new CancellationTokenSource();
+                _relayGenerations[moduleId] = generation;
+            }
+
+            generationToken = generation.Token;
+            return CancellationTokenSource.CreateLinkedTokenSource(callerToken, generationToken);
+        }
+    }
+
     private void EndRelayGeneration(string moduleId)
     {
-        if (_relayGenerations.TryRemove(moduleId, out var generation))
+        CancellationTokenSource? generation;
+        lock (_relayGenerationLock)
         {
-            try { generation.Cancel(); }
-            catch (ObjectDisposedException) { }
+            if (!_relayGenerations.Remove(moduleId, out generation))
+            {
+                return;
+            }
+        }
+
+        try
+        {
+            generation.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+        }
+        finally
+        {
             generation.Dispose();
         }
     }
@@ -538,10 +625,7 @@ public sealed class InProcDotNetModuleHost : IModuleTransportRuntime, IModuleTra
         // events must reach the relay too. Each fan-in reads only its own session
         // channel and completes when the module disables/disposes (module disposal
         // completes the channel writer) or the soft-isolation boundary is cancelled.
-        var relay = _moduleEventRelays.GetOrAdd(
-            moduleId,
-            static _ => Channel.CreateUnbounded<MyPowerTools.Abstractions.MptModuleEvent>(
-                new UnboundedChannelOptions { SingleWriter = false }));
+        var relay = _moduleEventRelays.GetOrAdd(moduleId, static _ => CreateEventRelayChannel());
         var maxCallMs = moduleDefinition.Manifest.RuntimePolicy?.InProcRules?.MaxCallMs;
 
         _ = Task.Run(async () =>
@@ -1310,7 +1394,7 @@ public sealed class InProcDotNetModuleHost : IModuleTransportRuntime, IModuleTra
         }
         catch (OperationCanceledException ex) when (cancellationToken.IsCancellationRequested)
         {
-            if (await IsInvocationStillRunningAsync(execution))
+            if (await IsInvocationStillRunningAsync(execution, CallerCancellationGraceMs))
             {
                 await RecordModuleFaultAsync(
                     moduleId,
@@ -1320,7 +1404,8 @@ public sealed class InProcDotNetModuleHost : IModuleTransportRuntime, IModuleTra
                         operation,
                         true,
                         $"InProc module '{moduleId}' did not stop {operation} after caller cancellation.",
-                        ex),
+                        ex,
+                        isCallerCancellation: true),
                     invocationSequence);
             }
 
@@ -1493,7 +1578,8 @@ public sealed class InProcDotNetModuleHost : IModuleTransportRuntime, IModuleTra
                 timeout.Operation,
                 timeout.CallbackStillRunning,
                 message,
-                new TimeoutException(message)),
+                new TimeoutException(message),
+                timeout.IsCallerCancellation),
             OperationCanceledException cancelled => new OperationCanceledException(message, cancelled.CancellationToken),
             FileNotFoundException fileNotFound => new FileNotFoundException(message, fileNotFound.FileName),
             BadImageFormatException badImage => new BadImageFormatException(message, badImage.FileName),
@@ -1507,14 +1593,14 @@ public sealed class InProcDotNetModuleHost : IModuleTransportRuntime, IModuleTra
         };
     }
 
-    private static async ValueTask<bool> IsInvocationStillRunningAsync(Task invocation)
+    private static async ValueTask<bool> IsInvocationStillRunningAsync(Task invocation, int graceMs = 250)
     {
         if (invocation.IsCompleted)
         {
             return false;
         }
 
-        await Task.WhenAny(invocation, Task.Delay(250));
+        await Task.WhenAny(invocation, Task.Delay(graceMs));
         return !invocation.IsCompleted;
     }
 
@@ -1552,7 +1638,7 @@ public sealed class InProcDotNetModuleHost : IModuleTransportRuntime, IModuleTra
         }
         catch (OperationCanceledException ex) when (callerCancellationToken.IsCancellationRequested)
         {
-            if (moveNext is not null && await IsInvocationStillRunningAsync(moveNext))
+            if (moveNext is not null && await IsInvocationStillRunningAsync(moveNext, CallerCancellationGraceMs))
             {
                 streamInvocationState.MarkOutstanding();
                 await RecordModuleFaultAsync(
@@ -1563,7 +1649,8 @@ public sealed class InProcDotNetModuleHost : IModuleTransportRuntime, IModuleTra
                         operation,
                         true,
                         $"InProc module '{moduleId}' did not stop {operation} after caller cancellation.",
-                        ex),
+                        ex,
+                        isCallerCancellation: true),
                     invocationSequence);
             }
 
@@ -1632,7 +1719,7 @@ public sealed class InProcDotNetModuleHost : IModuleTransportRuntime, IModuleTra
         }
         catch (OperationCanceledException ex) when (callerCancellationToken.IsCancellationRequested)
         {
-            if (read is not null && await IsInvocationStillRunningAsync(read))
+            if (read is not null && await IsInvocationStillRunningAsync(read, CallerCancellationGraceMs))
             {
                 streamInvocationState.MarkOutstanding();
                 await RecordModuleFaultAsync(
@@ -1643,7 +1730,8 @@ public sealed class InProcDotNetModuleHost : IModuleTransportRuntime, IModuleTra
                         operation,
                         true,
                         $"InProc module '{moduleId}' did not stop {operation} after caller cancellation.",
-                        ex),
+                        ex,
+                        isCallerCancellation: true),
                     invocationSequence);
             }
 
@@ -1713,7 +1801,7 @@ public sealed class InProcDotNetModuleHost : IModuleTransportRuntime, IModuleTra
         }
         catch (OperationCanceledException ex) when (callerCancellationToken.IsCancellationRequested)
         {
-            if (load is not null && await IsInvocationStillRunningAsync(load))
+            if (load is not null && await IsInvocationStillRunningAsync(load, CallerCancellationGraceMs))
             {
                 await RecordModuleFaultAsync(
                     moduleId,
@@ -1723,7 +1811,8 @@ public sealed class InProcDotNetModuleHost : IModuleTransportRuntime, IModuleTra
                         operation,
                         true,
                         $"InProc module '{moduleId}' did not stop {operation} after caller cancellation.",
-                        ex),
+                        ex,
+                        isCallerCancellation: true),
                     invocationSequence);
             }
 
@@ -1780,7 +1869,7 @@ public sealed class InProcDotNetModuleHost : IModuleTransportRuntime, IModuleTra
         }
         catch (OperationCanceledException ex) when (callerCancellationToken.IsCancellationRequested)
         {
-            if (create is not null && await IsInvocationStillRunningAsync(create))
+            if (create is not null && await IsInvocationStillRunningAsync(create, CallerCancellationGraceMs))
             {
                 await RecordModuleFaultAsync(
                     moduleId,
@@ -1790,7 +1879,8 @@ public sealed class InProcDotNetModuleHost : IModuleTransportRuntime, IModuleTra
                         operation,
                         true,
                         $"InProc module '{moduleId}' did not stop {operation} after caller cancellation.",
-                        ex),
+                        ex,
+                        isCallerCancellation: true),
                     invocationSequence);
             }
 
@@ -1974,7 +2064,7 @@ public sealed class InProcDotNetModuleHost : IModuleTransportRuntime, IModuleTra
         var family = OperationFamily(operation);
         var faultKey = FaultKey(moduleId, family);
         var tracker = _invocationTrackers.GetOrAdd(moduleId, static _ => new InProcInvocationTracker());
-        var forceCircuitOpen = exception is InProcInvocationTimeoutException { CallbackStillRunning: true };
+        var forceCircuitOpen = exception is InProcInvocationTimeoutException { CallbackStillRunning: true, IsCallerCancellation: false };
         var error = LogRouter.Redact(exception.Message);
         if (string.IsNullOrWhiteSpace(error))
         {
@@ -2259,7 +2349,7 @@ public sealed class InProcDotNetModuleHost : IModuleTransportRuntime, IModuleTra
         return loadContext.LoadFromAssemblyPath(shadowAssemblyPath);
     }
 
-    private static string ShadowCopyModule(
+    internal static string ShadowCopyModule(
         MptModuleDefinition module,
         ModuleContext context,
         MptEntrypointManifest entrypoint,
@@ -2269,17 +2359,151 @@ public sealed class InProcDotNetModuleHost : IModuleTransportRuntime, IModuleTra
         var fingerprint = HashForPath(module, entrypoint, sourceRoot);
         var safePackage = SanitizePathSegment(module.Manifest.PackageId);
         var safeModule = SanitizePathSegment(module.Manifest.Id);
-        var shadowRoot = Path.Combine(context.CacheDirectory, "inproc-shadow", safePackage, safeModule, fingerprint);
+        var moduleShadowParent = Path.Combine(context.CacheDirectory, "inproc-shadow", safePackage, safeModule);
+        var shadowRoot = Path.Combine(moduleShadowParent, fingerprint);
         var marker = Path.Combine(shadowRoot, ".complete");
         if (File.Exists(marker))
         {
+            TryTouchMarker(marker);
+            PruneShadowCopies(moduleShadowParent, fingerprint);
             return shadowRoot;
         }
 
-        Directory.CreateDirectory(shadowRoot);
-        CopyDirectory(sourceRoot, shadowRoot);
-        File.WriteAllText(marker, DateTimeOffset.UtcNow.ToString("O"));
+        Directory.CreateDirectory(moduleShadowParent);
+        var stagingRoot = Path.Combine(moduleShadowParent, $".staging-{fingerprint}-{Guid.NewGuid():N}");
+        try
+        {
+            Directory.CreateDirectory(stagingRoot);
+            CopyDirectory(sourceRoot, stagingRoot);
+            File.WriteAllText(Path.Combine(stagingRoot, ".complete"), DateTimeOffset.UtcNow.ToString("O"));
+
+            // Remove any stale incomplete directory at the target fingerprint before atomic publish.
+            if (Directory.Exists(shadowRoot) && !File.Exists(marker))
+            {
+                TryDeleteDirectory(shadowRoot);
+            }
+
+            try
+            {
+                Directory.Move(stagingRoot, shadowRoot);
+            }
+            catch (IOException) when (File.Exists(marker))
+            {
+                // Another concurrent loader published the identical fingerprint first.
+            }
+        }
+        finally
+        {
+            if (Directory.Exists(stagingRoot))
+            {
+                TryDeleteDirectory(stagingRoot);
+            }
+        }
+
+        PruneShadowCopies(moduleShadowParent, fingerprint);
         return shadowRoot;
+    }
+
+    internal static void PruneShadowCopies(string moduleShadowParent, string currentFingerprint, int retainAdditional = 1)
+    {
+        if (!Directory.Exists(moduleShadowParent))
+        {
+            return;
+        }
+
+        var staleStagingCutoff = DateTime.UtcNow.AddMinutes(-10);
+        var siblings = new List<(string Path, DateTime LastWriteUtc)>();
+
+        try
+        {
+            foreach (var directory in Directory.EnumerateDirectories(moduleShadowParent))
+            {
+                var name = Path.GetFileName(directory);
+                if (string.Equals(name, currentFingerprint, StringComparison.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+
+                if (name.StartsWith(".staging-", StringComparison.OrdinalIgnoreCase))
+                {
+                    DateTime stagingModifiedUtc;
+                    try
+                    {
+                        stagingModifiedUtc = Directory.GetLastWriteTimeUtc(directory);
+                    }
+                    catch (IOException)
+                    {
+                        continue;
+                    }
+
+                    if (stagingModifiedUtc < staleStagingCutoff)
+                    {
+                        TryDeleteDirectory(directory);
+                    }
+
+                    continue;
+                }
+
+                var markerPath = Path.Combine(directory, ".complete");
+                DateTime lastWriteUtc;
+                try
+                {
+                    lastWriteUtc = File.Exists(markerPath)
+                        ? File.GetLastWriteTimeUtc(markerPath)
+                        : Directory.GetLastWriteTimeUtc(directory);
+                }
+                catch (IOException)
+                {
+                    continue;
+                }
+
+                siblings.Add((directory, lastWriteUtc));
+            }
+        }
+        catch (IOException)
+        {
+            return;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            return;
+        }
+
+        foreach (var stale in siblings
+                     .OrderByDescending(entry => entry.LastWriteUtc)
+                     .ThenByDescending(entry => entry.Path, StringComparer.OrdinalIgnoreCase)
+                     .Skip(Math.Max(0, retainAdditional)))
+        {
+            TryDeleteDirectory(stale.Path);
+        }
+    }
+
+    private static void TryTouchMarker(string markerPath)
+    {
+        try
+        {
+            File.SetLastWriteTimeUtc(markerPath, DateTime.UtcNow);
+        }
+        catch (IOException)
+        {
+        }
+        catch (UnauthorizedAccessException)
+        {
+        }
+    }
+
+    private static void TryDeleteDirectory(string path)
+    {
+        try
+        {
+            Directory.Delete(path, recursive: true);
+        }
+        catch (IOException)
+        {
+        }
+        catch (UnauthorizedAccessException)
+        {
+        }
     }
 
     private static void CopyDirectory(string sourceRoot, string destinationRoot)
@@ -2369,7 +2593,7 @@ internal sealed class MptPluginLoadContext : AssemblyLoadContext
     {
         if (assemblyName.Name is not null && _sharedAssemblies.Contains(assemblyName.Name))
         {
-            return ResolveShared(assemblyName.Name);
+            return ResolveShared(assemblyName);
         }
 
         var path = _resolver?.ResolveAssemblyToPath(assemblyName);
@@ -2392,24 +2616,52 @@ internal sealed class MptPluginLoadContext : AssemblyLoadContext
     /// <summary>
     /// A shared contract must be the host's own copy: loading a duplicate from the module shadow
     /// directory would break the <c>is IMptModule</c> contract cast the host performs.
+    /// Rejects modules requesting a newer contract version than the host provides.
     /// </summary>
-    private static Assembly? ResolveShared(string name)
+    internal static Assembly? ResolveShared(AssemblyName assemblyName)
     {
-        var loaded = AssemblyLoadContext.Default.Assemblies.FirstOrDefault(assembly =>
-            string.Equals(assembly.GetName().Name, name, StringComparison.OrdinalIgnoreCase));
-        if (loaded is not null)
-        {
-            return loaded;
-        }
-
-        try
-        {
-            return AssemblyLoadContext.Default.LoadFromAssemblyName(new AssemblyName(name));
-        }
-        catch
+        var name = assemblyName.Name;
+        if (string.IsNullOrWhiteSpace(name))
         {
             return null;
         }
+
+        var loaded = AssemblyLoadContext.Default.Assemblies.FirstOrDefault(assembly =>
+            string.Equals(assembly.GetName().Name, name, StringComparison.OrdinalIgnoreCase));
+        if (loaded is null)
+        {
+            try
+            {
+                loaded = AssemblyLoadContext.Default.LoadFromAssemblyName(new AssemblyName(name));
+            }
+            catch
+            {
+                return null;
+            }
+        }
+
+        if (loaded is not null &&
+            assemblyName.Version is { } req &&
+            loaded.GetName().Version is { } hostVer &&
+            IsIncompatibleSharedVersion(req, hostVer))
+        {
+            throw new InvalidOperationException(
+                $"Shared contract assembly '{name}' is version_incompatible: module requested version {req}, but host provides version {hostVer}.");
+        }
+
+        return loaded;
+    }
+
+    internal static bool IsIncompatibleSharedVersion(Version requested, Version hostVersion)
+    {
+        // Legacy pre-0.2 packaged modules were compiled before explicit <Version>0.x</Version>
+        // metadata was added to shared contract csproj files, so MSBuild stamped default 1.0.0.0.
+        if (hostVersion.Major == 0 && requested == new Version(1, 0, 0, 0))
+        {
+            return false;
+        }
+
+        return requested > hostVersion;
     }
 
     private string? Probe(string? assemblyName)
@@ -2579,6 +2831,7 @@ internal sealed class InProcModuleSession
     private Task<string>? _quarantineTask;
     private bool _quarantineStarted;
     private bool _cleanupCompleted;
+    private volatile HashSet<string>? _unboundedCommandIds;
 
     public InProcModuleSession(
         IMptModule module,
@@ -2603,6 +2856,34 @@ internal sealed class InProcModuleSession
     public DateTimeOffset LoadedAt { get; }
     public string LoadContextName { get; }
     public bool IsUnisolatedDevelopment { get; }
+
+    public void CacheCommandTimeouts(IReadOnlyList<MptCommandDescriptor> commands)
+    {
+        var unbounded = new HashSet<string>(StringComparer.Ordinal);
+        foreach (var command in commands)
+        {
+            if (command.TimeoutMs == Timeout.Infinite)
+            {
+                unbounded.Add(command.Id);
+            }
+        }
+
+        _unboundedCommandIds = unbounded;
+    }
+
+    public bool TryIsUnboundedCommand(string commandId, out bool unbounded)
+    {
+        var cached = _unboundedCommandIds;
+        if (cached is null)
+        {
+            unbounded = false;
+            return false;
+        }
+
+        unbounded = cached.Contains(commandId);
+        return true;
+    }
+
     public bool CleanupCompleted
     {
         get
@@ -2859,17 +3140,20 @@ internal sealed class InProcInvocationTimeoutException : TimeoutException
         string operation,
         bool callbackStillRunning,
         string message,
-        Exception innerException)
+        Exception innerException,
+        bool isCallerCancellation = false)
         : base(message, innerException)
     {
         ModuleId = moduleId;
         Operation = operation;
         CallbackStillRunning = callbackStillRunning;
+        IsCallerCancellation = isCallerCancellation;
     }
 
     public string ModuleId { get; }
     public string Operation { get; }
     public bool CallbackStillRunning { get; }
+    public bool IsCallerCancellation { get; }
 }
 
 internal sealed class InProcStreamInvocationState

@@ -63,7 +63,45 @@ public sealed class AuthTokenStore
         }
 
         var token = GenerateToken();
-        File.WriteAllText(path, token);
+        var tempPath = $"{path}.{Guid.NewGuid():N}.tmp";
+        var moved = false;
+        try
+        {
+            if (OperatingSystem.IsWindows())
+            {
+                File.WriteAllText(tempPath, token, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+            }
+            else
+            {
+                using var stream = new FileStream(tempPath, new FileStreamOptions
+                {
+                    Mode = FileMode.CreateNew,
+                    Access = FileAccess.Write,
+                    Share = FileShare.None,
+                    UnixCreateMode = UnixFileMode.UserRead | UnixFileMode.UserWrite
+                });
+                using var writer = new StreamWriter(stream, new UTF8Encoding(encoderShouldEmitUTF8Identifier: false));
+                writer.Write(token);
+                writer.Flush();
+            }
+
+            File.Move(tempPath, path, overwrite: true);
+            moved = true;
+        }
+        finally
+        {
+            if (!moved && File.Exists(tempPath))
+            {
+                try
+                {
+                    File.Delete(tempPath);
+                }
+                catch (IOException)
+                {
+                }
+            }
+        }
+
         try
         {
             File.SetAttributes(path, File.GetAttributes(path) | FileAttributes.Hidden);
@@ -91,13 +129,39 @@ public sealed class AuthTokenStore
     public string? TryReadToken(string? dataRoot = null)
     {
         var path = TokenPath(dataRoot);
-        if (!File.Exists(path))
+        for (var attempt = 0; attempt < 5; attempt++)
         {
-            return null;
+            try
+            {
+                if (!File.Exists(path))
+                {
+                    return null;
+                }
+
+                using var stream = new FileStream(
+                    path,
+                    FileMode.Open,
+                    FileAccess.Read,
+                    FileShare.ReadWrite | FileShare.Delete);
+                using var reader = new StreamReader(stream, Encoding.UTF8);
+                var token = reader.ReadToEnd().Trim();
+                return token.Length >= 32 ? token : null;
+            }
+            catch (FileNotFoundException)
+            {
+                return null;
+            }
+            catch (DirectoryNotFoundException)
+            {
+                return null;
+            }
+            catch (IOException) when (attempt < 4)
+            {
+                Thread.Sleep(15 * (attempt + 1));
+            }
         }
 
-        var token = File.ReadAllText(path).Trim();
-        return token.Length >= 32 ? token : null;
+        return null;
     }
 
     private static string GenerateToken()
@@ -176,12 +240,19 @@ public class BearerTokenAuthServerInterceptor : Interceptor
 public class BearerTokenAuthClientInterceptor : Interceptor
 {
     private readonly string _headerName;
-    private readonly string? _token;
+    private readonly Func<string?> _tokenProvider;
 
     public BearerTokenAuthClientInterceptor(string headerName, string? token)
+        : this(headerName, () => token)
     {
+    }
+
+    public BearerTokenAuthClientInterceptor(string headerName, Func<string?> tokenProvider)
+    {
+        ArgumentException.ThrowIfNullOrWhiteSpace(headerName);
+        ArgumentNullException.ThrowIfNull(tokenProvider);
         _headerName = headerName;
-        _token = token;
+        _tokenProvider = tokenProvider;
     }
 
     public override AsyncUnaryCall<TResponse> AsyncUnaryCall<TRequest, TResponse>(
@@ -205,7 +276,8 @@ public class BearerTokenAuthClientInterceptor : Interceptor
         where TRequest : class
         where TResponse : class
     {
-        if (string.IsNullOrWhiteSpace(_token))
+        var token = _tokenProvider();
+        if (string.IsNullOrWhiteSpace(token))
         {
             return context;
         }
@@ -219,7 +291,7 @@ public class BearerTokenAuthClientInterceptor : Interceptor
             }
         }
 
-        headers.Add(_headerName, _token);
+        headers.Add(_headerName, token);
         return new ClientInterceptorContext<TRequest, TResponse>(
             context.Method,
             context.Host,

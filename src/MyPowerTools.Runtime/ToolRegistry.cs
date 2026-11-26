@@ -11,7 +11,8 @@ public sealed class ToolRegistry
         @"\$\{settings\.(?<name>[A-Za-z0-9_.-]+)\}",
         RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
     private readonly PackageReader _reader;
-    private readonly List<ToolDescriptor> _tools = [];
+    private readonly object _writeLock = new();
+    private volatile ToolDescriptor[] _tools = [];
 
     public ToolRegistry(PackageReader reader)
     {
@@ -22,14 +23,14 @@ public sealed class ToolRegistry
 
     public void Load(IEnumerable<RuntimeModuleRecord> modules)
     {
-        _tools.Clear();
+        var loaded = new List<ToolDescriptor>();
         foreach (var module in modules)
         {
             // Module that never loaded (malformed development tool): surface it as an
             // error-card descriptor instead of dropping it silently.
             if (module.Module.LoadError is not null)
             {
-                _tools.Add(CreateErrorDescriptor(module, module.Module.LoadError));
+                loaded.Add(CreateErrorDescriptor(loaded, module, module.Module.LoadError));
                 continue;
             }
 
@@ -45,32 +46,40 @@ public sealed class ToolRegistry
                         ? _reader.ReadDevelopmentToolManifest(manifestPath, module.Module.Directory)
                         : _reader.ReadJson<MptToolManifest>(manifestPath);
                     var descriptor = ToDescriptor(module, manifest, manifestPath);
-                    if (_tools.Any(tool => string.Equals(tool.ToolId, descriptor.ToolId, StringComparison.OrdinalIgnoreCase)))
+                    if (loaded.Any(tool => string.Equals(tool.ToolId, descriptor.ToolId, StringComparison.OrdinalIgnoreCase)))
                     {
                         throw new InvalidDataException($"Duplicate tool id '{descriptor.ToolId}' declared by {manifestPath}.");
                     }
 
-                    _tools.Add(descriptor);
+                    loaded.Add(descriptor);
                 }
                 catch (Exception exception) when (module.Package.IsDevelopmentTool)
                 {
                     // One broken development tool must not empty the catalog: it becomes
                     // an error card. Installed/signed packages keep the strict throw.
-                    _tools.Add(CreateErrorDescriptor(module, exception.GetBaseException().Message));
+                    loaded.Add(CreateErrorDescriptor(loaded, module, exception.GetBaseException().Message));
                 }
             }
         }
 
-        _tools.Sort((left, right) =>
+        loaded.Sort((left, right) =>
         {
             var byOrder = left.HomeCard.Order.CompareTo(right.HomeCard.Order);
             return byOrder != 0
                 ? byOrder
                 : StringComparer.OrdinalIgnoreCase.Compare(left.Title, right.Title);
         });
+
+        lock (_writeLock)
+        {
+            _tools = loaded.ToArray();
+        }
     }
 
-    private ToolDescriptor CreateErrorDescriptor(RuntimeModuleRecord module, string message)
+    private static ToolDescriptor CreateErrorDescriptor(
+        IReadOnlyList<ToolDescriptor> existingTools,
+        RuntimeModuleRecord module,
+        string message)
     {
         var moduleId = module.Module.Manifest.Id;
         var toolId = moduleId.StartsWith("dev.", StringComparison.OrdinalIgnoreCase)
@@ -83,7 +92,7 @@ public sealed class ToolRegistry
 
         var uniqueToolId = toolId;
         var suffix = 1;
-        while (_tools.Any(tool => string.Equals(tool.ToolId, uniqueToolId, StringComparison.OrdinalIgnoreCase)))
+        while (existingTools.Any(tool => string.Equals(tool.ToolId, uniqueToolId, StringComparison.OrdinalIgnoreCase)))
         {
             uniqueToolId = $"{toolId}.error{suffix++}";
         }
