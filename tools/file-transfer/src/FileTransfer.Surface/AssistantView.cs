@@ -342,8 +342,17 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
 
     private StackPanel BuildEmptyState()
     {
-        var connect = MobileUi.PrimaryButton("加入文件传输助手");
-        connect.Click += async (_, _) => await RunAsync(async () => await ChangePublicRoomAsync("join"));
+        var connect = MobileUi.QuietButton("连接我的设备");
+        connect.Click += async (_, _) =>
+        {
+            if (_core.Snapshot.Identity.PublicRoomState.StartsWith("public", StringComparison.Ordinal))
+            {
+                await RunAsync(async () => await ChangePublicRoomAsync("join"));
+                return;
+            }
+
+            ShowSetupSheet();
+        };
         _emptyConnect = connect;
         return MobileUi.Stack(10,
             _emptyTitle,
@@ -379,10 +388,12 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
             _emptyConnect.IsVisible = false;
             return;
         }
-        _emptyTitle.Text = "加入文件传输助手";
+
+        _emptyTitle.Text = "内容保存在这台设备";
         _emptyTitle.FontSize = 12;
-        _emptyNote.Text = "公屏由同一服务的所有已授权用户共享。点按下方按钮申请加入，原私人记录仍保留。";
+        _emptyNote.Text = "尚未关联其他设备，内容暂时只在本机可见。";
         _emptyNote.FontSize = 12;
+        _emptyConnect.Content = "连接我的设备";
         _emptyConnect.IsVisible = true;
     }
 
@@ -422,8 +433,21 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
         choices.Children.Add(MobileUi.ListRow("MptMobileIconReceive", "空间管理", "清理已接收的文件，保留聊天记录", () => RunAsync(ShowStorageAsync)));
         choices.Children.Add(MobileUi.ListRow("MptMobileIconCloud", "我的网盘", "登录网盘，让这台设备按需使用它中转",
             () => { OpenCloudAccounts(); return Task.CompletedTask; }));
-        choices.Children.Add(MobileUi.ListRow("MptMobileIconDevices", "私人共享会话", "私人会话使用连接码；公屏无需连接码",
-            () => { if (_core.Snapshot.Identity.PublicRoomState.StartsWith("public")) ShowPublicRoomSheet(); else { ShowSheet(_linkSheet); SyncLinkSheet(); } return Task.CompletedTask; }));
+        choices.Children.Add(MobileUi.ListRow("MptMobileIconDevices", "连接我的设备", "用连接码把另一台设备加入私人共享会话",
+            () =>
+            {
+                if (_core.Snapshot.Identity.PublicRoomState.StartsWith("public", StringComparison.Ordinal))
+                {
+                    ShowPublicRoomSheet();
+                }
+                else
+                {
+                    ShowSheet(_linkSheet);
+                    SyncLinkSheet();
+                }
+
+                return Task.CompletedTask;
+            }));
         choices.Children.Add(MobileUi.ListRow("MptMobileIconReceive", "接收文件", "允许另一台设备直接发文件到这台设备",
             () => { ShowSheet(_receiveSheet); SyncReceive(); return Task.CompletedTask; }));
         choices.Children.Add(MobileUi.ListRow("MptMobileIconSend", "设备私聊", "打开与一台设备的独立会话",

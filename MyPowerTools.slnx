@@ -95,7 +95,6 @@
     <Project Path="src/MyPowerTools.MobileToolControl/tests/MyPowerTools.MobileToolControl.Tests.csproj" />
     <Project Path="tests/MobileLayout.Tests/MobileLayout.Tests.csproj" />
     <Project Path="tools/file-transfer/tests/FileTransfer.Core.Tests/FileTransfer.Core.Tests.csproj" />
-    <Project Path="tools/file-transfer/tests/FileTransfer.Surface.Tests/FileTransfer.Surface.Tests.csproj" />
     <Project Path="tools/remote-tool-gateway/tests/RemoteToolGateway.Core.Tests/RemoteToolGateway.Core.Tests.csproj" />
     <Project Path="tools/remote-tool-gateway/tests/RemoteToolGateway.Surface.Tests/RemoteToolGateway.Surface.Tests.csproj" />
     <Project Path="tools/remote-tool-gateway/android-integration/tests/MobileToolControl.Android.Tests/MobileToolControl.Android.Tests.csproj" />
