@@ -4,9 +4,9 @@ namespace FileTransfer.Core.Discovery;
 
 /// <summary>
 /// The active half of LAN discovery: sends one bounded who-is solicitation and collects the
-/// <c>here</c> answers that carry the peers' Tailnet addresses. The answers are only candidates —
-/// each one still has to pass the v3 hello probe before <see cref="DeviceDiscovery"/> reports it as
-/// available. Files never travel over this channel.
+/// <c>here</c> answers that carry the peers' private direct (LAN or Tailnet) addresses. The answers
+/// are only candidates — each one still has to pass the v3 hello probe before
+/// <see cref="DeviceDiscovery"/> reports it as available. Files never travel over this channel.
 /// </summary>
 public sealed class LanCandidateSource : IDiscoveryCandidateSource
 {
@@ -26,7 +26,7 @@ public sealed class LanCandidateSource : IDiscoveryCandidateSource
         var options = request.Options;
         var local = options.LocalDevice;
         if (local is null || !DiscoveryAddresses.IsValidDeviceId(local.DeviceId) || !DiscoveryAddresses.IsUsableCandidate(local.Address))
-            return CandidateSourceResult.Unsupported("本机没有可用的 Tailnet 地址或设备标识，未发送局域网发现请求。");
+            return CandidateSourceResult.Unsupported("本机没有可用的局域网或 Tailnet 私网地址或设备标识，未发送局域网发现请求。");
 
         var owns = _channel is null || !_channel.IsListening;
         var channel = _channel ?? new LanDiscoveryChannel(options);

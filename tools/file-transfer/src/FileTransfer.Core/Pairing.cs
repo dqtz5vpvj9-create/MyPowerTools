@@ -40,8 +40,8 @@ public sealed record Pairing(string DeviceId, string Name, string Address, strin
         // The address is optional and, when present, still has to be a private direct candidate: a
         // public address is never accepted for the direct channel.
         var address = (value.Address ?? "").Trim();
-        if (address.Length > 0 && (!IPAddress.TryParse(address, out var parsed) || !TransferFiles.IsTailAddress(parsed)))
-            throw new ArgumentException("设备连接码无效：直连地址必须是 Tailscale 地址。");
+        if (address.Length > 0 && (!IPAddress.TryParse(address, out var parsed) || !TransferFiles.IsPrivateDirectAddress(parsed)))
+            throw new ArgumentException("设备连接码无效：直连地址必须是局域网或 Tailscale 私网地址。");
         // The optional deposit inbox grants file delivery only; it is validated like any other input
         // and an old code without one stays valid.
         if (value.Inbox is { } inbox)

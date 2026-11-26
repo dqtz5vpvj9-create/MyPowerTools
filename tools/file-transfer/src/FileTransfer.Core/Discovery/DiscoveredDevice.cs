@@ -10,8 +10,9 @@ namespace FileTransfer.Core.Discovery;
 /// </param>
 /// <param name="Name">Human readable device name; never a credential.</param>
 /// <param name="Address">
-/// Tailnet address only (100.64.0.0/10 or fd7a:115c:a1e0::/48). Loopback is accepted for tests and
-/// for a same-machine receiver. A public address is rejected before any socket is opened.
+/// Private direct address: Tailscale (100.64.0.0/10 or fd7a:115c:a1e0::/48), private LAN (RFC1918,
+/// IPv6 ULA, link-local), or loopback for tests and a same-machine receiver. A public address is
+/// rejected before any socket is opened.
 /// </param>
 /// <param name="Port">MPT receiver port. The production default is <see cref="TransferFiles.Port"/>.</param>
 /// <param name="Platform">windows, macos, linux, android or ios; empty when a source cannot tell.</param>
