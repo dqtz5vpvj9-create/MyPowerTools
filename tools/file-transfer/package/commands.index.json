@@ -361,6 +361,33 @@
       "execution": {
         "type": "module.execute"
       }
+    },
+    {
+      "id": "file-transfer.drop.create",
+      "moduleId": "file-transfer",
+      "title": "drop.create",
+      "category": "文件互传",
+      "kind": "action",
+      "timeoutMs": 60000,
+      "supportsCancellation": true
+    },
+    {
+      "id": "file-transfer.drop.list",
+      "moduleId": "file-transfer",
+      "title": "drop.list",
+      "category": "文件互传",
+      "kind": "action",
+      "timeoutMs": 60000,
+      "supportsCancellation": true
+    },
+    {
+      "id": "file-transfer.drop.revoke",
+      "moduleId": "file-transfer",
+      "title": "drop.revoke",
+      "category": "文件互传",
+      "kind": "action",
+      "timeoutMs": 60000,
+      "supportsCancellation": true
     }
   ]
 }

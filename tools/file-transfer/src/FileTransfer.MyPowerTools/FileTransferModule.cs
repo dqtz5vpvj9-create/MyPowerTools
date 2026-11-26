@@ -201,7 +201,7 @@ public sealed partial class FileTransferModule : IMptModule
         "assistant.public.join", "assistant.public.leave", "assistant.public.private", "assistant.storage.inspect", "assistant.storage.clean", "assistant.inspect", "assistant.send", "assistant.sync", "assistant.retry", "assistant.cancel", "assistant.open", "assistant.devices", "assistant.receive.respond", "assistant.link.export", "assistant.link.preview", "assistant.link.import",
         "assistant.preferences.inspect", "assistant.preferences.update",
         "cloud.accounts.inspect", "cloud.accounts.authorize.begin", "cloud.accounts.authorize.status", "cloud.accounts.authorize.cancel", "cloud.accounts.authorize.complete",
-        "cloud.accounts.default", "cloud.accounts.pause", "cloud.accounts.disconnect", "cloud.accounts.folders", "cloud.accounts.directory", "cloud.accounts.preferences"];
+        "cloud.accounts.default", "cloud.accounts.pause", "cloud.accounts.disconnect", "cloud.accounts.folders", "cloud.accounts.directory", "cloud.accounts.preferences", "drop.create", "drop.list", "drop.revoke"];
     public ValueTask<IReadOnlyList<MptCommandDescriptor>> ListCommandsAsync(CancellationToken token) => ValueTask.FromResult<IReadOnlyList<MptCommandDescriptor>>(
         Commands.Select(c => new MptCommandDescriptor($"{Id}.{c}", Id, c, "文件互传", "action", TimeoutMs: c == "assistant.open" ? Timeout.Infinite : c is "openlist.start" or "cloud.accounts.authorize.complete" ? 1200000 : 60000,
             SupportsCancellation: true)).ToArray());
@@ -211,6 +211,12 @@ public sealed partial class FileTransferModule : IMptModule
         try
         {
             object result;
+            var (webDropHandled, webDropResult) = await TryExecuteWebDropCommandAsync(request.CommandId, request.Args, token);
+            if (webDropHandled)
+            {
+                return new CommandExecutionResult(request.InvocationId, request.CommandId, "succeeded", true,
+                    JsonSerializer.Serialize(webDropResult, DirectTransfer.Json));
+            }
             switch (request.CommandId)
             {
                 case "file-transfer.inspect":
@@ -1310,6 +1316,7 @@ public sealed partial class FileTransferModule : IMptModule
         // A host can unload the constructed instance before InitializeAsync runs
         // (for example when a shared platform contract cannot be loaded).
         if (_openList is not null) await _openList.DisposeAsync();
+        await DisposeWebDropAsync();
 
         _events.Writer.TryComplete();
         _transfer?.Dispose();
