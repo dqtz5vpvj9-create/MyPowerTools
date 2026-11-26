@@ -17,7 +17,6 @@
     <DebugSymbols>false</DebugSymbols>
     <EventSourceSupport>false</EventSourceSupport>
     <HttpActivityPropagationSupport>false</HttpActivityPropagationSupport>
-    <AppHostRelativeDotNet Condition="$([System.String]::Copy('$(RuntimeIdentifier)').StartsWith('win-'))">Runtime\dotnet</AppHostRelativeDotNet>
   </PropertyGroup>
 
   <ItemGroup>
