@@ -1,6 +1,7 @@
 using System.Runtime.InteropServices;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using Microsoft.Extensions.Logging;
 
 namespace MyPowerTools.Ipc;
@@ -170,6 +171,22 @@ public sealed class DaemonProcessConsole : IDisposable
 
 public sealed class JsonlLogWriter : IDisposable
 {
+    public const int DefaultMaxMessageChars = 4096;
+    public const long DefaultMaxFileBytes = 10L * 1024 * 1024;
+
+    private const string CredentialWords =
+        "(?:confirmation[-_]?token|refresh[-_]?token|peer[-_]?token|token|secret|password|passwd|cookie|authorization|api[-_]?key|access[-_]?key|secret[-_]?key)";
+
+    private static readonly Regex SensitivePattern = new(
+        $"([A-Za-z0-9_-]*{CredentialWords}\\b\"?)(\\s*[=:]\\s*)(?:bearer\\s+)?([^\\s;,&\"'\\}}\\]]+)",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    private static readonly Regex JsonSecretPattern = new(
+        $"(\"[A-Za-z0-9_-]*{CredentialWords}\"\\s*:\\s*\")((?:\\\\.|[^\"\\\\])*)(\")",
+        RegexOptions.IgnoreCase | RegexOptions.Compiled);
+
+    private static readonly Regex PairingLinkPattern = new("mpt://(?:pair|cloud)/[A-Za-z0-9_-]+", RegexOptions.Compiled);
+
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNamingPolicy = null
@@ -178,14 +195,25 @@ public sealed class JsonlLogWriter : IDisposable
     private readonly object _gate = new();
     private readonly string _path;
     private readonly string _moduleId;
+    private readonly int _maxMessageChars;
+    private readonly long _maxFileBytes;
     private bool _disposed;
 
     public JsonlLogWriter(string path, string moduleId)
+        : this(path, moduleId, DefaultMaxMessageChars, DefaultMaxFileBytes)
+    {
+    }
+
+    internal JsonlLogWriter(string path, string moduleId, int maxMessageChars, long maxFileBytes)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         ArgumentException.ThrowIfNullOrWhiteSpace(moduleId);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxMessageChars);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxFileBytes);
         _path = path;
         _moduleId = moduleId;
+        _maxMessageChars = maxMessageChars;
+        _maxFileBytes = maxFileBytes;
     }
 
     public void Append(string level, string message)
@@ -195,26 +223,76 @@ public sealed class JsonlLogWriter : IDisposable
             return;
         }
 
+        var safeMessage = TruncateMessage(Redact(message.TrimEnd()), _maxMessageChars);
         var line = JsonSerializer.Serialize(
-            new JsonlHostLogRecord(DateTimeOffset.UtcNow, _moduleId, NormalizeLevel(level), message.TrimEnd()),
+            new JsonlHostLogRecord(DateTimeOffset.UtcNow, _moduleId, NormalizeLevel(level), safeMessage),
             JsonOptions);
+
         lock (_gate)
         {
-            for (var attempt = 0; attempt < 20; attempt++)
+            RotateIfNeeded();
+            for (var attempt = 0; attempt < 8; attempt++)
             {
                 try
                 {
-                    using var stream = new FileStream(_path, FileMode.Append, FileAccess.Write, FileShare.ReadWrite);
+                    using var stream = new FileStream(
+                        _path,
+                        FileMode.Append,
+                        FileAccess.Write,
+                        FileShare.ReadWrite | FileShare.Delete);
                     using var writer = new StreamWriter(stream, Encoding.UTF8);
                     writer.WriteLine(line);
                     return;
                 }
-                catch (IOException) when (attempt < 19)
+                catch (IOException) when (attempt < 7)
                 {
-                    Thread.Sleep(20 * (attempt + 1));
+                    Thread.Sleep(10 * (attempt + 1));
                 }
             }
         }
+    }
+
+    private void RotateIfNeeded()
+    {
+        try
+        {
+            if (!File.Exists(_path))
+            {
+                return;
+            }
+
+            var info = new FileInfo(_path);
+            if (info.Length < _maxFileBytes)
+            {
+                return;
+            }
+
+            File.Move(_path, _path + ".1", overwrite: true);
+        }
+        catch (IOException)
+        {
+            // Rotation is best-effort when another reader briefly holds the handle.
+        }
+        catch (UnauthorizedAccessException)
+        {
+        }
+    }
+
+    private static string Redact(string value)
+    {
+        var redacted = JsonSecretPattern.Replace(value, "$1****$3");
+        return PairingLinkPattern.Replace(SensitivePattern.Replace(redacted, "$1$2****"), "mpt://connection/****");
+    }
+
+    private static string TruncateMessage(string value, int maxChars)
+    {
+        if (value.Length <= maxChars)
+        {
+            return value;
+        }
+
+        var omitted = value.Length - maxChars;
+        return $"{value[..maxChars]}... [truncated {omitted} chars]";
     }
 
     public void Dispose() => _disposed = true;

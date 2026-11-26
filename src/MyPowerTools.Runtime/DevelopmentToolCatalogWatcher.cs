@@ -93,19 +93,22 @@ public sealed class DevelopmentToolCatalogWatcher : IAsyncDisposable
 
     private void ScheduleRefresh()
     {
-        if (Volatile.Read(ref _disposed) != 0)
-        {
-            return;
-        }
-
-        CancellationToken token;
+        CancellationTokenSource cts;
+        CancellationTokenSource? previous;
         lock (_debounceLock)
         {
-            _debounceCts?.Cancel();
-            _debounceCts?.Dispose();
-            _debounceCts = new CancellationTokenSource();
-            token = _debounceCts.Token;
+            if (Volatile.Read(ref _disposed) != 0)
+            {
+                return;
+            }
+
+            previous = _debounceCts;
+            cts = new CancellationTokenSource();
+            _debounceCts = cts;
         }
+
+        CancelQuietly(previous);
+        var token = cts.Token;
 
         _ = Task.Run(async () =>
         {
@@ -116,13 +119,41 @@ public sealed class DevelopmentToolCatalogWatcher : IAsyncDisposable
             }
             catch (OperationCanceledException)
             {
-                // Superseded by a newer filesystem event within the debounce window.
+                // Superseded by a newer filesystem event within the debounce window or disposal.
             }
             catch (Exception exception)
             {
                 _log($"Tool catalog refresh failed: {exception.Message}");
             }
+            finally
+            {
+                lock (_debounceLock)
+                {
+                    if (ReferenceEquals(_debounceCts, cts))
+                    {
+                        _debounceCts = null;
+                    }
+                }
+
+                cts.Dispose();
+            }
         }, CancellationToken.None);
+    }
+
+    private static void CancelQuietly(CancellationTokenSource? cts)
+    {
+        if (cts is null)
+        {
+            return;
+        }
+
+        try
+        {
+            cts.Cancel();
+        }
+        catch (ObjectDisposedException)
+        {
+        }
     }
 
     private async Task RefreshGuardedAsync(CancellationToken cancellationToken)
@@ -149,12 +180,15 @@ public sealed class DevelopmentToolCatalogWatcher : IAsyncDisposable
             return;
         }
 
+        CancellationTokenSource? pending;
         lock (_debounceLock)
         {
-            _debounceCts?.Cancel();
-            _debounceCts?.Dispose();
+            pending = _debounceCts;
             _debounceCts = null;
         }
+
+        // Cancel only; the scheduled task owns disposal in its finally block.
+        CancelQuietly(pending);
 
         foreach (var watcher in _watchers)
         {

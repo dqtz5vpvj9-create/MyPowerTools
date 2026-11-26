@@ -7,17 +7,32 @@ namespace MyPowerTools.Runtime;
 
 public sealed class LogRouter
 {
+    public const int DefaultMaxMessageChars = 4096;
+    public const long DefaultMaxFileBytes = 10L * 1024 * 1024;
+
     private static readonly ConcurrentDictionary<string, object> FileLocks = new(StringComparer.OrdinalIgnoreCase);
     private readonly string _logDirectory;
+    private readonly int _maxMessageChars;
+    private readonly long _maxFileBytes;
 
     public LogRouter(string logDirectory)
+        : this(logDirectory, DefaultMaxMessageChars, DefaultMaxFileBytes)
     {
+    }
+
+    internal LogRouter(string logDirectory, int maxMessageChars, long maxFileBytes)
+    {
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxMessageChars);
+        ArgumentOutOfRangeException.ThrowIfNegativeOrZero(maxFileBytes);
         _logDirectory = logDirectory;
+        _maxMessageChars = maxMessageChars;
+        _maxFileBytes = maxFileBytes;
         Directory.CreateDirectory(_logDirectory);
     }
 
     public LogRecord Append(string packageId, string moduleId, string level, string message, string? invocationId = null, ulong? eventSeq = null, string? requestId = null)
     {
+        var safeMessage = TruncateMessage(Redact(message), _maxMessageChars);
         var record = new LogRecord(
             DateTimeOffset.UtcNow,
             packageId,
@@ -26,7 +41,7 @@ public sealed class LogRouter
             eventSeq ?? 0,
             requestId ?? "",
             level,
-            Redact(message));
+            safeMessage);
 
         var path = Path.Combine(_logDirectory, $"{Sanitize(moduleId)}.jsonl");
         AppendLine(path, JsonSerializer.Serialize(record));
@@ -160,26 +175,68 @@ public sealed class LogRouter
 
     public static string Redact(string value) => MptLogRedactor.Redact(value);
 
-    private static void AppendLine(string path, string line)
+    private void AppendLine(string path, string line)
     {
         var gate = FileLocks.GetOrAdd(path, _ => new object());
         lock (gate)
         {
-            for (var attempt = 0; attempt < 50; attempt++)
+            RotateIfNeeded(path);
+            for (var attempt = 0; attempt < 8; attempt++)
             {
                 try
                 {
-                    using var stream = new FileStream(path, FileMode.Append, FileAccess.Write, FileShare.ReadWrite);
+                    using var stream = new FileStream(
+                        path,
+                        FileMode.Append,
+                        FileAccess.Write,
+                        FileShare.ReadWrite | FileShare.Delete);
                     using var writer = new StreamWriter(stream);
                     writer.WriteLine(line);
                     return;
                 }
-                catch (IOException) when (attempt < 49)
+                catch (IOException) when (attempt < 7)
                 {
-                    Thread.Sleep(TimeSpan.FromMilliseconds(20 * (attempt + 1)));
+                    Thread.Sleep(TimeSpan.FromMilliseconds(10 * (attempt + 1)));
                 }
             }
         }
+    }
+
+    private void RotateIfNeeded(string path)
+    {
+        try
+        {
+            if (!File.Exists(path))
+            {
+                return;
+            }
+
+            var info = new FileInfo(path);
+            if (info.Length < _maxFileBytes)
+            {
+                return;
+            }
+
+            File.Move(path, path + ".1", overwrite: true);
+        }
+        catch (IOException)
+        {
+            // Rotation is best-effort if another reader briefly holds the handle.
+        }
+        catch (UnauthorizedAccessException)
+        {
+        }
+    }
+
+    private static string TruncateMessage(string value, int maxChars)
+    {
+        if (value.Length <= maxChars)
+        {
+            return value;
+        }
+
+        var omitted = value.Length - maxChars;
+        return $"{value[..maxChars]}... [truncated {omitted} chars]";
     }
 
     private static string Sanitize(string value)

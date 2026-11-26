@@ -686,17 +686,39 @@ public sealed class GrpcIpcModuleHost : IAsyncDisposable
                 if (endpoint.Transport == IpcTransport.NamedPipe)
                 {
                     var stream = new NamedPipeClientStream(".", endpoint.Address, PipeDirection.InOut, PipeOptions.Asynchronous);
-                    await stream.ConnectAsync(TimeSpan.FromSeconds(10), cancellationToken);
-                    return stream;
+                    try
+                    {
+                        await stream.ConnectAsync(TimeSpan.FromSeconds(10), cancellationToken);
+                        return stream;
+                    }
+                    catch
+                    {
+                        stream.Dispose();
+                        throw;
+                    }
                 }
 
                 var socket = new Socket(AddressFamily.Unix, SocketType.Stream, ProtocolType.Unspecified);
-                await socket.ConnectAsync(new UnixDomainSocketEndPoint(endpoint.Address), cancellationToken);
-                return new NetworkStream(socket, ownsSocket: true);
+                try
+                {
+                    await socket.ConnectAsync(new UnixDomainSocketEndPoint(endpoint.Address), cancellationToken);
+                    return new NetworkStream(socket, ownsSocket: true);
+                }
+                catch
+                {
+                    socket.Dispose();
+                    throw;
+                }
             }
         };
 
-        return GrpcChannel.ForAddress("http://localhost", new GrpcChannelOptions { HttpHandler = handler });
+        return GrpcChannel.ForAddress(
+            "http://localhost",
+            new GrpcChannelOptions
+            {
+                HttpHandler = handler,
+                DisposeHttpClient = true
+            });
     }
 
     private static IpcEndpoint ToEndpoint(SelectedEntrypoint entrypoint)
@@ -1112,7 +1134,16 @@ public sealed class GrpcIpcModuleRuntime : IModuleTransportRuntime, IModuleTrans
             _poolRuntimePolicies[poolKey] = runtimePolicy;
             RecordStartOrThrow(poolKey, runtimePolicy);
             var host = new GrpcIpcModuleHost();
-            await host.InitializeAsync(module.Entrypoint, context, module.Package.Directory, module.Module.Directory, cancellationToken);
+            try
+            {
+                await host.InitializeAsync(module.Entrypoint, context, module.Package.Directory, module.Module.Directory, cancellationToken);
+            }
+            catch
+            {
+                await host.DisposeAsync();
+                throw;
+            }
+
             _hosts[poolKey] = host;
             MarkInitialized(poolKey, module.Module.Manifest.Id);
             return host;

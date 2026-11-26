@@ -2,6 +2,7 @@ using System.Collections.Concurrent;
 using System.Net.Http.Json;
 using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
+using System.Text;
 using System.Text.Json.Nodes;
 using MyPowerTools.Abstractions;
 using MyPowerTools.Packaging;
@@ -45,6 +46,8 @@ public sealed partial class MptHostRuntime : IAsyncDisposable
     private readonly ConcurrentDictionary<string, CancellationTokenSource> _moduleEventPumpCancellations = new(StringComparer.OrdinalIgnoreCase);
     private readonly ConcurrentDictionary<string, int> _moduleEventPumpFailures = new(StringComparer.OrdinalIgnoreCase);
     private CancellationTokenSource? _moduleEventPumpCancellation;
+    private readonly SemaphoreSlim _catalogRefreshLock = new(1, 1);
+    private int _disposed;
     private readonly HttpClient _httpClient = new()
     {
         Timeout = TimeSpan.FromSeconds(30)
@@ -84,7 +87,9 @@ public sealed partial class MptHostRuntime : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        Interlocked.Exchange(ref _disposed, 1);
         await StopModuleEventPumpAsync();
+        _catalogRefreshLock.Dispose();
         _httpClient.Dispose();
         foreach (var runtime in _transportRuntimes.Values)
         {
@@ -129,12 +134,29 @@ public sealed partial class MptHostRuntime : IAsyncDisposable
 
     public async Task<IReadOnlyList<RuntimeToolSnapshot>> RefreshToolCatalogAsync(CancellationToken cancellationToken)
     {
-        await StopModuleEventPumpAsync();
-        cancellationToken.ThrowIfCancellationRequested();
-        Load(_packageRoot, _developmentToolRoots);
-        await RefreshDynamicCommandsAsync(cancellationToken);
-        StartModuleEventPump();
-        return ListTools(includeDisabled: true);
+        await _catalogRefreshLock.WaitAsync(cancellationToken);
+        try
+        {
+            await StopModuleEventPumpAsync();
+            try
+            {
+                cancellationToken.ThrowIfCancellationRequested();
+                Load(_packageRoot, _developmentToolRoots);
+                await RefreshDynamicCommandsAsync(cancellationToken);
+                return ListTools(includeDisabled: true);
+            }
+            finally
+            {
+                if (Volatile.Read(ref _disposed) == 0)
+                {
+                    StartModuleEventPump();
+                }
+            }
+        }
+        finally
+        {
+            _catalogRefreshLock.Release();
+        }
     }
 
     public IReadOnlyList<RuntimeToolSnapshot> ListTools(bool includeDisabled = false)
@@ -513,6 +535,19 @@ public sealed partial class MptHostRuntime : IAsyncDisposable
         if (clearDynamicCommands && result.Success)
         {
             ClearDynamicCommandsForModules(result.ModuleIds);
+        }
+
+        if (result.Success)
+        {
+            foreach (var restartedModuleId in result.ModuleIds)
+            {
+                var restartedModule = _packageRegistry.FindModule(restartedModuleId);
+                if (restartedModule is not null &&
+                    !string.Equals(restartedModule.Status.State, "disabled", StringComparison.OrdinalIgnoreCase))
+                {
+                    StartModuleEventStream(restartedModuleId);
+                }
+            }
         }
 
         var evt = _eventBus.Publish("runner", "runtime.process.restart", new JsonObject
@@ -934,7 +969,7 @@ public sealed partial class MptHostRuntime : IAsyncDisposable
                     result = Succeeded(request, $"Command stream completed for {request.CommandId}.");
                 }
 
-                _logRouter.Append(record.Module.Manifest.PackageId, command.ModuleId, result.Success ? "info" : "error", result.Success ? result.Output : result.Error?.Message ?? "Command failed.", request.InvocationId, evt.Seq);
+                _logRouter.Append(record.Module.Manifest.PackageId, command.ModuleId, result.Success ? "info" : "error", FormatCommandLogSummary(result), request.InvocationId, evt.Seq);
             }
         }
         finally
@@ -1051,7 +1086,7 @@ public sealed partial class MptHostRuntime : IAsyncDisposable
         _commandHistory.Complete(result);
 
         var record = _packageRegistry.FindModule(command.ModuleId);
-        _logRouter.Append(record?.Module.Manifest.PackageId ?? command.ModuleId, command.ModuleId, result.Success ? "info" : "error", result.Success ? result.Output : result.Error?.Message ?? "Command failed.", request.InvocationId, evt.Seq);
+        _logRouter.Append(record?.Module.Manifest.PackageId ?? command.ModuleId, command.ModuleId, result.Success ? "info" : "error", FormatCommandLogSummary(result), request.InvocationId, evt.Seq);
         return result;
     }
 
@@ -1364,7 +1399,31 @@ public sealed partial class MptHostRuntime : IAsyncDisposable
             return;
         }
 
-        _moduleEventPumpTasks.GetOrAdd(moduleId, id => Task.Run(() => RunModuleEventStreamAsync(id, pump.Token), CancellationToken.None));
+        var taskHolder = new StrongBox<Task?>();
+        _moduleEventPumpTasks.GetOrAdd(moduleId, id =>
+        {
+            var created = Task.Run(async () =>
+            {
+                try
+                {
+                    await RunModuleEventStreamAsync(id, pump.Token);
+                }
+                finally
+                {
+                    var current = Volatile.Read(ref taskHolder.Value);
+                    if (current is not null)
+                    {
+                        _moduleEventPumpTasks.TryRemove(new KeyValuePair<string, Task>(id, current));
+                    }
+                    else
+                    {
+                        _moduleEventPumpTasks.TryRemove(id, out _);
+                    }
+                }
+            }, CancellationToken.None);
+            Volatile.Write(ref taskHolder.Value, created);
+            return created;
+        });
     }
 
     private async ValueTask StopModuleEventStreamAsync(string moduleId)
@@ -1400,6 +1459,8 @@ public sealed partial class MptHostRuntime : IAsyncDisposable
 
     private async Task RunModuleEventStreamAsync(string moduleId, CancellationToken pumpToken)
     {
+        string? lastErrorMessage = null;
+
         while (!pumpToken.IsCancellationRequested)
         {
             var module = _packageRegistry.FindModule(moduleId);
@@ -1421,10 +1482,12 @@ public sealed partial class MptHostRuntime : IAsyncDisposable
                 var cursor = new Sdk.EventCursor(ResolveEventStreamCursor(module));
                 await foreach (var evt in runtime.SubscribeEventsAsync(module, context, cursor, moduleCancellation.Token).WithCancellation(moduleCancellation.Token))
                 {
+                    lastErrorMessage = null;
                     PublishModuleEvent(evt);
                 }
 
                 _moduleEventPumpFailures[moduleId] = 0;
+                lastErrorMessage = null;
                 await Task.Delay(TimeSpan.FromSeconds(1), pumpToken);
             }
             catch (OperationCanceledException) when (moduleCancellation.IsCancellationRequested || pumpToken.IsCancellationRequested)
@@ -1435,12 +1498,31 @@ public sealed partial class MptHostRuntime : IAsyncDisposable
             {
                 var failureCount = _moduleEventPumpFailures.AddOrUpdate(moduleId, 1, (_, current) => current + 1);
                 var message = LogRouter.Redact(ex.Message);
-                _eventBus.Publish(moduleId, "module.eventStream.failed", new JsonObject
+                var terminal = IsTerminalEventStreamFailure(ex);
+
+                if (terminal || !string.Equals(message, lastErrorMessage, StringComparison.Ordinal))
                 {
-                    ["failureCount"] = failureCount,
-                    ["message"] = message
-                });
-                _logRouter.Append(module.Module.Manifest.PackageId, moduleId, "error", $"Module event stream failed: {message}");
+                    lastErrorMessage = message;
+                    _eventBus.Publish(moduleId, "module.eventStream.failed", new JsonObject
+                    {
+                        ["failureCount"] = failureCount,
+                        ["message"] = message,
+                        ["terminal"] = terminal
+                    });
+                    _logRouter.Append(
+                        module.Module.Manifest.PackageId,
+                        moduleId,
+                        "error",
+                        terminal
+                            ? $"Module event stream stopped (terminal): {message}"
+                            : $"Module event stream failed: {message}");
+                }
+
+                if (terminal)
+                {
+                    return;
+                }
+
                 await DelayEventPumpRetryAsync(moduleId, pumpToken);
             }
             finally
@@ -1449,6 +1531,68 @@ public sealed partial class MptHostRuntime : IAsyncDisposable
                 moduleCancellation.Dispose();
             }
         }
+    }
+
+    private static bool IsTerminalEventStreamFailure(Exception exception)
+    {
+        for (Exception? current = exception; current is not null; current = current.InnerException)
+        {
+            if (string.Equals(current.GetType().Name, "InProcModuleCircuitOpenException", StringComparison.Ordinal))
+            {
+                return true;
+            }
+
+            var message = current.Message;
+            if (!string.IsNullOrEmpty(message) &&
+                (message.Contains("pending-runner-restart", StringComparison.OrdinalIgnoreCase) ||
+                 message.Contains("quarantined", StringComparison.OrdinalIgnoreCase) ||
+                 message.Contains("restart Runner", StringComparison.OrdinalIgnoreCase) ||
+                 message.Contains("requires a Runner restart", StringComparison.OrdinalIgnoreCase)))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    internal static string FormatCommandLogSummary(Sdk.CommandExecutionResult result)
+    {
+        if (!result.Success)
+        {
+            var errorMessage = result.Error?.Message;
+            if (string.IsNullOrWhiteSpace(errorMessage))
+            {
+                return $"Command '{result.CommandId}' {result.State}.";
+            }
+
+            return $"Command '{result.CommandId}' {result.State}: {TruncatePreview(errorMessage, 256)}";
+        }
+
+        if (string.IsNullOrWhiteSpace(result.Output))
+        {
+            return $"Command '{result.CommandId}' {result.State}.";
+        }
+
+        var trimmed = result.Output.TrimStart();
+        if (trimmed.StartsWith('{') || trimmed.StartsWith('['))
+        {
+            var byteLength = Encoding.UTF8.GetByteCount(result.Output);
+            return $"Command '{result.CommandId}' {result.State} (json payload, {byteLength} bytes).";
+        }
+
+        return $"Command '{result.CommandId}' {result.State}: {TruncatePreview(result.Output, 256)}";
+    }
+
+    private static string TruncatePreview(string value, int maxLength)
+    {
+        var singleLine = value.Replace('\r', ' ').Replace('\n', ' ').Trim();
+        if (singleLine.Length <= maxLength)
+        {
+            return singleLine;
+        }
+
+        return $"{singleLine[..maxLength]}... ({singleLine.Length} chars)";
     }
 
     private bool _restartLifetimeCursorsReset;
@@ -1877,9 +2021,6 @@ public sealed partial class MptHostRuntime : IAsyncDisposable
             .Where(command => !moduleIdSet.Contains(command.ModuleId))
             .ToArray();
         _commandIndex.Rebuild(EnabledModules(), _dynamicCommands, _toolRegistry.Tools);
-        GC.Collect();
-        GC.WaitForPendingFinalizers();
-        GC.Collect();
     }
 
     private static string RuntimeHotkeyId(string moduleId, string hotkeyId)

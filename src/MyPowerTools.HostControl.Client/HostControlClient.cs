@@ -31,6 +31,13 @@ public sealed class HostControlClient : IDisposable
         _client = new HostProto.HostControl.HostControlClient(invoker);
     }
 
+    private HostControlClient(GrpcChannel channel, Func<string?> authTokenProvider)
+    {
+        _channel = channel;
+        var invoker = IpcChannelFactory.AuthenticatedInvoker(channel, HostControlAuthTokenStore.HeaderName, authTokenProvider);
+        _client = new HostProto.HostControl.HostControlClient(invoker);
+    }
+
     public static HostControlClient ForDefaultEndpoint()
     {
         if (EmbeddedInvoker is { } embedded) return new HostControlClient(embedded);
@@ -39,7 +46,14 @@ public sealed class HostControlClient : IDisposable
 
     public static HostControlClient ForEndpoint(IpcEndpoint endpoint)
     {
-        return ForEndpoint(endpoint, HostControlAuthTokenStore.TryReadToken());
+        return ForEndpoint(endpoint, () => HostControlAuthTokenStore.TryReadToken());
+    }
+
+    public static HostControlClient ForEndpoint(IpcEndpoint endpoint, Func<string?> authTokenProvider)
+    {
+        ArgumentNullException.ThrowIfNull(authTokenProvider);
+        var channel = IpcChannelFactory.ForEndpoint(endpoint);
+        return new HostControlClient(channel, authTokenProvider);
     }
 
     public static HostControlClient ForEndpoint(IpcEndpoint endpoint, string? authToken)
