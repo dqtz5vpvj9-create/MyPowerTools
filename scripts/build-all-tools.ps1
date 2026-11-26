@@ -428,13 +428,16 @@ New-Item -ItemType Directory -Path $OutputRoot -Force | Out-Null
 # ---------------------------------------------------------------------------
 # 1) SDK bundles
 # ---------------------------------------------------------------------------
+$pwshExecutable = if ($IsWindows) { 'pwsh.exe' } else { 'pwsh' }
+$cliFileName = if ($IsWindows) { 'MyPowerTools.Cli.exe' } else { 'MyPowerTools.Cli' }
+
 if (-not $SkipSdk) {
     Write-Host '==> Building SDK bundles (NuGet / npm / protocol / CLI)...' -ForegroundColor Cyan
     $sdkScript = Join-Path $repoRoot 'scripts\build-sdk.ps1'
     if (-not (Test-Path -LiteralPath $sdkScript -PathType Leaf)) {
         throw "SDK build script not found: $sdkScript"
     }
-    Invoke-Native -FilePath 'pwsh.exe' -ArgumentList @(
+    Invoke-Native -FilePath $pwshExecutable -ArgumentList @(
         '-NoLogo', '-NoProfile', '-NonInteractive', '-File', $sdkScript,
         '-Configuration', $Configuration
     ) -Activity 'pwsh scripts/build-sdk.ps1'
@@ -445,7 +448,7 @@ if (-not $SkipSdk) {
 # The SDK CLI is already built above (or explicitly supplied by -SkipSdk's caller).
 # Share this immutable executable with runtime builders instead of rebuilding its
 # dependency graph for each validation/pack invocation.
-$cliExe = Join-Path $repoRoot 'artifacts\sdk\cli\MyPowerTools.Cli.exe'
+$cliExe = Join-Path $repoRoot (Join-Path 'artifacts\sdk\cli' $cliFileName)
 if (-not (Test-Path -LiteralPath $cliExe -PathType Leaf)) {
     throw "SDK CLI is missing: $cliExe"
 }
@@ -459,7 +462,7 @@ $toolBuildStates = New-Object System.Collections.ArrayList
 $skippedOptionalTools = New-Object System.Collections.ArrayList
 
 function Invoke-ToolBuild {
-    param($Tool, $repoRoot, $Configuration, $Version, $dotnet, $cliExe, $prebuiltCliTools)
+    param($Tool, $repoRoot, $Configuration, $Version, $dotnet, $cliExe, $prebuiltCliTools, $pwshExecutable, $strictToolSelection)
 
     $currentToolId    = [string]$tool.Id
     $toolBuildScript  = $tool.BuildScript
@@ -475,8 +478,7 @@ function Invoke-ToolBuild {
         $isOptional = $tool.PSObject.Properties['Optional'] -and [bool]$tool.Optional
         if ($isOptional -and -not $strictToolSelection) {
             Write-Warning "[$currentToolId] optional tool has not landed in this checkout; skipping $toolBuildScript."
-            [void]$skippedOptionalTools.Add($currentToolId)
-            continue
+            return $null
         }
         throw "Tool build script missing: $buildScriptPath"
     }
@@ -487,7 +489,7 @@ function Invoke-ToolBuild {
     if ($currentToolId -in $prebuiltCliTools) {
         $runtimeBuildArguments += @('-PrebuiltCliPath', $cliExe)
     }
-    Invoke-Native -FilePath 'pwsh.exe' -ArgumentList $runtimeBuildArguments -Activity "pwsh $toolBuildScript"
+    Invoke-Native -FilePath $pwshExecutable -ArgumentList $runtimeBuildArguments -Activity "pwsh $toolBuildScript"
 
     $runtimeStageFull = [System.IO.Path]::GetFullPath((Join-Path $repoRoot $toolRuntimeStage))
     if (-not (Test-Path -LiteralPath $runtimeStageFull -PathType Container)) {
@@ -495,9 +497,13 @@ function Invoke-ToolBuild {
     }
 
     # ---- Surface build + pack --------------------------------------------
-    $surfaceProjFull = [System.IO.Path]::GetFullPath((Join-Path $repoRoot $toolSurfaceProj))
+    $surfaceProjFull = if ([string]::IsNullOrWhiteSpace($toolSurfaceProj)) {
+        ''
+    } else {
+        [System.IO.Path]::GetFullPath((Join-Path $repoRoot $toolSurfaceProj))
+    }
     $surfaceOutputs  = @()
-    if (Test-Path -LiteralPath $surfaceProjFull -PathType Leaf) {
+    if (-not [string]::IsNullOrWhiteSpace($surfaceProjFull) -and (Test-Path -LiteralPath $surfaceProjFull -PathType Leaf)) {
         Write-Host "==> [$currentToolId] Surface build + pack" -ForegroundColor Cyan
         # Local SDK packages deliberately keep a stable development version. Force
         # NuGet to re-evaluate their dependency graph after each SDK rebuild so a
@@ -536,7 +542,7 @@ function Invoke-ToolBuild {
         $surfaceRuntimeOut = Join-Path $runtimeStageFull $tool.SurfaceTarget
         Copy-SurfaceOutput -Source $surfaceBuildOut -Destination $surfaceRuntimeOut -AssemblyName $tool.SurfaceAssembly
 
-    } else {
+    } elseif (-not [string]::IsNullOrWhiteSpace($surfaceProjFull)) {
         Write-Warning "[$currentToolId] Surface project not found at $surfaceProjFull; skipping Surface pack."
     }
 
@@ -554,12 +560,20 @@ function Invoke-ToolBuildPhase {
 
     # Only these audited tools may use the two-worker schedule. An unknown
     # tool could share outputs with either lane, so fall back to fully serial.
-    $independentToolIds = @('adb-forwarder', 'doubao-computer-use', 'paste-image', 'screenshot',
-        'input-monitor', 'ime-manager', 'screenease', 'smartbird-thermostat', 'xbrd')
+    $independentToolIds = @('adb-forwarder', 'audio-relay', 'doubao-computer-use', 'file-transfer',
+        'paste-image', 'remote-tool-gateway', 'screenshot', 'input-monitor', 'ime-manager',
+        'screenease', 'smartbird-thermostat', 'xbrd')
     $serialToolIds = @('remote-notifications', 'remote-commands', 'local-lag-cleaner', 'nssm-manager')
     $unknownTools = @($Tools | Where-Object { $_.Id -notin $independentToolIds -and $_.Id -notin $serialToolIds })
     if ($MaxWorkers -eq 1 -or $unknownTools.Count -gt 0) {
-        foreach ($tool in $Tools) { Invoke-ToolBuild -Tool $tool @Context }
+        foreach ($tool in $Tools) {
+            $state = Invoke-ToolBuild -Tool $tool @Context
+            if ($null -eq $state) {
+                [void]$skippedOptionalTools.Add([string]$tool.Id)
+                continue
+            }
+            $state
+        }
         return
     }
 
@@ -613,6 +627,11 @@ function Invoke-ToolBuildPhase {
                 if ($worker.Job.State -ne 'Completed') {
                     throw "[$($worker.ToolId)] build worker $($worker.Job.State): $($worker.Job.JobStateInfo.Reason)"
                 }
+                if ($result.Count -eq 0 -or ($result.Count -eq 1 -and $null -eq $result[0])) {
+                    [void]$skippedOptionalTools.Add([string]$worker.ToolId)
+                    [void]$active.Remove($worker)
+                    continue
+                }
                 if ($result.Count -ne 1 -or
                     $result[0].ToolId -ne $worker.ToolId) {
                     throw "[$($worker.ToolId)] build worker did not return exactly one completed state."
@@ -630,7 +649,11 @@ function Invoke-ToolBuildPhase {
             Remove-Job -Job $job
         }
     }
-    foreach ($tool in $Tools) { $states[$tool.Id] }
+    foreach ($tool in $Tools) {
+        if ($states.ContainsKey($tool.Id)) {
+            $states[$tool.Id]
+        }
+    }
 }
 
 # Phase A: runtime -> Surface -> staging stays sequential inside each worker.
@@ -642,6 +665,8 @@ $buildContext = @{
     dotnet = $dotnet
     cliExe = $cliExe
     prebuiltCliTools = $prebuiltCliTools
+    pwshExecutable = $pwshExecutable
+    strictToolSelection = $strictToolSelection
 }
 foreach ($state in @(Invoke-ToolBuildPhase -Tools $toolRegistry -Context $buildContext -MaxWorkers $MaxToolWorkers)) {
     [void]$toolBuildStates.Add($state)

@@ -65,13 +65,31 @@ public sealed class PackageIntegrity
         return path;
     }
 
-    public IReadOnlyList<ValidationIssue> VerifyHashManifest(string packageDirectory, string relativePath)
+    public IReadOnlyList<ValidationIssue> VerifyHashManifest(string packageDirectory, string relativePath) =>
+        VerifyHashManifest(packageDirectory, relativePath, []);
+
+    internal IReadOnlyList<ValidationIssue> VerifyHashManifest(
+        string packageDirectory,
+        string relativePath,
+        IEnumerable<string> metadataPaths)
     {
         string path;
         PackageHashManifest? manifest;
+        var pathComparer = OperatingSystem.IsWindows() ? StringComparer.OrdinalIgnoreCase : StringComparer.Ordinal;
+        var excludedMetadata = new HashSet<string>(pathComparer);
+
         try
         {
             path = PackagePath.Resolve(packageDirectory, relativePath);
+            excludedMetadata.Add(path);
+            foreach (var metadata in metadataPaths)
+            {
+                if (!string.IsNullOrWhiteSpace(metadata))
+                {
+                    excludedMetadata.Add(PackagePath.Resolve(packageDirectory, metadata));
+                }
+            }
+
             if (!File.Exists(path))
             {
                 return [new ValidationIssue(path, "error", "Hash manifest is missing.")];
@@ -95,6 +113,7 @@ public sealed class PackageIntegrity
             issues.Add(new ValidationIssue(path, "error", "Hash manifest algorithm must be sha256."));
         }
 
+        var expectedFiles = new HashSet<string>(pathComparer);
         foreach (var entry in manifest.Files)
         {
             if (entry is null || string.IsNullOrWhiteSpace(entry.Path))
@@ -106,6 +125,7 @@ public sealed class PackageIntegrity
             try
             {
                 var filePath = PackagePath.Resolve(packageDirectory, entry.Path);
+                expectedFiles.Add(filePath);
                 if (!File.Exists(filePath))
                 {
                     issues.Add(new ValidationIssue(filePath, "error", "Hashed file is missing."));
@@ -122,6 +142,24 @@ public sealed class PackageIntegrity
             {
                 issues.Add(new ValidationIssue(entry.Path, "error", exception.Message));
             }
+        }
+
+        foreach (var diskFile in Directory.EnumerateFiles(packageDirectory, "*", SearchOption.AllDirectories)
+                     .OrderBy(file => Path.GetRelativePath(packageDirectory, file), StringComparer.OrdinalIgnoreCase))
+        {
+            if (IsIntegrityMetadata(diskFile))
+            {
+                continue;
+            }
+
+            var fullPath = Path.GetFullPath(diskFile);
+            if (excludedMetadata.Contains(fullPath) || expectedFiles.Contains(fullPath))
+            {
+                continue;
+            }
+
+            var relative = Normalize(Path.GetRelativePath(packageDirectory, fullPath));
+            issues.Add(new ValidationIssue(fullPath, "error", $"Unlisted file '{relative}' is not present in the hash manifest."));
         }
 
         return issues;

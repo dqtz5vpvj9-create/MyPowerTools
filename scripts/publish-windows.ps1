@@ -279,78 +279,6 @@ function Assert-DirectoryMatches {
     }
 }
 
-function Ensure-NativeBuildTools {
-    # The ElevatedBroker and App publishes use Native AOT, which links with MSVC's
-    # link.exe. The ILCompiler targets normally resolve the toolchain through
-    # findvcvarsall.bat, but that batch embeds vswhere.exe's "command not found" error
-    # text into the linker command line when vswhere.exe is not on PATH (MSB3073,
-    # exit code 123). Prefer the environment tools instead: make sure link.exe resolves
-    # to the MSVC toolchain, keep vswhere.exe reachable for bare callers, and set
-    # IlcUseEnvironmentalTools so ILCompiler skips findvcvarsall.bat entirely.
-    #
-    # Note: do not trust a bare `Get-Command link.exe` — unrelated tools (for example
-    # GNU coreutils) also ship a link.exe. The MSVC linker must live under
-    # VCToolsInstallDir.
-
-    $installerDirectory = Join-Path ([Environment]::GetFolderPath('ProgramFilesX86')) 'Microsoft Visual Studio\Installer'
-    if ((";$env:PATH;").IndexOf(";$installerDirectory;", [StringComparison]::OrdinalIgnoreCase) -lt 0 -and
-        (Test-Path -LiteralPath (Join-Path $installerDirectory 'vswhere.exe') -PathType Leaf)) {
-        $env:PATH = "$installerDirectory;$env:PATH"
-    }
-
-    if (Test-MsvcLinkerOnPath) {
-        $env:IlcUseEnvironmentalTools = 'true'
-        return
-    }
-
-    $vswhere = Join-Path $installerDirectory 'vswhere.exe'
-    if (-not (Test-Path -LiteralPath $vswhere -PathType Leaf)) {
-        throw 'Native AOT publishing requires the Visual Studio "Desktop development with C++" workload (https://aka.ms/nativeaot-prerequisites). Install it, or run this script from a Visual Studio developer shell.'
-    }
-
-    $vsInstallPath = (& $vswhere -latest -prerelease -products * `
-            -requires Microsoft.VisualStudio.Component.VC.Tools.x86.x64 `
-            -property installationPath | Select-Object -First 1)
-    if ([string]::IsNullOrWhiteSpace($vsInstallPath) -or
-        -not (Test-Path -LiteralPath $vsInstallPath -PathType Container)) {
-        throw 'No Visual Studio installation with the "Desktop development with C++" workload was found (https://aka.ms/nativeaot-prerequisites).'
-    }
-
-    $vcvarsall = Join-Path $vsInstallPath 'VC\Auxiliary\Build\vcvarsall.bat'
-    if (-not (Test-Path -LiteralPath $vcvarsall -PathType Leaf)) {
-        throw "vcvarsall.bat was not found under $vsInstallPath; repair the C++ workload."
-    }
-
-    $vcArch = if ("$env:PROCESSOR_ARCHITECTURE" -eq 'ARM64') { 'arm64_amd64' } else { 'amd64' }
-    & cmd.exe /c "`"$vcvarsall`" $vcArch >NUL && set" | ForEach-Object {
-        if ($_ -match '^([^=]+)=(.*)$') {
-            [Environment]::SetEnvironmentVariable($matches[1], $matches[2], 'Process')
-        }
-    }
-
-    if (-not (Test-MsvcLinkerOnPath)) {
-        throw "vcvarsall.bat ($vcArch) did not put the MSVC link.exe on PATH; check the C++ workload under $vsInstallPath."
-    }
-
-    $env:IlcUseEnvironmentalTools = 'true'
-    Write-Host "Native build tools: imported VC environment from $vsInstallPath ($vcArch)."
-}
-
-function Test-MsvcLinkerOnPath {
-    # True only when link.exe resolves into the MSVC toolchain (VCToolsInstallDir),
-    # never for an unrelated link.exe (e.g. GNU coreutils) earlier on PATH.
-    if ([string]::IsNullOrWhiteSpace($env:VCToolsInstallDir)) {
-        return $false
-    }
-
-    $linkCommand = Get-Command 'link.exe' -CommandType Application -ErrorAction SilentlyContinue
-    if (-not $linkCommand) {
-        return $false
-    }
-
-    $vcToolsRoot = [System.IO.Path]::GetFullPath($env:VCToolsInstallDir).TrimEnd('\') + '\'
-    return $linkCommand.Source.StartsWith($vcToolsRoot, [StringComparison]::OrdinalIgnoreCase)
-}
 
 Set-Location -LiteralPath $RepoRoot
 New-Item -ItemType Directory -Path $Artifacts -Force | Out-Null
@@ -443,7 +371,7 @@ $dotnetInstallRoot = Split-Path -Parent $dotnetCommand.Source
 $fxrCandidates = @(
     Get-ChildItem -LiteralPath (Join-Path $dotnetInstallRoot 'host\fxr') -Directory |
         Where-Object { $_.Name -match '^10\.0\.\d+$' } |
-        Sort-Object Name -Descending)
+        Sort-Object { [version]$_.Name } -Descending)
 if ($fxrCandidates.Count -eq 0) {
     throw "No .NET 10 runtime was found under $dotnetInstallRoot\host\fxr"
 }

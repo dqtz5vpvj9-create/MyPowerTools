@@ -60,12 +60,75 @@ static int Validate(string[] args, string root)
     {
         return ValidateContracts(args.Skip(1).ToArray(), root);
     }
+    if (args.FirstOrDefault() == "abi")
+    {
+        return ValidateAbi(args.Skip(1).ToArray());
+    }
 
     var packageDir = args.FirstOrDefault() ?? Path.Combine(root, "modules");
     var schemaDir = GetOption(args, "--schemas") ?? Path.Combine(root, "schemas");
     var validator = new SchemaPackageValidator(schemaDir);
     var reports = validator.ValidatePackageRoot(Path.GetFullPath(packageDir));
     return PrintReports(reports);
+}
+
+static int ValidateAbi(string[] args)
+{
+    if (HasFlag(args, "--help") || HasFlag(args, "-h"))
+    {
+        Console.WriteLine("Usage: mpt validate abi --host <RunnerDir> [--shell <ShellDir>] --modules <ModulesDir>");
+        Console.WriteLine();
+        Console.WriteLine("Checks that every managed module and surface DLL under <ModulesDir> references");
+        Console.WriteLine("shared MyPowerTools contract versions <= the versions shipped by <RunnerDir>/<ShellDir>,");
+        Console.WriteLine("and flags bundled duplicate contract DLLs that disagree with the host.");
+        return 0;
+    }
+
+    var hostDir = GetOption(args, "--host");
+    var shellDir = GetOption(args, "--shell");
+    var modulesDir = GetOption(args, "--modules");
+    if (string.IsNullOrWhiteSpace(hostDir) || string.IsNullOrWhiteSpace(modulesDir))
+    {
+        Console.Error.WriteLine("validate abi requires --host <RunnerDir> and --modules <ModulesDir> (optional: --shell <ShellDir>).");
+        return 2;
+    }
+
+    if (!Directory.Exists(hostDir))
+    {
+        Console.Error.WriteLine($"Host directory was not found: {Path.GetFullPath(hostDir)}");
+        return 2;
+    }
+
+    if (!string.IsNullOrWhiteSpace(shellDir) && !Directory.Exists(shellDir))
+    {
+        Console.Error.WriteLine($"Shell directory was not found: {Path.GetFullPath(shellDir)}");
+        return 2;
+    }
+
+    if (!Directory.Exists(modulesDir))
+    {
+        Console.Error.WriteLine($"Modules directory was not found: {Path.GetFullPath(modulesDir)}");
+        return 2;
+    }
+
+    var validator = new AbiCompatibilityValidator();
+    var report = validator.Validate(hostDir, modulesDir, shellDir);
+
+    Console.WriteLine(
+        $"abi: {(report.IsValid ? "valid" : "invalid")} " +
+        $"assemblies={report.AssembliesChecked} " +
+        $"hostContracts={report.HostContracts.Count} " +
+        $"shellContracts={report.ShellContracts.Count} " +
+        $"errors={report.Issues.Count(issue => issue.Severity == "error")} " +
+        $"warnings={report.Issues.Count(issue => issue.Severity == "warning")}");
+
+    foreach (var issue in report.Issues)
+    {
+        var writer = issue.Severity == "error" ? Console.Error : Console.Out;
+        writer.WriteLine($"  {issue.Severity}: {issue.Message}");
+    }
+
+    return report.IsValid ? 0 : 1;
 }
 
 static int Service(string[] args)
@@ -481,20 +544,16 @@ static int Ota(string[] args, string root)
     }
 
     var subcommand = args.FirstOrDefault() ?? "status";
-    var bundleRoot = OperatingSystem.IsMacOS()
-        ? OtaUpdaterLocator.FindMacBundleRoot(AppContext.BaseDirectory)
-        : null;
     var script = OtaUpdaterLocator.ResolveFirstExisting(
-        OtaUpdaterLocator.UpdaterScriptCandidates(root, bundleRoot));
+        OtaUpdaterLocator.UpdaterScriptCandidates(root, null));
     if (script is null)
     {
         var packageAsset = OtaFeedLayout.FullPackageAsset(OtaFeedLayout.CurrentRuntimeIdentifier());
-        var installScript = OperatingSystem.IsMacOS() ? "install-macos.ps1" : "install-windows.ps1";
         Console.Error.WriteLine("本安装未包含在线 OTA 更新器（ota-update.ps1 缺失）。");
         Console.Error.WriteLine("原因通常是安装版本早于随包发布更新器的版本，");
         Console.Error.WriteLine("旧版本无法通过 mpt ota 在线升级自身。");
         Console.Error.WriteLine($"请从 GitHub Releases 下载最新 {packageAsset}，");
-        Console.Error.WriteLine($"解压后运行其中的 {installScript} 完成一次完整升级；");
+        Console.Error.WriteLine("解压后运行其中的 install-windows.ps1 完成一次完整升级；");
         Console.Error.WriteLine("升级后 mpt ota check / apply 即可正常使用。");
         Console.Error.WriteLine("也可先在仓库源码目录执行 scripts/ota-update.ps1 临时验证。");
         return 3;
@@ -503,7 +562,7 @@ static int Ota(string[] args, string root)
     var powerShell = OtaUpdaterLocator.ResolvePowerShell();
     if (powerShell is null)
     {
-        Console.Error.WriteLine(OtaUpdaterLocator.PowerShellMissingMessage(OperatingSystem.IsMacOS()));
+        Console.Error.WriteLine(OtaUpdaterLocator.PowerShellMissingMessage(false));
         return 2;
     }
 
@@ -530,14 +589,6 @@ static int Ota(string[] args, string root)
         startInfo.ArgumentList.Add(script);
         startInfo.ArgumentList.Add("-Command");
         startInfo.ArgumentList.Add(subcommand);
-        if (bundleRoot is not null)
-        {
-            // This process runs out of the bundle being updated, so it knows the install root
-            // exactly. Without it the updater would fall back to ~/Applications/MyPowerTools.app
-            // and check a bundle the caller may not be running from.
-            startInfo.ArgumentList.Add("-InstallRoot");
-            startInfo.ArgumentList.Add(bundleRoot);
-        }
 
         var confirmedApply = !string.Equals(subcommand, "apply", StringComparison.OrdinalIgnoreCase);
         foreach (var argument in args.Skip(1))
@@ -624,9 +675,16 @@ static int Ddns(string[] args, string root)
         return 3;
     }
 
+    var powerShell = OtaUpdaterLocator.ResolvePowerShell();
+    if (powerShell is null)
+    {
+        Console.Error.WriteLine(OtaUpdaterLocator.PowerShellMissingMessage(OperatingSystem.IsMacOS()));
+        return 2;
+    }
+
     try
     {
-        var startInfo = new System.Diagnostics.ProcessStartInfo("pwsh")
+        var startInfo = new System.Diagnostics.ProcessStartInfo(powerShell)
         {
             UseShellExecute = false,
             CreateNoWindow = true,
@@ -681,6 +739,12 @@ static int RunnerAutostart(string[] args, string root)
     var action = GetPositionalArgs(args).FirstOrDefault() ?? "status";
     var id = GetOption(args, "--id") ?? "MyPowerTools.Runner";
     var reason = GetOption(args, "--reason") ?? $"CLI runner autostart {action}";
+    if (!OperatingSystem.IsWindows())
+    {
+        Console.Error.WriteLine("runner autostart is currently supported only on Windows.");
+        return 1;
+    }
+
     var platform = new WindowsPlatformPack();
     var broker = new AutostartBroker(platform.Autostart, CreateDefaultAuditLog());
 
@@ -1013,6 +1077,12 @@ static int Diagnostics(string[] args, string root)
 
 static async Task<int> BrokerPortProxy(string[] args)
 {
+    if (!OperatingSystem.IsWindows())
+    {
+        Console.Error.WriteLine("broker portproxy is supported only on Windows.");
+        return 1;
+    }
+
     var subcommand = args.FirstOrDefault() ?? "list";
     var platform = new WindowsPlatformPack();
     if (string.Equals(subcommand, "list", StringComparison.OrdinalIgnoreCase))
@@ -1043,6 +1113,12 @@ static async Task<int> BrokerSecret(string[] args)
     var moduleId = GetOption(args, "--module") ?? "cli.secret-self-test";
     var name = GetOption(args, "--name") ?? $"self-test-{Guid.NewGuid():N}";
     var reason = GetOption(args, "--reason") ?? "CLI broker secret self-test";
+    if (!OperatingSystem.IsWindows())
+    {
+        Console.Error.WriteLine("broker secret self-test is currently supported only on Windows.");
+        return 1;
+    }
+
     var secret = $"mpt-secret-self-test-{Guid.NewGuid():N}";
     var platform = new WindowsPlatformPack();
     var broker = new SecretBroker(platform.Secrets, CreateDefaultAuditLog());
@@ -1279,12 +1355,34 @@ static string GetPackageRoot(string[] args, string root)
 
 static IReadOnlyList<string> GetPositionalArgs(string[] args)
 {
+    var booleanFlags = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
+    {
+        "--strict",
+        "--dry-run",
+        "--json",
+        "--once",
+        "--force",
+        "--quiet",
+        "--verbose",
+        "--all",
+        "--include-disabled",
+        "--help",
+        "--yes",
+        "--allow-unsigned"
+    };
+
     var values = new List<string>();
     for (var i = 0; i < args.Length; i++)
     {
-        if (!args[i].StartsWith("--", StringComparison.Ordinal))
+        var current = args[i];
+        if (!current.StartsWith("--", StringComparison.Ordinal))
         {
-            values.Add(args[i]);
+            values.Add(current);
+            continue;
+        }
+
+        if (booleanFlags.Contains(current) || current.Contains('='))
+        {
             continue;
         }
 
@@ -1313,6 +1411,7 @@ static int Help(int exitCode = 0)
     Console.WriteLine("  pack tool         <dir> [--output <file.mptpkg>]");
     Console.WriteLine("  validate          <package-dir> [--schemas <schema-dir>]");
     Console.WriteLine("  validate contracts [package-root] [--schemas <schema-dir>] [--data-root <dir>]");
+    Console.WriteLine("  validate abi      --host <RunnerDir> [--shell <ShellDir>] --modules <ModulesDir>");
     Console.WriteLine("  inspect           <package-dir>");
     Console.WriteLine();
 

@@ -47,7 +47,7 @@ public sealed class PackageTrustVerifier
                 [new ValidationIssue(definition.Directory, "error", ex.Message)]);
         }
 
-        issues.AddRange(_integrity.VerifyHashManifest(definition.Directory, hashPath));
+        issues.AddRange(_integrity.VerifyHashManifest(definition.Directory, hashPath, [signaturePath]));
 
         var trustPolicy = string.IsNullOrWhiteSpace(definition.Package.Trust?.Policy)
             ? "local"
@@ -62,7 +62,20 @@ public sealed class PackageTrustVerifier
         {
             state = "signature-hook";
             signingHook = "present";
-            issues.AddRange(VerifySignatureDocument(definition, hashPath, signatureFullPath));
+            var signatureIssues = VerifySignatureDocument(
+                definition,
+                hashPath,
+                signatureFullPath,
+                policy,
+                signatureRequired,
+                out var signatureState);
+            issues.AddRange(signatureIssues);
+
+            if (string.Equals(signatureState, "unsigned-local-trust", StringComparison.OrdinalIgnoreCase) &&
+                (signatureRequired || !policy.AllowUnsignedLocalPackages))
+            {
+                state = "unsigned-local-trust";
+            }
         }
         else if (signatureRequired)
         {
@@ -166,8 +179,12 @@ public sealed class PackageTrustVerifier
     private static IReadOnlyList<ValidationIssue> VerifySignatureDocument(
         MptPackageDefinition definition,
         string hashPath,
-        string signatureFullPath)
+        string signatureFullPath,
+        PackageTrustPolicy policy,
+        bool signatureRequired,
+        out string? signatureState)
     {
+        signatureState = null;
         var issues = new List<ValidationIssue>();
         PackageSignatureDocument? signature;
         try
@@ -185,6 +202,8 @@ public sealed class PackageTrustVerifier
         {
             return [new ValidationIssue(signatureFullPath, "error", "Package signature hook could not be parsed.")];
         }
+
+        signatureState = signature.SignatureState;
 
         var expectedFormat = string.IsNullOrWhiteSpace(definition.Package.Trust?.Signature?.Format)
             ? SignatureFormat
@@ -222,6 +241,14 @@ public sealed class PackageTrustVerifier
         if (string.IsNullOrWhiteSpace(signature.SignatureState))
         {
             issues.Add(new ValidationIssue(signatureFullPath, "error", "Package signature hook state is missing."));
+        }
+        else if (string.Equals(signature.SignatureState, "unsigned-local-trust", StringComparison.OrdinalIgnoreCase) &&
+                 (signatureRequired || !policy.AllowUnsignedLocalPackages))
+        {
+            issues.Add(new ValidationIssue(
+                signatureFullPath,
+                "error",
+                "Package signature hook is marked 'unsigned-local-trust' and cannot satisfy strict signature policy."));
         }
 
         return issues;

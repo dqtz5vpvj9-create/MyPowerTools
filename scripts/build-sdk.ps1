@@ -19,6 +19,10 @@ $npmExecutable = if ($IsWindows) { 'npm.cmd' } else { 'npm' }
 
 New-Item -ItemType Directory -Force -Path $nuget, $npm, $protocol | Out-Null
 
+# Purge stale local SDK packages before packing so removed or superseded versions never linger.
+Get-ChildItem -LiteralPath $nuget -File -Filter 'MyPowerTools.*.nupkg' |
+    Remove-Item -Force
+
 # Local SDK packages intentionally reuse the development version. Remove only MyPowerTools
 # entries from the repository-scoped package cache so the next tool build consumes the newly
 # produced package contents instead of an older immutable NuGet cache entry.

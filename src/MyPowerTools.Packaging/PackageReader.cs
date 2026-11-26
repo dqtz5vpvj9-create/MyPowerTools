@@ -352,7 +352,7 @@ public sealed class PackageReader
         {
             return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         }
-        var path = Path.GetFullPath(Path.Combine(toolDirectory, tool.Settings.Values));
+        var path = PackagePath.Resolve(toolDirectory, tool.Settings.Values);
         if (!File.Exists(path))
         {
             return new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
@@ -386,7 +386,7 @@ public sealed class PackageReader
         {
             var package = ReadJson<MptPackageManifest>(packagePath);
             var modules = package.Modules
-                .Select(path => Path.GetFullPath(Path.Combine(packageDirectory, path)))
+                .Select(path => PackagePath.Resolve(packageDirectory, path))
                 .Select(ReadModuleDefinition)
                 .ToArray();
 

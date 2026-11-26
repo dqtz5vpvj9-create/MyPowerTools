@@ -27,20 +27,38 @@ try {
     if (-not (Test-Path -LiteralPath $tokenFile)) {
         [IO.File]::WriteAllText($tokenFile,[Convert]::ToHexString([Security.Cryptography.RandomNumberGenerator]::GetBytes(32)))
     }
-    if (-not $ServerDirectory) {
-        $ServerDirectory = Join-Path $InstallRoot 'staging'
-        & dotnet publish (Join-Path $repoRoot 'src\MyPowerTools.TransferMcp\MyPowerTools.TransferMcp.csproj') -c Release -r win-x64 --self-contained true -o $ServerDirectory
-        if ($LASTEXITCODE -ne 0) { throw 'Shared MCP publish failed.' }
-    }
-    if (-not (Test-Path -LiteralPath (Join-Path $ServerDirectory 'MyPowerTools.TransferMcp.exe'))) { throw 'Published shared MCP executable missing.' }
-    $units = Join-Path $DataRoot 'ServiceManager\units'
-    $unitFile = Join-Path $units 'mpt-transfer-mcp.service.json'
+    $stagingDirectory = $null
     $previous = $env:MPT_DATA_ROOT
     try {
+        if (-not $ServerDirectory) {
+            $stagingDirectory = Join-Path $InstallRoot 'staging'
+            if (Test-Path -LiteralPath $stagingDirectory) {
+                Remove-Item -LiteralPath $stagingDirectory -Recurse -Force
+            }
+            $ServerDirectory = $stagingDirectory
+            & dotnet publish (Join-Path $repoRoot 'src\MyPowerTools.TransferMcp\MyPowerTools.TransferMcp.csproj') -c Release -r win-x64 --self-contained true -o $ServerDirectory
+            if ($LASTEXITCODE -ne 0) { throw 'Shared MCP publish failed.' }
+        }
+        if (-not (Test-Path -LiteralPath (Join-Path $ServerDirectory 'MyPowerTools.TransferMcp.exe'))) { throw 'Published shared MCP executable missing.' }
+        $units = Join-Path $DataRoot 'ServiceManager\units'
+        New-Item -ItemType Directory -Force -Path $units | Out-Null
+        $unitFile = Join-Path $units 'mpt-transfer-mcp.service.json'
         $env:MPT_DATA_ROOT = $DataRoot
         if (Test-Path -LiteralPath $unitFile) {
-            & $cli service stop mpt-transfer-mcp.service
-            if ($LASTEXITCODE -ne 0) { throw 'Could not stop the existing MCP service for update.' }
+            $serviceManagerRunning = @(Get-Process -Name 'MyPowerTools.ServiceManager' -ErrorAction SilentlyContinue).Count -gt 0
+            if ($serviceManagerRunning) {
+                $stopOutput = & $cli service stop mpt-transfer-mcp.service 2>&1
+                if ($LASTEXITCODE -ne 0) {
+                    $stillRunning = @(Get-Process -Name 'MyPowerTools.ServiceManager' -ErrorAction SilentlyContinue).Count -gt 0
+                    if ($stillRunning) {
+                        throw "Could not stop the existing MCP service for update: $(($stopOutput | Out-String).Trim())"
+                    }
+                    Write-Warning 'ServiceManager stopped while halting mpt-transfer-mcp.service; continuing update.'
+                }
+            }
+            else {
+                Write-Warning 'ServiceManager is not running; skipping pre-update stop of mpt-transfer-mcp.service.'
+            }
         }
         $server = Join-Path $InstallRoot 'Server'
         New-Item -ItemType Directory -Force -Path $server | Out-Null
@@ -58,7 +76,12 @@ try {
         if ($LASTEXITCODE -ne 0) { throw 'ServiceManager reload failed.' }
         & $cli service start mpt-transfer-mcp.service
         if ($LASTEXITCODE -ne 0) { throw 'Shared MCP service start failed.' }
-    } finally { $env:MPT_DATA_ROOT = $previous }
+    } finally {
+        $env:MPT_DATA_ROOT = $previous
+        if ($stagingDirectory -and (Test-Path -LiteralPath $stagingDirectory)) {
+            Remove-Item -LiteralPath $stagingDirectory -Recurse -Force -ErrorAction SilentlyContinue
+        }
+    }
     $ready = $false
     for ($attempt=0;$attempt -lt 30;$attempt++) {
         try {

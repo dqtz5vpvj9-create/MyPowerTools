@@ -627,8 +627,17 @@ public sealed partial class RuntimeAcceptanceTests
             "--",
             "package",
             "trust",
-            packageCopy,
-            "--strict");
+            packageCopy);
+
+        var strictTrust = await RunDotnetAsync(
+            "run",
+            "--project",
+            project,
+            "--",
+            "package",
+            "trust",
+            "--strict",
+            packageCopy);
 
         var doctor = await RunDotnetAsync(
             "run",
@@ -651,6 +660,8 @@ public sealed partial class RuntimeAcceptanceTests
         Assert.True(File.Exists(signaturePath));
         Assert.Equal(0, trust.ExitCode);
         Assert.Contains("sample-dotnet: signature-hook", trust.Output);
+        Assert.NotEqual(0, strictTrust.ExitCode);
+        Assert.Contains("unsigned-local-trust", strictTrust.Output);
         Assert.Equal(0, doctor.ExitCode);
         var packages = new PackageReader().DiscoverPackages(Path.Combine(Root, "modules"));
         Assert.Contains($"packages: {packages.Count} checked, errors: 0", doctor.Output);

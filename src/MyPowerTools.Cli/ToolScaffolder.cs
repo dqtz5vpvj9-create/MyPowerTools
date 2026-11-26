@@ -1,9 +1,11 @@
 using System.Diagnostics;
 using System.IO.Compression;
 using System.IO.Enumeration;
+using System.Security;
 using System.Security.Cryptography;
 using System.Text;
 using System.Text.Json;
+using System.Text.RegularExpressions;
 using System.Text.Json.Nodes;
 using Json.Schema;
 using MyPowerTools.Packaging;
@@ -202,10 +204,10 @@ public static class ToolScaffolder
             ["README.md"] = """
             # __ID__
 
-            Validate with `mypowertools validate tool .`, add this parent directory to
+            Validate with `mpt validate tool .`, add this parent directory to
             `%LOCALAPPDATA%/MyPowerTools/settings/tool-directories.json`, then click
             **Refresh tools**. Build artifacts may be dirty and can come from any branch.
-            Publish with `mypowertools pack tool .`.
+            Publish with `mpt pack tool .`.
             """
         };
 
@@ -216,8 +218,9 @@ public static class ToolScaffolder
         }
         else if (type == "dotnet")
         {
-            files["NuGet.config"] = $$"""<?xml version="1.0" encoding="utf-8"?><configuration><packageSources><clear/><add key="mpt-local" value="{{Path.GetFullPath(sdkFeed)}}"/><add key="nuget.org" value="https://api.nuget.org/v3/index.json"/></packageSources></configuration>""";
-            files["__CLASS__.csproj"] = """<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable></PropertyGroup><ItemGroup><PackageReference Include="MyPowerTools.AvaloniaSdk" Version="0.2.0"/><PackageReference Include="MyPowerTools.ToolSdk" Version="0.2.0"/></ItemGroup></Project>""";
+            var escapedFeed = SecurityElement.Escape(Path.GetFullPath(sdkFeed));
+            files["NuGet.config"] = $$"""<?xml version="1.0" encoding="utf-8"?><configuration><packageSources><clear/><add key="mpt-local" value="{{escapedFeed}}"/><add key="nuget.org" value="https://api.nuget.org/v3/index.json"/></packageSources></configuration>""";
+            files["__CLASS__.csproj"] = """<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable></PropertyGroup><ItemGroup><PackageReference Include="MyPowerTools.AvaloniaSdk" Version="0.3.0"/><PackageReference Include="MyPowerTools.ToolSdk" Version="0.2.0"/></ItemGroup></Project>""";
             files["ToolSurfaceFactory.cs"] = """using Avalonia.Controls; using MyPowerTools.AvaloniaSdk; namespace __CLASS__; public sealed class ToolSurfaceFactory : IMptAvaloniaSurfaceFactory { public Control CreateSurface(MptAvaloniaSurfaceContext context) => new Border { Padding = new Avalonia.Thickness(24), Child = new TextBlock { Text = "__ID__ loaded through MyPowerTools.AvaloniaSdk" } }; }""";
         }
         else if (type == "native")
@@ -252,18 +255,51 @@ ThreadingHTTPServer(('127.0.0.1',43110),Handler).serve_forever()
         return MptJsonSchemas.FromFile(Path.Combine(schemaDirectory, "tool.schema.json"));
     }
 
+    private static readonly Regex ValidIdPattern = new(
+        "^[a-z][a-z0-9.-]*$",
+        RegexOptions.Compiled | RegexOptions.CultureInvariant);
+
     private static bool IsId(string value) =>
-        !string.IsNullOrWhiteSpace(value) && value.All(character => char.IsLower(character) || char.IsDigit(character) || character is '.' or '-');
+        !string.IsNullOrWhiteSpace(value) && ValidIdPattern.IsMatch(value);
 
     private static string ClassName(string id) => string.Concat(id.Split(['.', '-'], StringSplitOptions.RemoveEmptyEntries).Select(part => char.ToUpperInvariant(part[0]) + part[1..]));
 
     private static void ValidateRelativeFile(string directory, string value, string label, bool allowMissingBuildOutput = false)
     {
-        if (string.IsNullOrWhiteSpace(value) || Uri.TryCreate(value, UriKind.Absolute, out _)) return;
+        if (string.IsNullOrWhiteSpace(value))
+        {
+            return;
+        }
+
+        if (Uri.TryCreate(value, UriKind.Absolute, out var uri) &&
+            (uri.Scheme.Equals(Uri.UriSchemeHttp, StringComparison.OrdinalIgnoreCase) ||
+             uri.Scheme.Equals(Uri.UriSchemeHttps, StringComparison.OrdinalIgnoreCase)))
+        {
+            return;
+        }
+
+        if (Path.IsPathRooted(value))
+        {
+            throw new InvalidDataException($"{label} must be a relative path inside the tool directory: {value}");
+        }
+
         var path = Path.GetFullPath(Path.Combine(directory, value));
-        var root = Path.GetFullPath(directory).TrimEnd(Path.DirectorySeparatorChar) + Path.DirectorySeparatorChar;
-        if (!path.StartsWith(root, StringComparison.OrdinalIgnoreCase)) throw new InvalidDataException($"{label} escapes the tool directory: {value}");
-        if (!allowMissingBuildOutput && !File.Exists(path) && !Directory.Exists(path)) throw new FileNotFoundException($"{label} was not found", path);
+        var root = Path.GetFullPath(directory);
+        var rootPrefix = Path.EndsInDirectorySeparator(root)
+            ? root
+            : root + Path.DirectorySeparatorChar;
+        var comparison = OperatingSystem.IsWindows()
+            ? StringComparison.OrdinalIgnoreCase
+            : StringComparison.Ordinal;
+        if (!path.StartsWith(rootPrefix, comparison))
+        {
+            throw new InvalidDataException($"{label} escapes the tool directory: {value}");
+        }
+
+        if (!allowMissingBuildOutput && !File.Exists(path) && !Directory.Exists(path))
+        {
+            throw new FileNotFoundException($"{label} was not found", path);
+        }
     }
 
     private static bool IsIgnored(string root, string path, IReadOnlyList<string> ignorePatterns)

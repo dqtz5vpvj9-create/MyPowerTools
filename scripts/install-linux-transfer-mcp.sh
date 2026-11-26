@@ -16,8 +16,10 @@ while (($#)); do
 done
 dotnet_command="${MPT_DOTNET:-$(command -v dotnet || true)}"
 if [[ -z "$dotnet_command" ]]; then dotnet_command="$HOME/.dotnet/dotnet"; fi
-stage_directory="$(mktemp -d /mnt/cache/data-cache/mpt-mcp-install.XXXXXX)"
-trap 'rm -r -- "${stage_directory:?}"' EXIT
+tmp_root="${TMPDIR:-/tmp}"
+mkdir -p "$tmp_root"
+stage_directory="$(mktemp -d "${tmp_root%/}/mpt-mcp-install.XXXXXX")"
+trap 'rm -rf -- "${stage_directory:?}"' EXIT
 "$dotnet_command" publish "$repo_root/src/MyPowerTools.TransferMcp" -c Release --self-contained false -o "$stage_directory/server"
 mkdir -p "$install_root/Server"
 chmod 700 "$install_root"
