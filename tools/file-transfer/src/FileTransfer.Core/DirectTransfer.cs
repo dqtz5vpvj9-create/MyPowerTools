@@ -145,8 +145,8 @@ public static class DirectTransfer
 
     internal static void RequirePrivateAddress(IPAddress ip)
     {
-        if (!TransferFiles.IsTailAddress(ip) && !IPAddress.IsLoopback(ip))
-            throw new ArgumentException("直传请使用 Tailscale IP 地址。");
+        if (!TransferFiles.IsPrivateDirectAddress(ip))
+            throw new ArgumentException("直传仅支持局域网或 Tailscale 私网地址，禁止使用公网地址。");
     }
 }
 
@@ -174,6 +174,7 @@ public sealed class DirectReceiver : IAsyncDisposable
     private readonly SemaphoreSlim _transfers = new(1, 1);
     private readonly Task _loop;
     private int _active;
+    private int _disposed;
     private Exception? _fault;
     public int Port => ((IPEndPoint)_listener.LocalEndpoint).Port;
     /// <summary>Completes when the accept loop ends; never faults, so a watcher can release leases safely.</summary>
@@ -241,7 +242,11 @@ public sealed class DirectReceiver : IAsyncDisposable
                 // A first contact can hold its connection while the user decides, so connections are
                 // handled concurrently under a small cap instead of one at a time.
                 var remote = ((IPEndPoint)client.Client.RemoteEndPoint!).Address;
-                if (!TransferFiles.IsTailAddress(remote) && !IPAddress.IsLoopback(remote)) { client.Dispose(); continue; }
+                if (!TransferFiles.IsPrivateDirectAddress(remote))
+                {
+                    client.Dispose();
+                    continue;
+                }
                 while (Volatile.Read(ref _active) >= MaxConcurrentConnections)
                 {
                     try { await Task.Delay(25, _lifetime.Token); }
@@ -509,8 +514,9 @@ public sealed class DirectReceiver : IAsyncDisposable
     }
 
     private static bool ValidAddress(string? address) =>
-        address is { Length: > 0 } text && IPAddress.TryParse(text, out var ip)
-        && (TransferFiles.IsTailAddress(ip) || IPAddress.IsLoopback(ip));
+        address is { Length: > 0 } text
+        && IPAddress.TryParse(text, out var ip)
+        && TransferFiles.IsPrivateDirectAddress(ip);
 
     private static bool Crypto(string expected, string? presented) =>
         CryptographicOperations.FixedTimeEquals(Encoding.UTF8.GetBytes(presented ?? ""), Encoding.UTF8.GetBytes(expected));
@@ -548,12 +554,19 @@ public sealed class DirectReceiver : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0) return;
+
         await _lifetime.CancelAsync();
         _listener.Stop();
         await _loop;
         // Connections are handled concurrently, so a shutdown also waits for the ones already accepted:
         // their cancellation path deletes the partial file before this returns.
-        for (var i = 0; i < 200 && Volatile.Read(ref _active) > 0; i++) await Task.Delay(25);
+        for (var i = 0; i < 200 && Volatile.Read(ref _active) > 0; i++)
+        {
+            await Task.Delay(25);
+        }
+
+        _transfers.Dispose();
         _lifetime.Dispose();
     }
 }

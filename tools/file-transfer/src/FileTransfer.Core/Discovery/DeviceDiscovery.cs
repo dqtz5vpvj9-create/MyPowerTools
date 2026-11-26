@@ -95,7 +95,7 @@ public sealed class DeviceDiscovery
             else blocked.Add(candidate);
         }
         if (blocked.Count > 0)
-            diagnostics.Add($"{blocked.Count} 个候选的地址或端口不是 Tailnet 地址，已跳过身份查询。");
+            diagnostics.Add($"{blocked.Count} 个候选的地址或端口不是局域网或 Tailnet 私网地址，已跳过身份查询。");
 
         var toProbe = probeable.Take(_options.MaxCandidates).ToList();
         var capped = probeable.Skip(_options.MaxCandidates).ToList();
@@ -268,7 +268,7 @@ public sealed class DeviceDiscovery
         {
             if (!candidate.Paired) { dropped++; continue; }
             var message = blocked.Contains(candidate)
-                ? "地址或端口不是有效的 Tailnet 地址，已跳过身份查询。"
+                ? "地址或端口不是有效的局域网或 Tailnet 私网地址，已跳过身份查询。"
                 : $"超过本次发现上限 {request.Options.MaxCandidates} 个，未做身份查询。";
             output.Add(new DiscoveryDeviceResult(candidate.Device, true, false, candidate.Source, message));
         }

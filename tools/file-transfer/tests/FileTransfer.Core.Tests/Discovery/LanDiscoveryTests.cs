@@ -288,9 +288,10 @@ public sealed class LanDiscoveryTests
             Encode(Encoding.UTF8.GetString(ValidWhoIs()).Replace("100.64.0.9", "8.8.8.8")), Loopback, out _, out var publicError));
         Assert.Contains("Tailnet", publicError);
 
-        // A LAN address is not a Tailnet address either: files only ever travel over the tailnet.
-        Assert.False(LanDiscoveryProtocol.TryDecode(
-            Encode(Encoding.UTF8.GetString(ValidWhoIs()).Replace("100.64.0.9", "192.168.1.20")), Loopback, out _, out _));
+        // A private RFC1918 LAN address is accepted for direct LAN discovery without Tailscale.
+        Assert.True(LanDiscoveryProtocol.TryDecode(
+            Encode(Encoding.UTF8.GetString(ValidWhoIs()).Replace("100.64.0.9", "192.168.1.20")), Loopback, out var lanPacket, out var lanError), lanError);
+        Assert.Equal("192.168.1.20", lanPacket.Address);
         // A datagram that claims to come from the internet is dropped before parsing.
         Assert.False(LanDiscoveryProtocol.TryDecode(ValidWhoIs(), IPAddress.Parse("203.0.113.7"), out _, out var sourceError));
         Assert.Contains("局域网", sourceError);

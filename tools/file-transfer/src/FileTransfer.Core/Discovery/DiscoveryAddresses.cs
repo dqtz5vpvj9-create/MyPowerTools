@@ -1,19 +1,19 @@
 using System.Net;
-using System.Net.Sockets;
 
 namespace FileTransfer.Core.Discovery;
 
 /// <summary>
-/// Address policy for discovery. It is deliberately narrow: discovery only ever talks to Tailnet
-/// addresses (plus loopback for a same-machine receiver and for tests), and the LAN protocol only
-/// accepts datagrams that arrived from a local network source. A public candidate is refused before
-/// any socket is opened, so a malicious announcement cannot make MPT connect outwards.
+/// Address policy for discovery. Discovery talks only to private direct addresses — Tailscale
+/// (<c>100.64.0.0/10</c>, <c>fd7a:115c:a1e0::/48</c>), private LAN (RFC1918, IPv6 ULA, link-local),
+/// and loopback — and the LAN protocol only accepts datagrams from a private local/tailnet source.
+/// A public candidate is refused before any socket is opened, so a malicious announcement cannot
+/// make MPT connect outwards.
 /// </summary>
 internal static class DiscoveryAddresses
 {
-    /// <summary>Tailnet (100.64.0.0/10, fd7a:115c:a1e0::/48) or loopback; nothing else is reachable.</summary>
-    public static bool IsTailnetOrLoopback(IPAddress address) =>
-        TransferFiles.IsTailAddress(address) || IPAddress.IsLoopback(address);
+    /// <summary>Private direct address (Tailscale, private LAN, or loopback); public addresses are rejected.</summary>
+    public static bool IsPrivateDirect(IPAddress address) =>
+        TransferFiles.IsPrivateDirectAddress(address);
 
     public static bool TryParse(string? value, out IPAddress address)
     {
@@ -24,9 +24,9 @@ internal static class DiscoveryAddresses
         return true;
     }
 
-    /// <summary>A candidate address is usable when it parses and is a Tailnet address (or loopback).</summary>
+    /// <summary>A candidate address is usable when it parses and is a private direct address (LAN, Tailnet, or loopback).</summary>
     public static bool IsUsableCandidate(string? value) =>
-        TryParse(value, out var address) && IsTailnetOrLoopback(address);
+        TryParse(value, out var address) && TransferFiles.IsPrivateDirectAddress(address);
 
     /// <summary>
     /// Canonical form used as the dedupe key, so "100.64.0.1" and "100.64.0.01" (or two spellings of
@@ -35,33 +35,12 @@ internal static class DiscoveryAddresses
     public static string Normalize(string? value) => TryParse(value, out var address) ? address.ToString() : (value ?? "").Trim();
 
     /// <summary>
-    /// True for a source address that can plausibly be on the local network (or on the tailnet):
+    /// True for a source address that can plausibly be on the local network or tailnet:
     /// loopback, RFC1918, link-local, CGNAT/Tailnet, IPv6 ULA or IPv6 link-local. A datagram from
     /// anything else is a spoofed or routed-in packet and is dropped.
     /// </summary>
-    public static bool IsLocalNetworkSource(IPAddress address)
-    {
-        if (address.IsIPv4MappedToIPv6) address = address.MapToIPv4();
-        if (address.AddressFamily == AddressFamily.InterNetwork)
-        {
-            var b = address.GetAddressBytes();
-            return b[0] == 10
-                || b[0] == 127
-                || (b[0] == 172 && b[1] is >= 16 and <= 31)
-                || (b[0] == 192 && b[1] == 168)
-                || (b[0] == 169 && b[1] == 254)
-                || TransferFiles.IsTailAddress(address);
-        }
-        if (address.AddressFamily == AddressFamily.InterNetworkV6)
-        {
-            if (IPAddress.IsLoopback(address)) return true;
-            var b = address.GetAddressBytes();
-            if ((b[0] & 0xFE) == 0xFC) return true;                       // fc00::/7 unique local
-            if (b[0] == 0xFE && (b[1] & 0xC0) == 0x80) return true;       // fe80::/10 link local
-            return TransferFiles.IsTailAddress(address);
-        }
-        return false;
-    }
+    public static bool IsLocalNetworkSource(IPAddress address) =>
+        TransferFiles.IsPrivateDirectAddress(address);
 
     /// <summary>Device ids and names are echoed on the wire; validate before they enter a result.</summary>
     public static bool IsValidDeviceId(string? deviceId)

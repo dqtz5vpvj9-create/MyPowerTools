@@ -70,7 +70,7 @@ public static class HelloProtocol
         if (!reply.Ok) return string.IsNullOrWhiteSpace(reply.Message) ? "对方拒绝了身份查询。" : reply.Message!;
         if (!DiscoveryAddresses.IsValidDeviceId(reply.DeviceId)) return "对方应答缺少有效的设备标识。";
         if (!DiscoveryAddresses.IsValidName(reply.Name)) return "对方应答缺少有效的设备名。";
-        if (!DiscoveryAddresses.IsUsableCandidate(reply.Address)) return "对方上报的地址不是 Tailnet 地址。";
+        if (!DiscoveryAddresses.IsUsableCandidate(reply.Address)) return "对方上报的地址不是局域网或 Tailnet 私网地址。";
         if (!DiscoveryAddresses.IsValidPort(reply.Port)) return "对方上报的端口无效。";
         if (!DiscoveryAddresses.IsValidPlatform(reply.Platform)) return "对方应答缺少平台信息。";
         return "";

@@ -151,7 +151,7 @@ public static class LanDiscoveryProtocol
         error = "";
         if (!DiscoveryAddresses.IsValidDeviceId(packet.DeviceId)) { error = "设备标识无效。"; return false; }
         if (!DiscoveryAddresses.IsValidName(packet.Name)) { error = "设备名无效。"; return false; }
-        if (!DiscoveryAddresses.IsUsableCandidate(packet.Address)) { error = "上报的地址不是 Tailnet 地址。"; return false; }
+        if (!DiscoveryAddresses.IsUsableCandidate(packet.Address)) { error = "上报的地址不是局域网或 Tailnet 私网地址。"; return false; }
         if (!DiscoveryAddresses.IsValidPort(packet.Port)) { error = "上报的端口无效。"; return false; }
         if (!DiscoveryAddresses.IsValidPlatform(packet.Platform)) { error = "平台信息无效。"; return false; }
         device = new DiscoveredDevice(packet.DeviceId, packet.Name, packet.Address, packet.Port, packet.Platform);

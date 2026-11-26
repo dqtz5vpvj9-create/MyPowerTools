@@ -91,7 +91,7 @@ public sealed class DiscoveryBeacon : IAsyncDisposable
         }
         if (!DiscoveryAddresses.IsUsableCandidate(local.Address))
         {
-            _fault = "本机没有可用的 Tailnet 地址，无法开启可被发现。";
+            _fault = "本机没有可用的局域网或 Tailnet 私网地址，无法开启可被发现。";
             return false;
         }
         if (!DiscoveryAddresses.IsValidPort(local.Port))

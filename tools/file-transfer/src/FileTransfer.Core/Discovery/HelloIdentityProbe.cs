@@ -23,8 +23,8 @@ public sealed class HelloIdentityProbe : IIdentityProbe
     {
         var device = candidate.Device;
         // Refuse locally: a public or malformed candidate never opens a socket.
-        if (!DiscoveryAddresses.TryParse(device.Address, out var ip) || !DiscoveryAddresses.IsTailnetOrLoopback(ip))
-            return IdentityProbeResult.Invalid(candidate, "地址不是 Tailnet 地址，已跳过身份查询。");
+        if (!DiscoveryAddresses.TryParse(device.Address, out var ip) || !TransferFiles.IsPrivateDirectAddress(ip))
+            return IdentityProbeResult.Invalid(candidate, "地址不是局域网或 Tailnet 私网地址，已跳过身份查询。");
         if (!DiscoveryAddresses.IsValidPort(device.Port))
             return IdentityProbeResult.Invalid(candidate, "端口无效，已跳过身份查询。");
         if (_options.SelfDeviceId.Length > 0 && device.DeviceId == _options.SelfDeviceId)
