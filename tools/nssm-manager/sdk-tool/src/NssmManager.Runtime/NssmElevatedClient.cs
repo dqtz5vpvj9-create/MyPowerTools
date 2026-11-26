@@ -164,7 +164,7 @@ public static class NssmElevatedClient
             var candidates = new[]
             {
                 Path.Combine(directory.FullName, "artifacts", "build", "bin", "MyPowerTools.ElevatedBroker", "release", "MyPowerTools.ElevatedBroker.exe"),
-                Path.Combine(directory.FullName, "src", "MyPowerTools.ElevatedBroker", "bin", "Release", "net10.0", "win-x64", "MyPowerTools.ElevatedBroker.exe")
+                Path.Combine(directory.FullName, "src", "MyPowerTools.ElevatedBroker", "bin", "Release", "net8.0", "win-x64", "MyPowerTools.ElevatedBroker.exe")
             };
             path = candidates.FirstOrDefault(File.Exists);
         }

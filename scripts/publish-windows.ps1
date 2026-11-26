@@ -361,8 +361,8 @@ Copy-Item -LiteralPath (Join-Path $LauncherPublishRoot 'MyPowerTools.exe') -Dest
 Remove-Item -LiteralPath $LauncherPublishRoot -Recurse -Force
 
 # Full carries one application-private .NET runtime for every framework-dependent
-# process. Apphosts resolve it through AppRelative;Global and child launchers pass
-# the private root only in the target process environment.
+# process. Apphosts resolve it through AppRelative;EnvironmentVariables;Global and
+# child launchers pass the private root only in the target process environment.
 if (-not $isWebDistribution) {
 $sharedRuntimeRoot = Join-Path $PublishRoot 'Runtime\dotnet'
 $dotnetCommand = Get-Command 'dotnet.exe' -CommandType Application -ErrorAction Stop |
@@ -370,10 +370,10 @@ $dotnetCommand = Get-Command 'dotnet.exe' -CommandType Application -ErrorAction 
 $dotnetInstallRoot = Split-Path -Parent $dotnetCommand.Source
 $fxrCandidates = @(
     Get-ChildItem -LiteralPath (Join-Path $dotnetInstallRoot 'host\fxr') -Directory |
-        Where-Object { $_.Name -match '^10\.0\.\d+$' } |
+        Where-Object { $_.Name -match '^(?:8|9|1\d)\.\d+\.\d+$' } |
         Sort-Object { [version]$_.Name } -Descending)
 if ($fxrCandidates.Count -eq 0) {
-    throw "No .NET 10 runtime was found under $dotnetInstallRoot\host\fxr"
+    throw "No .NET 8+ runtime was found under $dotnetInstallRoot\host\fxr"
 }
 $runtimeVersion = [string]$fxrCandidates[0].Name
 foreach ($framework in @(

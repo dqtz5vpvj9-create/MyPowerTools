@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <OutputType>WinExe</OutputType>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
@@ -11,7 +11,7 @@
     <BuildWindowsWebToolHost Condition="'$(OS)' == 'Windows_NT' and '$(RuntimeIdentifier)' == ''">true</BuildWindowsWebToolHost>
     <BuildWindowsWebToolHost Condition="$([System.String]::Copy('$(RuntimeIdentifier)').StartsWith('win-'))">true</BuildWindowsWebToolHost>
     <WebToolHostProject>$(MSBuildProjectDirectory)\..\MyPowerTools.WebToolHost\MyPowerTools.WebToolHost.csproj</WebToolHostProject>
-    <WebToolHostTargetFramework>net10.0-windows10.0.19041.0</WebToolHostTargetFramework>
+    <WebToolHostTargetFramework>net8.0-windows10.0.19041.0</WebToolHostTargetFramework>
     <!-- src/Directory.Build.props enables the artifacts output layout, which names
          directories <lowercase configuration>[_<runtime identifier>]. -->
     <WebToolHostOutputDirName>$(Configuration.ToLowerInvariant())</WebToolHostOutputDirName>

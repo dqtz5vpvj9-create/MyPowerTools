@@ -18,7 +18,7 @@
       "icon": "diagnostics",
       "surface": {
         "kind": "dotnet",
-        "assembly": "src/ImeManager.Tool/bin/Release/net10.0/ImeManager.Tool.dll",
+        "assembly": "src/ImeManager.Tool/bin/Release/net8.0/ImeManager.Tool.dll",
         "type": "ImeManager.Tool.ImeManagerSurfaceFactory"
       }
     }
@@ -30,7 +30,7 @@
   },
   "runtime": {
     "transport": "stdio-jsonrpc",
-    "command": "src/ImeManager.Runtime/bin/Release/net10.0/ImeManager.Runtime.exe",
+    "command": "src/ImeManager.Runtime/bin/Release/net8.0/ImeManager.Runtime.exe",
     "args": [],
     "timeoutMs": 30000
   },

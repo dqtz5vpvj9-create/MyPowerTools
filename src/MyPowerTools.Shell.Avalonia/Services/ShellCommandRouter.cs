@@ -30,8 +30,14 @@ public static class ShellCommandRouter
             return true;
         }
 
-        handled = AsyncEnumerable.Empty<CommandExecutionStatus>();
+        handled = EmptyStatusStream();
         return false;
+    }
+
+    private static async IAsyncEnumerable<CommandExecutionStatus> EmptyStatusStream()
+    {
+        await Task.CompletedTask;
+        yield break;
     }
 
     private static async IAsyncEnumerable<CommandExecutionStatus> RunShellCommandAction(string commandId, Task action)

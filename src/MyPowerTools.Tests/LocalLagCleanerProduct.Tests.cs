@@ -425,7 +425,7 @@ public sealed class LocalLagCleanerProductTests
         Assert.Equal(2, packageReferences.Length);
         Assert.Contains(
             packageReferences,
-            reference => reference is { Include: "MyPowerTools.AvaloniaSdk", Version: "0.2.1" });
+            reference => reference is { Include: "MyPowerTools.AvaloniaSdk", Version: "0.3.0" });
         Assert.Contains(
             packageReferences,
             reference => reference is { Include: "MyPowerTools.ToolSdk", Version: "0.2.0" });
@@ -1183,7 +1183,7 @@ public sealed class LocalLagCleanerProductTests
             "LocalLagCleaner.Runtime",
             "bin",
             configuration,
-            "net10.0",
+            "net8.0",
             executableName);
         Assert.True(
             File.Exists(executablePath),

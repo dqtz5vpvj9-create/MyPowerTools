@@ -83,7 +83,7 @@ function dotnet {
         with zipfile.ZipFile(path, 'w') as archive:
             archive.writestr(f'{package_id}.nuspec',
                              f'<package><metadata><id>{package_id}</id><version>{version}</version></metadata></package>')
-            archive.writestr('lib/net10.0/tool.dll', payload)
+            archive.writestr('lib/net8.0/tool.dll', payload)
         return path
 
     def cached(self, package, contents=None):

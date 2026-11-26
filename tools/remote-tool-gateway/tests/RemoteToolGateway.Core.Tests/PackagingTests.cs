@@ -30,7 +30,7 @@ public sealed class PackagingTests
     {
         foreach (var configuration in new[] { "Release", "Debug" })
         {
-            var candidate = Path.Combine(ToolRoot, "src", "RemoteToolGateway.MyPowerTools", "bin", configuration, "net10.0");
+            var candidate = Path.Combine(ToolRoot, "src", "RemoteToolGateway.MyPowerTools", "bin", configuration, "net8.0");
             if (File.Exists(Path.Combine(candidate, "RemoteToolGateway.MyPowerTools.dll"))) return candidate;
         }
 

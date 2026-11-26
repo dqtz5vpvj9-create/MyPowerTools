@@ -18,7 +18,7 @@
       "icon": "diagnostics",
       "surface": {
         "kind": "dotnet",
-        "assembly": "src/NssmManager.Tool/bin/Release/net10.0/NssmManager.Tool.dll",
+        "assembly": "src/NssmManager.Tool/bin/Release/net8.0/NssmManager.Tool.dll",
         "type": "NssmManager.Tool.NssmManagerSurfaceFactory"
       }
     }
@@ -30,7 +30,7 @@
   },
   "runtime": {
     "transport": "stdio-jsonrpc",
-    "command": "src/NssmManager.Runtime/bin/Release/net10.0/NssmManager.Runtime.exe",
+    "command": "src/NssmManager.Runtime/bin/Release/net8.0/NssmManager.Runtime.exe",
     "args": [],
     "timeoutMs": 60000
   },

@@ -162,7 +162,7 @@
                                 Command="{Binding DevSource.AddMappingCommand}"
                                 VerticalAlignment="Bottom" />
            </Grid>
-            <controls:MptTextBox PlaceholderText="Source directory (build output, e.g. ...\bin\Release\net10.0)"
+            <controls:MptTextBox PlaceholderText="Source directory (build output, e.g. ...\bin\Release\net8.0)"
                      Text="{Binding DevSource.NewSourceDir, Mode=TwoWay}" />
             <controls:MptTextBox PlaceholderText="Target directory (installed module path)"
                      Text="{Binding DevSource.NewTargetDir, Mode=TwoWay}" />

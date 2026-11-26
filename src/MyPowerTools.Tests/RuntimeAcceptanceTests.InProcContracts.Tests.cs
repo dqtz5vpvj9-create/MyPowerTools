@@ -991,7 +991,7 @@ public sealed partial class RuntimeAcceptanceTests
         var compatibility = File.ReadAllText(Path.Combine(Root, "src/MyPowerTools.Abstractions/RuntimeCompatibility.cs"));
         var project = File.ReadAllText(Path.Combine(Root, "src/MyPowerTools.Abstractions/MyPowerTools.Abstractions.csproj"));
 
-        Assert.Contains("<TargetFramework>net10.0</TargetFramework>", project);
+        Assert.Contains("<TargetFramework>net8.0</TargetFramework>", project);
         Assert.Contains("namespace MyPowerTools.Abstractions;", pluginContracts);
         Assert.Contains("interface IMptModule", pluginContracts);
         Assert.Contains("record UiSurfaceDescriptor", pluginContracts);

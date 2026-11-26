@@ -69,7 +69,7 @@ public sealed class PublicInboxClientTests : IAsyncLifetime
         var code = identity.Pairing.Encode();
         Assert.StartsWith(PublicInboxPairing.CodeScheme, code);
         Assert.DoesNotContain(identity.OwnerKey, code, StringComparison.OrdinalIgnoreCase);
-        var decoded = Encoding.UTF8.GetString(System.Buffers.Text.Base64Url.DecodeFromChars(code.AsSpan(PublicInboxPairing.CodeScheme.Length)));
+        var decoded = Encoding.UTF8.GetString(UrlSafeBase64.DecodeFromChars(code.AsSpan(PublicInboxPairing.CodeScheme.Length)));
         Assert.DoesNotContain("ownerKey", decoded, StringComparison.OrdinalIgnoreCase);
         Assert.DoesNotContain(identity.OwnerKey, decoded, StringComparison.OrdinalIgnoreCase);
 

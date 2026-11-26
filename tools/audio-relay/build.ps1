@@ -52,12 +52,12 @@ if (Test-Path -LiteralPath $stage) {
 # by this invocation into those stable locations before the staged package is installed.
 $outputs = @(
     [ordered]@{
-        Source = Join-Path $sdkToolRoot "src\AudioRelay.Tool\bin\$Configuration\net10.0"
-        Destination = Join-Path $stage 'src\AudioRelay.Tool\bin\Release\net10.0'
+        Source = Join-Path $sdkToolRoot "src\AudioRelay.Tool\bin\$Configuration\net8.0"
+        Destination = Join-Path $stage 'src\AudioRelay.Tool\bin\Release\net8.0'
     },
     [ordered]@{
-        Source = Join-Path $sdkToolRoot "src\AudioRelay.Runtime\bin\$Configuration\net10.0"
-        Destination = Join-Path $stage 'src\AudioRelay.Runtime\bin\Release\net10.0'
+        Source = Join-Path $sdkToolRoot "src\AudioRelay.Runtime\bin\$Configuration\net8.0"
+        Destination = Join-Path $stage 'src\AudioRelay.Runtime\bin\Release\net8.0'
     }
 )
 foreach ($output in $outputs) {

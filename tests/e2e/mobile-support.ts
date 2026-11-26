@@ -53,7 +53,7 @@ export class Peer {
   async start() {
     this.root = await mkdtemp('/mnt/cache/data-cache/mpt-mobile-e2e-peer-');
     this.process = spawn(process.env.MPT_DOTNET ?? '/home/chris/.dotnet/dotnet',
-      ['tests/e2e/MobilePeer/bin/Debug/net10.0/MobilePeer.dll', this.root], { windowsHide: true });
+      ['tests/e2e/MobilePeer/bin/Debug/net8.0/MobilePeer.dll', this.root], { windowsHide: true });
     this.lines = createInterface({ input: this.process.stdout })[Symbol.asyncIterator]();
     // Preserve diagnostics privately so crashes can be investigated without putting
     // provider responses or connection credentials into the public test report.

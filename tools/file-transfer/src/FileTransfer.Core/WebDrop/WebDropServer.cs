@@ -111,8 +111,8 @@ public sealed class WebDropServer : IAsyncDisposable
 
         var fileInfo = new FileInfo(fullPath);
         var now = _timeProvider.GetUtcNow();
-        var id = "drop-" + Convert.ToHexStringLower(RandomNumberGenerator.GetBytes(4));
-        var token = Base64Url.EncodeToString(RandomNumberGenerator.GetBytes(16));
+        var id = "drop-" + Convert.ToHexString(RandomNumberGenerator.GetBytes(4)).ToLowerInvariant();
+        var token = UrlSafeBase64.EncodeToString(RandomNumberGenerator.GetBytes(16));
         var entry = new DropEntry(
             id,
             token,

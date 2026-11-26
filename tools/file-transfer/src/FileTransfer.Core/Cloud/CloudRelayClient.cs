@@ -78,7 +78,7 @@ public sealed class CloudRelayClient : IDisposable
         if (response.StatusCode == HttpStatusCode.NotFound) return null;
         if (!response.IsSuccessStatusCode) throw new IOException("暂时无法读取网盘分享，稍后自动重试。");
         // Conversation members can publish DAV objects. Bound this metadata read before parsing.
-        await response.Content.LoadIntoBufferAsync(16 * 1024, budget.Token);
+        await response.Content.LoadIntoBufferAsync(16 * 1024).WaitAsync(budget.Token);
         var share = await response.Content.ReadFromJsonAsync<CloudShareLocator>(AssistantJson.Options, budget.Token)
             ?? throw new InvalidDataException("网盘分享信息不完整。");
         share.Validate(_conversation, message);
@@ -118,7 +118,7 @@ public sealed class CloudRelayClient : IDisposable
         // relay's payload limit still applies to that relay, not to this share.
         if (allowCloudSizeLimit && response.StatusCode == HttpStatusCode.RequestEntityTooLarge)
         {
-            await response.Content.LoadIntoBufferAsync(4096, token);
+            await response.Content.LoadIntoBufferAsync(4096).WaitAsync(token);
             using var error = JsonDocument.Parse(await response.Content.ReadAsStringAsync(token));
             if (error.RootElement.TryGetProperty("error", out var code) && code.GetString() == "invalid_cloud_size") return;
         }

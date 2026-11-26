@@ -108,8 +108,8 @@ if ($packExitCode -ne 0) {
     throw "Tool SDK packaging failed with exit code $packExitCode."
 }
 
-$expectedSdkTool = Join-Path $sdkToolRoot "src\ImeManager.Tool\bin\$Configuration\net10.0\ImeManager.Tool.dll"
-$expectedRuntime = Join-Path $sdkToolRoot "src\ImeManager.Runtime\bin\$Configuration\net10.0\ImeManager.Runtime.exe"
+$expectedSdkTool = Join-Path $sdkToolRoot "src\ImeManager.Tool\bin\$Configuration\net8.0\ImeManager.Tool.dll"
+$expectedRuntime = Join-Path $sdkToolRoot "src\ImeManager.Runtime\bin\$Configuration\net8.0\ImeManager.Runtime.exe"
 foreach ($expectedPath in @($expectedSdkTool, $expectedRuntime, $artifactPackage)) {
     if (-not (Test-Path -LiteralPath $expectedPath -PathType Leaf)) {
         throw "Expected build output '$expectedPath' is missing."
@@ -134,11 +134,11 @@ Add-Type -AssemblyName System.IO.Compression.FileSystem
 $configurationOutputs = @(
     [ordered]@{
         Source = Split-Path -Parent $expectedSdkTool
-        Destination = Join-Path $artifactRuntime 'src\ImeManager.Tool\bin\Release\net10.0'
+        Destination = Join-Path $artifactRuntime 'src\ImeManager.Tool\bin\Release\net8.0'
     },
     [ordered]@{
         Source = Split-Path -Parent $expectedRuntime
-        Destination = Join-Path $artifactRuntime 'src\ImeManager.Runtime\bin\Release\net10.0'
+        Destination = Join-Path $artifactRuntime 'src\ImeManager.Runtime\bin\Release\net8.0'
     }
 )
 foreach ($configurationOutput in $configurationOutputs) {

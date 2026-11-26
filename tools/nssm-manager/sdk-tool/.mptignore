@@ -1,5 +1,5 @@
 src/*/bin/Debug/*
-src/*/bin/Release/net10.0-windows/*
+src/*/bin/Release/net8.0-windows/*
 src/*/obj/*
 src/*/*.cs
 src/*/*.csproj

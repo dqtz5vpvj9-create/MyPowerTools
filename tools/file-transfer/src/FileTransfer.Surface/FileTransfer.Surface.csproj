@@ -1,5 +1,5 @@
 <Project Sdk="Microsoft.NET.Sdk">
-  <PropertyGroup><TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><Version>0.1.0</Version></PropertyGroup>
+  <PropertyGroup><TargetFramework>net8.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable><Version>0.1.0</Version></PropertyGroup>
   <ItemGroup>
     <!-- The phone step flow and the shared transfer state stay internal on purpose; the
          file-transfer test project drives them directly instead of widening the public API. -->
