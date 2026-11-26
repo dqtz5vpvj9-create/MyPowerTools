@@ -523,11 +523,7 @@ public sealed record UploadHistoryRow(
         return this with
         {
             SelectCommand = new MptAsyncRelayCommand(
-                () =>
-                {
-                    _ = selectAction(row);
-                    return Task.CompletedTask;
-                },
+                () => selectAction(row),
                 operationName: "SelectHistoryPreview"),
             CopyCommand = new MptAsyncRelayCommand(
                 () => copyAction(path),

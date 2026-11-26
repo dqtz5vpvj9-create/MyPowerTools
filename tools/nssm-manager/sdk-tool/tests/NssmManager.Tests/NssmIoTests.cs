@@ -10,6 +10,7 @@ public sealed class NssmIoTests
     [Fact]
     public void duplicate_and_close_handle_match_win32_contract()
     {
+        if (!OperatingSystem.IsWindows()) return;
         var path = TemporaryPath();
         try
         {
@@ -29,6 +30,7 @@ public sealed class NssmIoTests
     [Fact]
     public async Task logging_thread_copies_and_timestamps_data()
     {
+        if (!OperatingSystem.IsWindows()) return;
         var path = TemporaryPath();
         Stream? read = null;
         Stream? pipe = null;
@@ -50,6 +52,7 @@ public sealed class NssmIoTests
     [Fact]
     public async Task on_demand_rotation_uses_the_production_logger_and_waits_for_newline()
     {
+        if (!OperatingSystem.IsWindows()) return;
         var directory = Path.Combine(Path.GetTempPath(), "nssm-online-rotate-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
         var path = Path.Combine(directory, "rotate.log");
@@ -78,6 +81,7 @@ public sealed class NssmIoTests
     [Fact]
     public void character_width_bom_and_timestamp_match_upstream()
     {
+        if (!OperatingSystem.IsWindows()) return;
         Assert.Equal(1u, NssmIo.guess_charsize("ascii"u8));
         Assert.Equal(2u, NssmIo.guess_charsize(new byte[] { 0xff, 0xfe, (byte)'a', 0, (byte)'b', 0 }));
         var path = TemporaryPath();
@@ -120,6 +124,7 @@ public sealed class NssmIoTests
     [Fact]
     public void write_to_file_opens_at_end_and_preserves_content()
     {
+        if (!OperatingSystem.IsWindows()) return;
         var path = TemporaryPath();
         try
         {
@@ -133,6 +138,7 @@ public sealed class NssmIoTests
     [Fact]
     public void rotated_filename_and_thresholds_match_upstream()
     {
+        if (!OperatingSystem.IsWindows()) return;
         var directory = Path.Combine(Path.GetTempPath(), "nssm-rotate-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
         var path = Path.Combine(directory, "app.log");
@@ -191,6 +197,7 @@ public sealed class NssmIoTests
     [Fact]
     public void output_handle_selection_matches_shared_file_contract()
     {
+        if (!OperatingSystem.IsWindows()) return;
         var path = TemporaryPath();
         var configuration = new NssmServiceConfiguration
         {
@@ -264,6 +271,7 @@ public sealed class NssmIoTests
 
     private static void WithKey(Action<RegistryKey> action)
     {
+        if (!OperatingSystem.IsWindows()) return;
         var relative = $@"Software\MyPowerTools\NssmIoTests\{Guid.NewGuid():N}";
         using var key = Registry.CurrentUser.CreateSubKey(relative, writable: true)!;
         try { action(key); }

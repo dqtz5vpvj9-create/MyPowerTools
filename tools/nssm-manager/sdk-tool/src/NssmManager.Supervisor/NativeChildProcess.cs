@@ -3,10 +3,120 @@ using System.ComponentModel;
 using System.Diagnostics;
 using System.Runtime.InteropServices;
 using System.Text;
+using Microsoft.Win32.SafeHandles;
 using NssmManager.Contracts;
 using NssmManager.Windows;
 
 namespace NssmManager.Supervisor;
+
+internal sealed class StartedChildProcess : IDisposable
+{
+    private readonly SafeProcessHandle _handle;
+    private readonly Process? _process;
+    private readonly int _fallbackExitCode;
+    private readonly DateTime _fallbackExitTimeUtc;
+    private int _disposed;
+
+    public StartedChildProcess(SafeProcessHandle handle, Process? process, int processId, int fallbackExitCode, DateTime fallbackExitTimeUtc)
+    {
+        _handle = handle;
+        _process = process;
+        Id = processId;
+        _fallbackExitCode = fallbackExitCode;
+        _fallbackExitTimeUtc = fallbackExitTimeUtc;
+    }
+
+    public int Id { get; }
+
+    public Process? Process => _process;
+
+    public IntPtr Handle => _handle.DangerousGetHandle();
+
+    public bool HasExited
+    {
+        get
+        {
+            if (_process is null)
+            {
+                return true;
+            }
+
+            try
+            {
+                return _process.HasExited;
+            }
+            catch (InvalidOperationException)
+            {
+                return true;
+            }
+        }
+    }
+
+    public int ExitCode
+    {
+        get
+        {
+            if (_process is not null)
+            {
+                try
+                {
+                    return _process.ExitCode;
+                }
+                catch (InvalidOperationException)
+                {
+                }
+            }
+
+            return NativeChildProcess.ReadExitCode(_handle, _fallbackExitCode);
+        }
+    }
+
+    public DateTime ExitTime
+    {
+        get
+        {
+            if (_process is not null)
+            {
+                try
+                {
+                    return _process.ExitTime;
+                }
+                catch (InvalidOperationException)
+                {
+                }
+            }
+
+            if (NssmProcess.get_process_exit_time(Handle, out var fileTime) == 0 && fileTime > 0)
+            {
+                return DateTime.FromFileTimeUtc(fileTime);
+            }
+
+            return _fallbackExitTimeUtc;
+        }
+    }
+
+    public Task WaitForExitAsync(CancellationToken cancellationToken = default)
+    {
+        if (_process is null)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            return Task.CompletedTask;
+        }
+
+        return _process.WaitForExitAsync(cancellationToken);
+    }
+
+    public void Dispose()
+    {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
+        {
+            return;
+        }
+
+        _process?.Dispose();
+        _handle.Dispose();
+    }
+}
 
 internal static class NativeChildProcess
 {
@@ -21,11 +131,12 @@ internal static class NativeChildProcess
     private const uint AboveNormalPriorityClass = 0x00008000;
     private const uint HighPriorityClass = 0x00000080;
     private const uint RealtimePriorityClass = 0x00000100;
+    private const uint StillActive = 259;
 
-    public static Process Start(NssmServiceConfiguration configuration, string application, string workingDirectory, NativeChildProcessIo io) =>
+    public static StartedChildProcess Start(NssmServiceConfiguration configuration, string application, string workingDirectory, NativeChildProcessIo io) =>
         Start(configuration, application, workingDirectory, io, BuildEnvironmentDictionary(configuration));
 
-    public static Process Start(NssmServiceConfiguration configuration, string application, string workingDirectory, NativeChildProcessIo io, IReadOnlyDictionary<string, string> environment)
+    public static StartedChildProcess Start(NssmServiceConfiguration configuration, string application, string workingDirectory, NativeChildProcessIo io, IReadOnlyDictionary<string, string> environment)
     {
         using var stdin = io.DuplicateStandardInput();
         using var stdout = io.DuplicateStandardOutput();
@@ -39,7 +150,11 @@ internal static class NativeChildProcess
             StandardError = stderr?.DangerousGetHandle() ?? IntPtr.Zero
         };
         var commandLine = new StringBuilder(Quote(application));
-        if (!string.IsNullOrWhiteSpace(configuration.AppParameters)) commandLine.Append(' ').Append(Expand(configuration.AppParameters, environment));
+        if (!string.IsNullOrWhiteSpace(configuration.AppParameters))
+        {
+            commandLine.Append(' ').Append(Expand(configuration.AppParameters, environment));
+        }
+
         var affinity = ManagedServiceRuntime.ParseAffinity(configuration.Affinity);
         var flags = Priority(configuration.Priority) |
             ConsoleCreationFlags(configuration) |
@@ -51,18 +166,35 @@ internal static class NativeChildProcess
             {
                 try
                 {
-                    if (GetProcessAffinityMask(information.Process, out _, out var systemAffinity)) affinity &= systemAffinity;
+                    if (GetProcessAffinityMask(information.Process, out _, out var systemAffinity))
+                    {
+                        affinity &= systemAffinity;
+                    }
+
                     if (affinity != 0 && !SetProcessAffinityMask(information.Process, unchecked((nuint)affinity)))
-                        NssmManager.Windows.NssmEvent.log_event(2, NssmManager.Windows.NssmEvent.message_id("NSSM_EVENT_SETPROCESSAFFINITYMASK_FAILED"), configuration.Name, new Win32Exception(Marshal.GetLastWin32Error()).Message);
+                    {
+                        NssmEvent.log_event(
+                            2,
+                            NssmEvent.message_id("NSSM_EVENT_SETPROCESSAFFINITYMASK_FAILED"),
+                            configuration.Name,
+                            new Win32Exception(Marshal.GetLastWin32Error()).Message);
+                    }
                 }
-                finally { _ = ResumeThread(information.Thread); }
+                finally
+                {
+                    _ = ResumeThread(information.Thread);
+                }
             }
-            return Process.GetProcessById(checked((int)information.ProcessId));
         }
-        finally { CloseHandle(information.Thread); CloseHandle(information.Process); }
+        finally
+        {
+            CloseHandle(information.Thread);
+        }
+
+        return WrapStartedProcess(information);
     }
 
-    public static Process StartHook(string command, string workingDirectory, IReadOnlyDictionary<string, string?> environment, NativeChildProcessIo? io, bool shareOutputHandles)
+    public static StartedChildProcess StartHook(string command, string workingDirectory, IReadOnlyDictionary<string, string?> environment, NativeChildProcessIo? io, bool shareOutputHandles)
     {
         using var stdout = shareOutputHandles ? io?.DuplicateStandardOutput() : null;
         using var stderr = shareOutputHandles ? io?.DuplicateStandardError() : null;
@@ -74,10 +206,53 @@ internal static class NativeChildProcess
             StandardOutput = stdout?.DangerousGetHandle() ?? IntPtr.Zero,
             StandardError = stderr?.DangerousGetHandle() ?? IntPtr.Zero
         };
-        var information = StartProcess(new StringBuilder(command), workingDirectory,
-            BuildEnvironment((IEnumerable<KeyValuePair<string, string?>>)environment), useHandles, 0, startup);
-        try { return Process.GetProcessById(checked((int)information.ProcessId)); }
-        finally { CloseHandle(information.Thread); CloseHandle(information.Process); }
+        var information = StartProcess(
+            new StringBuilder(command),
+            workingDirectory,
+            BuildEnvironment((IEnumerable<KeyValuePair<string, string?>>)environment),
+            useHandles,
+            0,
+            startup);
+        CloseHandle(information.Thread);
+        return WrapStartedProcess(information);
+    }
+
+    private static StartedChildProcess WrapStartedProcess(ProcessInformation information)
+    {
+        var handle = new SafeProcessHandle(information.Process, ownsHandle: true);
+        try
+        {
+            var processId = checked((int)information.ProcessId);
+            Process? process = null;
+            try
+            {
+                process = Process.GetProcessById(processId);
+            }
+            catch (Exception ex) when (ex is ArgumentException or InvalidOperationException)
+            {
+                // The child exited before GetProcessById inspected the process table. Wait on the
+                // kernel process handle so its final exit code is committed, then wrap the handle.
+                _ = WaitForSingleObject(handle, 5000);
+            }
+
+            var fallbackExitCode = process is null ? ReadExitCode(handle, 0) : 0;
+            return new StartedChildProcess(handle, process, processId, fallbackExitCode, DateTime.UtcNow);
+        }
+        catch
+        {
+            handle.Dispose();
+            throw;
+        }
+    }
+
+    internal static int ReadExitCode(SafeProcessHandle handle, int fallback)
+    {
+        if (!handle.IsInvalid && !handle.IsClosed && GetExitCodeProcess(handle, out var raw) && raw != StillActive)
+        {
+            return unchecked((int)raw);
+        }
+
+        return fallback;
     }
 
     private static ProcessInformation StartProcess(StringBuilder commandLine, string workingDirectory, string environment, bool inheritHandles, uint flags, StartupInfo? suppliedStartup = null)
@@ -88,17 +263,29 @@ internal static class NativeChildProcess
         {
             if (!CreateProcess(null, commandLine, IntPtr.Zero, IntPtr.Zero, inheritHandles, flags | CreateUnicodeEnvironment,
                 environmentPointer, workingDirectory, ref startup, out var information))
+            {
                 throw new Win32Exception(Marshal.GetLastWin32Error(), "CreateProcessW");
+            }
+
             return information;
         }
-        finally { Marshal.FreeHGlobal(environmentPointer); }
+        finally
+        {
+            Marshal.FreeHGlobal(environmentPointer);
+        }
     }
 
     internal static IReadOnlyDictionary<string, string> BuildEnvironmentDictionary(NssmServiceConfiguration configuration)
     {
         var values = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
         if (configuration.Environment.Length == 0)
-            foreach (DictionaryEntry item in Environment.GetEnvironmentVariables()) values[(string)item.Key] = item.Value?.ToString() ?? "";
+        {
+            foreach (DictionaryEntry item in Environment.GetEnvironmentVariables())
+            {
+                values[(string)item.Key] = item.Value?.ToString() ?? "";
+            }
+        }
+
         Apply(values, configuration.Environment);
         Apply(values, configuration.EnvironmentExtra);
         return values;
@@ -135,6 +322,7 @@ internal static class NativeChildProcess
             else output.Append(value, opening, closing - opening + 1);
             index = closing + 1;
         }
+
         return output.ToString();
     }
 
@@ -148,15 +336,6 @@ internal static class NativeChildProcess
 
     private static string Quote(string value) => '"' + value.Replace("\"", "\\\"") + '"';
 
-    /// <summary>
-    /// Upstream asks for CREATE_NEW_CONSOLE because its service always runs under the
-    /// Service Control Manager on the invisible session-0 window station, where that
-    /// console window can never be seen. This translation is also hosted by interactive
-    /// processes - the NSSM unit tests and the dev ServiceManager - where
-    /// CREATE_NEW_CONSOLE would drop a console window onto the user's desktop and steal
-    /// focus. Interactive hosts give the application its own windowless console instead,
-    /// so console applications keep a console to talk to but never open a window.
-    /// </summary>
     internal static uint ConsoleCreationFlags(NssmServiceConfiguration configuration)
     {
         if (configuration.NoConsole) return 0;
@@ -172,16 +351,72 @@ internal static class NativeChildProcess
         "IDLE_PRIORITY_CLASS" => IdlePriorityClass,
         _ => NormalPriorityClass
     };
+
     [StructLayout(LayoutKind.Sequential, CharSet = CharSet.Unicode)]
-    private struct StartupInfo { public uint Size; public string? Reserved; public string? Desktop; public string? Title; public uint X; public uint Y; public uint XSize; public uint YSize; public uint XCountChars; public uint YCountChars; public uint FillAttribute; public uint Flags; public ushort ShowWindow; public ushort Reserved2; public IntPtr Reserved2Pointer; public IntPtr StandardInput; public IntPtr StandardOutput; public IntPtr StandardError; }
+    private struct StartupInfo
+    {
+        public uint Size;
+        public string? Reserved;
+        public string? Desktop;
+        public string? Title;
+        public uint X;
+        public uint Y;
+        public uint XSize;
+        public uint YSize;
+        public uint XCountChars;
+        public uint YCountChars;
+        public uint FillAttribute;
+        public uint Flags;
+        public ushort ShowWindow;
+        public ushort Reserved2;
+        public IntPtr Reserved2Pointer;
+        public IntPtr StandardInput;
+        public IntPtr StandardOutput;
+        public IntPtr StandardError;
+    }
+
     [StructLayout(LayoutKind.Sequential)]
-    private struct ProcessInformation { public IntPtr Process; public IntPtr Thread; public uint ProcessId; public uint ThreadId; }
+    private struct ProcessInformation
+    {
+        public IntPtr Process;
+        public IntPtr Thread;
+        public uint ProcessId;
+        public uint ThreadId;
+    }
 
     [DllImport("kernel32.dll", CharSet = CharSet.Unicode, SetLastError = true)]
     [return: MarshalAs(UnmanagedType.Bool)]
-    private static extern bool CreateProcess(string? applicationName, StringBuilder commandLine, IntPtr processAttributes, IntPtr threadAttributes, [MarshalAs(UnmanagedType.Bool)] bool inheritHandles, uint creationFlags, IntPtr environment, string currentDirectory, ref StartupInfo startupInfo, out ProcessInformation processInformation);
-    [DllImport("kernel32.dll", SetLastError = true)] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool CloseHandle(IntPtr handle);
-    [DllImport("kernel32.dll", SetLastError = true)] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool GetProcessAffinityMask(IntPtr process, out nuint processAffinityMask, out nuint systemAffinityMask);
-    [DllImport("kernel32.dll", SetLastError = true)] [return: MarshalAs(UnmanagedType.Bool)] private static extern bool SetProcessAffinityMask(IntPtr process, nuint processAffinityMask);
-    [DllImport("kernel32.dll", SetLastError = true)] private static extern uint ResumeThread(IntPtr thread);
+    private static extern bool CreateProcess(
+        string? applicationName,
+        StringBuilder commandLine,
+        IntPtr processAttributes,
+        IntPtr threadAttributes,
+        [MarshalAs(UnmanagedType.Bool)] bool inheritHandles,
+        uint creationFlags,
+        IntPtr environment,
+        string currentDirectory,
+        ref StartupInfo startupInfo,
+        out ProcessInformation processInformation);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool CloseHandle(IntPtr handle);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetProcessAffinityMask(IntPtr process, out nuint processAffinityMask, out nuint systemAffinityMask);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool SetProcessAffinityMask(IntPtr process, nuint processAffinityMask);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern uint ResumeThread(IntPtr thread);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    private static extern uint WaitForSingleObject(SafeProcessHandle handle, uint milliseconds);
+
+    [DllImport("kernel32.dll", SetLastError = true)]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool GetExitCodeProcess(SafeProcessHandle process, out uint exitCode);
 }

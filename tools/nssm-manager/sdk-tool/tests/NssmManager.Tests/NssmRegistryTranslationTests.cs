@@ -19,6 +19,7 @@ public sealed class NssmRegistryTranslationTests
     [Fact]
     public void open_registry_key_honours_must_exist()
     {
+        if (!OperatingSystem.IsWindows()) return;
         var path = $@"SOFTWARE\MyPowerTools\DefinitelyMissing\{Guid.NewGuid():N}";
         Assert.Equal(NssmRegistry.ErrorFileNotFound, NssmRegistry.open_registry_key(path, NssmRegistry.KeyRead, out var key, false));
         Assert.Null(key);

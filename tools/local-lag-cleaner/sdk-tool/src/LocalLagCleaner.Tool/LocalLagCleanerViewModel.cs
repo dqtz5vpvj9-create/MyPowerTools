@@ -12,6 +12,7 @@ public sealed class LocalLagCleanerViewModel : MptObservableViewModel, IDisposab
     private readonly MptAvaloniaSurfaceContext _context;
     private readonly CancellationTokenSource _lifetime = new();
     private CancellationTokenSource? _operationCts;
+    private int _disposed;
     private LagDiagnosticSnapshot? _snapshot;
     private bool _isBusy;
     private string _statusText = "等待首次多阶段扫描";
@@ -252,7 +253,7 @@ public sealed class LocalLagCleanerViewModel : MptObservableViewModel, IDisposab
 
     private async Task ScanAsync(bool deep)
     {
-        if (IsBusy)
+        if (IsBusy || Volatile.Read(ref _disposed) != 0)
         {
             return;
         }
@@ -262,15 +263,17 @@ public sealed class LocalLagCleanerViewModel : MptObservableViewModel, IDisposab
         StatusText = deep
             ? "正在执行 15 秒深度扫描：调度、分页、存储、GPU、进程 I/O 与稳定性事件…"
             : "正在执行 5 秒快速扫描：资源、调度、分页、磁盘与进程树…";
-        _operationCts?.Dispose();
-        _operationCts = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
-        _operationCts.CancelAfter(TimeSpan.FromSeconds(deep ? 60 : 30));
+        CancellationTokenSource? cts = null;
         try
         {
+            cts = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
+            cts.CancelAfter(TimeSpan.FromSeconds(deep ? 60 : 30));
+            Interlocked.Exchange(ref _operationCts, cts)?.Dispose();
+
             var commandId = deep
                 ? "local-lag-cleaner.scan.deep"
                 : "local-lag-cleaner.scan.quick";
-            var payload = await ExecutePayloadAsync(commandId, cancellationToken: _operationCts.Token);
+            var payload = await ExecutePayloadAsync(commandId, cancellationToken: cts.Token);
             var snapshotNode = payload?["snapshot"] ??
                                throw new InvalidDataException("Runtime 未返回诊断快照。");
             var snapshot = snapshotNode.Deserialize<LagDiagnosticSnapshot>(
@@ -283,7 +286,11 @@ public sealed class LocalLagCleanerViewModel : MptObservableViewModel, IDisposab
                 "info",
                 $"{(deep ? "Deep" : "Quick")} scan completed; findings={snapshot.Findings.Count}; score={snapshot.HealthScore}.");
         }
-        catch (OperationCanceledException) when (_lifetime.IsCancellationRequested)
+        catch (OperationCanceledException) when (Volatile.Read(ref _disposed) != 0 || _lifetime.IsCancellationRequested)
+        {
+            StatusText = "扫描已取消。";
+        }
+        catch (ObjectDisposedException) when (Volatile.Read(ref _disposed) != 0)
         {
             StatusText = "扫描已取消。";
         }
@@ -302,6 +309,12 @@ public sealed class LocalLagCleanerViewModel : MptObservableViewModel, IDisposab
         }
         finally
         {
+            if (cts is not null)
+            {
+                Interlocked.CompareExchange(ref _operationCts, null, cts);
+                cts.Dispose();
+            }
+
             IsBusy = false;
             CancelScanCommand.NotifyCanExecuteChanged();
         }
@@ -309,7 +322,13 @@ public sealed class LocalLagCleanerViewModel : MptObservableViewModel, IDisposab
 
     private Task CancelScanAsync()
     {
-        _operationCts?.Cancel();
+        var cts = Interlocked.Exchange(ref _operationCts, null);
+        if (cts is not null)
+        {
+            try { cts.Cancel(); }
+            catch (ObjectDisposedException) { }
+        }
+
         return Task.CompletedTask;
     }
 
@@ -740,8 +759,18 @@ public sealed class LocalLagCleanerViewModel : MptObservableViewModel, IDisposab
 
     public void Dispose()
     {
-        _operationCts?.Cancel();
-        _operationCts?.Dispose();
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
+        {
+            return;
+        }
+
+        var cts = Interlocked.Exchange(ref _operationCts, null);
+        if (cts is not null)
+        {
+            try { cts.Cancel(); } catch (ObjectDisposedException) { }
+            cts.Dispose();
+        }
+
         _lifetime.Cancel();
         _lifetime.Dispose();
     }

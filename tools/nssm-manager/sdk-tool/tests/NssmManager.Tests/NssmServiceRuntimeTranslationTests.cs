@@ -32,6 +32,7 @@ public sealed class NssmServiceRuntimeTranslationTests
     [Fact]
     public async Task native_createprocess_path_inherits_online_logging_pipe()
     {
+        if (!OperatingSystem.IsWindows()) return;
         var directory = Path.Combine(Path.GetTempPath(), "nssm-native-process-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
         var output = Path.Combine(directory, "stdout.log");
@@ -61,6 +62,7 @@ public sealed class NssmServiceRuntimeTranslationTests
     [Fact]
     public async Task native_hook_path_uses_raw_createprocess_command_line_and_environment()
     {
+        if (!OperatingSystem.IsWindows()) return;
         var directory = Path.Combine(Path.GetTempPath(), "nssm-native-hook-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
         var output = Path.Combine(directory, "hook.txt");
@@ -82,6 +84,7 @@ public sealed class NssmServiceRuntimeTranslationTests
     [Fact]
     public async Task managed_runtime_shares_logging_pipe_with_prestart_hook_and_application()
     {
+        if (!OperatingSystem.IsWindows()) return;
         var directory = Path.Combine(Path.GetTempPath(), "nssm-runtime-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
         var output = Path.Combine(directory, "combined.log");
@@ -114,6 +117,7 @@ public sealed class NssmServiceRuntimeTranslationTests
     [Fact]
     public async Task replacement_environment_expands_application_directory_parameters_and_io_paths()
     {
+        if (!OperatingSystem.IsWindows()) return;
         var directory = Path.Combine(Path.GetTempPath(), "nssm-runtime-environment-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
         var output = Path.Combine(directory, "expanded.log");
@@ -148,6 +152,7 @@ public sealed class NssmServiceRuntimeTranslationTests
     [Fact]
     public async Task hook_command_expands_service_and_hook_environment_before_createprocess()
     {
+        if (!OperatingSystem.IsWindows()) return;
         var directory = Path.Combine(Path.GetTempPath(), "nssm-hook-environment-" + Guid.NewGuid().ToString("N"));
         Directory.CreateDirectory(directory);
         var output = Path.Combine(directory, "hook-environment.txt");
@@ -175,6 +180,7 @@ public sealed class NssmServiceRuntimeTranslationTests
     [Fact]
     public async Task exit_action_propagates_application_exit_code_to_scm_result()
     {
+        if (!OperatingSystem.IsWindows()) return;
         var commandProcessor = Environment.GetEnvironmentVariable("COMSPEC") ?? "cmd.exe";
         await using var runtime = new ManagedServiceRuntime(new NssmServiceConfiguration
         {
@@ -192,6 +198,7 @@ public sealed class NssmServiceRuntimeTranslationTests
     [Fact]
     public async Task default_suicide_for_zero_exit_uses_upstream_graceful_suicide_rule()
     {
+        if (!OperatingSystem.IsWindows()) return;
         var commandProcessor = Environment.GetEnvironmentVariable("COMSPEC") ?? "cmd.exe";
         await using var runtime = new ManagedServiceRuntime(new NssmServiceConfiguration
         {
@@ -209,6 +216,7 @@ public sealed class NssmServiceRuntimeTranslationTests
     [Fact]
     public async Task explicit_zero_exit_suicide_keeps_upstream_unclean_exit_rule()
     {
+        if (!OperatingSystem.IsWindows()) return;
         var commandProcessor = Environment.GetEnvironmentVariable("COMSPEC") ?? "cmd.exe";
         await using var runtime = new ManagedServiceRuntime(new NssmServiceConfiguration
         {

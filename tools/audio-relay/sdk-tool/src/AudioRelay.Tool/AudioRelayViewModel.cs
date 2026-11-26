@@ -7,6 +7,7 @@ public sealed class AudioRelayViewModel : MptObservableViewModel, IDisposable
 {
     private readonly MptAvaloniaSurfaceContext _context;
     private readonly CancellationTokenSource _lifetime = new();
+    private int _disposed;
     private bool _isBusy;
     private bool _isInstalled;
     private bool _isRunning;
@@ -45,7 +46,7 @@ public sealed class AudioRelayViewModel : MptObservableViewModel, IDisposable
 
     public async Task RefreshAsync()
     {
-        if (IsBusy) return;
+        if (IsBusy || Volatile.Read(ref _disposed) != 0) return;
         IsBusy = true;
         try
         {
@@ -65,6 +66,9 @@ public sealed class AudioRelayViewModel : MptObservableViewModel, IDisposable
                 : "安装完成后回到这里点“刷新状态”，MyPowerTools 会自动识别官方安装。";
             _context.Log(new MptSurfaceLogEntry("info", $"AudioRelay status: installed={IsInstalled}; running={IsRunning}.", DateTimeOffset.UtcNow));
         }
+        catch (OperationCanceledException) when (Volatile.Read(ref _disposed) != 0)
+        {
+        }
         catch (Exception exception)
         {
             StatusText = $"检查失败：{exception.Message}";
@@ -79,23 +83,45 @@ public sealed class AudioRelayViewModel : MptObservableViewModel, IDisposable
         }
     }
 
-    public void Dispose() => _lifetime.Cancel();
+    public void Dispose()
+    {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
+        {
+            return;
+        }
+
+        _lifetime.Cancel();
+        _lifetime.Dispose();
+    }
 
     private async Task LaunchAsync()
     {
         await ExecuteActionAsync("audio-relay.launch", "已启动 AudioRelay。请在 AudioRelay 中选择音频源和接收设备。");
-        await Task.Delay(500, _lifetime.Token);
-        await RefreshAsync();
+        try
+        {
+            if (Volatile.Read(ref _disposed) != 0) return;
+            await Task.Delay(500, _lifetime.Token);
+            await RefreshAsync();
+        }
+        catch (OperationCanceledException)
+        {
+        }
+        catch (ObjectDisposedException) when (Volatile.Read(ref _disposed) != 0)
+        {
+        }
     }
 
     private async Task ExecuteActionAsync(string commandId, string successMessage)
     {
-        if (IsBusy) return;
+        if (IsBusy || Volatile.Read(ref _disposed) != 0) return;
         IsBusy = true;
         try
         {
             await ExecutePayloadAsync(commandId);
             ActionMessage = successMessage;
+        }
+        catch (OperationCanceledException) when (Volatile.Read(ref _disposed) != 0)
+        {
         }
         catch (Exception exception)
         {
@@ -113,6 +139,11 @@ public sealed class AudioRelayViewModel : MptObservableViewModel, IDisposable
 
     private async Task<JsonObject> ExecutePayloadAsync(string commandId)
     {
+        if (Volatile.Read(ref _disposed) != 0)
+        {
+            throw new OperationCanceledException();
+        }
+
         var command = await _context.ExecuteCommandAsync(commandId, null, _lifetime.Token);
         if (!command.Success)
         {

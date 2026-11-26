@@ -78,7 +78,7 @@ internal static class SystemFileHandlePathProbe
             {
                 duplicated++;
                 var kind = FileKind(
-                    GetFileType(duplicatedHandle.DangerousGetHandle()));
+                    GetFileType(duplicatedHandle));
                 var path = TryReadPath(duplicatedHandle);
                 if (string.IsNullOrWhiteSpace(path))
                 {
@@ -256,7 +256,7 @@ internal static class SystemFileHandlePathProbe
         uint flags);
 
     [DllImport("kernel32.dll")]
-    private static extern uint GetFileType(IntPtr handle);
+    private static extern uint GetFileType(SafeFileHandle handle);
 
     private sealed record PathObservation(
         string Group,

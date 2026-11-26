@@ -2,6 +2,7 @@ using System.Text.Json;
 using System.Text.Json.Nodes;
 using NssmManager.Contracts;
 using NssmManager.Runtime;
+using NssmManager.Tool;
 
 namespace NssmManager.Tests;
 
@@ -50,5 +51,45 @@ public sealed class RuntimeContractTests
         Assert.Same(brokerEnvelope, brokerEnvelope["payload"]?.Parent);
         Assert.Same(runtimeEnvelope, payload.Parent);
         Assert.NotSame(brokerEnvelope["payload"], payload);
+    }
+
+    [Fact]
+    public void ResolveExpectedImagePath_uses_services_list_when_selection_cleared()
+    {
+        var loaded = new NssmServiceConfiguration { Name = "DemoSvc" };
+        var services = new[]
+        {
+            new NssmServiceSnapshot(
+                "Other",
+                "Other",
+                "",
+                @"C:\other.exe",
+                @"C:\other\nssm.exe",
+                NssmServiceState.Stopped,
+                NssmStartupType.Automatic,
+                0,
+                true,
+                true),
+            new NssmServiceSnapshot(
+                "DemoSvc",
+                "Demo",
+                "",
+                @"C:\demo.exe",
+                @"C:\host\nssm-manager.exe",
+                NssmServiceState.Running,
+                NssmStartupType.Automatic,
+                42,
+                true,
+                true)
+        };
+
+        var path = NssmManagerViewModel.ResolveExpectedImagePath(null, loaded, services);
+        Assert.Equal(@"C:\host\nssm-manager.exe", path);
+
+        var selected = services[1];
+        Assert.Equal(selected.ImagePath, NssmManagerViewModel.ResolveExpectedImagePath(selected, loaded, services));
+
+        Assert.Throws<InvalidOperationException>(() =>
+            NssmManagerViewModel.ResolveExpectedImagePath(null, loaded, []));
     }
 }

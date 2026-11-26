@@ -88,7 +88,7 @@ public sealed class PackagingTests
             {
                 OutputFormat = OutputFormat.List
             });
-            var problems = evaluation.Details
+            var problems = (evaluation.Details ?? [])
                 .Where(detail => !detail.IsValid)
                 .Select(detail => $"{detail.InstanceLocation}: {detail.Errors?.ToString() ?? "invalid"}")
                 .ToArray();
@@ -137,6 +137,9 @@ public sealed class PackagingTests
 
         // The surface folder ships only the surface: AvaloniaSdk and Abstractions are resolved as
         // shared assemblies by every dotnet-surface host, so a second copy is package weight only.
+        Assert.False(File.Exists(Path.Combine(package, "MyPowerTools.Abstractions.dll")));
+        Assert.False(File.Exists(Path.Combine(package, "MyPowerTools.Platform.Abstractions.dll")));
+
         var surface = Path.Combine(package, "ui", "surface");
         Assert.False(File.Exists(Path.Combine(surface, "MyPowerTools.AvaloniaSdk.dll")));
         Assert.False(File.Exists(Path.Combine(surface, "MyPowerTools.Abstractions.dll")));

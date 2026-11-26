@@ -357,7 +357,7 @@ internal static class NssmManagerProgram
             ["SuppressShellWindow"] = false
         }.ToJsonString();
         var uri = $"mypowertools://activate?payload={Uri.EscapeDataString(payload)}";
-        Process.Start(new ProcessStartInfo(uri) { UseShellExecute = true });
+        using var _ = Process.Start(new ProcessStartInfo(uri) { UseShellExecute = true });
         return 0;
     }
 

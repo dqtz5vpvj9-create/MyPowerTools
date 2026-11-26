@@ -20,13 +20,19 @@ public partial class NssmManagerView : UserControl, IMptAvaloniaSurfaceActivatio
 
     private void AffinityAll_Click(object? sender, RoutedEventArgs e)
     {
-        if (DataContext is NssmManagerViewModel model && sender is CheckBox box) model.set_affinity_enabled(box.IsChecked != true);
+        if (DataContext is NssmManagerViewModel model && sender is CheckBox box)
+        {
+            model.SetAffinityEnabled(box.IsChecked != true);
+        }
     }
 
     private void HookCommand_LostFocus(object? sender, RoutedEventArgs e)
     {
         if (DataContext is not NssmManagerViewModel model) return;
-        model.set_hook_tab(model.HookEvents.ToList().IndexOf(model.SelectedHookEvent), model.AvailableHookActions.ToList().IndexOf(model.SelectedHookAction), true);
+        model.SelectHookTab(
+            model.HookEvents.ToList().IndexOf(model.SelectedHookEvent),
+            model.AvailableHookActions.ToList().IndexOf(model.SelectedHookAction),
+            saveCurrentHook: true);
     }
 
     private async Task BrowseAsync(NssmBrowseTarget target, bool applicationFilter = false)
@@ -46,7 +52,7 @@ public partial class NssmManagerView : UserControl, IMptAvaloniaSurfaceActivatio
             var files = await storage.OpenFilePickerAsync(new FilePickerOpenOptions { AllowMultiple = false, Title = "选择文件", FileTypeFilter = types });
             selected = files.FirstOrDefault()?.TryGetLocalPath();
         }
-        if (!string.IsNullOrWhiteSpace(selected)) model.browse(target, selected);
+        if (!string.IsNullOrWhiteSpace(selected)) model.ApplyBrowseSelection(target, selected);
     }
 
     public async ValueTask<bool> ActivateAsync(ToolActivationRequest request, CancellationToken cancellationToken = default)

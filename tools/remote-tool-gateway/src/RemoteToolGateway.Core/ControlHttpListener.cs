@@ -1,3 +1,4 @@
+using System.Collections.Concurrent;
 using System.Net;
 using System.Net.Sockets;
 using System.Text;
@@ -14,6 +15,7 @@ public sealed class ControlHttpListener : IAsyncDisposable
 {
     private const int ConnectionBudget = 8;
     private static readonly TimeSpan RequestTimeout = TimeSpan.FromSeconds(20);
+    private static readonly TimeSpan BusyWriteTimeout = TimeSpan.FromSeconds(5);
 
     private readonly IPAddress _address;
     private readonly int _port;
@@ -22,6 +24,8 @@ public sealed class ControlHttpListener : IAsyncDisposable
     private readonly Action<string>? _log;
     private readonly SemaphoreSlim _slots = new(ConnectionBudget, ConnectionBudget);
     private readonly CancellationTokenSource _lifetime = new();
+    private readonly ConcurrentDictionary<long, Task> _activeClients = new();
+    private long _nextClientId;
     private TcpListener? _listener;
     private Task _loop = Task.CompletedTask;
     private Exception? _fault;
@@ -43,7 +47,7 @@ public sealed class ControlHttpListener : IAsyncDisposable
 
     public IPEndPoint? LocalEndpoint => _listener?.LocalEndpoint as IPEndPoint;
 
-    public bool Running => _listener is not null;
+    public bool Running => _listener is not null && !_loop.IsCompleted;
 
     public Task Completion => _loop;
 
@@ -72,20 +76,50 @@ public sealed class ControlHttpListener : IAsyncDisposable
                 catch (ObjectDisposedException) when (_lifetime.IsCancellationRequested) { return; }
                 catch (Exception ex) { Volatile.Write(ref _fault, ex); return; }
 
-                _ = HandleClientAsync(client);
+                TrackClient(client);
             }
         }
-        catch (Exception ex) { Volatile.Write(ref _fault, ex); }
+        catch (Exception ex)
+        {
+            Volatile.Write(ref _fault, ex);
+        }
+    }
+
+    private void TrackClient(TcpClient client)
+    {
+        var clientId = Interlocked.Increment(ref _nextClientId);
+        var task = HandleClientAsync(client);
+        _activeClients[clientId] = task;
+        _ = task.ContinueWith(
+            _ => _activeClients.TryRemove(clientId, out Task? _),
+            CancellationToken.None,
+            TaskContinuationOptions.ExecuteSynchronously,
+            TaskScheduler.Default);
     }
 
     private async Task HandleClientAsync(TcpClient client)
     {
         using (client)
         {
-            if (!_slots.Wait(0))
+            bool acquired;
+            try
+            {
+                acquired = _slots.Wait(0);
+            }
+            catch (ObjectDisposedException)
+            {
+                return;
+            }
+
+            if (!acquired)
             {
                 // The budget protects the desktop from a burst; excess connections are told to retry.
-                await TryWriteAsync(client, ControlResponse.Error(503, ControlErrorCodes.Busy, "网关正忙，请稍后重试。"));
+                using var busyDeadline = CancellationTokenSource.CreateLinkedTokenSource(_lifetime.Token);
+                busyDeadline.CancelAfter(BusyWriteTimeout);
+                await TryWriteAsync(
+                    client,
+                    ControlResponse.Error(503, ControlErrorCodes.Busy, "网关正忙，请稍后重试。"),
+                    busyDeadline.Token);
                 return;
             }
 
@@ -108,13 +142,16 @@ public sealed class ControlHttpListener : IAsyncDisposable
                 var request = await ReadRequestAsync(stream, remote, token);
                 if (request is null) return;
                 var response = request.Error ?? await InvokeAsync(request.Request!, token);
-                await TryWriteAsync(client, response, token);
+                await TryWriteAsync(stream, response, token);
             }
             catch (Exception ex) when (ex is IOException or SocketException or ObjectDisposedException or OperationCanceledException or InvalidDataException)
             {
                 _log?.Invoke("control request failed: " + ex.GetType().Name);
             }
-            finally { try { _slots.Release(); } catch (ObjectDisposedException) { } }
+            finally
+            {
+                try { _slots.Release(); } catch (ObjectDisposedException) { }
+            }
         }
     }
 
@@ -134,10 +171,10 @@ public sealed class ControlHttpListener : IAsyncDisposable
 
     private sealed record ParsedRequest(ControlRequest? Request, ControlResponse? Error);
 
-    private static async Task<ParsedRequest> ReadRequestAsync(NetworkStream stream, IPAddress remote, CancellationToken token)
+    private static async Task<ParsedRequest?> ReadRequestAsync(NetworkStream stream, IPAddress remote, CancellationToken token)
     {
         var block = await ReadHeaderBlockAsync(stream, token);
-        if (block is null) return new ParsedRequest(null, null);
+        if (block is null) return null;
         // A single TCP segment often carries the headers and the whole body: the bytes after the
         // header terminator belong to the body and must not be discarded.
         var (header, leftover) = block.Value;
@@ -300,15 +337,19 @@ public sealed class ControlHttpListener : IAsyncDisposable
 
     private static async Task TryWriteAsync(NetworkStream stream, ControlResponse response, CancellationToken token)
     {
-        var body = Encoding.UTF8.GetBytes(response.Body);
-        var head = $"HTTP/1.1 {response.StatusCode} {Reason(response.StatusCode)}\r\n" +
-                   "Content-Type: application/json; charset=utf-8\r\n" +
-                   "Cache-Control: no-store\r\n" +
-                   $"Content-Length: {body.Length}\r\n" +
-                   "Connection: close\r\n\r\n";
-        await stream.WriteAsync(Encoding.ASCII.GetBytes(head), token);
-        await stream.WriteAsync(body, token);
-        await stream.FlushAsync(token);
+        try
+        {
+            var body = Encoding.UTF8.GetBytes(response.Body);
+            var head = $"HTTP/1.1 {response.StatusCode} {Reason(response.StatusCode)}\r\n" +
+                       "Content-Type: application/json; charset=utf-8\r\n" +
+                       "Cache-Control: no-store\r\n" +
+                       $"Content-Length: {body.Length}\r\n" +
+                       "Connection: close\r\n\r\n";
+            await stream.WriteAsync(Encoding.ASCII.GetBytes(head), token);
+            await stream.WriteAsync(body, token);
+            await stream.FlushAsync(token);
+        }
+        catch (Exception ex) when (ex is IOException or SocketException or ObjectDisposedException or OperationCanceledException) { }
     }
 
     private static string Reason(int status) => status switch
@@ -335,6 +376,13 @@ public sealed class ControlHttpListener : IAsyncDisposable
         try { _listener?.Stop(); } catch (Exception) { }
         _listener = null;
         try { await _loop.WaitAsync(TimeSpan.FromSeconds(2)); } catch (Exception) { }
+
+        var active = _activeClients.Values.ToArray();
+        if (active.Length > 0)
+        {
+            try { await Task.WhenAll(active).WaitAsync(TimeSpan.FromSeconds(5)); } catch (Exception) { }
+        }
+
         _lifetime.Dispose();
         _slots.Dispose();
     }

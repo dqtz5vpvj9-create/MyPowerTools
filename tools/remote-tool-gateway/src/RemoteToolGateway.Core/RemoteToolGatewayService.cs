@@ -49,6 +49,7 @@ public sealed class RemoteToolGatewayService : IAsyncDisposable
     private string _listenerAddress = "";
     private string _listenerMessage = "";
     private int _listenerPort;
+    private int _disposed;
 
     public RemoteToolGatewayService(
         string dataDirectory,
@@ -95,8 +96,8 @@ public sealed class RemoteToolGatewayService : IAsyncDisposable
         var ephemeral = port == 0 && _options.AllowLoopbackTransport;
         if (!ephemeral && port is < 1024 or > 65535) throw new ArgumentException("监听端口应在 1024–65535 之间。");
         if (port == FileTransferPort) throw new ArgumentException($"端口 {FileTransferPort} 已被文件互传使用，请换一个端口。");
-        if (ListenerRunning && ip.Equals(ParseCurrentAddress()) && port == _listenerPort)
-            return TailnetBinding.FormatEndpoint(ip, port);
+        if (ListenerRunning && ip.Equals(ParseCurrentAddress()) && port != 0 && port == _listenerPort)
+            return TailnetBinding.FormatEndpoint(ip, _listenerPort);
 
         await StopListenerAsync();
         var listener = new ControlHttpListener(ip, port, _options.AllowLoopbackTransport, HandleAsync);
@@ -106,18 +107,24 @@ public sealed class RemoteToolGatewayService : IAsyncDisposable
         }
         catch (Exception ex) when (ex is System.Net.Sockets.SocketException or InvalidOperationException)
         {
+            await listener.DisposeAsync();
             _listenerMessage = MptRedact(ex.Message);
             throw new InvalidOperationException($"无法在 {TailnetBinding.FormatEndpoint(ip, port)} 上监听：{_listenerMessage}", ex);
+        }
+        catch
+        {
+            await listener.DisposeAsync();
+            throw;
         }
 
         _listener = listener;
         _listenerAddress = ip.ToString();
         _listenerPort = listener.LocalEndpoint?.Port ?? port;
-        _listenerMessage = $"正在 {TailnetBinding.FormatEndpoint(ip, port)} 上等待已授权的手机。";
+        var endpoint = TailnetBinding.FormatEndpoint(ip, _listenerPort);
+        _listenerMessage = $"正在 {endpoint} 上等待已授权的手机。";
         Audit.Record("listener-start", "", "", "", "", "running", _listenerMessage);
-        Publish("listener.changed", new JsonObject { ["running"] = true, ["address"] = _listenerAddress, ["port"] = port });
-        await Task.CompletedTask;
-        return TailnetBinding.FormatEndpoint(ip, port);
+        Publish("listener.changed", new JsonObject { ["running"] = true, ["address"] = _listenerAddress, ["port"] = _listenerPort });
+        return endpoint;
     }
 
     public async Task StopListenerAsync()
@@ -1165,6 +1172,11 @@ public sealed class RemoteToolGatewayService : IAsyncDisposable
 
     public async ValueTask DisposeAsync()
     {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
+        {
+            return;
+        }
+
         try { await _lifetime.CancelAsync(); } catch (ObjectDisposedException) { }
         await StopListenerAsync();
         foreach (var grant in Grants.Grants)
@@ -1173,11 +1185,14 @@ public sealed class RemoteToolGatewayService : IAsyncDisposable
             {
                 // Shutdown is not a cancellation result: release the local stream and let the
                 // execution path report the honest "unknown outcome" when it ends.
-                record.Cancellation?.Cancel();
+                try { record.Cancellation?.Cancel(); } catch (ObjectDisposedException) { }
             }
         }
 
         await Audit.FlushAsync();
         lock (_catalogLock) _catalog = null;
+        Grants.Dispose();
+        _admission.Dispose();
+        _lifetime.Dispose();
     }
 }

@@ -82,7 +82,7 @@ public sealed class ConfirmationCancelParityTests
                 executedIds.Add(invocationId);
                 var state = "failed";
                 var summary = "";
-                await foreach (var evt in bridge.ExecuteStreamAsync(invocationId, commandId, args, cancellationToken))
+                await foreach (var evt in bridge.ExecuteStreamAsync(invocationId, commandId, args ?? new JsonObject(), cancellationToken))
                 {
                     if (evt.FinalResponse is { } final)
                     {

@@ -20,7 +20,7 @@ public sealed class ManagedServiceRuntime : INssmServiceRuntime
     private readonly TaskCompletionSource _started = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private readonly DateTimeOffset _runtimeStarted = DateTimeOffset.UtcNow;
     private TaskCompletionSource? _throttleWake;
-    private Process? _process;
+    private StartedChildProcess? _process;
     private NativeChildProcessIo? _processIo;
     private uint _lastExitCode;
     private uint _startRequestedCount;
@@ -240,7 +240,7 @@ public sealed class ManagedServiceRuntime : INssmServiceRuntime
         var context = new NssmHookServiceContext
         {
             Service = _configuration,
-            ApplicationProcess = _process,
+            ApplicationProcess = _process?.Process,
             LastControl = _lastControl,
             NssmCreationTime = _runtimeStarted,
             ApplicationCreationTime = _applicationStarted,
@@ -250,7 +250,7 @@ public sealed class ManagedServiceRuntime : INssmServiceRuntime
             StartCount = _startCount,
             ExitCount = _exitCount,
             ThrottleCount = _throttleCount,
-            StartHook = (command, directory, environment) => NativeChildProcess.StartHook(command, directory, environment, _processIo, _configuration.RedirectHookOutput)
+            StartNativeHook = (command, directory, environment) => NativeChildProcess.StartHook(command, directory, environment, _processIo, _configuration.RedirectHookOutput)
         };
         return NssmHook.nssm_hook(_hookThreads, context, eventName, actionName, trigger, checked((uint)deadlineMilliseconds), async, cancellationToken);
     }
@@ -286,7 +286,7 @@ public sealed class ManagedServiceRuntime : INssmServiceRuntime
         return controlled ? NssmExitAction.Exit : action;
     }
 
-    private NssmKillContext CreateKillContext(Process process, uint exitCode)
+    private NssmKillContext CreateKillContext(StartedChildProcess process, uint exitCode)
     {
         var context = new NssmKillContext
         {
@@ -328,6 +328,20 @@ public sealed class ManagedServiceRuntime : INssmServiceRuntime
 
     [NssmUpstreamFunction("src/service.cpp", 2209, "int await_single_handle(SERVICE_STATUS_HANDLE status_handle, SERVICE_STATUS *status, HANDLE handle, TCHAR *name, TCHAR *function_name, unsigned long timeout)", "NssmServiceRuntimeTranslationTests.runtime_function_translation_is_wired")]
     internal static async Task<int> await_single_handle(Process process, uint milliseconds)
+    {
+        try
+        {
+            if (process.HasExited) return 0;
+            if (milliseconds == 0) return 1;
+            using var timeout = new CancellationTokenSource(TimeSpan.FromMilliseconds(milliseconds));
+            await process.WaitForExitAsync(timeout.Token).ConfigureAwait(false);
+            return 0;
+        }
+        catch (OperationCanceledException) { return process.HasExited ? 0 : 1; }
+        catch { return -1; }
+    }
+
+    internal static async Task<int> await_single_handle(StartedChildProcess process, uint milliseconds)
     {
         try
         {
