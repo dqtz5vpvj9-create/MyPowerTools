@@ -1,4 +1,5 @@
 <UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:adaptive="using:MyPowerTools.AvaloniaSdk"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:controls="using:MyPowerTools.UI.Controls"
              xmlns:vm="using:MyPowerTools.Shell.Avalonia.ViewModels"
@@ -6,7 +7,7 @@
              x:DataType="vm:ModuleDetailViewModel">
   <StackPanel Margin="{DynamicResource MptPagePadding}" Spacing="{DynamicResource MptSpacingM}">
     <Border Classes="MptModuleCard">
-      <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto">
+      <Grid adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto">
         <StackPanel Spacing="{DynamicResource MptSpacingXs}">
           <TextBlock Classes="MptPageTitle" Text="{Binding Title}" />
           <TextBlock Classes="MptPageSubtitle" Text="{Binding Summary}" TextWrapping="Wrap" />
@@ -37,7 +38,7 @@
           </ItemsControl.ItemTemplate>
         </ItemsControl>
 
-        <StackPanel Grid.Row="2"
+        <StackPanel adaptive:MptAdaptiveLayout.StackBelow="480" Grid.Row="2"
                     Grid.ColumnSpan="2"
                     Classes="MptActionBar"
                     Orientation="Horizontal"
@@ -55,7 +56,7 @@
     </Border>
 
     <Border Classes="MptTabStrip">
-      <StackPanel Orientation="Horizontal" Spacing="{DynamicResource MptSpacingXs}">
+      <StackPanel adaptive:MptAdaptiveLayout.StackBelow="480" Orientation="Horizontal" Spacing="{DynamicResource MptSpacingXs}">
         <TextBlock Classes="MptTabItemSelected" Text="Overview" />
         <TextBlock Classes="MptTabItem" Text="Commands" />
         <TextBlock Classes="MptTabItem" Text="Settings" />
@@ -65,11 +66,11 @@
       </StackPanel>
     </Border>
 
-    <Grid ColumnDefinitions="*,360" ColumnSpacing="{DynamicResource MptSpacingM}">
+    <Grid adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="*,360" ColumnSpacing="{DynamicResource MptSpacingM}">
       <StackPanel Spacing="{DynamicResource MptSpacingM}">
         <Border Classes="MptSettingsSection">
           <StackPanel Spacing="{DynamicResource MptSpacingS}">
-            <Grid ColumnDefinitions="*,Auto">
+            <Grid adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="*,Auto">
               <TextBlock Classes="MptSectionTitle" Text="Overview" />
               <Border Grid.Column="1" Classes="MptStatusBadge">
                 <TextBlock Classes="MptMeta" Text="{Binding StateLabel}" />
@@ -86,12 +87,12 @@
 
         <Border Classes="MptSettingsSection">
           <StackPanel Spacing="{DynamicResource MptSpacingS}">
-            <Grid ColumnDefinitions="*,Auto">
+            <Grid adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="*,Auto">
               <TextBlock Classes="MptSectionTitle" Text="Commands" />
               <TextBlock Grid.Column="1" Classes="MptMeta" Text="{Binding Commands.Count}" />
             </Grid>
             <Border Classes="MptToolbar">
-              <StackPanel Classes="MptToolbar" Orientation="Horizontal">
+              <StackPanel adaptive:MptAdaptiveLayout.StackBelow="480" Classes="MptToolbar" Orientation="Horizontal">
                 <controls:MptTextBox PlaceholderText="Search commands"
                                      MinWidth="{DynamicResource MptPackageIdInputWidth}" />
                 <controls:MptButton Content="Run selected"
@@ -108,7 +109,7 @@
                                       HorizontalContentAlignment="Stretch"
                                       Margin="{DynamicResource MptGapBottomM}">
                     <Border Classes="MptCommandItem">
-                      <Grid ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto">
+                      <Grid adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="*,Auto" RowDefinitions="Auto,Auto,Auto">
                         <TextBlock FontWeight="SemiBold" Text="{Binding Title}" />
                         <TextBlock Grid.Column="1" Classes="MptMeta" Text="{Binding RiskLabel}" />
                         <TextBlock Grid.Row="1" Grid.ColumnSpan="2" Classes="MptPageSubtitle" Text="{Binding Subtitle}" />
@@ -126,7 +127,7 @@
           <StackPanel Spacing="{DynamicResource MptSpacingS}">
             <TextBlock Classes="MptSectionTitle" Text="Logs" />
             <Border Classes="MptToolbar">
-              <StackPanel Classes="MptToolbar" Orientation="Horizontal">
+              <StackPanel adaptive:MptAdaptiveLayout.StackBelow="480" Classes="MptToolbar" Orientation="Horizontal">
                 <controls:MptTextBox PlaceholderText="Filter by invocation id"
                                      MinWidth="{DynamicResource MptPackageIdInputWidth}" />
                 <controls:MptButton Content="Copy line"
@@ -154,7 +155,7 @@
                 <DataTemplate x:DataType="vm:ModuleDiagnosticItemViewModel">
                   <Border Classes="MptSettingsField" Margin="{DynamicResource MptGapBottomM}">
                     <StackPanel Spacing="{DynamicResource MptSpacingXs}">
-                      <Grid ColumnDefinitions="*,Auto">
+                      <Grid adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="*,Auto">
                         <TextBlock FontWeight="SemiBold" Text="{Binding Label}" />
                         <Border Grid.Column="1" Classes="MptStatusBadge">
                           <TextBlock Classes="MptMeta" Text="{Binding State}" />
@@ -180,7 +181,7 @@
                 <DataTemplate x:DataType="vm:ModulePermissionViewModel">
                   <Border Classes="MptSettingsField" Margin="{DynamicResource MptGapBottomM}">
                     <StackPanel Spacing="{DynamicResource MptSpacingXs}">
-                      <Grid ColumnDefinitions="*,Auto">
+                      <Grid adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="*,Auto">
                         <TextBlock FontWeight="SemiBold" Text="{Binding Id}" />
                         <Border Grid.Column="1" Classes="MptStatusBadge">
                           <TextBlock Classes="MptMeta" Text="{Binding Level}" />
@@ -207,7 +208,7 @@
                 <DataTemplate x:DataType="vm:ModuleRequirementViewModel">
                   <Border Classes="MptSettingsField" Margin="{DynamicResource MptGapBottomM}">
                     <StackPanel Spacing="{DynamicResource MptSpacingXs}">
-                      <Grid ColumnDefinitions="*,Auto">
+                      <Grid adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="*,Auto">
                         <TextBlock FontWeight="SemiBold" Text="{Binding Capability}" />
                         <Border Grid.Column="1" Classes="MptStatusBadge">
                           <TextBlock Classes="MptMeta" Text="{Binding StateLabel}" />

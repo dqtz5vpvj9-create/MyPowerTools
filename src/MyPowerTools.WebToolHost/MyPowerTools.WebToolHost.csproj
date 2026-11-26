@@ -19,5 +19,6 @@
 
   <ItemGroup>
     <EmbeddedResource Include="../MyPowerTools.WebSurface.Shared/ShortcutForwarding.inc" LogicalName="MptShortcutForwarding" />
+    <Compile Include="../MyPowerTools.AvaloniaSdk/CloudAuthorization.cs" Link="CloudAuthorization.cs" />
   </ItemGroup>
 </Project>

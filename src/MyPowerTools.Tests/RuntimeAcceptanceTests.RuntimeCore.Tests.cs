@@ -401,4 +401,65 @@ commands:
         Assert.Contains(events, evt => evt.Type is "server.disconnected" or "message.received");
         Assert.NotEmpty(notifications);
     }
+
+    [Fact]
+    public void Runtime_diagnostics_report_duplicate_development_module_ids_without_throwing()
+    {
+        var testRoot = Path.Combine(Path.GetTempPath(), "mpt-runtime-duplicate-module", Guid.NewGuid().ToString("N"));
+        var modulesRoot = Path.Combine(testRoot, "modules");
+        var toolsRoot = Path.Combine(testRoot, "tools");
+        var installedPackage = Path.Combine(modulesRoot, "local-lag-cleaner");
+        var developmentTool = Path.Combine(toolsRoot, "local-lag-cleaner");
+        Directory.CreateDirectory(installedPackage);
+        Directory.CreateDirectory(developmentTool);
+
+        WriteInProcDotNetModulePackage(
+            installedPackage,
+            "local-lag-cleaner",
+            "local-lag-cleaner",
+            "Local Lag Cleaner",
+            typeof(SampleDotNetModule).FullName!);
+        File.WriteAllText(Path.Combine(developmentTool, "tool.json"), """
+        {
+          "schemaVersion": "1.0",
+          "version": "0.1.0",
+          "toolId": "local-lag-cleaner",
+          "title": "Local Lag Cleaner (development overlay)",
+          "type": "web-surface",
+          "availability": "available",
+          "primaryRouteId": "main",
+          "routes": [{
+            "routeId": "main",
+            "surfaceId": "local-lag-cleaner.main",
+            "title": "Overview",
+            "surface": { "kind": "web", "source": "http://127.0.0.1:18999/", "openExternal": true }
+          }],
+          "permissions": []
+        }
+        """);
+
+        var runtime = new MptHostRuntime(
+            new PackageReader(),
+            PlatformId.Current(),
+            RuntimePaths.Create(Path.Combine(testRoot, "data")));
+        runtime.Load(modulesRoot, [toolsRoot]);
+
+        // The development tool collides with the installed module id, so the catalog keeps the
+        // installed record and adds the duplicate as an error card instead of aborting.
+        var records = runtime.ListModules(includeDisabled: true)
+            .Where(module => module.Module.Manifest.Id == "local-lag-cleaner")
+            .ToArray();
+        Assert.Equal(2, records.Length);
+        Assert.Contains(records, module => module.Status.State == "error");
+        Assert.Equal(1, records.Count(module => module.Status.State != "error"));
+
+        // Regression: the diagnostics snapshot keyed its supervisor lookup by module id and
+        // threw ArgumentException ("An item with the same key has already been added. Key:
+        // local-lag-cleaner") as soon as a duplicate error card existed, which HostControl
+        // surfaced as an uncaught RpcException with StatusCode.Unknown.
+        var diagnostics = runtime.GetRuntimeDiagnostics();
+        var rows = diagnostics.Modules.Where(module => module.ModuleId == "local-lag-cleaner").ToArray();
+        Assert.Equal(2, rows.Length);
+        Assert.All(rows, row => Assert.False(string.IsNullOrWhiteSpace(row.SupervisorState)));
+    }
 }

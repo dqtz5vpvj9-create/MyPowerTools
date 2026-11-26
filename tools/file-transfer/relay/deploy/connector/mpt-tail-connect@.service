@@ -1,0 +1,16 @@
+[Unit]
+Description=MPT fixed Tail relay connection
+Wants=mpt-tail-connector.service
+After=mpt-tail-connector.service
+
+[Service]
+User=mpt-tail-connector
+Group=mpt-tail-connector
+ExecStart=/usr/bin/tailscale --socket=/run/mpt-tail-connector/tailscaled.sock nc 100.64.0.1 80
+StandardInput=socket
+StandardOutput=socket
+StandardError=journal
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true

@@ -213,6 +213,7 @@ public sealed class FaultInjectionDotNetModule : IMptModule
             new("sample.dotnet.fault.throw", Id, "Throw a managed exception", "Soft isolation fixture", "action"),
             new("sample.dotnet.fault.timeout", Id, "Wait until cancelled", "Soft isolation fixture", "action"),
             new("sample.dotnet.fault.ignore-timeout", Id, "Ignore cancellation", "Soft isolation fixture", "action"),
+            new("sample.dotnet.fault.unbounded", Id, "Complete a cancellable transfer", "Soft isolation fixture", "action", TimeoutMs: Timeout.Infinite),
             new("sample.dotnet.fault.slow-success", Id, "Return success after a test release signal", "Soft isolation fixture", "action")
         ];
         return ValueTask.FromResult(commands);
@@ -234,6 +235,9 @@ public sealed class FaultInjectionDotNetModule : IMptModule
                 var dataDirectory = _dataDirectory ?? throw new InvalidOperationException("Fixture was not initialized.");
                 SoftIsolationFixtureFiles.Touch(dataDirectory, "slow-success.started");
                 SoftIsolationFixtureFiles.WaitForFile(dataDirectory, "slow-success.release", TimeSpan.FromSeconds(15));
+                break;
+            case "sample.dotnet.fault.unbounded":
+                await Task.Delay(TimeSpan.FromMilliseconds(1500), cancellationToken);
                 break;
         }
 

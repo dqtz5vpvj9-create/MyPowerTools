@@ -61,7 +61,7 @@ public sealed class HostControlConnectionMonitor : IAsyncDisposable
         _probe = probe;
         _pollInterval = pollInterval ?? TimeSpan.FromSeconds(5);
         _attemptTimeout = attemptTimeout ?? TimeSpan.FromSeconds(2);
-        _eventDriven = eventDriven ?? OperatingSystem.IsMacOS();
+        _eventDriven = eventDriven ?? (OperatingSystem.IsMacOS() || OperatingSystem.IsAndroid());
         LastSnapshot = new HostControlConnectionSnapshot(
             false,
             "unknown",

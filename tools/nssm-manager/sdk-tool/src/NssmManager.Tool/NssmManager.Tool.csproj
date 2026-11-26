@@ -5,10 +5,13 @@
     <Nullable>enable</Nullable>
   </PropertyGroup>
   <ItemGroup>
-    <InternalsVisibleTo Include="NssmManager.Tests" />
-    <PackageReference Include="MyPowerTools.AvaloniaSdk" Version="0.2.0" />
+    <PackageReference Include="MyPowerTools.AvaloniaSdk" Version="0.2.1" />
     <PackageReference Include="MyPowerTools.ToolSdk" Version="0.2.0" />
     <ProjectReference Include="..\NssmManager.Contracts\NssmManager.Contracts.csproj" />
     <Compile Include="..\NssmManager.Runtime\NssmElevatedClient.cs" Link="Broker\NssmElevatedClient.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <!-- Windows worktree addition: the tool tests reach internal translation helpers directly. -->
+    <InternalsVisibleTo Include="NssmManager.Tests" />
   </ItemGroup>
 </Project>

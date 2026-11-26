@@ -1,0 +1,25 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>MPT · 我的网盘</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="reviewbar">
+    <div class="reviewbrand"><span class="mark">M</span><strong>MPT · 网盘体验</strong><span class="demo-label">交互演示</span></div>
+    <p>示例账号 · 登录与传输均为模拟</p>
+    <div class="view-switch" aria-label="预览尺寸"><button data-action="viewport" data-value="desktop" aria-pressed="true">桌面</button><button data-action="viewport" data-value="phone" aria-pressed="false">手机</button></div>
+  </header>
+  <nav class="scenarios" aria-label="测试场景"><span>试一试</span><button data-action="scenario" data-value="empty">首次连接</button><button data-action="scenario" data-value="normal" aria-pressed="true">正常</button><button data-action="scenario" data-value="expired">需重新登录</button><button data-action="scenario" data-value="full">空间不足</button><button class="reset" data-action="reset">重置演示</button></nav>
+  <div class="app" id="app">
+    <aside class="sidebar"><div class="appbrand"><span class="mark">M</span><b>MyPowerTools</b></div><div class="sidebar-caption">文件传输助手</div><button data-action="chat" class="navitem" id="nav-chat"></button><button data-action="cloud" class="navitem active" id="nav-cloud"></button><div class="sidebar-spacer"></div><div class="local-device"><span class="device-icon" id="device-icon"></span><div><b>这台设备</b><small>设置仅在本机生效</small></div></div></aside>
+    <main id="main" tabindex="-1"></main>
+  </div>
+  <div id="toast" class="toast" role="status" hidden></div>
+  <dialog id="dialog" aria-labelledby="dialog-title"><div id="dialog-content"></div></dialog>
+  <script src="app.js"></script>
+</body>
+</html>

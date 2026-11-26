@@ -227,7 +227,12 @@ public sealed partial class RuntimeAcceptanceTests
             new MyPowerTools.Protocol.HostControl.V1.ListPackagesRequest { IncludeDisabled = true },
             new TestServerCallContext());
 
-        Assert.Equal(7, response.Packages.Count);
+        // Canonical desktop catalog: the seven original packages plus file-transfer.
+        // remote-commands-android is Android-only and must not be mirrored into modules/
+        // (docs/ANDROID_PORT.md), so a summary for it means the mirror regressed.
+        Assert.Equal(8, response.Packages.Count);
+        Assert.Contains(response.Packages, package => package.PackageId == "file-transfer");
+        Assert.DoesNotContain(response.Packages, package => package.PackageId == "remote-commands-android");
         var androidTools = response.Packages.Single(package => package.PackageId == "android-tools-suite");
         Assert.Equal(3u, androidTools.ModuleCount);
         Assert.Contains("android-tools.remote-commands", androidTools.ModuleIds);
@@ -338,8 +343,10 @@ public sealed partial class RuntimeAcceptanceTests
 
         Assert.Equal("0.2.0", diagnostics.RunnerVersion);
         Assert.Equal("1.0", diagnostics.HostControlProtocolVersion);
-        Assert.Equal(7u, diagnostics.Counts.PackageCount);
-        Assert.Equal(9u, diagnostics.Counts.ModuleCount);
+        // Same canonical desktop catalog as HostControl_lists_package_summaries:
+        // eight packages (the seven original ones plus file-transfer) and ten modules.
+        Assert.Equal(8u, diagnostics.Counts.PackageCount);
+        Assert.Equal(10u, diagnostics.Counts.ModuleCount);
         Assert.Equal((uint)runtime.CurrentEventSeq, diagnostics.CurrentEventSeq);
         Assert.Equal(dataRoot, diagnostics.Paths.Root);
         Assert.Contains(diagnostics.Transports, transport => transport.Kind == "inproc-dotnet" && transport.RuntimeRegistered);
@@ -391,5 +398,124 @@ public sealed partial class RuntimeAcceptanceTests
 
         // Completes normally (no cancellation fault surfaced as a gRPC error) and promptly.
         await subscription.WaitAsync(TimeSpan.FromSeconds(2));
+    }
+
+    [Fact]
+    public async Task HostControl_dashboard_snapshot_reads_cached_status_without_a_health_sweep()
+    {
+        var packageRoot = Path.Combine(Path.GetTempPath(), "mpt-hostcontrol-dashboard-cache", Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(packageRoot);
+        WriteInProcDotNetModulePackage(
+            packageRoot,
+            "sample.slow-status",
+            "sample-slow-status",
+            "Slow Status Module",
+            typeof(SampleDotNetModule).FullName!);
+
+        var slowTransport = new SlowStatusTransportRuntime(TimeSpan.FromSeconds(2));
+        var runtime = new MptHostRuntime(
+            new PackageReader(),
+            PlatformId.Current(),
+            RuntimePaths.Create(Path.Combine(Path.GetTempPath(), "mpt-hostcontrol-dashboard-cache-data", Guid.NewGuid().ToString("N"))),
+            [slowTransport]);
+        runtime.Load(packageRoot);
+        var service = new HostControlGrpcService(
+            runtime,
+            new AuditLog(Path.Combine(Path.GetTempPath(), "mpt-hostcontrol-dashboard-cache-audit", Guid.NewGuid().ToString("N"), "audit.jsonl")));
+
+        // Regression: the read path used to await RefreshHealthAsync, so one slow module (ScreenEase
+        // spends its whole 10s status budget) pushed the dashboard past the client's 15s deadline.
+        var readStarted = Stopwatch.StartNew();
+        var dashboard = await service.GetDashboardSnapshot(
+            new MyPowerTools.Protocol.HostControl.V1.DashboardSnapshotRequest(),
+            new TestServerCallContext());
+        readStarted.Stop();
+
+        Assert.Equal(0, slowTransport.StatusCalls);
+        Assert.True(
+            readStarted.Elapsed < TimeSpan.FromSeconds(1),
+            $"dashboard read waited on module health for {readStarted.Elapsed.TotalSeconds:0.00}s");
+        var cached = Assert.Single(dashboard.Cards.Where(card => card.ModuleId == "sample.slow-status"));
+        Assert.Equal("indexed", cached.State);
+
+        // Refresh semantics stay with the startup/explicit paths: the module card's
+        // `{module}.status.refresh` action (host.status.refresh) still sweeps the modules, and the
+        // next dashboard read serves the freshly recorded status from the cache.
+        var refresh = await runtime.ExecuteCommandAsync(
+            new CommandRequest("dashboard-cache-refresh", "sample.slow-status.status.refresh", new JsonObject()),
+            CancellationToken.None);
+        Assert.True(refresh.Success, refresh.Error?.Message);
+        Assert.Equal(1, slowTransport.StatusCalls);
+
+        var refreshed = await service.GetDashboardSnapshot(
+            new MyPowerTools.Protocol.HostControl.V1.DashboardSnapshotRequest(),
+            new TestServerCallContext());
+        Assert.Equal("running", refreshed.Cards.Single(card => card.ModuleId == "sample.slow-status").State);
+        Assert.Equal(1, slowTransport.StatusCalls);
+    }
+
+    [Theory]
+    [InlineData(-1, true)]
+    [InlineData(1000, false)]
+    public async Task Infinite_command_deadline_preserves_explicit_cancellation(int timeoutMs, bool expectedSuccess)
+    {
+        var root = Path.Combine(OperatingSystem.IsWindows() ? Path.GetTempPath() : "/mnt/cache/data-cache", "mpt-command-deadline-" + Guid.NewGuid().ToString("N"));
+        Directory.CreateDirectory(root);
+        try
+        {
+            WriteInProcDotNetModulePackage(root, "sample.slow-status", "sample-slow-status", "Slow command", typeof(SampleDotNetModule).FullName!);
+            var manifestPath = Path.Combine(root, "module.json");
+            var manifest = JsonNode.Parse(await File.ReadAllTextAsync(manifestPath))!.AsObject();
+            manifest["runtimePolicy"] = JsonNode.Parse(await File.ReadAllTextAsync(Path.Combine(Root, "tools", "file-transfer", "package", "module.json")))!["runtimePolicy"]!.DeepClone();
+            await File.WriteAllTextAsync(manifestPath, manifest.ToJsonString());
+            var transport = new SlowStatusTransportRuntime(TimeSpan.Zero, timeoutMs);
+            await using var runtime = new MptHostRuntime(new PackageReader(), PlatformId.Current(), RuntimePaths.Create(Path.Combine(root, "data")), [transport]);
+            runtime.Load(root);
+            await runtime.RefreshDynamicCommandsAsync(CancellationToken.None);
+            var completed = await runtime.ExecuteCommandAsync(new CommandRequest("deadline", "sample.slow-status.download", new()), CancellationToken.None);
+            Assert.True(completed.Success == expectedSuccess, completed.Error?.Message ?? completed.Output);
+            using var cancel = new CancellationTokenSource(100);
+            var cancelled = await runtime.ExecuteCommandAsync(new CommandRequest("explicit-cancel", "sample.slow-status.download", new()), cancel.Token);
+            Assert.False(cancelled.Success);
+        }
+        finally { Directory.Delete(root, true); }
+    }
+
+    private sealed class SlowStatusTransportRuntime(TimeSpan statusDelay, int? commandTimeout = null) : IModuleTransportRuntime
+    {
+        private int _statusCalls;
+
+        public string Kind => "inproc-dotnet";
+
+        public int StatusCalls => Volatile.Read(ref _statusCalls);
+
+        public async ValueTask<ModuleStatusSnapshot?> GetStatusAsync(RuntimeModuleRecord module, ModuleContext context, CancellationToken cancellationToken)
+        {
+            Interlocked.Increment(ref _statusCalls);
+            await Task.Delay(statusDelay, cancellationToken);
+            return new ModuleStatusSnapshot(
+                module.Module.Manifest.Id,
+                "running",
+                "slow status transport",
+                DateTimeOffset.UtcNow,
+                [],
+                0);
+        }
+
+        public ValueTask<SettingsSchemaDocument> GetSettingsSchemaAsync(RuntimeModuleRecord module, ModuleContext context, CancellationToken cancellationToken)
+        {
+            return ValueTask.FromResult(new SettingsSchemaDocument(module.Module.Manifest.Id, "{}"));
+        }
+
+        public ValueTask<IReadOnlyList<MptCommandDescriptor>> ListCommandsAsync(RuntimeModuleRecord module, ModuleContext context, CancellationToken cancellationToken)
+        {
+            return ValueTask.FromResult<IReadOnlyList<MptCommandDescriptor>>(commandTimeout is { } deadline ? [new("sample.slow-status.download", "sample.slow-status", "Download", "", "action", TimeoutMs: deadline, SupportsCancellation: true)] : []);
+        }
+
+        public async ValueTask<CommandExecutionResult> ExecuteCommandAsync(RuntimeModuleRecord module, ModuleContext context, CommandRequest request, CancellationToken cancellationToken)
+        {
+            if (commandTimeout is not null) await Task.Delay(1500, cancellationToken);
+            return new CommandExecutionResult(request.InvocationId, request.CommandId, "succeeded", true, "slow status transport");
+        }
     }
 }

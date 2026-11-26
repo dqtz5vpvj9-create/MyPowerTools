@@ -12,8 +12,17 @@ namespace MyPowerTools.HostControl;
 
 public sealed class HostControlClient : IDisposable
 {
-    private readonly GrpcChannel _channel;
+    private readonly GrpcChannel? _channel;
     private readonly HostProto.HostControl.HostControlClient _client;
+
+    // An embedded host (Android) uses the same generated protocol and service handlers.
+    // Desktop endpoint construction and its authentication remain unchanged.
+    public static CallInvoker? EmbeddedInvoker { get; set; }
+
+    private HostControlClient(CallInvoker invoker)
+    {
+        _client = new HostProto.HostControl.HostControlClient(invoker);
+    }
 
     private HostControlClient(GrpcChannel channel, string? authToken)
     {
@@ -24,6 +33,7 @@ public sealed class HostControlClient : IDisposable
 
     public static HostControlClient ForDefaultEndpoint()
     {
+        if (EmbeddedInvoker is { } embedded) return new HostControlClient(embedded);
         return ForEndpoint(IpcEndpoint.RunnerDefault(PlatformId.Current()));
     }
 
@@ -179,12 +189,13 @@ public sealed class HostControlClient : IDisposable
 
     public async Task<HostProto.CommandExecutionResponse> ExecuteCommandAsync(string invocationId, string commandId, JsonObject args, CancellationToken cancellationToken = default)
     {
+        // The Runner owns each command's deadline. A second client cap cancels valid long transfers.
         return await _client.ExecuteCommandAsync(new HostProto.ExecuteCommandRequest
         {
             CommandId = commandId,
             InvocationId = invocationId,
             Args = JsonStructMapper.ToStruct(args)
-        }, deadline: DefaultDeadline(30), cancellationToken: cancellationToken);
+        }, cancellationToken: cancellationToken);
     }
 
     public async IAsyncEnumerable<HostProto.CommandExecutionEvent> ExecuteCommandStreamAsync(string invocationId, string commandId, JsonObject args, [EnumeratorCancellation] CancellationToken cancellationToken = default)
@@ -321,6 +332,6 @@ public sealed class HostControlClient : IDisposable
 
     public void Dispose()
     {
-        _channel.Dispose();
+        _channel?.Dispose();
     }
 }

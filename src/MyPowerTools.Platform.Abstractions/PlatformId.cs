@@ -8,7 +8,7 @@ public sealed record PlatformId(string OperatingSystem, string Architecture)
 
     public static PlatformId Current()
     {
-        var os = RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
+        var os = global::System.OperatingSystem.IsAndroid() ? "android" : RuntimeInformation.IsOSPlatform(OSPlatform.Windows)
             ? "windows"
             : RuntimeInformation.IsOSPlatform(OSPlatform.OSX)
                 ? "macos"

@@ -1,0 +1,462 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!--
+    MPT mobile controls (M1): buttons, tab bar, bottom sheet, toast, inputs and filters.
+
+    Only explicit MptMobile* classes are matched, so the desktop theme is untouched. Button
+    states also set the Fluent ContentPresenter part because the base Button theme assigns
+    Background/Foreground there for :pointerover / :pressed; without that override a mobile
+    button would flash the desktop palette.
+
+    Touch contract: primary 48dp, secondary 46dp, everything else at least 44dp
+    (MptMobileTouchTargetMin). Controls use MinHeight, never Height.
+  -->
+
+  <!-- Primary / secondary / quiet actions -->
+  <Style Selector="Button.MptMobilePrimary">
+    <Setter Property="Background" Value="{DynamicResource MptMobileAccentBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource MptMobileOnAccentBrush}" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="2" />
+    <Setter Property="CornerRadius" Value="{DynamicResource MptMobileButtonCornerRadius}" />
+    <Setter Property="MinHeight" Value="{DynamicResource MptMobilePrimaryButtonMinHeight}" />
+    <Setter Property="Padding" Value="{DynamicResource MptMobileButtonPadding}" />
+    <Setter Property="FontSize" Value="{DynamicResource MptMobileFontSizeButton}" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Style Selector="^:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource MptMobileAccentHoverBrush}" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="Foreground" Value="{DynamicResource MptMobileOnAccentBrush}" />
+    </Style>
+    <Style Selector="^:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource MptMobileAccentPressedBrush}" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="Foreground" Value="{DynamicResource MptMobileOnAccentBrush}" />
+    </Style>
+    <Style Selector="^:focus-visible">
+      <Setter Property="BorderBrush" Value="{DynamicResource MptMobileFocusOnAccentBrush}" />
+    </Style>
+    <Style Selector="^:disabled">
+      <Setter Property="Opacity" Value="0.5" />
+    </Style>
+  </Style>
+
+  <Style Selector="Button.MptMobilePrimary.inline">
+    <Setter Property="HorizontalAlignment" Value="Left" />
+    <Setter Property="MinWidth" Value="132" />
+  </Style>
+
+  <Style Selector="Button.MptMobileSecondary">
+    <Setter Property="Background" Value="{DynamicResource MptMobileAccentSoftBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource MptMobileAccentBrush}" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="2" />
+    <Setter Property="CornerRadius" Value="{DynamicResource MptMobileSecondaryButtonCornerRadius}" />
+    <Setter Property="MinHeight" Value="{DynamicResource MptMobileSecondaryButtonMinHeight}" />
+    <Setter Property="Padding" Value="12" />
+    <Setter Property="FontSize" Value="{DynamicResource MptMobileFontSizeSecondaryButton}" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Style Selector="^:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource MptMobileAccentSoftHoverBrush}" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="Foreground" Value="{DynamicResource MptMobileAccentBrush}" />
+    </Style>
+    <Style Selector="^:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource MptMobileAccentSoftPressedBrush}" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+      <Setter Property="Foreground" Value="{DynamicResource MptMobileAccentBrush}" />
+    </Style>
+    <Style Selector="^:focus-visible">
+      <Setter Property="BorderBrush" Value="{DynamicResource MptMobileFocusBrush}" />
+    </Style>
+    <Style Selector="^:disabled">
+      <Setter Property="Opacity" Value="0.5" />
+    </Style>
+  </Style>
+
+  <Style Selector="Button.MptMobileSecondary.inline">
+    <Setter Property="HorizontalAlignment" Value="Left" />
+    <Setter Property="MinWidth" Value="132" />
+  </Style>
+
+  <Style Selector="Button.MptMobileQuietButton">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource MptMobileSecondaryTextBrush}" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="CornerRadius" Value="{DynamicResource MptMobileControlCornerRadius}" />
+    <Setter Property="MinHeight" Value="{DynamicResource MptMobileQuietButtonMinHeight}" />
+    <Setter Property="Padding" Value="8,4" />
+    <Setter Property="FontSize" Value="{DynamicResource MptMobileFontSizeSecondaryButton}" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Style Selector="^:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource MptMobileHoverOverlayBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MptMobileTextBrush}" />
+    </Style>
+    <Style Selector="^:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource MptMobilePressedOverlayBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MptMobileTextBrush}" />
+    </Style>
+    <Style Selector="^:disabled">
+      <Setter Property="Opacity" Value="0.5" />
+    </Style>
+  </Style>
+
+  <Style Selector="Button.MptMobileTextButton">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource MptMobileAccentBrush}" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="CornerRadius" Value="{DynamicResource MptMobileControlCornerRadius}" />
+    <Setter Property="MinHeight" Value="{DynamicResource MptMobileTouchTargetMin}" />
+    <Setter Property="Padding" Value="4,0" />
+    <Setter Property="FontSize" Value="{DynamicResource MptMobileFontSizeSecondaryButton}" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Style Selector="^:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource MptMobileHoverOverlayBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MptMobileAccentBrush}" />
+    </Style>
+    <Style Selector="^:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource MptMobilePressedOverlayBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MptMobileAccentBrush}" />
+    </Style>
+    <Style Selector="^:disabled">
+      <Setter Property="Opacity" Value="0.5" />
+    </Style>
+  </Style>
+
+  <Style Selector="Button.MptMobileBackButton">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource MptMobileAccentBrush}" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="CornerRadius" Value="{DynamicResource MptMobileControlCornerRadius}" />
+    <Setter Property="MinHeight" Value="{DynamicResource MptMobileTouchTargetMin}" />
+    <Setter Property="Padding" Value="5" />
+    <Setter Property="FontSize" Value="{DynamicResource MptMobileFontSizeSecondaryButton}" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Style Selector="^:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource MptMobileHoverOverlayBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MptMobileAccentBrush}" />
+    </Style>
+    <Style Selector="^:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource MptMobilePressedOverlayBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MptMobileAccentBrush}" />
+    </Style>
+  </Style>
+
+  <!-- Round icon actions keep a 44dp hit area even though the glyph is 24dp. -->
+  <Style Selector="Button.MptMobileIconButton">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource MptMobileTextBrush}" />
+    <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="2" />
+    <Setter Property="CornerRadius" Value="22" />
+    <Setter Property="Width" Value="{DynamicResource MptMobileIconButtonSize}" />
+    <Setter Property="Height" Value="{DynamicResource MptMobileIconButtonSize}" />
+    <Setter Property="MinWidth" Value="{DynamicResource MptMobileIconButtonSize}" />
+    <Setter Property="MinHeight" Value="{DynamicResource MptMobileIconButtonSize}" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Style Selector="^:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource MptMobileHoverOverlayBrush}" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+    </Style>
+    <Style Selector="^:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource MptMobilePressedOverlayBrush}" />
+      <Setter Property="BorderBrush" Value="Transparent" />
+    </Style>
+    <Style Selector="^:focus-visible">
+      <Setter Property="BorderBrush" Value="{DynamicResource MptMobileFocusBrush}" />
+    </Style>
+    <Style Selector="^:disabled">
+      <Setter Property="Opacity" Value="0.5" />
+    </Style>
+  </Style>
+
+  <Style Selector="Button.MptMobileIconButton.filled">
+    <Setter Property="Background" Value="{DynamicResource MptMobileAccentSoftBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource MptMobileAccentBrush}" />
+  </Style>
+
+  <Style Selector="Button.MptMobileCloseButton">
+    <Setter Property="Background" Value="{DynamicResource MptMobileBackgroundBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource MptMobileSecondaryTextBrush}" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="CornerRadius" Value="22" />
+    <Setter Property="Width" Value="{DynamicResource MptMobileTouchTargetMin}" />
+    <Setter Property="Height" Value="{DynamicResource MptMobileTouchTargetMin}" />
+    <Setter Property="MinWidth" Value="{DynamicResource MptMobileTouchTargetMin}" />
+    <Setter Property="MinHeight" Value="{DynamicResource MptMobileTouchTargetMin}" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Style Selector="^:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource MptMobileHoverOverlayBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MptMobileTextBrush}" />
+    </Style>
+    <Style Selector="^:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource MptMobilePressedOverlayBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MptMobileTextBrush}" />
+    </Style>
+  </Style>
+
+  <Style Selector="Button.MptMobileAvatar">
+    <Setter Property="Background" Value="{DynamicResource MptMobileAvatarBackgroundBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource MptMobileAvatarTextBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MptMobileAvatarBorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="22" />
+    <Setter Property="Width" Value="{DynamicResource MptMobileTouchTargetMin}" />
+    <Setter Property="Height" Value="{DynamicResource MptMobileTouchTargetMin}" />
+    <Setter Property="MinWidth" Value="{DynamicResource MptMobileTouchTargetMin}" />
+    <Setter Property="MinHeight" Value="{DynamicResource MptMobileTouchTargetMin}" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="FontSize" Value="13" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Style Selector="^:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource MptMobileAvatarBackgroundBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource MptMobileAvatarBorderBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MptMobileAvatarTextBrush}" />
+    </Style>
+    <Style Selector="^:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource MptMobilePressedOverlayBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource MptMobileAvatarBorderBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MptMobileAvatarTextBrush}" />
+    </Style>
+  </Style>
+
+  <Style Selector="Button.MptMobileAddDevice">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource MptMobileAccentBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MptMobileDashedBorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="18" />
+    <Setter Property="MinHeight" Value="{DynamicResource MptMobileAddDeviceMinHeight}" />
+    <Setter Property="Padding" Value="12" />
+    <Setter Property="FontSize" Value="{DynamicResource MptMobileFontSizeSecondaryButton}" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="Margin" Value="0,14,0,0" />
+    <Style Selector="^:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource MptMobileHoverOverlayBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource MptMobileAccentBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MptMobileAccentBrush}" />
+    </Style>
+    <Style Selector="^:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource MptMobilePressedOverlayBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource MptMobileAccentBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MptMobileAccentBrush}" />
+    </Style>
+  </Style>
+
+  <!-- Filters and chips -->
+  <Style Selector="Button.MptMobileFilter">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource MptMobileSecondaryTextBrush}" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="CornerRadius" Value="{DynamicResource MptMobilePillCornerRadius}" />
+    <Setter Property="MinHeight" Value="{DynamicResource MptMobileTouchTargetMin}" />
+    <Setter Property="Padding" Value="12,9" />
+    <Setter Property="FontSize" Value="{DynamicResource MptMobileFontSizeMeta}" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Style Selector="^:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource MptMobileHoverOverlayBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MptMobileTextBrush}" />
+    </Style>
+    <Style Selector="^:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource MptMobilePressedOverlayBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MptMobileTextBrush}" />
+    </Style>
+  </Style>
+
+  <Style Selector="Button.MptMobileFilter.active">
+    <Setter Property="Background" Value="{DynamicResource MptMobileTextBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource MptMobileCardBrush}" />
+    <Style Selector="^:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource MptMobileTextBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MptMobileCardBrush}" />
+    </Style>
+    <Style Selector="^:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource MptMobileTextBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MptMobileCardBrush}" />
+    </Style>
+  </Style>
+
+  <Style Selector="Button.MptMobileChip">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource MptMobileSecondaryTextBrush}" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="CornerRadius" Value="9" />
+    <Setter Property="MinHeight" Value="{DynamicResource MptMobileTouchTargetMin}" />
+    <Setter Property="Padding" Value="0,4" />
+    <Setter Property="FontSize" Value="{DynamicResource MptMobileFontSizeMicro}" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="HorizontalContentAlignment" Value="Left" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Style Selector="^:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource MptMobileHoverOverlayBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MptMobileTextBrush}" />
+    </Style>
+  </Style>
+
+  <!-- Four-way bottom navigation. Icon + Chinese label, 52dp tall buttons. -->
+  <Style Selector="Border.MptMobileTabBar">
+    <Setter Property="Background" Value="{DynamicResource MptMobileCardBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MptMobileDividerBrush}" />
+    <Setter Property="BorderThickness" Value="0,1,0,0" />
+    <Setter Property="MinHeight" Value="{DynamicResource MptMobileTabBarMinHeight}" />
+    <Setter Property="Padding" Value="{DynamicResource MptMobileTabBarPadding}" />
+  </Style>
+
+  <Style Selector="Button.MptMobileTabButton">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource MptMobileInactiveTabBrush}" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="CornerRadius" Value="0" />
+    <Setter Property="MinHeight" Value="{DynamicResource MptMobileTabButtonMinHeight}" />
+    <Setter Property="Padding" Value="0,4" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Style Selector="^:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="Transparent" />
+      <Setter Property="Foreground" Value="{DynamicResource MptMobileSecondaryTextBrush}" />
+    </Style>
+    <Style Selector="^:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource MptMobilePressedOverlayBrush}" />
+      <Setter Property="Foreground" Value="{DynamicResource MptMobileSecondaryTextBrush}" />
+    </Style>
+    <Style Selector="^:focus-visible">
+      <Setter Property="BorderBrush" Value="{DynamicResource MptMobileFocusBrush}" />
+      <Setter Property="BorderThickness" Value="2" />
+    </Style>
+  </Style>
+
+  <Style Selector="Button.MptMobileTabButton.active">
+    <Setter Property="Foreground" Value="{DynamicResource MptMobileAccentBrush}" />
+    <Style Selector="^:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Foreground" Value="{DynamicResource MptMobileAccentBrush}" />
+    </Style>
+  </Style>
+
+  <!-- Stroked tab glyphs cannot inherit Foreground, so they carry their own state class. -->
+  <Style Selector="Path.MptMobileTabIcon">
+    <Setter Property="Stroke" Value="{DynamicResource MptMobileInactiveTabBrush}" />
+    <Setter Property="StrokeThickness" Value="1.7" />
+    <Setter Property="StrokeLineCap" Value="Round" />
+    <Setter Property="StrokeJoin" Value="Round" />
+    <Setter Property="Width" Value="22" />
+    <Setter Property="Height" Value="22" />
+  </Style>
+
+  <Style Selector="Path.MptMobileTabIcon.active">
+    <Setter Property="Stroke" Value="{DynamicResource MptMobileAccentBrush}" />
+  </Style>
+
+  <!-- Bottom sheet: one overlay, one scrollable card, 29dp top radius. -->
+  <Style Selector="Border.MptMobileOverlay">
+    <Setter Property="Background" Value="{DynamicResource MptMobileOverlayScrimBrush}" />
+  </Style>
+
+  <Style Selector="Border.MptMobileSheet">
+    <Setter Property="Background" Value="{DynamicResource MptMobileCardBrush}" />
+    <Setter Property="CornerRadius" Value="{DynamicResource MptMobileSheetCornerRadius}" />
+    <Setter Property="Padding" Value="{DynamicResource MptMobileSheetPadding}" />
+    <Setter Property="BorderThickness" Value="0" />
+  </Style>
+
+  <Style Selector="Border.MptMobileSheetGrabber">
+    <Setter Property="Background" Value="{DynamicResource MptMobileGrabberBrush}" />
+    <Setter Property="Width" Value="32" />
+    <Setter Property="Height" Value="4" />
+    <Setter Property="CornerRadius" Value="2" />
+    <Setter Property="HorizontalAlignment" Value="Center" />
+    <Setter Property="Margin" Value="0,0,0,18" />
+  </Style>
+
+  <Style Selector="Border.MptMobileToast">
+    <Setter Property="Background" Value="{DynamicResource MptMobileToastBackgroundBrush}" />
+    <Setter Property="CornerRadius" Value="{DynamicResource MptMobileSecondaryButtonCornerRadius}" />
+    <Setter Property="Padding" Value="16,13" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="VerticalAlignment" Value="Bottom" />
+    <Setter Property="TextElement.Foreground" Value="{DynamicResource MptMobileToastTextBrush}" />
+    <Setter Property="TextElement.FontSize" Value="{DynamicResource MptMobileFontSizeCaption}" />
+  </Style>
+
+  <Style Selector="TextBlock.MptMobileToastText">
+    <Setter Property="FontSize" Value="{DynamicResource MptMobileFontSizeCaption}" />
+    <Setter Property="Foreground" Value="{DynamicResource MptMobileToastTextBrush}" />
+    <Setter Property="TextAlignment" Value="Center" />
+    <Setter Property="TextWrapping" Value="Wrap" />
+  </Style>
+
+  <!-- Inputs -->
+  <Style Selector="TextBox.MptMobileSearch">
+    <Setter Property="Background" Value="{DynamicResource MptMobileSearchBackgroundBrush}" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="CornerRadius" Value="{DynamicResource MptMobileControlCornerRadius}" />
+    <Setter Property="MinHeight" Value="{DynamicResource MptMobileSearchMinHeight}" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="FontSize" Value="{DynamicResource MptMobileFontSizePageSubtitle}" />
+    <Setter Property="Foreground" Value="{DynamicResource MptMobileTextBrush}" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Style Selector="^:pointerover">
+      <Setter Property="Background" Value="{DynamicResource MptMobileSearchBackgroundBrush}" />
+    </Style>
+    <Style Selector="^:focus">
+      <Setter Property="Background" Value="{DynamicResource MptMobileSearchBackgroundBrush}" />
+    </Style>
+  </Style>
+
+  <Style Selector="TextBox.MptMobileField">
+    <Setter Property="Background" Value="{DynamicResource MptMobileCardBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MptMobileFieldBorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="{DynamicResource MptMobileControlCornerRadius}" />
+    <Setter Property="MinHeight" Value="{DynamicResource MptMobileFieldMinHeight}" />
+    <Setter Property="Padding" Value="{DynamicResource MptMobileFieldPadding}" />
+    <Setter Property="FontSize" Value="{DynamicResource MptMobileFontSizeBody}" />
+    <Setter Property="Foreground" Value="{DynamicResource MptMobileTextBrush}" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Style Selector="^:pointerover">
+      <Setter Property="Background" Value="{DynamicResource MptMobileCardBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource MptMobileFieldBorderBrush}" />
+    </Style>
+    <Style Selector="^:focus">
+      <Setter Property="Background" Value="{DynamicResource MptMobileCardBrush}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource MptMobileAccentBrush}" />
+    </Style>
+  </Style>
+
+  <!-- Selection checkbox in file-choice rows: 44dp hit area, glyph centred in it. -->
+  <Style Selector="CheckBox.MptMobileCheck">
+    <Setter Property="MinWidth" Value="{DynamicResource MptMobileTouchTargetMin}" />
+    <Setter Property="MinHeight" Value="{DynamicResource MptMobileTouchTargetMin}" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+
+  <!-- The switch keeps the host control theme's colours; the mobile contract only adds the
+       touch target so a settings row stays tappable with an enlarged system font. -->
+  <Style Selector="ToggleSwitch.MptMobileSwitch">
+    <Setter Property="MinHeight" Value="{DynamicResource MptMobileTouchTargetMin}" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="FontSize" Value="{DynamicResource MptMobileFontSizeCaption}" />
+  </Style>
+</Styles>

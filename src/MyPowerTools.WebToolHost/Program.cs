@@ -13,6 +13,10 @@ internal static class Program
         {
             return 2;
         }
+        if (arguments.Length == 2 && arguments[0] == "--cloud-login")
+        {
+            return CloudLoginWindow.Run(arguments[1]);
+        }
         if (arguments.Contains("--isolation-crash-probe", StringComparer.OrdinalIgnoreCase))
         {
             return IsolationProbe.Run(crashHost: true);

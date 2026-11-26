@@ -1,0 +1,32 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!--
+    Entry point for the MPT mobile theme (M1). Add this single file to Application.Styles to
+    get the mobile palette, typography and component styles:
+
+      Styles.Add(new StyleInclude(new Uri("avares://MyPowerTools.AvaloniaSdk/"))
+      { Source = new Uri("avares://MyPowerTools.AvaloniaSdk/Themes/MptMobileTheme.axaml") });
+
+    It brings its own resources, so no separate ResourceInclude is required. Light and dark
+    palettes follow the ambient theme variant: set Application.RequestedThemeVariant, or wrap
+    a page in a ThemeVariantScope, and both resource lookups and re-templated states switch.
+
+    Only MptMobile* classes are matched. Adding this file cannot change desktop visuals,
+    because desktop UI never uses those class names.
+
+    Resource-only consumers (no styles) can merge Themes/MptSdkTheme.axaml instead; that
+    dictionary now carries the same MptMobile* tokens.
+  -->
+  <Styles.Resources>
+    <ResourceDictionary>
+      <ResourceDictionary.MergedDictionaries>
+        <ResourceInclude Source="avares://MyPowerTools.AvaloniaSdk/Themes/MptMobileTokens.axaml" />
+        <ResourceInclude Source="avares://MyPowerTools.AvaloniaSdk/Themes/MptMobileIcons.axaml" />
+      </ResourceDictionary.MergedDictionaries>
+    </ResourceDictionary>
+  </Styles.Resources>
+
+  <StyleInclude Source="avares://MyPowerTools.AvaloniaSdk/Themes/MptMobileTypography.axaml" />
+  <StyleInclude Source="avares://MyPowerTools.AvaloniaSdk/Themes/MptMobileSurfaces.axaml" />
+  <StyleInclude Source="avares://MyPowerTools.AvaloniaSdk/Themes/MptMobileControls.axaml" />
+</Styles>

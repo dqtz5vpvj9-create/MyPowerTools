@@ -9,6 +9,7 @@
     <SdkProject Include="$(MSBuildThisFileDirectory)../src/MyPowerTools.Abstractions/MyPowerTools.Abstractions.csproj" />
     <SdkProject Include="$(MSBuildThisFileDirectory)../src/MyPowerTools.Protocol/MyPowerTools.Protocol.csproj" />
     <SdkProject Include="$(MSBuildThisFileDirectory)../src/MyPowerTools.Ipc.Shared/MyPowerTools.Ipc.Shared.csproj" />
+    <SdkProject Include="$(MSBuildThisFileDirectory)../src/MyPowerTools.Ipc.AspNetCore/MyPowerTools.Ipc.AspNetCore.csproj" />
     <SdkProject Include="$(MSBuildThisFileDirectory)../src/MyPowerTools.Packaging/MyPowerTools.Packaging.csproj" />
     <SdkProject Include="$(MSBuildThisFileDirectory)../src/MyPowerTools.Platform.Windows/MyPowerTools.Platform.Windows.csproj" />
     <SdkProject Include="$(MSBuildThisFileDirectory)../src/MyPowerTools.Broker/MyPowerTools.Broker.csproj" />

@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <RootNamespace>AndroidFileOpen.Tests</RootNamespace>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.3.0" />
+    <PackageReference Include="xunit.v3" Version="3.2.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5"><PrivateAssets>all</PrivateAssets></PackageReference>
+    <Using Include="Xunit" />
+  </ItemGroup>
+  <ItemGroup>
+    <!--
+      The Android-free half of the phone file-open feature is compiled straight into this project:
+      path policy, content-type inference, the bounded viewer plan and the failure mapping. That is
+      what makes them testable without the Android workload; the Android-only files (launcher,
+      provider, main-thread and activity helpers) are verified by the compile probe instead, because
+      they can only be compiled for net10.0-android.
+    -->
+    <Compile Include="../../src/MyPowerTools.Android/Files/MptSharedFileContract.cs" Link="Linked/MptSharedFileContract.cs" />
+    <Compile Include="../../src/MyPowerTools.Android/Files/SharedFileRootSpec.cs" Link="Linked/SharedFileRootSpec.cs" />
+    <Compile Include="../../src/MyPowerTools.Android/Files/SharedFileAccessPolicy.cs" Link="Linked/SharedFileAccessPolicy.cs" />
+    <Compile Include="../../src/MyPowerTools.Android/Files/SharedFileMime.cs" Link="Linked/SharedFileMime.cs" />
+    <Compile Include="../../src/MyPowerTools.Android/Files/SharedFileViewPlan.cs" Link="Linked/SharedFileViewPlan.cs" />
+    <Compile Include="../../src/MyPowerTools.Android/Files/MptFileOpenException.cs" Link="Linked/MptFileOpenException.cs" />
+  </ItemGroup>
+  <ItemGroup>
+    <!--
+      The provider paths resource stays in its real location; the parity test reads that exact file
+      so the XML, the root spec and the contract constants cannot drift apart.
+    -->
+    <None Include="../../src/MyPowerTools.Android/Resources/xml/mpt_shared_files.xml" Link="Fixtures/mpt_shared_files.xml" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+  <ItemGroup>
+    <AssemblyMetadata Include="AndroidSharedFilesResource" Value="$(MSBuildThisFileDirectory)../../src/MyPowerTools.Android/Resources/xml/mpt_shared_files.xml" />
+  </ItemGroup>
+</Project>

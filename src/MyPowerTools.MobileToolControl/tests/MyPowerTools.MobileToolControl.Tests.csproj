@@ -1,0 +1,36 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Regression tests for the 电脑工具 phone page.
+
+    They run the real view under a headless Avalonia host with a contract fake for the
+    mobile-tool-control module, so the whole page path (catalog rendering, understandable actions,
+    parameter form, invocation lifecycle, cancel, import confirmation, activation, back handling) is
+    exercised without a computer, without the Android host and without touching real tool data.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.0.5" />
+    <!-- The page is verified against the shipped mobile theme and rendered with Skia, so text
+         layout and the bottom sheets are measured for real instead of on a null drawing backend. -->
+    <PackageReference Include="Avalonia.Skia" Version="12.0.5" />
+    <PackageReference Include="SkiaSharp.NativeAssets.Linux" Version="3.119.4" />
+    <PackageReference Include="Avalonia.Headless.XUnit" Version="12.0.5" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.3.0" />
+    <PackageReference Include="xunit.v3" Version="3.2.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5"><PrivateAssets>all</PrivateAssets></PackageReference>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../MyPowerTools.MobileToolControl.csproj" />
+  </ItemGroup>
+
+</Project>

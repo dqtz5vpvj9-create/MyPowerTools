@@ -1,0 +1,10 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup><TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable></PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="MyPowerTools.ToolSdk" Version="0.2.0" />
+    <PackageReference Include="MyPowerTools.Platform.Abstractions" Version="0.3.0" />
+    <ProjectReference Include="../FileTransfer.Core/FileTransfer.Core.csproj" />
+    <!-- The tests inject the simulated public relay endpoint; production keeps the fixed HTTPS address. -->
+    <InternalsVisibleTo Include="FileTransfer.Core.Tests" />
+  </ItemGroup>
+</Project>

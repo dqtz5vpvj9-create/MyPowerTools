@@ -299,6 +299,7 @@ public sealed class ShellChromeViewModel : ObservableViewModel
         return TopNavigationItems
             .Concat(ToolNavigationItems)
             .Concat(FooterNavigationItems)
+            .Concat(NavigationItems)
             .Distinct();
     }
 

@@ -1,4 +1,5 @@
 <UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:adaptive="using:MyPowerTools.AvaloniaSdk"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:controls="using:MyPowerTools.UI.Controls"
              xmlns:vm="using:MyPowerTools.Shell.Avalonia.ViewModels"
@@ -45,8 +46,10 @@
     </Style>
 
     <Style Selector="Button.PowerQuickAction">
-      <Setter Property="Width" Value="148" />
-      <Setter Property="Height" Value="116" />
+      <Setter Property="Width" Value="{DynamicResource MptHomeQuickActionWidth}" />
+      <!-- MinHeight instead of a fixed Height: the label wraps to two lines and the detail line to
+           three on a 320px viewport, which the fixed height clipped at the card bottom. -->
+      <Setter Property="MinHeight" Value="116" />
       <Setter Property="Margin" Value="{DynamicResource MptWrapItemMargin}" />
       <Setter Property="Padding" Value="{DynamicResource MptCompactPadding}" />
       <Setter Property="HorizontalContentAlignment" Value="Stretch" />
@@ -99,6 +102,7 @@
   </UserControl.Styles>
 
   <UserControl.Resources>
+    <x:Double x:Key="MptHomeQuickActionWidth">148</x:Double>
     <DataTemplate x:Key="QuickAccessTemplate" x:DataType="vm:HomeDashboardActionViewModel">
       <controls:MptButton Classes="PowerQuickAction"
                           Command="{Binding ExecuteCommand}"
@@ -244,7 +248,7 @@
           <controls:MptButton x:Name="ToolkitOverviewAction"
                               Classes="PowerTopLink"
                               Command="{Binding BrowseToolsCommand}">
-            <Grid ColumnDefinitions="92,*"
+            <Grid adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="92,*"
                   ColumnSpacing="20">
               <Border Width="92"
                       Height="92"
@@ -331,7 +335,7 @@
           <Border Classes="PowerDashboardCard"
                   IsVisible="{Binding HasQuickAccessActions}">
             <Grid RowDefinitions="52,1,Auto">
-              <Grid Margin="{DynamicResource MptCardHeaderMargin}"
+              <Grid adaptive:MptAdaptiveLayout.StackBelow="600" Margin="{DynamicResource MptCardHeaderMargin}"
                     ColumnDefinitions="*,Auto">
                 <TextBlock Classes="MptCardTitle"
                            Text="Quick access"
@@ -355,7 +359,7 @@
           <Border Classes="PowerDashboardCard"
                   IsVisible="{Binding HasActionableTools}">
             <Grid RowDefinitions="52,1,Auto">
-              <Grid Margin="{DynamicResource MptCardHeaderMargin}"
+              <Grid adaptive:MptAdaptiveLayout.StackBelow="600" Margin="{DynamicResource MptCardHeaderMargin}"
                     ColumnDefinitions="*,Auto">
                 <TextBlock Classes="MptCardTitle"
                            Text="Action shortcuts"
@@ -381,7 +385,7 @@
                  HorizontalAlignment="Stretch"
                  VerticalAlignment="Top">
           <Grid RowDefinitions="52,1,Auto">
-            <Grid Margin="{DynamicResource MptCardHeaderCompactMargin}"
+            <Grid adaptive:MptAdaptiveLayout.StackBelow="600" Margin="{DynamicResource MptCardHeaderCompactMargin}"
                   ColumnDefinitions="*,Auto">
               <TextBlock Classes="MptCardTitle"
                          Text="{Binding DashboardToolsTitle}"

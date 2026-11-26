@@ -30,6 +30,12 @@ $ProgressPreference = 'SilentlyContinue'
 Set-StrictMode -Version Latest
 
 try {
+    if ((Get-Process -Id $PID).SessionId -eq 0) {
+        $forwardedParameters = @{}
+        foreach ($key in $PSBoundParameters.Keys) { $forwardedParameters[$key] = $PSBoundParameters[$key] }
+        & (Join-Path $PSScriptRoot 'Invoke-InteractiveDevUpdate.ps1') -UpdateParameters $forwardedParameters
+        exit $LASTEXITCODE
+    }
     $repositoryRoot = [IO.Path]::GetFullPath((Split-Path -Parent $PSScriptRoot))
     $installRoot = [IO.Path]::GetFullPath(
         (Join-Path $env:LOCALAPPDATA 'Programs\MyPowerTools'))

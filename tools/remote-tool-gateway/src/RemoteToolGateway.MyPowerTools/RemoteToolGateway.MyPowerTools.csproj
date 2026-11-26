@@ -1,0 +1,24 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>RemoteToolGateway.MyPowerTools</RootNamespace>
+    <Version>0.1.0</Version>
+    <!--
+      A packaged module is loaded into a collectible AssemblyLoadContext whose dependency resolver
+      reads the module's .deps.json. Copying the lock-file assemblies next to the module keeps the
+      HostControl client, protobuf and gRPC dependencies resolvable from the package itself instead
+      of relying on a machine-global NuGet cache.
+    -->
+    <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
+  </PropertyGroup>
+  <ItemGroup>
+    <PackageReference Include="MyPowerTools.ToolSdk" Version="0.2.0" />
+    <PackageReference Include="MyPowerTools.Platform.Abstractions" Version="0.3.0" />
+    <ProjectReference Include="../RemoteToolGateway.Core/RemoteToolGateway.Core.csproj" />
+  </ItemGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="RemoteToolGateway.Core.Tests" />
+  </ItemGroup>
+</Project>

@@ -1,0 +1,16 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  The launch window palette. These values are read by Android before any managed code runs, so a
+  cold start shows the product's own colours instead of a theme default that the Avalonia surface
+  then replaces (the visible flash between tap and first frame).
+
+  Light values mirror the approved mobile design: page #F6F7F9, primary text #1C2025, accent
+  #0965EE. values-night carries the dark counterparts.
+-->
+<resources>
+  <color name="mpt_mobile_page">#F6F7F9</color>
+  <color name="mpt_mobile_primary">#1C2025</color>
+  <color name="mpt_mobile_accent">#0965EE</color>
+  <!-- The scanner paints its own black viewfinder; the launch frame must not flash grey. -->
+  <color name="mpt_scanner_background">#000000</color>
+</resources>

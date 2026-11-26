@@ -4,6 +4,17 @@ using HostProto = MyPowerTools.Protocol.HostControl.V1;
 
 namespace MyPowerTools.Shell.Avalonia.Services;
 
+/// <summary>Product identity is stable across the desktop and phone implementations.</summary>
+public static class ToolProductIdentity
+{
+    public static string ProductId(string implementationId) => implementationId.Trim().ToLowerInvariant() switch
+    {
+        "remote-notifications-android" => "remote-notifications",
+        "remote-commands-android" => "remote-commands",
+        _ => implementationId.Trim()
+    };
+}
+
 public sealed class ShellToolProductService
 {
     private readonly ShellToolPreferencesStore _preferences;
@@ -17,8 +28,11 @@ public sealed class ShellToolProductService
 
     public IReadOnlyList<ToolCardViewModel> RecentTools(IReadOnlyList<ToolCardViewModel> tools)
     {
-        var byId = tools.ToDictionary(tool => tool.ToolId, StringComparer.OrdinalIgnoreCase);
+        var byId = tools.GroupBy(tool => ToolProductIdentity.ProductId(tool.ToolId), StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
         return _preferences.Current.RecentToolIds
+            .Select(ToolProductIdentity.ProductId)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
             .Where(byId.ContainsKey)
             .Select(id => byId[id])
             .ToArray();
@@ -44,10 +58,11 @@ public sealed class ShellToolProductService
     public IReadOnlyList<ToolCardViewModel> BuildToolCards(
         IEnumerable<HostProto.ToolDescriptor> descriptors,
         Func<string, Task> openTool,
-        IReadOnlySet<string>? deliveredToolIds = null)
+        IReadOnlySet<string>? deliveredToolIds = null,
+        bool includePaused = false)
     {
         return descriptors
-            .Where(IsVisibleInProduct)
+            .Where(tool => includePaused || IsVisibleInProduct(tool))
             .Select(tool => new
             {
                 Descriptor = tool,
@@ -55,7 +70,7 @@ public sealed class ShellToolProductService
                     tool,
                     openTool,
                     deliveredToolIds?.Contains(tool.ToolId) == true || IsSdkTool(tool),
-                    _preferences.Current.FavoriteToolIds.Contains(tool.ToolId, StringComparer.OrdinalIgnoreCase),
+                    _preferences.Current.FavoriteToolIds.Contains(ToolProductIdentity.ProductId(tool.ToolId), StringComparer.OrdinalIgnoreCase),
                     _preferences.SetFavoriteAsync)
             })
             .OrderBy(item => AvailabilityOrder(item.Card.Availability))
@@ -95,10 +110,11 @@ public sealed class ShellToolProductService
         Func<string, bool, Task>? setFavorite = null)
     {
         var disabled = string.Equals(tool.State, "disabled", StringComparison.OrdinalIgnoreCase);
+        var unsupported = string.Equals(tool.State, "unsupported", StringComparison.OrdinalIgnoreCase);
         var declaredAvailability = string.IsNullOrWhiteSpace(tool.Availability)
             ? "available"
             : tool.Availability;
-        var availability = disabled
+        var availability = disabled || unsupported || string.Equals(declaredAvailability, "unavailable", StringComparison.OrdinalIgnoreCase)
             ? ToolAvailability.Unavailable
             : string.Equals(declaredAvailability, "paused", StringComparison.OrdinalIgnoreCase)
                 ? ToolAvailability.Paused
@@ -155,11 +171,15 @@ public sealed class ShellToolProductService
     {
         return state.ToLowerInvariant() switch
         {
-            "running" or "ready" => "Ready",
+            "running" or "ready" or "indexed" or "idle" => "Ready",
             "degraded" => "Needs attention",
             "error" or "failed" => "Unavailable",
             "connected" => "Connected",
-            _ => state
+            "starting" => "Starting",
+            "stopped" => "Not running",
+            "disabled" => "Disabled",
+            "unsupported" => "Not supported",
+            _ => "Status unavailable"
         };
     }
 

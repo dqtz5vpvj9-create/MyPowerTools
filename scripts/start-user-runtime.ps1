@@ -54,7 +54,20 @@ if (-not $installRootFull.Equals($canonicalInstallRoot, [StringComparison]::Ordi
 [void](Clear-MyPowerToolsLegacyUserDotNetRoot -InstallRoot $installRootFull)
 $runtimeResolution = Set-MyPowerToolsProcessDotNetRoot -InstallRoot $installRootFull
 if ($sessionId -eq 0) {
-    throw 'MyPowerTools runtime launch is blocked in Windows Session 0.'
+    if ($StartShell) { throw 'Opening the Shell requires an interactive user session.' }
+    if ($StartRunner) {
+        $unit = Join-Path $dataRootFull 'ServiceManager\units\mpt-runner.service.json'
+        if (-not (Test-Path -LiteralPath $unit)) {
+            throw 'Register the background Runner with scripts/register-windows-runner-service.ps1 first.'
+        }
+        $previousDataRoot = $env:MPT_DATA_ROOT
+        try {
+            $env:MPT_DATA_ROOT = $dataRootFull
+            & (Join-Path $installRootFull 'Cli\MyPowerTools.Cli.exe') service start mpt-runner.service
+            if ($LASTEXITCODE -ne 0) { throw 'ServiceManager could not start the background Runner.' }
+        } finally { $env:MPT_DATA_ROOT = $previousDataRoot }
+    }
+    return
 }
 
 $runnerExe = Join-Path $installRootFull 'Runner\MyPowerTools.Runner.exe'

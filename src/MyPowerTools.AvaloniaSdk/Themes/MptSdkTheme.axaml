@@ -6,4 +6,14 @@
   <SolidColorBrush x:Key="MptSdkBorderBrush" Color="#1F000000" />
   <x:Double x:Key="MptSdkCornerRadius">8</x:Double>
   <Thickness x:Key="MptSdkPagePadding">24</Thickness>
+  <!--
+    Mobile tokens travel with the SDK resource dictionary so a resource-only consumer sees
+    the same MptMobile* palette. The mobile component styles live in MptMobileTheme.axaml,
+    which has to be added to Application.Styles because a resource dictionary cannot apply
+    selectors.
+  -->
+  <ResourceDictionary.MergedDictionaries>
+    <ResourceInclude Source="avares://MyPowerTools.AvaloniaSdk/Themes/MptMobileTokens.axaml" />
+    <ResourceInclude Source="avares://MyPowerTools.AvaloniaSdk/Themes/MptMobileIcons.axaml" />
+  </ResourceDictionary.MergedDictionaries>
 </ResourceDictionary>

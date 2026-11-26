@@ -1,0 +1,43 @@
+[Unit]
+Description=MyPowerTools persistent Tailnet file relay
+After=network-online.target tailscaled.service
+Wants=network-online.target tailscaled.service
+# Retry when the Tailnet interface is temporarily unavailable, including during boot.
+StartLimitIntervalSec=0
+
+[Service]
+Type=simple
+User=mpt-tail-relay
+Group=mpt-tail-relay
+WorkingDirectory=/opt/mpt-tail-relay/current
+EnvironmentFile=/etc/mpt-tail-relay/relay.env
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=PYTHONUNBUFFERED=1
+ExecStart=/usr/bin/python3 -m mpt_relay
+Restart=on-failure
+RestartSec=3
+TimeoutStopSec=20
+KillSignal=SIGTERM
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+ReadWritePaths=/var/lib/mpt-tail-relay
+UMask=0077
+MemoryMax=768M
+TasksMax=256
+LimitNOFILE=8192
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=mpt-tail-relay
+
+[Install]
+WantedBy=multi-user.target

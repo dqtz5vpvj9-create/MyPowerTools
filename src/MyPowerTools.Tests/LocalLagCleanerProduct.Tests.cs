@@ -425,7 +425,7 @@ public sealed class LocalLagCleanerProductTests
         Assert.Equal(2, packageReferences.Length);
         Assert.Contains(
             packageReferences,
-            reference => reference is { Include: "MyPowerTools.AvaloniaSdk", Version: "0.2.0" });
+            reference => reference is { Include: "MyPowerTools.AvaloniaSdk", Version: "0.2.1" });
         Assert.Contains(
             packageReferences,
             reference => reference is { Include: "MyPowerTools.ToolSdk", Version: "0.2.0" });
@@ -688,6 +688,13 @@ public sealed class LocalLagCleanerProductTests
 
             Assert.True(planResult.Success, planResult.Error?.Message);
             var planResponse = JsonNode.Parse(planResult.Output)!.AsObject();
+            if (!OperatingSystem.IsWindows())
+            {
+                Assert.Equal("failed", planResponse["result"]!["state"]!.GetValue<string>());
+                Assert.Null(planResponse["result"]!["payload"]);
+                Assert.NotNull(planResponse["result"]!["error"]);
+                return;
+            }
             var confirmationToken = planResponse["result"]!["payload"]![
                 "confirmationToken"]!.GetValue<string>();
             Assert.Matches("^[0-9A-F]{8}$", confirmationToken);

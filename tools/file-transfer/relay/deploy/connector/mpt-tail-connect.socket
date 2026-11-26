@@ -1,0 +1,12 @@
+[Unit]
+Description=MPT fixed Tail relay loopback connector
+Wants=mpt-tail-connector.service
+After=mpt-tail-connector.service
+
+[Socket]
+ListenStream=127.0.0.1:18766
+Accept=yes
+MaxConnections=128
+
+[Install]
+WantedBy=sockets.target

@@ -180,11 +180,37 @@ $dotnet = (Get-Command 'dotnet' -CommandType Application -ErrorAction Stop).Sour
 # runtime package to. Every existing tool writes to artifacts/package under the
 # tool root (remote-notifications writes one level deeper under
 # android-tools-suite). These mirror scripts/build-tool-packages.ps1.
+#
+# Optional = $true reserves a slot for a tool whose sources have not landed in this
+# checkout yet (for example an Android module still being implemented in
+# tools/<tool>/android-integration). A full-suite build skips such an entry with a
+# warning instead of failing; an explicit -ToolId request for a missing tool still
+# fails, because silently building nothing is worse than a clear error.
 # ---------------------------------------------------------------------------
 # Using [pscustomobject] (not hashtable) so that property access is type-safe
 # and ConvertTo-Json serializes values deterministically (hashtable iteration
 # under strict mode can wrap single string values in one-element arrays).
 $toolRegistry = @(
+    [pscustomobject]@{
+        Id               = 'remote-tool-gateway'
+        Version          = '0.1.0'
+        BuildScript      = 'tools\remote-tool-gateway\build.ps1'
+        SurfaceProject   = 'tools\remote-tool-gateway\src\RemoteToolGateway.Surface\RemoteToolGateway.Surface.csproj'
+        SurfaceAssembly  = 'RemoteToolGateway.Surface.dll'
+        SurfaceTarget    = 'ui\surface'
+        RuntimeStagePath = 'tools\remote-tool-gateway\artifacts\package'
+        ServiceUnits     = @()
+    },
+    [pscustomobject]@{
+        Id               = 'file-transfer'
+        Version          = '0.1.0'
+        BuildScript      = 'tools\file-transfer\build.ps1'
+        SurfaceProject   = 'tools\file-transfer\src\FileTransfer.Surface\FileTransfer.Surface.csproj'
+        SurfaceAssembly  = 'FileTransfer.Surface.dll'
+        SurfaceTarget    = 'ui\surface'
+        RuntimeStagePath = 'tools\file-transfer\artifacts\package'
+        ServiceUnits     = @()
+    },
     [pscustomobject]@{
         Id               = 'adb-forwarder'
         Version          = '0.2.0'
@@ -271,6 +297,16 @@ $toolRegistry = @(
         SurfaceAssembly  = 'InputMonitor.Surface.dll'
         SurfaceTarget    = 'ui\surface'
         RuntimeStagePath = 'tools\input-monitor\artifacts\package'
+        ServiceUnits     = @()
+    },
+    [pscustomobject]@{
+        Id               = 'audio-relay'
+        Version          = '0.1.0'
+        BuildScript      = 'tools\audio-relay\build.ps1'
+        SurfaceProject   = ''
+        SurfaceAssembly  = ''
+        SurfaceTarget    = ''
+        RuntimeStagePath = 'tools\audio-relay\artifacts\package'
         ServiceUnits     = @()
     },
     [pscustomobject]@{
@@ -366,6 +402,9 @@ if ($ToolId.Count -gt 0) {
         throw "Unknown -ToolId value(s): $($missing -join ', '). Known: $($knownIds -join ', ')"
     }
 }
+# An explicit selection is a request for that tool, so a not-yet-landed optional tool
+# must fail loudly instead of being skipped like it is in a full-suite build.
+$strictToolSelection = $ToolId.Count -gt 0
 
 # ---------------------------------------------------------------------------
 # Prepare output
@@ -417,6 +456,7 @@ $prebuiltCliTools = @('screenshot', 'input-monitor', 'local-lag-cleaner', 'ime-m
 # ---------------------------------------------------------------------------
 $perToolManifest = New-Object System.Collections.ArrayList
 $toolBuildStates = New-Object System.Collections.ArrayList
+$skippedOptionalTools = New-Object System.Collections.ArrayList
 
 function Invoke-ToolBuild {
     param($Tool, $repoRoot, $Configuration, $Version, $dotnet, $cliExe, $prebuiltCliTools)
@@ -432,6 +472,12 @@ function Invoke-ToolBuild {
 
     $buildScriptPath = Join-Path $repoRoot $toolBuildScript
     if (-not (Test-Path -LiteralPath $buildScriptPath -PathType Leaf)) {
+        $isOptional = $tool.PSObject.Properties['Optional'] -and [bool]$tool.Optional
+        if ($isOptional -and -not $strictToolSelection) {
+            Write-Warning "[$currentToolId] optional tool has not landed in this checkout; skipping $toolBuildScript."
+            [void]$skippedOptionalTools.Add($currentToolId)
+            continue
+        }
         throw "Tool build script missing: $buildScriptPath"
     }
     $runtimeBuildArguments = @(
@@ -725,6 +771,7 @@ $manifest = [ordered]@{
     generatedAt   = ([DateTimeOffset]::UtcNow).ToString('O')
     superproject  = $superSource
     tools         = $perToolManifest
+    skippedOptionalTools = @($skippedOptionalTools)
 }
 
 $manifestPath = Join-Path $OutputRoot 'source-manifest.json'
@@ -733,4 +780,7 @@ $manifest | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $manifestPath -En
 Write-Host ''
 Write-Host '==> Source manifest:' -ForegroundColor Cyan
 Write-Host "    $manifestPath"
+if ($skippedOptionalTools.Count -gt 0) {
+    Write-Host "==> Skipped optional tools (not in this checkout): $($skippedOptionalTools -join ', ')" -ForegroundColor Yellow
+}
 Write-Host "==> Done. Built $($perToolManifest.Count) tool(s) -> $OutputRoot" -ForegroundColor Green

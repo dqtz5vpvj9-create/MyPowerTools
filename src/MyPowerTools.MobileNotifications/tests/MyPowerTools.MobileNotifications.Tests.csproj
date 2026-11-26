@@ -1,0 +1,41 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    Targeted regression tests for the phone notification surface. They host the real view in a
+    headless Avalonia application together with a fake `remote-notifications-android` module and a
+    real history.json written through the shipped RemoteNotificationsLegacyStore, so the list,
+    unread state, search, detail sheet, background switch and permission failure paths are exercised
+    exactly as on the device - without an Android host, without touching real tool data, and without
+    starting the desktop product or NotifyApp.
+  -->
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+    <IsTestProject>true</IsTestProject>
+    <AssemblyName>MyPowerTools.MobileNotifications.Tests</AssemblyName>
+    <RootNamespace>MyPowerTools.MobileNotifications.Tests</RootNamespace>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <!--
+      The headless host renders through Skia with the Fluent base theme. Skia is required, not just
+      nice to have: the headless drawing stub loops when it has to wrap multi-line notification text
+      inside the bottom sheet, which would make the sheet tests hang instead of measuring real layout.
+      Real drawing also lets the tests capture PNG evidence of the rebuilt page.
+    -->
+    <PackageReference Include="Avalonia.Skia" Version="12.0.5" />
+    <PackageReference Include="Avalonia.Themes.Fluent" Version="12.0.5" />
+    <PackageReference Include="Avalonia.Headless.XUnit" Version="12.0.5" />
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="18.3.0" />
+    <PackageReference Include="xunit.v3" Version="3.2.2" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.5"><PrivateAssets>all</PrivateAssets></PackageReference>
+    <Using Include="Xunit" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <ProjectReference Include="../MyPowerTools.MobileNotifications.csproj" />
+  </ItemGroup>
+
+</Project>

@@ -1,0 +1,24 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Read-only share roots for the phone file viewer.
+
+  This file is the second half of the boundary declared in SharedFileRootSpec. AndroidX FileProvider
+  canonicalizes every requested file and refuses anything that is not below one of these trees, so
+  only the File Transfer receive/staging folders and the host's own share cache can ever be handed to
+  a viewer. There is deliberately no <root-path>, no <external-path>, no <external-files-path> and no
+  <files-path path="." />: the app-private root (settings, secrets, logs, module state) and all of
+  shared storage stay unreachable, and no entry may be widened without updating the matching constant
+  and the AndroidFileOpen.Tests parity test.
+-->
+<paths>
+    <!-- Durable copies of attachments the user sent; kept for reopening and forwarding. -->
+    <files-path name="mpt_payload" path="MyPowerTools/state/modules/file-transfer/data/assistant/payload/" />
+    <!-- Attachments received through the assistant conversation. -->
+    <files-path name="mpt_inbox" path="MyPowerTools/state/modules/file-transfer/data/assistant/inbox/" />
+    <!-- Files received from a paired device or the relay on this phone. -->
+    <files-path name="mpt_incoming" path="MyPowerTools/state/modules/file-transfer/data/incoming/" />
+    <!-- Short-lived copies staged from the system picker before a send. -->
+    <files-path name="mpt_outbox" path="MyPowerTools/state/modules/file-transfer/data/outbox/" />
+    <!-- Files the host copied out of a system share intent before activating a tool. -->
+    <cache-path name="mpt_shares" path="shares/" />
+</paths>

@@ -193,8 +193,7 @@ public sealed partial class NssmManagerViewModel
     internal async Task<int> edit(NssmServiceConfiguration original)
     {
         _ = configure(original);
-        await SaveAsync().ConfigureAwait(true);
-        return Status.StartsWith("配置已保存", StringComparison.Ordinal) ? 0 : 6;
+        return await SaveAsync().ConfigureAwait(true) ? 0 : 6;
     }
 
     [NssmUpstreamFunction("src/gui.cpp", 888, "static TCHAR *browse_filter(int message)", "NssmGuiTranslationTests.frontend_rewrite_matches_gui_contract", FrontendRewrite = true)]

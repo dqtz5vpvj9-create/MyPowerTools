@@ -1,0 +1,30 @@
+{
+  "schemaVersion": "1.0",
+  "toolId": "remote-tool-gateway",
+  "ownerModuleId": "remote-tool-gateway",
+  "title": "远程工具访问",
+  "description": "让已授权的手机通过 Tailscale 使用这台电脑上你明确允许的工具命令；敏感操作逐次在电脑上确认。",
+  "icon": "tool.remote-tool-gateway",
+  "category": "System",
+  "type": "dotnet-surface",
+  "availability": "available",
+  "primaryRouteId": "main",
+  "routes": [
+    {
+      "routeId": "main",
+      "surfaceId": "remote-tool-gateway.control",
+      "title": "远程工具访问",
+      "surface": {
+        "kind": "dotnet",
+        "assembly": "surface/RemoteToolGateway.Surface.dll",
+        "type": "RemoteToolGateway.Surface.RemoteToolGatewaySurfaceFactory"
+      }
+    }
+  ],
+  "homeCard": {
+    "summary": "手机远程使用这台电脑上明确授权的命令。",
+    "primaryActionLabel": "打开远程工具访问",
+    "statusBinding": "module.status",
+    "order": 30
+  }
+}

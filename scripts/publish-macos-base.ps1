@@ -435,6 +435,26 @@ Copy-DirectoryContents -Source $moduleStage -Destination (Join-Path $macRoot 'mo
 foreach ($standaloneModule in $standaloneModules) {
     Build-StandaloneModule -Definition $standaloneModule -CliProject $cliProject
 }
+foreach ($toolId in @('file-transfer', 'remote-tool-gateway')) {
+    $toolBuild = Join-Path $repoRoot "tools/$toolId/build.ps1"
+    $toolBuildParameters = @{ MyPowerToolsRepoRoot = $repoRoot; Configuration = $Configuration }
+    if ($toolId -eq 'file-transfer') { $toolBuildParameters.NoMirror = $true }
+    & $toolBuild @toolBuildParameters
+    if ($LASTEXITCODE -ne 0) {
+        throw "$toolId module build failed with exit code $LASTEXITCODE"
+    }
+    $toolStage = Join-Path $repoRoot "tools/$toolId/artifacts/package"
+    # Release hygiene matches the standalone modules above: no debug symbols ship.
+    foreach ($symbolFile in Get-ChildItem -LiteralPath $toolStage -Recurse -Filter '*.pdb' -File) {
+        Remove-Item -LiteralPath $symbolFile.FullName -Force
+    }
+    Invoke-Native -FilePath 'dotnet' -ArgumentList @(
+        'run', '--project', $cliProject,
+        '--configuration', $Configuration,
+        '--', 'package', 'sign-local', $toolStage
+    ) -Activity "sign macOS $toolId module package"
+    Copy-DirectoryContents -Source $toolStage -Destination (Join-Path $macRoot "modules/$toolId")
+}
 Copy-DirectoryContents -Source (Join-Path $repoRoot 'schemas') -Destination (Join-Path $macRoot 'schemas')
 
 $serviceUnitsRoot = Join-Path $macRoot 'ServiceUnits/units'

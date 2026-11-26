@@ -1,0 +1,58 @@
+[Unit]
+Description=MyPowerTools file assistant public relay (proxy.lixinrui000.cn /mpt/relay/)
+Documentation=file:/opt/mpt-relay/README.md
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=mpt-relay
+Group=mpt-relay
+WorkingDirectory=/opt/mpt-relay
+
+# The service is reached only through nginx on loopback. Both values are the built-in
+# defaults and are set here so the unit is self-describing; override them in the
+# environment file if the proxy layout changes.
+Environment=MPT_RELAY_HOST=127.0.0.1
+Environment=MPT_RELAY_PORT=18765
+Environment=MPT_RELAY_DATA_DIR=/var/lib/mpt-relay
+Environment=MPT_RELAY_BASE_PATH=/mpt/relay
+# /opt is read-only below, so Python must not try to write .pyc files there.
+Environment=PYTHONDONTWRITEBYTECODE=1
+Environment=PYTHONUNBUFFERED=1
+# /etc/mpt-relay/relay.env overrides the values above. First-up posture (the code default):
+# MPT_RELAY_DAV_AUTO_REGISTER=0, so only POST /mpt/relay/v1/conversations creates a namespace.
+EnvironmentFile=-/etc/mpt-relay/relay.env
+
+ExecStart=/usr/bin/python3 -m mpt_relay
+Restart=on-failure
+RestartSec=2
+TimeoutStopSec=20
+KillSignal=SIGTERM
+
+NoNewPrivileges=yes
+PrivateTmp=yes
+PrivateDevices=yes
+ProtectSystem=strict
+ProtectHome=yes
+ProtectKernelTunables=yes
+ProtectKernelModules=yes
+ProtectControlGroups=yes
+RestrictAddressFamilies=AF_INET AF_INET6 AF_UNIX
+RestrictNamespaces=yes
+LockPersonality=yes
+MemoryDenyWriteExecute=yes
+ReadWritePaths=/var/lib/mpt-relay
+
+# Bounded resources: the relay holds at most MPT_RELAY_MAX_CONNECTIONS request threads and
+# streams uploads to disk instead of memory, so this ceiling is generous, not a target.
+MemoryMax=768M
+TasksMax=256
+LimitNOFILE=8192
+
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=mpt-relay
+
+[Install]
+WantedBy=multi-user.target

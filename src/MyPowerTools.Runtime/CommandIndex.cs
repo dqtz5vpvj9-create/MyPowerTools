@@ -143,7 +143,7 @@ public sealed class CommandIndex
     {
         return source?[propertyName] is JsonValue value &&
                value.TryGetValue<int>(out var result) &&
-               result > 0
+               (result == Timeout.Infinite || result > 0)
             ? result
             : fallback;
     }

@@ -1,0 +1,10 @@
+{
+  "schemaVersion": 1,
+  "toolId": "remote-tool-gateway",
+  "sourceClassification": "native-mypowertools-module",
+  "sourceNote": "Native MyPowerTools desktop module and Avalonia surface for phone remote tool access over Tailscale; reuses the HostControl client contract. Android half lives in android-integration/ and is owned by the mobile task.",
+  "originalSnapshotPath": null,
+  "selectedEntries": [],
+  "currentIntegrationSnapshot": ".",
+  "currentIntegrationGlobs": ["package/**", "src/**", "tests/**"]
+}

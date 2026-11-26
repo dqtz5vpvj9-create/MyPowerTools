@@ -24,6 +24,8 @@ if (command is "--help" or "-h")
 
 return command switch
 {
+    "transfer" => TransferCli.Run(args.Skip(1).ToArray()),
+    "secrets" => ServiceSecretCli.RunAsync(args.Skip(1).ToArray()).GetAwaiter().GetResult(),
     "create" => Create(args.Skip(1).ToArray(), root),
     "validate" => Validate(args.Skip(1).ToArray(), root),
     "inspect" => Inspect(args.Skip(1).ToArray(), root),
@@ -1327,6 +1329,8 @@ static int Help(int exitCode = 0)
     Console.WriteLine();
 
     Console.WriteLine("Runtime & Services:");
+    Console.WriteLine("  transfer          status|devices|conversations|send|receipts|wait|cancel|pair|join|invite|cloud [--json]");
+    Console.WriteLine("                    Uses the running Runner; MPT_DATA_ROOT and MPT_ENDPOINT_ADDRESS set defaults.");
     Console.WriteLine("  run               <command-id>");
     Console.WriteLine("  module            list|enable|disable <module-id> [--include-disabled]");
     Console.WriteLine("  service           list|status|start|stop|restart|reload|shutdown [unit-id]");

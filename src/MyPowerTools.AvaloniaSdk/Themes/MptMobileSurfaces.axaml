@@ -1,0 +1,530 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!--
+    MPT mobile surfaces, rows and icons (M1).
+
+    Selectors only match explicit MptMobile* classes, so the desktop theme is untouched.
+    Every colour is a DynamicResource from MptMobileTokens.axaml, which means both theme
+    variants and a host-applied font/colour override flow through without page changes.
+    Rows and buttons use MinHeight only: an enlarged system font grows the row instead of
+    clipping its title, and touch targets never drop below MptMobileTouchTargetMin (44dp).
+  -->
+
+  <!-- Cards and panels -->
+  <Style Selector="Border.MptMobileCard">
+    <Setter Property="Background" Value="{DynamicResource MptMobileCardBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MptMobileCardBorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="{DynamicResource MptMobileCardCornerRadius}" />
+    <Setter Property="Padding" Value="{DynamicResource MptMobileCardPadding}" />
+  </Style>
+
+  <Style Selector="Border.MptMobileHeroCard">
+    <Setter Property="Background" Value="{DynamicResource MptMobileCardBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MptMobileCardBorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="{DynamicResource MptMobileHeroCardCornerRadius}" />
+    <Setter Property="Padding" Value="{DynamicResource MptMobileHeroCardPadding}" />
+  </Style>
+
+  <Style Selector="Border.MptMobileListCard">
+    <Setter Property="Background" Value="{DynamicResource MptMobileCardBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MptMobileCardBorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="{DynamicResource MptMobilePanelCornerRadius}" />
+    <Setter Property="ClipToBounds" Value="True" />
+  </Style>
+
+  <Style Selector="Border.MptMobileTile">
+    <Setter Property="Background" Value="{DynamicResource MptMobileCardBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MptMobileCardBorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="{DynamicResource MptMobileTileCornerRadius}" />
+    <Setter Property="Padding" Value="{DynamicResource MptMobileTilePadding}" />
+    <Setter Property="MinHeight" Value="{DynamicResource MptMobileTileMinHeight}" />
+  </Style>
+
+  <Style Selector="Border.MptMobileDeviceCard">
+    <Setter Property="Background" Value="{DynamicResource MptMobileCardBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MptMobileDividerBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="{DynamicResource MptMobileCardCornerRadius}" />
+    <Setter Property="Padding" Value="{DynamicResource MptMobileCardPadding}" />
+  </Style>
+
+  <Style Selector="Border.MptMobileDetailStat">
+    <Setter Property="Background" Value="{DynamicResource MptMobileCardBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MptMobileDividerBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="18" />
+    <Setter Property="Padding" Value="17" />
+  </Style>
+
+  <Style Selector="Border.MptMobileInsetPanel">
+    <Setter Property="Background" Value="{DynamicResource MptMobileBackgroundBrush}" />
+    <Setter Property="CornerRadius" Value="{DynamicResource MptMobileButtonCornerRadius}" />
+    <Setter Property="Padding" Value="15" />
+  </Style>
+
+  <Style Selector="Border.MptMobileReceipt">
+    <Setter Property="Background" Value="{DynamicResource MptMobileBackgroundBrush}" />
+    <Setter Property="CornerRadius" Value="{DynamicResource MptMobileButtonCornerRadius}" />
+    <Setter Property="Padding" Value="16" />
+  </Style>
+
+  <Style Selector="Border.MptMobileConnectionCode">
+    <Setter Property="Background" Value="{DynamicResource MptMobileBackgroundBrush}" />
+    <Setter Property="CornerRadius" Value="18" />
+    <Setter Property="Padding" Value="10,23" />
+    <Setter Property="Margin" Value="0,18" />
+  </Style>
+
+  <Style Selector="Border.MptMobileSearchBox">
+    <Setter Property="Background" Value="{DynamicResource MptMobileSearchBackgroundBrush}" />
+    <Setter Property="CornerRadius" Value="{DynamicResource MptMobileControlCornerRadius}" />
+    <Setter Property="MinHeight" Value="{DynamicResource MptMobileSearchMinHeight}" />
+    <Setter Property="Padding" Value="{DynamicResource MptMobileSearchPadding}" />
+  </Style>
+
+  <Style Selector="Border.MptMobileCommandOutput">
+    <Setter Property="Background" Value="{DynamicResource MptMobileCommandSurfaceBrush}" />
+    <Setter Property="CornerRadius" Value="{DynamicResource MptMobileButtonCornerRadius}" />
+    <Setter Property="Padding" Value="17" />
+    <Setter Property="Margin" Value="0,18,0,0" />
+    <Setter Property="TextElement.Foreground" Value="{DynamicResource MptMobileCommandTextBrush}" />
+    <Setter Property="TextElement.FontFamily" Value="{DynamicResource MptMobileFontFamilyMono}" />
+    <Setter Property="TextElement.FontSize" Value="{DynamicResource MptMobileFontSizeMeta}" />
+  </Style>
+
+  <!-- Dividers: MptMobileDivider is a standalone rule, MptMobileRowDivider draws the
+       prototype's row separator on the top edge of the following row. -->
+  <Style Selector="Border.MptMobileDivider">
+    <Setter Property="Background" Value="{DynamicResource MptMobileDividerBrush}" />
+    <Setter Property="Height" Value="{DynamicResource MptMobileDividerThickness}" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+  </Style>
+
+  <Style Selector="Border.MptMobileRowDivider">
+    <Setter Property="BorderBrush" Value="{DynamicResource MptMobileDividerBrush}" />
+    <Setter Property="BorderThickness" Value="0,1,0,0" />
+  </Style>
+
+  <!-- Rows. The Button flavour behaves like the prototype's tappable list row; the Border
+       flavour is for rows that host their own controls. -->
+  <Style Selector="Button.MptMobileListRow">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="CornerRadius" Value="0" />
+    <Setter Property="Padding" Value="{DynamicResource MptMobileListRowPadding}" />
+    <Setter Property="MinHeight" Value="{DynamicResource MptMobileListRowMinHeight}" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="TextElement.Foreground" Value="{DynamicResource MptMobileTextBrush}" />
+    <Style Selector="^:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource MptMobileHoverOverlayBrush}" />
+    </Style>
+    <Style Selector="^:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource MptMobilePressedOverlayBrush}" />
+    </Style>
+    <Style Selector="^:disabled">
+      <Setter Property="Opacity" Value="0.55" />
+    </Style>
+  </Style>
+
+  <Style Selector="Border.MptMobileListRow">
+    <Setter Property="Padding" Value="{DynamicResource MptMobileListRowPadding}" />
+    <Setter Property="MinHeight" Value="{DynamicResource MptMobileListRowMinHeight}" />
+  </Style>
+
+  <Style Selector=":is(ContentControl).MptMobileListRow" x:SetterTargetType="ContentControl">
+    <Setter Property="Padding" Value="{DynamicResource MptMobileListRowPadding}" />
+    <Setter Property="MinHeight" Value="{DynamicResource MptMobileListRowMinHeight}" />
+  </Style>
+
+  <Style Selector="Button.MptMobileSettingRow">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="CornerRadius" Value="0" />
+    <Setter Property="Padding" Value="15,13" />
+    <Setter Property="MinHeight" Value="{DynamicResource MptMobileSettingRowMinHeight}" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="TextElement.Foreground" Value="{DynamicResource MptMobileTextBrush}" />
+    <Style Selector="^:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource MptMobileHoverOverlayBrush}" />
+    </Style>
+    <Style Selector="^:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource MptMobilePressedOverlayBrush}" />
+    </Style>
+  </Style>
+
+  <Style Selector="Border.MptMobileSettingRow">
+    <Setter Property="Padding" Value="15,13" />
+    <Setter Property="MinHeight" Value="{DynamicResource MptMobileSettingRowMinHeight}" />
+  </Style>
+
+  <Style Selector="Button.MptMobileTargetRow">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="CornerRadius" Value="0" />
+    <Setter Property="Padding" Value="0,17" />
+    <Setter Property="MinHeight" Value="{DynamicResource MptMobileTargetRowMinHeight}" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="TextElement.Foreground" Value="{DynamicResource MptMobileTextBrush}" />
+    <Style Selector="^:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource MptMobileHoverOverlayBrush}" />
+    </Style>
+    <Style Selector="^:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource MptMobilePressedOverlayBrush}" />
+    </Style>
+    <Style Selector="^:disabled">
+      <Setter Property="Opacity" Value="0.55" />
+    </Style>
+  </Style>
+
+  <Style Selector="Border.MptMobileTargetRow">
+    <Setter Property="Padding" Value="0,17" />
+    <Setter Property="MinHeight" Value="{DynamicResource MptMobileTargetRowMinHeight}" />
+  </Style>
+
+  <Style Selector="Button.MptMobileFileChoice">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MptMobileDividerBrush}" />
+    <Setter Property="BorderThickness" Value="0,0,0,1" />
+    <Setter Property="CornerRadius" Value="0" />
+    <Setter Property="Padding" Value="1,12" />
+    <Setter Property="MinHeight" Value="{DynamicResource MptMobileFileChoiceMinHeight}" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+    <Setter Property="TextElement.Foreground" Value="{DynamicResource MptMobileTextBrush}" />
+    <Style Selector="^:pointerover /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource MptMobileHoverOverlayBrush}" />
+    </Style>
+    <Style Selector="^:pressed /template/ ContentPresenter#PART_ContentPresenter">
+      <Setter Property="Background" Value="{DynamicResource MptMobilePressedOverlayBrush}" />
+    </Style>
+  </Style>
+
+  <Style Selector="Border.MptMobileFileChoice">
+    <Setter Property="BorderBrush" Value="{DynamicResource MptMobileDividerBrush}" />
+    <Setter Property="BorderThickness" Value="0,0,0,1" />
+    <Setter Property="Padding" Value="1,12" />
+    <Setter Property="MinHeight" Value="{DynamicResource MptMobileFileChoiceMinHeight}" />
+  </Style>
+
+  <!-- File thumbs, badges, pills and notices -->
+  <Style Selector="Border.MptMobileFileThumb">
+    <Setter Property="Background" Value="{DynamicResource MptMobileFileThumbBackgroundBrush}" />
+    <Setter Property="CornerRadius" Value="8" />
+    <Setter Property="Width" Value="{DynamicResource MptMobileFileThumbWidth}" />
+    <Setter Property="Height" Value="{DynamicResource MptMobileFileThumbHeight}" />
+    <Setter Property="TextElement.Foreground" Value="{DynamicResource MptMobileFileThumbTextBrush}" />
+    <Setter Property="TextElement.FontSize" Value="{DynamicResource MptMobileFontSizeMicro}" />
+  </Style>
+
+  <Style Selector="Border.MptMobileFileThumb.photo">
+    <Setter Property="Background" Value="{DynamicResource MptMobileFileThumbPhotoBackgroundBrush}" />
+    <Setter Property="TextElement.Foreground" Value="{DynamicResource MptMobileFileThumbPhotoTextBrush}" />
+  </Style>
+
+  <Style Selector="Border.MptMobileFileThumb.zip">
+    <Setter Property="Background" Value="{DynamicResource MptMobileFileThumbArchiveBackgroundBrush}" />
+    <Setter Property="TextElement.Foreground" Value="{DynamicResource MptMobileFileThumbArchiveTextBrush}" />
+  </Style>
+
+  <Style Selector="Border.MptMobileBadge">
+    <Setter Property="Background" Value="{DynamicResource MptMobileAccentSoftBrush}" />
+    <Setter Property="CornerRadius" Value="{DynamicResource MptMobileBadgeCornerRadius}" />
+    <Setter Property="Padding" Value="6,3" />
+    <Setter Property="TextElement.Foreground" Value="{DynamicResource MptMobileAccentBrush}" />
+    <Setter Property="TextElement.FontSize" Value="{DynamicResource MptMobileFontSizeMicro}" />
+  </Style>
+
+  <Style Selector="Border.MptMobilePill">
+    <Setter Property="Background" Value="{DynamicResource MptMobileSuccessSoftBrush}" />
+    <Setter Property="CornerRadius" Value="{DynamicResource MptMobilePillCornerRadius}" />
+    <Setter Property="Padding" Value="{DynamicResource MptMobilePillPadding}" />
+    <Setter Property="TextElement.Foreground" Value="{DynamicResource MptMobileSuccessBrush}" />
+    <Setter Property="TextElement.FontSize" Value="{DynamicResource MptMobileFontSizeMicro}" />
+  </Style>
+
+  <Style Selector="Border.MptMobilePill.offline">
+    <Setter Property="Background" Value="{DynamicResource MptMobileNeutralPillBackgroundBrush}" />
+    <Setter Property="TextElement.Foreground" Value="{DynamicResource MptMobileNeutralPillTextBrush}" />
+  </Style>
+
+  <Style Selector="TextBlock.MptMobilePillText">
+    <Setter Property="FontSize" Value="{DynamicResource MptMobileFontSizeMicro}" />
+    <Setter Property="Foreground" Value="{DynamicResource MptMobileSuccessBrush}" />
+  </Style>
+
+  <Style Selector="TextBlock.MptMobilePillText.offline">
+    <Setter Property="Foreground" Value="{DynamicResource MptMobileNeutralPillTextBrush}" />
+  </Style>
+
+  <Style Selector="Border.MptMobileNotice">
+    <Setter Property="Background" Value="{DynamicResource MptMobileAccentSoftBrush}" />
+    <Setter Property="CornerRadius" Value="{DynamicResource MptMobileSecondaryButtonCornerRadius}" />
+    <Setter Property="Padding" Value="{DynamicResource MptMobileNoticePadding}" />
+    <Setter Property="Margin" Value="0,17,0,0" />
+    <Setter Property="TextElement.Foreground" Value="{DynamicResource MptMobileNoticeTextBrush}" />
+    <Setter Property="TextElement.FontSize" Value="{DynamicResource MptMobileFontSizeCaption}" />
+  </Style>
+
+  <Style Selector="Border.MptMobileNotice.warning">
+    <Setter Property="Background" Value="{DynamicResource MptMobileWarningSoftBrush}" />
+    <Setter Property="TextElement.Foreground" Value="{DynamicResource MptMobileWarningBrush}" />
+  </Style>
+
+  <Style Selector="Border.MptMobileStatusDot">
+    <Setter Property="Background" Value="{DynamicResource MptMobileSuccessBrush}" />
+    <Setter Property="Width" Value="{DynamicResource MptMobileStatusDotSize}" />
+    <Setter Property="Height" Value="{DynamicResource MptMobileStatusDotSize}" />
+    <Setter Property="CornerRadius" Value="3" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+
+  <Style Selector="Border.MptMobileStatusDot.off">
+    <Setter Property="Background" Value="{DynamicResource MptMobileStatusDotOffBrush}" />
+  </Style>
+
+  <Style Selector="Ellipse.MptMobileStatusDot">
+    <Setter Property="Fill" Value="{DynamicResource MptMobileSuccessBrush}" />
+    <Setter Property="Width" Value="{DynamicResource MptMobileStatusDotSize}" />
+    <Setter Property="Height" Value="{DynamicResource MptMobileStatusDotSize}" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+
+  <Style Selector="Ellipse.MptMobileStatusDot.off">
+    <Setter Property="Fill" Value="{DynamicResource MptMobileStatusDotOffBrush}" />
+  </Style>
+
+  <!-- Unread marker from the notification list (6dp accent dot). -->
+  <Style Selector="Border.MptMobileUnreadDot">
+    <Setter Property="Background" Value="{DynamicResource MptMobileAccentBrush}" />
+    <Setter Property="Width" Value="6" />
+    <Setter Property="Height" Value="6" />
+    <Setter Property="CornerRadius" Value="3" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+
+  <!-- Target availability label ("可直传" / "离线"). -->
+  <Style Selector="TextBlock.MptMobileTargetBadge">
+    <Setter Property="FontSize" Value="{DynamicResource MptMobileFontSizeMicro}" />
+    <Setter Property="Foreground" Value="{DynamicResource MptMobileSuccessBrush}" />
+    <Setter Property="TextWrapping" Value="Wrap" />
+  </Style>
+
+  <Style Selector="TextBlock.MptMobileTargetBadge.off">
+    <Setter Property="Foreground" Value="{DynamicResource MptMobileSecondaryTextBrush}" />
+  </Style>
+
+  <!-- Icon boxes keep their glyph colour on the container, so PathIcon children inherit it. -->
+  <Style Selector="Border.MptMobileIconBox">
+    <Setter Property="Background" Value="{DynamicResource MptMobileAccentSoftBrush}" />
+    <Setter Property="CornerRadius" Value="{DynamicResource MptMobileControlCornerRadius}" />
+    <Setter Property="Width" Value="{DynamicResource MptMobileIconBoxSize}" />
+    <Setter Property="Height" Value="{DynamicResource MptMobileIconBoxSize}" />
+    <Setter Property="TextElement.Foreground" Value="{DynamicResource MptMobileAccentBrush}" />
+  </Style>
+
+  <Style Selector="Border.MptMobileIconBox.green">
+    <Setter Property="Background" Value="{DynamicResource MptMobileSuccessSoftBrush}" />
+    <Setter Property="TextElement.Foreground" Value="{DynamicResource MptMobileSuccessBrush}" />
+  </Style>
+
+  <Style Selector="Border.MptMobileIconBox.purple">
+    <Setter Property="Background" Value="{DynamicResource MptMobilePurpleSoftBrush}" />
+    <Setter Property="TextElement.Foreground" Value="{DynamicResource MptMobilePurpleBrush}" />
+  </Style>
+
+  <Style Selector="Border.MptMobileIconBox.orange">
+    <Setter Property="Background" Value="{DynamicResource MptMobileOrangeSoftBrush}" />
+    <Setter Property="TextElement.Foreground" Value="{DynamicResource MptMobileOrangeBrush}" />
+  </Style>
+
+  <Style Selector="Border.MptMobileHeroMark">
+    <Setter Property="Background" Value="{DynamicResource MptMobileAccentSoftBrush}" />
+    <Setter Property="CornerRadius" Value="13" />
+    <Setter Property="Padding" Value="9" />
+    <Setter Property="TextElement.Foreground" Value="{DynamicResource MptMobileAccentBrush}" />
+  </Style>
+
+  <Style Selector="Border.MptMobileSuccessIcon">
+    <Setter Property="Background" Value="{DynamicResource MptMobileSuccessSoftBrush}" />
+    <Setter Property="Width" Value="{DynamicResource MptMobileSuccessIconSize}" />
+    <Setter Property="Height" Value="{DynamicResource MptMobileSuccessIconSize}" />
+    <Setter Property="CornerRadius" Value="38" />
+    <Setter Property="Margin" Value="0,6,0,23" />
+    <Setter Property="HorizontalAlignment" Value="Center" />
+    <Setter Property="TextElement.Foreground" Value="{DynamicResource MptMobileSuccessBrush}" />
+  </Style>
+
+  <Style Selector="Border.MptMobileAvatar">
+    <Setter Property="Background" Value="{DynamicResource MptMobileAvatarBackgroundBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MptMobileAvatarBorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="19" />
+    <Setter Property="Width" Value="{DynamicResource MptMobileAvatarSize}" />
+    <Setter Property="Height" Value="{DynamicResource MptMobileAvatarSize}" />
+    <Setter Property="TextElement.Foreground" Value="{DynamicResource MptMobileAvatarTextBrush}" />
+  </Style>
+
+  <!-- Progress: track + fill for the prototype's thin bar, plus a plain ProgressBar flavour. -->
+  <Style Selector="Border.MptMobileProgressTrack">
+    <Setter Property="Background" Value="{DynamicResource MptMobileDividerBrush}" />
+    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="Height" Value="{DynamicResource MptMobileProgressHeight}" />
+    <Setter Property="ClipToBounds" Value="True" />
+    <Setter Property="Margin" Value="0,28,0,13" />
+  </Style>
+
+  <Style Selector="Border.MptMobileProgressFill">
+    <Setter Property="Background" Value="{DynamicResource MptMobileAccentBrush}" />
+    <Setter Property="CornerRadius" Value="6" />
+    <Setter Property="Height" Value="{DynamicResource MptMobileProgressHeight}" />
+    <Setter Property="HorizontalAlignment" Value="Left" />
+  </Style>
+
+  <Style Selector="ProgressBar.MptMobileProgress">
+    <Setter Property="Foreground" Value="{DynamicResource MptMobileAccentBrush}" />
+    <Setter Property="Background" Value="{DynamicResource MptMobileDividerBrush}" />
+    <Setter Property="MinHeight" Value="6" />
+    <Setter Property="CornerRadius" Value="6" />
+  </Style>
+
+  <!-- Icons. Path is the stroked-prototype flavour and needs an explicit colour class;
+       PathIcon inherits TextElement.Foreground from its container, which is what the
+       MptMobileIconBox / MptMobilePill / MptMobileNotice containers already set. -->
+  <Style Selector="Path.MptMobileIcon">
+    <Setter Property="Stroke" Value="{DynamicResource MptMobileTextBrush}" />
+    <Setter Property="StrokeThickness" Value="{DynamicResource MptMobileIconStrokeThickness}" />
+    <Setter Property="StrokeLineCap" Value="Round" />
+    <Setter Property="StrokeJoin" Value="Round" />
+    <Setter Property="Width" Value="{DynamicResource MptMobileIconSize}" />
+    <Setter Property="Height" Value="{DynamicResource MptMobileIconSize}" />
+    <!-- Stretch=None keeps the prototype's 24dp optical padding: Uniform would rescale every
+         glyph to fill its own bounds, so small icons (dots, spark) would render oversized. -->
+    <Setter Property="Stretch" Value="None" />
+  </Style>
+
+  <Style Selector="Path.MptMobileIconAccent">
+    <Setter Property="Stroke" Value="{DynamicResource MptMobileAccentBrush}" />
+  </Style>
+
+  <Style Selector="Path.MptMobileIconSecondary">
+    <Setter Property="Stroke" Value="{DynamicResource MptMobileSecondaryTextBrush}" />
+  </Style>
+
+  <Style Selector="Path.MptMobileIconMuted">
+    <Setter Property="Stroke" Value="{DynamicResource MptMobileChevronBrush}" />
+  </Style>
+
+  <Style Selector="Path.MptMobileIconSuccess">
+    <Setter Property="Stroke" Value="{DynamicResource MptMobileSuccessBrush}" />
+  </Style>
+
+  <Style Selector="Path.MptMobileIconWarning">
+    <Setter Property="Stroke" Value="{DynamicResource MptMobileWarningBrush}" />
+  </Style>
+
+  <Style Selector="Path.MptMobileIconDevice">
+    <Setter Property="Stroke" Value="{DynamicResource MptMobileDeviceIconBrush}" />
+  </Style>
+
+  <Style Selector="Path.MptMobileIconOnAccent">
+    <Setter Property="Stroke" Value="{DynamicResource MptMobileOnAccentBrush}" />
+  </Style>
+
+  <Style Selector="Path.MptMobileIconSmall">
+    <Setter Property="Width" Value="{DynamicResource MptMobileIconSizeSmall}" />
+    <Setter Property="Height" Value="{DynamicResource MptMobileIconSizeSmall}" />
+  </Style>
+
+  <Style Selector="Path.MptMobileIconMedium">
+    <Setter Property="Width" Value="{DynamicResource MptMobileIconSizeMedium}" />
+    <Setter Property="Height" Value="{DynamicResource MptMobileIconSizeMedium}" />
+  </Style>
+
+  <!-- 60x48 device illustration glyph used by transfer / device cards. -->
+  <Style Selector="Path.MptMobileDeviceArt">
+    <Setter Property="Stroke" Value="{DynamicResource MptMobileDeviceIconBrush}" />
+    <Setter Property="StrokeThickness" Value="1.2" />
+    <Setter Property="StrokeLineCap" Value="Round" />
+    <Setter Property="StrokeJoin" Value="Round" />
+    <Setter Property="Width" Value="60" />
+    <Setter Property="Height" Value="48" />
+    <Setter Property="Stretch" Value="None" />
+  </Style>
+
+  <Style Selector="Path.MptMobileIconLarge">
+    <Setter Property="Width" Value="{DynamicResource MptMobileIconSizeLarge}" />
+    <Setter Property="Height" Value="{DynamicResource MptMobileIconSizeLarge}" />
+  </Style>
+
+  <Style Selector="Path.MptMobileIconEmpty">
+    <Setter Property="Stroke" Value="{DynamicResource MptMobileAccentBrush}" />
+    <Setter Property="StrokeThickness" Value="1.1" />
+    <Setter Property="Width" Value="{DynamicResource MptMobileIconSizeEmpty}" />
+    <Setter Property="Height" Value="{DynamicResource MptMobileIconSizeEmpty}" />
+  </Style>
+
+  <Style Selector="Path.MptMobileIconSuccessLarge">
+    <Setter Property="Stroke" Value="{DynamicResource MptMobileSuccessBrush}" />
+    <Setter Property="StrokeThickness" Value="1.7" />
+    <Setter Property="Width" Value="{DynamicResource MptMobileIconSizeSuccess}" />
+    <Setter Property="Height" Value="{DynamicResource MptMobileIconSizeSuccess}" />
+  </Style>
+
+  <Style Selector="PathIcon.MptMobileIcon">
+    <Setter Property="Foreground" Value="{DynamicResource MptMobileTextBrush}" />
+    <Setter Property="Width" Value="{DynamicResource MptMobileIconSize}" />
+    <Setter Property="Height" Value="{DynamicResource MptMobileIconSize}" />
+  </Style>
+
+  <Style Selector="PathIcon.MptMobileIconAccent">
+    <Setter Property="Foreground" Value="{DynamicResource MptMobileAccentBrush}" />
+  </Style>
+
+  <Style Selector="PathIcon.MptMobileIconSecondary">
+    <Setter Property="Foreground" Value="{DynamicResource MptMobileSecondaryTextBrush}" />
+  </Style>
+
+  <Style Selector="PathIcon.MptMobileIconMuted">
+    <Setter Property="Foreground" Value="{DynamicResource MptMobileChevronBrush}" />
+  </Style>
+
+  <Style Selector="PathIcon.MptMobileIconSuccess">
+    <Setter Property="Foreground" Value="{DynamicResource MptMobileSuccessBrush}" />
+  </Style>
+
+  <Style Selector="PathIcon.MptMobileIconWarning">
+    <Setter Property="Foreground" Value="{DynamicResource MptMobileWarningBrush}" />
+  </Style>
+
+  <Style Selector="PathIcon.MptMobileIconDevice">
+    <Setter Property="Foreground" Value="{DynamicResource MptMobileDeviceIconBrush}" />
+  </Style>
+
+  <Style Selector="PathIcon.MptMobileIconLarge">
+    <Setter Property="Width" Value="{DynamicResource MptMobileIconSizeLarge}" />
+    <Setter Property="Height" Value="{DynamicResource MptMobileIconSizeLarge}" />
+  </Style>
+
+  <Style Selector="PathIcon.MptMobileIconEmpty">
+    <Setter Property="Foreground" Value="{DynamicResource MptMobileAccentBrush}" />
+    <Setter Property="Width" Value="{DynamicResource MptMobileIconSizeEmpty}" />
+    <Setter Property="Height" Value="{DynamicResource MptMobileIconSizeEmpty}" />
+  </Style>
+
+  <Style Selector="PathIcon.MptMobileIconSuccessLarge">
+    <Setter Property="Foreground" Value="{DynamicResource MptMobileSuccessBrush}" />
+    <Setter Property="Width" Value="{DynamicResource MptMobileIconSizeSuccess}" />
+    <Setter Property="Height" Value="{DynamicResource MptMobileIconSizeSuccess}" />
+  </Style>
+</Styles>

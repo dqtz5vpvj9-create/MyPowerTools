@@ -26,7 +26,7 @@ public sealed class GeneralSettingsViewModel : ShellPageViewModel
             new ThemeChoiceViewModel(
                 ShellAppearanceService.SystemTheme,
                 "Use system setting",
-                "Follow the Windows light or dark appearance."),
+                "Follow your device’s light or dark appearance."),
             new ThemeChoiceViewModel(
                 ShellAppearanceService.LightTheme,
                 "Light",
@@ -59,6 +59,11 @@ public sealed class GeneralSettingsViewModel : ShellPageViewModel
     public bool HasGlobalHotkeys => GlobalHotkeys.Count > 0;
     public string GlobalHotkeyStatusText { get; }
 
+    public string BackgroundDescription => OperatingSystem.IsAndroid()
+        ? "在工具中开启需要的后台任务。" : "How the application remains available after its window closes.";
+    public string BackgroundLocation => OperatingSystem.IsAndroid() ? "运行通知" : "Notification area";
+    public string BackgroundHint => OperatingSystem.IsAndroid()
+        ? "开启接收等后台任务后，可从通知返回 MyPowerTools 或停止任务。" : "Use the tray menu to open or exit MyPowerTools.";
     public IReadOnlyList<ThemeChoiceViewModel> Themes { get; }
     public ICommand OpenSystemCommand { get; }
     public ICommand OpenShortcutsCommand { get; }

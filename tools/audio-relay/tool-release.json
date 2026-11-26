@@ -1,0 +1,18 @@
+{
+  "schemaVersion": 1,
+  "toolId": "audio-relay",
+  "packageId": "audio-relay",
+  "version": "0.1.0",
+  "sdkTool": {
+    "directory": "sdk-tool",
+    "manifest": "sdk-tool/tool.json",
+    "project": "sdk-tool/src/AudioRelay.Tool/AudioRelay.Tool.csproj",
+    "assembly": "sdk-tool/src/AudioRelay.Tool/bin/Release/net10.0/AudioRelay.Tool.dll",
+    "runtimeProject": "sdk-tool/src/AudioRelay.Runtime/AudioRelay.Runtime.csproj",
+    "runtimeAssembly": "sdk-tool/src/AudioRelay.Runtime/bin/Release/net10.0/AudioRelay.Runtime.exe",
+    "runtimeTransport": "stdio-jsonrpc",
+    "package": "artifacts/audio-relay.mptpkg",
+    "sdkPackages": ["MyPowerTools.AvaloniaSdk", "MyPowerTools.ToolSdk"]
+  },
+  "buildScript": "build.ps1"
+}

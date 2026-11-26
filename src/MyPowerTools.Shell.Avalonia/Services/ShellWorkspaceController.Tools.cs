@@ -225,33 +225,6 @@ public sealed partial class ShellWorkspaceController
         await ShowToolPageAsync(descriptor, descriptor.PrimaryRouteId);
     }
 
-    internal async Task ActivateToolAsync(ToolActivationRequest activation)
-    {
-        ArgumentNullException.ThrowIfNull(activation);
-
-        var descriptor = await TryLoadToolDescriptorAsync(activation.ToolId);
-        if (descriptor is null)
-        {
-            return;
-        }
-
-        var routeId = string.IsNullOrWhiteSpace(activation.RouteId)
-            ? descriptor.PrimaryRouteId
-            : activation.RouteId;
-        await ShowToolPageAsync(descriptor, routeId);
-        if (GetCurrentExternalSdkToolView() is not { } externalView ||
-            externalView.ManagedSurface is not IMptAvaloniaSurfaceActivationHandler handler)
-        {
-            SetStatus($"{activation.ToolId} does not handle external activations.");
-            return;
-        }
-
-        var handled = await handler.ActivateAsync(activation);
-        SetStatus(handled
-            ? $"Activated {activation.ToolId}."
-            : $"{activation.ToolId} could not resolve the activation target.");
-    }
-
     /// <summary>
     /// Loads any tool (first-party or external) by its tool id. Navigation is fully dynamic — no
     /// hardcoded tool IDs, no switch on tool type. dotnet-surface tools load via

@@ -231,7 +231,9 @@ public sealed class NssmServiceRuntimeTranslationTests
         await using var runtime = new ManagedServiceRuntime(new NssmServiceConfiguration
         {
             Name = "missing-application-test",
-            Application = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"), "missing.exe")
+            Application = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"), "missing.exe"),
+            // A unit test host is an interactive desktop; never ask it for a console window.
+            NoConsole = true
         });
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(10));
         Assert.Equal(3, await runtime.RunAsync(timeout.Token));
@@ -244,6 +246,8 @@ public sealed class NssmServiceRuntimeTranslationTests
         {
             Name = "translation-test",
             Application = Path.Combine(Path.GetTempPath(), Guid.NewGuid().ToString("N"), "missing.exe"),
+            // A unit test host is an interactive desktop; never ask it for a console window.
+            NoConsole = true,
             DefaultExitAction = NssmExitAction.Ignore
         });
 

@@ -1,4 +1,5 @@
 <UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:adaptive="using:MyPowerTools.AvaloniaSdk"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:vm="using:ImeManager.Tool"
              x:Class="ImeManager.Tool.ImeManagerView"
@@ -38,7 +39,7 @@
             BorderThickness="1"
             CornerRadius="12"
             Padding="22,18">
-      <Grid ColumnDefinitions="*,Auto" ColumnSpacing="20">
+      <Grid adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="*,Auto" ColumnSpacing="20">
         <StackPanel Spacing="5">
           <TextBlock Text="输入法管理器"
                      FontSize="25"
@@ -49,7 +50,7 @@
                      FontSize="12"
                      Classes="secondary" />
         </StackPanel>
-        <StackPanel Grid.Column="1"
+        <StackPanel adaptive:MptAdaptiveLayout.StackBelow="480" Grid.Column="1"
                     Orientation="Horizontal"
                     Spacing="10"
                     VerticalAlignment="Center">
@@ -77,7 +78,7 @@
                  Margin="28,0"
                  HorizontalAlignment="Stretch" />
 
-    <Grid Grid.Row="2"
+    <Grid adaptive:MptAdaptiveLayout.StackBelow="600" Grid.Row="2"
           ColumnDefinitions="*,Auto"
           RowDefinitions="*,Auto,Auto"
           Margin="28,12,28,28"
@@ -96,7 +97,7 @@
                    SelectedItem="{Binding SelectedItem}">
             <ListBox.ItemTemplate>
               <DataTemplate x:DataType="vm:InputMethodRow">
-                <Grid ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
+                <Grid adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="Auto,*,Auto" ColumnSpacing="10">
                   <CheckBox IsChecked="{Binding IsChecked, Mode=TwoWay}"
                             VerticalAlignment="Center" />
                   <StackPanel Grid.Column="1" Spacing="2">
@@ -153,7 +154,7 @@
               Grid.ColumnSpan="2"
               Classes="card"
               IsVisible="{Binding IsAddPanelOpen}">
-        <Grid RowDefinitions="Auto,Auto,Auto,*" ColumnDefinitions="*,Auto">
+        <Grid adaptive:MptAdaptiveLayout.StackBelow="600" RowDefinitions="Auto,Auto,Auto,*" ColumnDefinitions="*,Auto">
           <TextBlock Text="添加已安装的输入法"
                      Classes="section-title" />
           <TextBlock Grid.Row="1"
@@ -198,12 +199,12 @@
       <Border Grid.Row="2"
               Grid.ColumnSpan="2"
               Classes="card">
-        <Grid ColumnDefinitions="*,*" ColumnSpacing="24">
+        <Grid adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="*,*" ColumnSpacing="24">
           <StackPanel Spacing="10">
             <TextBlock Text="切换快捷键" Classes="section-title" />
             <TextBlock Classes="secondary"
                        Text="对应 Windows「高级键盘设置」里的语言切换和键盘布局切换，只改当前用户。" />
-            <Grid ColumnDefinitions="140,*" RowDefinitions="Auto,Auto,Auto" RowSpacing="8" ColumnSpacing="12">
+            <Grid adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="140,*" RowDefinitions="Auto,Auto,Auto" RowSpacing="8" ColumnSpacing="12">
               <TextBlock Text="语言切换" VerticalAlignment="Center" />
               <ComboBox Grid.Column="1"
                         ItemsSource="{Binding HotkeyOptions}"

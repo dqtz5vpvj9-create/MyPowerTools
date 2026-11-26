@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Dark counterparts of the launch window palette. Android selects this file for the system night
+  mode, which is also what Avalonia's ThemeVariant.Default follows, so the very first frame and the
+  rendered Shell agree on the appearance.
+-->
+<resources>
+  <color name="mpt_mobile_page">#171B22</color>
+  <color name="mpt_mobile_primary">#EBEDF2</color>
+  <color name="mpt_mobile_accent">#6BA5FF</color>
+</resources>

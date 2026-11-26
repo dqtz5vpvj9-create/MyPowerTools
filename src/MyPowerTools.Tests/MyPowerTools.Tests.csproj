@@ -10,6 +10,8 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <ProjectReference Include="../MyPowerTools.HostControl.Client/MyPowerTools.HostControl.Client.csproj" />
+    <ProjectReference Include="../MyPowerTools.Ipc.AspNetCore/MyPowerTools.Ipc.AspNetCore.csproj" />
     <PackageReference Include="BouncyCastle.Cryptography" Version="2.6.2" />
     <PackageReference Include="coverlet.collector" Version="6.0.0" />
     <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.8.0" />
@@ -24,6 +26,9 @@
 
   <ItemGroup>
     <ProjectReference Include="..\MyPowerTools.Abstractions\MyPowerTools.Abstractions.csproj" />
+    <ProjectReference Include="..\..\tools\audio-relay\sdk-tool\src\AudioRelay.Core\AudioRelay.Core.csproj" />
+    <ProjectReference Include="..\..\tools\audio-relay\sdk-tool\src\AudioRelay.Runtime\AudioRelay.Runtime.csproj" ReferenceOutputAssembly="false" />
+    <ProjectReference Include="..\..\tools\audio-relay\sdk-tool\src\AudioRelay.Tool\AudioRelay.Tool.csproj" />
     <ProjectReference Include="..\..\tools\adb-forwarder\current-integration\src\AdbForwarder.MyPowerTools\AdbForwarder.MyPowerTools.csproj" />
     <ProjectReference Include="..\..\tools\local-lag-cleaner\sdk-tool\src\LocalLagCleaner.Core\LocalLagCleaner.Core.csproj" />
     <ProjectReference Include="..\..\tools\local-lag-cleaner\sdk-tool\src\LocalLagCleaner.Runtime\LocalLagCleaner.Runtime.csproj" ReferenceOutputAssembly="false" />

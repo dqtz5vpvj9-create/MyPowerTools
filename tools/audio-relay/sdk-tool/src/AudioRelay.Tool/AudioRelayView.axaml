@@ -1,0 +1,69 @@
+<UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:adaptive="using:MyPowerTools.AvaloniaSdk"
+             xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+             xmlns:vm="using:AudioRelay.Tool"
+             x:Class="AudioRelay.Tool.AudioRelayView"
+             x:DataType="vm:AudioRelayViewModel">
+  <UserControl.Styles>
+    <Style Selector="Border.card">
+      <Setter Property="Background" Value="{DynamicResource MptBrushCardBackground}" />
+      <Setter Property="BorderBrush" Value="{DynamicResource MptBrushBorder}" />
+      <Setter Property="BorderThickness" Value="1" />
+      <Setter Property="CornerRadius" Value="10" />
+      <Setter Property="Padding" Value="18" />
+    </Style>
+    <Style Selector="TextBlock.secondary">
+      <Setter Property="Foreground" Value="{DynamicResource MptBrushTextSecondary}" />
+      <Setter Property="TextWrapping" Value="Wrap" />
+    </Style>
+    <Style Selector="TextBlock.section-title">
+      <Setter Property="FontSize" Value="16" />
+      <Setter Property="FontWeight" Value="SemiBold" />
+    </Style>
+  </UserControl.Styles>
+  <Grid RowDefinitions="Auto,Auto,*" Background="{DynamicResource MptBrushAppBackground}">
+    <Border Grid.Row="0" Margin="28,20,28,12" Background="{DynamicResource MptBrushSurfaceMuted}"
+            BorderBrush="{DynamicResource MptBrushBorderStrong}" BorderThickness="1" CornerRadius="12" Padding="22,18">
+      <Grid adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="*,Auto" ColumnSpacing="20">
+        <StackPanel Spacing="5">
+          <TextBlock Text="AudioRelay" FontSize="25" FontWeight="SemiBold" />
+          <TextBlock Classes="secondary" Text="把电脑声音传到手机，或把手机麦克风送到电脑。MyPowerTools 负责桌面端检测、启动和配置入口。" />
+          <TextBlock Classes="secondary" FontSize="12" Text="{Binding StatusText}" />
+        </StackPanel>
+        <StackPanel Grid.Column="1" Orientation="Horizontal" Spacing="10" VerticalAlignment="Center">
+          <Button Content="刷新状态" Command="{Binding RefreshCommand}" Padding="16,9" />
+          <Button Content="下载 AudioRelay" Command="{Binding DownloadsCommand}" IsVisible="{Binding ShowInstallAction}" Padding="16,9" />
+          <Button Content="启动 AudioRelay" Command="{Binding LaunchCommand}" IsVisible="{Binding ShowLaunchAction}" Classes="accent" Padding="16,9" />
+        </StackPanel>
+      </Grid>
+    </Border>
+    <ProgressBar Grid.Row="1" IsIndeterminate="True" IsVisible="{Binding IsBusy}" Height="3" Margin="28,0" />
+    <Grid adaptive:MptAdaptiveLayout.StackBelow="600" Grid.Row="2" ColumnDefinitions="*,*" Margin="28,12,28,28" ColumnSpacing="14">
+      <Border Classes="card">
+        <StackPanel Spacing="12">
+          <TextBlock Text="桌面端状态" Classes="section-title" />
+          <Grid ColumnDefinitions="110,*" RowDefinitions="Auto,Auto,Auto" RowSpacing="9">
+            <TextBlock Text="安装版本" Classes="secondary" />
+            <TextBlock Grid.Column="1" Text="{Binding VersionText}" TextWrapping="Wrap" />
+            <TextBlock Grid.Row="1" Text="运行状态" Classes="secondary" />
+            <TextBlock Grid.Row="1" Grid.Column="1" Text="{Binding StatusText}" TextWrapping="Wrap" />
+            <TextBlock Grid.Row="2" Text="安装路径" Classes="secondary" />
+            <TextBlock Grid.Row="2" Grid.Column="1" Text="{Binding InstallPath}" TextWrapping="Wrap" />
+          </Grid>
+          <TextBlock Classes="secondary" Text="{Binding ActionMessage}" />
+        </StackPanel>
+      </Border>
+      <Border Grid.Column="1" Classes="card">
+        <StackPanel Spacing="12">
+          <TextBlock Text="选择使用方式" Classes="section-title" />
+          <TextBlock Classes="secondary" Text="AudioRelay 的连接和音频设备选择仍在它自己的界面完成。下面入口会打开对应的官方步骤。" />
+          <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Padding="14,11"
+                  Content="电脑声音传到手机" Command="{Binding SendAudioGuideCommand}" />
+          <Button HorizontalAlignment="Stretch" HorizontalContentAlignment="Left" Padding="14,11"
+                  Content="手机作为电脑麦克风" Command="{Binding MicrophoneGuideCommand}" />
+          <TextBlock Classes="secondary" FontSize="12" Text="同一局域网即可连接；需要更稳定、低延迟的链路时，可按 AudioRelay 官方说明使用 USB 网络共享。" />
+        </StackPanel>
+      </Border>
+    </Grid>
+  </Grid>
+</UserControl>

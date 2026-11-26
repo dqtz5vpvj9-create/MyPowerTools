@@ -10,6 +10,7 @@
     <Project Path="src/MyPowerTools.HostControl.Contracts/MyPowerTools.HostControl.Contracts.csproj" />
     <Project Path="src/MyPowerTools.HostControl.Client/MyPowerTools.HostControl.Client.csproj" />
     <Project Path="src/MyPowerTools.HostControl.Server/MyPowerTools.HostControl.Server.csproj" />
+    <Project Path="src/MyPowerTools.Ipc.AspNetCore/MyPowerTools.Ipc.AspNetCore.csproj" />
     <Project Path="src/MyPowerTools.Ipc.Shared/MyPowerTools.Ipc.Shared.csproj" />
     <Project Path="src/MyPowerTools.InputRemapHost/MyPowerTools.InputRemapHost.csproj" />
     <Project Path="src/MyPowerTools.Installer.Mac/MyPowerTools.Installer.Mac.csproj" />
@@ -31,6 +32,7 @@
     <Project Path="src/MyPowerTools.ServiceManager.Client/MyPowerTools.ServiceManager.Client.csproj" />
     <Project Path="src/MyPowerTools.ServiceManager.Server/MyPowerTools.ServiceManager.Server.csproj" />
     <Project Path="src/MyPowerTools.Shell.Avalonia/MyPowerTools.Shell.Avalonia.csproj" />
+    <Project Path="src/MyPowerTools.TransferMcp/MyPowerTools.TransferMcp.csproj" />
     <Project Path="src/MyPowerTools.Tests/MyPowerTools.Tests.csproj" />
     <Project Path="src/MyPowerTools.UI/MyPowerTools.UI.csproj" />
     <Project Path="src/MyPowerTools.UI.Primitives/MyPowerTools.UI.Primitives.csproj" />
@@ -39,6 +41,15 @@
     <Project Path="src/MyPowerTools.WebSurface.Avalonia/MyPowerTools.WebSurface.Avalonia.csproj" />
   </Folder>
   <Folder Name="/tools/">
+    <Project Path="tools/audio-relay/sdk-tool/src/AudioRelay.Core/AudioRelay.Core.csproj" />
+    <Project Path="tools/audio-relay/sdk-tool/src/AudioRelay.Runtime/AudioRelay.Runtime.csproj" />
+    <Project Path="tools/audio-relay/sdk-tool/src/AudioRelay.Tool/AudioRelay.Tool.csproj" />
+    <Project Path="tools/file-transfer/src/FileTransfer.Core/FileTransfer.Core.csproj" />
+    <Project Path="tools/file-transfer/src/FileTransfer.MyPowerTools/FileTransfer.MyPowerTools.csproj" />
+    <Project Path="tools/file-transfer/src/FileTransfer.Surface/FileTransfer.Surface.csproj" />
+    <Project Path="tools/remote-tool-gateway/src/RemoteToolGateway.Core/RemoteToolGateway.Core.csproj" />
+    <Project Path="tools/remote-tool-gateway/src/RemoteToolGateway.MyPowerTools/RemoteToolGateway.MyPowerTools.csproj" />
+    <Project Path="tools/remote-tool-gateway/src/RemoteToolGateway.Surface/RemoteToolGateway.Surface.csproj" />
     <Project Path="tools/adb-forwarder/current-integration/src/AdbForwarder.MyPowerTools/AdbForwarder.MyPowerTools.csproj" />
     <Project Path="tools/adb-forwarder/current-integration/src/AdbForwarder.Surface/AdbForwarder.Surface.csproj" />
     <Project Path="tools/local-lag-cleaner/original-source/src/LocalLagCleaner.Cli/LocalLagCleaner.Cli.csproj" />
@@ -75,6 +86,22 @@
     <Project Path="tools/smartbird-thermostat/current-integration/src/SmartBirdThermostat.MyPowerTools/SmartBirdThermostat.MyPowerTools.csproj" />
   </Folder>
   <Folder Name="/tests/">
+    <Project Path="tests/AndroidFileOpen.Tests/AndroidFileOpen.Tests.csproj" />
+    <Project Path="tests/FileTransfer.Surface.Tests/FileTransfer.Surface.Tests.csproj" />
+    <Project Path="src/MyPowerTools.MobileNotifications/tests/MyPowerTools.MobileNotifications.Tests.csproj" />
+    <Project Path="tools/remote-tool-gateway/android-integration/tests/MobileToolControl.Integration.Tests/MyPowerTools.MobileToolControl.Integration.Tests.csproj" />
+    <Project Path="tests/MobileTheme.Tests/MobileTheme.Tests.csproj" />
+    <Project Path="src/MyPowerTools.MobileRemoteCommands/tests/MyPowerTools.MobileRemoteCommands.Tests.csproj" />
+    <Project Path="src/MyPowerTools.MobileToolControl/tests/MyPowerTools.MobileToolControl.Tests.csproj" />
+    <Project Path="tests/MobileLayout.Tests/MobileLayout.Tests.csproj" />
+    <Project Path="tools/file-transfer/tests/FileTransfer.Core.Tests/FileTransfer.Core.Tests.csproj" />
+    <Project Path="tools/file-transfer/tests/FileTransfer.Surface.Tests/FileTransfer.Surface.Tests.csproj" />
+    <Project Path="tools/remote-tool-gateway/tests/RemoteToolGateway.Core.Tests/RemoteToolGateway.Core.Tests.csproj" />
+    <Project Path="tools/remote-tool-gateway/tests/RemoteToolGateway.Surface.Tests/RemoteToolGateway.Surface.Tests.csproj" />
+    <Project Path="tools/remote-tool-gateway/android-integration/tests/MobileToolControl.Android.Tests/MobileToolControl.Android.Tests.csproj" />
+    <Project Path="tools/input-monitor/tests/InputMonitor.Core.Tests/InputMonitor.Core.Tests.csproj" />
+    <Project Path="tools/remote-notifications/android-integration/tests/RemoteNotifications.Android.Tests/RemoteNotifications.Android.Tests.csproj" />
+    <Project Path="tools/remote-commands/android-integration/tests/RemoteCommands.Android.Tests/RemoteCommands.Android.Tests.csproj" />
     <Project Path="tests/architecture-gate/ArchitectureGate.csproj" />
     <Project Path="tests/fixtures/test-service-unit/TestServiceUnit.csproj" />
   </Folder>

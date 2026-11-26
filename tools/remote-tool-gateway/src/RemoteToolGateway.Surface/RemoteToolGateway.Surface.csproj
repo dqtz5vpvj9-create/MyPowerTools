@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <RootNamespace>RemoteToolGateway.Surface</RootNamespace>
+    <Version>0.1.0</Version>
+  </PropertyGroup>
+  <ItemGroup>
+    <InternalsVisibleTo Include="RemoteToolGateway.Surface.Tests" />
+  </ItemGroup>
+  <ItemGroup>
+    <PackageReference Include="Avalonia" Version="12.0.5" />
+    <PackageReference Include="MyPowerTools.ToolSdk" Version="0.2.0" />
+    <!--
+      The surface needs MptAvaloniaSurfaceContext.ExecuteCommandWithInvocationAsync, which is not
+      in the published 0.2.1 AvaloniaSdk package yet. Building against the in-repo SDK project is
+      the same public contract (no Shell-internal types); the parent unifies the SDK version and
+      packaging later.
+    -->
+    <ProjectReference Include="../../../../src/MyPowerTools.AvaloniaSdk/MyPowerTools.AvaloniaSdk.csproj" Private="false" />
+  </ItemGroup>
+</Project>

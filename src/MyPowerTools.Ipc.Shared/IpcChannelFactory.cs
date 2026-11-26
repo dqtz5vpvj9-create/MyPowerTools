@@ -64,7 +64,9 @@ public static class IpcChannelFactory
 
         var channel = GrpcChannel.ForAddress("http://localhost", new GrpcChannelOptions
         {
-            HttpHandler = handler
+            HttpHandler = handler,
+            // The channel owns this per-client handler and its pipe/socket pool.
+            DisposeHttpClient = true
         });
 
         return channel;

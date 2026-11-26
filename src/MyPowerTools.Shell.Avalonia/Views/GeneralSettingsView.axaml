@@ -1,4 +1,5 @@
 <UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:adaptive="using:MyPowerTools.AvaloniaSdk"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:controls="using:MyPowerTools.UI.Controls"
              xmlns:vm="using:MyPowerTools.Shell.Avalonia.ViewModels"
@@ -58,13 +59,13 @@
           <StackPanel Spacing="{DynamicResource MptSpacingXs}">
             <TextBlock Classes="MptSectionTitle" Text="Background operation" />
             <TextBlock Classes="MptPageSubtitle"
-                       Text="How the application remains available after its window closes." />
+                       Text="{Binding BackgroundDescription}" />
           </StackPanel>
 
           <Border BorderBrush="{DynamicResource MptBrushDivider}"
                   BorderThickness="0,1,0,0"
                   Padding="{DynamicResource MptListItemPadding}">
-            <Grid ColumnDefinitions="40,*,Auto"
+            <Grid adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="40,*,Auto"
                   ColumnSpacing="{DynamicResource MptSpacingM}">
               <TextBlock Text="&#xE7E7;"
                          FontFamily="{DynamicResource MptFontFamilyIcons}"
@@ -74,9 +75,9 @@
                          VerticalAlignment="Center" />
               <StackPanel Grid.Column="1"
                           Spacing="{DynamicResource MptSpacingXs}">
-                <TextBlock FontWeight="SemiBold" Text="Notification area" />
+                <TextBlock FontWeight="SemiBold" Text="{Binding BackgroundLocation}" />
                 <TextBlock Classes="MptMeta"
-                           Text="Use the tray menu to open or exit MyPowerTools."
+                           Text="{Binding BackgroundHint}"
                            TextWrapping="Wrap" />
               </StackPanel>
               <TextBlock Grid.Column="2"
@@ -99,7 +100,7 @@
     </Grid>
 
    <Border Classes="MptSettingsSection">
-      <Grid ColumnDefinitions="*,Auto"
+      <Grid adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="*,Auto"
             RowDefinitions="Auto,Auto,Auto,Auto"
             RowSpacing="{DynamicResource MptSpacingS}"
             ColumnSpacing="{DynamicResource MptSpacingL}"
@@ -115,7 +116,7 @@
                      HorizontalAlignment="Left" />
         </StackPanel>
 
-        <Grid Grid.Row="1"
+        <Grid adaptive:MptAdaptiveLayout.StackBelow="600" Grid.Row="1"
               Grid.ColumnSpan="2"
               ColumnDefinitions="*,*"
               ColumnSpacing="{DynamicResource MptSpacingL}">
@@ -149,7 +150,7 @@
                 Classes="MptSettingsField">
           <StackPanel Spacing="{DynamicResource MptSpacingS}">
             <TextBlock FontWeight="SemiBold" Text="Add a source mapping" />
-           <Grid ColumnDefinitions="*,*,*,Auto"
+           <Grid adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="*,*,*,Auto"
                  ColumnSpacing="{DynamicResource MptSpacingS}">
             <controls:MptTextBox PlaceholderText="Name (optional)"
                      Text="{Binding DevSource.NewName, Mode=TwoWay}" />
@@ -177,7 +178,7 @@
             <DataTemplate x:DataType="vm:DevSourceMappingViewModel">
               <Border Classes="MptSettingsField"
                       Margin="{DynamicResource MptGapBottomXs}">
-                <Grid ColumnDefinitions="*,Auto"
+                <Grid adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="*,Auto"
                       ColumnSpacing="{DynamicResource MptSpacingM}">
                   <StackPanel Spacing="{DynamicResource MptSpacing2Xs}">
                     <TextBlock FontWeight="SemiBold" Text="{Binding Name}" />

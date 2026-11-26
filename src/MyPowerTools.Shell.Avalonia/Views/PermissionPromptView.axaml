@@ -1,4 +1,5 @@
 <UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:adaptive="using:MyPowerTools.AvaloniaSdk"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:controls="using:MyPowerTools.UI.Controls"
              xmlns:vm="using:MyPowerTools.Shell.Avalonia.ViewModels"
@@ -10,7 +11,7 @@
       <ItemsControl ItemsSource="{Binding Details}">
         <ItemsControl.ItemTemplate>
           <DataTemplate x:DataType="vm:MetricViewModel">
-            <Grid ColumnDefinitions="110,*" Margin="{DynamicResource MptGapBottomXs}">
+            <Grid adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="110,*" Margin="{DynamicResource MptGapBottomXs}">
               <TextBlock Classes="MptMeta" Text="{Binding Label}" />
               <TextBlock Grid.Column="1" Text="{Binding Value}" TextWrapping="Wrap" />
             </Grid>

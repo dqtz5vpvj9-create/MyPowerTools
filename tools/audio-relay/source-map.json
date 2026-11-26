@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "toolId": "audio-relay",
+  "sourceClassification": "standalone-mypowertools-sdk-tool",
+  "sourceNote": "MyPowerTools integration for the separately installed AudioRelay desktop application; no third-party binaries are vendored.",
+  "sdkToolSnapshot": "sdk-tool",
+  "sdkToolGlobs": ["**"]
+}

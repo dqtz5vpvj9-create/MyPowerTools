@@ -51,7 +51,14 @@ public sealed class HostControlEventStreamMonitor : IAsyncDisposable
 
             LastEventSeq = lastEventSeq;
             _stop = new CancellationTokenSource();
-            _loop = RunAsync(_stop.Token);
+            // Start() runs as a Background-priority dispatcher job on the Shell UI thread. Running the
+            // loop inline there captured the Avalonia SynchronizationContext, so every stream
+            // continuation -- and therefore every event subscriber -- was posted back at that priority
+            // and only ran when some input woke the dispatcher. The loop belongs on the thread pool:
+            // the delivery thread of HostEventReceived is not part of the contract, and subscribers
+            // already marshal their own UI work.
+            var stopToken = _stop.Token;
+            _loop = Task.Run(() => RunAsync(stopToken), stopToken);
         }
     }
 
@@ -72,12 +79,12 @@ public sealed class HostControlEventStreamMonitor : IAsyncDisposable
             return;
         }
 
-        await stop.CancelAsync();
+        await stop.CancelAsync().ConfigureAwait(false);
         if (loop is not null)
         {
             try
             {
-                await loop;
+                await loop.ConfigureAwait(false);
             }
             catch (OperationCanceledException)
             {
@@ -93,7 +100,7 @@ public sealed class HostControlEventStreamMonitor : IAsyncDisposable
         {
             try
             {
-                await foreach (var evt in _source.SubscribeAsync(LastEventSeq, cancellationToken))
+                await foreach (var evt in _source.SubscribeAsync(LastEventSeq, cancellationToken).ConfigureAwait(false))
                 {
                     if (evt.Seq <= LastEventSeq)
                     {
@@ -116,7 +123,7 @@ public sealed class HostControlEventStreamMonitor : IAsyncDisposable
             catch (Exception ex)
             {
                 StreamFaulted?.Invoke(this, ex);
-                await Task.Delay(_reconnectDelay, cancellationToken);
+                await Task.Delay(_reconnectDelay, cancellationToken).ConfigureAwait(false);
             }
         }
     }

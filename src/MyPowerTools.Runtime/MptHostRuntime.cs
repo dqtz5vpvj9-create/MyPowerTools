@@ -347,8 +347,14 @@ public sealed partial class MptHostRuntime : IAsyncDisposable
             .ThenBy(process => process.PoolKey, StringComparer.OrdinalIgnoreCase)
             .ToArray();
         var processPolicyHistory = _processPolicyStore.History(10);
+        // Duplicate module ids are a supported catalog state: a development tool that collides
+        // with an installed module id becomes an error card instead of aborting the catalog
+        // (see PackageRegistry.Load), so two records can share one manifest id. The supervisor
+        // keys its records by module id, which makes every snapshot for one id identical, so
+        // keep the first one instead of throwing on the duplicate key.
         var supervision = _moduleSupervisor.Snapshots(modules)
-            .ToDictionary(snapshot => snapshot.ModuleId, StringComparer.OrdinalIgnoreCase);
+            .GroupBy(snapshot => snapshot.ModuleId, StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(group => group.Key, group => group.First(), StringComparer.OrdinalIgnoreCase);
 
         return new RuntimeDiagnosticsSnapshot(
             ProtocolConstants.HostVersion,
@@ -621,7 +627,7 @@ public sealed partial class MptHostRuntime : IAsyncDisposable
 
         var evt = _eventBus.Publish("runner", "module.eventPump.started", new JsonObject
         {
-            ["moduleCount"] = EnabledModules().Count
+            ["moduleCount"] = _moduleEventPumpTasks.Count
         });
         _logRouter.Append("runner", "runner", "info", "Module event pump started.", eventSeq: evt.Seq);
     }
@@ -1052,7 +1058,8 @@ public sealed partial class MptHostRuntime : IAsyncDisposable
     private async Task<Sdk.CommandExecutionResult> ExecuteCommandCoreAsync(Sdk.MptCommandDescriptor command, Sdk.CommandRequest request, CancellationToken cancellationToken)
     {
         using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-        timeout.CancelAfter(TimeSpan.FromMilliseconds(Math.Max(1000, command.TimeoutMs)));
+        if (command.TimeoutMs != Timeout.Infinite)
+            timeout.CancelAfter(TimeSpan.FromMilliseconds(Math.Max(1000, command.TimeoutMs)));
 
         var executionType = command.Execution?["type"]?.GetValue<string>() ?? command.Kind;
         return executionType switch
@@ -1348,7 +1355,11 @@ public sealed partial class MptHostRuntime : IAsyncDisposable
     private void StartModuleEventStream(string moduleId)
     {
         var pump = _moduleEventPumpCancellation;
-        if (pump is null || pump.IsCancellationRequested)
+        var module = _packageRegistry.FindModule(moduleId);
+        // The transport map is fixed for this runtime. A catalog entry without a compatible
+        // entrypoint cannot acquire one by retrying; enable/catalog refresh starts eligible streams.
+        if (pump is null || pump.IsCancellationRequested || module is null ||
+            !TryGetTransportRuntime(module, out _))
         {
             return;
         }
@@ -1399,8 +1410,7 @@ public sealed partial class MptHostRuntime : IAsyncDisposable
 
             if (!TryGetTransportRuntime(module, out var runtime))
             {
-                await DelayEventPumpRetryAsync(moduleId, pumpToken);
-                continue;
+                return;
             }
 
             var moduleCancellation = CancellationTokenSource.CreateLinkedTokenSource(pumpToken);
@@ -1705,7 +1715,7 @@ public sealed partial class MptHostRuntime : IAsyncDisposable
             command.Icon,
             command.DangerLevel,
             command.Category,
-            command.TimeoutMs <= 0 ? 30000 : command.TimeoutMs,
+            command.TimeoutMs == Timeout.Infinite ? Timeout.Infinite : command.TimeoutMs <= 0 ? 30000 : command.TimeoutMs,
             execution,
             parameters,
             constraints,

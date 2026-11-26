@@ -1,4 +1,5 @@
 <UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:adaptive="using:MyPowerTools.AvaloniaSdk"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:controls="using:MyPowerTools.UI.Controls"
              xmlns:vm="using:MyPowerTools.Shell.Avalonia.ViewModels"
@@ -49,7 +50,7 @@
       <Border Padding="{DynamicResource MptCompactPadding}"
               BorderBrush="{DynamicResource MptBrushDivider}"
               BorderThickness="0,0,0,1">
-        <Grid ColumnDefinitions="*,Auto"
+        <Grid adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="*,Auto"
               VerticalAlignment="Center">
           <TextBlock Text="{Binding Title}"
                      FontSize="{DynamicResource MptFontSizeSection}"
@@ -298,7 +299,7 @@
               Padding="{DynamicResource MptCompactPadding}"
               BorderBrush="{DynamicResource MptBrushDivider}"
               BorderThickness="0,1,0,0">
-        <StackPanel Orientation="Horizontal"
+        <StackPanel adaptive:MptAdaptiveLayout.StackBelow="480" Orientation="Horizontal"
                     Spacing="{DynamicResource MptSpacingS}"
                     HorizontalAlignment="Right">
           <controls:MptButton Content="{Binding SelectedCommand.CancelLabel}"

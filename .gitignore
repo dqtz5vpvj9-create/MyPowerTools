@@ -29,6 +29,7 @@ state/
 # Node dependencies are restored by `npm ci` from the committed package-lock.json
 # (scripts/build-sdk.ps1 does this before packing the web bridge).
 node_modules/
+.e2e/
 
 # Packages and archives generated locally
 *.nupkg

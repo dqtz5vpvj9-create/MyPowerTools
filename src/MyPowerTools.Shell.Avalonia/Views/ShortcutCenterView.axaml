@@ -1,4 +1,5 @@
 <UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:adaptive="using:MyPowerTools.AvaloniaSdk"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:controls="using:MyPowerTools.UI.Controls"
              xmlns:vm="using:MyPowerTools.Shell.Avalonia.ViewModels"
@@ -8,7 +9,7 @@
     <TextBlock Classes="MptPageTitle" Text="Keyboard shortcuts" />
     <TextBlock Classes="MptPageSubtitle" Text="{Binding Subtitle}" TextWrapping="Wrap" />
     <TextBlock Classes="MptMeta" Text="{Binding Summary}" />
-    <Grid ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
+    <Grid adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="*,Auto,Auto" ColumnSpacing="8">
       <controls:MptTextBox Text="{Binding Query, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}"
                PlaceholderText="Search actions, tools or key combinations…" AutomationProperties.Name="Search keyboard shortcuts" />
       <controls:MptComboBox Grid.Column="1" ItemsSource="{Binding Owners}" SelectedItem="{Binding OwnerFilter, Mode=TwoWay}"
@@ -31,7 +32,7 @@
       </ListBox.Styles>
       <ListBox.ItemTemplate>
         <DataTemplate x:DataType="vm:ShortcutRow">
-          <Grid RowDefinitions="Auto,Auto,Auto" ColumnDefinitions="*,Auto" ColumnSpacing="12" Margin="{DynamicResource MptUniformXs}">
+          <Grid adaptive:MptAdaptiveLayout.StackBelow="600" RowDefinitions="Auto,Auto,Auto" ColumnDefinitions="*,Auto" ColumnSpacing="12" Margin="{DynamicResource MptUniformXs}">
             <TextBlock Text="{Binding Title}" FontWeight="SemiBold" TextTrimming="CharacterEllipsis" />
             <TextBlock Grid.Column="1" Text="{Binding Bindings}" MaxWidth="380" TextWrapping="Wrap" />
             <TextBlock Grid.Row="1" Grid.ColumnSpan="2" Text="{Binding Summary}" Classes="MptMeta" TextWrapping="Wrap" />
@@ -44,7 +45,7 @@
       <StackPanel Spacing="{DynamicResource MptSpacingS}">
         <TextBlock Text="{Binding Selected.Title}" Classes="MptSectionTitle" />
         <TextBlock Text="{Binding SelectedDescription}" Classes="MptMeta" TextWrapping="Wrap" />
-        <StackPanel Orientation="Horizontal" Spacing="{DynamicResource MptSpacingM}">
+        <StackPanel adaptive:MptAdaptiveLayout.StackBelow="480" Orientation="Horizontal" Spacing="{DynamicResource MptSpacingM}">
           <TextBlock Text="Edit platform" VerticalAlignment="Center" />
           <controls:MptComboBox ItemsSource="{Binding Platforms}" SelectedItem="{Binding EditorPlatform, Mode=TwoWay}" IsEnabled="{Binding CanEdit}" />
           <controls:MptButton x:Name="RecordButton" Content="{Binding RecordLabel}" Click="OnRecordClick" IsEnabled="{Binding CanEdit}"

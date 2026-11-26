@@ -23,12 +23,16 @@ public sealed class ShellToolPreferencesStore
 
     public ShellToolPreferences Current => _current ??= Read();
 
-    public Task SetFavoriteAsync(string toolId, bool favorite) => UpdateAsync(current => current with
+    public Task SetFavoriteAsync(string toolId, bool favorite)
     {
-        FavoriteToolIds = favorite
-            ? Normalize(current.FavoriteToolIds.Append(toolId))
-            : current.FavoriteToolIds.Where(id => !string.Equals(id, toolId, StringComparison.OrdinalIgnoreCase)).ToArray()
-    });
+        var productId = ToolProductIdentity.ProductId(toolId);
+        return UpdateAsync(current => current with
+        {
+            FavoriteToolIds = favorite
+                ? Normalize(current.FavoriteToolIds.Append(productId))
+                : current.FavoriteToolIds.Where(id => !string.Equals(id, productId, StringComparison.OrdinalIgnoreCase)).ToArray()
+        });
+    }
 
     public Task RecordOpenedAsync(string toolId) => UpdateAsync(current => current with
     {
@@ -82,7 +86,7 @@ public sealed class ShellToolPreferencesStore
 
     private static string[] Normalize(IEnumerable<string> ids) => ids
         .Where(id => !string.IsNullOrWhiteSpace(id))
-        .Select(id => id.Trim())
+        .Select(ToolProductIdentity.ProductId)
         .Distinct(StringComparer.OrdinalIgnoreCase)
         .ToArray();
 }

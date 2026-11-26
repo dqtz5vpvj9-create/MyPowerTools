@@ -1,6 +1,8 @@
 [CmdletBinding()]
 param(
-    [string] $MyPowerToolsRepoRoot
+    [string] $MyPowerToolsRepoRoot,
+    [ValidateSet('Debug', 'Release')]
+    [string] $Configuration = 'Release'
 )
 
 $ErrorActionPreference = 'Stop'
@@ -42,7 +44,7 @@ $dotnetArguments = @(
     'build'
     $projectPath
     '--configuration'
-    'Release'
+    $Configuration
     '--nologo'
     "-p:MyPowerToolsRepoRoot=$repoRoot"
 )
@@ -57,7 +59,7 @@ $surfaceArguments = @(
     'build'
     $surfaceProjectPath
     '--configuration'
-    'Release'
+    $Configuration
     '--nologo'
     '--output'
     $surfaceOutput

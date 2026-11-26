@@ -1,0 +1,16 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <TargetFramework>net10.0-android</TargetFramework>
+    <SupportedOSPlatformVersion>29</SupportedOSPlatformVersion>
+    <ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable>
+  </PropertyGroup>
+  <ItemGroup>
+    <!-- Android providers implement the MPT platform surface directly; the Linux fallback pack must
+         not be linked into the mobile runtime (its provider text is desktop-only). -->
+    <Compile Remove="tests/**/*.cs" />
+    <None Remove="tests/**" />
+  </ItemGroup>
+  <ItemGroup>
+    <ProjectReference Include="../MyPowerTools.Platform.Abstractions/MyPowerTools.Platform.Abstractions.csproj" />
+  </ItemGroup>
+</Project>

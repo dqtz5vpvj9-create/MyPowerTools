@@ -1,11 +1,12 @@
 <UserControl xmlns="https://github.com/avaloniaui"
+             xmlns:adaptive="using:MyPowerTools.AvaloniaSdk"
              xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
              xmlns:controls="using:MyPowerTools.UI.Controls"
              xmlns:vm="using:MyPowerTools.Shell.Avalonia.ViewModels"
              x:Class="MyPowerTools.Shell.Avalonia.Views.ToolHostView"
              x:DataType="vm:ToolHostViewModel">
   <StackPanel Spacing="{DynamicResource MptSpacing2Xl}">
-    <Grid ColumnDefinitions="Auto,*,Auto"
+    <Grid adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="Auto,*,Auto"
           ColumnSpacing="{DynamicResource MptSpacingM}">
       <controls:MptButton Content="All tools"
                           Command="{Binding BrowseAllToolsCommand}"
@@ -47,7 +48,7 @@
                    Text="This tool could not be opened" />
         <TextBlock Classes="MptPageSubtitle"
                    Text="{Binding ErrorMessage}" />
-        <StackPanel Orientation="Horizontal"
+        <StackPanel adaptive:MptAdaptiveLayout.StackBelow="480" Orientation="Horizontal"
                     Spacing="{DynamicResource MptSpacingS}">
           <controls:MptButton Classes="MptPrimaryButton"
                               Content="Try again"
@@ -81,7 +82,7 @@
             <TextBlock Classes="MptMeta"
                        Text="Interface in development" />
           </Border>
-          <StackPanel Orientation="Horizontal"
+          <StackPanel adaptive:MptAdaptiveLayout.StackBelow="480" Orientation="Horizontal"
                       Spacing="{DynamicResource MptSpacingS}">
             <controls:MptButton Classes="MptPrimaryButton"
                                 Content="Return to tool catalog"

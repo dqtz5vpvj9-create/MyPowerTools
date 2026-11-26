@@ -1,0 +1,50 @@
+{
+  "schemaVersion": 1,
+  "toolId": "remote-tool-gateway",
+  "packageId": "remote-tool-gateway",
+  "version": "0.1.0",
+  "status": "in-tree",
+  "moduleIds": [
+    "remote-tool-gateway"
+  ],
+  "adapter": {
+    "project": "src/RemoteToolGateway.MyPowerTools/RemoteToolGateway.MyPowerTools.csproj",
+    "assembly": "RemoteToolGateway.MyPowerTools.dll",
+    "configuration": "Release",
+    "requiredMsbuildProperties": [
+      "MyPowerToolsRepoRoot"
+    ],
+    "suiteProjectReferences": [
+      "src/MyPowerTools.Abstractions/MyPowerTools.Abstractions.csproj",
+      "src/MyPowerTools.Protocol/MyPowerTools.Protocol.csproj",
+      "src/MyPowerTools.Runtime/MyPowerTools.Runtime.csproj",
+      "src/MyPowerTools.Packaging/MyPowerTools.Packaging.csproj",
+      "src/MyPowerTools.ModuleHost.InProcDotNet/MyPowerTools.ModuleHost.InProcDotNet.csproj",
+      "src/MyPowerTools.HostControl.Server/MyPowerTools.HostControl.Server.csproj",
+      "src/MyPowerTools.SampleModules.DotNet/MyPowerTools.SampleModules.DotNet.csproj",
+      "src/MyPowerTools.Broker/MyPowerTools.Broker.csproj",
+      "src/MyPowerTools.Platform.Abstractions/MyPowerTools.Platform.Abstractions.csproj",
+      "src/MyPowerTools.AvaloniaSdk/MyPowerTools.AvaloniaSdk.csproj"
+    ]
+  },
+  "package": {
+    "template": "package",
+    "output": "artifacts/package",
+    "integrityRequiresRefresh": true
+  },
+  "surfaces": {
+    "tool": "ui/tool.json",
+    "detailPage": "ui/control-page.json"
+  },
+  "buildScript": "build.ps1",
+  "sdkRequirements": {
+    "myPowerToolsAvaloniaSdk": {
+      "minimumVersion": "0.3.0",
+      "consumedFeatures": [
+        "MyPowerTools.AvaloniaSdk.Controls.MptQrCode",
+        "MptAvaloniaSurfaceContext.ExecuteCommandWithInvocationAsync"
+      ],
+      "note": "Surface builds against the in-repo SDK project (Private=false); the shipped SDK must provide these members."
+    }
+  }
+}

@@ -1,0 +1,6 @@
+interface:
+  display_name: "MPT 文件传输助手"
+  short_description: "通过 MyPowerTools 向手机传文件、使用网盘中转并确认真实接收回执"
+  default_prompt: "使用 $mpt-file-transfer 把这个文件传到我的手机，并确认接收回执。"
+policy:
+  allow_implicit_invocation: true
