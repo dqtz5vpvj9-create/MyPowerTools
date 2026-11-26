@@ -21,6 +21,7 @@ public sealed partial class FileTransferModule : IMptModule
 
     private readonly Channel<MptModuleEvent> _events = Channel.CreateUnbounded<MptModuleEvent>();
     private readonly CancellationTokenSource _lifetime = new();
+    private int _disposed;
     private readonly SemaphoreSlim _operations = new(1, 1);
     private readonly object _stateLock = new();
     private readonly List<JsonObject> _history = [];
@@ -1044,7 +1045,7 @@ public sealed partial class FileTransferModule : IMptModule
         _revision++;
     }
 
-    /// <summary>Applies whitelisted values only, keeps secrets out of preferences.json, then validates.</summary>
+    /// <summary>Validates whitelisted values before mutating secrets or preferences.json.</summary>
     private async Task ApplyValuesAsync(JsonObject values, bool allowSecrets, CancellationToken token)
     {
         foreach (var key in values.Select(pair => pair.Key).ToArray())
@@ -1052,27 +1053,43 @@ public sealed partial class FileTransferModule : IMptModule
             if (allowSecrets && SecretKeys.Contains(key)) continue;
             if (!SettingKeys.Contains(key)) throw new ArgumentException($"不支持设置项：{key}。");
         }
+
+        var candidateValues = (JsonObject)values.DeepClone();
+        if (allowSecrets)
+        {
+            foreach (var key in SecretKeys)
+            {
+                candidateValues.Remove(key);
+            }
+        }
+
+        var merged = SettingsJson.Merge(_settings, candidateValues);
+        Validate(merged);
+
         var relayChanged = false;
         if (allowSecrets)
         {
             foreach (var key in SecretKeys)
             {
                 var secret = SettingsJson.ReadString(values, key);
-                values.Remove(key);
                 if (string.IsNullOrEmpty(secret)) continue;
+
                 await _secrets.SaveAsync(Id, key, secret, token);
                 // The cloud password is part of the relay identity.
                 if (key == "password") relayChanged = true;
             }
         }
+
         // Compared before the new values are published, so a changed address or account is detected.
         var previousRelay = (WebDav: Text(_settings, "webDavUrl"), User: Text(_settings, "username"));
-        var merged = SettingsJson.Merge(_settings, values);
-        Validate(merged);
         _settings = merged;
+
         // A saved relay address or account invalidates the reachability answer for the previous one.
         if (relayChanged || Text(merged, "webDavUrl") != previousRelay.WebDav || Text(merged, "username") != previousRelay.User)
+        {
             InvalidateRelay();
+        }
+
         await PersistSettingsAsync(token);
     }
 
@@ -1093,13 +1110,49 @@ public sealed partial class FileTransferModule : IMptModule
         foreach (var key in new[] { "listenAddress", "peerAddress" })
         {
             var address = Text(settings, key);
-            if (address.Length > 0 && (!IPAddress.TryParse(address, out var ip) || !TransferFiles.IsTailAddress(ip)))
-                throw new ArgumentException("设备地址请填写 Tailscale IP。");
+            if (address.Length > 0 && (!IPAddress.TryParse(address, out var ip) || !IsAllowedDeviceAddress(ip)))
+            {
+                throw new ArgumentException("设备地址请填写局域网、Tailscale 或回环 IP 地址。");
+            }
         }
         if (Text(settings, "webDavUrl") is { Length: > 0 } url) OpenListClient.ValidateUrl(new Uri(url));
         var username = Text(settings, "username");
         if (username.Length > 128 || username.Any(char.IsControl)) throw new ArgumentException("OpenList 用户名无效。");
         MaximumGiB(settings);
+    }
+
+    private static bool IsAllowedDeviceAddress(IPAddress address)
+    {
+        if (address.IsIPv4MappedToIPv6)
+        {
+            address = address.MapToIPv4();
+        }
+
+        if (IPAddress.IsLoopback(address) || TransferFiles.IsTailAddress(address))
+        {
+            return true;
+        }
+
+        if (address.AddressFamily == AddressFamily.InterNetwork)
+        {
+            var bytes = address.GetAddressBytes();
+            return bytes[0] == 10
+                || (bytes[0] == 172 && bytes[1] is >= 16 and <= 31)
+                || (bytes[0] == 192 && bytes[1] == 168);
+        }
+
+        if (address.AddressFamily == AddressFamily.InterNetworkV6)
+        {
+            if (address.IsIPv6LinkLocal)
+            {
+                return true;
+            }
+
+            var bytes = address.GetAddressBytes();
+            return (bytes[0] & 0xFE) == 0xFC;
+        }
+
+        return false;
     }
 
     private static string Text(JsonObject settings, string key)
@@ -1153,11 +1206,29 @@ public sealed partial class FileTransferModule : IMptModule
         await _operations.WaitAsync(token);
         try
         {
-            if (_work is { IsCompleted: false }) throw new InvalidOperationException("请等待当前传输结束，再保存设置。");
-            await WithReceiveRestartedAsync(() => ApplyValuesAsync(snapshot.Values.DeepClone().AsObject(), false, token), token);
+            if (_work is { IsCompleted: false })
+            {
+                throw new InvalidOperationException("请等待当前传输结束，再保存设置。");
+            }
+
+            var values = snapshot.Values.DeepClone().AsObject();
+            foreach (var key in values.Select(pair => pair.Key))
+            {
+                if (!SettingKeys.Contains(key))
+                {
+                    throw new ArgumentException($"不支持设置项：{key}。");
+                }
+            }
+
+            Validate(SettingsJson.Merge(_settings, values));
+
+            await WithReceiveRestartedAsync(() => ApplyValuesAsync(values, false, token), token);
         }
-        catch (Exception ex) when (ex is ArgumentException or InvalidOperationException or UriFormatException) { }
-        finally { _operations.Release(); }
+        finally
+        {
+            _operations.Release();
+        }
+
         return await GetSettingsAsync(token);
     }
 
@@ -1165,12 +1236,19 @@ public sealed partial class FileTransferModule : IMptModule
 
     public async ValueTask DisposeAsync(CancellationToken token)
     {
+        if (Interlocked.Exchange(ref _disposed, 1) != 0)
+        {
+            return;
+        }
+
         Interlocked.Exchange(ref _networkRecoverySubscription, null)?.Dispose();
         await _lifetime.CancelAsync();
+
         if (_cloudPayloadWorker is { } cloudWorker)
         {
             try { await cloudWorker; } catch (OperationCanceledException) { }
         }
+
         // Both assistant transports can still be using the runtime and secret store. Drain them
         // before disposing those services or releasing their per-item cancellation sources.
         if (_assistantWorker is { } assistantWorker)
@@ -1178,22 +1256,30 @@ public sealed partial class FileTransferModule : IMptModule
             try { await assistantWorker; }
             catch (OperationCanceledException) { }
         }
+
         if (_relayPass is { } relayPass)
         {
             try { await relayPass; }
             catch (OperationCanceledException) { }
         }
+
         foreach (var scope in _itemCancellation.Values) scope.Dispose();
         _itemCancellation.Clear();
+
+        foreach (var prep in _cloudPreparation.Values) prep.Dispose();
+        _cloudPreparation.Clear();
+
         if (_work is { } work)
         {
             try { await work; }
             catch (Exception ex) when (ex is IOException or OperationCanceledException or InvalidOperationException) { }
         }
+
         var session = Interlocked.Exchange(ref _session, null);
         if (session is not null) await CloseAsync(session);
         await StopBeaconAsync();
         Interlocked.Exchange(ref _receivingActivity, null)?.Dispose();
+
         // The long poll links this module's lifetime, so disposing must end it; the bounded wait proves
         // there is no hang instead of leaving a detached request behind.
         if (_relayReceiveLoop is { } loop)
@@ -1201,26 +1287,48 @@ public sealed partial class FileTransferModule : IMptModule
             try { await loop.WaitAsync(TimeSpan.FromSeconds(5)); }
             catch (Exception ex) when (ex is TimeoutException or OperationCanceledException or IOException) { }
         }
+
         if (_inboxLoop is { } inboxLoop)
         {
             try { await inboxLoop.WaitAsync(TimeSpan.FromSeconds(5)); }
             catch (Exception ex) when (ex is TimeoutException or OperationCanceledException or IOException) { }
         }
+
         if (_depositLoop is { } depositLoop)
         {
             try { await depositLoop.WaitAsync(TimeSpan.FromSeconds(5)); }
             catch (Exception ex) when (ex is TimeoutException or OperationCanceledException or IOException) { }
         }
+
         _publicRelay?.Dispose();
+
         Task[] watches;
         lock (_stateLock) watches = _watches.ToArray();
         try { await Task.WhenAll(watches); } catch (Exception) { }
         try { await _save; } catch (Exception) { }
+
         // A host can unload the constructed instance before InitializeAsync runs
         // (for example when a shared platform contract cannot be loaded).
         if (_openList is not null) await _openList.DisposeAsync();
+
         _events.Writer.TryComplete();
         _transfer?.Dispose();
         _lifetime.Dispose();
+
+        _operations.Dispose();
+        _publishing.Dispose();
+        _directGate.Dispose();
+        _relayGate.Dispose();
+        _relaySignal.Dispose();
+        _assistantSignal.Dispose();
+        _receiveSignal.Dispose();
+        _publicRelayInitGate.Dispose();
+        _publicEnrollmentGate.Dispose();
+        _inboxGate.Dispose();
+        _inboxItemGate.Dispose();
+        _inboxSignal.Dispose();
+        _depositSignal.Dispose();
+        _cloudAccountGate.Dispose();
+        _cloudPayloadSignal.Dispose();
     }
 }

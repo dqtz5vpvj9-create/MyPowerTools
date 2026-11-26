@@ -109,8 +109,7 @@ public sealed partial class FileTransferModule
         _conversationKey = await SecretAsync("conversation-key", token) ?? "";
         _linked = await SecretAsync("conversation-linked", token) ?? "";
         if (_conversationId.Length > 0 && _conversationKey.Length == 64) return;
-        _linked = "public-pending";
-        await _secrets.SaveAsync(Id, "conversation-linked", _linked, token);
+
         _conversationId = "self-" + Guid.NewGuid().ToString("N")[..8];
         _conversationKey = Convert.ToHexString(RandomNumberGenerator.GetBytes(32)).ToLowerInvariant();
         await _secrets.SaveAsync(Id, "conversation-id", _conversationId, token);

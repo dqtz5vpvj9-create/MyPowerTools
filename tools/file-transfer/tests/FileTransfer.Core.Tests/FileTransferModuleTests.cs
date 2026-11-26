@@ -178,6 +178,62 @@ public sealed class FileTransferModuleTests : IAsyncLifetime
         Assert.Null(OpenListSetup.MatchSavedAccount(users, new OpenListSetup.RelayAccount(3, "mpt-deleted-device")));
     }
 
+    [Theory]
+    [InlineData("10.0.0.12", true)]
+    [InlineData("172.16.0.1", true)]
+    [InlineData("172.31.255.254", true)]
+    [InlineData("192.168.1.42", true)]
+    [InlineData("127.0.0.1", true)]
+    [InlineData("100.64.10.20", true)]
+    [InlineData("fd7a:115c:a1e0::1", true)]
+    [InlineData("fd12:3456:789a::1", true)]
+    [InlineData("fe80::1", true)]
+    [InlineData("::1", true)]
+    [InlineData("8.8.8.8", false)]
+    [InlineData("1.1.1.1", false)]
+    [InlineData("172.32.0.1", false)]
+    [InlineData("2001:4860:4860::8888", false)]
+    [InlineData("0.0.0.0", false)]
+    [InlineData("::", false)]
+    public async Task SettingsValidatePrivateLanTailscaleAndLoopbackAddresses(string address, bool expectedOk)
+    {
+        var module = await StartAsync();
+        var patch = new SettingsPatch("file-transfer", 1, new JsonObject
+        {
+            ["listenAddress"] = address,
+            ["peerAddress"] = address
+        });
+        var validation = await module.ValidateSettingsAsync(patch, CancellationToken.None);
+        Assert.Equal(expectedOk, validation.Ok);
+    }
+
+    [Fact]
+    public async Task ApplySettingsSurfacesValidationErrorsWithoutMutatingCurrentSettings()
+    {
+        var module = await StartAsync();
+        var before = await module.GetSettingsAsync(CancellationToken.None);
+
+        var applied = await module.ApplySettingsAsync(
+            new SettingsSnapshotDocument(
+                "file-transfer",
+                before.Revision,
+                new JsonObject { ["peerAddress"] = "192.168.50.10" },
+                DateTimeOffset.UtcNow),
+            CancellationToken.None);
+        Assert.Equal("192.168.50.10", applied.Values["peerAddress"]!.GetValue<string>());
+
+        await Assert.ThrowsAsync<ArgumentException>(() => module.ApplySettingsAsync(
+            new SettingsSnapshotDocument(
+                "file-transfer",
+                applied.Revision,
+                new JsonObject { ["peerAddress"] = "8.8.8.8" },
+                DateTimeOffset.UtcNow),
+            CancellationToken.None).AsTask());
+
+        var afterFailedApply = await module.GetSettingsAsync(CancellationToken.None);
+        Assert.Equal("192.168.50.10", afterFailedApply.Values["peerAddress"]!.GetValue<string>());
+    }
+
     private sealed class RecordingNetwork : IObservable<bool>
     {
         public IObserver<bool>? Observer { get; private set; }

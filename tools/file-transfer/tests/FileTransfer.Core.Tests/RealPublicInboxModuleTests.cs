@@ -73,17 +73,15 @@ public sealed class RealPublicInboxModuleTests : IAsyncLifetime
             ["peers"] = new JsonArray()
         };
         await File.WriteAllTextAsync(Path.Combine(root, "preferences.json"), preferences.ToJsonString());
-        var secrets = new InMemorySecretStore();
-        if (!publicRoom)
-        {
-            await secrets.SaveAsync("file-transfer", "conversation-id", "private-" + deviceId, CancellationToken.None);
-            await secrets.SaveAsync("file-transfer", "conversation-key", new string('a', 64), CancellationToken.None);
-        }
         var context = new ModuleContext("test", "1.0", "file-transfer", "file-transfer", root, root, root, "linux",
-            ["secret.store"], new Dictionary<string, object> { ["secret.store"] = secrets });
+            ["secret.store"], new Dictionary<string, object> { ["secret.store"] = new InMemorySecretStore() });
         var module = new FileTransferModule();
         _modules.Add(module);
         Assert.True((await module.InitializeAsync(context, CancellationToken.None)).Ok);
+        if (publicRoom)
+        {
+            await CallAsync(module, "file-transfer.assistant.public.join");
+        }
         return module;
     }
 
