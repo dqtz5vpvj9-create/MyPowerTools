@@ -173,7 +173,7 @@ public sealed class ToolRegistry
                     surface?.Kind ?? "",
                     ResolveToolValue(toolDirectory, ExpandSettings(surface?.Source ?? "", settingValues)),
                     ResolveToolValue(toolDirectory, ExpandSettings(surface?.StaticRoot ?? "", settingValues)),
-                    ResolveToolValue(toolDirectory, ExpandSettings(surface?.Assembly ?? "", settingValues)),
+                    ResolveToolAssemblyValue(module, toolDirectory, ExpandSettings(surface?.Assembly ?? "", settingValues)),
                     surface?.Type ?? "",
                     surface?.OpenExternal ?? false,
                     surface?.AllowedOrigins ?? []);
@@ -269,6 +269,17 @@ public sealed class ToolRegistry
         }
 
         return result;
+    }
+
+    private static string ResolveToolAssemblyValue(RuntimeModuleRecord module, string toolDirectory, string value)
+    {
+        var resolved = ResolveToolValue(toolDirectory, value);
+        if (string.IsNullOrWhiteSpace(value) || File.Exists(resolved) || !module.Package.IsDevelopmentTool)
+        {
+            return resolved;
+        }
+
+        return StandalonePackageNormalizer.ResolveAssetPath(toolDirectory, module.Package.Directory, value);
     }
 
     private static string ResolveToolValue(string toolDirectory, string value)
