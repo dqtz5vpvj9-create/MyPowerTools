@@ -156,7 +156,7 @@ public static class ToolScaffolder
         var surface = type switch
         {
             "web" => $$"""{ "kind": "{{MyPowerTools.Packaging.WebSurfaceDefaults.SurfaceKind}}", "source": "http://127.0.0.1:43110/", "staticRoot": "web", "openExternal": {{(MyPowerTools.Packaging.WebSurfaceDefaults.SurfaceOpenExternal ? "true" : "false")}}, "allowedOrigins": ["http://127.0.0.1:43110"] }""",
-            "dotnet" => """{ "kind": "dotnet", "assembly": "bin/Debug/net10.0/__CLASS__.dll", "type": "__CLASS__.ToolSurfaceFactory" }""",
+            "dotnet" => """{ "kind": "dotnet", "assembly": "bin/Debug/net8.0/__CLASS__.dll", "type": "__CLASS__.ToolSurfaceFactory" }""",
             "native" => """{ "kind": "native", "source": "runtime.ps1" }""",
             _ => """{ "kind": "headless" }"""
         };
@@ -220,7 +220,7 @@ public static class ToolScaffolder
         {
             var escapedFeed = SecurityElement.Escape(Path.GetFullPath(sdkFeed));
             files["NuGet.config"] = $$"""<?xml version="1.0" encoding="utf-8"?><configuration><packageSources><clear/><add key="mpt-local" value="{{escapedFeed}}"/><add key="nuget.org" value="https://api.nuget.org/v3/index.json"/></packageSources></configuration>""";
-            files["__CLASS__.csproj"] = """<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>net10.0</TargetFramework><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable></PropertyGroup><ItemGroup><PackageReference Include="MyPowerTools.AvaloniaSdk" Version="0.3.0"/><PackageReference Include="MyPowerTools.ToolSdk" Version="0.2.0"/></ItemGroup></Project>""";
+            files["__CLASS__.csproj"] = """<Project Sdk="Microsoft.NET.Sdk"><PropertyGroup><TargetFramework>net8.0</TargetFramework><LangVersion>preview</LangVersion><RollForward>Major</RollForward><ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable></PropertyGroup><ItemGroup><PackageReference Include="MyPowerTools.AvaloniaSdk" Version="0.3.0"/><PackageReference Include="MyPowerTools.ToolSdk" Version="0.2.0"/></ItemGroup></Project>""";
             files["ToolSurfaceFactory.cs"] = """using Avalonia.Controls; using MyPowerTools.AvaloniaSdk; namespace __CLASS__; public sealed class ToolSurfaceFactory : IMptAvaloniaSurfaceFactory { public Control CreateSurface(MptAvaloniaSurfaceContext context) => new Border { Padding = new Avalonia.Thickness(24), Child = new TextBlock { Text = "__ID__ loaded through MyPowerTools.AvaloniaSdk" } }; }""";
         }
         else if (type == "native")

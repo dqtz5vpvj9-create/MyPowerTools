@@ -7,9 +7,9 @@
     "directory": "sdk-tool",
     "manifest": "sdk-tool/tool.json",
     "project": "sdk-tool/src/ImeManager.Tool/ImeManager.Tool.csproj",
-    "assembly": "sdk-tool/src/ImeManager.Tool/bin/Release/net10.0/ImeManager.Tool.dll",
+    "assembly": "sdk-tool/src/ImeManager.Tool/bin/Release/net8.0/ImeManager.Tool.dll",
     "runtimeProject": "sdk-tool/src/ImeManager.Runtime/ImeManager.Runtime.csproj",
-    "runtimeAssembly": "sdk-tool/src/ImeManager.Runtime/bin/Release/net10.0/ImeManager.Runtime.exe",
+    "runtimeAssembly": "sdk-tool/src/ImeManager.Runtime/bin/Release/net8.0/ImeManager.Runtime.exe",
     "runtimeTransport": "stdio-jsonrpc",
     "package": "artifacts/ime-manager.mptpkg",
     "sdkPackages": [

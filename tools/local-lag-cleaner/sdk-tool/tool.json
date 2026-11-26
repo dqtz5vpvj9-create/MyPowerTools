@@ -18,7 +18,7 @@
       "icon": "diagnostics",
       "surface": {
         "kind": "dotnet",
-        "assembly": "src/LocalLagCleaner.Tool/bin/Release/net10.0/LocalLagCleaner.Tool.dll",
+        "assembly": "src/LocalLagCleaner.Tool/bin/Release/net8.0/LocalLagCleaner.Tool.dll",
         "type": "LocalLagCleaner.Tool.LocalLagCleanerSurfaceFactory"
       }
     }
@@ -30,7 +30,7 @@
   },
   "runtime": {
     "transport": "stdio-jsonrpc",
-    "command": "src/LocalLagCleaner.Runtime/bin/Release/net10.0/LocalLagCleaner.Runtime.exe",
+    "command": "src/LocalLagCleaner.Runtime/bin/Release/net8.0/LocalLagCleaner.Runtime.exe",
     "args": [],
     "timeoutMs": 120000
   },

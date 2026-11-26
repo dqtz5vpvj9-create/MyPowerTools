@@ -137,7 +137,7 @@ public sealed class PasteImageProductTests
             "PasteImage.MyPowerTools.csproj"));
         var build = File.ReadAllText(Path.Combine(Root, "tools", "paste-image", "build.ps1"));
 
-        Assert.Contains("<TargetFramework>net10.0</TargetFramework>", project, StringComparison.Ordinal);
+        Assert.Contains("<TargetFramework>net8.0</TargetFramework>", project, StringComparison.Ordinal);
         Assert.DoesNotContain("System.Drawing.Common", project, StringComparison.Ordinal);
         Assert.Contains("StageRepositoryModule", project, StringComparison.Ordinal);
         Assert.Contains("PasteImage.MyPowerTools.deps.json", build, StringComparison.Ordinal);
@@ -156,7 +156,7 @@ public sealed class PasteImageProductTests
             "PasteImage.MyPowerTools",
             "PasteImageModule.cs"));
 
-        Assert.Contains("[\"remoteHost\"] = \"chris\"", source, StringComparison.Ordinal);
+        Assert.Contains("[\"remoteHost\"] = \"\"", source, StringComparison.Ordinal);
         Assert.Contains("[\"remoteDirectory\"] = \"/tmp\"", source, StringComparison.Ordinal);
         Assert.Contains("[\"uploadTimeoutSeconds\"] = 30", source, StringComparison.Ordinal);
         Assert.Contains("[\"afterUploadShortcut\"] = \"Ctrl+Shift+V\"", source, StringComparison.Ordinal);

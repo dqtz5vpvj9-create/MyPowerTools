@@ -142,8 +142,8 @@ if ($LASTEXITCODE -ne 0) { throw "nssm-manager native resource verification fail
 
 if ($Configuration -ne 'Release') {
     foreach ($projectName in @('NssmManager.Tool', 'NssmManager.Runtime')) {
-        $sourceOutput = Join-Path $sdkToolRoot "src\$projectName\bin\$Configuration\net10.0"
-        $stableOutput = Join-Path $sdkToolRoot "src\$projectName\bin\Release\net10.0"
+        $sourceOutput = Join-Path $sdkToolRoot "src\$projectName\bin\$Configuration\net8.0"
+        $stableOutput = Join-Path $sdkToolRoot "src\$projectName\bin\Release\net8.0"
         New-Item -ItemType Directory -Path $stableOutput -Force | Out-Null
         Get-ChildItem -LiteralPath $sourceOutput -File | Copy-Item -Destination $stableOutput -Force
     }

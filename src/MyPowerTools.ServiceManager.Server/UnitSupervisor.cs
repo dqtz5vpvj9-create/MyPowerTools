@@ -318,8 +318,7 @@ public sealed class UnitSupervisor : IAsyncDisposable
         }
         else
         {
-            // A Service Unit must never inherit an account-scoped runtime override.
-            psi.Environment.Remove(DotNetRuntimeEnvironment.VariableName);
+            DotNetRuntimeEnvironment.ConfigureInheritedChildProcess(psi);
         }
 
         try

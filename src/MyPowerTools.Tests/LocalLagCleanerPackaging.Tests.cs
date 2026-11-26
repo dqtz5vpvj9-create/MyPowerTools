@@ -42,7 +42,7 @@ public sealed class LocalLagCleanerPackagingTests
 
             // Raw Debug output stays excluded: the fix routes Debug builds into the declared layout
             // instead of teaching the shipped .mptignore about Debug.
-            var decoy = Path.Combine(scratch, "src", "LocalLagCleaner.Runtime", "bin", "Debug", "net10.0", "LocalLagCleaner.Runtime.exe");
+            var decoy = Path.Combine(scratch, "src", "LocalLagCleaner.Runtime", "bin", "Debug", "net8.0", "LocalLagCleaner.Runtime.exe");
             Directory.CreateDirectory(Path.GetDirectoryName(decoy)!);
             File.WriteAllText(decoy, "raw-debug-output-must-not-ship");
 

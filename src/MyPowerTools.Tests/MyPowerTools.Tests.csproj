@@ -1,7 +1,7 @@
 <Project Sdk="Microsoft.NET.Sdk">
 
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFramework>net8.0</TargetFramework>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
 
@@ -55,6 +55,7 @@
     <ProjectReference Include="..\MyPowerTools.ModuleHost.GrpcIpc\MyPowerTools.ModuleHost.GrpcIpc.csproj" />
     <ProjectReference Include="..\MyPowerTools.Runner\MyPowerTools.Runner.csproj" />
     <ProjectReference Include="..\MyPowerTools.Cli\MyPowerTools.Cli.csproj" />
+    <ProjectReference Include="..\MyPowerTools.TransferMcp\MyPowerTools.TransferMcp.csproj" Aliases="TransferMcp" />
     <ProjectReference Include="..\MyPowerTools.SampleModules.DotNet\MyPowerTools.SampleModules.DotNet.csproj" />
     <ProjectReference Include="..\MyPowerTools.SampleSidecar.Grpc\MyPowerTools.SampleSidecar.Grpc.csproj" />
     <ProjectReference Include="..\MyPowerTools.Broker\MyPowerTools.Broker.csproj" />

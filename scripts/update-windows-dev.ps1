@@ -951,7 +951,7 @@ function Add-ToolSurfaceToPackage {
     }
     Invoke-Native @surfaceBuildParameters
 
-    $targetFramework = 'net10.0'
+    $targetFramework = 'net8.0'
     $surfaceOutput = Join-Path (Split-Path -Parent $surfaceProject) "bin\$Configuration\$targetFramework"
     $surfaceAssemblyName = [IO.Path]::GetFileNameWithoutExtension($surfaceProject) + '.dll'
     $surfaceAssemblyPath = Join-Path $surfaceOutput $surfaceAssemblyName

@@ -11,7 +11,7 @@
   "availability": "available",
   "primaryRouteId": "main",
   "routes": [
-    { "routeId": "main", "surfaceId": "template.dotnet.main", "title": "Overview", "surface": { "kind": "dotnet", "assembly": "bin/Debug/net10.0/TemplateDotnet.dll", "type": "TemplateDotnet.ToolSurfaceFactory" } }
+    { "routeId": "main", "surfaceId": "template.dotnet.main", "title": "Overview", "surface": { "kind": "dotnet", "assembly": "bin/Debug/net8.0/TemplateDotnet.dll", "type": "TemplateDotnet.ToolSurfaceFactory" } }
   ],
   "homeCard": { "summary": "Open template.dotnet", "primaryActionLabel": "Open", "order": 500 },
   "runtime": { "transport": "none" },

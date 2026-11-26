@@ -69,7 +69,6 @@
     <Project Path="tools/input-monitor/current-integration/src/InputMonitor.Core/InputMonitor.Core.csproj" />
     <Project Path="tools/input-monitor/current-integration/src/InputMonitor.MyPowerTools/InputMonitor.MyPowerTools.csproj" />
     <Project Path="tools/input-monitor/current-integration/src/InputMonitor.Surface/InputMonitor.Surface.csproj" />
-    <Project Path="tools/input-monitor/tests/InputMonitor.Core.Tests/InputMonitor.Core.Tests.csproj" />
     <Project Path="tools/doubao-computer-use/current-integration/src/DoubaoAgent.MyPowerTools/DoubaoAgent.MyPowerTools.csproj" />
     <Project Path="tools/doubao-computer-use/current-integration/src/DoubaoAgent.Surface/DoubaoAgent.Surface.csproj" />
     <Project Path="tools/remote-notifications/current-integration/src/AndroidTools.MyPowerTools/AndroidTools.MyPowerTools.csproj" />

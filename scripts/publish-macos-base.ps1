@@ -404,7 +404,7 @@ Invoke-Native -FilePath 'dotnet' -ArgumentList @(
     '-p:DebugType=None',
     '-p:DebugSymbols=false'
 ) -Activity 'Remote Notifications Surface build'
-$surfaceSource = Join-Path (Split-Path -Parent $surfaceProject) "bin/$Configuration/net10.0"
+$surfaceSource = Join-Path (Split-Path -Parent $surfaceProject) "bin/$Configuration/net8.0"
 $surfaceDestination = Join-Path $moduleStage 'modules/notifications/ui/surface'
 New-Item -ItemType Directory -Path $surfaceDestination -Force | Out-Null
 foreach ($pattern in @('*.dll', '*.deps.json')) {

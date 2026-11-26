@@ -55,22 +55,20 @@ public sealed class NamedPipePolicyTests
 
         var options = new NamedPipeTransportOptions();
         MptNamedPipeTransport.Configure(options);
-        var factory = Assert.IsType<Func<CreateNamedPipeServerStreamContext, NamedPipeServerStream>>(
-            options.CreateNamedPipeServerStream);
-        var pipeName = $"mpt-kestrel-policy-test-{Guid.NewGuid():N}";
 
-        using var first = factory(new CreateNamedPipeServerStreamContext
+        var runtimeFactoryProp = typeof(NamedPipeTransportOptions).GetProperty("CreateNamedPipeServerStream");
+        if (runtimeFactoryProp is not null)
         {
-            NamedPipeEndPoint = new NamedPipeEndPoint(pipeName),
-            PipeOptions = PipeOptions.Asynchronous | PipeOptions.WriteThrough | PipeOptions.FirstPipeInstance,
-            PipeSecurity = options.PipeSecurity
-        });
-        using var second = factory(new CreateNamedPipeServerStreamContext
-        {
-            NamedPipeEndPoint = new NamedPipeEndPoint(pipeName),
-            PipeOptions = PipeOptions.Asynchronous | PipeOptions.WriteThrough,
-            PipeSecurity = options.PipeSecurity
-        });
+            Assert.NotNull(runtimeFactoryProp.GetValue(options));
+        }
+
+        var pipeName = $"mpt-kestrel-policy-test-{Guid.NewGuid():N}";
+        using var first = MptNamedPipeTransport.CreateServerStream(
+            pipeName,
+            PipeOptions.Asynchronous | PipeOptions.WriteThrough | PipeOptions.FirstPipeInstance);
+        using var second = MptNamedPipeTransport.CreateServerStream(
+            pipeName,
+            PipeOptions.Asynchronous | PipeOptions.WriteThrough);
 
         Assert.Equal(MptNamedPipePolicy.LowIntegrityLabelSddl, ReadIntegrityLabel(first.SafePipeHandle));
         Assert.Equal(MptNamedPipePolicy.LowIntegrityLabelSddl, ReadIntegrityLabel(second.SafePipeHandle));

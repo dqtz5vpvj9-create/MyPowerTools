@@ -538,7 +538,7 @@ function Invoke-ToolBuild {
 
         # The runtime package is what Runner discovers. Stage the actual Surface
         # assembly next to tool.json so the Shell can load the declared factory.
-        $surfaceBuildOut = Join-Path (Split-Path -Parent $surfaceProjFull) "bin\$Configuration\net10.0"
+        $surfaceBuildOut = Join-Path (Split-Path -Parent $surfaceProjFull) "bin\$Configuration\net8.0"
         $surfaceRuntimeOut = Join-Path $runtimeStageFull $tool.SurfaceTarget
         Copy-SurfaceOutput -Source $surfaceBuildOut -Destination $surfaceRuntimeOut -AssemblyName $tool.SurfaceAssembly
 

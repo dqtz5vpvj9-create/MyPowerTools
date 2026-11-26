@@ -638,7 +638,7 @@ public sealed partial class MacNativeInstaller
                 }
             }
 
-            actualSha256 = Convert.ToHexStringLower(hash.GetHashAndReset());
+            actualSha256 = Convert.ToHexString(hash.GetHashAndReset()).ToLowerInvariant();
         }
 
         Report("verify", $"正在校验 {asset}…");

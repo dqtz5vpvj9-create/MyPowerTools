@@ -214,7 +214,7 @@ public sealed record PublicInboxPairing(string InboxId, string DepositKey)
     {
         var payload = JsonSerializer.SerializeToUtf8Bytes(
             new Dictionary<string, string> { ["inboxId"] = InboxId, ["depositKey"] = DepositKey });
-        return CodeScheme + System.Buffers.Text.Base64Url.EncodeToString(payload);
+        return CodeScheme + UrlSafeBase64.EncodeToString(payload);
     }
 
     public static bool TryParse(string? code, [NotNullWhen(true)] out PublicInboxPairing? pairing)
@@ -223,7 +223,7 @@ public sealed record PublicInboxPairing(string InboxId, string DepositKey)
         if (string.IsNullOrWhiteSpace(code) || !code.StartsWith(CodeScheme, StringComparison.Ordinal)) return false;
         try
         {
-            var bytes = System.Buffers.Text.Base64Url.DecodeFromChars(code.AsSpan(CodeScheme.Length));
+            var bytes = UrlSafeBase64.DecodeFromChars(code.AsSpan(CodeScheme.Length));
             using var document = JsonDocument.Parse(bytes);
             var root = document.RootElement;
             if (root.ValueKind != JsonValueKind.Object) return false;

@@ -417,7 +417,9 @@ Address         Port        Address         Port
         await File.WriteAllTextAsync(Path.Combine(dependencyRoot, "PluginSharedDependency.csproj"), """
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>preview</LangVersion>
+    <RollForward>Major</RollForward>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AssemblyName>PluginSharedDependency</AssemblyName>
@@ -442,7 +444,9 @@ public static class SharedDependency
         await File.WriteAllTextAsync(Path.Combine(pluginRoot, $"{assemblyName}.csproj"), $$"""
 <Project Sdk="Microsoft.NET.Sdk">
   <PropertyGroup>
-    <TargetFramework>net10.0</TargetFramework>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>preview</LangVersion>
+    <RollForward>Major</RollForward>
     <ImplicitUsings>enable</ImplicitUsings>
     <Nullable>enable</Nullable>
     <AssemblyName>{{assemblyName}}</AssemblyName>
@@ -1242,7 +1246,7 @@ public sealed class GeneratedModule : IMptModule
         var candidateDirectories = new[]
         {
             Path.Combine(Root, "artifacts", "build", "bin", projectName, buildConfiguration.ToLowerInvariant()),
-            Path.Combine(projectDirectory, "bin", buildConfiguration, "net10.0")
+            Path.Combine(projectDirectory, "bin", buildConfiguration, "net8.0")
         };
 
         var executableName = OperatingSystem.IsWindows() ? $"{projectName}.exe" : projectName;

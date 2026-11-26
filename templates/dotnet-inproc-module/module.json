@@ -9,7 +9,7 @@
     {
       "kind": "inproc-dotnet",
       "priority": 90,
-      "assembly": "bin/Release/net10.0/Sample.DotNetInProc.MyPowerTools.dll",
+      "assembly": "bin/Release/net8.0/Sample.DotNetInProc.MyPowerTools.dll",
       "type": "Sample.DotNetInProc.ModuleEntry"
     }
   ],

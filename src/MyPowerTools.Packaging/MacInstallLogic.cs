@@ -556,7 +556,7 @@ public static class MacInstallLogic
 
     public static string Sha256Hex(Stream stream)
     {
-        return Convert.ToHexStringLower(SHA256.HashData(stream));
+        return Convert.ToHexString(SHA256.HashData(stream)).ToLowerInvariant();
     }
 
     public static string Sha256File(string path)

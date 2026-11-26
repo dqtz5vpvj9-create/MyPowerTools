@@ -18,7 +18,7 @@
       "icon": "route.devices",
       "surface": {
         "kind": "dotnet",
-        "assembly": "src/AudioRelay.Tool/bin/Release/net10.0/AudioRelay.Tool.dll",
+        "assembly": "src/AudioRelay.Tool/bin/Release/net8.0/AudioRelay.Tool.dll",
         "type": "AudioRelay.Tool.AudioRelaySurfaceFactory"
       }
     }
@@ -30,7 +30,7 @@
   },
   "runtime": {
     "transport": "stdio-jsonrpc",
-    "command": "src/AudioRelay.Runtime/bin/Release/net10.0/AudioRelay.Runtime.exe",
+    "command": "src/AudioRelay.Runtime/bin/Release/net8.0/AudioRelay.Runtime.exe",
     "args": [],
     "timeoutMs": 30000
   },
