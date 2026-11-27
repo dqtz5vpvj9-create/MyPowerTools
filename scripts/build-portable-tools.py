@@ -33,7 +33,60 @@ from pathlib import Path
 APPHOST_PLACEHOLDER = b"c3ab8ff13720e8ad9047dd39466b3c8974e592c2fa383d4a3960714caef0c4f2"
 APPHOST_PATH_MAX_BYTES = 1024
 
-STRIP_EXTENSIONS = {".pdb", ".xml", ".dbg", ".so", ".dylib", ".a", ".dsym"}
+STRIP_EXTENSIONS_BY_OS: dict[str, set[str]] = {
+    "win": {".pdb", ".xml", ".dbg", ".so", ".dylib", ".a", ".dsym"},
+    "osx": {".pdb", ".xml", ".dbg", ".so", ".a"},
+    "linux": {".pdb", ".xml", ".dbg", ".dylib", ".a", ".dsym"},
+}
+
+# Managed/native assemblies that belong exclusively to other desktop OS backends or IDE design-time preview.
+# Removing them alongside their .deps.json entries keeps runtime resolution clean while saving ~2.3 MB+ per UI base.
+PRUNE_FILES_BY_OS: dict[str, set[str]] = {
+    "win": {
+        "avalonia.x11.dll",
+        "avalonia.freedesktop.dll",
+        "avalonia.freedesktop.atspi.dll",
+        "tmds.dbus.protocol.dll",
+        "avalonia.native.dll",
+        "avalonia.metal.dll",
+        "avalonia.vulkan.dll",
+        "avalonia.designersupport.dll",
+        "avalonia.remote.protocol.dll",
+        "mypowertools.platform.linux.dll",
+        "mypowertools.platform.mac.dll",
+    },
+    "osx": {
+        "avalonia.win32.dll",
+        "avalonia.win32.automation.dll",
+        "av_libglesv2.dll",
+        "avalonia.x11.dll",
+        "avalonia.freedesktop.dll",
+        "avalonia.freedesktop.atspi.dll",
+        "tmds.dbus.protocol.dll",
+        "avalonia.vulkan.dll",
+        "avalonia.designersupport.dll",
+        "avalonia.remote.protocol.dll",
+        "mypowertools.platform.windows.dll",
+        "mypowertools.platform.linux.dll",
+        "system.private.windows.core.dll",
+        "system.private.windows.gdiplus.dll",
+        "microsoft.win32.systemevents.dll",
+    },
+    "linux": {
+        "avalonia.win32.dll",
+        "avalonia.win32.automation.dll",
+        "av_libglesv2.dll",
+        "avalonia.native.dll",
+        "avalonia.metal.dll",
+        "avalonia.designersupport.dll",
+        "avalonia.remote.protocol.dll",
+        "mypowertools.platform.windows.dll",
+        "mypowertools.platform.mac.dll",
+        "system.private.windows.core.dll",
+        "system.private.windows.gdiplus.dll",
+        "microsoft.win32.systemevents.dll",
+    },
+}
 
 
 @dataclass(frozen=True)
@@ -201,21 +254,92 @@ def ensure_roll_forward_major(directory: Path) -> None:
             pass
 
 
-def prune_published_tree(directory: Path, target_rid: str) -> None:
+def rid_os_family(target_rid: str) -> str:
+    lower = target_rid.lower()
+    if lower.startswith("win"):
+        return "win"
+    if lower.startswith("osx"):
+        return "osx"
+    return "linux"
+
+
+def sanitize_deps_json(directory: Path, pruned_names_lower: set[str], allowed_rids: set[str]) -> None:
+    if not pruned_names_lower:
+        return
+    for deps_path in directory.rglob("*.deps.json"):
+        try:
+            data = json.loads(deps_path.read_text(encoding="utf-8"))
+        except Exception:
+            continue
+        changed = False
+        targets = data.get("targets")
+        if isinstance(targets, dict):
+            for target_map in targets.values():
+                if not isinstance(target_map, dict):
+                    continue
+                for lib_entry in target_map.values():
+                    if not isinstance(lib_entry, dict):
+                        continue
+                    for section in ("runtime", "native"):
+                        sec = lib_entry.get(section)
+                        if isinstance(sec, dict):
+                            for asset_path in list(sec.keys()):
+                                fname = Path(asset_path).name.lower()
+                                if fname in pruned_names_lower:
+                                    del sec[asset_path]
+                                    changed = True
+                    rt = lib_entry.get("runtimeTargets")
+                    if isinstance(rt, dict):
+                        for asset_path, meta in list(rt.items()):
+                            fname = Path(asset_path).name.lower()
+                            rid = str(meta.get("rid", "")).lower() if isinstance(meta, dict) else ""
+                            if fname in pruned_names_lower or (rid and rid not in allowed_rids):
+                                del rt[asset_path]
+                                changed = True
+        if changed:
+            deps_path.write_text(json.dumps(data, indent=2) + "\n", encoding="utf-8", newline="\n")
+
+
+def prune_published_tree(directory: Path, target_rid: str) -> tuple[int, int]:
+    os_family = rid_os_family(target_rid)
+    strip_exts = STRIP_EXTENSIONS_BY_OS[os_family]
+    prune_files = PRUNE_FILES_BY_OS[os_family]
+    allowed_rids = {target_rid.lower(), os_family}
+    if os_family == "linux":
+        allowed_rids.add("unix")
+    elif os_family == "osx":
+        allowed_rids.add("unix")
+
+    removed_files = 0
+    removed_bytes = 0
+    pruned_names: set[str] = set()
+
     for path in list(directory.rglob("*")):
-        if path.is_file() and path.suffix.lower() in STRIP_EXTENSIONS:
+        if not path.is_file():
+            continue
+        lname = path.name.lower()
+        if path.suffix.lower() in strip_exts or lname in prune_files:
+            removed_bytes += path.stat().st_size
+            removed_files += 1
+            pruned_names.add(lname)
             path.unlink()
 
     runtimes_dir = directory / "runtimes"
     if runtimes_dir.is_dir():
-        allowed_rids = {target_rid.lower(), "win"}
         for child in list(runtimes_dir.iterdir()):
             if child.is_dir() and child.name.lower() not in allowed_rids:
+                for f in child.rglob("*"):
+                    if f.is_file():
+                        removed_bytes += f.stat().st_size
+                        removed_files += 1
+                        pruned_names.add(f.name.lower())
                 shutil.rmtree(child)
         if not any(runtimes_dir.iterdir()):
             runtimes_dir.rmdir()
 
+    sanitize_deps_json(directory, pruned_names, allowed_rids)
     ensure_roll_forward_major(directory)
+    return removed_files, removed_bytes
 
 
 def find_win_apphost_template(rid: str, env: dict[str, str]) -> Path | None:
@@ -372,7 +496,8 @@ def main() -> int:
         args.rid,
         env,
     )
-    prune_published_tree(host_stage, args.rid)
+    host_pruned_files, host_pruned_bytes = prune_published_tree(host_stage, args.rid)
+    print(f"      Pruned {host_pruned_files} non-{args.rid}/design-time files ({format_size(host_pruned_bytes)}) from shared-ui.")
 
     fallback_host_exe = host_stage / "MptStandaloneHost.exe"
     apphost_template = find_win_apphost_template(args.rid, env)

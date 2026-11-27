@@ -159,6 +159,70 @@ if ($isWebDistribution) {
     }
 }
 
+function Remove-NonWindowsAvaloniaArtifacts {
+    param(
+        [Parameter(Mandatory = $true)][string]$RootPath,
+        [string]$TargetRid = 'win-x64'
+    )
+    if (-not (Test-Path -LiteralPath $RootPath -PathType Container)) { return }
+    $pruneFiles = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($name in @(
+        'Avalonia.X11.dll', 'Avalonia.FreeDesktop.dll', 'Avalonia.FreeDesktop.AtSpi.dll',
+        'Tmds.DBus.Protocol.dll', 'Avalonia.Native.dll', 'Avalonia.Metal.dll', 'Avalonia.Vulkan.dll',
+        'Avalonia.DesignerSupport.dll', 'Avalonia.Remote.Protocol.dll',
+        'MyPowerTools.Platform.Linux.dll', 'MyPowerTools.Platform.Mac.dll'
+    )) { [void]$pruneFiles.Add($name) }
+    $stripExts = @('.pdb', '.xml', '.dbg', '.so', '.dylib', '.a')
+    $pruned = [System.Collections.Generic.HashSet[string]]::new([System.StringComparer]::OrdinalIgnoreCase)
+    foreach ($f in (Get-ChildItem -LiteralPath $RootPath -Recurse -File -ErrorAction SilentlyContinue)) {
+        if ($pruneFiles.Contains($f.Name) -or ($stripExts -contains $f.Extension.ToLowerInvariant())) {
+            [void]$pruned.Add($f.Name)
+            Remove-Item -LiteralPath $f.FullName -Force -ErrorAction SilentlyContinue
+        }
+    }
+    $runtimesDir = Join-Path $RootPath 'runtimes'
+    if (Test-Path -LiteralPath $runtimesDir -PathType Container) {
+        $allowed = @($TargetRid.ToLowerInvariant(), 'win')
+        foreach ($d in (Get-ChildItem -LiteralPath $runtimesDir -Directory -ErrorAction SilentlyContinue)) {
+            if ($allowed -notcontains $d.Name.ToLowerInvariant()) {
+                foreach ($nf in (Get-ChildItem -LiteralPath $d.FullName -Recurse -File -ErrorAction SilentlyContinue)) { [void]$pruned.Add($nf.Name) }
+                Remove-Item -LiteralPath $d.FullName -Recurse -Force -ErrorAction SilentlyContinue
+            }
+        }
+    }
+    if ($pruned.Count -eq 0) { return }
+    foreach ($deps in (Get-ChildItem -LiteralPath $RootPath -Recurse -Filter '*.deps.json' -File -ErrorAction SilentlyContinue)) {
+        try {
+            $doc = Get-Content -LiteralPath $deps.FullName -Raw -Encoding UTF8 | ConvertFrom-Json -AsHashtable
+            $changed = $false
+            if ($doc -and $doc.ContainsKey('targets') -and $doc['targets'] -is [hashtable]) {
+                foreach ($tk in @($doc['targets'].Keys)) {
+                    $tmap = $doc['targets'][$tk]
+                    if ($tmap -isnot [hashtable]) { continue }
+                    foreach ($lk in @($tmap.Keys)) {
+                        $lib = $tmap[$lk]
+                        if ($lib -isnot [hashtable]) { continue }
+                        foreach ($sec in @('runtime', 'native', 'runtimeTargets')) {
+                            if ($lib.ContainsKey($sec) -and $lib[$sec] -is [hashtable]) {
+                                foreach ($ak in @($lib[$sec].Keys)) {
+                                    $leaf = [System.IO.Path]::GetFileName($ak)
+                                    if ($pruned.Contains($leaf)) {
+                                        $lib[$sec].Remove($ak)
+                                        $changed = $true
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            if ($changed) {
+                $doc | ConvertTo-Json -Depth 16 | Set-Content -LiteralPath $deps.FullName -Encoding UTF8
+            }
+        } catch {}
+    }
+}
+
 function Invoke-Native {
     param(
         [Parameter(Mandatory = $true)][string]$FilePath,
@@ -312,8 +376,10 @@ if ($reusableFullToolSnapshot) {
 }
 
 Invoke-Native -FilePath 'dotnet' -ArgumentList @('publish', 'src\MyPowerTools.Runner\MyPowerTools.Runner.csproj', '-c', 'Release', '-r', 'win-x64', '--self-contained', 'false', '-p:DebugType=None', '-p:DebugSymbols=false', '-o', (Join-Path $PublishRoot 'Runner'))
+Remove-NonWindowsAvaloniaArtifacts -RootPath (Join-Path $PublishRoot 'Runner') -TargetRid 'win-x64'
 $shellReadyToRun = -not $isWebDistribution
 Invoke-Native -FilePath 'dotnet' -ArgumentList @('publish', 'src\MyPowerTools.Shell.Avalonia\MyPowerTools.Shell.Avalonia.csproj', '-c', 'Release', '-r', 'win-x64', '--self-contained', 'false', "-p:PublishReadyToRun=$($shellReadyToRun.ToString().ToLowerInvariant())", "-p:PublishReadyToRunComposite=$($shellReadyToRun.ToString().ToLowerInvariant())", '-p:DebugType=None', '-p:DebugSymbols=false', '-o', (Join-Path $PublishRoot 'Shell'))
+Remove-NonWindowsAvaloniaArtifacts -RootPath (Join-Path $PublishRoot 'Shell') -TargetRid 'win-x64'
 Invoke-Native -FilePath 'dotnet' -ArgumentList @('publish', 'src\MyPowerTools.Cli\MyPowerTools.Cli.csproj', '-c', 'Release', '-r', 'win-x64', '--self-contained', 'false', '-p:DebugType=None', '-p:DebugSymbols=false', '-o', (Join-Path $PublishRoot 'Cli'))
 # Reuse the published CLI without another restore/build or an assembled private runtime.
 Invoke-Native -FilePath 'dotnet' -ArgumentList @(
