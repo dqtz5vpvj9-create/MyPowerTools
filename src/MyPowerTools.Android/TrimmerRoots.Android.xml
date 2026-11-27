@@ -1,6 +1,6 @@
 <linker>
-  <!-- Keep host contract assemblies and core BCL subsystems used by dynamically loaded
-       AssemblyLoadContext modules (including Tailnet hot-updated modules). -->
+  <!-- Complete BCL & host-contract closure for all dynamically loaded AssemblyLoadContext modules
+       (bundled and future Tailscale/proxy hot-updated modules). -->
   <assembly fullname="MyPowerTools.Abstractions" preserve="all" />
   <assembly fullname="MyPowerTools.Platform.Abstractions" preserve="all" />
   <assembly fullname="MyPowerTools.AvaloniaSdk" preserve="all" />
@@ -9,29 +9,66 @@
   <assembly fullname="MyPowerTools.Ipc.Shared" preserve="all" />
   <assembly fullname="MyPowerTools.UI.Primitives" preserve="all" />
   <assembly fullname="MyPowerTools.UI" preserve="all" />
-  <assembly fullname="System.Security.Cryptography" preserve="all" />
-  <assembly fullname="System.Security.Cryptography.Primitives" preserve="all" />
-  <assembly fullname="System.Security.Cryptography.Algorithms" preserve="all" />
-  <assembly fullname="System.Security.Cryptography.Csp" preserve="all" />
-  <assembly fullname="System.Security.Cryptography.X509Certificates" preserve="all" />
-  <assembly fullname="System.Formats.Asn1" preserve="all" />
-  <assembly fullname="System.Net.Sockets" preserve="all" />
-  <assembly fullname="System.Net.Http" preserve="all" />
-  <assembly fullname="System.Net.NetworkInformation" preserve="all" />
-  <assembly fullname="System.Net.NameResolution" preserve="all" />
-  <assembly fullname="System.Net.Security" preserve="all" />
-  <assembly fullname="System.Net.Primitives" preserve="all" />
-  <assembly fullname="System.IO.Compression" preserve="all" />
-  <assembly fullname="System.IO.Compression.ZipFile" preserve="all" />
-  <assembly fullname="System.Text.Json" preserve="all" />
-  <assembly fullname="System.Text.RegularExpressions" preserve="all" />
-  <assembly fullname="System.Threading.Channels" preserve="all" />
-  <assembly fullname="System.Xml.ReaderWriter" preserve="all" />
-  <assembly fullname="System.Xml.XDocument" preserve="all" />
-  <assembly fullname="System.Linq.Expressions" preserve="all" />
-  <assembly fullname="System.Memory" preserve="all" />
-  <assembly fullname="System.Buffers" preserve="all" />
-  <assembly fullname="System.Numerics.Vectors" preserve="all" />
   <assembly fullname="Microsoft.Extensions.Logging.Abstractions" preserve="all" />
   <assembly fullname="Microsoft.Extensions.DependencyInjection.Abstractions" preserve="all" />
+  <assembly fullname="Microsoft.Win32.Primitives" preserve="all" />
+  <assembly fullname="Microsoft.Win32.Registry" preserve="all" />
+  <assembly fullname="System.Buffers" preserve="all" />
+  <assembly fullname="System.Collections" preserve="all" />
+  <assembly fullname="System.Collections.Concurrent" preserve="all" />
+  <assembly fullname="System.Collections.Immutable" preserve="all" />
+  <assembly fullname="System.Collections.Specialized" preserve="all" />
+  <assembly fullname="System.ComponentModel" preserve="all" />
+  <assembly fullname="System.ComponentModel.Primitives" preserve="all" />
+  <assembly fullname="System.ComponentModel.TypeConverter" preserve="all" />
+  <assembly fullname="System.Console" preserve="all" />
+  <assembly fullname="System.Diagnostics.Process" preserve="all" />
+  <assembly fullname="System.Diagnostics.StackTrace" preserve="all" />
+  <assembly fullname="System.Diagnostics.TraceSource" preserve="all" />
+  <assembly fullname="System.Formats.Asn1" preserve="all" />
+  <assembly fullname="System.Formats.Tar" preserve="all" />
+  <assembly fullname="System.Globalization" preserve="all" />
+  <assembly fullname="System.IO.Compression" preserve="all" />
+  <assembly fullname="System.IO.Compression.ZipFile" preserve="all" />
+  <assembly fullname="System.IO.Pipes" preserve="all" />
+  <assembly fullname="System.Linq" preserve="all" />
+  <assembly fullname="System.Linq.Expressions" preserve="all" />
+  <assembly fullname="System.Memory" preserve="all" />
+  <assembly fullname="System.Net.Http" preserve="all" />
+  <assembly fullname="System.Net.Http.Json" preserve="all" />
+  <assembly fullname="System.Net.NameResolution" preserve="all" />
+  <assembly fullname="System.Net.NetworkInformation" preserve="all" />
+  <assembly fullname="System.Net.Primitives" preserve="all" />
+  <assembly fullname="System.Net.Security" preserve="all" />
+  <assembly fullname="System.Net.Sockets" preserve="all" />
+  <assembly fullname="System.Net.WebSockets" preserve="all" />
+  <assembly fullname="System.Net.WebSockets.Client" preserve="all" />
+  <assembly fullname="System.Numerics.Vectors" preserve="all" />
+  <assembly fullname="System.ObjectModel" preserve="all" />
+  <assembly fullname="System.Private.Uri" preserve="all" />
+  <assembly fullname="System.Private.Xml" preserve="all" />
+  <assembly fullname="System.Private.Xml.Linq" preserve="all" />
+  <assembly fullname="System.Reflection.Metadata" preserve="all" />
+  <assembly fullname="System.Runtime.CompilerServices.Unsafe" preserve="all" />
+  <assembly fullname="System.Runtime.InteropServices" preserve="all" />
+  <assembly fullname="System.Runtime.Intrinsics" preserve="all" />
+  <assembly fullname="System.Runtime.Loader" preserve="all" />
+  <assembly fullname="System.Runtime.Numerics" preserve="all" />
+  <assembly fullname="System.Security.Cryptography" preserve="all" />
+  <assembly fullname="System.Security.Cryptography.Algorithms" preserve="all" />
+  <assembly fullname="System.Security.Cryptography.Csp" preserve="all" />
+  <assembly fullname="System.Security.Cryptography.Encoding" preserve="all" />
+  <assembly fullname="System.Security.Cryptography.Primitives" preserve="all" />
+  <assembly fullname="System.Security.Cryptography.X509Certificates" preserve="all" />
+  <assembly fullname="System.Text.Encoding.Extensions" preserve="all" />
+  <assembly fullname="System.Text.Json" preserve="all" />
+  <assembly fullname="System.Text.RegularExpressions" preserve="all" />
+  <assembly fullname="System.Threading" preserve="all" />
+  <assembly fullname="System.Threading.Channels" preserve="all" />
+  <assembly fullname="System.Threading.Tasks" preserve="all" />
+  <assembly fullname="System.Threading.Thread" preserve="all" />
+  <assembly fullname="System.Threading.ThreadPool" preserve="all" />
+  <assembly fullname="System.Xml.Linq" preserve="all" />
+  <assembly fullname="System.Xml.ReaderWriter" preserve="all" />
+  <assembly fullname="System.Xml.XDocument" preserve="all" />
 </linker>
