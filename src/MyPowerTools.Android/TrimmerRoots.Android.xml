@@ -72,4 +72,22 @@
   <assembly fullname="System.Xml.Linq" preserve="all" />
   <assembly fullname="System.Xml.ReaderWriter" preserve="all" />
   <assembly fullname="System.Xml.XDocument" preserve="all" />
+  <assembly fullname="Avalonia" preserve="all" />
+  <assembly fullname="Avalonia.Base" preserve="all" />
+  <assembly fullname="Avalonia.Controls" preserve="all" />
+  <assembly fullname="Avalonia.Markup" preserve="all" />
+  <assembly fullname="Avalonia.Markup.Xaml" preserve="all" />
+  <assembly fullname="Avalonia.Themes.Fluent" preserve="all" />
+  <assembly fullname="Avalonia.Skia" preserve="all" />
+  <assembly fullname="Avalonia.HarfBuzz" preserve="all" />
+  <assembly fullname="Avalonia.OpenGL" preserve="all" />
+  <assembly fullname="Avalonia.Android" preserve="all" />
+  <assembly fullname="SkiaSharp" preserve="all" />
+  <assembly fullname="HarfBuzzSharp" preserve="all" />
+  <assembly fullname="MicroCom.Runtime" preserve="all" />
+  <assembly fullname="Google.Protobuf" preserve="all" />
+  <assembly fullname="Grpc.Core.Api" preserve="all" />
+  <assembly fullname="Grpc.Net.Client" preserve="all" />
+  <assembly fullname="Grpc.Net.Common" preserve="all" />
+  <assembly fullname="zxing" preserve="all" />
 </linker>

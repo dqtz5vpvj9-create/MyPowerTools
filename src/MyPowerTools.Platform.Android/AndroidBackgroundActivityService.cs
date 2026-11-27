@@ -58,6 +58,15 @@ public sealed class AndroidBackgroundActivityService : IBackgroundActivityServic
 
     private static void StopService()
     {
+        // Android 12+ throws ForegroundServiceDidNotStartInTimeException if StopService() tears down
+        // a service started via StartForegroundService() before OnStartCommand() calls StartForeground().
+        // When StartForeground() has not run yet, leave the in-flight start intent to promote and
+        // immediately stop itself cleanly inside OnStartCommand().
+        if (!MptRuntimeService.IsForegroundActive)
+        {
+            return;
+        }
+
         try
         {
             var context = A.App.Application.Context;
@@ -97,6 +106,8 @@ public sealed class MptRuntimeService : A.App.Service
     // of letting the platform defer it while the activity is visible.
     private const int ForegroundServiceImmediate = 1;
 
+    internal static volatile bool IsForegroundActive;
+
     public override A.OS.IBinder? OnBind(A.Content.Intent? intent) => null;
 
     public override A.App.StartCommandResult OnStartCommand(A.Content.Intent? intent, A.App.StartCommandFlags flags, int startId)
@@ -107,14 +118,17 @@ public sealed class MptRuntimeService : A.App.Service
         }
 
         var activities = AndroidBackgroundActivityService.Coordinator.Snapshot();
+        using var notification = BuildNotification(activities);
         if (activities.Count == 0)
         {
+            // Always satisfy Context.startForegroundService() contract before stopping self.
+            StartForeground(NotificationId, notification, A.Content.PM.ForegroundService.TypeDataSync);
             StopForeground(A.App.StopForegroundFlags.Remove);
-            StopSelf();
+            IsForegroundActive = false;
+            StopSelf(startId);
             return A.App.StartCommandResult.NotSticky;
         }
 
-        using var notification = BuildNotification(activities);
         if (AndroidBackgroundActivityService.Coordinator.RequiresConnectedDeviceType)
         {
             StartForeground(NotificationId, notification, A.Content.PM.ForegroundService.TypeConnectedDevice);
@@ -124,6 +138,7 @@ public sealed class MptRuntimeService : A.App.Service
             StartForeground(NotificationId, notification, A.Content.PM.ForegroundService.TypeDataSync);
         }
 
+        IsForegroundActive = true;
         return A.App.StartCommandResult.NotSticky;
     }
 
@@ -134,6 +149,7 @@ public sealed class MptRuntimeService : A.App.Service
     /// </summary>
     public override void OnDestroy()
     {
+        IsForegroundActive = false;
         var stopped = AndroidBackgroundActivityService.Coordinator.RemoveAll();
         if (stopped.Count > 0)
         {
@@ -150,7 +166,7 @@ public sealed class MptRuntimeService : A.App.Service
         var manager = (A.App.NotificationManager)GetSystemService(NotificationService)!;
         manager.CreateNotificationChannel(new A.App.NotificationChannel(ChannelId, "MPT 后台任务", A.App.NotificationImportance.Low));
 
-        var summary = string.Join(" · ", activities.Select(activity => activity.Title).Distinct(StringComparer.Ordinal));
+        var summary = activities.Count == 0 ? "正在完成后台任务" : string.Join(" · ", activities.Select(activity => activity.Title).Distinct(StringComparer.Ordinal));
         var builder = new A.App.Notification.Builder(this, ChannelId)
             .SetSmallIcon(A.Resource.Drawable.StatSysUpload)
             .SetContentTitle("MyPowerTools 后台任务")
