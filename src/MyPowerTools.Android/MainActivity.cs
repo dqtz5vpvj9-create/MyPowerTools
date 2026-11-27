@@ -36,6 +36,7 @@ public sealed class MainActivity : AvaloniaMainActivity
 {
     private static readonly object ShellGate = new();
     private static MobileShellView? _shell;
+    private static AndroidStartupView? _startupView;
     private static TaskCompletionSource<MobileShellView> _shellReady = NewShellReady();
     private static TaskCompletionSource<MobileShellView> NewShellReady()
     {
@@ -78,6 +79,22 @@ public sealed class MainActivity : AvaloniaMainActivity
         ArmShellReady();
         WarmFontStack();
         var view = new AndroidStartupView();
+        _startupView = view;
+        AndroidHost.OnModulesHotUpdated = async _ =>
+        {
+            await AndroidHost.RetryAsync().ConfigureAwait(false);
+            if (_startupView is { } activeView)
+            {
+                await Dispatcher.UIThread.InvokeAsync(() =>
+                {
+                    AndroidStartupLog.Info("shell", "Rebuilding Shell after module hot-update");
+                    var refreshed = new MobileShellView();
+                    refreshed.SetNativeSurfaceServices(ScanConnectionCodeAsync, OpenLocalFileAsync, CloudAuthorization.CloudLogin.AuthorizeAsync);
+                    _shell = refreshed;
+                    activeView.ShowShell(refreshed);
+                });
+            }
+        };
         _ = InitializeAsync(view);
         var host = new AndroidImeHost(view);
         if (Current is { } activity)

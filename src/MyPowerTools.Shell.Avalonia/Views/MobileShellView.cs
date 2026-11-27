@@ -924,6 +924,7 @@ public sealed class MobileShellView : UserControl, IAsyncDisposable, IMobileNavi
             MobileSheetKeys.Permissions => BuildPermissionsSheet(),
             MobileSheetKeys.Appearance => BuildAppearanceSheet(),
             MobileSheetKeys.About => BuildAboutSheet(),
+            MobileSheetKeys.ModuleUpdates => BuildModuleUpdatesSheet(),
             MobileSheetKeys.PeerActions => BuildPeerActionsSheet(_viewModel.SheetArgument),
             _ => ("操作", "", (Control)MobileElements.Caption("这个操作还没有接入。"))
         };
@@ -1145,6 +1146,84 @@ public sealed class MobileShellView : UserControl, IAsyncDisposable, IMobileNavi
 
         stack.Children.Add(MobileElements.Caption("外观写入与桌面版同一个偏好文件。"));
         return ("外观", viewModel.AppearanceLabel, stack);
+    }
+
+    private (string Title, string Subtitle, Control Content) BuildModuleUpdatesSheet()
+    {
+        var viewModel = _viewModel.Settings;
+        var state = viewModel.GetModuleUpdateState();
+        var cfg = viewModel.GetModuleUpdateConfig();
+
+        var statusBanner = MobileElements.Banner(state.Detail, "MptMobileBannerQuiet");
+        var statusText = (TextBlock)statusBanner.Child!;
+
+        var tailBox = new TextBox { Text = cfg.TailscaleBaseUrl, PlaceholderText = "Tailscale 内网模块源（优先）" };
+        var proxyBox = new TextBox { Text = cfg.PublicProxyBaseUrl, PlaceholderText = "公网代理模块源（回退）" };
+        var directBox = new TextBox { Text = cfg.DirectFallbackBaseUrl, PlaceholderText = "GitHub 直连模块源（最终回退）" };
+
+        var checkButton = new Button { Content = "检查并立即热更新（Tailscale 优先）" };
+        checkButton.Classes.Add("MptMobilePrimaryButton");
+        checkButton.Click += async (_, _) =>
+        {
+            checkButton.IsEnabled = false;
+            statusText.Text = "正在探测 Tailscale 内网源，不可达时自动切换公网代理…";
+            try
+            {
+                viewModel.SaveModuleUpdateConfig(new Services.Mobile.MobileModuleUpdateSourceConfig(
+                    tailBox.Text ?? "", proxyBox.Text ?? "", directBox.Text ?? ""));
+                var res = await viewModel.CheckAndApplyModuleUpdatesAsync();
+                statusText.Text = res.Message;
+            }
+            finally
+            {
+                checkButton.IsEnabled = true;
+            }
+        };
+
+        var saveButton = new Button { Content = "仅保存更新源地址" };
+        saveButton.Classes.Add("MptMobileSecondaryButton");
+        saveButton.Click += (_, _) =>
+        {
+            viewModel.SaveModuleUpdateConfig(new Services.Mobile.MobileModuleUpdateSourceConfig(
+                tailBox.Text ?? "", proxyBox.Text ?? "", directBox.Text ?? ""));
+            statusText.Text = "更新源配置已保存。";
+        };
+
+        var resetButton = new Button { Content = "还原 APK 内置模块", IsVisible = state.HasOverrides };
+        resetButton.Classes.Add("MptMobileSecondaryButton");
+        resetButton.Click += async (_, _) =>
+        {
+            resetButton.IsEnabled = false;
+            try
+            {
+                var res = await viewModel.ResetModuleUpdatesAsync();
+                statusText.Text = res.Message;
+                resetButton.IsVisible = false;
+            }
+            finally
+            {
+                resetButton.IsEnabled = true;
+            }
+        };
+
+        var stack = new StackPanel { Spacing = 10 };
+        stack.Children.Add(statusBanner);
+        if (state.InstalledOverrides.Count > 0)
+        {
+            stack.Children.Add(MobileElements.Caption("当前已生效热更新：" + string.Join(" / ", state.InstalledOverrides)));
+        }
+        stack.Children.Add(checkButton);
+        stack.Children.Add(MobileElements.Caption("Tailscale 内网地址（连得上时 2.5s 内直连下载）"));
+        stack.Children.Add(tailBox);
+        stack.Children.Add(MobileElements.Caption("公网代理地址（未连 Tailscale 时自动回退）"));
+        stack.Children.Add(proxyBox);
+        stack.Children.Add(MobileElements.Caption("直连兜底地址（公网代理失败时使用）"));
+        stack.Children.Add(directBox);
+        stack.Children.Add(saveButton);
+        stack.Children.Add(resetButton);
+        stack.Children.Add(MobileElements.Caption("仅下载变更的工具模块 DLL（约 100~650 KB），SHA-256 校验后原地热重载，无需重装整包 APK。"));
+
+        return ("模块热更新", state.Summary, stack);
     }
 
     private (string Title, string Subtitle, Control Content) BuildAboutSheet()

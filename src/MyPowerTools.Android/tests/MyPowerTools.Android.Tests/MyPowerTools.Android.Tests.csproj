@@ -28,6 +28,7 @@
     <Compile Include="../../Input/ActiveTouchSequences.cs" Link="Input/ActiveTouchSequences.cs" />
     <Compile Include="../../Input/AndroidDispatcherClock.cs" Link="Input/AndroidDispatcherClock.cs" />
     <Compile Include="../../AndroidStartupView.cs" Link="AndroidStartupView.cs" />
+    <Compile Include="../../Updates/AndroidModuleHotUpdater.cs" Link="Updates/AndroidModuleHotUpdater.cs" />
     <Compile Include="../../Input/AndroidImeHost.cs" Link="Input/AndroidImeHost.cs" />
     <Compile Include="../../Rendering/SurfaceLifetimeGlPlatformSurface.cs" Link="Rendering/SurfaceLifetimeGlPlatformSurface.cs" />
     <Compile Include="../../../MyPowerTools.AvaloniaSdk/CloudAuthorization.cs" Link="CloudAuthorization/CloudCallbackRules.cs" />

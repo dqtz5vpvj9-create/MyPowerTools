@@ -38,6 +38,8 @@ internal sealed class MobileSettingsView : UserControl
         noticeText.Bind(TextBlock.TextProperty, viewModel, nameof(MobileSettingsViewModel.DeviceNotice));
         notice.Bind(IsVisibleProperty, viewModel, nameof(MobileSettingsViewModel.HasDeviceNotice));
 
+        var moduleUpdates = MobileElements.ListRow("↻", "模块热更新", "", "检查", viewModel.ModuleUpdatesCommand, "模块热更新");
+        BindRowSubtitle(moduleUpdates, viewModel, nameof(MobileSettingsViewModel.ModuleUpdatesSummary));
         var about = MobileElements.ListRow(null, "关于", viewModel.VersionText, "", viewModel.AboutCommand, "关于");
 
         Content = MobileElements.Page(
@@ -48,7 +50,7 @@ internal sealed class MobileSettingsView : UserControl
             MobileElements.Section("我的手机", MobileElements.Card(phone, "MptMobileListCard")),
             MobileElements.Section("偏好", MobileElements.Card(appearance, "MptMobileListCard")),
             MobileElements.Section("连接与安全", MobileElements.ListCard(permissions, relay)),
-            MobileElements.Section("关于", MobileElements.Card(about, "MptMobileListCard")),
+            MobileElements.Section("更新与关于", MobileElements.ListCard(moduleUpdates, about)),
             MobileElements.Caption("My Power Tools · 你的工具，按你的方式。"));
     }
 

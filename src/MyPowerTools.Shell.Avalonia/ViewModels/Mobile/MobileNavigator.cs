@@ -24,6 +24,7 @@ public static class MobileSheetKeys
     public const string Permissions = "sheet.permissions";
     public const string Appearance = "sheet.appearance";
     public const string About = "sheet.about";
+    public const string ModuleUpdates = "sheet.module-updates";
     public const string PeerActions = "sheet.peer";
 }
 

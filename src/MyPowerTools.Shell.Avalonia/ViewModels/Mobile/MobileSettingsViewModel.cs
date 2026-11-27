@@ -32,6 +32,9 @@ public sealed class MobileSettingsViewModel : ObservableViewModel
         AboutCommand = new AsyncRelayCommand(
             () => navigator.ShowSheetAsync(MobileSheetKeys.About),
             operationName: "Show about");
+        ModuleUpdatesCommand = new AsyncRelayCommand(
+            () => navigator.ShowSheetAsync(MobileSheetKeys.ModuleUpdates),
+            operationName: "Show module hot updates");
         ThemeOptions =
         [
             new MobileThemeOptionViewModel("跟随系统", ShellAppearanceService.SystemTheme, SetThemeAsync),
@@ -46,6 +49,7 @@ public sealed class MobileSettingsViewModel : ObservableViewModel
     public ICommand PermissionsCommand { get; }
     public ICommand AppearanceCommand { get; }
     public ICommand AboutCommand { get; }
+    public ICommand ModuleUpdatesCommand { get; }
     public IReadOnlyList<MobileThemeOptionViewModel> ThemeOptions { get; }
 
     public string Title => "设置";
@@ -70,6 +74,52 @@ public sealed class MobileSettingsViewModel : ObservableViewModel
             ? "同步服务可用"
             : snapshot.RelayChecked ? "等待恢复连接" : "等待同步"
         : "同步服务尚未就绪";
+
+    public string ModuleUpdatesSummary => MobileModuleUpdateBridge.Current?.GetState().Summary ?? "Tailscale 内网优先 · 公网代理回退";
+    public bool HasModuleUpdater => MobileModuleUpdateBridge.Current is not null;
+    public MobileModuleUpdateSourceConfig GetModuleUpdateConfig() =>
+        MobileModuleUpdateBridge.Current?.GetConfig() ?? MobileModuleUpdateSourceConfig.CreateDefault();
+    public MobileModuleUpdateState GetModuleUpdateState() =>
+        MobileModuleUpdateBridge.Current?.GetState()
+        ?? new MobileModuleUpdateState("当前环境未接入热更新", "仅 Android 手机端支持在线拉取模块热更新", false, false, Array.Empty<string>());
+
+    public void SaveModuleUpdateConfig(MobileModuleUpdateSourceConfig config)
+    {
+        MobileModuleUpdateBridge.Current?.SaveConfig(config);
+        OnPropertyChanged(nameof(ModuleUpdatesSummary));
+        Navigator.ShowToast("已保存模块更新源");
+    }
+
+    public async Task<MobileModuleUpdateResult> CheckAndApplyModuleUpdatesAsync()
+    {
+        var updater = MobileModuleUpdateBridge.Current;
+        if (updater is null)
+        {
+            var unavailable = new MobileModuleUpdateResult(false, "", "", Array.Empty<string>(), 0, "当前宿主未启用模块热更新。");
+            Navigator.ShowToast(unavailable.Message);
+            return unavailable;
+        }
+
+        OnPropertyChanged(nameof(ModuleUpdatesSummary));
+        var result = await updater.CheckAndApplyAsync().ConfigureAwait(true);
+        OnPropertyChanged(nameof(ModuleUpdatesSummary));
+        Navigator.ShowToast(result.Message);
+        return result;
+    }
+
+    public async Task<MobileModuleUpdateResult> ResetModuleUpdatesAsync()
+    {
+        var updater = MobileModuleUpdateBridge.Current;
+        if (updater is null)
+        {
+            return new MobileModuleUpdateResult(false, "", "", Array.Empty<string>(), 0, "当前宿主未启用模块热更新。");
+        }
+
+        var result = await updater.ResetToBundledAsync().ConfigureAwait(true);
+        OnPropertyChanged(nameof(ModuleUpdatesSummary));
+        Navigator.ShowToast(result.Message);
+        return result;
+    }
 
     public string DeviceNotice => _data.Snapshot?.Notice ?? "";
     public bool HasDeviceNotice => DeviceNotice.Length > 0;
@@ -144,6 +194,7 @@ public sealed class MobileSettingsViewModel : ObservableViewModel
         OnPropertyChanged(nameof(RelaySummary));
         OnPropertyChanged(nameof(DeviceNotice));
         OnPropertyChanged(nameof(HasDeviceNotice));
+        OnPropertyChanged(nameof(ModuleUpdatesSummary));
         foreach (var option in ThemeOptions)
         {
             option.IsSelected = string.Equals(option.Value, _appearance.CurrentTheme, StringComparison.OrdinalIgnoreCase);

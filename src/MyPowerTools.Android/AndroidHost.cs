@@ -1,3 +1,5 @@
+using MyPowerTools.Android.Updates;
+using MyPowerTools.Shell.Avalonia.Services.Mobile;
 using System.Text.Json;
 using System.Text.Json.Nodes;
 using MyPowerTools.Abstractions;
@@ -36,6 +38,7 @@ internal static class AndroidHost
     internal static bool IsReady => _runtime is not null;
 
     internal static string PackageRoot { get; private set; } = "";
+    internal static Func<CancellationToken, Task>? OnModulesHotUpdated { get; set; }
 
     internal static StartupProgress Current { get; private set; } = new("idle", "正在启动 MyPowerTools…", 0, 0);
 
@@ -118,7 +121,20 @@ internal static class AndroidHost
             PackageRoot = Path.Combine(paths.Root, "bundled-modules");
 
             Report("catalog", "正在释放内置模块目录…", ++step, totalSteps);
+            var hostVersionCode = GetHostVersionCode(context);
             await SyncBundledCatalogAsync(context, PackageRoot).ConfigureAwait(false);
+            var overlayDir = Path.Combine(paths.Root, "modules-overlay");
+            var appliedOverlays = AndroidModuleHotUpdaterCore.ApplyOverlaysToCatalog(overlayDir, PackageRoot, hostVersionCode);
+            if (appliedOverlays > 0)
+            {
+                AndroidStartupLog.Info("catalog", $"Applied {appliedOverlays} hot-updated module overlay(s)");
+            }
+            var updaterCore = new AndroidModuleHotUpdaterCore(
+                paths.Root,
+                PackageRoot,
+                hostVersionCode,
+                onAppliedReload: ct => OnModulesHotUpdated is { } cb ? cb(ct) : RetryAsync());
+            MobileModuleUpdateBridge.Current = new AndroidModuleUpdaterAdapter(updaterCore);
 
             Report("platform", "正在初始化 Android 平台服务…", ++step, totalSteps);
             var platform = new AndroidPlatformPack();
@@ -136,7 +152,19 @@ internal static class AndroidHost
                     ["files.downloads"] = platform.Downloads
                 });
             _runtime = runtime;
-            runtime.Load(PackageRoot);
+            try
+            {
+                runtime.Load(PackageRoot);
+            }
+            catch (Exception loadEx) when (appliedOverlays > 0)
+            {
+                AndroidStartupLog.Error("catalog-rollback", loadEx);
+                AndroidModuleHotUpdaterCore.QuarantineOverlays(overlayDir);
+                var stamp = Path.Combine(PackageRoot, ".catalog-stamp");
+                if (File.Exists(stamp)) File.Delete(stamp);
+                await SyncBundledCatalogAsync(context, PackageRoot).ConfigureAwait(false);
+                runtime.Load(PackageRoot);
+            }
             runtime.StartModuleEventPump();
 
             Report("services", "正在连接主机控制与后台事件…", ++step, totalSteps);
@@ -265,6 +293,21 @@ internal static class AndroidHost
                 // decides whether the catalog is loadable.
                 AndroidStartupLog.Error("catalog-prune", manifestPath + ": " + ex.Message);
             }
+        }
+    }
+
+    private static long GetHostVersionCode(A.Content.Context context)
+    {
+        try
+        {
+#pragma warning disable CA1422
+            var info = context.PackageManager!.GetPackageInfo(context.PackageName!, 0)!;
+#pragma warning restore CA1422
+            return info.LongVersionCode;
+        }
+        catch
+        {
+            return 0;
         }
     }
 

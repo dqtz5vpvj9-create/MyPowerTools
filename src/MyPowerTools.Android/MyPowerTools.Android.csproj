@@ -48,9 +48,10 @@
     <PublishTrimmed>true</PublishTrimmed>
     <TrimMode>partial</TrimMode>
     <JsonSerializerIsReflectionEnabledByDefault>true</JsonSerializerIsReflectionEnabledByDefault>
+    <AndroidLinkTool>r8</AndroidLinkTool>
   </PropertyGroup>
   <ItemGroup Condition="'$(Configuration)' == 'Release'">
-    <TrimmerRootAssembly Include="FileTransfer.Core;FileTransfer.MyPowerTools;FileTransfer.Surface;RemoteNotifications.Android;RemoteCommands.Android;MobileToolControl.Android;MyPowerTools.MobileNotifications;MyPowerTools.MobileRemoteCommands;MyPowerTools.MobileToolControl;BouncyCastle.Cryptography;Renci.SshNet" RootMode="All" />
+    <TrimmerRootDescriptor Include="TrimmerRoots.Android.xml" />
   </ItemGroup>
   <ItemGroup>
     <!--
@@ -90,15 +91,15 @@
     <ProjectReference Include="../MyPowerTools.HostControl.Client/MyPowerTools.HostControl.Client.csproj" />
     <ProjectReference Include="../MyPowerTools.ModuleHost.InProcDotNet/MyPowerTools.ModuleHost.InProcDotNet.csproj" />
     <!-- Bundled Android tool modules: the build must produce each module before it is embedded. -->
-    <ProjectReference Include="../../tools/file-transfer/src/FileTransfer.MyPowerTools/FileTransfer.MyPowerTools.csproj" />
-    <ProjectReference Include="../../tools/file-transfer/src/FileTransfer.Surface/FileTransfer.Surface.csproj" />
-    <ProjectReference Include="../../tools/remote-notifications/android-integration/src/RemoteNotifications.Android/RemoteNotifications.Android.csproj" />
-    <ProjectReference Include="../MyPowerTools.MobileNotifications/MyPowerTools.MobileNotifications.csproj" />
-    <ProjectReference Include="../../tools/remote-commands/android-integration/src/RemoteCommands.Android/RemoteCommands.Android.csproj" />
-    <ProjectReference Include="../MyPowerTools.MobileRemoteCommands/MyPowerTools.MobileRemoteCommands.csproj" />
+    <ProjectReference Include="../../tools/file-transfer/src/FileTransfer.MyPowerTools/FileTransfer.MyPowerTools.csproj" ReferenceOutputAssembly="false" Private="false" />
+    <ProjectReference Include="../../tools/file-transfer/src/FileTransfer.Surface/FileTransfer.Surface.csproj" ReferenceOutputAssembly="false" Private="false" />
+    <ProjectReference Include="../../tools/remote-notifications/android-integration/src/RemoteNotifications.Android/RemoteNotifications.Android.csproj" ReferenceOutputAssembly="false" Private="false" />
+    <ProjectReference Include="../MyPowerTools.MobileNotifications/MyPowerTools.MobileNotifications.csproj" ReferenceOutputAssembly="false" Private="false" />
+    <ProjectReference Include="../../tools/remote-commands/android-integration/src/RemoteCommands.Android/RemoteCommands.Android.csproj" ReferenceOutputAssembly="false" Private="false" />
+    <ProjectReference Include="../MyPowerTools.MobileRemoteCommands/MyPowerTools.MobileRemoteCommands.csproj" ReferenceOutputAssembly="false" Private="false" />
     <!-- Remote Tool Gateway (G2): phone module adapter plus its own controller page. -->
-    <ProjectReference Include="../../tools/remote-tool-gateway/android-integration/src/MobileToolControl.Android/MobileToolControl.Android.csproj" />
-    <ProjectReference Include="../MyPowerTools.MobileToolControl/MyPowerTools.MobileToolControl.csproj" />
+    <ProjectReference Include="../../tools/remote-tool-gateway/android-integration/src/MobileToolControl.Android/MobileToolControl.Android.csproj" ReferenceOutputAssembly="false" Private="false" />
+    <ProjectReference Include="../MyPowerTools.MobileToolControl/MyPowerTools.MobileToolControl.csproj" ReferenceOutputAssembly="false" Private="false" />
   </ItemGroup>
   <ItemGroup>
     <!--
@@ -134,7 +135,7 @@
       nested Surface assembly such as ui/surface/MyPowerTools.MobileNotifications.dll.
     -->
     <AndroidAsset Include="../../tools/file-transfer/artifacts/package/**/*"
-                  Exclude="../../tools/file-transfer/artifacts/package/**/*.pdb;../../tools/file-transfer/artifacts/package/MyPowerTools.Abstractions.dll;../../tools/file-transfer/artifacts/package/MyPowerTools.Platform.Abstractions.dll;../../tools/file-transfer/artifacts/package/MyPowerTools.AvaloniaSdk.dll;../../tools/file-transfer/artifacts/package/Avalonia*.dll;../../tools/file-transfer/artifacts/package/**/state/**;../../tools/file-transfer/artifacts/package/**/*.local.json">
+                  Exclude="../../tools/file-transfer/artifacts/package/**/*.pdb;../../tools/file-transfer/artifacts/package/**/MyPowerTools.Abstractions.dll;../../tools/file-transfer/artifacts/package/**/MyPowerTools.Platform.Abstractions.dll;../../tools/file-transfer/artifacts/package/**/MyPowerTools.AvaloniaSdk.dll;../../tools/file-transfer/artifacts/package/**/Avalonia*.dll;../../tools/file-transfer/artifacts/package/**/state/**;../../tools/file-transfer/artifacts/package/**/*.local.json">
       <Link>modules/file-transfer/%(RecursiveDir)%(Filename)%(Extension)</Link>
     </AndroidAsset>
     <!--
@@ -144,7 +145,7 @@
       excluded, by exact name.
     -->
     <AndroidAsset Include="../../tools/remote-notifications/android-integration/artifacts/package/remote-notifications-android/**/*"
-                  Exclude="../../tools/remote-notifications/android-integration/artifacts/package/remote-notifications-android/**/*.pdb;../../tools/remote-notifications/android-integration/artifacts/package/remote-notifications-android/**/*.deps.json;../../tools/remote-notifications/android-integration/artifacts/package/remote-notifications-android/MyPowerTools.Abstractions.dll;../../tools/remote-notifications/android-integration/artifacts/package/remote-notifications-android/MyPowerTools.Platform.Abstractions.dll;../../tools/remote-notifications/android-integration/artifacts/package/remote-notifications-android/MyPowerTools.AvaloniaSdk.dll;../../tools/remote-notifications/android-integration/artifacts/package/remote-notifications-android/Avalonia*.dll;../../tools/remote-notifications/android-integration/artifacts/package/remote-notifications-android/**/state/**;../../tools/remote-notifications/android-integration/artifacts/package/remote-notifications-android/**/*.local.json">
+                  Exclude="../../tools/remote-notifications/android-integration/artifacts/package/remote-notifications-android/**/*.pdb;../../tools/remote-notifications/android-integration/artifacts/package/remote-notifications-android/**/*.deps.json;../../tools/remote-notifications/android-integration/artifacts/package/remote-notifications-android/**/MyPowerTools.Abstractions.dll;../../tools/remote-notifications/android-integration/artifacts/package/remote-notifications-android/**/MyPowerTools.Platform.Abstractions.dll;../../tools/remote-notifications/android-integration/artifacts/package/remote-notifications-android/**/MyPowerTools.AvaloniaSdk.dll;../../tools/remote-notifications/android-integration/artifacts/package/remote-notifications-android/**/Avalonia*.dll;../../tools/remote-notifications/android-integration/artifacts/package/remote-notifications-android/**/state/**;../../tools/remote-notifications/android-integration/artifacts/package/remote-notifications-android/**/*.local.json">
       <Link>modules/remote-notifications-android/%(RecursiveDir)%(Filename)%(Extension)</Link>
     </AndroidAsset>
     <!--
@@ -157,7 +158,7 @@
       AndroidHost restores that pinned dependency from the notifications package before module load.
     -->
     <AndroidAsset Include="../../tools/remote-commands/android-integration/artifacts/package/remote-commands-android/**/*"
-                  Exclude="../../tools/remote-commands/android-integration/artifacts/package/remote-commands-android/BouncyCastle.Cryptography.dll;../../tools/remote-commands/android-integration/artifacts/package/remote-commands-android/**/*.pdb;../../tools/remote-commands/android-integration/artifacts/package/remote-commands-android/**/*.deps.json;../../tools/remote-commands/android-integration/artifacts/package/remote-commands-android/MyPowerTools.Abstractions.dll;../../tools/remote-commands/android-integration/artifacts/package/remote-commands-android/MyPowerTools.Platform.Abstractions.dll;../../tools/remote-commands/android-integration/artifacts/package/remote-commands-android/MyPowerTools.AvaloniaSdk.dll;../../tools/remote-commands/android-integration/artifacts/package/remote-commands-android/Avalonia*.dll;../../tools/remote-commands/android-integration/artifacts/package/remote-commands-android/**/state/**;../../tools/remote-commands/android-integration/artifacts/package/remote-commands-android/**/*.local.json">
+                  Exclude="../../tools/remote-commands/android-integration/artifacts/package/remote-commands-android/BouncyCastle.Cryptography.dll;../../tools/remote-commands/android-integration/artifacts/package/remote-commands-android/**/*.pdb;../../tools/remote-commands/android-integration/artifacts/package/remote-commands-android/**/*.deps.json;../../tools/remote-commands/android-integration/artifacts/package/remote-commands-android/**/MyPowerTools.Abstractions.dll;../../tools/remote-commands/android-integration/artifacts/package/remote-commands-android/**/MyPowerTools.Platform.Abstractions.dll;../../tools/remote-commands/android-integration/artifacts/package/remote-commands-android/**/MyPowerTools.AvaloniaSdk.dll;../../tools/remote-commands/android-integration/artifacts/package/remote-commands-android/**/Avalonia*.dll;../../tools/remote-commands/android-integration/artifacts/package/remote-commands-android/**/state/**;../../tools/remote-commands/android-integration/artifacts/package/remote-commands-android/**/*.local.json">
       <Link>modules/remote-commands-android/%(RecursiveDir)%(Filename)%(Extension)</Link>
     </AndroidAsset>
     <!--
@@ -167,7 +168,7 @@
       deps.json (the in-proc host resolves from the package directory) stay out by exact name.
     -->
     <AndroidAsset Include="../../tools/remote-tool-gateway/android-integration/artifacts/package/mobile-tool-control/**/*"
-                  Exclude="../../tools/remote-tool-gateway/android-integration/artifacts/package/mobile-tool-control/**/*.pdb;../../tools/remote-tool-gateway/android-integration/artifacts/package/mobile-tool-control/**/*.deps.json;../../tools/remote-tool-gateway/android-integration/artifacts/package/mobile-tool-control/MyPowerTools.Abstractions.dll;../../tools/remote-tool-gateway/android-integration/artifacts/package/mobile-tool-control/MyPowerTools.Platform.Abstractions.dll;../../tools/remote-tool-gateway/android-integration/artifacts/package/mobile-tool-control/MyPowerTools.AvaloniaSdk.dll;../../tools/remote-tool-gateway/android-integration/artifacts/package/mobile-tool-control/Avalonia*.dll;../../tools/remote-tool-gateway/android-integration/artifacts/package/mobile-tool-control/**/state/**;../../tools/remote-tool-gateway/android-integration/artifacts/package/mobile-tool-control/**/*.local.json">
+                  Exclude="../../tools/remote-tool-gateway/android-integration/artifacts/package/mobile-tool-control/**/*.pdb;../../tools/remote-tool-gateway/android-integration/artifacts/package/mobile-tool-control/**/*.deps.json;../../tools/remote-tool-gateway/android-integration/artifacts/package/mobile-tool-control/**/MyPowerTools.Abstractions.dll;../../tools/remote-tool-gateway/android-integration/artifacts/package/mobile-tool-control/**/MyPowerTools.Platform.Abstractions.dll;../../tools/remote-tool-gateway/android-integration/artifacts/package/mobile-tool-control/**/MyPowerTools.AvaloniaSdk.dll;../../tools/remote-tool-gateway/android-integration/artifacts/package/mobile-tool-control/**/Avalonia*.dll;../../tools/remote-tool-gateway/android-integration/artifacts/package/mobile-tool-control/**/state/**;../../tools/remote-tool-gateway/android-integration/artifacts/package/mobile-tool-control/**/*.local.json">
       <Link>modules/mobile-tool-control/%(RecursiveDir)%(Filename)%(Extension)</Link>
     </AndroidAsset>
   </ItemGroup>
@@ -180,5 +181,27 @@
   <Target Name="StageEmbeddedOpenList" BeforeTargets="PrepareForBuild"
           Condition="'$(DesignTimeBuild)' != 'true' and (('$(_MptArm64)' == 'True' and (!Exists('$(OpenListRuntimeDirectory)/lib/arm64-v8a/libopenlist.so') or !Exists('$(OpenListRuntimeDirectory)/lib/arm64-v8a/mobile-quark-baidu-v2.stamp'))) or ('$(_MptX64)' == 'True' and (!Exists('$(OpenListRuntimeDirectory)/lib/x86_64/libopenlist.so') or !Exists('$(OpenListRuntimeDirectory)/lib/x86_64/mobile-quark-baidu-v2.stamp'))))">
     <Exec Command="pwsh -NoLogo -NoProfile -NonInteractive -File &quot;$(MSBuildThisFileDirectory)../../tools/file-transfer/runtime/package-openlist-android-runtime.ps1&quot; -Abi $(_MptOpenListAbi)" />
+  </Target>
+  <PropertyGroup>
+    <SlimAndroidNativesDir Condition="'$(SlimAndroidNativesDir)' == ''">$(MSBuildThisFileDirectory)../../native/slim-natives/bin/android-arm64</SlimAndroidNativesDir>
+  </PropertyGroup>
+  <Target Name="SlimAndroidNativeLibraries" AfterTargets="ResolveAssemblyReferences;_ResolveLibraryProjectImports;_BuildApkFastDev" BeforeTargets="_CopyPackageFiles;_BuildApkEmbed;_CreatePackageWorkspace;_ComputeFilesToPublishForRuntimeIdentifiers;ComputeFilesToPublish">
+    <ItemGroup Condition="'$(Configuration)' == 'Release'">
+      <!-- Strip CoreCLR debugger-only diagnostic libraries (~4.36 MiB raw / ~1.59 MiB APK) from Release builds. -->
+      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)" Condition="'%(Filename)%(Extension)' == 'libmscordaccore.so' or '%(Filename)%(Extension)' == 'libmscordbi.so'" />
+      <AndroidNativeLibrary Remove="@(AndroidNativeLibrary)" Condition="'%(Filename)%(Extension)' == 'libmscordaccore.so' or '%(Filename)%(Extension)' == 'libmscordbi.so'" />
+      <_ResolvedNativeLibraries Remove="@(_ResolvedNativeLibraries)" Condition="'%(Filename)%(Extension)' == 'libmscordaccore.so' or '%(Filename)%(Extension)' == 'libmscordbi.so'" />
+    </ItemGroup>
+    <!-- Overlay self-compiled 16KB-aligned slim arm64 SkiaSharp & HarfBuzzSharp when built under native/slim-natives/bin/android-arm64. -->
+    <ItemGroup Condition="'$(_MptArm64)' == 'True' and Exists('$(SlimAndroidNativesDir)/libSkiaSharp.so')">
+      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)" Condition="'%(Filename)%(Extension)' == 'libSkiaSharp.so' and ('%(ResolvedFileToPublish.Abi)' == 'arm64-v8a' or $([System.String]::Copy('%(Identity)').Contains('android-arm64')))" />
+      <AndroidNativeLibrary Remove="@(AndroidNativeLibrary)" Condition="'%(Filename)%(Extension)' == 'libSkiaSharp.so' and ('%(AndroidNativeLibrary.Abi)' == 'arm64-v8a' or $([System.String]::Copy('%(Identity)').Contains('android-arm64')))" />
+      <AndroidNativeLibrary Include="$(SlimAndroidNativesDir)/libSkiaSharp.so" Abi="arm64-v8a" />
+    </ItemGroup>
+    <ItemGroup Condition="'$(_MptArm64)' == 'True' and Exists('$(SlimAndroidNativesDir)/libHarfBuzzSharp.so')">
+      <ResolvedFileToPublish Remove="@(ResolvedFileToPublish)" Condition="'%(Filename)%(Extension)' == 'libHarfBuzzSharp.so' and ('%(ResolvedFileToPublish.Abi)' == 'arm64-v8a' or $([System.String]::Copy('%(Identity)').Contains('android-arm64')))" />
+      <AndroidNativeLibrary Remove="@(AndroidNativeLibrary)" Condition="'%(Filename)%(Extension)' == 'libHarfBuzzSharp.so' and ('%(AndroidNativeLibrary.Abi)' == 'arm64-v8a' or $([System.String]::Copy('%(Identity)').Contains('android-arm64')))" />
+      <AndroidNativeLibrary Include="$(SlimAndroidNativesDir)/libHarfBuzzSharp.so" Abi="arm64-v8a" />
+    </ItemGroup>
   </Target>
 </Project>

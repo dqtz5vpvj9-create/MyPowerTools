@@ -26,7 +26,9 @@ with zipfile.ZipFile(args.apk) as apk:
     manifest = args.assembly_manifest.read_text()
     for desktop_backend in ['Avalonia.Win32.dll', 'Avalonia.X11.dll', 'Avalonia.Native.dll', 'Avalonia.FreeDesktop.dll', 'Avalonia.Desktop.dll']:
         assert desktop_backend not in manifest, desktop_backend
-    for module in ['FileTransfer.Core', 'FileTransfer.MyPowerTools', 'FileTransfer.Surface', 'RemoteCommands.Android', 'RemoteNotifications.Android', 'BouncyCastle.Cryptography', 'Renci.SshNet']:
-        assert module + '.dll' in manifest, 'Trimmer removed a dynamic dependency: ' + module
+    for debug_lib in ['lib/arm64-v8a/libmscordaccore.so', 'lib/arm64-v8a/libmscordbi.so']:
+        assert debug_lib not in names, 'Release APK still ships CoreCLR debug library: ' + debug_lib
+    for dup_module in ['FileTransfer.Core.dll', 'FileTransfer.MyPowerTools.dll', 'FileTransfer.Surface.dll', 'RemoteCommands.Android.dll', 'RemoteNotifications.Android.dll', 'BouncyCastle.Cryptography.dll', 'Renci.SshNet.dll', 'Avalonia.Fonts.Inter.dll']:
+        assert dup_module not in manifest, 'Duplicate or unused assembly still in host blob: ' + dup_module
     sizes = {name: apk.getinfo(name).compress_size for name in ['lib/arm64-v8a/libopenlist.so', 'lib/arm64-v8a/libassemblies.arm64-v8a.blob.so']}
 print(json.dumps({'apkBytes': args.apk.stat().st_size, 'apkMiB': round(args.apk.stat().st_size / 1048576, 2), 'compressedBytes': sizes, 'moduleCryptoDeduplicated': True, 'desktopBackendsAbsent': True, 'dynamicDependenciesPresent': True}))
