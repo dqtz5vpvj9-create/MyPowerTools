@@ -1215,7 +1215,7 @@ public sealed class MobileShellView : UserControl, IAsyncDisposable, IMobileNavi
         stack.Children.Add(checkButton);
         stack.Children.Add(MobileElements.Caption("Tailscale 内网地址（连得上时 2.5s 内直连下载）"));
         stack.Children.Add(tailBox);
-        stack.Children.Add(MobileElements.Caption("公网代理地址（未连 Tailscale 时自动回退）"));
+        stack.Children.Add(MobileElements.Caption("公网代理地址（未连 Tailscale 时自动回退 proxy.lixinrui000.cn）"));
         stack.Children.Add(proxyBox);
         stack.Children.Add(MobileElements.Caption("直连兜底地址（公网代理失败时使用）"));
         stack.Children.Add(directBox);

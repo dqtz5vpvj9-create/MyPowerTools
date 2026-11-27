@@ -480,7 +480,7 @@ public sealed record FeedConfig(
     string DirectFallbackBaseUrl)
 {
     public const string DefaultTailscaleBaseUrl = "http://mpt-relay.tail.lixinrui000.cn/mpt/android-modules";
-    public const string DefaultPublicProxyBaseUrl = "https://gh-proxy.org/https://github.com/dqtz5vpvj9-create/MyPowerTools/releases/download/android-modules-latest";
+    public const string DefaultPublicProxyBaseUrl = "https://proxy.lixinrui000.cn/mpt/android-modules";
     public const string DefaultDirectFallbackBaseUrl = "https://github.com/dqtz5vpvj9-create/MyPowerTools/releases/download/android-modules-latest";
 
     public static FeedConfig CreateDefault() => new(

@@ -95,6 +95,8 @@ def main() -> None:
     parser.add_argument("--min-host-version-code", type=int, default=19)
     parser.add_argument("--output-dir", type=Path, default=REPO_ROOT / "artifacts/android-modules")
     parser.add_argument("--tailnet-dir", type=Path, default=Path("/var/www/mpt-android-modules"))
+    parser.add_argument("--proxy-ssh", default="proxy", help="SSH host for public proxy.lixinrui000.cn fallback sync (empty to skip).")
+    parser.add_argument("--proxy-dir", default="/var/www/mpt-android-modules")
     parser.add_argument("--skip-build", action="store_true")
     parser.add_argument("--include-crypto", action="store_true", help="Include BouncyCastle.Cryptography.dll inside module zips.")
     args = parser.parse_args()
@@ -166,6 +168,16 @@ def main() -> None:
             os.replace(tmp, args.tailnet_dir / f.name)
         print(f"Published live to Tailnet dir: {args.tailnet_dir}")
         print("Tailscale URL: http://mpt-relay.tail.lixinrui000.cn/mpt/android-modules/manifest.json")
+
+    if args.proxy_ssh:
+        files = [str(manifest_path)] + [str(args.output_dir / e["file"]) for e in entries]
+        remote_stage = f"{args.proxy_dir}/.incoming"
+        subprocess.run(["ssh", "-T", "-o", "BatchMode=yes", "-o", "ConnectTimeout=5", args.proxy_ssh, f"mkdir -p {remote_stage}"], stdin=subprocess.DEVNULL, check=True)
+        subprocess.run(["scp", "-q", "-o", "BatchMode=yes", *files, f"{args.proxy_ssh}:{remote_stage}/"], stdin=subprocess.DEVNULL, check=True)
+        subprocess.run(["ssh", "-T", "-o", "BatchMode=yes", args.proxy_ssh, f"mv -f {remote_stage}/* {args.proxy_dir}/ && rmdir {remote_stage}"], stdin=subprocess.DEVNULL, check=True)
+        print(f"Published live to Public Proxy ({args.proxy_ssh}:{args.proxy_dir})")
+        print("Public Proxy URL: https://proxy.lixinrui000.cn/mpt/android-modules/manifest.json")
+
 
 
 if __name__ == "__main__":
