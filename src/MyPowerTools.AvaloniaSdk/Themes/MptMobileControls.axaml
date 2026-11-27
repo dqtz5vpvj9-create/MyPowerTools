@@ -192,11 +192,9 @@
     <Setter Property="Foreground" Value="{DynamicResource MptMobileSecondaryTextBrush}" />
     <Setter Property="BorderThickness" Value="0" />
     <Setter Property="CornerRadius" Value="22" />
-    <Setter Property="Width" Value="{DynamicResource MptMobileTouchTargetMin}" />
-    <Setter Property="Height" Value="{DynamicResource MptMobileTouchTargetMin}" />
     <Setter Property="MinWidth" Value="{DynamicResource MptMobileTouchTargetMin}" />
     <Setter Property="MinHeight" Value="{DynamicResource MptMobileTouchTargetMin}" />
-    <Setter Property="Padding" Value="0" />
+    <Setter Property="Padding" Value="14,0" />
     <Setter Property="HorizontalContentAlignment" Value="Center" />
     <Setter Property="VerticalContentAlignment" Value="Center" />
     <Style Selector="^:pointerover /template/ ContentPresenter#PART_ContentPresenter">

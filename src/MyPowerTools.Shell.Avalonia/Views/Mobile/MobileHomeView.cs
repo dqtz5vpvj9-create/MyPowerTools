@@ -2,9 +2,11 @@ using Avalonia;
 using Avalonia.Automation;
 using Avalonia.Controls;
 using Avalonia.Controls.Primitives;
+using Avalonia.Controls.Shapes;
 using Avalonia.Controls.Templates;
 using Avalonia.Layout;
 using Avalonia.Markup.Xaml.MarkupExtensions;
+using Avalonia.Media;
 using MyPowerTools.Shell.Avalonia.ViewModels.Mobile;
 
 namespace MyPowerTools.Shell.Avalonia.Views.Mobile;
@@ -38,9 +40,40 @@ internal sealed class MobileHomeView : UserControl
         Grid.SetColumn(left, 0);
         grid.Children.Add(left);
 
-        var avatar = new Button { Command = viewModel.OpenSettingsCommand };
+        var settingsContent = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 6,
+            VerticalAlignment = VerticalAlignment.Center,
+            HorizontalAlignment = HorizontalAlignment.Center
+        };
+        var gear = new global::Avalonia.Controls.Shapes.Path
+        {
+            Width = 16,
+            Height = 16,
+            Stretch = Stretch.Uniform,
+            VerticalAlignment = VerticalAlignment.Center,
+            StrokeThickness = 1.75,
+            StrokeLineCap = PenLineCap.Round,
+            StrokeJoin = PenLineJoin.Round,
+            Data = Geometry.Parse("M12,15 A3,3 0 1,0 12,9 A3,3 0 1,0 12,15 Z M19.4,15 A1.65,1.65 0 0,0 19.73,16.82 L19.79,16.88 A2,2 0 1,1 16.96,19.71 L16.9,19.65 A1.65,1.65 0 0,0 15.08,19.32 A1.65,1.65 0 0,0 14.08,20.83 L14.08,21 A2,2 0 1,1 10.08,21 L10.08,20.91 A1.65,1.65 0 0,0 9,19.4 A1.65,1.65 0 0,0 7.18,19.73 L7.12,19.79 A2,2 0 1,1 4.29,16.96 L4.35,16.9 A1.65,1.65 0 0,0 4.68,15.08 A1.65,1.65 0 0,0 3.17,14.08 L3,14.08 A2,2 0 1,1 3,10.08 L3.09,10.08 A1.65,1.65 0 0,0 4.6,9 A1.65,1.65 0 0,0 4.27,7.18 L4.21,7.12 A2,2 0 1,1 7.04,4.29 L7.1,4.35 A1.65,1.65 0 0,0 8.92,4.68 L9,4.68 A1.65,1.65 0 0,0 10,3.17 L10,3 A2,2 0 1,1 14,3 L14,3.09 A1.65,1.65 0 0,0 15,4.6 A1.65,1.65 0 0,0 16.82,4.27 L16.88,4.21 A2,2 0 1,1 19.71,7.04 L19.65,7.1 A1.65,1.65 0 0,0 19.32,8.92 L19.32,9 A1.65,1.65 0 0,0 20.83,10 L21,10 A2,2 0 1,1 21,14 L20.91,14 A1.65,1.65 0 0,0 19.4,15 Z")
+        };
+        gear.Bind(Shape.StrokeProperty, new DynamicResourceExtension("MptMobileAccentBrush"));
+        settingsContent.Children.Add(gear);
+        settingsContent.Children.Add(new TextBlock
+        {
+            Text = "设置",
+            FontSize = 14,
+            FontWeight = FontWeight.SemiBold,
+            VerticalAlignment = VerticalAlignment.Center
+        });
+        var avatar = new Button
+        {
+            Command = viewModel.OpenSettingsCommand,
+            Content = settingsContent,
+            VerticalAlignment = VerticalAlignment.Center
+        };
         avatar.Classes.Add("MptMobileAvatar");
-        avatar.Bind(ContentControl.ContentProperty, viewModel, nameof(MobileHomeViewModel.AvatarText));
         AutomationProperties.SetName(avatar, "打开设置");
         Grid.SetColumn(avatar, 1);
         grid.Children.Add(avatar);
