@@ -46,6 +46,14 @@ public sealed class ShellCommandExecutionService
         var normalizedSummary = summary?.Trim() ?? "";
         var isStructured = normalizedSummary.StartsWith('{') ||
                            normalizedSummary.StartsWith('[');
+        var isFailure = string.Equals(normalizedState, "failed", StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(normalizedState, "error", StringComparison.OrdinalIgnoreCase) ||
+                        string.Equals(normalizedState, "denied", StringComparison.OrdinalIgnoreCase);
+        if (isFailure && !isStructured && normalizedSummary.Length > MaxInlineStatusLength)
+        {
+            return $"{normalizedState}: {normalizedSummary[..(MaxInlineStatusLength - 1)]}…";
+        }
+
         if (isStructured || normalizedSummary.Length > MaxInlineStatusLength)
         {
             return $"{normalizedState}: command completed; output is available in the tool.";

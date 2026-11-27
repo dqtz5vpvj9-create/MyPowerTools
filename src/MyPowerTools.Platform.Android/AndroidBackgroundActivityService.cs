@@ -153,8 +153,10 @@ public sealed class MptRuntimeService : A.App.Service
         var stopped = AndroidBackgroundActivityService.Coordinator.RemoveAll();
         if (stopped.Count > 0)
         {
-            A.Util.Log.Warn("MyPowerTools", "后台服务已停止，正在结束模块: " + string.Join(", ", stopped));
-            AndroidBackgroundActivityService.RaiseStopRequested(stopped);
+            // Do not unload in-process module AssemblyLoadContexts when the OS tears down the
+            // foreground service: an in-use module ALC may stay pinned and lock out the tool into
+            // pending-runner-restart. Explicit user stop actions still go through StopAction above.
+            A.Util.Log.Warn("MyPowerTools", "后台前台服务已由系统停止，已释放后台租约: " + string.Join(", ", stopped));
             NotifyBackgroundWorkPaused();
         }
 

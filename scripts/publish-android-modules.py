@@ -91,8 +91,8 @@ def sha256_file(path: Path) -> str:
 def main() -> None:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--configuration", default="Release")
-    parser.add_argument("--version", default=datetime.datetime.now(datetime.timezone.utc).strftime("0.2.19-%Y%m%d.%H%M"))
-    parser.add_argument("--min-host-version-code", type=int, default=21)
+    parser.add_argument("--version", default=datetime.datetime.now(datetime.timezone.utc).strftime("0.2.20-%Y%m%d.%H%M"))
+    parser.add_argument("--min-host-version-code", type=int, default=22)
     parser.add_argument("--output-dir", type=Path, default=REPO_ROOT / "artifacts/android-modules")
     parser.add_argument("--tailnet-dir", type=Path, default=Path("/var/www/mpt-android-modules"))
     parser.add_argument("--proxy-ssh", default="proxy", help="SSH host for public proxy.lixinrui000.cn fallback sync (empty to skip).")

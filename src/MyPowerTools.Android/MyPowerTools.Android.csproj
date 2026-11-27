@@ -5,8 +5,8 @@
     <OutputType>Exe</OutputType>
     <ApplicationId>com.mypowertools.android</ApplicationId>
     <ApplicationTitle>MyPowerTools</ApplicationTitle>
-    <ApplicationVersion>21</ApplicationVersion>
-    <ApplicationDisplayVersion>0.2.19</ApplicationDisplayVersion>
+    <ApplicationVersion>22</ApplicationVersion>
+    <ApplicationDisplayVersion>0.2.20</ApplicationDisplayVersion>
     <ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable>
     <!-- The SurfaceHolder/EGL lifetime bridge targets the pinned Avalonia 12.0.5 renderer API. -->
     <AvaloniaAccessUnstablePrivateApis>true</AvaloniaAccessUnstablePrivateApis>
@@ -43,7 +43,10 @@
     <DebugSymbols>false</DebugSymbols>
     <AndroidIncludeDebugSymbols>false</AndroidIncludeDebugSymbols>
     <PublishReadyToRun>false</PublishReadyToRun>
-    <!-- Trim SDK libraries only; dynamic modules and their reflection-based contracts are roots. -->
+    <!-- Keep the full .NET BCL and Avalonia UI surface intact for dynamically loaded
+         AssemblyLoadContext modules (bundled and future Tailscale/proxy hot-updated modules).
+         Size reduction comes from lossless wins: deduplicated modules/BouncyCastle, slim
+         self-compiled Skia/HarfBuzz, stripped CoreCLR debug .so, R8 DEX shrinking, and no Inter font. -->
     <UseDefaultPublishRuntimeIdentifier>false</UseDefaultPublishRuntimeIdentifier>
     <PublishTrimmed>true</PublishTrimmed>
     <TrimMode>partial</TrimMode>

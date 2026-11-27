@@ -1,35 +1,57 @@
 <linker>
-  <!-- Complete BCL & host-contract closure for all dynamically loaded AssemblyLoadContext modules
-       (bundled and future Tailscale/proxy hot-updated modules). -->
+  <!-- Preserve host contracts, shared UI/runtime assemblies, and BCL facades/libraries used by
+       dynamically loaded in-proc modules and hot-updated module/surface DLLs.
+       Android bindings (Mono.Android, Java.Interop, Xamarin.AndroidX.*) remain trimmed (~30 MiB saved). -->
   <assembly fullname="MyPowerTools.Abstractions" preserve="all" />
   <assembly fullname="MyPowerTools.Platform.Abstractions" preserve="all" />
   <assembly fullname="MyPowerTools.AvaloniaSdk" preserve="all" />
-  <assembly fullname="MyPowerTools.Runtime" preserve="all" />
-  <assembly fullname="MyPowerTools.Protocol" preserve="all" />
-  <assembly fullname="MyPowerTools.Ipc.Shared" preserve="all" />
-  <assembly fullname="MyPowerTools.UI.Primitives" preserve="all" />
   <assembly fullname="MyPowerTools.UI" preserve="all" />
-  <assembly fullname="Microsoft.Extensions.Logging.Abstractions" preserve="all" />
+  <assembly fullname="MyPowerTools.UI.Primitives" preserve="all" />
+  <assembly fullname="MyPowerTools.Protocol" preserve="all" />
+  <assembly fullname="MyPowerTools.Packaging" preserve="all" />
+  <assembly fullname="MyPowerTools.Runtime" preserve="all" />
+  <assembly fullname="MyPowerTools.HostControl.Contracts" preserve="all" />
+  <assembly fullname="MyPowerTools.HostControl.Client" preserve="all" />
+  <assembly fullname="MyPowerTools.Shell.Avalonia" preserve="all" />
+
   <assembly fullname="Microsoft.Extensions.DependencyInjection.Abstractions" preserve="all" />
+  <assembly fullname="Microsoft.Extensions.Hosting.Abstractions" preserve="all" />
+  <assembly fullname="Microsoft.Extensions.Logging" preserve="all" />
+  <assembly fullname="Microsoft.Extensions.Logging.Abstractions" preserve="all" />
+  <assembly fullname="Microsoft.Extensions.Options" preserve="all" />
+  <assembly fullname="Microsoft.Extensions.Primitives" preserve="all" />
   <assembly fullname="Microsoft.Win32.Primitives" preserve="all" />
-  <assembly fullname="Microsoft.Win32.Registry" preserve="all" />
+
+  <!-- Core BCL & facade assemblies (including System.Runtime, System, netstandard type forwarders!) -->
+  <assembly fullname="netstandard" preserve="all" />
+  <assembly fullname="System" preserve="all" />
   <assembly fullname="System.Buffers" preserve="all" />
   <assembly fullname="System.Collections" preserve="all" />
   <assembly fullname="System.Collections.Concurrent" preserve="all" />
   <assembly fullname="System.Collections.Immutable" preserve="all" />
+  <assembly fullname="System.Collections.NonGeneric" preserve="all" />
   <assembly fullname="System.Collections.Specialized" preserve="all" />
   <assembly fullname="System.ComponentModel" preserve="all" />
+  <assembly fullname="System.ComponentModel.Annotations" preserve="all" />
   <assembly fullname="System.ComponentModel.Primitives" preserve="all" />
   <assembly fullname="System.ComponentModel.TypeConverter" preserve="all" />
   <assembly fullname="System.Console" preserve="all" />
+  <assembly fullname="System.Diagnostics.DiagnosticSource" preserve="all" />
+  <assembly fullname="System.Diagnostics.FileVersionInfo" preserve="all" />
   <assembly fullname="System.Diagnostics.Process" preserve="all" />
   <assembly fullname="System.Diagnostics.StackTrace" preserve="all" />
   <assembly fullname="System.Diagnostics.TraceSource" preserve="all" />
+  <assembly fullname="System.Drawing" preserve="all" />
+  <assembly fullname="System.Drawing.Primitives" preserve="all" />
   <assembly fullname="System.Formats.Asn1" preserve="all" />
   <assembly fullname="System.Formats.Tar" preserve="all" />
   <assembly fullname="System.Globalization" preserve="all" />
   <assembly fullname="System.IO.Compression" preserve="all" />
+  <assembly fullname="System.IO.Compression.Brotli" preserve="all" />
   <assembly fullname="System.IO.Compression.ZipFile" preserve="all" />
+  <assembly fullname="System.IO.FileSystem.Watcher" preserve="all" />
+  <assembly fullname="System.IO.MemoryMappedFiles" preserve="all" />
+  <assembly fullname="System.IO.Pipelines" preserve="all" />
   <assembly fullname="System.IO.Pipes" preserve="all" />
   <assembly fullname="System.Linq" preserve="all" />
   <assembly fullname="System.Linq.Expressions" preserve="all" />
@@ -39,8 +61,11 @@
   <assembly fullname="System.Net.NameResolution" preserve="all" />
   <assembly fullname="System.Net.NetworkInformation" preserve="all" />
   <assembly fullname="System.Net.Primitives" preserve="all" />
+  <assembly fullname="System.Net.Quic" preserve="all" />
+  <assembly fullname="System.Net.Requests" preserve="all" />
   <assembly fullname="System.Net.Security" preserve="all" />
   <assembly fullname="System.Net.Sockets" preserve="all" />
+  <assembly fullname="System.Net.WebHeaderCollection" preserve="all" />
   <assembly fullname="System.Net.WebSockets" preserve="all" />
   <assembly fullname="System.Net.WebSockets.Client" preserve="all" />
   <assembly fullname="System.Numerics.Vectors" preserve="all" />
@@ -50,11 +75,15 @@
   <assembly fullname="System.Private.Xml" preserve="all" />
   <assembly fullname="System.Private.Xml.Linq" preserve="all" />
   <assembly fullname="System.Reflection.Metadata" preserve="all" />
+  <assembly fullname="System.Resources.Writer" preserve="all" />
+  <assembly fullname="System.Runtime" preserve="all" />
   <assembly fullname="System.Runtime.CompilerServices.Unsafe" preserve="all" />
   <assembly fullname="System.Runtime.InteropServices" preserve="all" />
   <assembly fullname="System.Runtime.Intrinsics" preserve="all" />
   <assembly fullname="System.Runtime.Loader" preserve="all" />
   <assembly fullname="System.Runtime.Numerics" preserve="all" />
+  <assembly fullname="System.Runtime.Serialization.Formatters" preserve="all" />
+  <assembly fullname="System.Security.Claims" preserve="all" />
   <assembly fullname="System.Security.Cryptography" preserve="all" />
   <assembly fullname="System.Security.Cryptography.Algorithms" preserve="all" />
   <assembly fullname="System.Security.Cryptography.Csp" preserve="all" />
@@ -62,6 +91,7 @@
   <assembly fullname="System.Security.Cryptography.Primitives" preserve="all" />
   <assembly fullname="System.Security.Cryptography.X509Certificates" preserve="all" />
   <assembly fullname="System.Text.Encoding.Extensions" preserve="all" />
+  <assembly fullname="System.Text.Encodings.Web" preserve="all" />
   <assembly fullname="System.Text.Json" preserve="all" />
   <assembly fullname="System.Text.RegularExpressions" preserve="all" />
   <assembly fullname="System.Threading" preserve="all" />
@@ -72,6 +102,8 @@
   <assembly fullname="System.Xml.Linq" preserve="all" />
   <assembly fullname="System.Xml.ReaderWriter" preserve="all" />
   <assembly fullname="System.Xml.XDocument" preserve="all" />
+
+  <!-- Avalonia / Skia / HarfBuzz / gRPC / Markdown / Schema / QR libraries shared with surfaces -->
   <assembly fullname="Avalonia" preserve="all" />
   <assembly fullname="Avalonia.Base" preserve="all" />
   <assembly fullname="Avalonia.Controls" preserve="all" />
@@ -90,4 +122,8 @@
   <assembly fullname="Grpc.Net.Client" preserve="all" />
   <assembly fullname="Grpc.Net.Common" preserve="all" />
   <assembly fullname="zxing" preserve="all" />
+  <assembly fullname="Markdig" preserve="all" />
+  <assembly fullname="Json.More" preserve="all" />
+  <assembly fullname="JsonPointer.Net" preserve="all" />
+  <assembly fullname="JsonSchema.Net" preserve="all" />
 </linker>
