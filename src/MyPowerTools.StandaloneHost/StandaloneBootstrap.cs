@@ -59,11 +59,18 @@ internal static class StandaloneBootstrap
         var session = InitializeSessionAsync(options, CancellationToken.None).GetAwaiter().GetResult();
         try
         {
-            return AppBuilder.Configure(() => new StandaloneApp(session))
+            var builder = AppBuilder.Configure(() => new StandaloneApp(session))
                 .UsePlatformDetect()
-                .WithInterFont()
-                .LogToTrace()
-                .StartWithClassicDesktopLifetime(rawArgs);
+                .LogToTrace();
+            if (OperatingSystem.IsWindows())
+            {
+                builder = builder.With(new Win32PlatformOptions
+                {
+                    // Use native Windows WGL + Skia Software fallback instead of bundling 5.14 MB ANGLE (av_libglesv2.dll).
+                    RenderingMode = [Win32RenderingMode.Wgl, Win32RenderingMode.Software]
+                });
+            }
+            return builder.StartWithClassicDesktopLifetime(rawArgs);
         }
         finally
         {

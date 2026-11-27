@@ -43,6 +43,7 @@ STRIP_EXTENSIONS_BY_OS: dict[str, set[str]] = {
 # Removing them alongside their .deps.json entries keeps runtime resolution clean while saving ~2.3 MB+ per UI base.
 PRUNE_FILES_BY_OS: dict[str, set[str]] = {
     "win": {
+        # Non-Windows Avalonia & platform backends
         "avalonia.x11.dll",
         "avalonia.freedesktop.dll",
         "avalonia.freedesktop.atspi.dll",
@@ -54,6 +55,17 @@ PRUNE_FILES_BY_OS: dict[str, set[str]] = {
         "avalonia.remote.protocol.dll",
         "mypowertools.platform.linux.dll",
         "mypowertools.platform.mac.dll",
+        # Tier 1 slimming: WGL+Software replaces 5.14 MB ANGLE; Windows uses native Segoe UI / YaHei & native IFileDialog
+        "av_libglesv2.dll",
+        "avalonia.fonts.inter.dll",
+        "avalonia.dialogs.dll",
+        # Tier 2 slimming: Schema validation & Markdown/HTML renderer are unused by standalone portable tools
+        "jsonschema.net.dll",
+        "jsonpointer.net.dll",
+        "json.more.dll",
+        "humanizer.dll",
+        "markdig.dll",
+        "avalonia.htmlrenderer.dll",
     },
     "osx": {
         "avalonia.win32.dll",
@@ -469,6 +481,13 @@ def main() -> int:
     )
     parser.add_argument("--configuration", default="Release", help="MSBuild configuration (default: Release).")
     parser.add_argument("--rid", default="win-x64", help="Target RuntimeIdentifier (default: win-x64).")
+    default_slim_natives = repo_root / "native" / "slim-natives" / "bin" / "win-x64"
+    parser.add_argument(
+        "--slim-natives-dir",
+        type=Path,
+        default=default_slim_natives if default_slim_natives.is_dir() else None,
+        help="Optional directory with self-compiled slim libSkiaSharp.dll / libHarfBuzzSharp.dll.",
+    )
     parser.add_argument(
         "--output-dir",
         type=Path,
@@ -517,6 +536,22 @@ def main() -> int:
         else:
             shutil.copy2(item, dst)
             shared_filenames.add(item.name.lower())
+
+    # Overlay self-compiled slim native libraries (libSkiaSharp.dll / libHarfBuzzSharp.dll) if provided.
+    slim_natives_dir: Path | None = (
+        args.slim_natives_dir.resolve()
+        if args.slim_natives_dir and args.slim_natives_dir.is_dir()
+        else None
+    )
+    if slim_natives_dir is not None:
+        for native_name in ("libSkiaSharp.dll", "libHarfBuzzSharp.dll"):
+            cand = slim_natives_dir / native_name
+            dst_native = shared_ui_dir / native_name
+            if cand.is_file() and dst_native.is_file():
+                old_sz = dst_native.stat().st_size
+                shutil.copy2(cand, dst_native)
+                new_sz = dst_native.stat().st_size
+                print(f"      Replaced {native_name}: {format_size(old_sz)} -> {format_size(new_sz)}")
 
     # Record nested native files inside shared-ui as shared too.
     for nested in shared_ui_dir.rglob("*"):

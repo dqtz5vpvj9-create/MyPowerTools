@@ -1,8 +1,7 @@
 using System.Buffers.Binary;
 using System.ComponentModel;
-using System.Drawing;
-using System.Drawing.Imaging;
 using System.Runtime.InteropServices;
+using System.Runtime.InteropServices.ComTypes;
 using System.Runtime.Versioning;
 using MyPowerTools.Platform.Abstractions;
 
@@ -64,10 +63,8 @@ public sealed class WindowsClipboardImageService : IClipboardImageService
 
         try
         {
-            using var image = Image.FromHbitmap(bitmapCopy);
-            using var output = new MemoryStream();
-            image.Save(output, ImageFormat.Png);
-            return new ClipboardImagePayload(output.ToArray(), image.Width, image.Height, UsedNativePng: false);
+            var (pngBytes, width, height) = EncodeHBitmapAsPng(bitmapCopy);
+            return new ClipboardImagePayload(pngBytes, width, height, UsedNativePng: false);
         }
         finally
         {
@@ -271,5 +268,84 @@ public sealed class WindowsClipboardImageService : IClipboardImageService
         [DllImport("gdi32.dll", SetLastError = true)]
         [return: MarshalAs(UnmanagedType.Bool)]
         public static extern bool DeleteObject(nint handle);
+
+        [DllImport("ole32.dll", ExactSpelling = true)]
+        public static extern int CreateStreamOnHGlobal(IntPtr hGlobal, [MarshalAs(UnmanagedType.Bool)] bool fDeleteOnRelease, out IStream stream);
+
+        [DllImport("gdiplus.dll", ExactSpelling = true)]
+        public static extern int GdipCreateBitmapFromHBITMAP(nint hbm, nint hpal, out nint bitmap);
+
+        [DllImport("gdiplus.dll", ExactSpelling = true)]
+        public static extern int GdipDisposeImage(nint image);
+
+        [DllImport("gdiplus.dll", ExactSpelling = true)]
+        public static extern int GdipGetImageWidth(nint image, out uint width);
+
+        [DllImport("gdiplus.dll", ExactSpelling = true)]
+        public static extern int GdipGetImageHeight(nint image, out uint height);
+
+        [DllImport("gdiplus.dll", ExactSpelling = true)]
+        public static extern int GdipSaveImageToStream(nint image, IStream stream, ref Guid encoderClsid, nint encoderParams);
+    }
+
+    private static readonly Guid PngEncoderClsid = new("557CF406-1A04-11D3-9A73-0000F81EF32E");
+
+    private static (byte[] PngBytes, int Width, int Height) EncodeHBitmapAsPng(nint hBitmap)
+    {
+        CodexQuotaIconRenderer.EnsureGdiPlusInitialized();
+        nint gdipBitmap = 0;
+        IStream? stream = null;
+        try
+        {
+            int status = NativeMethods.GdipCreateBitmapFromHBITMAP(hBitmap, 0, out gdipBitmap);
+            if (status != 0 || gdipBitmap == 0)
+            {
+                throw new InvalidOperationException($"GdipCreateBitmapFromHBITMAP failed with status {status}.");
+            }
+
+            status = NativeMethods.GdipGetImageWidth(gdipBitmap, out uint width);
+            if (status != 0)
+            {
+                throw new InvalidOperationException($"GdipGetImageWidth failed with status {status}.");
+            }
+
+            status = NativeMethods.GdipGetImageHeight(gdipBitmap, out uint height);
+            if (status != 0)
+            {
+                throw new InvalidOperationException($"GdipGetImageHeight failed with status {status}.");
+            }
+
+            int hr = NativeMethods.CreateStreamOnHGlobal(IntPtr.Zero, fDeleteOnRelease: true, out stream);
+            if (hr < 0 || stream is null)
+            {
+                Marshal.ThrowExceptionForHR(hr);
+            }
+
+            Guid encoder = PngEncoderClsid;
+            status = NativeMethods.GdipSaveImageToStream(gdipBitmap, stream!, ref encoder, 0);
+            if (status != 0)
+            {
+                throw new InvalidOperationException($"GdipSaveImageToStream(PNG) failed with status {status}.");
+            }
+
+            stream!.Stat(out STATSTG stat, 1 /* STATFLAG_NONAME */);
+            int length = checked((int)stat.cbSize);
+            byte[] buffer = new byte[length];
+            stream.Seek(0, 0 /* STREAM_SEEK_SET */, IntPtr.Zero);
+            stream.Read(buffer, length, IntPtr.Zero);
+            return (buffer, (int)width, (int)height);
+        }
+        finally
+        {
+            if (stream is not null && Marshal.IsComObject(stream))
+            {
+                Marshal.ReleaseComObject(stream);
+            }
+
+            if (gdipBitmap != 0)
+            {
+                NativeMethods.GdipDisposeImage(gdipBitmap);
+            }
+        }
     }
 }
