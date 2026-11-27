@@ -76,7 +76,7 @@ internal sealed class MobileToolsView : UserControl
         var scroller = new ScrollViewer
         {
             Content = panel,
-            HorizontalScrollBarVisibility = ScrollBarVisibility.Auto,
+            HorizontalScrollBarVisibility = ScrollBarVisibility.Hidden,
             VerticalScrollBarVisibility = ScrollBarVisibility.Disabled
         };
         scroller.Classes.Add("MptMobileFilterScroller");
@@ -127,9 +127,19 @@ internal sealed class MobileToolsView : UserControl
     {
         var row = MobileElements.ListRow(item.IconGlyph, item.Title, item.Description, item.StatusLabel, item.ShowDetailCommand, item.AutomationName);
         row.Classes.Add("MptMobileToolRow");
-        var star = MobileElements.IconButton(item.FavoriteGlyph, item.FavoriteAutomationName, item.ToggleFavoriteCommand);
+        var star = new Button
+        {
+            Content = MobileIcons.Icon(item.FavoriteGlyph, 18, 1.9),
+            Command = item.ToggleFavoriteCommand
+        };
+        star.Classes.Add("MptMobileIconButton");
         star.Classes.Add("MptMobileStar");
-        star.Bind(ContentControl.ContentProperty, item, nameof(MobileToolItemViewModel.FavoriteGlyph));
+        global::Avalonia.Automation.AutomationProperties.SetName(star, item.FavoriteAutomationName);
+        item.PropertyChanged += (_, args) =>
+        {
+            if (args.PropertyName == nameof(MobileToolItemViewModel.FavoriteGlyph))
+                star.Content = MobileIcons.Icon(item.FavoriteGlyph, 18, 1.9);
+        };
 
         var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto") };
         Grid.SetColumn(row, 0);

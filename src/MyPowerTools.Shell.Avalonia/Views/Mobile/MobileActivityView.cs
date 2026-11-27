@@ -1,5 +1,6 @@
 using Avalonia;
 using Avalonia.Controls;
+using Avalonia.Layout;
 using MyPowerTools.Shell.Avalonia.ViewModels.Mobile;
 
 namespace MyPowerTools.Shell.Avalonia.Views.Mobile;
@@ -13,13 +14,23 @@ internal sealed class MobileActivityView : UserControl
         DataContext = viewModel;
         Classes.Add("MptMobilePageRoot");
 
+        var refresh = MobileElements.TextButton("刷新", viewModel.ReloadCommand, "刷新动态");
+        refresh.VerticalAlignment = VerticalAlignment.Center;
+        var titleRow = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto") };
+        var title = MobileElements.PageTitle(viewModel.Title);
+        Grid.SetColumn(title, 0);
+        titleRow.Children.Add(title);
+        Grid.SetColumn(refresh, 1);
+        titleRow.Children.Add(refresh);
+
         var rows = MobileElements.Items(viewModel.Items, Row);
         var list = MobileElements.Card(rows, "MptMobileListCard");
 
         var empty = MobileElements.EmptyContainer();
         empty.Children.Add(MobileElements.EmptyTitle("还没有动态"));
         empty.Children.Add(MobileElements.EmptyDetail("传输记录和打开过的工具会出现在这里。"));
-        empty.Bind(IsVisibleProperty, viewModel, nameof(MobileActivityViewModel.IsEmpty));
+        var emptyCard = MobileElements.Card(empty, "MptMobileEmptyCard");
+        emptyCard.Bind(IsVisibleProperty, viewModel, nameof(MobileActivityViewModel.IsEmpty));
 
         var notice = MobileElements.Banner("", "MptMobileBannerQuiet");
         var noticeText = (TextBlock)notice.Child!;
@@ -31,16 +42,13 @@ internal sealed class MobileActivityView : UserControl
         errorText.Bind(TextBlock.TextProperty, viewModel, nameof(MobileActivityViewModel.ErrorMessage));
         error.Bind(IsVisibleProperty, viewModel, nameof(MobileActivityViewModel.HasError));
 
-        var refresh = MobileElements.Secondary("刷新动态", viewModel.ReloadCommand, "刷新动态");
-
         Content = MobileElements.Page(
-            MobileElements.PageTitle(viewModel.Title),
+            titleRow,
             MobileElements.Body(viewModel.Subtitle),
             notice,
             error,
             list,
-            empty,
-            refresh);
+            emptyCard);
     }
 
     private static Control Row(MobileActivityItemViewModel item) =>

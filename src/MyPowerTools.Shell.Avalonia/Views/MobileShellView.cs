@@ -739,32 +739,35 @@ public sealed class MobileShellView : UserControl, IAsyncDisposable, IMobileNavi
         for (var index = 0; index < viewModel.Tabs.Count; index++)
         {
             var tab = viewModel.Tabs[index];
-            var stack = new StackPanel { Spacing = 2, HorizontalAlignment = HorizontalAlignment.Center };
-            stack.Children.Add(new TextBlock
-            {
-                Text = tab.IconGlyph,
-                FontSize = 20,
-                HorizontalAlignment = HorizontalAlignment.Center
-            });
-            stack.Children.Add(new TextBlock
-            {
-                Text = tab.Label,
-                FontSize = 12,
-                HorizontalAlignment = HorizontalAlignment.Center
-            });
             var button = new Button
             {
-                Content = stack,
                 Command = tab.NavigateCommand,
                 HorizontalAlignment = HorizontalAlignment.Stretch,
                 HorizontalContentAlignment = HorizontalAlignment.Center
             };
             button.Classes.Add("MptMobileTab");
             button.Classes.Add("MptMobileTabButton");
-            foreach (var label in stack.Children.OfType<TextBlock>())
+
+            var pill = new Border
             {
-                label.Bind(TextBlock.ForegroundProperty, new Binding(nameof(Button.Foreground)) { Source = button });
-            }
+                Child = MobileIcons.TabIcon(tab.PageKey, button)
+            };
+            pill.Classes.Add("MptMobileTabPill");
+
+            var label = new TextBlock
+            {
+                Text = tab.Label,
+                FontSize = 11,
+                FontWeight = global::Avalonia.Media.FontWeight.Medium,
+                HorizontalAlignment = HorizontalAlignment.Center
+            };
+            label.Bind(TextBlock.ForegroundProperty, new Binding(nameof(Button.Foreground)) { Source = button });
+
+            var stack = new StackPanel { Spacing = 3, HorizontalAlignment = HorizontalAlignment.Center };
+            stack.Children.Add(pill);
+            stack.Children.Add(label);
+            button.Content = stack;
+
             AutomationProperties.SetName(button, tab.AutomationName);
             Grid.SetColumn(button, index);
             bar.Children.Add(button);
@@ -821,16 +824,34 @@ public sealed class MobileShellView : UserControl, IAsyncDisposable, IMobileNavi
         backdrop.Bind(IsVisibleProperty, new Binding(nameof(MobileShellViewModel.IsSheetOpen)) { Source = _viewModel });
         _sheetBackdrop = backdrop;
 
-        var grabber = new Border { Height = 4, Width = 44, HorizontalAlignment = HorizontalAlignment.Center };
+        var grabber = new Border
+        {
+            Height = 4,
+            Width = 40,
+            CornerRadius = new CornerRadius(2),
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Margin = new Thickness(0, 2, 0, 12)
+        };
         grabber.Classes.Add("MptMobileGrabber");
         grabber.Classes.Add("MptMobileSheetGrabber");
-        grabber.Bind(Border.BackgroundProperty, new DynamicResourceExtension("MptMobileDividerBrush"));
+        grabber.Bind(Border.BackgroundProperty, new DynamicResourceExtension("MptMobileFieldBorderBrush"));
 
         title = MobileElements.Text("", "MptMobileSheetTitle");
         subtitle = MobileElements.Text("", "MptMobileSheetSubtitle");
-        var close = MobileElements.IconButton("\u2715", "关闭", new AsyncRelayCommand(CloseSheetAsync));
-        var header = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto") };
-        var titles = new StackPanel { Spacing = 2, VerticalAlignment = VerticalAlignment.Center };
+        var closeIcon = MobileIcons.Icon("close", 16, 2.0);
+        closeIcon.Bind(global::Avalonia.Controls.Shapes.Shape.StrokeProperty, new DynamicResourceExtension("MptMobileSecondaryTextBrush"));
+        var close = new Button
+        {
+            Content = closeIcon,
+            Command = new AsyncRelayCommand(CloseSheetAsync),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        close.Classes.Add("MptMobileIconButton");
+        close.Classes.Add("MptMobileCloseBtn");
+        AutomationProperties.SetName(close, "关闭");
+
+        var header = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), Margin = new Thickness(0, 0, 0, 14) };
+        var titles = new StackPanel { Spacing = 3, VerticalAlignment = VerticalAlignment.Center };
         titles.Children.Add(title);
         titles.Children.Add(subtitle);
         Grid.SetColumn(titles, 0);
@@ -841,12 +862,18 @@ public sealed class MobileShellView : UserControl, IAsyncDisposable, IMobileNavi
         body = new ContentControl
         {
             HorizontalContentAlignment = HorizontalAlignment.Stretch,
-            VerticalContentAlignment = VerticalAlignment.Stretch
+            VerticalContentAlignment = VerticalAlignment.Top,
+            Padding = new Thickness(0, 0, 0, 8)
         };
-        var content = new StackPanel { Spacing = 12 };
+        var scroller = MobileElements.Scroller(body);
+
+        var content = new Grid { RowDefinitions = new RowDefinitions("Auto,Auto,*") };
+        Grid.SetRow(grabber, 0);
         content.Children.Add(grabber);
+        Grid.SetRow(header, 1);
         content.Children.Add(header);
-        content.Children.Add(MobileElements.Scroller(body));
+        Grid.SetRow(scroller, 2);
+        content.Children.Add(scroller);
 
         var sheet = new Border { Child = content, VerticalAlignment = VerticalAlignment.Bottom };
         sheet.Classes.Add("MptMobileSheet");
@@ -1132,20 +1159,57 @@ public sealed class MobileShellView : UserControl, IAsyncDisposable, IMobileNavi
     private (string Title, string Subtitle, Control Content) BuildAppearanceSheet()
     {
         var viewModel = _viewModel.Settings;
-        var stack = new StackPanel { Spacing = 8 };
+        var rows = new List<Control>();
         foreach (var option in viewModel.ThemeOptions)
         {
-            stack.Children.Add(MobileElements.ListRow(
-                option.IsSelected ? "\u2713" : null,
-                option.Label,
-                "",
-                option.IsSelected ? "当前" : "",
-                option.SelectCommand,
-                option.Label));
+            var iconKey = option.Label switch
+            {
+                "浅色" => "sun",
+                "深色" => "moon",
+                _ => "auto-theme"
+            };
+            var desc = option.Label switch
+            {
+                "浅色" => "明亮清爽的浅色界面",
+                "深色" => "护眼低光深色界面",
+                _ => "自动同步手机系统深浅色"
+            };
+
+            var rowGrid = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto"), ColumnSpacing = 12 };
+            var badge = MobileIcons.Badge(iconKey, 38, 18);
+            Grid.SetColumn(badge, 0);
+            rowGrid.Children.Add(badge);
+
+            var copy = new StackPanel { Spacing = 2, VerticalAlignment = VerticalAlignment.Center };
+            copy.Children.Add(MobileElements.Text(option.Label, "MptMobileRowTitle"));
+            copy.Children.Add(MobileElements.Text(desc, "MptMobileRowSubtitle"));
+            Grid.SetColumn(copy, 1);
+            rowGrid.Children.Add(copy);
+
+            if (option.IsSelected)
+            {
+                var check = MobileIcons.Icon("check", 20, 2.3);
+                check.Bind(global::Avalonia.Controls.Shapes.Shape.StrokeProperty, new DynamicResourceExtension("MptMobileAccentBrush"));
+                check.VerticalAlignment = VerticalAlignment.Center;
+                Grid.SetColumn(check, 2);
+                rowGrid.Children.Add(check);
+            }
+
+            var btn = new Button
+            {
+                Content = rowGrid,
+                Command = option.SelectCommand,
+                HorizontalAlignment = HorizontalAlignment.Stretch,
+                HorizontalContentAlignment = HorizontalAlignment.Stretch
+            };
+            btn.Classes.Add("MptMobileListRow");
+            AutomationProperties.SetName(btn, option.Label);
+            rows.Add(btn);
         }
 
-        stack.Children.Add(MobileElements.Caption("外观写入与桌面版同一个偏好文件。"));
-        return ("外观", viewModel.AppearanceLabel, stack);
+        var stack = new StackPanel { Spacing = 12 };
+        stack.Children.Add(MobileElements.ListCard(rows.ToArray()));
+        return ("外观", "选择应用显示主题", stack);
     }
 
     private (string Title, string Subtitle, Control Content) BuildModuleUpdatesSheet()
@@ -1154,49 +1218,85 @@ public sealed class MobileShellView : UserControl, IAsyncDisposable, IMobileNavi
         var state = viewModel.GetModuleUpdateState();
         var cfg = viewModel.GetModuleUpdateConfig();
 
-        var statusBanner = MobileElements.Banner(state.Detail, "MptMobileBannerQuiet");
-        var statusText = (TextBlock)statusBanner.Child!;
+        var statusTitle = new TextBlock
+        {
+            Text = state.HasOverrides ? "已启用增量热更新" : "当前使用 APK 内置模块",
+            FontSize = 15,
+            FontWeight = global::Avalonia.Media.FontWeight.SemiBold
+        };
+        statusTitle.Bind(TextBlock.ForegroundProperty, new DynamicResourceExtension("MptMobileTextBrush"));
+        var statusText = MobileElements.Text(state.Detail, "MptMobileRowSubtitle");
+        var statusCopy = new StackPanel { Spacing = 3, VerticalAlignment = VerticalAlignment.Center };
+        statusCopy.Children.Add(statusTitle);
+        statusCopy.Children.Add(statusText);
 
-        var tailBox = new TextBox { Text = cfg.TailscaleBaseUrl, PlaceholderText = "Tailscale 内网模块源（优先）" };
-        var proxyBox = new TextBox { Text = cfg.PublicProxyBaseUrl, PlaceholderText = "公网代理模块源（回退）" };
-        var directBox = new TextBox { Text = cfg.DirectFallbackBaseUrl, PlaceholderText = "GitHub 直连模块源（最终回退）" };
+        var statusRow = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*"), ColumnSpacing = 12 };
+        var statusIcon = MobileIcons.Badge("update", 40, 19);
+        Grid.SetColumn(statusIcon, 0);
+        statusRow.Children.Add(statusIcon);
+        Grid.SetColumn(statusCopy, 1);
+        statusRow.Children.Add(statusCopy);
+        var statusCard = MobileElements.Banner("", "MptMobileBannerQuiet");
+        statusCard.Child = statusRow;
 
-        var checkButton = new Button { Content = "检查并立即热更新（Tailscale 优先）" };
-        checkButton.Classes.Add("MptMobilePrimaryButton");
-        checkButton.Click += async (_, _) =>
+        var modulesWrap = new WrapPanel { Orientation = Orientation.Horizontal };
+        foreach (var entry in state.InstalledOverrides)
+        {
+            var pretty = entry
+                .Replace("file-transfer", "文件助手")
+                .Replace("mobile-tool-control", "电脑控制")
+                .Replace("remote-commands-android", "远程命令")
+                .Replace("remote-notifications-android", "远程通知");
+            var shortText = pretty.Contains('·') ? pretty[..pretty.IndexOf('·')].Trim() : pretty;
+            var pill = MobileElements.StatusPill(shortText);
+            pill.Margin = new Thickness(0, 0, 6, 6);
+            modulesWrap.Children.Add(pill);
+        }
+
+        var tailBox = new TextBox { Text = cfg.TailscaleBaseUrl, PlaceholderText = "http://mpt-relay.tail.lixinrui000.cn/mpt/android-modules" };
+        tailBox.Classes.Add("MptMobileField");
+        var proxyBox = new TextBox { Text = cfg.PublicProxyBaseUrl, PlaceholderText = "https://proxy.lixinrui000.cn/mpt/android-modules" };
+        proxyBox.Classes.Add("MptMobileField");
+        var directBox = new TextBox { Text = cfg.DirectFallbackBaseUrl, PlaceholderText = "GitHub Release 兜底地址" };
+        directBox.Classes.Add("MptMobileField");
+
+        Button checkButton = null!;
+        checkButton = MobileElements.Primary("检查并立即热更新", new AsyncRelayCommand(async () =>
         {
             checkButton.IsEnabled = false;
-            statusText.Text = "正在探测 Tailscale 内网源，不可达时自动切换公网代理…";
+            statusTitle.Text = "正在检查更新…";
+            statusText.Text = "优先探测 Tailscale 内网源，不可达时自动切换公网代理";
             try
             {
                 viewModel.SaveModuleUpdateConfig(new Services.Mobile.MobileModuleUpdateSourceConfig(
                     tailBox.Text ?? "", proxyBox.Text ?? "", directBox.Text ?? ""));
                 var res = await viewModel.CheckAndApplyModuleUpdatesAsync();
+                statusTitle.Text = res.Succeeded ? "更新检查完成" : "更新检查未完成";
                 statusText.Text = res.Message;
             }
             finally
             {
                 checkButton.IsEnabled = true;
             }
-        };
+        }), "检查并立即热更新");
 
-        var saveButton = new Button { Content = "仅保存更新源地址" };
-        saveButton.Classes.Add("MptMobileSecondaryButton");
-        saveButton.Click += (_, _) =>
+        var saveButton = MobileElements.Secondary("保存更新源配置", new AsyncRelayCommand(() =>
         {
             viewModel.SaveModuleUpdateConfig(new Services.Mobile.MobileModuleUpdateSourceConfig(
                 tailBox.Text ?? "", proxyBox.Text ?? "", directBox.Text ?? ""));
-            statusText.Text = "更新源配置已保存。";
-        };
+            statusTitle.Text = "更新源已保存";
+            statusText.Text = "下次检查更新将按新地址顺序探测。";
+            return Task.CompletedTask;
+        }), "保存更新源配置");
 
-        var resetButton = new Button { Content = "还原 APK 内置模块", IsVisible = state.HasOverrides };
-        resetButton.Classes.Add("MptMobileSecondaryButton");
-        resetButton.Click += async (_, _) =>
+        Button resetButton = null!;
+        resetButton = MobileElements.Secondary("还原 APK 内置模块", new AsyncRelayCommand(async () =>
         {
             resetButton.IsEnabled = false;
             try
             {
                 var res = await viewModel.ResetModuleUpdatesAsync();
+                statusTitle.Text = "已还原内置模块";
                 statusText.Text = res.Message;
                 resetButton.IsVisible = false;
             }
@@ -1204,24 +1304,62 @@ public sealed class MobileShellView : UserControl, IAsyncDisposable, IMobileNavi
             {
                 resetButton.IsEnabled = true;
             }
+        }), "还原 APK 内置模块");
+        resetButton.IsVisible = state.HasOverrides;
+
+        var advancedPanel = new StackPanel { Spacing = 10, IsVisible = false, Margin = new Thickness(0, 4, 0, 0) };
+        advancedPanel.Children.Add(MobileElements.Caption("Tailscale 内网地址（优先 · 2.5s 快速探测）"));
+        advancedPanel.Children.Add(tailBox);
+        advancedPanel.Children.Add(MobileElements.Caption("公网代理地址（未连 Tailscale 自动回退）"));
+        advancedPanel.Children.Add(proxyBox);
+        advancedPanel.Children.Add(MobileElements.Caption("直连兜底地址（代理不可用时启用）"));
+        advancedPanel.Children.Add(directBox);
+        advancedPanel.Children.Add(saveButton);
+
+        var advChevron = MobileIcons.Icon("chevron-down", 16, 2.0);
+        advChevron.Bind(global::Avalonia.Controls.Shapes.Shape.StrokeProperty, new DynamicResourceExtension("MptMobileSecondaryTextBrush"));
+        var advRow = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto"), ColumnSpacing = 10 };
+        var slidersIcon = MobileIcons.Icon("sliders", 16, 1.9);
+        slidersIcon.Bind(global::Avalonia.Controls.Shapes.Shape.StrokeProperty, new DynamicResourceExtension("MptMobileSecondaryTextBrush"));
+        Grid.SetColumn(slidersIcon, 0);
+        advRow.Children.Add(slidersIcon);
+        var advLabel = MobileElements.Text("自定义更新源地址", "MptMobileRowTitle");
+        advLabel.VerticalAlignment = VerticalAlignment.Center;
+        Grid.SetColumn(advLabel, 1);
+        advRow.Children.Add(advLabel);
+        Grid.SetColumn(advChevron, 2);
+        advRow.Children.Add(advChevron);
+
+        var advToggle = new Button
+        {
+            Content = advRow,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            HorizontalContentAlignment = HorizontalAlignment.Stretch
+        };
+        advToggle.Classes.Add("MptMobileListRow");
+        advToggle.Click += (_, _) =>
+        {
+            advancedPanel.IsVisible = !advancedPanel.IsVisible;
+            var nextIcon = MobileIcons.Icon(advancedPanel.IsVisible ? "chevron-up" : "chevron-down", 16, 2.0);
+            nextIcon.Bind(global::Avalonia.Controls.Shapes.Shape.StrokeProperty, new DynamicResourceExtension("MptMobileSecondaryTextBrush"));
+            Grid.SetColumn(nextIcon, 2);
+            advRow.Children[2] = nextIcon;
         };
 
-        var stack = new StackPanel { Spacing = 10 };
-        stack.Children.Add(statusBanner);
+        var stack = new StackPanel { Spacing = 12 };
+        stack.Children.Add(statusCard);
         if (state.InstalledOverrides.Count > 0)
         {
-            stack.Children.Add(MobileElements.Caption("当前已生效热更新：" + string.Join(" / ", state.InstalledOverrides)));
+            stack.Children.Add(modulesWrap);
         }
         stack.Children.Add(checkButton);
-        stack.Children.Add(MobileElements.Caption("Tailscale 内网地址（连得上时 2.5s 内直连下载）"));
-        stack.Children.Add(tailBox);
-        stack.Children.Add(MobileElements.Caption("公网代理地址（未连 Tailscale 时自动回退 proxy.lixinrui000.cn）"));
-        stack.Children.Add(proxyBox);
-        stack.Children.Add(MobileElements.Caption("直连兜底地址（公网代理失败时使用）"));
-        stack.Children.Add(directBox);
-        stack.Children.Add(saveButton);
-        stack.Children.Add(resetButton);
-        stack.Children.Add(MobileElements.Caption("仅下载变更的工具模块 DLL（约 100~650 KB），SHA-256 校验后原地热重载，无需重装整包 APK。"));
+        if (state.HasOverrides)
+        {
+            stack.Children.Add(resetButton);
+        }
+        stack.Children.Add(MobileElements.Card(advToggle, "MptMobileListCard"));
+        stack.Children.Add(advancedPanel);
+        stack.Children.Add(MobileElements.Caption("仅下载变更模块（约 100~650 KB），SHA-256 校验后原地生效。"));
 
         return ("模块热更新", state.Summary, stack);
     }

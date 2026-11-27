@@ -61,17 +61,20 @@
 
   <!-- Contract typography: 28 / 14 / 12 dp. -->
   <Style Selector="TextBlock.MptMobilePageTitle">
-    <Setter Property="FontSize" Value="28" />
-    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="FontSize" Value="26" />
+    <Setter Property="LineHeight" Value="36" />
+    <Setter Property="FontWeight" Value="Bold" />
     <Setter Property="Foreground" Value="{DynamicResource MptMobileTextBrush}" />
   </Style>
   <Style Selector="TextBlock.MptMobileHomeTitle">
     <Setter Property="Margin" Value="0,-4,0,0" />
   </Style>
   <Style Selector="TextBlock.MptMobileSectionTitle">
-    <Setter Property="FontSize" Value="17" />
+    <Setter Property="FontSize" Value="13" />
+    <Setter Property="LineHeight" Value="18" />
     <Setter Property="FontWeight" Value="SemiBold" />
-    <Setter Property="Foreground" Value="{DynamicResource MptMobileTextBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource MptMobileSecondaryTextBrush}" />
+    <Setter Property="Margin" Value="4,0,0,0" />
   </Style>
   <Style Selector="TextBlock.MptMobileBody">
     <Setter Property="FontSize" Value="14" />
@@ -100,8 +103,9 @@
     <Setter Property="Foreground" Value="{DynamicResource MptMobileSecondaryTextBrush}" />
   </Style>
   <Style Selector="TextBlock.MptMobileHello">
-    <Setter Property="FontSize" Value="22" />
-    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="FontSize" Value="26" />
+    <Setter Property="LineHeight" Value="36" />
+    <Setter Property="FontWeight" Value="Bold" />
     <Setter Property="Foreground" Value="{DynamicResource MptMobileTextBrush}" />
   </Style>
   <Style Selector="TextBlock.MptMobileHeroTitle">
@@ -395,5 +399,103 @@
   <!-- Narrowest supported phone: tighter page margins. -->
   <Style Selector="StackPanel.MptMobilePage.narrow">
     <Setter Property="Margin" Value="18,10,18,18" />
+  </Style>
+
+  <!-- Modern Native Mobile Redesign Overrides -->
+  <Style Selector="Border.MptMobileTabPill">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="CornerRadius" Value="16" />
+    <Setter Property="Width" Value="56" />
+    <Setter Property="Height" Value="30" />
+    <Setter Property="HorizontalAlignment" Value="Center" />
+  </Style>
+  <Style Selector="Button.MptMobileTab.selected Border.MptMobileTabPill">
+    <Setter Property="Background" Value="{DynamicResource MptMobileAccentSoftBrush}" />
+  </Style>
+  <Style Selector="Button.MptMobileTab">
+    <Setter Property="Background" Value="Transparent" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="Padding" Value="0,6,0,6" />
+    <Setter Property="Foreground" Value="{DynamicResource MptMobileInactiveTabBrush}" />
+  </Style>
+  <Style Selector="Button.MptMobileTab.selected">
+    <Setter Property="Foreground" Value="{DynamicResource MptMobileAccentBrush}" />
+  </Style>
+  <Style Selector="Border.MptMobileTabBar">
+    <Setter Property="Background" Value="{DynamicResource MptMobileCardBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MptMobileDividerBrush}" />
+    <Setter Property="BorderThickness" Value="0,1,0,0" />
+    <Setter Property="Padding" Value="8,2,8,6" />
+  </Style>
+  <Style Selector="Border.MptMobileSheet">
+    <Setter Property="CornerRadius" Value="26,26,0,0" />
+    <Setter Property="Padding" Value="20,10,20,24" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MptMobileDividerBrush}" />
+    <Setter Property="BorderThickness" Value="0,1,0,0" />
+    <Setter Property="MaxHeight" Value="640" />
+  </Style>
+  <Style Selector="TextBox.MptMobileField">
+    <Setter Property="FontSize" Value="13" />
+    <Setter Property="MinHeight" Value="44" />
+    <Setter Property="Padding" Value="12,10" />
+    <Setter Property="CornerRadius" Value="12" />
+    <Setter Property="Background" Value="{DynamicResource MptMobileBackgroundBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MptMobileFieldBorderBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="Foreground" Value="{DynamicResource MptMobileTextBrush}" />
+  </Style>
+  <Style Selector="Button.MptMobilePrimary">
+    <Setter Property="Background" Value="{DynamicResource MptMobileAccentBrush}" />
+    <Setter Property="Foreground" Value="#FFFFFFFF" />
+    <Setter Property="CornerRadius" Value="14" />
+    <Setter Property="MinHeight" Value="48" />
+    <Setter Property="Padding" Value="18,12" />
+    <Setter Property="FontSize" Value="15" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="BorderThickness" Value="0" />
+  </Style>
+  <Style Selector="Button.MptMobileSecondary">
+    <Setter Property="Background" Value="{DynamicResource MptMobileAccentSoftBrush}" />
+    <Setter Property="Foreground" Value="{DynamicResource MptMobileAccentBrush}" />
+    <Setter Property="CornerRadius" Value="14" />
+    <Setter Property="MinHeight" Value="44" />
+    <Setter Property="Padding" Value="16,10" />
+    <Setter Property="FontSize" Value="14" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="BorderThickness" Value="0" />
+  </Style>
+  <Style Selector="Button.MptMobileHeroCta">
+    <Setter Property="Background" Value="#FFFFFFFF" />
+    <Setter Property="Foreground" Value="#FF1D4ED8" />
+    <Setter Property="CornerRadius" Value="14" />
+    <Setter Property="MinHeight" Value="46" />
+    <Setter Property="Padding" Value="18,11" />
+    <Setter Property="FontSize" Value="15" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="BorderThickness" Value="0" />
+  </Style>
+  <Style Selector="Button.MptMobileCloseBtn">
+    <Setter Property="Width" Value="34" />
+    <Setter Property="Height" Value="34" />
+    <Setter Property="MinWidth" Value="34" />
+    <Setter Property="MinHeight" Value="34" />
+    <Setter Property="CornerRadius" Value="17" />
+    <Setter Property="Padding" Value="0" />
+    <Setter Property="Background" Value="{DynamicResource MptMobileBackgroundBrush}" />
+    <Setter Property="BorderThickness" Value="0" />
+    <Setter Property="HorizontalContentAlignment" Value="Center" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+  </Style>
+  <Style Selector="Border.MptMobileStatusPill">
+    <Setter Property="CornerRadius" Value="10" />
+    <Setter Property="Padding" Value="9,3" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+  <Style Selector="Border.MptMobileBannerQuiet">
+    <Setter Property="Background" Value="{DynamicResource MptMobileBackgroundBrush}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MptMobileDividerBrush}" />
+    <Setter Property="BorderThickness" Value="1" />
+    <Setter Property="CornerRadius" Value="14" />
+    <Setter Property="Padding" Value="14,12" />
   </Style>
 </Styles>

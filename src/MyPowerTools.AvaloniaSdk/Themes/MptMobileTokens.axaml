@@ -41,6 +41,8 @@
       <SolidColorBrush x:Key="MptMobileCommandSurfaceBrush" Color="#FF1F2836" />
       <SolidColorBrush x:Key="MptMobileHoverOverlayBrush" Color="#14000000" />
       <SolidColorBrush x:Key="MptMobilePressedOverlayBrush" Color="#1F000000" />
+      <SolidColorBrush x:Key="MptMobileBackdropBrush" Color="#730B1220" />
+      <SolidColorBrush x:Key="MptMobileSoftFillBrush" Color="#FFEDF3FF" />
 
       <!-- Text -->
       <Color x:Key="MptMobileTextColor">#FF1C2025</Color>
@@ -115,6 +117,8 @@
       <SolidColorBrush x:Key="MptMobileCommandSurfaceBrush" Color="#FF1B2330" />
       <SolidColorBrush x:Key="MptMobileHoverOverlayBrush" Color="#14FFFFFF" />
       <SolidColorBrush x:Key="MptMobilePressedOverlayBrush" Color="#24FFFFFF" />
+      <SolidColorBrush x:Key="MptMobileBackdropBrush" Color="#A6000000" />
+      <SolidColorBrush x:Key="MptMobileSoftFillBrush" Color="#FF1B2E4F" />
 
       <!-- Text -->
       <Color x:Key="MptMobileTextColor">#FFEBEDF2</Color>

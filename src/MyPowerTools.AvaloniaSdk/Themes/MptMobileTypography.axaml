@@ -237,10 +237,10 @@
   </Style>
 
   <Style Selector="TextBlock.MptMobileHello">
-    <Setter Property="FontSize" Value="{DynamicResource MptMobileFontSizeCaption}" />
-    <Setter Property="Foreground" Value="{DynamicResource MptMobileSecondaryTextBrush}" />
-    <Setter Property="TextWrapping" Value="Wrap" />
-    <Setter Property="Margin" Value="0,5,0,0" />
+    <Setter Property="FontSize" Value="26" />
+    <Setter Property="LineHeight" Value="36" />
+    <Setter Property="FontWeight" Value="Bold" />
+    <Setter Property="Foreground" Value="{DynamicResource MptMobileTextBrush}" />
   </Style>
 
   <Style Selector="TextBlock.MptMobileAccentText">

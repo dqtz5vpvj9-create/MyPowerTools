@@ -110,7 +110,7 @@ internal static class MobileElements
 
     public static Button IconButton(string glyph, string automationName, ICommand? command)
     {
-        var button = new Button { Content = glyph, Command = command };
+        var button = new Button { Content = MobileIcons.Icon(glyph, 18, 1.9), Command = command };
         button.Classes.Add("MptMobileIconButton");
         AutomationProperties.SetName(button, automationName);
         return button;
@@ -118,36 +118,59 @@ internal static class MobileElements
 
     public static Button BackButton(ICommand command, string label = "返回")
     {
-        var content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4 };
-        content.Children.Add(new TextBlock { Text = "\u2039", FontSize = 22, VerticalAlignment = VerticalAlignment.Center });
-        content.Children.Add(new TextBlock { Text = label, VerticalAlignment = VerticalAlignment.Center });
-        var button = new Button { Content = content, Command = command };
+        var icon = MobileIcons.Icon("back", 18, 2.1);
+        icon.Bind(global::Avalonia.Controls.Shapes.Shape.StrokeProperty, new DynamicResourceExtension("MptMobileAccentBrush"));
+        var text = new TextBlock { Text = label, FontSize = 15, FontWeight = FontWeight.Medium, VerticalAlignment = VerticalAlignment.Center };
+        text.Bind(TextBlock.ForegroundProperty, new DynamicResourceExtension("MptMobileAccentBrush"));
+        var content = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 4, VerticalAlignment = VerticalAlignment.Center };
+        content.Children.Add(icon);
+        content.Children.Add(text);
+        var button = new Button { Content = content, Command = command, HorizontalContentAlignment = HorizontalAlignment.Left };
         button.Classes.Add("MptMobileBack");
         button.Classes.Add("MptMobileBackButton");
         AutomationProperties.SetName(button, label);
         return button;
     }
 
-    /// <summary>The icon square used by every list row, tile and hero.</summary>
-    public static Border IconBox(string glyph, string extraClasses = "")
+    /// <summary>The tinted vector icon badge used by every list row, tile and hero.</summary>
+    public static Border IconBox(string glyph, string extraClasses = "") =>
+        MobileIcons.Badge(glyph, boxSize: 40, iconSize: 19, extraClasses: extraClasses);
+
+    public static Border StatusPill(string text)
     {
-        var text = new TextBlock
+        var (lightBg, lightFg, darkBg, darkFg) = text switch
         {
-            Text = glyph,
-            FontSize = 18,
-            HorizontalAlignment = HorizontalAlignment.Center,
+            "运行中" or "已连接" or "在线" => ("#ECFDF5", "#047857", "#123529", "#34D399"),
+            "可用" or "当前" or "连接码" or "检查" => ("#EBF3FF", "#1D4ED8", "#1B2E4F", "#60A5FA"),
+            "异常" or "故障" or "离线" => ("#FEF2F2", "#B91C1C", "#3D1A1E", "#F87171"),
+            _ => ("#F1F5F9", "#475569", "#1E2638", "#94A3B8")
+        };
+        var label = new TextBlock
+        {
+            Text = text,
+            FontSize = 11,
+            FontWeight = FontWeight.SemiBold,
+            Foreground = SolidColorBrush.Parse(lightFg),
             VerticalAlignment = VerticalAlignment.Center
         };
-        var box = new Border { Child = text, Width = 40, Height = 40 };
-        text.Bind(TextBlock.ForegroundProperty, new DynamicResourceExtension("MptMobileAccentBrush"));
-        box.Classes.Add("MptMobileIconBox");
-        foreach (var name in extraClasses.Split(' ', StringSplitOptions.RemoveEmptyEntries))
+        var pill = new Border
         {
-            box.Classes.Add(name);
+            Child = label,
+            Background = SolidColorBrush.Parse(lightBg),
+            CornerRadius = new CornerRadius(10),
+            Padding = new Thickness(9, 3),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        pill.Classes.Add("MptMobileStatusPill");
+        void ApplyTheme()
+        {
+            var isDark = pill.ActualThemeVariant == global::Avalonia.Styling.ThemeVariant.Dark;
+            pill.Background = SolidColorBrush.Parse(isDark ? darkBg : lightBg);
+            label.Foreground = SolidColorBrush.Parse(isDark ? darkFg : lightFg);
         }
-
-        box.Bind(Border.BackgroundProperty, new DynamicResourceExtension("MptMobileSoftFillBrush"));
-        return box;
+        pill.ActualThemeVariantChanged += (_, _) => ApplyTheme();
+        pill.AttachedToVisualTree += (_, _) => ApplyTheme();
+        return pill;
     }
 
     /// <summary>A full-width tappable row: icon, title, subtitle, optional trailing text.</summary>
@@ -178,13 +201,36 @@ internal static class MobileElements
         Grid.SetColumn(copy, 1);
         grid.Children.Add(copy);
 
+        var trailing = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 6,
+            VerticalAlignment = VerticalAlignment.Center,
+            Margin = new Thickness(8, 0, 0, 0)
+        };
         if (!string.IsNullOrEmpty(meta))
         {
-            var tail = Text(meta!, "MptMobileRowMeta");
-            tail.VerticalAlignment = VerticalAlignment.Center;
-            tail.Margin = new Thickness(8, 0, 0, 0);
-            Grid.SetColumn(tail, 2);
-            grid.Children.Add(tail);
+            if (meta!.Length <= 6 && !meta.Contains(':'))
+            {
+                trailing.Children.Add(StatusPill(meta));
+            }
+            else
+            {
+                var tail = Text(meta, "MptMobileRowMeta");
+                tail.VerticalAlignment = VerticalAlignment.Center;
+                trailing.Children.Add(tail);
+            }
+        }
+        if (command is not null)
+        {
+            var chev = MobileIcons.Icon("chevron", 15, 1.8);
+            chev.Bind(global::Avalonia.Controls.Shapes.Shape.StrokeProperty, new DynamicResourceExtension("MptMobileChevronBrush"));
+            trailing.Children.Add(chev);
+        }
+        if (trailing.Children.Count > 0)
+        {
+            Grid.SetColumn(trailing, 2);
+            grid.Children.Add(trailing);
         }
 
         var button = new Button
@@ -265,7 +311,7 @@ internal static class MobileElements
             Content = content,
             HorizontalContentAlignment = HorizontalAlignment.Stretch,
             HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled,
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto
+            VerticalScrollBarVisibility = ScrollBarVisibility.Hidden
         };
         scroller.Classes.Add("MptMobileScroller");
         return scroller;

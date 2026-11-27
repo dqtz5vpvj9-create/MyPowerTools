@@ -82,12 +82,88 @@ internal sealed class MobileHomeView : UserControl
 
     private static Control BuildHero(MobileHomeViewModel viewModel)
     {
-        var stack = new StackPanel { Spacing = 6 };
-        stack.Children.Add(MobileElements.Text("文件传输助手", "MptMobileHeroTitle"));
-        stack.Children.Add(MobileElements.Text("文字和文件，在设备间顺手传递。", "MptMobileRowSubtitle"));
-        var open = MobileElements.Primary("打开文件传输助手", viewModel.SendFileCommand, "打开文件传输助手");
+        var iconTile = new Border
+        {
+            Width = 42,
+            Height = 42,
+            CornerRadius = new CornerRadius(13),
+            Background = SolidColorBrush.Parse("#29FFFFFF"),
+            Child = MobileIcons.Icon("transfer", 20, 2.0, Brushes.White),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+
+        var titleCol = new StackPanel { Spacing = 3, VerticalAlignment = VerticalAlignment.Center };
+        titleCol.Children.Add(new TextBlock
+        {
+            Text = "文件传输助手",
+            FontSize = 19,
+            FontWeight = FontWeight.Bold,
+            Foreground = Brushes.White
+        });
+        titleCol.Children.Add(new TextBlock
+        {
+            Text = "文字和文件，在设备间顺手传递",
+            FontSize = 13,
+            Foreground = SolidColorBrush.Parse("#DBEAFE"),
+            TextWrapping = TextWrapping.Wrap
+        });
+
+        var topRow = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*"), ColumnSpacing = 12 };
+        Grid.SetColumn(iconTile, 0);
+        topRow.Children.Add(iconTile);
+        Grid.SetColumn(titleCol, 1);
+        topRow.Children.Add(titleCol);
+
+        var ctaContent = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 6,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        ctaContent.Children.Add(new TextBlock
+        {
+            Text = "打开文件传输助手",
+            FontSize = 15,
+            FontWeight = FontWeight.SemiBold,
+            Foreground = SolidColorBrush.Parse("#1D4ED8"),
+            VerticalAlignment = VerticalAlignment.Center
+        });
+        ctaContent.Children.Add(MobileIcons.Icon("arrow-right", 16, 2.2, SolidColorBrush.Parse("#1D4ED8")));
+
+        var open = new Button
+        {
+            Content = ctaContent,
+            Command = viewModel.SendFileCommand,
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            HorizontalContentAlignment = HorizontalAlignment.Center
+        };
+        open.Classes.Add("MptMobileHeroCta");
+        AutomationProperties.SetName(open, "打开文件传输助手");
+
+        var stack = new StackPanel { Spacing = 16 };
+        stack.Children.Add(topRow);
         stack.Children.Add(open);
-        return MobileElements.Card(stack, "MptMobileHero MptMobileHeroCard");
+
+        var hero = new Border
+        {
+            Child = stack,
+            CornerRadius = new CornerRadius(24),
+            Padding = new Thickness(20, 18, 20, 18),
+            Background = new LinearGradientBrush
+            {
+                StartPoint = new RelativePoint(0, 0, RelativeUnit.Relative),
+                EndPoint = new RelativePoint(1, 1, RelativeUnit.Relative),
+                GradientStops =
+                {
+                    new GradientStop(Color.Parse("#2563EB"), 0),
+                    new GradientStop(Color.Parse("#3B5BDB"), 1)
+                }
+            }
+        };
+        hero.Classes.Add("MptMobileHero");
+        hero.Classes.Add("MptMobileHeroCard");
+        return hero;
     }
 
     private static Control BuildDeviceStrip(MobileHomeViewModel viewModel)
@@ -95,7 +171,14 @@ internal sealed class MobileHomeView : UserControl
         var chips = MobileElements.Items(viewModel.Devices, Chip);
         chips.ItemsPanel = new FuncTemplate<Panel?>(() => new WrapPanel { Orientation = Orientation.Horizontal });
 
-        var add = new Button { Content = "+ 添加设备", Command = viewModel.PairDeviceCommand };
+        var addRow = new StackPanel { Orientation = Orientation.Horizontal, Spacing = 6, VerticalAlignment = VerticalAlignment.Center };
+        var plusIcon = MobileIcons.Icon("plus", 15, 2.1);
+        plusIcon.Bind(Shape.StrokeProperty, new DynamicResourceExtension("MptMobileAccentBrush"));
+        addRow.Children.Add(plusIcon);
+        var addLbl = new TextBlock { Text = "添加设备", FontSize = 14, FontWeight = FontWeight.Medium, VerticalAlignment = VerticalAlignment.Center };
+        addLbl.Bind(TextBlock.ForegroundProperty, new DynamicResourceExtension("MptMobileTextBrush"));
+        addRow.Children.Add(addLbl);
+        var add = new Button { Content = addRow, Command = viewModel.PairDeviceCommand };
         add.Classes.Add("MptMobileChip");
         AutomationProperties.SetName(add, "添加设备");
 
