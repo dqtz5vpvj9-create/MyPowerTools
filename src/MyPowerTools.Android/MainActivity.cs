@@ -413,6 +413,92 @@ public sealed class MainActivity : AvaloniaMainActivity
         }
     }
 
+    private const int RequestCodeExternalDirectory = 48;
+    private TaskCompletionSource<string?>? _externalDirectoryPick;
+
+    /// <summary>
+    /// Launches Android's Storage Access Framework folder picker (<c>ACTION_OPEN_DOCUMENT_TREE</c>)
+    /// and takes persistable read+write URI permissions so received files can be written straight
+    /// into a user-chosen external directory visible in any file manager.
+    /// </summary>
+    internal static async Task<string?> PickExternalDirectoryAsync(CancellationToken cancellationToken)
+    {
+        var activity = Current ?? throw new InvalidOperationException("当前页面未就绪，请返回应用后重试。");
+        return await Dispatcher.UIThread.InvokeAsync(() => activity.LaunchExternalDirectoryPickerAsync(cancellationToken))
+            .ConfigureAwait(false);
+    }
+
+    private Task<string?> LaunchExternalDirectoryPickerAsync(CancellationToken cancellationToken)
+    {
+        if (_externalDirectoryPick is { Task.IsCompleted: false } existing)
+        {
+            return existing.Task;
+        }
+
+        var tcs = new TaskCompletionSource<string?>(TaskCreationOptions.RunContinuationsAsynchronously);
+        _externalDirectoryPick = tcs;
+        var registration = cancellationToken.Register(() => tcs.TrySetCanceled(cancellationToken));
+        tcs.Task.ContinueWith(_ => registration.Dispose(), TaskScheduler.Default);
+
+        try
+        {
+            var intent = new A.Content.Intent(A.Content.Intent.ActionOpenDocumentTree);
+            intent.AddFlags(
+                A.Content.ActivityFlags.GrantReadUriPermission |
+                A.Content.ActivityFlags.GrantWriteUriPermission |
+                A.Content.ActivityFlags.GrantPersistableUriPermission |
+                A.Content.ActivityFlags.GrantPrefixUriPermission);
+            // Hint the picker to start near the Downloads directory when supported.
+            var downloadsHint = A.Net.Uri.Parse("content://com.android.externalstorage.documents/document/primary%3ADownload");
+            if (downloadsHint is not null)
+            {
+                intent.PutExtra(A.Provider.DocumentsContract.ExtraInitialUri, downloadsHint);
+            }
+#pragma warning disable CA1422
+            StartActivityForResult(intent, RequestCodeExternalDirectory);
+#pragma warning restore CA1422
+        }
+        catch (Exception ex)
+        {
+            _externalDirectoryPick = null;
+            tcs.TrySetException(ex);
+        }
+
+        return tcs.Task;
+    }
+
+    protected override void OnActivityResult(int requestCode, A.App.Result resultCode, A.Content.Intent? data)
+    {
+        if (requestCode == RequestCodeExternalDirectory)
+        {
+            var pending = Interlocked.Exchange(ref _externalDirectoryPick, null);
+            if (resultCode != A.App.Result.Ok || data?.Data is not { } treeUri)
+            {
+                pending?.TrySetResult(null);
+                return;
+            }
+
+            try
+            {
+                var takeFlags = data.Flags & (A.Content.ActivityFlags.GrantReadUriPermission | A.Content.ActivityFlags.GrantWriteUriPermission);
+                if (takeFlags == 0)
+                {
+                    takeFlags = A.Content.ActivityFlags.GrantReadUriPermission | A.Content.ActivityFlags.GrantWriteUriPermission;
+                }
+
+                ContentResolver?.TakePersistableUriPermission(treeUri, takeFlags);
+                pending?.TrySetResult(treeUri.ToString());
+            }
+            catch (Exception ex)
+            {
+                pending?.TrySetException(ex);
+            }
+            return;
+        }
+
+        base.OnActivityResult(requestCode, resultCode, data);
+    }
+
     private TaskCompletionSource<bool>? _notificationPermission;
     private Task<bool> RequestNotificationPermissionAsync()
     {

@@ -1,3 +1,4 @@
+using MyPowerTools.Android.Storage;
 using MyPowerTools.Android.Updates;
 using MyPowerTools.Shell.Avalonia.Services.Mobile;
 using System.Text.Json;
@@ -164,6 +165,11 @@ internal static class AndroidHost
                 hostVersionCode,
                 onAppliedReload: ct => OnModulesHotUpdated is { } cb ? cb(ct) : RetryAsync());
             MobileModuleUpdateBridge.Current = new AndroidModuleUpdaterAdapter(updaterCore);
+            MobileStorageBridge.Current = new AndroidStorageManager(
+                context,
+                paths.Root,
+                context.CacheDir!.AbsolutePath,
+                MainActivity.PickExternalDirectoryAsync);
 
             Report("platform", "正在初始化 Android 平台服务…", ++step, totalSteps);
             var platform = new AndroidPlatformPack();

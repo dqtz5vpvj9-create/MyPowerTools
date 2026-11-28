@@ -10,4 +10,14 @@ public interface IBackgroundActivityService
 public interface IDownloadsService
 {
     Task PublishAsync(string path, CancellationToken cancellationToken);
+
+    /// <summary>
+    /// Publishes a completed private file into the user's authorized external directory (or system
+    /// Downloads fallback) and returns a platform handle (<c>content://</c> URI or path) when available.
+    /// </summary>
+    async Task<string?> PublishAndLocateAsync(string path, CancellationToken cancellationToken)
+    {
+        await PublishAsync(path, cancellationToken).ConfigureAwait(false);
+        return null;
+    }
 }

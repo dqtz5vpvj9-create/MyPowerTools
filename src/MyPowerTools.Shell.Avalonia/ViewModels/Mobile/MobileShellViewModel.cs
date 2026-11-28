@@ -25,6 +25,7 @@ public sealed class MobileShellViewModel : ObservableViewModel, IDisposable
         Devices = new MobileDevicesViewModel(Data, services.Devices, services.ControlDevices, navigator);
         Activity = new MobileActivityViewModel(Data, Tools, navigator);
         Settings = new MobileSettingsViewModel(Data, services, navigator);
+        Storage = new MobileStorageViewModel(navigator);
         Tabs =
         [
             new MobileTabViewModel(
@@ -56,6 +57,7 @@ public sealed class MobileShellViewModel : ObservableViewModel, IDisposable
     public MobileDevicesViewModel Devices { get; }
     public MobileActivityViewModel Activity { get; }
     public MobileSettingsViewModel Settings { get; }
+    public MobileStorageViewModel Storage { get; }
     public IReadOnlyList<MobileTabViewModel> Tabs { get; }
 
     public MobileToolDetailViewModel? ToolDetail { get; private set; }

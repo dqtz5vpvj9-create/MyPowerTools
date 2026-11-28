@@ -73,6 +73,13 @@ public sealed class AssistantSync
     /// <summary>Returns null when no provider share exists; otherwise downloads without the sender.</summary>
     public Func<AssistantManifest, string, Action<long, long>, CancellationToken, Task<string?>>? CloudDownloader { get; init; }
 
+    /// <summary>
+    /// Optional post-download exporter (used on Android to publish completed files into the user's
+    /// authorized external directory). Returns a replacement handle (e.g. <c>content://</c> URI) when
+    /// the external copy supersedes the private inbox file, or <see langword="null"/> to keep the saved path.
+    /// </summary>
+    public Func<AssistantItem, string, CancellationToken, Task<string?>>? OnFileDownloaded { get; init; }
+
     private Task SetRouteAsync(AssistantItem item, string? route, CancellationToken token) =>
         item.Kind == AssistantItemKind.Text ? Task.CompletedTask :
         MutateItemAsync(item.Id, state => { if (state.Find(item.Id) is { } live) live.TransportRoute = route; }, token);
@@ -577,7 +584,7 @@ public sealed class AssistantSync
 
     private async Task<Exception?> DownloadAsync(AssistantState state, AssistantIdentity identity, AssistantItem item, CancellationToken token)
     {
-        if (item.LocalPath is { Length: > 0 } local && File.Exists(local))
+        if (item.LocalPath is { Length: > 0 } local && (AssistantContent.IsExternalContentUri(local) || File.Exists(local)))
         {
             await MutateItemAsync(item.Id, changed =>
             {
@@ -604,6 +611,14 @@ public sealed class AssistantSync
         try
         {
             var saved = await DownloadPayloadAsync(identity, item, token);
+            if (OnFileDownloaded is { } onDownloaded)
+            {
+                var exported = await onDownloaded(item, saved, token);
+                if (exported is { Length: > 0 })
+                {
+                    saved = exported;
+                }
+            }
             var received = false;
             await MutateItemAsync(item.Id, changed =>
             {

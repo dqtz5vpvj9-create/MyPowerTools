@@ -35,6 +35,12 @@ public sealed class MobileSettingsViewModel : ObservableViewModel
         ModuleUpdatesCommand = new AsyncRelayCommand(
             () => navigator.ShowSheetAsync(MobileSheetKeys.ModuleUpdates),
             operationName: "Show module hot updates");
+        ExternalDirectoryCommand = new AsyncRelayCommand(
+            () => navigator.ShowSheetAsync(MobileSheetKeys.StorageSetup),
+            operationName: "Show external directory settings");
+        StorageManagerCommand = new AsyncRelayCommand(
+            () => navigator.ShowPageAsync(MobilePageKeys.Storage),
+            operationName: "Open storage manager");
         ThemeOptions =
         [
             new MobileThemeOptionViewModel("跟随系统", ShellAppearanceService.SystemTheme, SetThemeAsync),
@@ -50,6 +56,8 @@ public sealed class MobileSettingsViewModel : ObservableViewModel
     public ICommand AppearanceCommand { get; }
     public ICommand AboutCommand { get; }
     public ICommand ModuleUpdatesCommand { get; }
+    public ICommand ExternalDirectoryCommand { get; }
+    public ICommand StorageManagerCommand { get; }
     public IReadOnlyList<MobileThemeOptionViewModel> ThemeOptions { get; }
 
     public string Title => "设置";
@@ -76,6 +84,26 @@ public sealed class MobileSettingsViewModel : ObservableViewModel
         : "同步服务尚未就绪";
 
     public string ModuleUpdatesSummary => MobileModuleUpdateBridge.Current?.GetState().Summary ?? "Tailscale 内网优先 · 公网代理回退";
+    public string ExternalDirectorySummary => MobileStorageBridge.Current?.GetExternalDirectoryState().DisplayPath ?? "系统下载目录 / Download / MPT";
+    public string StorageUsageSummary { get; private set; } = "查看应用占用与清理缓存";
+
+    public void UpdateStorageSummary(MobileStorageBreakdown? breakdown)
+    {
+        if (breakdown is null)
+        {
+            StorageUsageSummary = "查看应用占用与清理缓存";
+        }
+        else
+        {
+            var cleanable = breakdown.TotalCleanableCacheBytes + breakdown.CleanableTransferBytes;
+            StorageUsageSummary = cleanable > 0
+                ? $"已用 {MobileByteFormatter.Format(breakdown.TotalAppBytes)} · 可清理 {MobileByteFormatter.Format(cleanable)}"
+                : $"已用 {MobileByteFormatter.Format(breakdown.TotalAppBytes)}";
+        }
+
+        OnPropertyChanged(nameof(StorageUsageSummary));
+        OnPropertyChanged(nameof(ExternalDirectorySummary));
+    }
     public bool HasModuleUpdater => MobileModuleUpdateBridge.Current is not null;
     public MobileModuleUpdateSourceConfig GetModuleUpdateConfig() =>
         MobileModuleUpdateBridge.Current?.GetConfig() ?? MobileModuleUpdateSourceConfig.CreateDefault();
@@ -166,6 +194,17 @@ public sealed class MobileSettingsViewModel : ObservableViewModel
         }
 
         RaiseSnapshotProperties();
+        if (MobileStorageBridge.Current is { } storage)
+        {
+            try
+            {
+                var breakdown = await storage.InspectAsync().ConfigureAwait(true);
+                UpdateStorageSummary(breakdown);
+            }
+            catch
+            {
+            }
+        }
     }
 
     /// <summary>Persists through the shared appearance preference (same file the desktop uses).</summary>
@@ -195,6 +234,8 @@ public sealed class MobileSettingsViewModel : ObservableViewModel
         OnPropertyChanged(nameof(DeviceNotice));
         OnPropertyChanged(nameof(HasDeviceNotice));
         OnPropertyChanged(nameof(ModuleUpdatesSummary));
+        OnPropertyChanged(nameof(ExternalDirectorySummary));
+        OnPropertyChanged(nameof(StorageUsageSummary));
         foreach (var option in ThemeOptions)
         {
             option.IsSelected = string.Equals(option.Value, _appearance.CurrentTheme, StringComparison.OrdinalIgnoreCase);

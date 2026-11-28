@@ -4,14 +4,21 @@ using A = global::Android;
 namespace MyPowerTools.Platform.Android;
 
 /// <summary>
-/// Publishes a completed private file into the user's Downloads collection through MediaStore.
-/// The pending flag keeps a partially copied file invisible to other apps, the display name is
-/// resolved against existing downloads so nothing is overwritten, and the private source file is
-/// removed only after the MediaStore row is finalised.
+/// Publishes a completed private file into the user's authorized external directory (Storage Access
+/// Framework tree URI when granted) or falls back to the system Downloads collection through
+/// MediaStore (<c>Download/MPT</c>).
+/// <para>
+/// Display names are resolved against existing entries so nothing is overwritten, partial writes
+/// never appear as completed files, and the private staging file is deleted only after the external
+/// file has been committed cleanly.
+/// </para>
 /// </summary>
 public sealed class AndroidDownloadsService : IDownloadsService
 {
-    public async Task PublishAsync(string path, CancellationToken cancellationToken)
+    public Task PublishAsync(string path, CancellationToken cancellationToken) =>
+        PublishAndLocateAsync(path, cancellationToken);
+
+    public async Task<string?> PublishAndLocateAsync(string path, CancellationToken cancellationToken)
     {
         ArgumentException.ThrowIfNullOrWhiteSpace(path);
         cancellationToken.ThrowIfCancellationRequested();
@@ -20,8 +27,290 @@ public sealed class AndroidDownloadsService : IDownloadsService
             throw new FileNotFoundException("要发布的文件不存在。", path);
         }
 
-        var resolver = A.App.Application.Context.ContentResolver
+        var context = A.App.Application.Context;
+        var resolver = context.ContentResolver
             ?? throw new InvalidOperationException("Android 内容服务不可用。");
+
+        string? publishedUri = null;
+        var config = AndroidExternalStoragePreferences.Load();
+        if (config.Mode == AndroidExternalStorageConfig.ModeSaf &&
+            config.TreeUri.Length > 0 &&
+            HasPersistedWritePermission(context, config.TreeUri))
+        {
+            try
+            {
+                publishedUri = await PublishToSafTreeAsync(resolver, config.TreeUri, path, cancellationToken)
+                    .ConfigureAwait(false);
+            }
+            catch (OperationCanceledException)
+            {
+                throw;
+            }
+            catch (Exception ex)
+            {
+                A.Util.Log.Warn("MyPowerTools", "写入已授权外部目录失败，回退系统下载目录: " + ex.Message);
+            }
+        }
+
+        if (publishedUri is null)
+        {
+            publishedUri = await PublishToMediaStoreAsync(resolver, path, cancellationToken).ConfigureAwait(false);
+        }
+
+        // The external file is already committed; a staging copy that cannot be removed is a cache
+        // leftover, not a publish failure.
+        try
+        {
+            File.Delete(path);
+        }
+        catch (Exception ex)
+        {
+            A.Util.Log.Warn("MyPowerTools", "删除已发布的私有副本失败: " + ex.Message);
+        }
+
+        return publishedUri;
+    }
+
+    public static bool HasPersistedWritePermission(A.Content.Context context, string? treeUriString)
+    {
+        if (string.IsNullOrWhiteSpace(treeUriString))
+        {
+            return false;
+        }
+
+        var resolver = context.ContentResolver;
+        if (resolver is null)
+        {
+            return false;
+        }
+
+        try
+        {
+            var permissions = resolver.PersistedUriPermissions;
+            if (permissions is null)
+            {
+                return false;
+            }
+
+            foreach (var permission in permissions)
+            {
+                if (permission.IsReadPermission &&
+                    permission.IsWritePermission &&
+                    string.Equals(permission.Uri?.ToString(), treeUriString, StringComparison.Ordinal))
+                {
+                    return true;
+                }
+            }
+        }
+        catch
+        {
+            return false;
+        }
+
+        return false;
+    }
+
+    /// <summary>Counts files and total bytes inside the user's authorized SAF directory (read-only).</summary>
+    public static (int FileCount, long TotalBytes, bool Accessible) InspectSafTree(A.Content.Context context, string treeUriString)
+    {
+        if (!HasPersistedWritePermission(context, treeUriString))
+        {
+            return (0, 0, false);
+        }
+
+        var resolver = context.ContentResolver;
+        if (resolver is null)
+        {
+            return (0, 0, false);
+        }
+
+        try
+        {
+            var treeUri = A.Net.Uri.Parse(treeUriString);
+            if (treeUri is null)
+            {
+                return (0, 0, false);
+            }
+
+            var docId = A.Provider.DocumentsContract.GetTreeDocumentId(treeUri);
+            if (string.IsNullOrWhiteSpace(docId))
+            {
+                return (0, 0, false);
+            }
+
+            var childrenUri = A.Provider.DocumentsContract.BuildChildDocumentsUriUsingTree(treeUri, docId);
+            if (childrenUri is null)
+            {
+                return (0, 0, false);
+            }
+
+            var projection = new[]
+            {
+                A.Provider.DocumentsContract.Document.ColumnMimeType,
+                A.Provider.DocumentsContract.Document.ColumnSize
+            };
+            using var cursor = resolver.Query(childrenUri, projection, null, null, null);
+            if (cursor is null)
+            {
+                return (0, 0, false);
+            }
+
+            var mimeIndex = cursor.GetColumnIndex(A.Provider.DocumentsContract.Document.ColumnMimeType);
+            var sizeIndex = cursor.GetColumnIndex(A.Provider.DocumentsContract.Document.ColumnSize);
+            var count = 0;
+            long totalBytes = 0;
+            while (cursor.MoveToNext())
+            {
+                var mime = mimeIndex >= 0 ? cursor.GetString(mimeIndex) : null;
+                if (string.Equals(mime, A.Provider.DocumentsContract.Document.MimeTypeDir, StringComparison.Ordinal))
+                {
+                    continue;
+                }
+
+                count++;
+                if (sizeIndex >= 0 && !cursor.IsNull(sizeIndex))
+                {
+                    totalBytes += Math.Max(0, cursor.GetLong(sizeIndex));
+                }
+            }
+
+            return (count, totalBytes, true);
+        }
+        catch
+        {
+            return (0, 0, false);
+        }
+    }
+
+    /// <summary>Counts files and total bytes this app published into MediaStore <c>Download/MPT</c>.</summary>
+    public static (int FileCount, long TotalBytes) InspectMediaStoreDownloads(A.Content.Context context)
+    {
+        var resolver = context.ContentResolver;
+        if (resolver is null)
+        {
+            return (0, 0);
+        }
+
+        try
+        {
+            var projection = new[] { A.Provider.MediaStore.IMediaColumns.Size };
+            using var cursor = resolver.Query(
+                A.Provider.MediaStore.Downloads.ExternalContentUri!,
+                projection,
+                $"{A.Provider.MediaStore.IMediaColumns.RelativePath} LIKE ?",
+                [DownloadPublication.RelativeDirectory + "/%"],
+                null);
+            if (cursor is null)
+            {
+                return (0, 0);
+            }
+
+            var sizeIndex = cursor.GetColumnIndex(A.Provider.MediaStore.IMediaColumns.Size);
+            var count = 0;
+            long totalBytes = 0;
+            while (cursor.MoveToNext())
+            {
+                count++;
+                if (sizeIndex >= 0 && !cursor.IsNull(sizeIndex))
+                {
+                    totalBytes += Math.Max(0, cursor.GetLong(sizeIndex));
+                }
+            }
+
+            return (count, totalBytes);
+        }
+        catch
+        {
+            return (0, 0);
+        }
+    }
+
+    private static async Task<string> PublishToSafTreeAsync(
+        A.Content.ContentResolver resolver,
+        string treeUriString,
+        string sourcePath,
+        CancellationToken cancellationToken)
+    {
+        var treeUri = A.Net.Uri.Parse(treeUriString)
+            ?? throw new IOException("已授权的外部目录 URI 无效。");
+        var treeDocId = A.Provider.DocumentsContract.GetTreeDocumentId(treeUri)
+            ?? throw new IOException("无法解析外部目录标识。");
+        var parentDocUri = A.Provider.DocumentsContract.BuildDocumentUriUsingTree(treeUri, treeDocId)
+            ?? throw new IOException("无法定位外部目录。");
+
+        var existingNames = ExistingSafNames(resolver, treeUri, treeDocId);
+        var displayName = DownloadPublication.UniqueDisplayName(
+            DownloadPublication.SanitizeDisplayName(sourcePath),
+            existingNames.Contains);
+        var mimeType = DownloadPublication.MimeTypeFor(displayName, AndroidMimeType);
+
+        A.Net.Uri? created = null;
+        try
+        {
+            created = A.Provider.DocumentsContract.CreateDocument(resolver, parentDocUri, mimeType, displayName)
+                ?? throw new IOException("无法在已授权目录中创建文件。");
+            await using (var input = File.OpenRead(sourcePath))
+            await using (var output = resolver.OpenOutputStream(created) ?? throw new IOException("无法写入外部目录文件。"))
+            {
+                await input.CopyToAsync(output, cancellationToken).ConfigureAwait(false);
+                await output.FlushAsync(cancellationToken).ConfigureAwait(false);
+            }
+
+            cancellationToken.ThrowIfCancellationRequested();
+            return created.ToString() ?? throw new IOException("外部文件创建后未返回有效链接。");
+        }
+        catch
+        {
+            if (created is not null)
+            {
+                try { A.Provider.DocumentsContract.DeleteDocument(resolver, created); }
+                catch { }
+            }
+
+            throw;
+        }
+    }
+
+    private static HashSet<string> ExistingSafNames(A.Content.ContentResolver resolver, A.Net.Uri treeUri, string treeDocId)
+    {
+        var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var childrenUri = A.Provider.DocumentsContract.BuildChildDocumentsUriUsingTree(treeUri, treeDocId);
+        if (childrenUri is null)
+        {
+            return names;
+        }
+
+        try
+        {
+            var projection = new[] { A.Provider.DocumentsContract.Document.ColumnDisplayName };
+            using var cursor = resolver.Query(childrenUri, projection, null, null, null);
+            if (cursor is null)
+            {
+                return names;
+            }
+
+            var nameIndex = cursor.GetColumnIndex(A.Provider.DocumentsContract.Document.ColumnDisplayName);
+            while (cursor.MoveToNext())
+            {
+                if (nameIndex >= 0 && cursor.GetString(nameIndex) is { Length: > 0 } name)
+                {
+                    names.Add(name);
+                }
+            }
+        }
+        catch
+        {
+            // If listing fails, DocumentsContract.CreateDocument still deduplicates names on its own.
+        }
+
+        return names;
+    }
+
+    private static async Task<string> PublishToMediaStoreAsync(
+        A.Content.ContentResolver resolver,
+        string path,
+        CancellationToken cancellationToken)
+    {
         var existingNames = ExistingNames(resolver);
         var displayName = DownloadPublication.UniqueDisplayName(
             DownloadPublication.SanitizeDisplayName(path),
@@ -40,8 +329,8 @@ public sealed class AndroidDownloadsService : IDownloadsService
             await using (var input = File.OpenRead(path))
             await using (var output = resolver.OpenOutputStream(uri) ?? throw new IOException("无法写入下载文件。"))
             {
-                await input.CopyToAsync(output, cancellationToken);
-                await output.FlushAsync(cancellationToken);
+                await input.CopyToAsync(output, cancellationToken).ConfigureAwait(false);
+                await output.FlushAsync(cancellationToken).ConfigureAwait(false);
             }
 
             cancellationToken.ThrowIfCancellationRequested();
@@ -51,11 +340,11 @@ public sealed class AndroidDownloadsService : IDownloadsService
             {
                 throw new IOException("无法完成下载文件发布。");
             }
+
+            return uri.ToString() ?? throw new IOException("下载文件发布后未返回有效链接。");
         }
         catch
         {
-            // A cancelled or failed copy must not leave a pending MediaStore row behind. The private
-            // source file is kept so the module can report the failure and the user can retry.
             if (uri is not null)
             {
                 TryDeletePendingRow(resolver, uri);
@@ -63,28 +352,11 @@ public sealed class AndroidDownloadsService : IDownloadsService
 
             throw;
         }
-
-        // The download is already visible in MediaStore; a private copy that cannot be removed is a
-        // cache leftover, not a publish failure.
-        try
-        {
-            File.Delete(path);
-        }
-        catch (Exception ex)
-        {
-            A.Util.Log.Warn("MyPowerTools", "删除已发布的私有副本失败: " + ex.Message);
-        }
     }
 
     private static string? AndroidMimeType(string extension) =>
         A.Webkit.MimeTypeMap.Singleton?.GetMimeTypeFromExtension(extension);
 
-    /// <summary>
-    /// Names already published under <see cref="DownloadPublication.RelativeDirectory"/>. Scoped
-    /// storage only exposes this app's own contributions without a read permission, which is exactly
-    /// the set that must not be overwritten; MediaStore still resolves collisions with files owned by
-    /// other apps on its own.
-    /// </summary>
     private static HashSet<string> ExistingNames(A.Content.ContentResolver resolver)
     {
         var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);

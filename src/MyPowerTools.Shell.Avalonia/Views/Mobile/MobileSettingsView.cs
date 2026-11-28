@@ -29,6 +29,11 @@ internal sealed class MobileSettingsView : UserControl
         var appearance = MobileElements.ListRow("appearance", "外观", "", "", viewModel.AppearanceCommand, "外观");
         BindRowSubtitle(appearance, viewModel, nameof(MobileSettingsViewModel.AppearanceLabel));
 
+        var externalDir = MobileElements.ListRow("folder", "外部保存目录", "", "更改", viewModel.ExternalDirectoryCommand, "外部保存目录");
+        BindRowSubtitle(externalDir, viewModel, nameof(MobileSettingsViewModel.ExternalDirectorySummary));
+        var storageRow = MobileElements.ListRow("storage", "存储空间", "", "管理", viewModel.StorageManagerCommand, "存储空间");
+        BindRowSubtitle(storageRow, viewModel, nameof(MobileSettingsViewModel.StorageUsageSummary));
+
         var permissions = MobileElements.ListRow("shield", "设备权限与审计", "查看已允许的操作与 Broker 记录", "", viewModel.PermissionsCommand, "设备权限与审计");
         var relay = MobileElements.ListRow("cloud", "文件同步", "", "", viewModel.RelayCommand, "文件同步");
         BindRowSubtitle(relay, viewModel, nameof(MobileSettingsViewModel.RelaySummary));
@@ -47,6 +52,7 @@ internal sealed class MobileSettingsView : UserControl
             MobileElements.PageTitle(viewModel.Title),
             notice,
             MobileElements.Section("我的手机", MobileElements.Card(phone, "MptMobileListCard")),
+            MobileElements.Section("文件与存储", MobileElements.ListCard(externalDir, storageRow)),
             MobileElements.Section("外观与偏好", MobileElements.Card(appearance, "MptMobileListCard")),
             MobileElements.Section("连接与安全", MobileElements.ListCard(permissions, relay)),
             MobileElements.Section("更新与关于", MobileElements.ListCard(moduleUpdates, about)),

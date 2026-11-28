@@ -167,7 +167,9 @@ internal sealed partial class AssistantView
                 MobileUi.Caption(item.SizeText + (item.NeedsDownload ? " · 点按下载" : " · 点按打开"))
             }};
             Control fileBody = fileText;
-            if (item.IsImage && PreviewImage(item.LocalPath, 160) is { } image)
+            if (item.IsImage && item.LocalPath is { Length: > 0 } previewPath &&
+                !previewPath.StartsWith("content://", StringComparison.OrdinalIgnoreCase) &&
+                PreviewImage(previewPath, 160) is { } image)
                 fileBody = new StackPanel { Spacing = 6, Children = { image, fileText } };
             var file = new Button { Content = fileBody, Padding = new Thickness(0), MinHeight = 44, Background = Brushes.Transparent,
                 BorderThickness = new Thickness(0), HorizontalContentAlignment = HorizontalAlignment.Stretch };
@@ -211,7 +213,8 @@ internal sealed partial class AssistantView
         Add("转发", () => { _pendingForward = item; ShowDeviceSheet(); return Task.CompletedTask; });
         if (item.IsFile) Add("保存副本", () => SaveCopyAsync(item));
         // Check only when the menu is opened; a deleted received copy can be fetched again.
-        var missingReceivedFile = item.IsIncoming && item.IsFile && item.State == AssistantItemState.Available && !File.Exists(item.LocalPath);
+        var isExternalUri = item.LocalPath is { Length: > 0 } lp && lp.StartsWith("content://", StringComparison.OrdinalIgnoreCase);
+        var missingReceivedFile = item.IsIncoming && item.IsFile && item.State == AssistantItemState.Available && !isExternalUri && !File.Exists(item.LocalPath);
         if (item.CanRetry || missingReceivedFile)
             Add(missingReceivedFile ? "重新下载" : item.IsIncoming ? "重试接收" : "重试", async () => { CloseSheet(); await _core.RetryAsync(item.Id); });
         if (item.CanCancel) Add(item.IsIncoming ? "取消接收" : "取消发送", async () => { CloseSheet(); await _core.CancelAsync(item.Id); });

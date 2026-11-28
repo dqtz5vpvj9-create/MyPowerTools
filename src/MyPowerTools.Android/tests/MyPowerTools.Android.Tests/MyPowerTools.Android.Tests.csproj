@@ -32,6 +32,8 @@
     <Compile Include="../../Input/AndroidImeHost.cs" Link="Input/AndroidImeHost.cs" />
     <Compile Include="../../Rendering/SurfaceLifetimeGlPlatformSurface.cs" Link="Rendering/SurfaceLifetimeGlPlatformSurface.cs" />
     <Compile Include="../../../MyPowerTools.AvaloniaSdk/CloudAuthorization.cs" Link="CloudAuthorization/CloudCallbackRules.cs" />
+    <Compile Include="../../../MyPowerTools.Shell.Avalonia/Services/Mobile/MobileStorageContract.cs" Link="Storage/MobileStorageContract.cs" />
+    <Compile Include="../../Storage/AndroidStorageCore.cs" Link="Storage/AndroidStorageCore.cs" />
   </ItemGroup>
 
   <ItemGroup>

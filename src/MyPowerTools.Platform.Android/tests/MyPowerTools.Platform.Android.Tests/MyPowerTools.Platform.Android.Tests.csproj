@@ -14,6 +14,7 @@
          on a build machine without a device or emulator. -->
     <Compile Include="../../ForegroundActivityCoordinator.cs" Link="ForegroundActivityCoordinator.cs" />
     <Compile Include="../../DownloadPublication.cs" Link="DownloadPublication.cs" />
+    <Compile Include="../../AndroidExternalStoragePreferences.cs" Link="AndroidExternalStoragePreferences.cs" />
     <Compile Include="../../AndroidUnsupportedServices.cs" Link="AndroidUnsupportedServices.cs" />
   </ItemGroup>
 

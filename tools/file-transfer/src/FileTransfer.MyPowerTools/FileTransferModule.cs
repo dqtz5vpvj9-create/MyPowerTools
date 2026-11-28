@@ -106,16 +106,20 @@ public sealed partial class FileTransferModule : IMptModule
         return new InitializeResult(true, context.ProtocolVersion, ["status", "commands", "settings", "logs"]);
     }
 
-    /// <summary>Publishes a completed file into the user's Downloads collection and remembers failures.</summary>
-    private async Task PublishAsync(string path, CancellationToken token)
+    /// <summary>Publishes a completed file into the user's authorized external directory (or Downloads) and remembers failures.</summary>
+    private Task PublishAsync(string path, CancellationToken token) =>
+        PublishAndLocateAsync(path, token);
+
+    private async Task<string?> PublishAndLocateAsync(string path, CancellationToken token)
     {
         await _publishing.WaitAsync(token);
         try
         {
             try
             {
-                await _downloads!.PublishAsync(path, token);
+                var published = await _downloads!.PublishAndLocateAsync(path, token);
                 await _publishes.RemoveAsync(path, CancellationToken.None);
+                return published;
             }
             catch
             {

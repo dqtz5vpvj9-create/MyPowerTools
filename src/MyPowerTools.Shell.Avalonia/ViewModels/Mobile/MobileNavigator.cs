@@ -8,6 +8,7 @@ public static class MobilePageKeys
     public const string Devices = "mobile.devices";
     public const string Activity = "mobile.activity";
     public const string Settings = "mobile.settings";
+    public const string Storage = "mobile.storage";
     public const string ToolDetail = "mobile.tool";
     public const string DeviceDetail = "mobile.device";
 
@@ -25,6 +26,7 @@ public static class MobileSheetKeys
     public const string Appearance = "sheet.appearance";
     public const string About = "sheet.about";
     public const string ModuleUpdates = "sheet.module-updates";
+    public const string StorageSetup = "sheet.storage-setup";
     public const string PeerActions = "sheet.peer";
 }
 

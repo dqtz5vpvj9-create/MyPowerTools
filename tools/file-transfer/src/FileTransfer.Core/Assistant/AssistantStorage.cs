@@ -7,7 +7,7 @@ public sealed partial class AssistantStore
 {
     private bool OwnsDownloadedFile(AssistantItem item)
     {
-        if (item.LocalPath is not { Length: > 0 } path) return false;
+        if (item.LocalPath is not { Length: > 0 } path || AssistantContent.IsExternalContentUri(path)) return false;
         var root = Path.GetFullPath(InboxRoot) + Path.DirectorySeparatorChar;
         var full = Path.GetFullPath(path);
         if (!full.StartsWith(root, OperatingSystem.IsWindows() ? StringComparison.OrdinalIgnoreCase : StringComparison.Ordinal)) return false;

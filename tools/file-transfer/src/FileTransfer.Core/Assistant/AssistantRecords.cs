@@ -199,9 +199,12 @@ public static class AssistantJson
 /// <summary>Read-only helpers over stored entries; the Surface uses them for opening and badges.</summary>
 public static class AssistantContent
 {
+    public static bool IsExternalContentUri(string? path) =>
+        path is { Length: > 0 } && path.StartsWith("content://", StringComparison.OrdinalIgnoreCase);
+
     public static bool HasLocalContent(AssistantItem item) => item.Kind == AssistantItemKind.Text
         ? item.Text is not null
-        : item.LocalPath is { Length: > 0 } path && File.Exists(path);
+        : item.LocalPath is { Length: > 0 } path && (IsExternalContentUri(path) || File.Exists(path));
 
     public static AssistantOpenTarget OpenTarget(AssistantItem item)
     {

@@ -694,6 +694,14 @@ public sealed class MobileShellView : UserControl, IAsyncDisposable, IMobileNavi
             {
                 await ReloadCurrentPageAsync().ConfigureAwait(true);
             }
+
+            if (Volatile.Read(ref _disposed) == 0 &&
+                MobileStorageBridge.Current is { NeedsInitialSetup: true } &&
+                !_viewModel.IsSheetOpen &&
+                !_viewModel.IsToolSurfaceOpen)
+            {
+                await ShowSheetAsync(MobileSheetKeys.StorageSetup).ConfigureAwait(true);
+            }
         }
         catch (Exception ex)
         {
@@ -714,6 +722,7 @@ public sealed class MobileShellView : UserControl, IAsyncDisposable, IMobileNavi
             MobilePageKeys.Devices => new MobileDevicesView(_viewModel.Devices, this),
             MobilePageKeys.Activity => new MobileActivityView(_viewModel.Activity),
             MobilePageKeys.Settings => new MobileSettingsView(_viewModel.Settings, this),
+            MobilePageKeys.Storage => new MobileStorageView(_viewModel.Storage, this),
             MobilePageKeys.ToolDetail when _viewModel.ToolDetail is { } detail => new MobileToolDetailView(detail, this),
             MobilePageKeys.DeviceDetail when _viewModel.DeviceDetail is { } detail => new MobileDeviceDetailView(detail, this),
             _ => (Control)MobileElements.EmptyState("页面不存在", "返回上一页继续。", "返回", new AsyncRelayCommand(GoBackPageAsync))
@@ -753,6 +762,10 @@ public sealed class MobileShellView : UserControl, IAsyncDisposable, IMobileNavi
                     break;
                 case MobilePageKeys.Settings:
                     await _viewModel.Settings.LoadAsync(force).ConfigureAwait(true);
+                    break;
+                case MobilePageKeys.Storage:
+                    await _viewModel.Storage.LoadAsync(force: true).ConfigureAwait(true);
+                    _viewModel.Settings.UpdateStorageSummary(_viewModel.Storage.Breakdown);
                     break;
                 case MobilePageKeys.ToolDetail:
                     await _viewModel.Tools.LoadAsync(force).ConfigureAwait(true);
@@ -988,6 +1001,7 @@ public sealed class MobileShellView : UserControl, IAsyncDisposable, IMobileNavi
             MobileSheetKeys.Appearance => BuildAppearanceSheet(),
             MobileSheetKeys.About => BuildAboutSheet(),
             MobileSheetKeys.ModuleUpdates => BuildModuleUpdatesSheet(),
+            MobileSheetKeys.StorageSetup => BuildStorageSetupSheet(),
             MobileSheetKeys.PeerActions => BuildPeerActionsSheet(_viewModel.SheetArgument),
             _ => ("操作", "", (Control)MobileElements.Caption("这个操作还没有接入。"))
         };
@@ -1398,6 +1412,109 @@ public sealed class MobileShellView : UserControl, IAsyncDisposable, IMobileNavi
         stack.Children.Add(MobileElements.Caption("仅下载变更模块（约 100~650 KB），SHA-256 校验后原地生效。"));
 
         return ("模块热更新", state.Summary, stack);
+    }
+
+    private (string Title, string Subtitle, Control Content) BuildStorageSetupSheet()
+    {
+        var manager = MobileStorageBridge.Current;
+        var current = manager?.GetExternalDirectoryState();
+        var isFirstSetup = manager?.NeedsInitialSetup == true;
+
+        var pathTitle = MobileElements.Text(
+            current?.DisplayPath ?? "系统下载目录 / Download / MPT",
+            "MptMobileRowTitle");
+        var statusLine = MobileElements.Text(
+            current?.StatusSummary ?? "尚未授权外部目录",
+            "MptMobileRowSubtitle");
+        var statusCopy = new StackPanel { Spacing = 3, VerticalAlignment = VerticalAlignment.Center };
+        statusCopy.Children.Add(pathTitle);
+        statusCopy.Children.Add(statusLine);
+
+        var statusRow = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*"), ColumnSpacing = 12 };
+        var icon = MobileIcons.Badge("folder", 40, 20);
+        Grid.SetColumn(icon, 0);
+        statusRow.Children.Add(icon);
+        Grid.SetColumn(statusCopy, 1);
+        statusRow.Children.Add(statusCopy);
+
+        var statusCard = MobileElements.Banner("", "MptMobileBannerQuiet");
+        statusCard.Child = statusRow;
+
+        var tipBanner = MobileElements.Banner(
+            "建议在系统选择器中打开「下载 (Download)」目录，新建或选择 MPT 文件夹，再点击底部的「使用此文件夹」。之后所有接收的安装包和文件都会直接保存在该目录，方便系统文件管理器直接管理。",
+            "MptMobileBannerInfo");
+
+        Button pickButton = null!;
+        pickButton = MobileElements.Primary("选择并授权外部目录（推荐）", new AsyncRelayCommand(async () =>
+        {
+            if (manager is null)
+            {
+                ShowToast("当前环境不支持外部目录授权。");
+                return;
+            }
+
+            pickButton.IsEnabled = false;
+            try
+            {
+                var result = await manager.PickExternalDirectoryAsync().ConfigureAwait(true);
+                pathTitle.Text = result.State.DisplayPath;
+                statusLine.Text = result.State.StatusSummary;
+                _viewModel.Settings.UpdateStorageSummary(_viewModel.Storage.Breakdown);
+                if (!result.Cancelled)
+                {
+                    ShowToast(result.Message);
+                }
+
+                if (result.Succeeded)
+                {
+                    await CloseSheetAsync().ConfigureAwait(true);
+                }
+            }
+            finally
+            {
+                pickButton.IsEnabled = true;
+            }
+        }), "选择并授权外部目录");
+
+        var fallbackButton = MobileElements.Secondary(
+            isFirstSetup ? "先使用系统下载目录（Download/MPT）" : "改用系统下载目录（Download/MPT）",
+            new AsyncRelayCommand(async () =>
+            {
+                if (manager is not null)
+                {
+                    manager.UseSystemDownloadsFallback();
+                    _viewModel.Settings.UpdateStorageSummary(_viewModel.Storage.Breakdown);
+                    ShowToast("已设为系统下载目录（Download/MPT）");
+                }
+
+                await CloseSheetAsync().ConfigureAwait(true);
+            }),
+            "使用系统下载目录");
+
+        var manageStorageBtn = MobileElements.TextButton(
+            "查看应用已占用空间",
+            new AsyncRelayCommand(async () =>
+            {
+                await CloseSheetAsync().ConfigureAwait(true);
+                await ShowPageAsync(MobilePageKeys.Storage).ConfigureAwait(true);
+            }),
+            "查看应用已占用空间");
+
+        var stack = new StackPanel { Spacing = 12 };
+        stack.Children.Add(statusCard);
+        stack.Children.Add(tipBanner);
+        stack.Children.Add(pickButton);
+        stack.Children.Add(fallbackButton);
+        if (!isFirstSetup)
+        {
+            stack.Children.Add(manageStorageBtn);
+        }
+
+        var title = isFirstSetup ? "设置文件保存目录" : "外部保存目录";
+        var subtitle = isFirstSetup
+            ? "授权一个外部文件夹，让收到的文件可被外部文件管理器直接管理。"
+            : "更换接收文件的外部保存位置。";
+        return (title, subtitle, stack);
     }
 
     private (string Title, string Subtitle, Control Content) BuildAboutSheet()

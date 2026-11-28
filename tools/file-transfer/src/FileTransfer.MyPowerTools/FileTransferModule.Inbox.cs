@@ -311,7 +311,15 @@ public sealed partial class FileTransferModule
                     var directory = Path.Combine(store.InboxRoot, item.ItemId);
                     Directory.CreateDirectory(directory);
                     var saved = TransferFiles.Commit(temporary, directory, TransferFiles.FileName(item.Name ?? "来件"));
-                    await store.AdoptAsync(Identity(), AdoptedItem(item, saved, bytes, null, sourceRelay), token);
+                    var adopted = await store.AdoptAsync(Identity(), AdoptedItem(item, saved, bytes, null, sourceRelay), token);
+                    var exported = await PublishDownloadedItemAsync(adopted, saved, token);
+                    if (exported is { Length: > 0 })
+                    {
+                        await store.MutateAsync(current =>
+                        {
+                            if (current.Find(adopted.Id) is { } live) live.LocalPath = exported;
+                        }, token);
+                    }
                 }
                 finally
                 {

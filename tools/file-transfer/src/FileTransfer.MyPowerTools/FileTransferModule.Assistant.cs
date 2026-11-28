@@ -575,6 +575,7 @@ public sealed partial class FileTransferModule
                 },
                 CloudPublisher = (message, payload, cancel) => PublishCloudAttachmentAsync(identity, message, payload, cancel),
                 CloudDownloader = CustomRelayConfigured ? null : DownloadCloudShareAsync,
+                OnFileDownloaded = (downloadedItem, savedPath, cancel) => PublishDownloadedItemAsync(downloadedItem, savedPath, cancel),
                 PublishFilter = item => (!CloudOnly || item.Kind == AssistantItemKind.Text || DefaultCloudAccount is not null) && item.TargetDeviceId is null && AssistantConversations.IsShared(item, identity.ConversationId)
             };
             var result = await sync.SyncAsync(identity, token);
@@ -1290,6 +1291,7 @@ public sealed partial class FileTransferModule
             await new AssistantSync(_assistantStore!, cloud) { ItemCancellation = ItemToken, Changed = NotifyAssistantTransferChanged,
                 SharedTransport = shared,
                 DefaultTransportRoute = CustomRelayConfigured ? "webdav" : "public-relay",
+                OnFileDownloaded = (downloadedItem, savedPath, cancel) => PublishDownloadedItemAsync(downloadedItem, savedPath, cancel),
                 IncomingTransportRoute = CustomRelayConfigured ? null : async (message, cancel) =>
                 {
                     using var relay = new FileTransfer.Core.Cloud.CloudRelayClient(identity.ConversationId, _conversationKey);
@@ -1798,30 +1800,60 @@ public sealed partial class FileTransferModule
                 : store.GetInboxPath(item);
         }
         var adopted = await store.AdoptAsync(Identity(), item, token);
-        if (adopted.Kind != AssistantItemKind.Text) await PublishCopyAsync(store, adopted, token);
+        if (adopted.Kind != AssistantItemKind.Text && adopted.LocalPath is { Length: > 0 } adoptedPath)
+        {
+            var exported = await PublishDownloadedItemAsync(adopted, adoptedPath, token);
+            if (exported is { Length: > 0 })
+            {
+                await store.MutateAsync(current =>
+                {
+                    if (current.Find(adopted.Id) is { } live) live.LocalPath = exported;
+                }, token);
+            }
+        }
         EmitAssistantChanged("received");
         SignalAssistant();
     }
 
-    /// <summary>Publishes a throwaway copy to the downloads folder; the durable original stays untouched.</summary>
-    private async Task PublishCopyAsync(AssistantStore store, AssistantItem item, CancellationToken token)
+    /// <summary>
+    /// Exports a received file to the user's authorized external directory (or system Downloads).
+    /// Non-image files are handed off directly and their private inbox duplicate is removed so
+    /// external file managers own the single copy; images keep a private thumbnail cache until the
+    /// user cleans it in the Storage Manager.
+    /// </summary>
+    private async Task<string?> PublishDownloadedItemAsync(AssistantItem item, string sourcePath, CancellationToken token)
     {
-        if (_downloads is null) return;
-        var source = item.LocalPath is { Length: > 0 } local && File.Exists(local)
-            ? local : store.GetPayloadPath(item);
-        if (source is not { Length: > 0 } || !File.Exists(source)) return;
+        if (_downloads is null || item.Kind == AssistantItemKind.Text) return null;
+        if (string.IsNullOrWhiteSpace(sourcePath) || !File.Exists(sourcePath)) return null;
         var directory = Path.Combine(_data, "publish", Guid.NewGuid().ToString("N"));
         try
         {
             Directory.CreateDirectory(directory);
-            var copy = Path.Combine(directory, TransferFiles.FileName(item.Name ?? Path.GetFileName(source)));
-            File.Copy(source, copy, true);
-            await PublishAsync(copy, token);
+            var copy = Path.Combine(directory, TransferFiles.FileName(item.Name ?? Path.GetFileName(sourcePath)));
+            File.Copy(sourcePath, copy, true);
+            var publishedUri = await PublishAndLocateAsync(copy, token);
+            if (publishedUri is { Length: > 0 } && item.Kind != AssistantItemKind.Image)
+            {
+                try
+                {
+                    File.Delete(sourcePath);
+                    var parent = Path.GetDirectoryName(sourcePath);
+                    if (!string.IsNullOrWhiteSpace(parent) && Directory.Exists(parent) && !Directory.EnumerateFileSystemEntries(parent).Any())
+                    {
+                        Directory.Delete(parent, recursive: false);
+                    }
+                }
+                catch (IOException) { }
+                catch (UnauthorizedAccessException) { }
+                return publishedUri;
+            }
+            return null;
         }
         catch (OperationCanceledException) { throw; }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException or InvalidOperationException or NotSupportedException)
         {
-            // The message is already durable and openable; a downloads copy is a convenience only.
+            // The message is already durable and openable; keep the private copy if external publish failed.
+            return null;
         }
         finally
         {

@@ -48,6 +48,9 @@ internal static class MobileIcons
     private const string PathStar = "M12,2 L15.09,8.26 L22,9.27 L17,14.14 L18.18,21.02 L12,17.77 L5.82,21.02 L7,14.14 L2,9.27 L8.91,8.26 Z";
     private const string PathSliders = "M4,21 V14 M4,10 V3 M12,21 V12 M12,8 V3 M20,21 V16 M20,12 V3 M1,14 H7 M9,8 H15 M17,16 H23";
     private const string PathSpark = "M13,2 L3,14 H12 L11,22 L21,10 H12 L13,2 Z";
+    private const string PathFolder = "M3,7 A2,2 0 0,1 5,5 H9.5 L11.5,7.5 H19 A2,2 0 0,1 21,9.5 V18 A2,2 0 0,1 19,20 H5 A2,2 0 0,1 3,18 Z";
+    private const string PathStorage = "M4,6 C4,4.34 7.58,3 12,3 C16.42,3 20,4.34 20,6 V18 C20,19.66 16.42,21 12,21 C7.58,21 4,19.66 4,18 Z M4,6 C4,7.66 7.58,9 12,9 C16.42,9 20,7.66 20,6 M4,12 C4,13.66 7.58,15 12,15 C16.42,15 20,13.66 20,12";
+    private const string PathTrash = "M3,6 H21 M8,6 V4 A1,1 0 0,1 9,3 H15 A1,1 0 0,1 16,4 V6 M19,6 L18,20 A2,2 0 0,1 16,22 H8 A2,2 0 0,1 6,20 L5,6 M10,11 V17 M14,11 V17";
 
     public static IconSpec Resolve(string? keyOrGlyph)
     {
@@ -103,6 +106,12 @@ internal static class MobileIcons
                 new(PathStar, "#FFFBEB", "#94A3B8", "#2B2516", "#64748B"),
             "star-filled" or "★" =>
                 new(PathStar, "#FFFBEB", "#F59E0B", "#3B2D14", "#FBBF24", Filled: true),
+            "folder" =>
+                new(PathFolder, "#ECFDF5", "#059669", "#14332A", "#34D399"),
+            "storage" =>
+                new(PathStorage, "#EBF3FF", "#2563EB", "#1B2E4F", "#60A5FA"),
+            "trash" =>
+                new(PathTrash, "#FEF2F2", "#DC2626", "#3B181E", "#F87171"),
             _ =>
                 new(PathSpark, "#EBF3FF", "#2563EB", "#1B2E4F", "#60A5FA")
         };

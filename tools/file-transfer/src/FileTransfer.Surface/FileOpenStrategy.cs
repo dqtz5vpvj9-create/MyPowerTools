@@ -41,7 +41,8 @@ internal static class FileOpenStrategy
         CancellationToken cancellationToken)
     {
         if (string.IsNullOrWhiteSpace(path)) return new(FileOpenOutcome.Failed, "没有可打开的文件。");
-        if (!File.Exists(path)) return new(FileOpenOutcome.Failed, "本地文件已不在设备上，请重新下载后打开。");
+        var isContentUri = path.StartsWith("content://", StringComparison.OrdinalIgnoreCase);
+        if (!isContentUri && !File.Exists(path)) return new(FileOpenOutcome.Failed, "本地文件已不在设备上，请重新下载后打开。");
 
         if (platformOpen is not null)
         {

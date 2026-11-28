@@ -5,8 +5,8 @@
     <OutputType>Exe</OutputType>
     <ApplicationId>com.mypowertools.android</ApplicationId>
     <ApplicationTitle>MyPowerTools</ApplicationTitle>
-    <ApplicationVersion>25</ApplicationVersion>
-    <ApplicationDisplayVersion>0.2.23</ApplicationDisplayVersion>
+    <ApplicationVersion>26</ApplicationVersion>
+    <ApplicationDisplayVersion>0.2.24</ApplicationDisplayVersion>
     <ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable>
     <!-- The SurfaceHolder/EGL lifetime bridge targets the pinned Avalonia 12.0.5 renderer API. -->
     <AvaloniaAccessUnstablePrivateApis>true</AvaloniaAccessUnstablePrivateApis>

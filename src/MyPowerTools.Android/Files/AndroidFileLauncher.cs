@@ -55,6 +55,11 @@ public static class AndroidFileLauncher
             throw MptFileOpenErrors.LaunchFailed("应用上下文不可用。");
         }
 
+        if (path.StartsWith("content://", StringComparison.OrdinalIgnoreCase))
+        {
+            return await OpenContentUriAsync(context, path, cancellationToken).ConfigureAwait(false);
+        }
+
         var policy = MptSharedFileRoots.Policy(context);
         var verdict = policy.Evaluate(path, out var file);
         if (verdict != SharedFileAccessVerdict.Allowed)
@@ -168,4 +173,131 @@ public static class AndroidFileLauncher
     /// <summary>The platform's extension map, used only when the built-in table has no answer.</summary>
     private static string? SystemMimeType(string extension) =>
         A.Webkit.MimeTypeMap.Singleton?.GetMimeTypeFromExtension(extension);
+
+    /// <summary>
+    /// Opens an already-exported external file (<c>content://</c> URI from SAF or MediaStore)
+    /// directly in the system viewer / package installer after verifying read access.
+    /// </summary>
+    private static async Task<bool> OpenContentUriAsync(
+        A.Content.Context context,
+        string contentUriString,
+        CancellationToken cancellationToken)
+    {
+        var uri = A.Net.Uri.Parse(contentUriString)
+            ?? throw MptFileOpenErrors.LaunchFailed("外部文件链接格式无效。");
+        var resolver = context.ContentResolver
+            ?? throw MptFileOpenErrors.LaunchFailed("Android 内容服务不可用。");
+
+        try
+        {
+            using var descriptor = resolver.OpenAssetFileDescriptor(uri, "r")
+                ?? throw MptFileOpenErrors.LaunchFailed("文件已被外部应用移走或删除，请在消息菜单中重新下载。");
+        }
+        catch (MptFileOpenException)
+        {
+            throw;
+        }
+        catch (Exception ex)
+        {
+            throw MptFileOpenErrors.LaunchFailed("文件已不在外部目录或目录授权已失效，请重新下载或重新授权目录。", ex);
+        }
+
+        var displayName = ResolveContentDisplayName(resolver, uri) ?? "download";
+        var resolvedMime = resolver.GetType(uri);
+        MptCurrentActivity.EnsureRegistered(context);
+        if (cancellationToken.IsCancellationRequested)
+        {
+            return false;
+        }
+
+        var launched = await AndroidMainThread
+            .InvokeAsync(() => StartContentViewer(context, uri, displayName, resolvedMime), cancellationToken)
+            .ConfigureAwait(false);
+        if (launched)
+        {
+            AndroidStartupLog.Info(LogStage, "已把外部目录文件交给系统查看器（content-uri）。");
+        }
+
+        return launched;
+    }
+
+    private static string? ResolveContentDisplayName(A.Content.ContentResolver resolver, A.Net.Uri uri)
+    {
+        try
+        {
+            using var cursor = resolver.Query(uri, [A.Provider.IOpenableColumns.DisplayName], null, null, null);
+            if (cursor?.MoveToFirst() == true)
+            {
+                return cursor.GetString(0);
+            }
+        }
+        catch
+        {
+        }
+
+        return uri.LastPathSegment;
+    }
+
+    private static bool StartContentViewer(
+        A.Content.Context context,
+        A.Net.Uri uri,
+        string displayName,
+        string? resolvedMime)
+    {
+        var plan = SharedFileViewPlan.Create(displayName, SystemMimeType);
+        var attempts = new List<string>();
+        if (!string.IsNullOrWhiteSpace(resolvedMime) &&
+            !string.Equals(resolvedMime, "*/*", StringComparison.Ordinal) &&
+            !string.Equals(resolvedMime, "application/octet-stream", StringComparison.OrdinalIgnoreCase))
+        {
+            attempts.Add(resolvedMime);
+        }
+
+        foreach (var mime in plan.MimeAttempts)
+        {
+            if (!attempts.Contains(mime, StringComparer.OrdinalIgnoreCase))
+            {
+                attempts.Add(mime);
+            }
+        }
+
+        var activity = MptCurrentActivity.Current;
+        var host = (A.Content.Context?)activity ?? context;
+        A.Content.ActivityNotFoundException? notFound = null;
+
+        foreach (var mimeType in attempts)
+        {
+            var isPackage = mimeType == "application/vnd.android.package-archive";
+#pragma warning disable CA1422
+            var intent = new A.Content.Intent(isPackage ? A.Content.Intent.ActionInstallPackage : A.Content.Intent.ActionView);
+#pragma warning restore CA1422
+            intent.SetDataAndType(uri, mimeType);
+            intent.AddFlags(A.Content.ActivityFlags.GrantReadUriPermission);
+            intent.ClipData = A.Content.ClipData.NewRawUri(displayName, uri);
+            if (activity is null)
+            {
+                intent.AddFlags(A.Content.ActivityFlags.NewTask);
+            }
+
+            try
+            {
+                host.StartActivity(intent);
+                return true;
+            }
+            catch (A.Content.ActivityNotFoundException ex)
+            {
+                notFound = ex;
+            }
+            catch (Java.Lang.SecurityException ex)
+            {
+                throw MptFileOpenErrors.LaunchFailed("系统拒绝了外部文件读取授权。", ex);
+            }
+            catch (Java.Lang.Exception ex)
+            {
+                throw MptFileOpenErrors.LaunchFailed(string.Empty, ex);
+            }
+        }
+
+        throw MptFileOpenErrors.NoViewer(displayName, notFound);
+    }
 }
