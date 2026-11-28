@@ -104,6 +104,7 @@ public sealed partial class TransferView : UserControl, IMptAvaloniaSurfaceActiv
     {
         if (_mobile is { } existing) return existing;
         var mobile = new TransferMobileView(_context, _core);
+        mobile.ExitRequested += (_, _) => ShowAdvanced(false);
         _mobile = mobile;
         if (_lastWidth > 0) mobile.ApplyViewport(_lastWidth);
         if (_activated) mobile.Attach();

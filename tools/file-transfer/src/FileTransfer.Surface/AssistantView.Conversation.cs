@@ -26,6 +26,7 @@ internal sealed partial class AssistantView
     private readonly TextBox _pairCode = MobileUi.FieldBox("粘贴对方的连接码");
     private readonly TextBlock _pairPreview = MobileUi.Caption("");
     private string? _previewedPairCode;
+    private string? _previewingPairCode;
     private Button? _pairConfirm;
 
     internal string? SelectedTargetDeviceId => _targetDeviceId;
@@ -57,55 +58,118 @@ internal sealed partial class AssistantView
     private void ShowPairSheet()
     {
         _sheetTitle.Text = "添加设备";
+        _pairPreview.Text = "";
+        _pairPreview.IsVisible = false;
+        _previewedPairCode = null;
         _pairConfirm = MobileUi.PrimaryButton("确认添加");
         _pairConfirm.IsEnabled = false;
-
+        _pairConfirm.MinHeight = 44;
         _pairConfirm.Click += async (_, _) => await RunAsync(ConfirmPairAsync);
+
         var preview = MobileUi.SecondaryButton("预览设备");
+        preview.MinHeight = 44;
         preview.Click += async (_, _) => await RunAsync(PreviewPairAsync);
-        var scan = MobileUi.SecondaryButton("扫描二维码") ;
+
+        var scan = MobileUi.SecondaryButton("扫描二维码");
         scan.IsVisible = _context.ScanConnectionCodeAsync is not null;
         scan.Click += async (_, _) => await RunAsync(async () =>
         {
             var code = await _context.ScanConnectionCodeAsync!(_lifetime.Token);
-            if (!_sheetOpen || _sheetTitle.Text != "添加设备" || string.IsNullOrWhiteSpace(code)) return;
-            _pairCode.Text = code;
+            if (!_sheetOpen || _sheetTitle.Text != "添加设备") return;
+            if (string.IsNullOrWhiteSpace(code)) { ShowSheetFeedback("已取消扫码。"); return; }
+            _pairCode.Text = code.Trim();
             await PreviewPairAsync();
         });
+
+        var actionRow = new Grid { ColumnDefinitions = new ColumnDefinitions("*,*"), ColumnSpacing = 10 };
+        Grid.SetColumn(preview, 0); actionRow.Children.Add(preview);
+        Grid.SetColumn(_pairConfirm, 1); actionRow.Children.Add(_pairConfirm);
+
+        var codeCard = MobileUi.Inset(MobileUi.Stack(10,
+            MobileUi.FieldLabel("对方设备的连接码"),
+            _pairCode,
+            _pairPreview,
+            actionRow));
+
         var export = MobileUi.QuietButton("显示我的文件互传码");
-        export.Click += async (_, _) => await RunAsync(ShowMyPairCodeAsync);
-        _sheetScroll.Content = MobileUi.Stack(8, MobileUi.Caption("仅允许文件互传，不共享自己的会话或电脑控制权限。"), scan,
-            _pairCode, _pairPreview, preview, _pairConfirm, export);
+        export.Click += async (_, _) => await RunAsync(async () =>
+        {
+            export.IsEnabled = false;
+            try { await ShowMyPairCodeAsync(); }
+            finally { export.IsEnabled = true; }
+        });
+
+        _sheetScroll.Content = MobileUi.Stack(12,
+            MobileUi.Caption("仅允许文件互传，不共享自己的会话或电脑控制权限。"),
+            scan,
+            codeCard,
+            MobileUi.Divider(),
+            export);
         OpenSheet();
     }
 
     private async Task ShowMyPairCodeAsync()
     {
+        ClearSheetFeedback();
         var answer = await _legacy.CallAsync("pairing");
         var code = answer["code"]?.GetValue<string>() ?? "";
-        var qr = new MptQrCode { Value = code, Width = 240, Height = 240, HorizontalAlignment = HorizontalAlignment.Center };
+        if (string.IsNullOrWhiteSpace(code))
+            throw new InvalidOperationException("暂时无法生成本机文件互传码，请稍后重试。");
+        var qr = new MptQrCode { Value = code, Width = 228, Height = 228, HorizontalAlignment = HorizontalAlignment.Center };
+        var qrFrame = new Border
+        {
+            Child = qr,
+            Background = Brushes.White,
+            CornerRadius = new CornerRadius(16),
+            Padding = new Thickness(12),
+            HorizontalAlignment = HorizontalAlignment.Center
+        };
         var copy = MobileUi.SecondaryButton("复制连接码");
-        copy.Click += async (_, _) => await RunAsync(() => CopyTextAsync(code));
+        copy.Click += async (_, _) => await RunAsync(async () =>
+        {
+            await CopyTextAsync(code);
+            ShowSheetFeedback("文件互传码已复制，发给对方设备粘贴或扫码即可。");
+        });
         _sheetTitle.Text = "我的文件互传码";
-        _sheetScroll.Content = MobileUi.Stack(8, MobileUi.Caption("仅允许向这台设备发送文件和文字"), qr, copy);
+        _sheetScroll.Content = MobileUi.Stack(12,
+            MobileUi.Caption("仅允许向这台设备发送文件和文字"),
+            qrFrame,
+            copy);
     }
 
     private async Task PreviewPairAsync()
     {
         var code = (_pairCode.Text ?? "").Trim();
+        if (code.Length == 0)
+        {
+            _pairPreview.Text = "请先粘贴对方的连接码，或点上方扫描二维码。";
+            _pairPreview.IsVisible = true;
+            _previewedPairCode = null;
+            if (_pairConfirm is not null) _pairConfirm.IsEnabled = false;
+            return;
+        }
+        if (code == _previewingPairCode || code == _previewedPairCode) return;
+        _previewingPairCode = code;
         try
         {
             var result = await _legacy.CallAsync("pair.preview", new JsonObject { ["code"] = code });
             if (!_sheetOpen || _sheetTitle.Text != "添加设备" || (_pairCode.Text ?? "").Trim() != code) return;
-            _pairPreview.Text = (result["name"]?.GetValue<string>() ?? result["deviceName"]?.GetValue<string>() ?? "另一台设备") + " · 允许文件互传";
+            _pairPreview.Text = "已识别：" + (result["name"]?.GetValue<string>() ?? result["deviceName"]?.GetValue<string>() ?? "另一台设备") + " · 允许文件互传";
+            _pairPreview.IsVisible = true;
             _previewedPairCode = code;
-            _pairConfirm!.IsEnabled = true;
+            if (_pairConfirm is not null) _pairConfirm.IsEnabled = true;
+            ClearSheetFeedback();
         }
         catch
         {
             _pairPreview.Text = "无法识别此连接码，请检查是否完整，或请对方重新分享。";
+            _pairPreview.IsVisible = true;
             _previewedPairCode = null;
-            _pairConfirm!.IsEnabled = false;
+            if (_pairConfirm is not null) _pairConfirm.IsEnabled = false;
+        }
+        finally
+        {
+            if (_previewingPairCode == code) _previewingPairCode = null;
         }
     }
 
@@ -124,11 +188,13 @@ internal sealed partial class AssistantView
             else ShowDeviceSheet();
             _pairCode.Text = "";
             _pairPreview.Text = "";
+            _pairPreview.IsVisible = false;
             _previewedPairCode = null;
         }
-        catch
+        catch (Exception ex)
         {
-            _pairPreview.Text = "添加未完成，请重试或请对方重新分享连接码。";
+            _pairPreview.Text = ex.Message.Length > 0 ? ex.Message : "添加未完成，请重试或请对方重新分享连接码。";
+            _pairPreview.IsVisible = true;
             if (_pairConfirm is not null) _pairConfirm.IsEnabled = code == _previewedPairCode;
         }
     }

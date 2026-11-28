@@ -58,6 +58,8 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
     private readonly Border _sheetScrim;
     private readonly Border _sheetHost;
     private readonly ScrollViewer _sheetScroll;
+    private readonly Border _sheetFeedback;
+    private readonly TextBlock _sheetFeedbackText = MobileUi.Caption("");
     private readonly StackPanel _sheetInner = new() { Spacing = 10 };
     private readonly TextBlock _sheetTitle = MobileUi.With(new TextBlock(), MobileUi.Classes.SheetTitle);
     private readonly Button _sheetClose;
@@ -132,7 +134,13 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
         _input.AddHandler(KeyDownEvent, OnInputKeyDown, Avalonia.Interactivity.RoutingStrategies.Bubble, handledEventsToo: true);
         // Enablement follows the real text, not a later module refresh: typing must light up 发送.
         _input.TextChanged += (_, _) => { SyncComposer(); DraftChanged(); RefreshConversationNavigation(); };
-        _pairCode.TextChanged += (_, _) => { if (_pairConfirm is not null) _pairConfirm.IsEnabled = _previewedPairCode is not null && _pairCode.Text == _previewedPairCode; };
+        _pairCode.TextChanged += (_, _) =>
+        {
+            var trimmed = (_pairCode.Text ?? "").Trim();
+            if (_pairConfirm is not null) _pairConfirm.IsEnabled = _previewedPairCode is not null && trimmed == _previewedPairCode;
+            if (_sheetOpen && _sheetTitle.Text == "添加设备" && trimmed.StartsWith("mpt://pair/", StringComparison.Ordinal) && trimmed != _previewedPairCode)
+                _ = RunAsync(PreviewPairAsync);
+        };
 
         _attachFiles = MobileUi.With(new Button
         {
@@ -212,6 +220,12 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
         _linkSheet = BuildLinkSheet();
         _receiveSheet = BuildReceiveSheet();
 
+        _sheetFeedbackText.TextWrapping = TextWrapping.Wrap;
+        _sheetFeedback = MobileUi.Notice(_sheetFeedbackText);
+        _sheetFeedback.Margin = new Thickness(0);
+        _sheetFeedback.Padding = new Thickness(12, 9);
+        _sheetFeedback.IsVisible = false;
+
         // The content scrolls inside a bounded height, so a long sheet never runs past the screen and a
         // short one stays a sheet instead of a full-page panel.
         _sheetScroll = new ScrollViewer
@@ -223,7 +237,7 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
         };
         _sheetHost = MobileUi.With(new Border
         {
-            Child = MobileUi.Stack(10, BuildSheetHeader(), _sheetScroll),
+            Child = MobileUi.Stack(10, BuildSheetHeader(), _sheetFeedback, _sheetScroll),
             // A bottom sheet sizes to its content and sits on the bottom edge. Without this it
             // stretches to the whole page and paints an empty white panel over the conversation.
             VerticalAlignment = VerticalAlignment.Bottom,
@@ -553,20 +567,78 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
                 () => { ShowSheet(_receiveSheet); SyncReceive(); return Task.CompletedTask; }, tone: "purple")),
             CompactRow(MobileUi.ListRow("MptMobileIconSend", "设备私聊", "打开与一台设备的独立会话",
                 () => { ShowDeviceSheet(); return Task.CompletedTask; })),
-            CompactRow(MobileUi.ListRow("MptMobileIconPulse", "连接诊断", "查看最近的连接检查结果", () =>
+            CompactRow(MobileUi.ListRow("MptMobileIconPulse", "连接诊断", "检查中转服务、接收与设备连接状态", () =>
             {
-                _sheetTitle.Text = "连接诊断";
-                _sheetScroll.Content = MobileUi.Stack(8, MobileUi.Body(_core.Snapshot.DiscoveryMessage), MobileUi.Body(_core.Snapshot.RelayMessage));
-                OpenSheet();
+                ShowDiagnosticsSheet();
                 return Task.CompletedTask;
             }, tone: "neutral")));
 
-        var advanced = MobileUi.QuietButton("更多设置");
+        var advanced = MobileUi.QuietButton("经典批量传输（高级）");
         advanced.Click += (_, _) => _ = OpenAdvancedAsync();
         return MobileUi.Stack(10,
             primaryGroup,
             secondaryGroup,
             advanced);
+    }
+
+    private void ShowDiagnosticsSheet(string? feedback = null)
+    {
+        var state = _core.Snapshot;
+        var modeText = state.Identity.PublicRoomState switch
+        {
+            "public" => "公屏（已授权）",
+            "public-left" => "公屏（已退出）",
+            var p when p.StartsWith("public", StringComparison.Ordinal) => "公屏（等待授权）",
+            _ => state.Identity.Linked ? "私人共享会话（已关联）" : "仅本机保存"
+        };
+        var discoveryText = state.DiscoveryMessage.Length > 0 ? state.DiscoveryMessage : state.Discovery switch
+        {
+            AssistantDiscoveryState.Searching => "正在扫描局域网设备…",
+            AssistantDiscoveryState.Completed => "局域网扫描完成",
+            AssistantDiscoveryState.Partial => "局域网部分扫描完成",
+            AssistantDiscoveryState.Unsupported => "当前设备不支持局域网自动扫描",
+            AssistantDiscoveryState.Failed => "局域网扫描未完成",
+            _ => "尚未触发局域网扫描"
+        };
+        var rows = MobileUi.Stack(8,
+            MobileUi.ReceiptRow("本机设备", CleanDeviceLabel(state.Identity.DisplayName)),
+            MobileUi.ReceiptRow("当前模式", modeText),
+            MobileUi.ReceiptRow("中转状态", state.RelayText),
+            MobileUi.ReceiptRow("自动接收", state.Receiving ? "已开启" : "已暂停"),
+            MobileUi.ReceiptRow("设备发现", discoveryText));
+        var body = MobileUi.Stack(12, MobileUi.ReceiptSurface(rows));
+        if (state.RelayMessage.Length > 0)
+            body.Children.Add(MobileUi.With(MobileUi.Notice(MobileUi.Caption("中转详情：" + state.RelayMessage)), "warning"));
+        if (state.Identity.AuthorizationError.Length > 0)
+            body.Children.Add(MobileUi.With(MobileUi.Notice(MobileUi.Caption("授权异常：" + state.Identity.AuthorizationError)), "warning"));
+
+        var check = MobileUi.SecondaryButton("立即检测连接");
+        check.Click += async (_, _) => await RunAsync(async () =>
+        {
+            check.IsEnabled = false;
+            check.Content = "正在检测…";
+            try
+            {
+                await _core.SyncAsync();
+                await _core.RefreshAsync();
+                var latest = _core.Snapshot;
+                ShowDiagnosticsSheet(latest.Relay == AssistantRelayState.Available
+                    ? "检测完成：中转服务连接正常。"
+                    : "检测完成：" + latest.RelayText);
+            }
+            finally
+            {
+                check.IsEnabled = true;
+                check.Content = "立即检测连接";
+            }
+        });
+        body.Children.Add(check);
+
+        _sheetTitle.Text = "连接诊断";
+        _sheetScroll.Content = body;
+        OpenSheet();
+        if (feedback is { Length: > 0 })
+            ShowSheetFeedback(feedback, isWarning: _core.Snapshot.RelayBlocked);
     }
 
     /// <summary>
@@ -735,13 +807,41 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
 
     private void OpenSheet()
     {
+        ClearSheetFeedback();
         _sheetOpen = true;
         _sheetScrim.IsVisible = true;
+    }
+
+    private void ShowSheetFeedback(string message, bool isWarning = false)
+    {
+        if (string.IsNullOrWhiteSpace(message))
+        {
+            ClearSheetFeedback();
+            return;
+        }
+        _sheetFeedbackText.Text = message;
+        if (isWarning)
+        {
+            if (!_sheetFeedback.Classes.Contains("warning")) _sheetFeedback.Classes.Add("warning");
+        }
+        else
+        {
+            _sheetFeedback.Classes.Remove("warning");
+        }
+        _sheetFeedback.IsVisible = true;
+    }
+
+    private void ClearSheetFeedback()
+    {
+        _sheetFeedbackText.Text = "";
+        _sheetFeedback.Classes.Remove("warning");
+        _sheetFeedback.IsVisible = false;
     }
 
     internal void CloseSheet()
     {
         if (!_sheetOpen) return;
+        ClearSheetFeedback();
         CloseCloudAccounts();
         _sheetOpen = false;
         _pendingForward = null;
@@ -1434,6 +1534,7 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
         if (token.IsCancellationRequested || !_sheetOpen) return;
         await CopyTextAsync(code);
         _core.PublishOnUi(_core.Snapshot with { Status = "连接码已复制，在另一台设备上导入即可。" });
+        ShowSheetFeedback("连接码已复制，在另一台设备上导入即可。");
     }
 
     /// <summary>
@@ -1573,6 +1674,11 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
     {
         try { await action(); }
         catch (OperationCanceledException) { }
-        catch (Exception ex) { _core.PublishOnUi(_core.Snapshot with { Status = ex.Message }); }
+        catch (Exception ex)
+        {
+            var message = FriendlyStatus(ex.Message);
+            _core.PublishOnUi(_core.Snapshot with { Status = ex.Message });
+            if (_sheetOpen) ShowSheetFeedback(message, isWarning: true);
+        }
     }
 }

@@ -34,6 +34,9 @@ internal sealed partial class TransferMobileView : UserControl, IMptAvaloniaSurf
     private readonly MptAvaloniaSurfaceContext _context;
     private readonly TransferCore _core;
 
+    /// <summary>Raised when the user taps Back from the root step to return to the chat surface.</summary>
+    public event EventHandler? ExitRequested;
+
     // --- step host: every step is rebuilt from fresh controls, so nothing here is reused
     private readonly StackPanel _stepHost = new() { Spacing = 14 };
     private readonly Border _contentCard = MobileUi.Card(new StackPanel { Spacing = 14 });
@@ -154,15 +157,26 @@ internal sealed partial class TransferMobileView : UserControl, IMptAvaloniaSurf
     {
         var row = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto"), ColumnSpacing = 8 };
         _headerBack = MobileUi.BackButton("返回");
-        _headerBack.Click += (_, _) => TryHandleBack();
+        _headerBack.Click += (_, _) =>
+        {
+            if (!TryHandleBack()) ExitRequested?.Invoke(this, EventArgs.Empty);
+        };
         Grid.SetColumn(_headerBack, 0);
         row.Children.Add(_headerBack);
-        var title = MobileUi.PageTitle("文件互传");
+        var title = MobileUi.PageTitle("批量传输");
+        title.FontSize = 18;
+        title.LineHeight = 26;
         title.VerticalAlignment = VerticalAlignment.Center;
         title.HorizontalAlignment = HorizontalAlignment.Center;
         Grid.SetColumn(title, 1);
         row.Children.Add(title);
-        var manage = MobileUi.IconButton("MptMobileIconSettings", "连接与接收设置");
+        var manage = MobileUi.With(new Button
+        {
+            Content = MobileUi.Icon("MptMobileIconSettings", MobileUi.Classes.Icon, MobileUi.Classes.IconSecondary),
+            MinWidth = MobileUi.IconTarget,
+            MinHeight = MobileUi.IconTarget
+        }, MobileUi.Classes.IconButton);
+        Avalonia.Automation.AutomationProperties.SetName(manage, "连接与接收设置");
         manage.Click += (_, _) => ShowManageSheet();
         Grid.SetColumn(manage, 2);
         row.Children.Add(manage);
@@ -212,7 +226,8 @@ internal sealed partial class TransferMobileView : UserControl, IMptAvaloniaSurf
     {
         var state = _core.Snapshot;
         var step = StepFor(state);
-        if (_headerBack is not null) _headerBack.IsVisible = step == TransferStep.Device;
+        if (_headerBack is not null) _headerBack.IsVisible = step != TransferStep.Progress;
+        _status.IsVisible = !string.IsNullOrWhiteSpace(_status.Text) && !(step == TransferStep.Files && state.Files.Count == 0 && _status.Text == "选择要发送的文件。");
         // Every step builds a fresh tree and reuses only controls that are removed with it, so a
         // re-render can never try to add a control that still has a parent.
         _stepHost.Children.Clear();
@@ -441,7 +456,8 @@ internal sealed partial class TransferMobileView : UserControl, IMptAvaloniaSurf
     {
         var state = _core.Snapshot;
         _status.Text = state.Status;
-        _status.IsVisible = state.Status.Length > 0 && !state.HasResult;
+        var redundantIdlePrompt = StepFor(state) == TransferStep.Files && state.Files.Count == 0 && state.Status == "选择要发送的文件。";
+        _status.IsVisible = state.Status.Length > 0 && !state.HasResult && !redundantIdlePrompt;
 
         if (state.HasResult && !_resultShown)
         {
