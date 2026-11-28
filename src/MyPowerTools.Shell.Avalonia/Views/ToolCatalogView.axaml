@@ -51,23 +51,6 @@
       <Border Classes="MptLoadingSkeleton" Height="84" />
     </StackPanel>
 
-    <Border Classes="MptErrorState"
-            IsVisible="{Binding IsFailed}">
-      <Grid adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="*,Auto"
-            ColumnSpacing="{DynamicResource MptSpacingM}">
-        <StackPanel Spacing="{DynamicResource MptSpacingXs}">
-          <TextBlock Classes="MptCardTitle"
-                     Text="Your tools couldn't be loaded" />
-          <TextBlock Classes="MptPageSubtitle"
-                     Text="{Binding ErrorMessage}" />
-        </StackPanel>
-        <controls:MptButton Grid.Column="1"
-                            Classes="MptPrimaryButton"
-                            Content="Try again"
-                            Command="{Binding RetryCommand}"
-                            VerticalAlignment="Center" />
-      </Grid>
-    </Border>
 
     <Border Classes="MptEmptyState"
             IsVisible="{Binding IsEmpty}">

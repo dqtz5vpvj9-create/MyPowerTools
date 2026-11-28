@@ -4,7 +4,7 @@ using MyPowerTools.AvaloniaSdk;
 
 namespace MyPowerTools.Shell.Avalonia.ViewModels;
 
-public sealed class ExternalSdkToolViewModel : ShellPageViewModel, IDisposable
+public sealed partial class ExternalSdkToolViewModel : ShellPageViewModel, IDisposable
 {
     private string _surfaceState = "loading";
     private string _surfaceMessage = "Opening…";
@@ -149,7 +149,7 @@ public sealed class ExternalSdkToolViewModel : ShellPageViewModel, IDisposable
     {
         SurfaceState = state;
         SurfaceMessage = string.IsNullOrWhiteSpace(message)
-            ? state == "ready" ? "Connected." : "It may still be starting. Try again in a moment."
+            ? state == "ready" ? "Connected." : "It may still be starting."
             : message;
     }
 

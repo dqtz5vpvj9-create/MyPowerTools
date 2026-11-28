@@ -290,7 +290,10 @@ public sealed partial class MainWindow
         {
             _workspaceOpened.TrySetResult(true);
             ShellCommandFaultLog.Write("Initialize Shell workspace", ex, "startup");
-            RequireControl<ContentControl>(_chrome, "ContentHost").Content = new MptErrorState(ex.Message);
+            RequireControl<ContentControl>(_chrome, "ContentHost").Content = new MptErrorState(
+                "MyPowerTools couldn't finish starting.",
+                "Restart MyPowerTools",
+                ShellRecoveryActions.RestartApplication);
         }
     }
 }

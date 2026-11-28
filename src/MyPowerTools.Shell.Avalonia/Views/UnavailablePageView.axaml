@@ -5,23 +5,54 @@
              xmlns:vm="using:MyPowerTools.Shell.Avalonia.ViewModels"
              x:Class="MyPowerTools.Shell.Avalonia.Views.UnavailablePageView"
              x:DataType="vm:UnavailablePageViewModel">
-  <StackPanel Margin="{DynamicResource MptPagePadding}" Spacing="{DynamicResource MptSpacingM}">
-    <StackPanel Spacing="{DynamicResource MptSpacingXs}">
-      <TextBlock Classes="MptPageTitle" Text="{Binding Title}" />
-    </StackPanel>
+  <StackPanel MaxWidth="{DynamicResource MptLayoutSettingsMaxWidth}"
+              HorizontalAlignment="Stretch"
+              Spacing="{DynamicResource MptSpacingL}">
+    <TextBlock Classes="MptPageTitle" Text="{Binding Title}" />
     <Border Classes="MptErrorState">
       <StackPanel Spacing="{DynamicResource MptSpacingM}">
         <TextBlock Text="{Binding Message}" TextWrapping="Wrap" />
+
+        <TextBlock Classes="MptMeta"
+                   Text="{Binding AttemptText}"
+                   IsVisible="{Binding HasAttemptText}"
+                   Foreground="{DynamicResource MptBrushWarning}"
+                   TextWrapping="Wrap" />
+
         <StackPanel adaptive:MptAdaptiveLayout.StackBelow="480" Orientation="Horizontal"
-                    Spacing="{DynamicResource MptSpacingS}"
-                    IsVisible="{Binding HasRetry}">
+                    Spacing="{DynamicResource MptSpacingS}">
           <controls:MptButton Classes="MptPrimaryButton"
-                              Content="Try again"
-                              Command="{Binding RetryCommand}" />
-          <controls:MptButton Content="Return to a safe page"
+                              Content="{Binding ActionLabel}"
+                              Command="{Binding RetryCommand}"
+                              IsVisible="{Binding HasRetry}"
+                              IsEnabled="{Binding IsIdle}" />
+          <controls:MptButton Content="Go to Home"
                               Command="{Binding ReturnCommand}"
-                              IsVisible="{Binding HasReturnAction}" />
+                              IsVisible="{Binding HasReturnAction}"
+                              IsEnabled="{Binding IsIdle}" />
         </StackPanel>
+
+        <TextBlock Classes="MptMeta"
+                   Text="{Binding ActionHint}"
+                   TextWrapping="Wrap">
+          <TextBlock.IsVisible>
+            <MultiBinding Converter="{x:Static BoolConverters.And}">
+              <Binding Path="HasActionHint" />
+              <Binding Path="IsIdle" />
+              <Binding Path="HasRetry" />
+            </MultiBinding>
+          </TextBlock.IsVisible>
+        </TextBlock>
+
+        <StackPanel Spacing="{DynamicResource MptSpacingXs}"
+                    IsVisible="{Binding IsRecovering}">
+          <ProgressBar IsIndeterminate="True"
+                       HorizontalAlignment="Stretch" />
+          <TextBlock Classes="MptMeta"
+                     Text="{Binding ProgressText}"
+                     TextWrapping="Wrap" />
+        </StackPanel>
+
         <Expander Header="Technical details"
                   IsVisible="{Binding HasDetails}"
                   HorizontalAlignment="Stretch">

@@ -41,23 +41,6 @@
       <Border Classes="MptLoadingSkeleton" Height="96" />
     </StackPanel>
 
-    <Border Classes="MptErrorState"
-            IsVisible="{Binding IsFailed}">
-      <StackPanel Spacing="{DynamicResource MptSpacingM}">
-        <TextBlock Classes="MptSectionTitle"
-                   Text="This tool could not be opened" />
-        <TextBlock Classes="MptPageSubtitle"
-                   Text="{Binding ErrorMessage}" />
-        <StackPanel adaptive:MptAdaptiveLayout.StackBelow="480" Orientation="Horizontal"
-                    Spacing="{DynamicResource MptSpacingS}">
-          <controls:MptButton Classes="MptPrimaryButton"
-                              Content="Try again"
-                              Command="{Binding RetryCommand}" />
-          <controls:MptButton Content="Return to tools"
-                              Command="{Binding BrowseAllToolsCommand}" />
-        </StackPanel>
-      </StackPanel>
-    </Border>
 
     <Border Classes="MptEmptyState"
             IsVisible="{Binding IsEmpty}">

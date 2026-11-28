@@ -59,7 +59,7 @@
           <TextBlock Classes="MptSectionTitle" Text="This tool couldn't be opened" />
           <TextBlock Text="{Binding SurfaceMessage}" TextWrapping="Wrap" />
           <StackPanel adaptive:MptAdaptiveLayout.StackBelow="480" Orientation="Horizontal" Spacing="{DynamicResource MptSpacingS}">
-            <controls:MptButton Classes="MptPrimaryButton" Content="Try again" Command="{Binding RefreshCommand}" />
+            <controls:MptButton Classes="MptPrimaryButton" Content="{Binding RecoveryActionLabel}" Command="{Binding RefreshCommand}" IsEnabled="{Binding IsRecoveryIdle}" />
             <controls:MptButton Content="Open externally" Command="{Binding OpenExternalCommand}" IsVisible="{Binding CanOpenExternal}" />
           </StackPanel>
         </StackPanel>

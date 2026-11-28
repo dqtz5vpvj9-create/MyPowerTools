@@ -461,7 +461,10 @@ public static class ShellRealScreenshotWriter
                 new GeneralSettingsView { DataContext = SampleGeneralSettings() })),
             new("tools-catalog", "tools", "shell.tools-catalog", "Tools Catalog", () => CreateProductShellChrome(
                 "Tools",
-                new ToolCatalogView { DataContext = SampleToolCatalog() }))
+                new ToolCatalogView { DataContext = SampleToolCatalog() })),
+            new("recovery-page", "recovery", "shell.recovery", "Recovery", () => CreateProductShellChrome(
+                "Home",
+                new UnavailablePageView { DataContext = SampleRecoveryPage() }))
         ];
     }
 
@@ -662,6 +665,27 @@ public static class ShellRealScreenshotWriter
             ShellAppearanceService.SystemTheme,
             _ => Task.CompletedTask,
             () => Task.CompletedTask);
+    }
+
+    private static UnavailablePageViewModel SampleRecoveryPage()
+    {
+        // Second rung: the first "Try again" already checked the service and reloaded.
+        var tracker = new ShellRecoveryTracker(() => new DateTimeOffset(2026, 11, 28, 1, 13, 5, TimeSpan.Zero));
+        tracker.RecordFailure("page:Home");
+        tracker.BeginAttempt("page:Home", ShellRecoveryStep.StartService);
+        var entry = tracker.RecordFailure("page:Home");
+        var failure = ShellFailurePresenter.Present(
+            new System.Net.Sockets.SocketException((int)System.Net.Sockets.SocketError.ConnectionRefused));
+        return new UnavailablePageViewModel(
+            "This page couldn't load",
+            failure.Message,
+            ShellRecoveryPlan.Present(
+                ShellRecoveryPlan.StepFor(ShellRecoveryPlan.KindOf(failure.Code), entry.Attempt),
+                ShellFailureSource.Runner,
+                entry),
+            () => Task.CompletedTask,
+            () => Task.CompletedTask,
+            failure.Details);
     }
 
     private static ToolCatalogViewModel SampleToolCatalog()

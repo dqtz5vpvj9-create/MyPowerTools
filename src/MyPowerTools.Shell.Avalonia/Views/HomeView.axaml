@@ -161,19 +161,6 @@
       <Border Classes="MptLoadingSkeleton" Height="240" />
     </StackPanel>
 
-    <Border Classes="MptErrorState"
-            IsVisible="{Binding IsFailed}">
-      <StackPanel Spacing="{DynamicResource MptSpacingM}">
-        <TextBlock Classes="MptCardTitle"
-                   Text="Home couldn't be loaded" />
-        <TextBlock Classes="MptPageSubtitle"
-                   Text="{Binding ErrorMessage}" />
-        <controls:MptButton Classes="MptPrimaryButton"
-                            Content="Try again"
-                            Command="{Binding RetryCommand}"
-                            HorizontalAlignment="Left" />
-      </StackPanel>
-    </Border>
 
     <Border Classes="MptEmptyState"
             IsVisible="{Binding IsEmpty}">

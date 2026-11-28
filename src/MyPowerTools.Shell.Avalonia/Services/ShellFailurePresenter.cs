@@ -68,7 +68,7 @@ internal static class ShellFailurePresenter
                 $"{service.CodePrefix}-access-denied",
                 JoinParagraphs(
                     $"{friendlySystem} blocked MyPowerTools from connecting to its {service.FriendlyName}.",
-                    "Close other copies of MyPowerTools or restart your computer, then select Try again."),
+                    "This usually happens when another copy of MyPowerTools runs under a different account."),
                 $"{friendlySystem} blocked the connection to the MyPowerTools {service.FriendlyName}.",
                 JoinParagraphs(paragraphs));
         }
@@ -78,8 +78,7 @@ internal static class ShellFailurePresenter
             return new ShellUserFacingFailure(
                 $"{service.CodePrefix}-credential-mismatch",
                 JoinParagraphs(
-                    $"MyPowerTools couldn't sign in to its {service.FriendlyName}.",
-                    "Restart MyPowerTools, then select Try again."),
+                    $"MyPowerTools couldn't sign in to its {service.FriendlyName}."),
                 $"Couldn't sign in to the MyPowerTools {service.FriendlyName}.",
                 JoinParagraphs(
                     $"The Shell reached the {service.DisplayName}, and {service.ProcessName} rejected its local credential.",
@@ -91,8 +90,7 @@ internal static class ShellFailurePresenter
             return new ShellUserFacingFailure(
                 $"{service.CodePrefix}-permission-denied",
                 JoinParagraphs(
-                    "MyPowerTools doesn't have permission to open this page.",
-                    "Check the tool's permissions in Settings, then select Try again."),
+                    "MyPowerTools doesn't have permission to open this page."),
                 "Permission was denied for this page.",
                 JoinParagraphs(
                     $"The {service.DisplayName} rejected this page request because the current MPT session lacks the required permission.",
@@ -104,8 +102,7 @@ internal static class ShellFailurePresenter
             return new ShellUserFacingFailure(
                 $"{service.CodePrefix}-timeout",
                 JoinParagraphs(
-                    "MyPowerTools is taking too long to respond.",
-                    "It may still be starting. Wait a moment, then select Try again."),
+                    "MyPowerTools is taking too long to respond. It may still be starting."),
                 "MyPowerTools didn't respond in time.",
                 JoinParagraphs(
                     $"The {service.DisplayName} did not respond within the allowed time.",
@@ -117,9 +114,6 @@ internal static class ShellFailurePresenter
         {
             // ServiceManager can be launched directly from this page's Try-again button
             // (ShellServiceManagerBootstrapper); the Runner cannot, so the copy differs.
-            var friendlyRecovery = source == ShellFailureSource.ServiceManager
-                ? "Select Try again to start it and reload this page."
-                : "It may be starting or restarting. Wait a moment, then select Try again.";
             var recoveryLine = source == ShellFailureSource.ServiceManager
                 ? "Select Try again to start it now and reload this page."
                 : $"The process is stopped, starting, or restarting during another development session. Wait for startup to finish or restart {service.ProcessName}, then select Try again.";
@@ -127,8 +121,7 @@ internal static class ShellFailurePresenter
             return new ShellUserFacingFailure(
                 $"{service.CodePrefix}-unavailable",
                 JoinParagraphs(
-                    $"The MyPowerTools {service.FriendlyName} isn't running.",
-                    friendlyRecovery),
+                    $"The MyPowerTools {service.FriendlyName} isn't running."),
                 $"The MyPowerTools {service.FriendlyName} isn't available.",
                 JoinParagraphs(
                     $"The Shell could not reach the {service.DisplayName}.",
@@ -140,8 +133,7 @@ internal static class ShellFailurePresenter
             return new ShellUserFacingFailure(
                 "local-file-missing",
                 JoinParagraphs(
-                    "Some files this page needs are missing.",
-                    "Updating or reinstalling MyPowerTools usually fixes this."),
+                    "Some files this page needs are missing."),
                 "Some required files are missing.",
                 JoinParagraphs(
                     "A local file required by this page is missing.",
@@ -153,8 +145,7 @@ internal static class ShellFailurePresenter
             return new ShellUserFacingFailure(
                 "local-data-invalid",
                 JoinParagraphs(
-                    "Some saved data couldn't be read.",
-                    "Select Try again. If it keeps happening, open Settings › Troubleshooting."),
+                    "Some saved data couldn't be read."),
                 "Some saved data couldn't be read.",
                 JoinParagraphs(
                     "MPT found invalid tool, package, or settings data while loading this page.",
@@ -164,8 +155,7 @@ internal static class ShellFailurePresenter
         return new ShellUserFacingFailure(
             "unexpected-page-failure",
             JoinParagraphs(
-                "Something went wrong while loading this page.",
-                "Select Try again. If it keeps happening, the technical details can help with troubleshooting."),
+                "Something went wrong while loading this page."),
             "Something went wrong while loading this page.",
             JoinParagraphs(
                 "MPT hit an unexpected local failure while loading this page.",

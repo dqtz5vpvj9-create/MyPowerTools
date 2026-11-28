@@ -26,6 +26,7 @@ internal static class Program
         var toolActivation = ToolActivationProtocol.Parse(args);
         var prewarmShell = args.Contains("--prewarm", StringComparer.OrdinalIgnoreCase);
         var shutdownShell = args.Contains("--shutdown-shell", StringComparer.OrdinalIgnoreCase);
+        ShellRelaunch.WaitForPreviousInstance(args);
         using var instanceLock = ShellInstanceLock.Acquire();
         if (!instanceLock.Acquired)
         {

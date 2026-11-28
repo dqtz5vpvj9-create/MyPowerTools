@@ -110,17 +110,7 @@ public sealed partial class ShellWorkspaceController
             if (IsStalePageFailure(nameof(LoadHomePageAsync), ex, identity)) return;
 
             var failure = ReportPageFailure(nameof(LoadHomePageAsync), ex);
-            var viewModel = new HomeViewModel(
-                [],
-                [],
-                [],
-                0,
-                ToolProductState.Failed,
-                failure.Message,
-                browseTools: () => ShowPageAsync(ToolsPage),
-                refresh: RefreshHomePageAsync,
-                retry: LoadHomePageAsync);
-            SetOwnedContent(_contentHost, new HomeView { DataContext = viewModel });
+            SetOwnedContent(_contentHost, BuildRecoveryPage(HomePage, failure, LoadHomePageAsync));
         }
     }
 
@@ -146,13 +136,7 @@ public sealed partial class ShellWorkspaceController
             if (IsStalePageFailure(nameof(LoadToolsPageAsync), ex, identity)) return;
 
             var failure = ReportPageFailure(nameof(LoadToolsPageAsync), ex);
-            var viewModel = new ToolCatalogViewModel(
-                [],
-                ToolProductState.Failed,
-                failure.Message,
-                refresh: RefreshToolsPageAsync,
-                retry: LoadToolsPageAsync);
-            SetOwnedContent(_contentHost, new ToolCatalogView { DataContext = viewModel });
+            SetOwnedContent(_contentHost, BuildRecoveryPage(ToolsPage, failure, LoadToolsPageAsync));
         }
     }
 
@@ -277,7 +261,7 @@ public sealed partial class ShellWorkspaceController
             }
 
             var failure = ReportPageFailure(nameof(ShowToolPageAsync), ex);
-            SetOwnedContent(_contentHost, BuildUnavailablePage("Tool", failure.Message, details: failure.Details, retry: () => ShowToolPageAsync(toolId)));
+            SetOwnedContent(_contentHost, BuildRecoveryPage("Tool", failure, () => ShowToolPageAsync(toolId)));
             return null;
         }
     }
@@ -355,7 +339,7 @@ public sealed partial class ShellWorkspaceController
             if (IsStalePageFailure(nameof(ShowToolPageAsync), ex, identity)) return;
 
             var failure = ReportPageFailure(nameof(ShowToolPageAsync), ex);
-            SetOwnedContent(_contentHost, BuildUnavailablePage("Tool", failure.Message, details: failure.Details, retry: () => ShowToolPageAsync(toolId, routeId)));
+            SetOwnedContent(_contentHost, BuildRecoveryPage("Tool", failure, () => ShowToolPageAsync(toolId, routeId)));
         }
     }
 }

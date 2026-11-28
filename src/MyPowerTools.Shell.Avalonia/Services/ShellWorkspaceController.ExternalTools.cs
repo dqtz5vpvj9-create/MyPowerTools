@@ -56,6 +56,7 @@ public sealed partial class ShellWorkspaceController
                 () => InvokeExternalToolCommandAsync(descriptor, route, command, CancellationToken.None),
                 message => SetStatus($"{descriptor.Title}: {message}")))
             .ToArray();
+        ExternalSdkToolViewModel? surfaceViewModel = null;
         var viewModel = new ExternalSdkToolViewModel(
             descriptor.ToolId,
             descriptor.Title,
@@ -67,15 +68,7 @@ public sealed partial class ShellWorkspaceController
             commands,
             descriptor.Settings?.ValuesPath,
             request => HandleExternalWebBridgeRequestAsync(descriptor, route, request),
-            refresh: () =>
-            {
-                if (webSurfaceSession is not null)
-                {
-                    webSurfaceSession.Reload();
-                    return Task.CompletedTask;
-                }
-                return ShowToolPageAsync(descriptor.ToolId, route.RouteId);
-            },
+            refresh: () => RecoverToolSurfaceAsync(surfaceViewModel, () => ReloadToolSurfaceAsync(webSurfaceSession, descriptor.ToolId, route.RouteId)),
             returnToTools: () => ShowPageAsync(ToolsPage),
             launch: launch,
             navigate: target =>
@@ -84,6 +77,8 @@ public sealed partial class ShellWorkspaceController
                 return Task.CompletedTask;
             },
             titleChanged: title => _chromeViewModel.RenameOpenTool(descriptor.ToolId, title));
+        surfaceViewModel = viewModel;
+        ApplyToolRecoveryPresentation(viewModel);
         var view = new ExternalSdkToolView { DataContext = viewModel };
         if (isWebSurface)
         {

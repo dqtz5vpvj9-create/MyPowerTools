@@ -170,23 +170,23 @@ public sealed partial class ShellWorkspaceController
                 Func<Task> retry = string.IsNullOrWhiteSpace(faultedToolId)
                     ? () => ShowPageAsync(faultedPage)
                     : () => ShowToolPageAsync(faultedToolId, faultedRouteId);
-                Func<Task> returnToSafety = () => ShowPageAsync(
-                    string.IsNullOrWhiteSpace(faultedToolId) ? HomePage : ToolsPage);
                 SetOwnedContent(
                     _contentHost,
-                    BuildUnavailablePage(
-                        "Something went wrong",
-                        "The last action didn't finish. You can try again or go back to a safe page.",
-                        retry,
-                        returnToSafety,
-                        $"{fault.Operation} failed: {message}"));
+                    BuildRecoveryPage(
+                        string.IsNullOrWhiteSpace(faultedToolId) ? faultedPage : "Tool",
+                        new ShellUserFacingFailure(
+                            "ui-fault",
+                            "The last action didn't finish.",
+                            "The last action didn't finish.",
+                            $"{fault.Operation} failed: {message}"),
+                        retry));
                 SetStatus($"Recovered from {fault.Operation}: {message}");
             },
             () =>
             {
                 DisposeControlDataContext(_contentHost.Content as Control);
-                _contentHost.Content = new MptErrorState(
-                    "This workspace stopped after a UI recovery failure. Open another tool or return Home.");
+                _contentHost.Content = BuildTerminalRecoveryContent(
+                    "This page stopped responding and couldn't recover on its own.");
             });
     }
 

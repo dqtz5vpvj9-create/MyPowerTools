@@ -56,6 +56,7 @@ public sealed partial class MainWindow : Window
         _trayAvailable = PlatformPackFactory.Create().Capabilities.Resolve("tray").Supported;
         var runtimeIdentity = ShellRuntimeIdentityResolver.Resolve(AppContext.BaseDirectory);
         _windowCaption = runtimeIdentity.WindowCaption;
+        ShellApplicationLifecycle.RegisterPermanentShutdown(ShutdownPermanently);
         Title = OperatingSystem.IsWindows() ? "" : _windowCaption;
         Width = 1280;
         Height = 800;

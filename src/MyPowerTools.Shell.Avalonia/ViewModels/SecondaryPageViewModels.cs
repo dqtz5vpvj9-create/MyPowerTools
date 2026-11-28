@@ -92,30 +92,3 @@ public sealed class BrokerAuditViewModel
     public bool IsEmpty => Entries.Count == 0 && ErrorMessage.Length == 0;
     public bool HasError => ErrorMessage.Length > 0;
 }
-
-public sealed class UnavailablePageViewModel : ShellPageViewModel
-{
-    public UnavailablePageViewModel(
-        string title,
-        string message,
-        Func<Task>? retry = null,
-        Func<Task>? returnToSafety = null,
-        string details = "")
-        : base(title, "", "error")
-    {
-        Message = message;
-        Details = details ?? "";
-        HasRetry = retry is not null;
-        HasReturnAction = returnToSafety is not null;
-        RetryCommand = new AsyncRelayCommand(() => retry?.Invoke() ?? Task.CompletedTask, operationName: $"Retry {title}");
-        ReturnCommand = new AsyncRelayCommand(() => returnToSafety?.Invoke() ?? Task.CompletedTask, operationName: $"Leave {title}");
-    }
-
-    public string Message { get; }
-    public string Details { get; }
-    public bool HasDetails => Details.Length > 0;
-    public bool HasRetry { get; }
-    public bool HasReturnAction { get; }
-    public ICommand RetryCommand { get; }
-    public ICommand ReturnCommand { get; }
-}

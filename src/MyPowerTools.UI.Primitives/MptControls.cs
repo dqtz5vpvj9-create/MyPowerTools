@@ -201,6 +201,21 @@ public sealed class MptErrorState : Border
             TextWrapping = TextWrapping.Wrap
         };
     }
+
+    /// <summary>Last-resort failure content that still offers a working recovery action.</summary>
+    public MptErrorState(string message, string actionLabel, Action action)
+        : this()
+    {
+        ArgumentNullException.ThrowIfNull(action);
+        var button = new Button { Content = actionLabel };
+        button.Classes.Add("MptPrimaryButton");
+        button.Click += (_, _) => action();
+        var content = new StackPanel();
+        content.Classes.Add("MptErrorStateContent");
+        content.Children.Add(new TextBlock { Text = message, TextWrapping = TextWrapping.Wrap });
+        content.Children.Add(button);
+        Child = content;
+    }
 }
 
 public sealed class MptLoadingSkeleton : Border

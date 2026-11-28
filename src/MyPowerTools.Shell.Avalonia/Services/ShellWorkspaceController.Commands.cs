@@ -71,7 +71,11 @@ public sealed partial class ShellWorkspaceController
                 await Dispatcher.UIThread.InvokeAsync(() =>
                 {
                     _commandPaletteViewModel = null;
-                    SetOwnedContent(_commandPanel, new MptErrorState(ex.Message));
+                    ShellCommandFaultLog.Write("Command search", ex, "search");
+                    SetOwnedContent(_commandPanel, new MptErrorState(
+                        "Search isn't available right now.",
+                        "Search again",
+                        () => QueueCommandSearch(_searchBox.Text ?? "")));
                 });
             }
         }

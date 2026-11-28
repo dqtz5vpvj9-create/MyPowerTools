@@ -286,6 +286,14 @@
     <Setter Property="Opacity" Value="{DynamicResource MptInactiveOpacity}" />
   </Style>
 
+  <!-- Last-resort recovery content (MptErrorState with an action). -->
+  <Style Selector="StackPanel.MptErrorStateContent">
+    <Setter Property="Spacing" Value="{DynamicResource MptSpacingM}" />
+  </Style>
+  <Style Selector="StackPanel.MptErrorStateContent > Button">
+    <Setter Property="HorizontalAlignment" Value="Left" />
+  </Style>
+
   <!-- Card surfaces get a hairline border and a very soft shadow. -->
   <Style Selector="Border.MptCard, Border.MptSettingsSection, Border.MptEmptyState, Border.MptErrorState">
     <Setter Property="BoxShadow" Value="{DynamicResource MptShadowCard}" />
