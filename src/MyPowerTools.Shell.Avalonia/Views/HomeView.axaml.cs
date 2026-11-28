@@ -38,7 +38,7 @@ public sealed partial class HomeView : UserControl
     {
         var availableWidth = Math.Max(0, e.NewSize.Width);
         _dashboardRoot.Width = Math.Min(DashboardMaxWidth, availableWidth);
-        Resources["MptHomeQuickActionWidth"] = Math.Min(148, Math.Max(96, (availableWidth - 48) / 2));
+        Resources["MptHomeTileWidth"] = ComputeTileWidth(Math.Min(DashboardMaxWidth, availableWidth));
         ApplyResponsiveLayout(availableWidth < WideDashboardMinWidth);
     }
 
@@ -90,6 +90,16 @@ public sealed partial class HomeView : UserControl
         _primaryDashboardColumn.HorizontalAlignment = HorizontalAlignment.Stretch;
         _modulesDashboardCard.Width = double.NaN;
         _modulesDashboardCard.HorizontalAlignment = HorizontalAlignment.Stretch;
+    }
+
+    private static double ComputeTileWidth(double availableWidth)
+    {
+        // Tiles carry a right/bottom gutter of 12 (MptHomeTileMargin); fill the primary column exactly.
+        const double gutter = 12;
+        var wide = availableWidth >= WideDashboardMinWidth;
+        var columnWidth = wide ? (availableWidth - 16) * 5 / 8 : availableWidth;
+        var columns = wide || columnWidth >= 560 ? 3 : 2;
+        return Math.Max(140, Math.Floor(columnWidth / columns) - gutter - 1);
     }
 
     private T RequireControl<T>(string name)

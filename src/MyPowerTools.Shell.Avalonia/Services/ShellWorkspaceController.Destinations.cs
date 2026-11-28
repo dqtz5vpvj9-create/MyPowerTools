@@ -15,7 +15,7 @@ public sealed partial class ShellWorkspaceController
     {
         SetOwnedContent(_contentHost, BuildUnavailablePage(
             "Activity",
-            "No user tool invocation has been recorded yet. Completed and running work will appear here as tools are delivered."));
+            "Nothing here yet. Work you run in your tools will show up here."));
         SetStatus("Activity is empty.");
     }
 
@@ -23,11 +23,11 @@ public sealed partial class ShellWorkspaceController
     {
         var destinations = new[]
         {
-            new SystemHubItemViewModel(ModulesPage, "Modules", "Enable, disable, and inspect runtime modules.", "MOD", "Maintenance", ShowPageAsync),
-            new SystemHubItemViewModel(PackagesPage, "Packages & Updates", "Install, repair, roll back, and remove packages.", "PKG", "Maintenance", ShowPageAsync),
-            new SystemHubItemViewModel(DiagnosticsPage, "Runtime Health", "Inspect transports, processes, policies, and runtime state.", "HLT", "Support", ShowPageAsync),
-            new SystemHubItemViewModel(LogsPage, "Logs & Export", "Filter module logs and collect troubleshooting evidence.", "LOG", "Support", ShowPageAsync),
-            new SystemHubItemViewModel(ServicesPage, "Services", "Start, stop, and inspect long-running Service Units across all tools.", "SVC", "Maintenance", ShowPageAsync)
+            new SystemHubItemViewModel(PackagesPage, "Updates", "Check for updates, or repair and remove installed packages.", "update", "", ShowPageAsync),
+            new SystemHubItemViewModel(ModulesPage, "Components", "Turn the building blocks behind each tool on or off.", "toolkit", "", ShowPageAsync),
+            new SystemHubItemViewModel(ServicesPage, "Background services", "Start, stop or restart work that keeps running in the background.", "service", "", ShowPageAsync),
+            new SystemHubItemViewModel(DiagnosticsPage, "Health", "See whether everything behind MyPowerTools is running properly.", "performance", "", ShowPageAsync),
+            new SystemHubItemViewModel(LogsPage, "Logs", "Read and export logs when reporting a problem.", "terminal", "", ShowPageAsync)
         };
         var viewModel = new SystemHubViewModel(
             destinations,
@@ -37,6 +37,6 @@ public sealed partial class ShellWorkspaceController
                 return Task.CompletedTask;
             });
         SetOwnedContent(_contentHost, new SystemHubView { DataContext = viewModel });
-        SetStatus("System & Maintenance opened.");
+        SetStatus("Troubleshooting opened.");
     }
 }

@@ -6,58 +6,49 @@
              x:Class="MyPowerTools.Shell.Avalonia.Views.ToolCatalogView"
              x:DataType="vm:ToolCatalogViewModel">
   <UserControl.Styles>
-    <Style Selector="Border.MptSettingsListRow">
-      <Setter Property="MinHeight" Value="88" />
-      <Setter Property="Padding" Value="16,12" />
-      <Setter Property="Margin" Value="0,0,0,8" />
+    <Style Selector="Border.MptToolRow">
+      <Setter Property="Padding" Value="{DynamicResource MptToolRowPadding}" />
+      <Setter Property="Margin" Value="{DynamicResource MptGapBottomS}" />
       <Setter Property="CornerRadius" Value="{DynamicResource MptRadiusCard}" />
       <Setter Property="BorderBrush" Value="{DynamicResource MptBrushBorder}" />
       <Setter Property="BorderThickness" Value="{DynamicResource MptBorderThickness}" />
-      <Setter Property="Background" Value="{DynamicResource MptBrushLayerBackground}" />
+      <Setter Property="Background" Value="{DynamicResource MptBrushCardBackground}" />
+      <Setter Property="BoxShadow" Value="{DynamicResource MptShadowCard}" />
     </Style>
-    <Style Selector="Border.MptSettingsListRow:pointerover">
-      <Setter Property="Background" Value="{DynamicResource MptBrushLayerAltBackground}" />
+    <Style Selector="Border.MptToolRow:pointerover">
       <Setter Property="BorderBrush" Value="{DynamicResource MptBrushBorderStrong}" />
+      <Setter Property="BoxShadow" Value="{DynamicResource MptShadowRaised}" />
     </Style>
   </UserControl.Styles>
 
   <StackPanel MaxWidth="{DynamicResource MptLayoutPageMaxWidth}"
               HorizontalAlignment="Stretch"
-              Spacing="{DynamicResource MptSpacingM}">
-    <Grid adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="*,Auto"
+              Spacing="{DynamicResource MptSpacingL}">
+    <Grid ColumnDefinitions="*,Auto"
           ColumnSpacing="{DynamicResource MptSpacingM}">
-      <StackPanel adaptive:MptAdaptiveLayout.StackBelow="480" Orientation="Horizontal"
-                  Spacing="{DynamicResource MptSpacingS}"
+      <StackPanel Spacing="{DynamicResource MptSpacingXs}"
                   VerticalAlignment="Center">
-        <TextBlock Classes="MptSectionTitle"
-                   Text="{Binding Title}"
-                   VerticalAlignment="Center" />
-        <TextBlock Classes="MptMeta"
-                   Text="{Binding ResultSummary}"
-                   IsVisible="{Binding IsReady}"
-                   VerticalAlignment="Center" />
+        <TextBlock Classes="MptPageTitle"
+                   Text="{Binding Title}" />
+        <TextBlock Classes="MptPageSubtitle"
+                   Text="{Binding Subtitle}" />
       </StackPanel>
-      <controls:MptIconButton Grid.Column="1"
-                              Width="{DynamicResource MptDensityControlHeight}"
-                              Height="{DynamicResource MptDensityControlHeight}"
-                              Padding="{DynamicResource MptNoThickness}"
-                              FontFamily="{DynamicResource MptFontFamilyIcons}"
-                              FontSize="{DynamicResource MptIconSizeM}"
-                              Content="&#xE72C;"
-                              Command="{Binding RefreshCommand}"
-                              ToolTip.Tip="Refresh tools"
-                              AutomationProperties.Name="Refresh tools"
-                              Margin="{DynamicResource MptGapRightS}"
-                              VerticalAlignment="Center" />
+      <controls:MptButton Grid.Column="1"
+                          Classes="MptIconOnlyButton outlined"
+                          Command="{Binding RefreshCommand}"
+                          ToolTip.Tip="Refresh"
+                          AutomationProperties.Name="Refresh tools"
+                          VerticalAlignment="Center">
+        <Path Classes="MptInlineIcon"
+              Data="{DynamicResource MptIconGeoRefresh}" />
+      </controls:MptButton>
     </Grid>
 
     <StackPanel IsVisible="{Binding IsLoading}"
                 Spacing="{DynamicResource MptSpacingS}">
-      <TextBlock Classes="MptMeta"
-                 Text="Loading tools…" />
-      <Border Classes="MptLoadingSkeleton" Height="88" />
-      <Border Classes="MptLoadingSkeleton" Height="88" />
-      <Border Classes="MptLoadingSkeleton" Height="88" />
+      <Border Classes="MptLoadingSkeleton" Height="84" />
+      <Border Classes="MptLoadingSkeleton" Height="84" />
+      <Border Classes="MptLoadingSkeleton" Height="84" />
     </StackPanel>
 
     <Border Classes="MptErrorState"
@@ -66,7 +57,7 @@
             ColumnSpacing="{DynamicResource MptSpacingM}">
         <StackPanel Spacing="{DynamicResource MptSpacingXs}">
           <TextBlock Classes="MptCardTitle"
-                     Text="The tool catalog could not be loaded" />
+                     Text="Your tools couldn't be loaded" />
           <TextBlock Classes="MptPageSubtitle"
                      Text="{Binding ErrorMessage}" />
         </StackPanel>
@@ -80,15 +71,18 @@
 
     <Border Classes="MptEmptyState"
             IsVisible="{Binding IsEmpty}">
-      <Grid adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="*,Auto"
-            ColumnSpacing="{DynamicResource MptSpacingM}">
-        <StackPanel Spacing="{DynamicResource MptSpacingXs}">
+      <Grid adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="Auto,*,Auto"
+            ColumnSpacing="{DynamicResource MptSpacingL}">
+        <controls:MptToolIcon IconKey="toolkit" />
+        <StackPanel Grid.Column="1"
+                    Spacing="{DynamicResource MptSpacingXs}"
+                    VerticalAlignment="Center">
           <TextBlock Classes="MptCardTitle"
-                     Text="No tools have been registered" />
+                     Text="No tools yet" />
           <TextBlock Classes="MptPageSubtitle"
-                     Text="Refresh after tool registrations become available." />
+                     Text="Tools you install will show up here." />
         </StackPanel>
-        <controls:MptButton Grid.Column="1"
+        <controls:MptButton Grid.Column="2"
                             Content="Refresh"
                             Command="{Binding RefreshCommand}"
                             VerticalAlignment="Center" />
@@ -97,14 +91,46 @@
 
     <StackPanel IsVisible="{Binding IsReady}"
                 Spacing="{DynamicResource MptSpacingM}">
-      <Grid adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="*,Auto"
+      <Grid ColumnDefinitions="*,Auto"
             ColumnSpacing="{DynamicResource MptSpacingS}">
         <controls:MptSearchBox Text="{Binding Query, Mode=TwoWay}"
-                               PlaceholderText="Search tools, categories, or tasks" />
+                               PlaceholderText="Search by name or what you want to do">
+          <controls:MptSearchBox.InnerLeftContent>
+            <Path Classes="MptInlineIcon"
+                  Data="{DynamicResource MptIconGeoSearch}"
+                  Stroke="{DynamicResource MptBrushTextMuted}"
+                  Margin="{DynamicResource MptGapLeftXs}" />
+          </controls:MptSearchBox.InnerLeftContent>
+        </controls:MptSearchBox>
         <controls:MptButton Grid.Column="1"
+                            Classes="MptSubtleButton"
                             Content="Clear"
-                            Command="{Binding ClearSearchCommand}" />
+                            Command="{Binding ClearSearchCommand}"
+                            IsVisible="{Binding HasQuery}" />
       </Grid>
+
+      <WrapPanel Orientation="Horizontal">
+        <controls:MptButton Classes="MptFilterChip"
+                            Classes.selected="{Binding IsAllFilter}"
+                            Content="{Binding AllFilterLabel}"
+                            Command="{Binding ShowAllCommand}"
+                            Margin="{DynamicResource MptGapRightS}" />
+        <controls:MptButton Classes="MptFilterChip"
+                            Classes.selected="{Binding IsReadyFilter}"
+                            Content="{Binding ReadyFilterLabel}"
+                            Command="{Binding ShowReadyCommand}"
+                            Margin="{DynamicResource MptGapRightS}" />
+        <controls:MptButton Classes="MptFilterChip"
+                            Classes.selected="{Binding IsLaterFilter}"
+                            Content="{Binding LaterFilterLabel}"
+                            Command="{Binding ShowLaterCommand}"
+                            IsVisible="{Binding HasLaterTools}"
+                            Margin="{DynamicResource MptGapRightS}" />
+        <controls:MptButton Classes="MptFilterChip"
+                            Classes.selected="{Binding IsFavoritesFilter}"
+                            Content="{Binding FavoritesFilterLabel}"
+                            Command="{Binding ShowFavoritesCommand}" />
+      </WrapPanel>
 
       <Border Classes="MptEmptyState"
               IsVisible="{Binding IsSearchEmpty}">
@@ -112,72 +138,92 @@
               ColumnSpacing="{DynamicResource MptSpacingM}">
           <StackPanel Spacing="{DynamicResource MptSpacingXs}">
             <TextBlock Classes="MptCardTitle"
-                       Text="No matching tools" />
+                       Text="{Binding EmptyResultTitle}" />
             <TextBlock Classes="MptPageSubtitle"
-                       Text="Try a tool name, category, or task." />
+                       Text="{Binding EmptyResultDetail}" />
           </StackPanel>
           <controls:MptButton Grid.Column="1"
                               Content="Clear search"
                               Command="{Binding ClearSearchCommand}"
+                              IsVisible="{Binding HasQuery}"
                               VerticalAlignment="Center" />
         </Grid>
       </Border>
 
       <ItemsControl ItemsSource="{Binding VisibleTools}"
-                    IsVisible="{Binding HasSearchResults}">
+                    IsVisible="{Binding HasSearchResults}"
+                    Grid.IsSharedSizeScope="True">
         <ItemsControl.ItemTemplate>
           <DataTemplate x:DataType="vm:ToolCardViewModel">
-            <Border Classes="MptSettingsListRow">
-              <Grid adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="Auto,*,Auto"
-                    ColumnSpacing="{DynamicResource MptSpacingM}">
-                <Border Classes="MptToolIcon"
-                        VerticalAlignment="Top">
-                  <TextBlock Classes="MptToolIconGlyph"
-                             Text="{Binding IconGlyph}" />
-                </Border>
+            <Border Classes="MptToolRow"
+                    Classes.inactive="{Binding !CanOpen}">
+              <Grid adaptive:MptAdaptiveLayout.StackBelow="600"
+                    ColumnSpacing="{DynamicResource MptSpacingL}">
+                <Grid.ColumnDefinitions>
+                  <ColumnDefinition Width="Auto" />
+                  <ColumnDefinition Width="*" />
+                  <ColumnDefinition Width="Auto" SharedSizeGroup="ToolStatus" />
+                  <ColumnDefinition Width="Auto" />
+                  <ColumnDefinition Width="Auto" SharedSizeGroup="ToolAction" />
+                </Grid.ColumnDefinitions>
+                <controls:MptToolIcon IconKey="{Binding ToolId}" />
 
                 <StackPanel Grid.Column="1"
-                            Spacing="{DynamicResource MptSpacingXs}"
+                            Spacing="{DynamicResource MptSpacing2Xs}"
                             VerticalAlignment="Center">
-                  <StackPanel adaptive:MptAdaptiveLayout.StackBelow="480" Orientation="Horizontal"
+                  <StackPanel Orientation="Horizontal"
                               Spacing="{DynamicResource MptSpacingS}">
                     <TextBlock Classes="MptCardTitle"
-                               Text="{Binding Title}" />
-                    <TextBlock Classes="MptMeta"
-                               Text="{Binding Category}"
+                               Text="{Binding Title}"
                                VerticalAlignment="Center" />
+                    <Border Classes="MptChip"
+                            IsVisible="{Binding !!Category}">
+                      <TextBlock Text="{Binding Category}" />
+                    </Border>
                   </StackPanel>
                   <TextBlock Classes="MptPageSubtitle"
                              Text="{Binding Description}"
-                             MaxLines="2" />
+                             MaxLines="2"
+                             TextTrimming="CharacterEllipsis" />
                   <TextBlock Classes="MptMeta"
-                             Text="{Binding StatusDetail}"
-                             TextWrapping="Wrap"
-                             MaxLines="1" />
+                             Text="{Binding StatusHint}"
+                             IsVisible="{Binding HasStatusHint}"
+                             TextTrimming="CharacterEllipsis"
+                             TextWrapping="NoWrap" />
                 </StackPanel>
 
-                <StackPanel Grid.Column="2"
-                            Spacing="{DynamicResource MptSpacingS}"
-                            HorizontalAlignment="Right"
-                            VerticalAlignment="Center">
-                  <Border Classes="MptStatusBadge"
-                          Classes.running="{Binding IsReadyStatus}"
-                          Classes.degraded="{Binding IsAttentionStatus}"
-                          Classes.error="{Binding IsUnavailable}"
-                          HorizontalAlignment="Right">
-                    <TextBlock Classes="MptMeta"
-                               Text="{Binding StatusLabel}" />
-                  </Border>
-                  <StackPanel adaptive:MptAdaptiveLayout.StackBelow="480" Orientation="Horizontal"
-                              Spacing="{DynamicResource MptSpacingS}">
-                    <controls:MptButton Content="{Binding FavoriteActionLabel}"
-                                        Command="{Binding ToggleFavoriteCommand}" />
-                    <controls:MptButton Classes="MptPrimaryButton"
-                                        Content="{Binding PrimaryActionLabel}"
-                                        Command="{Binding OpenCommand}"
-                                        IsVisible="{Binding CanOpen}" />
+                <Border Grid.Column="2"
+                        Classes="MptStatusBadge"
+                        Classes.running="{Binding IsReadyStatus}"
+                        Classes.degraded="{Binding IsAttentionStatus}"
+                        Classes.error="{Binding IsUnavailable}"
+                        HorizontalAlignment="Right"
+                        VerticalAlignment="Center">
+                  <StackPanel Orientation="Horizontal"
+                              Spacing="{DynamicResource MptSpacingXs}">
+                    <Ellipse Classes="MptStatusDot" />
+                    <TextBlock Text="{Binding StatusLabel}" />
                   </StackPanel>
-                </StackPanel>
+                </Border>
+
+                <controls:MptButton Grid.Column="3"
+                                    Classes="MptIconOnlyButton MptStarToggle"
+                                    Classes.favorite="{Binding IsFavorite}"
+                                    Command="{Binding ToggleFavoriteCommand}"
+                                    ToolTip.Tip="{Binding FavoriteActionLabel}"
+                                    AutomationProperties.Name="{Binding FavoriteAutomationName}"
+                                    VerticalAlignment="Center">
+                  <Path />
+                </controls:MptButton>
+
+                <controls:MptButton Grid.Column="4"
+                                    Classes="MptPrimaryButton"
+                                    MinWidth="{DynamicResource MptToolActionMinWidth}"
+                                    Content="{Binding PrimaryActionLabel}"
+                                    Command="{Binding OpenCommand}"
+                                    IsVisible="{Binding CanOpen}"
+                                    AutomationProperties.Name="{Binding OpenAutomationName}"
+                                    VerticalAlignment="Center" />
               </Grid>
             </Border>
           </DataTemplate>

@@ -141,10 +141,35 @@ public sealed class ToolCardViewModel : ObservableViewModel
     public bool IsUnavailable => Availability == ToolAvailability.Unavailable;
     public bool CanOpen => IsAvailable;
     public bool IsReadyStatus => IsAvailable &&
-        string.Equals(StatusLabel, "Ready", StringComparison.OrdinalIgnoreCase);
+        (string.Equals(StatusLabel, "Ready", StringComparison.OrdinalIgnoreCase) ||
+         string.Equals(StatusLabel, "Connected", StringComparison.OrdinalIgnoreCase));
     public bool IsAttentionStatus => IsInDevelopment || IsPaused ||
         (IsAvailable && !IsReadyStatus);
     public string OpenAutomationName => $"Open {Title}";
+
+    /// <summary>
+    /// A tool the user may need to act on: it should work but is degraded, or it cannot open.
+    /// Tools that are simply not shipped yet are not counted as problems.
+    /// </summary>
+    public bool NeedsAttention => IsUnavailable || (IsAvailable && !IsReadyStatus);
+
+    /// <summary>Plain-language status line; empty when the tool is ready.</summary>
+    public string StatusHint => Availability switch
+    {
+        ToolAvailability.InDevelopment => "Not available yet. It will arrive in a future update.",
+        ToolAvailability.Paused => "Turned off for now.",
+        ToolAvailability.Unavailable => "Can't be opened right now.",
+        _ when IsReadyStatus => "",
+        _ => StatusLabel switch
+        {
+            "Starting" => "Starting up…",
+            "Not running" => "Not running right now.",
+            "Connected" => "",
+            _ => "Something needs a look. See Settings › Troubleshooting."
+        }
+    };
+
+    public bool HasStatusHint => StatusHint.Length > 0;
 
     public bool IsFavorite
     {

@@ -21,17 +21,20 @@ public sealed class ShellFailurePresenterTests
         var failure = ShellFailurePresenter.Present(exception, platform: new PlatformId("windows", "x64"));
 
         Assert.Equal("runner-access-denied", failure.Code);
-        Assert.Contains("Windows named pipe", failure.Message, StringComparison.Ordinal);
-        Assert.Contains("mypowertools.runner.hostcontrol", failure.Message, StringComparison.Ordinal);
-        Assert.Contains("Result: Access denied", failure.Message, StringComparison.Ordinal);
-        Assert.Contains("parallel development", failure.Message, StringComparison.Ordinal);
-        Assert.Contains("localhost:80 is gRPC's placeholder", failure.Message, StringComparison.Ordinal);
-        Assert.Contains("did not contact TCP port 80", failure.Message, StringComparison.Ordinal);
+        Assert.Contains("Windows named pipe", failure.Details, StringComparison.Ordinal);
+        Assert.Contains("mypowertools.runner.hostcontrol", failure.Details, StringComparison.Ordinal);
+        Assert.Contains("Result: Access denied", failure.Details, StringComparison.Ordinal);
+        Assert.Contains("parallel development", failure.Details, StringComparison.Ordinal);
+        Assert.Contains("localhost:80 is gRPC's placeholder", failure.Details, StringComparison.Ordinal);
+        Assert.Contains("did not contact TCP port 80", failure.Details, StringComparison.Ordinal);
         Assert.DoesNotContain("StatusCode", failure.Message, StringComparison.Ordinal);
         Assert.DoesNotContain("DebugException", failure.Message, StringComparison.Ordinal);
         Assert.DoesNotContain("HttpRequestException", failure.Message, StringComparison.Ordinal);
         Assert.DoesNotContain("UnauthorizedAccessException", failure.Message, StringComparison.Ordinal);
-        Assert.Contains("Windows denied this Shell access", failure.StatusMessage, StringComparison.Ordinal);
+        Assert.Contains("Windows blocked the connection", failure.StatusMessage, StringComparison.Ordinal);
+        Assert.Contains("Windows blocked MyPowerTools", failure.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("named pipe", failure.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("localhost", failure.Message, StringComparison.Ordinal);
     }
 
     [Theory]
@@ -53,18 +56,20 @@ public sealed class ShellFailurePresenterTests
         var failure = ShellFailurePresenter.Present(exception, source, new PlatformId(operatingSystem, "x64"));
 
         Assert.Equal(source == ShellFailureSource.Runner ? "runner-access-denied" : "service-manager-access-denied", failure.Code);
-        Assert.Contains("Unix domain socket", failure.Message, StringComparison.Ordinal);
-        Assert.Contains(socketName, failure.Message, StringComparison.Ordinal);
-        Assert.Contains("Result: Access denied", failure.Message, StringComparison.Ordinal);
-        Assert.Contains("same user", failure.Message, StringComparison.Ordinal);
-        Assert.Contains("socket and directory permissions", failure.Message, StringComparison.Ordinal);
-        Assert.Contains("The operating system denied this Shell access", failure.StatusMessage, StringComparison.Ordinal);
+        Assert.Contains("Unix domain socket", failure.Details, StringComparison.Ordinal);
+        Assert.Contains(socketName, failure.Details, StringComparison.Ordinal);
+        Assert.Contains("Result: Access denied", failure.Details, StringComparison.Ordinal);
+        Assert.Contains("same user", failure.Details, StringComparison.Ordinal);
+        Assert.Contains("socket and directory permissions", failure.Details, StringComparison.Ordinal);
+        Assert.Contains("Your system blocked the connection", failure.StatusMessage, StringComparison.Ordinal);
         Assert.DoesNotContain("Windows", failure.Message, StringComparison.Ordinal);
         Assert.DoesNotContain("Windows", failure.StatusMessage, StringComparison.Ordinal);
-        Assert.DoesNotContain("elevation", failure.Message, StringComparison.Ordinal);
-        Assert.DoesNotContain("localhost:80", failure.Message, StringComparison.Ordinal);
-        Assert.DoesNotContain("TCP port 80", failure.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("Windows", failure.Details, StringComparison.Ordinal);
+        Assert.DoesNotContain("elevation", failure.Details, StringComparison.Ordinal);
+        Assert.DoesNotContain("localhost:80", failure.Details, StringComparison.Ordinal);
+        Assert.DoesNotContain("TCP port 80", failure.Details, StringComparison.Ordinal);
         Assert.DoesNotContain("internal transport detail", failure.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("internal transport detail", failure.Details, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -75,8 +80,9 @@ public sealed class ShellFailurePresenterTests
         var failure = ShellFailurePresenter.Present(exception);
 
         Assert.Equal("runner-credential-mismatch", failure.Code);
-        Assert.Contains("rejected its local credential", failure.Message, StringComparison.Ordinal);
-        Assert.Contains("MPT_DATA_ROOT", failure.Message, StringComparison.Ordinal);
+        Assert.Contains("rejected its local credential", failure.Details, StringComparison.Ordinal);
+        Assert.Contains("MPT_DATA_ROOT", failure.Details, StringComparison.Ordinal);
+        Assert.DoesNotContain("MPT_DATA_ROOT", failure.Message, StringComparison.Ordinal);
         Assert.DoesNotContain("IPC authentication failed", failure.Message, StringComparison.Ordinal);
     }
 
@@ -88,8 +94,10 @@ public sealed class ShellFailurePresenterTests
         var failure = ShellFailurePresenter.Present(exception);
 
         Assert.Equal("runner-unavailable", failure.Code);
-        Assert.Contains("could not reach the local MPT Runner", failure.Message, StringComparison.Ordinal);
-        Assert.Contains("restart Runner", failure.Message, StringComparison.Ordinal);
+        Assert.Contains("could not reach the local MPT Runner", failure.Details, StringComparison.Ordinal);
+        Assert.Contains("restart Runner", failure.Details, StringComparison.Ordinal);
+        Assert.Contains("isn't running", failure.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("Runner", failure.Message, StringComparison.Ordinal);
         Assert.DoesNotContain("connection refused", failure.Message, StringComparison.Ordinal);
     }
 
@@ -101,9 +109,9 @@ public sealed class ShellFailurePresenterTests
         var failure = ShellFailurePresenter.Present(exception);
 
         Assert.Equal("runner-permission-denied", failure.Code);
-        Assert.Contains("permission policy", failure.Message, StringComparison.Ordinal);
-        Assert.DoesNotContain("Windows named pipe", failure.Message, StringComparison.Ordinal);
-        Assert.DoesNotContain("localhost:80", failure.Message, StringComparison.Ordinal);
+        Assert.Contains("permission policy", failure.Details, StringComparison.Ordinal);
+        Assert.DoesNotContain("Windows named pipe", failure.Details, StringComparison.Ordinal);
+        Assert.DoesNotContain("localhost:80", failure.Details, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -115,10 +123,10 @@ public sealed class ShellFailurePresenterTests
         var failure = ShellFailurePresenter.Present(exception, ShellFailureSource.ServiceManager, new PlatformId("windows", "x64"));
 
         Assert.Equal("service-manager-access-denied", failure.Code);
-        Assert.Contains("MPT Service Manager", failure.Message, StringComparison.Ordinal);
-        Assert.Contains("Windows named pipe", failure.Message, StringComparison.Ordinal);
-        Assert.Contains("mypewertools.servicemanager.v1", failure.Message, StringComparison.Ordinal);
-        Assert.DoesNotContain("mypowertools.runner.hostcontrol", failure.Message, StringComparison.Ordinal);
+        Assert.Contains("MPT Service Manager", failure.Details, StringComparison.Ordinal);
+        Assert.Contains("Windows named pipe", failure.Details, StringComparison.Ordinal);
+        Assert.Contains("mypewertools.servicemanager.v1", failure.Details, StringComparison.Ordinal);
+        Assert.DoesNotContain("mypowertools.runner.hostcontrol", failure.Details, StringComparison.Ordinal);
     }
 
     [Fact]
@@ -129,7 +137,9 @@ public sealed class ShellFailurePresenterTests
         var failure = ShellFailurePresenter.Present(exception);
 
         Assert.Equal("unexpected-page-failure", failure.Code);
-        Assert.Contains("Shell fault log", failure.Message, StringComparison.Ordinal);
+        Assert.Contains("Shell fault log", failure.Details, StringComparison.Ordinal);
+        Assert.Contains("Something went wrong", failure.Message, StringComparison.Ordinal);
+        Assert.DoesNotContain("internal implementation detail", failure.Details, StringComparison.Ordinal);
         Assert.DoesNotContain("internal implementation detail", failure.Message, StringComparison.Ordinal);
     }
 
@@ -149,8 +159,8 @@ public sealed class ShellFailurePresenterTests
         var snapshot = await monitor.CheckOnceAsync(notify: false);
 
         Assert.False(snapshot.Online);
-        var expectedOperatingSystem = OperatingSystem.IsWindows() ? "Windows" : "The operating system";
-        Assert.Contains($"{expectedOperatingSystem} denied this Shell access", snapshot.Message, StringComparison.Ordinal);
+        var expectedOperatingSystem = OperatingSystem.IsWindows() ? "Windows" : "Your system";
+        Assert.Contains($"{expectedOperatingSystem} blocked the connection", snapshot.Message, StringComparison.Ordinal);
         Assert.DoesNotContain("StatusCode", snapshot.Message, StringComparison.Ordinal);
         Assert.DoesNotContain("DebugException", snapshot.Message, StringComparison.Ordinal);
         Assert.DoesNotContain("UnauthorizedAccessException", snapshot.Message, StringComparison.Ordinal);

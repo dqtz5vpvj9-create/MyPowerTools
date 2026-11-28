@@ -99,10 +99,12 @@ public sealed class UnavailablePageViewModel : ShellPageViewModel
         string title,
         string message,
         Func<Task>? retry = null,
-        Func<Task>? returnToSafety = null)
+        Func<Task>? returnToSafety = null,
+        string details = "")
         : base(title, "", "error")
     {
         Message = message;
+        Details = details ?? "";
         HasRetry = retry is not null;
         HasReturnAction = returnToSafety is not null;
         RetryCommand = new AsyncRelayCommand(() => retry?.Invoke() ?? Task.CompletedTask, operationName: $"Retry {title}");
@@ -110,6 +112,8 @@ public sealed class UnavailablePageViewModel : ShellPageViewModel
     }
 
     public string Message { get; }
+    public string Details { get; }
+    public bool HasDetails => Details.Length > 0;
     public bool HasRetry { get; }
     public bool HasReturnAction { get; }
     public ICommand RetryCommand { get; }

@@ -89,15 +89,30 @@ public static class MptTheme
         application.Resources["MptBrushNavigationBackground"] = MptThemeTokens.Brush(dark ? MptThemeTokens.ColorNavigationBackgroundDark : MptThemeTokens.ColorNavigationBackground);
         application.Resources["MptBrushNavigationHover"] = MptThemeTokens.Brush(dark ? MptThemeTokens.ColorNavigationHoverDark : MptThemeTokens.ColorNavigationHover);
         application.Resources["MptBrushNavigationSelected"] = MptThemeTokens.Brush(dark ? MptThemeTokens.ColorNavigationSelectedDark : MptThemeTokens.ColorNavigationSelected);
-        application.Resources["MptBrushAccent"] = MptThemeTokens.Brush(MptThemeTokens.ColorAccent);
-        application.Resources["MptBrushAccentHover"] = MptThemeTokens.Brush(MptThemeTokens.ColorAccentHover);
-        application.Resources["MptBrushAccentPressed"] = MptThemeTokens.Brush(MptThemeTokens.ColorAccentPressed);
+        application.Resources["MptBrushAccent"] = MptThemeTokens.Brush(dark ? MptThemeTokens.ColorAccentDark : MptThemeTokens.ColorAccent);
+        application.Resources["MptBrushAccentHover"] = MptThemeTokens.Brush(dark ? MptThemeTokens.ColorAccentHoverDark : MptThemeTokens.ColorAccentHover);
+        application.Resources["MptBrushAccentPressed"] = MptThemeTokens.Brush(dark ? MptThemeTokens.ColorAccentPressedDark : MptThemeTokens.ColorAccentPressed);
         application.Resources["MptBrushTextPrimary"] = MptThemeTokens.Brush(dark ? MptThemeTokens.ColorTextPrimaryDark : MptThemeTokens.ColorTextPrimary);
         application.Resources["MptBrushTextSecondary"] = MptThemeTokens.Brush(dark ? MptThemeTokens.ColorTextSecondaryDark : MptThemeTokens.ColorTextSecondary);
         application.Resources["MptBrushTextMuted"] = MptThemeTokens.Brush(dark ? MptThemeTokens.ColorTextMutedDark : MptThemeTokens.ColorTextMuted);
         application.Resources["MptBrushNeutral"] = MptThemeTokens.Brush(dark ? MptThemeTokens.ColorTextMutedDark : MptThemeTokens.ColorTextMuted);
         application.Resources["MptBrushWarningBackground"] = MptThemeTokens.Brush(dark ? MptThemeTokens.ColorWarningBackgroundDark : MptThemeTokens.ColorWarningBackground);
         application.Resources["MptBrushOverlayScrim"] = MptThemeTokens.Brush(dark ? MptThemeTokens.ColorOverlayScrimDark : MptThemeTokens.ColorOverlayScrim);
+        application.Resources["MptBrushAccentSoft"] = MptThemeTokens.Brush(dark ? MptThemeTokens.ColorAccentSoftDark : MptThemeTokens.ColorAccentSoft);
+        application.Resources["MptBrushSuccess"] = MptThemeTokens.Brush(dark ? MptThemeTokens.ColorSuccessDark : MptThemeTokens.ColorSuccess);
+        application.Resources["MptBrushWarning"] = MptThemeTokens.Brush(dark ? MptThemeTokens.ColorWarningDark : MptThemeTokens.ColorWarning);
+        application.Resources["MptBrushDanger"] = MptThemeTokens.Brush(dark ? MptThemeTokens.ColorDangerDark : MptThemeTokens.ColorDanger);
+        application.Resources["MptBrushInfo"] = MptThemeTokens.Brush(dark ? MptThemeTokens.ColorAccentDark : MptThemeTokens.ColorAccent);
+        application.Resources["MptBrushSuccessBackground"] = MptThemeTokens.Brush(dark ? MptThemeTokens.ColorSuccessBackgroundDark : MptThemeTokens.ColorSuccessBackground);
+        application.Resources["MptBrushDangerBackground"] = MptThemeTokens.Brush(dark ? MptThemeTokens.ColorDangerBackgroundDark : MptThemeTokens.ColorDangerBackground);
+        application.Resources["MptBrushInfoBackground"] = MptThemeTokens.Brush(dark ? MptThemeTokens.ColorInfoBackgroundDark : MptThemeTokens.ColorInfoBackground);
+        application.Resources["MptBrushNeutralBackground"] = MptThemeTokens.Brush(dark ? MptThemeTokens.ColorNeutralBackgroundDark : MptThemeTokens.ColorNeutralBackground);
+        foreach (var tint in MptThemeTokens.ToolTints)
+        {
+            application.Resources[$"MptBrushTint{tint.Name}Background"] = MptThemeTokens.Brush(dark ? tint.DarkBackground : tint.LightBackground);
+            application.Resources[$"MptBrushTint{tint.Name}Foreground"] = MptThemeTokens.Brush(dark ? tint.DarkForeground : tint.LightForeground);
+        }
+
         application.Resources["MptBrushAccentText"] = MptThemeTokens.Brush(0xffffffff);
     }
 }

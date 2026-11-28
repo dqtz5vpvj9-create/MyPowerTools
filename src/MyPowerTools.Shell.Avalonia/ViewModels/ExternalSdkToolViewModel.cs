@@ -7,7 +7,7 @@ namespace MyPowerTools.Shell.Avalonia.ViewModels;
 public sealed class ExternalSdkToolViewModel : ShellPageViewModel, IDisposable
 {
     private string _surfaceState = "loading";
-    private string _surfaceMessage = "Connecting to the tool surface.";
+    private string _surfaceMessage = "Opening…";
     private string _address;
     private string _addressError = "";
     private IDisposable? _ownedSurface;
@@ -149,7 +149,7 @@ public sealed class ExternalSdkToolViewModel : ShellPageViewModel, IDisposable
     {
         SurfaceState = state;
         SurfaceMessage = string.IsNullOrWhiteSpace(message)
-            ? state == "ready" ? "Connected." : "The tool surface is unavailable."
+            ? state == "ready" ? "Connected." : "It may still be starting. Try again in a moment."
             : message;
     }
 

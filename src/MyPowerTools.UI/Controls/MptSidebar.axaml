@@ -22,14 +22,16 @@
   </Style>
 
   <Style Selector="controls|MptButton.MptNavButton.selected">
-    <Setter Property="Background" Value="{DynamicResource MptBrushNavigationSelected}" />
+    <Setter Property="Background" Value="{DynamicResource MptBrushAccentSoft}" />
     <Setter Property="BorderBrush" Value="Transparent" />
-    <Setter Property="Foreground" Value="{DynamicResource MptBrushTextPrimary}" />
+    <Setter Property="Foreground" Value="{DynamicResource MptBrushAccent}" />
+    <Setter Property="FontWeight" Value="SemiBold" />
   </Style>
 
   <Style Selector="controls|MptButton.MptNavButton.selected:pointerover">
-    <Setter Property="Background" Value="{DynamicResource MptBrushNavigationSelected}" />
+    <Setter Property="Background" Value="{DynamicResource MptBrushAccentSoft}" />
     <Setter Property="BorderBrush" Value="Transparent" />
+    <Setter Property="Foreground" Value="{DynamicResource MptBrushAccent}" />
   </Style>
 
   <Style Selector="StackPanel.MptSidebar">
@@ -66,7 +68,7 @@
 
   <Style Selector="Border.MptNavIndicator">
     <Setter Property="Width" Value="{DynamicResource MptNavIndicatorWidth}" />
-    <Setter Property="MinHeight" Value="20" />
+    <Setter Property="MinHeight" Value="16" />
     <Setter Property="CornerRadius" Value="{DynamicResource MptRadiusBadge}" />
     <Setter Property="Background" Value="{DynamicResource MptBrushAccent}" />
     <Setter Property="Margin" Value="0,0,8,0" />

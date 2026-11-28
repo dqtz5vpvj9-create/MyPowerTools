@@ -27,7 +27,8 @@ internal sealed record ShellRuntimeIdentity(
         ? ModeLabel
         : $"{ModeLabel} · {LocationLabel}";
 
-    public string WindowCaption => $"MyPowerTools — {DisplayText}";
+    // The caption is user-facing: keep build/runtime internals (paths, configuration) out of it.
+    public string WindowCaption => IsDevelopment ? "MyPowerTools (Dev)" : "MyPowerTools";
 }
 
 internal static class ShellRuntimeIdentityResolver

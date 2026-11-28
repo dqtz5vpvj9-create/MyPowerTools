@@ -131,11 +131,12 @@ public sealed partial class ShellWorkspaceController
         string title,
         string message,
         Func<Task>? retry = null,
-        Func<Task>? returnToSafety = null)
+        Func<Task>? returnToSafety = null,
+        string details = "")
     {
         return new UnavailablePageView
         {
-            DataContext = new UnavailablePageViewModel(title, message, retry, returnToSafety)
+            DataContext = new UnavailablePageViewModel(title, message, retry, returnToSafety, details)
         };
     }
 

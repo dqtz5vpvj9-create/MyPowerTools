@@ -1,0 +1,300 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:controls="using:MyPowerTools.UI.Controls">
+  <!-- Tinted icon tile (MptToolIcon). Sizes and colours are tokens; tints follow light/dark. -->
+  <Style Selector="controls|MptToolIcon">
+    <Setter Property="Width" Value="{DynamicResource MptToolIconSize}" />
+    <Setter Property="Height" Value="{DynamicResource MptToolIconSize}" />
+    <Setter Property="Padding" Value="{DynamicResource MptToolIconPadding}" />
+    <Setter Property="CornerRadius" Value="{DynamicResource MptRadiusIconTile}" />
+    <Setter Property="Background" Value="{DynamicResource MptBrushTintBlueBackground}" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+  <Style Selector="controls|MptToolIcon.small">
+    <Setter Property="Width" Value="{DynamicResource MptToolIconSizeSmall}" />
+    <Setter Property="Height" Value="{DynamicResource MptToolIconSizeSmall}" />
+    <Setter Property="Padding" Value="{DynamicResource MptToolIconPaddingSmall}" />
+    <Setter Property="CornerRadius" Value="{DynamicResource MptRadiusIconTileSmall}" />
+  </Style>
+  <Style Selector="controls|MptToolIcon.large">
+    <Setter Property="Width" Value="{DynamicResource MptToolIconSizeLarge}" />
+    <Setter Property="Height" Value="{DynamicResource MptToolIconSizeLarge}" />
+    <Setter Property="Padding" Value="{DynamicResource MptToolIconPaddingLarge}" />
+    <Setter Property="CornerRadius" Value="{DynamicResource MptRadiusIconTileLarge}" />
+  </Style>
+  <Style Selector="controls|MptToolIcon > Path.MptToolIconGlyph">
+    <Setter Property="StrokeThickness" Value="{DynamicResource MptIconStroke}" />
+    <Setter Property="Stroke" Value="{DynamicResource MptBrushTintBlueForeground}" />
+  </Style>
+
+  <Style Selector="controls|MptToolIcon.tint-blue"><Setter Property="Background" Value="{DynamicResource MptBrushTintBlueBackground}" /></Style>
+  <Style Selector="controls|MptToolIcon.tint-blue > Path"><Setter Property="Stroke" Value="{DynamicResource MptBrushTintBlueForeground}" /></Style>
+  <Style Selector="controls|MptToolIcon.tint-violet"><Setter Property="Background" Value="{DynamicResource MptBrushTintVioletBackground}" /></Style>
+  <Style Selector="controls|MptToolIcon.tint-violet > Path"><Setter Property="Stroke" Value="{DynamicResource MptBrushTintVioletForeground}" /></Style>
+  <Style Selector="controls|MptToolIcon.tint-green"><Setter Property="Background" Value="{DynamicResource MptBrushTintGreenBackground}" /></Style>
+  <Style Selector="controls|MptToolIcon.tint-green > Path"><Setter Property="Stroke" Value="{DynamicResource MptBrushTintGreenForeground}" /></Style>
+  <Style Selector="controls|MptToolIcon.tint-amber"><Setter Property="Background" Value="{DynamicResource MptBrushTintAmberBackground}" /></Style>
+  <Style Selector="controls|MptToolIcon.tint-amber > Path"><Setter Property="Stroke" Value="{DynamicResource MptBrushTintAmberForeground}" /></Style>
+  <Style Selector="controls|MptToolIcon.tint-cyan"><Setter Property="Background" Value="{DynamicResource MptBrushTintCyanBackground}" /></Style>
+  <Style Selector="controls|MptToolIcon.tint-cyan > Path"><Setter Property="Stroke" Value="{DynamicResource MptBrushTintCyanForeground}" /></Style>
+  <Style Selector="controls|MptToolIcon.tint-rose"><Setter Property="Background" Value="{DynamicResource MptBrushTintRoseBackground}" /></Style>
+  <Style Selector="controls|MptToolIcon.tint-rose > Path"><Setter Property="Stroke" Value="{DynamicResource MptBrushTintRoseForeground}" /></Style>
+  <Style Selector="controls|MptToolIcon.tint-indigo"><Setter Property="Background" Value="{DynamicResource MptBrushTintIndigoBackground}" /></Style>
+  <Style Selector="controls|MptToolIcon.tint-indigo > Path"><Setter Property="Stroke" Value="{DynamicResource MptBrushTintIndigoForeground}" /></Style>
+  <Style Selector="controls|MptToolIcon.tint-slate"><Setter Property="Background" Value="{DynamicResource MptBrushTintSlateBackground}" /></Style>
+  <Style Selector="controls|MptToolIcon.tint-slate > Path"><Setter Property="Stroke" Value="{DynamicResource MptBrushTintSlateForeground}" /></Style>
+
+  <!-- Inline stroke icons (search, chevrons, refresh, sidebar). -->
+  <Style Selector="Path.MptInlineIcon">
+    <Setter Property="Width" Value="{DynamicResource MptInlineIconSize}" />
+    <Setter Property="Height" Value="{DynamicResource MptInlineIconSize}" />
+    <Setter Property="Stretch" Value="Uniform" />
+    <Setter Property="StrokeThickness" Value="{DynamicResource MptIconStroke}" />
+    <Setter Property="StrokeLineCap" Value="Round" />
+    <Setter Property="StrokeJoin" Value="Round" />
+    <Setter Property="Stroke" Value="{DynamicResource MptBrushTextSecondary}" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+    <Setter Property="HorizontalAlignment" Value="Center" />
+  </Style>
+  <Style Selector="Path.MptChevron">
+    <Setter Property="Width" Value="{DynamicResource MptChevronSize}" />
+    <Setter Property="Height" Value="{DynamicResource MptChevronSize}" />
+    <Setter Property="Stretch" Value="Uniform" />
+    <Setter Property="StrokeThickness" Value="{DynamicResource MptIconStroke}" />
+    <Setter Property="StrokeLineCap" Value="Round" />
+    <Setter Property="StrokeJoin" Value="Round" />
+    <Setter Property="Stroke" Value="{DynamicResource MptBrushTextMuted}" />
+    <Setter Property="Data" Value="{DynamicResource MptIconGeoChevronRight}" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+
+  <!-- Neutral info chip (category, counts). -->
+  <Style Selector="Border.MptChip">
+    <Setter Property="Background" Value="{DynamicResource MptBrushNeutralBackground}" />
+    <Setter Property="CornerRadius" Value="{DynamicResource MptRadiusBadge}" />
+    <Setter Property="Padding" Value="{DynamicResource MptChipSmallPadding}" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+  <Style Selector="Border.MptChip > TextBlock">
+    <Setter Property="FontSize" Value="{DynamicResource MptFontSizeSmall}" />
+    <Setter Property="LineHeight" Value="{DynamicResource MptLineHeightSmall}" />
+    <Setter Property="FontWeight" Value="Medium" />
+    <Setter Property="Foreground" Value="{DynamicResource MptBrushTextSecondary}" />
+    <Setter Property="TextWrapping" Value="NoWrap" />
+  </Style>
+
+  <!-- Keyboard shortcut hint (Ctrl+K style). -->
+  <Style Selector="Border.MptKeyHint">
+    <Setter Property="Background" Value="{DynamicResource MptBrushCardBackground}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MptBrushBorder}" />
+    <Setter Property="BorderThickness" Value="{DynamicResource MptBorderThickness}" />
+    <Setter Property="CornerRadius" Value="{DynamicResource MptRadiusXs}" />
+    <Setter Property="Padding" Value="{DynamicResource MptChipSmallPadding}" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+  <Style Selector="Border.MptKeyHint > TextBlock">
+    <Setter Property="FontSize" Value="{DynamicResource MptFontSizeSmall}" />
+    <Setter Property="LineHeight" Value="{DynamicResource MptLineHeightSmall}" />
+    <Setter Property="Foreground" Value="{DynamicResource MptBrushTextMuted}" />
+    <Setter Property="TextWrapping" Value="NoWrap" />
+  </Style>
+
+  <!-- Search trigger in the title bar: opens the global command overlay. -->
+  <Style Selector="Button.MptSearchTrigger">
+    <Setter Property="Height" Value="{DynamicResource MptSearchTriggerHeight}" />
+    <Setter Property="MinHeight" Value="{DynamicResource MptSearchTriggerHeight}" />
+    <Setter Property="Padding" Value="{DynamicResource MptSearchTriggerPadding}" />
+    <Setter Property="CornerRadius" Value="{DynamicResource MptRadiusControl}" />
+    <Setter Property="Background" Value="{DynamicResource MptBrushSurfaceInset}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MptBrushBorder}" />
+    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+  <Style Selector="Button.MptSearchTrigger:pointerover">
+    <Setter Property="Background" Value="{DynamicResource MptBrushControlFillHover}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MptBrushBorderStrong}" />
+  </Style>
+  <Style Selector="Button.MptSearchTrigger TextBlock.MptSearchTriggerText">
+    <Setter Property="Foreground" Value="{DynamicResource MptBrushTextMuted}" />
+    <Setter Property="TextTrimming" Value="CharacterEllipsis" />
+    <Setter Property="TextWrapping" Value="NoWrap" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+
+  <!-- Transparent icon-only button (refresh, sidebar toggle, star). -->
+  <Style Selector="Button.MptIconOnlyButton">
+    <Setter Property="Width" Value="{DynamicResource MptIconOnlyButtonSize}" />
+    <Setter Property="Height" Value="{DynamicResource MptIconOnlyButtonSize}" />
+    <Setter Property="MinHeight" Value="{DynamicResource MptIconOnlyButtonSize}" />
+    <Setter Property="MinWidth" Value="{DynamicResource MptIconOnlyButtonSize}" />
+    <Setter Property="Padding" Value="{DynamicResource MptNoThickness}" />
+    <Setter Property="Background" Value="{DynamicResource MptBrushTransparent}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MptBrushTransparent}" />
+    <Setter Property="Foreground" Value="{DynamicResource MptBrushTextSecondary}" />
+  </Style>
+  <Style Selector="Button.MptIconOnlyButton:pointerover">
+    <Setter Property="Background" Value="{DynamicResource MptBrushNavigationHover}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MptBrushTransparent}" />
+  </Style>
+  <Style Selector="Button.MptIconOnlyButton.outlined">
+    <Setter Property="Background" Value="{DynamicResource MptBrushControlFillDefault}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MptBrushControlStrokeDefault}" />
+  </Style>
+
+  <!-- Favorite star toggle. -->
+  <Style Selector="Button.MptStarToggle Path">
+    <Setter Property="Width" Value="{DynamicResource MptStarIconSize}" />
+    <Setter Property="Height" Value="{DynamicResource MptStarIconSize}" />
+    <Setter Property="Stretch" Value="Uniform" />
+    <Setter Property="StrokeThickness" Value="{DynamicResource MptIconStroke}" />
+    <Setter Property="StrokeJoin" Value="Round" />
+    <Setter Property="Stroke" Value="{DynamicResource MptBrushTextMuted}" />
+    <Setter Property="Fill" Value="{DynamicResource MptBrushTransparent}" />
+    <Setter Property="Data" Value="{DynamicResource MptIconGeoStar}" />
+  </Style>
+  <Style Selector="Button.MptStarToggle.favorite Path">
+    <Setter Property="Stroke" Value="{DynamicResource MptBrushTintAmberForeground}" />
+    <Setter Property="Fill" Value="{DynamicResource MptBrushTintAmberForeground}" />
+  </Style>
+
+  <!-- Accent text link and quiet secondary button. -->
+  <Style Selector="Button.MptLinkButton">
+    <Setter Property="MinHeight" Value="{DynamicResource MptDensityCompactControlHeight}" />
+    <Setter Property="Padding" Value="{DynamicResource MptChipPadding}" />
+    <Setter Property="Background" Value="{DynamicResource MptBrushTransparent}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MptBrushTransparent}" />
+    <Setter Property="Foreground" Value="{DynamicResource MptBrushAccent}" />
+    <Setter Property="FontWeight" Value="Medium" />
+  </Style>
+  <Style Selector="Button.MptLinkButton:pointerover">
+    <Setter Property="Background" Value="{DynamicResource MptBrushAccentSoft}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MptBrushTransparent}" />
+    <Setter Property="Foreground" Value="{DynamicResource MptBrushAccent}" />
+  </Style>
+  <Style Selector="Button.MptSubtleButton">
+    <Setter Property="Background" Value="{DynamicResource MptBrushTransparent}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MptBrushTransparent}" />
+    <Setter Property="Foreground" Value="{DynamicResource MptBrushTextSecondary}" />
+  </Style>
+  <Style Selector="Button.MptSubtleButton:pointerover">
+    <Setter Property="Background" Value="{DynamicResource MptBrushNavigationHover}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MptBrushTransparent}" />
+  </Style>
+
+  <!-- Filter chips (catalog segments). -->
+  <Style Selector="Button.MptFilterChip">
+    <Setter Property="Height" Value="{DynamicResource MptFilterChipHeight}" />
+    <Setter Property="MinHeight" Value="{DynamicResource MptFilterChipHeight}" />
+    <Setter Property="Padding" Value="{DynamicResource MptFilterChipPadding}" />
+    <Setter Property="CornerRadius" Value="{DynamicResource MptRadiusBadge}" />
+    <Setter Property="Background" Value="{DynamicResource MptBrushCardBackground}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MptBrushBorder}" />
+    <Setter Property="Foreground" Value="{DynamicResource MptBrushTextSecondary}" />
+    <Setter Property="FontSize" Value="{DynamicResource MptFontSizeSmall}" />
+    <Setter Property="FontWeight" Value="Medium" />
+    <Setter Property="VerticalContentAlignment" Value="Center" />
+  </Style>
+  <Style Selector="Button.MptFilterChip:pointerover">
+    <Setter Property="Background" Value="{DynamicResource MptBrushNavigationHover}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MptBrushBorderStrong}" />
+  </Style>
+  <Style Selector="Button.MptFilterChip.selected">
+    <Setter Property="Background" Value="{DynamicResource MptBrushAccentSoft}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MptBrushAccent}" />
+    <Setter Property="Foreground" Value="{DynamicResource MptBrushAccent}" />
+  </Style>
+  <Style Selector="Button.MptFilterChip.selected:pointerover">
+    <Setter Property="Background" Value="{DynamicResource MptBrushAccentSoft}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MptBrushAccent}" />
+    <Setter Property="Foreground" Value="{DynamicResource MptBrushAccent}" />
+  </Style>
+  <Style Selector="Button.MptFilterChip TextBlock">
+    <Setter Property="FontSize" Value="{DynamicResource MptFontSizeSmall}" />
+    <Setter Property="LineHeight" Value="{DynamicResource MptLineHeightSmall}" />
+    <Setter Property="FontWeight" Value="Medium" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+
+  <!-- Navigation icons: tool tiles shrink, page icons render as monochrome glyphs. -->
+  <Style Selector="controls|MptToolIcon.nav">
+    <Setter Property="Width" Value="{DynamicResource MptToolIconSizeNav}" />
+    <Setter Property="Height" Value="{DynamicResource MptToolIconSizeNav}" />
+    <Setter Property="Padding" Value="{DynamicResource MptToolIconPaddingNav}" />
+    <Setter Property="CornerRadius" Value="{DynamicResource MptRadiusIconTileNav}" />
+  </Style>
+  <Style Selector="Path.MptNavGlyph">
+    <Setter Property="Width" Value="{DynamicResource MptNavGlyphSize}" />
+    <Setter Property="Height" Value="{DynamicResource MptNavGlyphSize}" />
+    <Setter Property="Stretch" Value="Uniform" />
+    <Setter Property="StrokeThickness" Value="{DynamicResource MptIconStroke}" />
+    <Setter Property="StrokeLineCap" Value="Round" />
+    <Setter Property="StrokeJoin" Value="Round" />
+    <Setter Property="Stroke" Value="{DynamicResource MptBrushTextSecondary}" />
+    <Setter Property="HorizontalAlignment" Value="Center" />
+    <Setter Property="VerticalAlignment" Value="Center" />
+  </Style>
+  <Style Selector="Button.MptNavButton.selected Path.MptNavGlyph">
+    <Setter Property="Stroke" Value="{DynamicResource MptBrushAccent}" />
+  </Style>
+  <Style Selector="Path.MptNavGlyph.home"><Setter Property="Data" Value="{DynamicResource MptIconGeoHome}" /></Style>
+  <Style Selector="Path.MptNavGlyph.tools"><Setter Property="Data" Value="{DynamicResource MptIconGeoGrid}" /></Style>
+  <Style Selector="Path.MptNavGlyph.settings"><Setter Property="Data" Value="{DynamicResource MptIconGeoGear}" /></Style>
+  <Style Selector="Path.MptNavGlyph.activity"><Setter Property="Data" Value="{DynamicResource MptIconGeoActivity}" /></Style>
+
+  <!-- Home tiles and attention rows. -->
+  <Style Selector="Button.MptHomeTile">
+    <Setter Property="MinHeight" Value="{DynamicResource MptHomeTileMinHeight}" />
+    <Setter Property="Margin" Value="{DynamicResource MptHomeTileMargin}" />
+    <Setter Property="Padding" Value="{DynamicResource MptHomeTilePadding}" />
+    <Setter Property="CornerRadius" Value="{DynamicResource MptRadiusCard}" />
+    <Setter Property="Background" Value="{DynamicResource MptBrushCardBackground}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MptBrushBorder}" />
+    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    <Setter Property="VerticalContentAlignment" Value="Stretch" />
+  </Style>
+  <Style Selector="Button.MptHomeTile:pointerover">
+    <Setter Property="Background" Value="{DynamicResource MptBrushCardBackground}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MptBrushAccent}" />
+  </Style>
+  <Style Selector="Button.MptHomeTile:disabled">
+    <Setter Property="Opacity" Value="{DynamicResource MptInactiveOpacity}" />
+  </Style>
+  <Style Selector="Button.MptHomeTile:disabled /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource MptBrushCardBackground}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MptBrushBorder}" />
+  </Style>
+  <Style Selector="Button.MptNavButton:disabled">
+    <Setter Property="Opacity" Value="{DynamicResource MptInactiveOpacity}" />
+  </Style>
+  <Style Selector="Button.MptNavButton:disabled /template/ ContentPresenter#PART_ContentPresenter">
+    <Setter Property="Background" Value="{DynamicResource MptBrushTransparent}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MptBrushTransparent}" />
+  </Style>
+  <Style Selector="Button.MptListRow">
+    <Setter Property="Padding" Value="{DynamicResource MptAttentionRowPadding}" />
+    <Setter Property="HorizontalAlignment" Value="Stretch" />
+    <Setter Property="HorizontalContentAlignment" Value="Stretch" />
+    <Setter Property="Background" Value="{DynamicResource MptBrushTransparent}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MptBrushDivider}" />
+    <Setter Property="BorderThickness" Value="0,1,0,0" />
+    <Setter Property="CornerRadius" Value="{DynamicResource MptRadiusNone}" />
+  </Style>
+  <Style Selector="Button.MptListRow:pointerover">
+    <Setter Property="Background" Value="{DynamicResource MptBrushSurfaceMuted}" />
+    <Setter Property="BorderBrush" Value="{DynamicResource MptBrushDivider}" />
+  </Style>
+  <Style Selector="Border.MptToolRow.inactive">
+    <Setter Property="Opacity" Value="{DynamicResource MptInactiveOpacity}" />
+  </Style>
+
+  <!-- Card surfaces get a hairline border and a very soft shadow. -->
+  <Style Selector="Border.MptCard, Border.MptSettingsSection, Border.MptEmptyState, Border.MptErrorState">
+    <Setter Property="BoxShadow" Value="{DynamicResource MptShadowCard}" />
+  </Style>
+  <Style Selector="TextBlock.MptSectionLabel">
+    <Setter Property="FontSize" Value="{DynamicResource MptFontSizeSmall}" />
+    <Setter Property="LineHeight" Value="{DynamicResource MptLineHeightSmall}" />
+    <Setter Property="FontWeight" Value="SemiBold" />
+    <Setter Property="LetterSpacing" Value="0.6" />
+    <Setter Property="Foreground" Value="{DynamicResource MptBrushTextMuted}" />
+  </Style>
+</Styles>

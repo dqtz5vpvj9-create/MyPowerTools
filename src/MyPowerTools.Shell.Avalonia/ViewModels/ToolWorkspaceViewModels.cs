@@ -95,10 +95,10 @@ public sealed class ToolHostViewModel : ToolProductPageViewModel
     public ICommand RefreshCommand { get; }
     public ICommand RetryCommand { get; }
     public bool HasSections => Sections.Count > 0;
-    public string DevelopmentTitle => $"{Tool.Title} interface is in development";
-    public string DevelopmentMessage => string.IsNullOrWhiteSpace(Tool.StatusDetail)
-        ? "The product workspace has not been delivered yet. You can return to the tool catalog or refresh after an update."
-        : Tool.StatusDetail;
+    public string DevelopmentTitle => $"{Tool.Title} isn't ready yet";
+    public string DevelopmentMessage => Tool.HasStatusHint
+        ? Tool.StatusHint
+        : "This tool isn't ready yet. Check back after the next update.";
 
     public ToolWorkspaceViewModel? CurrentWorkspace
     {
@@ -153,8 +153,8 @@ public sealed class SystemHubViewModel : ToolProductPageViewModel
         Func<Task>? refresh = null,
         Func<Task>? retry = null)
         : base(
-            "System & Maintenance",
-            "Runtime health, packages, modules, logs, permissions, and support diagnostics.",
+            "Troubleshooting",
+            "Advanced tools for fixing problems. You won't need these for everyday use.",
             productState == ToolProductState.Ready && destinations.Count == 0 ? ToolProductState.Empty : productState,
             errorMessage)
     {

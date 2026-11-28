@@ -35,7 +35,7 @@
     <StackPanel IsVisible="{Binding IsLoading}"
                 Spacing="{DynamicResource MptSpacingM}">
       <TextBlock Classes="MptSectionTitle"
-                 Text="Loading tool workspace" />
+                 Text="Opening…" />
       <Border Classes="MptLoadingSkeleton" Height="48" />
       <Border Classes="MptLoadingSkeleton" Height="260" />
       <Border Classes="MptLoadingSkeleton" Height="96" />

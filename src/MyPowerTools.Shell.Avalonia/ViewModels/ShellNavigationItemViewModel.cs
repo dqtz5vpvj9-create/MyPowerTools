@@ -6,7 +6,7 @@ public sealed class ShellNavigationItemViewModel : ObservableViewModel
 {
     private bool _isSelected;
     private bool _isLabelVisible = true;
-    private double _itemWidth = 256;
+    private double _itemWidth = double.NaN;
     private string _selectionText = "";
     private string _displayLabel;
     private readonly string _defaultDisplayLabel;
@@ -40,6 +40,11 @@ public sealed class ShellNavigationItemViewModel : ObservableViewModel
     public string DisplayLabel => _displayLabel;
     public string IconGlyph { get; }
     public bool IsMonogram { get; }
+    public bool HasNavGlyph => !IsMonogram;
+    public bool IsHomeGlyph => Label is "Home" or "Dashboard";
+    public bool IsToolsGlyph => Label is "Tools" or "Modules";
+    public bool IsSettingsGlyph => Label is "Settings" or "System";
+    public bool IsActivityGlyph => Label is "Activity";
     public bool IsEnabled { get; }
     public ICommand NavigateCommand { get; }
     public ICommand? CloseCommand { get; }
@@ -92,7 +97,7 @@ public sealed class ShellNavigationItemViewModel : ObservableViewModel
     internal void SetCompact(bool compact)
     {
         IsLabelVisible = !compact;
-        ItemWidth = compact ? 52 : 256;
+        ItemWidth = compact ? 52 : double.NaN;
         OnPropertyChanged(nameof(IsCloseButtonVisible));
     }
 
@@ -109,14 +114,15 @@ public sealed class ShellNavigationItemViewModel : ObservableViewModel
 
     private static string ResolveDisplayLabel(string label) => label switch
     {
-        "Home" => "Dashboard",
+        "Home" => "Home",
         "Tools" => "All tools",
         "Notifications" => "Remote notifications",
         "ADB Forwarder" => "ADB Forwarder",
         "ScreenEase" => "ScreenEase",
         "Doubao Agent" => "豆包 Computer Use",
         "SmartBird" => "SmartBird 温度管理器",
-        "Settings" => "General",
+        "Settings" => "Settings",
+        "System" => "Troubleshooting",
         _ => label
     };
 

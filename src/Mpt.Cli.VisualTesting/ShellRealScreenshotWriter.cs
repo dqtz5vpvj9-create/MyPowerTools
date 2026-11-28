@@ -570,10 +570,11 @@ public static class ShellRealScreenshotWriter
             ])
         {
             StatusText = "Product UI acceptance snapshot",
-            RunnerStatusText = "7 tools registered",
+            RunnerStatusText = "7 tools",
             IsCommandPaletteOpen = false,
             IsPermissionPromptOpen = false
         };
+        chromeViewModel.SetDiscoveredTools(SampleToolCatalog().Tools, _ => Task.CompletedTask);
         chromeViewModel.SelectPage(selectedPage);
 
         var chrome = new ShellChromeView { DataContext = chromeViewModel };
@@ -701,7 +702,7 @@ public static class ShellRealScreenshotWriter
                 "Automation",
                 "RC",
                 "Paused",
-                "Delivery is paused until this workflow is needed again.",
+                "This tool is turned off for now.",
                 ToolAvailability.Paused,
                 false,
                 primaryActionLabel: "Paused"),
@@ -712,7 +713,7 @@ public static class ShellRealScreenshotWriter
                 "Monitoring",
                 "PM",
                 "Paused",
-                "Delivery is paused until this workflow is needed again.",
+                "This tool is turned off for now.",
                 ToolAvailability.Paused,
                 false,
                 primaryActionLabel: "Paused"),

@@ -7,7 +7,7 @@ public sealed class GeneralSettingsViewModel : ShellPageViewModel
 {
     private readonly Func<string, Task> _selectTheme;
     private ThemeChoiceViewModel _selectedTheme;
-    private string _themeApplyStatus = "Changes apply immediately.";
+    private string _themeApplyStatus = "";
 
     public GeneralSettingsViewModel(
         string selectedTheme,
@@ -16,7 +16,7 @@ public sealed class GeneralSettingsViewModel : ShellPageViewModel
         DevSourceSyncService? devSource = null,
         IReadOnlyList<GlobalHotkeyViewModel>? globalHotkeys = null,
         Func<Task>? openShortcuts = null)
-        : base("General", "Application preferences for MyPowerTools.", "ready")
+        : base("Settings", "Make MyPowerTools work the way you like.", "ready")
     {
         _selectTheme = selectTheme ?? throw new ArgumentNullException(nameof(selectTheme));
         ArgumentNullException.ThrowIfNull(openSystem);
@@ -60,10 +60,10 @@ public sealed class GeneralSettingsViewModel : ShellPageViewModel
     public string GlobalHotkeyStatusText { get; }
 
     public string BackgroundDescription => OperatingSystem.IsAndroid()
-        ? "在工具中开启需要的后台任务。" : "How the application remains available after its window closes.";
-    public string BackgroundLocation => OperatingSystem.IsAndroid() ? "运行通知" : "Notification area";
+        ? "在工具中开启需要的后台任务。" : "Closing the window doesn't quit MyPowerTools. Your tools keep working in the background.";
+    public string BackgroundLocation => OperatingSystem.IsAndroid() ? "运行通知" : "Find it in the notification area";
     public string BackgroundHint => OperatingSystem.IsAndroid()
-        ? "开启接收等后台任务后，可从通知返回 MyPowerTools 或停止任务。" : "Use the tray menu to open or exit MyPowerTools.";
+        ? "开启接收等后台任务后，可从通知返回 MyPowerTools 或停止任务。" : "Click the MyPowerTools icon near the clock to reopen it, or right-click it to quit.";
     public IReadOnlyList<ThemeChoiceViewModel> Themes { get; }
     public ICommand OpenSystemCommand { get; }
     public ICommand OpenShortcutsCommand { get; }

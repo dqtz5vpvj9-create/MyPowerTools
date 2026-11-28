@@ -15,7 +15,8 @@ internal enum ShellFailureSource
 internal sealed record ShellUserFacingFailure(
     string Code,
     string Message,
-    string StatusMessage);
+    string StatusMessage,
+    string Details = "");
 
 internal static class ShellFailurePresenter
 {
@@ -25,6 +26,11 @@ internal static class ShellFailurePresenter
         return ExpandExceptionChain(exception).Any(item => item is RpcException);
     }
 
+    /// <summary>
+    /// Message and StatusMessage are shown to everyday users, so they stay in plain language.
+    /// Transport names, endpoints, environment variables and log file names belong in Details,
+    /// which the UI only reveals behind a collapsed "Technical details" section.
+    /// </summary>
     public static ShellUserFacingFailure Present(
         Exception exception,
         ShellFailureSource source = ShellFailureSource.Runner,
@@ -42,6 +48,7 @@ internal static class ShellFailurePresenter
         {
             var isNamedPipe = service.Transport == IpcTransport.NamedPipe;
             var operatingSystem = isNamedPipe ? "Windows" : "The operating system";
+            var friendlySystem = isNamedPipe ? "Windows" : "Your system";
             var recovery = isNamedPipe
                 ? $"Common trigger during parallel development: the active {service.ProcessName} was started by a session using another Windows account or elevation level. Close that process or run every MPT session with the same Windows permissions, then select Try again."
                 : $"Common trigger during parallel development: the active {service.ProcessName} was started by another user, or its socket or parent directory denies this user access. Run the Shell and {service.ProcessName} as the same user and check the socket and directory permissions, then select Try again.";
@@ -59,8 +66,11 @@ internal static class ShellFailurePresenter
 
             return new ShellUserFacingFailure(
                 $"{service.CodePrefix}-access-denied",
-                JoinParagraphs(paragraphs),
-                $"{operatingSystem} denied this Shell access to the {service.DisplayName} connection.");
+                JoinParagraphs(
+                    $"{friendlySystem} blocked MyPowerTools from connecting to its {service.FriendlyName}.",
+                    "Close other copies of MyPowerTools or restart your computer, then select Try again."),
+                $"{friendlySystem} blocked the connection to the MyPowerTools {service.FriendlyName}.",
+                JoinParagraphs(paragraphs));
         }
 
         if (rpc?.StatusCode == StatusCode.Unauthenticated)
@@ -68,9 +78,12 @@ internal static class ShellFailurePresenter
             return new ShellUserFacingFailure(
                 $"{service.CodePrefix}-credential-mismatch",
                 JoinParagraphs(
+                    $"MyPowerTools couldn't sign in to its {service.FriendlyName}.",
+                    "Restart MyPowerTools, then select Try again."),
+                $"Couldn't sign in to the MyPowerTools {service.FriendlyName}.",
+                JoinParagraphs(
                     $"The Shell reached the {service.DisplayName}, and {service.ProcessName} rejected its local credential.",
-                    "The Shell and local service are using different MPT data roots or token files. Start both with the same MPT_DATA_ROOT or --data-root value, then select Try again."),
-                $"The {service.DisplayName} rejected this Shell's local credential.");
+                    "The Shell and local service are using different MPT data roots or token files. Start both with the same MPT_DATA_ROOT or --data-root value, then select Try again."));
         }
 
         if (rpc?.StatusCode == StatusCode.PermissionDenied)
@@ -78,9 +91,12 @@ internal static class ShellFailurePresenter
             return new ShellUserFacingFailure(
                 $"{service.CodePrefix}-permission-denied",
                 JoinParagraphs(
+                    "MyPowerTools doesn't have permission to open this page.",
+                    "Check the tool's permissions in Settings, then select Try again."),
+                "Permission was denied for this page.",
+                JoinParagraphs(
                     $"The {service.DisplayName} rejected this page request because the current MPT session lacks the required permission.",
-                    "Review the affected tool or module permission policy, then select Try again."),
-                $"The {service.DisplayName} denied this page request.");
+                    "Review the affected tool or module permission policy, then select Try again."));
         }
 
         if (ContainsTimeout(exceptions, rpc))
@@ -88,9 +104,12 @@ internal static class ShellFailurePresenter
             return new ShellUserFacingFailure(
                 $"{service.CodePrefix}-timeout",
                 JoinParagraphs(
+                    "MyPowerTools is taking too long to respond.",
+                    "It may still be starting. Wait a moment, then select Try again."),
+                "MyPowerTools didn't respond in time.",
+                JoinParagraphs(
                     $"The {service.DisplayName} did not respond within the allowed time.",
-                    $"Connection: {service.TransportLabel} {service.Endpoint}{Environment.NewLine}The process may still be starting or rebuilding. Wait for the active development task to finish, then select Try again."),
-                $"The {service.DisplayName} connection timed out.");
+                    $"Connection: {service.TransportLabel} {service.Endpoint}{Environment.NewLine}The process may still be starting or rebuilding. Wait for the active development task to finish, then select Try again."));
         }
 
         if (rpc?.StatusCode is StatusCode.Unavailable or StatusCode.Cancelled ||
@@ -98,6 +117,9 @@ internal static class ShellFailurePresenter
         {
             // ServiceManager can be launched directly from this page's Try-again button
             // (ShellServiceManagerBootstrapper); the Runner cannot, so the copy differs.
+            var friendlyRecovery = source == ShellFailureSource.ServiceManager
+                ? "Select Try again to start it and reload this page."
+                : "It may be starting or restarting. Wait a moment, then select Try again.";
             var recoveryLine = source == ShellFailureSource.ServiceManager
                 ? "Select Try again to start it now and reload this page."
                 : $"The process is stopped, starting, or restarting during another development session. Wait for startup to finish or restart {service.ProcessName}, then select Try again.";
@@ -105,9 +127,12 @@ internal static class ShellFailurePresenter
             return new ShellUserFacingFailure(
                 $"{service.CodePrefix}-unavailable",
                 JoinParagraphs(
+                    $"The MyPowerTools {service.FriendlyName} isn't running.",
+                    friendlyRecovery),
+                $"The MyPowerTools {service.FriendlyName} isn't available.",
+                JoinParagraphs(
                     $"The Shell could not reach the {service.DisplayName}.",
-                    $"Connection: {service.TransportLabel} {service.Endpoint}{Environment.NewLine}{recoveryLine}"),
-                $"The {service.DisplayName} is unavailable.");
+                    $"Connection: {service.TransportLabel} {service.Endpoint}{Environment.NewLine}{recoveryLine}"));
         }
 
         if (exceptions.Any(item => item is FileNotFoundException or DirectoryNotFoundException))
@@ -115,9 +140,12 @@ internal static class ShellFailurePresenter
             return new ShellUserFacingFailure(
                 "local-file-missing",
                 JoinParagraphs(
+                    "Some files this page needs are missing.",
+                    "Updating or reinstalling MyPowerTools usually fixes this."),
+                "Some required files are missing.",
+                JoinParagraphs(
                     "A local file required by this page is missing.",
-                    "Rebuild the affected project or restore its package files, then select Try again."),
-                "A required local file is missing.");
+                    "Rebuild the affected project or restore its package files, then select Try again."));
         }
 
         if (exceptions.Any(item => item is JsonException or InvalidDataException))
@@ -125,17 +153,23 @@ internal static class ShellFailurePresenter
             return new ShellUserFacingFailure(
                 "local-data-invalid",
                 JoinParagraphs(
+                    "Some saved data couldn't be read.",
+                    "Select Try again. If it keeps happening, open Settings › Troubleshooting."),
+                "Some saved data couldn't be read.",
+                JoinParagraphs(
                     "MPT found invalid tool, package, or settings data while loading this page.",
-                    "Check the latest manifest or settings change, correct the invalid data, then select Try again."),
-                "MPT found invalid local data.");
+                    "Check the latest manifest or settings change, correct the invalid data, then select Try again."));
         }
 
         return new ShellUserFacingFailure(
             "unexpected-page-failure",
             JoinParagraphs(
+                "Something went wrong while loading this page.",
+                "Select Try again. If it keeps happening, the technical details can help with troubleshooting."),
+            "Something went wrong while loading this page.",
+            JoinParagraphs(
                 "MPT hit an unexpected local failure while loading this page.",
-                "Technical details were saved to the Shell fault log. Select Try again; if the failure continues, inspect the latest shell-faults.log entry."),
-            "MPT hit an unexpected page-loading failure.");
+                "Technical details were saved to the Shell fault log. Select Try again; if the failure continues, inspect the latest shell-faults.log entry."));
     }
 
     private static IReadOnlyList<Exception> ExpandExceptionChain(Exception exception)
@@ -249,6 +283,7 @@ internal static class ShellFailurePresenter
         return source == ShellFailureSource.ServiceManager
             ? new ShellServiceDescription(
                 "MPT Service Manager",
+                "service manager",
                 "ServiceManager",
                 "service-manager",
                 endpoint.Transport,
@@ -256,6 +291,7 @@ internal static class ShellFailurePresenter
                 transportLabel)
             : new ShellServiceDescription(
                 "local MPT Runner",
+                "background service",
                 "Runner",
                 "runner",
                 endpoint.Transport,
@@ -265,6 +301,7 @@ internal static class ShellFailurePresenter
 
     private sealed record ShellServiceDescription(
         string DisplayName,
+        string FriendlyName,
         string ProcessName,
         string CodePrefix,
         IpcTransport Transport,

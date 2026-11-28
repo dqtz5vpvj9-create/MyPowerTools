@@ -15,7 +15,7 @@ public sealed class ShellRuntimeIdentityTests
         Assert.Equal(ShellRuntimeKind.Installed, identity.Kind);
         Assert.Equal("INSTALLED", identity.ModeLabel);
         Assert.Equal("", identity.LocationLabel);
-        Assert.Equal("MyPowerTools — INSTALLED", identity.WindowCaption);
+        Assert.Equal("MyPowerTools", identity.WindowCaption);
     }
 
     [Fact]
@@ -48,7 +48,8 @@ public sealed class ShellRuntimeIdentityTests
         Assert.Equal(ShellRuntimeKind.Development, identity.Kind);
         Assert.Equal("DEV · Release", identity.ModeLabel);
         Assert.Equal(Path.GetFullPath(repositoryRoot), identity.LocationLabel);
-        Assert.Contains(repositoryRoot, identity.WindowCaption, StringComparison.Ordinal);
+        Assert.Equal("MyPowerTools (Dev)", identity.WindowCaption);
+        Assert.DoesNotContain(repositoryRoot, identity.WindowCaption, StringComparison.Ordinal);
     }
 
     [Fact]

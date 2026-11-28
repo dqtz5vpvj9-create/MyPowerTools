@@ -130,8 +130,8 @@ public sealed class ShellToolProductService
         };
         var statusDetail = availability switch
         {
-            ToolAvailability.InDevelopment => "This tool is planned, and its workspace is still in development.",
-            ToolAvailability.Paused => "Delivery is paused. The tool will stay unavailable until implementation resumes.",
+            ToolAvailability.InDevelopment => "This tool isn't available yet. It will arrive in a future update.",
+            ToolAvailability.Paused => "This tool is turned off for now.",
             _ => tool.StateSummary
         };
         var primaryActionLabel = availability == ToolAvailability.Available
@@ -162,7 +162,7 @@ public sealed class ShellToolProductService
             string.IsNullOrWhiteSpace(route.Title) ? route.RouteId : route.Title,
             string.IsNullOrWhiteSpace(route.Title) ? tool.Title : route.Title,
             tool.Title,
-            "This route is registered, but its user-facing workspace is still under implementation.",
+            "This page isn't ready yet. Check back after the next update.",
             [],
             [])).ToArray();
     }
@@ -179,7 +179,7 @@ public sealed class ShellToolProductService
             "stopped" => "Not running",
             "disabled" => "Disabled",
             "unsupported" => "Not supported",
-            _ => "Status unavailable"
+            _ => "Unknown"
         };
     }
 

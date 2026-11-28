@@ -8,31 +8,41 @@
   <StackPanel x:Name="GeneralRoot"
               MaxWidth="{DynamicResource MptLayoutSettingsMaxWidth}"
               HorizontalAlignment="Center"
-              Spacing="{DynamicResource MptSpacingXl}">
-    <StackPanel Spacing="{DynamicResource MptSpacingXs}">
+              Spacing="{DynamicResource MptSpacingL}">
+    <StackPanel Spacing="{DynamicResource MptSpacingXs}"
+                Margin="{DynamicResource MptGapBottomS}">
       <TextBlock Classes="MptPageTitle" Text="{Binding Title}" />
       <TextBlock Classes="MptPageSubtitle" Text="{Binding Subtitle}" />
     </StackPanel>
 
+    <!-- Appearance -->
     <Border Classes="MptSettingsSection">
       <Grid x:Name="AppearanceLayoutGrid"
             ColumnDefinitions="*,320"
             RowDefinitions="Auto"
             ColumnSpacing="{DynamicResource MptSpacing2Xl}">
-        <StackPanel Spacing="{DynamicResource MptSpacingS}">
-          <TextBlock Classes="MptSectionTitle" Text="Appearance" />
-          <TextBlock Classes="MptPageSubtitle"
-                     Text="Choose the application theme used across MyPowerTools."
-                     MaxWidth="520"
-                     HorizontalAlignment="Left" />
-        </StackPanel>
+        <Grid ColumnDefinitions="Auto,*"
+              ColumnSpacing="{DynamicResource MptSpacingL}">
+          <controls:MptToolIcon IconKey="appearance"
+                                VerticalAlignment="Top" />
+          <StackPanel Grid.Column="1"
+                      Spacing="{DynamicResource MptSpacingXs}"
+                      VerticalAlignment="Center">
+            <TextBlock Classes="MptCardTitle" Text="Appearance" />
+            <TextBlock Classes="MptPageSubtitle"
+                       Text="Choose light or dark, or match your system."
+                       MaxWidth="520"
+                       HorizontalAlignment="Left" />
+          </StackPanel>
+        </Grid>
 
         <StackPanel x:Name="ThemeControlPanel"
                     Grid.Column="1"
-                    Spacing="{DynamicResource MptSpacingS}">
-          <TextBlock FontWeight="SemiBold" Text="App theme" />
+                    Spacing="{DynamicResource MptSpacingXs}"
+                    VerticalAlignment="Center">
           <controls:MptComboBox ItemsSource="{Binding Themes}"
                                 SelectedItem="{Binding SelectedTheme, Mode=TwoWay}"
+                                AutomationProperties.Name="App theme"
                                 HorizontalAlignment="Stretch">
             <controls:MptComboBox.ItemTemplate>
               <DataTemplate x:DataType="vm:ThemeChoiceViewModel">
@@ -54,67 +64,78 @@
           ColumnDefinitions="*,*"
           RowDefinitions="Auto"
           ColumnSpacing="{DynamicResource MptSpacingL}">
+      <!-- Background operation -->
       <Border Classes="MptSettingsSection">
         <StackPanel Spacing="{DynamicResource MptSpacingL}">
-          <StackPanel Spacing="{DynamicResource MptSpacingXs}">
-            <TextBlock Classes="MptSectionTitle" Text="Background operation" />
-            <TextBlock Classes="MptPageSubtitle"
-                       Text="{Binding BackgroundDescription}" />
-          </StackPanel>
+          <Grid ColumnDefinitions="Auto,*"
+                ColumnSpacing="{DynamicResource MptSpacingL}">
+            <controls:MptToolIcon IconKey="background"
+                                  VerticalAlignment="Top" />
+            <StackPanel Grid.Column="1"
+                        Spacing="{DynamicResource MptSpacingXs}">
+              <TextBlock Classes="MptCardTitle" Text="Runs in the background" />
+              <TextBlock Classes="MptPageSubtitle"
+                         Text="{Binding BackgroundDescription}" />
+            </StackPanel>
+          </Grid>
 
           <Border BorderBrush="{DynamicResource MptBrushDivider}"
                   BorderThickness="0,1,0,0"
-                  Padding="{DynamicResource MptListItemPadding}">
-            <Grid adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="40,*,Auto"
-                  ColumnSpacing="{DynamicResource MptSpacingM}">
-              <TextBlock Text="&#xE7E7;"
-                         FontFamily="{DynamicResource MptFontFamilyIcons}"
-                         FontSize="{DynamicResource MptFontSizeSection}"
-                         Foreground="{DynamicResource MptBrushTextSecondary}"
-                         HorizontalAlignment="Center"
-                         VerticalAlignment="Center" />
-              <StackPanel Grid.Column="1"
-                          Spacing="{DynamicResource MptSpacingXs}">
-                <TextBlock FontWeight="SemiBold" Text="{Binding BackgroundLocation}" />
-                <TextBlock Classes="MptMeta"
-                           Text="{Binding BackgroundHint}"
-                           TextWrapping="Wrap" />
-              </StackPanel>
-              <TextBlock Grid.Column="2"
-                         Classes="MptMeta"
-                         Text="Available while running"
-                         VerticalAlignment="Center" />
-            </Grid>
+                  Padding="{DynamicResource MptSettingsInnerRowPadding}">
+            <StackPanel Spacing="{DynamicResource MptSpacing2Xs}">
+              <TextBlock FontWeight="SemiBold" Text="{Binding BackgroundLocation}" />
+              <TextBlock Classes="MptMeta"
+                         Text="{Binding BackgroundHint}"
+                         TextWrapping="Wrap" />
+            </StackPanel>
           </Border>
         </StackPanel>
       </Border>
 
+      <!-- Keyboard shortcuts -->
       <Border x:Name="KeyboardSettingsCard" Grid.Column="1" Classes="MptSettingsSection">
-        <StackPanel Spacing="{DynamicResource MptSpacingM}">
-          <TextBlock Classes="MptSectionTitle" Text="Keyboard shortcuts" />
-          <TextBlock Text="Manage background, application and tool shortcuts in one place. Changes apply without restarting."
-                     TextWrapping="Wrap" Classes="MptMeta" />
-          <controls:MptButton Content="Open keyboard shortcuts" Command="{Binding OpenShortcutsCommand}" HorizontalAlignment="Left" />
+        <StackPanel Spacing="{DynamicResource MptSpacingL}">
+          <Grid ColumnDefinitions="Auto,*"
+                ColumnSpacing="{DynamicResource MptSpacingL}">
+            <controls:MptToolIcon IconKey="keyboard"
+                                  VerticalAlignment="Top" />
+            <StackPanel Grid.Column="1"
+                        Spacing="{DynamicResource MptSpacingXs}">
+              <TextBlock Classes="MptCardTitle" Text="Keyboard shortcuts" />
+              <TextBlock Classes="MptPageSubtitle"
+                         Text="See and change the shortcuts for MyPowerTools and your tools." />
+            </StackPanel>
+          </Grid>
+          <controls:MptButton Content="Edit shortcuts"
+                              Command="{Binding OpenShortcutsCommand}"
+                              HorizontalAlignment="Left" />
         </StackPanel>
       </Border>
     </Grid>
 
-   <Border Classes="MptSettingsSection">
+    <!-- Developer sources: only surfaced in development runtimes. -->
+    <Border Classes="MptSettingsSection"
+            IsVisible="{Binding !!DevSource}">
       <Grid adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="*,Auto"
             RowDefinitions="Auto,Auto,Auto,Auto"
-            RowSpacing="{DynamicResource MptSpacingS}"
-            ColumnSpacing="{DynamicResource MptSpacingL}"
-            IsVisible="{Binding !!DevSource}">
-        <StackPanel Grid.Row="0"
-                    Grid.ColumnSpan="2"
-                    Spacing="{DynamicResource MptSpacingXs}">
-          <TextBlock Classes="MptSectionTitle" Text="Developer sources" />
-          <TextBlock Classes="MptPageSubtitle"
-                     Text="Sync build outputs from local source folders into the installed module directory on every tool refresh."
-                     TextWrapping="Wrap"
-                     MaxWidth="720"
-                     HorizontalAlignment="Left" />
-        </StackPanel>
+            RowSpacing="{DynamicResource MptSpacingM}"
+            ColumnSpacing="{DynamicResource MptSpacingL}">
+        <Grid Grid.Row="0"
+              Grid.ColumnSpan="2"
+              ColumnDefinitions="Auto,*"
+              ColumnSpacing="{DynamicResource MptSpacingL}">
+          <controls:MptToolIcon IconKey="developer"
+                                VerticalAlignment="Top" />
+          <StackPanel Grid.Column="1"
+                      Spacing="{DynamicResource MptSpacingXs}">
+            <TextBlock Classes="MptCardTitle" Text="Developer sources (dev builds only)" />
+            <TextBlock Classes="MptPageSubtitle"
+                       Text="Sync build outputs from local source folders into the installed module directory on every tool refresh."
+                       TextWrapping="Wrap"
+                       MaxWidth="720"
+                       HorizontalAlignment="Left" />
+          </StackPanel>
+        </Grid>
 
         <Grid adaptive:MptAdaptiveLayout.StackBelow="600" Grid.Row="1"
               Grid.ColumnSpan="2"
@@ -124,7 +145,7 @@
             <StackPanel Spacing="{DynamicResource MptSpacingXs}">
               <TextBlock FontWeight="SemiBold" Text="Enable source sync" />
               <TextBlock Classes="MptMeta"
-                         Text="When on, configured folders are checked on every dotnet-surface tool refresh."
+                         Text="When on, configured folders are checked every time a tool refreshes."
                          TextWrapping="Wrap" />
               <controls:MptCheckBox Content="Enable developer source sync"
                         IsChecked="{Binding DevSource.Enabled, Mode=TwoWay}"
@@ -150,18 +171,19 @@
                 Classes="MptSettingsField">
           <StackPanel Spacing="{DynamicResource MptSpacingS}">
             <TextBlock FontWeight="SemiBold" Text="Add a source mapping" />
-           <Grid adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="*,*,*,Auto"
-                 ColumnSpacing="{DynamicResource MptSpacingS}">
-            <controls:MptTextBox PlaceholderText="Name (optional)"
-                     Text="{Binding DevSource.NewName, Mode=TwoWay}" />
-            <controls:MptTextBox Grid.Column="1"
-                     PlaceholderText="Tool id (optional, e.g. remote-notifications)"
-                     Text="{Binding DevSource.NewToolId, Mode=TwoWay}" />
+            <Grid adaptive:MptAdaptiveLayout.StackBelow="600" ColumnDefinitions="*,*,Auto"
+                  ColumnSpacing="{DynamicResource MptSpacingS}">
+              <controls:MptTextBox PlaceholderText="Name (optional)"
+                       Text="{Binding DevSource.NewName, Mode=TwoWay}" />
+              <controls:MptTextBox Grid.Column="1"
+                       PlaceholderText="Tool id (optional, e.g. remote-notifications)"
+                       Text="{Binding DevSource.NewToolId, Mode=TwoWay}" />
               <controls:MptButton Grid.Column="2"
-                                Content="Add"
-                                Command="{Binding DevSource.AddMappingCommand}"
-                                VerticalAlignment="Bottom" />
-           </Grid>
+                                  Classes="MptPrimaryButton"
+                                  Content="Add"
+                                  Command="{Binding DevSource.AddMappingCommand}"
+                                  VerticalAlignment="Bottom" />
+            </Grid>
             <controls:MptTextBox PlaceholderText="Source directory (build output, e.g. ...\bin\Release\net8.0)"
                      Text="{Binding DevSource.NewSourceDir, Mode=TwoWay}" />
             <controls:MptTextBox PlaceholderText="Target directory (installed module path)"
@@ -189,33 +211,41 @@
                                IsVisible="{Binding !!ToolId}" />
                     <TextBlock Classes="MptMeta"
                                Text="{Binding Patterns, StringFormat='Patterns: {0}'}" />
-                </StackPanel>
-                <controls:MptButton Grid.Column="1"
-                                  Content="Remove"
-                                  Command="{Binding RemoveCommand}"
-                                  VerticalAlignment="Top" />
+                  </StackPanel>
+                  <controls:MptButton Grid.Column="1"
+                                      Classes="MptSubtleButton"
+                                      Content="Remove"
+                                      Command="{Binding RemoveCommand}"
+                                      VerticalAlignment="Top" />
                 </Grid>
               </Border>
             </DataTemplate>
-              </ItemsControl.ItemTemplate>
+          </ItemsControl.ItemTemplate>
         </ItemsControl>
       </Grid>
     </Border>
 
+    <!-- Troubleshooting (advanced pages live behind this entry, not in the main navigation) -->
     <Border Classes="MptSettingsSection">
       <Grid x:Name="MaintenanceGrid"
             ColumnDefinitions="*,Auto"
             RowDefinitions="Auto"
             ColumnSpacing="{DynamicResource MptSpacingL}">
-        <StackPanel Spacing="{DynamicResource MptSpacingXs}">
-          <TextBlock Classes="MptCardTitle" Text="System &amp; Maintenance" />
-          <TextBlock Classes="MptMeta"
-                     Text="Manage runtime modules, packages, logs, and support diagnostics in one place."
-                     TextWrapping="Wrap" />
-        </StackPanel>
+        <Grid ColumnDefinitions="Auto,*"
+              ColumnSpacing="{DynamicResource MptSpacingL}">
+          <controls:MptToolIcon IconKey="maintenance" />
+          <StackPanel Grid.Column="1"
+                      Spacing="{DynamicResource MptSpacing2Xs}"
+                      VerticalAlignment="Center">
+            <TextBlock Classes="MptCardTitle" Text="Troubleshooting" />
+            <TextBlock Classes="MptMeta"
+                       Text="Updates, logs and health checks for when something isn't working."
+                       TextWrapping="Wrap" />
+          </StackPanel>
+        </Grid>
         <controls:MptButton x:Name="OpenSystemButton"
                             Grid.Column="1"
-                            Content="Open System"
+                            Content="Open troubleshooting"
                             Command="{Binding OpenSystemCommand}"
                             MinWidth="{DynamicResource MptDensityActionMinWidth}"
                             VerticalAlignment="Center" />

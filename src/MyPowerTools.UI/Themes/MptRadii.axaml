@@ -2,12 +2,16 @@
         xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
   <Styles.Resources>
     <CornerRadius x:Key="MptRadiusNone">0</CornerRadius>
-    <CornerRadius x:Key="MptRadiusXs">2</CornerRadius>
-    <CornerRadius x:Key="MptRadiusControl">4</CornerRadius>
-    <CornerRadius x:Key="MptRadiusCard">8</CornerRadius>
-    <CornerRadius x:Key="MptRadiusPanel">8</CornerRadius>
-    <CornerRadius x:Key="MptRadiusOverlay">8</CornerRadius>
-    <CornerRadius x:Key="MptRadiusLarge">12</CornerRadius>
+    <CornerRadius x:Key="MptRadiusXs">4</CornerRadius>
+    <CornerRadius x:Key="MptRadiusControl">8</CornerRadius>
+    <CornerRadius x:Key="MptRadiusCard">12</CornerRadius>
+    <CornerRadius x:Key="MptRadiusPanel">12</CornerRadius>
+    <CornerRadius x:Key="MptRadiusOverlay">14</CornerRadius>
+    <CornerRadius x:Key="MptRadiusLarge">16</CornerRadius>
     <CornerRadius x:Key="MptRadiusBadge">999</CornerRadius>
+    <CornerRadius x:Key="MptRadiusIconTile">10</CornerRadius>
+    <CornerRadius x:Key="MptRadiusIconTileSmall">8</CornerRadius>
+    <CornerRadius x:Key="MptRadiusIconTileLarge">13</CornerRadius>
+    <CornerRadius x:Key="MptRadiusIconTileNav">7</CornerRadius>
   </Styles.Resources>
 </Styles>

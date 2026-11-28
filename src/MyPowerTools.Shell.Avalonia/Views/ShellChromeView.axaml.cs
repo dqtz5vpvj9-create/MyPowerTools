@@ -19,7 +19,7 @@ public sealed partial class ShellChromeView : UserControl
     private const double SearchMinWidth = 280;
     private const double SearchMaxWidth = MptThemeTokens.LayoutSearchMaxWidth;
     private const double ContentMaxWidth = MptThemeTokens.LayoutPageMaxWidth;
-    private const double ContentHorizontalMargin = 56;
+    private const double ContentHorizontalMargin = 84;
     private const double TopBarHeight = MptThemeTokens.LayoutTopBarHeight;
 
     /// <summary>
@@ -43,6 +43,7 @@ public sealed partial class ShellChromeView : UserControl
     private readonly TextBlock _toolSectionLabel;
     private readonly StackPanel _mainNavigationStack;
     private readonly StackPanel _footerNavigationStack;
+    private readonly ItemsControl _toolNavigationList;
     private readonly Border _navigationHost;
     private readonly MptButton _navigationModeButton;
     private ShellNavigationMode _navigationMode = ShellNavigationMode.Expanded;
@@ -86,6 +87,8 @@ public sealed partial class ShellChromeView : UserControl
             ?? throw new InvalidOperationException("Shell main navigation stack was not found.");
         _footerNavigationStack = this.FindControl<StackPanel>("FooterNavigationStack")
             ?? throw new InvalidOperationException("Shell footer navigation stack was not found.");
+        _toolNavigationList = this.FindControl<ItemsControl>("ToolNavigationList")
+            ?? throw new InvalidOperationException("Shell tool navigation list was not found.");
         _navigationHost = this.FindControl<Border>("NavigationHost")
             ?? throw new InvalidOperationException("Shell navigation host was not found.");
         _navigationModeButton = this.FindControl<MptButton>("NavigationModeButton")
@@ -232,6 +235,9 @@ public sealed partial class ShellChromeView : UserControl
         _mainNavigationStack.Margin = compact
             ? MptThemeTokens.ShellNavigationCompactMargin
             : MptThemeTokens.ShellNavigationExpandedMargin;
+        _toolNavigationList.Margin = compact
+            ? MptThemeTokens.ShellToolListCompactMargin
+            : MptThemeTokens.ShellToolListExpandedMargin;
         _footerNavigationStack.Margin = compact
             ? MptThemeTokens.ShellFooterCompactMargin
             : MptThemeTokens.ShellFooterExpandedMargin;
@@ -247,9 +253,6 @@ public sealed partial class ShellChromeView : UserControl
             ShellNavigationMode.Compact => "Navigation: icons only. Activate to hide.",
             _ => "Navigation: hidden. Activate to expand."
         });
-        _navigationModeButton.Content = NavigationMode == ShellNavigationMode.Hidden
-            ? "›"
-            : "☰";
     }
 }
 

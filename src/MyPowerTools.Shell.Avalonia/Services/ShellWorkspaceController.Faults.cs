@@ -175,10 +175,11 @@ public sealed partial class ShellWorkspaceController
                 SetOwnedContent(
                     _contentHost,
                     BuildUnavailablePage(
-                        "This workspace recovered from an action failure",
-                        $"{fault.Operation} failed: {message}",
+                        "Something went wrong",
+                        "The last action didn't finish. You can try again or go back to a safe page.",
                         retry,
-                        returnToSafety));
+                        returnToSafety,
+                        $"{fault.Operation} failed: {message}"));
                 SetStatus($"Recovered from {fault.Operation}: {message}");
             },
             () =>

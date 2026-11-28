@@ -93,7 +93,7 @@ public sealed partial class ShellWorkspaceController
                 retry: LoadHomePageAsync,
                 allTools: tools);
             SetOwnedContent(_contentHost, new HomeView { DataContext = viewModel });
-            SetStatus($"{tools.Count} tools registered.");
+            SetStatus($"{tools.Count} tools.");
             ShellStartupDiagnostics.Mark("home-content-bound");
             Dispatcher.UIThread.Post(
                 () =>
@@ -139,7 +139,7 @@ public sealed partial class ShellWorkspaceController
                 refresh: RefreshToolsPageAsync,
                 retry: LoadToolsPageAsync);
             SetOwnedContent(_contentHost, new ToolCatalogView { DataContext = viewModel });
-            SetStatus($"{tools.Count} tools registered.");
+            SetStatus($"{tools.Count} tools.");
         }
         catch (Exception ex)
         {
@@ -277,7 +277,7 @@ public sealed partial class ShellWorkspaceController
             }
 
             var failure = ReportPageFailure(nameof(ShowToolPageAsync), ex);
-            SetOwnedContent(_contentHost, BuildUnavailablePage("Tool", failure.Message, retry: () => ShowToolPageAsync(toolId)));
+            SetOwnedContent(_contentHost, BuildUnavailablePage("Tool", failure.Message, details: failure.Details, retry: () => ShowToolPageAsync(toolId)));
             return null;
         }
     }
@@ -355,7 +355,7 @@ public sealed partial class ShellWorkspaceController
             if (IsStalePageFailure(nameof(ShowToolPageAsync), ex, identity)) return;
 
             var failure = ReportPageFailure(nameof(ShowToolPageAsync), ex);
-            SetOwnedContent(_contentHost, BuildUnavailablePage("Tool", failure.Message, retry: () => ShowToolPageAsync(toolId, routeId)));
+            SetOwnedContent(_contentHost, BuildUnavailablePage("Tool", failure.Message, details: failure.Details, retry: () => ShowToolPageAsync(toolId, routeId)));
         }
     }
 }

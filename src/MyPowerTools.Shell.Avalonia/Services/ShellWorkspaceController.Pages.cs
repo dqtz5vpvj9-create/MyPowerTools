@@ -29,7 +29,7 @@ public sealed partial class ShellWorkspaceController
             if (IsStalePageFailure(nameof(LoadDashboardPageAsync), ex, identity)) return;
 
             var failure = ReportPageFailure(nameof(LoadDashboardPageAsync), ex);
-            SetOwnedContent(_contentHost, BuildUnavailablePage(DashboardPage, failure.Message, retry: () => LoadDashboardPageAsync()));
+            SetOwnedContent(_contentHost, BuildUnavailablePage(DashboardPage, failure.Message, details: failure.Details, retry: () => LoadDashboardPageAsync()));
         }
     }
 
@@ -57,7 +57,7 @@ public sealed partial class ShellWorkspaceController
             if (IsStalePageFailure(nameof(LoadModulesPageAsync), ex, identity)) return;
 
             var failure = ReportPageFailure(nameof(LoadModulesPageAsync), ex);
-            SetOwnedContent(_contentHost, BuildUnavailablePage(ModulesPage, failure.Message, retry: () => LoadModulesPageAsync()));
+            SetOwnedContent(_contentHost, BuildUnavailablePage(ModulesPage, failure.Message, details: failure.Details, retry: () => LoadModulesPageAsync()));
         }
     }
 
@@ -88,7 +88,7 @@ public sealed partial class ShellWorkspaceController
             if (IsStalePageFailure(nameof(ShowModuleDetailPageAsync), ex, identity)) return;
 
             var failure = ReportPageFailure(nameof(ShowModuleDetailPageAsync), ex);
-            SetOwnedContent(_contentHost, BuildUnavailablePage("Module Detail", failure.Message, retry: () => ShowModuleDetailPageAsync(moduleId)));
+            SetOwnedContent(_contentHost, BuildUnavailablePage("Module Detail", failure.Message, details: failure.Details, retry: () => ShowModuleDetailPageAsync(moduleId)));
         }
     }
 
@@ -97,9 +97,12 @@ public sealed partial class ShellWorkspaceController
         SetOwnedContent(_contentHost, new GeneralSettingsView
         {
             DataContext = new GeneralSettingsViewModel(_appearance.CurrentTheme, _appearance.SetThemeAsync,
-                () => ShowPageAsync(SystemPage), _devSource, openShortcuts: () => ShowPageAsync(ShortcutsPage))
+                () => ShowPageAsync(SystemPage),
+                // Developer source sync is a build-tooling feature; only dev runtimes surface it.
+                ShellRuntimeIdentityResolver.Resolve(AppContext.BaseDirectory).IsDevelopment ? _devSource : null,
+                openShortcuts: () => ShowPageAsync(ShortcutsPage))
         });
-        SetStatus("Application preferences opened.");
+        SetStatus("Settings opened.");
         return Task.CompletedTask;
     }
 
@@ -127,7 +130,7 @@ public sealed partial class ShellWorkspaceController
             if (IsStalePageFailure(nameof(LoadModuleSettingsPageAsync), ex, identity)) return;
 
             var failure = ReportPageFailure(nameof(LoadModuleSettingsPageAsync), ex);
-            SetOwnedContent(_contentHost, BuildUnavailablePage(SettingsPage, failure.Message, retry: () => LoadModuleSettingsPageAsync(selectedModuleId)));
+            SetOwnedContent(_contentHost, BuildUnavailablePage(SettingsPage, failure.Message, details: failure.Details, retry: () => LoadModuleSettingsPageAsync(selectedModuleId)));
         }
     }
 
@@ -190,7 +193,7 @@ public sealed partial class ShellWorkspaceController
             }
             else
             {
-                SetOwnedContent(_contentHost, BuildUnavailablePage(LogsPage, failure.Message, retry: () => LoadLogsPageAsync(_logPageModuleId)));
+                SetOwnedContent(_contentHost, BuildUnavailablePage(LogsPage, failure.Message, details: failure.Details, retry: () => LoadLogsPageAsync(_logPageModuleId)));
             }
         }
     }
@@ -224,7 +227,7 @@ public sealed partial class ShellWorkspaceController
             if (IsStalePageFailure(nameof(LoadNotificationsPageAsync), ex, identity)) return;
 
             var failure = ReportPageFailure(nameof(LoadNotificationsPageAsync), ex);
-            SetOwnedContent(_contentHost, BuildUnavailablePage("Notifications", failure.Message, retry: () => LoadNotificationsPageAsync()));
+            SetOwnedContent(_contentHost, BuildUnavailablePage("Notifications", failure.Message, details: failure.Details, retry: () => LoadNotificationsPageAsync()));
         }
     }
 
@@ -255,7 +258,7 @@ public sealed partial class ShellWorkspaceController
             if (IsStalePageFailure(nameof(LoadPackagesPageAsync), ex, identity)) return;
 
             var failure = ReportPageFailure(nameof(LoadPackagesPageAsync), ex);
-            SetOwnedContent(_contentHost, BuildUnavailablePage(PackagesPage, failure.Message, retry: () => LoadPackagesPageAsync()));
+            SetOwnedContent(_contentHost, BuildUnavailablePage(PackagesPage, failure.Message, details: failure.Details, retry: () => LoadPackagesPageAsync()));
         }
     }
 
@@ -286,7 +289,7 @@ public sealed partial class ShellWorkspaceController
             if (IsStalePageFailure(nameof(LoadDiagnosticsPageAsync), ex, identity)) return;
 
             var failure = ReportPageFailure(nameof(LoadDiagnosticsPageAsync), ex);
-            SetOwnedContent(_contentHost, BuildUnavailablePage(DiagnosticsPage, failure.Message, retry: () => LoadDiagnosticsPageAsync()));
+            SetOwnedContent(_contentHost, BuildUnavailablePage(DiagnosticsPage, failure.Message, details: failure.Details, retry: () => LoadDiagnosticsPageAsync()));
         }
     }
 
@@ -324,6 +327,7 @@ public sealed partial class ShellWorkspaceController
             SetOwnedContent(_contentHost, BuildUnavailablePage(
                 ServicesPage,
                 failure.Message,
+                details: failure.Details,
                 retry: TryStartServiceManagerThenLoadAsync));
         }
     }

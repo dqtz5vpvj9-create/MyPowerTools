@@ -267,7 +267,6 @@ public sealed class ShellProductSemanticsTests
 
         Assert.Collection(
             chrome.ToolNavigationItems,
-            item => Assert.Equal("All tools", item.DisplayLabel),
             item =>
             {
                 Assert.Equal("示例工具", item.DisplayLabel);
@@ -281,8 +280,10 @@ public sealed class ShellProductSemanticsTests
             });
 
         chrome.SelectTool("sample.ready");
-        Assert.True(chrome.ToolNavigationItems[1].IsSelected);
-        Assert.False(chrome.ToolNavigationItems[0].IsSelected);
+        Assert.True(chrome.ToolNavigationItems[0].IsSelected);
+        Assert.False(chrome.ToolNavigationItems[1].IsSelected);
+        Assert.Contains(chrome.TopNavigationItems, item => item.DisplayLabel == "All tools");
+        Assert.Contains(chrome.FooterNavigationItems, item => item.DisplayLabel == "Settings");
     }
 
     [Fact]
@@ -308,7 +309,9 @@ public sealed class ShellProductSemanticsTests
         Assert.Equal(3, home.ActionableTools.Count);
         Assert.Equal(2, home.QuickAccessActions.Count);
         Assert.Equal(9, home.ReadyToolCount);
-        Assert.Equal("9 tools registered", home.ToolCountSummary);
+        Assert.Equal("9 tools installed", home.ToolCountSummary);
+        Assert.Equal("All tools are ready", home.DashboardStatusLabel);
+        Assert.False(home.HasAttentionTools);
     }
 
     [Fact]

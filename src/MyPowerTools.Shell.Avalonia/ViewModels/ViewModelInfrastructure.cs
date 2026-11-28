@@ -80,12 +80,11 @@ public sealed class ShellChromeViewModel : ObservableViewModel
                 new AsyncRelayCommand(() => navigate?.Invoke(label) ?? Task.CompletedTask)))
             .ToArray();
         TopNavigationItems = NavigationItems
-            .Where(item => item.Label is "Home" or "Dashboard" or "Settings")
+            .Where(item => item.Label is "Home" or "Dashboard" or "Tools")
             .ToArray();
-        ToolNavigationItems = new ObservableCollection<ShellNavigationItemViewModel>(
-            NavigationItems.Where(item => item.Label is "Tools"));
+        ToolNavigationItems = new ObservableCollection<ShellNavigationItemViewModel>();
         FooterNavigationItems = NavigationItems
-            .Where(item => item.Label is "System")
+            .Where(item => item.Label is "Settings")
             .ToArray();
         RefreshCommand = new AsyncRelayCommand(() => refresh?.Invoke() ?? Task.CompletedTask);
         OpenCommandPaletteCommand = new AsyncRelayCommand(() => openCommandPalette?.Invoke() ?? Task.CompletedTask);
@@ -215,7 +214,8 @@ public sealed class ShellChromeViewModel : ObservableViewModel
 
     public void SelectPage(string page)
     {
-        _selectedNavigationKey = page;
+        // Troubleshooting lives under Settings, so keep Settings highlighted there.
+        _selectedNavigationKey = page is "System" ? "Settings" : page;
         ApplyNavigationSelection();
     }
 
@@ -232,9 +232,7 @@ public sealed class ShellChromeViewModel : ObservableViewModel
         Func<string, bool>? isWebToolOpen = null,
         Func<string, string?>? resolveOpenTitle = null)
     {
-        var allTools = NavigationItems.First(item => item.Label is "Tools");
         ToolNavigationItems.Clear();
-        ToolNavigationItems.Add(allTools);
 
         foreach (var tool in tools.DistinctBy(item => item.ToolId, StringComparer.OrdinalIgnoreCase))
         {

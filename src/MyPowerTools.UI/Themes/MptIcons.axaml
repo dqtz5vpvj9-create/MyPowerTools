@@ -1,0 +1,39 @@
+<Styles xmlns="https://github.com/avaloniaui"
+        xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml">
+  <!--
+    Shared 24x24 stroke icon geometry (Lucide-style). Geometry only: colours come from the
+    MptBrushTint* / text brushes in the control styles, so light and dark themes both work.
+  -->
+  <Styles.Resources>
+    <StreamGeometry x:Key="MptIconGeoGrid">M4,3 H10 A1,1 0 0,1 11,4 V10 A1,1 0 0,1 10,11 H4 A1,1 0 0,1 3,10 V4 A1,1 0 0,1 4,3 Z M14,3 H20 A1,1 0 0,1 21,4 V10 A1,1 0 0,1 20,11 H14 A1,1 0 0,1 13,10 V4 A1,1 0 0,1 14,3 Z M14,13 H20 A1,1 0 0,1 21,14 V20 A1,1 0 0,1 20,21 H14 A1,1 0 0,1 13,20 V14 A1,1 0 0,1 14,13 Z M4,13 H10 A1,1 0 0,1 11,14 V20 A1,1 0 0,1 10,21 H4 A1,1 0 0,1 3,20 V14 A1,1 0 0,1 4,13 Z</StreamGeometry>
+    <StreamGeometry x:Key="MptIconGeoBell">M18,8 A6,6 0 0,0 6,8 C6,15 3,17 3,17 H21 C21,17 18,15 18,8 M13.73,21 A2,2 0 0,1 10.27,21</StreamGeometry>
+    <StreamGeometry x:Key="MptIconGeoTerminal">M4,17 L10,11 L4,5 M12,19 H20</StreamGeometry>
+    <StreamGeometry x:Key="MptIconGeoSmartphone">M7,2 H17 A2,2 0 0,1 19,4 V20 A2,2 0 0,1 17,22 H7 A2,2 0 0,1 5,20 V4 A2,2 0 0,1 7,2 Z M12,18 H12.01</StreamGeometry>
+    <StreamGeometry x:Key="MptIconGeoActivity">M22,12 H18 L15,21 L9,3 L6,12 H2</StreamGeometry>
+    <StreamGeometry x:Key="MptIconGeoSun">M12,16 A4,4 0 1,0 12,8 A4,4 0 1,0 12,16 Z M12,2 V4 M12,20 V22 M4.93,4.93 L6.34,6.34 M17.66,17.66 L19.07,19.07 M2,12 H4 M20,12 H22 M6.34,17.66 L4.93,19.07 M19.07,4.93 L17.66,6.34</StreamGeometry>
+    <StreamGeometry x:Key="MptIconGeoSparkles">M12,3 L13.9,8.1 L19,10 L13.9,11.9 L12,17 L10.1,11.9 L5,10 L10.1,8.1 Z M19,15 L19.8,17.2 L22,18 L19.8,18.8 L19,21 L18.2,18.8 L16,18 L18.2,17.2 Z</StreamGeometry>
+    <StreamGeometry x:Key="MptIconGeoThermometer">M14,14.76 V3.5 A2.5,2.5 0 0,0 9,3.5 V14.76 A4.5,4.5 0 1,0 14,14.76 Z</StreamGeometry>
+    <StreamGeometry x:Key="MptIconGeoKeyboard">M4,5 H20 A2,2 0 0,1 22,7 V17 A2,2 0 0,1 20,19 H4 A2,2 0 0,1 2,17 V7 A2,2 0 0,1 4,5 Z M6,9 H6.01 M10,9 H10.01 M14,9 H14.01 M18,9 H18.01 M6,13 H6.01 M18,13 H18.01 M8,15 H16</StreamGeometry>
+    <StreamGeometry x:Key="MptIconGeoImage">M5,3 H19 A2,2 0 0,1 21,5 V19 A2,2 0 0,1 19,21 H5 A2,2 0 0,1 3,19 V5 A2,2 0 0,1 5,3 Z M8.5,10 A1.5,1.5 0 1,0 8.5,7 A1.5,1.5 0 1,0 8.5,10 Z M21,15 L16,10 L5,21</StreamGeometry>
+    <StreamGeometry x:Key="MptIconGeoTransfer">M7,16 L3,12 L7,8 M3,12 H21 M17,8 L21,12 L17,16</StreamGeometry>
+    <StreamGeometry x:Key="MptIconGeoServer">M4,3 H20 A2,2 0 0,1 22,5 V9 A2,2 0 0,1 20,11 H4 A2,2 0 0,1 2,9 V5 A2,2 0 0,1 4,3 Z M4,13 H20 A2,2 0 0,1 22,15 V19 A2,2 0 0,1 20,21 H4 A2,2 0 0,1 2,19 V15 A2,2 0 0,1 4,13 Z M6,7 H6.01 M6,17 H6.01</StreamGeometry>
+    <StreamGeometry x:Key="MptIconGeoGauge">M12,14 L16,10 M3.34,19 A10,10 0 1,1 20.66,19</StreamGeometry>
+    <StreamGeometry x:Key="MptIconGeoGlobe">M12,22 A10,10 0 1,0 12,2 A10,10 0 1,0 12,22 Z M2,12 H22 M12,2 A15.3,15.3 0 0,1 16,12 A15.3,15.3 0 0,1 12,22 A15.3,15.3 0 0,1 8,12 A15.3,15.3 0 0,1 12,2 Z</StreamGeometry>
+    <StreamGeometry x:Key="MptIconGeoPalette">M12,3 A9,9 0 1,0 12,21 A9,9 0 1,0 12,3 Z M12,3 V21</StreamGeometry>
+    <StreamGeometry x:Key="MptIconGeoLaptop">M5,5 H19 A1,1 0 0,1 20,6 V15 H4 V6 A1,1 0 0,1 5,5 Z M2,19 H22</StreamGeometry>
+    <StreamGeometry x:Key="MptIconGeoCode">M16,18 L22,12 L16,6 M8,6 L2,12 L8,18</StreamGeometry>
+    <StreamGeometry x:Key="MptIconGeoBolt">M13,2 L3,14 H12 L11,22 L21,10 H12 Z</StreamGeometry>
+    <StreamGeometry x:Key="MptIconGeoSearch">M11,19 A8,8 0 1,0 11,3 A8,8 0 1,0 11,19 Z M21,21 L16.65,16.65</StreamGeometry>
+    <StreamGeometry x:Key="MptIconGeoStar">M12,2 L15.09,8.26 L22,9.27 L17,14.14 L18.18,21.02 L12,17.77 L5.82,21.02 L7,14.14 L2,9.27 L8.91,8.26 Z</StreamGeometry>
+    <StreamGeometry x:Key="MptIconGeoChevronRight">M9,18 L15,12 L9,6</StreamGeometry>
+    <StreamGeometry x:Key="MptIconGeoRefresh">M21,12 A9,9 0 0,0 6,5.3 L3,8 M3,3 V8 H8 M3,12 A9,9 0 0,0 18,18.7 L21,16 M21,21 V16 H16</StreamGeometry>
+    <StreamGeometry x:Key="MptIconGeoCheck">M20,6 L9,17 L4,12</StreamGeometry>
+    <StreamGeometry x:Key="MptIconGeoPlus">M12,5 V19 M5,12 H19</StreamGeometry>
+    <StreamGeometry x:Key="MptIconGeoSidebar">M5,3 H19 A2,2 0 0,1 21,5 V19 A2,2 0 0,1 19,21 H5 A2,2 0 0,1 3,19 V5 A2,2 0 0,1 5,3 Z M9,3 V21</StreamGeometry>
+    <StreamGeometry x:Key="MptIconGeoHome">M3,10 L12,3 L21,10 V20 A1,1 0 0,1 20,21 H15 V14 H9 V21 H4 A1,1 0 0,1 3,20 Z</StreamGeometry>
+    <StreamGeometry x:Key="MptIconGeoGear">M12,15 A3,3 0 1,0 12,9 A3,3 0 1,0 12,15 Z M19.4,15 A1.65,1.65 0 0,0 19.73,16.82 L19.79,16.88 A2,2 0 1,1 16.96,19.71 L16.9,19.65 A1.65,1.65 0 0,0 15.08,19.32 A1.65,1.65 0 0,0 14.08,20.83 V21 A2,2 0 1,1 10.08,21 V20.91 A1.65,1.65 0 0,0 9,19.4 A1.65,1.65 0 0,0 7.18,19.73 L7.12,19.79 A2,2 0 1,1 4.29,16.96 L4.35,16.9 A1.65,1.65 0 0,0 4.68,15.08 A1.65,1.65 0 0,0 3.17,14.08 H3 A2,2 0 1,1 3,10.08 H3.09 A1.65,1.65 0 0,0 4.6,9 A1.65,1.65 0 0,0 4.27,7.18 L4.21,7.12 A2,2 0 1,1 7.04,4.29 L7.1,4.35 A1.65,1.65 0 0,0 8.92,4.68 H9 A1.65,1.65 0 0,0 10,3.17 V3 A2,2 0 1,1 14,3 V3.09 A1.65,1.65 0 0,0 15,4.6 A1.65,1.65 0 0,0 16.82,4.27 L16.88,4.21 A2,2 0 1,1 19.71,7.04 L19.65,7.1 A1.65,1.65 0 0,0 19.32,8.92 V9 A1.65,1.65 0 0,0 20.83,10 H21 A2,2 0 1,1 21,14 H20.91 A1.65,1.65 0 0,0 19.4,15 Z</StreamGeometry>
+    <StreamGeometry x:Key="MptIconGeoWrench">M14.7,6.3 A1,1 0 0,0 14.7,7.7 L16.3,9.3 A1,1 0 0,0 17.7,9.3 L21.47,5.53 A6,6 0 0,1 13.53,13.47 L6.62,20.38 A2.12,2.12 0 0,1 3.62,17.38 L10.53,10.47 A6,6 0 0,1 18.47,2.53 L14.71,6.29 Z</StreamGeometry>
+    <StreamGeometry x:Key="MptIconGeoAlert">M12,22 A10,10 0 1,0 12,2 A10,10 0 1,0 12,22 Z M12,8 V12 M12,16 H12.01</StreamGeometry>
+    <StreamGeometry x:Key="MptIconGeoCheckCircle">M22,11.08 V12 A10,10 0 1,1 16.07,2.86 M22,4 L12,14.01 L9,11.01</StreamGeometry>
+  </Styles.Resources>
+</Styles>
