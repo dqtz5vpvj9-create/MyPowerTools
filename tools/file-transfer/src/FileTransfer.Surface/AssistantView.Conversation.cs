@@ -34,9 +34,9 @@ internal sealed partial class AssistantView
     private void ShowAttachmentSheet()
     {
         _sheetTitle.Text = "添加附件";
-        _sheetScroll.Content = MobileUi.Stack(0,
-            MobileUi.ListRow("MptMobileIconClipboard", "文件", "从设备选择文件", async () => { CloseSheet(); await PickAsync(false); }),
-            MobileUi.ListRow("MptMobileIconImage", "照片", "选择图片", async () => { CloseSheet(); await PickAsync(true); }));
+        _sheetScroll.Content = MobileUi.GroupedListCard(
+            MobileUi.ListRow("MptMobileIconFile", "文件", "从设备选择文档、安装包或任意文件", async () => { CloseSheet(); await PickAsync(false); }),
+            MobileUi.ListRow("MptMobileIconImage", "照片", "从相册选择图片", async () => { CloseSheet(); await PickAsync(true); }, tone: "green"));
         OpenSheet();
     }
 
@@ -155,48 +155,236 @@ internal sealed partial class AssistantView
     private Control CompactRow(AssistantItem item, AssistantSnapshot state)
     {
         var mine = item.SenderDeviceId == state.Identity.Id;
-        var content = new Grid { ColumnDefinitions = new ColumnDefinitions("*,44") };
+        var chatWidth = _viewport >= PhoneWidth ? Math.Max(280, _viewport - 300) : _viewport;
+        var sideAllowance = _viewport <= 340 ? 28 : 36;
+        var available = Math.Min(560, Math.Max(210, Math.Min(chatWidth - sideAllowance, chatWidth * .88)));
+        var bubbleMaxWidth = Math.Max(136, available - 48);
+
         Control body;
         if (item.IsText)
-            body = new TextBlock { Text = item.Text ?? item.DisplayName, FontSize = 15, TextWrapping = TextWrapping.Wrap, VerticalAlignment = VerticalAlignment.Center };
+        {
+            var textBlock = new TextBlock
+            {
+                Text = item.Text ?? item.DisplayName,
+                FontSize = 15,
+                LineHeight = 22,
+                TextWrapping = TextWrapping.Wrap,
+                VerticalAlignment = VerticalAlignment.Center,
+                MaxWidth = Math.Max(104, bubbleMaxWidth - 26)
+            };
+            textBlock.Bind(TextBlock.ForegroundProperty, new DynamicResourceExtension(mine ? "MptMobileOnAccentBrush" : "MptMobileTextBrush"));
+            body = textBlock;
+        }
         else
         {
-            var fileText = new StackPanel { Spacing = 3, Children =
+            var captionText = item.SizeText.Length > 0
+                ? item.SizeText + (item.NeedsDownload ? " · 点按下载" : " · 点按打开")
+                : (item.NeedsDownload ? "点按下载" : "点按打开");
+            var nameBlock = new TextBlock
             {
-                new TextBlock { Text = item.DisplayName, FontSize = 14, FontWeight = FontWeight.SemiBold, MaxLines = 2, TextWrapping = TextWrapping.Wrap, TextTrimming = TextTrimming.CharacterEllipsis },
-                MobileUi.Caption(item.SizeText + (item.NeedsDownload ? " · 点按下载" : " · 点按打开"))
-            }};
-            Control fileBody = fileText;
+                Text = item.DisplayName,
+                FontSize = 14,
+                FontWeight = FontWeight.SemiBold,
+                MaxLines = 2,
+                TextWrapping = TextWrapping.Wrap,
+                TextTrimming = TextTrimming.CharacterEllipsis
+            };
+            nameBlock.Bind(TextBlock.ForegroundProperty, new DynamicResourceExtension("MptMobileTextBrush"));
+            var detailBlock = MobileUi.Caption(captionText);
+            detailBlock.FontSize = 12;
+            detailBlock.TextTrimming = TextTrimming.CharacterEllipsis;
+            var fileText = new StackPanel { Spacing = 2, VerticalAlignment = VerticalAlignment.Center, Children = { nameBlock, detailBlock } };
+
+            if (item.State is AssistantItemState.Sending or AssistantItemState.Downloading)
+            {
+                var progressBar = MobileUi.With(new ProgressBar
+                {
+                    Minimum = 0,
+                    Maximum = 100,
+                    Value = item.Progress,
+                    IsIndeterminate = item.Size <= 0,
+                    Height = 4,
+                    MinHeight = 4,
+                    Margin = new Thickness(0, 4, 0, 0)
+                }, MobileUi.Classes.Progress);
+                fileText.Children.Add(progressBar);
+            }
+
+            var fileHeader = new Grid
+            {
+                ColumnDefinitions = new ColumnDefinitions("Auto,*"),
+                ColumnSpacing = 10,
+                MaxWidth = Math.Max(120, bubbleMaxWidth - 22)
+            };
+            var badge = BuildFileExtensionBadge(item.DisplayName, item.IsImage);
+            fileHeader.Children.Add(badge);
+            Grid.SetColumn(fileText, 1);
+            fileHeader.Children.Add(fileText);
+
+            Control fileBody = fileHeader;
             if (item.IsImage && item.LocalPath is { Length: > 0 } previewPath &&
                 !previewPath.StartsWith("content://", StringComparison.OrdinalIgnoreCase) &&
-                PreviewImage(previewPath, 160) is { } image)
-                fileBody = new StackPanel { Spacing = 6, Children = { image, fileText } };
-            var file = new Button { Content = fileBody, Padding = new Thickness(0), MinHeight = 44, Background = Brushes.Transparent,
-                BorderThickness = new Thickness(0), HorizontalContentAlignment = HorizontalAlignment.Stretch };
+                PreviewImage(previewPath, 150) is { } image)
+            {
+                image.MaxWidth = Math.Max(120, bubbleMaxWidth - 22);
+                var clippedImage = new Border
+                {
+                    Child = image,
+                    CornerRadius = new CornerRadius(10),
+                    ClipToBounds = true,
+                    HorizontalAlignment = HorizontalAlignment.Left
+                };
+                fileBody = new StackPanel { Spacing = 6, MaxWidth = Math.Max(120, bubbleMaxWidth - 22), Children = { clippedImage, fileHeader } };
+            }
+
+            var file = new Button
+            {
+                Content = fileBody,
+                Padding = new Thickness(0),
+                MinHeight = 44,
+                Background = Brushes.Transparent,
+                BorderThickness = new Thickness(0),
+                HorizontalContentAlignment = HorizontalAlignment.Stretch,
+                MaxWidth = Math.Max(120, bubbleMaxWidth - 22)
+            };
             AutomationProperties.SetName(file, "打开 " + item.DisplayName);
             file.Click += async (_, _) => await RunAsync(() => OpenItemAsync(item));
             body = file;
         }
-        var chatWidth = _viewport >= PhoneWidth ? Math.Max(280, _viewport - 300) : _viewport;
-        var available = Math.Min(560, Math.Max(220, chatWidth * .82));
-        body.MaxWidth = available - 64;
-        var bubbleWidth = Math.Min(available, 290);
-        content.Children.Add(body);
-        var more = new Button { Content = MobileUi.Icon("MptMobileIconDots", [MobileUi.Classes.Icon]), Width = 44, MinHeight = 44, Padding = new Thickness(0), Background = Brushes.Transparent, BorderThickness = new Thickness(0) };
+
+        var bubble = new Border
+        {
+            Child = body,
+            Padding = item.IsText ? new Thickness(13, 8) : new Thickness(11, 8),
+            CornerRadius = mine ? new CornerRadius(18, 18, 5, 18) : new CornerRadius(18, 18, 18, 5),
+            MaxWidth = bubbleMaxWidth,
+            MinWidth = item.IsText ? 52 : Math.Min(210, bubbleMaxWidth),
+            BorderThickness = mine && item.IsText ? new Thickness(0) : new Thickness(1)
+        };
+        if (mine && item.IsText)
+        {
+            bubble.Bind(Border.BackgroundProperty, new DynamicResourceExtension("MptMobileAccentBrush"));
+        }
+        else
+        {
+            bubble.Bind(Border.BackgroundProperty, new DynamicResourceExtension(mine ? "MptMobileAccentSoftBrush" : "MptMobileCardBrush"));
+            bubble.Bind(Border.BorderBrushProperty, new DynamicResourceExtension("MptMobileCardBorderBrush"));
+        }
+
+        var moreIcon = MobileUi.Icon("MptMobileIconDots", MobileUi.Classes.Icon, MobileUi.Classes.IconMuted);
+        moreIcon.Opacity = 0.7;
+        var more = new Button
+        {
+            Content = moreIcon,
+            Width = 44,
+            Height = 44,
+            MinWidth = 44,
+            MinHeight = 44,
+            Padding = new Thickness(0),
+            Background = Brushes.Transparent,
+            BorderThickness = new Thickness(0),
+            CornerRadius = new CornerRadius(22),
+            VerticalAlignment = VerticalAlignment.Center,
+            HorizontalContentAlignment = HorizontalAlignment.Center,
+            VerticalContentAlignment = VerticalAlignment.Center
+        };
         AutomationProperties.SetName(more, "消息操作 " + item.DisplayName);
+        ToolTip.SetTip(more, "更多操作");
         more.Click += (_, _) => ShowMessageMenu(item);
-        Grid.SetColumn(more, 1);
-        content.Children.Add(more);
-        var bubble = new Border { Child = content, Padding = new Thickness(10, 5), CornerRadius = new CornerRadius(14) };
-        bubble.Bind(Border.BackgroundProperty, new DynamicResourceExtension(mine ? "MptMobileAccentSoftBrush" : "MptMobileCardBrush"));
+
+        var bubbleLine = new Grid
+        {
+            ColumnDefinitions = new ColumnDefinitions(mine ? "44,Auto" : "Auto,44"),
+            ColumnSpacing = 2,
+            HorizontalAlignment = mine ? HorizontalAlignment.Right : HorizontalAlignment.Left
+        };
+        if (mine)
+        {
+            Grid.SetColumn(more, 0); bubbleLine.Children.Add(more);
+            Grid.SetColumn(bubble, 1); bubbleLine.Children.Add(bubble);
+        }
+        else
+        {
+            Grid.SetColumn(bubble, 0); bubbleLine.Children.Add(bubble);
+            Grid.SetColumn(more, 1); bubbleLine.Children.Add(more);
+        }
+
         var status = item.TransferStateText;
-        var meta = MobileUi.Caption(mine ? status : item.SenderName + " · " + status);
-        meta.FontSize = 12;
-        meta.Margin = new Thickness(4, 2, 4, 0);
-        meta.TextAlignment = mine ? TextAlignment.Right : TextAlignment.Left;
-        var row = new StackPanel { Spacing = 0, Width = bubbleWidth, MaxWidth = available,
-            HorizontalAlignment = mine ? HorizontalAlignment.Right : HorizontalAlignment.Left, Children = { bubble, meta } };
-        return row;
+        var metaText = new TextBlock
+        {
+            Text = mine ? status : item.SenderName + " · " + status,
+            FontSize = 11,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            MaxWidth = Math.Max(110, available - (item.CreatedAt is not null ? 90 : 52)),
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        metaText.Bind(TextBlock.ForegroundProperty, new DynamicResourceExtension(
+            item.State == AssistantItemState.Failed ? "MptMobileWarningBrush" : "MptMobileMutedTextBrush"));
+
+        var metaRow = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 6,
+            HorizontalAlignment = mine ? HorizontalAlignment.Right : HorizontalAlignment.Left,
+            Margin = mine ? new Thickness(46, 2, 4, 0) : new Thickness(4, 2, 46, 0)
+        };
+        metaRow.Children.Add(metaText);
+        if (item.CreatedAt is { } createdAt)
+        {
+            var timeBlock = new TextBlock
+            {
+                Text = createdAt.ToLocalTime().ToString("HH:mm"),
+                FontSize = 10,
+                Opacity = 0.75,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            timeBlock.Bind(TextBlock.ForegroundProperty, new DynamicResourceExtension("MptMobileMutedTextBrush"));
+            metaRow.Children.Add(timeBlock);
+        }
+
+        return new StackPanel
+        {
+            Spacing = 0,
+            MaxWidth = available,
+            HorizontalAlignment = mine ? HorizontalAlignment.Right : HorizontalAlignment.Left,
+            Children = { bubbleLine, metaRow }
+        };
+    }
+
+    private static Border BuildFileExtensionBadge(string fileName, bool isImage)
+    {
+        var ext = Path.GetExtension(fileName).TrimStart('.').ToUpperInvariant();
+        var (label, bgKey, fgKey) = ext switch
+        {
+            "APK" => ("APK", "MptMobileSuccessSoftBrush", "MptMobileSuccessBrush"),
+            "PDF" => ("PDF", "MptMobileOrangeSoftBrush", "MptMobileOrangeBrush"),
+            "ZIP" or "7Z" or "RAR" or "TAR" or "GZ" => (ext.Length <= 3 ? ext : "ZIP", "MptMobileFileThumbArchiveBackgroundBrush", "MptMobileFileThumbArchiveTextBrush"),
+            "PNG" or "JPG" or "JPEG" or "WEBP" or "GIF" or "BMP" or "HEIC" => ("IMG", "MptMobileFileThumbPhotoBackgroundBrush", "MptMobileFileThumbPhotoTextBrush"),
+            "MP4" or "MOV" or "MKV" or "AVI" or "MP3" or "WAV" or "FLAC" => (ext, "MptMobilePurpleSoftBrush", "MptMobilePurpleBrush"),
+            "DOC" or "DOCX" or "XLS" or "XLSX" or "PPT" or "PPTX" or "TXT" or "MD" or "JSON" => (ext.Length <= 4 ? ext : ext[..3], "MptMobileAccentSoftBrush", "MptMobileAccentBrush"),
+            _ when isImage => ("IMG", "MptMobileFileThumbPhotoBackgroundBrush", "MptMobileFileThumbPhotoTextBrush"),
+            _ => (ext.Length is > 0 and <= 4 ? ext : "FILE", "MptMobileFileThumbBackgroundBrush", "MptMobileFileThumbTextBrush")
+        };
+        var text = new TextBlock
+        {
+            Text = label,
+            FontSize = 10,
+            FontWeight = FontWeight.Bold,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            VerticalAlignment = VerticalAlignment.Center
+        };
+        text.Bind(TextBlock.ForegroundProperty, new DynamicResourceExtension(fgKey));
+        var badge = new Border
+        {
+            Width = 36,
+            Height = 38,
+            CornerRadius = new CornerRadius(10),
+            VerticalAlignment = VerticalAlignment.Center,
+            IsHitTestVisible = false,
+            Child = text
+        };
+        badge.Bind(Border.BackgroundProperty, new DynamicResourceExtension(bgKey));
+        return badge;
     }
 
     private void ShowMessageMenu(AssistantItem item)
@@ -221,9 +409,17 @@ internal sealed partial class AssistantView
         Add("查看详情", () =>
         {
             _sheetTitle.Text = "消息详情";
-            _sheetScroll.Content = MobileUi.Stack(8, MobileUi.Body(item.DisplayName), MobileUi.Caption(item.CreatedAt?.ToLocalTime().ToString("g") ?? ""),
-                MobileUi.Caption(item.TransferStateText), MobileUi.Caption(item.ReceiptText.Length > 0 ? "已保存到 " + item.ReceiptText : "尚无其他设备接收回执"),
-                MobileUi.Caption(item.ErrorExplanation));
+            var rows = new StackPanel { Spacing = 8 };
+            rows.Children.Add(MobileUi.ReceiptRow("状态", item.TransferStateText));
+            if (item.SizeText.Length > 0) rows.Children.Add(MobileUi.ReceiptRow("大小", item.SizeText));
+            if (item.CreatedAt is { } created) rows.Children.Add(MobileUi.ReceiptRow("时间", created.ToLocalTime().ToString("g")));
+            rows.Children.Add(MobileUi.ReceiptRow("接收回执", item.ReceiptText.Length > 0 ? "已保存到 " + item.ReceiptText : "尚无其他设备接收回执"));
+            var detailStack = MobileUi.Stack(10,
+                MobileUi.CardTitle(item.DisplayName),
+                MobileUi.ReceiptSurface(rows));
+            if (item.ErrorExplanation.Length > 0)
+                detailStack.Children.Add(MobileUi.With(MobileUi.Notice(MobileUi.Caption(item.ErrorExplanation)), "warning"));
+            _sheetScroll.Content = detailStack;
             return Task.CompletedTask;
         });
         _sheetScroll.Content = actions;

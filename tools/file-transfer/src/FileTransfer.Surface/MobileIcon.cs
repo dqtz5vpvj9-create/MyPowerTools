@@ -98,15 +98,30 @@ internal sealed class MobileIcon : Avalonia.Controls.Shapes.Path
     }
 
     /// <summary>
-    /// A stroked outline with no stroke paints nothing, so the stroke is set from the theme's own
-    /// brush once, with the theme's width; the shared Path style then overrides it when it applies.
+    /// A stroked outline with no stroke paints nothing, so the stroke is resolved from the shared theme
+    /// according to this icon's semantic class (accent / secondary / muted / success / warning /
+    /// on-accent / default text). Updating it via the semantic brush keeps icons properly tinted in
+    /// both Light and Dark themes even before style selectors evaluate.
     /// </summary>
     private void ApplyStroke()
     {
-        if (Stroke is not null && StrokeThickness > 0) return;
-        Stroke = FindThemeBrush("MptMobileTextBrush") ?? Brushes.Black;
+        var brushKey = Classes.Contains(MobileUi.Classes.IconOnAccent) ? "MptMobileOnAccentBrush"
+            : Classes.Contains(MobileUi.Classes.IconAccent) ? "MptMobileAccentBrush"
+            : Classes.Contains(MobileUi.Classes.IconSuccess) ? "MptMobileSuccessBrush"
+            : Classes.Contains(MobileUi.Classes.IconWarning) ? "MptMobileWarningBrush"
+            : Classes.Contains(MobileUi.Classes.IconSecondary) ? "MptMobileSecondaryTextBrush"
+            : Classes.Contains(MobileUi.Classes.IconMuted) ? "MptMobileChevronBrush"
+            : Classes.Contains(MobileUi.Classes.IconDevice) ? "MptMobileDeviceIconBrush"
+            : "MptMobileTextBrush";
+        Stroke = FindThemeBrush(brushKey) ?? FindThemeBrush("MptMobileTextBrush") ?? Brushes.Black;
         StrokeThickness = FindThemeWidth("MptMobileIconStrokeThickness") ?? 1.65;
         Fill = null;
+    }
+
+    internal void RefreshAppearance()
+    {
+        Reset();
+        Resolve();
     }
 
     /// <summary>

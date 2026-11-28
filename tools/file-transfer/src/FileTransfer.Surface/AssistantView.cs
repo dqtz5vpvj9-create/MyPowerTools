@@ -34,10 +34,11 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
     // --- header
     private readonly TextBlock _headerTitle = MobileUi.PageTitle("文件助手");
     private readonly TextBlock _headerState = MobileUi.Caption("");
+    private readonly Border _headerStatusDot = MobileUi.With(new Border { Width = 6, Height = 6, CornerRadius = new CornerRadius(3), VerticalAlignment = VerticalAlignment.Center }, "MptMobileStatusDot");
     private readonly Button _setupButton;
 
     // --- thread
-    private readonly StackPanel _thread = new() { Spacing = 10 };
+    private readonly StackPanel _thread = new() { Spacing = 8 };
     private readonly StackPanel _pendingRequests = new() { Spacing = 10 };
     private readonly ScrollViewer _threadScroll;
     private readonly StackPanel _emptyState;
@@ -133,7 +134,14 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
         _input.TextChanged += (_, _) => { SyncComposer(); DraftChanged(); RefreshConversationNavigation(); };
         _pairCode.TextChanged += (_, _) => { if (_pairConfirm is not null) _pairConfirm.IsEnabled = _previewedPairCode is not null && _pairCode.Text == _previewedPairCode; };
 
-        _attachFiles = MobileUi.IconButton("MptMobileIconPlus", "添加文件");
+        _attachFiles = MobileUi.With(new Button
+        {
+            Content = MobileUi.Icon("MptMobileIconPlus", MobileUi.Classes.Icon, MobileUi.Classes.IconAccent),
+            MinWidth = MobileUi.IconTarget,
+            MinHeight = MobileUi.IconTarget
+        }, MobileUi.Classes.IconButton, "filled");
+        AutomationProperties.SetName(_attachFiles, "添加附件");
+        ToolTip.SetTip(_attachFiles, "添加附件");
         _attachFiles.Click += (_, _) => ShowAttachmentSheet();
         _attachImages = MobileUi.IconButton("MptMobileIconImage", "添加图片");
         _attachImages.Click += async (_, _) => await PickAsync(true);
@@ -284,52 +292,106 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
 
     private Control BuildHeader()
     {
-        _headerTitle.FontSize = 18;
+        _headerTitle.FontSize = 16;
+        _headerTitle.FontWeight = FontWeight.SemiBold;
+        _headerTitle.LineHeight = 22;
+        _headerTitle.TextTrimming = TextTrimming.CharacterEllipsis;
         _headerTitle.HorizontalAlignment = HorizontalAlignment.Center;
-        _headerTitle.VerticalAlignment = VerticalAlignment.Center;
+        _headerTitle.TextAlignment = TextAlignment.Center;
+
+        _headerState.FontSize = 11;
+        _headerState.LineHeight = 15;
+        _headerState.TextTrimming = TextTrimming.CharacterEllipsis;
+        _headerState.VerticalAlignment = VerticalAlignment.Center;
+
+        var statusRow = new StackPanel
+        {
+            Orientation = Orientation.Horizontal,
+            Spacing = 5,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Children = { _headerStatusDot, _headerState }
+        };
+        var titleStack = new StackPanel
+        {
+            Spacing = 1,
+            VerticalAlignment = VerticalAlignment.Center,
+            HorizontalAlignment = HorizontalAlignment.Center,
+            Children = { _headerTitle, statusRow }
+        };
+
         _setupButton.Width = 44;
         _setupButton.Height = 44;
-        var row = new Grid { ColumnDefinitions = new ColumnDefinitions("44,*,44"), Height = 56 };
-        Grid.SetColumn(_headerTitle, 1);
-        row.Children.Add(_headerTitle);
-        Grid.SetColumn(_setupButton, 2);
-        row.Children.Add(_setupButton);
-        _chatBack = MobileUi.TextButton("‹");
+        _chatBack = MobileUi.IconButton("MptMobileIconBack", "返回会话列表");
         _chatBack.Width = 44;
         _chatBack.Height = 44;
-        _chatBack.FontSize = 28;
-        _chatBack.Padding = new Thickness(0);
-        _chatBack.HorizontalContentAlignment = HorizontalAlignment.Center;
-        AutomationProperties.SetName(_chatBack, "返回会话列表");
         _chatBack.Click += (_, _) => ReturnToConversationList();
+
+        var row = new Grid
+        {
+            ColumnDefinitions = new ColumnDefinitions("44,*,44"),
+            ColumnSpacing = 4,
+            MinHeight = 54
+        };
         row.Children.Add(_chatBack);
-        _headerState.HorizontalAlignment = HorizontalAlignment.Center;
-        return MobileUi.Stack(0, row, _headerState);
+        Grid.SetColumn(titleStack, 1);
+        row.Children.Add(titleStack);
+        Grid.SetColumn(_setupButton, 2);
+        row.Children.Add(_setupButton);
+
+        var headerBar = new Border
+        {
+            Child = row,
+            Padding = new Thickness(6, 4),
+            BorderThickness = new Thickness(0, 0, 0, 1)
+        };
+        headerBar.Bind(Border.BackgroundProperty, new DynamicResourceExtension("MptMobileCardBrush"));
+        headerBar.Bind(Border.BorderBrushProperty, new DynamicResourceExtension("MptMobileDividerBrush"));
+        return headerBar;
     }
 
     private Control BuildComposer()
     {
-        var row = new Grid { ColumnDefinitions = new ColumnDefinitions("44,*,Auto"), ColumnSpacing = 6 };
+        var row = new Grid { ColumnDefinitions = new ColumnDefinitions("44,*,Auto"), ColumnSpacing = 8 };
         _attachFiles.Width = 44;
         _attachFiles.Height = 44;
+        _attachFiles.VerticalAlignment = VerticalAlignment.Bottom;
         AutomationProperties.SetName(_attachFiles, "添加附件");
         row.Children.Add(_attachFiles);
+
+        _input.CornerRadius = new CornerRadius(22);
+        _input.Padding = new Thickness(14, 10);
+        _input.Bind(TextBox.BackgroundProperty, new DynamicResourceExtension("MptMobileBackgroundBrush"));
         Grid.SetColumn(_input, 1);
         row.Children.Add(_input);
+
         _send.MinHeight = 44;
-        _send.MinWidth = 56;
-        _send.Padding = new Thickness(10, 8);
+        _send.MinWidth = 64;
+        _send.CornerRadius = new CornerRadius(22);
+        _send.Padding = new Thickness(16, 0);
         _send.FontSize = 14;
+        _send.VerticalAlignment = VerticalAlignment.Bottom;
         Grid.SetColumn(_send, 2);
         row.Children.Add(_send);
+
         var attachments = new ScrollViewer
         {
-            Content = new StackPanel { Spacing = 2, Children = { _attachmentSummary, _attachmentRow } },
-            MaxHeight = 96, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled
+            Content = new StackPanel { Spacing = 4, Children = { _attachmentSummary, _attachmentRow } },
+            MaxHeight = 112, HorizontalScrollBarVisibility = ScrollBarVisibility.Disabled
         };
+
+        _newMessages.CornerRadius = new CornerRadius(18);
+        _newMessages.HorizontalAlignment = HorizontalAlignment.Center;
+        _newMessages.Padding = new Thickness(16, 0);
+        _newMessages.FontSize = 13;
+        _newMessages.FontWeight = FontWeight.SemiBold;
+        _newMessages.BorderThickness = new Thickness(1);
+        _newMessages.Bind(Button.BackgroundProperty, new DynamicResourceExtension("MptMobileCardBrush"));
+        _newMessages.Bind(Button.BorderBrushProperty, new DynamicResourceExtension("MptMobileCardBorderBrush"));
+        _newMessages.Bind(Button.ForegroundProperty, new DynamicResourceExtension("MptMobileAccentBrush"));
         _newMessages.Click += (_, _) => { _followThreadEnd = true; _newMessages.IsVisible = false; _threadScroll.ScrollToEnd(); };
-        var panel = new StackPanel { Spacing = 4, Children = { _newMessages, attachments, row, _status } };
-        _composer = new Border { Child = panel, Padding = new Thickness(8), BorderThickness = new Thickness(0, 1, 0, 0) };
+
+        var panel = new StackPanel { Spacing = 6, Children = { _newMessages, attachments, row, _status } };
+        _composer = new Border { Child = panel, Padding = new Thickness(10, 8), BorderThickness = new Thickness(0, 1, 0, 0) };
         _composer.Bind(Border.BackgroundProperty, new DynamicResourceExtension("MptMobileCardBrush"));
         _composer.Bind(Border.BorderBrushProperty, new DynamicResourceExtension("MptMobileDividerBrush"));
         return _composer;
@@ -342,7 +404,10 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
 
     private StackPanel BuildEmptyState()
     {
-        var connect = MobileUi.QuietButton("连接我的设备");
+        var connect = MobileUi.SecondaryButton("连接我的设备");
+        connect.MinHeight = 44;
+        connect.CornerRadius = new CornerRadius(12);
+        connect.Padding = new Thickness(14, 8);
         connect.Click += async (_, _) =>
         {
             if (_core.Snapshot.Identity.PublicRoomState.StartsWith("public", StringComparison.Ordinal))
@@ -354,14 +419,43 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
             ShowSetupSheet();
         };
         _emptyConnect = connect;
-        return MobileUi.Stack(10,
-            _emptyTitle,
-            _emptyNote,
-            connect);
+
+        _emptyTitle.FontSize = 15;
+        _emptyTitle.LineHeight = 22;
+        _emptyTitle.FontWeight = FontWeight.SemiBold;
+        _emptyTitle.Margin = new Thickness(0);
+        _emptyTitle.TextAlignment = TextAlignment.Left;
+        _emptyTitle.HorizontalAlignment = HorizontalAlignment.Left;
+        _emptyTitle.Bind(TextBlock.ForegroundProperty, new DynamicResourceExtension("MptMobileTextBrush"));
+
+        _emptyNote.FontSize = 12;
+        _emptyNote.LineHeight = 18;
+        _emptyNote.Margin = new Thickness(0);
+        _emptyNote.TextAlignment = TextAlignment.Left;
+        _emptyNote.HorizontalAlignment = HorizontalAlignment.Left;
+        _emptyNote.TextWrapping = TextWrapping.Wrap;
+        _emptyNote.Bind(TextBlock.ForegroundProperty, new DynamicResourceExtension("MptMobileSecondaryTextBrush"));
+
+        var badge = MobileUi.IconBadge("MptMobileIconLink");
+        badge.Width = 38;
+        badge.Height = 38;
+        badge.CornerRadius = new CornerRadius(11);
+        badge.VerticalAlignment = VerticalAlignment.Center;
+        var copy = new StackPanel { Spacing = 3, VerticalAlignment = VerticalAlignment.Center, Children = { _emptyTitle, _emptyNote } };
+        var topRow = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*"), ColumnSpacing = 12 };
+        topRow.Children.Add(badge);
+        Grid.SetColumn(copy, 1);
+        topRow.Children.Add(copy);
+
+        var card = MobileUi.Card(MobileUi.Stack(12, topRow, connect));
+        card.CornerRadius = new CornerRadius(16);
+        card.Padding = new Thickness(14, 13);
+        card.Margin = new Thickness(0, 8, 0, 0);
+        return MobileUi.Stack(0, card);
     }
 
-    private readonly TextBlock _emptyTitle = MobileUi.EmptyTitle("");
-    private readonly TextBlock _emptyNote = MobileUi.Note("");
+    private readonly TextBlock _emptyTitle = new();
+    private readonly TextBlock _emptyNote = new();
     private Button _emptyConnect = null!;
 
     /// <summary>
@@ -376,7 +470,7 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
             _emptyTitle.Text = access == "public" ? "文件传输助手" : access == "public-left" ? "已退出公屏" : "加入文件传输助手";
             _emptyNote.Text = state.Identity.AuthorizationError.Length > 0 ? state.Identity.AuthorizationError
                 : access == "public" ? "同一服务的所有已授权用户可见。发送文字或文件，开始交流。"
-                : access == "public-left" ? "点按下方按钮，可在这台手机上重新申请加入。" : "正在向服务器申请公屏授权，无需连接码。";
+                : access == "public-left" ? "点按下方按钮，可在这台设备上重新申请加入。" : "正在向服务器申请公屏授权，无需连接码。";
             _emptyConnect.Content = "重新申请加入";
             _emptyConnect.IsVisible = access != "public" || state.Identity.AuthorizationError.Length > 0;
             return;
@@ -390,9 +484,7 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
         }
 
         _emptyTitle.Text = "内容保存在这台设备";
-        _emptyTitle.FontSize = 12;
         _emptyNote.Text = "尚未关联其他设备，内容暂时只在本机可见。";
-        _emptyNote.FontSize = 12;
         _emptyConnect.Content = "连接我的设备";
         _emptyConnect.IsVisible = true;
     }
@@ -428,43 +520,52 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
 
     private StackPanel BuildSetupSheet()
     {
-        var choices = new StackPanel { Spacing = 2 };
-        choices.Children.Add(MobileUi.ListRow("MptMobileIconDevices", "公屏与授权", "加入文件传输助手、查看授权状态", () => { ShowPublicRoomSheet(); return Task.CompletedTask; }));
-        choices.Children.Add(MobileUi.ListRow("MptMobileIconReceive", "空间管理", "清理已接收的文件，保留聊天记录", () => RunAsync(ShowStorageAsync)));
-        choices.Children.Add(MobileUi.ListRow("MptMobileIconCloud", "我的网盘", "登录网盘，让这台设备按需使用它中转",
-            () => { OpenCloudAccounts(); return Task.CompletedTask; }));
-        choices.Children.Add(MobileUi.ListRow("MptMobileIconDevices", "连接我的设备", "用连接码把另一台设备加入私人共享会话",
-            () =>
-            {
-                if (_core.Snapshot.Identity.PublicRoomState.StartsWith("public", StringComparison.Ordinal))
-                {
-                    ShowPublicRoomSheet();
-                }
-                else
-                {
-                    ShowSheet(_linkSheet);
-                    SyncLinkSheet();
-                }
-
-                return Task.CompletedTask;
-            }));
-        choices.Children.Add(MobileUi.ListRow("MptMobileIconReceive", "接收文件", "允许另一台设备直接发文件到这台设备",
-            () => { ShowSheet(_receiveSheet); SyncReceive(); return Task.CompletedTask; }));
-        choices.Children.Add(MobileUi.ListRow("MptMobileIconSend", "设备私聊", "打开与一台设备的独立会话",
-            () => { ShowDeviceSheet(); return Task.CompletedTask; }));
-        choices.Children.Add(MobileUi.ListRow("MptMobileIconPulse", "连接诊断", "查看最近的连接检查结果", () =>
+        static Button CompactRow(Button row)
         {
-            _sheetTitle.Text = "连接诊断";
-            _sheetScroll.Content = MobileUi.Stack(8, MobileUi.Body(_core.Snapshot.DiscoveryMessage), MobileUi.Body(_core.Snapshot.RelayMessage));
-            OpenSheet();
-            return Task.CompletedTask;
-        }));
+            row.MinHeight = 58;
+            row.Padding = new Thickness(12, 9);
+            return row;
+        }
+
+        var primaryGroup = MobileUi.GroupedListCard(
+            CompactRow(MobileUi.ListRow("MptMobileIconDevices", "公屏与授权", "加入文件传输助手、查看授权状态", () => { ShowPublicRoomSheet(); return Task.CompletedTask; })),
+            CompactRow(MobileUi.ListRow("MptMobileIconFile", "空间管理", "清理已接收的文件，保留聊天记录", () => RunAsync(ShowStorageAsync), tone: "green")),
+            CompactRow(MobileUi.ListRow("MptMobileIconCloud", "我的网盘", "登录网盘，让这台设备按需使用它中转",
+                () => { OpenCloudAccounts(); return Task.CompletedTask; }, tone: "orange")),
+            CompactRow(MobileUi.ListRow("MptMobileIconLink", "连接我的设备", "用连接码把另一台设备加入私人共享会话",
+                () =>
+                {
+                    if (_core.Snapshot.Identity.PublicRoomState.StartsWith("public", StringComparison.Ordinal))
+                    {
+                        ShowPublicRoomSheet();
+                    }
+                    else
+                    {
+                        ShowSheet(_linkSheet);
+                        SyncLinkSheet();
+                    }
+
+                    return Task.CompletedTask;
+                }, tone: "green")));
+
+        var secondaryGroup = MobileUi.GroupedListCard(
+            CompactRow(MobileUi.ListRow("MptMobileIconReceive", "接收文件", "允许另一台设备直接发文件到这台设备",
+                () => { ShowSheet(_receiveSheet); SyncReceive(); return Task.CompletedTask; }, tone: "purple")),
+            CompactRow(MobileUi.ListRow("MptMobileIconSend", "设备私聊", "打开与一台设备的独立会话",
+                () => { ShowDeviceSheet(); return Task.CompletedTask; })),
+            CompactRow(MobileUi.ListRow("MptMobileIconPulse", "连接诊断", "查看最近的连接检查结果", () =>
+            {
+                _sheetTitle.Text = "连接诊断";
+                _sheetScroll.Content = MobileUi.Stack(8, MobileUi.Body(_core.Snapshot.DiscoveryMessage), MobileUi.Body(_core.Snapshot.RelayMessage));
+                OpenSheet();
+                return Task.CompletedTask;
+            }, tone: "neutral")));
+
         var advanced = MobileUi.QuietButton("更多设置");
         advanced.Click += (_, _) => _ = OpenAdvancedAsync();
         return MobileUi.Stack(10,
-            MobileUi.Note("管理设备连接与文件接收。"),
-            MobileUi.ListCard(choices),
-            MobileUi.Divider(),
+            primaryGroup,
+            secondaryGroup,
             advanced);
     }
 
@@ -703,7 +804,7 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
         _thread.Margin = new Thickness(side, 8, side, 8);
         _pendingRequests.Margin = new Thickness(side, 8, side, 0);
         _emptyState.Margin = new Thickness(side, 0, side, 0);
-        if (_composer is not null) _composer.Padding = new Thickness(8);
+        if (_composer is not null) _composer.Padding = _viewport <= 340 ? new Thickness(8, 8) : new Thickness(10, 8);
         // A desktop window is wide, so the conversation keeps a readable column and the sheet becomes a
         // bounded dialog rather than a full-width panel.
         if (_conversationColumn is not null)
@@ -843,11 +944,37 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
         }
 
         _headerTitle.Text = ActiveConversationKey == "history" ? "历史记录" : _targetName;
-        _headerState.Text = _targetDeviceId is null && state.Identity.PublicRoomState.StartsWith("public")
-            ? (state.Identity.AuthorizationError.Length > 0 ? "公屏 · 需要授权，点右上角重试" : state.Identity.PublicRoomState == "public" ? "公屏 · 本服务所有已授权用户可见" : state.Identity.PublicRoomState == "public-left" ? "公屏 · 已退出" : "公屏 · 等待授权")
-            : state.Identity.Linked
-            ? $"{state.Identity.DisplayName} · 已连接"
-            : state.Identity.Name is { Length: > 0 } name ? name : "只在本机保存";
+        var isArchive = ActiveConversationKey != SharedConversationKey && !ActiveConversationKey.StartsWith("device:", StringComparison.Ordinal);
+        var isLive = false;
+        if (isArchive)
+        {
+            _headerState.Text = "只读历史记录";
+        }
+        else if (_targetDeviceId is { } peerId)
+        {
+            var peer = RememberedDevices().FirstOrDefault(p => p.DeviceId == peerId);
+            isLive = peer?.Available == true;
+            _headerState.Text = isLive ? "设备在线 · 可互传文件" : "已添加设备 · 离线时自动暂存";
+        }
+        else if (state.Identity.PublicRoomState.StartsWith("public"))
+        {
+            isLive = state.Identity.PublicRoomState == "public" && state.Identity.AuthorizationError.Length == 0;
+            _headerState.Text = state.Identity.AuthorizationError.Length > 0 ? "公屏 · 需要授权，点右上角重试"
+                : state.Identity.PublicRoomState == "public" ? "公屏 · 已授权"
+                : state.Identity.PublicRoomState == "public-left" ? "公屏 · 已退出"
+                : "公屏 · 等待授权";
+        }
+        else if (state.Identity.Linked)
+        {
+            isLive = true;
+            _headerState.Text = $"{CleanDeviceLabel(state.Identity.DisplayName)} · 已连接";
+        }
+        else
+        {
+            _headerState.Text = "仅本机保存";
+        }
+        if (isLive) _headerStatusDot.Classes.Remove("off");
+        else if (!_headerStatusDot.Classes.Contains("off")) _headerStatusDot.Classes.Add("off");
         _status.Text = FriendlyStatus(state.Status);
         _status.IsVisible = _status.Text.Length > 0;
         _retrySync.IsVisible = false;
@@ -928,6 +1055,13 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
 
     private void RenderDeviceSheet(AssistantSnapshot state) => RenderTargets(state);
 
+    private static string CleanDeviceLabel(string name)
+    {
+        if (string.IsNullOrWhiteSpace(name)) return "本机";
+        var cleaned = System.Text.RegularExpressions.Regex.Replace(name, @"\s+(?:phone|device|android|desktop)-[0-9a-fA-F]{6,}$", "").Trim();
+        return cleaned.Length > 0 ? cleaned : name.Trim();
+    }
+
     private void RenderAttachments()
     {
         _attachmentRow.Children.Clear();
@@ -936,18 +1070,23 @@ internal sealed partial class AssistantView : UserControl, IMptAvaloniaSurfaceAc
             var captured = path;
             var name = Path.GetFileName(path);
             var size = File.Exists(path) ? AssistantItem.FormatSize(new FileInfo(path).Length) : "文件不可用";
-            var row = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,44"), ColumnSpacing = 8 };
-            if (Path.GetExtension(name).ToLowerInvariant() is ".png" or ".jpg" or ".jpeg" or ".webp" or ".gif" or ".bmp" && PreviewImage(path, 40) is { } preview) row.Children.Add(preview);
-            var copy = new StackPanel { Spacing = 2, VerticalAlignment = VerticalAlignment.Center, Children =
-            {
-                new TextBlock { Text = name, FontSize = 12, TextTrimming = TextTrimming.CharacterEllipsis }, MobileUi.Caption(size)
-            }};
+            var isImg = Path.GetExtension(name).ToLowerInvariant() is ".png" or ".jpg" or ".jpeg" or ".webp" or ".gif" or ".bmp";
+            var row = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,44"), ColumnSpacing = 10 };
+            if (isImg && PreviewImage(path, 38) is { } preview)
+                row.Children.Add(new Border { Child = preview, CornerRadius = new CornerRadius(8), ClipToBounds = true, VerticalAlignment = VerticalAlignment.Center });
+            else
+                row.Children.Add(BuildFileExtensionBadge(name, isImg));
+            var nameBlock = new TextBlock { Text = name, FontSize = 13, FontWeight = FontWeight.Medium, TextTrimming = TextTrimming.CharacterEllipsis };
+            nameBlock.Bind(TextBlock.ForegroundProperty, new DynamicResourceExtension("MptMobileTextBrush"));
+            var copy = new StackPanel { Spacing = 2, VerticalAlignment = VerticalAlignment.Center, Children = { nameBlock, MobileUi.Caption(size) } };
             Grid.SetColumn(copy, 1); row.Children.Add(copy);
             var remove = MobileUi.IconButton("MptMobileIconClose", "移除 " + name);
             remove.Width = 44; remove.Height = 44; remove.IsEnabled = !_sendDisabled;
             remove.Click += (_, _) => RemoveAttachment(captured);
             Grid.SetColumn(remove, 2); row.Children.Add(remove);
-            _attachmentRow.Children.Add(row);
+            var chip = new Border { Child = row, Padding = new Thickness(8, 5), CornerRadius = new CornerRadius(12) };
+            chip.Bind(Border.BackgroundProperty, new DynamicResourceExtension("MptMobileBackgroundBrush"));
+            _attachmentRow.Children.Add(chip);
         }
         _attachmentSummary.Text = _attachments.Count == 0 ? "" : $"待发送 {_attachments.Count} 个文件";
         _attachmentSummary.IsVisible = _attachments.Count > 0;

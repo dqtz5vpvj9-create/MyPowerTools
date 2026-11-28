@@ -14,11 +14,13 @@ internal sealed partial class AssistantView
     private Grid? _navigationLayout;
     private Border? _directory;
     private Button? _chatBack;
+    private Button? _chatsTab;
+    private Button? _contactsTab;
     private bool _chatOpen;
     private bool _contactsOpen;
     private string _navigationRowsFingerprint = "";
-    private readonly StackPanel _conversationList = new() { Spacing = 3, Margin = new Thickness(9, 0) };
-    private readonly TextBlock _directoryTitle = new() { Text = "会话", FontSize = 24, FontWeight = FontWeight.SemiBold };
+    private readonly StackPanel _conversationList = new() { Spacing = 4, Margin = new Thickness(12, 4, 12, 12) };
+    private readonly TextBlock _directoryTitle = new() { Text = "会话", FontSize = 26, LineHeight = 36, FontWeight = FontWeight.Bold, VerticalAlignment = VerticalAlignment.Center };
     private readonly TextBox _conversationSearch = MobileUi.FieldBox("搜索会话");
     private readonly List<string> _sharedFiles = [];
     private readonly List<string> _sharedTexts = [];
@@ -65,33 +67,94 @@ internal sealed partial class AssistantView
 
     private Control BuildConversationNavigation(Grid chat)
     {
-        var add = MobileUi.IconButton("MptMobileIconPlus", "添加设备");
+        var add = MobileUi.With(new Button
+        {
+            Content = MobileUi.Icon("MptMobileIconPlus", MobileUi.Classes.Icon, MobileUi.Classes.IconAccent),
+            MinWidth = MobileUi.IconTarget,
+            MinHeight = MobileUi.IconTarget
+        }, MobileUi.Classes.IconButton, "filled");
+        AutomationProperties.SetName(add, "添加设备");
+        ToolTip.SetTip(add, "添加设备");
         add.Click += (_, _) => ShowPairSheet();
-        var titleRow = new Grid { ColumnDefinitions = new ColumnDefinitions("*,44") };
+
+        var brand = new TextBlock { Text = "MY POWER TOOLS", FontSize = 10, FontWeight = FontWeight.SemiBold, LetterSpacing = 1.4 };
+        brand.Bind(TextBlock.ForegroundProperty, new DynamicResourceExtension("MptMobileMutedTextBrush"));
+        var titleRow = new Grid { ColumnDefinitions = new ColumnDefinitions("*,Auto"), ColumnSpacing = 12 };
         titleRow.Children.Add(_directoryTitle);
         Grid.SetColumn(add, 1); titleRow.Children.Add(add);
+
         _conversationSearch.TextChanged += (_, _) => RefreshConversationNavigation();
-        var header = new StackPanel { Spacing = 14, Margin = new Thickness(20, 22, 20, 16), Children =
-        { new TextBlock { Text = "MY POWER TOOLS", FontSize = 10, Opacity = .45 }, titleRow, _conversationSearch } };
-        var chats = MobileUi.TextButton("会话");
-        var contacts = MobileUi.TextButton("通讯录");
-        var settings = MobileUi.IconButton("MptMobileIconSettings", "传输设置");
-        chats.Click += (_, _) => ShowDirectory(false);
-        contacts.Click += (_, _) => ShowDirectory(true);
+        var searchPill = MobileUi.SearchField(_conversationSearch);
+
+        var header = new StackPanel { Spacing = 10, Margin = new Thickness(18, 16, 18, 12), Children =
+        { brand, titleRow, searchPill } };
+
+        _chatsTab = BuildDirectoryTabButton("会话");
+        _contactsTab = BuildDirectoryTabButton("通讯录");
+        var settings = MobileUi.With(new Button
+        {
+            Content = MobileUi.Icon("MptMobileIconSettings", MobileUi.Classes.Icon, MobileUi.Classes.IconSecondary),
+            MinWidth = MobileUi.IconTarget,
+            MinHeight = MobileUi.IconTarget
+        }, MobileUi.Classes.IconButton);
+        AutomationProperties.SetName(settings, "传输设置");
+        ToolTip.SetTip(settings, "传输设置");
+        _chatsTab.Click += (_, _) => ShowDirectory(false);
+        _contactsTab.Click += (_, _) => ShowDirectory(true);
         settings.Click += (_, _) => ShowSetupSheet();
-        var tabs = new Grid { ColumnDefinitions = new ColumnDefinitions("*,*,44"), Margin = new Thickness(10, 6) };
-        tabs.Children.Add(chats); Grid.SetColumn(contacts, 1); tabs.Children.Add(contacts);
-        Grid.SetColumn(settings, 2); tabs.Children.Add(settings);
+
+        var tabsGrid = new Grid { ColumnDefinitions = new ColumnDefinitions("*,*,Auto"), ColumnSpacing = 8 };
+        tabsGrid.Children.Add(_chatsTab);
+        Grid.SetColumn(_contactsTab, 1); tabsGrid.Children.Add(_contactsTab);
+        Grid.SetColumn(settings, 2); tabsGrid.Children.Add(settings);
+        var tabBar = MobileUi.With(new Border { Child = tabsGrid, Padding = new Thickness(12, 8) }, MobileUi.Classes.TabBar);
+        UpdateDirectoryTabs();
+
         var body = new Grid { RowDefinitions = new RowDefinitions("Auto,*,Auto") };
         body.Children.Add(header);
         var scroll = new ScrollViewer { Content = _conversationList, HorizontalScrollBarVisibility = Avalonia.Controls.Primitives.ScrollBarVisibility.Disabled };
-        Grid.SetRow(scroll, 1); body.Children.Add(scroll); Grid.SetRow(tabs, 2); body.Children.Add(tabs);
+        Grid.SetRow(scroll, 1); body.Children.Add(scroll);
+        Grid.SetRow(tabBar, 2); body.Children.Add(tabBar);
         _directory = new Border { Child = body, BorderThickness = new Thickness(0, 0, 1, 0) };
         _directory.Bind(Border.BackgroundProperty, new DynamicResourceExtension("MptMobileCardBrush"));
         _directory.Bind(Border.BorderBrushProperty, new DynamicResourceExtension("MptMobileDividerBrush"));
         _navigationLayout = new Grid { ColumnDefinitions = new ColumnDefinitions("300,*") };
         _navigationLayout.Children.Add(_directory); Grid.SetColumn(chat, 1); _navigationLayout.Children.Add(chat);
         return _navigationLayout;
+    }
+
+    private static Button BuildDirectoryTabButton(string label) => new()
+    {
+        Content = label,
+        MinHeight = MobileUi.IconTarget,
+        CornerRadius = new CornerRadius(12),
+        BorderThickness = new Thickness(0),
+        FontSize = 14,
+        FontWeight = FontWeight.SemiBold,
+        HorizontalAlignment = HorizontalAlignment.Stretch,
+        HorizontalContentAlignment = HorizontalAlignment.Center,
+        VerticalContentAlignment = VerticalAlignment.Center,
+        Padding = new Thickness(12, 8)
+    };
+
+    private void UpdateDirectoryTabs()
+    {
+        static void Apply(Button? tab, bool active)
+        {
+            if (tab is null) return;
+            if (active)
+            {
+                tab.Bind(Button.BackgroundProperty, new DynamicResourceExtension("MptMobileAccentSoftBrush"));
+                tab.Bind(Button.ForegroundProperty, new DynamicResourceExtension("MptMobileAccentBrush"));
+            }
+            else
+            {
+                tab.Background = Brushes.Transparent;
+                tab.Bind(Button.ForegroundProperty, new DynamicResourceExtension("MptMobileInactiveTabBrush"));
+            }
+        }
+        Apply(_chatsTab, !_contactsOpen);
+        Apply(_contactsTab, _contactsOpen);
     }
 
     private void DismissSheet()
@@ -115,6 +178,7 @@ internal sealed partial class AssistantView
         _directoryTitle.Text = contacts ? "通讯录" : "会话";
         _conversationSearch.PlaceholderText = contacts ? "搜索设备" : "搜索会话";
         _conversationSearch.Text = "";
+        UpdateDirectoryTabs();
         ReturnToConversationList();
         RefreshConversationNavigation();
     }
@@ -156,9 +220,37 @@ internal sealed partial class AssistantView
             _navigationRowsFingerprint = contactsFingerprint;
             _conversationList.Children.Clear();
             foreach (var peer in peers)
-                _conversationList.Children.Add(DirectoryRow(peer.Name, "已添加 · 文件互传", "", false, 0,
-                    peer.Platform == "android" ? "MptMobileIconPhone" : "MptMobileIconDesktop", () => { ShowContactCard(peer); return Task.CompletedTask; }));
-            if (peers.Length == 0) _conversationList.Children.Add(MobileUi.Note("添加一次，以后从通讯录找到设备。"));
+                _conversationList.Children.Add(DirectoryRow(peer.Name, peer.Available ? "在线 · 文件互传" : "已添加 · 文件互传", "", false, 0,
+                    peer.Platform == "android" ? "MptMobileIconPhone" : "MptMobileIconDesktop",
+                    () => { ShowContactCard(peer); return Task.CompletedTask; }, tone: "green"));
+            if (peers.Length == 0)
+            {
+                var emptyBadge = MobileUi.IconBadge("MptMobileIconDevices");
+                emptyBadge.Width = 52;
+                emptyBadge.Height = 52;
+                emptyBadge.CornerRadius = new CornerRadius(16);
+                emptyBadge.HorizontalAlignment = HorizontalAlignment.Center;
+                var emptyTitle = new TextBlock
+                {
+                    Text = query.Length > 0 ? "没有匹配的设备" : "还没有添加设备",
+                    FontSize = 16,
+                    FontWeight = FontWeight.SemiBold,
+                    HorizontalAlignment = HorizontalAlignment.Center,
+                    TextAlignment = TextAlignment.Center
+                };
+                var emptyDesc = MobileUi.Caption(query.Length > 0 ? "换个关键词试试，或直接添加新设备。" : "添加一次，以后从通讯录找到设备。");
+                emptyDesc.TextAlignment = TextAlignment.Center;
+                emptyDesc.HorizontalAlignment = HorizontalAlignment.Center;
+                var addBtn = MobileUi.SecondaryButton("添加设备");
+                addBtn.HorizontalAlignment = HorizontalAlignment.Center;
+                addBtn.MinWidth = 140;
+                addBtn.Padding = new Thickness(20, 10);
+                addBtn.Click += (_, _) => ShowPairSheet();
+                var emptyCard = MobileUi.Card(MobileUi.Stack(10, emptyBadge, emptyTitle, emptyDesc, addBtn));
+                emptyCard.Margin = new Thickness(4, 16, 4, 0);
+                emptyCard.Padding = new Thickness(20, 24);
+                _conversationList.Children.Add(emptyCard);
+            }
             return;
         }
 
@@ -176,10 +268,24 @@ internal sealed partial class AssistantView
         if (fingerprint == _navigationRowsFingerprint) return;
         _navigationRowsFingerprint = fingerprint;
         _conversationList.Children.Clear();
-        foreach (var entry in entries)
+        for (var i = 0; i < entries.Count; i++)
+        {
+            var entry = entries[i];
+            if (i > 0)
+            {
+                var sep = MobileUi.Divider();
+                sep.Margin = new Thickness(70, 0, 12, 0);
+                _conversationList.Children.Add(sep);
+            }
+            var isArchive = entry.Key != SharedConversationKey && entry.DeviceId is null;
+            var iconKey = isArchive ? "MptMobileIconClock"
+                : entry.DeviceId is null ? "MptMobileIconDevices"
+                : "MptMobileIconDesktop";
+            var tone = isArchive ? "neutral" : entry.DeviceId is null ? null : "green";
             _conversationList.Children.Add(DirectoryRow(entry.Name, entry.Preview, entry.UpdatedAt?.ToLocalTime().ToString("HH:mm") ?? "",
                 entry.Key == ActiveConversationKey && (_chatOpen || _viewport >= PhoneWidth), entry.Unread,
-                entry.DeviceId is null ? "MptMobileIconDevices" : "MptMobileIconDesktop", () => OpenConversationAsync(entry)));
+                iconKey, () => OpenConversationAsync(entry), tone));
+        }
     }
 
     /// <summary>What the directory rows display. Anything left out here would leave a stale row behind.</summary>
@@ -187,22 +293,65 @@ internal sealed partial class AssistantView
         (_contactsOpen ? "contacts" : "list") + (_chatOpen ? "/open" : "/closed") +
         (_viewport >= PhoneWidth ? "/wide" : "/narrow") + "\u0001" + query + "\u0002" + string.Join("\u0004", rows);
 
-    private static Button DirectoryRow(string name, string preview, string time, bool selected, int unread, string icon, Func<Task> action)
+    private static Button DirectoryRow(string name, string preview, string time, bool selected, int unread, string icon, Func<Task> action, string? tone = null)
     {
-        var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("44,*,Auto"), ColumnSpacing = 12 };
-        var glyph = MobileUi.Icon(icon, [MobileUi.Classes.Icon]);
-        glyph.HorizontalAlignment = HorizontalAlignment.Center; glyph.VerticalAlignment = VerticalAlignment.Center;
-        var avatar = new Border { Width = 43, Height = 43, CornerRadius = new CornerRadius(13), Child = glyph };
-        avatar.Bind(Border.BackgroundProperty, new DynamicResourceExtension("MptMobileAccentSoftBrush"));
+        var grid = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto"), ColumnSpacing = 12, Background = Brushes.Transparent };
+        var avatar = MobileUi.IconBadge(icon, tone);
+        avatar.Width = 46;
+        avatar.Height = 46;
+        avatar.CornerRadius = new CornerRadius(14);
         grid.Children.Add(avatar);
-        var text = new StackPanel { Spacing = 5, VerticalAlignment = VerticalAlignment.Center, Children =
-        { new TextBlock { Text = name, FontSize = 14, FontWeight = FontWeight.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis },
-          new TextBlock { Text = preview, FontSize = 12, Opacity = .6, MaxLines = 1, TextTrimming = TextTrimming.CharacterEllipsis } } };
+
+        var nameBlock = new TextBlock { Text = name, FontSize = 15, FontWeight = FontWeight.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis };
+        nameBlock.Bind(TextBlock.ForegroundProperty, new DynamicResourceExtension("MptMobileTextBrush"));
+        var previewBlock = new TextBlock { Text = preview, FontSize = 13, MaxLines = 1, TextTrimming = TextTrimming.CharacterEllipsis };
+        previewBlock.Bind(TextBlock.ForegroundProperty, new DynamicResourceExtension("MptMobileSecondaryTextBrush"));
+        var text = new StackPanel { Spacing = 4, VerticalAlignment = VerticalAlignment.Center, IsHitTestVisible = false, Children = { nameBlock, previewBlock } };
         Grid.SetColumn(text, 1); grid.Children.Add(text);
-        var detail = new StackPanel { Spacing = 7, Children = { new TextBlock { Text = time, FontSize = 10, Opacity = .5 } } };
-        if (unread > 0) detail.Children.Add(new TextBlock { Text = unread.ToString(), FontSize = 11, Foreground = Brushes.DodgerBlue, HorizontalAlignment = HorizontalAlignment.Right });
+
+        var detail = new StackPanel { Spacing = 6, VerticalAlignment = VerticalAlignment.Center, HorizontalAlignment = HorizontalAlignment.Right, IsHitTestVisible = false };
+        if (time.Length > 0)
+        {
+            var timeBlock = new TextBlock { Text = time, FontSize = 11, HorizontalAlignment = HorizontalAlignment.Right };
+            timeBlock.Bind(TextBlock.ForegroundProperty, new DynamicResourceExtension("MptMobileMutedTextBrush"));
+            detail.Children.Add(timeBlock);
+        }
+        if (unread > 0)
+        {
+            var badgeText = new TextBlock
+            {
+                Text = unread > 99 ? "99+" : unread.ToString(),
+                FontSize = 11,
+                FontWeight = FontWeight.SemiBold,
+                HorizontalAlignment = HorizontalAlignment.Center,
+                VerticalAlignment = VerticalAlignment.Center
+            };
+            badgeText.Bind(TextBlock.ForegroundProperty, new DynamicResourceExtension("MptMobileOnAccentBrush"));
+            var badge = new Border
+            {
+                Child = badgeText,
+                MinWidth = 20,
+                Height = 20,
+                Padding = new Thickness(6, 0),
+                CornerRadius = new CornerRadius(10),
+                HorizontalAlignment = HorizontalAlignment.Right
+            };
+            badge.Bind(Border.BackgroundProperty, new DynamicResourceExtension("MptMobileAccentBrush"));
+            detail.Children.Add(badge);
+        }
         Grid.SetColumn(detail, 2); grid.Children.Add(detail);
-        var button = new Button { HorizontalAlignment = HorizontalAlignment.Stretch, Content = grid, Padding = new Thickness(12, 14), BorderThickness = new Thickness(0), CornerRadius = new CornerRadius(10), HorizontalContentAlignment = HorizontalAlignment.Stretch };
+
+        var button = new Button
+        {
+            HorizontalAlignment = HorizontalAlignment.Stretch,
+            Content = grid,
+            Padding = new Thickness(12, 12),
+            MinHeight = 68,
+            BorderThickness = new Thickness(0),
+            CornerRadius = new CornerRadius(14),
+            HorizontalContentAlignment = HorizontalAlignment.Stretch,
+            VerticalContentAlignment = VerticalAlignment.Center
+        };
         if (selected) button.Bind(Button.BackgroundProperty, new DynamicResourceExtension("MptMobileAccentSoftBrush"));
         else button.Background = Brushes.Transparent;
         AutomationProperties.SetName(button, "打开会话 " + name);
@@ -242,8 +391,34 @@ internal sealed partial class AssistantView
             _sheetScroll.Content = MobileUi.Stack(12, MobileUi.Body("加入后，这台设备能查看文件传输助手中的历史和后续文字、文件。"),
                 MobileUi.Caption("此操作会显示邀请，对方确认加入后才获得权限。普通文件互传不受影响。"), confirm);
         };
-        _sheetScroll.Content = MobileUi.Stack(16, MobileUi.PageTitle(peer.Name), MobileUi.Caption(peer.PlatformText),
-            MobileUi.Caption("设备标识 · " + peer.DeviceId), MobileUi.Caption(peer.RequiresPairing || !peer.CanPrivateMessage ? "请先添加设备，取得私聊互传权限。" : "已允许文字和文件互传"), send, invite);
+
+        var avatar = MobileUi.IconBadge(peer.Platform == "android" ? "MptMobileIconPhone" : "MptMobileIconDesktop", "green");
+        avatar.Width = 52;
+        avatar.Height = 52;
+        avatar.CornerRadius = new CornerRadius(16);
+        var heroCopy = new StackPanel
+        {
+            Spacing = 4,
+            VerticalAlignment = VerticalAlignment.Center,
+            Children =
+            {
+                new TextBlock { Text = peer.Name, FontSize = 18, LineHeight = 26, FontWeight = FontWeight.SemiBold, TextTrimming = TextTrimming.CharacterEllipsis },
+                MobileUi.Caption(peer.PlatformText)
+            }
+        };
+        var statusPill = MobileUi.Pill(peer.Available ? "在线" : peer.Paired ? "已添加" : "未添加", offline: !peer.Available);
+        statusPill.VerticalAlignment = VerticalAlignment.Center;
+        var heroGrid = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto"), ColumnSpacing = 12 };
+        heroGrid.Children.Add(avatar);
+        Grid.SetColumn(heroCopy, 1); heroGrid.Children.Add(heroCopy);
+        Grid.SetColumn(statusPill, 2); heroGrid.Children.Add(statusPill);
+
+        var infoCard = MobileUi.ReceiptSurface(MobileUi.Stack(8,
+            MobileUi.ReceiptRow("状态", peer.StateText),
+            MobileUi.ReceiptRow("权限", peer.RequiresPairing || !peer.CanPrivateMessage ? "需先添加设备" : "允许文字和文件互传"),
+            MobileUi.Caption("设备标识 · " + peer.DeviceId)));
+
+        _sheetScroll.Content = MobileUi.Stack(12, MobileUi.Card(heroGrid), infoCard, send, invite);
         OpenSheet();
     }
 
@@ -257,13 +432,53 @@ internal sealed partial class AssistantView
         }
         if (_core.Snapshot.Identity.PublicRoomState.StartsWith("public")) { ShowPublicRoomSheet(); return; }
         _sheetTitle.Text = "共享会话成员";
-        var body = MobileUi.Stack(10, MobileUi.Note("只有明确加入的设备可见此会话。普通配对不会加入。"));
-        body.Children.Add(MobileUi.Caption(_core.Snapshot.Identity.DisplayName + " · 本机"));
+        var membersPanel = new StackPanel { Spacing = 0 };
+        var selfRow = new Grid { ColumnDefinitions = new ColumnDefinitions("Auto,*,Auto"), ColumnSpacing = 12 };
+        var selfAvatar = MobileUi.IconBadge("MptMobileIconDevices");
+        selfAvatar.Width = 42; selfAvatar.Height = 42; selfAvatar.CornerRadius = new CornerRadius(12);
+        selfRow.Children.Add(selfAvatar);
+        var selfName = new TextBlock
+        {
+            Text = CleanDeviceLabel(_core.Snapshot.Identity.DisplayName),
+            FontSize = 15,
+            LineHeight = 22,
+            FontWeight = FontWeight.SemiBold,
+            TextTrimming = TextTrimming.CharacterEllipsis,
+            Padding = new Thickness(0, 0, 4, 0)
+        };
+        selfName.Bind(TextBlock.ForegroundProperty, new DynamicResourceExtension("MptMobileTextBrush"));
+        var selfCopy = new StackPanel
+        {
+            Spacing = 2,
+            VerticalAlignment = VerticalAlignment.Center,
+            Children =
+            {
+                selfName,
+                MobileUi.Caption("当前设备")
+            }
+        };
+        Grid.SetColumn(selfCopy, 1); selfRow.Children.Add(selfCopy);
+        var selfPill = MobileUi.Pill("本机");
+        selfPill.VerticalAlignment = VerticalAlignment.Center;
+        Grid.SetColumn(selfPill, 2); selfRow.Children.Add(selfPill);
+        membersPanel.Children.Add(new Border { Child = selfRow, Padding = new Thickness(14, 12) });
+
         foreach (var member in _core.Snapshot.Members.Where(m => m.DeviceId != _core.Snapshot.Identity.Id))
-            body.Children.Add(DirectoryRow(member.Name, "已加入共享会话", "", false, 0, "MptMobileIconDevices", () => { ShowContactCard(member); return Task.CompletedTask; }));
+        {
+            var sep = MobileUi.Divider();
+            sep.Margin = new Thickness(68, 0, 14, 0);
+            membersPanel.Children.Add(sep);
+            membersPanel.Children.Add(DirectoryRow(member.Name, "已加入共享会话", "", false, 0,
+                member.Platform == "android" ? "MptMobileIconPhone" : "MptMobileIconDesktop",
+                () => { ShowContactCard(member); return Task.CompletedTask; }, tone: "green"));
+        }
+
         var invite = MobileUi.PrimaryButton("邀请设备加入");
         invite.Click += (_, _) => { ShowSheet(_linkSheet); SyncLinkSheet(); };
-        body.Children.Add(invite);
+        var body = MobileUi.Stack(12,
+            MobileUi.ListCard(membersPanel),
+            MobileUi.Caption("只有明确加入的设备可见此会话。普通配对不会自动加入。"),
+            invite);
         _sheetScroll.Content = body; OpenSheet();
     }
 

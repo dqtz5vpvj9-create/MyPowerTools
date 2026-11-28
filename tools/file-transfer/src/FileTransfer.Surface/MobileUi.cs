@@ -73,11 +73,21 @@ internal static class MobileUi
         public const string SheetTitle = "MptMobileSheetTitle";
         public const string Icon = "MptMobileIcon";
         public const string IconSecondary = "MptMobileIconSecondary";
+        public const string IconMuted = "MptMobileIconMuted";
         public const string IconAccent = "MptMobileIconAccent";
+        public const string IconSuccess = "MptMobileIconSuccess";
+        public const string IconWarning = "MptMobileIconWarning";
+        public const string IconOnAccent = "MptMobileIconOnAccent";
         public const string IconSuccessLarge = "MptMobileIconSuccessLarge";
         public const string IconDevice = "MptMobileIconDevice";
+        public const string IconSmall = "MptMobileIconSmall";
+        public const string IconMedium = "MptMobileIconMedium";
         public const string IconLarge = "MptMobileIconLarge";
         public const string IconBox = "MptMobileIconBox";
+        public const string SearchBox = "MptMobileSearchBox";
+        public const string Search = "MptMobileSearch";
+        public const string TabBar = "MptMobileTabBar";
+        public const string TabButton = "MptMobileTabButton";
         public const string Tile = "MptMobileTile";
         public const string AddDevice = "MptMobileAddDevice";
         public const string DeviceTile = "MptMobileDeviceTile";
@@ -288,11 +298,93 @@ internal static class MobileUi
         With(new TextBox { PlaceholderText = placeholder }, Classes.Field);
 
     /// <summary>
-    /// One tappable row: leading icon, title with its caption, optional trailing text or chevron.
+    /// A subtle filled search pill with a leading search glyph, matching the shared mobile theme's
+    /// search bar instead of a bare form text box.
+    /// </summary>
+    public static Border SearchField(TextBox box)
+    {
+        box.Classes.Remove(Classes.Field);
+        With(box, Classes.Search);
+        box.Background = Brushes.Transparent;
+        box.BorderThickness = new Thickness(0);
+        box.Padding = new Thickness(0);
+        box.MinHeight = 40;
+        var glyph = Icon("MptMobileIconSearch", Classes.Icon, Classes.IconSecondary);
+        glyph.VerticalAlignment = VerticalAlignment.Center;
+        glyph.HorizontalAlignment = HorizontalAlignment.Center;
+        var grid = new Grid
+        {
+            ColumnDefinitions = new ColumnDefinitions("Auto,*"),
+            ColumnSpacing = 8
+        };
+        Grid.SetColumn(glyph, 0);
+        grid.Children.Add(glyph);
+        Grid.SetColumn(box, 1);
+        grid.Children.Add(box);
+        return With(new Border
+        {
+            Child = grid,
+            CornerRadius = new CornerRadius(14),
+            Padding = new Thickness(12, 2),
+            MinHeight = IconTarget
+        }, Classes.SearchBox);
+    }
+
+    /// <summary>
+    /// Groups rows into one rounded list card with subtle indented hairline dividers between items.
+    /// </summary>
+    public static Border GroupedListCard(params Control[] rows)
+    {
+        var panel = new StackPanel { Spacing = 0 };
+        for (var i = 0; i < rows.Length; i++)
+        {
+            if (i > 0)
+            {
+                var divider = Divider();
+                divider.Margin = new Thickness(66, 0, 14, 0);
+                panel.Children.Add(divider);
+            }
+            panel.Children.Add(rows[i]);
+        }
+        return ListCard(panel);
+    }
+
+    /// <summary>A 38dp tinted rounded icon badge matching the shared mobile settings surfaces.</summary>
+    public static Border IconBadge(string iconKey, string? tone = null)
+    {
+        var iconClass = tone switch
+        {
+            "green" => Classes.IconSuccess,
+            "orange" => Classes.IconWarning,
+            "neutral" => Classes.IconSecondary,
+            _ => Classes.IconAccent
+        };
+        var icon = Icon(iconKey, Classes.Icon, iconClass);
+        icon.HorizontalAlignment = HorizontalAlignment.Center;
+        icon.VerticalAlignment = VerticalAlignment.Center;
+        var classes = tone is "green" or "purple" or "orange"
+            ? new[] { Classes.IconBox, tone }
+            : new[] { Classes.IconBox };
+        var box = With(new Border
+        {
+            Width = 38,
+            Height = 38,
+            CornerRadius = new CornerRadius(11),
+            VerticalAlignment = VerticalAlignment.Center,
+            IsHitTestVisible = false,
+            Child = icon
+        }, classes);
+        if (tone == "neutral")
+            box.Bind(Border.BackgroundProperty, new DynamicResourceExtension("MptMobileNeutralPillBackgroundBrush"));
+        return box;
+    }
+
+    /// <summary>
+    /// One tappable row: leading tinted icon badge, title with its caption, optional trailing text or chevron.
     /// The theme owns padding, minimum height and the pressed state.
     /// </summary>
     public static Button ListRow(string iconKey, string title, string description,
-        Func<Task> action, string? trailing = null)
+        Func<Task> action, string? trailing = null, string? tone = null)
     {
         var copy = new StackPanel
         {
@@ -309,13 +401,12 @@ internal static class MobileUi
             ColumnSpacing = 12,
             Background = Brushes.Transparent
         };
-        var icon = Icon(iconKey, Classes.Icon, Classes.IconAccent);
-        icon.VerticalAlignment = VerticalAlignment.Center;
-        Grid.SetColumn(icon, 0);
-        grid.Children.Add(icon);
+        var badge = IconBadge(iconKey, tone);
+        Grid.SetColumn(badge, 0);
+        grid.Children.Add(badge);
         Grid.SetColumn(copy, 1);
         grid.Children.Add(copy);
-        Control tail = trailing is null ? Icon("MptMobileIconChevron", Classes.Icon, Classes.IconSecondary) : Decorative(Meta(trailing));
+        Control tail = trailing is null ? Icon("MptMobileIconChevron", Classes.Icon, Classes.IconMuted) : Decorative(Meta(trailing));
         tail.VerticalAlignment = VerticalAlignment.Center;
         Grid.SetColumn(tail, 2);
         grid.Children.Add(tail);
