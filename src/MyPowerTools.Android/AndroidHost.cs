@@ -26,9 +26,11 @@ internal sealed record StartupProgress(string Stage, string Message, int Step, i
 internal static class AndroidHost
 {
     private static readonly object Gate = new();
+    private static A.Content.Context? _appContext;
     private static Task? _initialization;
     private static MptHostRuntime? _runtime;
     private static bool _stopRequestedHooked;
+    private static int _backgroundServicesStarted;
     private static Task? _commandRefresh;
     private static int _attempt;
 
@@ -45,12 +47,38 @@ internal static class AndroidHost
     /// <summary>Raised for every stage change; the handler may run on any thread.</summary>
     internal static event Action<StartupProgress>? Progress;
 
+    /// <summary>
+    /// Captures the application context early in <see cref="MptAndroidApplication.OnCreate"/> and
+    /// starts runtime initialization in parallel with Avalonia startup.
+    /// </summary>
+    internal static Task Prewarm(A.Content.Context context)
+    {
+        _appContext = context.ApplicationContext ?? context;
+        return InitializeAsync();
+    }
+
     internal static Task InitializeAsync()
     {
         lock (Gate)
         {
             return _initialization ??= Task.Run(InitializeCoreAsync);
         }
+    }
+
+    /// <summary>
+    /// Starts module event pumps and dynamic command catalog refresh after the Shell's first frame
+    /// has rendered, preventing all bundled modules from loading and contending for CPU during launch.
+    /// </summary>
+    internal static void StartBackgroundServices()
+    {
+        var runtime = _runtime;
+        if (runtime is null || Interlocked.Exchange(ref _backgroundServicesStarted, 1) != 0)
+        {
+            return;
+        }
+
+        runtime.StartModuleEventPump();
+        _commandRefresh ??= RefreshCommandsAsync(runtime);
     }
 
     /// <summary>
@@ -82,6 +110,7 @@ internal static class AndroidHost
 
         HostControlClient.EmbeddedInvoker = null;
         PlatformPackFactory.EmbeddedPlatformFactory = null;
+        Volatile.Write(ref _backgroundServicesStarted, 0);
         _commandRefresh = null;
         await InitializeAsync().ConfigureAwait(false);
     }
@@ -101,7 +130,7 @@ internal static class AndroidHost
         try
         {
             Report("prepare", "正在准备运行目录…", ++step, totalSteps);
-            var context = A.App.Application.Context;
+            var context = _appContext ?? A.App.Application.Context;
             AndroidStartupLog.UseRuntimeLogDirectory(null);
 
             var shares = Path.Combine(context.CacheDir!.AbsolutePath, "shares");
@@ -165,7 +194,6 @@ internal static class AndroidHost
                 await SyncBundledCatalogAsync(context, PackageRoot).ConfigureAwait(false);
                 runtime.Load(PackageRoot);
             }
-            runtime.StartModuleEventPump();
 
             Report("services", "正在连接主机控制与后台事件…", ++step, totalSteps);
             HostControlClient.EmbeddedInvoker = new EmbeddedHostControlInvoker(new HostControlGrpcService(
@@ -177,7 +205,6 @@ internal static class AndroidHost
             }
 
             Report("ready", "运行时就绪，正在构建界面…", ++step, totalSteps);
-            _commandRefresh ??= RefreshCommandsAsync(runtime);
             AndroidStartupLog.Info("ready", $"Runtime ready (attempt {_attempt + 1})");
         }
         catch (Exception ex)

@@ -4,11 +4,11 @@ using System.Text.RegularExpressions;
 
 namespace MyPowerTools.Packaging;
 
-public sealed class PackageReader
+public sealed partial class PackageReader
 {
-    private static readonly Regex SettingToken = new(
-        @"\$\{settings\.(?<name>[A-Za-z0-9_.-]+)\}",
-        RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
+    [GeneratedRegex(@"\$\{settings\.(?<name>[A-Za-z0-9_.-]+)\}", RegexOptions.CultureInvariant | RegexOptions.IgnoreCase)]
+    private static partial Regex SettingTokenRegex();
+    private static readonly Regex SettingToken = SettingTokenRegex();
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
         PropertyNameCaseInsensitive = true,

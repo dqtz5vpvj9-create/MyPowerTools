@@ -9,6 +9,7 @@ public sealed partial class ShellWorkspaceController
 
     public async Task OpenCommandPaletteAsync(bool focusSearch = true)
     {
+        (global::Avalonia.Application.Current as App)?.EnsureDeferredStyles();
         _chromeViewModel.IsCommandPaletteOpen = true;
         if (focusSearch)
         {

@@ -25,6 +25,7 @@ public sealed class App : Application
     private static readonly TimeSpan BackgroundShutdownTimeout = TimeSpan.FromSeconds(3);
     private int _deferredStylesScheduled;
     private int _deferredStylesLoaded;
+    private int _criticalDesktopStylesLoaded;
     private ITrayService? _platformTray;
 
     internal static ShellActivationRequest? StartupActivationRequest { get; set; }
@@ -60,18 +61,35 @@ public sealed class App : Application
 
         MacIdleProgressAnimations.Install();
         Styles.Add(new FluentTheme());
-        if (OperatingSystem.IsAndroid() || SingleViewFactory is not null)
+        var isAndroid = OperatingSystem.IsAndroid();
+        if (isAndroid || SingleViewFactory is not null)
+        {
             Styles.Add(new StyleInclude(ThemeBaseUri)
             {
                 Source = new Uri("avares://MyPowerTools.AvaloniaSdk/Themes/MptMobileTheme.axaml")
             });
+        }
+        if (isAndroid)
+        {
+            // Load the shared phone styles once at application scope instead of re-parsing per
+            // MobileShellView instance, and defer the 16 desktop XAML files in MptThemeCritical
+            // until after first frame (or before opening a tool surface / command palette).
+            Styles.Add(new StyleInclude(ThemeBaseUri)
+            {
+                Source = new Uri("avares://MyPowerTools.Shell.Avalonia/Styles/Mobile.axaml")
+            });
+        }
         if (OperatingSystem.IsMacOS())
             Resources.MergedDictionaries.Add(new ResourceInclude(ThemeBaseUri)
             { Source = new Uri("avares://MyPowerTools.Shell.Avalonia/Themes/MacLowPower.axaml") });
-        Styles.Add(new StyleInclude(ThemeBaseUri)
+        if (!isAndroid)
         {
-            Source = new Uri("avares://MyPowerTools.UI/Themes/MptThemeCritical.axaml")
-        });
+            Volatile.Write(ref _criticalDesktopStylesLoaded, 1);
+            Styles.Add(new StyleInclude(ThemeBaseUri)
+            {
+                Source = new Uri("avares://MyPowerTools.UI/Themes/MptThemeCritical.axaml")
+            });
+        }
         ShellAppearanceService.ApplySavedTheme(this);
         ApplyProductPalette();
         ActualThemeVariantChanged += (_, _) => ApplyProductPalette();
@@ -297,6 +315,14 @@ public sealed class App : Application
 
         try
         {
+            if (Interlocked.Exchange(ref _criticalDesktopStylesLoaded, 1) == 0)
+            {
+                Styles.Add(new StyleInclude(ThemeBaseUri)
+                {
+                    Source = new Uri("avares://MyPowerTools.UI/Themes/MptThemeCritical.axaml")
+                });
+            }
+
             Styles.Add(new StyleInclude(ThemeBaseUri)
             {
                 Source = new Uri("avares://MyPowerTools.UI/Themes/MptThemeDeferred.axaml")

@@ -71,9 +71,6 @@ public sealed class MptAndroidApplication(nint handle, JniHandleOwnership owners
 
     public override void OnCreate()
     {
-        base.OnCreate();
-        // Register before the first activity resumes, so its first viewer launch stays in this task.
-        MptCurrentActivity.EnsureRegistered(this);
         AndroidStartupLog.UseRuntimeLogDirectory(null);
         AndroidStartupLog.Info("application", "Process start");
         // A managed exception that escapes the Avalonia loop otherwise only surfaces as a process
@@ -88,6 +85,15 @@ public sealed class MptAndroidApplication(nint handle, JniHandleOwnership owners
         };
         A.Runtime.AndroidEnvironment.UnhandledExceptionRaiser += (_, args) =>
             AndroidStartupLog.Error("java-callable", args.Exception);
+
+        // Start host runtime initialization on a worker thread BEFORE Avalonia/Skia/theme init so
+        // catalog check and manifest loading overlap with base.OnCreate().
+        AndroidHost.Prewarm(this);
+
+        base.OnCreate();
+        // Register before the first activity resumes, so its first viewer launch stays in this task.
+        MptCurrentActivity.EnsureRegistered(this);
+        AndroidStartupLog.Info("application", "Avalonia initialized");
     }
 
 }

@@ -1,4 +1,5 @@
 using Avalonia.Controls;
+using Avalonia.Threading;
 using MyPowerTools.Shell.Avalonia.ViewModels;
 
 namespace MyPowerTools.Shell.Avalonia.Services;
@@ -36,14 +37,36 @@ public sealed partial class ShellWorkspaceController
     public bool IsToolSurfaceActive => IsToolPageActive;
 
     /// <summary>
-    /// Starts the workspace the way the phone shell needs it: catalogs, shortcuts and event monitors
-    /// come up, but the desktop Home page is never loaded because the phone renders 常用 itself. The
-    /// Tools page keeps the workspace on a page that only rebuilds a catalog view on a refresh.
+    /// Starts the workspace the way the phone shell needs it: discovers the tool catalog and starts
+    /// event monitors on idle, while skipping desktop-only startup work (global keyboard shortcuts,
+    /// hidden desktop ToolCatalogView construction, and desktop OTA checks).
     /// </summary>
     internal async Task OpenForMobileShellAsync()
     {
         _currentPage = ToolsPage;
-        await OpenAsync();
+        BeginWorkspace();
+        var identity = _workspaceIdentity.Capture();
+        try
+        {
+            var tools = await _toolProducts.LoadToolCardsAsync(ShowToolPageAsync, null);
+            if (!IsDisposed && _workspaceIdentity.IsCurrent(identity))
+            {
+                SetDiscoveredTools(tools);
+                SetStatus($"{tools.Count} tools.");
+            }
+        }
+        catch (Exception ex)
+        {
+            if (!IsStalePageFailure(nameof(OpenForMobileShellAsync), ex, identity))
+            {
+                ReportPageFailure(nameof(OpenForMobileShellAsync), ex);
+            }
+        }
+
+        if (!IsDisposed)
+        {
+            Dispatcher.UIThread.Post(StartEventMonitors, DispatcherPriority.ApplicationIdle);
+        }
     }
 
     /// <summary>

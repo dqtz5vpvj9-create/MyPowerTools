@@ -56,6 +56,7 @@ public sealed class MobileShellView : UserControl, IAsyncDisposable, IMobileNavi
     private DispatcherTimer _toastTimer = null!;
     private readonly List<Button> _navigationButtons = [];
     private readonly TaskCompletionSource _ready = new(TaskCreationOptions.RunContinuationsAsynchronously);
+    private readonly TaskCompletionSource _initialPageLoad = new(TaskCreationOptions.RunContinuationsAsynchronously);
     private IInputElement? _focusBeforeSheet;
     private InputElement? _lastFocusedOutsideSheet;
     private Task _pageLoad = Task.CompletedTask;
@@ -168,8 +169,11 @@ public sealed class MobileShellView : UserControl, IAsyncDisposable, IMobileNavi
         Classes.Add("mobile-shell");
         Classes.Add("MptMobileRoot");
         MobileThemeFallback.Apply(this);
-        Styles.Add(new StyleInclude(new Uri("avares://MyPowerTools.Shell.Avalonia/"))
-        { Source = new Uri("avares://MyPowerTools.Shell.Avalonia/Styles/Mobile.axaml") });
+        if (!HasApplicationMobileStyles())
+        {
+            Styles.Add(new StyleInclude(new Uri("avares://MyPowerTools.Shell.Avalonia/"))
+            { Source = new Uri("avares://MyPowerTools.Shell.Avalonia/Styles/Mobile.axaml") });
+        }
         this.Bind(BackgroundProperty, new DynamicResourceExtension("MptMobileBackgroundBrush"));
 
         _mobileHost = new ContentControl
@@ -226,8 +230,30 @@ public sealed class MobileShellView : UserControl, IAsyncDisposable, IMobileNavi
         SizeChanged += OnShellSizeChanged;
         AttachedToVisualTree += OnAttached;
         DetachedFromVisualTree += OnDetached;
-        RebuildPage();
+        // Build the initial page visuals synchronously so the first frame paints immediately,
+        // and let OnAttached trigger the single initial data load once the workspace opens.
+        _pageLoad = _initialPageLoad.Task;
+        RebuildPage(loadData: false);
         UpdateTabSelection();
+    }
+
+    private static bool HasApplicationMobileStyles()
+    {
+        if (Application.Current is not { } application)
+        {
+            return false;
+        }
+
+        foreach (var style in application.Styles)
+        {
+            if (style is StyleInclude include &&
+                include.Source?.OriginalString.EndsWith("Styles/Mobile.axaml", StringComparison.OrdinalIgnoreCase) == true)
+            {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /// <summary>
@@ -286,6 +312,7 @@ public sealed class MobileShellView : UserControl, IAsyncDisposable, IMobileNavi
 
     public async Task ActivateAsync(ToolActivationRequest request)
     {
+        (Application.Current as App)?.EnsureDeferredStyles();
         await Ready.ConfigureAwait(true);
         await _workspace.ActivateToolAsync(request).ConfigureAwait(true);
         // A share or deep link must land on the real surface, not behind the phone pages.
@@ -316,7 +343,7 @@ public sealed class MobileShellView : UserControl, IAsyncDisposable, IMobileNavi
             return true;
         }
 
-        if (_viewModel.IsToolSurfaceOpen)
+        if (_viewModel.IsToolSurfaceOpen || _workspace.IsToolSurfaceActive)
         {
             // A sheet, form or previous step inside the loaded surface gets Back first.
             if (TryHandleSurfaceBack())
@@ -352,9 +379,10 @@ public sealed class MobileShellView : UserControl, IAsyncDisposable, IMobileNavi
             return;
         }
 
+        (Application.Current as App)?.EnsureDeferredStyles();
         var implementationId = _viewModel.Tools.Find(toolId)?.ImplementationId ?? toolId;
-        await _workspace.OpenToolSurfaceAsync(implementationId).ConfigureAwait(true);
         _viewModel.IsToolSurfaceOpen = true;
+        await _workspace.OpenToolSurfaceAsync(implementationId).ConfigureAwait(true);
     }
 
     public async Task ActivateToolAsync(string toolId, string routeId, string activationUri)
@@ -574,6 +602,7 @@ public sealed class MobileShellView : UserControl, IAsyncDisposable, IMobileNavi
         }
 
         _viewModel.Dispose();
+        _initialPageLoad.TrySetResult();
         await _workspace.DisposeAsync().ConfigureAwait(true);
     }
 
@@ -670,9 +699,13 @@ public sealed class MobileShellView : UserControl, IAsyncDisposable, IMobileNavi
         {
             ShellCommandFaultLog.Write("Attach mobile shell", ex, "mobile-ui");
         }
+        finally
+        {
+            _initialPageLoad.TrySetResult();
+        }
     }
 
-    private void RebuildPage()
+    private void RebuildPage(bool loadData = true)
     {
         var page = _viewModel.CurrentPageKey switch
         {
@@ -686,7 +719,10 @@ public sealed class MobileShellView : UserControl, IAsyncDisposable, IMobileNavi
             _ => (Control)MobileElements.EmptyState("页面不存在", "返回上一页继续。", "返回", new AsyncRelayCommand(GoBackPageAsync))
         };
         _mobileHost.Content = page;
-        _pageLoad = ReloadCurrentPageAsync();
+        if (loadData)
+        {
+            _pageLoad = ReloadCurrentPageAsync();
+        }
     }
 
     private Task ReloadCurrentPageAsync(bool force = false)

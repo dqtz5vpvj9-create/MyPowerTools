@@ -5,8 +5,8 @@
     <OutputType>Exe</OutputType>
     <ApplicationId>com.mypowertools.android</ApplicationId>
     <ApplicationTitle>MyPowerTools</ApplicationTitle>
-    <ApplicationVersion>24</ApplicationVersion>
-    <ApplicationDisplayVersion>0.2.22</ApplicationDisplayVersion>
+    <ApplicationVersion>25</ApplicationVersion>
+    <ApplicationDisplayVersion>0.2.23</ApplicationDisplayVersion>
     <ImplicitUsings>enable</ImplicitUsings><Nullable>enable</Nullable>
     <!-- The SurfaceHolder/EGL lifetime bridge targets the pinned Avalonia 12.0.5 renderer API. -->
     <AvaloniaAccessUnstablePrivateApis>true</AvaloniaAccessUnstablePrivateApis>
@@ -19,8 +19,10 @@
     <_MptOpenListAbi Condition="'$(_MptArm64)' == 'True' and '$(_MptX64)' == 'True'">all</_MptOpenListAbi>
     <!-- CoreCLR preserves the host collectible-module lifecycle; this APK is a development preview. -->
     <UseMonoRuntime>false</UseMonoRuntime>
-    <!-- Compile methods on first use instead of spending idle phone CPU promoting JIT tiers. -->
-    <TieredCompilation>false</TieredCompilation>
+    <!-- Enable Tier-0 QuickJIT so cold-start one-shot methods avoid synchronous full Tier-1 RyuJIT stalls. -->
+    <TieredCompilation>true</TieredCompilation>
+    <TieredQuickJit>true</TieredQuickJit>
+    <TieredQuickJitForLoops>true</TieredQuickJitForLoops>
     <!-- Shared Shell sources build without desktop rendering backends; Android owns startup. -->
     <ValidateExecutableReferencesMatchSelfContained>false</ValidateExecutableReferencesMatchSelfContained>
     <PublishTrimmed>false</PublishTrimmed>
@@ -38,11 +40,13 @@
     -->
     <ErrorOnDuplicatePublishOutputFiles>false</ErrorOnDuplicatePublishOutputFiles>  </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)' == 'Release'">
-    <!-- Keep the existing CoreCLR/plugin lifecycle; omit shipping symbols and composite R2R. -->
+    <!-- Precompile managed assemblies with non-composite ReadyToRun for fast cold start while
+         keeping R8 AppCompat inflation and collectible AssemblyLoadContext plugins intact. -->
     <DebugType>none</DebugType>
     <DebugSymbols>false</DebugSymbols>
     <AndroidIncludeDebugSymbols>false</AndroidIncludeDebugSymbols>
-    <PublishReadyToRun>false</PublishReadyToRun>
+    <PublishReadyToRun>true</PublishReadyToRun>
+    <PublishReadyToRunComposite>false</PublishReadyToRunComposite>
     <!-- Keep the full .NET BCL and Avalonia UI surface intact for dynamically loaded
          AssemblyLoadContext modules (bundled and future Tailscale/proxy hot-updated modules).
          Size reduction comes from lossless wins: deduplicated modules/BouncyCastle, slim

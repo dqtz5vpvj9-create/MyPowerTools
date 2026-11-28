@@ -76,7 +76,7 @@ public sealed class MainActivity : AvaloniaMainActivity
     internal static Avalonia.Controls.Control CreateMainView()
     {
         Input.AndroidDispatcherClock.Align();
-        ArmShellReady();
+        var ready = ArmShellReady();
         WarmFontStack();
         var view = new AndroidStartupView();
         _startupView = view;
@@ -92,10 +92,21 @@ public sealed class MainActivity : AvaloniaMainActivity
                     refreshed.SetNativeSurfaceServices(ScanConnectionCodeAsync, OpenLocalFileAsync, CloudAuthorization.CloudLogin.AuthorizeAsync);
                     _shell = refreshed;
                     activeView.ShowShell(refreshed);
+                    ScheduleBackgroundServices();
                 });
             }
         };
-        _ = InitializeAsync(view);
+
+        var initTask = AndroidHost.InitializeAsync();
+        if (initTask.IsCompletedSuccessfully && AndroidHost.IsReady)
+        {
+            AttachShell(view, ready);
+        }
+        else
+        {
+            _ = InitializeAsync(view);
+        }
+
         var host = new AndroidImeHost(view);
         if (Current is { } activity)
         {
@@ -103,6 +114,30 @@ public sealed class MainActivity : AvaloniaMainActivity
             host.AttachedToVisualTree += (_, _) => activity.AttachRenderSurface(host);
         }
         return host;
+    }
+
+    private static void AttachShell(AndroidStartupView view, TaskCompletionSource<MobileShellView> ready)
+    {
+        AndroidStartupLog.Info("shell", "Building the touch Shell view");
+        var shell = new MobileShellView();
+        // Native surface capabilities are connected before any activation can reach a tool
+        // surface: the camera scanner and the platform file opener are Android-owned, and a
+        // surface that loads without them simply cannot scan or open a local file.
+        shell.SetNativeSurfaceServices(ScanConnectionCodeAsync, OpenLocalFileAsync, CloudAuthorization.CloudLogin.AuthorizeAsync);
+        _shell = shell;
+        view.ShowShell(shell);
+        ready.TrySetResult(shell);
+        ScheduleBackgroundServices();
+    }
+
+    private static void ScheduleBackgroundServices()
+    {
+        // Let the first Shell frame paint and settle before waking all module event pumps and
+        // dynamic command refreshes. Any module needed sooner (e.g. file-transfer) loads on demand.
+        DispatcherTimer.RunOnce(
+            () => _ = Task.Run(AndroidHost.StartBackgroundServices),
+            TimeSpan.FromMilliseconds(350),
+            DispatcherPriority.ApplicationIdle);
     }
 
     /// <summary>
@@ -166,18 +201,7 @@ public sealed class MainActivity : AvaloniaMainActivity
         try
         {
             await AndroidHost.InitializeAsync();
-            await Dispatcher.UIThread.InvokeAsync(() =>
-            {
-                AndroidStartupLog.Info("shell", "Building the touch Shell view");
-                var shell = new MobileShellView();
-                // Native surface capabilities are connected before any activation can reach a tool
-                // surface: the camera scanner and the platform file opener are Android-owned, and a
-                // surface that loads without them simply cannot scan or open a local file.
-                shell.SetNativeSurfaceServices(ScanConnectionCodeAsync, OpenLocalFileAsync, CloudAuthorization.CloudLogin.AuthorizeAsync);
-                _shell = shell;
-                view.ShowShell(shell);
-                ready.TrySetResult(shell);
-            });
+            await Dispatcher.UIThread.InvokeAsync(() => AttachShell(view, ready));
         }
         catch (Exception ex)
         {

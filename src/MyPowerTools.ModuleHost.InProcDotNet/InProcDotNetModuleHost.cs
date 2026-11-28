@@ -2546,14 +2546,34 @@ public sealed class InProcDotNetModuleHost : IModuleTransportRuntime, IModuleTra
         using var hash = System.Security.Cryptography.IncrementalHash.CreateHash(System.Security.Cryptography.HashAlgorithmName.SHA256);
         void AddText(string value) => hash.AppendData(System.Text.Encoding.UTF8.GetBytes(value + "\0"));
 
-        AddText("package-content-v2");
-        AddText(module.Manifest.PackageId);
-        AddText(module.Manifest.Id);
-        AddText(entrypoint.Assembly ?? string.Empty);
         var files = Directory.EnumerateFiles(sourceRoot, "*", SearchOption.AllDirectories)
             .Select(path => (Path: path, Relative: Path.GetRelativePath(sourceRoot, path)))
             .Where(file => !IsIgnoredSegment(file.Relative))
             .OrderBy(file => file.Relative, StringComparer.Ordinal);
+
+        if (OperatingSystem.IsAndroid())
+        {
+            // Android bundled modules live in app-private storage rewritten atomically by catalog sync
+            // or hot-update overlay application; hashing file metadata avoids reading & SHA-256ing
+            // >12 MiB of module DLLs on every cold start while still invalidating on any update.
+            AddText("package-meta-v1");
+            AddText(module.Manifest.PackageId);
+            AddText(module.Manifest.Id);
+            AddText(entrypoint.Assembly ?? string.Empty);
+            foreach (var file in files)
+            {
+                var info = new FileInfo(file.Path);
+                AddText(file.Relative);
+                AddText($"{info.Length}:{info.LastWriteTimeUtc.Ticks}");
+            }
+
+            return Convert.ToHexString(hash.GetHashAndReset())[..16].ToLowerInvariant();
+        }
+
+        AddText("package-content-v2");
+        AddText(module.Manifest.PackageId);
+        AddText(module.Manifest.Id);
+        AddText(entrypoint.Assembly ?? string.Empty);
         foreach (var file in files)
         {
             AddText(file.Relative);
@@ -2576,6 +2596,7 @@ internal sealed class MptPluginLoadContext : AssemblyLoadContext
     private readonly AssemblyDependencyResolver? _resolver;
     private readonly string _assemblyDirectory;
     private readonly string[] _probeDirectories;
+    private readonly Dictionary<string, string>? _androidProbeIndex;
     private readonly HashSet<string> _sharedAssemblies;
 
     public MptPluginLoadContext(string mainAssemblyPath, IEnumerable<string> sharedAssemblies)
@@ -2586,6 +2607,7 @@ internal sealed class MptPluginLoadContext : AssemblyLoadContext
         // dependencies are probed from the shadow-copied module directory by simple name.
         if (!OperatingSystem.IsAndroid()) _resolver = new AssemblyDependencyResolver(mainAssemblyPath);
         _probeDirectories = OperatingSystem.IsAndroid() ? ProbeDirectories(_assemblyDirectory) : [_assemblyDirectory];
+        if (OperatingSystem.IsAndroid()) _androidProbeIndex = BuildProbeIndex(_probeDirectories);
         _sharedAssemblies = sharedAssemblies.ToHashSet(StringComparer.OrdinalIgnoreCase);
     }
 
@@ -2600,10 +2622,10 @@ internal sealed class MptPluginLoadContext : AssemblyLoadContext
         if (path is null && OperatingSystem.IsAndroid())
         {
             path = Probe(assemblyName.Name);
-            if (path is null && assemblyName.Name is { } missing)
+            if (path is null && assemblyName.Name is { } missing && !IsDefaultContextFrameworkAssembly(missing))
             {
                 // The ModuleHost has no logger on Android and a failed assembly bind otherwise
-                // surfaces only as a bare FileNotFoundException, so the probe list is recorded
+                // surfaces only as a bare FileNotFoundException, so non-BCL misses are recorded
                 // on the DOTNET logcat channel.
                 Console.Error.WriteLine(
                     $"[mpt-inproc] unresolved assembly '{missing}' for {_assemblyDirectory}; probed {string.Join(", ", _probeDirectories)}");
@@ -2611,6 +2633,18 @@ internal sealed class MptPluginLoadContext : AssemblyLoadContext
         }
 
         return path is null ? null : LoadFromAssemblyPath(path);
+    }
+
+    private static bool IsDefaultContextFrameworkAssembly(string assemblyName)
+    {
+        return assemblyName.StartsWith("System.", StringComparison.OrdinalIgnoreCase) ||
+               assemblyName.Equals("System", StringComparison.OrdinalIgnoreCase) ||
+               assemblyName.Equals("netstandard", StringComparison.OrdinalIgnoreCase) ||
+               assemblyName.Equals("mscorlib", StringComparison.OrdinalIgnoreCase) ||
+               assemblyName.Equals("Microsoft.CSharp", StringComparison.OrdinalIgnoreCase) ||
+               assemblyName.Equals("Microsoft.VisualBasic", StringComparison.OrdinalIgnoreCase) ||
+               AssemblyLoadContext.Default.Assemblies.Any(assembly =>
+                   string.Equals(assembly.GetName().Name, assemblyName, StringComparison.OrdinalIgnoreCase));
     }
 
     /// <summary>
@@ -2671,6 +2705,11 @@ internal sealed class MptPluginLoadContext : AssemblyLoadContext
             return null;
         }
 
+        if (_androidProbeIndex is not null)
+        {
+            return _androidProbeIndex.TryGetValue(assemblyName, out var indexed) ? indexed : null;
+        }
+
         foreach (var directory in _probeDirectories)
         {
             var candidate = Path.Combine(directory, assemblyName + ".dll");
@@ -2681,6 +2720,26 @@ internal sealed class MptPluginLoadContext : AssemblyLoadContext
         }
 
         return null;
+    }
+
+    private static Dictionary<string, string> BuildProbeIndex(string[] probeDirectories)
+    {
+        var index = new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase);
+        foreach (var directory in probeDirectories)
+        {
+            if (!Directory.Exists(directory))
+            {
+                continue;
+            }
+
+            foreach (var dll in Directory.EnumerateFiles(directory, "*.dll"))
+            {
+                var name = Path.GetFileNameWithoutExtension(dll);
+                index.TryAdd(name, dll);
+            }
+        }
+
+        return index;
     }
 
     private static string[] ProbeDirectories(string assemblyDirectory)

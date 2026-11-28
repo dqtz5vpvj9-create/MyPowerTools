@@ -5,11 +5,11 @@ using System.Text.RegularExpressions;
 
 namespace MyPowerTools.Runtime;
 
-public sealed class ToolRegistry
+public sealed partial class ToolRegistry
 {
-    private static readonly Regex SettingToken = new(
-        @"\$\{settings\.(?<name>[A-Za-z0-9_.-]+)\}",
-        RegexOptions.Compiled | RegexOptions.CultureInvariant | RegexOptions.IgnoreCase);
+    [GeneratedRegex(@"\$\{settings\.(?<name>[A-Za-z0-9_.-]+)\}", RegexOptions.CultureInvariant | RegexOptions.IgnoreCase)]
+    private static partial Regex SettingTokenRegex();
+    private static readonly Regex SettingToken = SettingTokenRegex();
     private readonly PackageReader _reader;
     private readonly object _writeLock = new();
     private volatile ToolDescriptor[] _tools = [];
