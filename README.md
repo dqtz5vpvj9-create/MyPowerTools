@@ -20,6 +20,8 @@ MyPowerTools 是一个集中管理日常小工具的桌面应用。
 pwsh.exe -NoLogo -NoProfile -NonInteractive -File scripts\Start-MyPowerTools-Dev.ps1
 ```
 
+部署前必须先把本机源码同步到共享仓库：工作区干净，HEAD 等于上游。脚本会校验，不通过就拒绝部署。不要从别的机器复制编译产物，详见 [AGENTS.md](AGENTS.md) 的「部署铁律」。
+
 该入口以 Debug 配置快速覆盖 Shell 和 Runner，并从完整安装目录启动。模块、运行时、服务单元、Broker 与 ServiceManager 会继续保留。安装或刷新“ MyPowerTools 开发版”开始菜单快捷方式：
 
 ```powershell

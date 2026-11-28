@@ -30,6 +30,9 @@ $ProgressPreference = 'SilentlyContinue'
 Set-StrictMode -Version Latest
 
 try {
+    # Deployment rule (AGENTS.md "部署铁律"): only build and deploy from a checkout that exactly
+    # matches the shared repository. This runs before the desktop-session hand-off as well.
+    $null = & (Join-Path $PSScriptRoot 'Assert-DevSourceSynced.ps1')
     if ((Get-Process -Id $PID).SessionId -eq 0) {
         $forwardedParameters = @{}
         foreach ($key in $PSBoundParameters.Keys) { $forwardedParameters[$key] = $PSBoundParameters[$key] }
@@ -63,6 +66,18 @@ The complete MyPowerTools installation is required before starting the developme
 Missing: $($missingInstalledPaths -join ', ')
 Run scripts\install-windows.ps1 once, then use this development shortcut for later updates.
 "@
+    }
+
+    # A fresh checkout or worktree has no repository SDK feed yet; restore would fail without it.
+    $sdkFeed = Join-Path $repositoryRoot 'artifacts\sdk\nuget'
+    if (-not (Get-ChildItem -LiteralPath $sdkFeed -Filter '*.nupkg' -ErrorAction SilentlyContinue)) {
+        Write-Host '==> Preparing the repository SDK feed for this checkout' -ForegroundColor Cyan
+        $prepareSdk = Join-Path $PSScriptRoot 'prepare-focused-test-sdk.ps1'
+        try { & $prepareSdk -Configuration $Configuration }
+        catch {
+            # The first restore into an empty package cache can race once; a second pass is stable.
+            & $prepareSdk -Configuration $Configuration
+        }
     }
 
     $updateParameters = @{

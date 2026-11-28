@@ -1343,6 +1343,10 @@ if ($DryRun) {
     return
 }
 
+# Deployment rule (AGENTS.md "部署铁律"): never overlay binaries built from source that differs
+# from the shared repository. Refuses dirty, unpushed or unpulled checkouts.
+$sourceSync = & (Join-Path $PSScriptRoot 'Assert-DevSourceSynced.ps1') -RepositoryRoot $repositoryRoot
+
 Write-Phase 'Validating the installed layout and taking the preservation inventory'
 foreach ($requiredPath in @(
     $canonicalInstallRoot,
@@ -1699,6 +1703,8 @@ try {
         schemaVersion = 1
         generatedAt = [DateTimeOffset]::UtcNow.ToString('O')
         repositoryRoot = $repositoryRoot
+        sourceCommit = $sourceSync.Commit
+        sourceUpstream = $sourceSync.Upstream
         lastScope = $Scope
         configuration = $Configuration
         frameworkDependentManagedComponents = $true

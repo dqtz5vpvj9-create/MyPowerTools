@@ -15,6 +15,9 @@ param(
 $ErrorActionPreference = 'Stop'
 Set-StrictMode -Version Latest
 
+# Deployment rule (AGENTS.md "部署铁律"): the Broker overlay must come from a synced checkout.
+$null = & (Join-Path $PSScriptRoot 'Assert-DevSourceSynced.ps1')
+
 $source = [IO.Path]::GetFullPath($PublishedBroker)
 $installRootFull = [IO.Path]::GetFullPath($InstallRoot)
 $targetDirectory = [IO.Path]::GetFullPath(

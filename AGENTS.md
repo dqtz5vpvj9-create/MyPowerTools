@@ -1,3 +1,36 @@
+## 部署铁律（所有机器、所有 Agent）
+
+**任何机器上的部署都只能走仓库脚本，而且必须先把该机器上的本地源码同步到共享仓库的状态。**
+不允许"直接部署"。
+
+唯一允许的流程：
+
+1. **在目标机器上同步源码**：目标机器必须有本仓库的 checkout 或 worktree。没有就先
+   `git clone` 或 `git worktree add`。不要改动别人还有未提交改动的 checkout，另开一个
+   worktree。然后同步：`git fetch`，再把 HEAD 对齐到上游（分支用 `git pull --ff-only`，
+   detached worktree 用 `git checkout --detach origin/main`）。工作区必须干净，本地也不能
+   有未推送的提交。要部署的改动必须先提交并推送。
+2. **在这台机器上用部署脚本部署**：
+   - Windows Dev：`scripts/Start-MyPowerTools-Dev.ps1`（见下一节）。
+   - Broker：`scripts/update-windows-broker-dev.ps1`。
+   - Agent 运行在 Session 0（无桌面）时也照样调用 `Start-MyPowerTools-Dev.ps1`。它会自动经
+     `Invoke-InteractiveDevUpdate.ps1` 把更新派发到已登录的桌面会话执行，不要自己用
+     `Start-Process`、`schtasks` 去拉起 Shell。
+
+明确禁止：
+
+- 在另一台机器（例如 Linux 构建机）上编译、发布后，把 DLL 或目录复制、`scp` 到目标机器的
+  安装目录。
+- 手动替换、改名或"备份后覆盖" `%LOCALAPPDATA%\Programs\MyPowerTools` 下的任何组件。
+- 用工作区里有未提交、未推送改动的源码部署。
+
+脚本强制执行这条规则：`Start-MyPowerTools-Dev.ps1`、`update-windows-dev.ps1` 和
+`update-windows-broker-dev.ps1` 在动手前都会调用 `scripts/Assert-DevSourceSynced.ps1`。
+它会 fetch 上游，要求工作区干净且 HEAD 等于上游提交，否则直接拒绝，没有绕过开关。部署结果
+会把 `sourceCommit` 和 `sourceUpstream` 写进 `dev-update.manifest.json`，方便追溯。全新
+checkout 第一次部署时，`Start-MyPowerTools-Dev.ps1` 会自动执行
+`scripts/prepare-focused-test-sdk.ps1` 生成本地 SDK 源。
+
 ## Windows Dev 版本运行方式
 
 本地开发**默认只使用开发版**。不要用未叠加当前仓库代码的安装版做验证，包括
